@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.gradle/
+build/
+target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build outputs
+dist/
+out/
+*.jar
+*.war
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+docker-data/
+
+# Test coverage
+coverage/
+.nyc_output/
