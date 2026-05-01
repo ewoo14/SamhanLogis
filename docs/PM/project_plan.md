@@ -2,8 +2,8 @@
 
 > **프로젝트명**: SamhanLogis (삼한로지스)
 > **작성일**: 2026-05-01
-> **버전**: v1.0 Draft
-> **상태**: 🔵 대표 검토 대기
+> **버전**: v1.1 (대표 검토 반영)
+> **상태**: 🟢 대표 승인 완료 — Phase 1 착수 대기
 
 ---
 
@@ -17,7 +17,7 @@
 ### 1.2 핵심 요구사항 요약
 | 구분 | 내용 |
 |------|------|
-| 아키텍처 | MSA, 분산 Docker 서버, 분산 DB, Eureka 기반 게이트웨이/로드밸런싱 |
+| 아키텍처 | MSA, 분산 Docker 서버, **서비스별 독립 DB**, Eureka 기반 게이트웨이/로드밸런싱 |
 | 배포 형태 | 내부용: EXE(Electron), 외부 거래처용: 웹/앱 |
 | 조직 구조 | 대표실 → 사무실(행정) / 물류창고(초월·상일·가상창고) / 거래처 |
 | 권한 체계 | 마스터, 개발자, 매니저, 영업원, 회계원, 창고원, 재고원 (7단계 세분화) |
@@ -62,7 +62,7 @@
 │                    데이터 계층                            │
 │  ┌──────────┐ ┌──────┐ ┌────────────┐ ┌──────┐        │
 │  │PostgreSQL│ │Redis │ │Elasticsrch │ │MinIO │        │
-│  │ Cluster  │ │Cache │ │  (Logs)    │ │(File)│        │
+│  │(독립DB)  │ │Cache │ │  (Logs)    │ │(File)│        │
 │  └──────────┘ └──────┘ └────────────┘ └──────┘        │
 │  ┌──────────┐                                           │
 │  │ RabbitMQ │                                           │
@@ -72,21 +72,22 @@
 
 ### 2.2 마이크로서비스 목록 (13개)
 
-| # | 서비스명 | 기술 | DB | 핵심 기능 |
-|---|---------|------|-----|----------|
+| # | 서비스명 | 기술 | 독립 DB | 핵심 기능 |
+|---|---------|------|--------|----------|
 | 1 | API Gateway | Spring Cloud Gateway | - | 라우팅, 인증 필터, Rate Limiting |
 | 2 | Eureka Server | Spring Cloud Netflix | - | 서비스 디스커버리, 로드밸런싱 |
-| 3 | Auth Service | Spring Boot + JWT | PostgreSQL | 로그인, 토큰, 권한 검증 |
-| 4 | User Service | Spring Boot | PostgreSQL | 사용자 CRUD, 조직도, 역할 |
-| 5 | Product Service | Spring Boot | PostgreSQL | 품목, UUID, 태그/스펙 |
-| 6 | Inventory Service | Spring Boot | PostgreSQL | 창고 재고, FIFO, UUID 추적 |
-| 7 | Slip Service | Spring Boot | PostgreSQL | 전표 CRUD, 수정이력, 번호관리 |
-| 8 | Accounting Service | Spring Boot | PostgreSQL | 입출금, 잔액, 세금계산서, 원장 |
-| 9 | Partner Service | Spring Boot | PostgreSQL | 거래처 관리, 거래처 원장 |
-| 10 | Groupware Service | Spring Boot | PostgreSQL | 메신저, 일정, 전자결재 |
+| 3 | Auth Service | Spring Boot + JWT | auth_db | 로그인, 토큰, 권한 검증 |
+| 4 | User Service | Spring Boot | user_db | 사용자 CRUD, 조직도, 역할 |
+| 5 | Product Service | Spring Boot | product_db | 품목, UUID, 태그/스펙 |
+| 6 | Inventory Service | Spring Boot | inventory_db | 창고 재고, FIFO, UUID 추적 |
+| 7 | Slip Service | Spring Boot | slip_db | 전표 CRUD, 수정이력, 번호관리 |
+| 8 | Accounting Service | Spring Boot | accounting_db | 입출금, 잔액, 세금계산서, 원장, **홈택스 API**, **오픈뱅킹 API** |
+| 9 | Partner Service | Spring Boot | partner_db | 거래처 관리, 거래처 원장, **링크 공유 주문** |
+| 10 | Groupware Service | Spring Boot | groupware_db | 메신저, 일정, 전자결재 |
 | 11 | Notification Service | Spring Boot | Redis | 푸시, 알림, WebSocket |
 | 12 | Logging Service | Spring Boot | Elasticsearch | 전체 감사로그, 작업 추적 |
-| 13 | Dashboard Service | Spring Boot | PostgreSQL | 집계, 통계, 리포트 |
+| 13 | Dashboard Service | Spring Boot | dashboard_db | 집계, 통계, 리포트 |
+| 14 | Migration Service | Spring Boot | migration_db | **이카운트 데이터 마이그레이션, 음수 수량 변환** |
 
 ---
 
@@ -164,10 +165,55 @@
 - 상세 스펙: 태그 형식 추가, 견적서에서 조회 가능
 
 ### 3.6 회계 시스템
-- 법인계좌 입출금 내역/잔액 조회
-- 세금계산서 일괄/개별 발행 (출고전표 단위)
+- 법인계좌 입출금 내역/잔액 조회 (**오픈뱅킹 API 직접 연동**)
+- 세금계산서 일괄/개별 발행 (**홈택스 API 직접 연동**)
 - 거래처별 원장 관리
 - 권한별 데이터 표시 차등
+
+### 3.8 거래처 주문 시스템
+- **링크 공유 방식**: 공식 홈페이지 도메인 사용 (예: `order.samhan.co.kr/{token}`)
+- 거래처별 고유 주문 링크 생성 → 링크 접속 시 주문 페이지 표시
+- 로그인 불필요, 토큰 기반 인증으로 간편 접근
+- 주문 완료 시 내부 시스템에 자동 반영 → 출고전표 생성 연계
+
+### 3.9 모바일 앱 (듀얼 구성)
+
+#### 거래처용 앱
+- 주문 링크 접속 → 주문서 작성/조회
+- 배송 현황 추적
+- 주문 이력 확인
+
+#### 내부 직원용 앱
+- **권한별 메뉴 차등 표시** (역할에 따라 접속 가능 메뉴가 다름)
+- 창고원: 출고전표 수신 → 확인 → 출고 처리 (핵심 워크플로우)
+- 영업원: 견적/주문 현황 조회, 긴급 전표 확인
+- 매니저: 승인 대기 항목 처리, 현황 대시보드
+- 알림 푸시 (전표 도착, 승인 요청 등)
+
+### 3.10 이카운트 데이터 마이그레이션
+
+#### 마이그레이션 대상
+- 품목 마스터 데이터
+- 거래처 정보
+- 입출고 이력
+- 재고 현황
+- 회계 데이터 (입출금, 세금계산서)
+
+#### 음수 수량 변환 규칙
+이카운트에서는 음수 수량으로 반대 방향 처리를 하지만, SamhanLogis에서는 명시적 전표 분리:
+
+| 이카운트 원본 | 변환 후 (SamhanLogis) |
+|-------------|---------------------|
+| 출고전표 수량 < 0 (마이너스 출고) | → **입고전표** 생성 (양수 수량) |
+| 입고전표 수량 < 0 (마이너스 입고) | → **출고전표** 생성 (양수 수량, 삼성 착하판정 회수 등) |
+
+#### 변환 프로세스
+1. 이카운트 데이터 CSV/API 추출
+2. 데이터 정합성 검증 (누락, 불일치 확인)
+3. 음수 수량 레코드 분류 및 전표 유형 변환
+4. UUID 신규 발행 + 기존 데이터 매핑 테이블 생성
+5. 스테이징 DB 적재 → 검증 → 프로덕션 반영
+6. 변환 리포트 생성 (원본 vs 변환 결과 대조표)
 
 ### 3.7 전체 감사 로깅
 - **모든 작업**에 대해 감사 로그 기록
@@ -180,7 +226,8 @@
 | 계층 | 기술 |
 |------|------|
 | Backend | Java 17+, Spring Boot 3.x, Spring Cloud (Eureka, Gateway) |
-| Database | PostgreSQL 16 (분산), Redis (캐시), Elasticsearch (로그) |
+| Database | PostgreSQL 16 (**서비스별 독립 DB**), Redis (캐시), Elasticsearch (로그) |
+| 외부 API | 홈택스 API (세금계산서), 오픈뱅킹 API (법인계좌) |
 | Message Queue | RabbitMQ |
 | Frontend (Desktop) | Electron + React + TypeScript |
 | Frontend (Web) | React + TypeScript + Vite |
@@ -268,7 +315,7 @@ PM (총괄 프로젝트 매니저) ─── 대표에게 보고
 
 ---
 
-## 7. 개발 로드맵 (6단계, 총 28주)
+## 7. 개발 로드맵 (7단계, 총 33주)
 
 ### Phase 1: 기반 인프라 (4주)
 - Docker 환경 구성, Eureka Server, API Gateway
@@ -300,24 +347,31 @@ PM (총괄 프로젝트 매니저) ─── 대표에게 보고
 - 대시보드 (통계, 리포트, 시각화)
 - 알림 서비스 (WebSocket, 푸시)
 
-### Phase 6: 외부 배포 + 최적화 (4주)
-- 거래처 주문 웹 포털
-- 모바일 앱 (React Native)
+### Phase 6: 외부 배포 + 모바일 (5주)
+- 거래처 주문 링크 시스템 (공식 도메인 기반)
+- 모바일 앱 듀얼 구성 (거래처용 + 내부 직원용)
+- 내부 앱 권한별 메뉴 차등 구현
+- 창고원 모바일 출고전표 수신/처리 워크플로우
+
+### Phase 7: 이카운트 마이그레이션 + 최적화 (4주)
+- 이카운트 데이터 추출 및 정합성 검증
+- 음수 수량 변환 처리 (출고↔입고 전환)
+- UUID 매핑 및 스테이징 검증
 - 전체 통합 테스트, 성능 최적화
 - 운영 배포 + 모니터링
 
 ---
 
-## 8. Open Questions (대표 검토 필요)
+## 8. 대표 검토 결정사항 (2026-05-01 확정)
 
-> ⚠️ 아래 사항에 대해 대표의 결정이 필요합니다:
-
-1. **DB 분산 전략**: 서비스별 독립 DB vs 공유 DB 클러스터?
-2. **거래처 주문 웹**: 로그인 포털 vs 링크 공유 방식?
-3. **세금계산서 연동**: 홈택스 직접 연동 vs 외부 서비스(바로빌, 팝빌 등)?
-4. **법인계좌 연동**: 오픈뱅킹 API 직접 연동 vs 수동 입력?
-5. **기존 이카운트 데이터 마이그레이션** 필요 여부?
-6. **모바일 앱**: 거래처 전용 vs 내부 직원 포함?
+| # | 질문 | 결정 |
+|---|------|------|
+| 1 | DB 분산 전략 | ✅ **서비스별 독립 DB** (각 마이크로서비스가 자체 DB 소유) |
+| 2 | 거래처 주문 웹 | ✅ **링크 공유 방식** (공식 홈페이지 도메인 사용) |
+| 3 | 세금계산서 연동 | ✅ **홈택스 API 직접 연동** |
+| 4 | 법인계좌 연동 | ✅ **오픈뱅킹 API 직접 연동** |
+| 5 | 이카운트 마이그레이션 | ✅ **필요** (음수 수량 → 반대 전표 변환 처리 포함) |
+| 6 | 모바일 앱 | ✅ **거래처용 + 내부 직원용 듀얼** (내부용은 권한별 메뉴 차등) |
 
 ---
 
@@ -343,4 +397,4 @@ PM (총괄 프로젝트 매니저) ─── 대표에게 보고
 
 ---
 
-*최종 수정: 2026-05-01 | 작성자: PM*
+*최종 수정: 2026-05-01 13:56 | 작성자: PM | 버전: v1.1 (대표 검토 반영)*
