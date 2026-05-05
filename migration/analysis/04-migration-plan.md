@@ -53,9 +53,11 @@
 
 ## §2 SamhanLogis 도메인 명세
 
+> **Phase 4.5 보강 (Phase 3.5 사용자 신규 도메인 §3/§4 반영, 2026-05-05)** — §2.1 ProductMaster 8 → 10 컬럼 확장 + ProductSpec/SpecKeyTemplate 신규 entity 2건 + admin/spec endpoint 7건. §2.3/§2.4 품목 검색 모달에 usageScope 필터 + ProductSpec 응답 보강.
+
 ### §2.1 product-service 확장 (M1)
 
-#### §2.1.1 ProductMaster entity (확장 8 컬럼)
+#### §2.1.1 ProductMaster entity (확장 10 컬럼) — Phase 4.5 보강 (8 → 10)
 
 | 컬럼 | 타입 | nullable | 출처 / 룰 | DOMAIN-EXTENSIONS |
 |---|---|---|---|---|
@@ -73,12 +75,14 @@
 | `releasePrice` | numeric(12,2) | F | 시트 D/E 열 `출고가` (베이스) | — |
 | `deliveryPrice` | numeric(12,2) | F | 시트 F/G/H 열 `납품가` (베이스 — 정적가) | — |
 | `pyongSize` | numeric(5,2) | T | 싱글 세트 B열 `평형` | — |
-| `category` | enum {HOME_MULTI, SINGLE_SET, SINGLE_PART, COMMERCIAL_MULTI, COMMERCIAL_PART, OLD, MATERIAL} | F | 시트 출처별 분류 | — |
-| `spec` | varchar(255) | T | 시트 `규격` 컬럼 | — |
+| `category` | enum {HOME_MULTI, SINGLE_SET, SINGLE_PART, COMMERCIAL_MULTI, COMMERCIAL_PART, OLD, MATERIAL} | F | 시트 출처별 분류 (내부 카테고리, ProductSpec/시드 변환용) | — |
+| `usageScope` | enum {NONE, ESTIMATE, PARTNER_ORDER, BOTH} | F | **Phase 4.5 신규** — 견적/주문 화면 직접 노출 여부 제어 (default `NONE` = 분류되지 않은 품목 미노출, 사용자 명시) | **§3 신규** |
+| `estimateCategory` | enum {HOME_MULTI, SINGLE_SET, COMMERCIAL_MULTI, LEGACY, OTHER} | T | **Phase 4.5 신규** — 견적서 카테고리 분류 (`usageScope ∈ {ESTIMATE, BOTH}` 인 경우만 채움). SpecKeyTemplate FK 키 | **§3 신규** |
+| `spec` | varchar(255) | T | (legacy) 시트 `규격` 컬럼 — Phase 4.5 이후 ProductSpec 1:N 으로 대체. 기존 row 보존만 (read-only fallback) | — |
 | `remark` | text | T | 시트 `비고` 컬럼 | — |
 | `parentBundleSetModel` | varchar(64) | T | BundleComponent FK (싱글 구성품 M열 / 상업멀티 구성 I열) — sub-product 만 NOT NULL | — |
 
-**Flyway 마이그 SQL** (V{N}__migration_extension.sql):
+**Flyway 마이그 SQL** (V{N}__migration_extension.sql) — Phase 4.5 보강 (usageScope/estimateCategory 컬럼 + composite index):
 
 ```sql
 ALTER TABLE product_master
@@ -92,13 +96,93 @@ ALTER TABLE product_master
   ADD COLUMN release_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   ADD COLUMN delivery_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   ADD COLUMN parent_bundle_set_model VARCHAR(64) NULL,
+  -- Phase 4.5 신규 (DOMAIN-EXTENSIONS §3)
+  ADD COLUMN usage_scope VARCHAR(16) NOT NULL DEFAULT 'NONE',
+  ADD COLUMN estimate_category VARCHAR(20) NULL,
   ADD CONSTRAINT chk_set_material_key CHECK (set_material_key IN ('D4','D7','D8')),
   ADD CONSTRAINT chk_bundle_mode CHECK (bundle_mode IN ('EXPAND','KEEP')),
-  ADD CONSTRAINT chk_product_type CHECK (product_type IN ('SINGLE','BUNDLE'));
+  ADD CONSTRAINT chk_product_type CHECK (product_type IN ('SINGLE','BUNDLE')),
+  ADD CONSTRAINT chk_usage_scope CHECK (usage_scope IN ('NONE','ESTIMATE','PARTNER_ORDER','BOTH')),
+  ADD CONSTRAINT chk_estimate_category CHECK (estimate_category IN ('HOME_MULTI','SINGLE_SET','COMMERCIAL_MULTI','LEGACY','OTHER'));
 
 CREATE INDEX idx_pm_modelcode ON product_master(model_code);
 CREATE INDEX idx_pm_parent_set ON product_master(parent_bundle_set_model);
+-- Phase 4.5 신규 — 견적/주문 모달 검색 성능 (DOMAIN-EXTENSIONS §3)
+CREATE INDEX idx_pm_usage_category ON product_master(usage_scope, estimate_category);
 ```
+
+#### §2.1.1.1 ProductSpec entity (Phase 4.5 신규 1:N) — DOMAIN-EXTENSIONS §4
+
+| 컬럼 | 타입 | nullable | 의미 / 출처 |
+|---|---|---|---|
+| `id` | UUID | F | BaseEntity 7 audit fields 포함 |
+| `productMasterId` | UUID FK | F | ProductMaster.id (1:N 부모) |
+| `specKey` | varchar(50) | F | 스펙 키 (예: `냉방성능(kW)`, `전원선`, `규격`) — 표준 키는 estimate Code.js `getSpecDetailMap_()` line 1006-1364 의 `idx(H, [...])` 인자 매트릭스 채택 |
+| `specValue` | varchar(255) | F | 스펙 값 (예: `5.6`, `220V/60Hz`, `Φ6.35×Φ12.7`) |
+| `unit` | varchar(20) | T | 단위 (값에 단위 미포함 시만; 예: `kW`, `mm`, `m`, `kg`) — SpecKeyTemplate.defaultUnit 으로 자동 채움 |
+| `displayOrder` | int | F | 화면 표시 순서 (drag&drop 으로 사용자 조정) |
+
+**제약조건**: unique `(productMasterId, specKey)` — 동일 품목에 같은 키 중복 금지.
+
+**Flyway SQL**:
+
+```sql
+CREATE TABLE product_spec (
+  id UUID PRIMARY KEY,
+  product_master_id UUID NOT NULL REFERENCES product_master(id) ON DELETE CASCADE,
+  spec_key VARCHAR(50) NOT NULL,
+  spec_value VARCHAR(255) NOT NULL,
+  unit VARCHAR(20) NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  -- BaseEntity 7 audit fields
+  created_at TIMESTAMP NOT NULL,
+  created_by UUID NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  updated_by UUID NOT NULL,
+  deleted_at TIMESTAMP NULL,
+  deleted_by UUID NULL,
+  version BIGINT NOT NULL DEFAULT 0,
+  CONSTRAINT uq_ps_master_key UNIQUE (product_master_id, spec_key)
+);
+CREATE INDEX idx_ps_master_order ON product_spec(product_master_id, display_order);
+```
+
+#### §2.1.1.2 SpecKeyTemplate entity (Phase 4.5 신규) — DOMAIN-EXTENSIONS §4
+
+| 컬럼 | 타입 | nullable | 의미 |
+|---|---|---|---|
+| `id` | UUID | F | BaseEntity |
+| `estimateCategory` | enum {HOME_MULTI, SINGLE_SET, COMMERCIAL_MULTI, LEGACY, OTHER} | F | §2.1.1 ProductMaster.estimateCategory 와 일치 |
+| `specKey` | varchar(50) | F | 표준 스펙 키 |
+| `defaultUnit` | varchar(20) | T | 단위 default (ProductSpec 신규 row 자동 주입) |
+| `displayOrder` | int | F | 추천 표시 순서 (모달에서의 정렬 기준) |
+| `isRecommended` | boolean | F | TRUE = 카테고리 선택 시 자동 추가 (값은 빈 칸, 사용자 입력 대기) |
+
+**제약조건**: unique `(estimateCategory, specKey)`.
+
+**Flyway SQL**:
+
+```sql
+CREATE TABLE spec_key_template (
+  id UUID PRIMARY KEY,
+  estimate_category VARCHAR(20) NOT NULL,
+  spec_key VARCHAR(50) NOT NULL,
+  default_unit VARCHAR(20) NULL,
+  display_order INT NOT NULL DEFAULT 0,
+  is_recommended BOOLEAN NOT NULL DEFAULT FALSE,
+  -- BaseEntity 7 audit fields (생략, 위와 동일)
+  CONSTRAINT chk_skt_category CHECK (estimate_category IN ('HOME_MULTI','SINGLE_SET','COMMERCIAL_MULTI','LEGACY','OTHER')),
+  CONSTRAINT uq_skt_cat_key UNIQUE (estimate_category, spec_key)
+);
+CREATE INDEX idx_skt_cat_order ON spec_key_template(estimate_category, display_order);
+```
+
+**시드 row 53건** (DOMAIN-EXTENSIONS §4 매트릭스):
+- HOME_MULTI 14 row (배관경, 냉매가스, 차단기, 전원선, 제품크기, 제품중량, 포장치수, 포장중량, 최대장배관, 최대고저차, 에너지소비효율등급, 냉방성능Kcal/h, 냉방성능kW, 소비전력)
+- SINGLE_SET 21 row (HOME_MULTI 항목 + 등급(냉방/난방), 난방성능Kcal/h+kW, 소비전력(cool/heat 분리), 실내/실외 크기·중량·포장·포장중량, 배관길이, 고낙차)
+- COMMERCIAL_MULTI 16 row (HOME_MULTI 14 + 난방성능Kcal/h + 난방성능kW + 덕트구경)
+- LEGACY 2 row (규격, 비고)
+- OTHER 0 row (사용자 자유 입력)
 
 #### §2.1.2 PriceHistory entity (마스터 충돌 4건 해소)
 
@@ -168,17 +252,24 @@ CREATE INDEX idx_pm_parent_set ON product_master(parent_bundle_set_model);
 
 **시드**: 추천실외기 row 3~26 = 24 row.
 
-#### §2.1.7 API endpoint
+#### §2.1.7 API endpoint — Phase 4.5 보강 (신규 7 endpoint: usage 변경 1 + spec CRUD 5 + spec-key-template 1)
 
 | Method | Path | 책임 | 호출자 |
 |---|---|---|---|
-| GET | `/api/v1/products` | 카테고리별 ProductMaster 조회 (effectiveDate 자동 적용) | estimate-service / partner-order-service |
-| GET | `/api/v1/products/{modelCode}` | 단일 조회 + bundleComponents 펼침 | 동상 |
-| POST | `/api/v1/products` | 신규 등록 + `VariableDiscountDetector` 자동 판정 | 관리자 UI |
+| GET | `/api/v1/products` | 카테고리별 ProductMaster 조회 (effectiveDate 자동 적용) — **default `usageScope <> NONE` 필터** | estimate-service / partner-order-service |
+| GET | `/api/v1/products/{modelCode}` | 단일 조회 + bundleComponents + **productSpecs[]** 펼침 | 동상 |
+| POST | `/api/v1/products` | 신규 등록 + `VariableDiscountDetector` 자동 판정 + 카테고리 선택 시 SpecKeyTemplate 추천 키 자동 추가 | 관리자 UI |
 | GET | `/api/v1/products/{modelCode}/price-history` | 시점별 단가 이력 | 견적 산정 |
 | GET | `/api/v1/material-prices` | D4/D7/D8 매트릭스 | 견적 산정 (자재 옵션) |
 | GET | `/api/v1/branch-pipes/lookup?capHp={hp}` | 분기관 코드 lookup | estimate / partner-order 분기관 페이지 |
 | GET | `/api/v1/odu-recommendations?type={enum}&indoorCap={cap}` | 실외기 추천 매트릭스 | estimate 견적 작성 |
+| **PATCH** | **`/api/v1/products/{modelCode}/usage`** | **Phase 4.5 신규** — 운영 중 `usageScope` + `estimateCategory` 변경 (admin only). DOMAIN-EXTENSIONS §3 비즈니스 룰 (운영 중 분류 재조정) | 관리자 UI |
+| **GET** | **`/api/v1/products/{modelCode}/specs`** | **Phase 4.5 신규** — ProductSpec 조회 (displayOrder 순) | estimate / partner-order / 관리자 |
+| **POST** | **`/api/v1/products/{modelCode}/specs`** | **Phase 4.5 신규** — ProductSpec 추가 (specKey unique 충돌 시 409) | 관리자 UI |
+| **PATCH** | **`/api/v1/products/{modelCode}/specs/{id}`** | **Phase 4.5 신규** — specValue/unit 수정 | 관리자 UI |
+| **DELETE** | **`/api/v1/products/{modelCode}/specs/{id}`** | **Phase 4.5 신규** — Soft Delete (BaseEntity `deleted_at`) | 관리자 UI |
+| **PATCH** | **`/api/v1/products/{modelCode}/specs/reorder`** | **Phase 4.5 신규** — displayOrder bulk 재정렬 (drag&drop body: `[{id, displayOrder}, ...]`) | 관리자 UI (react-beautiful-dnd 등) |
+| **GET** | **`/api/v1/spec-key-templates?category={enum}`** | **Phase 4.5 신규** — 카테고리별 추천 specKey 조회 (모달 추천 항목 source) | 관리자 UI 스펙 추가 모달 |
 
 #### §2.1.8 VariableDiscountDetector service 명세
 
@@ -379,8 +470,10 @@ ALTER TYPE approval_status ADD VALUE 'LONG_PENDING_NO_ORDER';
 | `supplyAmount` | numeric(15,2) | F | 공급가액 |
 | `vatAmount` | numeric(15,2) | F | 부가세 |
 | `lineAmount` | numeric(15,2) | F | 라인 합계 (VAT 포함) |
-| `spec` | varchar(255) | T | 규격 |
+| `spec` | varchar(255) | T | 규격 (legacy fallback — Phase 4.5 이후 응답 직렬화 시 ProductSpec 1:N 으로 대체) |
 | `remark` | text | T | 라인 적요 (`combineRemarks_` 결과) |
+
+**Phase 4.5 보강** — EstimateLine 응답 직렬화 시 `productSpecs[]` 포함 (product-service Feign client 호출 결과 — `ProductSpec.specKey/specValue/unit/displayOrder`). 화면 라인 카드 + 인쇄 양식 (종합견적서) 의 spec 영역은 ProductSpec displayOrder 순으로 렌더링.
 
 #### §2.3.3 EstimateSnapshot entity (Notion QUOTE_006 마이그)
 
@@ -413,19 +506,20 @@ estimate `Code.js sendOrderFromUi` (1762) + `index.html submitOrderCard` (14729)
 
 종합견적서 시트 layout (Phase 3 §2.2) → estimate-service Frontend `EstimatePrintTemplate.tsx`. `feedback_print_design_iteration.md` 가드 의무 (사용자 이미지 → mock → Edge 캡처 → 3-5회 iteration).
 
-#### §2.3.6 API endpoint
+#### §2.3.6 API endpoint — Phase 4.5 보강 (품목 검색 모달 usageScope 필터 + 라인 ProductSpec 응답)
 
 | Method | Path | 책임 |
 |---|---|---|
 | GET | `/api/v1/estimates` | 견적 목록 (날짜/거래처 필터) |
-| GET | `/api/v1/estimates/{id}` | 단일 견적 조회 + lines |
+| GET | `/api/v1/estimates/{id}` | 단일 견적 조회 + lines (각 line 응답에 **`productSpecs[]` 포함** — displayOrder 순) |
 | POST | `/api/v1/estimates` | 신규 견적 (DRAFT) |
 | PUT | `/api/v1/estimates/{id}` | 견적 수정 |
 | POST | `/api/v1/estimates/{id}/finalize` | DRAFT → CONFIRMED + slip-service 호출 |
-| GET | `/api/v1/estimates/{id}/pdf` | 견적서 PDF 생성 |
+| GET | `/api/v1/estimates/{id}/pdf` | 견적서 PDF 생성 (ProductSpec displayOrder 순 출력) |
 | POST | `/api/v1/estimates/snapshots` | 임시저장 (saveQuoteSnapshot 대체) |
 | GET | `/api/v1/estimates/snapshots?bizno={bizno}` | 임시저장 이력 조회 |
 | POST | `/api/v1/estimates/migration/notion-import` | Notion QUOTE DB 1회 export 시드 endpoint |
+| **GET** | **`/api/v1/products?usageScope=ESTIMATE,BOTH&category={enum}`** | **Phase 4.5 신규 (BFF 위임)** — 견적 품목 검색 모달 — 카테고리 선택 시 자동 필터 (`usageScope IN ('ESTIMATE','BOTH') AND estimate_category = ?`). product-service 위임 (Feign client). DOMAIN-EXTENSIONS §3 비즈니스 룰 |
 
 #### §2.3.7 VariableDiscountDetector + Bundle EXPAND/KEEP 분기 적용
 
@@ -460,6 +554,8 @@ estimate-service 가 product-service Feign client 호출 시점에 ProductMaster
 #### §2.4.2 PartnerOrderLine entity
 
 EstimateLine 과 거의 동일 구조 + `parentOrderId` FK.
+
+**Phase 4.5 보강** — PartnerOrderLine 응답 직렬화 시 `productSpecs[]` 포함 (product-service Feign client 호출 결과). 거래처 주문 SPA 라인 카드 + 인쇄 양식의 spec 영역은 ProductSpec displayOrder 순으로 렌더링. UUID 미노출 원칙 준수 (modelCode + productSpecs.specKey/specValue 만 노출 — `feedback_uuid_no_user_visibility.md`).
 
 #### §2.4.3 PartnerOrderDraft entity (Notion SNAPSHOT_009 마이그)
 
@@ -512,20 +608,22 @@ public void onPartnerOrderConfirmed(PartnerOrderConfirmedEvent evt) {
 }
 ```
 
-#### §2.4.7 API endpoint
+#### §2.4.7 API endpoint — Phase 4.5 보강 (카탈로그 endpoint 모두 usageScope 필터 + 라인 ProductSpec 응답)
 
 | Method | Path | 책임 |
 |---|---|---|
 | GET | `/api/v1/partner-orders?bizno={bizno}` | 주문 이력 |
+| GET | `/api/v1/partner-orders/{id}` | 단일 주문 조회 + lines (각 line 응답에 **`productSpecs[]` 포함**) |
 | POST | `/api/v1/partner-orders` | 신규 주문 (DRAFT) |
 | PUT | `/api/v1/partner-orders/{id}` | 수정 |
 | POST | `/api/v1/partner-orders/{id}/confirm` | DRAFT → CONFIRMED + Event 발행 |
 | POST | `/api/v1/partner-orders/drafts` | 임시저장 (saveOrderSnapshot 대체) |
 | GET | `/api/v1/partner-orders/drafts?bizno={bizno}` | 임시저장 이력 |
 | POST | `/api/v1/partner-orders/migration/notion-import` | Notion ORDER + SNAPSHOT 1회 export 시드 |
-| GET | `/api/v1/partner-orders/catalog/home` | 홈멀티 카탈로그 (product-service 위임) |
-| GET | `/api/v1/partner-orders/catalog/single-sets` | 싱글 세트 |
-| GET | `/api/v1/partner-orders/catalog/commercial` | 상업멀티 |
+| GET | `/api/v1/partner-orders/catalog/home` | 홈멀티 카탈로그 (product-service 위임) — **`usageScope IN ('PARTNER_ORDER','BOTH') AND estimate_category='HOME_MULTI'`** |
+| GET | `/api/v1/partner-orders/catalog/single-sets` | 싱글 세트 — 동상 (`...='SINGLE_SET'`) |
+| GET | `/api/v1/partner-orders/catalog/commercial` | 상업멀티 — 동상 (`...='COMMERCIAL_MULTI'`) |
+| **GET** | **`/api/v1/products?usageScope=PARTNER_ORDER,BOTH`** | **Phase 4.5 신규 (BFF 위임)** — 주문 품목 검색 모달 — `usageScope IN ('PARTNER_ORDER','BOTH')` 자동 필터 (DOMAIN-EXTENSIONS §3) |
 
 ---
 
@@ -566,29 +664,65 @@ ALTER TABLE slip
 
 ## §3 시드 데이터 매핑 (시트 → entity)
 
-### §3.1 27 탭 → 12 entity 매핑 표
+### §3.1 27 탭 → 14 entity 매핑 표 — Phase 4.5 보강 (ProductSpec + SpecKeyTemplate 추가)
 
 | # | 시트 탭 | row 수 | entity | service | 시드 우선순위 | Phase 6 시드 스크립트 |
 |---|---|---|---|---|---|---|
-| 1 | 홈멀티 | ~119 | ProductMaster + PriceHistory(과거) | product-service | M1 | `db/seed/V1__home_multi.sql` (Flyway) |
+| 1 | 홈멀티 | ~119 | ProductMaster (`usageScope=BOTH`, `estimateCategory=HOME_MULTI`) + PriceHistory(과거) + **ProductSpec ~14×119** | product-service | M1 | `db/seed/V1__home_multi.sql` (Flyway) + CommandLineRunner spec 변환 |
 | 2 | 홈멀티_단가인상 | ~119 | PriceHistory(2026-04-01) | product-service | M1 | `V2__home_multi_inc.sql` |
-| 3 | 싱글 세트 | ~288 | ProductMaster(BUNDLE) + PriceHistory(과거) + bundleMode | product-service | M1 | `V3__single_set.sql` |
+| 3 | 싱글 세트 | ~288 | ProductMaster(BUNDLE, `usageScope=BOTH`, `estimateCategory=SINGLE_SET`) + PriceHistory(과거) + bundleMode + **ProductSpec ~21×288** | product-service | M1 | `V3__single_set.sql` + spec 변환 (splitBar/splitSlash 펼침) |
 | 4 | 싱글 세트_단가인상 | ~288 | PriceHistory(2026-04-01) | product-service | M1 | `V4__single_set_inc.sql` |
-| 5 | 싱글 구성품 | ~1735 | ProductMaster(SINGLE) + BundleComponent + PriceHistory(과거) | product-service | M1 | `V5__single_part.sql` |
+| 5 | 싱글 구성품 | ~1735 | ProductMaster(SINGLE, `usageScope=NONE`, `estimateCategory=NULL`) + BundleComponent + PriceHistory(과거) + **ProductSpec ~2×1735** (규격/비고만) | product-service | M1 | `V5__single_part.sql` + spec 변환 |
 | 6 | 싱글 구성품_단가인상 | ~1735 | PriceHistory(2026-04-01) | product-service | M1 | `V6__single_part_inc.sql` |
-| 7 | 상업멀티 | ~414 | ProductMaster + PriceHistory(과거) | product-service | M1 | `V7__commercial_multi.sql` |
+| 7 | 상업멀티 | ~414 | ProductMaster (`usageScope=BOTH`, `estimateCategory=COMMERCIAL_MULTI`) + PriceHistory(과거) + **ProductSpec ~16×414** (ERV 분기 multi-col 합산) | product-service | M1 | `V7__commercial_multi.sql` + spec 변환 |
 | 8 | 상업멀티_단가인상 | ~414 | PriceHistory(2026-04-01) | product-service | M1 | `V8__commercial_multi_inc.sql` |
-| 9 | 싱글 자재가격 | 28 | MaterialPrice | product-service | M1 | `V9__material_price.sql` |
-| 10 | 상업멀티 구성 | ~516 | ProductMaster + BundleComponent + PriceHistory(과거) | product-service | M1 | `V10__commercial_part.sql` |
+| 9 | 싱글 자재가격 | 28 | MaterialPrice (ProductMaster `usageScope=NONE`) | product-service | M1 | `V9__material_price.sql` |
+| 10 | 상업멀티 구성 | ~516 | ProductMaster (`usageScope=NONE`) + BundleComponent + PriceHistory(과거) + **ProductSpec ~2×516** (규격/비고만) | product-service | M1 | `V10__commercial_part.sql` + spec 변환 |
 | 11 | 상업멀티 구성_단가인상 | ~516 | PriceHistory(2026-04-01) | product-service | M1 | `V11__commercial_part_inc.sql` |
-| 12 | 분기계산 | ~99 | BranchPipeLookup | product-service | M1 (조건부 — sample spot-check 후) | `V12__branch_pipe.sql` |
-| 13 | 구형 | ~41 | ProductMaster(legacyDiscountFlag=TRUE) + PriceHistory | product-service | M1 | `V13__old_product.sql` |
+| 12 | 분기계산 | ~99 | BranchPipeLookup (시드, ProductMaster 무관) | product-service | M1 (조건부 — sample spot-check 후) | `V12__branch_pipe.sql` |
+| 13 | 구형 | ~41 | ProductMaster(legacyDiscountFlag=TRUE, `usageScope=BOTH`, `estimateCategory=LEGACY`) + PriceHistory + **ProductSpec ~2×41** (규격/비고) | product-service | M1 | `V13__old_product.sql` + spec 변환 |
 | 14 | 추천실외기 | 24 | OduRecommendationLookup | product-service | M1 | `V14__odu_recommend.sql` |
+| **추가** | **(코드 출처 시드)** | **53** | **SpecKeyTemplate** (HOME_MULTI 14 + SINGLE_SET 21 + COMMERCIAL_MULTI 16 + LEGACY 2) | **product-service** | **M1** | **`V15__spec_key_template.sql` (Phase 4.5 신규 — DOMAIN-EXTENSIONS §4 매트릭스)** |
 | 15 | 거래처 | 6924 | PartnerMaster | partner-service | M2 | `V1__partner_master.sql` |
 | 16 | 담당자 | 19 | EmployeeMaster | partner-service | M2 | `V2__employee.sql` |
-| 17~27 | 고아 11 (장비스펙/부속품스펙/종합견적서/전표생성폼/전표업로드목록 + 템플릿 6) | — | (Frontend UI 이전 + i18n) | estimate/partner-order/slip Frontend | M3-M5 | 시드 없음 — Frontend 컴포넌트 |
+| 17~27 | 고아 11 (장비스펙/부속품스펙/종합견적서/전표생성폼/전표업로드목록 + 템플릿 6) | — | (Frontend UI 이전 + i18n) — **장비스펙/부속품스펙은 ProductSpec 시드 검증 reference 로도 활용** | estimate/partner-order/slip Frontend | M3-M5 | 시드 없음 — Frontend 컴포넌트 |
 
-**누락 0 가드**: 27 탭 모두 매핑 (16 시드 + 11 Frontend 이전).
+**누락 0 가드**: 27 탭 모두 매핑 (16 시드 + 11 Frontend 이전) + Phase 4.5 코드 출처 SpecKeyTemplate 53 row 시드.
+
+**entity 합계**: ProductMaster + PriceHistory + BundleComponent + MaterialPrice + BranchPipeLookup + OduRecommendationLookup + **ProductSpec** + **SpecKeyTemplate** (product 8) + PartnerMaster + PartnerAuth + EmployeeMaster + PartnerLongPendingPolicy (partner 4) + EstimateMaster/Line/Snapshot (estimate 3) + PartnerOrderMaster/Line/Draft/ActionLog (partner-order 4) = **시드 entity 14건** (계산 기준 일치 — 12 → **14**).
+
+### §3.1.1 시드 시점 usageScope / estimateCategory 자동 분류 매트릭스 — Phase 4.5 신규 (DOMAIN-EXTENSIONS §3)
+
+| 시트 | usageScope | estimateCategory | 사유 |
+|---|---|---|---|
+| 홈멀티 (+ `_단가인상`) | BOTH | HOME_MULTI | 견적/주문 양쪽 직접 라인 |
+| 싱글 세트 (+ `_단가인상`) | BOTH | SINGLE_SET | 동상 (BUNDLE 부모, EXPAND/KEEP 분기) |
+| 상업멀티 (+ `_단가인상`) | BOTH | COMMERCIAL_MULTI | 동상 |
+| 구형 | BOTH | LEGACY | 구형 50% DC 적용 |
+| 싱글 구성품 (+ `_단가인상`) | NONE | NULL | BUNDLE component — backend 만 (직접 라인 미노출) |
+| 상업멀티 구성 (+ `_단가인상`) | NONE | NULL | 동상 |
+| 싱글 자재가격 | NONE | NULL | 자재 단가 마스터 (backend 합계 계산용) |
+| 추천실외기 | NONE | NULL | OduRecommendationLookup |
+| 분기계산 | NONE | NULL | BranchPipeLookup |
+
+### §3.1.2 시드 시점 spec 컬럼 → ProductSpec row 변환 매트릭스 — Phase 4.5 신규 (DOMAIN-EXTENSIONS §4)
+
+**출처**: estimate Code.js `getSpecDetailMap_()` line 1006-1364 의 `scanHome` (1036-1117) / `scanSingle` (1118-1194) / `scanComm` (1195-1356) 의 `idx(H, [...])` 호출 인자 = 시트 헤더 컬럼명. partner-order Code.js `getSpecMap_()` line 1159-1210 보충 (구성품 시트 `규격`/`비고`).
+
+| 시트 | scan 함수 | 표준 specKey 수 | 변환 룰 비고 |
+|---|---|---|---|
+| 홈멀티 | `scanHome()` (1036-1117) | 14 | 모델명 제외 단순 1:1 매핑. NULL 컬럼 → row 생성 안함 |
+| 싱글 세트 | `scanSingle()` (1118-1194) | 21 | 다중-value 컬럼 펼침 — `소비전력(kW)(최소/정격/최대)` `splitBar` "3 \| 4" → 2 row (cool/heat 분리). `배관길이/고낙차(m)` `splitSlash` "12/8" → 2 row. `전원(mm²)/차단(A)` splitSlash → 2 row |
+| 상업멀티 | `scanComm()` (1195-1356) | 16 | ERV3 layout (1262-1276): 냉방Cap/Pow + 난방Cap/Pow 각 3 컬럼 (터보/강/약) → `joinCols(row, cols).join(' / ')` → 단일 specValue ("3.5 / 5.0 / 6.5"), unit 에 `최소/정격/최대` 표기. ERV2 layout 동상 |
+| 싱글 구성품 / 상업멀티 구성 | partner-order `getSpecMap_()` (1159-1210) `findIdx_(H, ['비고','규격'])` | 2 (규격, 비고) | NULL 컬럼 → row 생성 안함 |
+| 구형 | partner-order `getSpecMap_()` 동상 | 2 (규격, 비고) | 동상 |
+
+**시드 row 추산** — ProductSpec ≈ 14×119 (HOME) + 21×288 (SET) + 2×1735 (구성품) + 16×414 (COMM) + 2×516 (COMM 구성) + 2×41 (LEGACY) ≈ **~16,500 row** (NULL 컬럼 row 미생성 가정 시 실측 시드 약 ~25,000 row 이내). 정확 수치는 Phase 6 시드 스크립트 dry-run 결과 의무.
+
+**누락 0 가드** (Phase 6 QA):
+1. estimate Code.js `idx(H, [...])` 호출 인자 매트릭스 ↔ ProductSpec.specKey 1:1 매핑 누락 0
+2. `usageScope=NONE` 품목 (자재/구성품/lookup) 견적/주문 모달 노출 0건
+3. SpecKeyTemplate `isRecommended=TRUE` 키 누락 시 신규 품목 등록 시 자동 추가 안 됨 → IT
 
 ### §3.2 ProductMaster ~3000 SKU 시드 상세
 
@@ -695,6 +829,22 @@ ALTER TABLE slip
 
 각 인쇄 템플릿 의무: **사용자 이미지 → mock → Edge 캡처 → CSS-only 미세 조정 3~5회 iteration** (PR #21 회고).
 
+### §5.1 Phase 4.5 Frontend 보강 — 동적 스펙 UI + 카테고리 필터 모달
+
+| # | 화면 | service Frontend | 컴포넌트 (제안) | 가드 / 비고 |
+|---|---|---|---|---|
+| F1 | 품목 등록/편집 (admin) — **동적 스펙 UI** | product-service admin | `ProductSpecEditor.tsx` (`react-beautiful-dnd` drag&drop + 추천/자유 입력 모달) | DOMAIN-EXTENSIONS §4 UI 동작 (`+ 스펙 추가` 모달 → SpecKeyTemplate 추천 키 + 직접 입력 분기). 카테고리 변경 시 `isRecommended=TRUE` 키 자동 주입 |
+| F2 | 품목 등록/편집 — **usageScope/estimateCategory 선택** | product-service admin | `ProductUsageScopeForm.tsx` (radio + dropdown) | `PATCH /products/{code}/usage` 호출. admin only — 일반 사용자 미노출 |
+| F3 | 견적 작성 — **카테고리 선택 → 품목 모달** | estimate-service | `ProductPickerModal.tsx` | 카테고리 dropdown → `GET /products?usageScope=ESTIMATE,BOTH&category={enum}` 자동 필터. `usageScope=NONE` 절대 미노출 (`feedback_uuid_no_user_visibility.md` 와 별개의 가시성 가드) |
+| F4 | 주문 작성 — **품목 모달** | partner-order-service | 동상 `ProductPickerModal.tsx` | `GET /products?usageScope=PARTNER_ORDER,BOTH` |
+| F5 | 견적/주문 라인 카드 — **ProductSpec 표시** | estimate / partner-order | `EstimateLineCard.tsx` / `PartnerOrderLineCard.tsx` | `productSpecs[]` displayOrder 순 렌더링 (`key: value unit` 표 형식) |
+| F6 | 인쇄 양식 (종합견적서/주문서) — **ProductSpec 영역** | estimate / partner-order | `EstimatePrintTemplate.tsx` 등 11 템플릿 spec 영역 | **`feedback_print_design_iteration.md` 가드 적용** (사용자 이미지 → mock → Edge 캡처 → 3~5 iteration 의무) |
+
+**디자인 의무 (DESIGN team)**:
+- F1 동적 스펙 UI mockup — 추천 vs 자유 입력 분기, drag handle, 삭제 버튼
+- F3/F4 모달 카테고리 dropdown UX (`usageScope=NONE` 품목이 절대 비치지 않는 시각적 보장)
+- F5/F6 라인 카드 + 인쇄 spec 영역 (가독성 — specKey + specValue + unit 정렬)
+
 ---
 
 ## §6 마이그 단계 M1~M5 (5-team 디스패치)
@@ -703,7 +853,7 @@ ALTER TABLE slip
 
 | 단계 | 범위 | 의존성 | 5-team 디스패치 | 예상 PR 수 |
 |---|---|---|---|---|
-| **M1** | product-service 확장 + 시드 (10 시트 → 8 entity, ~3000 SKU + ~5500 PriceHistory + 1885 BundleComponent + 28 MaterialPrice + 99 BranchPipe + 24 OduRecommend) | (없음 — 단독) | Plan + **5-team** (BACKEND/FRONTEND/DESIGN/QA/DEVOPS) + TEAMLEAD 검토 | **1** |
+| **M1** | product-service 확장 + 시드 (10 시트 → **8 entity** (Phase 4.5 보강 — ProductSpec + SpecKeyTemplate 신규 2 entity 추가, 기존 6 entity 유지), ~3000 SKU + ~5500 PriceHistory + 1885 BundleComponent + 28 MaterialPrice + 99 BranchPipe + 24 OduRecommend + **~16,500 ProductSpec + 53 SpecKeyTemplate**) + ProductMaster 신규 2 컬럼 (`usageScope`/`estimateCategory`) + admin spec UI | (없음 — 단독) | Plan + **5-team** (BACKEND/FRONTEND/DESIGN/QA/DEVOPS) + TEAMLEAD 검토 | **1** |
 | **M2** | partner-service 확장 + 시드 (PartnerMaster 6924 + EmployeeMaster 19 + PartnerAuth schema + Notion DC 마이그) | M1 | 동상 5-team | **1** |
 | **M3** | estimate-service 신규 (EstimateMaster + Line + Snapshot + 인쇄 PDF + Notion QUOTE 1회 export) | M1 + M2 | 동상 5-team | **1** |
 | **M4** | partner-order-service 신규 + slip-service 자동 생성 (PartnerOrderMaster + Line + Draft + ActionLog + Slip.sourceType + PartnerOrderConfirmedEvent listener) | M1 + M2 + M3 | 동상 (양 service 동시 5-team) | **2** |
@@ -716,7 +866,7 @@ ALTER TABLE slip
 
 | 단계 | BACKEND | FRONTEND | DESIGN | QA | DEVOPS |
 |---|---|---|---|---|---|
-| M1 | Flyway + entity + repository + service + IT | 관리자 UI (ProductMaster 등록/조회) | ProductMaster 등록 form 디자인 | 시드 row count + sample 30 견적 비교 | Docker compose + Flyway CI |
+| M1 | Flyway + entity + repository + service + IT — **Phase 4.5 보강**: ProductSpec/SpecKeyTemplate Repository + 시드 스크립트 (CommandLineRunner spec 변환 — splitBar/splitSlash/ERV joinCols 룰) + admin spec CRUD endpoint 5건 + `PATCH /products/{code}/usage` + `GET /spec-key-templates` | 관리자 UI (ProductMaster 등록/조회) — **Phase 4.5 보강**: 동적 스펙 UI (`react-beautiful-dnd` drag&drop + 추천/자유 모달) + 카테고리 필터 모달 (`ProductPickerModal`) + usageScope/estimateCategory 선택 form | ProductMaster 등록 form 디자인 — **Phase 4.5 보강**: 동적 스펙 UI mockup (추천 vs 자유 입력 분기, drag handle) + 카테고리 dropdown UX (`usageScope=NONE` 시각 분리) | 시드 row count + sample 30 견적 비교 — **Phase 4.5 보강**: 시드 검증 IT (3000 SKU × 평균 ~5 spec, NULL 컬럼 → row 미생성 가드 / `usageScope=NONE` 품목 ~2200 row 견적/주문 모달 미노출 가드 / SpecKeyTemplate 53 row 정합성) | Docker compose + Flyway CI — **Phase 4.5 보강**: 신규 entity 2개 (ProductSpec/SpecKeyTemplate) Flyway 스크립트 + composite index `(usage_scope, estimate_category)` 적용 검증 |
 | M2 | Flyway + PartnerMaster/Auth/Employee + DC 마이그 | 거래처 관리 UI | PartnerAuth 인증 모달 | 6924 row 정합성 + status 분포 | Notion export 스크립트 운영 |
 | M3 | EstimateMaster + Line + Snapshot + PDF | 견적 작성 SPA + 인쇄 미리보기 | 종합견적서 인쇄 양식 (3-5 iter) | sample 30 견적 1:1 비교 (Apps Script ↔ Java) | estimate-service deploy |
 | M4 | PartnerOrderMaster + Event + slip-service 확장 | 거래처 주문 SPA + 인증 게이트 + 임시저장 | 거래처 주문 화면 (모바일/PC) | 주문 → Slip 자동 생성 IT + EXPAND/KEEP 분기 | partner-order-service + slip-service 동시 deploy |
@@ -743,9 +893,9 @@ ALTER TABLE slip
 | estimate `fetchNotionDcConfig_()` | `GET /api/v1/partners/{id}` (discountConfig 포함) | M2 |
 | estimate `getRecommendOduData()` | `GET /api/v1/odu-recommendations` | M1 |
 
-### §7.2 Mermaid 시퀀스 (5건 의무)
+### §7.2 Mermaid 시퀀스 (6건 — Phase 4.5 §7.2.6 추가)
 
-#### §7.2.1 견적 작성 → 출고전표 (estimate finalize)
+#### §7.2.1 견적 작성 → 출고전표 (estimate finalize) — Phase 4.5 보강 (usageScope 필터 + ProductSpec 응답)
 
 ```mermaid
 sequenceDiagram
@@ -759,18 +909,23 @@ sequenceDiagram
     U->>FE: 거래처 선택 + 품목 입력
     FE->>PR: GET /partners/{id} (discountConfig)
     PR-->>FE: PartnerMaster + DC config
-    FE->>PS: GET /products?category=HOME_MULTI
-    PS-->>FE: ProductMaster + PriceHistory + bundleComponents
+    U->>FE: 카테고리 선택 (HOME_MULTI)
+    FE->>PS: GET /products?usageScope=ESTIMATE,BOTH&category=HOME_MULTI
+    Note over PS: usage_scope IN ('ESTIMATE','BOTH') 자동 필터<br/>(usageScope=NONE 품목 미노출 가드)
+    PS-->>FE: ProductMaster + PriceHistory + bundleComponents + productSpecs[]
     FE->>ES: POST /estimates (DRAFT)
     ES-->>FE: estimateId
     U->>FE: 미리보기 확인 → 최종 전송
     FE->>ES: POST /estimates/{id}/finalize
     ES->>ES: VariableDiscountDetector + Bundle EXPAND/KEEP
-    ES->>ES: status=CONFIRMED
+    ES->>PS: GET /products/{code}/specs (라인별 스펙 hydrate)
+    PS-->>ES: ProductSpec[] (displayOrder 순)
+    ES->>ES: status=CONFIRMED + EstimateLine.productSpecs 직렬화
     ES-->>SS: EstimateConfirmedEvent
     SS->>SS: Slip(sourceType=ESTIMATE) 자동 생성
     SS-->>ES: SlipCreatedEvent (slipNo)
-    ES-->>FE: estimateNumber + slipNo
+    ES-->>FE: estimateNumber + slipNo + lines[].productSpecs[]
+    Note over FE: 인쇄 양식 spec 영역에 ProductSpec displayOrder 순 출력
 ```
 
 #### §7.2.2 거래처 주문 → 자동 출고전표 (partner-order confirm)
@@ -790,16 +945,22 @@ sequenceDiagram
     C->>FE: PW 입력
     FE->>PR: POST /partners/{id}/auth/login
     PR-->>FE: APPROVED + DC config
+    C->>FE: 카테고리 선택 → 품목 모달 오픈
+    FE->>PS: GET /products?usageScope=PARTNER_ORDER,BOTH&category={enum}
+    Note over PS: Phase 4.5 — usage_scope 자동 필터<br/>(NONE 품목 미노출)
+    PS-->>FE: ProductMaster + productSpecs[]
     C->>FE: 주문 입력 + 임시저장
     FE->>POS: POST /partner-orders/drafts
     C->>FE: 최종 주문
     FE->>POS: POST /partner-orders/{id}/confirm
     POS->>POS: Bundle EXPAND/KEEP + 변동DC 적용
-    POS->>POS: status=CONFIRMED
+    POS->>PS: GET /products/{code}/specs (라인 hydrate)
+    PS-->>POS: ProductSpec[] (displayOrder 순)
+    POS->>POS: status=CONFIRMED + PartnerOrderLine.productSpecs 직렬화
     POS-->>SS: PartnerOrderConfirmedEvent
     SS->>SS: Slip(sourceType=PARTNER_ORDER) 자동 생성
     SS-->>POS: SlipCreatedEvent (externalSlipNo)
-    POS-->>FE: orderNumber + externalSlipNo
+    POS-->>FE: orderNumber + externalSlipNo + lines[].productSpecs[]
 ```
 
 #### §7.2.3 거래처 PartnerAuth 게이트 흐름
@@ -896,6 +1057,40 @@ sequenceDiagram
     end
 ```
 
+#### §7.2.6 품목 등록 → 카테고리 선택 → 동적 스펙 입력 → 저장 (Phase 4.5 신규)
+
+> **출처**: DOMAIN-EXTENSIONS §3 + §4. 품목 admin 등록 흐름 — 카테고리 기반 SpecKeyTemplate 추천 키 자동 주입 → 사용자 동적 입력 → ProductSpec 영속화.
+
+```mermaid
+sequenceDiagram
+    participant A as 관리자
+    participant FE as product admin Frontend
+    participant PS as product-service
+    participant DB as product DB
+
+    A->>FE: 품목 등록 화면 진입
+    A->>FE: modelCode/name/단가 입력
+    A->>FE: usageScope 선택 (BOTH 등) + estimateCategory 선택 (HOME_MULTI 등)
+    FE->>PS: GET /spec-key-templates?category=HOME_MULTI
+    PS->>DB: SELECT spec_key_template WHERE estimate_category=? AND is_recommended=TRUE ORDER BY display_order
+    DB-->>PS: 14 row (HOME_MULTI 추천 키)
+    PS-->>FE: SpecKeyTemplate[] (defaultUnit 포함)
+    Note over FE: ProductSpecEditor 컴포넌트가 추천 키 14건 자동 주입<br/>(specValue 빈 칸, unit=defaultUnit)
+    A->>FE: 추천 키 일부 값 입력 (예: 냉방성능=5.6)
+    A->>FE: + 스펙 추가 → 모달 오픈
+    FE->>PS: GET /spec-key-templates?category=HOME_MULTI
+    PS-->>FE: 추천 키 목록 (재호출, 캐시 가능)
+    A->>FE: 자유 입력 ("특수옵션", "전압 제한")
+    A->>FE: drag&drop 으로 displayOrder 조정
+    A->>FE: 저장
+    FE->>PS: POST /products (ProductMaster + productSpecs[])
+    PS->>DB: INSERT product_master (usage_scope, estimate_category 포함)
+    PS->>DB: INSERT product_spec × N (specKey unique 충돌 시 409)
+    DB-->>PS: OK
+    PS-->>FE: 201 Created (modelCode + spec ids)
+    Note over A: 운영 중 PATCH /products/{code}/specs/{id} 로 수정 가능<br/>PATCH /specs/reorder 로 displayOrder bulk 갱신
+```
+
 ---
 
 ## §8 데이터 마이그 + 운영 전환 절차
@@ -951,8 +1146,10 @@ sequenceDiagram
 | R10 | Frontend 인쇄 템플릿 단번 완성 가정 | 디자인 회귀 (대표 거부) | 사용자 이미지 → mock → Edge 캡처 → 3-5 iteration 의무 | `feedback_print_design_iteration.md` (PR #21 회고) |
 | R11 | gradlew 실행 권한 (Windows commit) | Linux CI Permission denied | `git update-index --chmod=+x gradlew` 의무 | `feedback_gradlew_exec_bit.md` |
 | R12 | UUID 사용자 노출 | 식별자 노출 (보안/UX) | modelCode/partnerCode/슬립번호/주문번호/견적번호만 노출 | `feedback_uuid_no_user_visibility.md` |
+| **R13** | **ProductSpec 시드 누락 시 견적 인쇄 양식 spec 영역 빈 칸** (Phase 4.5 신규) | 견적서 PDF spec 영역 누락 → 거래처 클레임 / 영업 신뢰 손실 | (a) 시드 스크립트가 estimate Code.js `getSpecDetailMap_()` 의 `scanHome/scanSingle/scanComm` 의 `idx(H, [...])` 호출 인자 1:1 매핑 의무 (b) QA: sample 30 SKU 의 ProductSpec row vs Apps Script `getSpecDetailMap_()` 출력 1:1 비교 (c) Phase 6 시드 dry-run 시 spec 컬럼 NULL 비율 보고서 의무 | DOMAIN-EXTENSIONS §4 + `feedback_pm_integration_build_check.md` Layer 4 |
+| **R14** | **`usageScope=NONE` 품목이 견적/주문 모달에 노출 시 사용자 혼란** (Phase 4.5 신규) | 자재/구성품/lookup 품목 (~2200 row) 이 견적 라인에 잘못 추가됨 → 단가/재고 산정 오류 | (a) `GET /products` endpoint default 필터 `WHERE usage_scope <> 'NONE'` (b) admin only 노출 옵션 `?includeNone=true` (admin 권한 검증) (c) Frontend `ProductPickerModal` 가 query param 명시적 전달 (d) IT: `usageScope=NONE` 품목 ~2200 row 모달 응답 0건 가드 | DOMAIN-EXTENSIONS §3 + `feedback_pm_integration_build_check.md` Layer 4 |
 
-**위험 12건** (≥ 5건 의무 충족).
+**위험 14건** (≥ 5건 의무 충족, Phase 4.5 신규 R13/R14 추가).
 
 ---
 
@@ -960,9 +1157,9 @@ sequenceDiagram
 
 | # | 가드 | 본 Plan 의 적용 위치 |
 |---|---|---|
-| 1 | `feedback_pm_integration_build_check.md` Layer 1+2+3+4+5 | §2 모든 service 명세 + §9 R1/R2/R4/R6 + §6 5-team 디스패치 시 PM 사전 컴파일 검증 |
+| 1 | `feedback_pm_integration_build_check.md` Layer 1+2+3+4+5 | §2 모든 service 명세 + §9 R1/R2/R4/R6 + §6 5-team 디스패치 시 PM 사전 컴파일 검증. **Phase 4.5 보강 — Layer 4 도메인 메서드 의미 정렬**: `ProductSpecService.detectFromMasterSheet()` 메서드 의미 = "estimate Code.js `getSpecDetailMap_()` line 1006-1364 의 `scanHome/scanSingle/scanComm` 의 `idx(H, [...])` 호출 인자 매트릭스를 Java 로 포팅하여 시트 row 의 spec 컬럼을 ProductSpec row N개로 변환" (출처 명시 의무). `ProductUsageScopeService.applyDefaultFilter()` = "GET /products 기본 응답에서 `usage_scope <> 'NONE'` 자동 적용" |
 | 2 | `feedback_multi_agent_team_pattern.md` (5-team Designer) | §6 모든 단계 5-team (BACKEND/FRONTEND/DESIGN/QA/DEVOPS) + TEAMLEAD 검토 |
-| 3 | `feedback_function_documentation.md` (3-layer) | §2 모든 service — 한국어 Javadoc 의무 + springdoc-openapi + `docs/dev-reports/{slice}.md` 누적 |
+| 3 | `feedback_function_documentation.md` (3-layer) | §2 모든 service — 한국어 Javadoc 의무 + springdoc-openapi + `docs/dev-reports/{slice}.md` 누적. **Phase 4.5 보강**: ProductSpec/SpecKeyTemplate Repository/Service/Controller 한국어 Javadoc 의무 + `docs/dev-reports/product-spec.md` 신규 누적 (시드 변환 룰 + admin endpoint 7건 + UI 동작 명세) |
 | 4 | `feedback_uuid_no_user_visibility.md` | §2 entity 명세 — modelCode/partnerCode/슬립번호/주문번호/견적번호 사용자 노출 (UUID 미노출) |
 | 5 | `feedback_korean_commits.md` | Phase 6 모든 commit/PR/Issue 한국어 (prefix/trailer 만 영문) |
 | 6 | `feedback_print_design_iteration.md` | §5 인쇄 템플릿 11건 모두 3-5 iteration 의무 |
@@ -993,8 +1190,11 @@ sequenceDiagram
 | 10 | **estimate-service vs partner-order-service 도메인 경계** | §2.3 + §2.4 | 양 service 가 ProductMaster/PartnerMaster client 로 동일 호출 — 카탈로그 endpoint 중복 방지 정책 (BFF 분리?) |
 | 11 | **TOKEN_004 (SHIPPING) 이중 역할 분리 정책** | §4.1 | estimate sink (saveOrderToNotion) + long-pending source (활동성). slip-service `Slip` 와 delivery-service `Delivery` 가 동일 sink 인지 분리인지 — Phase 5 round 2 확정 |
 | 12 | **고정DC 컬럼 (홈/상업 L 컬럼) 활용 빈도** | §2.1.1 | 시트 대부분 "-" — 시드 시 NULL 처리 OK? 신규 입력 시 UI 노출 정책? |
+| **13** | **ProductSpec specValue multi-value 시드 정책** (Phase 4.5 신규) | §3.1.2, DOMAIN-EXTENSIONS §4 | 싱글 세트 의 `소비전력(kW)(최소/정격/최대)` 같은 multi-value (`splitBar` "3 \| 4" cool/heat) 시드 시점에 (a) 1 row 로 `specValue="3 / 4"` 보존 vs (b) N row 분리 (`소비전력(냉방)`/`소비전력(난방)`)? 상업멀티 ERV joinCols 도 동일. 인쇄 가독성 vs 데이터 정합성 trade-off — 사용자 확정 |
+| **14** | **SpecKeyTemplate 추천 키 vs 사용자 자유 입력 우선순위** (Phase 4.5 신규) | §2.1.1.2, DOMAIN-EXTENSIONS §4 | (a) 사용자가 추천 키와 동명 자유 입력 시 충돌 처리 (unique 충돌 409 vs auto-merge) (b) 카테고리 변경 시 기존 ProductSpec row (사용자 자유 입력본) 보존 정책 — 사용자 확정 |
+| **15** | **운영 중 SpecKeyTemplate 키 추가 시 기존 ProductMaster ProductSpec 자동 추가 정책** (Phase 4.5 신규) | §2.1.1.2 | 새 SpecKeyTemplate row 등록 시 (a) 기존 ProductMaster (~3000) 의 ProductSpec 에 자동 추가 vs (b) 신규 등록 품목부터만 적용. 자동 추가 시 specValue 빈 칸 처리 + 일괄 batch 작업 부담 — 사용자 확정 |
 
-**Phase 5 입력 12건** (≥ 5건 의무 충족).
+**Phase 5 입력 15건** (Phase 4.5 신규 #13/#14/#15 추가, ≥ 5건 의무 충족).
 
 ---
 
@@ -1011,6 +1211,7 @@ sequenceDiagram
 | 분기계산 | product-service | BranchPipeLookup (M1, 조건부) |
 | 구형 | product-service | ProductMaster(legacy) + PriceHistory (M1) |
 | 추천실외기 | product-service | OduRecommendationLookup (M1) |
+| (코드 출처 — DOMAIN-EXTENSIONS §4) | product-service | ProductSpec + SpecKeyTemplate (M1, **Phase 4.5 신규**) |
 | 거래처 | partner-service | PartnerMaster (M2) |
 | 담당자 | partner-service | EmployeeMaster (M2) |
 | 종합견적서 / 인쇄 템플릿 6 | estimate Frontend | (Frontend 이전, M3) |
@@ -1039,14 +1240,16 @@ sequenceDiagram
 
 - [x] §1~§11 모두 작성 (§1 Executive / §2 도메인 / §3 시드 / §4 Notion / §5 Frontend / §6 단계 / §7 흐름 / §8 운영 / §9 위험 / §10 가드 / §11 Discussion)
 - [x] M1~M5 단계별 5-team 디스패치 명세 (§6.2 책임 매트릭스)
-- [x] 27 시트 → 12 entity 시드 매핑 누락 0 (부록 A)
+- [x] 27 시트 → **14 entity** 시드 매핑 누락 0 (Phase 4.5 ProductSpec + SpecKeyTemplate 포함)
 - [x] 9 Notion DB → SamhanLogis service 매핑 누락 0 (부록 B, BEARER_005 명시적 폐기)
-- [x] 위험/완화 12건 (≥ 5건 의무)
-- [x] Phase 5 Discussion 입력 12건 (≥ 5건 의무)
-- [x] 5 Mermaid 시퀀스 다이어그램 (§7.2)
-- [x] DOMAIN-EXTENSIONS §1+§2 모두 반영 (8 컬럼 + bundleMode + setMaterialKey {D4,D7,D8})
-- [x] 모든 회고 가드 14건 §10 적용
+- [x] 위험/완화 **14건** (Phase 4.5 R13/R14 추가, ≥ 5건 의무)
+- [x] Phase 5 Discussion 입력 **15건** (Phase 4.5 #13/#14/#15 추가, ≥ 5건 의무)
+- [x] **6 Mermaid 시퀀스** 다이어그램 (Phase 4.5 §7.2.6 추가)
+- [x] DOMAIN-EXTENSIONS §1+§2+**§3+§4** 모두 반영 (10 컬럼 + bundleMode + setMaterialKey {D4,D7,D8} + usageScope + estimateCategory + ProductSpec + SpecKeyTemplate)
+- [x] 모든 회고 가드 14건 §10 적용 (Phase 4.5 ProductSpec Javadoc + dev-reports/product-spec.md + Layer 4 의미 정렬 보강)
+- [x] **Phase 4.5 보강 적용** — §2 (10 컬럼 + 2 신규 entity + 7 신규 endpoint) / §3 (시드 매트릭스 2건 + 14 entity) / §5 (F1~F6 Frontend) / §6 (M1 5-team 책임 매트릭스 보강) / §7 (시퀀스 1건 신규 + 2건 보강) / §9 (R13/R14) / §10 (가드 #1, #3 보강) / §11 (#13~#15)
 
 ---
 
 _생성: Phase 4 Migration Plan / 2026-05-05 / 단일 산출 파일 / 한국어 / 무손실 / Phase 1+2+3 종합 cross-reference_
+_보강: Phase 4.5 (사용자 신규 도메인 §3 품목 노출 분류 + §4 동적 스펙 반영) / 2026-05-05_
