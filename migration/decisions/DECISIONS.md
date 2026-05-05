@@ -14,6 +14,7 @@
 | 멀티 에이전트 discussion + 다중 재검증 | 사용자 명시 — "여러 에이전트들이 서로 소통하면서 discussion 실행하고 여러번 재검증" |
 | QA 엄중 검증 | 사용자 명시 — "QA가 엄중하게 완벽하게 이식이 되었는지 확인 및 테스트 필요" |
 | 시트 헤더 위치 가변 | 사용자 명시 — "구글 스프레드시트는 시트별로 열헤더 위치가 다르므로 주의 필요" |
+| 시트 export 방식: **Apps Script JSON dump** (xlsx 회피) | 사용자 회고 — xlsx 변환 시 Google 전용 함수 (ARRAYFORMULA/QUERY/IMPORTRANGE) `#NAME?` 깨짐. `getDisplayValues()` 로 화면 표시값 추출 → 무손실. 스크립트 위치: `migration/source/sheet/dump-script.gs` |
 
 ---
 

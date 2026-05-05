@@ -61,11 +61,30 @@ cd ../../../..
 
 > **주의**: clasp pull 후 `.clasp.json` 파일은 **삭제** 후 commit (script ID 노출 방지).
 
-### 2. 시트 전체 export
+### 2. 시트 전체 export — Apps Script JSON dump (필수)
 
-브라우저에서 시트 열고 **파일 → 다운로드 → Microsoft Excel (.xlsx)** → `migration/source/sheet/workbook.xlsx` 저장.
+> **xlsx 비추천**: ARRAYFORMULA / QUERY / IMPORTRANGE 등 Google 전용 함수 결과가 `#NAME?` 으로 깨짐 (사용자 회고).
 
-> **이유**: xlsx 는 모든 탭 + 셀 서식 + 수식 보존. csv 는 탭당 1 파일이라 일관성 ↓.
+**1회용 Apps Script 사용** (`migration/source/sheet/dump-script.gs` 참조):
+1. 시트 [확장 프로그램] → [Apps Script]
+2. `dump-script.gs` 내용을 Code.gs 에 붙여넣기 → 저장 → 실행
+3. OAuth 동의 (시트 읽기 + Drive 파일 생성)
+4. 출력 JSON 파일 (`samhan-sheet-dump-YYYYMMDD-HHMMSS.json`) 다운로드
+5. `migration/source/sheet/workbook.json` 으로 저장 후 commit
+
+JSON 구조:
+```json
+{
+  "{탭명}": {
+    "lastRow": 100,
+    "lastColumn": 15,
+    "hidden": false,
+    "values": [["A1","B1","C1"], ["A2","B2","C2"], ...]
+  }
+}
+```
+
+`getDisplayValues()` 는 시트 화면 그대로 — 모든 수식 결과값 + 포맷팅(콤마/통화) 보존.
 
 ### 3. 시트 탭 메타데이터 (옵션, 가능하면)
 
