@@ -7,7 +7,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -57,9 +56,8 @@ public class PartnerOrderHistory extends BaseEntity {
     @Column(name = "actor_user_id", nullable = false, length = 50)
     private String actorUserId;
 
-    /** event 별 추가 컨텍스트 (slip-service 응답 status code 등). */
-    @Lob
-    @Column(name = "detail_json")
+    /** event 별 추가 컨텍스트 (slip-service 응답 status code 등). PostgreSQL TEXT — Hibernate 6 OID 회피. */
+    @Column(name = "detail_json", columnDefinition = "TEXT")
     private String detailJson;
 
     private PartnerOrderHistory(UUID partnerOrderId, UUID draftId, String partnerCode,

@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -45,9 +44,8 @@ public class BootstrapCacheConfig extends BaseEntity {
     @Column(name = "cache_key", nullable = false, length = 50, unique = true)
     private String cacheKey;
 
-    /** legacy 객체 JSON 직렬화 (배열 또는 Map). */
-    @Lob
-    @Column(name = "payload_json", nullable = false)
+    /** legacy 객체 JSON 직렬화 (배열 또는 Map). PostgreSQL TEXT — Hibernate 6 OID 회피. */
+    @Column(name = "payload_json", nullable = false, columnDefinition = "TEXT")
     private String payloadJson;
 
     /** 캐시 무효화용 버전 — admin 이 갱신 시 1 증가. */

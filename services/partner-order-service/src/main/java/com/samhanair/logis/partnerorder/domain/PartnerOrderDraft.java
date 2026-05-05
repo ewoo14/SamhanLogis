@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -49,9 +48,8 @@ public class PartnerOrderDraft extends BaseEntity {
     @Column(name = "label", nullable = false, length = 100)
     private String label;
 
-    /** legacy snapshot payload JSON (image base64 포함 가능). */
-    @Lob
-    @Column(name = "payload_json", nullable = false)
+    /** legacy snapshot payload JSON (image base64 포함 가능). PostgreSQL TEXT — Hibernate 6 OID 회피. */
+    @Column(name = "payload_json", nullable = false, columnDefinition = "TEXT")
     private String payloadJson;
 
     /** 만료 시각 — 30일 TTL (yml {@code samhan.draft.ttl-days}). */

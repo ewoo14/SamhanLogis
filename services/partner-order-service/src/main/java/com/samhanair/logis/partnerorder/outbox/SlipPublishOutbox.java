@@ -7,7 +7,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -46,9 +45,8 @@ public class SlipPublishOutbox extends BaseEntity {
     @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
     private String idempotencyKey;
 
-    /** slip-service POST /from-partner-order 요청 본문 JSON 직렬화 (재시도 시 동일 본문). */
-    @Lob
-    @Column(name = "request_payload", nullable = false)
+    /** slip-service POST /from-partner-order 요청 본문 JSON 직렬화 (재시도 시 동일 본문). PostgreSQL TEXT. */
+    @Column(name = "request_payload", nullable = false, columnDefinition = "TEXT")
     private String requestPayload;
 
     @Enumerated(EnumType.STRING)
@@ -69,9 +67,8 @@ public class SlipPublishOutbox extends BaseEntity {
     @Column(name = "next_attempt_at", nullable = false)
     private LocalDateTime nextAttemptAt;
 
-    /** 마지막 5xx 응답 본문 또는 예외 메시지 (운영 진단용). */
-    @Lob
-    @Column(name = "last_error")
+    /** 마지막 5xx 응답 본문 또는 예외 메시지 (운영 진단용). PostgreSQL TEXT. */
+    @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
     private SlipPublishOutbox(UUID partnerOrderId, String idempotencyKey, String requestPayload) {

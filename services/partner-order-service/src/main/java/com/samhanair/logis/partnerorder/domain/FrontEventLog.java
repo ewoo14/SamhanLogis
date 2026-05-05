@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -45,9 +44,8 @@ public class FrontEventLog extends BaseEntity {
     @Column(name = "action", nullable = false, length = 100)
     private String action;
 
-    /** legacy 의 detail 인자 — JSON 또는 자유 텍스트. */
-    @Lob
-    @Column(name = "detail")
+    /** legacy 의 detail 인자 — JSON 또는 자유 텍스트. PostgreSQL TEXT — Hibernate 6 OID 회피. */
+    @Column(name = "detail", columnDefinition = "TEXT")
     private String detail;
 
     /** 사용자 IP (gateway 가 X-Forwarded-For 로 전달). */

@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -45,9 +44,8 @@ public class GateImage extends BaseEntity {
     @Column(name = "s3_key", length = 500)
     private String s3Key;
 
-    /** base64 인코딩 이미지 (선택, legacy 호환). */
-    @Lob
-    @Column(name = "base64")
+    /** base64 인코딩 이미지 (선택, legacy 호환). PostgreSQL TEXT — Hibernate 6 OID 회피. */
+    @Column(name = "base64", columnDefinition = "TEXT")
     private String base64;
 
     /** 표시 순서 (오름차순). */
