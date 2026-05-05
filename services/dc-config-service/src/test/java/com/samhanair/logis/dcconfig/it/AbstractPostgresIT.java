@@ -15,12 +15,25 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
 
+    // Testcontainers 가 임의 ephemeral 컨테이너에 자체 생성하는 자격증명 — 외부 노출 X (test scope only).
+    // GitGuardian PASS 위해 literal credential pair 회피 — System.getenv 우선, 없으면 randomized.
+    private static final String TEST_DB_USER = pickEnvOrRandom("TEST_PG_USER", "tc_user_");
+    private static final String TEST_DB_PASSWORD = pickEnvOrRandom("TEST_PG_PASSWORD", "tc_pw_");
+
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("dc_config_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw");
+                    .withUsername(TEST_DB_USER)
+                    .withPassword(TEST_DB_PASSWORD);
+
+    private static String pickEnvOrRandom(String envName, String prefix) {
+        String env = System.getenv(envName);
+        if (env != null && !env.isBlank()) {
+            return env;
+        }
+        return prefix + java.util.UUID.randomUUID().toString().substring(0, 8);
+    }
 
     static {
         try {

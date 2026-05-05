@@ -5,9 +5,11 @@ spring:
   application:
     name: dc-config-service
   datasource:
+    # 시크릿 placeholder — DB 자격증명은 반드시 환경변수로 주입.
+    # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dc_config_db}
-    username: ${DB_USER:samhan}
-    password: ${DB_PASSWORD:samhan_dev_pw}
+    username: ${DB_USER:CHANGE_ME_LOCAL_ONLY}
+    password: ${DB_PASSWORD:CHANGE_ME_LOCAL_ONLY}
   jpa:
     hibernate:
       ddl-auto: validate

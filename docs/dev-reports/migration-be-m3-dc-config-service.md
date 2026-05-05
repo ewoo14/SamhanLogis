@@ -259,3 +259,6 @@ CI Linux runner 에서는 IT 9 case 도 정상 실행 예정.
 - **feedback_testcontainers_windows_docker** — Windows 환경 IT skip 정상 동작 확인 (DockerAvailableCondition)
 - **feedback_it_mockbean_external_clients** — 본 PR 의 dc-config-service 자체는 외부 client 없음 (M2 의 후속 PR 책임)
 - **feedback_pr_qa_screenshots** — IT assertion 자체가 QA 결과. 프론트 화면은 본 PR 범위 외
+- **시크릿 placeholder + GitGuardian PASS** — 1차 commit 에서 `samhan/samhan_dev_pw` literal credential pair 가 GG 에 검출되어 fix:
+  - `application.yml`: `${DB_USER:CHANGE_ME_LOCAL_ONLY}` + `${DB_PASSWORD:CHANGE_ME_LOCAL_ONLY}` 로 placeholder 변경
+  - `AbstractPostgresIT.java`: literal 자격증명 → `pickEnvOrRandom()` (env 변수 우선, 없으면 UUID 부분 문자열)
