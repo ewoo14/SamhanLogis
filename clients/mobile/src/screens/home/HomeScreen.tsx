@@ -43,10 +43,10 @@ const CATEGORIES: Array<{
   styleKey: 'selectHome' | 'selectSingle' | 'selectComm' | 'selectOld';
   textColor: string;
 }> = [
-  { key: 'home', label: '홈멀티', styleKey: 'selectHome', textColor: '#3730A3' },
-  { key: 'single', label: '싱글 세트', styleKey: 'selectSingle', textColor: '#0E7490' },
-  { key: 'comm', label: '상업멀티', styleKey: 'selectComm', textColor: '#9A3412' },
-  { key: 'old', label: '구형', styleKey: 'selectOld', textColor: '#6B21A8' },
+  { key: 'home', label: '홈멀티', styleKey: 'selectHome', textColor: '#111827' },
+  { key: 'single', label: '싱글 세트', styleKey: 'selectSingle', textColor: '#111827' },
+  { key: 'comm', label: '상업멀티', styleKey: 'selectComm', textColor: '#111827' },
+  { key: 'old', label: '구형', styleKey: 'selectOld', textColor: '#111827' },
 ];
 
 export function HomeScreen(): JSX.Element {
