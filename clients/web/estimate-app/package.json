@@ -1,0 +1,27 @@
+{
+  "name": "@samhan/estimate-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "삼한공조시스템 종합견적서 web app v1 — legacy estimate/index.html (18614 라인) 그대로 임베드 + shim + PWA",
+  "type": "module",
+  "scripts": {
+    "prebuild:legacy": "node scripts/build-legacy-estimate.cjs",
+    "dev": "npm run prebuild:legacy && vite",
+    "build": "npm run prebuild:legacy && tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.13.0",
+    "@typescript-eslint/parser": "^8.13.0",
+    "eslint": "^9.14.0",
+    "puppeteer-core": "^24.42.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}

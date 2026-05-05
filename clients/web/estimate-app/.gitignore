@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dev-dist/
+.vite/
+*.log
+.env.local
+.DS_Store
+# 빌드 산출물:
+# - index.html : legacy estimate/index.html (18614 라인) Apps Script 변환 결과 (~700KB) → git 추적
+# - public/legacy/{logo,stamp,samhan}.html (총 ~330KB) → git 추적 (런타임 lazy XHR inject)
+# - public/fonts/NanumGothic*.html (총 ~12MB) → git 무시 (런타임 미주입, 후속 v2 lazy 시점 재생성)
+public/fonts/

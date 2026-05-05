@@ -1,0 +1,26 @@
+{
+  "name": "삼한공조시스템 종합견적서",
+  "short_name": "종합견적서",
+  "description": "내부 영업/관리자용 종합견적서 작성 web app — 가정용/상업용 멀티/싱글/구형 견적 + 인쇄/이력 보관",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
