@@ -13,9 +13,17 @@
  *   <li>§정정 16 — 거래처 자동완성 → 하단 자동 채움 (legacy `fillCustomer` 1:1).</li>
  * </ul>
  *
+ * <p>v3 정정 통합 (DECISIONS 옵션 A v3):
+ * <ul>
+ *   <li>§정정 #17 — legacy estimate index.html 의 모든 메뉴 (분기계산 / 견적·주문하기 /
+ *       과거 발송내역 / 주문저장 / 저장내역) 를 상단 toolbar 로 통합.</li>
+ *   <li>§정정 #18 — 라인 1건 이상 시점에 cardOrderInfo (거래처 form) 자동 표시 + 거래처
+ *       검색 input 자동 focus.</li>
+ * </ul>
+ *
  * <p>F1 (a) 100% 보존 — DS 컴포넌트 import 0, sales.module.css token 만 활용.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   DndContext,
@@ -35,6 +43,11 @@ import { ProductSpecModal } from '../components/sales/ProductSpecModal'
 import { AddrSearchDock } from '../components/sales/AddrSearchDock'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { PartnerAutocomplete } from '../components/sales/PartnerAutocomplete'
+import { EstimateMenuToolbar } from '../components/sales/EstimateMenuToolbar'
+import { EstimateBranchCalcModal } from '../components/sales/EstimateBranchCalcModal'
+import { EstimateHistoryModal } from '../components/sales/EstimateHistoryModal'
+import { EstimateSnapshotSaveModal } from '../components/sales/EstimateSnapshotSaveModal'
+import { EstimateSnapshotListModal } from '../components/sales/EstimateSnapshotListModal'
 import { usePricingStore } from '../stores/usePricingStore'
 import { usePageTitleStore } from '../stores/pageTitle'
 import type { ProductCatalog, PartnerSummary } from '../api/sales'
@@ -43,22 +56,10 @@ import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 
-/**
- * 분기계산 영역 placeholder — M3 EstimateBranchCalcService 통합 대기 (G13 b).
- */
-function BranchCalcPlaceholder() {
-  return (
-    <div className={styles['branchPlaceholder']} aria-label="분기계산 placeholder">
-      <h4>분기계산 (실외기→실내기 매트릭스)</h4>
-      <p>legacy `#pageBranch` (line 1909) 의 DnD 매트릭스 화면이 표시되는 영역입니다.</p>
-      <p>외기 column + 실내기 capsule drag-and-drop + 분기관 자동 lookup.</p>
-      <span className={styles['pendingTag']}>M3 단계 EstimateBranchCalcService 통합 예정</span>
-    </div>
-  )
-}
-
 interface OrderInfoCardProps {
   onOpenAddr: (target: 'delivery' | 'site') => void
+  /** v3 §정정 #18 — 첫 표시 시점에 거래처 검색 input 자동 focus. */
+  autoFocusPartnerSearch: boolean
 }
 
 /**
@@ -67,8 +68,11 @@ interface OrderInfoCardProps {
  * <p>v2 §정정 16 — 거래처명 input 을 `<PartnerAutocomplete>` 로 교체. 선택 시
  * `onPartnerSelect` 가 거래처명/거래처코드/배송지/현장/연락처/메모 모두 자동 채움
  * (legacy `fillCustomer(c)` 1:1 변환).
+ *
+ * <p>v3 §정정 #18 — 본 카드는 부모가 lines.length > 0 일 때만 mount. 첫 mount 시점에
+ * `autoFocusPartnerSearch=true` 로 거래처 검색 input 자동 focus.
  */
-function OrderInfoCard({ onOpenAddr }: OrderInfoCardProps) {
+function OrderInfoCard({ onOpenAddr, autoFocusPartnerSearch }: OrderInfoCardProps) {
   const orderInfo = usePricingStore((s) => s.orderInfo)
   const setOrderInfo = usePricingStore((s) => s.setOrderInfo)
   const setPartner = usePricingStore((s) => s.setPartner)
@@ -85,7 +89,7 @@ function OrderInfoCard({ onOpenAddr }: OrderInfoCardProps) {
   }
 
   return (
-    <div className={styles['card']}>
+    <div className={styles['card']} data-card="orderInfo">
       <div className={styles['cardHead']}>
         <div className={styles['cardTitle']}>거래처 / 배송 정보</div>
         <div className={styles['cardActions']}>
@@ -102,6 +106,7 @@ function OrderInfoCard({ onOpenAddr }: OrderInfoCardProps) {
             value={orderInfo.partnerName ?? ''}
             onChangeText={(t) => setPartner(orderInfo.partnerCode ?? '', t)}
             onSelect={handlePartnerSelect}
+            autoFocus={autoFocusPartnerSearch}
           />
         </div>
         <div className={styles['formField']}>
@@ -242,11 +247,21 @@ export function SalesEstimateFormPage() {
   const totalsByCategory = usePricingStore((s) => s.totalsByCategory)
   const grandTotal = usePricingStore((s) => s.grandTotal)
   const countsByCategory = usePricingStore((s) => s.countsByCategory)
+  const orderInfo = usePricingStore((s) => s.orderInfo)
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [specModelCode, setSpecModelCode] = useState<string | null>(null)
   const [specProductName, setSpecProductName] = useState<string | null>(null)
   const [addrTarget, setAddrTarget] = useState<'delivery' | 'site' | null>(null)
+
+  // v3 정정 #17 — legacy 메뉴 5종 모달 state.
+  const [branchOpen, setBranchOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [snapshotListOpen, setSnapshotListOpen] = useState(false)
+
+  // v3 견적/주문하기 결과 toast (slip-service 출고전표 자동 생성 stub).
+  const [sendOrderToast, setSendOrderToast] = useState<string | null>(null)
 
   const setOrderInfo = usePricingStore((s) => s.setOrderInfo)
 
@@ -266,8 +281,26 @@ export function SalesEstimateFormPage() {
   const totals = totalsByCategory()
   const counts = countsByCategory()
 
-  // v2 §정정 1 — 라인 0건 시 그리드 카드 자체 숨김 + 거래처 카드만 노출.
+  // v2 §정정 1 + v3 §정정 #18 — 라인 0건 시 그리드 카드 자체 숨김 + cardOrderInfo 도 숨김.
   const hasLines = lines.length > 0
+
+  // v3 §정정 #18 — cardOrderInfo 가 처음 표시되는 시점 (라인 0 → 1) 에만 partner search
+  // 자동 focus. ref 로 1회 trigger 보장.
+  const orderInfoMountedRef = useRef(false)
+  const [autoFocusPartner, setAutoFocusPartner] = useState(false)
+  useEffect(() => {
+    if (hasLines && !orderInfoMountedRef.current) {
+      orderInfoMountedRef.current = true
+      setAutoFocusPartner(true)
+      // 다음 frame 에 reset (autoFocus prop 은 mount 시 1회만 의미).
+      const t = window.setTimeout(() => setAutoFocusPartner(false), 100)
+      return () => window.clearTimeout(t)
+    }
+    if (!hasLines) {
+      orderInfoMountedRef.current = false
+    }
+    return undefined
+  }, [hasLines])
 
   const handlePick = (catalog: ProductCatalog, qty: number) => {
     addLineFromCatalog(catalog, qty)
@@ -288,10 +321,53 @@ export function SalesEstimateFormPage() {
     reorderLines(String(active.id), String(over.id))
   }
 
+  /**
+   * 견적·주문하기 — slip-service 출고전표 자동 생성 trigger (stub).
+   *
+   * <p>legacy `btnSendOrder` (estimate index.html line 8654) → 견적 SENT 전환 + 주문서
+   * 자동 생성 + slip-service `POST /api/v1/slips` 호출. 본 v3 단계에서는 stub
+   * (M3 통합 후 실 호출).
+   */
+  function handleSendOrder() {
+    if (!hasLines || !orderInfo.partnerName) return
+    setSendOrderToast(
+      `견적·주문 발송 완료 (stub) — ${orderInfo.partnerName} / ${lines.length}건. M3 통합 후 출고전표 번호 자동 표시.`,
+    )
+    window.setTimeout(() => setSendOrderToast(null), 6000)
+  }
+
+  // 견적/주문하기 활성 조건 — 라인 1건 이상 + 거래처 선택 완료.
+  const canSendOrder = hasLines && !!orderInfo.partnerName
+
   return (
     <div className={styles['salesScope']}>
       <SalesSubNav />
       <div className={styles['wrap']}>
+        {/* v3 정정 #17 — legacy estimate 메뉴 toolbar 5종 (라인 0건 시에도 항상 노출). */}
+        <EstimateMenuToolbar
+          onOpenBranch={() => setBranchOpen(true)}
+          onSendOrder={handleSendOrder}
+          onOpenHistory={() => setHistoryOpen(true)}
+          onSaveSnapshot={() => setSaveOpen(true)}
+          onOpenSnapshotList={() => setSnapshotListOpen(true)}
+          canSendOrder={canSendOrder}
+          canSaveSnapshot={hasLines}
+        />
+
+        {sendOrderToast ? (
+          <div className={styles['sendOrderToast']} role="status" aria-live="polite">
+            <span>{sendOrderToast}</span>
+            <button
+              type="button"
+              className={styles['toastClose']}
+              onClick={() => setSendOrderToast(null)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+
         <div className={styles['top']}>
           <div className={styles['title']}>
             종합견적서
@@ -412,16 +488,21 @@ export function SalesEstimateFormPage() {
                 <h3>품목이 없습니다</h3>
                 <p>상단 [+ 품목 추가] 버튼으로 첫 라인을 추가하세요.</p>
                 <p style={{ fontSize: 11, marginTop: 8 }}>
-                  (라인이 추가되면 카테고리별 탭이 자동으로 표시됩니다 — v2 §정정 1)
+                  (라인 추가 시 카테고리 탭과 거래처 입력 카드가 함께 표시됩니다 —
+                  v3 §정정 #18)
                 </p>
               </div>
             </div>
           )}
 
-          <OrderInfoCard onOpenAddr={(t) => setAddrTarget(t)} />
+          {/* v3 §정정 #18 — 라인 1건 이상 시점에만 cardOrderInfo mount + 자동 focus. */}
+          {hasLines ? (
+            <OrderInfoCard
+              onOpenAddr={(t) => setAddrTarget(t)}
+              autoFocusPartnerSearch={autoFocusPartner}
+            />
+          ) : null}
         </div>
-
-        <BranchCalcPlaceholder />
       </div>
 
       <ProductPickerModal
@@ -442,6 +523,24 @@ export function SalesEstimateFormPage() {
         open={addrTarget !== null}
         onClose={() => setAddrTarget(null)}
         onPick={handleAddrPick}
+      />
+
+      {/* v3 정정 #17 — legacy 메뉴 5 모달 (분기계산 placeholder + 핵심 4 React) */}
+      <EstimateBranchCalcModal open={branchOpen} onClose={() => setBranchOpen(false)} />
+      <EstimateHistoryModal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        partnerCode={orderInfo.partnerCode}
+        partnerName={orderInfo.partnerName}
+      />
+      <EstimateSnapshotSaveModal
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        onSaved={(name) => setSendOrderToast(`주문저장 완료: ${name}`)}
+      />
+      <EstimateSnapshotListModal
+        open={snapshotListOpen}
+        onClose={() => setSnapshotListOpen(false)}
       />
     </div>
   )

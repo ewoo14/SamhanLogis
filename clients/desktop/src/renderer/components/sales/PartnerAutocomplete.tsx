@@ -20,6 +20,11 @@ interface Props {
   onSelect: (partner: PartnerSummary) => void
   placeholder?: string
   inputId?: string
+  /**
+   * v3 §정정 #18 — 라인 1건 추가 시점에 cardOrderInfo 가 처음 표시되며 본 input 이
+   * 자동 focus 되도록 부모가 true 전달. 한 번만 trigger 되며 unmount 되면 reset.
+   */
+  autoFocus?: boolean
 }
 
 export function PartnerAutocomplete({
@@ -28,7 +33,16 @@ export function PartnerAutocomplete({
   onSelect,
   placeholder = '거래처명 또는 사업자번호로 검색…',
   inputId,
+  autoFocus = false,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // v3 §정정 #18 — mount 시점에 1회 focus.
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [autoFocus])
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<PartnerSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -98,6 +112,7 @@ export function PartnerAutocomplete({
   return (
     <div ref={wrapRef} className={styles['autocompleteWrap']}>
       <input
+        ref={inputRef}
         id={inputId}
         type="text"
         value={value}
