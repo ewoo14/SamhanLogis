@@ -47,4 +47,13 @@
 
 ---
 
+## Phase 3.5 — 도메인 확장 추가 (Phase 4 진행 중 사용자 신규 요청, 2026-05-05)
+
+| 결정 | 사유 |
+|---|---|
+| **품목 노출 분류 — usageScope + estimateCategory** | 사용자 명시 — "품목 데이터에서 견적/주문서용 품목 (견적서 중에서도 어디로 분류할지 선택 가능) 을 선택할 수 있게 분류 / 분류되지 않은 품목은 견적서 및 주문서에 나타나지 않음". ProductMaster 신규 2 컬럼 (`usageScope enum {NONE, ESTIMATE, PARTNER_ORDER, BOTH}` default NONE + `estimateCategory enum {HOME_MULTI, SINGLE_SET, COMMERCIAL_MULTI, LEGACY, OTHER} nullable`). 시드 시 시트 출처 기반 자동 분류. 상세: `DOMAIN-EXTENSIONS.md` §3 |
+| **품목 동적 스펙 — ProductSpec 1:N + SpecKeyTemplate** | 사용자 명시 — "스펙의 경우 품목마다 종류가 다르므로 동적으로 스펙을 선택 추가 및 삭제 가능하도록 조정 / 종류는 견적서 코드의 스펙 관련 함수를 통해 확인 바람". ProductMaster 의 정적 spec 컬럼 대신 1:N ProductSpec entity (productMasterId/specKey/specValue/unit/displayOrder). 카테고리별 추천 키는 SpecKeyTemplate (53 row 시드). spec 키 출처: estimate Code.js `getSpecDetailMap_()` (line 1006-1364) 의 `scanHome/scanSingle/scanComm` 함수 spec 컬럼 매핑 그대로 채택. 상세: `DOMAIN-EXTENSIONS.md` §4 |
+
+---
+
 ## Phase 4+ 의사결정은 Migration Plan 산출 후 추가
