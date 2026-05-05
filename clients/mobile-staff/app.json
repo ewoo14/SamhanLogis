@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "삼한공조 견적",
+    "slug": "samhan-estimate",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.samhan.estimate"
+    },
+    "android": {
+      "package": "com.samhan.estimate"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": []
+  }
+}
