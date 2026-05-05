@@ -1,0 +1,39 @@
+{
+  "name": "@samhan/order-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "삼한공조시스템 거래처 주문서 web app (legacy partner-order index.html 1:1 모방, PWA)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@samhan/design-system": "file:../design-system",
+    "@tanstack/react-query": "^5.59.20",
+    "axios": "^1.7.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.27.0",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.13.0",
+    "@typescript-eslint/parser": "^8.13.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "eslint": "^9.14.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}

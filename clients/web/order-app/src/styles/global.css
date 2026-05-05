@@ -1,0 +1,855 @@
+/**
+ * 전역 스타일 — order-app.
+ *
+ * 의도 (F1 (a) 100% legacy 보존):
+ * - DS token (`@samhan/design-system/tokens.css`) 만 import — DS 컴포넌트 import 금지
+ * - legacy partner-order index.html `<style>` block (1~562) 1:1 변환
+ * - 본 파일은 게이트/SPA/카드/모달 등 share 스타일만. 페이지별 추가 스타일은 각 컴포넌트 인라인 또는 styles/* 별도 파일.
+ */
+
+@import '@samhan/design-system/tokens.css';
+
+/* ==========================================================================
+ * legacy 테마 root (partner-order index.html line 11)
+ * ========================================================================== */
+:root {
+  --c-bg: #fff;
+  --c-line: #000;
+  --c-col-sep: #000;
+  --c-muted: #6b7280;
+  --c-strong: #111827;
+  --c-accent: #2563eb;
+  --row-h: 40px;
+  --inp-h: 30px;
+}
+
+/* ==========================================================================
+ * reset (legacy line 24-26)
+ * ========================================================================== */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-strong);
+  font-family: var(--font-family-sans, system-ui, sans-serif);
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ==========================================================================
+ * 사업자 게이트 (legacy line 12-23)
+ * ========================================================================== */
+.page-gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #020617;
+  z-index: 200000;
+}
+
+.page-gate.hidden {
+  display: none;
+}
+
+.biz-box {
+  background: #0b1120;
+  border-radius: 16px;
+  padding: 24px 20px 20px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.8);
+  width: min(420px, calc(100% - 40px));
+  color: #e5e7eb;
+}
+
+.biz-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.biz-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.biz-field-row input {
+  flex: 1;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  padding: 0 10px;
+  font-size: 16px;
+  text-align: center;
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.biz-buttons {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.page-gate .btn {
+  min-width: 96px;
+}
+
+.biz-buttons .btn {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.biz-buttons .btn:disabled {
+  background: #d1d5db;
+  color: #6b7280;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.page-loading-emoji {
+  font-size: 42px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.page-loading-msg {
+  white-space: pre-line;
+  text-align: center;
+}
+
+.biz-info-block {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #1f2937;
+  text-align: left;
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+.biz-info-block strong {
+  color: #e5e7eb;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.biz-info-block em {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: #e5e7eb;
+  font-style: normal;
+}
+
+/* ==========================================================================
+ * 메인 SPA (legacy line 28-127)
+ * ========================================================================== */
+.wrap {
+  max-width: 2000px;
+  margin: 26px auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.top .view-group {
+  display: flex;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.title {
+  font-size: 0 !important;
+  color: transparent !important;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 8px;
+  background: #eef2ff;
+  color: #3730a3 !important;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px !important;
+}
+
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover {
+  background: #1f2937;
+}
+
+.btn-mini {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: #11182710;
+  color: #111827;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-mini.is-active {
+  background: #111827;
+  color: #fff;
+}
+
+.btn-ghost {
+  background: #11182710;
+  color: #111827;
+}
+
+.top-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.top-actions .spec-history-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#timerContainer {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-left: auto;
+}
+
+#accessLimitTimer {
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 10px;
+}
+
+#accessLimitText {
+  font-size: 16px;
+  color: #dc2626;
+  font-weight: bold;
+}
+
+#autoLogoutTimer {
+  margin-left: auto;
+  text-align: right;
+}
+
+/* ==========================================================================
+ * 4 카테고리 카드 grid (legacy line 36-56)
+ * ========================================================================== */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  justify-content: stretch;
+}
+
+body.home-active .grid,
+body.single-active .grid,
+body.comm-active .grid,
+body.old-active .grid {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.home-active .top,
+body.single-active .top,
+body.comm-active .top,
+body.old-active .top {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.card {
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-line);
+  background: #f9fafb;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ratio {
+  font-weight: 800;
+}
+
+.ratio.bad {
+  color: #dc2626;
+}
+
+/* 카드 표시 클래스 */
+body.home-active #cardHome { display: flex !important; }
+body.home-active #cardSingle,
+body.home-active #cardComm,
+body.home-active #cardOld { display: none !important; }
+body.single-active #cardSingle { display: flex !important; }
+body.single-active #cardHome,
+body.single-active #cardComm,
+body.single-active #cardOld { display: none !important; }
+body.comm-active #cardComm { display: flex !important; }
+body.comm-active #cardHome,
+body.comm-active #cardSingle,
+body.comm-active #cardOld { display: none !important; }
+body.old-active #cardOld { display: flex !important; }
+body.old-active #cardHome,
+body.old-active #cardSingle,
+body.old-active #cardComm { display: none !important; }
+
+/* ==========================================================================
+ * 모바일 게이트 (4 카테고리 진입 — legacy line 119-122)
+ * ========================================================================== */
+.mobile-gate {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  margin: 20px 0 12px;
+}
+
+body.no-active .mobile-gate {
+  display: flex;
+}
+
+body.no-active .grid {
+  display: none;
+}
+
+body.no-active #btnPreview,
+body.no-active #btnSaveSnapshot,
+body.no-active #btnLoadSnapshot,
+body.no-active #timerContainer {
+  display: none !important;
+}
+
+body.no-active .top .view-group {
+  display: none;
+}
+
+.select-big {
+  width: 100%;
+  height: 150px;
+  border: 1px solid var(--c-line);
+  border-radius: 18px;
+  background: #fff;
+  font-weight: 800;
+  font-size: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.select-home { background: #eef2ff; border-color: #c7d2fe; }
+.select-single { background: #ecfeff; border-color: #a5f3fc; }
+.select-comm { background: #fff7ed; border-color: #fed7aa; }
+.select-old { background: #f3e8ff; border-color: #d8b4fe; }
+
+/* ==========================================================================
+ * 카드 내 옵션/필터 (legacy line 62-72, 147-149)
+ * ========================================================================== */
+.opts {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--c-line);
+  background: #fff;
+  white-space: nowrap;
+  overflow: auto;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--c-line);
+  background: #fff;
+  flex-wrap: wrap;
+}
+
+.filter-bar select {
+  min-width: 90px;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 13px;
+  height: 32px;
+  background: #fff;
+}
+
+.filter-search {
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 240px;
+  max-width: 260px;
+}
+
+.filter-search .filter-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0 10px 0 26px;
+  font-size: 13px;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  outline: none;
+}
+
+.filter-search .filter-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.filter-search .filter-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+/* ==========================================================================
+ * 카테고리 라인 입력 표 (legacy line 73-92)
+ * ========================================================================== */
+.table-wrap {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  max-height: calc(100vh - 260px);
+  padding-bottom: 8px;
+}
+
+.est-table {
+  margin: 0 auto;
+}
+
+.est-table table,
+.est-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.est-table th,
+.est-table td {
+  border-bottom: 1px solid var(--c-line);
+  padding: 0 10px;
+  height: var(--row-h);
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid var(--c-col-sep);
+  font-variant-numeric: tabular-nums;
+}
+
+.est-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 800;
+  background: #f3f4f6;
+  color: #000;
+}
+
+.qty-input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 0 10px;
+  outline: none;
+  text-align: center;
+  font-size: 18px;
+}
+
+.qty-input:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.sumrow td {
+  background: #fcfcff;
+}
+
+/* ==========================================================================
+ * 모달 / Bundle EXPAND/KEEP / 미리보기 (legacy line 94-117)
+ * ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  width: min(720px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f8fafc;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.modal-foot {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  border-top: 1px solid #cbd5e1;
+  background: #f8fafc;
+}
+
+/* Bundle EXPAND/KEEP toggle */
+.bundle-toggle {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.bundle-toggle button {
+  appearance: none;
+  border: 0;
+  background: #f8fafc;
+  color: #475569;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.bundle-toggle button.is-active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+/* ==========================================================================
+ * PWA install prompt
+ * ========================================================================== */
+.pwa-prompt {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  background: #0b1120;
+  color: #e5e7eb;
+  padding: 16px;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  z-index: 150000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pwa-prompt h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pwa-prompt p {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.pwa-prompt .pwa-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pwa-prompt .pwa-actions .btn {
+  background: #3b82f6;
+}
+
+.pwa-prompt .pwa-actions .btn-ghost {
+  background: transparent;
+  color: #9ca3af;
+}
+
+/* ==========================================================================
+ * 거래처 정보 / 주문 입력 / 발송내역 폼 (legacy line 130-160 발췌)
+ * ========================================================================== */
+.order-list {
+  max-height: 700px;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  margin-top: 8px;
+  background: #fff;
+}
+
+.order-list table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+}
+
+.order-list table thead tr { background: #f8fafc; }
+.order-list table thead th {
+  font-weight: 700;
+  color: #334155;
+  padding: 8px 6px;
+  border: 1px solid #cbd5e1;
+}
+
+.order-list table tbody td {
+  padding: 6px;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+/* ==========================================================================
+ * 모바일 반응형 (legacy line 175-560 압축 — 1280 / 768 / 480 breakpoint)
+ * ========================================================================== */
+@media (max-width: 1280px) {
+  .wrap {
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    box-sizing: border-box;
+  }
+
+  .grid {
+    display: block;
+    height: 100%;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .top {
+    flex-wrap: wrap;
+    padding: 0 8px;
+  }
+
+  .top-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .top-actions .spec-history-group {
+    flex-wrap: wrap;
+  }
+
+  /* PC 전용 */
+  .pc-only { display: none !important; }
+  .mobile-only { display: inline-block; }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .biz-box {
+    width: calc(100% - 32px);
+    padding: 20px 16px;
+  }
+
+  .select-big {
+    height: 110px;
+    font-size: 26px;
+  }
+
+  .top .view-group {
+    flex-wrap: wrap;
+  }
+
+  .top {
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal {
+    width: calc(100% - 16px);
+    max-height: 92vh;
+  }
+
+  .biz-field-row input {
+    font-size: 15px;
+  }
+
+  .select-big {
+    height: 96px;
+    font-size: 22px;
+  }
+}
+
+/* QA 캡처 전용 — drag-and-drop 진행 중 시각 효과 시뮬레이션
+ * (dev-qa-drag.html 이 body.qa-dragdemo-active 추가) */
+body.qa-dragdemo-active .est-table tbody tr:first-of-type {
+  background: #dbeafe !important;
+  outline: 2px dashed #2563eb;
+  outline-offset: -2px;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+  transform: translateY(-2px);
+  position: relative;
+}
+
+body.qa-dragdemo-active .est-table tbody tr:first-of-type::after {
+  content: '↕ 드래그 중 — 라인 순서 변경';
+  position: absolute;
+  right: -200px;
+  top: 8px;
+  background: #2563eb;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+body.qa-dragdemo-active .est-table tbody tr:nth-of-type(2) {
+  border-top: 2px dashed #2563eb;
+  background: #fef3c7 !important;
+}

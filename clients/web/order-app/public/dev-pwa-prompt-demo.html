@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PWA install prompt 데모 — order-app</title>
+    <style>
+      :root {
+        --c-bg: #fff;
+        --c-line: #000;
+      }
+      body {
+        margin: 0;
+        font-family: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+        background: var(--c-bg);
+        color: #111827;
+        min-height: 100vh;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 26px auto;
+        padding: 0 16px;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .title {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .badge {
+        display: inline-block;
+        margin-left: 8px;
+        background: #eef2ff;
+        color: #3730a3;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid var(--c-line);
+        border-radius: 12px;
+        background: #fff;
+        padding: 16px;
+      }
+      .card h3 {
+        margin: 0 0 8px 0;
+        font-weight: 700;
+      }
+      .pwa-prompt {
+        position: fixed;
+        bottom: 16px;
+        left: 16px;
+        right: 16px;
+        max-width: 480px;
+        margin: 0 auto;
+        background: #0b1120;
+        color: #e5e7eb;
+        padding: 16px;
+        border-radius: 14px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .pwa-prompt h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .pwa-prompt p {
+        margin: 0;
+        font-size: 13px;
+        color: #9ca3af;
+      }
+      .pwa-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .btn {
+        appearance: none;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #3b82f6;
+        color: #fff;
+      }
+      .btn-ghost {
+        background: transparent;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="title">주문서<span class="badge">3</span></div>
+        <div>홈멀티 / 싱글세트 / 상업멀티 / 구형</div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>홈멀티</h3>
+          <div>홈 multi 카탈로그 미리보기</div>
+        </div>
+        <div class="card">
+          <h3>싱글 세트</h3>
+          <div>singleset 카탈로그 미리보기</div>
+        </div>
+        <div class="card">
+          <h3>상업멀티</h3>
+          <div>commercial 카탈로그 미리보기</div>
+        </div>
+        <div class="card">
+          <h3>구형</h3>
+          <div>legacy 카탈로그 미리보기</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pwa-prompt" role="dialog" aria-label="홈 화면에 추가">
+      <h3>홈 화면에 추가</h3>
+      <p>주문서 앱을 홈 화면에 추가하면 더 빠르게 접속할 수 있어요.</p>
+      <div class="pwa-actions">
+        <button class="btn btn-ghost">나중에</button>
+        <button class="btn">설치</button>
+      </div>
+    </div>
+  </body>
+</html>

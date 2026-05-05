@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>QA seed</title>
+  </head>
+  <body>
+    <p>QA 캡처 전용 — sessionStorage 에 mock auth + 주문 라인 + 발송 이력 까지 시드.</p>
+    <p>아래 버튼을 누르거나 ?to=/orders/new 등 URL 파라미터로 자동 이동.</p>
+    <script>
+      // v2 QA — DC config 적용 거래처 + 라인 3건 + 1건 발송 완료 시드
+      const params = new URLSearchParams(window.location.search)
+      const target = params.get('to') || '/orders/new'
+
+      // 1. 인증 세션
+      const session = {
+        partnerName: '(주)테스트거래처',
+        bizno: '123-45-67890',
+        partnerCode: '1234567890',
+        status: 'OK',
+        token: 'dev.mock.token',
+        accessLimit: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }
+      sessionStorage.setItem('samhan.order.session', JSON.stringify(session))
+      sessionStorage.setItem('samhan.order.token', 'dev.mock.token')
+
+      // 2. 주문 작성 라인 3건 (HOME_MULTI / SINGLE_SET / COMMERCIAL_MULTI) — DC 적용 시연
+      // dcConfig (mock) — partnerCode 1234567890 → homeMultiDc 0.46, commercialMultiDc 0.4, option4way 70000
+      const seedLines = [
+        {
+          lineKey: 'HOME_MULTI:AC080AHX5SH:seed1',
+          modelCode: 'AC080AHX5SH',
+          productName: '홈멀티 실외기 8.0kW',
+          unit: '대',
+          qty: 1,
+          releasePrice: 2400000,
+          estimateCategory: 'HOME_MULTI',
+          options: [],
+          sortOrder: 10,
+        },
+        {
+          lineKey: 'HOME_MULTI:AC026FNCDH:seed2',
+          modelCode: 'AC026FNCDH',
+          productName: '홈멀티 실내기 2.6kW (천장형)',
+          unit: '대',
+          qty: 4,
+          releasePrice: 720000,
+          estimateCategory: 'HOME_MULTI',
+          options: ['4way'],
+          sortOrder: 20,
+        },
+        {
+          lineKey: 'COMMERCIAL_MULTI:AR140KAX:seed3',
+          modelCode: 'AR140KAX',
+          productName: '상업멀티 실외기 14.0kW',
+          unit: '대',
+          qty: 1,
+          releasePrice: 4320000,
+          estimateCategory: 'COMMERCIAL_MULTI',
+          options: [],
+          sortOrder: 10,
+        },
+      ]
+      // zustand persist 미사용 — 라인 직접 주입을 위해 dev-only globalThis 시드
+      // 대신 mock 발송 이력에 1건 미리 시드 (orderNo 'YYYY/MM/DD - 0001')
+      const today = new Date()
+      const yyyy = today.getFullYear()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      const orderNo = `${yyyy}/${mm}/${dd} - 0001`
+      const summary = {
+        orderNo,
+        bizno: session.bizno,
+        partnerName: session.partnerName,
+        status: 'CONFIRMED',
+        totalAmount: 1366000 + 4 * 790000 + 4320000 * (1 - 0.4),
+        orderedAt: new Date().toISOString(),
+        dueDate: `${yyyy}-${mm}-${dd}`,
+        lineCount: seedLines.length,
+      }
+      sessionStorage.setItem('samhan.order.history.mock', JSON.stringify([summary]))
+      sessionStorage.setItem(
+        'samhan.order.history.detail.mock',
+        JSON.stringify({
+          [orderNo]: {
+            lines: seedLines,
+            info: {
+              deliveryAddress: '서울시 강남구 테헤란로 123',
+              deliveryAddressDetail: '4층',
+              siteName: '강남 사옥 신축',
+              receiver: '홍길동',
+              receiverPhone: '010-1234-5678',
+              dueDate: `${yyyy}-${mm}-${dd}`,
+              requestNote: '오전 도착 부탁드립니다.',
+            },
+          },
+        }),
+      )
+
+      // 3. 라인 작성 시드용 — sessionStorage 로 OrderFormPage 가 mount 시 주입 가능하게
+      sessionStorage.setItem('samhan.qa.seed.lines', JSON.stringify(seedLines))
+
+      // 4. 자동 이동 (지연 — DC config fetch + bootstrap 완료 시간 확보)
+      setTimeout(() => {
+        window.location.replace(target)
+      }, 200)
+    </script>
+  </body>
+</html>

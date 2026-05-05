@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>QA seed v3</title>
+  </head>
+  <body>
+    <p>v3 QA — 정정 #17/#18 캡처 전용. URL 파라미터:</p>
+    <ul>
+      <li><code>?scenario=login</code> — 인증 시드만 (라인 0)</li>
+      <li><code>?scenario=empty&amp;cat=home</code> — 인증 + 카테고리 진입, 라인 0 (cardOrderInfo X)</li>
+      <li><code>?scenario=add1&amp;cat=home</code> — 인증 + 카테고리 진입, 라인 1건 (cardOrderInfo O)</li>
+      <li><code>?scenario=draft&amp;cat=home</code> — 위 + 저장본 1건 (저장내역 시드)</li>
+    </ul>
+    <script>
+      const params = new URLSearchParams(window.location.search)
+      const scenario = params.get('scenario') || 'add1'
+      const cat = params.get('cat') || 'home'
+      const target = params.get('to') || `/orders/new?cat=${cat}`
+
+      // 1. 인증 세션 (모든 시나리오 공통)
+      const session = {
+        partnerName: '(주)테스트거래처',
+        bizno: '123-45-67890',
+        partnerCode: '1234567890',
+        status: 'OK',
+        token: 'dev.mock.token',
+        accessLimit: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }
+      sessionStorage.setItem('samhan.order.session', JSON.stringify(session))
+      sessionStorage.setItem('samhan.order.token', 'dev.mock.token')
+
+      // 2. 시나리오별 라인 시드
+      const oneLine = [
+        {
+          lineKey: 'HOME_MULTI:AC080AHX5SH:seed1',
+          modelCode: 'AC080AHX5SH',
+          productName: '홈멀티 실외기 8.0kW',
+          unit: '대',
+          qty: 1,
+          releasePrice: 2400000,
+          estimateCategory: 'HOME_MULTI',
+          options: [],
+          sortOrder: 10,
+        },
+      ]
+
+      if (scenario === 'add1' || scenario === 'draft') {
+        sessionStorage.setItem('samhan.qa.seed.lines', JSON.stringify(oneLine))
+      } else {
+        // empty / login / mainNoLines — 라인 시드 X
+        sessionStorage.removeItem('samhan.qa.seed.lines')
+      }
+      // 추가 안전 — 카테고리 강제 reset (no-active 보장)
+      if (scenario === 'mainNoLines') {
+        // OrderFormPage 가 ?cat= 을 만나기 전 sessionStorage 의 활성 카테고리를 비우기
+        sessionStorage.removeItem('samhan.order.activeCategory')
+      }
+
+      // 3. 저장본 시드 (draft 시나리오 전용)
+      if (scenario === 'draft') {
+        const now = Date.now()
+        const draft = {
+          savedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(), // 3시간 전
+          expireAt: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          title: '(주)테스트거래처 주문서',
+          bizno: session.bizno,
+          partnerName: session.partnerName,
+          lines: oneLine,
+          info: {
+            deliveryAddress: '서울시 강남구 테헤란로 123',
+            deliveryAddressDetail: '4층',
+            siteName: '강남 사옥',
+            receiver: '홍길동',
+            receiverPhone: '010-1234-5678',
+            dueDate: new Date().toISOString().slice(0, 10),
+          },
+          totalAmount: 1296000,
+        }
+        sessionStorage.setItem('samhan.order.draft.mock', JSON.stringify([draft]))
+      }
+
+      // 4. 자동 이동
+      let dest = target
+      if (scenario === 'login') dest = '/auth/login'
+
+      setTimeout(() => {
+        window.location.replace(dest)
+      }, 200)
+    </script>
+  </body>
+</html>

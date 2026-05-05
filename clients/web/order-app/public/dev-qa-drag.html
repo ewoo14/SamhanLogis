@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>QA drag-and-drop demo</title>
+  </head>
+  <body>
+    <p>QA 캡처 전용 — 라인 시드 + 첫 행 drag 시각 효과 시뮬레이션 후 메인으로 이동.</p>
+    <script>
+      // 1. 인증 + DC config 시드 (dev-qa-seed 와 동일)
+      const session = {
+        partnerName: '(주)테스트거래처',
+        bizno: '123-45-67890',
+        partnerCode: '1234567890',
+        status: 'OK',
+        token: 'dev.mock.token',
+        accessLimit: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }
+      sessionStorage.setItem('samhan.order.session', JSON.stringify(session))
+      sessionStorage.setItem('samhan.order.token', 'dev.mock.token')
+
+      // 2. 라인 시드
+      const seedLines = [
+        {
+          lineKey: 'HOME_MULTI:AC080AHX5SH:seed1',
+          modelCode: 'AC080AHX5SH',
+          productName: '홈멀티 실외기 8.0kW',
+          unit: '대',
+          qty: 1,
+          releasePrice: 2400000,
+          estimateCategory: 'HOME_MULTI',
+          options: [],
+          sortOrder: 10,
+        },
+        {
+          lineKey: 'HOME_MULTI:AC026FNCDH:seed2',
+          modelCode: 'AC026FNCDH',
+          productName: '홈멀티 실내기 2.6kW (천장형)',
+          unit: '대',
+          qty: 4,
+          releasePrice: 720000,
+          estimateCategory: 'HOME_MULTI',
+          options: ['4way'],
+          sortOrder: 20,
+        },
+      ]
+      sessionStorage.setItem('samhan.qa.seed.lines', JSON.stringify(seedLines))
+
+      // 3. drag 시각 효과를 위한 CSS 주입 — OrderFormPage mount 후 첫 sortable row 에 적용
+      sessionStorage.setItem(
+        'samhan.qa.dragdemo',
+        JSON.stringify({
+          enable: true,
+          message: 'drag-and-drop 시연 — 첫 라인을 잡고 끄는 중',
+        }),
+      )
+
+      // 4. 자동 이동
+      setTimeout(() => {
+        window.location.replace('/orders/new?cat=home')
+      }, 200)
+    </script>
+  </body>
+</html>
