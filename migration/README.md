@@ -67,10 +67,12 @@ cd ../../../..
 
 **1회용 Apps Script 사용** (`migration/source/sheet/dump-script.gs` 참조):
 1. 시트 [확장 프로그램] → [Apps Script]
-2. `dump-script.gs` 내용을 Code.gs 에 붙여넣기 → 저장 → 실행
+2. `dump-script.gs` 내용을 Code.gs 에 붙여넣기 → 저장
 3. OAuth 동의 (시트 읽기 + Drive 파일 생성)
-4. 출력 JSON 파일 (`samhan-sheet-dump-YYYYMMDD-HHMMSS.json`) 다운로드
-5. `migration/source/sheet/workbook.json` 으로 저장 후 commit
+4. **두 함수 각각 1회씩 실행** (Phase 1.5 의무):
+   - `dumpAllTabsAsJson` → `samhan-sheet-dump-*.json` (display values)
+   - `dumpAllFormulas` → `samhan-sheet-formulas-*.json` (수식 자체 — 변동DC 룰 검증용 `$L$2`/`$D$7`/`$D$8`/`$I$1` 절대참조 패턴 추출)
+5. 두 파일 다운로드 후 각각 `migration/source/sheet/workbook.json` / `formulas.json` 으로 저장 후 commit
 
 JSON 구조:
 ```json

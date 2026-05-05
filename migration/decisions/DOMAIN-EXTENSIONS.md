@@ -11,10 +11,20 @@
 - 기존 Apps Script 가 시트의 일부 수식/단어를 **runtime 감지**하여 변동DC (Variable Discount) 여부 판정
 - 동일 로직을 매 견적/주문마다 반복 실행 → 성능 ↓ + 룰 변경 시 산재된 코드 수정 부담
 
-### 결정
-- **product 도메인에 `hasVariableDiscount: boolean` 컬럼 신규** (Flyway 마이그레이션)
-- 마이그 시점에 시트의 모든 품목을 일괄 스캔 → 감지 룰 적용 → boolean 으로 사전 계산하여 시드
-- 신규 품목 등록 시에도 동일 룰을 backend service 에서 자동 판정
+### 결정 (Phase 2 cross-review 후 4-컬럼 안 확정)
+
+**ProductMaster 신규 4 컬럼** (Flyway 마이그레이션):
+
+| 컬럼 | 타입 | 의미 | 출처 룰 |
+|---|---|---|---|
+| `hasVariableDiscount` | boolean | 변동DC 적용 여부 (마스터 시트에 단가 수식 절대참조 포함) | 룰 1: `$L$2` (홈/상업 멀티) |
+| `fixedDiscountRate` | decimal(5,2) nullable | 고정 할인율 (legacy 50% 등) | 룰 3: F열 수식의 `$I$1` → 50% (구형) |
+| `setMaterialKey` | varchar(20) nullable | 세트 자재 옵션 키 (싱글 세트) | 룰 2: `$D$7` (자재 미포함) / `$D$8` (자재 포함) |
+| `legacyDiscountFlag` | boolean | 구형 모델 여부 (FLOW: legacy DC 트리거 조건) | 룰 3: 구형 모델 prefix 매칭 |
+
+- 마이그 시점에 시트의 모든 품목을 일괄 스캔 → 4 룰 적용 → 4 컬럼으로 사전 계산하여 시드
+- 신규 품목 등록 시에도 동일 룰을 backend service (`VariableDiscountDetector`) 에서 자동 판정
+- estimate.md 의 단일 enum 안 대비 우월 — 룰 1/2/3 분리 표현 가능 (Phase 2 cross-review §4 결정)
 
 ### Phase 1 분석 agent 의무
 - Apps Script 의 변동DC **감지 룰** (수식 패턴 / 키워드 매칭 / 셀 위치 등) 을 **함수 단위로 정확히 추출**
@@ -32,12 +42,15 @@
 - 일부 품목은 **세트(Bundle)** 구조 — 1개 SKU 가 여러 sub-품목으로 구성
 - 예시 추정: 시스템에어컨 4Way 1세트 = 본체 + 유선 리모컨 + WIFI 판넬 + 배관 자재 (각각 별도 SKU 였을 수 있음)
 
-### 결정 (3가지 옵션 — Phase 1 분석 후 사용자 확정)
+### 결정 (Phase 2 cross-review 후 옵션 A + bundleMode 확정)
 
-**옵션 A — 단일 SKU + bundle 메타** (권장 default)
+**옵션 A 채택 + bundleMode 추가** (3 옵션 중 사용자 확정):
 - product 에 `productType: enum SINGLE/BUNDLE` 추가
 - BUNDLE 인 경우 `bundleComponents: List<BundleComponent>` (componentProductCode + qty)
-- 견적/주문 시 BUNDLE 선택하면 자동으로 component 라인 펼침 (재고 차감도 component 단위)
+- **`bundleMode: enum EXPAND/KEEP`** 추가 — 견적/주문 라인 처리 분기:
+  - **EXPAND** (default): 견적/주문 시 BUNDLE 선택하면 자동으로 component 라인 펼침 (재고 차감도 component 단위)
+  - **KEEP**: BUNDLE SKU 그대로 유지 (펼치지 않음). SEND_AS_SET_IDS 화이트리스트 (4 SKU: 발통원형/발통평형/유선보드/천장펌프) 가 KEEP 으로 시드.
+- partner-order Code.js 의 SEND_AS_SET_IDS 룰 (Phase 1 partner-order.md §6) 을 Java 로 포팅 시 bundleMode=KEEP 으로 마이그.
 
 **옵션 B — flat composite 키 SKU**
 - BUNDLE SKU 자체로 별도 product (component 정보 메타 텍스트만)
