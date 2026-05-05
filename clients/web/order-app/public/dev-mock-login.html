@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>dev mock login</title>
+  </head>
+  <body>
+    <p>dev-only — sessionStorage 에 mock auth 주입 후 자동 redirect.</p>
+    <script>
+      // dev/QA 캡처 전용 — `npm run dev` / `npm run preview` 환경에서만 사용.
+      // 운영 빌드에도 포함되지만 BE 가 mock 토큰을 거부하므로 401 → /auth/login.
+      const params = new URLSearchParams(window.location.search)
+      const target = params.get('to') || '/orders/new'
+      const session = {
+        partnerName: '(주)테스트거래처',
+        bizno: '123-45-67890',
+        status: 'OK',
+        token: 'dev.mock.token',
+        accessLimit: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }
+      sessionStorage.setItem('samhan.order.session', JSON.stringify(session))
+      sessionStorage.setItem('samhan.order.token', 'dev.mock.token')
+      window.location.replace(target)
+    </script>
+  </body>
+</html>
