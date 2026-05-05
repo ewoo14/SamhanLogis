@@ -1,0 +1,32 @@
+{
+  "name": "@samhan/mobile-staff",
+  "version": "0.2.0",
+  "private": true,
+  "description": "SamhanLogis 영업직원용 견적 React Native (Expo SDK 53). v2 = react-native-webview 단일 screen 으로 estimate-app v2 (estimate.samhan-air.com) 임베드. v1 의 StaffLogin / Home / Profile native screen + BottomTab Navigator 전부 폐기 (legacy 에 없음). 인증은 WebView 안 legacy estimate checkUserAuth (Apps Script 1:1) 가 처리. RN wrapper = SafeAreaProvider + StatusBar + 뒤로가기 button only.",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "doctor": "expo-doctor",
+    "export:web": "expo export --platform web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~5.0.5",
+    "expo": "~53.0.0",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-web": "^0.20.0",
+    "react-native-webview": "13.13.5"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.10",
+    "playwright": "^1.59.1",
+    "typescript": "~5.8.3"
+  }
+}
