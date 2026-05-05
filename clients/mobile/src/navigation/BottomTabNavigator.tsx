@@ -1,9 +1,15 @@
 /**
- * `<BottomTabNavigator>` v4 — 4 탭 (홈 / 주문 / 알림 / 프로필).
+ * `<BottomTabNavigator>` v5 — 5 탭 (홈 / 주문 / 견적 / 알림 / 프로필).
  *
- * v4 변경:
+ * v4 변경 (보존):
  *   - 주문 탭의 6 React 화면 폐기 → 단일 LegacyOrderWebViewScreen (react-native-webview).
- *   - 홈 / 알림 / 프로필 탭은 RN native 보존 (v3 그대로).
+ *
+ * v5 추가:
+ *   - 5번째 tab '견적' 추가 — LegacyEstimateWebViewScreen (estimate-app v2 임베드).
+ *   - 사용자 명시 — "기존 레거시 코드에는 견적서와 주문서 모두 모바일 버전이 있으므로
+ *     이를 참고하여 그대로 구현 / 앱버전으로도 제작 요청".
+ *
+ * 홈 / 알림 / 프로필 탭은 RN native 보존 (v3 그대로).
  *
  * 각 탭은 독립 Stack.Navigator 보유 (탭 전환 시 stack 보존).
  */
@@ -11,16 +17,23 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
+import { LegacyEstimateWebViewScreen } from '@/screens/estimate/LegacyEstimateWebViewScreen';
 import { HomeScreen } from '@/screens/home/HomeScreen';
 import { NotificationListScreen } from '@/screens/notifications/NotificationListScreen';
 import { LegacyOrderWebViewScreen } from '@/screens/order/LegacyOrderWebViewScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 import { colors, fontSize, fontWeight } from '@/tokens/tokens';
-import type { OrderStackParamList, ProfileStackParamList, RootTabParamList } from './types';
+import type {
+  EstimateStackParamList,
+  OrderStackParamList,
+  ProfileStackParamList,
+  RootTabParamList,
+} from './types';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const OrderStack = createNativeStackNavigator<OrderStackParamList>();
+const EstimateStack = createNativeStackNavigator<EstimateStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 const SCREEN_OPTIONS = {
@@ -32,13 +45,27 @@ const SCREEN_OPTIONS = {
 /**
  * Order Stack v4 — 단일 LegacyOrderWebViewScreen (react-native-webview).
  *
- * 모든 견적/주문/조회/저장 동작은 WebView 안 legacy index.html 이 처리.
+ * 모든 주문 (partner-order) 동작은 WebView 안 legacy index.html 이 처리.
  */
 function OrderStackNav(): JSX.Element {
   return (
     <OrderStack.Navigator screenOptions={{ ...SCREEN_OPTIONS, headerShown: false }}>
       <OrderStack.Screen name="LegacyOrder" component={LegacyOrderWebViewScreen} />
     </OrderStack.Navigator>
+  );
+}
+
+/**
+ * Estimate Stack v5 — 단일 LegacyEstimateWebViewScreen (react-native-webview).
+ *
+ * estimate-app v2 (Node + Express + EJS, port 5183) 임베드.
+ * 모든 견적 작성/이력/PDF 미리보기 동작은 WebView 안 legacy estimate index.html (18614 라인) 이 처리.
+ */
+function EstimateStackNav(): JSX.Element {
+  return (
+    <EstimateStack.Navigator screenOptions={{ ...SCREEN_OPTIONS, headerShown: false }}>
+      <EstimateStack.Screen name="LegacyEstimate" component={LegacyEstimateWebViewScreen} />
+    </EstimateStack.Navigator>
   );
 }
 
@@ -89,6 +116,14 @@ export function BottomTabNavigator(): JSX.Element {
         component={OrderStackNav}
         options={{
           title: '주문',
+          tabBarIcon: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="EstimateTab"
+        component={EstimateStackNav}
+        options={{
+          title: '견적',
           tabBarIcon: () => null,
         }}
       />
