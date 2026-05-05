@@ -56,4 +56,35 @@
 
 ---
 
-## Phase 4+ 의사결정은 Migration Plan 산출 후 추가
+## Phase 5 — Discussion 3 라운드 후 G9~G19 게이트 모두 추천대로 확정 (2026-05-05)
+
+| 게이트 | 차단 단계 | 항목 | 결정 (추천 채택) |
+|---|---|---|---|
+| **G9** | M2 BACKEND | PartnerAuth PW 마이그 정책 | **(a) lazy upgrade + Spring Security DelegatingPasswordEncoder** — `{sha256}`/`{bcrypt}` prefix 자동 분기. 거래처 6924 row PW 일괄 reset 회피, 로그인 성공 시점에 BCrypt 재인코딩 |
+| **G10** | M2 시드 | 거래처 그룹 14 distinct → 3 enum 매핑 | **(a) Round 1 §3 표 그대로** — MAIN/VIP → SF / 혼합값 "첫 토큰 우선" / 빈 → GENERAL default |
+| **G11** | M2 시드 | EmployeeMaster 19 row 사번 부여 | **(a) 신규 `EMP-0001` ~ `EMP-0019`** — 시트 비표준 코드 (이성미="이성미" 등) 폐기 |
+| **G12** | M4 BACKEND | Slip 자동 생성 트랜잭션 패턴 | **(b) `@TransactionalEventListener(phase=AFTER_COMMIT)`** — Outbox 인프라 부담 회피, EventListener 실패 시 retry policy + DLQ 별도 |
+| **G13** | M1a 시드 dry-run | BranchPipeLookup A열 코드 의미 | **(a) 분기관 SKU + 99 row 매핑 표** — M1a 시드 dry-run 시점에 PM 이 99 row 추출 → 사용자 매핑 검토 → 실 시드 |
+| **G14** | M4 시드 dry-run | historical Slip 시드 | **(a) sample 5 비교 후 마이그** — TOKEN_004 SHIPPING DB 의 historical Slip sample 5 row 추출 → Apps Script ↔ Java 1:1 비교 검증 후 전수 마이그 |
+| **G15** | M4 BACKEND | SHIPPING DB 컬럼 → Slip/Delivery 분기 매핑 | spot-check 결과 → 사용자 검토 — M4 BACKEND 디스패치 직전 PM 이 Notion property 목록 추출 → 매핑 표 사용자 검토 → BACKEND 진행 |
+| **G16** | M3 DESIGN mockup | 인쇄 템플릿 통합 옵션 | **(c) 2-tier 3 통합 컴포넌트** — EstimatePrintRenderer (7 layout 분기) + SlipPrintRenderer (2 layout) + SpecModal. 11 분리 → 3 통합. `feedback_print_design_iteration.md` 가드 적용 (3-5 iteration) |
+| **G17** | M1b BACKEND | ProductSpec multi-value 시드 정책 | **(a) Plan §3.1.2 그대로 (이중 표준)** — splitBar `\|` 분리 → 2 row (cool/heat suffix) / splitSlash `/` 분리 → 2 row / ERV joinCols → 단일 row (`최소/정격/최대` unit 표기) |
+| **G18** | M1b BACKEND | SpecKeyTemplate 추천 vs 자유 입력 충돌 | **(c) 409 strict + Frontend 가드** — 동일 specKey 중복 시 409 응답 + Frontend `(disabled)` 가드 + 카테고리 변경 시 confirmation modal |
+| **G19** | M1b 후 운영 | 운영 중 SpecKeyTemplate 추가 시 기존 ProductMaster 자동 처리 | **(c) admin trigger only** — `POST /spec-key-templates/{id}/apply-to-existing` + dry-run mode (CSV 결과 미리보기 후 실 INSERT) |
+
+### Phase 6 단계별 차단 게이트 분포
+
+| 단계 | 차단 게이트 |
+|---|---|
+| **M1a** (3-team BE/QA/DEVOPS) | G13 (시드 dry-run 시점) |
+| **M1b** (5-team Designer) | G17, G18 (디스패치 직전) + G19 (M1b 완료 후 운영 시점) |
+| **M2** (5-team Designer) | G9, G10, G11 (디스패치 직전) |
+| **M3** (5-team Designer) | G16 (DESIGN mockup 시점) |
+| **M4** (5-team Designer × 양 service) | G12, G14, G15 (디스패치 직전 또는 시드 dry-run) |
+| **M5** (3-team BE/QA/DEVOPS) | (없음) |
+
+총 7 PR 예상.
+
+---
+
+## Phase 6+ 의사결정은 5-team 디스패치 결과 후 추가
