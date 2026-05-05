@@ -56,6 +56,14 @@ import { JournalListPage } from './JournalListPage'
 import { JournalFormPage } from './JournalFormPage'
 import { JournalDetailPage } from './JournalDetailPage'
 import { TrialBalancePage } from './TrialBalancePage'
+// migration-fe-desktop-sales 슬라이스 — Phase 6 [판매] 메뉴 7 sub-route
+import { SalesEstimateListPage } from './SalesEstimateListPage'
+import { SalesEstimateFormPage } from './SalesEstimateFormPage'
+import { SalesEstimateDetailPage } from './SalesEstimateDetailPage'
+import { SalesEstimatePrintPage } from './SalesEstimatePrintPage'
+import { SalesPartnerOrderListPage } from './SalesPartnerOrderListPage'
+import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
+import { SalesLongPendingPage } from './SalesLongPendingPage'
 
 /** 회계 권한 풀네임 화이트리스트 (feedback_role_naming_full.md). */
 const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MASTER'] as const
@@ -80,6 +88,18 @@ const router = createHashRouter([
       { path: '/sales/new', element: <SlipFormPage mode="OUTBOUND" /> },
       // notification-slice-B: 링크발송 (배송 묶음) — `/sales/:id` 보다 먼저 매칭되어야 함
       { path: '/sales/link-dispatch', element: <LinkDispatchListPage /> },
+
+      // migration-fe-desktop-sales — Phase 6 [판매] 메뉴 7 sub-route
+      // (`/sales/:id` 보다 먼저 매칭되어야 함 — `/sales/estimates*`, `/sales/partner-orders*`,
+      //  `/sales/long-pending` 의 정적 prefix 가 동적 :id 보다 우선되도록 위치)
+      { path: '/sales/estimates', element: <SalesEstimateListPage /> },
+      { path: '/sales/estimates/new', element: <SalesEstimateFormPage /> },
+      { path: '/sales/estimates/:id', element: <SalesEstimateDetailPage /> },
+      { path: '/sales/estimates/:id/print', element: <SalesEstimatePrintPage /> },
+      { path: '/sales/partner-orders', element: <SalesPartnerOrderListPage /> },
+      { path: '/sales/partner-orders/:id', element: <SalesPartnerOrderDetailPage /> },
+      { path: '/sales/long-pending', element: <SalesLongPendingPage /> },
+
       { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
       { path: '/sales/:id/print/invoice', element: <InvoiceView /> },
       { path: '/sales/:id/print/dispatch', element: <DispatchView /> },

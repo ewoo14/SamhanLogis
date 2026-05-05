@@ -57,10 +57,32 @@ export function AppLayout() {
             대시보드
           </NavLink>
           <NavLink to="/warehouses">창고</NavLink>
-          <NavLink to="/sales">판매조회</NavLink>
+          <NavLink to="/sales" end>
+            판매조회
+          </NavLink>
           <NavLink to="/purchases">구매조회</NavLink>
           <NavLink to="/transfers">재고이동</NavLink>
           <NavLink to="/sales/link-dispatch">링크발송</NavLink>
+
+          {/* migration-fe-desktop-sales — Phase 6 [판매] 그룹 (3 sub-route) */}
+          <div
+            className="app-sidebar-group"
+            aria-hidden="true"
+            style={{
+              marginTop: 16,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#9CA3AF',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            판매
+          </div>
+          <NavLink to="/sales/estimates">견적서</NavLink>
+          <NavLink to="/sales/partner-orders">주문서 조회</NavLink>
+          <NavLink to="/sales/long-pending">장기미발주</NavLink>
 
           {showAccounting ? (
             <>

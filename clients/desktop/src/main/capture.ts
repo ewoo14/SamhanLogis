@@ -20,7 +20,7 @@ interface RouteSpec {
   waitMs?: number
 }
 
-const ROUTES: RouteSpec[] = [
+const ROUTES_DEFAULT: RouteSpec[] = [
   { path: '/login', fileName: '01_login', waitMs: 800 },
   { path: '/', fileName: '02_dashboard', waitMs: 1500 },
   { path: '/warehouses', fileName: '03_warehouses', waitMs: 1500 },
@@ -28,10 +28,30 @@ const ROUTES: RouteSpec[] = [
   { path: '/slips/new', fileName: '05_slip_form', waitMs: 1500 },
 ]
 
+/**
+ * migration-fe-desktop-sales 슬라이스 — Phase 6 [판매] 메뉴 캡처 6장.
+ *
+ * 사용법: `CAPTURE_MODE=1 CAPTURE_SLICE=migration-fe-desktop npm run dev`.
+ * docs/qa/migration-fe-desktop/ 에 PNG 6장 산출. 백엔드 미배포 상태에서도 빈 목록
+ * 안내 화면을 캡처해 visual regression 검증 가능.
+ */
+const ROUTES_MIGRATION_FE_DESKTOP: RouteSpec[] = [
+  { path: '/sales/estimates', fileName: '01-desktop-sales-menu', waitMs: 1500 },
+  { path: '/sales/estimates', fileName: '02-desktop-estimate-list', waitMs: 1500 },
+  { path: '/sales/estimates/new', fileName: '03-desktop-estimate-form-home', waitMs: 1500 },
+  {
+    path: '/sales/estimates/SAMPLE-2026-0001/print',
+    fileName: '04-desktop-estimate-print',
+    waitMs: 1500,
+  },
+  { path: '/sales/partner-orders', fileName: '05-desktop-partner-orders', waitMs: 1500 },
+  { path: '/sales/long-pending', fileName: '06-desktop-long-pending', waitMs: 1500 },
+]
+
 /** 출력 디렉토리 — worktree 루트 기준. */
-function resolveOutputDir(): string {
+function resolveOutputDir(slice: string): string {
   // 메인 프로세스의 cwd 는 보통 clients/desktop. worktree 루트로 두 단계 위.
-  return resolve(process.cwd(), '..', '..', 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
+  return resolve(process.cwd(), '..', '..', 'docs', 'qa', slice)
 }
 
 /** 단일 라우트 캡처 — hash 변경 → 대기 → capturePage → PNG 저장. */
@@ -52,13 +72,17 @@ export async function captureAllScreens(window: BrowserWindow): Promise<void> {
   if (process.env['CAPTURE_MODE'] !== '1') {
     return
   }
-  const outDir = resolveOutputDir()
+  // CAPTURE_SLICE 환경변수로 슬라이스별 라우트 집합 분기.
+  // 미설정 시 default (electron-skeleton-slice 5 화면).
+  const slice = process.env['CAPTURE_SLICE'] ?? 'electron-skeleton-slice/screenshots'
+  const routes = slice === 'migration-fe-desktop' ? ROUTES_MIGRATION_FE_DESKTOP : ROUTES_DEFAULT
+  const outDir = resolveOutputDir(slice)
   mkdirSync(outDir, { recursive: true })
 
   // 첫 페이지 (Vite dev server 기준 `/`) 가 완전히 로드될 때까지 대기.
   await new Promise((resolve) => setTimeout(resolve, 4000))
 
-  for (const route of ROUTES) {
+  for (const route of routes) {
     try {
       await captureRoute(window, route, outDir)
     } catch (err) {

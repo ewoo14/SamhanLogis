@@ -1108,8 +1108,225 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // migration-fe-desktop-sales: 판매 mock endpoint (Phase 6 Sub-team Desktop)
+  // - GET /api/v1/products?usageScope&category — 카탈로그 검색
+  // - GET /api/v1/products/{modelCode}/specs — ProductSpec 목록
+  // - GET /api/v1/spec-key-templates — 추천 specKey
+  // - GET /api/v1/estimates / {id} — 견적 (M3 미배포 시 mock fallback)
+  // - GET /api/v1/partner-orders / {id} — 주문서 조회
+  // - GET /api/v1/partners/long-pending — 장기미발주
+  // ==========================================================================
+
+  // GET /api/v1/products?usageScope=BOTH&category=HOME_MULTI
+  // Spring Page 직접 응답 (envelope 미적용 — ProductCatalogController 형식과 동일).
+  if (method === 'GET' && url.startsWith('/api/v1/products') && !url.includes('/specs')) {
+    const cat = (config.params?.['category'] ?? 'HOME_MULTI') as string
+    const all = MOCK_SALES_PRODUCTS.filter((p) => p.estimateCategory === cat)
+    return {
+      content: all,
+      totalElements: all.length,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    }
+  }
+
+  // GET /api/v1/products/{modelCode}/specs (envelope 없이 직접 list)
+  const productSpecsMatch = url.match(/^\/api\/v1\/products\/([^/]+)\/specs$/)
+  if (method === 'GET' && productSpecsMatch) {
+    const modelCode = decodeURIComponent(productSpecsMatch[1]!)
+    return MOCK_SALES_SPECS[modelCode] ?? MOCK_SALES_SPECS['DEFAULT']
+  }
+
+  // GET /api/v1/spec-key-templates (envelope 없이 list)
+  if (method === 'GET' && url.startsWith('/api/v1/spec-key-templates')) {
+    return [
+      { id: 'tpl-1', estimateCategory: 'HOME_MULTI', specKey: '냉방능력', defaultUnit: 'kW', displayOrder: 1, isRecommended: true },
+      { id: 'tpl-2', estimateCategory: 'HOME_MULTI', specKey: '난방능력', defaultUnit: 'kW', displayOrder: 2, isRecommended: true },
+      { id: 'tpl-3', estimateCategory: 'HOME_MULTI', specKey: '소비전력', defaultUnit: 'W', displayOrder: 3, isRecommended: true },
+      { id: 'tpl-4', estimateCategory: 'HOME_MULTI', specKey: '에너지소비효율등급', defaultUnit: null, displayOrder: 4, isRecommended: true },
+    ]
+  }
+
+  // GET /api/v1/estimates (페이지)
+  if (method === 'GET' && url === '/api/v1/estimates') {
+    return envelope({
+      content: MOCK_ESTIMATES,
+      totalElements: MOCK_ESTIMATES.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+
+  // GET /api/v1/estimates/{id}
+  const estimateDetailMatch = url.match(/^\/api\/v1\/estimates\/([^/]+)$/)
+  if (method === 'GET' && estimateDetailMatch) {
+    const num = decodeURIComponent(estimateDetailMatch[1]!)
+    const found
+      = MOCK_ESTIMATES_DETAIL.find((e) => e.estimateNumber === num)
+        ?? MOCK_ESTIMATES_DETAIL[0]!
+    return envelope(found)
+  }
+
+  // GET /api/v1/partner-orders (페이지)
+  if (method === 'GET' && url.startsWith('/api/v1/partner-orders') && !url.match(/\/api\/v1\/partner-orders\/[^/?]+$/)) {
+    return envelope({
+      content: MOCK_PARTNER_ORDERS,
+      totalElements: MOCK_PARTNER_ORDERS.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+
+  // GET /api/v1/partner-orders/{id}
+  const partnerOrderDetailMatch = url.match(/^\/api\/v1\/partner-orders\/([^/]+)$/)
+  if (method === 'GET' && partnerOrderDetailMatch) {
+    const num = decodeURIComponent(partnerOrderDetailMatch[1]!)
+    const found
+      = MOCK_PARTNER_ORDERS_DETAIL.find((o) => o.orderNumber === num)
+        ?? MOCK_PARTNER_ORDERS_DETAIL[0]!
+    return envelope(found)
+  }
+
+  // GET /api/v1/partners/long-pending
+  if (method === 'GET' && url.startsWith('/api/v1/partners/long-pending')) {
+    return envelope({
+      content: MOCK_LONG_PENDING,
+      totalElements: MOCK_LONG_PENDING.length,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    })
+  }
+
   return null
 }
+
+// ============================================================================
+// migration-fe-desktop-sales: mock seed data (Phase 6 Sub-team Desktop)
+// ============================================================================
+
+/** 카탈로그 검색 mock — 4 카테고리 × 3~5 row. */
+const MOCK_SALES_PRODUCTS = [
+  // HOME_MULTI
+  { modelCode: 'AJ040RXH4BC1', name: '시스템에어컨 4Way 4HP', usageScope: 'BOTH', estimateCategory: 'HOME_MULTI', releasePrice: 1850000, deliveryPrice: 1480000, hasVariableDiscount: true, legacyDiscountFlag: false, discountFlags: 'AC' },
+  { modelCode: 'AJ052RXH5BC1', name: '시스템에어컨 4Way 5HP', usageScope: 'BOTH', estimateCategory: 'HOME_MULTI', releasePrice: 2120000, deliveryPrice: 1696000, hasVariableDiscount: true, legacyDiscountFlag: false, discountFlags: 'AC' },
+  { modelCode: 'AJ036NCH3CH', name: '천장형 1Way 3HP', usageScope: 'BOTH', estimateCategory: 'HOME_MULTI', releasePrice: 1450000, deliveryPrice: 1160000, hasVariableDiscount: false, legacyDiscountFlag: false, discountFlags: null },
+  { modelCode: 'AJ100NCDKH', name: '실외기 10HP', usageScope: 'BOTH', estimateCategory: 'HOME_MULTI', releasePrice: 4200000, deliveryPrice: 3360000, hasVariableDiscount: true, legacyDiscountFlag: false, discountFlags: 'AC' },
+  // SINGLE_SET
+  { modelCode: 'AC360-15CST-SET', name: '360 CST UV 15평형 (세트)', usageScope: 'BOTH', estimateCategory: 'SINGLE_SET', releasePrice: 3200000, deliveryPrice: 2560000, hasVariableDiscount: false, legacyDiscountFlag: false, discountFlags: 'AC' },
+  { modelCode: 'AC360-20CST-SET', name: '360 CST UV 20평형 (세트)', usageScope: 'BOTH', estimateCategory: 'SINGLE_SET', releasePrice: 3850000, deliveryPrice: 3080000, hasVariableDiscount: false, legacyDiscountFlag: false, discountFlags: 'AC' },
+  { modelCode: 'AP4WAY-25-SET', name: '4Way 25평형 (세트)', usageScope: 'BOTH', estimateCategory: 'SINGLE_SET', releasePrice: 4100000, deliveryPrice: 3280000, hasVariableDiscount: false, legacyDiscountFlag: false, discountFlags: 'AP' },
+  // COMMERCIAL_MULTI
+  { modelCode: 'AM080AXVAGH', name: '상업멀티 8HP 외기', usageScope: 'BOTH', estimateCategory: 'COMMERCIAL_MULTI', releasePrice: 8500000, deliveryPrice: 6800000, hasVariableDiscount: true, legacyDiscountFlag: false, discountFlags: null },
+  { modelCode: 'AM120AXVAGH', name: '상업멀티 12HP 외기', usageScope: 'BOTH', estimateCategory: 'COMMERCIAL_MULTI', releasePrice: 12000000, deliveryPrice: 9600000, hasVariableDiscount: true, legacyDiscountFlag: false, discountFlags: null },
+  // LEGACY (구형 50% DC)
+  { modelCode: 'OLD-3HP-A', name: '구형 3HP 시스템', usageScope: 'BOTH', estimateCategory: 'LEGACY', releasePrice: 980000, deliveryPrice: 490000, hasVariableDiscount: false, legacyDiscountFlag: true, discountFlags: null },
+  { modelCode: 'OLD-5HP-B', name: '구형 5HP 시스템', usageScope: 'BOTH', estimateCategory: 'LEGACY', releasePrice: 1280000, deliveryPrice: 640000, hasVariableDiscount: false, legacyDiscountFlag: true, discountFlags: null },
+] as const
+
+const MOCK_SALES_SPECS: Record<string, Array<{ id: string; specKey: string; specValue: string | null; unit: string | null; displayOrder: number }>> = {
+  AJ040RXH4BC1: [
+    { id: 's1', specKey: '냉방능력', specValue: '11.2', unit: 'kW', displayOrder: 1 },
+    { id: 's2', specKey: '난방능력', specValue: '12.5', unit: 'kW', displayOrder: 2 },
+    { id: 's3', specKey: '소비전력 (냉방)', specValue: '3,400', unit: 'W', displayOrder: 3 },
+    { id: 's4', specKey: '에너지소비효율등급', specValue: '1', unit: null, displayOrder: 4 },
+    { id: 's5', specKey: '냉매', specValue: 'R-410A', unit: null, displayOrder: 5 },
+  ],
+  DEFAULT: [],
+}
+
+/** 견적 목록 mock — sample 5 row. */
+const MOCK_ESTIMATES = [
+  { estimateNumber: '견적-2026-0001', createdAt: '2026-05-04T09:30:00+09:00', partnerName: '주식회사 윌리-정현수', category: 'HOME_MULTI', totalAmount: 5180000, status: 'CONFIRMED', authorName: '오병승' },
+  { estimateNumber: '견적-2026-0002', createdAt: '2026-05-03T14:20:00+09:00', partnerName: '○○종합건설', category: 'COMMERCIAL_MULTI', totalAmount: 18400000, status: 'SENT', authorName: '박서연' },
+  { estimateNumber: '견적-2026-0003', createdAt: '2026-05-02T10:15:00+09:00', partnerName: '한일냉동기술', category: 'SINGLE_SET', totalAmount: 6280000, status: 'DRAFT', authorName: '오병승' },
+  { estimateNumber: '견적-2026-0004', createdAt: '2026-05-01T11:00:00+09:00', partnerName: '미래에어솔루션', category: 'HOME_MULTI', totalAmount: 3360000, status: 'CONVERTED', authorName: '이정훈' },
+  { estimateNumber: '견적-2026-0005', createdAt: '2026-04-30T16:45:00+09:00', partnerName: '구형설비센터', category: 'LEGACY', totalAmount: 1130000, status: 'CANCELED', authorName: '오병승' },
+]
+
+const MOCK_ESTIMATES_DETAIL = [
+  {
+    estimateNumber: '견적-2026-0001',
+    partnerCode: '123-45-67890',
+    partnerName: '주식회사 윌리-정현수',
+    category: 'HOME_MULTI',
+    status: 'CONFIRMED',
+    createdAt: '2026-05-04T09:30:00+09:00',
+    authorName: '오병승',
+    deliveryAddress: '서울특별시 강남구 테헤란로 152',
+    siteAddress: '서울특별시 강남구 테헤란로 152 7층',
+    contactPhone: '010-1234-5678',
+    dueDate: '2026-05-15',
+    paymentDueDate: '2026-06-15',
+    memo: '15층 전용 — 지하 1층 주차 가능',
+    totalAmount: 5180000,
+    lines: [
+      { id: 'el1', category: 'HOME_MULTI', modelCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', quantity: 2, releasePrice: 1850000, deliveryPrice: 1480000, subtotal: 2960000, hasVariableDiscount: true, bundleMode: null },
+      { id: 'el2', category: 'HOME_MULTI', modelCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', quantity: 1, releasePrice: 1450000, deliveryPrice: 1160000, subtotal: 1160000, hasVariableDiscount: false, bundleMode: null },
+      { id: 'el3', category: 'HOME_MULTI', modelCode: 'AJ100NCDKH', productName: '실외기 10HP', quantity: 0.32, releasePrice: 4200000, deliveryPrice: 3360000, subtotal: 1075200, hasVariableDiscount: true, bundleMode: null },
+    ],
+  },
+]
+
+/** 주문서 조회 mock — sample 4 row. */
+const MOCK_PARTNER_ORDERS = [
+  { orderNumber: '주문-2026-0011', partnerCode: '123-45-67890', partnerName: '주식회사 윌리-정현수', submittedAt: '2026-05-04T08:30:00+09:00', status: 'SUBMITTED', totalAmount: 6420000, linkedSlipNo: null },
+  { orderNumber: '주문-2026-0010', partnerCode: '987-65-43210', partnerName: '○○종합건설', submittedAt: '2026-05-03T13:15:00+09:00', status: 'CONVERTED', totalAmount: 12800000, linkedSlipNo: '2026/05/03-7' },
+  { orderNumber: '주문-2026-0009', partnerCode: '456-78-90123', partnerName: '한일냉동기술', submittedAt: '2026-05-02T09:45:00+09:00', status: 'CONFIRMED', totalAmount: 4560000, linkedSlipNo: null },
+  { orderNumber: '주문-2026-0008', partnerCode: '111-22-33333', partnerName: '미래에어솔루션', submittedAt: null, status: 'DRAFT', totalAmount: 0, linkedSlipNo: null },
+]
+
+const MOCK_PARTNER_ORDERS_DETAIL = [
+  {
+    orderNumber: '주문-2026-0011',
+    partnerCode: '123-45-67890',
+    partnerName: '주식회사 윌리-정현수',
+    submittedAt: '2026-05-04T08:30:00+09:00',
+    status: 'SUBMITTED',
+    totalAmount: 6420000,
+    linkedSlipNo: null,
+    deliveryAddress: '서울특별시 강남구 테헤란로 152',
+    siteAddress: '서울특별시 강남구 테헤란로 152 7층',
+    contactPhone: '010-1234-5678',
+    dueDate: '2026-05-12',
+    memo: '오전 도착 요망',
+    lines: [
+      {
+        id: 'pol1', modelCode: 'AC360-20CST-SET', productName: '360 CST UV 20평형 (세트)', quantity: 2, deliveryPrice: 3080000, subtotal: 6160000, bundleMode: 'EXPAND',
+        expandedComponents: [
+          { modelCode: 'AC360-20CST-IDU', productName: '360 CST UV 실내기', quantity: 2 },
+          { modelCode: 'PC1NWSK3NW', productName: 'WIFI 판넬', quantity: 2 },
+          { modelCode: 'MWR-WE10N', productName: '유선 리모컨', quantity: 2 },
+        ],
+      },
+      {
+        id: 'pol2', modelCode: 'PUMP-CEIL-A', productName: '천장 펌프 (KEEP SKU)', quantity: 1, deliveryPrice: 260000, subtotal: 260000, bundleMode: 'KEEP',
+        expandedComponents: [],
+      },
+    ],
+  },
+]
+
+/** 장기미발주 mock — 30일 이상 미활동 5 거래처. */
+const MOCK_LONG_PENDING = [
+  { businessRegistrationNumber: '111-22-33333', companyName: '미래에어솔루션', assignedManagerName: '오병승', lastOrderAt: '2026-03-15T10:00:00+09:00', lastEstimateAt: '2026-03-20T14:00:00+09:00', lastActivityAt: '2026-03-20T14:00:00+09:00', daysSinceLastActivity: 46, authStatus: 'LONG_PENDING_NO_ORDER' },
+  { businessRegistrationNumber: '222-33-44444', companyName: '대한설비공조', assignedManagerName: '박서연', lastOrderAt: '2026-02-28T09:30:00+09:00', lastEstimateAt: null, lastActivityAt: '2026-02-28T09:30:00+09:00', daysSinceLastActivity: 67, authStatus: 'LONG_PENDING_NO_ORDER' },
+  { businessRegistrationNumber: '333-44-55555', companyName: '신한엔지니어링', assignedManagerName: '이정훈', lastOrderAt: '2026-03-30T11:15:00+09:00', lastEstimateAt: '2026-04-01T16:20:00+09:00', lastActivityAt: '2026-04-01T16:20:00+09:00', daysSinceLastActivity: 34, authStatus: 'LONG_PENDING_NO_ORDER' },
+  { businessRegistrationNumber: '444-55-66666', companyName: '제주냉난방', assignedManagerName: '오병승', lastOrderAt: '2026-01-10T08:00:00+09:00', lastEstimateAt: null, lastActivityAt: '2026-01-10T08:00:00+09:00', daysSinceLastActivity: 115, authStatus: 'ACCESS_DENIED' },
+  { businessRegistrationNumber: '555-66-77777', companyName: '강원에어시스템', assignedManagerName: null, lastOrderAt: null, lastEstimateAt: '2026-03-25T13:00:00+09:00', lastActivityAt: '2026-03-25T13:00:00+09:00', daysSinceLastActivity: 41, authStatus: 'LONG_PENDING_NO_ORDER' },
+]
 
 // ============================================================================
 // accounting-slice-A: 회계 mock seed data

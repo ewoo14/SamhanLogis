@@ -1,0 +1,642 @@
+/*
+ * 판매 화면 (견적서 / 주문서 / 장기미발주) 공통 CSS 모듈.
+ *
+ * legacy estimate index.html (line 16-220) 의 :root + .wrap + .top + .grid + .card +
+ * table + button + chip + ratio 토큰을 100% 보존 방식으로 옮긴다.
+ *
+ * F1 (a) 100% 보존 결정 (Phase 6) — DS 컴포넌트 import 금지, 토큰만 활용.
+ * 본 모듈은 desktop 전체 :root 토큰 (Pretendard / brand-500 등) 보다 우선해
+ * legacy 의 system-ui / #2563eb / #11182710 등 색감을 직접 사용한다.
+ *
+ * 후속 모바일 대응 시 768/480 breakpoint 를 추가.
+ */
+
+/* ====== legacy theme variables (estimate index.html line 18) ====== */
+.salesScope {
+  --c-bg: #fff;
+  --c-line: #000;
+  --c-col-sep: #000;
+  --c-muted: #6b7280;
+  --c-strong: #111827;
+  --c-accent: #2563eb;
+  --row-h: 40px;
+  --inp-h: 30px;
+  font-family: system-ui, sans-serif;
+  color: var(--c-strong);
+  background: var(--c-bg);
+}
+
+/* ====== wrap / top ====== */
+.wrap {
+  max-width: 2000px;
+  margin: 0 auto;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 56px);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.topActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ====== buttons ====== */
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btnMini {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: #11182710;
+  color: #111827;
+  padding: 6px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.btnGhost {
+  appearance: none;
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #111827;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.btnAccent {
+  background: var(--c-accent);
+}
+
+.btnDanger {
+  background: #b91c1c;
+}
+
+/* ====== category nav (top button bar — legacy `body.{cat}-active` 강조) ====== */
+.catBtn {
+  composes: btnMini;
+}
+
+.catBtnActive {
+  composes: btn;
+  background: var(--c-accent);
+  color: #fff;
+}
+
+/* ====== card grid ====== */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (min-width: 1280px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-line);
+  background: #f9fafb;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ratio badge — legacy `.ratio.bad` 음수 마진 표시 */
+.ratio {
+  font-weight: 800;
+}
+.ratioBad {
+  composes: ratio;
+  color: #dc2626;
+}
+
+/* ====== table (estimate line grid) ====== */
+.tableWrap {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  max-height: calc(100vh - 320px);
+  padding-bottom: 8px;
+}
+
+.estTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.estTable th,
+.estTable td {
+  border-bottom: 1px solid var(--c-line);
+  padding: 0 10px;
+  height: var(--row-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid var(--c-col-sep);
+}
+
+.estTable th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 800;
+  background: linear-gradient(180deg, #f9fafb 0%, #ecf0f5 100%);
+}
+
+.estTable td:last-child,
+.estTable th:last-child {
+  border-right: none;
+}
+
+.qtyInput {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  outline: none;
+  text-align: center;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.qtyInput:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.derivedRow td {
+  background: #fcfcff;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.sumRow td {
+  background: #fcfcff;
+  font-weight: 800;
+}
+
+/* ====== form (cardOrderInfo) ====== */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formField label {
+  font-size: 12px;
+  color: var(--c-muted);
+  font-weight: 600;
+}
+
+.formField input,
+.formField select,
+.formField textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.formField input:focus,
+.formField select:focus,
+.formField textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.formField textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* ====== modal (legacy `dialog` 14px radius + sticky head/foot) ====== */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  width: min(1200px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--c-line);
+  background: #f9fafb;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modalBody {
+  padding: 0 16px 14px;
+  overflow: auto;
+  flex: 1;
+}
+
+.modalFoot {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  border-top: 1px solid var(--c-line);
+  background: #fff;
+}
+
+/* ====== filter bar (modal search) ====== */
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
+  border-bottom: 1px solid #cbd5e1;
+  background: #fff;
+  flex-wrap: wrap;
+}
+
+.filterBar select,
+.filterBar input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.filterBar select:focus,
+.filterBar input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.filterSearch {
+  flex: 1;
+  max-width: 300px;
+  margin-left: auto;
+}
+
+/* ====== list page table ====== */
+.listTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 13px;
+}
+
+.listTable th,
+.listTable td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.listTable th {
+  background: #f9fafb;
+  font-weight: 700;
+  font-size: 12px;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.listTable tbody tr:hover {
+  background: #f9fafb;
+  cursor: pointer;
+}
+
+.listTable td.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.statusDraft {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.statusConfirmed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.statusSent {
+  background: #d1fae5;
+  color: #065f46;
+}
+.statusConverted {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.statusCanceled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.statusLongPending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ====== empty state ====== */
+.emptyState {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--c-muted);
+}
+
+.emptyState h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--c-strong);
+}
+
+.emptyState p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+/* ====== branch placeholder (G13 — M3 EstimateBranchCalcService 통합 대기) ====== */
+.branchPlaceholder {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  background: #f8fafc;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+.branchPlaceholder h4 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.branchPlaceholder p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.branchPlaceholder .pendingTag {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ====== print preview wrapper ====== */
+.printShell {
+  background: #f3f4f6;
+  padding: 24px;
+  min-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.printPaper {
+  background: #fff;
+  width: 794px; /* A4 portrait at 96dpi */
+  min-height: 1123px;
+  padding: 36px 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.printHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 2px solid var(--c-line);
+  padding-bottom: 8px;
+}
+
+.printHeader h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 4px;
+}
+
+.printMeta {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.printPartnerBox {
+  border: 1px solid var(--c-line);
+  padding: 8px 12px;
+  font-size: 13px;
+  display: grid;
+  grid-template-columns: 80px 1fr 80px 1fr;
+  gap: 6px 12px;
+}
+
+.printPartnerBox label {
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.printTotalRow td {
+  background: #f9fafb;
+  font-weight: 800;
+}
+
+@media print {
+  .printShell {
+    background: #fff;
+    padding: 0;
+  }
+  .printPaper {
+    box-shadow: none;
+  }
+  .noPrint {
+    display: none !important;
+  }
+}
+
+/* ====== inventory dock (Daum-style 주소 검색 placeholder) ====== */
+.addrDockOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addrDockBox {
+  background: #fff;
+  width: min(640px, calc(100vw - 32px));
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ====== sub-nav for /sales hub ====== */
+.subNav {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.subNav a {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  text-decoration: none;
+}
+
+.subNav a:hover {
+  background: #f3f4f6;
+}
+
+.subNav a.active {
+  background: #eef2ff;
+  color: #3730a3;
+}
