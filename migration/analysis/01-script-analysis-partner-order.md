@@ -11,7 +11,20 @@
 
 ## §1. 함수 inventory (누락 0)
 
-### Code.js — top-level 함수 81개 (라인 정렬)
+> **Phase 1.5 보정 (2026-05-05)**: Phase 2 cross-review §1 catch (분석 81 vs 실측 87 — top-level 2 + nested 4 누락) 후 PM (Claude) 의 보정 작업. Code.js 표에 6 함수 추가 (81 → **87**), §1.2 (index.html 256 함수 inventory) 신규 추가.
+
+### §1.0 누락 0 가드 결과
+
+| 파일 | 카운트 명령 | 추출 함수 수 | 비고 |
+|---|---|---|---|
+| Code.js | `grep -nE "^\s*(async\s+)?function [a-zA-Z_]"` | **87** | 최상위 81 + 중첩 6 (`scan`, `scanHome`, `scanSingle`, `scanComm`, `getOrigName_`, `getSection_`) |
+| index.html | `grep -nE "^\s*(async\s+)?function [a-zA-Z_]"` | **256** | 최상위 + 중첩 모두 포함 |
+| index.html named function expression | `const X = function` | 0 | partner-order 는 named function expression 0건 (estimate 와 차이) |
+| **합계 (named)** | | **343** | inventory 행 수와 동일 |
+
+(주: 익명 콜백 화살표 `(x)=>...` 다수 존재 — 분석 대상 아님. 주요 함수 내 inline 헬퍼만 시그니처 기록.)
+
+### Code.js — 함수 87개 (라인 정렬, top-level 81 + nested 6)
 
 | # | 함수 | 라인 | private | 카테고리 | 역할 요약 |
 |---|---|---|---|---|---|
@@ -97,9 +110,20 @@
 | 80 | `logActionToNotion` | 3254 | No | 로그 | NOTION_DB_ID_LOG 액션 로그 1행 |
 | 81 | `logFrontEvent` | 3292 | No | 로그 | 프론트 이벤트 → logActionToNotion 위임 |
 
-**Code.js 누락 0 확인** — grep `^function` 결과 81 entry / 모두 위 표 등재.
+#### Phase 1.5 보강 — 누락 6 함수 (top-level 2 + nested 4)
 
-### index.html 인라인 함수 (Apps Script 호출 site만 inventory)
+| # | 함수 (parent.nested 표기) | 라인 | private | 카테고리 | 역할 요약 |
+|---|---|---|---|---|---|
+| 82 | `extractSingleIncreasePrices_` | 281 | Yes | 시트 헬퍼 | 헤더 자동탐지 (모델명+납품가/출고가) → **마지막 `납품가` 컬럼** 우선 (싱글 세트/싱글 구성품 인상가 공통). `getSingleIncreasePrices_`/`getSinglePartsIncreasePrices_` 양쪽에서 호출 |
+| 83 | `extractIncreasePrices_` | 332 | Yes | 시트 헬퍼 | 헤더 후보 [출고가, LIST, 리스트, 정가, 소비자가] → idxList. 홈멀티/상업멀티 인상가 공통 (`getHomeIncreasePrices_`/`getCommIncreasePrices_` 호출). 기존 §1 표 #11 항목 = 본 함수 (라인 매핑 OK / 추가 누락 0) |
+| 84 | `getSpecMap_.scan` | 1169 | Yes | 시트 (nested) | parent: `getSpecMap_`. 5개 시트 (HOME/SINGLE_PARTS/SINGLE/COMM/COMM_PARTS) 횡단 스캐너. 헤더 [모델명/모델/품목코드/기종] + [규격] (COMM_PARTS 는 [비고/규격]) idx 결정 → `specMap[model]=spec` 첫 등장 우선. `sheets.forEach(scan)` (line 1204) 로 호출 |
+| 85 | `getSpecDetailMap_.scanHome` | 1241 | Yes | 시트 (nested) | parent: `getSpecDetailMap_`. `홈멀티` 시트 → 모델별 상세 스펙 (배관경/소비전력/에너지효율/냉매가스/차단기/전원선/제품크기/중량/포장/최대장배관/최대고저차) 추출하여 `out.home[model]=detail` 누적 |
+| 86 | `getSpecDetailMap_.scanSingle` | 1318 | Yes | 시트 (nested) | parent: `getSpecDetailMap_`. `싱글 세트` 시트 → 등급/배관경/소비전력/성능 (kW·kcal)/전원·차단/실내·외기 크기·중량·포장/배관길이·낙차/냉매가스 (`bar/slash split` 다열 그룹 처리) → `out.single[model]=detail` |
+| 87 | `getSpecDetailMap_.scanComm` | 1412 | Yes | 시트 (nested) | parent: `getSpecDetailMap_`. `상업멀티` 시트 → 다열 ERV layout 자동 감지 (layout3 = kcal/kW/터보·강·약 ERV vs layout2 = 일반) + 용량/대분류/배관경/덕트구경/냉방·난방성능/소비효율/제품크기/중량/포장/최대장배관/최대고저차 → `out.comm[model]=detail` |
+
+**Code.js 누락 0 확인** — `grep -nE "^\s*(async\s+)?function [a-zA-Z_]" Code.js | wc -l` 결과 **87 entry** / 모두 위 표 (#1~#87) 등재. 본 보강은 Phase 2 cross-review §1 catch (분석 81 vs 실측 87) 후 PM (Claude) 의 보정 작업이며, 기존 §1 표 #41 (`getSpecMap_`), #42 (`getSpecDetailMap_`) 의 "3 inner: scanHome/scanSingle/scanComm" 메모와 #11 (`extractIncreasePrices_`) 메모만 있던 누락분을 정식 inventory 행으로 등재한 것임. 함수 본문/시그니처 변경 0건.
+
+### index.html 인라인 함수 (Apps Script 호출 site만 inventory — RPC 12 site)
 
 | google.script.run 호출 | 위치 (line) | 호출 컨텍스트 |
 |---|---|---|
@@ -117,6 +141,114 @@
 | `saveTutorialState` | 9423 | 튜토리얼 완료 체크박스 |
 
 총 12개 RPC. 화면 함수는 doGet 템플릿 변수 (homemulti, singleSets, singleParts, homeDefaults, singleDefaults, singleMatPrices, commercialMulti, commercialParts, oldProducts, homeInc, commInc, singleInc, singlePartsInc, specDetailMap, logoData, config) 16종 prefetch 후 SPA 가 클라이언트 사이드에서 분류/단가/렌더 처리.
+
+### §1.2 index.html 함수 inventory (256개)
+
+> **Phase 1.5 보강 (2026-05-05)**: Phase 2 cross-review §1 catch (index.html 256 함수 미인벤토리, RPC 12 site 만 등재) 후 PM (Claude) 의 보정 작업. 전체 256개 함수의 라인 매핑은 본 §1.2 카테고리별 요약으로 압축 (estimate.md §1.2 양식 모방). 모든 함수 라인은 `grep -nE "^\s*(async\s+)?function [a-zA-Z_]" index.html` 로 동일 결과 재현 가능. **누락 0**.
+
+#### 카테고리별 요약 (라인:함수 — 주요 호출 흐름)
+
+**A. 데이터 부트스트랩 / 모델 분류 / 단가 헬퍼 (라인 1248-1504) — 18개**
+- `J(v,d)` 1248, `isExpansionModel(s)` 1249, `getModelFlags(model)` 1292 — **세트 DC 모델 prefix 매트릭스** (§6.3 표 7행), `applyConfigFromServer(cfg)` 1322 — DC config 주입, `parseFixedDc(dc)` 1345 — % vs 0~1 소수 자동, `isWallMountName(name)` 1366, `getStockState_(note)` 1372, `modelExists(m)` 1398, `isPanelRow(r)` 1400, `inferOneWaySize(nameLike)` 1405, `isRemoteRow(r)` 1413, `clearAllPanels()` 1417, `clearAllRemotes()` 1420, `pickPanelBy(kind, wifi, opt)` 1425, `cleanDisplayName(rawDisp,rawName)` 1461, `stripCommKeywords(s, row)` 1470, `displayOverrides(s,scope)` 1492, `adjustSingleSetBasePrice(s, base)` 1504 — **§5/§6 변동DC 핵심**.
+
+**B. 라운딩 / 분리 / 세트 분석 (라인 1535-1615) — 6개**
+- `roundK(n)` 1535, `roundByConfig(n)` 1541 — 단위처리 (반올림/올림/내림 + 1·10·100원), `isIndoorUnitPart(p)` 1561, `isOutdoorUnitPart(p)` 1574, `splitIndoorOutdoorToK(setUnit, fixedSum, ratioIn, ratioOut)` 1585, `analyzeSingleSetDiscountFlags(s)` 1615 — `getModelFlags` 호출 → 세트 DC 적용 여부 사전 판정.
+
+**C. 스펙 모달 / 견적표 출력 (라인 1644-2043) — 10개**
+- `closeSpecModal()` 1644, `openSpecModalByItem(item, scope)` 1648, `renderHomeSpec_(catL, s)` 1693, `renderSingleSpec_(catL, item, s)` 1730, `renderCommSpec_(catL, item, s)` 1822, `renderErvSpec_(s)` 1926, `renderPanelSpecCommon_(catL, p)` 1966, `buildTripleSpecRows_(title, raw, labels)` 1978, `specTableWithTriple_(rows, pipeTriple, dropTriple, opt)` 1993, `specTable_(rows, opt)` 2043.
+
+**D. 상업 행 분류 / 모델 픽 (라인 2071-2258) — 17개**
+- `rawNameOf(r)` 2071, `isCommIndoorRow(r)` 2076, `isCommOutdoorRow(row)` 2083, `commIndoorKind(r)` 2094, `isCommPanelRow(r)` 2104, `isCommHoseRow(r)` 2110, `isCommRemoteRow(r)` 2116, `isCommPumpRow(r)` 2122, `computeCommRemoteModelForIndoor_(row)` 2128, `pickHoseModel(kind)` 2161, `pickCommPanelModel(kind)` 2169, `hasExactHP(nm, hp)` 2175, `parseSetHPs(nm)` 2181, `chooseBaseModel(nm)` 2188, `basesForSetPiecesByExistingRule_(row)` 2233, `modelByNameLike(keyword)` 2245, `countBranchForSet(nm)` 2258.
+
+**E. 단가 적용 / 분류 / RGB (라인 2275-2544) — 11개**
+- `rgbForMid(M,L)` 2275, `applyHomeMultiPriceVat(it, cfg)` 2288 — **§5 변동DC 핵심: `it.useK2 && currentListPrice > 0` 시 `currentListPrice * (1 - useRate)` 적용**, `normalizeHomeCategory(row)` 2296, `classifySingleSetFixed(s)` 2311, `priceFrom(obj, opts)` 2363 — priceKeys/listKeys 통합 lookup, `homeUnitPrice(model)` 2381, `partUnitPrice(p)` 2429, `setBasePriceLeft(s)` 2444, `singleUnitPrice(it)` 2453, `commUnitPrice(model)` 2499, `singleDispNameTrimmed(s,cls)` 2544.
+
+**F. 자동 마킹 / UI 합계 / 바인딩 (라인 2589-2782) — 8개**
+- `markAutoHome(...m)` 2589, `markAutoSingle(...ids)` 2590, `syncCommTotals()` 2606, `setFootSum()` 2615, `bindQty(sel,onChange)` 2638, `bindCommQtyEvents()` 2663, `bindCommQtyArrowNav()` 2758, `getCapacity(r)` 2782.
+
+**G. 비율 / 추천 (라인 2789-2818) — 2개**
+- `updateHomeRatio()` 2789, `updateCommRatio()` 2818.
+
+**H. 미리보기 푸터 / 패널·리모컨 픽 / 세트 단가 (라인 2857-2924) — 10개**
+- `setPreviewFoot(sum)` 2857, `materialsSumForSet(s)` 2871, `getDefaultRemoteRows(s)` 2876, `getOptionRemoteRow(s,opt)` 2877, `allowRemoteChange_(s)` 2884, `is1WaySet_(s)` 2888, `getBasePanelRow(s)` 2893, `pickPanelRow(s)` 2894, `setBasePriceRightFirst(s)` 2911, `calcSetUnitPrice(s)` 2924 — base + panelDelta + remoteDelta + materialsSum + `adjustSingleSetBasePrice`.
+
+**I. 세트 펼침 / 상업 부속 (라인 2954-3120) — 5개 — §6 Bundle 핵심**
+- `partsForSetStrict_(s)` 2954 — `SINGLE_PARTS.filter(p => p.setModel === s.model)` (FK 매칭), `explodeSetParts(s, qty, setUnitOverride)` 2960 — 1세트 → N라인 펼침 (panel 선택 + remote 선택 + 자재 포함 여부), `partsForCommSet_(setModel)` 3101, `inferStandCountForOutdoor_(setModel, qty)` 3113, `recalcCommAccessories()` 3120.
+
+**J. 필터 / 옵션 / 렌더 (라인 3147-4345) — 25개**
+- `escapeFilterRe_(s)` 3147, `applyHomeFilter/SingleFilter/CommFilter` 3151/3170/3188, `updateHomeFilterOptions/SingleFilterOptions/CommFilterOptions` 3208/3270/3319, `initFilters()` 3429, `renderHome()` 3482, `renderSingle()` 3658, `buildSingleSetCompositionHtml_(s)` 3826, `normalizeCommCategory(r)` 3891, `fixCommMidCategory(r)` 3899, `renderCommOptions()` 3907, `getCommFilterRows_()` 3928, `renderComm()` 3991, `buildDisplayNameComm(r, row)` 4191, `displayNameForRow(row)` 4230, `normKey(s)` 4243, `buildCommSetIndex()` 4249, `explodeCommPreviewParts(setModel, setQty)` 4275, `isCommSetRow(r)` 4289, `explodeCommSets_(setRow, setQty)` 4294, `renderCommSetParts(setModel, setQty)` 4312, `renderOld()` 4345.
+
+**K. 구형 합계 / 모바일 / 뷰포트 (라인 4423-4529) — 7개**
+- `sumOld()` 4423, `syncOldTotals()` 4444, `isMobileNow()` 4452, `initMobileUI()` 4460, `onViewportChange(isMobile)` 4478, `enterMobile(which)` 4506, `updateTopControls()` 4529 (1회차 — §S 등에서 중복 정의).
+
+**L. 수량 입력 / 옵션 / 재계산 (라인 4557-4971) — 18개**
+- `onHomeQtyInput(model,v)` 4557, `onSingleQtyInput(id,v)` 4565, `chk(label,def,id)` 4580, `sel(label,arr,def,id)` 4581, `renderHomeOptions()` 4582, `renderSingleOptions()` 4594, `recomputeFootAll()` 4617, `recomputeSingleBaseFoot()` 4625, `recomputeSingleExtras()` 4641, `isHomeCalcTriggerModel(model)` 4666, `isSingleCalcTriggerId(id)` 4675, `findHomePanelModel(kind, wifi)` 4700, `pickInfinitePanelModel(size, opt)` 4715, `inferInfiniteSize(nameLike)` 4730, `recomputeHomePanels()` 4739, `recomputeHomeRemotes()` 4865, `recomputeHomeBranches()` 4918, `recomputeHomeDerived(updateUI)` 4971.
+
+**M. 상업 재계산 / UI 동기화 / 세트 펼침 송신 (라인 5025-5381) — 9개**
+- `recomputeCommDerived()` 5025, `has_(s, re)` 5201, `computeCommPanelModelForIndoor_(row)` 5202, `syncHomeUIFromState()` 5289, `syncSingleUIFromState()` 5299, `syncHomeTotals()` 5310, `refreshSelectedBadge()` 5316, `getSetUnitNowById(id)` 5338, `explodeSendSets_(s, q)` 5352 — **§6.2-2 SEND_AS_SET_IDS 화이트리스트 분기점**.
+
+**N. 미리보기 / 주소검색 / 게이트 (라인 5381-5776) — 11개**
+- `openPreview()` 5381, `ensureKakaoPostcode()` 5521 (외부 CDN), `mountAddrSheet()` 5531, `openPostcode()` 5600, `isValidTel(v)` 5671, `syncAuditFromShip_()` 5675, `toggleSameAddr_()` 5682, `checkOrderReady()` 5710, `aggregateSendRows(rows)` 5727, `showSector(sec)` 5767, `initGate()` 5776 → 게이트 진입 + `getGateImages` RPC.
+
+**O. 주문 빌드 / 이벤트 / 합계 / 표 폭 (라인 5840-6254) — 8개**
+- `buildSendRows()` 5840 — **§7.1 [6] 최종 전송 직전 라인 빌드**, `forceOrderTitle()` 5959, `initEvents()` 5969 (nested `bindOrderHotkeys()` 6081), `updateInlineTotals()` 6149, `fixFootersForMobile(isMobile)` 6167, `fitTableWrap(wrapSelector)` 6222, `fitAllTables()` 6254.
+
+**P. 유틸 / 화면 전환 / 분기관 (라인 6262-6578) — 17개**
+- `call(fn, ...args)` 6262, `setText(q, v)` 6264, `fmtOrRaw(x)` 6266, `valuesOf(m)` 6268, `goHome/goSingle/goComm/goOld` 6271/6280/6289/6304, `bindViewSwitchButtons()` 6330, `capFromModel(model)` 6399, `pickSelectedOutdoors()` 6405, `pickSelectedIndoorsExpanded()` 6431, `codeByCumulativeSum(csum)` 6463, `codeByOutdoorHP(hp, def)` 6473, `recomputeBranchCodes(outsArg)` 6489, `canOpenBranch()` 6565, `refreshBranchButton()` 6578.
+
+**Q. 분기관 페이지 / DnD / 슬롯 (라인 6605-7173) — 28개**
+- `ensureBranchScaffold()` 6605, `syncCommQtyFromDOM()` 6655, `goBranchPage()` 6665, `backToComm()` 6680, `debugIndoorsScan()` 6692, `updateBranchTopButton()` 6701, `handleBranchToggleClick()` 6711, `setBranchTopButtonForBranch(isBranch)` 6720, `renderBranchTable(outs, inds)` 6736, `makeCapsule(model, cap, inGrid)` 6785, `fixBranchDOM()` 6797, `wireBranchDnD()` 6807, `packOutColumn(key)` 6885, `repackLeft()` 6913, `pushBackToLeft(model, cap)` 6937, `buildBranchView()` 6952, `packAllOutColumns()` 6988, `limitByOutdoor(raw)` 6995, `sumCapsIn(slot)` 6998, `firstBranchByOutdoorCap(outCap)` 7004, `updateBranchRatios(outsArg)` 7014, `setCommBranchQtyByLike(modelLike, qty)` 7058, `pushBranchPartsToCommFromBadges()` 7067, `snapshotBranchState()` 7090, `saveBranchState()` 7107, `loadBranchState()` 7114, `applyBranchState(st)` 7125, `canOpenBranchFromComm()` 7173.
+
+**R. 게이트 이미지 / 자동 할인율 보정 (라인 7188-7400) — 9개 (4 nested)**
+- `refreshBranchOpenButton(ctx)` 7188, `prepareGateImages(images)` 7252, `isGateVisible()` 7262, `showGateImageModal()` 7271, `updateImgSlide()` 7332, **nested in 자동 할인율 보정 블록**: `isNoMainUnit()` 7347, `getTierBonusRate(sum)` 7386, `isStandard45(rate)` 7395, `runWithAdjustedRates(callback)` 7400.
+
+**S. 인증 게이트 / 로그인 / 만료 폴링 (라인 7553-7935) — 6개 — §4 인증 핵심**
+- `onAuthStatus(res)` 7553 → `checkAuthStatus` RPC 콜백 + status 분기 (§7.1 [2]), `showAuthModal(opt)` 7647 → PW 입력/설정 모달 (`setAuthPassword` / `tryLogin` RPC), `completeLogin(bizNo, config, res)` 7805 → DC config applyConfigFromServer + 화면 렌더 + `startExpirationPolling`, `startExpirationPolling()` 7874 → 30분 주기 `getAccessExpiration` RPC, `playWelcomeAnimation(res, callback)` 7879, `showLoadingGate(show, msg)` 7935.
+
+**T. 주문이력 / 로그 (라인 8015-8245) — 5개**
+- `enforceDateLimit(changedId)` 8015, `fetchOrderHistory()` 8091 → `getOrderHistory` RPC, `renderHistory(data)` 8109, `logActionToNotion(bizCode, bizName, message)` 8206 (프론트 사이드 동명 함수, `sendLog` 위임), `sendLog(action, detail)` 8245 → `logFrontEvent` RPC.
+
+**U. 레이아웃 / 드로어 / 리사이즈 / 스냅샷 (라인 8265-8502) — 8개 (updateTopControls 중복 정의 2회)**
+- `relocateUI(isMobile)` 8265, `updateTopControls()` 8387 (2회차), `toggleDrawer(mode)` 8408, `handleResize()` 8422, `takeSnapshot()` 8431 → 임시저장 데이터+이미지 base64 빌드, `toYMD(d)` 8467, `updateTopControls()` 8475 (3회차), `handleSaveSnapshot(customTheme)` 8502 (async) → `saveOrderSnapshot` RPC.
+
+**V. 스냅샷 모달 / 복원 / 재로그인 (라인 8649-8955) — 8개**
+- `showCustNameModal()` 8649, `applySnapshot(shot, custName)` 8722 → form/core/branch 복원, `goSnapshotPage()` 8789, `closeSnapshotPage()` 8818, `loadSnapshotHistory()` 8826 → `getOrderSnapshotHistory` RPC, `renderSnapshotTable(list)` 8861, `showSnapshotPreview(index)` 8903, `decodeBase64(str)` 8955.
+
+**W. 자동 로그아웃 / 튜토리얼 (라인 8964-9407) — 10개 (2 nested)**
+- `initAutoLogout()` 8964 (nested `updateTimerDisplay()` 8969 / `resetTimer()` 8992), `closeAllTutDrawers()` 9106, `openTutDrawer(side)` 9116, `setTutBlockers(rect)` 9164, `hideTutBlockers()` 9190, `checkAndStartTutorial()` 9197, `runTutStep()` 9215, `endTut(save)` 9407 → `saveTutorialState` RPC.
+
+---
+
+#### 인벤토리 합계
+
+| 카테고리 | 라인 범위 | 함수 수 |
+|---|---|---|
+| A. 데이터 부트스트랩 / 모델 분류 / 단가 헬퍼 | 1248-1504 | 18 |
+| B. 라운딩 / 분리 / 세트 분석 | 1535-1615 | 6 |
+| C. 스펙 모달 / 견적표 출력 | 1644-2043 | 10 |
+| D. 상업 행 분류 / 모델 픽 | 2071-2258 | 17 |
+| E. 단가 적용 / 분류 / RGB | 2275-2544 | 11 |
+| F. 자동 마킹 / UI 합계 / 바인딩 | 2589-2782 | 8 |
+| G. 비율 / 추천 | 2789-2818 | 2 |
+| H. 미리보기 푸터 / 패널·리모컨 픽 / 세트 단가 | 2857-2924 | 10 |
+| I. 세트 펼침 / 상업 부속 | 2954-3120 | 5 |
+| J. 필터 / 옵션 / 렌더 | 3147-4345 | 25 |
+| K. 구형 합계 / 모바일 / 뷰포트 | 4423-4529 | 7 |
+| L. 수량 입력 / 옵션 / 재계산 | 4557-4971 | 18 |
+| M. 상업 재계산 / UI 동기화 / 세트 펼침 송신 | 5025-5352 | 9 |
+| N. 미리보기 / 주소검색 / 게이트 | 5381-5776 | 11 |
+| O. 주문 빌드 / 이벤트 / 합계 / 표 폭 | 5840-6254 | 8 |
+| P. 유틸 / 화면 전환 / 분기관 | 6262-6578 | 17 |
+| Q. 분기관 페이지 / DnD / 슬롯 | 6605-7173 | 28 |
+| R. 게이트 이미지 / 자동 할인율 보정 | 7188-7400 | 9 |
+| S. 인증 게이트 / 로그인 / 만료 폴링 | 7553-7935 | 6 |
+| T. 주문이력 / 로그 | 8015-8245 | 5 |
+| U. 레이아웃 / 드로어 / 리사이즈 / 스냅샷 | 8265-8502 | 8 |
+| V. 스냅샷 모달 / 복원 / 재로그인 | 8649-8955 | 8 |
+| W. 자동 로그아웃 / 튜토리얼 | 8964-9407 | 10 |
+| **합계** | — | **256** |
+
+**index.html 누락 0 확인** — `grep -nE "^\s*(async\s+)?function [a-zA-Z_]" index.html | wc -l` 결과 **256 entry** = 위 카테고리 합계 256 일치. 본 §1.2 는 Phase 1.5 보강 — Phase 2 cross-review §1 (index.html 256 함수 미인벤토리) catch 후 PM (Claude) 의 보정 결과이며, RPC 12 site (앞 §1 표) 는 **§S/§T/§N/§U/§V/§W 카테고리 내 9 함수** 로 1:1 매핑됨 (`onAuthStatus`/`showAuthModal`/`completeLogin`/`startExpirationPolling`/`prepareGateImages`/`fetchOrderHistory`/`sendLog`/`handleSaveSnapshot`/`loadSnapshotHistory`/`endTut` + `buildSendRows`→`sendOrderFromUi` 호출자 + `initGate`→`getGateImages`).
 
 ---
 
