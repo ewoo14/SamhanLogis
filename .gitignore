@@ -103,3 +103,8 @@ secrets/
 .tm-*.md
 .pm-*.md
 .tmp/
+.tmp-*.md
+
+# Migration 작업 시 원본 secret 토큰 매핑 — placeholder ↔ 실제 토큰 (절대 commit 금지)
+migration/source/.secrets.local.txt
+**/.secrets.local.txt
