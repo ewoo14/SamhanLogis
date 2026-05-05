@@ -1,0 +1,69 @@
+/*
+ * services:dc-config-service — Phase 6 M3 (DC 정책 + 거래처 마스터).
+ *
+ * 책임:
+ *   - 거래처 마스터 (Partner) — owner 옵션 A: M3 가 마스터, M2 가 internal RPC 호출.
+ *   - 거래처별 DC 설정 (DcConfig) — legacy `applyConfigFromServer` 의 16종 CFG_RAW 보존.
+ *   - 카테고리/모델 prefix 단위 DC 룰 (DcRule).
+ *   - DC 적용 가격 계산 (PriceCalculationService) + 감사 로그 (PriceCalculationLog).
+ *
+ * DC 노출 5겹 가드:
+ *   1. Controller 분리 — PartnerPublicController (외부) vs InternalDcConfigController (X-Internal-Token)
+ *   2. DTO 분리 — PartnerPublicResponse 에는 DC 필드 자체 부재
+ *   3. Gateway 차단 — `/api/v1/partner-dc-configs/**` 외부 라우트 비등록
+ *   4. QA assertion — IT 에서 외부 응답 페이로드 캡처 + DC 키 부재 assert
+ *   5. internal token — `X-Internal-Token` 헤더 검증
+ *
+ * Flyway day-one 활성, jsonb 매핑은 Hibernate 6 native @JdbcTypeCode 사용.
+ */
+
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // springdoc-openapi — /v3/api-docs (JSON) + /swagger-ui.html (대화형 UI) 자동 노출
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+    implementation project(':shared:common')
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.testcontainers:postgresql:1.20.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+bootJar {
+    archiveFileName = 'dc-config-service.jar'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

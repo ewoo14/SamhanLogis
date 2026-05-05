@@ -45,6 +45,7 @@ def leafProjects = [
         ':services:slip-service',
         ':services:accounting-service',
         ':services:logging-service',
+        ':services:dc-config-service',
 ]
 
 configure(leafProjects.collect { project(it) }) {
