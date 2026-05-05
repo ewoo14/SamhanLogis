@@ -1,0 +1,115 @@
+package com.samhanair.logis.partnerorder.service;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.partnerorder.config.PartnerOrderProperties;
+import com.samhanair.logis.partnerorder.domain.HistoryEventType;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderDraft;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderHistory;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
+import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
+import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
+import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 임시저장 (PartnerOrderDraft) 도메인 서비스. 30일 TTL ({@link PartnerOrderProperties#getTtlDays}).
+ *
+ * <p>핵심 책임:
+ * <ul>
+ *   <li>거래처별 draftSeq MAX+1 산출 (UNIQUE per partner)</li>
+ *   <li>cleanup batch (TTL 만료 row 삭제 — soft delete)</li>
+ *   <li>history 기록 (DRAFT_CREATED/UPDATED/DELETED)</li>
+ * </ul>
+ */
+@Service
+@RequiredArgsConstructor
+public class PartnerOrderDraftService {
+
+    private static final Logger log = LoggerFactory.getLogger(PartnerOrderDraftService.class);
+
+    private final PartnerOrderDraftRepository draftRepository;
+    private final PartnerOrderHistoryRepository historyRepository;
+    private final PartnerOrderProperties properties;
+
+    /**
+     * 임시저장 1건 생성. draftSeq 는 거래처별 MAX+1.
+     *
+     * @param partnerCode 거래처 코드 (JWT 또는 헤더에서 도출)
+     * @param actorUserId X-User-Id (history actor)
+     * @param request label + payloadJson
+     * @return 생성된 DraftResponse
+     */
+    @Transactional
+    public DraftResponse create(String partnerCode, String actorUserId, DraftCreateRequest request) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
+        }
+        long nextSeq = draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1L;
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(properties.getTtlDays());
+
+        PartnerOrderDraft draft = PartnerOrderDraft.create(
+                partnerCode, nextSeq, request.label(), request.payloadJson(), expiresAt);
+        draft = draftRepository.save(draft);
+
+        historyRepository.save(PartnerOrderHistory.ofDraft(
+                draft.getId(), partnerCode, HistoryEventType.DRAFT_CREATED,
+                actorUserId, "{\"draftSeq\":" + nextSeq + "}"));
+
+        return DraftResponse.from(draft);
+    }
+
+    /** 거래처별 draft 페이지 조회 (legacy getDraftList). 본인 거래처만. */
+    @Transactional(readOnly = true)
+    public Page<DraftResponse> list(String partnerCode, Pageable pageable) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
+        }
+        return draftRepository.findAllByPartnerCodeOrderByCreatedAtDesc(partnerCode, pageable)
+                .map(DraftResponse::from);
+    }
+
+    /** 단건 상세 조회 (payload 포함). 본인 거래처 검증. */
+    @Transactional(readOnly = true)
+    public DraftDetailResponse getOne(String partnerCode, UUID draftId) {
+        PartnerOrderDraft draft = draftRepository.findById(draftId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "임시저장을 찾을 수 없습니다"));
+        if (!draft.getPartnerCode().equals(partnerCode)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "본인 거래처 임시저장만 조회 가능");
+        }
+        return DraftDetailResponse.from(draft);
+    }
+
+    /**
+     * TTL cleanup batch — expiresAt &lt; now() 인 row 를 soft-delete.
+     * scheduler 또는 admin endpoint 가 호출.
+     *
+     * @param actorUserId 실행 주체 (보통 'system' 또는 admin id)
+     * @return 삭제 처리된 row 수
+     */
+    @Transactional
+    public int cleanupExpired(String actorUserId) {
+        LocalDateTime cutoff = LocalDateTime.now();
+        List<PartnerOrderDraft> expired = draftRepository.findAllByExpiresAtBefore(cutoff);
+        for (PartnerOrderDraft d : expired) {
+            d.markDeleted(actorUserId);
+            historyRepository.save(PartnerOrderHistory.ofDraft(
+                    d.getId(), d.getPartnerCode(), HistoryEventType.DRAFT_DELETED,
+                    actorUserId, "{\"reason\":\"TTL_EXPIRED\"}"));
+        }
+        if (!expired.isEmpty()) {
+            log.info("Draft cleanup batch: {} rows expired", expired.size());
+        }
+        return expired.size();
+    }
+}

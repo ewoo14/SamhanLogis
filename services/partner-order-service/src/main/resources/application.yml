@@ -1,0 +1,121 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: partner-order-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:partner_order_db}
+    username: ${DB_USER:samhan}
+    password: ${DB_PASSWORD:samhan_dev_pw}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+
+# samhan.* — partner-order-service 전용 옵션 (PartnerOrderProperties / OutboxProperties / InternalAuthProperties)
+samhan:
+  internal-token: ${INTERNAL_TOKEN:dev-only-token-replace}
+  draft:
+    ttl-days: 30
+    cleanup-cron: "0 0 3 * * *"
+  outbox:
+    cron: "0 */5 * * * *"
+    max-retry-hours: 24
+
+# Resilience4J — slipServiceClient 가 가장 중요 (M5 §3 옵션 A)
+resilience4j:
+  circuitbreaker:
+    instances:
+      slipServiceClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+      dcConfigClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 70
+        waitDurationInOpenState: 20s
+      productClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      inventoryClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      partnerAuthClient:
+        slidingWindowSize: 10
+        failureRateThreshold: 70
+        waitDurationInOpenState: 20s
+  timelimiter:
+    instances:
+      slipServiceClient:
+        timeoutDuration: 5s
+      dcConfigClient:
+        timeoutDuration: 3s
+      productClient:
+        timeoutDuration: 3s
+      inventoryClient:
+        timeoutDuration: 3s
+      partnerAuthClient:
+        timeoutDuration: 3s
+
+# 외부 서비스 base URL (Eureka 비활성 환경 fallback. 일반적으로는 lb:// + service-id 사용).
+external:
+  product-service: http://${PRODUCT_HOST:product-service}:8084
+  inventory-service: http://${INVENTORY_HOST:inventory-service}:8085
+  slip-service: http://${SLIP_HOST:slip-service}:8086
+  dc-config-service: http://${DC_CONFIG_HOST:dc-config-service}:8089
+  partner-auth-service: http://${PARTNER_AUTH_HOST:partner-auth-service}:8091
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:partner_order_db;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false

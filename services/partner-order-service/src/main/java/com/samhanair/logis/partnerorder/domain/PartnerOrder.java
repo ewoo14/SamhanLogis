@@ -1,0 +1,182 @@
+package com.samhanair.logis.partnerorder.domain;
+
+import com.samhanair.logis.common.entity.BaseEntity;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.annotations.UuidGenerator;
+
+/**
+ * 확정된 거래처 주문 (legacy partner-order/index.html sendOrderFromUi 6074 → 본 entity).
+ * {@link #slipNo} 는 slip-service 발행 후 채워지며 UNIQUE 인덱스 + nullable 허용 (PENDING_RETRY 시 null).
+ *
+ * <p>UUID 비공개 가드 — 사용자 응답에서는 {@link #orderNo} (YYYY/MM/DD - 0001) / {@link #partnerCode} /
+ * {@link #bizCode} 만 노출. {@link #id} 는 form 의 hidden field 또는 path variable 로만 사용.
+ */
+@Entity
+@Getter
+@Table(name = "partner_orders")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@SQLRestriction("is_deleted = false")
+public class PartnerOrder extends BaseEntity {
+
+    @Id
+    @GeneratedValue
+    @UuidGenerator
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
+
+    /** 거래처 코드 (M2 partner-auth-service 발급, JWT subject). UUID 비공개 가드. */
+    @Column(name = "partner_code", nullable = false, length = 50)
+    private String partnerCode;
+
+    /** 사업자번호 (legacy bizNo). 거래처별 history 조회 키. */
+    @Column(name = "biz_code", nullable = false, length = 20)
+    private String bizCode;
+
+    /** 사용자 표시용 주문번호 (legacy 'YYYY/MM/DD - 0001' 형식). */
+    @Column(name = "order_no", nullable = false, length = 30, unique = true)
+    private String orderNo;
+
+    /**
+     * slip-service 발행 결과의 slip 번호. 발행 성공 후 채워짐 (200/409),
+     * PENDING_RETRY 상태 동안은 null. UNIQUE constraint 는 SQL 레벨에서 partial index.
+     */
+    @Column(name = "slip_no", length = 30)
+    private String slipNo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private PartnerOrderStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "slip_publish_status", nullable = false, length = 20)
+    private SlipPublishStatus slipPublishStatus;
+
+    /** 합계 (라인 priceVat 합산, server-side 계산). */
+    @Column(name = "total_amount", precision = 15, scale = 2, nullable = false)
+    private BigDecimal totalAmount;
+
+    /** confirm 시각 (status=CONFIRMING 진입 시점). */
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    /** slip 발행 성공 시각 (slipNo 채워진 순간). */
+    @Column(name = "slip_published_at")
+    private LocalDateTime slipPublishedAt;
+
+    /** Idempotency-Key 원본 (PO-CONF-{draftSeq} — 설계서 §3.6). 재시도 시 동일 키 재사용. */
+    @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
+    private String idempotencyKey;
+
+    @OneToMany(mappedBy = "partnerOrder", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PartnerOrderLine> lines = new ArrayList<>();
+
+    private PartnerOrder(String partnerCode, String bizCode, String orderNo,
+                         String idempotencyKey, BigDecimal totalAmount) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new IllegalArgumentException("partnerCode 필수");
+        }
+        if (bizCode == null || bizCode.isBlank()) {
+            throw new IllegalArgumentException("bizCode 필수");
+        }
+        if (orderNo == null || orderNo.isBlank()) {
+            throw new IllegalArgumentException("orderNo 필수");
+        }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey 필수");
+        }
+        this.partnerCode = partnerCode;
+        this.bizCode = bizCode;
+        this.orderNo = orderNo;
+        this.idempotencyKey = idempotencyKey;
+        this.totalAmount = totalAmount == null ? BigDecimal.ZERO : totalAmount;
+        this.status = PartnerOrderStatus.CONFIRMING;
+        this.slipPublishStatus = SlipPublishStatus.PENDING_RETRY;
+        this.confirmedAt = LocalDateTime.now();
+    }
+
+    /**
+     * confirm 흐름 진입 시점에 새 PartnerOrder 를 생성한다 (status=CONFIRMING).
+     * slip 발행 결과에 따라 추후 {@link #markSlipPublished} 또는 {@link #markSlipPendingRetry} 호출.
+     *
+     * @param partnerCode 거래처 코드 (M2)
+     * @param bizCode 사업자번호
+     * @param orderNo 사용자 표시용 주문번호
+     * @param idempotencyKey slip-service Idempotency-Key (PO-CONF-{draftSeq})
+     * @param totalAmount DC 적용 후 server-side 계산 합계
+     * @return CONFIRMING 상태의 신규 PartnerOrder (영속화 전)
+     */
+    public static PartnerOrder create(String partnerCode, String bizCode, String orderNo,
+                                      String idempotencyKey, BigDecimal totalAmount) {
+        return new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+    }
+
+    /** 라인 추가 — bidirectional 관계 동기화 + totalAmount 자동 누적. */
+    public void addLine(PartnerOrderLine line) {
+        line.bind(this);
+        this.lines.add(line);
+        this.totalAmount = this.totalAmount.add(line.getSubtotal());
+    }
+
+    /** 라인 합계 재계산 — 도메인 일관성 보존 (모든 라인 추가 후 호출). */
+    public void recomputeTotal() {
+        BigDecimal sum = BigDecimal.ZERO;
+        for (PartnerOrderLine l : this.lines) {
+            sum = sum.add(l.getSubtotal());
+        }
+        this.totalAmount = sum;
+    }
+
+    /**
+     * slip-service 200 또는 409 idempotency duplicate — slipNo 채움 + status=CONFIRMED.
+     *
+     * @param slipNo slip-service 가 반환한 슬립 번호
+     */
+    public void markSlipPublished(String slipNo) {
+        if (slipNo == null || slipNo.isBlank()) {
+            throw new IllegalArgumentException("slipNo 필수");
+        }
+        this.slipNo = slipNo;
+        this.status = PartnerOrderStatus.CONFIRMED;
+        this.slipPublishStatus = SlipPublishStatus.PUBLISHED;
+        this.slipPublishedAt = LocalDateTime.now();
+    }
+
+    /** slip-service 5xx → outbox 큐로 전이. status 는 CONFIRMED, slipPublishStatus 만 PENDING_RETRY 유지. */
+    public void markSlipPendingRetry() {
+        this.status = PartnerOrderStatus.CONFIRMED;
+        this.slipPublishStatus = SlipPublishStatus.PENDING_RETRY;
+    }
+
+    /** outbox max-retry-hours 초과 — FAILED_PERMANENT + 운영 alert. */
+    public void markSlipFailedPermanent() {
+        this.slipPublishStatus = SlipPublishStatus.FAILED_PERMANENT;
+    }
+
+    /** 거래처 취소 또는 admin 반려. */
+    public void cancel() {
+        this.status = PartnerOrderStatus.CANCELED;
+    }
+
+    /** unmodifiable view — 외부 변경 차단. */
+    public List<PartnerOrderLine> getLines() {
+        return Collections.unmodifiableList(this.lines);
+    }
+}

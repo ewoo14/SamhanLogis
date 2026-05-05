@@ -1,0 +1,78 @@
+/*
+ * services:partner-order-service — Phase 6 M4
+ *
+ * 거래처 주문 도메인 (legacy partner-order/index.html 9427 라인 + Code.js doGet 4~23 대체).
+ * 주요 책임:
+ *   - PartnerOrderDraft (30일 TTL 임시저장)
+ *   - PartnerOrder + PartnerOrderLine (확정 주문, slip_no UNIQUE)
+ *   - PartnerOrderHistory (변경 이력 7 event_type)
+ *   - FrontEventLog (audit, 90일 보존)
+ *   - GateImage (게이트 진입 이미지)
+ *   - TutorialState (튜토리얼 완료 상태)
+ *   - 16종 bootstrap 정적 prefetch
+ *   - confirm 흐름 = Sync REST + outbox + Circuit Breaker (M5 §3 옵션 A)
+ *
+ * 외부 의존성:
+ *   - M2 partner-auth-service (8091) JWT 검증
+ *   - M3 dc-config-service (8089) DC 적용
+ *   - product-service (8084) 카탈로그
+ *   - inventory-service (8085) reservation/commit
+ *   - slip-service (8086) Sync REST 발행 + Idempotency-Key
+ *
+ * Owns the `partner_order_db` schema in PostgreSQL.
+ * Flyway 는 day-one 부터 활성 — src/main/resources/db/migration 참조.
+ */
+
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // springdoc-openapi — /v3/api-docs (JSON) + /swagger-ui.html (대화형 UI) 자동 노출
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+    implementation project(':shared:common')
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.testcontainers:postgresql:1.20.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+bootJar {
+    archiveFileName = 'partner-order-service.jar'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
