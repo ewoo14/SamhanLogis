@@ -62,6 +62,27 @@ export function AppLayout() {
           <NavLink to="/transfers">재고이동</NavLink>
           <NavLink to="/sales/link-dispatch">링크발송</NavLink>
 
+          {/* [Phase 6 v2] [판매] 그룹 4 sub-route — 영업/판매 영역. */}
+          <div
+            className="app-sidebar-group"
+            aria-hidden="true"
+            style={{
+              marginTop: 16,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#9CA3AF',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            판매
+          </div>
+          <NavLink to="/sales/estimates">견적서</NavLink>
+          <NavLink to="/sales/partner-orders">주문서 조회</NavLink>
+          <NavLink to="/sales/order-approvals">주문서 승인</NavLink>
+          <NavLink to="/sales/partner-dc-config">거래처 DC 설정</NavLink>
+
           {showAccounting ? (
             <>
               <div

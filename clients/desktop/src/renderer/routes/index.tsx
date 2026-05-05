@@ -29,7 +29,18 @@
  * - `/accounting/journals/:id`          분개 상세 + 확정/역분개
  * - `/accounting/balances`              시산표 (월별)
  *
+ * [Phase 6 v2] sales sub-route ([판매] 메뉴 4 sub):
+ * - `/sales/estimates`            견적서 목록
+ * - `/sales/estimates/new`        견적서 작성
+ * - `/sales/estimates/:id`        견적서 상세
+ * - `/sales/estimates/:id/print`  견적서 인쇄 미리보기 (legacy 종합견적서 양식 1:1)
+ * - `/sales/partner-orders`       주문서 조회 (read-only)
+ * - `/sales/partner-orders/:id`   주문서 상세
+ * - `/sales/order-approvals`      주문서 승인 (v2 §정정 9 — 기존 long-pending 폐기)
+ * - `/sales/partner-dc-config`    거래처 DC율 설정 (v2 §정정 14 신규)
+ *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
+ * v1 의 `/sales/long-pending` 은 `/sales/order-approvals` 로 통합 (v2 §정정 9).
  */
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import { AuthGuard } from '../components/AuthGuard'
@@ -56,6 +67,15 @@ import { JournalListPage } from './JournalListPage'
 import { JournalFormPage } from './JournalFormPage'
 import { JournalDetailPage } from './JournalDetailPage'
 import { TrialBalancePage } from './TrialBalancePage'
+// [Phase 6 v2] sales 라우트 — 견적/주문/승인/DC 4 sub
+import { SalesEstimateListPage } from './SalesEstimateListPage'
+import { SalesEstimateFormPage } from './SalesEstimateFormPage'
+import { SalesEstimateDetailPage } from './SalesEstimateDetailPage'
+import { SalesEstimatePrintPage } from './SalesEstimatePrintPage'
+import { SalesPartnerOrderListPage } from './SalesPartnerOrderListPage'
+import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
+import { SalesOrderApprovalsPage } from './SalesOrderApprovalsPage'
+import { SalesPartnerDcConfigPage } from './SalesPartnerDcConfigPage'
 
 /** 회계 권한 풀네임 화이트리스트 (feedback_role_naming_full.md). */
 const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MASTER'] as const
@@ -80,6 +100,17 @@ const router = createHashRouter([
       { path: '/sales/new', element: <SlipFormPage mode="OUTBOUND" /> },
       // notification-slice-B: 링크발송 (배송 묶음) — `/sales/:id` 보다 먼저 매칭되어야 함
       { path: '/sales/link-dispatch', element: <LinkDispatchListPage /> },
+
+      // [Phase 6 v2] sales sub-route ([판매] 메뉴 4 sub)
+      { path: '/sales/estimates', element: <SalesEstimateListPage /> },
+      { path: '/sales/estimates/new', element: <SalesEstimateFormPage /> },
+      { path: '/sales/estimates/:id', element: <SalesEstimateDetailPage /> },
+      { path: '/sales/estimates/:id/print', element: <SalesEstimatePrintPage /> },
+      { path: '/sales/partner-orders', element: <SalesPartnerOrderListPage /> },
+      { path: '/sales/partner-orders/:id', element: <SalesPartnerOrderDetailPage /> },
+      { path: '/sales/order-approvals', element: <SalesOrderApprovalsPage /> },
+      { path: '/sales/partner-dc-config', element: <SalesPartnerDcConfigPage /> },
+
       { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
       { path: '/sales/:id/print/invoice', element: <InvoiceView /> },
       { path: '/sales/:id/print/dispatch', element: <DispatchView /> },

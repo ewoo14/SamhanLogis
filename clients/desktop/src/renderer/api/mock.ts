@@ -1108,6 +1108,241 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // [Phase 6 v2] sales 도메인 mock (M1a/M3/M4/M5 통합 시연 + QA 캡처용)
+  // ==========================================================================
+
+  // GET /api/v1/products?usageScope=&category=
+  if (method === 'GET' && url.endsWith('/api/v1/products')) {
+    const cat = (config.params?.['category'] ?? '') as string
+    const items = MOCK_PRODUCTS_CATALOG.filter(
+      (p) => !cat || p.estimateCategory === cat,
+    )
+    return {
+      content: items,
+      totalElements: items.length,
+      totalPages: 1,
+      number: 0,
+      size: items.length,
+      first: true,
+      last: true,
+      empty: items.length === 0,
+    }
+  }
+
+  // GET /api/v1/products/{modelCode}/specs
+  const productSpecsMatch = url.match(/\/api\/v1\/products\/([^/]+)\/specs$/)
+  if (method === 'GET' && productSpecsMatch) {
+    return [
+      { id: 'spec-1', specKey: '냉방능력', specValue: '5.6', unit: 'kW', displayOrder: 1 },
+      { id: 'spec-2', specKey: '소비전력', specValue: '1.4', unit: 'kW', displayOrder: 2 },
+      { id: 'spec-3', specKey: '실외기 호환', specValue: 'AS-***', unit: null, displayOrder: 3 },
+    ]
+  }
+
+  // GET /api/v1/spec-key-templates
+  if (method === 'GET' && url.endsWith('/api/v1/spec-key-templates')) {
+    return [
+      {
+        id: 'tpl-1',
+        estimateCategory: 'HOME_MULTI',
+        specKey: '냉방능력',
+        defaultUnit: 'kW',
+        displayOrder: 1,
+        isRecommended: true,
+      },
+    ]
+  }
+
+  // GET /api/v1/estimates
+  if (method === 'GET' && url.endsWith('/api/v1/estimates')) {
+    return envelope({
+      content: MOCK_ESTIMATES,
+      totalElements: MOCK_ESTIMATES.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    })
+  }
+
+  // GET /api/v1/estimates/{number}
+  const estimateDetailMatch = url.match(/\/api\/v1\/estimates\/([^/]+)$/)
+  if (method === 'GET' && estimateDetailMatch) {
+    const found = MOCK_ESTIMATES.find((e) => e.estimateNumber === decodeURIComponent(estimateDetailMatch[1]!))
+      ?? MOCK_ESTIMATES[0]!
+    return envelope({
+      ...found,
+      partnerCode: '4348703365',
+      deliveryAddress: '서울시 강남구 테헤란로 123',
+      siteAddress: '서울시 강남구 테헤란로 123 5층',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-12',
+      paymentDueDate: '2026-05-31',
+      memo: '오전 10시 도착 요청',
+      lines: [
+        {
+          id: 'line-1',
+          category: 'HOME_MULTI',
+          modelCode: 'AJ040RXH4BC1',
+          productName: '시스템에어컨 4Way 4HP',
+          quantity: 2,
+          releasePrice: 1800000,
+          deliveryPrice: 1500000,
+          subtotal: 3000000,
+          hasVariableDiscount: false,
+          bundleMode: null,
+        },
+      ],
+      totalAmount: 3000000,
+    })
+  }
+
+  // GET /api/v1/partner-orders
+  if (method === 'GET' && url.endsWith('/api/v1/partner-orders')) {
+    return envelope({
+      content: MOCK_PARTNER_ORDERS,
+      totalElements: MOCK_PARTNER_ORDERS.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+      empty: false,
+    })
+  }
+
+  // GET /api/v1/partner-orders/{number}
+  const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/]+)$/)
+  if (method === 'GET' && partnerOrderDetailMatch) {
+    const found = MOCK_PARTNER_ORDERS.find(
+      (o) => o.orderNumber === decodeURIComponent(partnerOrderDetailMatch[1]!),
+    ) ?? MOCK_PARTNER_ORDERS[0]!
+    return envelope({
+      ...found,
+      deliveryAddress: '서울시 강남구 테헤란로 123',
+      siteAddress: '서울시 강남구 테헤란로 123 5층',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-15',
+      memo: null,
+      lines: [
+        {
+          id: 'pol-1',
+          modelCode: 'AJ040RXH4BC1',
+          productName: '시스템에어컨 4Way 4HP',
+          quantity: 2,
+          deliveryPrice: 1500000,
+          subtotal: 3000000,
+          bundleMode: null,
+          expandedComponents: [],
+        },
+      ],
+    })
+  }
+
+  // GET /api/v1/partners/long-pending (legacy v1 호환)
+  if (method === 'GET' && url.includes('/api/v1/partners/long-pending')) {
+    return envelope({
+      content: MOCK_LONG_PENDING,
+      totalElements: MOCK_LONG_PENDING.length,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+      empty: false,
+    })
+  }
+
+  // GET /api/v1/partners/search?keyword=
+  if (method === 'GET' && url.endsWith('/api/v1/partners/search')) {
+    const kw = ((config.params?.['keyword'] ?? '') as string).toLowerCase()
+    const items = MOCK_PARTNERS.filter(
+      (p) =>
+        !kw
+        || p.companyName.toLowerCase().includes(kw)
+        || p.businessRegistrationNumber.includes(kw),
+    ).slice(0, 10)
+    return envelope(items)
+  }
+
+  // GET /api/v1/partner-approvals
+  if (method === 'GET' && url.endsWith('/api/v1/partner-approvals')) {
+    const status = (config.params?.['status'] ?? '') as string
+    const items = MOCK_PARTNER_APPROVALS.filter((a) => !status || a.status === status)
+    return envelope({
+      content: items,
+      totalElements: items.length,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+      empty: items.length === 0,
+    })
+  }
+
+  // PATCH /api/v1/partner-approvals/{code}/status
+  const partnerApprovalStatusMatch = url.match(
+    /\/api\/v1\/partner-approvals\/([^/]+)\/status$/,
+  )
+  if (method === 'PATCH' && partnerApprovalStatusMatch) {
+    const code = decodeURIComponent(partnerApprovalStatusMatch[1]!)
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      status?: string
+    }
+    const found = MOCK_PARTNER_APPROVALS.find((a) => a.partnerCode === code)
+      ?? MOCK_PARTNER_APPROVALS[0]!
+    return envelope({ ...found, status: body.status ?? 'APPROVED' })
+  }
+
+  // POST /api/v1/partner-approvals/{code}/reset-password
+  const partnerApprovalResetMatch = url.match(
+    /\/api\/v1\/partner-approvals\/([^/]+)\/reset-password$/,
+  )
+  if (method === 'POST' && partnerApprovalResetMatch) {
+    const code = decodeURIComponent(partnerApprovalResetMatch[1]!)
+    const found = MOCK_PARTNER_APPROVALS.find((a) => a.partnerCode === code)
+      ?? MOCK_PARTNER_APPROVALS[0]!
+    return envelope({ ...found, status: 'PASSWORD_RESET_PENDING' })
+  }
+
+  // GET /api/v1/partner-dc-configs
+  if (method === 'GET' && url.endsWith('/api/v1/partner-dc-configs')) {
+    const kw = ((config.params?.['keyword'] ?? '') as string).toLowerCase()
+    const items = MOCK_PARTNER_DC_CONFIGS.filter(
+      (c) =>
+        !kw
+        || c.companyName.toLowerCase().includes(kw)
+        || c.partnerCode.includes(kw),
+    )
+    return envelope({
+      content: items,
+      totalElements: items.length,
+      totalPages: 1,
+      number: 0,
+      size: items.length,
+      first: true,
+      last: true,
+      empty: items.length === 0,
+    })
+  }
+
+  // PATCH /api/v1/partner-dc-configs/{code}
+  const partnerDcPatchMatch = url.match(/\/api\/v1\/partner-dc-configs\/([^/]+)$/)
+  if (method === 'PATCH' && partnerDcPatchMatch) {
+    const code = decodeURIComponent(partnerDcPatchMatch[1]!)
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as Record<
+      string,
+      unknown
+    >
+    const found = MOCK_PARTNER_DC_CONFIGS.find((c) => c.partnerCode === code)
+      ?? MOCK_PARTNER_DC_CONFIGS[0]!
+    return envelope({ ...found, ...body })
+  }
+
   return null
 }
 
@@ -1456,3 +1691,446 @@ const MOCK_TRIAL_BALANCE = {
     },
   ],
 }
+
+// ============================================================================
+// [Phase 6 v2] sales 도메인 mock seed (M1a/M3/M4/M5 + 거래처 자동완성/승인/DC)
+// ============================================================================
+
+/** ProductCatalog 시연 시드 (홈멀티 4종 + 싱글 2종 + 상업 2종 + 구형 1종). */
+const MOCK_PRODUCTS_CATALOG = [
+  {
+    modelCode: 'AJ040RXH4BC1',
+    name: '시스템에어컨 4Way 4HP',
+    usageScope: 'BOTH',
+    estimateCategory: 'HOME_MULTI',
+    releasePrice: 1800000,
+    deliveryPrice: 1500000,
+    hasVariableDiscount: false,
+    legacyDiscountFlag: false,
+    discountFlags: null,
+  },
+  {
+    modelCode: 'AJ052RXH5BC1',
+    name: '시스템에어컨 4Way 5HP',
+    usageScope: 'BOTH',
+    estimateCategory: 'HOME_MULTI',
+    releasePrice: 2100000,
+    deliveryPrice: 1700000,
+    hasVariableDiscount: true,
+    legacyDiscountFlag: false,
+    discountFlags: 'HOMEMULTI',
+  },
+  {
+    modelCode: 'AS-Q183C',
+    name: '벽걸이 에어컨 1HP',
+    usageScope: 'BOTH',
+    estimateCategory: 'HOME_MULTI',
+    releasePrice: 850000,
+    deliveryPrice: 720000,
+    hasVariableDiscount: false,
+    legacyDiscountFlag: false,
+    discountFlags: null,
+  },
+  {
+    modelCode: 'MWR-WE10N',
+    name: '유선 리모컨',
+    usageScope: 'BOTH',
+    estimateCategory: 'HOME_MULTI',
+    releasePrice: 65000,
+    deliveryPrice: 50000,
+    hasVariableDiscount: false,
+    legacyDiscountFlag: false,
+    discountFlags: null,
+  },
+  {
+    modelCode: 'AS-G180S',
+    name: '싱글 세트 1형',
+    usageScope: 'BOTH',
+    estimateCategory: 'SINGLE_SET',
+    releasePrice: 950000,
+    deliveryPrice: 800000,
+    hasVariableDiscount: false,
+    legacyDiscountFlag: false,
+    discountFlags: null,
+  },
+  {
+    modelCode: 'AC-360-22HP',
+    name: '상업멀티 22HP',
+    usageScope: 'BOTH',
+    estimateCategory: 'COMMERCIAL_MULTI',
+    releasePrice: 7400000,
+    deliveryPrice: 6300000,
+    hasVariableDiscount: true,
+    legacyDiscountFlag: false,
+    discountFlags: 'COMMULTI',
+  },
+  {
+    modelCode: 'OLD-1WAY-2HP',
+    name: '구형 1way 2HP',
+    usageScope: 'ESTIMATE',
+    estimateCategory: 'LEGACY',
+    releasePrice: 380000,
+    deliveryPrice: 320000,
+    hasVariableDiscount: false,
+    legacyDiscountFlag: true,
+    discountFlags: 'LEGACY',
+  },
+]
+
+/** EstimateSummary 시연 시드 — 'YYYY/MM/DD - {seq}' 양식 (v2 §정정 8). */
+const MOCK_ESTIMATES = [
+  {
+    estimateNumber: '2026/05/05 - 0001',
+    createdAt: '2026-05-05T09:30:00+09:00',
+    partnerName: '주식회사 엠엠시스템에어',
+    category: 'HOME_MULTI',
+    totalAmount: 8400000,
+    status: 'CONFIRMED',
+    authorName: '오병승',
+  },
+  {
+    estimateNumber: '2026/05/04 - 0014',
+    createdAt: '2026-05-04T15:12:00+09:00',
+    partnerName: '제일냉온상사',
+    category: 'COMMERCIAL_MULTI',
+    totalAmount: 12600000,
+    status: 'SENT',
+    authorName: '오병승',
+  },
+  {
+    estimateNumber: '2026/05/02 - 0007',
+    createdAt: '2026-05-02T10:42:00+09:00',
+    partnerName: '랜드유통(최경호)',
+    category: 'HOME_MULTI',
+    totalAmount: 5400000,
+    status: 'DRAFT',
+    authorName: '김미선',
+  },
+]
+
+/** PartnerOrderSummary 시연 시드. */
+const MOCK_PARTNER_ORDERS = [
+  {
+    orderNumber: '2026/05/05 - 0023',
+    partnerCode: '4348703365',
+    partnerName: '주식회사 엠엠시스템에어',
+    submittedAt: '2026-05-05T08:11:00+09:00',
+    status: 'CONFIRMED',
+    totalAmount: 8400000,
+    linkedSlipNo: '2026/05/05 - 0009',
+  },
+  {
+    orderNumber: '2026/05/04 - 0019',
+    partnerCode: '4091808577',
+    partnerName: '제일냉온상사',
+    submittedAt: '2026-05-04T17:08:00+09:00',
+    status: 'SUBMITTED',
+    totalAmount: 12600000,
+    linkedSlipNo: null,
+  },
+  {
+    orderNumber: '2026/05/03 - 0011',
+    partnerCode: '1060818309',
+    partnerName: '랜드유통(최경호)',
+    submittedAt: '2026-05-03T13:25:00+09:00',
+    status: 'CONVERTED',
+    totalAmount: 5400000,
+    linkedSlipNo: '2026/05/03 - 0017',
+  },
+]
+
+/** LongPendingPartner 시연 시드 (legacy v1 호환). */
+const MOCK_LONG_PENDING = [
+  {
+    businessRegistrationNumber: '6364201303',
+    companyName: '태오파트너스(Tae.O Partners)-박천진',
+    assignedManagerName: '오병승',
+    lastOrderAt: '2026-03-20T10:00:00+09:00',
+    lastEstimateAt: '2026-04-05T11:00:00+09:00',
+    lastActivityAt: '2026-04-05T11:00:00+09:00',
+    daysSinceLastActivity: 30,
+    authStatus: 'LONG_PENDING_NO_ORDER',
+  },
+]
+
+/** PartnerSummary 시연 시드 — 거래처 자동완성 (v2 §정정 16). */
+const MOCK_PARTNERS = [
+  {
+    businessRegistrationNumber: '4348703365',
+    companyName: '주식회사 엠엠시스템에어(고영현)',
+    representativeName: '고영현',
+    contactPhone: '010-2345-6789',
+    address: '서울시 강남구 테헤란로 123',
+    groupName: 'A그룹',
+    note: '오전 10시 도착 요청',
+  },
+  {
+    businessRegistrationNumber: '4091808577',
+    companyName: '제일냉온상사',
+    representativeName: '박철수',
+    contactPhone: '010-3456-7890',
+    address: '경기도 성남시 분당구 판교로 235',
+    groupName: 'B그룹',
+    note: null,
+  },
+  {
+    businessRegistrationNumber: '1060818309',
+    companyName: '랜드유통(최경호)',
+    representativeName: '최경호',
+    contactPhone: '010-4567-8901',
+    address: '인천시 남동구 구월동 100',
+    groupName: 'A그룹',
+    note: null,
+  },
+]
+
+/** PartnerApproval 시연 시드 — 6 status 모두 1건 이상. */
+const MOCK_PARTNER_APPROVALS = [
+  {
+    partnerCode: '2463900815',
+    partnerName: '윈디시스 - 김종선',
+    status: 'APPROVED',
+    approvalRequestedAt: '2026-05-04T17:27:00+09:00',
+    pcTutorialDone: false,
+    mobileTutorialDone: false,
+    assignedManagerName: '오병승',
+  },
+  {
+    partnerCode: '7288702408',
+    partnerName: '주식회사 일진솔루션-최영주',
+    status: 'APPROVED',
+    approvalRequestedAt: '2026-05-04T17:01:00+09:00',
+    pcTutorialDone: false,
+    mobileTutorialDone: false,
+    assignedManagerName: '오병승',
+  },
+  {
+    partnerCode: '3544600512',
+    partnerName: '프로이엔지(Pro ENG)-권오석',
+    status: 'UNAPPROVED',
+    approvalRequestedAt: '2026-05-04T09:29:00+09:00',
+    pcTutorialDone: true,
+    mobileTutorialDone: false,
+    assignedManagerName: '김미선',
+  },
+  {
+    partnerCode: '1143900240',
+    partnerName: '토마토공조(곽인송)',
+    status: 'PASSWORD_RESET_PENDING',
+    approvalRequestedAt: '2026-05-04T06:45:00+09:00',
+    pcTutorialDone: false,
+    mobileTutorialDone: false,
+    assignedManagerName: '오병승',
+  },
+  {
+    partnerCode: '1220435073',
+    partnerName: '만도에어컨서부냉열기-박승수',
+    status: 'PASSWORD_ERROR',
+    approvalRequestedAt: '2026-04-30T17:06:00+09:00',
+    pcTutorialDone: false,
+    mobileTutorialDone: true,
+    assignedManagerName: '김미선',
+  },
+  {
+    partnerCode: '6364201303',
+    partnerName: '태오파트너스(Tae.O Partners)-박천진',
+    status: 'LONG_PENDING',
+    approvalRequestedAt: '2026-04-30T09:51:00+09:00',
+    pcTutorialDone: true,
+    mobileTutorialDone: false,
+    assignedManagerName: '오병승',
+  },
+  {
+    partnerCode: '6708701231',
+    partnerName: '구)주식회사 그레이프시스템(휴먼넷)',
+    status: 'ACCESS_DENIED',
+    approvalRequestedAt: '2026-04-28T16:27:00+09:00',
+    pcTutorialDone: true,
+    mobileTutorialDone: false,
+    assignedManagerName: '오병승',
+  },
+]
+
+/** PartnerDcConfig 시연 시드 — csv 222 row 중 sample 12 (v2 §정정 14). */
+const MOCK_PARTNER_DC_CONFIGS = [
+  {
+    partnerCode: '4348703365',
+    companyName: '주식회사 엠엠시스템에어(고영현)',
+    homeMultiDc: '46%',
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'Yes',
+    threeSixty: null,
+    fourWay: null,
+    oneWay: null,
+    stand: null,
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '4563501301',
+    companyName: '엠엠시스템에어 호남지사-김유나',
+    homeMultiDc: '46%',
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'Yes',
+    threeSixty: null,
+    fourWay: null,
+    oneWay: null,
+    stand: null,
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '2568700899',
+    companyName: '주식회사 제이앤피공조',
+    homeMultiDc: null,
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩70,000',
+    fourWay: '₩70,000',
+    oneWay: '₩50,000',
+    stand: '₩70,000',
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '2188601069',
+    companyName: '(주)삼성에스에이씨비투비(더블유케이)',
+    homeMultiDc: '45%',
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩20,000',
+    fourWay: '₩20,000',
+    oneWay: '₩20,000',
+    stand: '₩20,000',
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '4091808577',
+    companyName: '제일냉온상사',
+    homeMultiDc: '46%',
+    commercialMultiDc: '46%',
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩20,000',
+    fourWay: '₩20,000',
+    oneWay: '₩20,000',
+    stand: '₩20,000',
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '1985500078',
+    companyName: '현주시스템(전현주)',
+    homeMultiDc: '45%',
+    commercialMultiDc: '47%',
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩20,000',
+    fourWay: '₩20,000',
+    oneWay: '₩20,000',
+    stand: '₩20,000',
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '1060818309',
+    companyName: '랜드유통(최경호)',
+    homeMultiDc: '45%',
+    commercialMultiDc: '46%',
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩30,000',
+    fourWay: '₩30,000',
+    oneWay: '₩30,000',
+    stand: '₩30,000',
+    deluxe: null,
+    firstGrade: '₩30,000',
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '6528702417',
+    companyName: '(주)사계절솔루션(염은희)',
+    homeMultiDc: '47%',
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩30,000',
+    fourWay: '₩30,000',
+    oneWay: '₩30,000',
+    stand: '₩30,000',
+    deluxe: '₩30,000',
+    firstGrade: '₩30,000',
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '1110854627',
+    companyName: '준공조-김준성대표님(구,와이케이공조)',
+    homeMultiDc: null,
+    commercialMultiDc: '47%',
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩40,000',
+    fourWay: '₩40,000',
+    oneWay: '₩40,000',
+    stand: '₩40,000',
+    deluxe: '₩20,000',
+    firstGrade: '₩40,000',
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '2463900815',
+    companyName: '윈디시스 - 김종선',
+    homeMultiDc: '46%',
+    commercialMultiDc: null,
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩25,000',
+    fourWay: '₩25,000',
+    oneWay: '₩25,000',
+    stand: null,
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: 'VIP 거래처',
+  },
+  {
+    partnerCode: '7288702408',
+    companyName: '주식회사 일진솔루션-최영주',
+    homeMultiDc: '47%',
+    commercialMultiDc: '47%',
+    flexibleHoseTypeI: 'Yes',
+    threeSixty: null,
+    fourWay: '₩30,000',
+    oneWay: '₩30,000',
+    stand: '₩30,000',
+    deluxe: null,
+    firstGrade: null,
+    unitProcess: null,
+    remark: null,
+  },
+  {
+    partnerCode: '3544600512',
+    companyName: '프로이엔지(Pro ENG)-권오석',
+    homeMultiDc: '45%',
+    commercialMultiDc: '45%',
+    flexibleHoseTypeI: 'No',
+    threeSixty: '₩30,000',
+    fourWay: '₩30,000',
+    oneWay: '₩30,000',
+    stand: '₩30,000',
+    deluxe: '₩30,000',
+    firstGrade: '₩30,000',
+    unitProcess: '단위처리',
+    remark: '신규 (5/4)',
+  },
+]
