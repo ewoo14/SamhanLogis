@@ -32,4 +32,19 @@
 
 ---
 
-## Phase 1+ 의사결정은 사용자 자료 도착 후 추가
+## Phase 3 — Sheet 스키마 분석 후 확정 (2026-05-05) — G1~G8 모두 추천대로
+
+| 게이트 | 항목 | 사용자 결정 (추천 채택) |
+|---|---|---|
+| **G1** | 분기계산 시트 (~99 row, A열 코드 lookup) | **시드** — `BranchPipeLookup` entity (product-service sub-domain). A열 코드 의미는 Phase 6 시드 스크립트 작성 시 추가 spot-check |
+| **G2** | 상업멀티 구성_단가인상 사용 비대칭 (PM spot-check 결과 공유) | **확인** — estimate `Code.js:64` = `상업멀티 구성_단가인상`, partner-order `Code.js:50` = `상업멀티 구성`. 양 시트 모두 시드 (PriceHistory 분리로 흡수) |
+| **G3** | 시트 마스터 충돌 4쌍 → PriceHistory 분리 모델 | **승인** — 동일 ProductMaster + PriceHistory 2 row (effectiveDate=과거 / `2026-04-01`) |
+| **G4** | PRICE_INC_DATE 상수 위치 (PM grep 결과) | **확인** — `partner-order/index.html:1274` `const PRICE_INC_DATE = '2026-04-01';`. 단일 상수 → `PriceHistory.effectiveDate` 로 직접 사용 |
+| **G5** | 거래처 그룹 컬럼 정책 (distinct 14, SF 42% / 빈 40% / 일반업체 12% / 기타 6%) | **enum 표준화** — `PartnerGroup enum {SF, GENERAL, OTHER}` + **빈 그룹 default = GENERAL** (마이그 시 14 distinct → 3 enum 매핑 표 별도 작성) |
+| **G6** | 거래처 `싱글 할인` 컬럼 (208 row 채워짐) | **활성 보존** — `PartnerMaster.singleDiscountRate decimal nullable` 컬럼 시드. Phase 6 BE 구현 시 사용처 spot-check 추가 |
+| **G7** | 전표생성폼 평문 자격증명 4종 | **시트 폐기 + Vault 이전** — 이카운트 의존 0 결정 (Phase 2) 으로 e-Count 자격증명 폐기. 단 운영 전환 마지막 1회 export 위해 일시적 Vault 이전 |
+| **G8** | `setMaterialKey` enum 확장 `{D7, D8}` → `{D4, D7, D8}` | **승인** — D4 가 가장 많은 245 hits (자재 합계 default master). DOMAIN-EXTENSIONS §1 갱신 완료 |
+
+---
+
+## Phase 4+ 의사결정은 Migration Plan 산출 후 추가

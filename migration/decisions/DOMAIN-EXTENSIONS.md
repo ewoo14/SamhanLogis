@@ -19,7 +19,7 @@
 |---|---|---|---|
 | `hasVariableDiscount` | boolean | 변동DC 적용 여부 (마스터 시트에 단가 수식 절대참조 포함) | 룰 1: `$L$2` (홈/상업 멀티) |
 | `fixedDiscountRate` | decimal(5,2) nullable | 고정 할인율 (legacy 50% 등) | 룰 3: F열 수식의 `$I$1` → 50% (구형) |
-| `setMaterialKey` | varchar(20) nullable | 세트 자재 옵션 키 (싱글 세트) | 룰 2: `$D$7` (자재 미포함) / `$D$8` (자재 포함) |
+| `setMaterialKey` | enum `{D4, D7, D8}` nullable | 세트 자재 옵션 키 (싱글 세트/싱글 구성품) | 룰 2: `$D$4` (자재 합계 default master, 245 hits) / `$D$7` (자재 미포함, 45 hits) / `$D$8` (자재 포함, 10 hits) — Phase 3 §4.2 formulas.json grep 결과 D4 신규 발견 → enum 확장 |
 | `legacyDiscountFlag` | boolean | 구형 모델 여부 (FLOW: legacy DC 트리거 조건) | 룰 3: 구형 모델 prefix 매칭 |
 
 - 마이그 시점에 시트의 모든 품목을 일괄 스캔 → 4 룰 적용 → 4 컬럼으로 사전 계산하여 시드
