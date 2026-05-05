@@ -110,6 +110,8 @@ JSON 구조:
   - 외부 의존 (Drive API / Gmail / SpreadsheetApp.getUi() 등)
   - HTML 트리거 (web app onLoad / button click)
   - 누락 0 가드: `function ` 키워드 grep count = inventory 행 수 일치
+  - **§변동DC 섹션** — 변동DC 감지 룰 (수식 패턴/키워드/셀 위치) 함수 단위 추출 (DOMAIN-EXTENSIONS §1)
+  - **§세트품목 섹션** — 세트(Bundle) 품목 데이터 구조 식별 (시트 별도 탭? 컬럼 마커? 펼침 공식?) (DOMAIN-EXTENSIONS §2)
 
 ### Phase 2 — Cross-review (Reviewer agent)
 - Phase 1 산출 3 파일을 모두 읽고 누락/오해 catch

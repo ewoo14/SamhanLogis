@@ -15,6 +15,8 @@
 | QA 엄중 검증 | 사용자 명시 — "QA가 엄중하게 완벽하게 이식이 되었는지 확인 및 테스트 필요" |
 | 시트 헤더 위치 가변 | 사용자 명시 — "구글 스프레드시트는 시트별로 열헤더 위치가 다르므로 주의 필요" |
 | 시트 export 방식: **Apps Script JSON dump** (xlsx 회피) | 사용자 회고 — xlsx 변환 시 Google 전용 함수 (ARRAYFORMULA/QUERY/IMPORTRANGE) `#NAME?` 깨짐. `getDisplayValues()` 로 화면 표시값 추출 → 무손실. 스크립트 위치: `migration/source/sheet/dump-script.gs` |
+| **변동DC 사전 boolean 컬럼** | 사용자 명시 — 기존 Apps Script 가 수식/단어 감지로 runtime 판정하는 변동DC 여부를 product 도메인에 `hasVariableDiscount: boolean` 으로 사전 저장. 상세: `DOMAIN-EXTENSIONS.md` §1 |
+| **세트(Bundle) 품목 처리** | 사용자 명시 — 일부 품목은 세트 구조. Phase 1 분석 후 옵션 A/B/C 중 확정 (default 추천: A — productType enum + bundleComponents). 상세: `DOMAIN-EXTENSIONS.md` §2 |
 
 ---
 
