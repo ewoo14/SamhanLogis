@@ -1,0 +1,195 @@
+## QA 리뷰 — P0-4 세금계산서 발행 + 인쇄
+
+검토 기준: BE 19 unit/IT test, 한국 NTS/회계 정합성, BE-FE 권한 enum 일치, mock vs BE shape
+
+---
+
+### 1. 한국 NTS/회계 정합성 — PASS
+
+#### 1-1. VAT 10% 수식 (공급가액 + 부가세 = 총액)
+
+V12 seed 6건 전수 계산 검증:
+
+| 세금계산서 | 공급가액 | 부가세 (x0.10) | 합계 | 정합 |
+|---|---|---|---|---|
+| DRAFT-001 | 2,000,000 | 200,000 | 2,200,000 | PASS |
+| DRAFT-002 | 1,500,000 | 150,000 | 1,650,000 | PASS |
+| ISSUED-001 | 3,000,000 | 300,000 | 3,300,000 | PASS |
+| ISSUED-002 | 2,500,000 | 250,000 | 2,750,000 | PASS |
+| ISSUED-003 | 1,800,000 | 180,000 | 1,980,000 | PASS |
+| CANCELLED-001 | 4,000,000 | 400,000 | 4,400,000 | PASS |
+
+라인 합계 헤더 합계 교차검증 (V12 seed SQL 주석 기준):
+- ISSUED-001: 2,000,000 + 500,000 + 500,000 = 3,000,000 PASS
+- ISSUED-002: 2,000,000 + 500,000 = 2,500,000 PASS
+- ISSUED-003: 1,600,000 + 200,000 = 1,800,000 PASS
+- CANCELLED-001: 3,000,000 + 600,000 + 400,000 = 4,000,000 PASS
+
+도메인 TaxInvoice.VAT_RATE = new BigDecimal("0.10") 상수, recalcTotals() HALF_UP 반올림 정책 PASS.
+
+#### 1-2. 사업자등록번호 형식 (XXX-XX-XXXXX)
+
+TaxInvoiceCreateRequest.partnerBusinessNumber: @Pattern(regexp = "^\\d{3}-\\d{2}-\\d{5}$") 확인.
+IT 시나리오 2 (TaxInvoiceP04IT): "1234567890" (하이픈 없음) -> 400 검증 PASS.
+V12 seed partnerBusinessNo 6건 전수 형식 확인 PASS.
+
+#### 1-3. invoiceNo 채번 unique
+
+TaxInvoiceNumberService.next() 단위 테스트 stub, IT taxInvoiceNo isString() 검증, partial UNIQUE INDEX 선언 확인 PASS.
+
+#### 1-4. cancel 사유 5자 이상
+
+도메인 TaxInvoice.cancel() 내 reason.strip().length() < 5 -> INVALID_INPUT.
+TaxInvoiceCancelRequest @Size(min = 5, max = 1000).
+서비스 테스트 시나리오 7: "짧음" (3자) -> BusinessException PASS.
+
+#### 1-5. 한글 금액 (일금/원정)
+
+KoreanAmountConverter.convert(): "일금" + toKorean(value) + "원정" 패턴 확인, 0원 "일금영원정" PASS.
+서비스 테스트 시나리오 8: startsWith("일금"), endsWith("원정") PASS.
+IT 시나리오 3 (TaxInvoiceP04IT): startsWith("일금") MockMvc hamcrest PASS.
+
+---
+
+### 2. 결함 (Bug) — 3건
+
+#### BUG-01 [CRITICAL] P04ValidationIT cancel 시나리오 — reason 바디 미전송
+
+P04ValidationIT.cancelChangesStatusToCancelledWithReverseJournalId() 라인 265:
+
+```java
+mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
+        .header("X-User-Id", "accountant-p04")
+        .header("X-User-Role", "ACCOUNTANT"))
+        // contentType 미설정 + body 미전송
+```
+
+Controller cancel() 은 @Valid @RequestBody TaxInvoiceCancelRequest 를 필수로 받습니다.
+Body 없이 호출 시 400 Bad Request 가 반환되어 현재 IT 가 기대하는 200 은 실패합니다.
+
+동일 문제: cancelDraftReturns409() 라인 289 — body 미전송으로 409 전 400 이 먼저 반환됩니다.
+
+수정 예시:
+```java
+Map<String, String> cancelBody = Map.of("reason", "테스트 취소 — IT 검증용 사유");
+mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
+        .header("X-User-Id", "accountant-p04")
+        .header("X-User-Role", "ACCOUNTANT")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(cancelBody)))
+```
+
+#### BUG-02 [MAJOR] FE-BE 권한 enum 불일치 — MANAGER 누락
+
+BE Controller 권한 선언 (cancel, issue-request, history, print, list, getOne): hasAnyRole('ACCOUNTANT','MANAGER','MASTER')
+
+FE taxInvoiceApi.ts canAccessTaxInvoice():
+```typescript
+return role === 'ACCOUNTANT' || role === 'MASTER'
+// MANAGER 누락
+```
+
+BE 는 MANAGER 에게 조회/취소/history 등을 허용하나 FE RoleGuard 가 차단합니다.
+PRD 의도가 "MANAGER 허용" 이면 FE 수정, "MANAGER 불허" 이면 BE PreAuthorize 수정이 필요합니다.
+
+#### BUG-03 [MINOR] FE TaxInvoiceDetail 타입 — cancelReason 필드 누락
+
+BE TaxInvoiceDetailResponse 에는 cancelReason: String 이 존재하나
+FE TaxInvoiceDetail interface 와 mock MOCK_TAX_INVOICES[ti-003 CANCELLED] 모두 해당 필드 없음.
+CANCELLED 상세 화면에서 취소 사유 표시 불가.
+
+수정 예시 (taxInvoiceApi.ts):
+```typescript
+export interface TaxInvoiceDetail extends TaxInvoiceSummary {
+  partnerAddress: string | null
+  cancelledAt: string | null
+  cancelledBy: string | null
+  cancelReason: string | null  // 추가 필요
+  eTaxExternalId: string | null
+  description: string | null
+  lines: TaxInvoiceLine[]
+}
+```
+
+---
+
+### 3. 경고 (Warning) — 2건
+
+#### WARN-01 FE cancel 사유 maxLength 불일치
+
+FE TaxInvoiceDetailPage.tsx 라인 531: maxLength={200}
+FE TaxInvoiceCancelRequest JSDoc: "취소 사유 (1~200자)"
+BE TaxInvoiceCancelRequest: @Size(min = 5, max = 1000)
+
+스펙 통일 필요 (BE 1000자에 FE 맞추거나 BE 200자로 하향).
+
+#### WARN-02 mock GET /{id}/print 응답 — BE PrintResponse shape 불일치
+
+BE TaxInvoicePrintResponse 필드: supplierName, supplierBusinessNumber, supplierCeo, supplierAddress, supplierBusinessType, supplierBusinessItem, recipientName, recipientBusinessNumber, recipientAddress, invoiceNo, issueDate, lines[], totalSupplyAmount, totalVatAmount, totalAmount, totalAmountKorean.
+
+mock /print 엔드포인트 (mock.ts)는 MOCK_TAX_INVOICES 원소를 그대로 반환합니다.
+MOCK_TAX_INVOICES 에는 supplierName, recipientName, totalAmountKorean 등 print 전용 필드가 없어
+개발 중 인쇄 양식이 공백으로 렌더링됩니다.
+
+---
+
+### 4. 도메인 정합성 SQL 검증 쿼리 (실 DB 적용 시)
+
+```sql
+-- VAT 10% invariant
+SELECT id, tax_invoice_no, supply_amount, vat_amount, total_amount
+FROM tax_invoices
+WHERE is_deleted = FALSE
+  AND (ABS(vat_amount - ROUND(supply_amount * 0.10, 2)) > 1
+    OR ABS(total_amount - (supply_amount + vat_amount)) > 0.01);
+-- 결과 0건이어야 함
+
+-- 라인 합계 vs 헤더 합계
+SELECT ti.id, ti.tax_invoice_no, ti.supply_amount, SUM(l.supply_amount) AS line_sum
+FROM tax_invoices ti
+JOIN tax_invoice_lines l ON l.tax_invoice_id = ti.id AND l.is_deleted = FALSE
+WHERE ti.is_deleted = FALSE
+GROUP BY ti.id, ti.tax_invoice_no, ti.supply_amount
+HAVING ABS(ti.supply_amount - SUM(l.supply_amount)) > 0.01;
+-- 결과 0건이어야 함
+
+-- invoiceNo unique (ISSUED 상태)
+SELECT tax_invoice_no, COUNT(*) FROM tax_invoices
+WHERE is_deleted = FALSE AND status = 'ISSUED' AND tax_invoice_no IS NOT NULL
+GROUP BY tax_invoice_no HAVING COUNT(*) > 1;
+-- 결과 0건이어야 함
+
+-- cancel_reason 5자 미만 (CANCELLED 상태)
+SELECT id, tax_invoice_no, cancel_reason FROM tax_invoices
+WHERE is_deleted = FALSE AND status = 'CANCELLED'
+  AND (cancel_reason IS NULL OR LENGTH(TRIM(cancel_reason)) < 5);
+-- 결과 0건이어야 함
+
+-- 사업자등록번호 형식 위반
+SELECT id, tax_invoice_no, partner_business_no FROM tax_invoices
+WHERE is_deleted = FALSE AND partner_business_no IS NOT NULL
+  AND partner_business_no !~ '^\d{3}-\d{2}-\d{5}$';
+-- 결과 0건이어야 함
+```
+
+---
+
+### 5. 종합 판정
+
+| 항목 | 판정 | 비고 |
+|---|---|---|
+| VAT 10% 수식 정합 | PASS | 6건 전수 + 라인 합계 일치 |
+| 사업자번호 형식 검증 | PASS | @Pattern + IT 검증 |
+| invoiceNo unique | PASS | partial unique index 선언 |
+| cancel 사유 5자 이상 | PASS | 도메인 + DTO 이중 검증 |
+| 한글 금액 정합 | PASS | KoreanAmountConverter + IT 검증 |
+| BUG-01 IT cancel body 미전송 | FAIL | P04ValidationIT 실행 시 400 예상 |
+| BUG-02 FE-BE MANAGER 권한 불일치 | FAIL | canAccessTaxInvoice() 수정 필요 |
+| BUG-03 FE cancelReason 필드 누락 | FAIL | TaxInvoiceDetail interface 수정 필요 |
+| WARN-01 cancel maxLength 불일치 | WARNING | FE 200자 vs BE 1000자 |
+| WARN-02 mock /print shape 불일치 | WARNING | 인쇄 mock 데이터 공백 가능성 |
+
+**머지 전 BUG-01 (Critical) 은 반드시 수정되어야 합니다.**
+BUG-02, BUG-03 은 PRD 의도 확인 후 이번 PR 또는 즉시 후속 PR 에서 처리를 권장합니다.
+
+QA agent (2026-05-11)
