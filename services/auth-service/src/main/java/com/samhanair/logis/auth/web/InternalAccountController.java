@@ -39,7 +39,8 @@ public class InternalAccountController {
                 request.loginId(),
                 request.password(),
                 request.displayName(),
-                request.role()));
+                request.role(),
+                request.passwordChangeRequired()));
     }
 
     @PatchMapping("/{id}/role")
@@ -65,5 +66,17 @@ public class InternalAccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         authService.deleteAccount(id);
+    }
+
+    /**
+     * 계정 잠금 해제 — MASTER 가 사용자 관리 화면에서 호출 (Phase 10 P0-5).
+     *
+     * <p>{@code lockedAt = null}, {@code failedLoginAttempts = 0} 으로 초기화.
+     * 이미 잠금 해제 상태인 계정에 호출해도 멱등 처리.
+     */
+    @PostMapping("/{id}/unlock")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlock(@PathVariable UUID id) {
+        authService.unlockAccount(id);
     }
 }

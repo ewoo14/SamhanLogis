@@ -37,12 +37,31 @@ public class AuthClient {
     }
 
     public void createAccount(UUID id, String loginId, String password, String displayName, Role role) {
+        createAccount(id, loginId, password, displayName, role, false);
+    }
+
+    /**
+     * auth-service 에 계정 생성 — {@code passwordChangeRequired} 플래그 전달 지원.
+     *
+     * <p>Phase 10 P0-5: MASTER 가 임시 비밀번호로 신규 직원을 등록할 때
+     * {@code passwordChangeRequired = true} 로 호출하여 첫 로그인 후 변경 강제.
+     *
+     * @param id                    미리 발급한 UUID (user-service ↔ auth-service 공유)
+     * @param loginId               로그인 아이디
+     * @param password              임시 비밀번호 (평문)
+     * @param displayName           표시 이름
+     * @param role                  초기 역할
+     * @param passwordChangeRequired 첫 로그인 후 비밀번호 변경 강제 여부
+     */
+    public void createAccount(UUID id, String loginId, String password, String displayName,
+                               Role role, boolean passwordChangeRequired) {
         Map<String, Object> body = Map.of(
                 "id", id.toString(),
                 "loginId", loginId,
                 "password", password,
                 "displayName", displayName,
-                "role", role.name());
+                "role", role.name(),
+                "passwordChangeRequired", passwordChangeRequired);
         execute("POST createAccount", () -> restClient.post()
                 .uri("/auth/internal/accounts")
                 .header(INTERNAL_TOKEN_HEADER, requireToken())
@@ -59,6 +78,23 @@ public class AuthClient {
                 .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                     throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                             "auth-service 5xx: " + res.getStatusCode());
+                })
+                .toBodilessEntity());
+    }
+
+    /**
+     * auth-service 계정 잠금 해제 — MASTER 가 사용자 관리 화면에서 호출 (Phase 10 P0-5).
+     *
+     * @param id 잠금 해제할 계정 UUID
+     */
+    public void unlock(UUID id) {
+        execute("POST unlock", () -> restClient.post()
+                .uri("/auth/internal/accounts/{id}/unlock", id)
+                .header(INTERNAL_TOKEN_HEADER, requireToken())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                            "auth-service unlock failed: " + res.getStatusCode());
                 })
                 .toBodilessEntity());
     }

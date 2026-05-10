@@ -106,6 +106,15 @@ public class Account extends BaseEntity {
     @Column(name = "password_reset_token_expires_at")
     private LocalDateTime passwordResetTokenExpiresAt;
 
+    /**
+     * 첫 로그인 시 비밀번호 변경 의무 플래그 — 관리자(MASTER) 가 임시 비밀번호로 신규 등록한 경우 TRUE.
+     *
+     * <p>Phase 10 P0-5: 신규 직원 등록 시 TRUE 세팅 → 클라이언트가 /me 응답을 확인하여
+     * 비밀번호 변경 화면으로 강제 redirect. 비밀번호 변경 성공 시 FALSE 로 자동 갱신.
+     */
+    @Column(name = "password_change_required", nullable = false)
+    private boolean passwordChangeRequired = false;
+
     private Account(String loginId, String passwordHash, String displayName, Role role) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
@@ -176,9 +185,19 @@ public class Account extends BaseEntity {
     }
 
     /**
+     * 임시 비밀번호 변경 의무 플래그 설정 — 관리자 신규 등록 시 TRUE.
+     *
+     * @param required TRUE = 다음 로그인 후 비밀번호 변경 강제
+     */
+    public void setPasswordChangeRequired(boolean required) {
+        this.passwordChangeRequired = required;
+    }
+
+    /**
      * 비밀번호 변경 — 현재 hash 를 history 에 push 후 신규 hash 로 교체.
      * history 는 최근 {@link #PASSWORD_HISTORY_SIZE} 개만 유지 (FIFO).
      * {@code passwordChangedAt} 갱신 시 기존 JWT 가 무효화 됨.
+     * 비밀번호 변경 성공 시 {@code passwordChangeRequired} 자동 FALSE 처리.
      */
     public void changePassword(String newHash, LocalDateTime now) {
         if (this.passwordHistory == null) {
@@ -201,6 +220,8 @@ public class Account extends BaseEntity {
         // 비밀번호 변경 시 잠금 자동 해제 (MASTER 가 직접 reset 시키는 경로 포함)
         this.failedLoginAttempts = 0;
         this.lockedAt = null;
+        // 임시 비밀번호 의무 변경 해제
+        this.passwordChangeRequired = false;
     }
 
     /**

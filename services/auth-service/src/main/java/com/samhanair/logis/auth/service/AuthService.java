@@ -82,13 +82,35 @@ public class AuthService {
      */
     public RegisterResponse registerWithId(
             UUID id, String loginId, String rawPassword, String displayName, Role role) {
+        return registerWithId(id, loginId, rawPassword, displayName, role, false);
+    }
+
+    /**
+     * 신규 직원 등록 — {@code passwordChangeRequired} 플래그 세팅 가능.
+     *
+     * <p>Phase 10 P0-5: MASTER 가 임시 비밀번호로 신규 직원을 등록할 때
+     * {@code passwordChangeRequired = true} 로 호출하면 첫 로그인 후 비밀번호 변경이 강제됨.
+     *
+     * @param id                    User Service 가 선점한 UUID (auth-service 와 공유)
+     * @param loginId               로그인 아이디
+     * @param rawPassword           임시 비밀번호 (평문)
+     * @param displayName           표시 이름
+     * @param role                  초기 역할
+     * @param passwordChangeRequired 첫 로그인 후 비밀번호 변경 강제 여부
+     */
+    public RegisterResponse registerWithId(
+            UUID id, String loginId, String rawPassword, String displayName, Role role,
+            boolean passwordChangeRequired) {
         if (accountRepository.existsByLoginId(loginId)) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용중인 아이디입니다");
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        Account account = accountRepository.save(
-                Account.createWithId(id, loginId, passwordHash, displayName, role));
+        Account account = Account.createWithId(id, loginId, passwordHash, displayName, role);
+        if (passwordChangeRequired) {
+            account.setPasswordChangeRequired(true);
+        }
+        accountRepository.save(account);
 
         return new RegisterResponse(account.getId().toString(), account.getLoginId(), account.getRole().name());
     }
@@ -117,5 +139,20 @@ public class AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
         account.disable();
         account.markDeleted("system-internal");
+    }
+
+    /**
+     * 계정 잠금 해제 — MASTER 가 관리 화면에서 호출.
+     *
+     * <p>Phase 10 P0-5: {@link Account#unlock()} 위임 ({@code lockedAt = null},
+     * {@code failedLoginAttempts = 0}). 이미 잠금이 아닌 계정에 대해 호출해도 멱등 처리.
+     *
+     * @param id 잠금 해제할 계정 UUID
+     */
+    public void unlockAccount(UUID id) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+        account.unlock();
+        log.info("[AuthService] account unlocked — id={}", id);
     }
 }

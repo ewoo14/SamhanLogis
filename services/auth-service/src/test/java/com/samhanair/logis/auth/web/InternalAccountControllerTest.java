@@ -2,6 +2,7 @@ package com.samhanair.logis.auth.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -61,7 +62,8 @@ class InternalAccountControllerTest {
     @Test
     void create_withMissingToken_returns401AndDoesNotCallService() throws Exception {
         UUID id = UUID.randomUUID();
-        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES);
+        // passwordChangeRequired = false (기본값)
+        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES, false);
 
         MockHttpServletResponse response = mockMvc.perform(post("/auth/internal/accounts")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -69,13 +71,13 @@ class InternalAccountControllerTest {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(401);
-        verify(authService, never()).registerWithId(any(), any(), any(), any(), any());
+        verify(authService, never()).registerWithId(any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
     void create_withWrongToken_returns401() throws Exception {
         UUID id = UUID.randomUUID();
-        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES);
+        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES, false);
 
         MockHttpServletResponse response = mockMvc.perform(post("/auth/internal/accounts")
                         .header("X-Internal-Token", "wrong")
@@ -84,14 +86,14 @@ class InternalAccountControllerTest {
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(401);
-        verify(authService, never()).registerWithId(any(), any(), any(), any(), any());
+        verify(authService, never()).registerWithId(any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
     void create_withValidToken_invokesRegisterWithIdAndReturns201() throws Exception {
         UUID id = UUID.randomUUID();
-        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES);
-        when(authService.registerWithId(eq(id), eq("alice"), eq("password123"), eq("Alice"), eq(Role.SALES)))
+        var body = new CreateAccountInternalRequest(id, "alice", "password123", "Alice", Role.SALES, false);
+        when(authService.registerWithId(eq(id), eq("alice"), eq("password123"), eq("Alice"), eq(Role.SALES), eq(false)))
                 .thenReturn(new RegisterResponse(id.toString(), "alice", "SALES"));
 
         MockHttpServletResponse response = mockMvc.perform(post("/auth/internal/accounts")
@@ -103,7 +105,7 @@ class InternalAccountControllerTest {
         assertThat(response.getStatus()).isEqualTo(201);
         ArgumentCaptor<UUID> idCaptor = ArgumentCaptor.forClass(UUID.class);
         verify(authService).registerWithId(idCaptor.capture(), eq("alice"), eq("password123"),
-                eq("Alice"), eq(Role.SALES));
+                eq("Alice"), eq(Role.SALES), eq(false));
         assertThat(idCaptor.getValue()).isEqualTo(id);
     }
 

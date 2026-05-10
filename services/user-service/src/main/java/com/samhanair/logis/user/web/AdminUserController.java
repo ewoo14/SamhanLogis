@@ -7,10 +7,13 @@ import com.samhanair.logis.user.domain.RoleChangeHistory;
 import com.samhanair.logis.user.repository.EmployeeRepository;
 import com.samhanair.logis.user.repository.RoleChangeHistoryRepository;
 import com.samhanair.logis.user.service.EmployeeProvisioningService;
+import com.samhanair.logis.user.web.dto.AdminUserCreateRequest;
+import com.samhanair.logis.user.web.dto.AdminUserCreateResponse;
 import com.samhanair.logis.user.web.dto.AdminUserListResponse;
+import com.samhanair.logis.user.web.dto.AdminUserRoleChangeRequest;
+import com.samhanair.logis.user.web.dto.AdminUserUpdateRequest;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import com.samhanair.logis.user.web.dto.RoleHistoryResponse;
-import com.samhanair.logis.user.web.dto.UpdateRoleRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -18,31 +21,43 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 사용자 관리 admin endpoint — Phase 10 P0-5.
+ * 사용자/권한 관리 admin endpoint — Phase 10 P0-5.
  *
- * <p>frontend {@code /admin/users} 페이지 backing. UUID 비공개 — 응답 DTO 가 {@code id} 를
- * 보유하지만 화면 routing key 로만 사용, 사용자 노출 라벨은 fullName / loginId 사용.
+ * <p>frontend {@code /admin/users} 페이지 backing. UUID 비공개 원칙 준수:
+ * 응답 DTO 의 {@code id} 는 routing key 로만 사용하며, 화면 표시 라벨은
+ * {@code fullName} / {@code loginId} 를 사용.
  *
- * <p>인증 = X-User-Id 헤더 + {@code @PreAuthorize}. 권한 가드:
+ * <p>모든 endpoint 는 {@code @PreAuthorize("hasRole('MASTER')")} — MASTER 전용.
+ * 목록/이력 조회만 MANAGER 도 접근 가능.
+ *
+ * <h2>Endpoint 목록</h2>
  * <ul>
- *   <li>목록/조회/role-history — MASTER / MANAGER</li>
- *   <li>disable / enable — MASTER 만 (잘못된 비활성화 회복 비용 큼)</li>
- *   <li>role 변경 — MASTER 만 (auth-service 연쇄 영향)</li>
+ *   <li>{@code GET  /api/v1/admin/users} — 사용자 목록 (q/role/departmentId/page/size)</li>
+ *   <li>{@code GET  /api/v1/admin/users/roles} — Role enum 목록</li>
+ *   <li>{@code POST /api/v1/admin/users} — 신규 직원 등록 (임시 비밀번호 자동 생성)</li>
+ *   <li>{@code PATCH /api/v1/admin/users/{id}} — 일반 정보 수정</li>
+ *   <li>{@code PATCH /api/v1/admin/users/{id}/role} — 역할 변경 + 이력 적재</li>
+ *   <li>{@code POST /api/v1/admin/users/{id}/disable} — 퇴사 처리 (Soft Delete)</li>
+ *   <li>{@code POST /api/v1/admin/users/{id}/unlock} — 잠금 해제</li>
+ *   <li>{@code GET  /api/v1/admin/users/{id}/role-history} — 역할 변경 이력</li>
  * </ul>
  */
 @RestController
-@RequestMapping("/admin/users")
+@RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
 public class AdminUserController {
 
@@ -52,10 +67,21 @@ public class AdminUserController {
     private final EmployeeRepository employeeRepository;
     private final RoleChangeHistoryRepository roleHistoryRepository;
 
+    // -------------------------------------------------------------------------
+    // 목록 / 조회
+    // -------------------------------------------------------------------------
+
     /**
      * 사용자 목록 조회 — q / role / departmentId 필터 + 페이지네이션.
      *
-     * <p>q 는 fullName / loginId / email LIKE (대소문자 무시). frontend 의 검색창 1개로 3 컬럼 동시 검색.
+     * <p>{@code q} 는 fullName / loginId / email LIKE 부분 일치 (대소문자 무시).
+     * frontend 검색창 1개로 3 컬럼 동시 검색. 필터 미입력 시 전체 조회.
+     *
+     * @param page         0-based 페이지 번호 (기본값 0)
+     * @param size         페이지 크기 (기본값 20)
+     * @param q            검색어 (optional)
+     * @param role         역할 필터 (optional)
+     * @param departmentId 부서 UUID 필터 (optional)
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
@@ -81,52 +107,131 @@ public class AdminUserController {
         return ApiResponse.ok(List.of(Role.values()));
     }
 
+    // -------------------------------------------------------------------------
+    // 신규 등록
+    // -------------------------------------------------------------------------
+
     /**
-     * 사용자 비활성화 — terminationDate = today.
+     * 신규 직원 등록 (MASTER 전용) — 임시 비밀번호 자동 생성.
      *
-     * <p>terminate 와 구분 — soft-delete 미수반, enable 호출로 복구 가능.
+     * <p>임시 비밀번호는 이 응답({@link AdminUserCreateResponse#temporaryPassword()})에서만
+     * 1회 노출. 관리자가 직원에게 직접 전달. 첫 로그인 후 비밀번호 변경 강제.
+     *
+     * @param request      신규 직원 정보 (loginId / fullName / email / role / departmentId? / phoneNumber?)
+     * @param callerHeader X-User-Id 헤더 (MASTER UUID)
      */
-    @PatchMapping("/{id}/disable")
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('MASTER')")
-    public ApiResponse<EmployeeResponse> disable(
-            @PathVariable UUID id,
+    public ApiResponse<AdminUserCreateResponse> create(
+            @Valid @RequestBody AdminUserCreateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(provisioningService.disable(id, parseCaller(callerHeader)));
+        return ApiResponse.ok(
+                provisioningService.adminCreate(request, parseCaller(callerHeader)));
+    }
+
+    // -------------------------------------------------------------------------
+    // 정보 수정
+    // -------------------------------------------------------------------------
+
+    /**
+     * 직원 일반 정보 수정 (MASTER 전용) — fullName / email / phoneNumber / departmentId.
+     *
+     * <p>PATCH 시맨틱: null 필드는 변경 없음. 역할 변경은 {@code PATCH /{id}/role} 사용.
+     *
+     * @param id           대상 직원 UUID
+     * @param request      수정 정보 (null 필드 = 변경 없음)
+     * @param callerHeader X-User-Id 헤더
+     */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<EmployeeResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminUserUpdateRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(
+                provisioningService.adminUpdate(id, request, parseCaller(callerHeader)));
     }
 
     /**
-     * 사용자 재활성화 — terminationDate = null.
-     */
-    @PatchMapping("/{id}/enable")
-    @PreAuthorize("hasRole('MASTER')")
-    public ApiResponse<EmployeeResponse> enable(
-            @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(provisioningService.enable(id, parseCaller(callerHeader)));
-    }
-
-    /**
-     * 역할 변경 + 변경 이력 적재.
+     * 역할 변경 + 변경 이력 적재 (MASTER 전용).
+     *
+     * <p>동일 역할 재요청 시 이력 추가 없이 현재 상태 반환 (멱등).
+     *
+     * @param id           대상 직원 UUID
+     * @param request      변경할 역할 + 사유
+     * @param callerHeader X-User-Id 헤더
      */
     @PatchMapping("/{id}/role")
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateRoleRequest request,
+            @Valid @RequestBody AdminUserRoleChangeRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(provisioningService.updateRole(
-                id, request.role(), request.reason(), parseCaller(callerHeader)));
+                id, request.newRole(), request.reason(), parseCaller(callerHeader)));
+    }
+
+    // -------------------------------------------------------------------------
+    // 퇴사 / 잠금 해제
+    // -------------------------------------------------------------------------
+
+    /**
+     * 퇴사 처리 (MASTER 전용) — Soft Delete.
+     *
+     * <p>employees 행 soft-delete + auth-service account disable. enable 으로 복구 불가.
+     * (일시 비활성화는 기존 {@code PATCH /admin/users/{id}/disable} 경로 유지.)
+     *
+     * @param id           대상 직원 UUID
+     * @param callerHeader X-User-Id 헤더
+     */
+    @PostMapping("/{id}/disable")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('MASTER')")
+    public void disable(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        provisioningService.adminDisable(id, parseCaller(callerHeader));
     }
 
     /**
+     * 잠금 해제 (MASTER 전용) — 로그인 5회 실패로 잠긴 계정 복구.
+     *
+     * <p>auth-service {@code lockedAt = null}, {@code failedLoginAttempts = 0} 으로 초기화.
+     * 이미 잠금 해제 상태인 계정에 호출해도 멱등 처리.
+     *
+     * @param id           대상 직원 UUID
+     * @param callerHeader X-User-Id 헤더
+     */
+    @PostMapping("/{id}/unlock")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('MASTER')")
+    public void unlock(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        provisioningService.adminUnlock(id, parseCaller(callerHeader));
+    }
+
+    // -------------------------------------------------------------------------
+    // 이력
+    // -------------------------------------------------------------------------
+
+    /**
      * 역할 변경 이력 조회 — 매뉴얼 §4 변경 이력 탭.
+     *
+     * @param id 대상 직원 UUID
      */
     @GetMapping("/{id}/role-history")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<List<RoleHistoryResponse>> roleHistory(@PathVariable UUID id) {
-        List<RoleChangeHistory> rows = roleHistoryRepository.findAllByEmployeeIdOrderByCreatedAtDesc(id);
+        List<RoleChangeHistory> rows =
+                roleHistoryRepository.findAllByEmployeeIdOrderByCreatedAtDesc(id);
         return ApiResponse.ok(rows.stream().map(RoleHistoryResponse::from).toList());
     }
+
+    // -------------------------------------------------------------------------
+    // helper
+    // -------------------------------------------------------------------------
 
     private UUID parseCaller(String header) {
         if (header == null || header.isBlank()) {
