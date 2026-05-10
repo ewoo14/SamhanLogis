@@ -312,17 +312,21 @@ class InboundInspectionServiceTest {
         return i;
     }
 
+    /** 결정적 slipLineId — makeLine + makeSlipDetail 가 공유하여 service slipLineMap.get() 매칭 보장. */
+    private static final UUID SHARED_SLIP_LINE_ID =
+            UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
     private InboundInspectionLine makeLine(InboundInspection inspection,
                                            UUID lineId, UUID productId, int expectedQty) {
         InboundInspectionLine line = InboundInspectionLine.create(
-                inspection, UUID.randomUUID(), "MODEL-001", "테스트 제품", expectedQty);
+                inspection, SHARED_SLIP_LINE_ID, "MODEL-001", "테스트 제품", expectedQty);
         ReflectionTestUtils.setField(line, "id", lineId);
         return line;
     }
 
     private SlipDetail makeSlipDetail(UUID slipId, String slipType, String status) {
         SlipLineDetail slipLine = new SlipLineDetail(
-                UUID.randomUUID(), productId, "테스트 제품", "MODEL-001",
+                SHARED_SLIP_LINE_ID, productId, "테스트 제품", "MODEL-001",
                 10, new BigDecimal("100000"));
         return new SlipDetail(slipId, "2025/01/10-001", slipType, status,
                 warehouseId, List.of(slipLine));
