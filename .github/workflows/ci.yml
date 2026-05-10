@@ -221,15 +221,46 @@ jobs:
       - name: typecheck (tsc --noEmit)
         run: npm run typecheck
 
+      # P1-4 영업 native 앱 (Phase 11+1개월 예정) 빌드 분기 검증.
+      # app.config.js 의 BUILD_ENV / APP_VARIANT 환경변수 분기 및 EAS Build 프로파일 정합 사전 가드.
+      # CI 에서는 BUILD_ENV=development (default) 로 실행하여 로컬 개발 경로 검증.
+      - name: app.config.js 환경변수 분기 점검 (node 직접 실행)
+        run: |
+          node -e "
+            const cfg = require('./app.config.js');
+            const expo = cfg.expo;
+            if (!expo.name || !expo.version) { console.error('app.config.js: name/version 누락'); process.exit(1); }
+            if (!expo.extra || !expo.extra.buildEnv) { console.error('app.config.js: extra.buildEnv 누락'); process.exit(1); }
+            if (!expo.ios || !expo.ios.bundleIdentifier) { console.error('app.config.js: ios.bundleIdentifier 누락'); process.exit(1); }
+            if (!expo.android || !expo.android.package) { console.error('app.config.js: android.package 누락'); process.exit(1); }
+            console.log('app.config.js 검증 통과:', expo.name, 'v' + expo.version, '/', expo.extra.buildEnv);
+          "
+
       # W10-3 종합 TM 채택 fix (O-DEVOPS-1) — Expo plugin 정합 사전 가드.
-      # 본 PR (W10-3) 시점 4 weight Pretendard OTF 실배치 + app.json plugins 등록 검증.
-      # continue-on-error = true — graceful guard (asset 부분 누락 회귀 시 워크플로우 fail 회피).
+      # P1-4 보강 — app.config.js 동적 설정 병행 후에도 expo-doctor 플러그인 정합 유지 확인.
+      # continue-on-error = true — graceful guard (asset 부분 누락 / expo-doctor SDK patch 버전 경고 허용).
       - name: Expo doctor (plugin 정합 점검)
         run: npx expo-doctor
         continue-on-error: true
 
       # Expo prebuild dry-run — native 코드 생성 가능성 사전 가드 (EAS Build 진입 전 회귀 방지).
+      # P1-4 EAS Build 프로파일 (eas.json) 추가 후 native 디렉토리 생성 경로 이상 없음 확인.
       # --no-install --clean = node_modules 미변형 + native 디렉토리 임시 생성.
       - name: Expo prebuild dry-run
         run: npx expo prebuild --no-install --clean
         continue-on-error: true
+
+      # eas.json 구문 유효성 — Phase 11 EAS Build 활성 전 사전 가드.
+      # jq 로 JSON 파싱만 확인 (EAS CLI 미설치 환경에서도 동작).
+      - name: eas.json 구문 검증
+        run: |
+          if [ -f eas.json ]; then
+            node -e "
+              const eas = require('./eas.json');
+              const profiles = Object.keys(eas.build || {});
+              if (profiles.length === 0) { console.error('eas.json: build 프로파일 없음'); process.exit(1); }
+              console.log('eas.json 검증 통과. 프로파일:', profiles.join(', '));
+            "
+          else
+            echo 'eas.json 없음 — skip'
+          fi

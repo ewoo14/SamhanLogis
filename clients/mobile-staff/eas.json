@@ -1,0 +1,77 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "BUILD_ENV": "development",
+        "APP_VARIANT": "staff"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "BUILD_ENV": "preview",
+        "APP_VARIANT": "staff"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview"
+    },
+    "production": {
+      "distribution": "store",
+      "env": {
+        "BUILD_ENV": "production",
+        "APP_VARIANT": "staff"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production",
+      "autoIncrement": true
+    },
+    "p1-4-sales-preview": {
+      "extends": "preview",
+      "distribution": "internal",
+      "env": {
+        "BUILD_ENV": "preview",
+        "APP_VARIANT": "sales"
+      },
+      "channel": "p1-4-sales",
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "dev@samhan-air.com",
+        "ascAppId": "PLACEHOLDER_APP_STORE_CONNECT_ID",
+        "appleTeamId": "PLACEHOLDER_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}
