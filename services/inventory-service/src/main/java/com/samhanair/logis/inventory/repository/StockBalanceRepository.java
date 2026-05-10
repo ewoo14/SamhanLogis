@@ -30,4 +30,5 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, UUID
      * @return 해당 제품들의 모든 활성 stock_balance row (잔량 0 row 는 제외 — DB row 자체가 없으므로)
      */
     List<StockBalance> findAllByProductIdInAndIsDeletedFalse(Collection<UUID> productIds);
+
 }
