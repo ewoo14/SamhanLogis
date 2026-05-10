@@ -105,12 +105,16 @@ P13ValidationIT 로 엔드포인트·권한·부족 판정·upsert 동작을 검
 
 ---
 
-## 7. 엔드포인트 요약
+## 7. 엔드포인트 요약 (TM PR #143 cross-check 후 정렬)
 
 | Method | Path | 권한 | 설명 |
 |---|---|---|---|
-| GET | `/api/v1/inventory/alerts/safety-stock` | MASTER/MANAGER/INVENTORY | 안전재고 미달 목록 조회 |
-| POST | `/api/v1/inventory/products/{productId}/safety-stock` | MASTER/MANAGER/INVENTORY | 임계값 설정/갱신 (upsert, 201) |
+| GET | `/inventory/alerts/safety-stock` | MASTER/MANAGER/INVENTORY/WAREHOUSE | 안전재고 미달 목록 조회 (List 평면) |
+| GET | `/inventory/alerts/safety-stock/count` | MASTER/MANAGER/INVENTORY/WAREHOUSE | 알림 건수 조회 (FE 헤더 배지용, `{ count: int }`) |
+| POST | `/inventory/products/{productId}/safety-stock` | MASTER/MANAGER/INVENTORY/WAREHOUSE | 임계값 설정/갱신 (upsert, 201) |
+
+> WAREHOUSE 권한 추가 + count 엔드포인트 신설은 TM 통합 fix (PR #143 cross-check) 결과로
+> FE `safetyStockApi.ts` 및 mock 과 정합. 자세한 기록은 `docs/qa/p1-3/TM-VERIFICATION.md` 참조.
 
 ---
 
@@ -140,3 +144,4 @@ P13ValidationIT 로 엔드포인트·권한·부족 판정·upsert 동작을 검
 | 일자 | 작성자 | 내용 |
 |---|---|---|
 | 2026-05-11 | DevOps agent | V8 seed 5건 + P13ValidationIT 12 시나리오 (@MockBean 4종) + dev-report 초안 |
+| 2026-05-11 | TM (Opus 4.7) | BE-FE API contract 정합 fix — count 엔드포인트 신설, WAREHOUSE 권한 추가, FE record 1:1 정합, mock 갱신, IT 시나리오 6-A/6-B/6-C 추가 |

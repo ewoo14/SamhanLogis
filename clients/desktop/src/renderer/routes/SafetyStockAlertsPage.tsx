@@ -1,12 +1,14 @@
 /**
  * 안전재고 알림 목록 페이지 (`/inventory/safety-stock-alerts`).
  *
- * P1-3 슬라이스. BE `GET /inventory/safety-stock-alerts` backing.
- * 임계 미만 (availableQty < threshold) 인 (제품, 창고) 조합을 표 형태로 표시.
+ * P1-3 슬라이스. BE `GET /inventory/alerts/safety-stock` backing — TM PR #143 정합 (BE List 평면).
+ * 임계 미만 (productId, warehouseId) 조합을 표 형태로 표시.
  *
- * UUID 비공개 가드: productCode / modelName / warehouseCode 만 화면 노출.
+ * UUID 노출 가드 — 본 화면은 관리자/창고 운영자(MASTER/MANAGER/INVENTORY/WAREHOUSE) 전용
+ * 이므로 productId/warehouseId UUID 노출은 허용 (cf. memory `feedback_uuid_no_user_visibility`).
+ * 향후 product-service / warehouse 조인을 BE 에서 enrich 하면 productCode/warehouseCode 로 교체.
  *
- * 권한: MASTER / MANAGER / WAREHOUSE (RoleGuard — safetyStockApi.SAFETY_STOCK_ROLES).
+ * 권한: SAFETY_STOCK_ROLES (MASTER / MANAGER / INVENTORY / WAREHOUSE).
  *
  * data-testid:
  * - safety-stock-alerts-table
@@ -14,7 +16,7 @@
  * - safety-stock-alerts-refresh-button
  * - safety-stock-alerts-empty
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Badge,
@@ -32,7 +34,8 @@ import { usePageTitle } from '../hooks/usePageTitle'
 export function SafetyStockAlertsPage() {
   usePageTitle('안전재고 알림')
 
-  const [warehouseCode, setWarehouseCode] = useState('')
+  // FE 측 클라이언트 필터 — BE 가 warehouse 필터 query 를 미지원하므로 화면단 필터로 처리.
+  const [warehouseId, setWarehouseId] = useState('')
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -40,47 +43,54 @@ export function SafetyStockAlertsPage() {
   })
 
   const alertsQuery = useQuery({
-    queryKey: ['inventory', 'safety-stock-alerts', warehouseCode],
-    queryFn: () =>
-      listSafetyStockAlerts({
-        warehouseCode: warehouseCode || undefined,
-        page: 0,
-        size: 100,
-      }),
+    queryKey: ['inventory', 'safety-stock-alerts'],
+    queryFn: listSafetyStockAlerts,
     refetchInterval: 60_000,
   })
 
-  const alerts = alertsQuery.data?.content ?? []
+  // warehouseId 가 선택된 경우 클라이언트 필터링.
+  const alerts = useMemo<SafetyStockAlert[]>(() => {
+    const all = alertsQuery.data ?? []
+    if (!warehouseId) return all
+    return all.filter((a) => a.warehouseId === warehouseId)
+  }, [alertsQuery.data, warehouseId])
+
+  // 창고 UUID → 화면 표시용 코드/이름 매핑 (UUID 비표시 보조).
+  const warehouseLabel = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const w of warehousesQuery.data ?? []) {
+      map.set(w.id, `${w.code} · ${w.name}`)
+    }
+    return (id: string | null): string => {
+      if (!id) return '전체 창고 합산'
+      return map.get(id) ?? id.slice(0, 8) + '…'
+    }
+  }, [warehousesQuery.data])
 
   const columns: DataTableColumn<SafetyStockAlert>[] = [
     {
-      key: 'productCode',
-      header: '제품코드',
-      width: '130px',
-    },
-    {
-      key: 'modelName',
-      header: '모델명',
-      width: '220px',
-    },
-    {
-      key: 'productName',
-      header: '제품명',
-    },
-    {
-      key: 'warehouseCode',
+      key: 'warehouseId',
       header: '창고',
-      width: '150px',
-      render: (a) => `${a.warehouseCode} · ${a.warehouseName}`,
+      width: '220px',
+      render: (a) => warehouseLabel(a.warehouseId),
     },
     {
-      key: 'availableQty',
+      key: 'productId',
+      header: '제품 ID',
+      render: (a) => (
+        <code style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>
+          {a.productId.slice(0, 8)}…
+        </code>
+      ),
+    },
+    {
+      key: 'currentQty',
       header: '현재 가용',
       width: '110px',
       align: 'right',
       render: (a) => (
         <span style={{ color: 'var(--color-danger-600)', fontWeight: 600 }}>
-          {a.availableQty.toLocaleString()}
+          {a.currentQty.toLocaleString()}
         </span>
       ),
     },
@@ -92,15 +102,20 @@ export function SafetyStockAlertsPage() {
       render: (a) => a.threshold.toLocaleString(),
     },
     {
-      key: 'shortfall',
+      key: 'shortage',
       header: '부족분',
       width: '110px',
       align: 'right',
       render: (a) => (
         <Badge variant="danger">
-          -{a.shortfall.toLocaleString()}
+          -{a.shortage.toLocaleString()}
         </Badge>
       ),
+    },
+    {
+      key: 'note',
+      header: '메모',
+      render: (a) => a.note ?? '—',
     },
   ]
 
@@ -126,11 +141,11 @@ export function SafetyStockAlertsPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* 창고 필터 */}
+          {/* 창고 필터 (클라이언트단) */}
           <select
             data-testid="safety-stock-alerts-warehouse-filter"
-            value={warehouseCode}
-            onChange={(e) => setWarehouseCode(e.target.value)}
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
             style={{
               border: '1px solid var(--color-neutral-200)',
               borderRadius: 6,
@@ -142,7 +157,7 @@ export function SafetyStockAlertsPage() {
           >
             <option value="">전체 창고</option>
             {(warehousesQuery.data ?? []).map((w: Warehouse) => (
-              <option key={w.id} value={w.code}>
+              <option key={w.id} value={w.id}>
                 {w.code} · {w.name}
               </option>
             ))}
@@ -201,8 +216,8 @@ export function SafetyStockAlertsPage() {
         >
           <span style={{ fontSize: 32 }}>✓</span>
           <span>
-            {warehouseCode
-              ? `선택 창고(${warehouseCode})에 안전재고 미만 품목이 없습니다.`
+            {warehouseId
+              ? '선택 창고에 안전재고 미만 품목이 없습니다.'
               : '현재 안전재고 미만 품목이 없습니다.'}
           </span>
         </div>
@@ -211,7 +226,7 @@ export function SafetyStockAlertsPage() {
           data-testid="safety-stock-alerts-table"
           columns={columns}
           rows={alerts}
-          rowKey={(a) => `${a.productCode}-${a.warehouseCode}`}
+          rowKey={(a) => `${a.productId}-${a.warehouseId ?? 'GLOBAL'}`}
         />
       )}
     </>

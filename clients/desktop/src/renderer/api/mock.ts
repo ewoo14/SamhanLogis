@@ -504,36 +504,34 @@ const SAMPLE_TRANSFER_LINES = [
  * 안전재고 임계 미만 알림 시드 — availableQty < threshold 인 3건.
  * UUID 비공개 가드: productCode / modelName / warehouseCode 만 노출.
  */
+/**
+ * BE `SafetyStockAlertResponse` record 와 1:1 정합 (TM PR #143 cross-check).
+ * V8 seed BELOW 3건과 동일 결정적 UUID 사용.
+ */
 const MOCK_SAFETY_STOCK_ALERTS = [
   {
-    productCode: '01-0001',
-    modelName: 'AP-WQLL14NAADKR',
-    productName: '삼성 벽걸이 14평형 (R32)',
-    warehouseCode: 'HQ-001',
-    warehouseName: '본사창고',
-    availableQty: 2,
+    productId: 'a0a0a0a0-0000-0000-0000-000000000002',
+    warehouseId: '11111111-1111-1111-1111-000000000001',
+    threshold: 50,
+    currentQty: 43,
+    shortage: 7,
+    note: '[DEV-SEED] AJ056 멀티 HQ 안전재고 — 부족 상태',
+  },
+  {
+    productId: 'a0a0a0a0-0000-0000-0000-000000000003',
+    warehouseId: '11111111-1111-1111-1111-000000000001',
+    threshold: 30,
+    currentQty: 27,
+    shortage: 3,
+    note: '[DEV-SEED] AM100 실외기 HQ 안전재고 — 부족 상태',
+  },
+  {
+    productId: 'a0a0a0a0-0000-0000-0000-000000000001',
+    warehouseId: '11111111-1111-1111-1111-000000000002',
     threshold: 10,
-    shortfall: 8,
-  },
-  {
-    productCode: '01-0023',
-    modelName: 'AF-JX071NCALH1S',
-    productName: '삼성 스탠드 7평형 (인버터)',
-    warehouseCode: 'HQ-001',
-    warehouseName: '본사창고',
-    availableQty: 0,
-    threshold: 5,
-    shortfall: 5,
-  },
-  {
-    productCode: '01-0045',
-    modelName: 'AM100TXEADKH',
-    productName: '삼성 실외기 10HP (4Way)',
-    warehouseCode: 'VH-001',
-    warehouseName: '1호차 차량재고',
-    availableQty: 1,
-    threshold: 3,
-    shortfall: 2,
+    currentQty: 6,
+    shortage: 4,
+    note: '[DEV-SEED] AJ040 싱글 VH 안전재고 — 부족 상태',
   },
 ]
 
@@ -2659,38 +2657,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /inventory/safety-stock-alerts/count — 헤더 배지용 알림 건수
-  if (method === 'GET' && url.endsWith('/inventory/safety-stock-alerts/count')) {
+  // GET /inventory/alerts/safety-stock/count — 헤더 배지용 알림 건수 (BE 정합)
+  if (method === 'GET' && url.endsWith('/inventory/alerts/safety-stock/count')) {
     return envelope({ count: MOCK_SAFETY_STOCK_ALERTS.length })
   }
 
-  // GET /inventory/safety-stock-alerts — 임계 미만 목록 (warehouseCode 필터)
-  if (method === 'GET' && url.includes('/inventory/safety-stock-alerts')) {
-    const warehouseCode = (config.params?.['warehouseCode'] ?? '') as string
-    const filtered = warehouseCode
-      ? MOCK_SAFETY_STOCK_ALERTS.filter((a) => a.warehouseCode === warehouseCode)
-      : MOCK_SAFETY_STOCK_ALERTS
-    return envelope({
-      content: filtered,
-      totalElements: filtered.length,
-      totalPages: 1,
-      number: 0,
-      size: 100,
-      first: true,
-      last: true,
-    })
+  // GET /inventory/alerts/safety-stock — 임계 미만 List 평면 (BE 정합)
+  if (method === 'GET' && url.endsWith('/inventory/alerts/safety-stock')) {
+    return envelope(MOCK_SAFETY_STOCK_ALERTS)
   }
 
-  // PUT /inventory/safety-stock-configs/{productCode} — 임계값 upsert
-  if (method === 'PUT' && url.includes('/inventory/safety-stock-configs/')) {
+  // POST /inventory/products/{productId}/safety-stock — 임계값 upsert (BE 정합)
+  if (method === 'POST' && /\/inventory\/products\/[^/]+\/safety-stock$/.test(url)) {
     const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      warehouseId?: string | null
       threshold?: number
-      note?: string
+      note?: string | null
     }
+    const segments = url.split('/')
+    // 마지막에서 두 번째 segment 가 productId
+    const productId = segments[segments.length - 2] ?? 'UNKNOWN'
     return envelope({
-      productCode: url.split('/').pop() ?? 'UNKNOWN',
-      modelName: '(갱신됨)',
-      productName: '(갱신됨)',
+      id: 'mock-config-uuid',
+      productId,
+      warehouseId: body.warehouseId ?? null,
       threshold: body.threshold ?? 0,
       note: body.note ?? null,
     })

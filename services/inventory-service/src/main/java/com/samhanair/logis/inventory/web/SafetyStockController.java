@@ -26,12 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>권한 매트릭스:
  * <ul>
- *   <li>알림 목록 조회 (GET /alerts/safety-stock) — MASTER/MANAGER/INVENTORY</li>
- *   <li>임계값 설정 (POST /products/{productId}/safety-stock) — MASTER/MANAGER/INVENTORY</li>
+ *   <li>알림 목록 조회 (GET /alerts/safety-stock) — MASTER/MANAGER/INVENTORY/WAREHOUSE</li>
+ *   <li>알림 건수 조회 (GET /alerts/safety-stock/count) — MASTER/MANAGER/INVENTORY/WAREHOUSE (FE 헤더 배지용)</li>
+ *   <li>임계값 설정 (POST /products/{productId}/safety-stock) — MASTER/MANAGER/INVENTORY/WAREHOUSE</li>
  * </ul>
  *
- * <p>UUID 사용자 비공개 가드 — 본 화면은 관리자(MASTER/MANAGER/INVENTORY) 전용이므로
- * productId/warehouseId UUID 노출은 허용. 일반 사용자 대면 화면에서는 UUID 직접 노출 금지.
+ * <p>WAREHOUSE 역할 추가 — FE `safetyStockApi.SAFETY_STOCK_ROLES` 와 정합. 창고원이
+ * 자체 운영 화면에서 임계 미만 품목을 직접 확인할 수 있도록 한다 (TM PR #143 cross-check).
+ *
+ * <p>UUID 사용자 비공개 가드 — 본 화면은 관리자/창고 운영자(MASTER/MANAGER/INVENTORY/WAREHOUSE)
+ * 전용이므로 productId/warehouseId UUID 노출은 허용. 일반 사용자 대면 화면에서는 UUID 직접 노출 금지.
  */
 @RestController
 @RequestMapping("/inventory")
@@ -59,9 +63,33 @@ public class SafetyStockController {
                     description = "권한 없음")
     })
     @GetMapping("/alerts/safety-stock")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
     public ApiResponse<List<SafetyStockAlertResponse>> listAlerts() {
         return ApiResponse.ok(safetyStockService.findAlerts());
+    }
+
+    /**
+     * 안전재고 알림 건수만 단순 조회한다 — FE 헤더 배지/사이드바 chip 용 (TM PR #143 정합).
+     *
+     * <p>현재는 {@link SafetyStockService#findAlerts()} 결과 size 를 그대로 반환한다.
+     * 향후 트래픽 증가 시 단순 count SQL 로 최적화 가능 (현재 P1 단계에서는 동일 로직 재사용).
+     *
+     * @return {@code { "count": int }} 형태 응답
+     */
+    @Operation(
+            summary = "안전재고 알림 건수 조회",
+            description = "현재 임계 미만 (제품, 창고) 조합 건수 — FE 헤더 배지용 (P1-3)"
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "권한 없음")
+    })
+    @GetMapping("/alerts/safety-stock/count")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
+    public ApiResponse<java.util.Map<String, Integer>> alertCount() {
+        return ApiResponse.ok(java.util.Map.of("count", safetyStockService.findAlerts().size()));
     }
 
     /**
@@ -90,7 +118,7 @@ public class SafetyStockController {
     })
     @PostMapping("/products/{productId}/safety-stock")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
     public ApiResponse<SafetyStockConfigResponse> setSafetyStock(
             @PathVariable UUID productId,
             @Valid @RequestBody SafetyStockSetRequest request) {

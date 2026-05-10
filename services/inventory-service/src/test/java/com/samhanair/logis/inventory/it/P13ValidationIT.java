@@ -403,4 +403,41 @@ class P13ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(get("/inventory/alerts/safety-stock"))
                 .andExpect(status().isForbidden());
     }
+
+    // ─────────── 시나리오 6: WAREHOUSE 권한 + count 엔드포인트 (TM PR #143 추가) ───────────
+
+    /**
+     * 시나리오 6-A: WAREHOUSE 권한도 알림 목록 조회 가능 (200) — FE
+     * `safetyStockApi.SAFETY_STOCK_ROLES` 정합.
+     */
+    @Test
+    void listAlerts_warehouseRole_returns200() throws Exception {
+        mockMvc.perform(get("/inventory/alerts/safety-stock")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * 시나리오 6-B: count 엔드포인트가 BELOW 건수 3 을 반환한다 (V8 seed 기준).
+     */
+    @Test
+    void alertCount_inventoryRole_returnsBelowCount() throws Exception {
+        mockMvc.perform(get("/inventory/alerts/safety-stock/count")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "INVENTORY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.count").value(3));
+    }
+
+    /**
+     * 시나리오 6-C: count 엔드포인트도 SALES → 403.
+     */
+    @Test
+    void alertCount_salesRole_returns403() throws Exception {
+        mockMvc.perform(get("/inventory/alerts/safety-stock/count")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isForbidden());
+    }
 }
