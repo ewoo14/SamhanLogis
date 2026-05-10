@@ -54,16 +54,13 @@ const PRINT_CSS = `
   font-size: var(--print-text-sm, 11pt);
   font-variant-numeric: tabular-nums;
 }
-.vat-report-table td {
+.vat-report-table td, .vat-report-table th {
   padding: 3pt 4pt;
   vertical-align: middle;
 }
 .vat-report-table td.amount {
   text-align: right;
   white-space: nowrap;
-}
-.vat-report-table td.count {
-  text-align: right;
 }
 .vat-section-header td {
   font-weight: 600;
@@ -93,38 +90,12 @@ const PRINT_CSS = `
     background-color: var(--color-neutral-900) !important;
     color: var(--color-neutral-0) !important;
   }
+  .deadline-banner {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 `
-
-// --------------------------------------------------------------------------
-// 서브 컴포넌트
-// --------------------------------------------------------------------------
-
-interface VatPrintRowProps {
-  label: string
-  value: string | number
-  unit?: '원' | '매'
-  indent?: boolean
-  className?: string
-}
-
-function VatPrintRow({ label, value, unit = '원', indent = false, className }: VatPrintRowProps) {
-  const n = typeof value === 'string' ? Number.parseInt(value, 10) : value
-  const isNeg = Number.isFinite(n) && n < 0
-  const displayValue = unit === '매' ? `${String(value)} 매` : fmtAmount(String(value))
-
-  return (
-    <tr className={`${indent ? 'vat-indent' : ''} ${className ?? ''}`.trim()}>
-      <td style={{ color: 'var(--color-neutral-900)' }}>{label}</td>
-      <td
-        className={unit === '매' ? 'count' : 'amount'}
-        style={{ color: isNeg ? 'var(--color-danger)' : 'var(--color-neutral-900)' }}
-      >
-        {displayValue}
-      </td>
-    </tr>
-  )
-}
 
 // --------------------------------------------------------------------------
 // 메인 컴포넌트
@@ -202,11 +173,12 @@ function VatReportPrintBody({ data, period }: BodyProps) {
         </div>
       </div>
 
-      {/* 본문 표 */}
+      {/* 본문 표 — D4: 3열 (과목 50% / 공급가액 30% / 세액 20%) REPORTS-B-DESIGN §4 */}
       <table className="vat-report-table">
         <colgroup>
-          <col style={{ width: '60%' }} />
-          <col style={{ width: '40%' }} />
+          <col style={{ width: '50%' }} />
+          <col style={{ width: '30%' }} />
+          <col style={{ width: '20%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -218,7 +190,7 @@ function VatReportPrintBody({ data, period }: BodyProps) {
               fontSize: 'var(--print-text-md)',
               fontWeight: 700,
             }}>
-              항 목
+              과 목
             </th>
             <th style={{
               textAlign: 'right',
@@ -228,64 +200,52 @@ function VatReportPrintBody({ data, period }: BodyProps) {
               fontSize: 'var(--print-text-md)',
               fontWeight: 700,
             }}>
-              금 액
+              공급가액
+            </th>
+            <th style={{
+              textAlign: 'right',
+              borderTop: '2pt solid var(--color-neutral-900)',
+              borderBottom: '1pt solid var(--color-neutral-900)',
+              padding: '4pt 4pt',
+              fontSize: 'var(--print-text-md)',
+              fontWeight: 700,
+            }}>
+              세 액
             </th>
           </tr>
         </thead>
         <tbody>
           {/* 매출 섹션 */}
           <tr className="vat-section-header">
-            <td colSpan={2}>I. 매출 (Output VAT)</td>
+            <td colSpan={3}>I. 매출 (Output VAT)</td>
           </tr>
-          <VatPrintRow label="공급가액 합계" value={data.salesSupplyAmount} indent />
-          <VatPrintRow label="부가세 합계" value={data.salesVatAmount} indent />
-          <VatPrintRow
-            label="총액 (공급가액 + 부가세)"
-            value={String(
-              Number.parseInt(data.salesSupplyAmount, 10)
-              + Number.parseInt(data.salesVatAmount, 10),
-            )}
-            indent
-          />
-          <VatPrintRow
-            label="세금계산서 발행 매수"
-            value={data.salesInvoiceCount}
-            unit="매"
-            indent
-          />
-          <VatPrintRow
-            label="매출 VAT 소계"
-            value={data.salesVatAmount}
-            className="report-total-row"
-          />
-          <tr className="vat-divider"><td colSpan={2} /></tr>
+          <tr className="vat-indent">
+            <td>세금계산서 ({data.salesInvoiceCount}매)</td>
+            <td className="amount">{fmtAmount(data.salesSupplyAmount)}</td>
+            <td className="amount">{fmtAmount(data.salesVatAmount)}</td>
+          </tr>
+          <tr className="report-total-row">
+            <td style={{ padding: '3pt 4pt', fontWeight: 700 }}>매출 소계</td>
+            <td className="amount" style={{ fontWeight: 700 }}>{fmtAmount(data.salesSupplyAmount)}</td>
+            <td className="amount" style={{ fontWeight: 700 }}>{fmtAmount(data.salesVatAmount)}</td>
+          </tr>
+          <tr className="vat-divider"><td colSpan={3} /></tr>
 
           {/* 매입 섹션 */}
           <tr className="vat-section-header">
-            <td colSpan={2}>II. 매입 (Input VAT)</td>
+            <td colSpan={3}>II. 매입 (Input VAT)</td>
           </tr>
-          <VatPrintRow label="공급가액 합계" value={data.purchaseSupplyAmount} indent />
-          <VatPrintRow label="부가세 합계" value={data.purchaseVatAmount} indent />
-          <VatPrintRow
-            label="총액 (공급가액 + 부가세)"
-            value={String(
-              Number.parseInt(data.purchaseSupplyAmount, 10)
-              + Number.parseInt(data.purchaseVatAmount, 10),
-            )}
-            indent
-          />
-          <VatPrintRow
-            label="세금계산서 수취 매수"
-            value={data.purchaseInvoiceCount}
-            unit="매"
-            indent
-          />
-          <VatPrintRow
-            label="매입 VAT 소계"
-            value={data.purchaseVatAmount}
-            className="report-total-row"
-          />
-          <tr className="vat-divider"><td colSpan={2} /></tr>
+          <tr className="vat-indent">
+            <td>세금계산서 ({data.purchaseInvoiceCount}매)</td>
+            <td className="amount">{fmtAmount(data.purchaseSupplyAmount)}</td>
+            <td className="amount">{fmtAmount(data.purchaseVatAmount)}</td>
+          </tr>
+          <tr className="report-total-row">
+            <td style={{ padding: '3pt 4pt', fontWeight: 700 }}>매입 소계</td>
+            <td className="amount" style={{ fontWeight: 700 }}>{fmtAmount(data.purchaseSupplyAmount)}</td>
+            <td className="amount" style={{ fontWeight: 700 }}>{fmtAmount(data.purchaseVatAmount)}</td>
+          </tr>
+          <tr className="vat-divider"><td colSpan={3} /></tr>
 
           {/* 납부세액 grand-total */}
           <tr
@@ -295,6 +255,7 @@ function VatReportPrintBody({ data, period }: BodyProps) {
             <td style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '6pt 4pt' }}>
               {isRefund ? 'III. 환급세액' : 'III. 납부세액 (매출 VAT − 매입 VAT)'}
             </td>
+            <td className="amount" style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '6pt 4pt' }}>—</td>
             <td
               className="amount"
               style={{

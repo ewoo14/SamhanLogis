@@ -62,13 +62,25 @@ function sortedLines(lines: PartnerAgingLine[]): PartnerAgingLine[] {
 }
 
 /**
+ * 연체일수 → 행 배경 CSS 클래스 (D3 — REPORTS-B-DESIGN §2-2 / §8).
+ * 경계값: >= 60 위험(danger), >= 30 주의(warning).
+ * 60일 정확히는 위험 구간.
+ */
+function agingClass(agingDays: number): string {
+  if (agingDays >= 60) return 'aging-overdue-danger'
+  if (agingDays >= 30) return 'aging-overdue-warning'
+  return ''
+}
+
+/**
  * 연체일수 → Badge 스타일.
- * - 0–30일: neutral (회색)
- * - 31–60일: warning (노랑)
- * - 61일 이상: danger (빨강)
+ * - 0–29일: neutral (회색)
+ * - 30–59일: warning (노랑)
+ * - 60일 이상: danger (빨강)
+ * 경계값 정정 (D3): >= 60 / >= 30 (기존 > 60 / > 30 오차 수정).
  */
 function agingBadgeStyle(agingDays: number): React.CSSProperties {
-  if (agingDays > 60) {
+  if (agingDays >= 60) {
     return {
       display: 'inline-block',
       padding: '1px 6px',
@@ -80,7 +92,7 @@ function agingBadgeStyle(agingDays: number): React.CSSProperties {
       fontVariantNumeric: 'tabular-nums',
     }
   }
-  if (agingDays > 30) {
+  if (agingDays >= 30) {
     return {
       display: 'inline-block',
       padding: '1px 6px',
@@ -384,13 +396,18 @@ export function PartnerAgingPage() {
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line, idx) => (
+                {lines.map((line, idx) => {
+                  const overdueCls = agingClass(line.agingDays)
+                  return (
                   <tr
                     key={line.partnerCode}
+                    className={overdueCls || undefined}
                     style={{
                       borderBottom: '1px solid var(--color-border)',
                       background:
-                        idx % 2 === 0
+                        overdueCls
+                          ? undefined
+                          : idx % 2 === 0
                           ? 'transparent'
                           : 'var(--color-bg-subtle)',
                     }}
@@ -432,7 +449,8 @@ export function PartnerAgingPage() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
               {/* 합계 행 */}
               <tfoot>

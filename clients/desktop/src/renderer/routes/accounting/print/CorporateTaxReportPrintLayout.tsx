@@ -319,8 +319,8 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
         </tbody>
       </table>
 
-      {/* 신고 기한 */}
-      <div style={{ marginTop: 12, fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-700)' }}>
+      {/* 신고 기한 — D1 .deadline-banner (REPORTS-B-DESIGN §2-3) */}
+      <div className="deadline-banner" style={{ marginTop: 12, fontSize: 'var(--print-text-sm)' }}>
         신고 기한: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{data.filingDeadline}</strong>
         &nbsp;(12월 결산 법인 기준)
       </div>

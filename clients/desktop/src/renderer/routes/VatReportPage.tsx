@@ -57,99 +57,7 @@ function prevMonth(): string {
 // --------------------------------------------------------------------------
 // 서브 컴포넌트
 // --------------------------------------------------------------------------
-
-interface VatRowProps {
-  label: string
-  value: string | number
-  unit?: string
-  isSummary?: boolean
-  isGrandTotal?: boolean
-  indent?: boolean
-}
-
-/**
- * 부가세 신고서 1행 — label(좌) / value(우).
- * D4: isSummary → .report-total-row, isGrandTotal → .report-grand-total-row.
- */
-function VatRow({
-  label,
-  value,
-  unit = '원',
-  isSummary = false,
-  isGrandTotal = false,
-  indent = false,
-}: VatRowProps) {
-  const isStr = typeof value === 'string'
-  const n = isStr ? Number.parseInt(value, 10) : value
-  const isNeg = Number.isFinite(n) && n < 0
-  const displayValue = unit === '매'
-    ? `${String(value)} 매`
-    : fmtKrw(String(value))
-
-  const className = isGrandTotal
-    ? 'report-grand-total-row'
-    : isSummary
-    ? 'report-total-row'
-    : undefined
-
-  return (
-    <div
-      className={className}
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '4px 8px',
-        paddingLeft: indent ? 32 : 8,
-        fontWeight: isSummary || isGrandTotal ? 700 : 400,
-        fontSize: 14,
-        fontVariantNumeric: 'tabular-nums',
-        borderRadius: 2,
-      }}
-    >
-      <span style={{ color: 'var(--color-neutral-900)' }}>{label}</span>
-      <span
-        style={{
-          color: isNeg
-            ? 'var(--color-danger)'
-            : 'var(--color-neutral-900)',
-        }}
-      >
-        {displayValue}
-      </span>
-    </div>
-  )
-}
-
-/** 섹션 헤더 구분선. */
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div
-      style={{
-        fontWeight: 600,
-        fontSize: 14,
-        color: 'var(--color-neutral-700)',
-        padding: '8px 8px 2px',
-        borderTop: '1px solid var(--color-neutral-200)',
-        marginTop: 8,
-      }}
-    >
-      {title}
-    </div>
-  )
-}
-
-/** 구분선. */
-function Divider() {
-  return (
-    <div
-      style={{
-        borderTop: '1px solid var(--color-neutral-200)',
-        margin: '8px 0',
-      }}
-    />
-  )
-}
+// D4 3열 테이블로 재구성 후 VatRow / SectionHeader / Divider 제거됨.
 
 // --------------------------------------------------------------------------
 // 메인 페이지
@@ -271,90 +179,137 @@ export function VatReportPage() {
             </div>
           </div>
 
-          {/* 본문 */}
+          {/* 본문 — D4: 3열 테이블 (과목 50% / 공급가액 30% / 세액 20%) REPORTS-B-DESIGN §4 */}
           <div
             data-testid="accounting-vat-report-table"
-            style={{ maxWidth: 560, margin: '0 auto' }}
+            style={{ maxWidth: 640, margin: '0 auto' }}
           >
-            {/* 매출 (Output VAT) */}
-            <SectionHeader title="매출 (Output VAT)" />
-            <VatRow label="공급가액 합계" value={data.salesSupplyAmount} indent />
-            <VatRow label="부가세 합계" value={data.salesVatAmount} indent />
-            <VatRow
-              label="총액 (공급가액 + 부가세)"
-              value={String(
-                Number.parseInt(data.salesSupplyAmount, 10)
-                + Number.parseInt(data.salesVatAmount, 10),
-              )}
-              indent
-            />
-            <VatRow
-              label="세금계산서 발행 매수"
-              value={data.salesInvoiceCount}
-              unit="매"
-              indent
-            />
-            <VatRow
-              label="매출 VAT 소계"
-              value={data.salesVatAmount}
-              isSummary
-            />
-
-            <Divider />
-
-            {/* 매입 (Input VAT) */}
-            <SectionHeader title="매입 (Input VAT)" />
-            <VatRow label="공급가액 합계" value={data.purchaseSupplyAmount} indent />
-            <VatRow label="부가세 합계" value={data.purchaseVatAmount} indent />
-            <VatRow
-              label="총액 (공급가액 + 부가세)"
-              value={String(
-                Number.parseInt(data.purchaseSupplyAmount, 10)
-                + Number.parseInt(data.purchaseVatAmount, 10),
-              )}
-              indent
-            />
-            <VatRow
-              label="세금계산서 수취 매수"
-              value={data.purchaseInvoiceCount}
-              unit="매"
-              indent
-            />
-            <VatRow
-              label="매입 VAT 소계"
-              value={data.purchaseVatAmount}
-              isSummary
-            />
-
-            <Divider />
-
-            {/* 납부세액 */}
-            <div
-              className="report-grand-total-row"
+            <table
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '8px 8px',
-                fontWeight: 700,
-                fontSize: 16,
-                borderTop: '2px solid var(--color-neutral-900)',
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 14,
                 fontVariantNumeric: 'tabular-nums',
-                borderRadius: 2,
               }}
             >
-              <span>납부세액 (매출 VAT − 매입 VAT)</span>
-              <span
-                style={{
-                  color:
-                    Number.parseInt(data.vatPayable, 10) < 0
-                      ? 'var(--color-danger)'
-                      : undefined,
-                }}
-              >
-                {fmtKrw(data.vatPayable)}
-              </span>
-            </div>
+              <colgroup>
+                <col style={{ width: '50%' }} />
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '20%' }} />
+              </colgroup>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--color-neutral-900)' }}>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700 }}>
+                    과목
+                  </th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    공급가액
+                  </th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    세액
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* 매출 섹션 */}
+                <tr style={{ borderTop: '1px solid var(--color-neutral-200)', marginTop: 8 }}>
+                  <td
+                    colSpan={3}
+                    style={{
+                      padding: '6px 8px 2px',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: 'var(--color-neutral-700)',
+                    }}
+                  >
+                    I. 매출 (Output VAT)
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px 4px 24px', color: 'var(--color-neutral-900)' }}>
+                    세금계산서 ({data.salesInvoiceCount}매)
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
+                    {fmtKrw(data.salesSupplyAmount)}
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
+                    {fmtKrw(data.salesVatAmount)}
+                  </td>
+                </tr>
+                <tr className="report-total-row">
+                  <td style={{ padding: '4px 8px', fontWeight: 700 }}>매출 소계</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    {fmtKrw(data.salesSupplyAmount)}
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    {fmtKrw(data.salesVatAmount)}
+                  </td>
+                </tr>
+
+                {/* 구분선 행 */}
+                <tr><td colSpan={3} style={{ borderTop: '1px solid var(--color-neutral-200)', padding: 0, height: 4 }} /></tr>
+
+                {/* 매입 섹션 */}
+                <tr>
+                  <td
+                    colSpan={3}
+                    style={{
+                      padding: '6px 8px 2px',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: 'var(--color-neutral-700)',
+                    }}
+                  >
+                    II. 매입 (Input VAT)
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px 4px 24px', color: 'var(--color-neutral-900)' }}>
+                    세금계산서 ({data.purchaseInvoiceCount}매)
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
+                    {fmtKrw(data.purchaseSupplyAmount)}
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
+                    {fmtKrw(data.purchaseVatAmount)}
+                  </td>
+                </tr>
+                <tr className="report-total-row">
+                  <td style={{ padding: '4px 8px', fontWeight: 700 }}>매입 소계</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    {fmtKrw(data.purchaseSupplyAmount)}
+                  </td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700 }}>
+                    {fmtKrw(data.purchaseVatAmount)}
+                  </td>
+                </tr>
+
+                {/* 납부세액 grand-total */}
+                <tr
+                  className="report-grand-total-row"
+                  style={{ borderTop: '2px solid var(--color-neutral-900)' }}
+                >
+                  <td style={{ padding: '8px 8px', fontWeight: 700, fontSize: 15 }}>
+                    III. 납부세액 (매출 VAT − 매입 VAT)
+                  </td>
+                  <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontSize: 15 }}>—</td>
+                  <td
+                    style={{
+                      padding: '8px 8px',
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      fontSize: 15,
+                      color:
+                        Number.parseInt(data.vatPayable, 10) < 0
+                          ? 'var(--color-danger)'
+                          : undefined,
+                    }}
+                  >
+                    {fmtKrw(data.vatPayable)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
             {Number.parseInt(data.vatPayable, 10) < 0 ? (
               <div

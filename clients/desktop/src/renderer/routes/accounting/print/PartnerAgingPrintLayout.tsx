@@ -48,6 +48,17 @@ function sortedLines(lines: PartnerAgingLine[]): PartnerAgingLine[] {
   return [...lines].sort((a, b) => b.agingDays - a.agingDays)
 }
 
+/**
+ * 연체일수 → 행 배경 CSS 클래스 (D3 — REPORTS-B-DESIGN §2-2 / §8).
+ * 경계값: >= 60 위험(danger), >= 30 주의(warning).
+ * 60일 정확히는 위험 구간.
+ */
+function agingClass(agingDays: number): string {
+  if (agingDays >= 60) return 'aging-overdue-danger'
+  if (agingDays >= 30) return 'aging-overdue-warning'
+  return ''
+}
+
 // --------------------------------------------------------------------------
 // 인쇄 전용 CSS
 // --------------------------------------------------------------------------
@@ -110,6 +121,18 @@ const PRINT_CSS = `
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     background-color: var(--color-neutral-50) !important;
+  }
+  .aging-overdue-warning {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background-color: var(--state-warning-bg) !important;
+    color: var(--state-warning) !important;
+  }
+  .aging-overdue-danger {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background-color: var(--state-danger-bg) !important;
+    color: var(--state-danger) !important;
   }
 }
 `
@@ -213,33 +236,38 @@ function PartnerAgingPrintBody({ data }: BodyProps) {
           </tr>
         </thead>
         <tbody>
-          {lines.map((line, idx) => (
-            <tr
-              key={line.partnerCode}
-              className={idx % 2 === 1 ? 'aging-row-even' : undefined}
-            >
-              {/* UUID 비공개: partnerCode 만 — partnerId 절대 미노출 */}
-              <td style={{ color: 'var(--color-neutral-700)' }}>
-                {line.partnerCode}
-              </td>
-              <td style={{ fontWeight: 500 }}>{line.partnerName}</td>
-              <td className="amount">{fmtAmount(line.balance)}</td>
-              <td className="center">{line.oldestUnpaidDate ?? '—'}</td>
-              <td className="center">
-                <span
-                  className={
-                    line.agingDays > 60
-                      ? 'aging-badge-danger'
-                      : line.agingDays > 30
-                      ? 'aging-badge-warning'
-                      : undefined
-                  }
-                >
-                  {line.agingDays}일
-                </span>
-              </td>
-            </tr>
-          ))}
+          {lines.map((line, idx) => {
+            const overdueCls = agingClass(line.agingDays)
+            const zebraCls = !overdueCls && idx % 2 === 1 ? 'aging-row-even' : undefined
+            const rowCls = [overdueCls, zebraCls].filter(Boolean).join(' ') || undefined
+            return (
+              <tr
+                key={line.partnerCode}
+                className={rowCls}
+              >
+                {/* UUID 비공개: partnerCode 만 — partnerId 절대 미노출 */}
+                <td style={{ color: 'var(--color-neutral-700)' }}>
+                  {line.partnerCode}
+                </td>
+                <td style={{ fontWeight: 500 }}>{line.partnerName}</td>
+                <td className="amount">{fmtAmount(line.balance)}</td>
+                <td className="center">{line.oldestUnpaidDate ?? '—'}</td>
+                <td className="center">
+                  <span
+                    className={
+                      line.agingDays >= 60
+                        ? 'aging-badge-danger'
+                        : line.agingDays >= 30
+                        ? 'aging-badge-warning'
+                        : undefined
+                    }
+                  >
+                    {line.agingDays}일
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
         {/* 합계 행 */}
         <tfoot>
