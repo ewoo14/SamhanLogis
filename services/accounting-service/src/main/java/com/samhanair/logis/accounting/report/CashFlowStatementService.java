@@ -22,18 +22,19 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>현금 = 101 (현금) + 102 (보통예금) 합산.
  *
- * <p>활동별 계정 매핑 (한국 일반기업회계기준 표준 계정과목):
+ * <p>활동별 계정 매핑 (한국 일반기업회계기준 표준 계정과목, V1 chart_of_accounts 기준):
  * <ul>
  *   <li>영업활동 조정:
  *     <ul>
  *       <li>110 외상매출금 — 감소(credit &gt; debit)면 현금 유입</li>
  *       <li>201 외상매입금 — 증가(credit &gt; debit)면 현금 지급 감소 (음수)</li>
- *       <li>220 부가세예수금 / 255 미지급금 — 부채 증감 영업 조정</li>
+ *       <li>220 부가세예수금 / 210 미지급금 — 부채 증감 영업 조정</li>
  *       <li>801~870 판관비 — debit 잔액만큼 현금 지급 (유출)</li>
  *     </ul>
  *   </li>
- *   <li>투자활동: 130 유형자산 / 140 무형자산 매입(debit=유출) / 매각(credit=유입)</li>
- *   <li>재무활동: 210 단기차입금 / 260 장기차입금 증감 / 310 자본금 증자</li>
+ *   <li>투자활동: 141 토지 / 142 건물 / 146 차량운반구 / 148 비품 / 163 소프트웨어
+ *       매입(debit=유출) / 매각(credit=유입)</li>
+ *   <li>재무활동: 230 단기차입금 / 260 장기차입금 증감 / 301 자본금 증자</li>
  * </ul>
  *
  * <p>POSTED 분개만 집계.
@@ -46,28 +47,31 @@ public class CashFlowStatementService {
     /** 현금성 자산 계정 코드 (기초/기말 현금 산출 대상). */
     private static final List<String> CASH_ACCOUNTS = List.of("101", "102");
 
-    /** 영업활동 조정 계정 코드 목록. */
+    /** 영업활동 조정 계정 코드 목록 (V1 chart_of_accounts 기준). */
     private static final List<String> OPERATING_ADJ_ACCOUNTS = List.of(
             "110",  // 외상매출금 (받을어음 포함)
             "201",  // 외상매입금
             "220",  // 부가세예수금
-            "255"   // 미지급금
+            "210"   // 미지급금 (V1 코드: 210)
     );
 
     /** 판관비 계정 코드 prefix (800번대) — 현금 지급 유출로 처리. */
     private static final String SGA_PREFIX = "8";
 
-    /** 투자활동 계정 코드 목록. */
+    /** 투자활동 계정 코드 목록 (V1 chart_of_accounts 기준 유형·무형자산). */
     private static final List<String> INVESTING_ACCOUNTS = List.of(
-            "130",  // 유형자산
-            "140"   // 무형자산
+            "141",  // 토지
+            "142",  // 건물
+            "146",  // 차량운반구
+            "148",  // 비품
+            "163"   // 소프트웨어
     );
 
-    /** 재무활동 계정 코드 목록. */
+    /** 재무활동 계정 코드 목록 (V1 chart_of_accounts 기준). */
     private static final List<String> FINANCING_ACCOUNTS = List.of(
-            "210",  // 단기차입금
+            "230",  // 단기차입금 (V1 코드: 230)
             "260",  // 장기차입금
-            "310"   // 자본금 (증자)
+            "301"   // 자본금 (V1 코드: 301)
     );
 
     /** balanced 판정 허용 오차. */

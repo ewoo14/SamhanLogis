@@ -92,7 +92,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     /**
      * V10 seed — 현금흐름표 CFI 투자활동 존재 확인.
      *
-     * <p>SEED-CF-004 차량운반구 취득(161 debit 5,000,000) — investingActivities 비어있지 않음.
+     * <p>SEED-CF-004 차량운반구 취득(146 debit 5,000,000, V1 코드) — investingActivities 비어있지 않음.
      */
     @Test
     @DisplayName("현금흐름표 — CFI 투자활동 (차량운반구 취득) 항목 존재 확인")
@@ -113,7 +113,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     /**
      * V10 seed — 자본변동표 2027-01 조회 200 OK + flat 구조 검증.
      *
-     * <p>SEED-EQ-001 유상증자(301 credit 20,000,000) + SEED-EQ-002 배당(343 debit 3,000,000).
+     * <p>SEED-EQ-001 유상증자(301 credit 20,000,000) + SEED-EQ-002 배당(343 debit 3,000,000). V1 자본금 코드 301.
      * flat 필드: beginningTotalEquity / endingTotalEquity / totalChange / capitalStockIncrease / dividends.
      *
      * <p>PR #137 fix — EquityChangesResponse flat 구조 + 필드명 정정
@@ -157,7 +157,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                // 유상증자: capitalStockIncrease > 0 (SEED-EQ-001: 310 credit 20,000,000)
+                // 유상증자: capitalStockIncrease > 0 (SEED-EQ-001: 301 credit 20,000,000, V1 자본금 코드)
                 .andExpect(jsonPath("$.data.capitalStockIncrease").value(20000000))
                 // 배당: dividends < 0 (SEED-EQ-002: 343 debit 3,000,000 → -3,000,000)
                 .andExpect(jsonPath("$.data.dividends").value(-3000000));

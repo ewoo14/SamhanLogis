@@ -17,9 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>응답 구조: REPORTS-C-DESIGN.md §9 Props spec — flat 필드 구조.
  *
- * <p>자본 구성 항목:
+ * <p>자본 구성 항목 (V1 chart_of_accounts 기준):
  * <ul>
- *   <li>310 자본금 — 증자(credit)/감자(debit) 반영</li>
+ *   <li>301 자본금 — 증자(credit)/감자(debit) 반영</li>
  *   <li>343 미처분이익잉여금 — 당기순이익 + 배당 반영</li>
  * </ul>
  *
@@ -35,8 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EquityChangesService {
 
-    /** 자본금 계정 코드. */
-    private static final String CAPITAL_STOCK_CODE = "310";
+    /** 자본금 계정 코드 (V1 chart_of_accounts 기준: 301). */
+    private static final String CAPITAL_STOCK_CODE = "301";
 
     /** 미처분이익잉여금 계정 코드. */
     private static final String RETAINED_EARNINGS_CODE = "343";

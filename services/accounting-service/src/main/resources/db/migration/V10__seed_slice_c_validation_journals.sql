@@ -17,7 +17,7 @@
 --   101  현금             ASSET
 --   102  보통예금         ASSET
 --   110  외상매출금       ASSET
---   161  차량운반구       ASSET
+--   146  차량운반구       ASSET   ← V1 실제 코드 (161 은 V1 에 없음)
 --   201  외상매입금       LIABILITY
 --   210  미지급금         LIABILITY
 --   260  장기차입금       LIABILITY
@@ -114,7 +114,7 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- SEED-CF-004: CFI — 차량운반구 취득 현금 지급 (2027-01-20, 격리 월)
--- 차변: 차량운반구(161) 5,000,000 / 대변: 현금(101) 5,000,000
+-- 차변: 차량운반구(146) 5,000,000 / 대변: 현금(101) 5,000,000
 INSERT INTO journals
     (id, journal_no, journal_date, description, source_type, status,
      posted_at, posted_by, version, created_at, created_by, is_deleted)
@@ -242,14 +242,14 @@ VALUES (
 );
 
 -- ===== SEED-CF-004 라인 (차량운반구 취득, 2027-01-20) =====
--- 차변: 차량운반구(161) 5,000,000
+-- 차변: 차량운반구(146) 5,000,000  ← V1 실제 코드 146 사용
 INSERT INTO journal_lines
     (id, journal_id, line_no, account_code, debit_amount, credit_amount, memo,
      created_at, created_by, is_deleted)
 VALUES (
     gen_random_uuid(),
     'd1c2b3a4-e5f6-7890-abcd-ef0123456704',
-    1, '161', 5000000.00, 0.00,
+    1, '146', 5000000.00, 0.00,
     '차량운반구 취득 (CFI 유출)',
     '2027-01-20 09:00:00', 'SYSTEM_SEED', FALSE
 );
@@ -342,7 +342,7 @@ VALUES (
 -- SEED-CF-001: debit 1,500,000 = credit 1,500,000   2027-01-05  OK (CFO 유입)
 -- SEED-CF-002: debit   300,000 = credit   300,000   2027-01-10  OK (CFO 유출)
 -- SEED-CF-003: debit   800,000 = credit   800,000   2027-01-15  OK (CFO 유출)
--- SEED-CF-004: debit 5,000,000 = credit 5,000,000   2027-01-20  OK (CFI 유출)
+-- SEED-CF-004: debit 5,000,000 = credit 5,000,000   2027-01-20  OK (CFI 유출, 146 차량운반구)
 -- SEED-CF-005: debit 10,000,000 = credit 10,000,000 2027-01-25  OK (CFF 유입)
 -- SEED-EQ-001: debit 20,000,000 = credit 20,000,000 2027-01-02  OK (증자)
 -- SEED-EQ-002: debit 3,000,000 = credit 3,000,000   2027-01-30  OK (배당)

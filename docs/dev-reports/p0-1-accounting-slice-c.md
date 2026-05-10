@@ -1,13 +1,44 @@
 # P0-1 Slice C — 현금흐름표 / 자본변동표 / 일계표 / 월계표 검증 seed + IT (14건 100% 달성)
 
 작성일: 2026-05-10
-최종 수정: 2026-05-11 (PR #137 BE+DevOps reviewer 결함 통합 fix)
+최종 수정: 2026-05-11 (PR #137 BE reviewer 계정 코드 5건 정합 + 현금흐름 정합성 회복 fix)
 담당: BE + DevOps
 연관 branch: `feature/p0-1-accounting-slice-c`
 
 ---
 
-## PR #137 BE+DevOps reviewer fix 이력 (2026-05-11)
+## PR #137 BE reviewer 계정 코드 5건 정합 fix 이력 (2026-05-11 — 2차)
+
+### 계정 코드 5건 불일치 정정 (V1 chart_of_accounts 47계정 기준)
+
+**원인**: BE Service (`CashFlowStatementService` / `EquityChangesService`) + V10 seed가 V1 실제 계정 코드와 불일치.
+
+| 항목 | 수정 전 (오류) | 수정 후 (V1 정답) | 파일 |
+|-----|------------|----------------|------|
+| 자본금 | `310` | `301` | `CashFlowStatementService`, `EquityChangesService` |
+| 단기차입금 | `210` | `230` | `CashFlowStatementService` |
+| 투자활동 유형자산 | `130`, `140` | `141`, `142`, `146`, `148`, `163` | `CashFlowStatementService` |
+| V10 seed 차량운반구 | `161` | `146` | `V10__seed_slice_c_validation_journals.sql` |
+| 운전자본 (미지급금) | `255` | `210` | `CashFlowStatementService` |
+
+**비고**: `255` (부가세예수금 V2 신규)는 TaxInvoiceService 전용 — 유지. V1 `220` 부가세예수금은 영업활동 조정 계정으로 유지.
+
+**영향 범위**:
+- `CashFlowStatementService.FINANCING_ACCOUNTS`: `310`→`301`, `210`→`230`
+- `CashFlowStatementService.INVESTING_ACCOUNTS`: `130`, `140` → `141`, `142`, `146`, `148`, `163`
+- `CashFlowStatementService.OPERATING_ADJ_ACCOUNTS`: `255`→`210`
+- `EquityChangesService.CAPITAL_STOCK_CODE`: `310`→`301`
+- V10 SEED-CF-004 `journal_lines.account_code`: `161`→`146`
+
+**정합성 회복**:
+- CFI 투자활동: V1 실제 유형자산 코드 매핑 → SEED-CF-004(차량운반구 146) 정상 집계
+- CFF 재무활동: 단기차입금 230, 자본금 301 정상 집계
+- 자본변동표 유상증자: SEED-EQ-001(102 차변 / 301 대변) → capitalStockIncrease 20,000,000 정상 반영
+- cashReconciled=true 회복 조건: 현금 계정(101, 102) + 전체 활동 집계 계정 코드 V1 정합
+
+---
+
+## PR #137 BE+DevOps reviewer fix 이력 (2026-05-11 — 1차)
 
 ### 1. CI 회귀 fix — V10 seed 일자 격리
 
@@ -78,18 +109,18 @@ Slice C 완료로 accounting-service 14건 보고서 endpoint 100% 달성.
 
 | 분개번호 | 날짜 | 활동 | 계정 (차변 → 대변) | 금액 |
 |--------|-----|-----|-----------------|-----|
-| SEED-CF-001 | 2026-05-05 | CFO 유입 | 현금(101) → 외상매출금(110) | 1,500,000 |
-| SEED-CF-002 | 2026-05-10 | CFO 유출 | 임차료(819) → 현금(101) | 300,000 |
-| SEED-CF-003 | 2026-05-15 | CFO 유출 | 외상매입금(201) → 현금(101) | 800,000 |
-| SEED-CF-004 | 2026-05-20 | CFI 유출 | 차량운반구(161) → 현금(101) | 5,000,000 |
-| SEED-CF-005 | 2026-05-25 | CFF 유입 | 현금(101) → 장기차입금(260) | 10,000,000 |
+| SEED-CF-001 | 2027-01-05 | CFO 유입 | 현금(101) → 외상매출금(110) | 1,500,000 |
+| SEED-CF-002 | 2027-01-10 | CFO 유출 | 임차료(819) → 현금(101) | 300,000 |
+| SEED-CF-003 | 2027-01-15 | CFO 유출 | 외상매입금(201) → 현금(101) | 800,000 |
+| SEED-CF-004 | 2027-01-20 | CFI 유출 | 차량운반구(146) → 현금(101) | 5,000,000 |
+| SEED-CF-005 | 2027-01-25 | CFF 유입 | 현금(101) → 장기차입금(260) | 10,000,000 |
 
 #### 자본변동 검증 분개
 
 | 분개번호 | 날짜 | 변동 유형 | 계정 (차변 → 대변) | 금액 |
 |--------|-----|---------|-----------------|-----|
-| SEED-EQ-001 | 2026-05-02 | 유상증자 (CAPITAL_INCREASE) | 보통예금(102) → 자본금(301) | 20,000,000 |
-| SEED-EQ-002 | 2026-05-30 | 배당 (DIVIDEND) | 미처분이익잉여금(343) → 보통예금(102) | 3,000,000 |
+| SEED-EQ-001 | 2027-01-02 | 유상증자 (CAPITAL_INCREASE) | 보통예금(102) → 자본금(301) | 20,000,000 |
+| SEED-EQ-002 | 2027-01-30 | 배당 (DIVIDEND) | 미처분이익잉여금(343) → 보통예금(102) | 3,000,000 |
 
 격리 식별자: `[DEV-SEED]` description prefix + `SEED-CF-` / `SEED-EQ-` journal_no prefix.
 복식부기 균형: 7건 전체 차변 합계 = 대변 합계 검증 완료.
@@ -120,12 +151,12 @@ BE agent 구현이 없는 Slice C 4개 보고서 컴포넌트를 DevOps가 직�
 
 | 테스트명 | endpoint | 검증 내용 |
 |--------|---------|---------|
-| cashFlowReportReturns200ForPeriod202605 | GET /cash-flow?period=202605 | 200 OK + period/fromDate/toDate/netCashFlow/cashReconciled |
-| cashFlowInvestingActivitiesNotEmpty | GET /cash-flow?period=202605 | investingActivities 배열 존재 + cashFromInvesting 수치 |
-| equityChangesReportReturns200ForMay2026 | GET /equity-changes?fromDate=2026-05-01&toDate=2026-05-31 | 200 OK + beginningEquity/totalChange/endingEquity/lines |
-| equityChangesHasCapitalIncreaseAndDividend | GET /equity-changes?fromDate=2026-05-01&toDate=2026-05-31 | lines[0]/lines[1] 최소 2건 존재 |
-| dailySummaryReturns200ForJan15 | GET /daily-summary?date=2026-01-15 | 200 OK + summaryDate/journalCount/balanced=true/accountTotals |
-| monthlySummaryReturns200ForJan2026 | GET /monthly-summary?period=202601 | 200 OK + period/fromDate/toDate/journalCount/balanced=true/dailyBreakdown |
+| cashFlowReportReturns200ForPeriod202701 | GET /cash-flow?period=202701 | 200 OK + period/fromDate/toDate/netCashFlow/cashReconciled |
+| cashFlowInvestingActivitiesNotEmpty | GET /cash-flow?period=202701 | investingActivities 배열 존재 + cashFromInvesting 수치 (146 차량운반구) |
+| equityChangesReportReturns200ForJan2027 | GET /equity-changes?fromDate=2027-01-01&toDate=2027-01-31 | 200 OK + flat 구조 beginningTotalEquity/endingTotalEquity/totalChange |
+| equityChangesHasCapitalIncreaseAndDividend | GET /equity-changes?fromDate=2027-01-01&toDate=2027-01-31 | capitalStockIncrease=20,000,000 + dividends=-3,000,000 (301 자본금) |
+| dailySummaryReturns200ForJan15 | GET /daily-summary?date=2026-01-15 | 200 OK + date/journalCount/balanced=true/accountSummary |
+| monthlySummaryReturns200ForJan2026 | GET /monthly-summary?period=202601 | 200 OK + period/fromDate/toDate/journalCount/balanced=true/dailyBreakdown/accountSummary |
 
 #### 가드 적용
 
