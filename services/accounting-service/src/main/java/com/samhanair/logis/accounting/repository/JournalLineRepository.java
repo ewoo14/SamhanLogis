@@ -138,4 +138,52 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
             GROUP BY l.accountCode
             """)
     List<AccountTotal> aggregatePostedUpTo(@Param("asOfDate") LocalDate asOfDate);
+
+    /**
+     * 거래처별 미수/미지급금 집계 — asOfDate 이전 누적 POSTED 분개 라인.
+     *
+     * <p>partnerId 가 NULL 이 아닌 라인만 집계. 거래처 + accountCode 별 차/대 합산.
+     * partner_aging 보고서에서 110(외상매출금) / 201(외상매입금) 계정 잔액 집계에 사용.
+     *
+     * @param accountCode 대상 계정 코드 (예: "110", "201")
+     * @param asOfDate    기준 일자 (이 날짜 포함 이전까지 누적)
+     * @return 거래처별 차/대 합계 행
+     */
+    @Query("""
+            SELECT l.partnerId AS partnerId,
+                   l.accountCode AS accountCode,
+                   COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
+                   COALESCE(SUM(l.creditAmount), 0) AS creditTotal
+            FROM JournalLine l
+            WHERE l.accountCode = :accountCode
+              AND l.journal.journalDate <= :asOfDate
+              AND l.journal.status = com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+              AND l.partnerId IS NOT NULL
+            GROUP BY l.partnerId, l.accountCode
+            """)
+    List<PartnerAccountTotal> aggregateAgingByAccount(@Param("accountCode") String accountCode,
+                                                      @Param("asOfDate") LocalDate asOfDate);
+
+    /**
+     * 거래처별 최초 미결 분개 일자 조회 — asOfDate 이전 POSTED 분개 라인 중 가장 이른 날짜.
+     *
+     * <p>잔액이 양수인 거래처의 oldestUnpaidDate 산출에 사용.
+     * partnerId + accountCode 조합으로 조회하며, 1건씩 호출 (N+1 은 거래처 수가 수십~수백 수준).
+     *
+     * @param partnerId   거래처 UUID
+     * @param accountCode 대상 계정 코드
+     * @param asOfDate    기준 일자
+     * @return 최초 분개 일자 목록 (첫 번째 항목 사용, 없으면 빈 목록)
+     */
+    @Query("""
+            SELECT MIN(l.journal.journalDate)
+            FROM JournalLine l
+            WHERE l.partnerId = :partnerId
+              AND l.accountCode = :accountCode
+              AND l.journal.journalDate <= :asOfDate
+              AND l.journal.status = com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+            """)
+    java.util.Optional<LocalDate> findOldestJournalDate(@Param("partnerId") UUID partnerId,
+                                                         @Param("accountCode") String accountCode,
+                                                         @Param("asOfDate") LocalDate asOfDate);
 }

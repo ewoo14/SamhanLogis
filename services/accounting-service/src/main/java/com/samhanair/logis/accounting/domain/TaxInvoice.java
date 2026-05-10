@@ -113,6 +113,14 @@ public class TaxInvoice extends BaseEntity {
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
 
+    /**
+     * 세금계산서 종류 — 매출(SALES) / 매입(PURCHASE).
+     * V7 마이그레이션 신규 컬럼, NULL 허용 (기존 레코드 = SALES 기본).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invoice_type", length = 20)
+    private TaxInvoiceType invoiceType;
+
     /** 상태 (DRAFT / ISSUED / CANCELLED). */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -159,13 +167,15 @@ public class TaxInvoice extends BaseEntity {
     private List<TaxInvoiceLine> lines = new ArrayList<>();
 
     private TaxInvoice(UUID partnerId, String partnerBusinessNo, String partnerName,
-                       String partnerAddress, LocalDate supplyDate, String description) {
+                       String partnerAddress, LocalDate supplyDate, String description,
+                       TaxInvoiceType invoiceType) {
         this.partnerId = partnerId;
         this.partnerBusinessNo = partnerBusinessNo;
         this.partnerName = partnerName;
         this.partnerAddress = partnerAddress;
         this.supplyDate = supplyDate;
         this.description = description;
+        this.invoiceType = invoiceType != null ? invoiceType : TaxInvoiceType.SALES;
         this.status = TaxInvoiceStatus.DRAFT;
         this.supplyAmount = BigDecimal.ZERO;
         this.vatAmount = BigDecimal.ZERO;
@@ -176,16 +186,19 @@ public class TaxInvoice extends BaseEntity {
     /**
      * 신규 세금계산서 생성 (DRAFT). 라인은 별도 {@link #addLine}.
      *
+     * <p>invoiceType 미지정 시 SALES 기본값 적용 (한국 물류업체 특성).
+     *
      * @param partnerId 거래처 UUID (필수)
      * @param partnerBusinessNo 사업자등록번호 (선택, ≤20자)
      * @param partnerName 상호 (필수, ≤200자) — snapshot
      * @param partnerAddress 주소 (선택, ≤500자) — snapshot
      * @param supplyDate 공급일자 (필수)
      * @param description 적요 (선택, ≤500자)
+     * @param invoiceType 종류 (선택, null 이면 SALES)
      */
     public static TaxInvoice create(UUID partnerId, String partnerBusinessNo, String partnerName,
                                     String partnerAddress, LocalDate supplyDate,
-                                    String description) {
+                                    String description, TaxInvoiceType invoiceType) {
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
         }
@@ -205,7 +218,24 @@ public class TaxInvoice extends BaseEntity {
             throw new IllegalArgumentException("description 은 최대 500자입니다");
         }
         return new TaxInvoice(partnerId, partnerBusinessNo, partnerName, partnerAddress,
-                supplyDate, description);
+                supplyDate, description, invoiceType);
+    }
+
+    /**
+     * 신규 세금계산서 생성 (DRAFT) — invoiceType 기본값 SALES. 기존 호출부 호환용.
+     *
+     * @param partnerId 거래처 UUID (필수)
+     * @param partnerBusinessNo 사업자등록번호 (선택)
+     * @param partnerName 상호 (필수)
+     * @param partnerAddress 주소 (선택)
+     * @param supplyDate 공급일자 (필수)
+     * @param description 적요 (선택)
+     */
+    public static TaxInvoice create(UUID partnerId, String partnerBusinessNo, String partnerName,
+                                    String partnerAddress, LocalDate supplyDate,
+                                    String description) {
+        return create(partnerId, partnerBusinessNo, partnerName, partnerAddress,
+                supplyDate, description, TaxInvoiceType.SALES);
     }
 
     /**
