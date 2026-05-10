@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 일계표 (Daily Summary) 집계 Service.
  *
- * <p>특정 일자의 POSTED 분개 전체를 계정과목별 차/대 합계로 집계한다.
+ * <p>특정 일자의 POSTED 분개 전체를 계정과목별 차/대/잔액 합계로 집계한다.
  *
  * <p>집계 규칙:
  * <ul>
@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>balanced = |totalDebit - totalCredit| &lt; 0.01 원</li>
  *   <li>계정별 행은 ChartOfAccount displayOrder 오름차순 정렬</li>
  *   <li>분개 건수 = 해당 일자 POSTED Journal 의 고유 건수</li>
+ *   <li>응답 필드명: date / accountSummary / DailyAccountLine (REPORTS-C-DESIGN.md §9 spec)</li>
  * </ul>
  */
 @Service
@@ -71,24 +72,27 @@ public class DailySummaryService {
 
         BigDecimal totalDebit = BigDecimal.ZERO;
         BigDecimal totalCredit = BigDecimal.ZERO;
-        List<AccountSummaryLine> accountLines = new ArrayList<>();
+        List<DailyAccountLine> accountLines = new ArrayList<>();
 
         for (AccountTotal t : totals) {
             String code = t.getAccountCode();
             BigDecimal debit = t.getDebitTotal();
             BigDecimal credit = t.getCreditTotal();
+            BigDecimal balance = debit.subtract(credit); // debit - credit (양수 = 차변 초과)
+            int sortOrder = orderMap.getOrDefault(code, Integer.MAX_VALUE);
             totalDebit = totalDebit.add(debit);
             totalCredit = totalCredit.add(credit);
-            accountLines.add(new AccountSummaryLine(
+            accountLines.add(new DailyAccountLine(
                     code,
                     nameMap.getOrDefault(code, code),
                     debit,
-                    credit));
+                    credit,
+                    balance,
+                    sortOrder));
         }
 
         // displayOrder 기준 정렬
-        accountLines.sort(Comparator.comparingInt(
-                line -> orderMap.getOrDefault(line.accountCode(), Integer.MAX_VALUE)));
+        accountLines.sort(Comparator.comparingInt(DailyAccountLine::sortOrder));
 
         // 분개 건수
         long journalCount = journalLineRepository.countPostedJournals(from, to);
@@ -98,12 +102,12 @@ public class DailySummaryService {
                 .compareTo(BALANCE_TOLERANCE) < 0;
 
         return new DailySummaryResponse(
-                from,   // DailySummaryResponse 의 summaryDate = from (단일 날짜)
+                from,           // date = from (단일 날짜)
                 journalCount,
                 totalDebit,
                 totalCredit,
                 balanced,
-                accountLines,
+                accountLines,   // accountSummary (spec 필드명)
                 LocalDateTime.now()
         );
     }

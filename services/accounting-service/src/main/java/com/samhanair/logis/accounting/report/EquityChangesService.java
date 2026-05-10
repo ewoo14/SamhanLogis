@@ -5,7 +5,6 @@ import com.samhanair.logis.accounting.repository.JournalLineRepository.AccountTo
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,11 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 자본변동표 (Statement of Changes in Equity) 집계 Service.
  *
+ * <p>응답 구조: REPORTS-C-DESIGN.md §9 Props spec — flat 필드 구조.
+ *
  * <p>자본 구성 항목:
  * <ul>
  *   <li>310 자본금 — 증자(credit)/감자(debit) 반영</li>
  *   <li>343 미처분이익잉여금 — 당기순이익 + 배당 반영</li>
- *   <li>기타 300번대 자본 계정 — credit - debit 잔액</li>
  * </ul>
  *
  * <p>기초 잔액 = fromDate 전날(beforeFrom)까지의 POSTED 분개 누적 잔액.
@@ -49,7 +49,7 @@ public class EquityChangesService {
      *
      * @param fromDate 기간 시작 일자
      * @param toDate   기간 종료 일자
-     * @return 자본변동표 응답 DTO
+     * @return 자본변동표 응답 DTO (flat 구조)
      * @throws IllegalArgumentException fromDate &gt; toDate 인 경우
      */
     public EquityChangesResponse findByDateRange(LocalDate fromDate, LocalDate toDate) {
@@ -66,12 +66,11 @@ public class EquityChangesService {
 
         // ── 기초 잔액 (fromDate 전날까지 누적) ────────────────────────────────
         LocalDate beforeFrom = fromDate.minusDays(1);
-        BigDecimal beginningCapital = calcEquityBalance(CAPITAL_STOCK_CODE, beforeFrom);
-        BigDecimal beginningRetained = calcRetainedEarnings(beforeFrom);
-        BigDecimal beginningTotal = beginningCapital.add(beginningRetained);
+        BigDecimal beginningCapitalStock = calcEquityBalance(CAPITAL_STOCK_CODE, beforeFrom);
+        BigDecimal beginningRetainedEarnings = calcRetainedEarnings(beforeFrom);
+        BigDecimal beginningTotalEquity = beginningCapitalStock.add(beginningRetainedEarnings);
 
         // ── 기간 중 변동 집계 ──────────────────────────────────────────────────
-        // 자본금 (310) 기간 중 차/대 집계
         List<AccountTotal> periodTotals = journalLineRepository.aggregatePostedByAccountCodes(
                 fromDate, toDate,
                 List.of(CAPITAL_STOCK_CODE, RETAINED_EARNINGS_CODE));
@@ -81,8 +80,9 @@ public class EquityChangesService {
 
         // 자본금 증자 = credit 합계, 감자 = debit 합계 (음수 표시)
         AccountTotal capitalPeriod = periodMap.get(CAPITAL_STOCK_CODE);
-        BigDecimal capitalIncrease = capitalPeriod != null ? capitalPeriod.getCreditTotal() : BigDecimal.ZERO;
-        BigDecimal capitalDecrease = capitalPeriod != null
+        BigDecimal capitalStockIncrease = capitalPeriod != null
+                ? capitalPeriod.getCreditTotal() : BigDecimal.ZERO;
+        BigDecimal capitalStockDecrease = capitalPeriod != null
                 ? capitalPeriod.getDebitTotal().negate() : BigDecimal.ZERO; // 음수
 
         // 당기순이익 (손익계산서 service 동일 패키지 호출)
@@ -96,38 +96,30 @@ public class EquityChangesService {
                 ? retainedPeriod.getDebitTotal().negate() : BigDecimal.ZERO; // 음수
 
         // ── 기말 잔액 산출 ─────────────────────────────────────────────────────
-        BigDecimal endingCapital = beginningCapital.add(capitalIncrease).add(capitalDecrease);
-        BigDecimal endingRetained = beginningRetained.add(netIncome).add(dividends);
-        BigDecimal endingTotal = endingCapital.add(endingRetained);
-        BigDecimal totalChange = endingTotal.subtract(beginningTotal);
-
-        // ── 변동 행 목록 구성 ─────────────────────────────────────────────────
-        List<EquityChangeLine> lines = new ArrayList<>();
-        if (capitalIncrease.signum() != 0) {
-            lines.add(new EquityChangeLine(CAPITAL_STOCK_CODE, "자본금",
-                    "CAPITAL_INCREASE", "기간 중 유상증자", capitalIncrease));
-        }
-        if (capitalDecrease.signum() != 0) {
-            lines.add(new EquityChangeLine(CAPITAL_STOCK_CODE, "자본금",
-                    "CAPITAL_DECREASE", "기간 중 감자", capitalDecrease));
-        }
-        if (netIncome.signum() != 0) {
-            lines.add(new EquityChangeLine(RETAINED_EARNINGS_CODE, "미처분이익잉여금",
-                    "NET_INCOME", "당기순이익", netIncome));
-        }
-        if (dividends.signum() != 0) {
-            lines.add(new EquityChangeLine(RETAINED_EARNINGS_CODE, "미처분이익잉여금",
-                    "DIVIDEND", "배당금 지급", dividends));
-        }
+        BigDecimal endingCapitalStock = beginningCapitalStock
+                .add(capitalStockIncrease)
+                .add(capitalStockDecrease);
+        BigDecimal endingRetainedEarnings = beginningRetainedEarnings
+                .add(netIncome)
+                .add(dividends);
+        BigDecimal endingTotalEquity = endingCapitalStock.add(endingRetainedEarnings);
+        BigDecimal totalChange = endingTotalEquity.subtract(beginningTotalEquity);
 
         return new EquityChangesResponse(
                 periodLabel,
                 fromDate,
                 toDate,
-                lines,
-                beginningTotal,
+                beginningCapitalStock,
+                capitalStockIncrease,
+                capitalStockDecrease,
+                endingCapitalStock,
+                beginningRetainedEarnings,
+                netIncome,
+                dividends,
+                endingRetainedEarnings,
+                beginningTotalEquity,
+                endingTotalEquity,
                 totalChange,
-                endingTotal,
                 LocalDateTime.now()
         );
     }

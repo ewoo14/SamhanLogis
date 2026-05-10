@@ -1,8 +1,53 @@
 # P0-1 Slice C — 현금흐름표 / 자본변동표 / 일계표 / 월계표 검증 seed + IT (14건 100% 달성)
 
 작성일: 2026-05-10
-담당: DevOps (인프라/CI 파트)
+최종 수정: 2026-05-11 (PR #137 BE+DevOps reviewer 결함 통합 fix)
+담당: BE + DevOps
 연관 branch: `feature/p0-1-accounting-slice-c`
+
+---
+
+## PR #137 BE+DevOps reviewer fix 이력 (2026-05-11)
+
+### 1. CI 회귀 fix — V10 seed 일자 격리
+
+**원인**: V10 seed 분개 7건이 2026-05 월에 있어 TrialBalanceControllerIT(period=202605) 와 충돌.
+
+**fix**: 모든 V10 분개 일자를 `2026-05-*` → `2027-01-*` 격리 월로 변경.
+
+| 분개번호 | 변경 전 | 변경 후 |
+|--------|--------|--------|
+| SEED-EQ-001 | 2026-05-02 | 2027-01-02 |
+| SEED-CF-001 | 2026-05-05 | 2027-01-05 |
+| SEED-CF-002 | 2026-05-10 | 2027-01-10 |
+| SEED-CF-003 | 2026-05-15 | 2027-01-15 |
+| SEED-CF-004 | 2026-05-20 | 2027-01-20 |
+| SEED-CF-005 | 2026-05-25 | 2027-01-25 |
+| SEED-EQ-002 | 2026-05-30 | 2027-01-30 |
+
+### 2. BE record vs REPORTS-C-DESIGN.md §9 Props spec 불일치 fix
+
+#### B-1. DailySummaryResponse 필드명 spec 일치
+- `summaryDate` → `date`
+- `accountTotals` (List\<AccountSummaryLine\>) → `accountSummary` (List\<DailyAccountLine\>)
+- `DailyAccountLine` 신규 record: `debit`/`credit`/`balance`/`sortOrder` 포함
+
+#### B-2. MonthlySummaryResponse accountSummary 필드 추가
+- `accountSummary: List<DailyAccountLine>` 추가 (월간 계정별 차/대/잔액 집계)
+- `MonthlySummaryService` 에 `ChartOfAccountRepository` 주입 + `aggregatePostedByAccount` 호출 추가
+
+#### B-3. EquityChangesResponse flat 구조 변환
+- 기존 `lines: EquityChangeLine[]` 배열 → flat 필드 구조
+- 신규 필드: `beginningCapitalStock`, `capitalStockIncrease`, `capitalStockDecrease`, `endingCapitalStock`, `beginningRetainedEarnings`, `netIncome`, `dividends`, `endingRetainedEarnings`, `beginningTotalEquity`, `endingTotalEquity`, `totalChange`
+- `EquityChangesService` 리턴 구조 전면 변경 (로직 보존, 필드명만 spec 일치)
+
+### 3. SliceCValidationIT 필드명 정정 + 검증 강화
+
+- 기간 파라미터 `202605` → `202701` (V10 seed 격리 월 반영)
+- `beginningEquity`/`endingEquity` → `beginningTotalEquity`/`endingTotalEquity` (DevOps reviewer 지적)
+- `$.data.lines` 배열 검증 → flat 필드 (`capitalStockIncrease`/`dividends`) 값 검증으로 변경
+- `$.data.summaryDate` → `$.data.date`, `$.data.accountTotals` → `$.data.accountSummary`
+- 월계표 `accountSummary` 배열 검증 추가 (B-2 fix 반영)
 
 ---
 

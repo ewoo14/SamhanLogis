@@ -7,9 +7,9 @@ import java.time.YearMonth;
 import java.util.List;
 
 /**
- * 월계표 (Monthly Summary) 응답 DTO.
+ * 월계표 (Monthly Summary) 응답 DTO (REPORTS-C-DESIGN.md §9 Props spec 일치).
  *
- * <p>특정 월의 POSTED 분개 전체 집계. 일별 소계 breakdown 포함.
+ * <p>특정 월의 POSTED 분개 전체 집계. 일별 소계 breakdown + 계정별 집계 포함.
  *
  * @param period          집계 월 (yyyyMM 형식 레이블, 예: "2026-01")
  * @param yearMonth       집계 YearMonth
@@ -20,6 +20,7 @@ import java.util.List;
  * @param totalCredit     대변 합계
  * @param balanced        차변 = 대변 여부
  * @param dailyBreakdown  일별 소계 행 목록 (일자 오름차순)
+ * @param accountSummary  계정별 차/대/잔액 집계 목록 (spec 필드명: accountSummary, DailyAccountLine 재사용)
  * @param generatedAt     보고서 생성 시각
  */
 public record MonthlySummaryResponse(
@@ -32,5 +33,6 @@ public record MonthlySummaryResponse(
         BigDecimal totalCredit,
         boolean balanced,
         List<DailyBreakdownLine> dailyBreakdown,
+        List<DailyAccountLine> accountSummary,
         LocalDateTime generatedAt
 ) {}

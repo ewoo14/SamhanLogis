@@ -21,10 +21,19 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * P0-1 Slice C — 현금흐름표 / 자본변동표 / 일계표 / 월계표 검증용 IT.
  *
+ * <p>PR #137 BE+DevOps reviewer fix 반영:
+ * <ul>
+ *   <li>V10 seed 격리 월 2027-01 기준으로 기간 파라미터 변경</li>
+ *   <li>EquityChangesResponse flat 구조 필드명 정정
+ *       ({@code beginningTotalEquity} / {@code endingTotalEquity} / {@code totalChange})</li>
+ *   <li>DailySummaryResponse 필드명 정정 ({@code date} / {@code accountSummary})</li>
+ *   <li>MonthlySummaryResponse {@code accountSummary} 배열 검증 추가</li>
+ * </ul>
+ *
  * <p>검증 목적:
  * <ul>
- *   <li>GET /api/v1/accounting/reports/cash-flow?period=202605 — V10 seed 5건 반영 확인</li>
- *   <li>GET /api/v1/accounting/reports/equity-changes?fromDate=2026-05-01&amp;toDate=2026-05-31
+ *   <li>GET /api/v1/accounting/reports/cash-flow?period=202701 — V10 seed 5건 반영 확인</li>
+ *   <li>GET /api/v1/accounting/reports/equity-changes?fromDate=2027-01-01&amp;toDate=2027-01-31
  *       — SEED-EQ-001(유상증자) / SEED-EQ-002(배당) 검증</li>
  *   <li>GET /api/v1/accounting/reports/daily-summary?date=2026-01-15
  *       — V6 SEED-RPT-001 / SEED-RPT-003 2건 적재 일계표 확인</li>
@@ -54,28 +63,28 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
 
     // -------------------------------------------------------------------------
-    // 1. 현금흐름표 — cash-flow?period=202605
+    // 1. 현금흐름표 — cash-flow?period=202701 (V10 seed 격리 월 2027-01)
     // -------------------------------------------------------------------------
 
     /**
-     * V10 seed — 현금흐름표 202605 조회 200 OK + 기본 구조 검증.
+     * V10 seed — 현금흐름표 202701 조회 200 OK + 기본 구조 검증.
      *
-     * <p>SEED-CF-001~005 5건의 영업/투자/재무 활동 분개가 period=202605 에 적재됨.
+     * <p>SEED-CF-001~005 5건의 영업/투자/재무 활동 분개가 period=202701 에 적재됨.
      * period / fromDate / toDate 필드 + cashReconciled 플래그 확인.
      *
-     * <p>PR #136 회고 — @RequestParam 이름 정확: {@code period} (yyyyMM 형식).
+     * <p>PR #137 fix — V10 seed 격리 월 2027-01 기준으로 변경 (TrialBalanceControllerIT 회귀 방지).
      */
     @Test
-    @DisplayName("현금흐름표 — 202605 조회 200 OK + period/cashReconciled 필드 검증")
-    void cashFlowReportReturns200ForPeriod202605() throws Exception {
+    @DisplayName("현금흐름표 — 202701 조회 200 OK + period/cashReconciled 필드 검증")
+    void cashFlowReportReturns200ForPeriod202701() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
-                        .param("period", "202605")
+                        .param("period", "202701")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.period").isString())
-                .andExpect(jsonPath("$.data.fromDate").value("2026-05-01"))
-                .andExpect(jsonPath("$.data.toDate").value("2026-05-31"))
+                .andExpect(jsonPath("$.data.fromDate").value("2027-01-01"))
+                .andExpect(jsonPath("$.data.toDate").value("2027-01-31"))
                 .andExpect(jsonPath("$.data.netCashFlow").isNumber())
                 .andExpect(jsonPath("$.data.cashReconciled").isBoolean());
     }
@@ -89,7 +98,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @DisplayName("현금흐름표 — CFI 투자활동 (차량운반구 취득) 항목 존재 확인")
     void cashFlowInvestingActivitiesNotEmpty() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
-                        .param("period", "202605")
+                        .param("period", "202701")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
@@ -98,51 +107,60 @@ class SliceCValidationIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // 2. 자본변동표 — equity-changes?fromDate=2026-05-01&toDate=2026-05-31
+    // 2. 자본변동표 — equity-changes?fromDate=2027-01-01&toDate=2027-01-31
     // -------------------------------------------------------------------------
 
     /**
-     * V10 seed — 자본변동표 2026-05 조회 200 OK + 구조 검증.
+     * V10 seed — 자본변동표 2027-01 조회 200 OK + flat 구조 검증.
      *
      * <p>SEED-EQ-001 유상증자(301 credit 20,000,000) + SEED-EQ-002 배당(343 debit 3,000,000).
-     * lines 배열 비어있지 않음 + endingEquity 수치 반환 확인.
+     * flat 필드: beginningTotalEquity / endingTotalEquity / totalChange / capitalStockIncrease / dividends.
      *
-     * <p>PR #136 회고 — @RequestParam 이름 정확: {@code fromDate} / {@code toDate} (YYYY-MM-DD).
+     * <p>PR #137 fix — EquityChangesResponse flat 구조 + 필드명 정정
+     * ({@code beginningTotalEquity}/{@code endingTotalEquity} — DevOps reviewer 지적).
      */
     @Test
-    @DisplayName("자본변동표 — 2026-05 조회 200 OK + lines/endingEquity 필드 검증")
-    void equityChangesReportReturns200ForMay2026() throws Exception {
+    @DisplayName("자본변동표 — 2027-01 조회 200 OK + flat 구조 필드 검증")
+    void equityChangesReportReturns200ForJan2027() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
-                        .param("fromDate", "2026-05-01")
-                        .param("toDate", "2026-05-31")
+                        .param("fromDate", "2027-01-01")
+                        .param("toDate", "2027-01-31")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.fromDate").value("2026-05-01"))
-                .andExpect(jsonPath("$.data.toDate").value("2026-05-31"))
-                .andExpect(jsonPath("$.data.beginningEquity").isNumber())
+                .andExpect(jsonPath("$.data.fromDate").value("2027-01-01"))
+                .andExpect(jsonPath("$.data.toDate").value("2027-01-31"))
+                .andExpect(jsonPath("$.data.beginningTotalEquity").isNumber())
+                .andExpect(jsonPath("$.data.endingTotalEquity").isNumber())
                 .andExpect(jsonPath("$.data.totalChange").isNumber())
-                .andExpect(jsonPath("$.data.endingEquity").isNumber())
-                .andExpect(jsonPath("$.data.lines").isArray());
+                .andExpect(jsonPath("$.data.beginningCapitalStock").isNumber())
+                .andExpect(jsonPath("$.data.capitalStockIncrease").isNumber())
+                .andExpect(jsonPath("$.data.endingCapitalStock").isNumber())
+                .andExpect(jsonPath("$.data.beginningRetainedEarnings").isNumber())
+                .andExpect(jsonPath("$.data.netIncome").isNumber())
+                .andExpect(jsonPath("$.data.dividends").isNumber())
+                .andExpect(jsonPath("$.data.endingRetainedEarnings").isNumber());
     }
 
     /**
-     * V10 seed — 자본변동표 유상증자 / 배당 변동 행 2건 이상 존재.
+     * V10 seed — 자본변동표 유상증자 / 배당 반영 확인.
      *
-     * <p>SEED-EQ-001(CAPITAL_INCREASE) + SEED-EQ-002(DIVIDEND) 모두 lines 에 포함.
+     * <p>SEED-EQ-001(310 credit 20,000,000 = capitalStockIncrease 양수 값) 반영 확인.
+     * SEED-EQ-002(343 debit 3,000,000 = dividends 음수 값) 반영 확인.
      */
     @Test
-    @DisplayName("자본변동표 — 유상증자(CAPITAL_INCREASE) + 배당(DIVIDEND) 변동 행 존재 확인")
+    @DisplayName("자본변동표 — 유상증자(capitalStockIncrease > 0) + 배당(dividends < 0) 반영 확인")
     void equityChangesHasCapitalIncreaseAndDividend() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
-                        .param("fromDate", "2026-05-01")
-                        .param("toDate", "2026-05-31")
+                        .param("fromDate", "2027-01-01")
+                        .param("toDate", "2027-01-31")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                // lines 배열이 최소 2건 (유상증자 + 배당)
-                .andExpect(jsonPath("$.data.lines[0]").exists())
-                .andExpect(jsonPath("$.data.lines[1]").exists());
+                // 유상증자: capitalStockIncrease > 0 (SEED-EQ-001: 310 credit 20,000,000)
+                .andExpect(jsonPath("$.data.capitalStockIncrease").value(20000000))
+                // 배당: dividends < 0 (SEED-EQ-002: 343 debit 3,000,000 → -3,000,000)
+                .andExpect(jsonPath("$.data.dividends").value(-3000000));
     }
 
     // -------------------------------------------------------------------------
@@ -156,22 +174,23 @@ class SliceCValidationIT extends AbstractPostgresIT {
      * 2026-01-15 journalDate 로 적재되어 있음.
      * journalCount &ge; 2 + balanced true 확인.
      *
-     * <p>PR #136 회고 — @RequestParam 이름 정확: {@code date} (ISO DATE YYYY-MM-DD).
+     * <p>PR #137 fix — 필드명 정정:
+     * {@code date} (spec, 구 summaryDate 대신) + {@code accountSummary} (spec, 구 accountTotals 대신).
      */
     @Test
-    @DisplayName("일계표 — 2026-01-15 조회 200 OK + journalCount >= 2 + balanced 확인")
+    @DisplayName("일계표 — 2026-01-15 조회 200 OK + date/balanced/accountSummary 필드 검증")
     void dailySummaryReturns200ForJan15() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/daily-summary")
                         .param("date", "2026-01-15")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.summaryDate").value("2026-01-15"))
+                .andExpect(jsonPath("$.data.date").value("2026-01-15"))
                 .andExpect(jsonPath("$.data.journalCount").isNumber())
                 .andExpect(jsonPath("$.data.totalDebit").isNumber())
                 .andExpect(jsonPath("$.data.totalCredit").isNumber())
                 .andExpect(jsonPath("$.data.balanced").value(true))
-                .andExpect(jsonPath("$.data.accountTotals").isArray());
+                .andExpect(jsonPath("$.data.accountSummary").isArray());
     }
 
     // -------------------------------------------------------------------------
@@ -184,10 +203,10 @@ class SliceCValidationIT extends AbstractPostgresIT {
      * <p>V6 SEED-RPT-001(2026-01-15) + SEED-RPT-003(2026-01-15) + SEED-RPT-004(2026-01-31)
      * 총 3건이 2026-01 에 적재. journalCount &ge; 2 + balanced true 확인.
      *
-     * <p>PR #136 회고 — @RequestParam 이름 정확: {@code period} (yyyyMM 형식).
+     * <p>PR #137 fix — {@code accountSummary} 배열 검증 추가 (B-2 fix 반영).
      */
     @Test
-    @DisplayName("월계표 — 202601 조회 200 OK + journalCount >= 2 + balanced 확인")
+    @DisplayName("월계표 — 202601 조회 200 OK + journalCount >= 2 + balanced + accountSummary 확인")
     void monthlySummaryReturns200ForJan2026() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/monthly-summary")
                         .param("period", "202601")
@@ -201,6 +220,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.totalDebit").isNumber())
                 .andExpect(jsonPath("$.data.totalCredit").isNumber())
                 .andExpect(jsonPath("$.data.balanced").value(true))
-                .andExpect(jsonPath("$.data.dailyBreakdown").isArray());
+                .andExpect(jsonPath("$.data.dailyBreakdown").isArray())
+                .andExpect(jsonPath("$.data.accountSummary").isArray());
     }
 }
