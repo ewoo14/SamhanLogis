@@ -212,9 +212,11 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$.data[0].productId").value(productId.toString()))
-                .andExpect(jsonPath("$.data[0].threshold").value(50))
-                .andExpect(jsonPath("$.data[0].shortage").value(greaterThanOrEqualTo(1)));
+                // V8 seed (5건) 가 적재된 환경에서 신규 productId 만 필터링 검증.
+                // data 정렬 순서 비의존 — JSONPath filter 로 자기 row 만 추출.
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].threshold").value(50))
+                .andExpect(jsonPath("$.data[?(@.productId == '" + productId + "')].shortage",
+                        org.hamcrest.Matchers.everyItem(greaterThanOrEqualTo(1))));
     }
 
     @Test
