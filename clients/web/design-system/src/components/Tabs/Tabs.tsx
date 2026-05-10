@@ -35,6 +35,8 @@ export interface TabItem {
   label: ReactNode
   /** 탭 비활성화 여부. */
   disabled?: boolean
+  /** QA / 테스트용 data-testid. */
+  testId?: string
 }
 
 export interface TabsProps {
@@ -137,6 +139,7 @@ export function Tabs({
               aria-disabled={isDisabled || undefined}
               tabIndex={isActive ? 0 : -1}
               disabled={isDisabled}
+              data-testid={tab.testId}
               className={[
                 styles['tab'],
                 isActive ? styles['tabActive'] : null,

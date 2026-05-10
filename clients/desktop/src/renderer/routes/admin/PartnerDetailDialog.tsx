@@ -35,7 +35,6 @@ import {
 import {
   getPartnerFull,
   updatePartnerFull,
-  PARTNER_TYPE_LABEL,
   type PartnerFullRequest,
   type PartnerShippingAddressRequest,
   type PartnerContactRequest,
@@ -224,7 +223,7 @@ export function PartnerDetailDialog({
       ) : query.isError ? (
         <p
           role="alert"
-          style={{ color: 'var(--color-danger-700, #B91C1C)', fontSize: 13 }}
+          style={{ color: 'var(--state-danger-text)', fontSize: 13 }}
         >
           데이터를 불러오지 못했습니다. 다시 시도하세요.
         </p>
@@ -236,10 +235,10 @@ export function PartnerDetailDialog({
               style={{
                 marginBottom: 12,
                 padding: '8px 12px',
-                background: 'var(--color-danger-50, #FEF2F2)',
-                border: '1px solid var(--color-danger-200, #FECACA)',
+                background: 'var(--state-danger-bg)',
+                border: '1px solid var(--state-danger-border)',
                 borderRadius: 6,
-                color: 'var(--color-danger-700, #B91C1C)',
+                color: 'var(--state-danger-text)',
                 fontSize: 13,
               }}
             >
@@ -378,7 +377,7 @@ function DetailBasicTab({
           <p
             style={{
               fontSize: 12,
-              color: 'var(--color-text-muted, #6B7280)',
+              color: 'var(--ink-tertiary)',
               margin: 0,
             }}
           >
@@ -646,7 +645,7 @@ function DetailContactTab({
                   {c.contactName}
                 </span>
                 {c.position ? (
-                  <span style={{ fontSize: 12, color: 'var(--color-text-muted, #6B7280)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--ink-tertiary)' }}>
                     {c.position}
                   </span>
                 ) : null}
@@ -770,7 +769,7 @@ function ReadRow({
       <dt
         style={{
           fontSize: 12,
-          color: 'var(--color-text-muted, #6B7280)',
+          color: 'var(--ink-tertiary)',
           fontWeight: 500,
           minWidth: 120,
         }}
@@ -780,7 +779,7 @@ function ReadRow({
       <dd
         style={{
           fontSize: 13,
-          color: 'var(--color-text, #111827)',
+          color: 'var(--ink-primary)',
           margin: 0,
         }}
       >
@@ -807,37 +806,9 @@ const gridStyle: React.CSSProperties = {
   gap: 16,
 }
 
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 500,
-  marginBottom: 6,
-}
-
-const selectStyle: React.CSSProperties = {
-  width: '100%',
-  height: 36,
-  padding: '0 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
-  borderRadius: 6,
-  fontSize: 13,
-  background: '#fff',
-}
-
-const textareaStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
-  borderRadius: 6,
-  fontSize: 13,
-  fontFamily: 'inherit',
-  resize: 'vertical',
-  boxSizing: 'border-box',
-}
-
 const emptyStyle: React.CSSProperties = {
   textAlign: 'center',
-  color: 'var(--color-text-muted, #6B7280)',
+  color: 'var(--ink-tertiary)',
   fontSize: 13,
   padding: '32px 0',
 }

@@ -324,13 +324,16 @@ export interface PartnerSummary {
 /** 거래처 검색 옵션. */
 export interface ListAdminPartnersOptions {
   q?: string
-  type?: PartnerStatus
+  /** 거래 상태 필터 (ACTIVE / SUSPENDED / TERMINATED). BE ?status= */
+  status?: PartnerStatus
+  /** 거래처 유형 필터 (CUSTOMER / SUPPLIER / BOTH). BE ?type= */
+  type?: 'CUSTOMER' | 'SUPPLIER' | 'BOTH'
   page?: number
   size?: number
 }
 
 /**
- * 거래처 admin 검색 — `/admin/partners/search` (q + type 필터).
+ * 거래처 admin 검색 — `/admin/partners/search` (q + status + type 필터).
  */
 export async function listAdminPartners(
   options: ListAdminPartnersOptions = {},
@@ -340,6 +343,7 @@ export async function listAdminPartners(
     size: options.size ?? 20,
   }
   if (options.q && options.q.trim()) params['q'] = options.q.trim()
+  if (options.status) params['status'] = options.status
   if (options.type) params['type'] = options.type
 
   const res = await apiClient.get<ApiEnvelope<AdminPage<PartnerSummary>>>(

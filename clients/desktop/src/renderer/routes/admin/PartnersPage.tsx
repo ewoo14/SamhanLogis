@@ -92,7 +92,8 @@ export function PartnersPage() {
     queryFn: () =>
       listAdminPartners({
         q: q || undefined,
-        type: statusFilter || undefined,
+        status: statusFilter || undefined,
+        type: typeFilter || undefined,
         page,
         size: 20,
       }),
@@ -171,7 +172,7 @@ export function PartnersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             data-testid="admin-partners-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
+            style={{ fontSize: 12, color: 'var(--ink-tertiary)' }}
           >
             실시간 자동 갱신 · 30초
           </span>
@@ -309,7 +310,7 @@ const filterInputStyle: React.CSSProperties = {
   minWidth: 240,
   height: 32,
   padding: '0 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
 }
@@ -317,7 +318,7 @@ const filterInputStyle: React.CSSProperties = {
 const filterSelectStyle: React.CSSProperties = {
   height: 32,
   padding: '0 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
 }
@@ -325,9 +326,9 @@ const filterSelectStyle: React.CSSProperties = {
 const pagerBtnStyle: React.CSSProperties = {
   height: 28,
   padding: '0 12px',
-  border: '1px solid var(--color-border, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 4,
-  background: '#fff',
+  background: 'var(--surface-card)',
   cursor: 'pointer',
   fontSize: 13,
 }

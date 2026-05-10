@@ -23,7 +23,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tabs, Button, Input, Card } from '@samhan/design-system'
+import { Tabs, Button, Input, Card, type TabItem } from '@samhan/design-system'
 import {
   createPartnerFull,
   PARTNER_TYPE_LABEL,
@@ -56,7 +56,12 @@ interface PriceDiscountForm {
   creditLimit: string
 }
 
-const TABS = ['기본정보', '단가/할인 정책', '배송지', '담당자'] as const
+const TABS: TabItem[] = [
+  { label: '기본정보', testId: 'partner-tab-1' },
+  { label: '단가/할인 정책', testId: 'partner-tab-2' },
+  { label: '배송지', testId: 'partner-tab-3' },
+  { label: '담당자', testId: 'partner-tab-4' },
+]
 
 const EMPTY_BASIC: BasicForm = {
   businessName: '',
@@ -245,7 +250,14 @@ export function PartnerCreatePage() {
   }
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <form
+      data-testid="partner-create-form"
+      style={{ maxWidth: 800 }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSubmit()
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -281,10 +293,10 @@ export function PartnerCreatePage() {
           style={{
             marginBottom: 16,
             padding: '10px 14px',
-            background: 'var(--color-danger-50, #FEF2F2)',
-            border: '1px solid var(--color-danger-200, #FECACA)',
+            background: 'var(--state-danger-bg)',
+            border: '1px solid var(--state-danger-border)',
             borderRadius: 6,
-            color: 'var(--color-danger-700, #B91C1C)',
+            color: 'var(--state-danger-text)',
             fontSize: 13,
           }}
         >
@@ -322,7 +334,7 @@ export function PartnerCreatePage() {
           onChange={setContacts}
         />
       </Tabs>
-    </div>
+    </form>
   )
 }
 
@@ -362,7 +374,7 @@ function BasicTab({
         />
         <div>
           <label style={labelStyle}>
-            거래처 유형 <span style={{ color: 'var(--color-danger-500, #EF4444)' }}>*</span>
+            거래처 유형 <span style={{ color: 'var(--state-danger-text)' }}>*</span>
           </label>
           <select
             value={value.type}
@@ -521,7 +533,12 @@ function ShippingAddressTab({
           marginBottom: 12,
         }}
       >
-        <Button variant="secondary" size="sm" onClick={addRow}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={addRow}
+          data-testid="partner-shipping-address-add-button"
+        >
           배송지 추가
         </Button>
       </div>
@@ -529,7 +546,7 @@ function ShippingAddressTab({
         <p
           style={{
             textAlign: 'center',
-            color: 'var(--color-text-muted, #6B7280)',
+            color: 'var(--ink-tertiary)',
             fontSize: 13,
             padding: '32px 0',
           }}
@@ -653,7 +670,12 @@ function ContactTab({
           marginBottom: 12,
         }}
       >
-        <Button variant="secondary" size="sm" onClick={addRow}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={addRow}
+          data-testid="partner-contact-add-button"
+        >
           담당자 추가
         </Button>
       </div>
@@ -661,7 +683,7 @@ function ContactTab({
         <p
           style={{
             textAlign: 'center',
-            color: 'var(--color-text-muted, #6B7280)',
+            color: 'var(--ink-tertiary)',
             fontSize: 13,
             padding: '32px 0',
           }}
@@ -763,16 +785,16 @@ const selectStyle: React.CSSProperties = {
   width: '100%',
   height: 36,
   padding: '0 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
-  background: '#fff',
+  background: 'var(--surface-card)',
 }
 
 const textareaStyle: React.CSSProperties = {
   width: '100%',
   padding: '8px 10px',
-  border: '1px solid var(--color-border, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
   fontFamily: 'inherit',
