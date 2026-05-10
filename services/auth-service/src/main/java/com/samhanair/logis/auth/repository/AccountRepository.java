@@ -17,4 +17,14 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
      * (V2 migration) 가 활성 토큰을 1 건으로 보장하므로 단일 결과 안전.
      */
     Optional<Account> findByPasswordResetToken(String passwordResetToken);
+
+    /**
+     * P0-2 신규 — loginId + email 교차 검증.
+     * {@code findByLoginId} 후 email 비교로도 충분하나, 인덱스 활용 위해 별도 선언.
+     *
+     * @param loginId 로그인 아이디
+     * @param email   등록 이메일 (대소문자 무시 — JPQL lower() 사용 권장, 단 현재는 exact match)
+     * @return 계정
+     */
+    Optional<Account> findByLoginIdAndEmail(String loginId, String email);
 }

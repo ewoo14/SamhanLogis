@@ -27,4 +27,25 @@ public class NotificationStub {
                 "[NotificationStub] password-reset email queued — loginId={} email={} expiresAt={} (token redacted)",
                 loginId, email, expiresAt);
     }
+
+    /**
+     * P0-2 비밀번호 재설정 6자리 인증번호 발송 (NoOp mock) — Phase A6 에서 실 SMTP/SMS 로 교체.
+     *
+     * <p>dev 환경: logger.info 로 인증번호를 출력하여 흐름 추적 가능.
+     * 운영 환경: 본 stub 삭제 + 실 이메일 클라이언트로 교체.
+     *
+     * <p>보안 주의: 운영 cutover 전까지 인증번호가 server log 에 노출됨.
+     * Phase A6 전환 시 본 메서드의 log.info 호출을 제거하고 실 발송으로 대체할 것.
+     *
+     * @param email     수신자 이메일
+     * @param loginId   사용자 아이디 (로그용)
+     * @param code      6자리 인증번호 (dev 환경만 평문 노출)
+     * @param expiresAt 인증번호 만료 시점
+     */
+    public void sendPasswordResetCode(String email, String loginId, String code, String expiresAt) {
+        // TODO(Phase-A6): 실 SMTP/SMS 발송으로 교체. 현재는 dev console 출력.
+        log.info(
+                "[NotificationStub] password-reset code queued — loginId={} email={} code={} expiresAt={}",
+                loginId, email, code, expiresAt);
+    }
 }

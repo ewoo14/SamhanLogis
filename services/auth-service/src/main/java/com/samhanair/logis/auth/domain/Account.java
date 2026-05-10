@@ -91,6 +91,13 @@ public class Account extends BaseEntity {
     @Column(name = "password_history", columnDefinition = "jsonb", nullable = false)
     private List<String> passwordHistory = new ArrayList<>();
 
+    /**
+     * 등록된 이메일 주소 — 비밀번호 재설정 요청 시 loginId 와 교차 검증 (P0-2).
+     * V3 migration 추가 컬럼, nullable.
+     */
+    @Column(name = "email", length = 255)
+    private String email;
+
     /** 단일 사용 reset 토큰 (UUID4). confirm 성공 시 NULL. */
     @Column(name = "password_reset_token", length = 255)
     private String passwordResetToken;
@@ -194,6 +201,15 @@ public class Account extends BaseEntity {
         // 비밀번호 변경 시 잠금 자동 해제 (MASTER 가 직접 reset 시키는 경로 포함)
         this.failedLoginAttempts = 0;
         this.lockedAt = null;
+    }
+
+    /**
+     * 이메일 주소 등록/변경 — 비밀번호 재설정 교차 검증 용.
+     *
+     * @param email 등록할 이메일 주소
+     */
+    public void changeEmail(String email) {
+        this.email = email;
     }
 
     /** reset 토큰 발급 — 30 분 만료. 기존 토큰은 덮어씀. */

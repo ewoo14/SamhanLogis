@@ -37,6 +37,9 @@ public class SecurityConfig {
                         .requestMatchers("/auth/password/policy").permitAll()
                         .requestMatchers("/auth/password/reset/request").permitAll()
                         .requestMatchers("/auth/password/reset/confirm").permitAll()
+                        // P0-2 셀프 재설정 신규 endpoint (6자리 인증번호 방식) — 인증 불필요
+                        .requestMatchers("/auth/password-reset/request").permitAll()
+                        .requestMatchers("/auth/password-reset/confirm").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
