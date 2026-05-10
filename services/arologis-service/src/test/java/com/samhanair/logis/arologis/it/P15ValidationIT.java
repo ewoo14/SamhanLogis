@@ -278,10 +278,12 @@ class P15ValidationIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         // DB 검증 — ASSIGNED + 非NULL
+        // ArologisAdminController.assignDriver → DispatchService.assignDriverManual 경로는
+        // MatchSource.MANUAL 로 기록한다 (admin 직접 배정). INTERNAL_APP 은 앱 자동 매칭 전용.
         Vehicle vehicle = vehicleRepository.findById(vehicleId1).orElseThrow();
         assertThat(vehicle.getStatus()).isEqualTo(VehicleStatus.ASSIGNED);
         assertThat(vehicle.getAssignedDriverId()).isNotNull();
-        assertThat(vehicle.getMatchSource()).isEqualTo(MatchSource.INTERNAL_APP);
+        assertThat(vehicle.getMatchSource()).isEqualTo(MatchSource.MANUAL);
     }
 
     // ============================================================
