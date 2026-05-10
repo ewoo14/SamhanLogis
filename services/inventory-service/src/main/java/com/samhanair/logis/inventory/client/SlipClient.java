@@ -1,0 +1,153 @@
+package com.samhanair.logis.inventory.client;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.InternalAuthProperties;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+/**
+ * Internal-token-authenticated client to {@code slip-service} 의 슬립 상세 조회 endpoint.
+ *
+ * <p>inventory-service 의 입고 검수 슬라이스(P0-9) 에서 슬립 헤더 + 라인 정보를 조회하기 위해 사용.
+ * X-Internal-Token 헤더로 인증 (SAMHAN_INTERNAL_TOKEN env).
+ *
+ * <p>HTTP 상태 매핑:
+ * <ul>
+ *   <li>404 → BusinessException(NOT_FOUND)</li>
+ *   <li>4xx → BusinessException(INVALID_INPUT)</li>
+ *   <li>5xx / 연결 실패 → BusinessException(INTERNAL_ERROR)</li>
+ * </ul>
+ */
+@Component
+public class SlipClient {
+
+    private static final Logger log = LoggerFactory.getLogger(SlipClient.class);
+    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final String SLIP_SERVICE_BASE = "http://slip-service";
+
+    private final RestClient restClient;
+    private final InternalAuthProperties internalAuthProperties;
+    private final ObjectMapper objectMapper;
+
+    public SlipClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
+                      InternalAuthProperties internalAuthProperties,
+                      ObjectMapper objectMapper) {
+        this.restClient = builder.baseUrl(SLIP_SERVICE_BASE).build();
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * slip-service 의 {@code GET /api/v1/slips/{slipId}} 를 호출해 슬립 상세를 조회한다.
+     * X-Internal-Token 헤더로 인증.
+     *
+     * <p>응답 envelope ({@code ApiResponse}) 의 {@code data} 키에서 슬립 정보를 추출하여
+     * {@link SlipDetail} 로 변환한다.
+     *
+     * @param slipId 슬립 UUID
+     * @return 슬립 상세 정보
+     * @throws BusinessException(NOT_FOUND) 슬립을 찾을 수 없을 때 (404)
+     * @throws BusinessException(INVALID_INPUT) slip-service 가 4xx 반환 시
+     * @throws BusinessException(INTERNAL_ERROR) slip-service 5xx / 연결 실패 / 응답 포맷 오류
+     */
+    public SlipDetail getSlip(UUID slipId) {
+        Map<String, Object> envelope;
+        try {
+            envelope = restClient.get()
+                    .uri("/api/v1/slips/{slipId}", slipId)
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(status -> status.value() == 404, (req, res) -> {
+                        throw new BusinessException(ErrorCode.NOT_FOUND,
+                                "슬립을 찾을 수 없습니다: " + slipId);
+                    })
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "slip-service 조회 실패: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 호출 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("SlipClient.getSlip failed: slipId={}, error={}", slipId, ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "slip-service 호출 실패", ex);
+        }
+
+        return parseSlipDetail(envelope, slipId);
+    }
+
+    private SlipDetail parseSlipDetail(Map<String, Object> envelope, UUID slipId) {
+        if (envelope == null || !envelope.containsKey("data")) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "slip-service 응답 포맷 오류 (data 누락)");
+        }
+        try {
+            JsonNode data = objectMapper.convertValue(envelope.get("data"), JsonNode.class);
+
+            UUID id = UUID.fromString(data.get("id").asText());
+            String slipNo = data.has("slipNo") ? data.get("slipNo").asText() : null;
+            String slipType = data.has("slipType") ? data.get("slipType").asText() : null;
+            String status = data.has("status") ? data.get("status").asText() : null;
+            UUID destinationWarehouseId = data.has("destinationWarehouseId")
+                    && !data.get("destinationWarehouseId").isNull()
+                    ? UUID.fromString(data.get("destinationWarehouseId").asText())
+                    : null;
+
+            List<SlipLineDetail> lines = new ArrayList<>();
+            if (data.has("lines") && data.get("lines").isArray()) {
+                for (JsonNode lineNode : data.get("lines")) {
+                    UUID lineId = UUID.fromString(lineNode.get("id").asText());
+                    UUID productId = lineNode.has("productId") && !lineNode.get("productId").isNull()
+                            ? UUID.fromString(lineNode.get("productId").asText()) : null;
+                    String productName = lineNode.has("productName")
+                            ? lineNode.get("productName").asText() : null;
+                    String modelName = lineNode.has("modelName")
+                            ? lineNode.get("modelName").asText() : null;
+                    int quantity = lineNode.has("quantity")
+                            ? lineNode.get("quantity").asInt() : 0;
+                    BigDecimal unitPrice = lineNode.has("unitPrice")
+                            && !lineNode.get("unitPrice").isNull()
+                            ? new BigDecimal(lineNode.get("unitPrice").asText())
+                            : BigDecimal.ZERO;
+                    lines.add(new SlipLineDetail(lineId, productId, productName, modelName,
+                            quantity, unitPrice));
+                }
+            }
+
+            return new SlipDetail(id, slipNo, slipType, status, destinationWarehouseId, lines);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("SlipClient parseSlipDetail error: slipId={}", slipId, ex);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "slip-service 응답 파싱 실패");
+        }
+    }
+
+    private String requireToken() {
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "app.security.internal.token 미설정");
+        }
+        return token;
+    }
+}
