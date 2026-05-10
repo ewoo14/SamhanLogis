@@ -28,6 +28,13 @@
  *
  * data-testid (PR-H4c FE-B 신규):
  * - slip-list-realtime-indicator
+ *
+ * <h2>P1-6 보강 — Excel 다운로드</h2>
+ * <ul>
+ *   <li>헤더 우측 "Excel 다운로드" 버튼 — `GET /api/v1/slips/export`</li>
+ *   <li>파라미터: slipType (mode 연동), fromDate/toDate (현재 당월 기본값)</li>
+ *   <li>data-testid: slip-list-excel-export</li>
+ * </ul>
  */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -44,6 +51,8 @@ import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
 import { useSessionStore, canCreateSlip } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
+import { exportSlips } from '../api/excelExportApi'
+import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 
 export interface SlipListPageProps {
   /** OUTBOUND (판매조회) 또는 INBOUND (구매조회). */
@@ -60,6 +69,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
 
   // P0-9: INBOUND 모드 검수 Dialog 상태
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
+
+  // P1-6: Excel export
+  const { downloading, download } = useExcelDownload()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
   usePageTitle(isOutbound ? '판매조회' : '구매조회')
@@ -149,11 +161,37 @@ export function SlipListPage({ mode }: SlipListPageProps) {
             실시간 자동 갱신 · 30초
           </span>
         </div>
-        {canCreateSlip(role) ? (
-          <Button variant="primary" onClick={() => navigate(`${basePath}/new`)}>
-            {newButtonLabel}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* P1-6: 현재 mode 의 전표 전체를 당월 기준으로 export */}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={downloading}
+            disabled={downloading}
+            onClick={() => {
+              const now = new Date()
+              const yyyy = now.getFullYear()
+              const mm = String(now.getMonth() + 1).padStart(2, '0')
+              download(
+                () =>
+                  exportSlips({
+                    slipType: mode,
+                    fromDate: `${yyyy}-${mm}-01`,
+                    toDate: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
+                  }),
+                makeExportFilename(isOutbound ? '출고전표목록' : '입고전표목록'),
+              )
+            }}
+            data-testid="slip-list-excel-export"
+          >
+            Excel 다운로드
           </Button>
-        ) : null}
+          {canCreateSlip(role) ? (
+            <Button variant="primary" onClick={() => navigate(`${basePath}/new`)}>
+              {newButtonLabel}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <DataTable

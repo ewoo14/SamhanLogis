@@ -9,6 +9,13 @@
  *
  * UUID 비공개 가드: 컬럼에 ID 미포함. 사용자에게는 `journalNo` (예: `JV-2026/05-001`)
  * 만 노출. 라우팅 path 만 UUID 사용.
+ *
+ * <h2>P1-6 보강 — Excel 다운로드</h2>
+ * <ul>
+ *   <li>헤더 우측 "Excel 다운로드" 버튼 — `GET /api/v1/accounting/journals/export`</li>
+ *   <li>파라미터: period (당월 기본값), status 필터 연동</li>
+ *   <li>data-testid: journal-list-excel-export</li>
+ * </ul>
  */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -27,6 +34,8 @@ import {
 } from '../api/accounting'
 import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { exportJournals } from '../api/excelExportApi'
+import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 
 /** 상태 필터 옵션 (검색 셀렉트). */
 const STATUS_OPTIONS: Array<{
@@ -50,6 +59,9 @@ export function JournalListPage() {
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
   const [statusFilter, setStatusFilter] = useState<JournalStatus | ''>('')
+
+  // P1-6: Excel export
+  const { downloading, download } = useExcelDownload()
 
   usePageTitle('분개장')
 
@@ -143,6 +155,28 @@ export function JournalListPage() {
               ))}
             </select>
           </label>
+          {/* P1-6: 현재 상태 필터 + 당월 기준 export */}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={downloading}
+            disabled={downloading}
+            onClick={() => {
+              const now = new Date()
+              const period = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+              download(
+                () =>
+                  exportJournals({
+                    period,
+                    status: statusFilter || undefined,
+                  }),
+                makeExportFilename(`분개장_${period}`),
+              )
+            }}
+            data-testid="journal-list-excel-export"
+          >
+            Excel 다운로드
+          </Button>
           {canCreateJournal(role) ? (
             <Button
               variant="primary"

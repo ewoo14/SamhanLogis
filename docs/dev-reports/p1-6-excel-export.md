@@ -1,10 +1,10 @@
-# P1-6 Excel export — DevOps dev-report
+# P1-6 Excel export — DevOps + FE dev-report
 
 | 항목 | 값 |
 |------|-----|
 | 작성일 | 2026-05-11 |
-| 담당 | DevOps agent |
-| 관련 branch | fix/slip-service-port-env |
+| 담당 | DevOps agent (BE 의존성/IT) + FE agent (UI 구현) |
+| 관련 branch | feature/p1-6-excel-export |
 | 선행 PR | #134~#145 (P0-1 Slice A~C, P0-2, P0-4, P0-5, P0-6, P0-9, P1-3, P1-4, P1-5) |
 
 ---
@@ -146,7 +146,67 @@ TC-7 은 같은 트랜잭션 내에서 전표 생성 → export 를 순서대로
 
 ---
 
-## 6. 후속 BE 작업 항목
+## 6. FE 구현 산출물 (2026-05-11)
+
+### 6-1. design-system 신규 컴포넌트 — `ExcelDownloadButton`
+
+파일:
+- `clients/web/design-system/src/components/ExcelDownloadButton/ExcelDownloadButton.tsx`
+- `clients/web/design-system/src/components/ExcelDownloadButton/index.ts`
+- `clients/web/design-system/src/components/ExcelDownloadButton/ExcelDownloadButton.stories.tsx`
+
+설계:
+- `onFetch: () => Promise<Blob>` 콜백 수신 → blob URL 생성 → `<a download>` 클릭
+- axios 없이 순수 DOM API 사용 (design-system 은 UI 라이브러리)
+- `Button` 컴포넌트 래핑 → `loading` / `disabled` 시맨틱 동일 제공
+- `triggerDownload(blob, filename)` 유틸 함수 별도 export (테스트 대체 가능)
+- design-system `index.ts` 에 `export * from './components/ExcelDownloadButton'` 추가
+
+Storybook stories 7종: 거래처목록 / 전표목록 / 분개장 / 재고현황 / 로딩중 / 기본스타일 / 강조스타일 / 전체Variant
+
+### 6-2. desktop API 레이어
+
+파일:
+- `clients/desktop/src/renderer/api/excelExportApi.ts` — 4 export 함수 (`exportPartners` / `exportSlips` / `exportJournals` / `exportStocks`)
+- `clients/desktop/src/renderer/api/excelExportMock.ts` — 4 CSV 픽스처 (결정적, Math.random 금지)
+
+### 6-3. desktop hook
+
+파일: `clients/desktop/src/renderer/hooks/useExcelDownload.ts`
+
+- `useExcelDownload()` — `{ downloading, download }` 반환
+- `makeExportFilename(prefix, ext?)` — 오늘 날짜 기반 파일명 생성 (`거래처목록_2026-05-11.xlsx`)
+
+### 6-4. 목록 페이지 보강 (Excel 버튼 추가)
+
+| 페이지 | 파일 | data-testid | endpoint |
+|-------|------|------------|----------|
+| 거래처 관리 | `routes/admin/PartnersPage.tsx` | `admin-partners-excel-export` | `GET /api/v1/partners/export?type&status` |
+| 전표 목록 (출고/입고) | `routes/SlipListPage.tsx` | `slip-list-excel-export` | `GET /api/v1/slips/export?slipType&fromDate&toDate` |
+| 분개장 | `routes/JournalListPage.tsx` | `journal-list-excel-export` | `GET /api/v1/accounting/journals/export?period&status` |
+| 재고이동 목록 | `routes/TransferListPage.tsx` | `transfer-list-stocks-excel-export` | `GET /api/v1/inventory/stocks/export` |
+
+### 6-5. 검증 결과
+
+| 검증 | 결과 |
+|------|:----:|
+| design-system `tsc --noEmit` | 통과 |
+| desktop `npm run typecheck` | 통과 |
+| design-system `npm run build` (vite + dts) | 통과 (124.87 kB) |
+| desktop `npm run build` (electron-vite) | 통과 (2,248.39 kB) |
+| design-system `npm run lint` | 기존 pre-existing 오류만 (신규 파일 0건) |
+| desktop `npm run lint` | 기존 warning 2건만 (신규 파일 0건) |
+
+### 6-6. 매뉴얼 갱신
+
+- `docs/manual/01-영업/02-거래처-조회.md` — Excel export ⛔ → ✅, 4-5 절 신규 추가, FAQ Q3 갱신
+- `docs/manual/01-영업/03-슬립-발행.md` — 구현 상태 표 Excel export 항목 추가
+- `docs/manual/02-창고/03-재고-조회.md` — 구현 상태 표 재고 현황 Excel export 항목 추가
+- `docs/manual/03-회계/01-분개-입력.md` — 구현 상태 표 분개장 Excel export 항목 추가
+
+---
+
+## 8. 후속 BE 작업 항목
 
 BE agent 가 구현해야 하는 사항 (본 dev-report 범위 외):
 
