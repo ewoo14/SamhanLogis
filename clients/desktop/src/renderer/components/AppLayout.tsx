@@ -60,6 +60,8 @@ import {
   canAccessSafetyStock,
   fetchSafetyStockAlertCount,
 } from '../api/safetyStockApi'
+// [P1-5] arologis 배차 admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER
+import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 
 /**
  * [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES / MANAGER / MASTER.
@@ -150,12 +152,16 @@ export function AppLayout() {
   // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — MASTER / MANAGER / DISPATCH
   const showArologisUnassigned = !!auth?.role
     && (ARO_UNASSIGNED_ROLES as readonly string[]).includes(auth.role)
-  // arologis 그룹 가시성 — 수동 배차 / 가배차 분류 / 미배차 리스트 / 배차안내 SMS 중 하나라도 보이면 그룹 노출
+  // [P1-5] arologis admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER 모두 포함
+  const showArologisAdmin = !!auth?.role
+    && (ARO_ADMIN_DISPATCH_ROLES as readonly string[]).includes(auth.role)
+  // arologis 그룹 가시성 — 수동 배차 / 가배차 분류 / 미배차 리스트 / 배차안내 SMS / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
     || showArologisPreClassify
     || showArologisUnassigned
     || showDispatchSms
+    || showArologisAdmin
 
   // [Phase 10 P0-5] 관리자 admin 메뉴 — MASTER 만 가시
   const showAdmin = canAccessAdmin(auth?.role)
@@ -474,6 +480,29 @@ export function AppLayout() {
                 <NavLink to="/admin/regions" data-testid="sidebar-arologis-regions">
                   지역 분류
                 </NavLink>
+              ) : null}
+              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — DISPATCH / MANAGER / MASTER. */}
+              {showArologisAdmin ? (
+                <>
+                  <NavLink
+                    to="/arologis/admin/auto-dispatch"
+                    data-testid="sidebar-arologis-auto-dispatch"
+                  >
+                    자동 매칭
+                  </NavLink>
+                  <NavLink
+                    to="/arologis/admin/manual-dispatch"
+                    data-testid="sidebar-arologis-manual-dispatch-admin"
+                  >
+                    배차 관리
+                  </NavLink>
+                  <NavLink
+                    to="/arologis/admin/driver-assignment"
+                    data-testid="sidebar-arologis-driver-assignment"
+                  >
+                    기사 배정
+                  </NavLink>
+                </>
               ) : null}
             </>
           ) : null}

@@ -215,6 +215,14 @@ import { MonthlySummaryPrintLayout } from './accounting/print/MonthlySummaryPrin
 // BE: inventory-service `GET /inventory/safety-stock-alerts` (P1-3 슬라이스).
 import { SafetyStockAlertsPage } from './SafetyStockAlertsPage'
 import { SAFETY_STOCK_ROLES } from '../api/safetyStockApi'
+// [P1-5] arologis 배차 admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER.
+// - KakaoAutoDispatchPage: 카카오톡 자동 매칭 실행 + 결과 표
+// - ManualDispatchAdminPage: 배차 list + 기사 직접 선택 modal
+// - DriverAssignmentPage: 가용 기사 + 미배정 배차 2-panel 배정 UI
+import { KakaoAutoDispatchPage } from './KakaoAutoDispatchPage'
+import { ManualDispatchAdminPage } from './ManualDispatchAdminPage'
+import { DriverAssignmentPage } from './DriverAssignmentPage'
+import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -683,6 +691,35 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ARO_DISPATCH_RECONCILE_ROLES}>
             <ArologisDispatchReconcilePage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P1-5] arologis 배차 admin 신규 3개 라우트 — DISPATCH / MANAGER / MASTER.
+      // 매뉴얼: docs/manual/05-arologis/01-카카오톡-배차.md (Frontend admin UI ✅)
+      //         docs/manual/05-arologis/02-수동-배차.md     (정식 admin 배차 UI ✅)
+      //         docs/manual/05-arologis/03-기사-배정.md     (Frontend admin 배정 UI ✅)
+      {
+        path: '/arologis/admin/auto-dispatch',
+        element: (
+          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
+            <KakaoAutoDispatchPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/arologis/admin/manual-dispatch',
+        element: (
+          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
+            <ManualDispatchAdminPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/arologis/admin/driver-assignment',
+        element: (
+          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
+            <DriverAssignmentPage />
           </RoleGuard>
         ),
       },
