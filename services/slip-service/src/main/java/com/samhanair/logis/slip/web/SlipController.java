@@ -399,7 +399,7 @@ public class SlipController {
                     description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) SlipType slipType,
             @RequestParam(required = false) SlipStatus status,
