@@ -78,20 +78,46 @@ interface CashFlowRowProps {
   indent?: boolean
   isSummary?: boolean
   isGrandTotal?: boolean
+  /**
+   * D1 fix (TM PR #137): netCashFlow 등 결과값 행에 적용.
+   * true 시 양수 = `var(--color-success)` (녹색=호조), 음수 = `var(--color-danger)` (빨강=악화).
+   * 일반 행은 미설정 → 양수도 기본 컬러 유지.
+   */
+  isNetChange?: boolean
 }
 
 /**
  * 현금흐름표 한 행.
  * isSummary=true → .report-total-row, isGrandTotal=true → .report-grand-total-row
+ * D1 fix (TM PR #137): isNetChange=true 시 양수 → success / 음수 → danger 색상 적용.
  */
-function CashFlowRow({ label, amount, indent = false, isSummary = false, isGrandTotal = false }: CashFlowRowProps) {
+function CashFlowRow({
+  label,
+  amount,
+  indent = false,
+  isSummary = false,
+  isGrandTotal = false,
+  isNetChange = false,
+}: CashFlowRowProps) {
   const n = Number.parseInt(amount, 10)
   const isNeg = Number.isFinite(n) && n < 0
+  const isPos = Number.isFinite(n) && n > 0
   const className = isGrandTotal
     ? 'report-grand-total-row'
     : isSummary
       ? 'report-total-row'
       : undefined
+  // D1 fix: isNetChange 결과값 행 → 양수=success / 음수=danger / 0=기본
+  // 일반 행 → 음수만 danger (양수는 neutral-900 유지)
+  const amountColor = isNetChange
+    ? isPos
+      ? 'var(--color-success)'
+      : isNeg
+        ? 'var(--color-danger)'
+        : 'var(--color-neutral-900)'
+    : isNeg
+      ? 'var(--color-danger)'
+      : 'var(--color-neutral-900)'
   return (
     <div
       className={className}
@@ -109,13 +135,7 @@ function CashFlowRow({ label, amount, indent = false, isSummary = false, isGrand
       }}
     >
       <span style={{ color: 'var(--color-neutral-900)' }}>{label}</span>
-      <span
-        style={{
-          color: isNeg ? 'var(--color-danger)' : 'var(--color-neutral-900)',
-        }}
-      >
-        {fmtKrw(amount)}
-      </span>
+      <span style={{ color: amountColor }}>{fmtKrw(amount)}</span>
     </div>
   )
 }
@@ -338,11 +358,12 @@ export function CashFlowStatementPage() {
 
             <Divider />
 
-            {/* 현금 순증감 */}
+            {/* 현금 순증감 — D1 fix: 양수 = success / 음수 = danger 색상 */}
             <CashFlowRow
               label="IV. 현금 순증감 (CFO + CFI + CFF)"
               amount={data.netCashFlow}
               isSummary
+              isNetChange
             />
 
             <Divider />

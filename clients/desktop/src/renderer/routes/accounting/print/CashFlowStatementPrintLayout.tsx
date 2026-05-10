@@ -244,10 +244,24 @@ function CashFlowPrintBody({ data, period }: BodyProps) {
           </tr>
           <tr className="cf-divider"><td colSpan={2} /></tr>
 
-          {/* 현금 순증감 */}
+          {/* 현금 순증감 — D1 fix (TM PR #137): 양수 = success / 음수 = danger 색상 */}
           <tr className="report-total-row">
             <td style={{ padding: '3pt 4pt', fontWeight: 700 }}>IV. 현금 순증감 (CFO + CFI + CFF)</td>
-            <td className="amount" style={{ fontWeight: 700 }}>{fmtAmount(data.netCashFlow)}</td>
+            <td
+              className="amount"
+              style={{
+                fontWeight: 700,
+                color: (() => {
+                  const n = Number.parseInt(data.netCashFlow, 10)
+                  if (!Number.isFinite(n)) return undefined
+                  if (n > 0) return 'var(--color-success)'
+                  if (n < 0) return 'var(--color-danger)'
+                  return undefined
+                })(),
+              }}
+            >
+              {fmtAmount(data.netCashFlow)}
+            </td>
           </tr>
           <tr className="cf-divider"><td colSpan={2} /></tr>
 

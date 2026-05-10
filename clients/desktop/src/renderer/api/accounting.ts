@@ -288,13 +288,16 @@ export async function getTrialBalance(period: string): Promise<TrialBalance> {
 }
 
 /**
- * 회계 메뉴/라우트 접근 권한 — ACCOUNTANT / MASTER 만 허용.
+ * 회계 메뉴/라우트 접근 권한 — ACCOUNTANT / MANAGER / MASTER 허용.
+ *
+ * W-4 fix (PR #137): BE @PreAuthorize 가 ACCOUNTANT/MANAGER/MASTER 로 선언되어 있으므로
+ * FE 사이드바도 동일하게 정렬. 기존 ACCOUNTANT/MASTER 만 허용하던 정의를 MANAGER 포함으로 확장.
  *
  * `feedback_role_naming_full.md` — 풀네임 표기 의무. M/M 약어 금지.
  */
 export function canAccessAccounting(role: string | undefined | null): boolean {
   if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MASTER'
+  return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
 }
 
 /**
@@ -738,38 +741,49 @@ export interface EquityChangesResponse {
 }
 
 /**
- * 일계표 / 월계표 계정별 요약 항목 (BE `AccountSummaryItem`).
+ * 일계표 / 월계표 계정별 차/대 합계 행 (BE `AccountSummaryLine`).
+ *
+ * B-1 fix (PR #137): 기존 `AccountSummaryItem { category, totalDebit, totalCredit, balance, sortOrder }`
+ * → BE record 실제 필드 `{ accountCode, accountName, debitTotal, creditTotal }` 로 정렬.
+ * - `category` / `balance` / `sortOrder` 필드 BE 미제공 → 화면 측 클라이언트 산출.
  */
-export interface AccountSummaryItem {
+export interface AccountSummaryLine {
   /** 4자리 계정 코드. */
   accountCode: string
   /** 계정명 (한국어 표준). */
   accountName: string
-  /** 카테고리 prefix (100/200/300/400/500/800/900). */
-  category: string
-  /** 차변 합계 (KRW 정수, string). */
-  totalDebit: string
-  /** 대변 합계 (KRW 정수, string). */
-  totalCredit: string
-  /** 잔액 (KRW 정수, string). 차변 계정: 차-대, 대변 계정: 대-차. */
-  balance: string
-  /** 표시 순서 (오름차순). */
-  sortOrder: number
+  /** 차변 합계 (KRW 정수, string) — BE 필드명 `debitTotal`. */
+  debitTotal: string
+  /** 대변 합계 (KRW 정수, string) — BE 필드명 `creditTotal`. */
+  creditTotal: string
 }
 
 /**
- * 월계표 일별 분해 항목 (BE `DailyBreakdownItem`).
+ * @deprecated PR #137 fix 이전 별칭. 신규 코드에서는 `AccountSummaryLine` 사용.
  */
-export interface DailyBreakdownItem {
-  /** 일자 (YYYY-MM-DD). */
-  date: string
+export type AccountSummaryItem = AccountSummaryLine
+
+/**
+ * 월계표 일별 소계 행 (BE `DailyBreakdownLine`).
+ *
+ * B-3 fix (PR #137): 기존 `DailyBreakdownItem { date, totalDebit, totalCredit }`
+ * → BE record 실제 필드 `{ journalDate, journalCount, debitTotal, creditTotal }` 로 정렬.
+ */
+export interface DailyBreakdownLine {
+  /** 일자 (YYYY-MM-DD) — BE 필드명 `journalDate`. */
+  journalDate: string
   /** 당일 분개 건수. */
   journalCount: number
-  /** 당일 차변 합계 (KRW 정수, string). */
-  totalDebit: string
-  /** 당일 대변 합계 (KRW 정수, string). */
-  totalCredit: string
+  /** 당일 차변 합계 (KRW 정수, string) — BE 필드명 `debitTotal`. */
+  debitTotal: string
+  /** 당일 대변 합계 (KRW 정수, string) — BE 필드명 `creditTotal`. */
+  creditTotal: string
 }
+
+/**
+ * @deprecated PR #137 fix 이전 별칭. 신규 코드에서는 `DailyBreakdownLine` 사용.
+ */
+export type DailyBreakdownItem = DailyBreakdownLine
 
 /**
  * 일계표 응답 (BE `DailySummaryResponse`).
@@ -777,10 +791,12 @@ export interface DailyBreakdownItem {
  * 특정 일자의 분개 건수 + 계정별 차/대변 합계.
  *
  * BE endpoint: `GET /api/v1/accounting/reports/daily-summary?date=YYYY-MM-DD`
+ *
+ * B-1 fix (PR #137): 기존 `date` → BE `summaryDate`, 기존 `accountSummary[]` → BE `accountTotals[]`.
  */
 export interface DailySummaryResponse {
-  /** 조회 일자 (YYYY-MM-DD). */
-  date: string
+  /** 조회 일자 (YYYY-MM-DD) — BE 필드명 `summaryDate`. */
+  summaryDate: string
   /** 당일 분개 건수. */
   journalCount: number
   /** 당일 총 차변 합계 (KRW 정수, string). */
@@ -789,20 +805,27 @@ export interface DailySummaryResponse {
   totalCredit: string
   /** 차변/대변 균형 여부. */
   balanced: boolean
-  /** 계정별 요약 목록. */
-  accountSummary: AccountSummaryItem[]
+  /** 계정별 요약 목록 — BE 필드명 `accountTotals`. */
+  accountTotals: AccountSummaryLine[]
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
 }
 
 /**
  * 월계표 응답 (BE `MonthlySummaryResponse`).
  *
- * 회계 월 기준 분개 + 계정별 합계 + 일별 breakdown.
+ * 회계 월 기준 분개 + 일별 breakdown.
  *
  * BE endpoint: `GET /api/v1/accounting/reports/monthly-summary?period=YYYYMM`
+ *
+ * B-3 fix (PR #137): BE record 에 accountSummary 없음 — dailyBreakdown 만 제공.
+ * period 는 BE 라벨 형식 (예: "2026-01"). yearMonth 필드 추가.
  */
 export interface MonthlySummaryResponse {
-  /** 회계 월 (YYYYMM). */
+  /** 표시 기간 라벨 (예: "2026-01"). */
   period: string
+  /** YearMonth 직렬화 (예: "2026-01"). */
+  yearMonth: string
   /** 기간 시작일 (YYYY-MM-DD). */
   fromDate: string
   /** 기간 종료일 (YYYY-MM-DD). */
@@ -815,10 +838,10 @@ export interface MonthlySummaryResponse {
   totalCredit: string
   /** 차변/대변 균형 여부. */
   balanced: boolean
-  /** 계정별 요약 목록. */
-  accountSummary: AccountSummaryItem[]
   /** 일별 분해 목록 (날짜 오름차순). */
-  dailyBreakdown: DailyBreakdownItem[]
+  dailyBreakdown: DailyBreakdownLine[]
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
 }
 
 /**

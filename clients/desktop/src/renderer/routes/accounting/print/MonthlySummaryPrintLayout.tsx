@@ -19,8 +19,7 @@ import { Spinner } from '@samhan/design-system'
 import { PrintLayout, COMPANY, krw } from '../../../print/PrintLayout'
 import {
   getMonthlySummary,
-  type AccountSummaryItem,
-  type DailyBreakdownItem,
+  type DailyBreakdownLine,
   type MonthlySummaryResponse,
 } from '../../../api/accounting'
 
@@ -43,19 +42,6 @@ function formatPeriodKo(period: string): string {
   return `${period.slice(0, 4)}년 ${period.slice(4, 6)}월`
 }
 
-/** sortOrder 클라이언트 정렬 안전망. */
-function sortedAccounts(items: AccountSummaryItem[]): AccountSummaryItem[] {
-  return [...items].sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-/** 카테고리 → 한국어 분류명. */
-function categoryLabel(cat: string): string {
-  const map: Record<string, string> = {
-    '100': '자산', '200': '부채', '300': '자본',
-    '400': '수익', '500': '비용', '800': '판관비', '900': '영업외',
-  }
-  return map[cat] ?? cat
-}
 
 // --------------------------------------------------------------------------
 // 인쇄 전용 CSS
@@ -93,6 +79,8 @@ const PRINT_CSS = `
 export function MonthlySummaryPrintLayout() {
   const [searchParams] = useSearchParams()
   const period = searchParams.get('period') ?? ''
+  // W-2 fix: showDailyBreakdown query param (기본 false, 인쇄 시 true 권장)
+  const showDailyBreakdown = searchParams.get('showDailyBreakdown') === 'true'
 
   const query = useQuery<MonthlySummaryResponse>({
     queryKey: ['accounting', 'reports', 'monthly-summary', period],
@@ -126,7 +114,11 @@ export function MonthlySummaryPrintLayout() {
           조회 중...
         </div>
       ) : (
-        <MonthlySummaryPrintBody data={query.data} period={period} />
+        <MonthlySummaryPrintBody
+          data={query.data}
+          period={period}
+          showDailyBreakdown={showDailyBreakdown}
+        />
       )}
     </PrintLayout>
   )
@@ -135,13 +127,15 @@ export function MonthlySummaryPrintLayout() {
 interface BodyProps {
   data: MonthlySummaryResponse
   period: string
+  /** W-2 fix: true 시 일별 breakdown 2페이지 출력. 기본 false. */
+  showDailyBreakdown?: boolean
 }
 
-/** 월계표 인쇄 본문 — 계정별 합계 + 일별 breakdown 2페이지. */
-function MonthlySummaryPrintBody({ data, period }: BodyProps) {
-  const sorted = sortedAccounts(data.accountSummary)
+/** 월계표 인쇄 본문 — 총계 요약 + (옵션) 일별 breakdown 2페이지. */
+function MonthlySummaryPrintBody({ data, period, showDailyBreakdown = false }: BodyProps) {
+  // B-3 fix: DailyBreakdownLine `journalDate` 기준 정렬 (구 `date` X)
   const dailySorted = [...data.dailyBreakdown].sort((a, b) =>
-    a.date.localeCompare(b.date),
+    a.journalDate.localeCompare(b.journalDate),
   )
 
   return (
@@ -170,13 +164,22 @@ function MonthlySummaryPrintBody({ data, period }: BodyProps) {
         </div>
       ) : null}
 
-      {/* 계정별 합계 표 (1페이지) */}
-      <AccountTable items={sorted} totalDebit={data.totalDebit} totalCredit={data.totalCredit} />
+      {/* 월 총계 요약 표 (1페이지) — B-3 fix: accountSummary 없음 → 총계 행만 */}
+      <MonthlySummaryTotalTable
+        totalDebit={data.totalDebit}
+        totalCredit={data.totalCredit}
+        journalCount={data.journalCount}
+        balanced={data.balanced}
+      />
 
-      {/* 일별 breakdown 표 (2페이지) */}
-      <div className="ms-page-break" />
-      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>일별 현황</div>
-      <DailyTable items={dailySorted} />
+      {/* W-2: showDailyBreakdown=true 시에만 일별 breakdown 2페이지 포함 */}
+      {showDailyBreakdown ? (
+        <>
+          <div className="ms-page-break" />
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>일별 현황</div>
+          <DailyTable items={dailySorted} />
+        </>
+      ) : null}
 
       <div style={{ marginTop: 12, fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-400)', textAlign: 'right' }}>
         보고서 생성: {new Date().toLocaleString('ko-KR')}
@@ -185,28 +188,30 @@ function MonthlySummaryPrintBody({ data, period }: BodyProps) {
   )
 }
 
-function AccountTable({
-  items,
+/**
+ * 월 총계 요약 표. B-3 fix: BE `MonthlySummaryResponse` 에 accountSummary 없음.
+ */
+function MonthlySummaryTotalTable({
   totalDebit,
   totalCredit,
+  journalCount,
+  balanced,
 }: {
-  items: AccountSummaryItem[]
   totalDebit: string
   totalCredit: string
+  journalCount: number
+  balanced: boolean
 }) {
   return (
     <table className="ms-table">
       <colgroup>
-        <col style={{ width: '10%' }} />
-        <col style={{ width: '28%' }} />
-        <col style={{ width: '11%' }} />
-        <col style={{ width: '18%' }} />
-        <col style={{ width: '18%' }} />
-        <col style={{ width: '15%' }} />
+        <col style={{ width: '40%' }} />
+        <col style={{ width: '30%' }} />
+        <col style={{ width: '30%' }} />
       </colgroup>
       <thead>
         <tr>
-          {['코드', '계정과목', '분류', '차변 합계', '대변 합계', '잔액'].map((h, i) => (
+          {['구분', '차변 합계', '대변 합계'].map((h, i) => (
             <th
               key={h}
               style={{
@@ -215,7 +220,7 @@ function AccountTable({
                 padding: '4pt',
                 fontSize: 'var(--print-text-md)',
                 fontWeight: 700,
-                textAlign: i < 3 ? 'left' : 'right',
+                textAlign: i === 0 ? 'left' : 'right',
               }}
             >
               {h}
@@ -224,38 +229,25 @@ function AccountTable({
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
-          <tr key={item.accountCode} style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
-            <td style={{ fontFamily: 'monospace' }}>{item.accountCode}</td>
-            <td>{item.accountName}</td>
-            <td style={{ fontSize: 'calc(var(--print-text-sm) - 0.5pt)', color: 'var(--color-neutral-500)' }}>
-              {categoryLabel(item.category)}
-            </td>
-            <td className="amount">{fmtAmount(item.totalDebit)}</td>
-            <td className="amount">{fmtAmount(item.totalCredit)}</td>
-            <td
-              className="amount"
-              style={{
-                fontWeight: 600,
-                color: Number.parseInt(item.balance, 10) < 0 ? 'var(--color-danger)' : undefined,
-              }}
-            >
-              {fmtAmount(item.balance)}
-            </td>
-          </tr>
-        ))}
+        <tr style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
+          <td>당월 합계 ({journalCount}건)</td>
+          <td className="amount">{fmtAmount(totalDebit)}</td>
+          <td className="amount">{fmtAmount(totalCredit)}</td>
+        </tr>
         <tr className="report-grand-total-row" style={{ borderTop: '2pt solid var(--color-neutral-900)' }}>
-          <td colSpan={3} style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '5pt 4pt' }}>합 계</td>
+          <td style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '5pt 4pt' }}>
+            균형 여부: {balanced ? '일치' : '불일치'}
+          </td>
           <td className="amount" style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '5pt 4pt' }}>{fmtAmount(totalDebit)}</td>
           <td className="amount" style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '5pt 4pt' }}>{fmtAmount(totalCredit)}</td>
-          <td className="amount" style={{ padding: '5pt 4pt' }}>—</td>
         </tr>
       </tbody>
     </table>
   )
 }
 
-function DailyTable({ items }: { items: DailyBreakdownItem[] }) {
+/** 일별 breakdown 표. B-3 fix: `journalDate`/`debitTotal`/`creditTotal` */
+function DailyTable({ items }: { items: DailyBreakdownLine[] }) {
   return (
     <table className="ms-table">
       <colgroup>
@@ -284,12 +276,13 @@ function DailyTable({ items }: { items: DailyBreakdownItem[] }) {
         </tr>
       </thead>
       <tbody>
+        {/* B-3 fix: `journalDate`/`debitTotal`/`creditTotal` (구 date/totalDebit X) */}
         {items.map((item) => (
-          <tr key={item.date} style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
-            <td>{item.date}</td>
+          <tr key={item.journalDate} style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
+            <td>{item.journalDate}</td>
             <td>{item.journalCount}건</td>
-            <td className="amount">{fmtAmount(item.totalDebit)}</td>
-            <td className="amount">{fmtAmount(item.totalCredit)}</td>
+            <td className="amount">{fmtAmount(item.debitTotal)}</td>
+            <td className="amount">{fmtAmount(item.creditTotal)}</td>
           </tr>
         ))}
       </tbody>

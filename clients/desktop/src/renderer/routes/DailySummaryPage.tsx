@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Card, Input, Spinner } from '@samhan/design-system'
 import {
   getDailySummary,
-  type AccountSummaryItem,
+  type AccountSummaryLine,
   type DailySummaryResponse,
 } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -48,23 +48,36 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-/** sortOrder 클라이언트 정렬 안전망. */
-function sortedAccounts(items: AccountSummaryItem[]): AccountSummaryItem[] {
-  return [...items].sort((a, b) => a.sortOrder - b.sortOrder)
+/**
+ * accountCode 사전순 정렬 안전망.
+ * B-1 fix (PR #137): AccountSummaryLine 에 sortOrder 없음 → accountCode 기반 정렬.
+ */
+function sortedAccounts(items: AccountSummaryLine[]): AccountSummaryLine[] {
+  return [...items].sort((a, b) => a.accountCode.localeCompare(b.accountCode))
 }
 
-/** 카테고리 코드 → 한국어 분류명. */
-function categoryLabel(cat: string): string {
+/**
+ * 계정 코드 prefix 1자리 → 한국어 분류명 (B-1 fix: BE record 에 category 없음 → 클라이언트 산출).
+ */
+function categoryFromCode(code: string): string {
+  const prefix = code.charAt(0)
   const map: Record<string, string> = {
-    '100': '자산',
-    '200': '부채',
-    '300': '자본',
-    '400': '수익',
-    '500': '비용',
-    '800': '판매비와관리비',
-    '900': '영업외',
+    '1': '자산', '2': '부채', '3': '자본',
+    '4': '수익', '5': '비용', '8': '판관비', '9': '영업외',
   }
-  return map[cat] ?? cat
+  return map[prefix] ?? '-'
+}
+
+/**
+ * 잔액 산출 (B-1 fix: BE record 에 balance 없음 → 클라이언트 산출).
+ * 차변 계정(1/5/8): debitTotal - creditTotal; 대변 계정(2/3/4/9): creditTotal - debitTotal.
+ */
+function calcBalance(item: AccountSummaryLine): string {
+  const debit = Number.parseInt(item.debitTotal, 10) || 0
+  const credit = Number.parseInt(item.creditTotal, 10) || 0
+  const prefix = item.accountCode.charAt(0)
+  const isDebitNature = prefix === '1' || prefix === '5' || prefix === '8'
+  return String(isDebitNature ? debit - credit : credit - debit)
 }
 
 // --------------------------------------------------------------------------
@@ -207,8 +220,9 @@ export function DailySummaryPage() {
           {/* 화면 헤더 */}
           <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>일계표</div>
+            {/* B-1 fix: BE `summaryDate` (구 date X) */}
             <div style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>
-              {data.date}
+              {data.summaryDate}
             </div>
           </div>
 
@@ -278,7 +292,10 @@ export function DailySummaryPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedAccounts(data.accountSummary).map((item) => (
+                {/* B-1 fix: `accountTotals` (구 accountSummary X) */}
+                {sortedAccounts(data.accountTotals).map((item) => {
+                  const balance = calcBalance(item)
+                  return (
                   <tr
                     key={item.accountCode}
                     style={{ borderBottom: '1px solid var(--color-neutral-100)' }}
@@ -289,6 +306,7 @@ export function DailySummaryPage() {
                     <td style={{ padding: '4px 8px', color: 'var(--color-neutral-900)' }}>
                       {item.accountName}
                     </td>
+                    {/* B-1 fix: category 미제공 → accountCode 기반 분류 산출 */}
                     <td
                       style={{
                         padding: '4px 8px',
@@ -297,29 +315,32 @@ export function DailySummaryPage() {
                         color: 'var(--color-neutral-500)',
                       }}
                     >
-                      {categoryLabel(item.category)}
+                      {categoryFromCode(item.accountCode)}
+                    </td>
+                    {/* B-1 fix: `debitTotal`/`creditTotal` (구 totalDebit/totalCredit X) */}
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
+                      {fmtKrw(item.debitTotal)}
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-                      {fmtKrw(item.totalDebit)}
+                      {fmtKrw(item.creditTotal)}
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-                      {fmtKrw(item.totalCredit)}
-                    </td>
+                    {/* B-1 fix: balance 미제공 → 클라이언트 산출 */}
                     <td
                       style={{
                         padding: '4px 8px',
                         textAlign: 'right',
                         fontWeight: 600,
                         color:
-                          Number.parseInt(item.balance, 10) < 0
+                          Number.parseInt(balance, 10) < 0
                             ? 'var(--color-danger)'
                             : 'var(--color-neutral-900)',
                       }}
                     >
-                      {fmtKrw(item.balance)}
+                      {fmtKrw(balance)}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 {/* 합계 행 */}
                 <tr className="report-grand-total-row" style={{ borderTop: '2px solid var(--color-neutral-900)' }}>
                   <td colSpan={3} style={{ padding: '7px 8px', fontWeight: 700, fontSize: 14 }}>

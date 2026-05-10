@@ -17,7 +17,7 @@ import { Spinner } from '@samhan/design-system'
 import { PrintLayout, COMPANY, krw } from '../../../print/PrintLayout'
 import {
   getDailySummary,
-  type AccountSummaryItem,
+  type AccountSummaryLine,
   type DailySummaryResponse,
 } from '../../../api/accounting'
 
@@ -34,18 +34,35 @@ function fmtAmount(raw: string | number): string {
   return n < 0 ? `(${formatted})` : formatted
 }
 
-/** sortOrder 클라이언트 정렬 안전망. */
-function sortedAccounts(items: AccountSummaryItem[]): AccountSummaryItem[] {
-  return [...items].sort((a, b) => a.sortOrder - b.sortOrder)
+/**
+ * accountCode 사전순 정렬 안전망.
+ * B-1 fix (PR #137): AccountSummaryLine 에 sortOrder 없음 → accountCode 기반 정렬.
+ */
+function sortedAccounts(items: AccountSummaryLine[]): AccountSummaryLine[] {
+  return [...items].sort((a, b) => a.accountCode.localeCompare(b.accountCode))
 }
 
-/** 카테고리 → 한국어 분류명. */
-function categoryLabel(cat: string): string {
+/**
+ * 잔액 산출 (B-1 fix: balance BE 미제공 → 클라이언트 산출).
+ */
+function calcBalance(item: AccountSummaryLine): string {
+  const debit = Number.parseInt(item.debitTotal, 10) || 0
+  const credit = Number.parseInt(item.creditTotal, 10) || 0
+  const prefix = item.accountCode.charAt(0)
+  const isDebitNature = prefix === '1' || prefix === '5' || prefix === '8'
+  return String(isDebitNature ? debit - credit : credit - debit)
+}
+
+/**
+ * 계정 코드 prefix 1자리 → 한국어 분류명 (BE record 에 category 미제공 → 클라이언트 산출).
+ */
+function categoryFromCode(code: string): string {
+  const prefix = code.charAt(0)
   const map: Record<string, string> = {
-    '100': '자산', '200': '부채', '300': '자본',
-    '400': '수익', '500': '비용', '800': '판관비', '900': '영업외',
+    '1': '자산', '2': '부채', '3': '자본',
+    '4': '수익', '5': '비용', '8': '판관비', '9': '영업외',
   }
-  return map[cat] ?? cat
+  return map[prefix] ?? '-'
 }
 
 // --------------------------------------------------------------------------
@@ -128,7 +145,8 @@ interface BodyProps {
 
 /** 일계표 인쇄 본문. */
 function DailySummaryPrintBody({ data }: BodyProps) {
-  const sorted = sortedAccounts(data.accountSummary)
+  // B-1 fix: BE `accountTotals` (구 accountSummary X)
+  const sorted = sortedAccounts(data.accountTotals)
 
   return (
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
@@ -141,8 +159,9 @@ function DailySummaryPrintBody({ data }: BodyProps) {
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           일 계 표
         </div>
+        {/* B-1 fix: BE `summaryDate` (구 date X) */}
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 6 }}>
-          {data.date}
+          {data.summaryDate}
         </div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-400)', marginTop: 2 }}>
           작성일: {new Date().toLocaleDateString('ko-KR')} &nbsp;&nbsp; (단위: 원) &nbsp;&nbsp; 분개 {data.journalCount}건
@@ -186,26 +205,32 @@ function DailySummaryPrintBody({ data }: BodyProps) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((item) => (
-            <tr key={item.accountCode} style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
-              <td style={{ fontFamily: 'monospace' }}>{item.accountCode}</td>
-              <td>{item.accountName}</td>
-              <td style={{ fontSize: 'calc(var(--print-text-sm) - 0.5pt)', color: 'var(--color-neutral-500)' }}>
-                {categoryLabel(item.category)}
-              </td>
-              <td className="amount">{fmtAmount(item.totalDebit)}</td>
-              <td className="amount">{fmtAmount(item.totalCredit)}</td>
-              <td
-                className="amount"
-                style={{
-                  fontWeight: 600,
-                  color: Number.parseInt(item.balance, 10) < 0 ? 'var(--color-danger)' : undefined,
-                }}
-              >
-                {fmtAmount(item.balance)}
-              </td>
-            </tr>
-          ))}
+          {sorted.map((item) => {
+            const balance = calcBalance(item)
+            return (
+              <tr key={item.accountCode} style={{ borderBottom: '0.5pt solid var(--color-neutral-100)' }}>
+                <td style={{ fontFamily: 'monospace' }}>{item.accountCode}</td>
+                <td>{item.accountName}</td>
+                {/* B-1 fix: category BE 미제공 → accountCode 기반 분류 산출 */}
+                <td style={{ fontSize: 'calc(var(--print-text-sm) - 0.5pt)', color: 'var(--color-neutral-500)' }}>
+                  {categoryFromCode(item.accountCode)}
+                </td>
+                {/* B-1 fix: `debitTotal`/`creditTotal` (구 totalDebit/totalCredit X) */}
+                <td className="amount">{fmtAmount(item.debitTotal)}</td>
+                <td className="amount">{fmtAmount(item.creditTotal)}</td>
+                {/* B-1 fix: balance BE 미제공 → 클라이언트 산출 */}
+                <td
+                  className="amount"
+                  style={{
+                    fontWeight: 600,
+                    color: Number.parseInt(balance, 10) < 0 ? 'var(--color-danger)' : undefined,
+                  }}
+                >
+                  {fmtAmount(balance)}
+                </td>
+              </tr>
+            )
+          })}
           {/* 합계 grand-total */}
           <tr className="report-grand-total-row" style={{ borderTop: '2pt solid var(--color-neutral-900)' }}>
             <td colSpan={3} style={{ fontWeight: 700, fontSize: 'var(--print-text-md)', padding: '5pt 4pt' }}>합 계</td>

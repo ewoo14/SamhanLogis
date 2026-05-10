@@ -25,8 +25,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Card, Input, Spinner } from '@samhan/design-system'
 import {
   getMonthlySummary,
-  type AccountSummaryItem,
-  type DailyBreakdownItem,
+  type DailyBreakdownLine,
   type MonthlySummaryResponse,
 } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -60,24 +59,6 @@ function prevMonth(): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** sortOrder 클라이언트 정렬 안전망. */
-function sortedAccounts(items: AccountSummaryItem[]): AccountSummaryItem[] {
-  return [...items].sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-/** 카테고리 코드 → 한국어 분류명. */
-function categoryLabel(cat: string): string {
-  const map: Record<string, string> = {
-    '100': '자산',
-    '200': '부채',
-    '300': '자본',
-    '400': '수익',
-    '500': '비용',
-    '800': '판매비와관리비',
-    '900': '영업외',
-  }
-  return map[cat] ?? cat
-}
 
 // --------------------------------------------------------------------------
 // 서브 컴포넌트
@@ -129,107 +110,13 @@ function SummaryItem({
   )
 }
 
-/** 계정별 합계 표. */
-function AccountSummaryTable({
-  items,
-  totalDebit,
-  totalCredit,
-}: {
-  items: AccountSummaryItem[]
-  totalDebit: string
-  totalCredit: string
-}) {
-  return (
-    <table
-      style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        fontSize: 14,
-        fontVariantNumeric: 'tabular-nums',
-      }}
-    >
-      <colgroup>
-        <col style={{ width: '10%' }} />
-        <col style={{ width: '28%' }} />
-        <col style={{ width: '12%' }} />
-        <col style={{ width: '18%' }} />
-        <col style={{ width: '18%' }} />
-        <col style={{ width: '14%' }} />
-      </colgroup>
-      <thead>
-        <tr style={{ borderBottom: '2px solid var(--color-neutral-900)' }}>
-          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700 }}>코드</th>
-          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700 }}>계정과목</th>
-          <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700 }}>분류</th>
-          <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>차변 합계</th>
-          <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>대변 합계</th>
-          <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>잔액</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sortedAccounts(items).map((item) => (
-          <tr
-            key={item.accountCode}
-            style={{ borderBottom: '1px solid var(--color-neutral-100)' }}
-          >
-            <td style={{ padding: '4px 8px', color: 'var(--color-neutral-600)', fontFamily: 'monospace' }}>
-              {item.accountCode}
-            </td>
-            <td style={{ padding: '4px 8px', color: 'var(--color-neutral-900)' }}>
-              {item.accountName}
-            </td>
-            <td
-              style={{
-                padding: '4px 8px',
-                textAlign: 'center',
-                fontSize: 12,
-                color: 'var(--color-neutral-500)',
-              }}
-            >
-              {categoryLabel(item.category)}
-            </td>
-            <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-              {fmtKrw(item.totalDebit)}
-            </td>
-            <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-              {fmtKrw(item.totalCredit)}
-            </td>
-            <td
-              style={{
-                padding: '4px 8px',
-                textAlign: 'right',
-                fontWeight: 600,
-                color:
-                  Number.parseInt(item.balance, 10) < 0
-                    ? 'var(--color-danger)'
-                    : 'var(--color-neutral-900)',
-              }}
-            >
-              {fmtKrw(item.balance)}
-            </td>
-          </tr>
-        ))}
-        {/* 합계 행 */}
-        <tr className="report-grand-total-row" style={{ borderTop: '2px solid var(--color-neutral-900)' }}>
-          <td colSpan={3} style={{ padding: '7px 8px', fontWeight: 700, fontSize: 14 }}>
-            합계
-          </td>
-          <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>
-            {fmtKrw(totalDebit)}
-          </td>
-          <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>
-            {fmtKrw(totalCredit)}
-          </td>
-          <td style={{ padding: '7px 8px', textAlign: 'right' }}>—</td>
-        </tr>
-      </tbody>
-    </table>
-  )
-}
-
-/** 일별 breakdown 표. */
-function DailyBreakdownTable({ items }: { items: DailyBreakdownItem[] }) {
-  const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date))
+/**
+ * 일별 breakdown 표.
+ * B-3 fix (PR #137): `journalDate`/`debitTotal`/`creditTotal` (구 date/totalDebit X).
+ */
+function DailyBreakdownTable({ items }: { items: DailyBreakdownLine[] }) {
+  // B-3 fix: `journalDate` 기준 정렬
+  const sorted = [...items].sort((a, b) => a.journalDate.localeCompare(b.journalDate))
   return (
     <table
       style={{
@@ -256,20 +143,22 @@ function DailyBreakdownTable({ items }: { items: DailyBreakdownItem[] }) {
       <tbody>
         {sorted.map((item) => (
           <tr
-            key={item.date}
+            key={item.journalDate}
             style={{ borderBottom: '1px solid var(--color-neutral-100)' }}
           >
+            {/* B-3 fix: `journalDate` */}
             <td style={{ padding: '4px 8px', color: 'var(--color-neutral-900)' }}>
-              {item.date}
+              {item.journalDate}
             </td>
             <td style={{ padding: '4px 8px', textAlign: 'center', color: 'var(--color-neutral-700)' }}>
               {item.journalCount}건
             </td>
+            {/* B-3 fix: `debitTotal`/`creditTotal` */}
             <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-              {fmtKrw(item.totalDebit)}
+              {fmtKrw(item.debitTotal)}
             </td>
             <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-neutral-900)' }}>
-              {fmtKrw(item.totalCredit)}
+              {fmtKrw(item.creditTotal)}
             </td>
           </tr>
         ))}
@@ -282,19 +171,16 @@ function DailyBreakdownTable({ items }: { items: DailyBreakdownItem[] }) {
 // 메인 페이지
 // --------------------------------------------------------------------------
 
-type TabType = 'account' | 'daily'
-
 /**
  * 월계표 메인 페이지.
  *
  * 상단: 회계 월 picker + 조회 + 인쇄.
  * summary 카드: 분개 건수 / 총 차변 / 총 대변 / 균형 chip.
- * 탭: 계정별 합계 / 일별 breakdown.
+ * 본문: 일별 breakdown 표 (B-3 fix: BE accountSummary 미제공).
  */
 export function MonthlySummaryPage() {
   const [period, setPeriod] = useState<string>(prevMonth())
   const [queryPeriod, setQueryPeriod] = useState<string>(prevMonth())
-  const [activeTab, setActiveTab] = useState<TabType>('account')
 
   usePageTitle('월계표', formatPeriodKo(queryPeriod))
 
@@ -306,24 +192,13 @@ export function MonthlySummaryPage() {
   const data = query.data
   const handleSearch = () => setQueryPeriod(period)
 
+  // W-2 fix: 인쇄 URL 에 showDailyBreakdown=true 추가 (인쇄 시 일별 breakdown 포함 권장)
   const handlePrint = () => {
     window.open(
-      `/accounting/reports/monthly-summary/print?period=${queryPeriod}`,
+      `/accounting/reports/monthly-summary/print?period=${queryPeriod}&showDailyBreakdown=true`,
       '_blank',
     )
   }
-
-  // 탭 버튼 공통 스타일 계산
-  const tabStyle = (tab: TabType) => ({
-    padding: '6px 16px',
-    fontSize: 13,
-    fontWeight: activeTab === tab ? 700 : 400,
-    border: '1px solid var(--color-neutral-300)',
-    borderRadius: 4,
-    background: activeTab === tab ? 'var(--color-neutral-900)' : 'var(--color-bg-surface)',
-    color: activeTab === tab ? 'var(--color-neutral-0)' : 'var(--color-neutral-700)',
-    cursor: 'pointer',
-  })
 
   return (
     <>
@@ -447,41 +322,12 @@ export function MonthlySummaryPage() {
             </div>
           </div>
 
-          {/* 탭 선택 */}
-          <div
-            className="no-print"
-            style={{ display: 'flex', gap: 8, marginBottom: 16 }}
-          >
-            <button
-              type="button"
-              style={tabStyle('account')}
-              onClick={() => setActiveTab('account')}
-            >
-              계정별 합계
-            </button>
-            <button
-              type="button"
-              style={tabStyle('daily')}
-              onClick={() => setActiveTab('daily')}
-            >
-              일별 breakdown
-            </button>
-          </div>
-
-          {/* 탭 본문 */}
+          {/* 일별 breakdown 표 (B-3 fix: accountSummary BE 미제공 → dailyBreakdown 만 노출) */}
           <div
             data-testid="accounting-monthly-summary-table"
             style={{ overflowX: 'auto' }}
           >
-            {activeTab === 'account' ? (
-              <AccountSummaryTable
-                items={data.accountSummary}
-                totalDebit={data.totalDebit}
-                totalCredit={data.totalCredit}
-              />
-            ) : (
-              <DailyBreakdownTable items={data.dailyBreakdown} />
-            )}
+            <DailyBreakdownTable items={data.dailyBreakdown} />
           </div>
 
           {!data.balanced ? (

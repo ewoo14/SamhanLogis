@@ -110,7 +110,7 @@ export function AppLayout() {
   // race condition 호환 — 빈 title 시 "업무 화면" fallback (Designer § 2.7)
   const displayTitle = title || '업무 화면'
 
-  // accounting-slice-A — 회계 그룹은 ACCOUNTANT/MASTER 만 가시
+  // accounting-slice-A — 회계 그룹은 ACCOUNTANT/MASTER/MANAGER 가시 (W-4: BE @PreAuthorize 일치)
   const showAccounting = canAccessAccounting(auth?.role)
   // [PR-E2 FE-9] 홈택스 일괄 양식 entry — ACCOUNTANT / MANAGER / MASTER 가시.
   // showAccounting 이 false 인 MANAGER 도 entry 단독 노출 가능 (별도 분기).
@@ -183,7 +183,7 @@ export function AppLayout() {
               padding: '4px 8px',
               fontSize: 11,
               fontWeight: 600,
-              color: '#9CA3AF',
+              color: 'var(--color-neutral-400)',
               textTransform: 'uppercase',
               letterSpacing: 0.5,
             }}
@@ -230,7 +230,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -370,7 +370,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -406,7 +406,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -462,7 +462,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -502,7 +502,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -560,7 +560,7 @@ export function AppLayout() {
                   padding: '4px 8px',
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#9CA3AF',
+                  color: 'var(--color-neutral-400)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}
@@ -576,7 +576,7 @@ export function AppLayout() {
             </>
           ) : null}
         </nav>
-        <div style={{ marginTop: 'auto', fontSize: 12, color: '#6B7280' }}>
+        <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
           v0.1.0 · 사내 전용
         </div>
       </aside>
@@ -600,7 +600,7 @@ export function AppLayout() {
                 data-testid="header-user-name"
                 style={{
                   background: 'transparent',
-                  border: '1px solid var(--color-neutral-200, #E5E7EB)',
+                  border: '1px solid var(--color-neutral-200)',
                   borderRadius: 6,
                   padding: '6px 10px',
                   cursor: 'pointer',
@@ -621,8 +621,8 @@ export function AppLayout() {
                     top: 'calc(100% + 4px)',
                     right: 0,
                     minWidth: 180,
-                    background: '#fff',
-                    border: '1px solid var(--color-neutral-200, #E5E7EB)',
+                    background: 'var(--color-neutral-0)',
+                    border: '1px solid var(--color-neutral-200)',
                     borderRadius: 6,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     padding: 4,
@@ -644,11 +644,11 @@ export function AppLayout() {
                       borderRadius: 4,
                       cursor: 'pointer',
                       fontSize: 13,
-                      color: 'var(--color-neutral-800, #1F2937)',
+                      color: 'var(--color-neutral-800)',
                     }}
                     onMouseEnter={(e) => {
                       ;(e.currentTarget as HTMLButtonElement).style.background
-                        = 'var(--color-neutral-100, #F3F4F6)'
+                        = 'var(--color-neutral-100)'
                     }}
                     onMouseLeave={(e) => {
                       ;(e.currentTarget as HTMLButtonElement).style.background
@@ -660,7 +660,7 @@ export function AppLayout() {
                   <div
                     style={{
                       height: 1,
-                      background: 'var(--color-neutral-200, #E5E7EB)',
+                      background: 'var(--color-neutral-200)',
                       margin: '4px 0',
                     }}
                   />
@@ -679,11 +679,11 @@ export function AppLayout() {
                       borderRadius: 4,
                       cursor: 'pointer',
                       fontSize: 13,
-                      color: 'var(--color-neutral-800, #1F2937)',
+                      color: 'var(--color-neutral-800)',
                     }}
                     onMouseEnter={(e) => {
                       ;(e.currentTarget as HTMLButtonElement).style.background
-                        = 'var(--color-neutral-100, #F3F4F6)'
+                        = 'var(--color-neutral-100)'
                     }}
                     onMouseLeave={(e) => {
                       ;(e.currentTarget as HTMLButtonElement).style.background
