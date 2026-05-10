@@ -1529,16 +1529,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /admin/users/roles — 7 ROLE 풀네임 list
+  // GET /admin/users/roles — 7 ROLE string array (BE AdminRole[] 직렬화)
+  // 결함 #8: 기존 {code,label}[] → AdminRole[] string array 정정 ([object Object] 회피)
   if (method === 'GET' && url.endsWith('/admin/users/roles')) {
     return envelope([
-      { code: 'MASTER', label: '마스터' },
-      { code: 'DEVELOPER', label: '개발자' },
-      { code: 'MANAGER', label: '매니저' },
-      { code: 'SALES', label: '영업원' },
-      { code: 'ACCOUNTANT', label: '회계원' },
-      { code: 'WAREHOUSE', label: '창고원' },
-      { code: 'INVENTORY', label: '재고원' },
+      'MASTER',
+      'DEVELOPER',
+      'MANAGER',
+      'SALES',
+      'ACCOUNTANT',
+      'WAREHOUSE',
+      'INVENTORY',
     ])
   }
 
@@ -1630,13 +1631,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(MOCK_CHAT_ROOMS)
   }
 
-  // GET /admin/partners/blocks — BlockedPartnersPage list
-  if (method === 'GET' && url.includes('/admin/partners/blocks') || url.includes('/admin/blocked-partners')) {
+  // GET /api/v1/partners/admin/blocks — BlockedPartnersPage list
+  // 결함 #4: items/total AdminPage envelope → PageResponse<BlockedPartner> envelope 정정 (빈 표 회피)
+  if (method === 'GET' && (url.includes('/admin/partners/blocks') || url.includes('/admin/blocked-partners') || url.includes('/partners/admin/blocks'))) {
     return envelope({
-      items: MOCK_BLOCKED_PARTNERS,
-      total: MOCK_BLOCKED_PARTNERS.length,
-      page: 0,
+      content: MOCK_BLOCKED_PARTNERS,
+      totalElements: MOCK_BLOCKED_PARTNERS.length,
+      totalPages: 1,
+      number: 0,
       size: 20,
+      first: true,
+      last: true,
     })
   }
 
@@ -1804,17 +1809,75 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /accounting/statements/batch-data — StatementBatchPage
+  // 결함 #5: raw object → StatementBatchRow[] raw array 정정 (list.map TypeError 회피, PR #133 회귀 패턴)
+  // 각 row: { chatRoomNames[], slips: [{ slipNo, slipDate, totalSupply, totalVat, totalAmount, lines[] }] }
   if (method === 'GET' && url.includes('/accounting/statements/batch-data')) {
-    return envelope({
-      from: '2026-04-01',
-      to: '2026-04-30',
-      partnerCount: 3,
-      partners: [
-        { partnerCode: '1234567890', partnerName: '엘에이시스템에어', slipCount: 8, totalAmount: 12450000 },
-        { partnerCode: '2345678901', partnerName: '강남에어솔루션', slipCount: 5, totalAmount: 8700000 },
-        { partnerCode: '3456789012', partnerName: '한빛쾌적', slipCount: 3, totalAmount: 5500000 },
-      ],
-    })
+    return envelope([
+      {
+        partnerCode: '1234567890',
+        partnerBusinessName: '엘에이시스템에어',
+        chatRoomNames: ['서울 1톤 단톡방'],
+        slips: [
+          {
+            slipNo: '2026/04/05-1',
+            slipDate: '2026-04-05',
+            totalSupply: 3700000,
+            totalVat: 370000,
+            totalAmount: 4070000,
+            lines: [
+              { modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', quantity: 2, unitPrice: 1850000, lineTotal: 3700000 },
+            ],
+          },
+          {
+            slipNo: '2026/04/19-3',
+            slipDate: '2026-04-19',
+            totalSupply: 4750000,
+            totalVat: 475000,
+            totalAmount: 5225000,
+            lines: [
+              { modelName: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', quantity: 2, unitPrice: 2120000, lineTotal: 4240000 },
+              { modelName: 'MWR-WE10N', productName: '유선 리모컨', quantity: 6, unitPrice: 85000, lineTotal: 510000 },
+            ],
+          },
+        ],
+      },
+      {
+        partnerCode: '2345678901',
+        partnerBusinessName: '강남에어솔루션',
+        chatRoomNames: ['서울 2.5톤 단톡방'],
+        slips: [
+          {
+            slipNo: '2026/04/08-2',
+            slipDate: '2026-04-08',
+            totalSupply: 8700000,
+            totalVat: 870000,
+            totalAmount: 9570000,
+            lines: [
+              { modelName: 'AJ100NCDKH', productName: '실외기 10HP', quantity: 2, unitPrice: 4200000, lineTotal: 8400000 },
+              { modelName: 'MWR-WE10N', productName: '유선 리모컨', quantity: 3, unitPrice: 85000, lineTotal: 255000 },
+            ],
+          },
+        ],
+      },
+      {
+        partnerCode: '3456789012',
+        partnerBusinessName: '한빛쾌적',
+        chatRoomNames: ['경기 1톤 단톡방'],
+        slips: [
+          {
+            slipNo: '2026/04/15-5',
+            slipDate: '2026-04-15',
+            totalSupply: 5500000,
+            totalVat: 550000,
+            totalAmount: 6050000,
+            lines: [
+              { modelName: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', quantity: 3, unitPrice: 1450000, lineTotal: 4350000 },
+              { modelName: 'MWR-WE10N', productName: '유선 리모컨', quantity: 3, unitPrice: 85000, lineTotal: 255000 },
+            ],
+          },
+        ],
+      },
+    ])
   }
 
   // GET /accounting/tax-invoice/hometax-export — HometaxExportPage
@@ -1890,11 +1953,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /arologis/unassigned — UnassignedPage
+  // 결함 #7: 필드명 정정 (totalSlips/unassignedSlips → totalOutbound/unassignedCount/entries)
   if (method === 'GET' && url.includes('/arologis/unassigned')) {
     return envelope({
       date: '2026-05-10',
-      totalSlips: 8,
-      unassignedSlips: MOCK_SLIPS.slice(0, 3).map((s) => ({
+      totalOutbound: 8,
+      unassignedCount: 3,
+      entries: MOCK_SLIPS.slice(0, 3).map((s) => ({
         slipId: s.id,
         slipNo: s.slipNo,
         partnerName: s.partnerName,
@@ -2013,6 +2078,75 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const domain = otherAuditLogsMatch[1]!
     const sample = MOCK_AUDIT_LOGS_BY_DOMAIN[domain] ?? []
     return envelope(sample)
+  }
+
+  // ==========================================================================
+  // 결함 #1: GET /slips/cleanup — SlipCleanupPage (Network Error 회피)
+  // shape: SlipCleanupResponse { from, to, totalSlips, byStatus[], byPartner[], entries[] }
+  // ==========================================================================
+  if (method === 'GET' && url.includes('/slips/cleanup')) {
+    return envelope({
+      from: '2026-04-01',
+      to: '2026-04-30',
+      totalSlips: 12,
+      byStatus: [
+        { status: 'COMPLETED', count: 7 },
+        { status: 'CANCELED', count: 3 },
+        { status: 'CONFIRMED', count: 2 },
+      ],
+      byPartner: [
+        { partnerCode: '1234567890', partnerBusinessName: '엘에이시스템에어', count: 5 },
+        { partnerCode: '2345678901', partnerBusinessName: '강남에어솔루션', count: 4 },
+        { partnerCode: '3456789012', partnerBusinessName: '한빛쾌적', count: 3 },
+      ],
+      entries: MOCK_SLIPS.slice(0, 5).map((s) => ({
+        slipNo: s.slipNo,
+        slipDate: s.slipDate,
+        partnerCode: 'P' + s.partnerId,
+        partnerBusinessName: s.partnerName,
+        status: s.status,
+        totalAmount: 3870000,
+      })),
+    })
+  }
+
+  // ==========================================================================
+  // 결함 #2: GET /slips/next-day-image-data?date=YYYY-MM-DD — NextDaySlipPage (빈 화면 회피)
+  // shape: NextDaySlipImageResponse { targetDate, totalSlips, regionGroups: [{ regionGroup, slipCount, slips }] }
+  // ==========================================================================
+  if (method === 'GET' && url.includes('/slips/next-day-image-data')) {
+    const targetDate = (config.params?.['date'] ?? '2026-05-11') as string
+    return envelope({
+      targetDate,
+      totalSlips: 7,
+      regionGroups: [
+        {
+          regionGroup: '서울권',
+          slipCount: 3,
+          slips: [
+            { slipNo: '2026/05/11-1', partnerBusinessName: '엘에이시스템에어', shippingAddress: '서울특별시 강남구 테헤란로 152', memo: '9시까지 배송요망' },
+            { slipNo: '2026/05/11-2', partnerBusinessName: '강남에어솔루션', shippingAddress: '서울특별시 서초구 강남대로 27', memo: null },
+            { slipNo: '2026/05/11-3', partnerBusinessName: '한빛쾌적', shippingAddress: '서울특별시 마포구 양화로 45', memo: '오후 배송 가능' },
+          ],
+        },
+        {
+          regionGroup: '경기남부',
+          slipCount: 2,
+          slips: [
+            { slipNo: '2026/05/11-4', partnerBusinessName: '미래시스템', shippingAddress: '경기도 성남시 분당구 판교로 235', memo: null },
+            { slipNo: '2026/05/11-5', partnerBusinessName: '대박종합건설', shippingAddress: '경기도 수원시 영통구 광교로 107', memo: '창고 직납' },
+          ],
+        },
+        {
+          regionGroup: '부산권',
+          slipCount: 2,
+          slips: [
+            { slipNo: '2026/05/11-6', partnerBusinessName: '한일냉동기술', shippingAddress: '부산광역시 해운대구 센텀중앙로 79', memo: null },
+            { slipNo: '2026/05/11-7', partnerBusinessName: '서초에어월드', shippingAddress: '부산광역시 사상구 낙동대로 241', memo: null },
+          ],
+        },
+      ],
+    })
   }
 
   // POST /api/v1/admin/partner-order/vendor/confirm — 확정 → orderNo 반환
@@ -2619,35 +2753,71 @@ const MOCK_REGIONS = [
 
 /**
  * 단톡방 매핑 (admin/ChatRoomsPage) — 4건.
+ * 결함 #3: ChatRoomMapping interface 일치로 shape 교체
+ * (기존 { roomName, regionGroupName, vehicleType, driverCount, active } 폐기)
+ * shape: { id, partnerCode, partnerBusinessName, chatRoomName, source, notionCreatedAt, createdAt }
  */
 const MOCK_CHAT_ROOMS = [
-  { id: 'cr-001', roomName: '서울 1톤', regionGroupName: '서울권', vehicleType: '1톤', driverCount: 4, active: true },
-  { id: 'cr-002', roomName: '서울 2.5톤', regionGroupName: '서울권', vehicleType: '2.5톤', driverCount: 2, active: true },
-  { id: 'cr-003', roomName: '경기 1톤', regionGroupName: '경기남부', vehicleType: '1톤', driverCount: 3, active: true },
-  { id: 'cr-004', roomName: '부산 1톤', regionGroupName: '부산권', vehicleType: '1톤', driverCount: 2, active: false },
+  {
+    id: 'cr-001',
+    partnerCode: '1234567890',
+    partnerBusinessName: '엘에이시스템에어',
+    chatRoomName: '서울 1톤 단톡방',
+    source: 'NOTION' as const,
+    notionCreatedAt: '2026-01-10T09:00:00+09:00',
+    createdAt: '2026-01-10T09:05:00+09:00',
+  },
+  {
+    id: 'cr-002',
+    partnerCode: '2345678901',
+    partnerBusinessName: '강남에어솔루션',
+    chatRoomName: '서울 2.5톤 단톡방',
+    source: 'NOTION' as const,
+    notionCreatedAt: '2026-01-15T10:00:00+09:00',
+    createdAt: '2026-01-15T10:05:00+09:00',
+  },
+  {
+    id: 'cr-003',
+    partnerCode: '3456789012',
+    partnerBusinessName: '한빛쾌적',
+    chatRoomName: '경기 1톤 단톡방',
+    source: 'MANUAL' as const,
+    notionCreatedAt: null,
+    createdAt: '2026-02-01T11:00:00+09:00',
+  },
+  {
+    id: 'cr-004',
+    partnerCode: '6789012345',
+    partnerBusinessName: '경기냉난방',
+    chatRoomName: '부산 1톤 단톡방',
+    source: 'NOTION' as const,
+    notionCreatedAt: '2026-03-05T08:30:00+09:00',
+    createdAt: '2026-03-05T08:35:00+09:00',
+  },
 ]
 
 /**
  * 발송금지 거래처 (admin/BlockedPartnersPage) — 2건.
+ * 결함 #4: BlockedPartner shape 정정
+ * { id, partnerCode, businessNameSnapshot, blockReason, blockedAt, source }
+ * (기존 partnerName / blockReasonDetail / blockedByName 폐기)
  */
 const MOCK_BLOCKED_PARTNERS = [
   {
     id: 'block-001',
     partnerCode: '6789012345',
-    partnerName: '경기냉난방',
+    businessNameSnapshot: '경기냉난방',
     blockReason: 'CUSTOMER_REQUEST' as const,
-    blockReasonDetail: '거래처 요청 — SMS 수신 거부',
-    blockedByName: '김미선',
     blockedAt: '2026-04-15T10:00:00+09:00',
+    source: 'MANUAL' as const,
   },
   {
     id: 'block-002',
     partnerCode: '4567890123',
-    partnerName: '미래시스템',
+    businessNameSnapshot: '미래시스템',
     blockReason: 'PAYMENT_OVERDUE' as const,
-    blockReasonDetail: '60일 미수 — 신용 한도 초과',
-    blockedByName: '이정훈',
     blockedAt: '2026-05-01T09:30:00+09:00',
+    source: 'MANUAL' as const,
   },
 ]
 
@@ -2706,7 +2876,9 @@ const MOCK_TAX_INVOICES = [
 ]
 
 /**
- * 재고 실사 (`/warehouse/audit`) — 3건 + DRAFT/SUBMITTED/POSTED 분포.
+ * 재고 실사 (`/warehouse/audit`) — 3건 + PLANNED/IN_PROGRESS/COMPLETED 분포.
+ * 결함 #6: status enum 정정 (DRAFT|SUBMITTED|POSTED → PLANNED|IN_PROGRESS|COMPLETED|CANCELLED)
+ * warehouseCode 필드 추가, items[] → lines[] (AuditLine shape)
  */
 const MOCK_INVENTORY_AUDITS = [
   {
@@ -2714,11 +2886,12 @@ const MOCK_INVENTORY_AUDITS = [
     auditNo: 'IA-2026/05-001',
     auditDate: '2026-05-08',
     warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
-    status: 'DRAFT' as const,
+    status: 'PLANNED' as const,
     auditorName: '홍지수',
     note: '5월 정기 실사 (1차)',
-    items: [
+    lines: [
       { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 12, actualQty: 12, adjustQty: 0 },
       { productId: 'p-aj052', modelName: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', expectedQty: 5, actualQty: 4, adjustQty: -1 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 45, actualQty: 47, adjustQty: 2 },
@@ -2729,11 +2902,12 @@ const MOCK_INVENTORY_AUDITS = [
     auditNo: 'IA-2026/05-002',
     auditDate: '2026-05-09',
     warehouseId: '11111111-1111-1111-1111-000000000002',
+    warehouseCode: 'VH-001',
     warehouseName: '1호차 차량재고',
-    status: 'SUBMITTED' as const,
+    status: 'IN_PROGRESS' as const,
     auditorName: '김기철',
-    note: '차량 재고 실사 — 결재 대기',
-    items: [
+    note: '차량 재고 실사 — 진행 중',
+    lines: [
       { productId: 'p-aj040', modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', expectedQty: 3, actualQty: 3, adjustQty: 0 },
       { productId: 'p-mwr10', modelName: 'MWR-WE10N', productName: '유선 리모컨', expectedQty: 10, actualQty: 9, adjustQty: -1 },
     ],
@@ -2743,11 +2917,12 @@ const MOCK_INVENTORY_AUDITS = [
     auditNo: 'IA-2026/04-099',
     auditDate: '2026-04-30',
     warehouseId: '11111111-1111-1111-1111-000000000001',
+    warehouseCode: 'HQ-001',
     warehouseName: '본사창고',
-    status: 'POSTED' as const,
+    status: 'COMPLETED' as const,
     auditorName: '홍지수',
-    note: '4월 마감 실사 — 분개 전기 완료',
-    items: [
+    note: '4월 마감 실사 — 완료',
+    lines: [
       { productId: 'p-aj036', modelName: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', expectedQty: 8, actualQty: 8, adjustQty: 0 },
     ],
   },
