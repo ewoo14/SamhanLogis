@@ -25,12 +25,18 @@
  *
  * 풀네임 ROLE: MASTER / MANAGER (BE @PreAuthorize 1:1).
  *
- * data-testid:
- * - auto-dispatch-date-input         — 일자 input
- * - auto-dispatch-list-table         — 배차 list 표
- * - auto-dispatch-row-{dispatchId}   — 배차 행
- * - auto-dispatch-run-btn-{dispatchId} — 자동 매칭 실행 버튼
- * - auto-dispatch-result-banner      — 자동 매칭 결과 banner
+ * data-testid (DISPATCH-DESIGN.md §3.5 — arologis-auto-* prefix):
+ * - arologis-auto-date              — 일자 input
+ * - arologis-auto-run-btn           — 자동 매칭 실행 버튼 (행별)
+ * - arologis-auto-status-filter     — 상태 필터 select
+ * - arologis-auto-result-table      — 결과 표 wrapper
+ * - arologis-auto-row-{slipNo}      — 결과 행 (slipNo 기반)
+ * - arologis-auto-chip-matched      — Summary Chip 자동 매칭됨
+ * - arologis-auto-chip-failed       — Summary Chip 매칭실패
+ * - arologis-auto-chip-pending      — Summary Chip 대기중
+ * - arologis-auto-csv-btn           — CSV 다운로드 버튼
+ * - arologis-auto-refresh-btn       — 새로고침 버튼
+ * - arologis-auto-realtime-indicator — 실시간 갱신 안내
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -42,8 +48,48 @@ import {
   DISPATCH_TYPE_LABEL,
   type AutoMatchResult,
   type DispatchSummary,
+  type DispatchStatus,
 } from '../api/arologisAdminDispatchApi'
 import { getUnassigned } from '../api/arologisDispatchApi'
+
+// ---------------------------------------------------------------------------
+// DispatchStatus Badge 헬퍼 (DISPATCH-DESIGN.md §2.1)
+// ---------------------------------------------------------------------------
+
+const DISPATCH_STATUS_LABEL: Record<DispatchStatus, string> = {
+  PENDING: '대기중',
+  AUTO_MATCHED: '자동 매칭됨',
+  MANUALLY_ASSIGNED: '수동 배정됨',
+  DRIVER_ASSIGNED: '기사 배정됨',
+  IN_TRANSIT: '운송중',
+  DELIVERED: '배달완료',
+  CANCELLED: '취소됨',
+  FAILED: '매칭실패',
+}
+
+type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger'
+
+function dispatchStatusVariant(status: DispatchStatus): BadgeVariant {
+  switch (status) {
+    case 'PENDING':           return 'neutral'
+    case 'AUTO_MATCHED':      return 'brand'    // design-system 에 info 없음 → brand 대체
+    case 'MANUALLY_ASSIGNED': return 'success'
+    case 'DRIVER_ASSIGNED':   return 'success'
+    case 'IN_TRANSIT':        return 'warning'
+    case 'DELIVERED':         return 'success'
+    case 'CANCELLED':         return 'danger'
+    case 'FAILED':            return 'danger'
+    default:                  return 'neutral'
+  }
+}
+
+function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
+  return (
+    <Badge variant={dispatchStatusVariant(status)}>
+      {DISPATCH_STATUS_LABEL[status]}
+    </Badge>
+  )
+}
 
 /** 오늘 날짜 YYYY-MM-DD. */
 function todayIso(): string {
@@ -117,7 +163,7 @@ export function KakaoAutoDispatchPage() {
           배차 일자
           <input
             type="date"
-            data-testid="auto-dispatch-date-input"
+            data-testid="arologis-auto-date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             style={inputStyle}
@@ -148,7 +194,7 @@ export function KakaoAutoDispatchPage() {
       {/* 자동 매칭 결과 banner */}
       {latestResult ? (
         <div
-          data-testid="auto-dispatch-result-banner"
+          data-testid="arologis-auto-result-banner"
           style={{
             padding: '10px 14px',
             border: '1px solid var(--color-success-300, #86efac)',
@@ -194,11 +240,11 @@ export function KakaoAutoDispatchPage() {
 
       {/* 배차 list 표 */}
       <div
-        data-testid="auto-dispatch-list-table"
+        data-testid="arologis-auto-result-table"
         style={{
           border: '1px solid var(--color-neutral-200, #E5E7EB)',
           borderRadius: 6,
-          background: '#fff',
+          background: 'var(--surface-card)',
           overflow: 'auto',
         }}
       >
@@ -207,6 +253,7 @@ export function KakaoAutoDispatchPage() {
             <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
               <th style={thStyle}>배차 일자</th>
               <th style={thStyle}>유형</th>
+              <th style={thStyle}>배차 상태</th>
               <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>차량 수</th>
               <th style={thStyle}>등록 일시</th>
               <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>액션</th>
@@ -215,13 +262,13 @@ export function KakaoAutoDispatchPage() {
           <tbody>
             {dispatchListQuery.isLoading ? (
               <tr>
-                <td colSpan={5} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   배차 목록을 불러오는 중…
                 </td>
               </tr>
             ) : dispatches.length === 0 ? (
               <tr>
-                <td colSpan={5} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   해당 일자의 배차가 없습니다.
                 </td>
               </tr>
@@ -232,7 +279,7 @@ export function KakaoAutoDispatchPage() {
                 return (
                   <tr
                     key={dispatch.dispatchId}
-                    data-testid={`auto-dispatch-row-${dispatch.dispatchId}`}
+                    data-testid={`arologis-auto-row-${dispatch.dispatchId}`}
                     style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                   >
                     <td style={tdStyle}>{dispatch.dispatchDate}</td>
@@ -240,6 +287,9 @@ export function KakaoAutoDispatchPage() {
                       <Badge variant={dispatch.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
                         {DISPATCH_TYPE_LABEL[dispatch.dispatchType]}
                       </Badge>
+                    </td>
+                    <td style={tdStyle}>
+                      <DispatchStatusBadge status={dispatch.dispatchStatus} />
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                       {dispatch.vehicleCount}
@@ -251,7 +301,7 @@ export function KakaoAutoDispatchPage() {
                       <Button
                         variant="primary"
                         size="sm"
-                        data-testid={`auto-dispatch-run-btn-${dispatch.dispatchId}`}
+                        data-testid={`arologis-auto-run-btn`}
                         onClick={() => handleRun(dispatch.dispatchId)}
                         loading={running}
                         disabled={running}

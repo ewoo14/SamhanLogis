@@ -58,6 +58,46 @@ export const ARO_ADMIN_DISPATCH_ROLES = ['MASTER', 'MANAGER'] as const
 /** 배차 유형 — BE DispatchType enum 1:1. */
 export type DispatchType = 'DAY' | 'NIGHT' | 'EXPRESS'
 
+// ---------------------------------------------------------------------------
+// DispatchStatus — DISPATCH-DESIGN.md §2.1 / BE DispatchStatus enum 1:1
+// ---------------------------------------------------------------------------
+
+/**
+ * 배차 상태 코드 — DISPATCH-DESIGN.md §2.1 8종.
+ *
+ * PENDING           대기중
+ * AUTO_MATCHED      자동 매칭됨
+ * MANUALLY_ASSIGNED 수동 배정됨
+ * DRIVER_ASSIGNED   기사 배정됨
+ * IN_TRANSIT        운송중
+ * DELIVERED         배달완료
+ * CANCELLED         취소됨
+ * FAILED            매칭실패
+ */
+export type DispatchStatus =
+  | 'PENDING'
+  | 'AUTO_MATCHED'
+  | 'MANUALLY_ASSIGNED'
+  | 'DRIVER_ASSIGNED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'FAILED'
+
+// ---------------------------------------------------------------------------
+// DriverAvailabilityStatus — DISPATCH-DESIGN.md §2.2 / BE enum 1:1
+// ---------------------------------------------------------------------------
+
+/**
+ * 기사 가용 상태 코드 — DISPATCH-DESIGN.md §2.2.
+ *
+ * AVAILABLE  가용
+ * ON_ROUTE   운행중
+ * OFF_DUTY   비가용
+ * BREAK      휴식중
+ */
+export type DriverAvailabilityStatus = 'AVAILABLE' | 'ON_ROUTE' | 'OFF_DUTY' | 'BREAK'
+
 /** DispatchType → 한국어 라벨. */
 export const DISPATCH_TYPE_LABEL: Record<DispatchType, string> = {
   DAY: '주간',
@@ -72,16 +112,18 @@ export const DISPATCH_TYPE_LABEL: Record<DispatchType, string> = {
 /**
  * 배차 요약 1건 — BE `DispatchPageResponse.DispatchSummary` record 1:1.
  *
- * @property dispatchId   admin routing 전용 UUID string (사용자 라벨에는 직접 노출 X)
- * @property dispatchDate 배차 일자 (ISO YYYY-MM-DD)
- * @property dispatchType 배차 유형
- * @property vehicleCount 배차 내 차량 수
- * @property createdAt    생성 일시 (ISO LocalDateTime)
+ * @property dispatchId     admin routing 전용 UUID string (사용자 라벨에는 직접 노출 X)
+ * @property dispatchDate   배차 일자 (ISO YYYY-MM-DD)
+ * @property dispatchType   배차 유형
+ * @property dispatchStatus 배차 상태 (DISPATCH-DESIGN.md §2.1)
+ * @property vehicleCount   배차 내 차량 수
+ * @property createdAt      생성 일시 (ISO LocalDateTime)
  */
 export interface DispatchSummary {
   dispatchId: string
   dispatchDate: string
   dispatchType: DispatchType
+  dispatchStatus: DispatchStatus
   vehicleCount: number
   createdAt: string
 }
@@ -239,11 +281,12 @@ export const DRIVER_SOURCE_LABEL: Record<DriverSource, string> = {
 /**
  * 가용 기사 1건 — BE `AvailableDriverResponse.AvailableDriver` record 1:1.
  *
- * @property driverCode   사용자 노출 식별자 (UUID 비공개 가드)
- * @property phoneNumber  전화번호 (010-0000-0000 형식)
- * @property vehicleType  차량 종류 (예: "1톤" / "2.5톤" / "5톤")
- * @property source       기사 소스 (INTERNAL / INSUNG / EXTERNAL)
- * @property appInstalled 본 어플 설치 여부 (null 가능 — BE Boolean wrapper)
+ * @property driverCode          사용자 노출 식별자 (UUID 비공개 가드)
+ * @property phoneNumber         전화번호 (010-0000-0000 형식)
+ * @property vehicleType         차량 종류 (예: "1톤" / "2.5톤" / "5톤")
+ * @property source              기사 소스 (INTERNAL / INSUNG / EXTERNAL)
+ * @property appInstalled        본 어플 설치 여부 (null 가능 — BE Boolean wrapper)
+ * @property availabilityStatus  기사 가용 상태 (DISPATCH-DESIGN.md §2.2)
  */
 export interface AvailableDriver {
   driverCode: string
@@ -251,6 +294,7 @@ export interface AvailableDriver {
   vehicleType: string | null
   source: DriverSource
   appInstalled: boolean | null
+  availabilityStatus: DriverAvailabilityStatus
 }
 
 /**

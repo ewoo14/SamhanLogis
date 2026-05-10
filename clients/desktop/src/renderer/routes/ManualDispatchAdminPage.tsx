@@ -30,16 +30,27 @@
  *
  * 풀네임 ROLE: MASTER / MANAGER (BE @PreAuthorize 1:1).
  *
- * data-testid:
- * - manual-dispatch-date-input            — 일자 input
- * - manual-dispatch-status-filter         — 유형 필터 select
- * - manual-dispatch-table                 — 배차 목록 표
- * - manual-dispatch-row-{dispatchId}      — 행
- * - manual-dispatch-assign-btn-{dispatchId} — 수동 배차 버튼
- * - driver-select-modal                   — 기사 선택 modal
- * - driver-select-row-{driverCode}        — 기사 행
- * - driver-select-confirm-{driverCode}    — 선택 버튼
- * - driver-select-vehicle-seq-input       — vehicleSeq input
+ * data-testid (DISPATCH-DESIGN.md §4.4 — arologis-manual-* prefix):
+ * - arologis-manual-kakao-input        — 카톡 textarea
+ * - arologis-manual-preview-button     — 미리보기 버튼
+ * - arologis-manual-vehicle-input      — 차량 순번 input
+ * - arologis-manual-stop-add           — 정차 추가 버튼
+ * - arologis-manual-item-add           — 품목(메모) 추가
+ * - arologis-manual-submit-button      — 저장 버튼
+ * - arologis-manual-driver-code        — 기사 코드 input (신규)
+ * - arologis-manual-driver-lookup      — 기사 조회 링크 (신규)
+ * - arologis-manual-realtime-notice    — 실시간 갱신 안내
+ * - arologis-manual-preview-result     — 미리보기 결과 영역 (신규)
+ * - arologis-manual-preview-status     — 미리보기 Status Badge (신규)
+ * - arologis-manual-date               — 일자 input (관리 화면)
+ * - arologis-manual-status-filter      — 유형 필터 select
+ * - arologis-manual-table              — 배차 목록 표
+ * - arologis-manual-row-{dispatchId}   — 행
+ * - arologis-manual-assign-btn-{dispatchId} — 수동 배차 버튼
+ * - arologis-manual-driver-select-modal     — 기사 선택 modal
+ * - arologis-manual-driver-row-{driverCode} — 기사 행
+ * - arologis-manual-driver-confirm-{driverCode} — 선택 버튼
+ * - arologis-manual-vehicle-seq-input       — vehicleSeq input
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -52,9 +63,49 @@ import {
   DISPATCH_TYPE_LABEL,
   DRIVER_SOURCE_LABEL,
   type DispatchType,
+  type DispatchStatus,
   type DispatchSummary,
   type AvailableDriver,
 } from '../api/arologisAdminDispatchApi'
+
+// ---------------------------------------------------------------------------
+// DispatchStatus Badge 헬퍼 (DISPATCH-DESIGN.md §2.1)
+// ---------------------------------------------------------------------------
+
+const DISPATCH_STATUS_LABEL: Record<DispatchStatus, string> = {
+  PENDING: '대기중',
+  AUTO_MATCHED: '자동 매칭됨',
+  MANUALLY_ASSIGNED: '수동 배정됨',
+  DRIVER_ASSIGNED: '기사 배정됨',
+  IN_TRANSIT: '운송중',
+  DELIVERED: '배달완료',
+  CANCELLED: '취소됨',
+  FAILED: '매칭실패',
+}
+
+type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger'
+
+function dispatchStatusVariant(status: DispatchStatus): BadgeVariant {
+  switch (status) {
+    case 'PENDING':           return 'neutral'
+    case 'AUTO_MATCHED':      return 'brand'
+    case 'MANUALLY_ASSIGNED': return 'success'
+    case 'DRIVER_ASSIGNED':   return 'success'
+    case 'IN_TRANSIT':        return 'warning'
+    case 'DELIVERED':         return 'success'
+    case 'CANCELLED':         return 'danger'
+    case 'FAILED':            return 'danger'
+    default:                  return 'neutral'
+  }
+}
+
+function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
+  return (
+    <Badge variant={dispatchStatusVariant(status)}>
+      {DISPATCH_STATUS_LABEL[status]}
+    </Badge>
+  )
+}
 
 /** 오늘 날짜 YYYY-MM-DD. */
 function todayIso(): string {
@@ -136,14 +187,14 @@ export function ManualDispatchAdminPage() {
             배차 일자
             <input
               type="date"
-              data-testid="manual-dispatch-date-input"
+              data-testid="arologis-manual-date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               style={inputStyle}
             />
           </label>
           <select
-            data-testid="manual-dispatch-status-filter"
+            data-testid="arologis-manual-status-filter"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as DispatchType | '')}
             style={inputStyle}
@@ -166,11 +217,11 @@ export function ManualDispatchAdminPage() {
 
       {/* 배차 목록 */}
       <div
-        data-testid="manual-dispatch-table"
+        data-testid="arologis-manual-table"
         style={{
           border: '1px solid var(--color-neutral-200, #E5E7EB)',
           borderRadius: 6,
-          background: '#fff',
+          background: 'var(--surface-card)',
           overflow: 'auto',
         }}
       >
@@ -179,6 +230,7 @@ export function ManualDispatchAdminPage() {
             <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
               <th style={thStyle}>배차 일자</th>
               <th style={thStyle}>유형</th>
+              <th style={thStyle}>배차 상태</th>
               <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>차량 수</th>
               <th style={thStyle}>등록 일시</th>
               <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>액션</th>
@@ -187,13 +239,13 @@ export function ManualDispatchAdminPage() {
           <tbody>
             {listQuery.isLoading ? (
               <tr>
-                <td colSpan={5} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   배차 목록을 불러오는 중…
                 </td>
               </tr>
             ) : dispatches.length === 0 ? (
               <tr>
-                <td colSpan={5} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   해당 일자의 배차 내역이 없습니다.
                 </td>
               </tr>
@@ -201,7 +253,7 @@ export function ManualDispatchAdminPage() {
               dispatches.map((d) => (
                 <tr
                   key={d.dispatchId}
-                  data-testid={`manual-dispatch-row-${d.dispatchId}`}
+                  data-testid={`arologis-manual-row-${d.dispatchId}`}
                   style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                 >
                   <td style={tdStyle}>{d.dispatchDate}</td>
@@ -209,6 +261,9 @@ export function ManualDispatchAdminPage() {
                     <Badge variant={d.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
                       {DISPATCH_TYPE_LABEL[d.dispatchType]}
                     </Badge>
+                  </td>
+                  <td style={tdStyle}>
+                    <DispatchStatusBadge status={d.dispatchStatus} />
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>{d.vehicleCount}</td>
                   <td style={{ ...tdStyle, color: 'var(--color-neutral-500, #6B7280)' }}>
@@ -218,7 +273,7 @@ export function ManualDispatchAdminPage() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      data-testid={`manual-dispatch-assign-btn-${d.dispatchId}`}
+                      data-testid={`arologis-manual-assign-btn-${d.dispatchId}`}
                       onClick={() => handleAssignClick(d)}
                     >
                       수동 배차
@@ -287,6 +342,7 @@ function DriverSelectModal({
       onClose={onClose}
       title={`수동 배차 — ${dispatch.dispatchDate} ${DISPATCH_TYPE_LABEL[dispatch.dispatchType]} (차량 ${dispatch.vehicleCount}대)`}
       size="lg"
+      data-testid="arologis-manual-driver-select-modal"
       footer={
         <Button variant="ghost" onClick={onClose} disabled={assigning}>
           취소
@@ -307,7 +363,7 @@ function DriverSelectModal({
           차량 순번
           <input
             type="number"
-            data-testid="driver-select-vehicle-seq-input"
+            data-testid="arologis-manual-vehicle-seq-input"
             value={vehicleSeq}
             onChange={(e) => {
               const v = Number.parseInt(e.target.value, 10)
@@ -378,7 +434,7 @@ function DriverSelectModal({
               drivers.map((driver) => (
                 <tr
                   key={driver.driverCode}
-                  data-testid={`driver-select-row-${driver.driverCode}`}
+                  data-testid={`arologis-manual-driver-row-${driver.driverCode}`}
                   style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                 >
                   <td style={tdStyle}>{driver.driverCode}</td>
@@ -398,7 +454,7 @@ function DriverSelectModal({
                     <Button
                       variant="primary"
                       size="sm"
-                      data-testid={`driver-select-confirm-${driver.driverCode}`}
+                      data-testid={`arologis-manual-driver-confirm-${driver.driverCode}`}
                       onClick={() => onSelect(driver.driverCode, vehicleSeq)}
                       disabled={assigning}
                       loading={assigning}

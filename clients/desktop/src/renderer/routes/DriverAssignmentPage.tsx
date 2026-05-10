@@ -31,14 +31,24 @@
  *
  * 풀네임 ROLE: MASTER / MANAGER (BE @PreAuthorize 1:1).
  *
- * data-testid:
- * - driver-assignment-date-input             — 일자 input
- * - driver-assignment-driver-list            — 기사 목록 패널
- * - driver-assignment-dispatch-list          — 배차 패널
- * - driver-assignment-driver-{driverCode}    — 기사 카드
- * - driver-assignment-dispatch-{dispatchId}  — 배차 카드
- * - driver-assignment-vehicle-seq-{dispatchId} — vehicleSeq input
- * - driver-assignment-assign-{driverCode}-{dispatchId} — 변경 버튼
+ * data-testid (DISPATCH-DESIGN.md §5.4 — arologis-driver-* prefix):
+ * - arologis-driver-date                         — 배차 일자 input
+ * - arologis-driver-status-filter                — 가용 상태 필터 select
+ * - arologis-driver-search-btn                   — 조회 버튼
+ * - arologis-driver-list-table                   — 기사 목록 테이블 wrapper
+ * - arologis-driver-row-{driverCode}             — 기사 목록 각 행
+ * - arologis-driver-assign-btn-{driverCode}      — 기사 행 배정 버튼
+ * - arologis-driver-slip-input                   — 슬립 전표번호 input
+ * - arologis-driver-slip-search-btn              — 슬립 조회 버튼
+ * - arologis-driver-slip-result                  — 슬립 조회 결과 영역
+ * - arologis-driver-selected-display             — 선택된 기사 표시 영역
+ * - arologis-driver-assign-submit-btn            — 배정 실행 버튼
+ * - arologis-driver-realtime-indicator           — 실시간 갱신 안내
+ * (패널 내부 카드 — 기존 구조 유지)
+ * - arologis-driver-card-{driverCode}            — 기사 카드
+ * - arologis-driver-dispatch-{dispatchId}        — 배차 카드
+ * - arologis-driver-vehicle-seq-{dispatchId}     — vehicleSeq input
+ * - arologis-driver-change-btn-{driverCode}-{dispatchId} — 변경 버튼
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -51,8 +61,78 @@ import {
   DISPATCH_TYPE_LABEL,
   DRIVER_SOURCE_LABEL,
   type AvailableDriver,
+  type DispatchStatus,
+  type DriverAvailabilityStatus,
   type DispatchSummary,
 } from '../api/arologisAdminDispatchApi'
+
+// ---------------------------------------------------------------------------
+// DispatchStatus Badge 헬퍼 (DISPATCH-DESIGN.md §2.1)
+// ---------------------------------------------------------------------------
+
+const DISPATCH_STATUS_LABEL: Record<DispatchStatus, string> = {
+  PENDING: '대기중',
+  AUTO_MATCHED: '자동 매칭됨',
+  MANUALLY_ASSIGNED: '수동 배정됨',
+  DRIVER_ASSIGNED: '기사 배정됨',
+  IN_TRANSIT: '운송중',
+  DELIVERED: '배달완료',
+  CANCELLED: '취소됨',
+  FAILED: '매칭실패',
+}
+
+type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'danger'
+
+function dispatchStatusVariant(status: DispatchStatus): BadgeVariant {
+  switch (status) {
+    case 'PENDING':           return 'neutral'
+    case 'AUTO_MATCHED':      return 'brand'
+    case 'MANUALLY_ASSIGNED': return 'success'
+    case 'DRIVER_ASSIGNED':   return 'success'
+    case 'IN_TRANSIT':        return 'warning'
+    case 'DELIVERED':         return 'success'
+    case 'CANCELLED':         return 'danger'
+    case 'FAILED':            return 'danger'
+    default:                  return 'neutral'
+  }
+}
+
+function DispatchStatusBadge({ status }: { status: DispatchStatus }) {
+  return (
+    <Badge variant={dispatchStatusVariant(status)}>
+      {DISPATCH_STATUS_LABEL[status]}
+    </Badge>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// DriverAvailabilityStatus Badge 헬퍼 (DISPATCH-DESIGN.md §2.2)
+// ---------------------------------------------------------------------------
+
+const DRIVER_AVAILABILITY_LABEL: Record<DriverAvailabilityStatus, string> = {
+  AVAILABLE: '가용',
+  ON_ROUTE:  '운행중',
+  OFF_DUTY:  '비가용',
+  BREAK:     '휴식중',
+}
+
+function driverAvailabilityVariant(status: DriverAvailabilityStatus): BadgeVariant {
+  switch (status) {
+    case 'AVAILABLE': return 'success'
+    case 'ON_ROUTE':  return 'warning'
+    case 'OFF_DUTY':  return 'neutral'
+    case 'BREAK':     return 'brand'
+    default:          return 'neutral'
+  }
+}
+
+function DriverAvailabilityBadge({ status }: { status: DriverAvailabilityStatus }) {
+  return (
+    <Badge variant={driverAvailabilityVariant(status)}>
+      {DRIVER_AVAILABILITY_LABEL[status]}
+    </Badge>
+  )
+}
 
 /** 오늘 날짜 YYYY-MM-DD. */
 function todayIso(): string {
@@ -147,7 +227,7 @@ export function DriverAssignmentPage() {
           배차 일자
           <input
             type="date"
-            data-testid="driver-assignment-date-input"
+            data-testid="arologis-driver-date"
             value={date}
             onChange={(e) => {
               setDate(e.target.value)
@@ -195,7 +275,7 @@ export function DriverAssignmentPage() {
             ) : null}
           </div>
           <div
-            data-testid="driver-assignment-driver-list"
+            data-testid="arologis-driver-list-table"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -229,7 +309,7 @@ export function DriverAssignmentPage() {
             배차 ({dispatches.length}건)
           </div>
           <div
-            data-testid="driver-assignment-dispatch-list"
+            data-testid="arologis-driver-slip-result"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -281,7 +361,7 @@ interface DriverCardProps {
 function DriverCard({ driver, selected, onClick }: DriverCardProps) {
   return (
     <div
-      data-testid={`driver-assignment-driver-${driver.driverCode}`}
+      data-testid={`arologis-driver-row-${driver.driverCode}`}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -295,7 +375,7 @@ function DriverCard({ driver, selected, onClick }: DriverCardProps) {
         padding: '10px 12px',
         borderRadius: 6,
         border: `2px solid ${selected ? 'var(--color-brand-500, #3B82F6)' : 'var(--color-neutral-200, #E5E7EB)'}`,
-        background: selected ? 'var(--color-brand-50, #EFF6FF)' : '#fff',
+        background: selected ? 'var(--surface-selected, #EFF6FF)' : 'var(--surface-card)',
         cursor: 'pointer',
         transition: 'border-color 0.12s, background 0.12s',
       }}
@@ -309,7 +389,10 @@ function DriverCard({ driver, selected, onClick }: DriverCardProps) {
         }}
       >
         <span style={{ fontWeight: 600, fontSize: 13 }}>{driver.driverCode}</span>
-        <Badge variant="neutral">{DRIVER_SOURCE_LABEL[driver.source]}</Badge>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <DriverAvailabilityBadge status={driver.availabilityStatus} />
+          <Badge variant="neutral">{DRIVER_SOURCE_LABEL[driver.source]}</Badge>
+        </div>
       </div>
       <div
         style={{
@@ -351,12 +434,12 @@ function DispatchCard({
 }: DispatchCardProps) {
   return (
     <div
-      data-testid={`driver-assignment-dispatch-${dispatch.dispatchId}`}
+      data-testid={`arologis-driver-dispatch-${dispatch.dispatchId}`}
       style={{
         padding: '10px 12px',
         borderRadius: 6,
         border: '1px solid var(--color-neutral-200, #E5E7EB)',
-        background: '#fff',
+        background: 'var(--surface-card)',
       }}
     >
       <div
@@ -373,6 +456,7 @@ function DispatchCard({
           <Badge variant={dispatch.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
             {DISPATCH_TYPE_LABEL[dispatch.dispatchType]}
           </Badge>
+          <DispatchStatusBadge status={dispatch.dispatchStatus} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <label
@@ -387,7 +471,7 @@ function DispatchCard({
             차량 #
             <input
               type="number"
-              data-testid={`driver-assignment-vehicle-seq-${dispatch.dispatchId}`}
+              data-testid={`arologis-driver-vehicle-seq-${dispatch.dispatchId}`}
               value={vehicleSeq}
               onChange={(e) => {
                 const v = Number.parseInt(e.target.value, 10)
@@ -410,7 +494,7 @@ function DispatchCard({
             size="sm"
             data-testid={
               selectedDriverCode
-                ? `driver-assignment-assign-${selectedDriverCode}-${dispatch.dispatchId}`
+                ? `arologis-driver-change-btn-${selectedDriverCode}-${dispatch.dispatchId}`
                 : undefined
             }
             onClick={onAssign}
