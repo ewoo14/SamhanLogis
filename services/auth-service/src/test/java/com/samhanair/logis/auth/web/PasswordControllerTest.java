@@ -63,7 +63,7 @@ class PasswordControllerTest {
         String body = new String(response.getContentAsByteArray(), StandardCharsets.UTF_8);
         assertThat(body).contains(
                 "\"minLength\":8",
-                "\"maxLength\":100",
+                "\"maxLength\":32",
                 "\"requireLetter\":true",
                 "\"requireDigit\":true",
                 "\"requireSpecial\":true",
