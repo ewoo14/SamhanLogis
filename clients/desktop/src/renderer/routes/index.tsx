@@ -145,6 +145,8 @@ import { CHAT_ROOM_ADMIN_ROLES } from '../api/chatRoomApi'
 import { InventoryAuditListPage } from './InventoryAuditListPage'
 import { InventoryAuditFormPage } from './InventoryAuditFormPage'
 import { InventoryAuditDetailPage } from './InventoryAuditDetailPage'
+// [P0-9] 입고 검수 목록 (WAREHOUSE/MANAGER/MASTER)
+import { InboundInspectionListPage } from './InboundInspectionListPage'
 // [PR-E1 FE-5] 전표 정리 리스트 (legacy GAS 13번 자동 조회 이식) — SALES/MANAGER/MASTER + ACCOUNTANT
 import { SlipCleanupPage } from './SlipCleanupPage'
 import { SLIP_CLEANUP_ROLES } from '../api/slipCleanupApi'
@@ -228,6 +230,9 @@ const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
 /** 재고 실사 권한 — WAREHOUSE / MASTER (사용자 요구). */
 const AUDIT_ROLES = ['WAREHOUSE', 'MASTER'] as const
+
+/** P0-9 입고 검수 권한 — WAREHOUSE / MANAGER / MASTER (재고 적용 권한과 일치). */
+const INBOUND_INSPECTION_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
 
 /**
  * P0-6 거래처 4탭 등록/편집 권한 — SALES / MANAGER / MASTER.
@@ -794,6 +799,17 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={SLIP_EDIT_REQUEST_REVIEWER_ROLES}>
             <SlipEditRequestsPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P0-9] 입고 검수 목록 — WAREHOUSE / MANAGER / MASTER.
+      // 매뉴얼 docs/manual/02-창고/01-입고-처리.md 검수 UI ✅.
+      {
+        path: '/warehouse/inbound-inspections',
+        element: (
+          <RoleGuard allow={INBOUND_INSPECTION_ROLES}>
+            <InboundInspectionListPage />
           </RoleGuard>
         ),
       },

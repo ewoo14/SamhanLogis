@@ -1,0 +1,580 @@
+/**
+ * 입고 검수 Dialog — InboundInspectionListPage / SlipListPage(INBOUND) 에서 호출.
+ *
+ * 기능:
+ * - 슬립 헤더 표시 (slipNo / 거래처 / 입고일 / 검수자 / 상태)
+ * - 라인 표 (modelCode / expectedQty / inspectedQty input / defectQty input / defectReason input)
+ * - 자동 합계 (정상 수량 = inspectedQty − defectQty)
+ * - "검수 저장" 버튼 → `POST /inspect` DRAFT 저장
+ * - "검수 완료" 버튼 → `POST /complete` 재고 적용
+ *
+ * UUID 비공개 가드: `slipId` 는 API 호출에만 사용. 화면 표시 X.
+ *
+ * data-testid:
+ * - inbound-inspection-dialog
+ * - inspection-line-table
+ * - inspection-save-btn
+ * - inspection-complete-btn
+ */
+import { useEffect, useReducer, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Badge,
+  Button,
+  Modal,
+  Spinner,
+} from '@samhan/design-system'
+import {
+  getInboundInspection,
+  inspectInbound,
+  completeInboundInspection,
+  INSPECTION_STATUS_LABEL,
+  type InboundInspectionLine,
+  type InboundInspectionStatus,
+} from '../../api/inboundInspectionApi'
+
+// ---------------------------------------------------------------------------
+// 상태 타입
+// ---------------------------------------------------------------------------
+
+interface LineState {
+  lineId: string
+  productId: string
+  modelCode: string
+  productName: string | null
+  expectedQty: number
+  inspectedQty: number
+  defectQty: number
+  defectReason: string
+}
+
+type LineAction =
+  | { type: 'SET_INSPECTED'; lineId: string; value: number }
+  | { type: 'SET_DEFECT'; lineId: string; value: number }
+  | { type: 'SET_REASON'; lineId: string; value: string }
+  | { type: 'RESET'; lines: InboundInspectionLine[] }
+
+function lineReducer(state: LineState[], action: LineAction): LineState[] {
+  switch (action.type) {
+    case 'RESET':
+      return action.lines.map((l) => ({
+        lineId: l.lineId,
+        productId: l.productId,
+        modelCode: l.modelCode,
+        productName: l.productName,
+        expectedQty: l.expectedQty,
+        inspectedQty: l.inspectedQty,
+        defectQty: l.defectQty,
+        defectReason: l.defectReason ?? '',
+      }))
+    case 'SET_INSPECTED':
+      return state.map((l) =>
+        l.lineId === action.lineId ? { ...l, inspectedQty: action.value } : l,
+      )
+    case 'SET_DEFECT':
+      return state.map((l) =>
+        l.lineId === action.lineId ? { ...l, defectQty: action.value } : l,
+      )
+    case 'SET_REASON':
+      return state.map((l) =>
+        l.lineId === action.lineId ? { ...l, defectReason: action.value } : l,
+      )
+    default:
+      return state
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 상태 뱃지 variant
+// ---------------------------------------------------------------------------
+
+const STATUS_VARIANT: Record<
+  InboundInspectionStatus,
+  'neutral' | 'warning' | 'success'
+> = {
+  PENDING: 'neutral',
+  DRAFT: 'warning',
+  COMPLETED: 'success',
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface InboundInspectionDialogProps {
+  /** 검수할 슬립 UUID (path param 전용, 화면 미노출). */
+  slipId: string
+  open: boolean
+  onClose: () => void
+  /** 검수 완료 후 목록 갱신 콜백. */
+  onSuccess?: () => void
+}
+
+// ---------------------------------------------------------------------------
+// 컴포넌트
+// ---------------------------------------------------------------------------
+
+export function InboundInspectionDialog({
+  slipId,
+  open,
+  onClose,
+  onSuccess,
+}: InboundInspectionDialogProps) {
+  const qc = useQueryClient()
+  const [lines, dispatch] = useReducer(lineReducer, [])
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  // 검수 상세 조회
+  const detailQuery = useQuery({
+    queryKey: ['inbound-inspection', slipId],
+    queryFn: () => getInboundInspection(slipId),
+    enabled: open && !!slipId,
+  })
+
+  // 라인 로드 시 reducer 초기화
+  useEffect(() => {
+    if (detailQuery.data) {
+      dispatch({ type: 'RESET', lines: detailQuery.data.lines })
+    }
+  }, [detailQuery.data])
+
+  // 오픈 시 메시지 초기화
+  useEffect(() => {
+    if (open) {
+      setErrorMsg(null)
+      setSuccessMsg(null)
+    }
+  }, [open])
+
+  // 검수 저장 mutation (DRAFT)
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      inspectInbound(slipId, {
+        lines: lines.map((l) => ({
+          lineId: l.lineId,
+          inspectedQty: l.inspectedQty,
+          defectQty: l.defectQty,
+          defectReason: l.defectReason || null,
+        })),
+      }),
+    onSuccess: () => {
+      setErrorMsg(null)
+      setSuccessMsg('검수 내용이 임시 저장되었습니다.')
+      void qc.invalidateQueries({ queryKey: ['inbound-inspection', slipId] })
+      void qc.invalidateQueries({ queryKey: ['inbound-inspections'] })
+    },
+    onError: () => {
+      setErrorMsg('검수 저장에 실패했습니다. 잠시 후 다시 시도하세요.')
+    },
+  })
+
+  // 검수 완료 mutation (재고 적용)
+  const completeMutation = useMutation({
+    mutationFn: () => completeInboundInspection(slipId),
+    onSuccess: () => {
+      setErrorMsg(null)
+      setSuccessMsg('검수가 완료되어 재고에 반영되었습니다.')
+      void qc.invalidateQueries({ queryKey: ['inbound-inspection', slipId] })
+      void qc.invalidateQueries({ queryKey: ['inbound-inspections'] })
+      void qc.invalidateQueries({ queryKey: ['slips', 'list', 'INBOUND'] })
+      onSuccess?.()
+    },
+    onError: () => {
+      setErrorMsg('검수 완료에 실패했습니다. 잠시 후 다시 시도하세요.')
+    },
+  })
+
+  const detail = detailQuery.data
+  const isCompleted = detail?.status === 'COMPLETED'
+  const isBusy = saveMutation.isPending || completeMutation.isPending
+
+  /** 정상 수량 = inspectedQty - defectQty (음수 방지). */
+  function normalQty(l: LineState): number {
+    return Math.max(0, l.inspectedQty - l.defectQty)
+  }
+
+  /** 유효성 검사 — defectQty > inspectedQty 라인 존재 시 false. */
+  function isValid(): boolean {
+    return lines.every((l) => l.defectQty <= l.inspectedQty)
+  }
+
+  // ---------------------------------------------------------------------------
+  // 렌더
+  // ---------------------------------------------------------------------------
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title="입고 검수"
+      data-testid="inbound-inspection-dialog"
+      footer={
+        isCompleted ? (
+          <Button variant="secondary" onClick={onClose}>
+            닫기
+          </Button>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={onClose} disabled={isBusy}>
+              취소
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!isValid()) {
+                  setErrorMsg('불량 수량이 검수 수량을 초과한 라인이 있습니다.')
+                  return
+                }
+                setErrorMsg(null)
+                saveMutation.mutate()
+              }}
+              disabled={isBusy}
+              data-testid="inspection-save-btn"
+            >
+              검수 저장
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (!isValid()) {
+                  setErrorMsg('불량 수량이 검수 수량을 초과한 라인이 있습니다.')
+                  return
+                }
+                setErrorMsg(null)
+                completeMutation.mutate()
+              }}
+              disabled={isBusy}
+              data-testid="inspection-complete-btn"
+            >
+              검수 완료
+            </Button>
+          </div>
+        )
+      }
+    >
+      {/* ── 로딩 ── */}
+      {detailQuery.isLoading ? (
+        <div
+          style={{ display: 'flex', justifyContent: 'center', padding: 32 }}
+        >
+          <Spinner size="lg" />
+        </div>
+      ) : detailQuery.isError ? (
+        <div className="error-banner" role="alert">
+          검수 정보를 불러오지 못했습니다.
+        </div>
+      ) : detail ? (
+        <>
+          {/* ── 슬립 헤더 ── */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px 24px',
+              marginBottom: 20,
+              fontSize: 13,
+            }}
+          >
+            <div>
+              <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
+                전표번호
+              </span>
+              <strong>{detail.slipNo}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
+                상태
+              </span>
+              <Badge variant={STATUS_VARIANT[detail.status]}>
+                {INSPECTION_STATUS_LABEL[detail.status]}
+              </Badge>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
+                거래처
+              </span>
+              {detail.partnerName ?? '—'}
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
+                입고일
+              </span>
+              {detail.slipDate}
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
+                검수자
+              </span>
+              {detail.inspectorName ?? '—'}
+            </div>
+          </div>
+
+          {/* ── 라인 표 ── */}
+          <div
+            style={{ overflowX: 'auto' }}
+            data-testid="inspection-line-table"
+          >
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr style={{ background: 'var(--color-neutral-50)' }}>
+                  {[
+                    '모델코드',
+                    '예정 수량',
+                    '검수 수량',
+                    '불량 수량',
+                    '정상 수량',
+                    '불량 사유',
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'left',
+                        fontWeight: 600,
+                        borderBottom: '1px solid var(--color-neutral-200)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line) => {
+                  const defectError = line.defectQty > line.inspectedQty
+                  return (
+                    <tr
+                      key={line.lineId}
+                      style={{
+                        borderBottom: '1px solid var(--color-neutral-100)',
+                      }}
+                    >
+                      {/* 모델코드 */}
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 500 }}>{line.modelCode}</div>
+                        {line.productName ? (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--color-neutral-500)',
+                            }}
+                          >
+                            {line.productName}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      {/* 예정 수량 */}
+                      <td
+                        style={{
+                          padding: '8px 10px',
+                          textAlign: 'right',
+                          color: 'var(--color-neutral-600)',
+                        }}
+                      >
+                        {line.expectedQty.toLocaleString()}
+                      </td>
+
+                      {/* 검수 수량 input */}
+                      <td style={{ padding: '8px 10px' }}>
+                        <input
+                          type="number"
+                          min={0}
+                          value={line.inspectedQty}
+                          disabled={isCompleted || isBusy}
+                          aria-label={`${line.modelCode} 검수 수량`}
+                          style={numInputStyle(defectError)}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'SET_INSPECTED',
+                              lineId: line.lineId,
+                              value: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                        />
+                      </td>
+
+                      {/* 불량 수량 input */}
+                      <td style={{ padding: '8px 10px' }}>
+                        <input
+                          type="number"
+                          min={0}
+                          value={line.defectQty}
+                          disabled={isCompleted || isBusy}
+                          aria-label={`${line.modelCode} 불량 수량`}
+                          style={numInputStyle(defectError)}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'SET_DEFECT',
+                              lineId: line.lineId,
+                              value: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                        />
+                        {defectError ? (
+                          <div
+                            role="alert"
+                            style={{ fontSize: 11, color: 'var(--color-danger-600)', marginTop: 2 }}
+                          >
+                            불량 수량이 검수 수량을 초과합니다
+                          </div>
+                        ) : null}
+                      </td>
+
+                      {/* 정상 수량 (자동 계산) */}
+                      <td
+                        style={{
+                          padding: '8px 10px',
+                          textAlign: 'right',
+                          fontWeight: 500,
+                          color:
+                            normalQty(line) < line.expectedQty
+                              ? 'var(--color-warning-600)'
+                              : 'inherit',
+                        }}
+                      >
+                        {normalQty(line).toLocaleString()}
+                      </td>
+
+                      {/* 불량 사유 input */}
+                      <td style={{ padding: '8px 10px', minWidth: 160 }}>
+                        <input
+                          type="text"
+                          value={line.defectReason}
+                          placeholder={line.defectQty > 0 ? '불량 사유 입력' : '—'}
+                          disabled={isCompleted || isBusy || line.defectQty === 0}
+                          aria-label={`${line.modelCode} 불량 사유`}
+                          style={reasonInputStyle}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'SET_REASON',
+                              lineId: line.lineId,
+                              value: e.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+
+              {/* 합계 행 */}
+              {lines.length > 0 ? (
+                <tfoot>
+                  <tr
+                    style={{
+                      background: 'var(--color-neutral-50)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <td
+                      style={{ padding: '8px 10px' }}
+                      colSpan={1}
+                    >
+                      합계
+                    </td>
+                    <td
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'right',
+                        color: 'var(--color-neutral-600)',
+                      }}
+                    >
+                      {lines
+                        .reduce((s, l) => s + l.expectedQty, 0)
+                        .toLocaleString()}
+                    </td>
+                    <td
+                      style={{ padding: '8px 10px', textAlign: 'right' }}
+                    >
+                      {lines
+                        .reduce((s, l) => s + l.inspectedQty, 0)
+                        .toLocaleString()}
+                    </td>
+                    <td
+                      style={{ padding: '8px 10px', textAlign: 'right' }}
+                    >
+                      {lines
+                        .reduce((s, l) => s + l.defectQty, 0)
+                        .toLocaleString()}
+                    </td>
+                    <td
+                      style={{ padding: '8px 10px', textAlign: 'right' }}
+                    >
+                      {lines
+                        .reduce((s, l) => s + normalQty(l), 0)
+                        .toLocaleString()}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
+            </table>
+          </div>
+
+          {/* ── 오류 / 성공 메시지 ── */}
+          {errorMsg ? (
+            <div
+              className="error-banner"
+              role="alert"
+              style={{ marginTop: 12 }}
+            >
+              {errorMsg}
+            </div>
+          ) : null}
+          {successMsg ? (
+            <div
+              role="status"
+              style={{
+                marginTop: 12,
+                padding: '8px 12px',
+                background: 'var(--color-success-50)',
+                border: '1px solid var(--color-success-200)',
+                borderRadius: 6,
+                fontSize: 13,
+                color: 'var(--color-success-700)',
+              }}
+            >
+              {successMsg}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 공용 스타일 헬퍼
+// ---------------------------------------------------------------------------
+
+function numInputStyle(error: boolean): React.CSSProperties {
+  return {
+    width: 72,
+    height: 32,
+    padding: '0 8px',
+    border: `1px solid ${error ? 'var(--color-danger-500)' : 'var(--color-neutral-300)'}`,
+    borderRadius: 4,
+    fontSize: 13,
+    textAlign: 'right',
+  }
+}
+
+const reasonInputStyle: React.CSSProperties = {
+  width: '100%',
+  height: 32,
+  padding: '0 8px',
+  border: '1px solid var(--color-neutral-300)',
+  borderRadius: 4,
+  fontSize: 13,
+}

@@ -2496,6 +2496,128 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // P0-9 입고 검수 mock endpoint
+  // - GET  /api/v1/inventory/inbound-inspections          — 목록 (status 필터)
+  // - GET  /api/v1/inventory/inbound-inspections/{slipId} — 상세 (라인 포함)
+  // - POST /api/v1/inventory/inbound-inspections/{slipId}/inspect  — 검수 저장
+  // - POST /api/v1/inventory/inbound-inspections/{slipId}/complete — 검수 완료
+  // ==========================================================================
+
+  /** 검수 목록 시연용 시드 — 3건 (대기 1, 임시저장 1, 완료 1). */
+  const MOCK_INSPECTIONS_SUMMARY = [
+    {
+      slipId: 'slip-003',
+      slipNo: '2026/05/03-7',
+      partnerName: '삼성전자',
+      slipDate: '2026-05-03',
+      status: 'DRAFT',
+      inspectorName: null,
+    },
+    {
+      slipId: 'slip-008',
+      slipNo: '2026/05/05-2',
+      partnerName: '(주)에어텍',
+      slipDate: '2026-05-05',
+      status: 'PENDING',
+      inspectorName: null,
+    },
+    {
+      slipId: 'slip-009',
+      slipNo: '2026/05/05-5',
+      partnerName: '대한냉각기',
+      slipDate: '2026-05-05',
+      status: 'COMPLETED',
+      inspectorName: '김기철',
+    },
+  ]
+
+  /** 검수 상세 라인 시연용 — 3개 품목. */
+  const MOCK_INSPECTION_LINES = [
+    {
+      lineId: 'iline-001',
+      productId: 'p-aj040',
+      modelCode: 'AJ040RXH4BC1',
+      productName: '시스템에어컨 4Way 4HP',
+      expectedQty: 5,
+      inspectedQty: 5,
+      defectQty: 0,
+      defectReason: null,
+    },
+    {
+      lineId: 'iline-002',
+      productId: 'p-aj052',
+      modelCode: 'AJ052RXH5BC1',
+      productName: '시스템에어컨 4Way 5HP',
+      expectedQty: 3,
+      inspectedQty: 2,
+      defectQty: 1,
+      defectReason: '외장 스크래치',
+    },
+    {
+      lineId: 'iline-003',
+      productId: 'p-mwr10',
+      modelCode: 'MWR-WE10N',
+      productName: '유선 리모컨 (WE10N)',
+      expectedQty: 10,
+      inspectedQty: 10,
+      defectQty: 0,
+      defectReason: null,
+    },
+  ]
+
+  // GET /api/v1/inventory/inbound-inspections/{slipId} — 단건 상세
+  const inspectionDetailMatch = url.match(
+    /\/inventory\/inbound-inspections\/([^/?]+)$/,
+  )
+  if (method === 'GET' && inspectionDetailMatch) {
+    const slipId = inspectionDetailMatch[1]!
+    const summary = MOCK_INSPECTIONS_SUMMARY.find((s) => s.slipId === slipId)
+      ?? MOCK_INSPECTIONS_SUMMARY[0]!
+    return envelope({
+      slipId: summary.slipId,
+      slipNo: summary.slipNo,
+      partnerName: summary.partnerName,
+      slipDate: summary.slipDate,
+      inspectorName: summary.inspectorName,
+      status: summary.status,
+      lines: MOCK_INSPECTION_LINES,
+    })
+  }
+
+  // POST /api/v1/inventory/inbound-inspections/{slipId}/inspect — 검수 저장
+  const inspectionInspectMatch = url.match(
+    /\/inventory\/inbound-inspections\/([^/?]+)\/inspect$/,
+  )
+  if (method === 'POST' && inspectionInspectMatch) {
+    return envelope({ message: '검수 내용이 임시 저장되었습니다.' })
+  }
+
+  // POST /api/v1/inventory/inbound-inspections/{slipId}/complete — 검수 완료
+  const inspectionCompleteMatch = url.match(
+    /\/inventory\/inbound-inspections\/([^/?]+)\/complete$/,
+  )
+  if (method === 'POST' && inspectionCompleteMatch) {
+    return envelope({ message: '검수가 완료되어 재고에 반영되었습니다.' })
+  }
+
+  // GET /api/v1/inventory/inbound-inspections — 목록 (status 필터)
+  if (method === 'GET' && url.includes('/inventory/inbound-inspections')) {
+    const statusParam = (config.params?.['status'] ?? '') as string
+    const filtered = statusParam
+      ? MOCK_INSPECTIONS_SUMMARY.filter((s) => s.status === statusParam)
+      : MOCK_INSPECTIONS_SUMMARY
+    return envelope({
+      content: filtered,
+      totalElements: filtered.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+
   return null
 }
 

@@ -14,6 +14,12 @@
  *   <li>헤더 우측 "실시간 자동 갱신" 안내 — UsersPage (FE-C) / InventoryAuditListPage 패턴.</li>
  * </ul>
  *
+ * <h2>P0-9 보강 — INBOUND 모드 "검수" 버튼 (InboundInspectionDialog)</h2>
+ * <ul>
+ *   <li>INBOUND 모드이고 slip status 가 SAVED/CONFIRMED 인 행에 "검수" 버튼 노출.</li>
+ *   <li>클릭 시 InboundInspectionDialog 오픈 — 검수 저장/완료 가능.</li>
+ * </ul>
+ *
  * 사용 컴포넌트:
  * - `DataTable` (rows + columns)
  * - `SlipNumberDisplay` (uuid prop 제거됨 — 비즈니스 식별자만)
@@ -23,6 +29,7 @@
  * data-testid (PR-H4c FE-B 신규):
  * - slip-list-realtime-indicator
  */
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -36,6 +43,7 @@ import {
 import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
 import { useSessionStore, canCreateSlip } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { InboundInspectionDialog } from './components/InboundInspectionDialog'
 
 export interface SlipListPageProps {
   /** OUTBOUND (판매조회) 또는 INBOUND (구매조회). */
@@ -50,6 +58,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const titleLabel = isOutbound ? '판매조회 (출고전표)' : '구매조회 (입고전표)'
   const newButtonLabel = isOutbound ? '새 출고전표' : '새 입고전표'
 
+  // P0-9: INBOUND 모드 검수 Dialog 상태
+  const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
+
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
   usePageTitle(isOutbound ? '판매조회' : '구매조회')
 
@@ -59,6 +70,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
   })
+
+  /** P0-9: INBOUND 전표에서 검수 버튼 표시 조건 — SAVED / CONFIRMED 상태. */
+  const INSPECTABLE_STATUSES: readonly string[] = ['SAVED', 'CONFIRMED']
 
   const columns: DataTableColumn<SlipSummary>[] = [
     {
@@ -90,6 +104,29 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       render: (row) => <SlipStatusBadge status={row.status} />,
     },
     { key: 'partnerName', header: '거래처' },
+    // P0-9: INBOUND 모드에서만 "검수" 액션 컬럼 표시
+    ...(!isOutbound
+      ? ([
+          {
+            key: 'id',
+            header: '',
+            width: '80px',
+            render: (row) =>
+              INSPECTABLE_STATUSES.includes(row.status) ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setInspectionSlipId(row.id)
+                  }}
+                >
+                  검수
+                </Button>
+              ) : null,
+          },
+        ] as DataTableColumn<SlipSummary>[])
+      : []),
   ]
 
   return (
@@ -132,6 +169,19 @@ export function SlipListPage({ mode }: SlipListPageProps) {
         <div className="error-banner" role="alert" style={{ marginTop: 16 }}>
           전표 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
         </div>
+      ) : null}
+
+      {/* P0-9: 입고 검수 Dialog (INBOUND 모드 전용) */}
+      {!isOutbound && inspectionSlipId ? (
+        <InboundInspectionDialog
+          slipId={inspectionSlipId}
+          open={!!inspectionSlipId}
+          onClose={() => setInspectionSlipId(null)}
+          onSuccess={() => {
+            setInspectionSlipId(null)
+            void query.refetch()
+          }}
+        />
       ) : null}
     </>
   )
