@@ -118,6 +118,8 @@ import { RolesPage as AdminRolesPage } from './admin/RolesPage'
 import { PartnersPage as AdminPartnersPage } from './admin/PartnersPage'
 import { WarehousesPage as AdminWarehousesPage } from './admin/WarehousesPage'
 import { DepartmentsPage as AdminDepartmentsPage } from './admin/DepartmentsPage'
+// [P0-6] 거래처 4탭 신규 등록 — SALES / MANAGER / MASTER (AdminLayout MASTER 가드 외부 배치)
+import { PartnerCreatePage as AdminPartnerCreatePage } from './admin/PartnerCreatePage'
 // [PR-D Phase B FE-A] 구글 시트 동기화 admin (MASTER 전용 — AdminLayout 가드)
 import { SheetSyncPage as AdminSheetSyncPage } from './admin/SheetSyncPage'
 // [PR-D Phase B FE-B] arologis 가배차 지역 분류 admin UI — MASTER/MANAGER (DISPATCH backlog)
@@ -226,6 +228,12 @@ const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
 /** 재고 실사 권한 — WAREHOUSE / MASTER (사용자 요구). */
 const AUDIT_ROLES = ['WAREHOUSE', 'MASTER'] as const
+
+/**
+ * P0-6 거래처 4탭 등록/편집 권한 — SALES / MANAGER / MASTER.
+ * BE @PreAuthorize 와 1:1 일치.
+ */
+const PARTNER_FULL_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
 /**
  * PR-F1 Designer mock 단계 임시 권한 (DISPATCH / MANAGER / MASTER).
@@ -742,6 +750,18 @@ const router = createHashRouter([
           // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 (MASTER, AdminLayout 가드)
           { path: 'aligo-address-book', element: <AdminAligoAddressBookPage /> },
         ],
+      },
+
+      // [P0-6] 거래처 4탭 신규 등록 — SALES / MANAGER / MASTER.
+      // AdminLayout (MASTER 전용) 외부 — SALES 도 접근 가능 (자체 RoleGuard 적용).
+      // `/admin/partners` (children) 보다 먼저 매칭되도록 라우터 배열 상단 등록.
+      {
+        path: '/admin/partners/new',
+        element: (
+          <RoleGuard allow={PARTNER_FULL_ROLES}>
+            <AdminPartnerCreatePage />
+          </RoleGuard>
+        ),
       },
 
       // [PR-D Phase B FE-B] arologis 가배차 지역 분류 — MASTER / MANAGER (DISPATCH backlog).

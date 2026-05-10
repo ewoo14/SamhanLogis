@@ -52,3 +52,5 @@ export * from './utils'
 export * from './components/AuditOverlay'
 // PR-H3 신규 — CONFIRMED 전표 수정/삭제 요청 사유 입력 다이얼로그
 export * from './components/SlipEditRequestDialog'
+// P0-6 신규 — 범용 Tabs (tablist + tabpanel ARIA) 거래처 4탭 등록/조회 UI 첫 사용
+export * from './components/Tabs'

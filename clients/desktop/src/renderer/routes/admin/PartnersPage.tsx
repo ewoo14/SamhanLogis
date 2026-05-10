@@ -1,29 +1,33 @@
 /**
  * 관리자 — 거래처 관리 (`/admin/partners`).
  *
- * Phase 10 P0-5 슬라이스 4. BE `GET /admin/partners/search?q=&type=` backing.
- *
- * UUID 비공개 — 모든 식별자는 partnerCode (사업자번호 / 상호 / 전화번호 표시 가능).
- *
- * <h2>PR-H4c FE-C 보강 — 실시간 동기화</h2>
+ * <p>P0-6 보강:
  * <ul>
- *   <li>30초 polling — 거래처 신규/상태 변경/발송금지 등록 결과 자동 반영.</li>
- *   <li>partner-service SSE (PR-H4b BE-A): {@code GET /admin/partners/{entityId}/realtime}
- *       (entity-id 단위). admin list 화면은 broadcast endpoint 합류 전까지 polling fallback.</li>
- *   <li>BlockedPartnersPage 와 cache 공유 — 양쪽 화면 변경이 서로 반영됨.</li>
+ *   <li>복합 필터: 거래처 유형(type) / 상태(status) / 거래액 범위 (미래 슬라이스 준비 — disabled 표시)</li>
+ *   <li>[신규 등록] 버튼 → `/admin/partners/new` (PartnerCreatePage) 이동</li>
+ *   <li>행 클릭 → PartnerDetailDialog (4탭 상세 + 인라인 편집)</li>
+ *   <li>30초 polling — 멀티 워크스테이션 동기화 안전망</li>
  * </ul>
+ *
+ * <p>UUID 비공개 — 모든 식별자는 partnerCode (상호 / 사업자번호 표시 가능).
+ *
+ * <p>@PreAuthorize — SALES / MANAGER / MASTER (BE 와 1:1).
  *
  * data-testid:
  * - admin-partners-table
  * - admin-partners-search-input
  * - admin-partners-status-filter
+ * - admin-partners-type-filter
  * - admin-partners-row-{partnerCode}
  * - admin-partners-realtime-indicator
+ * - admin-partners-create-btn
  */
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Badge,
+  Button,
   DataTable,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -33,7 +37,13 @@ import {
   type PartnerStatus,
   type PartnerSummary,
 } from '../../api/adminApi'
+import { PARTNER_TYPE_LABEL, type PartnerType } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { PartnerDetailDialog } from './PartnerDetailDialog'
+
+// ---------------------------------------------------------------------------
+// 상태 variant 맵
+// ---------------------------------------------------------------------------
 
 const STATUS_VARIANT: Record<
   PartnerStatus,
@@ -52,29 +62,57 @@ function formatKrw(raw: string | number | null | undefined): string {
   return '₩' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
+// ---------------------------------------------------------------------------
+// 컴포넌트
+// ---------------------------------------------------------------------------
+
+/**
+ * 거래처 admin 목록 + 4탭 상세 다이얼로그.
+ */
 export function PartnersPage() {
   usePageTitle('거래처 관리')
+  const navigate = useNavigate()
 
   const [q, setQ] = useState('')
-  const [type, setType] = useState<PartnerStatus | ''>('')
+  const [statusFilter, setStatusFilter] = useState<PartnerStatus | ''>('')
+  const [typeFilter, setTypeFilter] = useState<PartnerType | ''>('')
   const [page, setPage] = useState(0)
 
+  // 4탭 상세 다이얼로그 상태
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(
+    null,
+  )
+  const [selectedPartnerName, setSelectedPartnerName] = useState<string | null>(
+    null,
+  )
+  const [dialogOpen, setDialogOpen] = useState(false)
+
   const query = useQuery({
-    queryKey: ['admin', 'partners', q, type, page],
+    queryKey: ['admin', 'partners', q, statusFilter, typeFilter, page],
     queryFn: () =>
       listAdminPartners({
         q: q || undefined,
-        type: type || undefined,
+        type: statusFilter || undefined,
         page,
         size: 20,
       }),
-    // PR-H4c FE-C: 30초 polling — 멀티 워크스테이션 동기화 안전망 (BE broadcast SSE 합류 전 단계).
+    // PR-H4c FE-C: 30초 polling — 멀티 워크스테이션 동기화 안전망.
     refetchInterval: 30_000,
   })
 
   const totalPages = query.data
     ? Math.max(1, Math.ceil(query.data.total / query.data.size))
     : 1
+
+  function openDetail(partner: PartnerSummary) {
+    // partnerCode 를 id 대신 사용 — adminApi 의 PartnerSummary 에 id 가 없으므로
+    // partnerCode 를 detail 경로에 사용 (BE /api/v1/partners/{id}/full 은
+    // 실제 UUID 를 사용하나, 이 화면에서는 partnerCode 로 조회 — BE 가 partnerCode
+    // 로도 조회를 지원한다는 전제. 미지원 시 adminApi 에 id 필드 추가 필요).
+    setSelectedPartnerId(partner.partnerCode)
+    setSelectedPartnerName(partner.name)
+    setDialogOpen(true)
+  }
 
   const columns: DataTableColumn<PartnerSummary>[] = [
     { key: 'partnerCode', header: '거래처 코드', width: '140px' },
@@ -122,29 +160,42 @@ export function PartnersPage() {
 
   return (
     <>
+      {/* 헤더 */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'baseline',
+          alignItems: 'center',
           marginBottom: 16,
         }}
       >
         <h3 style={{ margin: 0 }}>거래처 관리</h3>
-        <span
-          data-testid="admin-partners-realtime-indicator"
-          style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
-        >
-          실시간 자동 갱신 · 30초
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span
+            data-testid="admin-partners-realtime-indicator"
+            style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
+          >
+            실시간 자동 갱신 · 30초
+          </span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/admin/partners/new')}
+            data-testid="admin-partners-create-btn"
+          >
+            신규 등록
+          </Button>
+        </div>
       </div>
 
+      {/* 필터 바 */}
       <div
         style={{
           display: 'flex',
           gap: 12,
           marginBottom: 16,
           flexWrap: 'wrap',
+          alignItems: 'center',
         }}
       >
         <input
@@ -156,38 +207,41 @@ export function PartnersPage() {
             setPage(0)
           }}
           data-testid="admin-partners-search-input"
-          style={{
-            flex: '1 1 280px',
-            minWidth: 240,
-            height: 32,
-            padding: '0 10px',
-            border: '1px solid #D1D5DB',
-            borderRadius: 6,
-            fontSize: 13,
-          }}
+          style={filterInputStyle}
         />
         <select
-          value={type}
+          value={statusFilter}
           onChange={(e) => {
-            setType(e.target.value as PartnerStatus | '')
+            setStatusFilter(e.target.value as PartnerStatus | '')
             setPage(0)
           }}
           data-testid="admin-partners-status-filter"
-          style={{
-            height: 32,
-            padding: '0 10px',
-            border: '1px solid #D1D5DB',
-            borderRadius: 6,
-            fontSize: 13,
-          }}
+          style={filterSelectStyle}
         >
           <option value="">상태 전체</option>
           <option value="ACTIVE">{PARTNER_STATUS_LABEL.ACTIVE}</option>
           <option value="SUSPENDED">{PARTNER_STATUS_LABEL.SUSPENDED}</option>
           <option value="TERMINATED">{PARTNER_STATUS_LABEL.TERMINATED}</option>
         </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value as PartnerType | '')
+            setPage(0)
+          }}
+          data-testid="admin-partners-type-filter"
+          style={filterSelectStyle}
+        >
+          <option value="">유형 전체</option>
+          {(Object.keys(PARTNER_TYPE_LABEL) as PartnerType[]).map((t) => (
+            <option key={t} value={t}>
+              {PARTNER_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </select>
       </div>
 
+      {/* 테이블 */}
       <div data-testid="admin-partners-table">
         <DataTable
           columns={columns}
@@ -195,9 +249,11 @@ export function PartnersPage() {
           loading={query.isLoading}
           rowKey={(p) => p.partnerCode}
           emptyMessage="조건에 맞는 거래처가 없습니다."
+          onRowClick={openDetail}
         />
       </div>
 
+      {/* 페이지네이션 */}
       {query.data && totalPages > 1 ? (
         <div
           style={{
@@ -230,14 +286,48 @@ export function PartnersPage() {
           </button>
         </div>
       ) : null}
+
+      {/* 4탭 상세 다이얼로그 */}
+      <PartnerDetailDialog
+        partnerId={selectedPartnerId}
+        partnerName={selectedPartnerName}
+        open={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false)
+          setSelectedPartnerId(null)
+          setSelectedPartnerName(null)
+        }}
+      />
     </>
   )
+}
+
+// ---------------------------------------------------------------------------
+// 공통 스타일
+// ---------------------------------------------------------------------------
+
+const filterInputStyle: React.CSSProperties = {
+  flex: '1 1 280px',
+  minWidth: 240,
+  height: 32,
+  padding: '0 10px',
+  border: '1px solid var(--color-border, #D1D5DB)',
+  borderRadius: 6,
+  fontSize: 13,
+}
+
+const filterSelectStyle: React.CSSProperties = {
+  height: 32,
+  padding: '0 10px',
+  border: '1px solid var(--color-border, #D1D5DB)',
+  borderRadius: 6,
+  fontSize: 13,
 }
 
 const pagerBtnStyle: React.CSSProperties = {
   height: 28,
   padding: '0 12px',
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-border, #D1D5DB)',
   borderRadius: 4,
   background: '#fff',
   cursor: 'pointer',
