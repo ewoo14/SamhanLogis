@@ -21,6 +21,23 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  mail:
+    host: ${SAMHAN_SMTP_HOST:localhost}
+    port: ${SAMHAN_SMTP_PORT:25}
+    username: ${SAMHAN_SMTP_USERNAME:}
+    password: ${SAMHAN_SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SAMHAN_SMTP_AUTH:false}
+          starttls:
+            enable: ${SAMHAN_SMTP_STARTTLS:false}
+
+samhan:
+  password-reset:
+    from-email: ${SAMHAN_PASSWORD_RESET_FROM_EMAIL:no-reply@samhanair.com}
+    token-ttl-minutes: 10
+    rate-limit-per-minute: 3
 
 eureka:
   client:
