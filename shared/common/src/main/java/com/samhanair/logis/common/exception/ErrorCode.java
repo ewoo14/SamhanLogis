@@ -19,7 +19,12 @@ public enum ErrorCode {
      * Phase 7 종합 TM 신규 — generic NOT_FOUND + 문자열 메시지 패턴은 클라이언트 분기/모니터링 필터에서
      * 도메인 식별이 어려우므로 product 전용 코드를 분리. HTTP 404 동일.
      */
-    PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 코드의 제품을 찾을 수 없습니다.");
+    PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 코드의 제품을 찾을 수 없습니다."),
+    /**
+     * 요청 횟수 초과 — rate-limit 적용 endpoint 에서 허용 한도 초과 시 HTTP 429 반환.
+     * P0-2 비밀번호 재설정 endpoint (request/confirm) 브루트포스 방지용.
+     */
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

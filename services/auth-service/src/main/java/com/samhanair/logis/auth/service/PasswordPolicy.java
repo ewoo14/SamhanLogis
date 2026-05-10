@@ -19,7 +19,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 public final class PasswordPolicy {
 
     public static final int MIN_LENGTH = 8;
-    public static final int MAX_LENGTH = 100;
+    /** 최대 길이 — spec (designer) 기준 32자. FE/BE 통일 (PR #138 Q-1 fix). */
+    public static final int MAX_LENGTH = 32;
 
     private static final String SPECIAL_CHARS = "!@#$%^&*()_+-=[]{};':\",./<>?\\|`~";
 

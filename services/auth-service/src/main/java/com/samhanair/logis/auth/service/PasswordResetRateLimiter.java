@@ -19,15 +19,18 @@ import org.springframework.stereotype.Component;
  *
  * <p>카운터는 1 분 TTL 만료 시 자동 evict (Caffeine expireAfterWrite).
  * 운영 환경 Redis 전환 시 본 클래스만 교체하면 됨.
+ *
+ * <p>한도 초과 시 {@link ErrorCode#TOO_MANY_REQUESTS} — HTTP 429 반환 (PR #138 C-2 fix).
+ * /request 와 /confirm 양 endpoint 에 동일 정책 적용.
  */
 @Component
 public class PasswordResetRateLimiter {
 
-    /** loginId 기준 1 분당 최대 요청 수. */
-    public static final int MAX_PER_LOGIN_ID_PER_MINUTE = 3;
+    /** loginId 기준 1 분당 최대 요청 수 (spec: 1분 5회 / PR #138 검토 후 보수적 3회 유지). */
+    public static final int MAX_PER_LOGIN_ID_PER_MINUTE = 5;
 
     /** IP 기준 1 분당 최대 요청 수. */
-    public static final int MAX_PER_IP_PER_MINUTE = 10;
+    public static final int MAX_PER_IP_PER_MINUTE = 20;
 
     /** loginId 기준 카운터 캐시 — key: loginId, value: 요청 횟수 (1분 TTL). */
     private final Cache<String, AtomicInteger> loginIdCounter = Caffeine.newBuilder()
@@ -57,13 +60,14 @@ public class PasswordResetRateLimiter {
      * loginId 기준 rate-limit 검사.
      *
      * @param loginId 요청 loginId
+     * @throws BusinessException {@link ErrorCode#TOO_MANY_REQUESTS} HTTP 429 — 분당 한도 초과
      */
     private void checkLoginId(String loginId) {
         AtomicInteger counter = loginIdCounter.get(loginId, k -> new AtomicInteger(0));
         int count = counter.incrementAndGet();
         if (count > MAX_PER_LOGIN_ID_PER_MINUTE) {
             throw new BusinessException(
-                    ErrorCode.INVALID_INPUT,
+                    ErrorCode.TOO_MANY_REQUESTS,
                     "요청이 너무 많습니다. 잠시 후 다시 시도해주세요 (분당 " + MAX_PER_LOGIN_ID_PER_MINUTE + "회 제한)");
         }
     }
@@ -72,6 +76,7 @@ public class PasswordResetRateLimiter {
      * IP 기준 rate-limit 검사.
      *
      * @param clientIp 요청자 IP 주소
+     * @throws BusinessException {@link ErrorCode#TOO_MANY_REQUESTS} HTTP 429 — 분당 한도 초과
      */
     private void checkIp(String clientIp) {
         if (clientIp == null || clientIp.isBlank()) {
@@ -81,7 +86,7 @@ public class PasswordResetRateLimiter {
         int count = counter.incrementAndGet();
         if (count > MAX_PER_IP_PER_MINUTE) {
             throw new BusinessException(
-                    ErrorCode.INVALID_INPUT,
+                    ErrorCode.TOO_MANY_REQUESTS,
                     "요청이 너무 많습니다. 잠시 후 다시 시도해주세요 (분당 " + MAX_PER_IP_PER_MINUTE + "회 제한)");
         }
     }
