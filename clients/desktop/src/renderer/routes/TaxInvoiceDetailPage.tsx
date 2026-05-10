@@ -201,8 +201,8 @@ export function TaxInvoiceDetailPage() {
 
   const handleCancelSubmit = () => {
     const trimmed = cancelReason.trim()
-    if (!trimmed) {
-      alert('취소 사유를 입력하세요.')
+    if (trimmed.length < 5) {
+      alert('취소 사유는 5자 이상 입력해야 합니다.')
       return
     }
     cancelMutation.mutate(trimmed)
@@ -230,10 +230,17 @@ export function TaxInvoiceDetailPage() {
       header: '품명',
     },
     {
-      key: 'spec',
+      key: 'specification',
       header: '규격',
       width: '120px',
-      render: (l) => l.spec ?? '—',
+      render: (l) => l.specification ?? '—',
+    },
+    {
+      key: 'unit',
+      header: '단위',
+      width: '60px',
+      align: 'center',
+      render: (l) => l.unit ?? '—',
     },
     {
       key: 'quantity',
@@ -317,6 +324,22 @@ export function TaxInvoiceDetailPage() {
                 ? ` · 취소: ${new Date(t.cancelledAt).toLocaleString('ko-KR')}`
                 : ''}
             </div>
+            {t.status === 'CANCELLED' && t.cancelReason ? (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: '8px 12px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: '#991B1B',
+                }}
+                data-testid="tax-invoice-detail-cancel-reason"
+              >
+                <strong>취소 사유</strong>: {t.cancelReason}
+              </div>
+            ) : null}
             <div style={{ marginTop: 12, fontSize: 14 }}>
               <div>
                 <strong>거래처</strong>: {t.partnerName}
@@ -504,7 +527,7 @@ export function TaxInvoiceDetailPage() {
             <Button
               variant="primary"
               onClick={handleCancelSubmit}
-              disabled={cancelMutation.isPending || !cancelReason.trim()}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
               data-testid="tax-invoice-cancel-modal-submit"
             >
               {cancelMutation.isPending ? '취소 처리 중...' : '취소 확인'}
@@ -526,9 +549,9 @@ export function TaxInvoiceDetailPage() {
           ref={cancelReasonRef}
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
-          placeholder="취소 사유를 입력하세요 (필수)"
+          placeholder="취소 사유를 입력하세요 (5자 이상 필수)"
           rows={4}
-          maxLength={200}
+          maxLength={1000}
           style={{
             width: '100%',
             padding: '8px 10px',
@@ -541,8 +564,19 @@ export function TaxInvoiceDetailPage() {
           }}
           data-testid="tax-invoice-cancel-reason-input"
         />
-        <div style={{ marginTop: 4, fontSize: 11, color: '#6B7280', textAlign: 'right' }}>
-          {cancelReason.length} / 200
+        <div
+          style={{
+            marginTop: 4,
+            fontSize: 11,
+            color: cancelReason.trim().length > 0 && cancelReason.trim().length < 5
+              ? '#DC2626'
+              : '#6B7280',
+            textAlign: 'right',
+          }}
+        >
+          {cancelReason.trim().length > 0 && cancelReason.trim().length < 5
+            ? `최소 5자 이상 입력 — 현재 ${cancelReason.trim().length}자`
+            : `${cancelReason.length} / 1000`}
         </div>
       </Modal>
     </>

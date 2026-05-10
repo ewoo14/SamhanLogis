@@ -6,6 +6,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,6 +37,22 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .orElse("입력값이 유효하지 않습니다");
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /**
+     * RequestBody JSON 파싱 실패 (body 누락 / 형식 오류) → 400 Bad Request.
+     *
+     * <p>cancel endpoint 처럼 {@code @RequestBody}가 필수인데 body 없이 호출하면
+     * Spring이 {@link HttpMessageNotReadableException}을 던진다.
+     * 이전 구현에서는 {@link #handleUnknown}이 잡아 500을 반환하는 문제가 있었다.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex) {
+        String msg = ex.getMessage() != null
+                ? "요청 본문을 읽을 수 없습니다 — JSON 형식 또는 필드를 확인하세요"
+                : "요청 본문이 비어 있거나 형식이 올바르지 않습니다";
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
     }

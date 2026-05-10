@@ -1932,15 +1932,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // POST /accounting/tax-invoices/{id}/cancel — ISSUED → CANCELLED
+  // P0-4 (PR #139): cancelReason body 필수 (5자 이상) — mock 도 echo back.
   const taxInvoiceCancelMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/cancel$/)
   if (method === 'POST' && taxInvoiceCancelMatch) {
     const id = taxInvoiceCancelMatch[1]!
     const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
+    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    const reason = typeof req['reason'] === 'string' ? (req['reason'] as string).trim() : ''
     return envelope({
       ...found,
       status: 'CANCELLED' as const,
       cancelledAt: new Date().toISOString(),
       cancelledBy: '이정훈',
+      cancelReason: reason || '취소 사유 미입력 (mock)',
       reverseJournalId: 'jv-rev-' + Date.now(),
     })
   }
@@ -3127,18 +3131,26 @@ const MOCK_BLOCKED_PARTNERS = [
 /**
  * 세금계산서 (`/accounting/tax-invoices`) — 3건 + DRAFT/ISSUED/CANCELLED 분포.
  *
- * BE TaxInvoiceDetailResponse 필드명 1:1 일치 (PR #136 회고 회귀 회피):
- * - taxInvoiceNo / partnerId / partnerBusinessNo / partnerName / partnerAddress
+ * BE TaxInvoiceDetailResponse 필드명 1:1 일치 (PR #136 + PR #139 회고 회귀 회피):
+ * - taxInvoiceNo / partnerId / partnerCode / partnerBusinessNo / partnerName / partnerAddress
+ * - invoiceType (P0-4 신규 — SALES/PURCHASE)
  * - supplyDate / supplyAmount / vatAmount / totalAmount / status
- * - issuedAt / issuedBy / cancelledAt / cancelledBy
+ * - issuedAt / issuedBy / cancelledAt / cancelledBy / cancelReason (P0-4 신규)
  * - journalId / reverseJournalId / eTaxExternalId / description / lines[]
+ *
+ * P0-4 라인 필드 (PR #139 BE rename):
+ * - specification (legacy 'spec' → BE record 'specification' 으로 rename)
+ * - unit (P0-4 신규 — 건/kg/CBM 등)
+ *
  * UUID 비공개: id / partnerId / journalId 는 path param 전용 — 화면 미노출.
  */
 const MOCK_TAX_INVOICES = [
   {
     id: 'ti-001',
     taxInvoiceNo: 'TI-2026/05-001',
+    invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0001',
+    partnerCode: 'P-LASYS-001',
     partnerBusinessNo: '123-45-67890',
     partnerName: '엘에이시스템에어',
     partnerAddress: '서울특별시 강남구 테헤란로 152 강남파이낸스센터 20층',
@@ -3151,6 +3163,7 @@ const MOCK_TAX_INVOICES = [
     issuedBy: '이정훈',
     cancelledAt: null as string | null,
     cancelledBy: null as string | null,
+    cancelReason: null as string | null,
     journalId: 'jv-ti-001',
     reverseJournalId: null as string | null,
     eTaxExternalId: null as string | null,
@@ -3160,7 +3173,8 @@ const MOCK_TAX_INVOICES = [
         lineId: 'tl-001-1',
         lineNo: 0,
         itemName: '시스템에어컨 4Way 4HP',
-        spec: 'AJ040RXH4BC1',
+        specification: 'AJ040RXH4BC1',
+        unit: '대' as string | null,
         quantity: '2',
         unitPrice: '1850000',
         supplyAmount: '3700000',
@@ -3172,7 +3186,9 @@ const MOCK_TAX_INVOICES = [
   {
     id: 'ti-002',
     taxInvoiceNo: null as string | null,
+    invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0002',
+    partnerCode: 'P-GANGNAM-002',
     partnerBusinessNo: '234-56-78901',
     partnerName: '강남에어솔루션',
     partnerAddress: '서울특별시 서초구 서초대로 320 KT 서초타워 5층',
@@ -3185,6 +3201,7 @@ const MOCK_TAX_INVOICES = [
     issuedBy: null as string | null,
     cancelledAt: null as string | null,
     cancelledBy: null as string | null,
+    cancelReason: null as string | null,
     journalId: null as string | null,
     reverseJournalId: null as string | null,
     eTaxExternalId: null as string | null,
@@ -3194,7 +3211,8 @@ const MOCK_TAX_INVOICES = [
         lineId: 'tl-002-1',
         lineNo: 0,
         itemName: '실외기 10HP',
-        spec: 'AJ100NCDKH',
+        specification: 'AJ100NCDKH',
+        unit: '대' as string | null,
         quantity: '2',
         unitPrice: '4000000',
         supplyAmount: '8000000',
@@ -3206,7 +3224,9 @@ const MOCK_TAX_INVOICES = [
   {
     id: 'ti-003',
     taxInvoiceNo: 'TI-2026/04-099',
+    invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0003',
+    partnerCode: 'P-HANBIT-003',
     partnerBusinessNo: '345-67-89012',
     partnerName: '한빛쾌적',
     partnerAddress: '경기도 수원시 영통구 삼성로 129',
@@ -3219,6 +3239,7 @@ const MOCK_TAX_INVOICES = [
     issuedBy: '이정훈',
     cancelledAt: '2026-04-29T14:20:00+09:00',
     cancelledBy: '이정훈',
+    cancelReason: '거래처 요청 — 모델 오등록 (수정 후 재발행)' as string | null,
     journalId: 'jv-ti-003',
     reverseJournalId: 'jv-ti-003-rev',
     eTaxExternalId: null as string | null,
@@ -3228,7 +3249,8 @@ const MOCK_TAX_INVOICES = [
         lineId: 'tl-003-1',
         lineNo: 0,
         itemName: '천장형 1Way 3HP',
-        spec: 'AJ036NCH3CH',
+        specification: 'AJ036NCH3CH',
+        unit: '대' as string | null,
         quantity: '3',
         unitPrice: '1450000',
         supplyAmount: '4350000',
@@ -3239,7 +3261,8 @@ const MOCK_TAX_INVOICES = [
         lineId: 'tl-003-2',
         lineNo: 1,
         itemName: '유선 리모컨',
-        spec: 'MWR-WE10N',
+        specification: 'MWR-WE10N',
+        unit: '개' as string | null,
         quantity: '8',
         unitPrice: '81250',
         supplyAmount: '650000',

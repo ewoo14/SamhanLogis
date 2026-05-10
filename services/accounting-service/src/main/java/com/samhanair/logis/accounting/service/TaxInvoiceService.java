@@ -358,11 +358,18 @@ public class TaxInvoiceService {
         );
     }
 
-    /** 페이지 조회 — 4 필터 (status, from, to, partnerId). 기존 호환용. */
+    /**
+     * 페이지 조회 — 4 필터 (status, from, to, partnerId). 기존 호환용.
+     *
+     * <p>nativeQuery 전환으로 status / partnerId 를 String 으로 변환하여 전달합니다.
+     * Hibernate 6 + PostgreSQL 에서 {@code LocalDate} 파라미터 바인딩 오류 방어.
+     */
     @Transactional(readOnly = true)
     public Page<TaxInvoiceResponse> list(TaxInvoiceStatus status, LocalDate from, LocalDate to,
                                          UUID partnerId, Pageable pageable) {
-        return taxInvoiceRepository.findByFilters(status, from, to, partnerId, pageable)
+        String statusStr = status != null ? status.name() : null;
+        String partnerIdStr = partnerId != null ? partnerId.toString() : null;
+        return taxInvoiceRepository.findByFilters(statusStr, from, to, partnerIdStr, pageable)
                 .map(TaxInvoiceResponse::of);
     }
 

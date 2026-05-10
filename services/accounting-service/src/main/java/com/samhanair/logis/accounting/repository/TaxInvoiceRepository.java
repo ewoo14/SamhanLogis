@@ -21,18 +21,34 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
 
     /**
      * 페이지 조회 — 4개 필터 조합 (status, from, to, partnerId). null 인 필터는 무시.
+     *
+     * <p>nativeQuery=true 사용 이유: Hibernate 6 + PostgreSQL 환경에서 JPQL
+     * {@code (:localDateParam IS NULL OR field >= :localDateParam)} 패턴이
+     * {@code LocalDate} 타입 바인딩 시 타입 추론 오류를 발생시킵니다.
+     * Native SQL 에서 CAST(:from AS DATE) 로 명시적 타입 지정하여 해결합니다.
+     * countQuery 도 동일 패턴으로 명시 (Spring Data JPA 자동 생성 비신뢰).
      */
-    @Query("""
-            SELECT t FROM TaxInvoice t
-            WHERE (:status IS NULL OR t.status = :status)
-              AND (:from IS NULL OR t.supplyDate >= :from)
-              AND (:to IS NULL OR t.supplyDate <= :to)
-              AND (:partnerId IS NULL OR t.partnerId = :partnerId)
-            """)
-    Page<TaxInvoice> findByFilters(@Param("status") TaxInvoiceStatus status,
+    @Query(value = """
+            SELECT * FROM tax_invoices t
+            WHERE t.is_deleted = false
+              AND (:status IS NULL OR t.status = :status)
+              AND (CAST(:from AS DATE) IS NULL OR t.supply_date >= CAST(:from AS DATE))
+              AND (CAST(:to AS DATE) IS NULL OR t.supply_date <= CAST(:to AS DATE))
+              AND (CAST(:partnerId AS UUID) IS NULL OR t.partner_id = CAST(:partnerId AS UUID))
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM tax_invoices t
+            WHERE t.is_deleted = false
+              AND (:status IS NULL OR t.status = :status)
+              AND (CAST(:from AS DATE) IS NULL OR t.supply_date >= CAST(:from AS DATE))
+              AND (CAST(:to AS DATE) IS NULL OR t.supply_date <= CAST(:to AS DATE))
+              AND (CAST(:partnerId AS UUID) IS NULL OR t.partner_id = CAST(:partnerId AS UUID))
+            """,
+            nativeQuery = true)
+    Page<TaxInvoice> findByFilters(@Param("status") String status,
                                    @Param("from") LocalDate from,
                                    @Param("to") LocalDate to,
-                                   @Param("partnerId") UUID partnerId,
+                                   @Param("partnerId") String partnerId,
                                    Pageable pageable);
 
     /**

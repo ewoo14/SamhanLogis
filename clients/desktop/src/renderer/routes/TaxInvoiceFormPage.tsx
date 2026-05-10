@@ -158,7 +158,8 @@ export function TaxInvoiceFormPage() {
         ? t.lines.map((l) => ({
             uid: nextLineUid(),
             itemName: l.itemName,
-            spec: l.spec ?? '',
+            // BE response field 명: specification (P0-4 rename, legacy 'spec' alias 호환)
+            spec: l.specification ?? '',
             quantity: l.quantity,
             unitPrice: l.unitPrice,
             memo: l.memo ?? '',

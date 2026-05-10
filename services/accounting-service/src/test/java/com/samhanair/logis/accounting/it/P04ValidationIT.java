@@ -261,10 +261,12 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
-        // ISSUED → CANCELLED
+        // ISSUED → CANCELLED (취소 사유 5자 이상 의무 — TaxInvoiceCancelRequest.reason)
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
                         .header("X-User-Id", "accountant-p04")
-                        .header("X-User-Role", "ACCOUNTANT"))
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"P04ValidationIT 취소 사유 — 단위 테스트 검증용\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.cancelledBy").value("accountant-p04"))
@@ -285,10 +287,12 @@ class P04ValidationIT extends AbstractPostgresIT {
 
         String draftId = createNewDraft();
 
-        // DRAFT 상태에서 cancel 시도 → 409
+        // DRAFT 상태에서 cancel 시도 → 409 (취소 사유 body 포함, 상태 가드가 더 우선)
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
                         .header("X-User-Id", "accountant-p04")
-                        .header("X-User-Role", "ACCOUNTANT"))
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"P04ValidationIT DRAFT 취소 시도 — 상태 가드 검증\"}"))
                 .andExpect(status().isConflict());
     }
 

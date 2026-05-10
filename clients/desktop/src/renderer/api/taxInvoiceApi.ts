@@ -39,6 +39,10 @@ export const TAX_INVOICE_STATUS_LABEL: Record<TaxInvoiceStatus, string> = {
  *
  * <p>{@code supplyAmount = quantity × unitPrice}, {@code vatAmount = supplyAmount × 0.1}
  * 모두 BE 가 자동 계산. UI 는 표시 전용.
+ *
+ * <p>P0-4 BE 필드 변경 (PR #139):
+ * - {@code spec} → {@code specification} (한국 표준 NTS 필드명 정렬)
+ * - {@code unit} 신규 (단위 — 건/kg/CBM 등)
  */
 export interface TaxInvoiceLine {
   /** 라인 UUID — 화면 미노출 (PUT 시 신규 생성). */
@@ -47,8 +51,10 @@ export interface TaxInvoiceLine {
   lineNo: number
   /** 품명. */
   itemName: string
-  /** 규격 (옵션). */
-  spec: string | null
+  /** 규격 (옵션) — BE 필드명 {@code specification}. */
+  specification: string | null
+  /** 단위 — 건/kg/CBM 등 (옵션, P0-4 신규). */
+  unit: string | null
   /** 수량 (BigDecimal — string). */
   quantity: string
   /** 단가 (KRW). */
@@ -61,8 +67,14 @@ export interface TaxInvoiceLine {
   memo: string | null
 }
 
+/** 세금계산서 종류 — 매출(SALES) / 매입(PURCHASE). P0-4 신규. */
+export type TaxInvoiceType = 'SALES' | 'PURCHASE'
+
 /**
  * 세금계산서 헤더 — 페이지 조회용 (라인 미포함). BE {@code TaxInvoiceResponse}.
+ *
+ * <p>P0-4 신규 필드는 {@link TaxInvoiceDetail} 에만 추가. 본 summary 는
+ * 기존 BE {@code TaxInvoiceResponse} (legacy /accounting/tax-invoices GET 응답) 매핑 유지.
  */
 export interface TaxInvoiceSummary {
   /** UUID — path param 전용. 화면 미노출. */
@@ -86,19 +98,37 @@ export interface TaxInvoiceSummary {
 
 /**
  * 세금계산서 단건 상세 — BE {@code TaxInvoiceDetailResponse}.
+ *
+ * <p>P0-4 신규 필드 (PR #139):
+ * - {@code invoiceType} (매출/매입)
+ * - {@code partnerCode} (거래처 비즈니스 식별자)
+ * - {@code cancelReason} (취소 사유)
  */
 export interface TaxInvoiceDetail extends TaxInvoiceSummary {
+  /** 세금계산서 종류 (P0-4 신규, NULL 이면 SALES legacy). */
+  invoiceType: TaxInvoiceType | null
+  /** 거래처 코드 — 비즈니스 식별자 (P0-4 신규, UUID 비공개 대안). */
+  partnerCode: string | null
   partnerAddress: string | null
   cancelledAt: string | null
   cancelledBy: string | null
+  /** 취소 사유 — CANCELLED 단계에서만 채워짐 (P0-4 신규). */
+  cancelReason: string | null
   eTaxExternalId: string | null
   description: string | null
   lines: TaxInvoiceLine[]
 }
 
-/** 라인 1건 생성/수정 요청. */
+/**
+ * 라인 1건 생성/수정 요청 — legacy POST/PUT (CreateTaxInvoiceRequest) 용.
+ *
+ * <p>본 페이로드는 BE 의 legacy {@code CreateTaxInvoiceLineRequest} record 와 1:1 매핑
+ * (필드명 {@code spec} 유지). P0-4 신규 endpoint {@code POST /issue-request} 는
+ * 별도 record {@code TaxInvoiceLineRequest} (필드명 {@code specification}) 사용.
+ */
 export interface CreateTaxInvoiceLineRequest {
   itemName: string
+  /** 규격 — legacy DTO 필드명 {@code spec} 유지 (request body). */
   spec?: string
   /** 수량 (BigDecimal — string 으로 직렬화). */
   quantity: string
@@ -118,9 +148,13 @@ export interface CreateTaxInvoiceRequest {
   lines: CreateTaxInvoiceLineRequest[]
 }
 
-/** 세금계산서 취소 요청 — 사유 필수 (BE `TaxInvoiceCancelRequest`). */
+/**
+ * 세금계산서 취소 요청 — 사유 필수 (BE {@code TaxInvoiceCancelRequest}).
+ *
+ * <p>BE 검증: {@code @Size(min=5, max=1000)} — 5자 미만 / 1000자 초과 시 400.
+ */
 export interface TaxInvoiceCancelRequest {
-  /** 취소 사유 (1~200자). */
+  /** 취소 사유 (5자 이상 1000자 이하 필수). */
   reason: string
 }
 

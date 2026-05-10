@@ -215,7 +215,7 @@ export function TaxInvoiceView() {
                   <td className="col-month num">{writeDate.month}</td>
                   <td className="col-day num">{writeDate.day}</td>
                   <td className="col-product">{l.itemName}</td>
-                  <td className="col-spec">{l.spec ?? ''}</td>
+                  <td className="col-spec">{l.specification ?? ''}</td>
                   <td className="col-qty num">{lineQty.toLocaleString()}</td>
                   <td className="col-price num">{linePrice.toLocaleString()}</td>
                   <td className="col-supply num">{lineSupply.toLocaleString()}</td>

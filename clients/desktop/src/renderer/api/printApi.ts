@@ -17,7 +17,13 @@ import { apiClient, type ApiEnvelope } from './client'
 /** 세금계산서 상태 — BE `TaxInvoiceStatus` 와 1:1. */
 export type TaxInvoiceStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED'
 
-/** 세금계산서 라인 — BE `TaxInvoiceLineResponse`. */
+/**
+ * 세금계산서 라인 — BE `TaxInvoiceLineResponse`.
+ *
+ * <p>P0-4 (PR #139) BE rename:
+ * - {@code spec} → {@code specification} (NTS 표준 필드명 정렬)
+ * - {@code unit} 신규 (단위 — 건/kg/CBM 등)
+ */
 export interface TaxInvoiceLine {
   /** 라인 UUID — 화면 미노출 (UUID 비공개 가드). */
   lineId: string
@@ -25,8 +31,10 @@ export interface TaxInvoiceLine {
   lineNo: number
   /** 품목명 (≤200자). */
   itemName: string
-  /** 규격 (≤80자, nullable). */
-  spec: string | null
+  /** 규격 (≤80자, nullable) — BE 필드명 {@code specification}. */
+  specification: string | null
+  /** 단위 (≤20자, nullable, P0-4 신규). */
+  unit: string | null
   /** 수량 (BigDecimal — string 직렬화). */
   quantity: string
   /** 단가 (KRW BigDecimal — string). */
