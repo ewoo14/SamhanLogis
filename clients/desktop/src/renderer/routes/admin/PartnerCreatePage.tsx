@@ -27,7 +27,7 @@ import { Tabs, Button, Input, Card } from '@samhan/design-system'
 import {
   createPartnerFull,
   PARTNER_TYPE_LABEL,
-  type PartnerCreateFullRequest,
+  type PartnerFullRequest,
   type PartnerShippingAddressRequest,
   type PartnerContactRequest,
   type PartnerType,
@@ -78,17 +78,21 @@ const EMPTY_PRICE: PriceDiscountForm = {
 
 const EMPTY_ADDRESS: PartnerShippingAddressRequest = {
   alias: '',
+  zipCode: '',
   address: '',
   phone: '',
+  receiverName: '',
   isDefault: false,
+  memo: '',
 }
 
 const EMPTY_CONTACT: PartnerContactRequest = {
-  name: '',
+  contactName: '',
   position: '',
   phone: '',
   email: '',
   isPrimary: false,
+  memo: '',
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +126,7 @@ function validateAddresses(
   list: PartnerShippingAddressRequest[],
 ): string | null {
   for (const [i, a] of list.entries()) {
-    if (!a.alias.trim()) return `배송지 ${i + 1}: 별칭을 입력하세요.`
+    if (!a.alias?.trim()) return `배송지 ${i + 1}: 별칭을 입력하세요.`
     if (!a.address.trim()) return `배송지 ${i + 1}: 주소를 입력하세요.`
   }
   return null
@@ -130,8 +134,8 @@ function validateAddresses(
 
 function validateContacts(list: PartnerContactRequest[]): string | null {
   for (const [i, c] of list.entries()) {
-    if (!c.name.trim()) return `담당자 ${i + 1}: 이름을 입력하세요.`
-    if (!c.phone.trim()) return `담당자 ${i + 1}: 휴대전화를 입력하세요.`
+    if (!c.contactName.trim()) return `담당자 ${i + 1}: 이름을 입력하세요.`
+    if (!c.phone?.trim()) return `담당자 ${i + 1}: 휴대전화를 입력하세요.`
   }
   const primaryCount = list.filter((c) => c.isPrimary).length
   if (list.length > 0 && primaryCount === 0)
@@ -202,37 +206,38 @@ export function PartnerCreatePage() {
       return
     }
 
-    const body: PartnerCreateFullRequest = {
-      basic: {
-        businessName: basic.businessName.trim(),
-        businessNumber: basic.businessNumber.trim(),
-        address: basic.address.trim() || undefined,
-        type: basic.type,
-        ceoName: basic.ceoName.trim() || undefined,
-        businessCategory: basic.businessCategory.trim() || undefined,
-        businessItem: basic.businessItem.trim() || undefined,
-        taxEmail: basic.taxEmail.trim() || undefined,
-        memo: basic.memo.trim() || undefined,
-      },
+    // BE PartnerFullRequest record (flat) 와 1:1 매핑.
+    // BE 가 partnerCode 미입력 시 자동 생성하지 않으므로 임시 timestamp 기반 코드 부여 (실서버 수신 후
+    // 정식 코드 채번 정책은 partner-service 측에서 후속 정의 예정 — 현재 슬라이스 외 영역).
+    const autoPartnerCode = `P-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
+
+    const body: PartnerFullRequest = {
+      partnerCode: autoPartnerCode,
+      bizNo: basic.businessNumber.trim(),
+      name: basic.businessName.trim(),
       priceDiscount: {
-        basicDiscount: Number.parseFloat(price.basicDiscount),
+        basicDiscountRate: Number.parseFloat(price.basicDiscount),
         paymentTermDays: Number.parseInt(price.paymentTermDays, 10),
-        creditLimit: price.creditLimit
-          ? Number.parseFloat(price.creditLimit)
-          : undefined,
+        // BE PartnerPriceDiscountRequest 에 creditLimit 필드 없음 — Partner 본체의 creditLimit 는
+        // 별도 admin endpoint 에서 관리 (관리자 메뉴). 여기서는 discountMemo 만 전달.
+        discountMemo: basic.memo.trim() || null,
       },
       shippingAddresses: addresses.map((a) => ({
-        alias: a.alias.trim(),
+        alias: a.alias?.trim() || null,
+        zipCode: a.zipCode?.trim() || null,
         address: a.address.trim(),
-        phone: a.phone?.trim() || undefined,
+        phone: a.phone?.trim() || null,
+        receiverName: a.receiverName?.trim() || null,
         isDefault: a.isDefault,
+        memo: a.memo?.trim() || null,
       })),
       contacts: contacts.map((c) => ({
-        name: c.name.trim(),
-        position: c.position?.trim() || undefined,
-        phone: c.phone.trim(),
-        email: c.email?.trim() || undefined,
+        contactName: c.contactName.trim(),
+        position: c.position?.trim() || null,
+        phone: c.phone?.trim() || null,
+        email: c.email?.trim() || null,
         isPrimary: c.isPrimary,
+        memo: c.memo?.trim() || null,
       })),
     }
 
@@ -572,7 +577,7 @@ function ShippingAddressTab({
                   label="별칭"
                   required
                   placeholder="본사창고"
-                  value={row.alias}
+                  value={row.alias ?? ''}
                   onChange={(e) => setRow(idx, { alias: e.target.value })}
                 />
                 <Input
@@ -580,6 +585,20 @@ function ShippingAddressTab({
                   placeholder="02-1234-5678"
                   value={row.phone ?? ''}
                   onChange={(e) => setRow(idx, { phone: e.target.value })}
+                />
+                <Input
+                  label="우편번호"
+                  placeholder="06234"
+                  value={row.zipCode ?? ''}
+                  onChange={(e) => setRow(idx, { zipCode: e.target.value })}
+                />
+                <Input
+                  label="수신담당자"
+                  placeholder="홍길동"
+                  value={row.receiverName ?? ''}
+                  onChange={(e) =>
+                    setRow(idx, { receiverName: e.target.value })
+                  }
                 />
                 <Input
                   label="주소"
@@ -690,8 +709,8 @@ function ContactTab({
                   label="이름"
                   required
                   placeholder="김영업"
-                  value={row.name}
-                  onChange={(e) => setRow(idx, { name: e.target.value })}
+                  value={row.contactName}
+                  onChange={(e) => setRow(idx, { contactName: e.target.value })}
                 />
                 <Input
                   label="직책"
@@ -703,7 +722,7 @@ function ContactTab({
                   label="휴대전화"
                   required
                   placeholder="010-1234-5678"
-                  value={row.phone}
+                  value={row.phone ?? ''}
                   onChange={(e) => setRow(idx, { phone: e.target.value })}
                 />
                 <Input

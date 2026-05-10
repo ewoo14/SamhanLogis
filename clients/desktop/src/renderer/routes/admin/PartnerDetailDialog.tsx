@@ -36,10 +36,9 @@ import {
   getPartnerFull,
   updatePartnerFull,
   PARTNER_TYPE_LABEL,
-  type PartnerCreateFullRequest,
+  type PartnerFullRequest,
   type PartnerShippingAddressRequest,
   type PartnerContactRequest,
-  type PartnerType,
   type PartnerFullResponse,
 } from '../../api/partnerApi'
 
@@ -48,9 +47,13 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface PartnerDetailDialogProps {
-  /** 거래처 내부 UUID (라우트 param 전용). */
+  /**
+   * 거래처 식별자 — partnerCode (사용자 노출 식별자, BE path variable 과 일치).
+   * 이전에 partnerId (UUID) 로 명명되었으나 BE Controller 가 partnerCode 를 받으므로
+   * TM PR #141 cross-check 에서 정정 (UUID 비공개 가드).
+   */
   partnerId: string | null
-  /** 거래처 이름 — 모달 title 에만 노출 (UUID 미노출). */
+  /** 거래처 이름 — 모달 title 에만 노출. */
   partnerName: string | null
   open: boolean
   onClose: () => void
@@ -80,7 +83,7 @@ export function PartnerDetailDialog({
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState(0)
   const [editing, setEditing] = useState(false)
-  const [editData, setEditData] = useState<PartnerCreateFullRequest | null>(
+  const [editData, setEditData] = useState<PartnerFullRequest | null>(
     null,
   )
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -98,7 +101,7 @@ export function PartnerDetailDialog({
       body,
     }: {
       id: string
-      body: PartnerCreateFullRequest
+      body: PartnerFullRequest
     }) => updatePartnerFull(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['partner', 'full', partnerId] })
@@ -114,35 +117,32 @@ export function PartnerDetailDialog({
   })
 
   function startEdit(data: PartnerFullResponse) {
+    // BE PartnerFullRequest (flat) 와 1:1 매핑 — basic 객체로 wrap 하지 않음.
     setEditData({
-      basic: {
-        businessName: data.basic.businessName,
-        businessNumber: data.basic.businessNumber,
-        address: data.basic.address ?? '',
-        type: data.basic.type,
-        ceoName: data.basic.ceoName ?? '',
-        businessCategory: data.basic.businessCategory ?? '',
-        businessItem: data.basic.businessItem ?? '',
-        taxEmail: data.basic.taxEmail ?? '',
-        memo: data.basic.memo ?? '',
-      },
+      partnerCode: data.basic.partnerCode,
+      bizNo: data.basic.bizNo,
+      name: data.basic.name,
       priceDiscount: {
-        basicDiscount: data.priceDiscount.basicDiscount,
-        paymentTermDays: data.priceDiscount.paymentTermDays,
-        creditLimit: data.priceDiscount.creditLimit ?? undefined,
+        basicDiscountRate: data.priceDiscount.basicDiscountRate,
+        paymentTermDays: data.priceDiscount.paymentTermDays ?? null,
+        discountMemo: data.priceDiscount.discountMemo ?? null,
       },
       shippingAddresses: data.shippingAddresses.map((a) => ({
-        alias: a.alias,
+        alias: a.alias ?? '',
+        zipCode: a.zipCode ?? '',
         address: a.address,
         phone: a.phone ?? '',
+        receiverName: a.receiverName ?? '',
         isDefault: a.isDefault,
+        memo: a.memo ?? '',
       })),
       contacts: data.contacts.map((c) => ({
-        name: c.name,
+        contactName: c.contactName,
         position: c.position ?? '',
-        phone: c.phone,
+        phone: c.phone ?? '',
         email: c.email ?? '',
         isPrimary: c.isPrimary,
+        memo: c.memo ?? '',
       })),
     })
     setEditing(true)
@@ -258,9 +258,7 @@ export function PartnerDetailDialog({
               editing={editing}
               editData={editData}
               onChange={(patch) =>
-                setEditData((prev) =>
-                  prev ? { ...prev, basic: { ...prev.basic, ...patch } } : prev,
-                )
+                setEditData((prev) => (prev ? { ...prev, ...patch } : prev))
               }
             />
 
@@ -274,7 +272,15 @@ export function PartnerDetailDialog({
                   prev
                     ? {
                         ...prev,
-                        priceDiscount: { ...prev.priceDiscount, ...patch },
+                        priceDiscount: {
+                          basicDiscountRate:
+                            prev.priceDiscount?.basicDiscountRate ?? 0,
+                          paymentTermDays:
+                            prev.priceDiscount?.paymentTermDays ?? null,
+                          discountMemo:
+                            prev.priceDiscount?.discountMemo ?? null,
+                          ...patch,
+                        },
                       }
                     : prev,
                 )
@@ -323,8 +329,8 @@ function DetailBasicTab({
 }: {
   data: PartnerFullResponse
   editing: boolean
-  editData: PartnerCreateFullRequest | null
-  onChange: (patch: Partial<PartnerCreateFullRequest['basic']>) => void
+  editData: PartnerFullRequest | null
+  onChange: (patch: Partial<PartnerFullRequest>) => void
 }) {
   if (!editing) {
     const b = data.basic
@@ -332,95 +338,52 @@ function DetailBasicTab({
       <Card variant="outlined" shadow="none" padding={3}>
         <dl style={dlStyle}>
           <ReadRow label="거래처 코드" value={b.partnerCode} />
-          <ReadRow label="거래처명" value={b.businessName} />
-          <ReadRow label="사업자등록번호" value={b.businessNumber} />
-          <ReadRow
-            label="거래처 유형"
-            value={PARTNER_TYPE_LABEL[b.type]}
-          />
-          <ReadRow label="대표자명" value={b.ceoName} />
-          <ReadRow label="업태" value={b.businessCategory} />
-          <ReadRow label="종목" value={b.businessItem} />
+          <ReadRow label="거래처명" value={b.name} />
+          <ReadRow label="사업자등록번호" value={b.bizNo} />
+          <ReadRow label="대표자명" value={b.representative} />
+          <ReadRow label="업태" value={b.businessType} />
+          <ReadRow label="종목" value={b.industry} />
           <ReadRow label="사업장 주소" value={b.address} />
-          <ReadRow label="세금계산서 이메일" value={b.taxEmail} />
-          <ReadRow label="메모" value={b.memo} />
+          <ReadRow label="대표 연락처" value={b.phone} />
+          <ReadRow label="이메일" value={b.email} />
+          <ReadRow label="휴대전화" value={b.mobile} />
+          <ReadRow label="거래처 분류1" value={b.partnerGroup1} />
+          <ReadRow label="거래처 분류2" value={b.partnerGroup2} />
         </dl>
       </Card>
     )
   }
 
-  const f = editData?.basic
+  const f = editData
   if (!f) return null
 
+  // BE PartnerFullRequest 가 PATCH 시 name 만 반영 (Partner4TabService.updateFull 참조).
+  // representative/businessType/industry 등 부가 필드 수정은 별도 admin endpoint 사용.
   return (
     <Card variant="outlined" shadow="none" padding={3}>
       <div style={gridStyle}>
         <Input
           label="거래처명"
           required
-          value={f.businessName}
-          onChange={(e) => onChange({ businessName: e.target.value })}
+          value={f.name}
+          onChange={(e) => onChange({ name: e.target.value })}
         />
         <Input
           label="사업자등록번호"
-          required
-          value={f.businessNumber}
-          onChange={(e) => onChange({ businessNumber: e.target.value })}
-        />
-        <div>
-          <label style={labelStyle}>
-            거래처 유형 <span style={{ color: 'var(--color-danger-500, #EF4444)' }}>*</span>
-          </label>
-          <select
-            value={f.type}
-            onChange={(e) =>
-              onChange({ type: e.target.value as PartnerType })
-            }
-            style={selectStyle}
-          >
-            {(Object.keys(PARTNER_TYPE_LABEL) as PartnerType[]).map((t) => (
-              <option key={t} value={t}>
-                {PARTNER_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Input
-          label="대표자명"
-          value={f.ceoName ?? ''}
-          onChange={(e) => onChange({ ceoName: e.target.value })}
-        />
-        <Input
-          label="업태"
-          value={f.businessCategory ?? ''}
-          onChange={(e) => onChange({ businessCategory: e.target.value })}
-        />
-        <Input
-          label="종목"
-          value={f.businessItem ?? ''}
-          onChange={(e) => onChange({ businessItem: e.target.value })}
-        />
-        <Input
-          label="사업장 주소"
-          value={f.address ?? ''}
-          onChange={(e) => onChange({ address: e.target.value })}
-          style={{ gridColumn: '1 / -1' }}
-        />
-        <Input
-          label="세금계산서 이메일"
-          type="email"
-          value={f.taxEmail ?? ''}
-          onChange={(e) => onChange({ taxEmail: e.target.value })}
-          style={{ gridColumn: '1 / -1' }}
+          value={f.bizNo ?? ''}
+          disabled
+          hint="등록 후 변경 불가"
         />
         <div style={{ gridColumn: '1 / -1' }}>
-          <label style={labelStyle}>메모</label>
-          <textarea
-            value={f.memo ?? ''}
-            onChange={(e) => onChange({ memo: e.target.value })}
-            rows={3}
-            style={textareaStyle}
-          />
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--color-text-muted, #6B7280)',
+              margin: 0,
+            }}
+          >
+            대표자/업태/종목/주소 등 부가 정보는 거래처 관리 메뉴에서 수정합니다.
+          </p>
         </div>
       </div>
     </Card>
@@ -439,9 +402,9 @@ function DetailPriceTab({
 }: {
   data: PartnerFullResponse
   editing: boolean
-  editData: PartnerCreateFullRequest | null
+  editData: PartnerFullRequest | null
   onChange: (
-    patch: Partial<PartnerCreateFullRequest['priceDiscount']>,
+    patch: Partial<NonNullable<PartnerFullRequest['priceDiscount']>>,
   ) => void
 }) {
   if (!editing) {
@@ -451,13 +414,21 @@ function DetailPriceTab({
         <dl style={dlStyle}>
           <ReadRow
             label="기본 할인율"
-            value={`${p.basicDiscount}%`}
+            value={`${p.basicDiscountRate ?? 0}%`}
           />
           <ReadRow
             label="결제 기간"
-            value={`${p.paymentTermDays}일`}
+            value={
+              p.paymentTermDays !== null
+                ? `${p.paymentTermDays}일`
+                : '미설정'
+            }
           />
-          <ReadRow label="신용한도" value={formatKrw(p.creditLimit)} />
+          <ReadRow
+            label="신용한도"
+            value={formatKrw(data.basic.creditLimit ?? null)}
+          />
+          <ReadRow label="비고" value={p.discountMemo} />
         </dl>
       </Card>
     )
@@ -475,9 +446,9 @@ function DetailPriceTab({
           min={0}
           max={100}
           step={0.1}
-          value={String(f.basicDiscount)}
+          value={String(f.basicDiscountRate ?? 0)}
           onChange={(e) =>
-            onChange({ basicDiscount: Number.parseFloat(e.target.value) })
+            onChange({ basicDiscountRate: Number.parseFloat(e.target.value) })
           }
         />
         <Input
@@ -485,25 +456,22 @@ function DetailPriceTab({
           type="number"
           min={0}
           step={1}
-          value={String(f.paymentTermDays)}
+          value={f.paymentTermDays !== null && f.paymentTermDays !== undefined
+            ? String(f.paymentTermDays)
+            : ''}
           onChange={(e) =>
-            onChange({ paymentTermDays: Number.parseInt(e.target.value, 10) })
+            onChange({
+              paymentTermDays: e.target.value
+                ? Number.parseInt(e.target.value, 10)
+                : null,
+            })
           }
         />
         <Input
-          label="신용한도 (원)"
-          type="number"
-          min={0}
-          step={1000}
-          value={f.creditLimit !== undefined ? String(f.creditLimit) : ''}
-          onChange={(e) =>
-            onChange({
-              creditLimit: e.target.value
-                ? Number.parseFloat(e.target.value)
-                : undefined,
-            })
-          }
-          hint="공란 = 한도 미설정"
+          label="비고"
+          value={f.discountMemo ?? ''}
+          onChange={(e) => onChange({ discountMemo: e.target.value })}
+          style={{ gridColumn: '1 / -1' }}
         />
       </div>
     </Card>
@@ -522,7 +490,7 @@ function DetailShippingTab({
 }: {
   data: PartnerFullResponse
   editing: boolean
-  editData: PartnerCreateFullRequest | null
+  editData: PartnerFullRequest | null
   onChange: (list: PartnerShippingAddressRequest[]) => void
 }) {
   if (!editing) {
@@ -534,14 +502,18 @@ function DetailShippingTab({
           data.shippingAddresses.map((a) => (
             <Card key={a.id} variant="outlined" shadow="none" padding={3}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{a.alias}</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {a.alias ?? '(별칭 없음)'}
+                </span>
                 {a.isDefault ? (
                   <Badge variant="brand">기본</Badge>
                 ) : null}
               </div>
               <dl style={dlStyle}>
+                <ReadRow label="우편번호" value={a.zipCode} />
                 <ReadRow label="주소" value={a.address} />
                 <ReadRow label="연락처" value={a.phone} />
+                <ReadRow label="수신담당자" value={a.receiverName} />
               </dl>
             </Card>
           ))
@@ -553,7 +525,18 @@ function DetailShippingTab({
   const list = editData?.shippingAddresses ?? []
 
   function addRow() {
-    onChange([...list, { alias: '', address: '', phone: '', isDefault: false }])
+    onChange([
+      ...list,
+      {
+        alias: '',
+        zipCode: '',
+        address: '',
+        phone: '',
+        receiverName: '',
+        isDefault: false,
+        memo: '',
+      },
+    ])
   }
   function deleteRow(idx: number) {
     onChange(list.filter((_, i) => i !== idx))
@@ -599,13 +582,25 @@ function DetailShippingTab({
                 <Input
                   label="별칭"
                   required
-                  value={row.alias}
+                  value={row.alias ?? ''}
                   onChange={(e) => setRow(idx, { alias: e.target.value })}
                 />
                 <Input
                   label="연락처"
                   value={row.phone ?? ''}
                   onChange={(e) => setRow(idx, { phone: e.target.value })}
+                />
+                <Input
+                  label="우편번호"
+                  value={row.zipCode ?? ''}
+                  onChange={(e) => setRow(idx, { zipCode: e.target.value })}
+                />
+                <Input
+                  label="수신담당자"
+                  value={row.receiverName ?? ''}
+                  onChange={(e) =>
+                    setRow(idx, { receiverName: e.target.value })
+                  }
                 />
                 <Input
                   label="주소"
@@ -635,7 +630,7 @@ function DetailContactTab({
 }: {
   data: PartnerFullResponse
   editing: boolean
-  editData: PartnerCreateFullRequest | null
+  editData: PartnerFullRequest | null
   onChange: (list: PartnerContactRequest[]) => void
 }) {
   if (!editing) {
@@ -647,7 +642,9 @@ function DetailContactTab({
           data.contacts.map((c) => (
             <Card key={c.id} variant="outlined" shadow="none" padding={3}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  {c.contactName}
+                </span>
                 {c.position ? (
                   <span style={{ fontSize: 12, color: 'var(--color-text-muted, #6B7280)' }}>
                     {c.position}
@@ -660,6 +657,7 @@ function DetailContactTab({
               <dl style={dlStyle}>
                 <ReadRow label="휴대전화" value={c.phone} />
                 <ReadRow label="이메일" value={c.email} />
+                <ReadRow label="비고" value={c.memo} />
               </dl>
             </Card>
           ))
@@ -671,7 +669,17 @@ function DetailContactTab({
   const list = editData?.contacts ?? []
 
   function addRow() {
-    onChange([...list, { name: '', position: '', phone: '', email: '', isPrimary: false }])
+    onChange([
+      ...list,
+      {
+        contactName: '',
+        position: '',
+        phone: '',
+        email: '',
+        isPrimary: false,
+        memo: '',
+      },
+    ])
   }
   function deleteRow(idx: number) {
     onChange(list.filter((_, i) => i !== idx))
@@ -717,8 +725,8 @@ function DetailContactTab({
                 <Input
                   label="이름"
                   required
-                  value={row.name}
-                  onChange={(e) => setRow(idx, { name: e.target.value })}
+                  value={row.contactName}
+                  onChange={(e) => setRow(idx, { contactName: e.target.value })}
                 />
                 <Input
                   label="직책"
@@ -728,7 +736,7 @@ function DetailContactTab({
                 <Input
                   label="휴대전화"
                   required
-                  value={row.phone}
+                  value={row.phone ?? ''}
                   onChange={(e) => setRow(idx, { phone: e.target.value })}
                 />
                 <Input

@@ -105,10 +105,8 @@ export function PartnersPage() {
     : 1
 
   function openDetail(partner: PartnerSummary) {
-    // partnerCode 를 id 대신 사용 — adminApi 의 PartnerSummary 에 id 가 없으므로
-    // partnerCode 를 detail 경로에 사용 (BE /api/v1/partners/{id}/full 은
-    // 실제 UUID 를 사용하나, 이 화면에서는 partnerCode 로 조회 — BE 가 partnerCode
-    // 로도 조회를 지원한다는 전제. 미지원 시 adminApi 에 id 필드 추가 필요).
+    // BE Partner4TabController 의 path variable 은 partnerCode (UUID 아님).
+    // TM PR #141 cross-check 로 정정 — UUID 비공개 가드 + BE 와 1:1 정렬.
     setSelectedPartnerId(partner.partnerCode)
     setSelectedPartnerName(partner.name)
     setDialogOpen(true)

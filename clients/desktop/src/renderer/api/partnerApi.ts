@@ -1,23 +1,27 @@
 /**
  * 거래처 4탭 풀 API 클라이언트 — P0-6 슬라이스.
  *
- * <p>BE endpoint (partner-service):
+ * <p>BE endpoint (partner-service, {@code Partner4TabController}):
  * <ul>
- *   <li>GET    /api/v1/partners/{id}/full   — 4탭 전체 조회</li>
- *   <li>POST   /api/v1/partners/full        — 4탭 신규 등록</li>
- *   <li>PATCH  /api/v1/partners/{id}/full   — 4탭 전체 수정</li>
- *   <li>GET    /api/v1/partners/{id}/price-discount — 단가/할인 탭</li>
- *   <li>PATCH  /api/v1/partners/{id}/price-discount — 단가/할인 탭 수정</li>
- *   <li>GET    /api/v1/partners/{id}/shipping-addresses — 배송지 탭</li>
- *   <li>POST   /api/v1/partners/{id}/shipping-addresses — 배송지 추가</li>
- *   <li>DELETE /api/v1/partners/{id}/shipping-addresses/{addressId} — 배송지 삭제</li>
- *   <li>GET    /api/v1/partners/{id}/contacts — 담당자 탭</li>
- *   <li>POST   /api/v1/partners/{id}/contacts — 담당자 추가</li>
- *   <li>DELETE /api/v1/partners/{id}/contacts/{contactId} — 담당자 삭제</li>
+ *   <li>GET    /api/v1/partners/{partnerCode}/full   — 4탭 전체 조회</li>
+ *   <li>POST   /api/v1/partners/full                  — 4탭 신규 등록</li>
+ *   <li>PATCH  /api/v1/partners/{partnerCode}/full    — 4탭 전체 수정</li>
+ *   <li>GET    /api/v1/partners/{partnerCode}/price-discount — 단가/할인 탭</li>
+ *   <li>PUT    /api/v1/partners/{partnerCode}/price-discount — 단가/할인 탭 UPSERT</li>
+ *   <li>GET    /api/v1/partners/{partnerCode}/shipping-addresses — 배송지 목록</li>
+ *   <li>POST   /api/v1/partners/{partnerCode}/shipping-addresses — 배송지 추가</li>
+ *   <li>DELETE /api/v1/partners/{partnerCode}/shipping-addresses/{addressId} — 배송지 삭제</li>
+ *   <li>GET    /api/v1/partners/{partnerCode}/contacts — 담당자 목록</li>
+ *   <li>POST   /api/v1/partners/{partnerCode}/contacts — 담당자 추가</li>
+ *   <li>DELETE /api/v1/partners/{partnerCode}/contacts/{contactId} — 담당자 삭제</li>
  * </ul>
  *
- * <p>UUID 비공개 가드: 내부 id (UUID) 는 mutation path key 전용.
- * 화면 노출 식별자 = partnerCode / businessName 만.
+ * <p><b>TM PR #141 cross-check fix</b> — Path variable 이름 (partnerCode), HTTP method
+ * (price-discount = PUT), DTO 필드명 (basicDiscountRate / contactName / zipCode /
+ * receiverName / discountMemo) 을 BE Partner4TabController 와 1:1 로 정렬.
+ *
+ * <p>UUID 비공개 가드 (memory feedback_uuid_no_user_visibility) — id 는 mutation path key 전용.
+ * 화면 노출 식별자 = partnerCode / name 만.
  *
  * <p>@PreAuthorize — SALES / MANAGER / MASTER (BE 와 일치).
  */
@@ -48,140 +52,162 @@ export const PARTNER_STATUS_DISPLAY: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// 기본정보 탭 DTO
+// 기본정보 탭 DTO — BE PartnerBasicResponse 와 1:1
 // ---------------------------------------------------------------------------
 
 /**
- * 기본정보 탭 — BE `PartnerBasicDto` 와 1:1.
+ * 기본정보 탭 응답 — BE {@code PartnerBasicResponse} record 와 1:1.
  *
- * <p>id (UUID) 는 화면 미노출. 사용자 노출 식별자 = partnerCode / businessName.
+ * <p>UUID 미포함 (BE record 가 id 를 반환하지 않음). 사용자 노출 식별자 = partnerCode / name.
  */
 export interface PartnerBasic {
-  /** 내부 UUID — mutation path key 전용, 화면 미노출. */
-  id: string
   /** 거래처 코드 (사용자 노출 식별자). 예: P-2026-0001 */
   partnerCode: string
-  /** 거래처명 (사용자 노출 식별자). */
-  businessName: string
   /** 사업자등록번호. 예: 123-45-67890 */
-  businessNumber: string
-  /** 사업장 주소. */
-  address: string | null
-  /** 거래처 유형. */
-  type: PartnerType
+  bizNo: string
+  /** 거래처 상호. */
+  name: string
   /** 대표자명. */
-  ceoName: string | null
+  representative: string | null
   /** 업태. */
-  businessCategory: string | null
+  businessType: string | null
   /** 종목. */
-  businessItem: string | null
-  /** 세금계산서 이메일. */
-  taxEmail: string | null
-  /** 메모. */
-  memo: string | null
-}
-
-/** 기본정보 탭 입력 요청 DTO. */
-export interface PartnerBasicRequest {
-  businessName: string
-  businessNumber: string
-  address?: string
-  type: PartnerType
-  ceoName?: string
-  businessCategory?: string
-  businessItem?: string
-  taxEmail?: string
-  memo?: string
+  industry: string | null
+  /** 사업장 주소 (legacy). */
+  address: string | null
+  /** 대표 연락처. */
+  phone: string | null
+  /** FAX. */
+  fax: string | null
+  /** 이메일 (대표). */
+  email: string | null
+  /** 이메일 (보조). */
+  email2: string | null
+  /** 휴대전화. */
+  mobile: string | null
+  /** 홈페이지. */
+  website: string | null
+  /** 거래처 분류1. */
+  partnerGroup1: string | null
+  /** 거래처 분류2. */
+  partnerGroup2: string | null
+  /** 신용한도 (원, BE BigDecimal → number). */
+  creditLimit: number | null
+  /** 미수금 잔액. */
+  outstandingBalance: number | null
+  /** 거래 상태. */
+  status: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED'
+  /** 거래 시작일 (회계상). ISO yyyy-MM-dd */
+  registrationDate: string | null
 }
 
 // ---------------------------------------------------------------------------
-// 단가/할인 정책 탭 DTO
+// 단가/할인 정책 탭 DTO — BE PartnerPriceDiscountResponse / Request 와 1:1
 // ---------------------------------------------------------------------------
 
 /**
- * 단가/할인 정책 탭 — BE `PartnerPriceDiscountDto` 와 1:1.
+ * 단가/할인 정책 응답 — BE {@code PartnerPriceDiscountResponse} record 와 1:1.
  */
 export interface PartnerPriceDiscount {
-  /** 기본 할인율 (%). 예: 5.0 */
-  basicDiscount: number
-  /** 결제 기간(일). 예: 30 */
-  paymentTermDays: number
-  /** 신용한도 (원). null = 미설정. */
-  creditLimit: number | null
+  /** 기본 할인율 (%, BE BigDecimal → number). 예: 5.00 */
+  basicDiscountRate: number
+  /** 결제 조건 (일수). NULL 가능. */
+  paymentTermDays: number | null
+  /** 할인 정책 비고. */
+  discountMemo: string | null
 }
 
-/** 단가/할인 탭 입력 요청 DTO. */
+/** 단가/할인 탭 입력 요청 — BE {@code PartnerPriceDiscountRequest} 와 1:1. */
 export interface PartnerPriceDiscountRequest {
-  basicDiscount: number
-  paymentTermDays: number
-  creditLimit?: number
+  basicDiscountRate: number
+  paymentTermDays?: number | null
+  discountMemo?: string | null
 }
 
 // ---------------------------------------------------------------------------
-// 배송지 탭 DTO
+// 배송지 탭 DTO — BE PartnerShippingAddressResponse / Request 와 1:1
 // ---------------------------------------------------------------------------
 
 /**
- * 배송지 1건 — BE `PartnerShippingAddressDto` 와 1:1.
+ * 배송지 1건 응답 — BE {@code PartnerShippingAddressResponse} record 와 1:1.
+ *
+ * <p>id (UUID) 는 path variable (DELETE) 전용, 화면 미노출.
  */
 export interface PartnerShippingAddress {
-  /** 내부 UUID — mutation path key 전용, 화면 미노출. */
+  /** 내부 UUID — DELETE path 전용, 화면 미노출. */
   id: string
   /** 배송지 별칭. 예: 본사창고 */
-  alias: string
+  alias: string | null
+  /** 우편번호. */
+  zipCode: string | null
   /** 배송지 주소. */
   address: string
   /** 연락처. */
   phone: string | null
+  /** 수신 담당자명. */
+  receiverName: string | null
   /** 기본 배송지 여부. */
   isDefault: boolean
+  /** 비고. */
+  memo: string | null
 }
 
-/** 배송지 1건 입력 요청 DTO. */
+/** 배송지 1건 입력 요청 — BE {@code PartnerShippingAddressRequest} 와 1:1. */
 export interface PartnerShippingAddressRequest {
-  alias: string
+  alias?: string | null
+  zipCode?: string | null
   address: string
-  phone?: string
+  phone?: string | null
+  receiverName?: string | null
   isDefault?: boolean
+  memo?: string | null
 }
 
 // ---------------------------------------------------------------------------
-// 담당자 탭 DTO
+// 담당자 탭 DTO — BE PartnerContactResponse / Request 와 1:1
 // ---------------------------------------------------------------------------
 
 /**
- * 담당자 1건 — BE `PartnerContactDto` 와 1:1.
+ * 담당자 1건 응답 — BE {@code PartnerContactResponse} record 와 1:1.
+ *
+ * <p>id (UUID) 는 path variable (DELETE) 전용, 화면 미노출.
  */
 export interface PartnerContact {
-  /** 내부 UUID — mutation path key 전용, 화면 미노출. */
+  /** 내부 UUID — DELETE path 전용, 화면 미노출. */
   id: string
   /** 담당자명. */
-  name: string
+  contactName: string
   /** 직책. 예: 과장 */
   position: string | null
-  /** 휴대전화. 예: 010-1234-5678 */
-  phone: string
+  /** 직통 전화. */
+  phone: string | null
   /** 이메일. */
   email: string | null
   /** 주 담당자 여부. */
   isPrimary: boolean
+  /** 비고. */
+  memo: string | null
 }
 
-/** 담당자 1건 입력 요청 DTO. */
+/** 담당자 1건 입력 요청 — BE {@code PartnerContactRequest} 와 1:1. */
 export interface PartnerContactRequest {
-  name: string
-  position?: string
-  phone: string
-  email?: string
+  contactName: string
+  position?: string | null
+  phone?: string | null
+  email?: string | null
   isPrimary?: boolean
+  memo?: string | null
 }
 
 // ---------------------------------------------------------------------------
-// 4탭 풀 DTO
+// 4탭 풀 DTO — BE PartnerFullResponse / PartnerFullRequest 와 1:1
 // ---------------------------------------------------------------------------
 
 /**
- * 거래처 4탭 전체 응답 — BE `PartnerFullResponse` 와 1:1.
+ * 거래처 4탭 전체 응답 — BE {@code PartnerFullResponse} record 와 1:1.
+ *
+ * <p>{@code basic} (PartnerBasicResponse) + {@code priceDiscount} +
+ * {@code shippingAddresses[]} + {@code contacts[]}.
  */
 export interface PartnerFullResponse {
   basic: PartnerBasic
@@ -191,27 +217,43 @@ export interface PartnerFullResponse {
 }
 
 /**
- * 거래처 4탭 신규 등록 / 전체 수정 요청 — BE `PartnerCreateFullRequest` 와 1:1.
+ * 거래처 4탭 신규 등록 / 전체 수정 요청 — BE {@code PartnerFullRequest} record 와 1:1.
+ *
+ * <p>flat 구조 — partnerCode / bizNo / name 은 신규 등록 시 필수, 수정 시 path 식별이므로 선택.
+ * BE record 시그니처: {@code (partnerCode, bizNo, name, priceDiscount, shippingAddresses, contacts)}.
  */
-export interface PartnerCreateFullRequest {
-  basic: PartnerBasicRequest
-  priceDiscount: PartnerPriceDiscountRequest
-  shippingAddresses: PartnerShippingAddressRequest[]
-  contacts: PartnerContactRequest[]
+export interface PartnerFullRequest {
+  /** 거래처 코드 (신규 등록 시 필수). */
+  partnerCode?: string | null
+  /** 사업자번호 (신규 등록 시 필수). */
+  bizNo?: string | null
+  /** 거래처 상호 (필수). */
+  name: string
+  priceDiscount?: PartnerPriceDiscountRequest | null
+  shippingAddresses?: PartnerShippingAddressRequest[] | null
+  contacts?: PartnerContactRequest[] | null
 }
 
+/**
+ * @deprecated TM PR #141 cross-check 이전 명칭. {@link PartnerFullRequest} 사용.
+ *   호환성 유지를 위해 alias 만 남김 (PartnerCreatePage / PartnerDetailDialog 가 사용).
+ */
+export type PartnerCreateFullRequest = PartnerFullRequest
+
 // ---------------------------------------------------------------------------
-// API 함수
+// API 함수 — 모든 path variable 은 partnerCode (BE Controller 와 일치)
 // ---------------------------------------------------------------------------
 
 /**
- * 거래처 4탭 전체 조회 — `GET /api/v1/partners/{id}/full`.
+ * 거래처 4탭 전체 조회 — `GET /api/v1/partners/{partnerCode}/full`.
  *
- * @param id 거래처 내부 UUID (라우트 param 전용)
+ * @param partnerCode 거래처 코드 (예: P-2026-0001) — UUID 가 아님.
  */
-export async function getPartnerFull(id: string): Promise<PartnerFullResponse> {
+export async function getPartnerFull(
+  partnerCode: string,
+): Promise<PartnerFullResponse> {
   const res = await apiClient.get<ApiEnvelope<PartnerFullResponse>>(
-    `/api/v1/partners/${id}/full`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/full`,
   )
   return res.data.data
 }
@@ -219,10 +261,10 @@ export async function getPartnerFull(id: string): Promise<PartnerFullResponse> {
 /**
  * 거래처 4탭 신규 등록 — `POST /api/v1/partners/full`.
  *
- * @param body 4탭 전체 입력 데이터
+ * @param body 4탭 전체 입력 (flat 구조 — BE PartnerFullRequest record 와 1:1).
  */
 export async function createPartnerFull(
-  body: PartnerCreateFullRequest,
+  body: PartnerFullRequest,
 ): Promise<PartnerFullResponse> {
   const res = await apiClient.post<ApiEnvelope<PartnerFullResponse>>(
     '/api/v1/partners/full',
@@ -232,120 +274,129 @@ export async function createPartnerFull(
 }
 
 /**
- * 거래처 4탭 전체 수정 — `PATCH /api/v1/partners/{id}/full`.
+ * 거래처 4탭 전체 수정 — `PATCH /api/v1/partners/{partnerCode}/full`.
  *
- * @param id 거래처 내부 UUID (라우트 param 전용)
- * @param body 4탭 전체 수정 데이터
+ * @param partnerCode 거래처 코드 (path variable)
+ * @param body 4탭 전체 수정 데이터 (flat)
  */
 export async function updatePartnerFull(
-  id: string,
-  body: PartnerCreateFullRequest,
+  partnerCode: string,
+  body: PartnerFullRequest,
 ): Promise<PartnerFullResponse> {
   const res = await apiClient.patch<ApiEnvelope<PartnerFullResponse>>(
-    `/api/v1/partners/${id}/full`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/full`,
     body,
   )
   return res.data.data
 }
 
 /**
- * 단가/할인 탭 개별 조회 — `GET /api/v1/partners/{id}/price-discount`.
+ * 단가/할인 탭 개별 조회 — `GET /api/v1/partners/{partnerCode}/price-discount`.
  */
 export async function getPartnerPriceDiscount(
-  id: string,
+  partnerCode: string,
 ): Promise<PartnerPriceDiscount> {
   const res = await apiClient.get<ApiEnvelope<PartnerPriceDiscount>>(
-    `/api/v1/partners/${id}/price-discount`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/price-discount`,
   )
   return res.data.data
 }
 
 /**
- * 단가/할인 탭 개별 수정 — `PATCH /api/v1/partners/{id}/price-discount`.
+ * 단가/할인 탭 개별 UPSERT — `PUT /api/v1/partners/{partnerCode}/price-discount`.
+ *
+ * <p>BE method = PUT (UPSERT 시맨틱). PATCH 호출 시 405.
  */
-export async function updatePartnerPriceDiscount(
-  id: string,
+export async function upsertPartnerPriceDiscount(
+  partnerCode: string,
   body: PartnerPriceDiscountRequest,
 ): Promise<PartnerPriceDiscount> {
-  const res = await apiClient.patch<ApiEnvelope<PartnerPriceDiscount>>(
-    `/api/v1/partners/${id}/price-discount`,
+  const res = await apiClient.put<ApiEnvelope<PartnerPriceDiscount>>(
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/price-discount`,
     body,
   )
   return res.data.data
 }
 
 /**
- * 배송지 탭 목록 조회 — `GET /api/v1/partners/{id}/shipping-addresses`.
+ * @deprecated TM PR #141 cross-check 이전 명칭. {@link upsertPartnerPriceDiscount} 사용.
+ */
+export const updatePartnerPriceDiscount = upsertPartnerPriceDiscount
+
+/**
+ * 배송지 탭 목록 조회 — `GET /api/v1/partners/{partnerCode}/shipping-addresses`.
  */
 export async function listPartnerShippingAddresses(
-  id: string,
+  partnerCode: string,
 ): Promise<PartnerShippingAddress[]> {
   const res = await apiClient.get<ApiEnvelope<PartnerShippingAddress[]>>(
-    `/api/v1/partners/${id}/shipping-addresses`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/shipping-addresses`,
   )
   return res.data.data
 }
 
 /**
- * 배송지 추가 — `POST /api/v1/partners/{id}/shipping-addresses`.
+ * 배송지 추가 — `POST /api/v1/partners/{partnerCode}/shipping-addresses`.
  */
 export async function addPartnerShippingAddress(
-  id: string,
+  partnerCode: string,
   body: PartnerShippingAddressRequest,
 ): Promise<PartnerShippingAddress> {
   const res = await apiClient.post<ApiEnvelope<PartnerShippingAddress>>(
-    `/api/v1/partners/${id}/shipping-addresses`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/shipping-addresses`,
     body,
   )
   return res.data.data
 }
 
 /**
- * 배송지 삭제 — `DELETE /api/v1/partners/{id}/shipping-addresses/{addressId}`.
+ * 배송지 삭제 — `DELETE /api/v1/partners/{partnerCode}/shipping-addresses/{addressId}`.
  */
 export async function deletePartnerShippingAddress(
-  id: string,
+  partnerCode: string,
   addressId: string,
 ): Promise<void> {
   await apiClient.delete<void>(
-    `/api/v1/partners/${id}/shipping-addresses/${addressId}`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/shipping-addresses/${encodeURIComponent(addressId)}`,
   )
 }
 
 /**
- * 담당자 목록 조회 — `GET /api/v1/partners/{id}/contacts`.
+ * 담당자 목록 조회 — `GET /api/v1/partners/{partnerCode}/contacts`.
  */
 export async function listPartnerContacts(
-  id: string,
+  partnerCode: string,
 ): Promise<PartnerContact[]> {
   const res = await apiClient.get<ApiEnvelope<PartnerContact[]>>(
-    `/api/v1/partners/${id}/contacts`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/contacts`,
   )
   return res.data.data
 }
 
 /**
- * 담당자 추가 — `POST /api/v1/partners/{id}/contacts`.
+ * 담당자 추가 — `POST /api/v1/partners/{partnerCode}/contacts`.
  */
 export async function addPartnerContact(
-  id: string,
+  partnerCode: string,
   body: PartnerContactRequest,
 ): Promise<PartnerContact> {
   const res = await apiClient.post<ApiEnvelope<PartnerContact>>(
-    `/api/v1/partners/${id}/contacts`,
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/contacts`,
     body,
   )
   return res.data.data
 }
 
 /**
- * 담당자 삭제 — `DELETE /api/v1/partners/{id}/contacts/{contactId}`.
+ * 담당자 삭제 — `DELETE /api/v1/partners/{partnerCode}/contacts/{contactId}`.
  */
 export async function deletePartnerContact(
-  id: string,
+  partnerCode: string,
   contactId: string,
 ): Promise<void> {
-  await apiClient.delete<void>(`/api/v1/partners/${id}/contacts/${contactId}`)
+  await apiClient.delete<void>(
+    `/api/v1/partners/${encodeURIComponent(partnerCode)}/contacts/${encodeURIComponent(contactId)}`,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -353,61 +404,77 @@ export async function deletePartnerContact(
 // ---------------------------------------------------------------------------
 
 /**
- * P0-6 개발/QA용 결정적 mock PartnerFullResponse.
+ * P0-6 개발/QA용 결정적 mock PartnerFullResponse — BE record 시그니처와 1:1.
  *
- * <p>UUID 는 내부 전용 — 화면 표시 없음. partnerCode / businessName 만 노출.
+ * <p>UUID 는 내부 전용 — 화면 표시 없음. partnerCode / name 만 노출.
  */
 export const MOCK_PARTNER_FULL: PartnerFullResponse = {
   basic: {
-    id: 'b1000000-0000-0000-0000-000000000001',
     partnerCode: 'P-2026-0001',
-    businessName: '(주)한국공조',
-    businessNumber: '123-45-67890',
+    bizNo: '123-45-67890',
+    name: '(주)한국공조',
+    representative: '홍길동',
+    businessType: '제조업',
+    industry: '공조시스템',
     address: '서울특별시 강남구 테헤란로 123',
-    type: 'CUSTOMER',
-    ceoName: '홍길동',
-    businessCategory: '제조업',
-    businessItem: '공조시스템',
-    taxEmail: 'tax@hankookhvac.co.kr',
-    memo: '주요 고객사 — 분기별 정기 거래',
+    phone: '02-1234-5678',
+    fax: null,
+    email: 'tax@hankookhvac.co.kr',
+    email2: null,
+    mobile: '010-1111-2222',
+    website: null,
+    partnerGroup1: 'VIP거래처',
+    partnerGroup2: '수도권',
+    creditLimit: 50_000_000,
+    outstandingBalance: 0,
+    status: 'ACTIVE',
+    registrationDate: '2024-01-02',
   },
   priceDiscount: {
-    basicDiscount: 5.0,
+    basicDiscountRate: 5.0,
     paymentTermDays: 30,
-    creditLimit: 50_000_000,
+    discountMemo: 'VIP 할인',
   },
   shippingAddresses: [
     {
       id: 'a2000000-0000-0000-0000-000000000001',
       alias: '본사창고',
+      zipCode: '06234',
       address: '서울특별시 강남구 테헤란로 123 지하 1층',
       phone: '02-1234-5678',
+      receiverName: '홍길동',
       isDefault: true,
+      memo: null,
     },
     {
       id: 'a2000000-0000-0000-0000-000000000002',
       alias: '판교창고',
+      zipCode: '13494',
       address: '경기도 성남시 분당구 판교로 100',
       phone: '031-9876-5432',
+      receiverName: '판교담당',
       isDefault: false,
+      memo: null,
     },
   ],
   contacts: [
     {
       id: 'c3000000-0000-0000-0000-000000000001',
-      name: '김영업',
+      contactName: '김영업',
       position: '부장',
       phone: '010-1111-2222',
       email: 'sales@hankookhvac.co.kr',
       isPrimary: true,
+      memo: null,
     },
     {
       id: 'c3000000-0000-0000-0000-000000000002',
-      name: '이구매',
+      contactName: '이구매',
       position: '과장',
       phone: '010-3333-4444',
       email: 'purchase@hankookhvac.co.kr',
       isPrimary: false,
+      memo: null,
     },
   ],
 }
