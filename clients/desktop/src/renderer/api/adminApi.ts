@@ -90,12 +90,48 @@ export interface ListAdminUsersOptions {
   /** fullName / loginId / email LIKE 검색어. */
   q?: string
   role?: AdminRole
+  /** 활성/잠금 상태 필터 — 'ACTIVE' | 'LOCKED' */
+  status?: 'ACTIVE' | 'LOCKED'
   /** 부서 UUID. */
   departmentId?: string
   /** 0-based 페이지 번호. */
   page?: number
   /** 페이지 크기 (기본 20). */
   size?: number
+}
+
+/** 신규 사용자 등록 요청 — BE `CreateEmployeeRequest` 와 1:1. */
+export interface CreateAdminUserRequest {
+  loginId: string
+  fullName: string
+  email: string
+  role: AdminRole
+  departmentId?: string
+  phoneNumber?: string
+}
+
+/** 신규 사용자 등록 응답 — BE `CreateEmployeeResponse` 와 1:1 (임시 비밀번호 포함). */
+export interface CreateAdminUserResponse {
+  user: AdminUser
+  temporaryPassword: string
+}
+
+/** 사용자 정보 수정 요청 — BE `UpdateEmployeeRequest` 와 1:1. */
+export interface UpdateAdminUserRequest {
+  fullName?: string
+  email?: string
+  phoneNumber?: string
+  departmentId?: string
+}
+
+/** 비활성화(탈퇴) 요청 — BE `DisableEmployeeRequest` 와 1:1. */
+export interface DisableAdminUserRequest {
+  reason: string
+}
+
+/** 잠금 해제 응답 — BE `UnlockEmployeeResponse` 와 1:1. */
+export interface UnlockAdminUserResponse {
+  user: AdminUser
 }
 
 /**
@@ -112,6 +148,7 @@ export async function listAdminUsers(
   }
   if (options.q && options.q.trim()) params['q'] = options.q.trim()
   if (options.role) params['role'] = options.role
+  if (options.status) params['status'] = options.status
   if (options.departmentId) params['departmentId'] = options.departmentId
 
   const res = await apiClient.get<ApiEnvelope<AdminPage<AdminUser>>>(
@@ -133,10 +170,53 @@ export async function listAdminRoles(): Promise<AdminRole[]> {
   return res.data.data
 }
 
-/** 사용자 비활성화 (terminationDate = today). MASTER 만 호출 가능. */
-export async function disableAdminUser(id: string): Promise<AdminUser> {
+/**
+ * 신규 사용자 등록 — `POST /admin/users`. MASTER 만 호출 가능.
+ *
+ * @return CreateAdminUserResponse (user + temporaryPassword)
+ */
+export async function createAdminUser(
+  body: CreateAdminUserRequest,
+): Promise<CreateAdminUserResponse> {
+  const res = await apiClient.post<ApiEnvelope<CreateAdminUserResponse>>(
+    '/admin/users',
+    body,
+  )
+  return res.data.data
+}
+
+/**
+ * 사용자 정보 수정 — `PATCH /admin/users/{id}`. MASTER 만 호출 가능.
+ *
+ * @return AdminUser (updated)
+ */
+export async function updateAdminUser(
+  id: string,
+  body: UpdateAdminUserRequest,
+): Promise<AdminUser> {
   const res = await apiClient.patch<ApiEnvelope<AdminUser>>(
+    `/admin/users/${id}`,
+    body,
+  )
+  return res.data.data
+}
+
+/** 사용자 탈퇴(비활성화) — `POST /admin/users/{id}/disable`. MASTER 만 호출 가능. */
+export async function disableAdminUser(
+  id: string,
+  body: DisableAdminUserRequest,
+): Promise<AdminUser> {
+  const res = await apiClient.post<ApiEnvelope<AdminUser>>(
     `/admin/users/${id}/disable`,
+    body,
+  )
+  return res.data.data
+}
+
+/** 사용자 잠금 해제 — `POST /admin/users/{id}/unlock`. MASTER 만 호출 가능. */
+export async function unlockAdminUser(id: string): Promise<AdminUser> {
+  const res = await apiClient.post<ApiEnvelope<AdminUser>>(
+    `/admin/users/${id}/unlock`,
   )
   return res.data.data
 }
@@ -151,7 +231,7 @@ export async function enableAdminUser(id: string): Promise<AdminUser> {
 
 /** 역할 변경 요청 body — BE `UpdateRoleRequest` 와 1:1. */
 export interface UpdateAdminUserRoleRequest {
-  role: AdminRole
+  newRole: AdminRole
   reason?: string
 }
 
