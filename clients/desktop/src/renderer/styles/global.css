@@ -3028,3 +3028,65 @@ button {
   }
 }
 
+/* ==========================================================================
+ * P0-1 Slice B — 세금/거래처 보고서 공통 CSS
+ *
+ * Designer 결함 fix (PR #136):
+ * D1: .deadline-banner  — 신고 기한 배너 (state-warning 토큰)
+ * D2: .tax-rate-box     — 법인세 세율 단계 박스 (color-neutral-50)
+ * D3: .aging-overdue-warning / .aging-overdue-danger — 연체 행 배경 하이라이트
+ *
+ * REPORTS-B-DESIGN.md §2-2 / §2-3 / §7 spec 준수.
+ * raw hex 0건 — design-system 토큰만 사용.
+ * ========================================================================== */
+
+/* D1: 신고 기한 배너 */
+.deadline-banner {
+  background-color: var(--state-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  color: var(--state-warning);
+  font-weight: var(--font-weight-semibold);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* D2: 법인세 세율 단계 박스 */
+.tax-rate-box {
+  background-color: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-sm);
+  padding: 6pt 8pt;
+  margin: 4pt 0 8pt 0;
+}
+
+/* D3: 거래처 연체 행 배경 하이라이트 */
+.aging-overdue-warning {
+  background-color: var(--state-warning-bg);
+  color: var(--state-warning);
+}
+
+.aging-overdue-danger {
+  background-color: var(--state-danger-bg);
+  color: var(--state-danger);
+}
+
+@media print {
+  /* D1 인쇄 강제 */
+  .deadline-banner {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* D2 인쇄 강제 */
+  .tax-rate-box {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* D3 인쇄 강제 */
+  .aging-overdue-warning,
+  .aging-overdue-danger {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

@@ -373,20 +373,11 @@ export function VatReportPage() {
               </div>
             ) : null}
 
-            {/* 신고 기한 */}
-            <div
-              style={{
-                marginTop: 16,
-                padding: '8px',
-                background: 'var(--color-bg-subtle)',
-                borderRadius: 4,
-                fontSize: 13,
-                color: 'var(--color-neutral-700)',
-              }}
-            >
+            {/* 신고 기한 — D1 .deadline-banner (REPORTS-B-DESIGN §2-3) */}
+            <div className="deadline-banner" style={{ marginTop: 16, fontSize: 13 }}>
               신고 기한:{' '}
               <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {data.dueDate}
+                {data.filingDeadline}
               </strong>
             </div>
 

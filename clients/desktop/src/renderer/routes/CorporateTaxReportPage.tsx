@@ -279,13 +279,13 @@ export function CorporateTaxReportPage() {
             />
             <TaxRow
               label="가산조정"
-              value={data.addBack}
+              value={data.addedDeductions}
               indent
               isAddition
             />
             <TaxRow
               label="차감조정"
-              value={`-${data.deductions}`}
+              value={`-${data.subtractedDeductions}`}
               indent
             />
 
@@ -300,25 +300,27 @@ export function CorporateTaxReportPage() {
 
             <Divider />
 
-            {/* 단계별 세율 */}
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: 14,
-                color: 'var(--color-neutral-700)',
-                padding: '6px 8px 2px',
-              }}
-            >
-              세율 적용 (단계별)
+            {/* 단계별 세율 — D2 .tax-rate-box (REPORTS-B-DESIGN §7) */}
+            <div className="tax-rate-box">
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: 'var(--color-neutral-700)',
+                  padding: '0 0 4px 0',
+                }}
+              >
+                세율 적용 (단계별)
+              </div>
+              {taxBrackets.map((b) => (
+                <TaxRow
+                  key={b.label}
+                  label={b.label}
+                  value={String(b.taxAmount)}
+                  indent
+                />
+              ))}
             </div>
-            {taxBrackets.map((b) => (
-              <TaxRow
-                key={b.label}
-                label={b.label}
-                value={String(b.taxAmount)}
-                indent
-              />
-            ))}
 
             <Divider />
 
@@ -332,7 +334,7 @@ export function CorporateTaxReportPage() {
             {/* 기납부세액 */}
             <TaxRow
               label="기납부세액 (중간예납)"
-              value={`-${data.prepaidTax}`}
+              value={`-${data.taxAlreadyPaid}`}
               indent
             />
 
@@ -383,20 +385,11 @@ export function CorporateTaxReportPage() {
               </div>
             ) : null}
 
-            {/* 신고 기한 */}
-            <div
-              style={{
-                marginTop: 16,
-                padding: '8px',
-                background: 'var(--color-bg-subtle)',
-                borderRadius: 4,
-                fontSize: 13,
-                color: 'var(--color-neutral-700)',
-              }}
-            >
+            {/* 신고 기한 — D1 .deadline-banner (REPORTS-B-DESIGN §2-3) */}
+            <div className="deadline-banner" style={{ marginTop: 16, fontSize: 13 }}>
               신고 기한:{' '}
               <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {data.dueDate}
+                {data.filingDeadline}
               </strong>{' '}
               (12월 결산 법인 기준)
             </div>

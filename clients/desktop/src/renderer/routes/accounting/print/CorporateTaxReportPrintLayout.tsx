@@ -248,8 +248,8 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
         <tbody>
           {/* 손익 및 조정 */}
           <CtPrintRow label="법인세차감전순이익" value={data.incomeBeforeTax} />
-          <CtPrintRow label="+ 가산조정" value={data.addBack} indent />
-          <CtPrintRow label="- 차감조정" value={`-${data.deductions}`} indent />
+          <CtPrintRow label="+ 가산조정" value={data.addedDeductions} indent />
+          <CtPrintRow label="- 차감조정" value={`-${data.subtractedDeductions}`} indent />
           <tr className="ct-divider"><td colSpan={2} /></tr>
 
           {/* 과세표준 */}
@@ -260,18 +260,31 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
           />
           <tr className="ct-divider"><td colSpan={2} /></tr>
 
-          {/* 단계별 세율 */}
-          <tr className="ct-section-header">
-            <td colSpan={2}>세율 적용 (단계별 — 법인세법 제55조)</td>
+          {/* 단계별 세율 — D2 .tax-rate-box (REPORTS-B-DESIGN §7) */}
+          <tr>
+            <td colSpan={2} style={{ padding: 0 }}>
+              <div className="tax-rate-box">
+                <div style={{
+                  fontWeight: 600,
+                  fontSize: 'var(--print-text-md, 12pt)',
+                  color: 'var(--color-neutral-700)',
+                  paddingBottom: '2pt',
+                }}>
+                  세율 적용 (단계별 — 법인세법 제55조)
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--print-text-sm, 11pt)' }}>
+                  <tbody>
+                    {taxBrackets.map((b) => (
+                      <tr key={b.label}>
+                        <td style={{ paddingLeft: 16, color: 'var(--color-neutral-900)' }}>{b.label}</td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{b.taxAmount.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </td>
           </tr>
-          {taxBrackets.map((b) => (
-            <CtPrintRow
-              key={b.label}
-              label={b.label}
-              value={String(b.taxAmount)}
-              indent
-            />
-          ))}
           <tr className="ct-divider"><td colSpan={2} /></tr>
 
           {/* 산출세액 */}
@@ -280,7 +293,7 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
             value={data.calculatedTax}
             className="report-total-row"
           />
-          <CtPrintRow label="- 기납부세액 (중간예납)" value={`-${data.prepaidTax}`} indent />
+          <CtPrintRow label="- 기납부세액 (중간예납)" value={`-${data.taxAlreadyPaid}`} indent />
           <tr className="ct-divider"><td colSpan={2} /></tr>
 
           {/* 차감납부세액 grand-total */}
@@ -308,7 +321,7 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
 
       {/* 신고 기한 */}
       <div style={{ marginTop: 12, fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-700)' }}>
-        신고 기한: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{data.dueDate}</strong>
+        신고 기한: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{data.filingDeadline}</strong>
         &nbsp;(12월 결산 법인 기준)
       </div>
 

@@ -195,10 +195,13 @@ class SliceBValidationIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     /**
-     * Corporate Tax report endpoint — GET /api/v1/accounting/reports/corporate-tax?year=2026.
+     * Corporate Tax report endpoint — GET /api/v1/accounting/reports/corporate-tax?fiscalYear=2026.
      *
      * <p>V6 seed 분개 (SEED-RPT-007 법인세비용 700,000) 가 포함된 2026 사업연도 신고서.
      * 신고 기한: 결산일(2026-12-31) + 3개월 = 2027-03-31.
+     *
+     * <p>TM PR #136 fix: BE controller 가 {@code @RequestParam int fiscalYear} 를
+     * 필수로 받으므로 query param 명을 {@code fiscalYear} 로 정정 (기존 {@code year} 는 400).
      */
     @Test
     @DisplayName("Corporate Tax report endpoint — 2026 사업연도 조회 200 OK + 신고기한 2027-03-31 확인")

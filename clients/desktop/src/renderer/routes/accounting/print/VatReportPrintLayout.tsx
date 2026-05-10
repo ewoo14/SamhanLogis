@@ -310,9 +310,9 @@ function VatReportPrintBody({ data, period }: BodyProps) {
         </tbody>
       </table>
 
-      {/* 신고 기한 */}
-      <div style={{ marginTop: 12, fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-700)' }}>
-        신고 기한: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{data.dueDate}</strong>
+      {/* 신고 기한 — D1 .deadline-banner (REPORTS-B-DESIGN §2-3) */}
+      <div className="deadline-banner" style={{ marginTop: 12, fontSize: 'var(--print-text-sm)' }}>
+        신고 기한: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{data.filingDeadline}</strong>
       </div>
 
       {/* 푸터 */}

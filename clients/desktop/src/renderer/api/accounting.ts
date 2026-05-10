@@ -459,9 +459,14 @@ export async function getBalanceSheet(
  *
  * 한국 부가가치세법 표준 형식 — 매출 VAT / 매입 VAT / 납부세액.
  * UUID 비공개 가드: 이 DTO 에 UUID 필드 없음.
+ *
+ * TM 통합 검증 fix (PR #136 BE-FE 계약 정렬):
+ * - 기존 `dueDate` → BE `filingDeadline` 으로 정정.
+ * - 기존 `period` 는 BE 가 "YYYY-MM" 또는 "YYYY-MM ~ YYYY-MM" 라벨 형식으로 반환 (YYYYMM 아님).
+ * - `salesTotalAmount` / `purchaseTotalAmount` 필드 추가 (BE 가 계산하여 내려줌).
  */
 export interface VatReportResponse {
-  /** 신고 기간 (YYYYMM). */
+  /** 표시 기간 라벨 (예: "2026-04" 또는 "2026-01 ~ 2026-03"). */
   period: string
   /** 신고 기간 시작일 (YYYY-MM-DD). */
   fromDate: string
@@ -471,12 +476,16 @@ export interface VatReportResponse {
   salesSupplyAmount: string
   /** 매출 부가세 합계 (KRW 정수, string). */
   salesVatAmount: string
+  /** 매출 총액 = 공급가액 + 부가세 (BE 가 계산, KRW 정수, string). */
+  salesTotalAmount: string
   /** 매출 세금계산서 발행 매수. */
   salesInvoiceCount: number
   /** 매입 공급가액 합계 (KRW 정수, string). */
   purchaseSupplyAmount: string
   /** 매입 부가세 합계 (KRW 정수, string). */
   purchaseVatAmount: string
+  /** 매입 총액 = 공급가액 + 부가세 (BE 가 계산, KRW 정수, string). */
+  purchaseTotalAmount: string
   /** 매입 세금계산서 수취 매수. */
   purchaseInvoiceCount: number
   /**
@@ -484,8 +493,8 @@ export interface VatReportResponse {
    * 음수 시 환급세액.
    */
   vatPayable: string
-  /** 신고 기한 (YYYY-MM-DD). */
-  dueDate: string
+  /** 신고 기한 (YYYY-MM-DD) — BE `filingDeadline` 필드. */
+  filingDeadline: string
   /** 보고서 생성 시각 ISO 8601. */
   generatedAt: string
 }
@@ -494,29 +503,40 @@ export interface VatReportResponse {
  * 법인세 신고서 응답 (BE `CorporateTaxReportResponse`).
  *
  * 한국 법인세법 표준 계산 형식 (단계별 세율 9% / 19% / 21% / 24%).
+ *
+ * TM 통합 검증 fix (PR #136 BE-FE 계약 정렬):
+ * - `addBack` → `addedDeductions`
+ * - `deductions` → `subtractedDeductions`
+ * - `prepaidTax` → `taxAlreadyPaid`
+ * - `dueDate` → `filingDeadline`
+ * - `fromDate` / `toDate` 신규 (BE 가 사업연도 1월 1일 / 12월 31일 반환).
  */
 export interface CorporateTaxReportResponse {
   /** 사업연도 (YYYY). */
   fiscalYear: number
+  /** 사업연도 시작 일자 (YYYY-MM-DD). */
+  fromDate: string
+  /** 사업연도 종료 일자 (YYYY-MM-DD). */
+  toDate: string
   /** 법인세차감전순이익 (KRW 정수, string). */
   incomeBeforeTax: string
-  /** 가산조정 합계 (KRW 정수, string). */
-  addBack: string
-  /** 차감조정 합계 (KRW 정수, string). */
-  deductions: string
+  /** 가산조정 합계 (KRW 정수, string) — BE `addedDeductions`. */
+  addedDeductions: string
+  /** 차감조정 합계 (KRW 정수, string) — BE `subtractedDeductions`. */
+  subtractedDeductions: string
   /** 과세표준 (KRW 정수, string). */
   taxableIncome: string
   /** 산출세액 (KRW 정수, string). */
   calculatedTax: string
-  /** 기납부세액 (KRW 정수, string). */
-  prepaidTax: string
+  /** 기납부세액 (KRW 정수, string) — BE `taxAlreadyPaid`. */
+  taxAlreadyPaid: string
   /**
    * 차감납부세액 (KRW 정수, string).
    * 음수 시 환급.
    */
   taxPayable: string
-  /** 신고 기한 (YYYY-MM-DD). */
-  dueDate: string
+  /** 신고 기한 (YYYY-MM-DD) — BE `filingDeadline` 필드. */
+  filingDeadline: string
   /** 보고서 생성 시각 ISO 8601. */
   generatedAt: string
 }

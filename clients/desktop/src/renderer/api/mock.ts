@@ -1295,10 +1295,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // ==========================================================================
 
   // GET /accounting/reports/vat?period=YYYYMM — 부가세 신고서
+  // BE 가 period 라벨을 "YYYY-MM" 형식으로 반환 → mock 도 동일 정렬 (TM PR #136 검증).
   if (method === 'GET' && url.includes('/accounting/reports/vat')) {
-    const period = (config.params?.['period'] ?? '202604') as string
-    const fromYear = period.slice(0, 4)
-    const fromMonth = period.slice(4, 6)
+    const periodParam = (config.params?.['period'] ?? '202604') as string
+    const fromYear = periodParam.slice(0, 4)
+    const fromMonth = periodParam.slice(4, 6)
     const lastDay = new Date(
       Number.parseInt(fromYear, 10),
       Number.parseInt(fromMonth, 10),
@@ -1306,13 +1307,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ).getDate()
     return envelope({
       ...MOCK_VAT_REPORT,
-      period,
+      period: `${fromYear}-${fromMonth}`,
       fromDate: `${fromYear}-${fromMonth}-01`,
       toDate: `${fromYear}-${fromMonth}-${String(lastDay).padStart(2, '0')}`,
     })
   }
 
   // GET /accounting/reports/corporate-tax?fiscalYear=YYYY — 법인세 신고서
+  // BE 필드명 정렬: filingDeadline / fromDate / toDate (TM PR #136 검증).
   if (method === 'GET' && url.includes('/accounting/reports/corporate-tax')) {
     const fiscalYear = Number.parseInt(
       String(config.params?.['fiscalYear'] ?? '2026'),
@@ -1321,7 +1323,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({
       ...MOCK_CORPORATE_TAX_REPORT,
       fiscalYear,
-      dueDate: `${fiscalYear + 1}-03-31`,
+      fromDate: `${fiscalYear}-01-01`,
+      toDate: `${fiscalYear}-12-31`,
+      filingDeadline: `${fiscalYear + 1}-03-31`,
     })
   }
 
@@ -3054,17 +3058,19 @@ const MOCK_BALANCE_SHEET = {
  * envelope() raw object 반환 — PageResponse 봉투 X (Slice A 패턴).
  */
 const MOCK_VAT_REPORT = {
-  period: '202604',
+  period: '2026-04',
   fromDate: '2026-04-01',
   toDate: '2026-04-30',
   salesSupplyAmount: '20000000',
   salesVatAmount: '2000000',
+  salesTotalAmount: '22000000',
   salesInvoiceCount: 12,
   purchaseSupplyAmount: '15000000',
   purchaseVatAmount: '1500000',
+  purchaseTotalAmount: '16500000',
   purchaseInvoiceCount: 8,
   vatPayable: '500000',
-  dueDate: '2026-07-25',
+  filingDeadline: '2026-07-25',
   generatedAt: '2026-05-10T09:00:00+09:00',
 }
 
@@ -3079,14 +3085,16 @@ const MOCK_VAT_REPORT = {
  */
 const MOCK_CORPORATE_TAX_REPORT = {
   fiscalYear: 2026,
+  fromDate: '2026-01-01',
+  toDate: '2026-12-31',
   incomeBeforeTax: '9250000',
-  addBack: '0',
-  deductions: '0',
+  addedDeductions: '0',
+  subtractedDeductions: '0',
   taxableIncome: '9250000',
   calculatedTax: '832500',
-  prepaidTax: '0',
+  taxAlreadyPaid: '0',
   taxPayable: '832500',
-  dueDate: '2027-03-31',
+  filingDeadline: '2027-03-31',
   generatedAt: '2026-05-10T09:00:00+09:00',
 }
 
