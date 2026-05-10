@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.domain.JournalStatus;
+import com.samhanair.logis.accounting.service.JournalExcelExportService;
 import com.samhanair.logis.accounting.service.JournalService;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
@@ -16,7 +17,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,6 +55,7 @@ public class JournalController {
     private static final String CALLER_HEADER = "X-User-Id";
 
     private final JournalService journalService;
+    private final JournalExcelExportService journalExcelExportService;
 
     /** 분개 신규 생성 — DRAFT 상태. */
     @Operation(summary = "분개 생성", description = "DRAFT 상태로 생성. 라인 1개 이상 필수, accountCode leaf 검증")
@@ -120,6 +125,42 @@ public class JournalController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(journalService.reverse(id, callerOrSystem(callerHeader)));
+    }
+
+    /**
+     * P1-6 — 분개 목록 Excel(.xlsx) 다운로드.
+     *
+     * <p>from/to 기간 + status 필터로 조회한 분개 목록을 .xlsx 파일로 반환.
+     * UUID 비공개 가드 — journalNo / journalDate 등 비즈니스 식별자만 출력.
+     * 최대 10,000 행.
+     *
+     * @param from   분개일자 시작 (필수)
+     * @param to     분개일자 종료 (필수)
+     * @param status 상태 필터 (null 이면 전체)
+     * @return 200 + xlsx binary
+     */
+    @Operation(summary = "분개 목록 Excel 다운로드 (P1-6)",
+            description = "from/to 기간 + status 복합 필터. ACCOUNTANT / MASTER 권한. 최대 10,000 행.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "xlsx binary"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "권한 없음")
+    })
+    @GetMapping("/export.xlsx")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    public ResponseEntity<byte[]> exportXlsx(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) JournalStatus status) {
+        byte[] xlsx = journalExcelExportService.export(from, to, status);
+        String filename = "journals-" + from + "-" + to + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
     }
 
     private String callerOrSystem(String header) {

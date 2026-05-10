@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
 import com.samhanair.logis.inventory.repository.StockMovementRepository;
+import com.samhanair.logis.inventory.service.StockExcelExportService;
 import com.samhanair.logis.inventory.service.StockService;
 import com.samhanair.logis.inventory.web.dto.AdjustRequest;
 import com.samhanair.logis.inventory.web.dto.BatchBalanceRequest;
@@ -26,7 +27,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,6 +64,7 @@ public class StockController {
     private final StockBalanceRepository stockBalanceRepository;
     private final StockLotRepository stockLotRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final StockExcelExportService stockExcelExportService;
 
     // -------- 조회 --------
 
@@ -272,6 +277,38 @@ public class StockController {
             @Valid @RequestBody AdjustRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(stockService.adjust(request, callerOrSystem(callerHeader)));
+    }
+
+    /**
+     * P1-6 — 재고 잔량 Excel(.xlsx) 다운로드.
+     *
+     * <p>warehouseId 필터(선택)로 재고 잔량을 .xlsx 파일로 반환.
+     * UUID 비공개 가드 — warehouseCode / warehouseName 등 비즈니스 식별자만 출력.
+     * 최대 10,000 행.
+     *
+     * @param warehouseId 창고 UUID 필터 (null 이면 전체 창고)
+     * @return 200 + xlsx binary
+     */
+    @Operation(summary = "재고 잔량 Excel 다운로드 (P1-6)",
+            description = "warehouseId 필터(선택). MASTER/MANAGER/WAREHOUSE/INVENTORY 권한. 최대 10,000 행.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "xlsx binary"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "권한 없음")
+    })
+    @GetMapping("/stocks/export.xlsx")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    public ResponseEntity<byte[]> exportXlsx(
+            @RequestParam(required = false) UUID warehouseId) {
+        byte[] xlsx = stockExcelExportService.export(warehouseId);
+        String filename = "stocks-" + java.time.LocalDate.now() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
     }
 
     private String callerOrSystem(String header) {

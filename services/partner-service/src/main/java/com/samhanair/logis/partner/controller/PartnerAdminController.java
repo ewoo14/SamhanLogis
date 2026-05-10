@@ -9,6 +9,7 @@ import com.samhanair.logis.partner.dto.PartnerAdminResponse;
 import com.samhanair.logis.partner.dto.PartnerSummaryResponse;
 import com.samhanair.logis.partner.service.PartnerAligoExportService;
 import com.samhanair.logis.partner.service.PartnerCreditService;
+import com.samhanair.logis.partner.service.PartnerExcelExportService;
 import com.samhanair.logis.partner.service.PartnerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -51,6 +52,7 @@ public class PartnerAdminController {
     private final PartnerService partnerService;
     private final PartnerCreditService creditService;
     private final PartnerAligoExportService aligoExportService;
+    private final PartnerExcelExportService excelExportService;
 
     /**
      * 신규 거래처 등록.
@@ -208,6 +210,40 @@ public class PartnerAdminController {
                         "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .body(csv);
+    }
+
+    /**
+     * P1-6 — 거래처 목록 Excel(.xlsx) 다운로드.
+     *
+     * <p>복합 필터 (q / status) 로 조회한 결과를 .xlsx 파일로 반환.
+     * UUID 비공개 가드 — partnerCode / name / bizNo 등 비즈니스 식별자만 출력.
+     * 최대 10,000 행. Content-Type:
+     * {@code application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}.
+     *
+     * @param q      검색어 (partnerCode/name/bizNo/phone LIKE, null 이면 전체)
+     * @param status 거래 상태 필터 (null 이면 전체)
+     * @return 200 + xlsx binary
+     */
+    @Operation(summary = "거래처 목록 Excel 다운로드 (P1-6)",
+            description = "q + status 복합 필터. MASTER / MANAGER 권한. 최대 10,000 행.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "xlsx binary (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping("/export.xlsx")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    public ResponseEntity<byte[]> exportXlsx(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) PartnerStatus status) {
+        byte[] xlsx = excelExportService.export(q, status);
+        String filename = "partners-" + java.time.LocalDate.now() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
     }
 
     /**

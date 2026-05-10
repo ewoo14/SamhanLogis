@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.service.NextDaySlipImageService;
 import com.samhanair.logis.slip.service.SlipCleanupService;
+import com.samhanair.logis.slip.service.SlipExcelExportService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
@@ -26,7 +27,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +66,7 @@ public class SlipController {
     private final SlipService slipService;
     private final NextDaySlipImageService nextDaySlipImageService;
     private final SlipCleanupService slipCleanupService;
+    private final SlipExcelExportService slipExcelExportService;
 
     /**
      * 전표 페이지 조회 — PR-E1 BE-A0 (PR #117) 확장: 5 query param 신규 추가.
@@ -369,6 +374,46 @@ public class SlipController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
         return ApiResponse.ok(slipCleanupService.buildCleanupReport(from, to));
+    }
+
+    /**
+     * P1-6 — 전표 목록 Excel(.xlsx) 다운로드.
+     *
+     * <p>복합 필터 (slipType / status / from / to / partnerCode) 로 조회한 전표 목록을 .xlsx 파일로 반환.
+     * UUID 비공개 가드 — slipNo / partnerName 등 비즈니스 식별자만 출력, partnerId 등 UUID 미포함.
+     * 최대 10,000 행.
+     *
+     * @param slipType    전표 유형 필터 (null 이면 전체)
+     * @param status      상태 필터 (null 이면 전체)
+     * @param from        전표일자 시작 (null 이면 하한 없음)
+     * @param to          전표일자 종료 (null 이면 상한 없음)
+     * @param partnerCode 거래처코드 필터 (null 이면 전체)
+     * @return 200 + xlsx binary
+     */
+    @Operation(summary = "전표 목록 Excel 다운로드 (P1-6)",
+            description = "slipType/status/from/to/partnerCode 복합 필터. 최대 10,000 행.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "xlsx binary"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "권한 없음")
+    })
+    @GetMapping("/export.xlsx")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<byte[]> exportXlsx(
+            @RequestParam(required = false) SlipType slipType,
+            @RequestParam(required = false) SlipStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String partnerCode) {
+        byte[] xlsx = slipExcelExportService.export(slipType, status, from, to, partnerCode);
+        String filename = "slips-" + java.time.LocalDate.now() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
     }
 
     private String callerOrSystem(String header) {
