@@ -2,25 +2,37 @@
  * arologis 배차 admin API 클라이언트 — P1-5 신규 3개 화면 전용.
  *
  * 담당 화면:
- * - `/arologis/admin/auto-dispatch`   — KakaoAutoDispatchPage (카카오톡 자동 매칭)
- * - `/arologis/admin/manual-dispatch` — ManualDispatchPage    (수동 배차)
+ * - `/arologis/admin/auto-dispatch`     — KakaoAutoDispatchPage (카카오톡 자동 매칭)
+ * - `/arologis/admin/manual-dispatch`   — ManualDispatchAdminPage (수동 배차)
  * - `/arologis/admin/driver-assignment` — DriverAssignmentPage (기사 배정)
  *
- * BE 출처 (arologis-service):
- * - GET  /admin/arologis/dispatches/unassigned?date          — 미배차 슬립 리스트
- * - POST /admin/arologis/dispatches/parse-kakao              — 카카오톡 자동 매칭
- * - POST /admin/arologis/dispatches/{dispatchCode}/assign    — 수동 기사 배정
- * - GET  /admin/arologis/drivers/available?date              — 가용 기사 조회
- * - GET  /admin/arologis/dispatches?date&status              — 배차 목록 조회
+ * BE 출처 — `services/arologis-service/.../controller/DispatchAdminV1Controller`
+ * (neo P1-5 admin V1 controller — `/api/v1/arologis/admin` prefix).
+ *
+ * 노출 endpoint (BE @PreAuthorize MASTER/MANAGER 와 1:1):
+ * - GET   `/api/v1/arologis/admin/dispatches?status&fromDate&toDate&page&size`
+ *         배차 list 페이징 (DispatchPageResponse).
+ * - POST  `/api/v1/arologis/admin/dispatches/auto-match` body{dispatchId}
+ *         자동 매칭 trigger (DispatchService.AutoMatchResult).
+ * - POST  `/api/v1/arologis/admin/dispatches/{id}/manual-assign` body{vehicleSeq, driverCode}
+ *         수동 배차 (Map dispatchId/vehicleSeq/driverCode).
+ * - PATCH `/api/v1/arologis/admin/dispatches/{id}/driver` body{vehicleSeq, newDriverCode}
+ *         기사 변경 (Map dispatchId/vehicleSeq/newDriverCode).
+ * - GET   `/api/v1/arologis/admin/drivers/available?date&zoneId`
+ *         가용 기사 list (AvailableDriverResponse).
+ *
+ * 보조 endpoint (재사용):
+ * - GET `/admin/arologis/dispatches/unassigned?date` — 미배차 출고전표 리스트
+ *   (`arologisDispatchApi.ts` 의 `getUnassigned` 재사용, KakaoAutoDispatchPage 실행 전 현황).
  *
  * UUID 비공개 가드 (feedback_uuid_no_user_visibility.md):
- * - 사용자 노출 식별자: slipNo / partnerCode / partnerName / address /
- *   driverCode / driverName / dispatchCode (비즈니스 코드)
- * - UUID (dispatchId, driverId 등) 는 내부 routing 용도에만 사용하며
- *   화면에 절대 노출 금지.
+ * - 사용자 노출 식별자: driverCode / phoneNumber / vehicleType / dispatch type / sequence.
+ * - dispatchId UUID 는 admin routing 전용 (응답 dispatchId 필드는 raw UUID string 이지만
+ *   화면 라벨에는 "배차 #<seq>" 또는 dispatch type + 일자로만 표시).
  *
- * 풀네임 ROLE (feedback_role_naming_full.md):
- * - DISPATCH / MANAGER / MASTER 3종.
+ * 풀네임 ROLE (feedback_role_naming_full.md): MASTER / MANAGER (BE @PreAuthorize 정확 일치).
+ *
+ * PR #134~144 회고 가드: BE record 1:1, 한국어 error message, ApiResponse{success,data,error,meta}.
  */
 import { apiClient, type ApiEnvelope } from './client'
 import type { UnassignedEntry } from './arologisDispatchApi'
@@ -32,220 +44,243 @@ import type { UnassignedEntry } from './arologisDispatchApi'
 /**
  * P1-5 arologis admin 화면 진입 권한.
  *
- * BE: `@PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")`
+ * BE: `@PreAuthorize("hasAnyRole('MASTER','MANAGER')")` (DispatchAdminV1Controller).
+ *
+ * NOTE — 기존 `arologisDispatchApi.ts` 의 `ARO_PRECLASSIFY_ROLES` 는 DISPATCH 도 포함하지만,
+ * P1-5 신규 admin V1 controller 는 MASTER/MANAGER 만 허용. BE 정책과 1:1 일치.
  */
-export const ARO_ADMIN_DISPATCH_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const
+export const ARO_ADMIN_DISPATCH_ROLES = ['MASTER', 'MANAGER'] as const
 
 // ---------------------------------------------------------------------------
-// 카카오톡 자동 매칭 (AutoDispatch)
+// DispatchType — BE com.samhanair.logis.arologis.domain.DispatchType 와 1:1
+// ---------------------------------------------------------------------------
+
+/** 배차 유형 — BE DispatchType enum 1:1. */
+export type DispatchType = 'DAY' | 'NIGHT' | 'EXPRESS'
+
+/** DispatchType → 한국어 라벨. */
+export const DISPATCH_TYPE_LABEL: Record<DispatchType, string> = {
+  DAY: '주간',
+  NIGHT: '야상',
+  EXPRESS: '특급',
+}
+
+// ---------------------------------------------------------------------------
+// 1) GET /api/v1/arologis/admin/dispatches — 배차 list 페이징
 // ---------------------------------------------------------------------------
 
 /**
- * 카카오톡 자동 매칭 결과 항목 — BE AutoMatchResult.Entry 와 1:1.
+ * 배차 요약 1건 — BE `DispatchPageResponse.DispatchSummary` record 1:1.
  *
- * @property slipNo 전표번호 (사용자 노출 식별자)
- * @property partnerName 거래처명 (사용자 노출)
- * @property address 주소 (사용자 노출)
- * @property driverCode 배정된 기사 코드 (사용자 노출)
- * @property driverName 배정된 기사명 (사용자 노출)
- * @property vehicleLabel 차량 번호 / 별명 (사용자 노출)
- * @property confidence 매칭 신뢰도 0-100 (%)
- * @property matched 자동 매칭 성공 여부
+ * @property dispatchId   admin routing 전용 UUID string (사용자 라벨에는 직접 노출 X)
+ * @property dispatchDate 배차 일자 (ISO YYYY-MM-DD)
+ * @property dispatchType 배차 유형
+ * @property vehicleCount 배차 내 차량 수
+ * @property createdAt    생성 일시 (ISO LocalDateTime)
  */
-export interface AutoMatchResultEntry {
-  slipNo: string
-  partnerName: string | null
-  address: string | null
-  driverCode: string | null
-  driverName: string | null
-  vehicleLabel: string | null
-  confidence: number
-  matched: boolean
+export interface DispatchSummary {
+  dispatchId: string
+  dispatchDate: string
+  dispatchType: DispatchType
+  vehicleCount: number
+  createdAt: string
 }
 
 /**
- * 카카오톡 자동 매칭 응답 — BE AutoMatchResponse 와 1:1.
+ * 배차 list 페이징 응답 — BE `DispatchPageResponse` record 1:1.
  *
- * @property date 배차 일자 (YYYY-MM-DD)
- * @property totalSlips 대상 슬립 총 건수
- * @property matchedCount 자동 매칭 성공 건수
- * @property unmatchedCount 자동 매칭 실패 건수 (수동 보정 필요)
- * @property entries 매칭 결과 행 리스트
+ * @property content       현재 페이지 배차 요약 list
+ * @property totalElements 전체 건수
+ * @property totalPages    전체 페이지 수
+ * @property page          현재 페이지 (0-based)
+ * @property size          페이지 크기
  */
-export interface AutoMatchResponse {
-  date: string
-  totalSlips: number
-  matchedCount: number
-  unmatchedCount: number
-  entries: AutoMatchResultEntry[]
+export interface DispatchPageResponse {
+  content: DispatchSummary[]
+  totalElements: number
+  totalPages: number
+  page: number
+  size: number
 }
 
 /**
- * 카카오톡 자동 매칭 실행 — POST /admin/arologis/dispatches/parse-kakao.
+ * 배차 list 조회 — BE `GET /api/v1/arologis/admin/dispatches`.
  *
- * 미배차 슬립을 대상으로 DriverMatcher (Mock + Insung) 를 호출하여
- * 자동으로 기사/차량을 배정한다. 매칭 실패 건은 수동 배차 화면에서 보정.
- *
- * @param date 배차 일자 (YYYY-MM-DD)
+ * @param params 필터 / 페이징 (모두 optional, BE default page=0 size=20)
  */
-export async function runAutoMatch(date: string): Promise<AutoMatchResponse> {
-  const res = await apiClient.post<ApiEnvelope<AutoMatchResponse>>(
-    '/admin/arologis/dispatches/parse-kakao',
-    { date },
+export async function listDispatches(params: {
+  status?: DispatchType
+  fromDate?: string
+  toDate?: string
+  page?: number
+  size?: number
+} = {}): Promise<DispatchPageResponse> {
+  const res = await apiClient.get<ApiEnvelope<DispatchPageResponse>>(
+    '/api/v1/arologis/admin/dispatches',
+    { params },
   )
   return res.data.data
 }
 
 // ---------------------------------------------------------------------------
-// 수동 배차 (ManualDispatch) — 배차 목록 + 기사 직접 선택
+// 2) POST /api/v1/arologis/admin/dispatches/auto-match — 자동 매칭
 // ---------------------------------------------------------------------------
 
 /**
- * 배차 상태 enum — BE DispatchStatus 와 1:1.
+ * 자동 매칭 결과 — BE `DispatchService.AutoMatchResult` record 1:1.
+ *
+ * @property totalVehicles 대상 차량 수 (PENDING)
+ * @property matched       자동 매칭 성공 차량 수
  */
-export type DispatchStatus = 'PENDING' | 'ASSIGNED' | 'IN_TRANSIT' | 'DONE' | 'CANCELLED'
-
-/** 배차 상태 → 한국어 라벨. */
-export const DISPATCH_STATUS_LABEL: Record<DispatchStatus, string> = {
-  PENDING: '대기',
-  ASSIGNED: '배정됨',
-  IN_TRANSIT: '배송 중',
-  DONE: '완료',
-  CANCELLED: '취소',
+export interface AutoMatchResult {
+  totalVehicles: number
+  matched: number
 }
 
 /**
- * 배차 목록 항목 — BE DispatchSummary 와 1:1.
+ * 자동 매칭 trigger — BE `POST /api/v1/arologis/admin/dispatches/auto-match`.
  *
- * @property dispatchCode 배차 비즈니스 코드 (사용자 노출 식별자)
- * @property dispatchDate 배차 일자 (YYYY-MM-DD)
- * @property status 배차 상태
- * @property driverCode 배정 기사 코드 (null = 미배정)
- * @property driverName 배정 기사명 (null = 미배정)
- * @property vehicleLabel 차량 번호 / 별명
- * @property totalStops 정차 건수
- * @property totalSlips 연결 슬립 건수
+ * dispatchId 배차 내 PENDING 차량 전체에 대해 활성 DriverMatcher 호출.
+ *
+ * @param dispatchId 배차 UUID (admin routing 전용)
  */
-export interface DispatchSummary {
-  dispatchCode: string
-  dispatchDate: string
-  status: DispatchStatus
-  driverCode: string | null
-  driverName: string | null
-  vehicleLabel: string | null
-  totalStops: number
-  totalSlips: number
+export async function triggerAutoMatch(dispatchId: string): Promise<AutoMatchResult> {
+  const res = await apiClient.post<ApiEnvelope<AutoMatchResult>>(
+    '/api/v1/arologis/admin/dispatches/auto-match',
+    { dispatchId },
+  )
+  return res.data.data
+}
+
+// ---------------------------------------------------------------------------
+// 3) POST /api/v1/arologis/admin/dispatches/{id}/manual-assign — 수동 배차
+// ---------------------------------------------------------------------------
+
+/**
+ * 수동 배차 응답 — BE Map{dispatchId, vehicleSeq, driverCode}.
+ */
+export interface ManualAssignResponse {
+  dispatchId: string
+  vehicleSeq: number
+  driverCode: string
 }
 
 /**
- * 배차 목록 응답.
+ * 수동 배차 — BE `POST /api/v1/arologis/admin/dispatches/{id}/manual-assign`.
  *
- * @property dispatches 배차 항목 리스트
- * @property totalCount 전체 건수
+ * vehicleSeq + driverCode 지정으로 배차 내 특정 차량에 기사 수동 배정.
+ *
+ * @param dispatchId 배차 UUID
+ * @param vehicleSeq 차량 순번 (1-based)
+ * @param driverCode 기사 식별 코드 (UUID 비공개 가드)
  */
-export interface DispatchListResponse {
-  dispatches: DispatchSummary[]
+export async function manualAssign(
+  dispatchId: string,
+  vehicleSeq: number,
+  driverCode: string,
+): Promise<ManualAssignResponse> {
+  const res = await apiClient.post<ApiEnvelope<ManualAssignResponse>>(
+    `/api/v1/arologis/admin/dispatches/${dispatchId}/manual-assign`,
+    { vehicleSeq, driverCode },
+  )
+  return res.data.data
+}
+
+// ---------------------------------------------------------------------------
+// 4) PATCH /api/v1/arologis/admin/dispatches/{id}/driver — 기사 변경
+// ---------------------------------------------------------------------------
+
+/**
+ * 기사 변경 응답 — BE Map{dispatchId, vehicleSeq, newDriverCode}.
+ */
+export interface ChangeDriverResponse {
+  dispatchId: string
+  vehicleSeq: number
+  newDriverCode: string
+}
+
+/**
+ * 기사 변경 — BE `PATCH /api/v1/arologis/admin/dispatches/{id}/driver`.
+ *
+ * 이미 ASSIGNED 상태 차량의 기사를 새 driverCode 로 교체. MatchSource.MANUAL 재기록.
+ *
+ * @param dispatchId    배차 UUID
+ * @param vehicleSeq    차량 순번 (1-based)
+ * @param newDriverCode 변경할 기사 식별 코드 (UUID 비공개 가드)
+ */
+export async function changeDriver(
+  dispatchId: string,
+  vehicleSeq: number,
+  newDriverCode: string,
+): Promise<ChangeDriverResponse> {
+  const res = await apiClient.patch<ApiEnvelope<ChangeDriverResponse>>(
+    `/api/v1/arologis/admin/dispatches/${dispatchId}/driver`,
+    { vehicleSeq, newDriverCode },
+  )
+  return res.data.data
+}
+
+// ---------------------------------------------------------------------------
+// 5) GET /api/v1/arologis/admin/drivers/available — 가용 기사 list
+// ---------------------------------------------------------------------------
+
+/**
+ * 기사 source — BE com.samhanair.logis.arologis.domain.DriverSource enum 1:1.
+ */
+export type DriverSource = 'INTERNAL' | 'INSUNG' | 'EXTERNAL'
+
+/** DriverSource → 한국어 라벨. */
+export const DRIVER_SOURCE_LABEL: Record<DriverSource, string> = {
+  INTERNAL: '본 어플',
+  INSUNG: '인성데이타',
+  EXTERNAL: '외부',
+}
+
+/**
+ * 가용 기사 1건 — BE `AvailableDriverResponse.AvailableDriver` record 1:1.
+ *
+ * @property driverCode   사용자 노출 식별자 (UUID 비공개 가드)
+ * @property phoneNumber  전화번호 (010-0000-0000 형식)
+ * @property vehicleType  차량 종류 (예: "1톤" / "2.5톤" / "5톤")
+ * @property source       기사 소스 (INTERNAL / INSUNG / EXTERNAL)
+ * @property appInstalled 본 어플 설치 여부 (null 가능 — BE Boolean wrapper)
+ */
+export interface AvailableDriver {
+  driverCode: string
+  phoneNumber: string
+  vehicleType: string | null
+  source: DriverSource
+  appInstalled: boolean | null
+}
+
+/**
+ * 가용 기사 list 응답 — BE `AvailableDriverResponse` record 1:1.
+ *
+ * @property availableDrivers 가용 기사 list
+ * @property queryDate        조회 일자 (ISO YYYY-MM-DD)
+ * @property zoneId           조회 권역 필터 (null 이면 전체)
+ * @property totalCount       가용 기사 총 수
+ */
+export interface AvailableDriverResponse {
+  availableDrivers: AvailableDriver[]
+  queryDate: string
+  zoneId: string | null
   totalCount: number
 }
 
 /**
- * 배차 목록 조회 — GET /admin/arologis/dispatches?date&status.
+ * 가용 기사 list — BE `GET /api/v1/arologis/admin/drivers/available`.
  *
- * @param date 배차 일자 (YYYY-MM-DD)
- * @param status 상태 필터 (미지정 시 전체)
- */
-export async function getDispatchList(
-  date: string,
-  status?: DispatchStatus,
-): Promise<DispatchListResponse> {
-  const res = await apiClient.get<ApiEnvelope<DispatchListResponse>>(
-    '/admin/arologis/dispatches',
-    { params: { date, ...(status ? { status } : {}) } },
-  )
-  return res.data.data
-}
-
-// ---------------------------------------------------------------------------
-// 기사 배정 (DriverAssignment)
-// ---------------------------------------------------------------------------
-
-/**
- * 가용 기사 항목 — BE AvailableDriverDto 와 1:1.
- *
- * @property driverCode 기사 코드 (사용자 노출 식별자)
- * @property driverName 기사 성명
- * @property phone 휴대전화 (010-0000-0000 형식)
- * @property vehicleLabel 차량 번호 / 별명
- * @property region 주 운행 권역
- * @property active 활성 여부 (false = 휴직/퇴사)
- * @property currentDispatchCount 해당 일자 현재 배차 건수 (과부하 방지)
- */
-export interface AvailableDriver {
-  driverCode: string
-  driverName: string
-  phone: string
-  vehicleLabel: string | null
-  region: string | null
-  active: boolean
-  currentDispatchCount: number
-}
-
-/**
- * 가용 기사 목록 응답.
- */
-export interface AvailableDriverListResponse {
-  date: string
-  drivers: AvailableDriver[]
-}
-
-/**
- * 기사 배정 요청 — POST /admin/arologis/dispatches/{dispatchCode}/assign.
- */
-export interface AssignDriverRequest {
-  driverCode: string
-}
-
-/**
- * 기사 배정 응답.
- *
- * @property dispatchCode 배차 비즈니스 코드
- * @property driverCode 배정된 기사 코드
- * @property driverName 배정된 기사명
- */
-export interface AssignDriverResponse {
-  dispatchCode: string
-  driverCode: string
-  driverName: string
-}
-
-/**
- * 가용 기사 목록 조회 — GET /admin/arologis/drivers/available?date.
- *
- * @param date 조회 일자 (YYYY-MM-DD)
+ * @param date   조회 기준 일자 (ISO YYYY-MM-DD, 기본 = 오늘)
+ * @param zoneId 권역 ID 필터 (vehicleType 포함 문자열, optional)
  */
 export async function getAvailableDrivers(
-  date: string,
-): Promise<AvailableDriverListResponse> {
-  const res = await apiClient.get<ApiEnvelope<AvailableDriverListResponse>>(
-    '/admin/arologis/drivers/available',
-    { params: { date } },
-  )
-  return res.data.data
-}
-
-/**
- * 기사 배정 (수동) — POST /admin/arologis/dispatches/{dispatchCode}/assign.
- *
- * @param dispatchCode 배차 비즈니스 코드
- * @param driverCode 배정할 기사 코드
- */
-export async function assignDriver(
-  dispatchCode: string,
-  driverCode: string,
-): Promise<AssignDriverResponse> {
-  const res = await apiClient.post<ApiEnvelope<AssignDriverResponse>>(
-    `/admin/arologis/dispatches/${dispatchCode}/assign`,
-    { driverCode } satisfies AssignDriverRequest,
+  date?: string,
+  zoneId?: string,
+): Promise<AvailableDriverResponse> {
+  const res = await apiClient.get<ApiEnvelope<AvailableDriverResponse>>(
+    '/api/v1/arologis/admin/drivers/available',
+    { params: { ...(date ? { date } : {}), ...(zoneId ? { zoneId } : {}) } },
   )
   return res.data.data
 }

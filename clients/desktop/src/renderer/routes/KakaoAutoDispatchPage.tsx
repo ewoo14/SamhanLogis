@@ -4,36 +4,44 @@
  * 매뉴얼: docs/manual/05-arologis/01-카카오톡-배차.md
  *
  * <pre>
- *  ┌──────────────────────────────────────────────────────────────────┐
- *  │ 헤더: 카카오톡 자동 매칭      [일자 선택] [자동 매칭 실행] 버튼  │
- *  │ 요약 banner (총 슬립 / 매칭 / 미매칭)                           │
- *  │ 매칭 결과 표: slipNo / 거래처명 / 주소 / 기사 / 차량 / 신뢰도   │
- *  └──────────────────────────────────────────────────────────────────┘
+ *  ┌──────────────────────────────────────────────────────────────────────┐
+ *  │ 헤더: 카카오톡 자동 매칭     [일자] [배차 선택] [자동 매칭 실행]    │
+ *  │ 미배차 슬립 현황 banner (오늘 미배차 N건)                           │
+ *  │ 배차 list 표 (페이징): 배차ID / 일자 / 유형 / 차량수 / 자동매칭     │
+ *  └──────────────────────────────────────────────────────────────────────┘
  * </pre>
  *
- * BE 연결:
- * - GET  /admin/arologis/dispatches/unassigned?date — 미배차 슬립 목록 (실행 전 카운트)
- * - POST /admin/arologis/dispatches/parse-kakao     — 자동 매칭 실행
+ * BE 연결 (BE 신규 controller `DispatchAdminV1Controller` 와 1:1):
+ * - GET  `/api/v1/arologis/admin/dispatches?fromDate&toDate`
+ *   — 배차 list (페이징) + 자동매칭 trigger 대상 선택
+ * - POST `/api/v1/arologis/admin/dispatches/auto-match` body{dispatchId}
+ *   — 선택 배차의 PENDING 차량 자동 매칭 (DriverMatcher Mock + Insung)
+ * - GET  `/admin/arologis/dispatches/unassigned?date`
+ *   — 미배차 슬립 현황 (UnassignedService, 기존 endpoint 재사용)
  *
- * UUID 비공개 (feedback_uuid_no_user_visibility.md):
- * - 노출 식별자: slipNo / partnerName / address / driverCode / driverName / vehicleLabel
- * - dispatchId / driverId UUID 화면 노출 금지.
+ * UUID 비공개 가드 (feedback_uuid_no_user_visibility.md):
+ * - 사용자 라벨 노출: 배차 일자 + 유형 + 차량수 (UUID 직접 라벨 X)
+ * - dispatchId UUID 는 admin 화면 routing 전용
  *
- * 풀네임 ROLE (feedback_role_naming_full.md): DISPATCH / MANAGER / MASTER.
+ * 풀네임 ROLE: MASTER / MANAGER (BE @PreAuthorize 1:1).
  *
  * data-testid:
- * - auto-dispatch-date-input      — 일자 선택 input
- * - auto-dispatch-run-btn         — 자동 매칭 실행 버튼
- * - auto-dispatch-result-table    — 결과 표 wrapper
- * - auto-dispatch-row-{slipNo}    — 행별 testid
+ * - auto-dispatch-date-input         — 일자 input
+ * - auto-dispatch-list-table         — 배차 list 표
+ * - auto-dispatch-row-{dispatchId}   — 배차 행
+ * - auto-dispatch-run-btn-{dispatchId} — 자동 매칭 실행 버튼
+ * - auto-dispatch-result-banner      — 자동 매칭 결과 banner
  */
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card } from '@samhan/design-system'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
-  runAutoMatch,
-  type AutoMatchResultEntry,
+  listDispatches,
+  triggerAutoMatch,
+  DISPATCH_TYPE_LABEL,
+  type AutoMatchResult,
+  type DispatchSummary,
 } from '../api/arologisAdminDispatchApi'
 import { getUnassigned } from '../api/arologisDispatchApi'
 
@@ -43,35 +51,45 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 신뢰도에 따른 Badge variant. */
-function confidenceVariant(confidence: number): 'success' | 'warning' | 'danger' {
-  if (confidence >= 80) return 'success'
-  if (confidence >= 50) return 'warning'
-  return 'danger'
-}
-
 export function KakaoAutoDispatchPage() {
   usePageTitle('카카오톡 자동 매칭')
 
   const [date, setDate] = useState<string>(todayIso())
+  const [latestResult, setLatestResult] = useState<{
+    dispatchId: string
+    result: AutoMatchResult
+  } | null>(null)
 
-  // 미배차 슬립 건수 — 실행 전 현황 파악
+  const queryClient = useQueryClient()
+
+  // 미배차 슬립 건수 (실행 전 현황)
   const unassignedQuery = useQuery({
     queryKey: ['arologis-unassigned', date],
     queryFn: () => getUnassigned(date),
     enabled: !!date,
   })
 
-  // 자동 매칭 실행 mutation
-  const matchMutation = useMutation({
-    mutationFn: () => runAutoMatch(date),
+  // 배차 list (당일 단일 일자 — fromDate=toDate=date)
+  const dispatchListQuery = useQuery({
+    queryKey: ['arologis-admin-dispatch-list', date],
+    queryFn: () => listDispatches({ fromDate: date, toDate: date, page: 0, size: 50 }),
+    enabled: !!date,
   })
 
-  const result = matchMutation.data ?? null
-  const running = matchMutation.isPending
+  const dispatches: DispatchSummary[] = dispatchListQuery.data?.content ?? []
 
-  const handleRun = () => {
-    matchMutation.mutate()
+  // 자동 매칭 trigger mutation
+  const matchMutation = useMutation({
+    mutationFn: (dispatchId: string) => triggerAutoMatch(dispatchId),
+    onSuccess: (result, dispatchId) => {
+      setLatestResult({ dispatchId, result })
+      void queryClient.invalidateQueries({ queryKey: ['arologis-admin-dispatch-list'] })
+      void queryClient.invalidateQueries({ queryKey: ['arologis-unassigned'] })
+    },
+  })
+
+  const handleRun = (dispatchId: string) => {
+    matchMutation.mutate(dispatchId)
   }
 
   const unassignedCount = unassignedQuery.data?.unassignedCount ?? 0
@@ -92,57 +110,71 @@ export function KakaoAutoDispatchPage() {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <h3 style={{ margin: 0 }}>카카오톡 자동 매칭</h3>
           <span style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}>
-            DriverMatcher (Mock + Insung) 자동 배정 — 매칭 실패 건은 수동 배차에서 보정
+            DriverMatcher (Mock + Insung) 자동 배정 — 매칭 실패 차량은 수동 배차에서 보정
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-            배차 일자
-            <input
-              type="date"
-              data-testid="auto-dispatch-date-input"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={inputStyle}
-            />
-          </label>
-          <Button
-            variant="primary"
-            data-testid="auto-dispatch-run-btn"
-            onClick={handleRun}
-            disabled={running || !date}
-            loading={running}
-          >
-            자동 매칭 실행
-          </Button>
-        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          배차 일자
+          <input
+            type="date"
+            data-testid="auto-dispatch-date-input"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            style={inputStyle}
+          />
+        </label>
       </div>
 
-      {/* 실행 전 현황 */}
-      {!result && (
-        <Card padding={4} shadow="sm" style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, color: 'var(--color-neutral-700, #374151)' }}>
-            {unassignedQuery.isLoading ? (
-              '미배차 슬립 조회 중…'
-            ) : (
-              <>
-                기준 일자 <strong>{date}</strong> 미배차 슬립{' '}
-                <strong>{unassignedCount}</strong>건 — 위 "자동 매칭 실행"
-                버튼으로 DriverMatcher 를 실행합니다.
-              </>
-            )}
-          </div>
-          <div
-            style={{ marginTop: 8, fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
-          >
-            매칭 정확도 약 80% — 미매칭 건은 수동 배차{' '}
-            <span style={{ fontWeight: 600 }}>(/arologis/admin/manual-dispatch)</span> 에서
-            기사를 직접 선택하세요.
-          </div>
-        </Card>
-      )}
+      {/* 미배차 현황 banner */}
+      <Card padding={4} shadow="sm" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--color-neutral-700, #374151)' }}>
+          {unassignedQuery.isLoading ? (
+            '미배차 슬립 조회 중…'
+          ) : (
+            <>
+              기준 일자 <strong>{date}</strong> 미배차 슬립{' '}
+              <strong>{unassignedCount}</strong>건 — 아래 배차 목록의 "자동 매칭 실행" 버튼으로
+              DriverMatcher 를 실행합니다.
+            </>
+          )}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}>
+          매칭 정확도 약 80% — 매칭 실패 차량은{' '}
+          <span style={{ fontWeight: 600 }}>수동 배차 (/arologis/admin/manual-dispatch)</span> 화면에서
+          기사를 직접 선택하세요.
+        </div>
+      </Card>
 
-      {/* 실행 오류 */}
+      {/* 자동 매칭 결과 banner */}
+      {latestResult ? (
+        <div
+          data-testid="auto-dispatch-result-banner"
+          style={{
+            padding: '10px 14px',
+            border: '1px solid var(--color-success-300, #86efac)',
+            background: 'var(--color-success-50, #ecfdf5)',
+            color: 'var(--color-success-700, #047857)',
+            borderRadius: 6,
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          자동 매칭 완료 — 대상 차량{' '}
+          <strong>{latestResult.result.totalVehicles}</strong>대 중{' '}
+          <strong>{latestResult.result.matched}</strong>대 매칭 성공
+          {latestResult.result.totalVehicles - latestResult.result.matched > 0 ? (
+            <>
+              {' '}(미매칭{' '}
+              <strong>
+                {latestResult.result.totalVehicles - latestResult.result.matched}
+              </strong>
+              대 → 수동 배차 필요)
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* 실행 오류 banner */}
       {matchMutation.isError ? (
         <div
           role="alert"
@@ -160,157 +192,81 @@ export function KakaoAutoDispatchPage() {
         </div>
       ) : null}
 
-      {/* 매칭 결과 요약 */}
-      {result ? (
-        <div
-          style={{
-            display: 'flex',
-            gap: 12,
-            marginBottom: 16,
-            flexWrap: 'wrap',
-          }}
-        >
-          <SummaryChip label="대상 슬립" value={result.totalSlips} tone="neutral" />
-          <SummaryChip label="매칭 성공" value={result.matchedCount} tone="success" />
-          <SummaryChip label="매칭 실패" value={result.unmatchedCount} tone="danger" />
-        </div>
-      ) : null}
-
-      {/* 매칭 결과 표 */}
-      {result ? (
-        <div
-          data-testid="auto-dispatch-result-table"
-          style={{
-            border: '1px solid var(--color-neutral-200, #E5E7EB)',
-            borderRadius: 6,
-            background: '#fff',
-            overflow: 'auto',
-          }}
-        >
-          <table
-            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
-          >
-            <thead>
-              <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
-                <th style={thStyle}>전표번호</th>
-                <th style={thStyle}>거래처명</th>
-                <th style={thStyle}>주소</th>
-                <th style={thStyle}>기사 코드</th>
-                <th style={thStyle}>기사명</th>
-                <th style={thStyle}>차량</th>
-                <th style={{ ...thStyle, width: 100 }}>신뢰도</th>
-                <th style={{ ...thStyle, width: 90 }}>상태</th>
+      {/* 배차 list 표 */}
+      <div
+        data-testid="auto-dispatch-list-table"
+        style={{
+          border: '1px solid var(--color-neutral-200, #E5E7EB)',
+          borderRadius: 6,
+          background: '#fff',
+          overflow: 'auto',
+        }}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
+              <th style={thStyle}>배차 일자</th>
+              <th style={thStyle}>유형</th>
+              <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>차량 수</th>
+              <th style={thStyle}>등록 일시</th>
+              <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>액션</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dispatchListQuery.isLoading ? (
+              <tr>
+                <td colSpan={5} style={emptyCellStyle}>
+                  배차 목록을 불러오는 중…
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {result.entries.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    style={{
-                      padding: '24px 12px',
-                      textAlign: 'center',
-                      color: 'var(--color-neutral-500, #6B7280)',
-                    }}
+            ) : dispatches.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={emptyCellStyle}>
+                  해당 일자의 배차가 없습니다.
+                </td>
+              </tr>
+            ) : (
+              dispatches.map((dispatch) => {
+                const running =
+                  matchMutation.isPending && matchMutation.variables === dispatch.dispatchId
+                return (
+                  <tr
+                    key={dispatch.dispatchId}
+                    data-testid={`auto-dispatch-row-${dispatch.dispatchId}`}
+                    style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                   >
-                    매칭 대상 슬립이 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                result.entries.map((entry) => (
-                  <ResultRow key={entry.slipNo} entry={entry} />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+                    <td style={tdStyle}>{dispatch.dispatchDate}</td>
+                    <td style={tdStyle}>
+                      <Badge variant={dispatch.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
+                        {DISPATCH_TYPE_LABEL[dispatch.dispatchType]}
+                      </Badge>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      {dispatch.vehicleCount}
+                    </td>
+                    <td style={{ ...tdStyle, color: 'var(--color-neutral-500, #6B7280)' }}>
+                      {dispatch.createdAt?.replace('T', ' ').slice(0, 16) ?? '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        data-testid={`auto-dispatch-run-btn-${dispatch.dispatchId}`}
+                        onClick={() => handleRun(dispatch.dispatchId)}
+                        loading={running}
+                        disabled={running}
+                      >
+                        자동 매칭 실행
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// 결과 행 컴포넌트
-// ---------------------------------------------------------------------------
-
-interface ResultRowProps {
-  entry: AutoMatchResultEntry
-}
-
-function ResultRow({ entry }: ResultRowProps) {
-  return (
-    <tr
-      data-testid={`auto-dispatch-row-${entry.slipNo}`}
-      style={{
-        borderTop: '1px solid var(--color-neutral-100, #F3F4F6)',
-        background: entry.matched
-          ? 'transparent'
-          : 'var(--color-danger-50, #fef2f2)',
-      }}
-    >
-      <td style={tdStyle}>{entry.slipNo}</td>
-      <td style={tdStyle}>{entry.partnerName ?? '—'}</td>
-      <td style={{ ...tdStyle, color: 'var(--color-neutral-600, #4B5563)' }}>
-        {entry.address ?? '—'}
-      </td>
-      <td style={tdStyle}>{entry.driverCode ?? '—'}</td>
-      <td style={tdStyle}>{entry.driverName ?? '—'}</td>
-      <td style={tdStyle}>{entry.vehicleLabel ?? '—'}</td>
-      <td style={tdStyle}>
-        {entry.matched ? (
-          <Badge variant={confidenceVariant(entry.confidence)}>
-            {entry.confidence}%
-          </Badge>
-        ) : (
-          <span style={{ color: 'var(--color-neutral-400, #9CA3AF)', fontSize: 12 }}>
-            —
-          </span>
-        )}
-      </td>
-      <td style={tdStyle}>
-        <Badge variant={entry.matched ? 'success' : 'danger'}>
-          {entry.matched ? '매칭됨' : '실패'}
-        </Badge>
-      </td>
-    </tr>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// 요약 chip
-// ---------------------------------------------------------------------------
-
-interface SummaryChipProps {
-  label: string
-  value: number
-  tone: 'success' | 'danger' | 'neutral'
-}
-
-const CHIP_BG: Record<SummaryChipProps['tone'], string> = {
-  success: 'var(--color-success-50, #ecfdf5)',
-  danger:  'var(--color-danger-50, #fef2f2)',
-  neutral: 'var(--color-neutral-100, #F3F4F6)',
-}
-const CHIP_FG: Record<SummaryChipProps['tone'], string> = {
-  success: 'var(--color-success-700, #047857)',
-  danger:  'var(--color-danger-700, #b91c1c)',
-  neutral: 'var(--color-neutral-700, #374151)',
-}
-
-function SummaryChip({ label, value, tone }: SummaryChipProps) {
-  return (
-    <div
-      style={{
-        padding: '6px 14px',
-        borderRadius: 999,
-        background: CHIP_BG[tone],
-        color: CHIP_FG[tone],
-        fontWeight: 600,
-        fontSize: 13,
-      }}
-    >
-      {label} {value}건
-    </div>
   )
 }
 
@@ -338,4 +294,10 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: '10px 12px',
   verticalAlign: 'top',
+}
+
+const emptyCellStyle: React.CSSProperties = {
+  padding: '24px 12px',
+  textAlign: 'center',
+  color: 'var(--color-neutral-500, #6B7280)',
 }

@@ -5,50 +5,53 @@
  *
  * <pre>
  *  ┌──────────────────────────────────────────────────────────────────────┐
- *  │ 헤더: 수동 배차         [일자 선택] [상태 필터]                      │
- *  │ 배차 목록 표: dispatchCode / 기사 / 차량 / 정차 수 / 슬립 수 / 상태│
- *  │   → 각 행에 "기사 직접 선택" 버튼 → DriverSelectModal              │
+ *  │ 헤더: 수동 배차       [일자] [유형 필터]                             │
+ *  │ 배차 목록 표 (페이징)                                                │
+ *  │   각 행 → "수동 배차 (vehicleSeq)" 버튼 → DriverSelectModal          │
  *  └──────────────────────────────────────────────────────────────────────┘
  *
  *  DriverSelectModal:
- *  ┌───────────────────────────────────┐
- *  │  가용 기사 목록 (일자 기준)       │
- *  │  기사코드 / 기사명 / 차량 / 권역  │
- *  │  [선택] 버튼 → assignDriver API  │
- *  └───────────────────────────────────┘
+ *  ┌───────────────────────────────────────────────┐
+ *  │ 가용 기사 list (date 기준)                    │
+ *  │ driverCode / phoneNumber / vehicleType / 소스 │
+ *  │ vehicleSeq input + [선택] 버튼 → manualAssign │
+ *  └───────────────────────────────────────────────┘
  * </pre>
  *
- * BE 연결:
- * - GET  /admin/arologis/dispatches?date&status          — 배차 목록
- * - GET  /admin/arologis/drivers/available?date          — 가용 기사 목록
- * - POST /admin/arologis/dispatches/{dispatchCode}/assign — 기사 배정
+ * BE 연결 (BE 신규 controller `DispatchAdminV1Controller` 와 1:1):
+ * - GET  `/api/v1/arologis/admin/dispatches?fromDate&toDate&status` — 배차 목록
+ * - GET  `/api/v1/arologis/admin/drivers/available?date`            — 가용 기사
+ * - POST `/api/v1/arologis/admin/dispatches/{id}/manual-assign`     — 수동 배차
+ *   body{vehicleSeq, driverCode}
  *
- * UUID 비공개 (feedback_uuid_no_user_visibility.md):
- * - 노출 식별자: dispatchCode / driverCode / driverName / vehicleLabel / slipNo
- * - UUID (dispatchId, driverId) 화면 노출 금지.
+ * UUID 비공개 가드 (feedback_uuid_no_user_visibility.md):
+ * - 사용자 라벨 노출: 배차 일자 + 유형 + 차량 수 + driverCode + phoneNumber + vehicleType
+ * - dispatchId UUID 는 admin 화면 routing 전용 (테이블 라벨에는 일자/유형만)
  *
- * 풀네임 ROLE (feedback_role_naming_full.md): DISPATCH / MANAGER / MASTER.
+ * 풀네임 ROLE: MASTER / MANAGER (BE @PreAuthorize 1:1).
  *
  * data-testid:
- * - manual-dispatch-date-input        — 일자 input
- * - manual-dispatch-status-filter     — 상태 필터 select
- * - manual-dispatch-table             — 배차 목록 표
- * - manual-dispatch-row-{code}        — 행별 testid
- * - manual-dispatch-assign-btn-{code} — 기사 직접 선택 버튼
- * - driver-select-modal               — 기사 선택 modal
- * - driver-select-row-{driverCode}    — modal 내 기사 행
- * - driver-select-confirm-{code}      — modal 내 [선택] 버튼
+ * - manual-dispatch-date-input            — 일자 input
+ * - manual-dispatch-status-filter         — 유형 필터 select
+ * - manual-dispatch-table                 — 배차 목록 표
+ * - manual-dispatch-row-{dispatchId}      — 행
+ * - manual-dispatch-assign-btn-{dispatchId} — 수동 배차 버튼
+ * - driver-select-modal                   — 기사 선택 modal
+ * - driver-select-row-{driverCode}        — 기사 행
+ * - driver-select-confirm-{driverCode}    — 선택 버튼
+ * - driver-select-vehicle-seq-input       — vehicleSeq input
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Modal } from '@samhan/design-system'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
-  getDispatchList,
+  listDispatches,
   getAvailableDrivers,
-  assignDriver,
-  DISPATCH_STATUS_LABEL,
-  type DispatchStatus,
+  manualAssign,
+  DISPATCH_TYPE_LABEL,
+  DRIVER_SOURCE_LABEL,
+  type DispatchType,
   type DispatchSummary,
   type AvailableDriver,
 } from '../api/arologisAdminDispatchApi'
@@ -59,48 +62,48 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const STATUS_FILTER_OPTIONS: Array<{ value: DispatchStatus | ''; label: string }> = [
-  { value: '', label: '전체' },
-  { value: 'PENDING', label: DISPATCH_STATUS_LABEL.PENDING },
-  { value: 'ASSIGNED', label: DISPATCH_STATUS_LABEL.ASSIGNED },
-  { value: 'IN_TRANSIT', label: DISPATCH_STATUS_LABEL.IN_TRANSIT },
-  { value: 'DONE', label: DISPATCH_STATUS_LABEL.DONE },
-  { value: 'CANCELLED', label: DISPATCH_STATUS_LABEL.CANCELLED },
+const TYPE_FILTER_OPTIONS: Array<{ value: DispatchType | ''; label: string }> = [
+  { value: '', label: '전체 유형' },
+  { value: 'DAY', label: DISPATCH_TYPE_LABEL.DAY },
+  { value: 'NIGHT', label: DISPATCH_TYPE_LABEL.NIGHT },
+  { value: 'EXPRESS', label: DISPATCH_TYPE_LABEL.EXPRESS },
 ]
-
-const STATUS_BADGE_VARIANT: Record<DispatchStatus, 'neutral' | 'success' | 'warning' | 'danger'> = {
-  PENDING: 'warning',
-  ASSIGNED: 'neutral',
-  IN_TRANSIT: 'neutral',
-  DONE: 'success',
-  CANCELLED: 'danger',
-}
 
 export function ManualDispatchAdminPage() {
   usePageTitle('수동 배차')
 
   const [date, setDate] = useState<string>(todayIso())
-  const [statusFilter, setStatusFilter] = useState<DispatchStatus | ''>('')
-  // 기사 직접 선택 modal — 선택 대상 dispatch
+  const [typeFilter, setTypeFilter] = useState<DispatchType | ''>('')
   const [assignTarget, setAssignTarget] = useState<DispatchSummary | null>(null)
 
   const queryClient = useQueryClient()
 
-  // 배차 목록
+  // 배차 목록 (단일 일자, 페이징 50)
   const listQuery = useQuery({
-    queryKey: ['arologis-dispatch-list', date, statusFilter],
-    queryFn: () => getDispatchList(date, statusFilter || undefined),
+    queryKey: ['arologis-admin-dispatch-list', date, typeFilter],
+    queryFn: () =>
+      listDispatches({
+        fromDate: date,
+        toDate: date,
+        status: typeFilter || undefined,
+        page: 0,
+        size: 50,
+      }),
     enabled: !!date,
   })
 
-  const dispatches: DispatchSummary[] = listQuery.data?.dispatches ?? []
+  const dispatches: DispatchSummary[] = listQuery.data?.content ?? []
 
-  // 기사 배정 mutation
+  // 수동 배차 mutation
   const assignMutation = useMutation({
-    mutationFn: ({ dispatchCode, driverCode }: { dispatchCode: string; driverCode: string }) =>
-      assignDriver(dispatchCode, driverCode),
+    mutationFn: (input: {
+      dispatchId: string
+      vehicleSeq: number
+      driverCode: string
+    }) => manualAssign(input.dispatchId, input.vehicleSeq, input.driverCode),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['arologis-dispatch-list'] })
+      void queryClient.invalidateQueries({ queryKey: ['arologis-admin-dispatch-list'] })
+      void queryClient.invalidateQueries({ queryKey: ['arologis-available-drivers'] })
       setAssignTarget(null)
     },
   })
@@ -109,9 +112,9 @@ export function ManualDispatchAdminPage() {
     setAssignTarget(dispatch)
   }
 
-  const handleDriverSelect = (driverCode: string) => {
+  const handleDriverSelect = (driverCode: string, vehicleSeq: number) => {
     if (!assignTarget) return
-    assignMutation.mutate({ dispatchCode: assignTarget.dispatchCode, driverCode })
+    assignMutation.mutate({ dispatchId: assignTarget.dispatchId, vehicleSeq, driverCode })
   }
 
   return (
@@ -141,11 +144,11 @@ export function ManualDispatchAdminPage() {
           </label>
           <select
             data-testid="manual-dispatch-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as DispatchStatus | '')}
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as DispatchType | '')}
             style={inputStyle}
           >
-            {STATUS_FILTER_OPTIONS.map((o) => (
+            {TYPE_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -154,7 +157,7 @@ export function ManualDispatchAdminPage() {
         </div>
       </div>
 
-      {/* 오류 */}
+      {/* 오류 banner */}
       {listQuery.isError ? (
         <div role="alert" className="error-banner" style={{ marginBottom: 16 }}>
           배차 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
@@ -174,56 +177,51 @@ export function ManualDispatchAdminPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
-              <th style={thStyle}>배차 코드</th>
-              <th style={thStyle}>기사 코드</th>
-              <th style={thStyle}>기사명</th>
-              <th style={thStyle}>차량</th>
-              <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>정차</th>
-              <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>슬립</th>
-              <th style={{ ...thStyle, width: 100 }}>상태</th>
-              <th style={{ ...thStyle, width: 140, textAlign: 'right' }}>액션</th>
+              <th style={thStyle}>배차 일자</th>
+              <th style={thStyle}>유형</th>
+              <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>차량 수</th>
+              <th style={thStyle}>등록 일시</th>
+              <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>액션</th>
             </tr>
           </thead>
           <tbody>
             {listQuery.isLoading ? (
               <tr>
-                <td colSpan={8} style={emptyCellStyle}>
+                <td colSpan={5} style={emptyCellStyle}>
                   배차 목록을 불러오는 중…
                 </td>
               </tr>
             ) : dispatches.length === 0 ? (
               <tr>
-                <td colSpan={8} style={emptyCellStyle}>
+                <td colSpan={5} style={emptyCellStyle}>
                   해당 일자의 배차 내역이 없습니다.
                 </td>
               </tr>
             ) : (
               dispatches.map((d) => (
                 <tr
-                  key={d.dispatchCode}
-                  data-testid={`manual-dispatch-row-${d.dispatchCode}`}
+                  key={d.dispatchId}
+                  data-testid={`manual-dispatch-row-${d.dispatchId}`}
                   style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                 >
-                  <td style={tdStyle}>{d.dispatchCode}</td>
-                  <td style={tdStyle}>{d.driverCode ?? '—'}</td>
-                  <td style={tdStyle}>{d.driverName ?? '—'}</td>
-                  <td style={tdStyle}>{d.vehicleLabel ?? '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>{d.totalStops}</td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>{d.totalSlips}</td>
+                  <td style={tdStyle}>{d.dispatchDate}</td>
                   <td style={tdStyle}>
-                    <Badge variant={STATUS_BADGE_VARIANT[d.status]}>
-                      {DISPATCH_STATUS_LABEL[d.status]}
+                    <Badge variant={d.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
+                      {DISPATCH_TYPE_LABEL[d.dispatchType]}
                     </Badge>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>{d.vehicleCount}</td>
+                  <td style={{ ...tdStyle, color: 'var(--color-neutral-500, #6B7280)' }}>
+                    {d.createdAt?.replace('T', ' ').slice(0, 16) ?? '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     <Button
                       variant="secondary"
                       size="sm"
-                      data-testid={`manual-dispatch-assign-btn-${d.dispatchCode}`}
+                      data-testid={`manual-dispatch-assign-btn-${d.dispatchId}`}
                       onClick={() => handleAssignClick(d)}
-                      disabled={d.status === 'DONE' || d.status === 'CANCELLED'}
                     >
-                      기사 직접 선택
+                      수동 배차
                     </Button>
                   </td>
                 </tr>
@@ -233,7 +231,7 @@ export function ManualDispatchAdminPage() {
         </table>
       </div>
 
-      {/* 기사 직접 선택 Modal */}
+      {/* 기사 선택 Modal */}
       {assignTarget ? (
         <DriverSelectModal
           date={date}
@@ -260,7 +258,7 @@ interface DriverSelectModalProps {
   dispatch: DispatchSummary
   assigning: boolean
   assignError: boolean
-  onSelect: (driverCode: string) => void
+  onSelect: (driverCode: string, vehicleSeq: number) => void
   onClose: () => void
 }
 
@@ -272,19 +270,22 @@ function DriverSelectModal({
   onSelect,
   onClose,
 }: DriverSelectModalProps) {
+  // BE 가 vehicleSeq 별 개별 배정 — 사용자 입력 (1-based, 차량 수 이내)
+  const [vehicleSeq, setVehicleSeq] = useState<number>(1)
+
   const driverQuery = useQuery({
     queryKey: ['arologis-available-drivers', date],
     queryFn: () => getAvailableDrivers(date),
     enabled: !!date,
   })
 
-  const drivers: AvailableDriver[] = driverQuery.data?.drivers ?? []
+  const drivers: AvailableDriver[] = driverQuery.data?.availableDrivers ?? []
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={`기사 직접 선택 — 배차 ${dispatch.dispatchCode}`}
+      title={`수동 배차 — ${dispatch.dispatchDate} ${DISPATCH_TYPE_LABEL[dispatch.dispatchType]} (차량 ${dispatch.vehicleCount}대)`}
       size="lg"
       footer={
         <Button variant="ghost" onClick={onClose} disabled={assigning}>
@@ -292,9 +293,36 @@ function DriverSelectModal({
         </Button>
       }
     >
-      <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--color-neutral-600, #4B5563)' }}>
-        배차 일자 <strong>{date}</strong> 기준 가용 기사를 선택하세요.
-        배정 후 기사 mobile-staff 앱에 푸시 알림이 발송됩니다.
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 12,
+          fontSize: 13,
+          color: 'var(--color-neutral-700, #374151)',
+        }}
+      >
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          차량 순번
+          <input
+            type="number"
+            data-testid="driver-select-vehicle-seq-input"
+            value={vehicleSeq}
+            onChange={(e) => {
+              const v = Number.parseInt(e.target.value, 10)
+              if (!Number.isNaN(v) && v >= 1 && v <= dispatch.vehicleCount) {
+                setVehicleSeq(v)
+              }
+            }}
+            min={1}
+            max={dispatch.vehicleCount}
+            style={{ ...inputStyle, width: 80 }}
+          />
+        </label>
+        <span style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}>
+          (1 ~ {dispatch.vehicleCount}) — 가용 기사 선택 후 [선택] 버튼으로 배정
+        </span>
       </div>
 
       {assignError ? (
@@ -310,7 +338,7 @@ function DriverSelectModal({
             marginBottom: 12,
           }}
         >
-          기사 배정에 실패했습니다. 기사 코드 / 배차 코드를 확인하세요.
+          기사 배정에 실패했습니다. 차량 순번 / 기사 코드를 확인하세요.
         </div>
       ) : null}
 
@@ -326,25 +354,23 @@ function DriverSelectModal({
           <thead>
             <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
               <th style={thStyle}>기사 코드</th>
-              <th style={thStyle}>기사명</th>
               <th style={thStyle}>휴대전화</th>
-              <th style={thStyle}>차량</th>
-              <th style={thStyle}>운행 권역</th>
-              <th style={{ ...thStyle, width: 80, textAlign: 'center' }}>현재 배차</th>
-              <th style={{ ...thStyle, width: 90 }}>상태</th>
-              <th style={{ ...thStyle, width: 80, textAlign: 'right' }}></th>
+              <th style={thStyle}>차량 종류</th>
+              <th style={thStyle}>소스</th>
+              <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>본 어플</th>
+              <th style={{ ...thStyle, width: 100, textAlign: 'right' }}></th>
             </tr>
           </thead>
           <tbody>
             {driverQuery.isLoading ? (
               <tr>
-                <td colSpan={8} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   가용 기사를 조회 중…
                 </td>
               </tr>
             ) : drivers.length === 0 ? (
               <tr>
-                <td colSpan={8} style={emptyCellStyle}>
+                <td colSpan={6} style={emptyCellStyle}>
                   가용 기사가 없습니다.
                 </td>
               </tr>
@@ -353,31 +379,28 @@ function DriverSelectModal({
                 <tr
                   key={driver.driverCode}
                   data-testid={`driver-select-row-${driver.driverCode}`}
-                  style={{
-                    borderTop: '1px solid var(--color-neutral-100, #F3F4F6)',
-                    opacity: driver.active ? 1 : 0.5,
-                  }}
+                  style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
                 >
                   <td style={tdStyle}>{driver.driverCode}</td>
-                  <td style={tdStyle}>{driver.driverName}</td>
-                  <td style={tdStyle}>{driver.phone}</td>
-                  <td style={tdStyle}>{driver.vehicleLabel ?? '—'}</td>
-                  <td style={tdStyle}>{driver.region ?? '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    {driver.currentDispatchCount}건
-                  </td>
+                  <td style={tdStyle}>{driver.phoneNumber}</td>
+                  <td style={tdStyle}>{driver.vehicleType ?? '—'}</td>
                   <td style={tdStyle}>
-                    <Badge variant={driver.active ? 'success' : 'danger'}>
-                      {driver.active ? '활성' : '비활성'}
-                    </Badge>
+                    <Badge variant="neutral">{DRIVER_SOURCE_LABEL[driver.source]}</Badge>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    {driver.appInstalled ? (
+                      <Badge variant="success">설치</Badge>
+                    ) : (
+                      <Badge variant="neutral">미설치</Badge>
+                    )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     <Button
                       variant="primary"
                       size="sm"
                       data-testid={`driver-select-confirm-${driver.driverCode}`}
-                      onClick={() => onSelect(driver.driverCode)}
-                      disabled={assigning || !driver.active}
+                      onClick={() => onSelect(driver.driverCode, vehicleSeq)}
+                      disabled={assigning}
                       loading={assigning}
                     >
                       선택
@@ -389,7 +412,6 @@ function DriverSelectModal({
           </tbody>
         </table>
       </div>
-
     </Modal>
   )
 }
