@@ -6,8 +6,13 @@
  * - `GET  /inventory/alerts/safety-stock/count`   — 알림 건수 (헤더 배지용, `{ count }`)
  * - `POST /inventory/products/{productId}/safety-stock` — 임계값 upsert (productId 는 UUID)
  *
- * UUID 사용자 비공개 가드 — 본 화면은 관리자/창고 운영자(MASTER/MANAGER/INVENTORY/WAREHOUSE)
- * 전용이므로 productId/warehouseId UUID 노출은 허용 (cf. memory `feedback_uuid_no_user_visibility`).
+ * QA 정책 (P13ValidationIT 기준):
+ * - 알림 조건: `currentQty < threshold` (미만 전용; == 임계 시 알림 제외)
+ * - shortage  = max(0, threshold - currentQty)
+ *
+ * UUID 사용자 비공개 가드 (memory `feedback_uuid_no_user_visibility`):
+ * - 화면에는 productCode / productName / warehouseName 만 표시.
+ * - productId / warehouseId UUID 는 API 요청 param 으로만 사용, 화면 노출 금지.
  *
  * 권한: BE @PreAuthorize 와 동일 (조회/설정 모두 MASTER / MANAGER / INVENTORY / WAREHOUSE).
  */
@@ -16,16 +21,24 @@ import { apiClient, type ApiEnvelope } from './client'
 /**
  * 안전재고 알림 단건 — BE `SafetyStockAlertResponse` record 와 1:1 매칭.
  *
- * @property productId   제품 UUID (관리자 화면 전용 노출)
- * @property warehouseId 창고 UUID (null = 전체 창고 합산 기준)
- * @property threshold   안전재고 임계값
- * @property currentQty  현재 가용 재고 합계
- * @property shortage    부족량 (threshold - currentQty, 양수 = 부족)
- * @property note        임계값 메모
+ * @property productId    제품 UUID (path param / 내부 조인용, 화면 비표시)
+ * @property productCode  제품 코드 (화면 표시용 비즈니스 식별자)
+ * @property productName  제품명 (화면 표시용)
+ * @property warehouseId  창고 UUID (path param / 내부 조인용, 화면 비표시)
+ * @property warehouseName 창고명 (화면 표시용, memory `feedback_uuid_no_user_visibility`)
+ * @property threshold    안전재고 임계값
+ * @property currentQty   현재 가용 재고 합계
+ * @property shortage     부족량 = max(0, threshold - currentQty).
+ *                        QA 정책: 알림 조건 `currentQty < threshold` (미만 전용).
+ *                        currentQty == threshold 인 경우 알림 제외 → shortage = 0 미발생.
+ * @property note         임계값 메모
  */
 export interface SafetyStockAlert {
   productId: string
+  productCode: string
+  productName: string
   warehouseId: string | null
+  warehouseName: string | null
   threshold: number
   currentQty: number
   shortage: number

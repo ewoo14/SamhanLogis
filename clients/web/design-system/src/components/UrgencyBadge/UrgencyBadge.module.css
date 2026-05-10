@@ -1,0 +1,46 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* CRITICAL — 완전 소진 (0%). 짙은 빨강 solid. */
+.level-critical {
+  background-color: var(--color-danger-700, #b91c1c);
+  border-color: var(--color-danger-700, #b91c1c);
+  color: var(--color-neutral-0, #fff);
+  font-weight: var(--font-weight-bold, 700);
+}
+
+/* DANGER — 충족률 1~49%. 빨강 계열. */
+.level-danger {
+  background-color: rgba(214, 80, 74, 0.12);
+  border-color: rgba(214, 80, 74, 0.40);
+  color: var(--color-danger, #d6504a);
+}
+
+/* WARNING — 충족률 50~79%. 주황/노랑 계열. */
+.level-warning {
+  background-color: rgba(233, 165, 61, 0.14);
+  border-color: rgba(233, 165, 61, 0.40);
+  color: #8A5A12;
+}
+
+[data-theme='dark'] .level-warning {
+  color: var(--color-warning, #e9a53d);
+}
+
+/* NOTICE — 충족률 80~99%. 파란색 계열. */
+.level-notice {
+  background-color: var(--color-brand-50, #eff6ff);
+  border-color: var(--color-brand-200, #bfdbfe);
+  color: var(--color-brand-700, #1d4ed8);
+}

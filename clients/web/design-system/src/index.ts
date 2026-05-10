@@ -54,3 +54,5 @@ export * from './components/AuditOverlay'
 export * from './components/SlipEditRequestDialog'
 // P0-6 신규 — 범용 Tabs (tablist + tabpanel ARIA) 거래처 4탭 등록/조회 UI 첫 사용
 export * from './components/Tabs'
+// P1-3 신규 — 안전재고 긴급도 4단계 Badge (CRITICAL/DANGER/WARNING/NOTICE) + calcUrgencyLevel 유틸
+export * from './components/UrgencyBadge'

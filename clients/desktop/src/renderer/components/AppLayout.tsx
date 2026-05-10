@@ -543,7 +543,7 @@ export function AppLayout() {
                         height: 18,
                         borderRadius: 9,
                         background: 'var(--color-danger-500)',
-                        color: '#fff',
+                        color: 'var(--color-neutral-0)',
                         fontSize: 11,
                         fontWeight: 700,
                         padding: '0 5px',
@@ -653,29 +653,50 @@ export function AppLayout() {
             {meta ? <span className="app-header-meta">[{meta}]</span> : null}
           </h2>
           <div className="app-header-actions">
-            {/* [P1-3] 안전재고 알림 배지 — 권한 있는 사용자에게만 노출. */}
+            {/* [P1-3] 안전재고 알림 헤더 count chip — 벨 아이콘 + position absolute 원형 오버레이.
+               Designer spec: count > 0 시만 노출. data-testid: header-safety-stock-count-chip. */}
             {showSafetyStock && safetyStockCount > 0 ? (
               <button
                 type="button"
-                data-testid="header-safety-stock-alert-button"
+                data-testid="header-safety-stock-count-chip"
                 onClick={() => navigate('/inventory/safety-stock-alerts')}
                 style={{
+                  position: 'relative',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6,
-                  background: 'var(--color-danger-50)',
-                  border: '1px solid var(--color-danger-300)',
-                  borderRadius: 6,
-                  padding: '5px 10px',
+                  justifyContent: 'center',
+                  width: 36,
+                  height: 36,
+                  background: 'transparent',
+                  border: '1px solid var(--color-neutral-200)',
+                  borderRadius: 8,
                   cursor: 'pointer',
-                  fontSize: 12,
-                  color: 'var(--color-danger-700)',
-                  fontWeight: 600,
+                  padding: 0,
                 }}
+                aria-label={`안전재고 알림 ${safetyStockCount}건`}
+                title={`안전재고 알림 ${safetyStockCount}건`}
               >
-                재고 부족
+                {/* 벨 아이콘 (SVG) */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--color-neutral-600)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                {/* 원형 카운트 오버레이 — position absolute */}
                 <span
                   style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -683,13 +704,15 @@ export function AppLayout() {
                     height: 18,
                     borderRadius: 9,
                     background: 'var(--color-danger-500)',
-                    color: '#fff',
-                    fontSize: 11,
+                    color: 'var(--color-neutral-0)',
+                    fontSize: 10,
                     fontWeight: 700,
-                    padding: '0 5px',
+                    padding: '0 4px',
+                    lineHeight: 1,
+                    border: '2px solid var(--color-neutral-0)',
                   }}
                 >
-                  {safetyStockCount}
+                  {safetyStockCount > 99 ? '99+' : safetyStockCount}
                 </span>
               </button>
             ) : null}
