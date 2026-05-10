@@ -118,4 +118,24 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     List<JournalLine> findPartnerLinesInRange(@Param("partnerId") UUID partnerId,
                                               @Param("from") LocalDate from,
                                               @Param("to") LocalDate to);
+
+    /**
+     * 재무상태표 집계용 — asOfDate 이전 누적 POSTED 분개 라인의 accountCode 별 차/대 합계.
+     *
+     * <p>B/S 에서는 기간 제한 없이 설립 이후 전체 누적 잔액이 필요하므로
+     * journalDate &lt;= asOfDate 조건만 사용한다.
+     *
+     * @param asOfDate 기준 일자 (이 날짜 포함 이전까지 누적)
+     * @return accountCode 별 차/대 합계 행
+     */
+    @Query("""
+            SELECT l.accountCode AS accountCode,
+                   COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
+                   COALESCE(SUM(l.creditAmount), 0) AS creditTotal
+            FROM JournalLine l
+            WHERE l.journal.journalDate <= :asOfDate
+              AND l.journal.status = com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+            GROUP BY l.accountCode
+            """)
+    List<AccountTotal> aggregatePostedUpTo(@Param("asOfDate") LocalDate asOfDate);
 }
