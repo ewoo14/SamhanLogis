@@ -211,6 +211,10 @@ import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStateme
 import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
 import { DailySummaryPrintLayout } from './accounting/print/DailySummaryPrintLayout'
 import { MonthlySummaryPrintLayout } from './accounting/print/MonthlySummaryPrintLayout'
+// [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE (창고 운영 그룹).
+// BE: inventory-service `GET /inventory/safety-stock-alerts` (P1-3 슬라이스).
+import { SafetyStockAlertsPage } from './SafetyStockAlertsPage'
+import { SAFETY_STOCK_ROLES } from '../api/safetyStockApi'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -848,6 +852,18 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={DPS_COMPARE_ROLES}>
             <InventoryDpsComparePage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P1-3] 안전재고 알림 목록 — MASTER / MANAGER / WAREHOUSE.
+      // 매뉴얼 docs/manual/02-창고/03-재고-조회.md 안전재고 알림 섹션 ✅.
+      // BE: inventory-service `GET /inventory/safety-stock-alerts` (P1-3 슬라이스).
+      {
+        path: '/inventory/safety-stock-alerts',
+        element: (
+          <RoleGuard allow={SAFETY_STOCK_ROLES}>
+            <SafetyStockAlertsPage />
           </RoleGuard>
         ),
       },

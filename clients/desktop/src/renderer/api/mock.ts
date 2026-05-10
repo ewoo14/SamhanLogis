@@ -496,6 +496,47 @@ const SAMPLE_TRANSFER_LINES = [
   },
 ]
 
+// ============================================================================
+// P1-3: 안전재고 알림 mock seed data
+// ============================================================================
+
+/**
+ * 안전재고 임계 미만 알림 시드 — availableQty < threshold 인 3건.
+ * UUID 비공개 가드: productCode / modelName / warehouseCode 만 노출.
+ */
+const MOCK_SAFETY_STOCK_ALERTS = [
+  {
+    productCode: '01-0001',
+    modelName: 'AP-WQLL14NAADKR',
+    productName: '삼성 벽걸이 14평형 (R32)',
+    warehouseCode: 'HQ-001',
+    warehouseName: '본사창고',
+    availableQty: 2,
+    threshold: 10,
+    shortfall: 8,
+  },
+  {
+    productCode: '01-0023',
+    modelName: 'AF-JX071NCALH1S',
+    productName: '삼성 스탠드 7평형 (인버터)',
+    warehouseCode: 'HQ-001',
+    warehouseName: '본사창고',
+    availableQty: 0,
+    threshold: 5,
+    shortfall: 5,
+  },
+  {
+    productCode: '01-0045',
+    modelName: 'AM100TXEADKH',
+    productName: '삼성 실외기 10HP (4Way)',
+    warehouseCode: 'VH-001',
+    warehouseName: '1호차 차량재고',
+    availableQty: 1,
+    threshold: 3,
+    shortfall: 2,
+  },
+]
+
 /**
  * URL + method 매칭으로 mock 응답을 반환. 매칭 실패 시 null.
  */
@@ -2615,6 +2656,43 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       size: 20,
       first: true,
       last: true,
+    })
+  }
+
+  // GET /inventory/safety-stock-alerts/count — 헤더 배지용 알림 건수
+  if (method === 'GET' && url.endsWith('/inventory/safety-stock-alerts/count')) {
+    return envelope({ count: MOCK_SAFETY_STOCK_ALERTS.length })
+  }
+
+  // GET /inventory/safety-stock-alerts — 임계 미만 목록 (warehouseCode 필터)
+  if (method === 'GET' && url.includes('/inventory/safety-stock-alerts')) {
+    const warehouseCode = (config.params?.['warehouseCode'] ?? '') as string
+    const filtered = warehouseCode
+      ? MOCK_SAFETY_STOCK_ALERTS.filter((a) => a.warehouseCode === warehouseCode)
+      : MOCK_SAFETY_STOCK_ALERTS
+    return envelope({
+      content: filtered,
+      totalElements: filtered.length,
+      totalPages: 1,
+      number: 0,
+      size: 100,
+      first: true,
+      last: true,
+    })
+  }
+
+  // PUT /inventory/safety-stock-configs/{productCode} — 임계값 upsert
+  if (method === 'PUT' && url.includes('/inventory/safety-stock-configs/')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      threshold?: number
+      note?: string
+    }
+    return envelope({
+      productCode: url.split('/').pop() ?? 'UNKNOWN',
+      modelName: '(갱신됨)',
+      productName: '(갱신됨)',
+      threshold: body.threshold ?? 0,
+      note: body.note ?? null,
     })
   }
 
