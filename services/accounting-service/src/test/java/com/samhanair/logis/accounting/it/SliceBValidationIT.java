@@ -204,7 +204,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @DisplayName("Corporate Tax report endpoint — 2026 사업연도 조회 200 OK + 신고기한 2027-03-31 확인")
     void corporateTaxReportEndpointReturns200() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/corporate-tax")
-                        .param("year", "2026")
+                        .param("fiscalYear", "2026")
                         .header("X-User-Id", "accountant-seed-test")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
