@@ -100,6 +100,9 @@ import { SalesOrderApprovalsPage } from './SalesOrderApprovalsPage'
 import { SalesPartnerDcConfigPage } from './SalesPartnerDcConfigPage'
 // Phase 10 P0-2 — 본인 비밀번호 변경 페이지 (재로그인 강제)
 import { PasswordChangePage } from './PasswordChangePage'
+// P0-2 셀프 재설정 — 비인증 page 방식 2종 (AuthGuard 외부 최상위 등록)
+import { PasswordResetRequestPage } from './PasswordResetRequestPage'
+import { PasswordResetConfirmPage } from './PasswordResetConfirmPage'
 // [Phase 10 P1-5] arologis 수동 배차 admin UI (DISPATCH/MASTER 가드 — backlog DISPATCH role 부재로 MASTER/MANAGER 매핑)
 import { ArologisManualDispatchPage } from './ArologisManualDispatchPage'
 import { ARO_MANUAL_DISPATCH_ROLES } from '../api/arologisManualApi'
@@ -239,6 +242,10 @@ const VENDOR_ORDER_OCR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
 const router = createHashRouter([
   { path: '/login', element: <LoginPage /> },
+  // P0-2 셀프 재설정 — 비인증 최상위 (AuthGuard / AppLayout 미적용)
+  // `/auth/password-reset/confirm` 을 `/auth/password-reset` 보다 먼저 등록 (정적 path 우선 매칭).
+  { path: '/auth/password-reset/confirm', element: <PasswordResetConfirmPage /> },
+  { path: '/auth/password-reset', element: <PasswordResetRequestPage /> },
   // signature-slice-C 모바일 mock — AuthGuard / AppLayout 미적용 (NO AUTH 공개 endpoint 시뮬레이션)
   { path: '/mobile/d/:token/s/:slipNo', element: <MobileSignaturePage /> },
   { path: '/mobile/share/:shareToken', element: <MobileRecipientPage /> },

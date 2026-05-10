@@ -29,7 +29,8 @@ import axios from 'axios'
 import { login, type LoginResponse } from '../api/auth'
 import { useSessionStore } from '../stores/session'
 import { getPasswordPolicy } from '../api/passwordApi'
-import { PasswordResetDialog } from '../components/PasswordResetDialog'
+// P0-2: "비밀번호를 잊으셨나요?" → /auth/password-reset 페이지 방식으로 navigate.
+// PasswordResetDialog (modal) 는 PasswordResetDialog.tsx 에 보존 (독립 재사용 가능).
 
 /**
  * BE 에러 메시지가 잠금 상태를 의미하는지 한국어 키워드 + 401 상태로 추정.
@@ -51,7 +52,6 @@ function isAccountLockedError(err: unknown): boolean {
 export function LoginPage() {
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
-  const [resetOpen, setResetOpen] = useState(false)
   const setAuth = useSessionStore((s) => s.setAuth)
   const navigate = useNavigate()
 
@@ -157,7 +157,7 @@ export function LoginPage() {
               <br />
               비밀번호를 5회 이상 잘못 입력하여 보안 정책에 따라 잠금 처리되었습니다.
               {' '}
-              아래 [비밀번호 찾기] 로 재설정하거나 관리자(MASTER) 에게 잠금 해제를
+              아래 [비밀번호를 잊으셨나요?] 링크로 재설정하거나 관리자(MASTER) 에게 잠금 해제를
               요청해 주세요.
             </div>
           ) : errorMessage ? (
@@ -183,9 +183,10 @@ export function LoginPage() {
               marginTop: 4,
             }}
           >
+            {/* P0-2: 페이지 방식 재설정 (/auth/password-reset) 로 이동 */}
             <button
               type="button"
-              onClick={() => setResetOpen(true)}
+              onClick={() => navigate('/auth/password-reset')}
               data-testid="login-forgot-password-link"
               style={{
                 background: 'none',
@@ -197,7 +198,7 @@ export function LoginPage() {
                 padding: 0,
               }}
             >
-              비밀번호 찾기
+              비밀번호를 잊으셨나요?
             </button>
           </div>
           {policyQuery.data ? (
@@ -220,11 +221,6 @@ export function LoginPage() {
         </form>
       </Card>
 
-      <PasswordResetDialog
-        open={resetOpen}
-        onClose={() => setResetOpen(false)}
-        initialLoginId={loginId}
-      />
     </div>
   )
 }

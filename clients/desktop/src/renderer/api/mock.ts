@@ -2337,6 +2337,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // P0-2 셀프 비밀번호 재설정 — page 방식 신규 endpoint 2종
+  // ==========================================================================
+
+  // POST /api/v1/auth/password-reset/request — 인증번호 발송 요청
+  // 항상 성공 응답 (enumeration 방지 — BE silent skip)
+  if (method === 'POST' && url.includes('/auth/password-reset/request')) {
+    return envelope({
+      success: true,
+      message: '등록된 이메일로 인증번호가 전송되었습니다. 10분 이내에 입력해주세요.',
+    })
+  }
+
+  // POST /api/v1/auth/password-reset/confirm — 인증번호 + 새 비밀번호 확인
+  // 결정적 mock: 인증번호 "123456" 일 때 성공, 그 외 401
+  if (method === 'POST' && url.includes('/auth/password-reset/confirm')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      token?: string
+    }
+    if (body.token === '123456') {
+      return envelope({
+        success: true,
+        message: '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해주세요.',
+      })
+    }
+    // 인증번호 불일치 — success: false + 오류 메시지 반환 (mock adapter 는 항상 200 반환)
+    // ConfirmPage 에서 success: false 시 에러 배너 표시 처리
+    return envelope({
+      success: false,
+      message: '인증번호가 일치하지 않거나 만료되었습니다. 다시 요청해주세요.',
+    })
+  }
+
   // POST /api/v1/admin/partner-order/vendor/confirm — 확정 → orderNo 반환
   if (method === 'POST' && url.includes('/admin/partner-order/vendor/confirm')) {
     const today = new Date()
