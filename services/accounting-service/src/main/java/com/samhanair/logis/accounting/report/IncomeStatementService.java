@@ -80,14 +80,14 @@ public class IncomeStatementService {
     }
 
     /**
-     * 실제 집계 로직.
+     * 실제 집계 로직 — 패키지 내부 공유 (현금흐름표 service 등 동일 패키지 호출용).
      *
      * @param from        시작 일자
      * @param to          종료 일자
      * @param periodLabel UI 표시용 기간 문자열
      * @return 손익계산서 응답 DTO
      */
-    private IncomeStatementResponse buildReport(LocalDate from, LocalDate to, String periodLabel) {
+    IncomeStatementResponse buildReport(LocalDate from, LocalDate to, String periodLabel) {
         List<AccountTotal> totals = journalLineRepository.aggregatePostedByAccount(from, to);
         Map<String, ChartOfAccount> accountMap = buildAccountMap();
 
