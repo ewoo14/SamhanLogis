@@ -163,6 +163,41 @@ class InternalAccountControllerTest {
         verify(authService).deleteAccount(id);
     }
 
+    // -------------------------------------------------------------------------
+    // unlock (POST /auth/internal/accounts/{id}/unlock)
+    // -------------------------------------------------------------------------
+
+    /**
+     * unlock — 유효 토큰 시 authService.unlockAccount 호출 (204 No Content).
+     *
+     * <p>Phase 10 P0-5 — MASTER 가 사용자 관리 화면에서 잠금 해제 호출 시 경로 검증.
+     */
+    @Test
+    void unlock_withValidToken_invokesService() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        MockHttpServletResponse response = mockMvc.perform(post("/auth/internal/accounts/" + id + "/unlock")
+                        .header("X-Internal-Token", VALID_TOKEN))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(204);
+        verify(authService).unlockAccount(id);
+    }
+
+    /**
+     * unlock — 토큰 누락 시 401 반환 + authService 미호출.
+     */
+    @Test
+    void unlock_withMissingToken_returns401AndDoesNotCallService() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        MockHttpServletResponse response = mockMvc.perform(post("/auth/internal/accounts/" + id + "/unlock"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        verify(authService, never()).unlockAccount(any());
+    }
+
     private static MockHttpServletRequestBuilder post(String url) {
         return MockMvcRequestBuilders.post(url);
     }

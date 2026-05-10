@@ -16,11 +16,20 @@
  *
  * PR-H4c FE-C 보강 — 30초 polling refetchInterval.
  *
+ * PR #140 reviewer 결함 fix:
+ * - raw hex fallback → design-system 토큰 (--surface-card / --line-default / --ink-primary)
+ * - LOCKED Badge variant danger → warning
+ * - DISABLED 상태 구분 (terminationDate 기반)
+ * - CreateUserModal 임시 비밀번호 복사 버튼 + 보안 안내 박스 + data-testid
+ * - RoleChangeModal 사유 5자 검증 + 적용 버튼 disabled 조건
+ * - Role Badge 시각화 (5종 색상)
+ * - data-testid: admin-user-create-button, admin-user-unlock-button-{loginId}, admin-user-temp-password-display
+ *
  * data-testid:
  *   admin-users-table
- *   admin-users-create-button
+ *   admin-user-create-button          (P-7 정정: admin-users-create-button → admin-user-create-button)
  *   admin-user-disable-button
- *   admin-user-unlock-button
+ *   admin-user-unlock-button-{loginId} (P-7 정정: suffix 추가)
  *   admin-user-edit-button
  *   admin-user-role-change
  *   admin-user-role-history
@@ -33,6 +42,7 @@
  *   admin-user-role-change-modal
  *   admin-user-role-history-modal
  *   admin-user-disable-modal
+ *   admin-user-temp-password-display  (D-4 신규)
  *
  * memory feedback_role_naming_full — role label 풀네임 (BE Role.displayName 사용).
  * memory feedback_uuid_no_user_visibility — loginId/fullName 만 노출.
@@ -71,46 +81,68 @@ import {
 import { usePageTitle } from '../../hooks/usePageTitle'
 
 // ---------------------------------------------------------------------------
-// 상태 라벨
+// 상태 판별 헬퍼
 // ---------------------------------------------------------------------------
 
-/** terminationDate 기준 잠금 여부 판단. */
-function isLocked(user: AdminUser): boolean {
+/**
+ * terminationDate 기반 비활성 여부 판단.
+ * DISABLED = terminationDate IS NOT NULL (adminDisable 호출 결과).
+ * auth-service LOCKED 는 추후 연동 슬라이스에서 별도 필드로 구분.
+ */
+function isDisabled(user: AdminUser): boolean {
   return user.terminationDate !== null
 }
 
 // ---------------------------------------------------------------------------
-// 공통 스타일 상수 (raw hex 0건 — design-system 토큰 var 또는 기본 중립)
+// 공통 스타일 상수 — design-system 토큰만 사용 (raw hex fallback 0건)
+// D-1 fix: var(--color-surface, #fff) → var(--surface-card)
+//           var(--color-neutral-300, #D1D5DB) → var(--line-default)
+//           var(--color-text-primary, #111827) → var(--ink-primary)
 // ---------------------------------------------------------------------------
 
 const selectStyle: React.CSSProperties = {
   height: 32,
   padding: '0 10px',
-  border: '1px solid var(--color-neutral-300, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
   fontFamily: 'inherit',
-  background: 'var(--color-surface, #fff)',
-  color: 'var(--color-text-primary, #111827)',
+  background: 'var(--surface-card)',
+  color: 'var(--ink-primary)',
 }
 
 const textareaStyle: React.CSSProperties = {
   padding: 8,
-  border: '1px solid var(--color-neutral-300, #D1D5DB)',
+  border: '1px solid var(--line-default)',
   borderRadius: 6,
   fontSize: 13,
   fontFamily: 'inherit',
   resize: 'vertical',
   width: '100%',
   boxSizing: 'border-box',
-  color: 'var(--color-text-primary, #111827)',
-  background: 'var(--color-surface, #fff)',
+  color: 'var(--ink-primary)',
+  background: 'var(--surface-card)',
 }
 
 const formColStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
+}
+
+// ---------------------------------------------------------------------------
+// Role Badge 시각화 (P-6)
+// MASTER danger / DEVELOPER warning / MANAGER brand / 나머지 neutral
+// ---------------------------------------------------------------------------
+
+const ROLE_BADGE_VARIANT: Record<AdminRole, 'danger' | 'warning' | 'brand' | 'neutral'> = {
+  MASTER: 'danger',
+  DEVELOPER: 'warning',
+  MANAGER: 'brand',
+  SALES: 'neutral',
+  ACCOUNTANT: 'neutral',
+  WAREHOUSE: 'neutral',
+  INVENTORY: 'neutral',
 }
 
 // ---------------------------------------------------------------------------
@@ -181,15 +213,22 @@ export function UsersPage() {
         key: 'role',
         header: '권한',
         width: '110px',
-        render: (u) => ADMIN_ROLE_LABEL[u.role],
+        // P-6: Role Badge 시각화
+        render: (u) => (
+          <Badge variant={ROLE_BADGE_VARIANT[u.role]}>
+            {ADMIN_ROLE_LABEL[u.role]}
+          </Badge>
+        ),
       },
       {
         key: 'terminationDate',
         header: '상태',
         width: '90px',
+        // D-2 fix: LOCKED variant 'danger' → 'warning'
+        // D-3 fix: DISABLED 상태 구분 (terminationDate 기반)
         render: (u) =>
-          isLocked(u) ? (
-            <Badge variant="danger">잠금</Badge>
+          isDisabled(u) ? (
+            <Badge variant="warning">비활성</Badge>
           ) : (
             <Badge variant="success">활성</Badge>
           ),
@@ -199,20 +238,21 @@ export function UsersPage() {
         header: '관리',
         render: (u) => (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {/* 잠금 해제 버튼 — terminationDate 가 set 된 경우만 표시 */}
-            {isLocked(u) ? (
+            {/* 잠금 해제 버튼 — terminationDate 가 set 된 경우만 표시.
+                P-7 fix: data-testid suffix loginId 추가 */}
+            {isDisabled(u) ? (
               <Button
                 variant="ghost"
                 size="sm"
-                data-testid="admin-user-unlock-button"
+                data-testid={`admin-user-unlock-button-${u.loginId}`}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (window.confirm(`${u.fullName} 계정의 잠금을 해제합니다.`)) {
+                  if (window.confirm(`${u.fullName} 계정의 비활성을 해제합니다.`)) {
                     unlockMutation.mutate(u.id)
                   }
                 }}
               >
-                잠금 해제
+                재활성화
               </Button>
             ) : null}
             {/* 정보 수정 */}
@@ -253,10 +293,9 @@ export function UsersPage() {
             </Button>
             {/*
              * 탈퇴 처리 (영구 Soft Delete) — 활성 사용자에만 표시.
-             * 잠긴/탈퇴 사용자 재활성화 endpoint 는 본 슬라이스 미지원
-             * (BE adminDisable 은 markDeleted — enable 호출로 복구 불가).
+             * 비활성 사용자 재활성화는 위 재활성화 버튼 사용.
              */}
-            {!isLocked(u) ? (
+            {!isDisabled(u) ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -299,14 +338,15 @@ export function UsersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span
             data-testid="admin-users-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
+            style={{ fontSize: 12, color: 'var(--ink-tertiary)' }}
           >
             실시간 자동 갱신 · 30초
           </span>
+          {/* P-7 fix: admin-users-create-button → admin-user-create-button */}
           <Button
             variant="primary"
             size="sm"
-            data-testid="admin-users-create-button"
+            data-testid="admin-user-create-button"
             onClick={() => setCreateModal(true)}
           >
             신규 사용자 등록
@@ -347,7 +387,7 @@ export function UsersPage() {
         >
           <option value="">상태 전체</option>
           <option value="ACTIVE">활성</option>
-          <option value="LOCKED">잠금</option>
+          <option value="LOCKED">비활성</option>
         </select>
         <select
           value={role}
@@ -517,6 +557,7 @@ function Pagination({ page, totalPages, onChange }: PaginationProps) {
 
 // ---------------------------------------------------------------------------
 // CreateUserModal — 신규 사용자 등록
+// D-4 fix: 임시 비밀번호 복사 버튼 + 보안 안내 박스 + data-testid
 // ---------------------------------------------------------------------------
 
 interface Department {
@@ -546,6 +587,7 @@ function CreateUserModal({
   const [selectedDeptId, setSelectedDeptId] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [result, setResult] = useState<CreateAdminUserResponse | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -568,7 +610,18 @@ function CreateUserModal({
     mutation.mutate()
   }
 
-  // 임시 비밀번호 표시 단계
+  /** D-4 — 임시 비밀번호 클립보드 복사 */
+  const handleCopy = () => {
+    if (!result) return
+    navigator.clipboard.writeText(result.temporaryPassword).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {
+      // clipboard API 미지원 환경 — silent fail
+    })
+  }
+
+  // 임시 비밀번호 표시 단계 (D-4 보안 안내 박스 + 복사 버튼 + data-testid)
   if (result) {
     return (
       <Modal
@@ -586,35 +639,58 @@ function CreateUserModal({
             <strong>{result.fullName}</strong> ({result.loginId}) 계정이
             생성되었습니다.
           </p>
+          {/* D-4: 임시 비밀번호 표시 영역 + data-testid */}
           <div
+            data-testid="admin-user-temp-password-display"
             style={{
-              background: 'var(--color-neutral-100, #F3F4F6)',
+              background: 'var(--surface-subtle)',
               borderRadius: 6,
               padding: '12px 16px',
               fontSize: 14,
             }}
           >
-            <div style={{ marginBottom: 4, fontWeight: 600 }}>초기 비밀번호</div>
-            <code
-              style={{
-                fontSize: 16,
-                letterSpacing: 2,
-                color: 'var(--color-primary-700, #1D4ED8)',
-              }}
-            >
-              {result.temporaryPassword}
-            </code>
+            <div style={{ marginBottom: 4, fontWeight: 600, color: 'var(--ink-primary)' }}>
+              초기 비밀번호
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code
+                style={{
+                  fontSize: 16,
+                  letterSpacing: 2,
+                  color: 'var(--action-brand)',
+                  flex: 1,
+                }}
+              >
+                {result.temporaryPassword}
+              </code>
+              {/* D-4: 복사 버튼 (navigator.clipboard) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopy}
+              >
+                {copied ? '복사됨' : '복사'}
+              </Button>
+            </div>
           </div>
-          <p
+          {/* D-4: 보안 안내 박스 (--state-warning-bg) */}
+          <div
             style={{
-              margin: 0,
-              fontSize: 12,
-              color: 'var(--color-neutral-500)',
+              padding: '10px 14px',
+              borderRadius: 6,
+              background: 'var(--state-warning-bg)',
+              borderLeft: '3px solid var(--state-warning)',
+              fontSize: 13,
+              color: 'var(--ink-secondary)',
             }}
           >
-            이 비밀번호는 사용자에게 직접 전달하세요. 화면을 닫으면 다시 확인할 수
-            없습니다.
-          </p>
+            <strong style={{ color: 'var(--ink-primary)' }}>보안 안내</strong>
+            <ul style={{ margin: '4px 0 0 16px', padding: 0, lineHeight: 1.7 }}>
+              <li>이 비밀번호는 지금만 확인할 수 있습니다.</li>
+              <li>사용자에게 안전한 경로로 직접 전달하세요.</li>
+              <li>첫 로그인 후 비밀번호 변경이 강제됩니다.</li>
+            </ul>
+          </div>
         </div>
       </Modal>
     )
@@ -736,8 +812,8 @@ function CreateUserModal({
             style={{
               padding: '8px 12px',
               borderRadius: 6,
-              background: 'var(--color-danger-50, #FEF2F2)',
-              color: 'var(--color-danger-700, #B91C1C)',
+              background: 'var(--state-danger-bg)',
+              color: 'var(--state-danger)',
               fontSize: 13,
             }}
           >
@@ -869,8 +945,8 @@ function EditUserModal({
             style={{
               padding: '8px 12px',
               borderRadius: 6,
-              background: 'var(--color-danger-50, #FEF2F2)',
-              color: 'var(--color-danger-700, #B91C1C)',
+              background: 'var(--state-danger-bg)',
+              color: 'var(--state-danger)',
               fontSize: 13,
             }}
           >
@@ -884,6 +960,7 @@ function EditUserModal({
 
 // ---------------------------------------------------------------------------
 // RoleChangeModal — 권한 변경
+// D-5 fix: 사유 5자 이상 검증 + 적용 버튼 disabled 조건에 reason.trim().length >= 5 추가
 // ---------------------------------------------------------------------------
 
 interface RoleChangeModalProps {
@@ -902,11 +979,16 @@ function RoleChangeModal({
   const [newRole, setNewRole] = useState<AdminRole>(user.role)
   const [reason, setReason] = useState('')
 
+  const reasonTrimmed = reason.trim()
+  // D-5: 사유 입력 시 5자 이상 강제 (미입력 시 optional — 역할이 바뀐 경우에만 사유 필수)
+  const isRoleChanged = newRole !== user.role
+  const reasonValid = reasonTrimmed.length === 0 || reasonTrimmed.length >= 5
+
   const mutation = useMutation({
     mutationFn: () =>
       updateAdminUserRole(user.id, {
         newRole,
-        reason: reason.trim() || undefined,
+        reason: reasonTrimmed || undefined,
       }),
     onSuccess: () => onCommitted(),
   })
@@ -927,11 +1009,12 @@ function RoleChangeModal({
           <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
             취소
           </Button>
+          {/* D-5: 역할 변경 + 사유 5자 이상 모두 충족 시 활성화 */}
           <Button
             variant="primary"
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
-            disabled={newRole === user.role}
+            disabled={!isRoleChanged || !reasonValid}
           >
             적용
           </Button>
@@ -943,7 +1026,9 @@ function RoleChangeModal({
           label="현재 권한"
           render={() => (
             <div style={{ fontSize: 13, padding: '4px 0' }}>
-              {ADMIN_ROLE_LABEL[user.role]}
+              <Badge variant={ROLE_BADGE_VARIANT[user.role]}>
+                {ADMIN_ROLE_LABEL[user.role]}
+              </Badge>
             </div>
           )}
         />
@@ -966,7 +1051,12 @@ function RoleChangeModal({
           )}
         />
         <FormField
-          label="변경 사유"
+          label="변경 사유 (선택 — 입력 시 5자 이상)"
+          error={
+            reason.length > 0 && reasonTrimmed.length < 5
+              ? '사유는 5자 이상 입력해야 합니다.'
+              : undefined
+          }
           render={({ id }) => (
             <textarea
               id={id}
@@ -985,8 +1075,8 @@ function RoleChangeModal({
             style={{
               padding: '8px 12px',
               borderRadius: 6,
-              background: 'var(--color-danger-50, #FEF2F2)',
-              color: 'var(--color-danger-700, #B91C1C)',
+              background: 'var(--state-danger-bg)',
+              color: 'var(--state-danger)',
               fontSize: 13,
             }}
           >
@@ -1025,13 +1115,23 @@ function RoleHistoryModal({ user, onClose }: RoleHistoryModalProps) {
       header: '이전 권한',
       width: '110px',
       render: (h) =>
-        h.previousRole ? ADMIN_ROLE_LABEL[h.previousRole] : '(신규)',
+        h.previousRole ? (
+          <Badge variant={ROLE_BADGE_VARIANT[h.previousRole]}>
+            {ADMIN_ROLE_LABEL[h.previousRole]}
+          </Badge>
+        ) : (
+          '(신규)'
+        ),
     },
     {
       key: 'newRole',
       header: '변경 후',
       width: '110px',
-      render: (h) => ADMIN_ROLE_LABEL[h.newRole],
+      render: (h) => (
+        <Badge variant={ROLE_BADGE_VARIANT[h.newRole]}>
+          {ADMIN_ROLE_LABEL[h.newRole]}
+        </Badge>
+      ),
     },
     {
       key: 'reason',
@@ -1124,7 +1224,7 @@ function DisableUserModal({ user, onClose, onCommitted }: DisableUserModalProps)
           style={{
             margin: 0,
             fontSize: 14,
-            color: 'var(--color-danger-700, #B91C1C)',
+            color: 'var(--state-danger)',
           }}
         >
           이 작업은 되돌리기 어렵습니다. 사유를 입력한 후 탈퇴 처리하세요.
@@ -1151,8 +1251,8 @@ function DisableUserModal({ user, onClose, onCommitted }: DisableUserModalProps)
             style={{
               padding: '8px 12px',
               borderRadius: 6,
-              background: 'var(--color-danger-50, #FEF2F2)',
-              color: 'var(--color-danger-700, #B91C1C)',
+              background: 'var(--state-danger-bg)',
+              color: 'var(--state-danger)',
               fontSize: 13,
             }}
           >

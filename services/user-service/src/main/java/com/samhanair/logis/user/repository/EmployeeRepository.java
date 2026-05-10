@@ -50,19 +50,30 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     List<Employee> findAllByDepartment_IdAndRoleSnapshot(UUID departmentId, Role role);
 
     /**
-     * Phase 10 P0-5 — admin 사용자 목록 페이지 조회 (q / role / dept 필터).
+     * Phase 10 P0-5 — admin 사용자 목록 페이지 조회 (q / role / dept / status 필터).
      *
      * <p>q 는 fullName / loginId / email LIKE 부분 일치 (대소문자 무시). null/blank 시 필터 미적용.
-     * role / departmentId 도 null 시 필터 미적용. 4 필터 조합 모두 본 query 1개로 처리.
+     * role / departmentId / status 도 null 시 필터 미적용. 5 필터 조합 모두 본 query 1개로 처리.
+     *
+     * <p>status 값:
+     * <ul>
+     *   <li>{@code "ACTIVE"} — terminationDate IS NULL (활성)</li>
+     *   <li>{@code "LOCKED"} — terminationDate IS NOT NULL (비활성/잠금)</li>
+     *   <li>{@code null} — 필터 미적용 (전체)</li>
+     * </ul>
      */
     @Query("SELECT e FROM Employee e JOIN FETCH e.department d "
             + "WHERE (:q IS NULL OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "       OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "       OR LOWER(COALESCE(e.email, '')) LIKE LOWER(CONCAT('%', :q, '%'))) "
             + "AND (:role IS NULL OR e.roleSnapshot = :role) "
-            + "AND (:departmentId IS NULL OR d.id = :departmentId)")
+            + "AND (:departmentId IS NULL OR d.id = :departmentId) "
+            + "AND (:status IS NULL "
+            + "     OR (:status = 'ACTIVE' AND e.terminationDate IS NULL) "
+            + "     OR (:status = 'LOCKED' AND e.terminationDate IS NOT NULL))")
     Page<Employee> searchAdmin(@Param("q") String q,
                                 @Param("role") Role role,
                                 @Param("departmentId") UUID departmentId,
+                                @Param("status") String status,
                                 Pageable pageable);
 }

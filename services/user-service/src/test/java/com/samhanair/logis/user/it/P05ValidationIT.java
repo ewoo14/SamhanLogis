@@ -81,8 +81,13 @@ class P05ValidationIT extends AbstractPostgresIT {
                         Department.create("SALES_1", "영업1팀", 2)));
 
         // AuthClient stub — create/update/disable/delete 전부 lenient no-op
+        // 5-arg 오버로드 (기본 passwordChangeRequired=false)
         lenient().doNothing().when(authClient).createAccount(
                 any(UUID.class), anyString(), anyString(), anyString(), any(Role.class));
+        // 6-arg 오버로드 (passwordChangeRequired 명시) — adminCreate 호출 시 사용
+        lenient().doNothing().when(authClient).createAccount(
+                any(UUID.class), anyString(), anyString(), anyString(), any(Role.class),
+                org.mockito.ArgumentMatchers.anyBoolean());
         lenient().doNothing().when(authClient).updateRole(any(UUID.class), any(Role.class));
         lenient().doNothing().when(authClient).updateDisplayName(any(UUID.class), anyString());
         lenient().doNothing().when(authClient).disable(any(UUID.class));

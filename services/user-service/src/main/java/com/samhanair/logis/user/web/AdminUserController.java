@@ -72,16 +72,20 @@ public class AdminUserController {
     // -------------------------------------------------------------------------
 
     /**
-     * 사용자 목록 조회 — q / role / departmentId 필터 + 페이지네이션.
+     * 사용자 목록 조회 — q / role / departmentId / status 필터 + 페이지네이션.
      *
      * <p>{@code q} 는 fullName / loginId / email LIKE 부분 일치 (대소문자 무시).
      * frontend 검색창 1개로 3 컬럼 동시 검색. 필터 미입력 시 전체 조회.
+     *
+     * <p>{@code status} 값: {@code ACTIVE} (terminationDate IS NULL) /
+     * {@code LOCKED} (terminationDate IS NOT NULL) / null (전체).
      *
      * @param page         0-based 페이지 번호 (기본값 0)
      * @param size         페이지 크기 (기본값 20)
      * @param q            검색어 (optional)
      * @param role         역할 필터 (optional)
      * @param departmentId 부서 UUID 필터 (optional)
+     * @param status       상태 필터 — ACTIVE | LOCKED (optional)
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
@@ -90,10 +94,12 @@ public class AdminUserController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Role role,
-            @RequestParam(required = false) UUID departmentId) {
+            @RequestParam(required = false) UUID departmentId,
+            @RequestParam(required = false) String status) {
         String normalizedQ = (q == null || q.isBlank()) ? null : q.trim();
+        String normalizedStatus = (status == null || status.isBlank()) ? null : status.trim().toUpperCase();
         Page<Employee> result = employeeRepository.searchAdmin(
-                normalizedQ, role, departmentId,
+                normalizedQ, role, departmentId, normalizedStatus,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "fullName")));
         return ApiResponse.ok(AdminUserListResponse.from(result));
     }

@@ -62,10 +62,10 @@ class AdminUserControllerTest {
         Employee emp = Employee.create(UUID.randomUUID(), "kim01", "김영업", "사원",
                 Role.SALES, dept, false, LocalDate.of(2026, 1, 1), null, null);
         Page<Employee> page = new PageImpl<>(List.of(emp), PageRequest.of(0, 20), 1L);
-        when(employeeRepository.searchAdmin(any(), any(), any(), any())).thenReturn(page);
+        when(employeeRepository.searchAdmin(any(), any(), any(), any(), any())).thenReturn(page);
 
         ApiResponse<AdminUserListResponse> response =
-                controller.list(0, 20, "김", Role.SALES, deptId);
+                controller.list(0, 20, "김", Role.SALES, deptId, null);
 
         assertThat(response.isSuccess()).isTrue();
         AdminUserListResponse body = response.getData();

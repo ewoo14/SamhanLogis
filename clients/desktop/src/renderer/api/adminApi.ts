@@ -79,7 +79,10 @@ export interface AdminUser {
   departmentName: string
   teamLead: boolean
   hireDate: string
-  /** terminationDate 가 set 되어 있으면 비활성 (잠금) 상태. */
+  /**
+   * terminationDate 가 set 되어 있으면 DISABLED 상태.
+   * auth-service locked 상태(LOCKED)는 추후 연동 슬라이스에서 별도 필드로 추가.
+   */
   terminationDate: string | null
   email: string | null
   phone: string | null
@@ -90,7 +93,10 @@ export interface ListAdminUsersOptions {
   /** fullName / loginId / email LIKE 검색어. */
   q?: string
   role?: AdminRole
-  /** 활성/잠금 상태 필터 — 'ACTIVE' | 'LOCKED' */
+  /**
+   * 상태 필터 — BE EmployeeRepository.searchAdmin 의 :status 파라미터.
+   * ACTIVE: terminationDate IS NULL / LOCKED: terminationDate IS NOT NULL.
+   */
   status?: 'ACTIVE' | 'LOCKED'
   /** 부서 UUID. */
   departmentId?: string
