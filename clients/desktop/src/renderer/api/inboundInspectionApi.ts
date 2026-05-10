@@ -78,11 +78,13 @@ export interface InboundInspectionDetailResponse {
   slipId: string
   /** 슬립 번호 — 사용자 노출. */
   slipNo: string
-  /** 거래처명. */
+  /** 거래처명 — 사용자 노출. */
   partnerName: string | null
-  /** 입고일 (YYYY-MM-DD). */
-  slipDate: string
-  /** 검수자 이름 (검수 완료 전 null). */
+  /** 입고 창고명 — 사용자 노출. */
+  destinationWarehouseName: string | null
+  /** 입고일 (YYYY-MM-DD) — 사용자 노출. */
+  slipDate: string | null
+  /** 검수자 이름 (검수 완료 전 null) — 사용자 노출. */
   inspectorName: string | null
   /** 검수 상태. */
   status: InboundInspectionStatus
