@@ -3,18 +3,28 @@
  *
  * 월 선택 → 조회 → 한국 일반기업회계기준 형식으로 표시.
  * 합계 행 굵게, 음수 금액 빨강, 빈 카테고리 표시 안 함.
- * 인쇄 시 "(주)삼한공조시스템" 헤더 + 작성일 + 회계 기간 포함.
+ * 인쇄 시 새 창 (`/accounting/reports/income-statement/print`) 열기 (D5).
  *
- * 권한: ACCOUNTANT / MANAGER / MASTER 진입 (RoleGuard — AppRouter 에서 적용, BE @PreAuthorize 일치).
+ * 권한: ACCOUNTANT / MASTER 만 진입 (RoleGuard — AppRouter 에서 적용).
  *
  * UUID 비공개 가드: 화면에 UUID 일절 노출 안 함.
  * API: `GET /accounting/reports/income-statement?period=YYYYMM`
+ *
+ * PR #134 FE+Designer 결함 fix:
+ * - D1: raw hex 전면 → design-system 토큰 교체
+ * - D3: 당기순이익 grand-total 배경 (color-neutral-900/0)
+ * - D4: .report-total-row / .report-grand-total-row CSS class 부여
+ * - D6: 인쇄 헤더 font-size → print token 변수
+ * - D7: 에러 배너 hex → state-danger 토큰
+ * - F2: design-system Input 컴포넌트 + htmlFor 접근성
+ * - F3: sortOrder 클라이언트 정렬 안전망
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
   Card,
+  Input,
   Spinner,
 } from '@samhan/design-system'
 import {
@@ -54,6 +64,13 @@ function prevMonth(): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+/**
+ * F3: 클라이언트 sortOrder 정렬 — BE 정렬 보장 무관 안전망.
+ */
+function sortedLines(lines: FinancialStatementLine[]): FinancialStatementLine[] {
+  return [...lines].sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
 // --------------------------------------------------------------------------
 // 서브 컴포넌트
 // --------------------------------------------------------------------------
@@ -68,25 +85,33 @@ interface SectionRowProps {
 /**
  * 손익계산서 한 행 — label(좌) / 금액(우).
  * `isSummary=true` 이면 굵게, 음수 금액은 빨강.
+ * D1: raw hex → design-system 토큰 교체.
+ * D4: isSummary 행에 .report-total-row class 부여.
  */
 function StatementRow({ label, amount, indent = false, isSummary = false }: SectionRowProps) {
   const n = Number.parseInt(amount, 10)
   const isNeg = Number.isFinite(n) && n < 0
   return (
     <div
+      className={isSummary ? 'report-total-row' : undefined}
       style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '4px 0',
-        paddingLeft: indent ? 24 : 0,
+        padding: '4px 8px',
+        paddingLeft: indent ? 32 : 8,
         fontWeight: isSummary ? 700 : 400,
         fontSize: 14,
         fontVariantNumeric: 'tabular-nums',
+        borderRadius: 2,
       }}
     >
-      <span style={{ color: '#111827' }}>{label}</span>
-      <span style={{ color: isNeg ? '#DC2626' : '#111827' }}>{fmtKrw(amount)}</span>
+      {/* D1: color-neutral-900 (기존 #111827) */}
+      <span style={{ color: 'var(--color-neutral-900)' }}>{label}</span>
+      {/* D1: 음수 color-danger (기존 #DC2626), 양수 color-neutral-900 */}
+      <span style={{ color: isNeg ? 'var(--color-danger)' : 'var(--color-neutral-900)' }}>
+        {fmtKrw(amount)}
+      </span>
     </div>
   )
 }
@@ -101,12 +126,14 @@ interface SectionProps {
 /**
  * 손익계산서 한 섹션 (예: 매출액 + 세부 + 합계).
  * 세부 항목이 없으면 섹션 자체를 숨김 (조건부 렌더).
+ * D1: 카테고리 헤더 color-neutral-700 (기존 #374151).
  */
 function StatementSection({ title, lines, summaryLabel, summaryAmount }: SectionProps) {
   if (lines.length === 0) return null
   return (
     <div style={{ marginBottom: 4 }}>
-      <div style={{ fontWeight: 600, fontSize: 14, color: '#374151', padding: '6px 0 2px' }}>
+      {/* D1: color-neutral-700 (기존 #374151) */}
+      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-neutral-700)', padding: '6px 8px 2px' }}>
         {title}
       </div>
       {lines.map((line) => (
@@ -122,12 +149,12 @@ function StatementSection({ title, lines, summaryLabel, summaryAmount }: Section
   )
 }
 
-/** 구분선 */
+/** 구분선 — D1: color-neutral-200 (기존 #D1D5DB). */
 function Divider() {
   return (
     <div
       style={{
-        borderTop: '1px solid #D1D5DB',
+        borderTop: '1px solid var(--color-neutral-200)',
         margin: '8px 0',
       }}
     />
@@ -135,7 +162,7 @@ function Divider() {
 }
 
 // --------------------------------------------------------------------------
-// 인쇄 스타일 (@media print)
+// 인쇄 스타일 (@media print) — D5: 인쇄는 새 창으로 이동하므로 최소화
 // --------------------------------------------------------------------------
 const PRINT_STYLES = `
 @media print {
@@ -164,11 +191,20 @@ export function IncomeStatementPage() {
 
   const handleSearch = () => setQueryPeriod(period)
 
-  const handlePrint = () => window.print()
+  /**
+   * D5: 인쇄 버튼 → 새 창으로 인쇄 전용 레이아웃 열기.
+   * period 파라미터를 query string 으로 전달.
+   */
+  const handlePrint = () => {
+    window.open(
+      `/accounting/reports/income-statement/print?period=${queryPeriod}`,
+      '_blank',
+    )
+  }
 
   return (
     <>
-      {/* 인쇄용 스타일 */}
+      {/* 인쇄용 스타일 (fallback — 새 창 미지원 환경) */}
       <style>{PRINT_STYLES}</style>
 
       {/* 조회 컨트롤 */}
@@ -176,31 +212,34 @@ export function IncomeStatementPage() {
         className="no-print"
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           gap: 12,
           marginBottom: 16,
           flexWrap: 'wrap',
         }}
       >
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>손익계산서</h3>
-        <label style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
-          회계 월:
-          <input
+        {/* F2: design-system Input + htmlFor 접근성 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            htmlFor="income-statement-period"
+            style={{ fontSize: 12, color: 'var(--color-neutral-700)', fontWeight: 500 }}
+          >
+            회계 월
+          </label>
+          <Input
+            id="income-statement-period"
             type="month"
+            inputSize="sm"
+            fullWidth={false}
             value={`${period.slice(0, 4)}-${period.slice(4, 6)}`}
             onChange={(e) => {
               const v = e.target.value.replace('-', '')
               if (/^\d{6}$/.test(v)) setPeriod(v)
             }}
-            style={{
-              height: 32,
-              padding: '0 8px',
-              borderRadius: 6,
-              border: '1px solid #D1D5DB',
-              fontSize: 13,
-            }}
+            style={{ width: 160 }}
           />
-        </label>
+        </div>
         <Button
           variant="primary"
           size="sm"
@@ -225,14 +264,15 @@ export function IncomeStatementPage() {
           <Spinner size="lg" label="손익계산서 불러오는 중" />
         </div>
       ) : query.isError ? (
+        /* D7: 에러 배너 hex → state-danger 토큰 */
         <div
           role="alert"
           style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
+            background: 'var(--state-danger-bg)',
+            border: '1px solid var(--state-danger)',
             borderRadius: 6,
             padding: '12px 16px',
-            color: '#991B1B',
+            color: 'var(--state-danger)',
             fontSize: 14,
           }}
         >
@@ -240,14 +280,19 @@ export function IncomeStatementPage() {
         </div>
       ) : data ? (
         <Card>
-          {/* 인쇄 헤더 */}
+          {/* 인쇄 헤더 (fallback) */}
+          {/* D6: font-size → print token 변수 */}
           <div className="income-statement-print-header" style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>(주)삼한공조시스템</div>
+            {/* D6: 보고서명 var(--print-text-lg) 18pt */}
+            <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700 }}>(주)삼한공조시스템</div>
+            {/* D6: 화면 제목 16pt */}
             <div style={{ fontSize: 16, fontWeight: 600, marginTop: 8 }}>손익계산서</div>
-            <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+            {/* D1/D6: color-neutral-500 (기존 #6B7280), var(--print-text-sm) 11pt */}
+            <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 4 }}>
               {data.fromDate} ~ {data.toDate}
             </div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+            {/* D1: color-neutral-400 (기존 #9CA3AF) */}
+            <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-400)', marginTop: 4 }}>
               작성일: {new Date().toLocaleDateString('ko-KR')}
             </div>
           </div>
@@ -258,7 +303,8 @@ export function IncomeStatementPage() {
             style={{ textAlign: 'center', marginBottom: 16 }}
           >
             <div style={{ fontSize: 16, fontWeight: 700 }}>손익계산서</div>
-            <div style={{ fontSize: 13, color: '#6B7280' }}>
+            {/* D1: color-neutral-500 (기존 #6B7280) */}
+            <div style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>
               {data.fromDate} ~ {data.toDate}
             </div>
           </div>
@@ -268,20 +314,20 @@ export function IncomeStatementPage() {
             data-testid="accounting-income-statement-table"
             style={{ maxWidth: 600, margin: '0 auto' }}
           >
-            {/* 매출액 */}
+            {/* 매출액 — F3: sortedLines 안전망 적용 */}
             <StatementSection
               title="I. 매출액"
-              lines={data.revenue}
+              lines={sortedLines(data.revenue)}
               summaryLabel="매출액 합계"
               summaryAmount={data.revenue.reduce((s, l) => s + Number.parseInt(l.amount, 10), 0).toString()}
             />
 
             <Divider />
 
-            {/* 매출원가 */}
+            {/* 매출원가 — F3: sortedLines 안전망 적용 */}
             <StatementSection
               title="II. 매출원가"
-              lines={data.costOfSales}
+              lines={sortedLines(data.costOfSales)}
               summaryLabel="매출원가 합계"
               summaryAmount={data.costOfSales.reduce((s, l) => s + Number.parseInt(l.amount, 10), 0).toString()}
             />
@@ -293,10 +339,10 @@ export function IncomeStatementPage() {
 
             <Divider />
 
-            {/* 판매비와관리비 */}
+            {/* 판매비와관리비 — F3: sortedLines 안전망 적용 */}
             <StatementSection
               title="IV. 판매비와관리비"
-              lines={data.sga}
+              lines={sortedLines(data.sga)}
               summaryLabel="판매비와관리비 합계"
               summaryAmount={data.sga.reduce((s, l) => s + Number.parseInt(l.amount, 10), 0).toString()}
             />
@@ -308,13 +354,14 @@ export function IncomeStatementPage() {
 
             <Divider />
 
-            {/* 영업외 수익/비용 */}
-            {data.nonOperating.length > 0 ? (
+            {/* 영업외 수익/비용 — F3: sortedLines 안전망 적용 */}
+            {sortedLines(data.nonOperating).length > 0 ? (
               <>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#374151', padding: '6px 0 2px' }}>
+                {/* D1: color-neutral-700 (기존 #374151) */}
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-neutral-700)', padding: '6px 8px 2px' }}>
                   VI. 영업외손익
                 </div>
-                {data.nonOperating.map((line) => (
+                {sortedLines(data.nonOperating).map((line) => (
                   <StatementRow
                     key={line.accountCode}
                     label={line.accountName}
@@ -334,31 +381,29 @@ export function IncomeStatementPage() {
 
             <Divider />
 
-            {/* 당기순이익 */}
+            {/* D3: 당기순이익 grand-total 행 — .report-grand-total-row class + 배경/텍스트 토큰 */}
+            {/* D1: borderTop color-neutral-900 (기존 #111827) */}
             <div
+              className="report-grand-total-row"
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '8px 0',
+                padding: '8px 8px',
                 fontWeight: 700,
                 fontSize: 16,
-                borderTop: '2px solid #111827',
+                borderTop: '2px solid var(--color-neutral-900)',
                 fontVariantNumeric: 'tabular-nums',
+                borderRadius: 2,
               }}
             >
               <span>IX. 당기순이익</span>
-              <span
-                style={{
-                  color: Number.parseInt(data.netIncome, 10) < 0 ? '#DC2626' : '#059669',
-                }}
-              >
-                {fmtKrw(data.netIncome)}
-              </span>
+              <span>{fmtKrw(data.netIncome)}</span>
             </div>
 
             {/* 생성 시각 */}
-            <div style={{ marginTop: 16, fontSize: 12, color: '#9CA3AF', textAlign: 'right' }}>
+            {/* D1: color-neutral-400 (기존 #9CA3AF) */}
+            <div style={{ marginTop: 16, fontSize: 12, color: 'var(--color-neutral-400)', textAlign: 'right' }}>
               보고서 생성: {new Date(data.generatedAt).toLocaleString('ko-KR')}
             </div>
           </div>

@@ -167,6 +167,10 @@ import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
 import { ReportListPage } from './ReportListPage'
 import { IncomeStatementPage } from './IncomeStatementPage'
 import { BalanceSheetPage } from './BalanceSheetPage'
+// [P0-1 Slice A] D5 fix — 인쇄 전용 컴포넌트 분리 (새 창 열기 패턴).
+// REPORTS-DESIGN.md § 7~8 spec 준수.
+import { IncomeStatementPrintLayout } from './accounting/print/IncomeStatementPrintLayout'
+import { BalanceSheetPrintLayout } from './accounting/print/BalanceSheetPrintLayout'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -375,6 +379,24 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <BalanceSheetPage />
+          </RoleGuard>
+        ),
+      },
+      // [P0-1 Slice A D5] 인쇄 전용 라우트 — 새 창 열기 패턴. AuthGuard 안쪽 유지.
+      // `/income-statement` 보다 먼저 매칭되도록 정적 `/print` suffix 먼저 등록.
+      {
+        path: '/accounting/reports/income-statement/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <IncomeStatementPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/balance-sheet/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <BalanceSheetPrintLayout />
           </RoleGuard>
         ),
       },

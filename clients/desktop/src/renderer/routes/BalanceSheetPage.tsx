@@ -4,18 +4,28 @@
  * 기준일 선택 → 조회 → 한국 일반기업회계기준 형식으로 표시.
  * 좌측(자산) / 우측(부채+자본) 두 열 형태.
  * `balanced=false` 시 상단 빨강 배너 표시.
- * 인쇄 시 "(주)삼한공조시스템" 헤더 + 기준일 포함.
+ * 인쇄 시 새 창 (`/accounting/reports/balance-sheet/print`) 열기 (D5).
  *
- * 권한: ACCOUNTANT / MANAGER / MASTER 진입 (RoleGuard — AppRouter 에서 적용, BE @PreAuthorize 일치).
+ * 권한: ACCOUNTANT / MASTER 만 진입 (RoleGuard — AppRouter 에서 적용).
  *
  * UUID 비공개 가드: 화면에 UUID 일절 노출 안 함.
  * API: `GET /accounting/reports/balance-sheet?asOfDate=YYYY-MM-DD`
+ *
+ * PR #134 FE+Designer 결함 fix:
+ * - D1: raw hex 전면 → design-system 토큰 교체
+ * - D2: balanced=false 배너 / 균형텍스트 → state-danger/color-success 토큰
+ * - D4: 자산합계/부채+자본합계 행에 .report-grand-total-row class 부여
+ * - D6: 인쇄 헤더 font-size → print token 변수
+ * - D7: 에러 배너 hex → state-danger 토큰
+ * - F2: design-system Input 컴포넌트 + htmlFor 접근성
+ * - F3: sortOrder 클라이언트 정렬 안전망
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
   Card,
+  Input,
   Spinner,
 } from '@samhan/design-system'
 import {
@@ -51,6 +61,13 @@ function prevMonthEnd(): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 }
 
+/**
+ * F3: 클라이언트 sortOrder 정렬 — BE 정렬 보장 무관 안전망.
+ */
+function sortedLines(lines: BalanceSheetLine[]): BalanceSheetLine[] {
+  return [...lines].sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
 // --------------------------------------------------------------------------
 // 서브 컴포넌트
 // --------------------------------------------------------------------------
@@ -60,29 +77,40 @@ interface BsRowProps {
   amount: string
   indent?: boolean
   isSummary?: boolean
+  isGrandTotal?: boolean
 }
 
 /**
  * 재무상태표 열 단일 행.
  * `isSummary=true` 이면 굵게, 음수 빨강.
+ * `isGrandTotal=true` 이면 .report-grand-total-row class 부여.
+ * D1: raw hex → design-system 토큰 교체.
+ * D4: isSummary → .report-total-row, isGrandTotal → .report-grand-total-row.
  */
-function BsRow({ label, amount, indent = false, isSummary = false }: BsRowProps) {
+function BsRow({ label, amount, indent = false, isSummary = false, isGrandTotal = false }: BsRowProps) {
   const n = Number.parseInt(amount, 10)
   const isNeg = Number.isFinite(n) && n < 0
+  const className = isGrandTotal ? 'report-grand-total-row' : isSummary ? 'report-total-row' : undefined
   return (
     <div
+      className={className}
       style={{
         display: 'flex',
         justifyContent: 'space-between',
-        padding: '3px 0',
-        paddingLeft: indent ? 20 : 0,
-        fontWeight: isSummary ? 700 : 400,
+        padding: '3px 8px',
+        paddingLeft: indent ? 28 : 8,
+        fontWeight: isSummary || isGrandTotal ? 700 : 400,
         fontSize: 13,
         fontVariantNumeric: 'tabular-nums',
+        borderRadius: 2,
       }}
     >
-      <span style={{ color: '#111827' }}>{label}</span>
-      <span style={{ color: isNeg ? '#DC2626' : '#111827', marginLeft: 8 }}>{fmtKrw(amount)}</span>
+      {/* D1: color-neutral-900 (기존 #111827) — grand-total 은 CSS class 가 색상 override */}
+      <span style={{ color: isGrandTotal ? undefined : 'var(--color-neutral-900)' }}>{label}</span>
+      {/* D1: 음수 color-danger (기존 #DC2626) — grand-total 은 CSS class 가 색상 override */}
+      <span style={{ color: isGrandTotal ? undefined : (isNeg ? 'var(--color-danger)' : 'var(--color-neutral-900)'), marginLeft: 8 }}>
+        {fmtKrw(amount)}
+      </span>
     </div>
   )
 }
@@ -96,7 +124,7 @@ interface BsColumnProps {
 
 /**
  * 재무상태표 한 컬럼 (자산 또는 부채+자본).
- * 빈 라인 목록이면 최소 플레이스홀더 표시.
+ * D1: 컬럼 헤더 color-neutral-800 (기존 #1F2937), 하단선 color-neutral-700 (기존 #374151).
  */
 function BsColumn({ title, lines, totalLabel, totalAmount }: BsColumnProps) {
   return (
@@ -105,8 +133,10 @@ function BsColumn({ title, lines, totalLabel, totalAmount }: BsColumnProps) {
         style={{
           fontWeight: 700,
           fontSize: 14,
-          color: '#1F2937',
-          borderBottom: '2px solid #374151',
+          /* D1: color-neutral-800 (기존 #1F2937) */
+          color: 'var(--color-neutral-800)',
+          /* D1: border color-neutral-700 (기존 #374151) */
+          borderBottom: '2px solid var(--color-neutral-700)',
           paddingBottom: 6,
           marginBottom: 8,
         }}
@@ -123,7 +153,8 @@ function BsColumn({ title, lines, totalLabel, totalAmount }: BsColumnProps) {
       ))}
       <div
         style={{
-          borderTop: '1px solid #9CA3AF',
+          /* D1: border color-neutral-400 (기존 #9CA3AF) */
+          borderTop: '1px solid var(--color-neutral-400)',
           marginTop: 8,
           paddingTop: 6,
         }}
@@ -135,7 +166,7 @@ function BsColumn({ title, lines, totalLabel, totalAmount }: BsColumnProps) {
 }
 
 // --------------------------------------------------------------------------
-// 인쇄 스타일
+// 인쇄 스타일 — D5: 인쇄는 새 창으로 이동하므로 최소화
 // --------------------------------------------------------------------------
 const PRINT_STYLES = `
 @media print {
@@ -164,7 +195,17 @@ export function BalanceSheetPage() {
   const data = query.data
 
   const handleSearch = () => setQueryDate(asOfDate)
-  const handlePrint = () => window.print()
+
+  /**
+   * D5: 인쇄 버튼 → 새 창으로 인쇄 전용 레이아웃 열기.
+   * asOfDate 파라미터를 query string 으로 전달.
+   */
+  const handlePrint = () => {
+    window.open(
+      `/accounting/reports/balance-sheet/print?asOfDate=${queryDate}`,
+      '_blank',
+    )
+  }
 
   return (
     <>
@@ -176,30 +217,33 @@ export function BalanceSheetPage() {
         className="no-print"
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           gap: 12,
           marginBottom: 16,
           flexWrap: 'wrap',
         }}
       >
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>재무상태표</h3>
-        <label style={{ fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
-          기준일:
-          <input
+        {/* F2: design-system Input + htmlFor 접근성 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            htmlFor="balance-sheet-date"
+            style={{ fontSize: 12, color: 'var(--color-neutral-700)', fontWeight: 500 }}
+          >
+            기준일
+          </label>
+          <Input
+            id="balance-sheet-date"
             type="date"
+            inputSize="sm"
+            fullWidth={false}
             value={asOfDate}
             onChange={(e) => {
               if (e.target.value) setAsOfDate(e.target.value)
             }}
-            style={{
-              height: 32,
-              padding: '0 8px',
-              borderRadius: 6,
-              border: '1px solid #D1D5DB',
-              fontSize: 13,
-            }}
+            style={{ width: 160 }}
           />
-        </label>
+        </div>
         <Button
           variant="primary"
           size="sm"
@@ -218,17 +262,17 @@ export function BalanceSheetPage() {
         </Button>
       </div>
 
-      {/* 불균형 경고 배너 */}
+      {/* D2: 불균형 경고 배너 — state-danger-bg / state-danger 토큰 */}
       {data && !data.balanced ? (
         <div
           role="alert"
           style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
+            background: 'var(--state-danger-bg)',
+            border: '1px solid var(--state-danger)',
             borderRadius: 6,
             padding: '12px 16px',
             marginBottom: 12,
-            color: '#991B1B',
+            color: 'var(--state-danger)',
             fontWeight: 600,
             fontSize: 14,
           }}
@@ -245,14 +289,15 @@ export function BalanceSheetPage() {
           <Spinner size="lg" label="재무상태표 불러오는 중" />
         </div>
       ) : query.isError ? (
+        /* D7: 에러 배너 hex → state-danger 토큰 */
         <div
           role="alert"
           style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
+            background: 'var(--state-danger-bg)',
+            border: '1px solid var(--state-danger)',
             borderRadius: 6,
             padding: '12px 16px',
-            color: '#991B1B',
+            color: 'var(--state-danger)',
             fontSize: 14,
           }}
         >
@@ -261,16 +306,21 @@ export function BalanceSheetPage() {
       ) : data ? (
         <Card>
           {/* 인쇄 헤더 */}
+          {/* D6: font-size → print token 변수 */}
           <div
             className="balance-sheet-print-header"
             style={{ textAlign: 'center', marginBottom: 24 }}
           >
-            <div style={{ fontSize: 22, fontWeight: 700 }}>(주)삼한공조시스템</div>
+            {/* D6: 보고서명 var(--print-text-lg) 18pt */}
+            <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700 }}>(주)삼한공조시스템</div>
+            {/* D6: 화면 제목 16pt */}
             <div style={{ fontSize: 16, fontWeight: 600, marginTop: 8 }}>재무상태표</div>
-            <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+            {/* D1/D6: color-neutral-500 (기존 #6B7280), var(--print-text-sm) 11pt */}
+            <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 4 }}>
               기준일: {data.asOfDate}
             </div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+            {/* D1: color-neutral-400 (기존 #9CA3AF) */}
+            <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-400)', marginTop: 4 }}>
               작성일: {new Date().toLocaleDateString('ko-KR')}
             </div>
           </div>
@@ -281,7 +331,8 @@ export function BalanceSheetPage() {
             style={{ textAlign: 'center', marginBottom: 16 }}
           >
             <div style={{ fontSize: 16, fontWeight: 700 }}>재무상태표</div>
-            <div style={{ fontSize: 13, color: '#6B7280' }}>기준일: {data.asOfDate}</div>
+            {/* D1: color-neutral-500 (기존 #6B7280) */}
+            <div style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>기준일: {data.asOfDate}</div>
           </div>
 
           {/* 본문 — 좌(자산) / 우(부채+자본) 두 열 */}
@@ -294,19 +345,25 @@ export function BalanceSheetPage() {
               alignItems: 'flex-start',
             }}
           >
-            {/* 좌: 자산 */}
-            <BsColumn
-              title="자산"
-              lines={data.assets}
-              totalLabel="자산총계"
-              totalAmount={data.totalAssets}
-            />
+            {/* 좌: 자산 — F3: sortedLines 안전망 적용 */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <BsColumn
+                title="자산"
+                lines={sortedLines(data.assets)}
+                totalLabel="자산총계 (소계)"
+                totalAmount={data.totalAssets}
+              />
+              {/* D3/D4: 자산합계 grand-total 행 */}
+              <div style={{ borderTop: '2px solid var(--color-neutral-900)', marginTop: 12 }}>
+                <BsRow label="자산 합계" amount={data.totalAssets} isGrandTotal />
+              </div>
+            </div>
 
-            {/* 구분선 */}
+            {/* 구분선 — D1: color-neutral-200 (기존 #D1D5DB) */}
             <div
               style={{
                 width: 1,
-                background: '#D1D5DB',
+                background: 'var(--color-neutral-200)',
                 alignSelf: 'stretch',
                 flexShrink: 0,
               }}
@@ -319,15 +376,18 @@ export function BalanceSheetPage() {
                 style={{
                   fontWeight: 700,
                   fontSize: 14,
-                  color: '#1F2937',
-                  borderBottom: '2px solid #374151',
+                  /* D1: color-neutral-800 (기존 #1F2937) */
+                  color: 'var(--color-neutral-800)',
+                  /* D1: border color-neutral-700 (기존 #374151) */
+                  borderBottom: '2px solid var(--color-neutral-700)',
                   paddingBottom: 6,
                   marginBottom: 8,
                 }}
               >
                 부채
               </div>
-              {data.liabilities.map((line) => (
+              {/* F3: sortedLines 안전망 적용 */}
+              {sortedLines(data.liabilities).map((line) => (
                 <BsRow
                   key={line.accountCode}
                   label={line.accountName}
@@ -336,7 +396,8 @@ export function BalanceSheetPage() {
                 />
               ))}
               <div
-                style={{ borderTop: '1px solid #9CA3AF', marginTop: 8, paddingTop: 6, marginBottom: 16 }}
+                /* D1: border color-neutral-400 (기존 #9CA3AF) */
+                style={{ borderTop: '1px solid var(--color-neutral-400)', marginTop: 8, paddingTop: 6, marginBottom: 16 }}
               >
                 <BsRow label="부채총계" amount={data.totalLiabilities} isSummary />
               </div>
@@ -346,15 +407,18 @@ export function BalanceSheetPage() {
                 style={{
                   fontWeight: 700,
                   fontSize: 14,
-                  color: '#1F2937',
-                  borderBottom: '2px solid #374151',
+                  /* D1: color-neutral-800 (기존 #1F2937) */
+                  color: 'var(--color-neutral-800)',
+                  /* D1: border color-neutral-700 (기존 #374151) */
+                  borderBottom: '2px solid var(--color-neutral-700)',
                   paddingBottom: 6,
                   marginBottom: 8,
                 }}
               >
                 자본
               </div>
-              {data.equity.map((line) => (
+              {/* F3: sortedLines 안전망 적용 */}
+              {sortedLines(data.equity).map((line) => (
                 <BsRow
                   key={line.accountCode}
                   label={line.accountName}
@@ -363,31 +427,30 @@ export function BalanceSheetPage() {
                 />
               ))}
               <div
-                style={{ borderTop: '1px solid #9CA3AF', marginTop: 8, paddingTop: 6 }}
+                /* D1: border color-neutral-400 (기존 #9CA3AF) */
+                style={{ borderTop: '1px solid var(--color-neutral-400)', marginTop: 8, paddingTop: 6 }}
               >
                 <BsRow label="자본총계" amount={data.totalEquity} isSummary />
               </div>
 
-              {/* 부채 + 자본 합계 */}
+              {/* D3/D4: 부채+자본 합계 grand-total — .report-grand-total-row class (isGrandTotal) */}
+              {/* D1: borderTop color-neutral-900 (기존 #111827) */}
               <div
                 style={{
-                  borderTop: '2px solid #111827',
+                  borderTop: '2px solid var(--color-neutral-900)',
                   marginTop: 12,
-                  paddingTop: 8,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                <span>부채+자본 합계</span>
-                <span>{fmtKrw(data.totalLiabilitiesAndEquity)}</span>
+                <BsRow
+                  label="부채+자본 합계"
+                  amount={data.totalLiabilitiesAndEquity}
+                  isGrandTotal
+                />
               </div>
             </div>
           </div>
 
-          {/* 균형 여부 */}
+          {/* D2: 균형 여부 텍스트 — color-success / color-danger 토큰 */}
           <div
             style={{
               marginTop: 16,
@@ -395,7 +458,8 @@ export function BalanceSheetPage() {
               justifyContent: 'flex-end',
               gap: 16,
               fontSize: 13,
-              color: data.balanced ? '#059669' : '#DC2626',
+              /* D2: #059669 → color-success, #DC2626 → color-danger */
+              color: data.balanced ? 'var(--color-success)' : 'var(--color-danger)',
               fontWeight: 600,
             }}
           >
@@ -403,7 +467,8 @@ export function BalanceSheetPage() {
           </div>
 
           {/* 생성 시각 */}
-          <div style={{ marginTop: 8, fontSize: 12, color: '#9CA3AF', textAlign: 'right' }}>
+          {/* D1: color-neutral-400 (기존 #9CA3AF) */}
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-neutral-400)', textAlign: 'right' }}>
             보고서 생성: {new Date(data.generatedAt).toLocaleString('ko-KR')}
           </div>
         </Card>

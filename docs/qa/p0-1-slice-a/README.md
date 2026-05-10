@@ -23,3 +23,36 @@
 ## 스크린샷 위치
 
 `docs/qa/p0-1-slice-a/*.png` — mock 모드 Edge 캡처 후 첨부.
+
+---
+
+## PR #134 FE+Designer 결함 12건 fix QA (2026-05-10)
+
+### 추가 체크리스트 (fix 결함 검증)
+
+- [ ] D1: 손익계산서 / 재무상태표 — 개발자도구 Computed Styles 에서 raw hex 미사용 확인 (CSS 변수만 사용)
+- [ ] D2: 재무상태표 balanced=false 배너 — `--state-danger-bg` 배경 / `--state-danger` 텍스트
+- [ ] D2: 재무상태표 균형 텍스트 — balanced=true 시 `--color-success`, false 시 `--color-danger`
+- [ ] D3: 손익계산서 당기순이익 행 — dark 배경 (`--color-neutral-900`) + 흰 텍스트 (`--color-neutral-0`)
+- [ ] D4: 합계 행 `.report-total-row` class 확인 (background-color: `--color-neutral-100`)
+- [ ] D4: 최종 행 `.report-grand-total-row` class 확인 (background-color: `--color-neutral-900`)
+- [ ] D5: [인쇄] 버튼 클릭 → 새 탭으로 인쇄 전용 URL 열림
+- [ ] D5: `/accounting/reports/income-statement/print?period=202604` 정상 렌더
+- [ ] D5: `/accounting/reports/balance-sheet/print?asOfDate=2026-04-30` 정상 렌더
+- [ ] D6: 인쇄 레이아웃 헤더 보고서명 → 18pt (var(--print-text-lg)) 확인
+- [ ] D7: 에러 상태 배너 — `--state-danger-bg` 배경 토큰 확인
+- [ ] F1: 손익계산서 진입 시 사이드바 "재무 보고서" active 표시 안 됨 (end prop 검증)
+- [ ] F2: 회계 월 / 기준일 Input — `<label htmlFor>` ↔ `<input id>` 연결 (접근성 검증)
+- [ ] F3: sortOrder 정렬 — 임의 순서 mock 도 화면에서 올바른 순서 표시
+- [ ] Q3: mock period 형식 'YYYYMM' = BE 형식 일치 확인 (202604)
+
+### 스크린샷 캡처 예정
+
+| 파일명 | 내용 |
+|---|---|
+| `income-statement-fix-qa.png` | 손익계산서 토큰 적용 후 (합계 배경 / grand-total 배경) |
+| `balance-sheet-fix-qa.png` | 재무상태표 불균형 배너 + 합계 배경 |
+| `print-income-statement.png` | 손익계산서 인쇄 새 창 |
+| `print-balance-sheet.png` | 재무상태표 인쇄 새 창 |
+
+[캡처 예정 — Slice A 머지 후 mock 모드 구동 후 보강]

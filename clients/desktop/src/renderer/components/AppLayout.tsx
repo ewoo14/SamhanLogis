@@ -242,8 +242,10 @@ export function AppLayout() {
               <NavLink to="/accounting/tax-invoices">세금계산서</NavLink>
               <NavLink to="/accounting/balances">시산표</NavLink>
               {/* [P0-1 Slice A] 재무 보고서 서브메뉴 — 손익계산서 / 재무상태표 진입점. */}
+              {/* F1: end prop — 자식 라우트 진입 시 부모 active 강조 회피 */}
               <NavLink
                 to="/accounting/reports"
+                end
                 data-testid="sidebar-accounting-reports"
               >
                 재무 보고서

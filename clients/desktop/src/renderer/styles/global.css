@@ -2991,3 +2991,40 @@ button {
   .paper-receipt-88mm ~ * { display: none; }
 }
 
+/* ==========================================================================
+ * P0-1 Slice A — 재무 보고서 공통 CSS (손익계산서 / 재무상태표)
+ *
+ * Designer D4 결함 fix: .report-total-row / .report-grand-total-row 글로벌 class.
+ * 합계 행 굵게 + 배경, 최종 행 반전 배경 (dark) + 인쇄 강제 (color-adjust).
+ * REPORTS-DESIGN.md § 6 CSS @media print 지침 준수.
+ * ========================================================================== */
+
+/* 소계/합계 행 — 배경 neutral-100, bold */
+.report-total-row {
+  font-weight: 700;
+  background-color: var(--color-neutral-100);
+}
+
+/* 당기순이익 / 자산합계 등 최종 행 — dark 반전 배경 */
+.report-grand-total-row {
+  font-weight: 700;
+  background-color: var(--color-neutral-900);
+  color: var(--color-neutral-0);
+}
+
+@media print {
+  /* 합계 행 배경 인쇄 강제 */
+  .report-total-row {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background-color: var(--color-neutral-100) !important;
+  }
+  /* 최종 행 배경 인쇄 강제 */
+  .report-grand-total-row {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background-color: var(--color-neutral-900) !important;
+    color: var(--color-neutral-0) !important;
+  }
+}
+
