@@ -16,17 +16,22 @@ import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 // 검수 상태 enum
 // ---------------------------------------------------------------------------
 
-/** BE `InboundInspectionStatus` enum 과 1:1. */
+/**
+ * BE {@code InspectionStatus} enum 과 1:1 정합 (TM PR #142 검증 fix).
+ *
+ * BE 가 발행하는 값: PENDING / COMPLETED / CANCELED — DRAFT 는 BE 정의에 없음.
+ * (서비스 레이어에서 inspect 저장 시 status 는 PENDING 유지.)
+ */
 export type InboundInspectionStatus =
   | 'PENDING'
-  | 'DRAFT'
   | 'COMPLETED'
+  | 'CANCELED'
 
 /** InboundInspectionStatus → 한국어 표시 라벨. */
 export const INSPECTION_STATUS_LABEL: Record<InboundInspectionStatus, string> = {
-  PENDING: '대기',
-  DRAFT: '임시저장',
-  COMPLETED: '완료',
+  PENDING: '검수대기',
+  COMPLETED: '검수완료',
+  CANCELED: '검수취소',
 }
 
 // ---------------------------------------------------------------------------
@@ -42,8 +47,12 @@ export const INSPECTION_STATUS_LABEL: Record<InboundInspectionStatus, string> = 
 export interface InboundInspectionLine {
   /** 라인 UUID — React key 용, 화면 미노출. */
   lineId: string
-  /** 제품 UUID — 검수 요청 body 에만 사용, 화면 미노출. */
-  productId: string
+  /**
+   * BE `slipLineId` (slip-service 의 SlipLine UUID, internal reference).
+   * 본 필드는 BE record 의 `slipLineId` 와 매핑된다 — TM PR #142 검증에서 BE/FE 정합 정정.
+   * 화면 미노출.
+   */
+  slipLineId?: string | null
   /** 모델코드 — 사용자 노출 식별자. */
   modelCode: string
   /** 제품명. */

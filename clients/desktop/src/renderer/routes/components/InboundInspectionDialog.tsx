@@ -2,21 +2,27 @@
  * 입고 검수 Dialog — InboundInspectionListPage / SlipListPage(INBOUND) 에서 호출.
  *
  * 기능:
- * - 슬립 헤더 표시 (slipNo / 거래처 / 입고일 / 검수자 / 상태)
- * - 라인 표 (modelCode / expectedQty / inspectedQty input / defectQty input / defectReason input)
+ * - 슬립 헤더 표시 (slipNo / 거래처 / 입고창고 / 입고일 / 검수자 / 상태)
+ * - 라인 표 (modelCode / expectedQty / inspectedQty input / defectQty input / DiffBadge / defectReason input)
+ * - 행 배경: defectQty>0 → danger-tint / inspectedQty≠expectedQty → warning-tint
+ * - DiffBadge: inspectedQty≠expectedQty 시 ▲+N 또는 ▼-N 표시
  * - 자동 합계 (정상 수량 = inspectedQty − defectQty)
- * - "검수 저장" 버튼 → `POST /inspect` DRAFT 저장
- * - "검수 완료" 버튼 → `POST /complete` 재고 적용
+ * - "검수 저장" → `POST /inspect` (PENDING 유지)
+ * - "검수 완료" → alertdialog 2단계 확인 → `POST /complete` 재고 적용
  *
  * UUID 비공개 가드: `slipId` 는 API 호출에만 사용. 화면 표시 X.
  *
- * data-testid:
+ * data-testid (Designer spec):
  * - inbound-inspection-dialog
- * - inspection-line-table
- * - inspection-save-btn
- * - inspection-complete-btn
+ * - inbound-inspection-line-{lineId}
+ * - inbound-inspection-line-{lineId}-inspected-qty
+ * - inbound-inspection-line-{lineId}-defect-qty
+ * - inbound-inspection-line-{lineId}-defect-reason-row
+ * - inbound-inspection-line-{lineId}-defect-reason
+ * - inbound-inspection-save-button
+ * - inbound-inspection-complete-button
  */
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -39,7 +45,8 @@ import {
 
 interface LineState {
   lineId: string
-  productId: string
+  /** BE 의 `slipLineId` 매핑 — 화면 미노출. */
+  slipLineId: string | null
   modelCode: string
   productName: string | null
   expectedQty: number
@@ -59,7 +66,7 @@ function lineReducer(state: LineState[], action: LineAction): LineState[] {
     case 'RESET':
       return action.lines.map((l) => ({
         lineId: l.lineId,
-        productId: l.productId,
+        slipLineId: l.slipLineId ?? null,
         modelCode: l.modelCode,
         productName: l.productName,
         expectedQty: l.expectedQty,
@@ -90,11 +97,11 @@ function lineReducer(state: LineState[], action: LineAction): LineState[] {
 
 const STATUS_VARIANT: Record<
   InboundInspectionStatus,
-  'neutral' | 'warning' | 'success'
+  'neutral' | 'warning' | 'success' | 'danger'
 > = {
-  PENDING: 'neutral',
-  DRAFT: 'warning',
+  PENDING: 'warning',
   COMPLETED: 'success',
+  CANCELED: 'danger',
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +201,30 @@ export function InboundInspectionDialog({
     return Math.max(0, l.inspectedQty - l.defectQty)
   }
 
-  /** 유효성 검사 — defectQty > inspectedQty 라인 존재 시 false. */
+  /**
+   * 유효성 검사:
+   * 1. defectQty <= inspectedQty (수량 무결성)
+   * 2. defectQty > 0 이면 defectReason 필수 (BE 도메인 가드 일치)
+   */
   function isValid(): boolean {
-    return lines.every((l) => l.defectQty <= l.inspectedQty)
+    return lines.every(
+      (l) =>
+        l.defectQty <= l.inspectedQty &&
+        (l.defectQty === 0 || l.defectReason.trim().length > 0),
+    )
+  }
+
+  /** 무엇이 위반되었는지 사용자 친화 메시지 반환 (검사 실패 시). */
+  function validationError(): string | null {
+    for (const l of lines) {
+      if (l.defectQty > l.inspectedQty) {
+        return `${l.modelCode}: 불량 수량이 검수 수량을 초과합니다.`
+      }
+      if (l.defectQty > 0 && l.defectReason.trim().length === 0) {
+        return `${l.modelCode}: 불량 수량이 1 이상이면 불량 사유를 입력해야 합니다.`
+      }
+    }
+    return null
   }
 
   // ---------------------------------------------------------------------------
@@ -207,7 +235,7 @@ export function InboundInspectionDialog({
     <Modal
       open={open}
       onClose={onClose}
-      size="lg"
+      size="xl"
       title="입고 검수"
       data-testid="inbound-inspection-dialog"
       footer={
@@ -223,8 +251,9 @@ export function InboundInspectionDialog({
             <Button
               variant="secondary"
               onClick={() => {
-                if (!isValid()) {
-                  setErrorMsg('불량 수량이 검수 수량을 초과한 라인이 있습니다.')
+                const verr = validationError()
+                if (verr) {
+                  setErrorMsg(verr)
                   return
                 }
                 setErrorMsg(null)
@@ -238,8 +267,9 @@ export function InboundInspectionDialog({
             <Button
               variant="primary"
               onClick={() => {
-                if (!isValid()) {
-                  setErrorMsg('불량 수량이 검수 수량을 초과한 라인이 있습니다.')
+                const verr = validationError()
+                if (verr) {
+                  setErrorMsg(verr)
                   return
                 }
                 setErrorMsg(null)
@@ -301,7 +331,7 @@ export function InboundInspectionDialog({
               <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>
                 입고일
               </span>
-              {detail.slipDate}
+              {detail.slipDate ?? '—'}
             </div>
             <div>
               <span style={{ color: 'var(--color-neutral-500)', marginRight: 8 }}>

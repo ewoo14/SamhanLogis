@@ -2504,14 +2504,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // - POST /api/v1/inventory/inbound-inspections/{slipId}/complete — 검수 완료
   // ==========================================================================
 
-  /** 검수 목록 시연용 시드 — 3건 (대기 1, 임시저장 1, 완료 1). */
+  /** 검수 목록 시연용 시드 — 3건 (검수대기 2, 검수완료 1). BE 정의 enum 정합. */
   const MOCK_INSPECTIONS_SUMMARY = [
     {
       slipId: 'slip-003',
       slipNo: '2026/05/03-7',
       partnerName: '삼성전자',
       slipDate: '2026-05-03',
-      status: 'DRAFT',
+      status: 'PENDING',
       inspectorName: null,
     },
     {
@@ -2536,7 +2536,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const MOCK_INSPECTION_LINES = [
     {
       lineId: 'iline-001',
-      productId: 'p-aj040',
+      slipLineId: 'sl-aj040',
       modelCode: 'AJ040RXH4BC1',
       productName: '시스템에어컨 4Way 4HP',
       expectedQty: 5,
@@ -2546,7 +2546,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     },
     {
       lineId: 'iline-002',
-      productId: 'p-aj052',
+      slipLineId: 'sl-aj052',
       modelCode: 'AJ052RXH5BC1',
       productName: '시스템에어컨 4Way 5HP',
       expectedQty: 3,
@@ -2556,7 +2556,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     },
     {
       lineId: 'iline-003',
-      productId: 'p-mwr10',
+      slipLineId: 'sl-mwr10',
       modelCode: 'MWR-WE10N',
       productName: '유선 리모컨 (WE10N)',
       expectedQty: 10,

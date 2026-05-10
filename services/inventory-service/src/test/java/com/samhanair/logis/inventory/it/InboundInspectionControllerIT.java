@@ -87,7 +87,8 @@ class InboundInspectionControllerIT extends AbstractPostgresIT {
                 5, new BigDecimal("50000"));
         SlipDetail slipDetail = new SlipDetail(
                 slipId, "2025/05/11-001", "INBOUND", "SAVED",
-                hqWarehouseId, List.of(slipLine));
+                hqWarehouseId, "테스트 거래처", "본사창고", "2025-05-11",
+                List.of(slipLine));
         Mockito.lenient().when(slipClient.getSlip(slipId)).thenReturn(slipDetail);
     }
 
@@ -223,7 +224,8 @@ class InboundInspectionControllerIT extends AbstractPostgresIT {
         UUID outboundSlipId = UUID.randomUUID();
         SlipDetail outbound = new SlipDetail(
                 outboundSlipId, "2025/05/11-002", "OUTBOUND", "SAVED",
-                hqWarehouseId, List.of());
+                hqWarehouseId, "테스트 거래처", "본사창고", "2025-05-11",
+                List.of());
         Mockito.when(slipClient.getSlip(outboundSlipId)).thenReturn(outbound);
 
         mockMvc.perform(get("/api/v1/inventory/inbound-inspections/{slipId}", outboundSlipId)

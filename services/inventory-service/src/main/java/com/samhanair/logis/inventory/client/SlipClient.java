@@ -51,8 +51,12 @@ public class SlipClient {
     }
 
     /**
-     * slip-service 의 {@code GET /api/v1/slips/{slipId}} 를 호출해 슬립 상세를 조회한다.
+     * slip-service 의 {@code GET /slips/{slipId}} 를 호출해 슬립 상세를 조회한다.
      * X-Internal-Token 헤더로 인증.
+     *
+     * <p>주의: slip-service {@code SlipController} 는 {@code @RequestMapping("/slips")} 로
+     * 등록되어 있다 (api-gateway 의 {@code StripPrefix=2} 후 매칭). 본 클라이언트는
+     * {@code lb://slip-service} 직접 호출이므로 gateway prefix 를 붙이지 않는다.
      *
      * <p>응답 envelope ({@code ApiResponse}) 의 {@code data} 키에서 슬립 정보를 추출하여
      * {@link SlipDetail} 로 변환한다.
@@ -67,7 +71,7 @@ public class SlipClient {
         Map<String, Object> envelope;
         try {
             envelope = restClient.get()
-                    .uri("/api/v1/slips/{slipId}", slipId)
+                    .uri("/slips/{slipId}", slipId)
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(status -> status.value() == 404, (req, res) -> {
@@ -110,6 +114,15 @@ public class SlipClient {
                     && !data.get("destinationWarehouseId").isNull()
                     ? UUID.fromString(data.get("destinationWarehouseId").asText())
                     : null;
+            String partnerName = data.has("partnerName")
+                    && !data.get("partnerName").isNull()
+                    ? data.get("partnerName").asText() : null;
+            String destinationWarehouseName = data.has("destinationWarehouseName")
+                    && !data.get("destinationWarehouseName").isNull()
+                    ? data.get("destinationWarehouseName").asText() : null;
+            String slipDate = data.has("slipDate")
+                    && !data.get("slipDate").isNull()
+                    ? data.get("slipDate").asText() : null;
 
             List<SlipLineDetail> lines = new ArrayList<>();
             if (data.has("lines") && data.get("lines").isArray()) {
@@ -132,7 +145,8 @@ public class SlipClient {
                 }
             }
 
-            return new SlipDetail(id, slipNo, slipType, status, destinationWarehouseId, lines);
+            return new SlipDetail(id, slipNo, slipType, status, destinationWarehouseId,
+                    partnerName, destinationWarehouseName, slipDate, lines);
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {

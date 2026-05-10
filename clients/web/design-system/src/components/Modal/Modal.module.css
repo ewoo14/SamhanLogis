@@ -27,6 +27,7 @@
 .size-sm { max-width: 360px; }
 .size-md { max-width: 520px; }
 .size-lg { max-width: 720px; }
+.size-xl { max-width: 1080px; min-width: 980px; }
 
 .header {
   display: flex;

@@ -31,11 +31,11 @@ import { InboundInspectionDialog } from './components/InboundInspectionDialog'
 
 const STATUS_VARIANT: Record<
   InboundInspectionStatus,
-  'neutral' | 'warning' | 'success'
+  'neutral' | 'warning' | 'success' | 'danger'
 > = {
-  PENDING: 'neutral',
-  DRAFT: 'warning',
+  PENDING: 'warning',
   COMPLETED: 'success',
+  CANCELED: 'danger',
 }
 
 const selectStyle: React.CSSProperties = {
@@ -80,6 +80,7 @@ export function InboundInspectionListPage() {
       key: 'slipDate',
       header: '입고일',
       width: '120px',
+      render: (row) => row.slipDate ?? '—',
     },
     {
       key: 'status',
@@ -149,8 +150,8 @@ export function InboundInspectionListPage() {
         >
           <option value="">상태 전체</option>
           <option value="PENDING">{INSPECTION_STATUS_LABEL.PENDING}</option>
-          <option value="DRAFT">{INSPECTION_STATUS_LABEL.DRAFT}</option>
           <option value="COMPLETED">{INSPECTION_STATUS_LABEL.COMPLETED}</option>
+          <option value="CANCELED">{INSPECTION_STATUS_LABEL.CANCELED}</option>
         </select>
       </div>
 

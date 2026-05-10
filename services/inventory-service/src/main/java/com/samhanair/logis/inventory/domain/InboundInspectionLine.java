@@ -121,6 +121,10 @@ public class InboundInspectionLine extends BaseEntity {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "불량 수량은 0 이상이며 검수 수량(" + inspectedQty + ") 이하여야 합니다");
         }
+        if (defectQty > 0 && (defectReason == null || defectReason.isBlank())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "불량 수량이 1 이상인 경우 불량 사유를 반드시 입력해야 합니다 (modelCode=" + this.modelCode + ")");
+        }
         this.inspectedQty = inspectedQty;
         this.defectQty = defectQty;
         this.defectReason = defectReason;

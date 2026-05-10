@@ -96,6 +96,7 @@ class P09ValidationIT extends AbstractPostgresIT {
                 .thenReturn(new SlipDetail(
                         SLIP_ID_SAVED, "INSP-2026-0001", "INBOUND", "SAVED",
                         WAREHOUSE_HQ_ID,
+                        "삼성전자(주)", "본사창고", "2026-05-01",
                         List.of(
                                 new SlipLineDetail(SLIP_LINE_001_A, PRODUCT_001_ID,
                                         "삼성 AJ040RXH4BC1", "AJ040RXH4BC1", 20,
@@ -109,6 +110,7 @@ class P09ValidationIT extends AbstractPostgresIT {
                 .thenReturn(new SlipDetail(
                         SLIP_ID_SAVED_2, "INSP-2026-0002", "INBOUND", "SAVED",
                         WAREHOUSE_HQ_ID,
+                        "삼성전자(주)", "본사창고", "2026-05-02",
                         List.of(
                                 new SlipLineDetail(
                                         UUID.fromString("f0f0f0f0-0000-0000-0000-000000000003"),
@@ -124,6 +126,7 @@ class P09ValidationIT extends AbstractPostgresIT {
                 .thenReturn(new SlipDetail(
                         SLIP_ID_CONFIRMED, "INSP-2026-0005", "INBOUND", "CONFIRMED",
                         WAREHOUSE_HQ_ID,
+                        "삼성전자(주)", "본사창고", "2026-05-05",
                         List.of(
                                 new SlipLineDetail(
                                         UUID.fromString("f0f0f0f0-0000-0000-0000-000000000011"),

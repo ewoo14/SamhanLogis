@@ -83,18 +83,28 @@ public class InboundInspectionService {
     /**
      * 검수 대상 입고 슬립의 검수 헤더 + 라인 상세를 반환한다.
      * 검수 레코드가 없으면 slip-service 에서 슬립 정보를 가져와 신규 생성 후 반환한다.
+     * 항상 slip-service 를 호출해 거래처명 / 창고명 / 입고일 부가 정보를 포함한다.
      *
      * @param slipId slip-service Slip UUID
-     * @return 검수 헤더 + 라인 상세 응답
+     * @return 검수 헤더 + 라인 상세 응답 (partnerName/destinationWarehouseName/slipDate 포함)
      * @throws BusinessException(NOT_FOUND) slip-service 에서 슬립을 찾을 수 없을 때
      * @throws BusinessException(CONFLICT)  슬립 type 이 INBOUND 가 아니거나 검수 불가 상태일 때
      */
     @Transactional
     public InboundInspectionDetailResponse getOrCreateInspection(UUID slipId) {
-        return inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)
-                .map(InboundInspectionDetailResponse::from)
-                .orElseGet(() -> InboundInspectionDetailResponse.from(
-                        createInspectionFromSlip(slipId)));
+        SlipDetail slipDetail = slipClient.getSlip(slipId);
+
+        InboundInspection inspection = inspectionRepository
+                .findBySlipIdAndIsDeletedFalse(slipId)
+                .orElseGet(() -> createInspectionFromSlipDetail(slipId, slipDetail));
+
+        return InboundInspectionDetailResponse.from(
+                inspection,
+                slipDetail.partnerName(),
+                slipDetail.destinationWarehouseName(),
+                slipDetail.slipDate(),
+                null   // inspectorName: user-service 조회는 본 슬라이스 범위 외 — null 폴백
+        );
     }
 
     /**
@@ -150,7 +160,15 @@ public class InboundInspectionService {
             line.recordResult(result.inspectedQty(), result.defectQty(), result.defectReason());
         }
 
-        return InboundInspectionDetailResponse.from(inspection);
+        // slip 부가 정보 재조회 (partnerName / destinationWarehouseName / slipDate 포함)
+        SlipDetail slipDetail = slipClient.getSlip(slipId);
+        return InboundInspectionDetailResponse.from(
+                inspection,
+                slipDetail.partnerName(),
+                slipDetail.destinationWarehouseName(),
+                slipDetail.slipDate(),
+                null
+        );
     }
 
     // ─────────────────── 검수 완료 ───────────────────
@@ -238,22 +256,27 @@ public class InboundInspectionService {
         // 재고 반영 완료 마킹
         inspection.markStockApplied();
 
-        return InboundInspectionDetailResponse.from(inspection);
+        return InboundInspectionDetailResponse.from(
+                inspection,
+                slipDetail.partnerName(),
+                slipDetail.destinationWarehouseName(),
+                slipDetail.slipDate(),
+                null
+        );
     }
 
     // ─────────────────── 내부 유틸 ───────────────────
 
     /**
-     * slip-service 에서 슬립 정보를 가져와 검수 헤더 + 라인을 신규 생성한다.
+     * 이미 조회된 {@link SlipDetail} 로부터 검수 헤더 + 라인을 신규 생성한다.
+     * 슬립 유효성 검증(INBOUND type / 검수 허용 상태)을 수행한다.
      *
-     * @param slipId slip-service Slip UUID
+     * @param slipId     slip-service Slip UUID
+     * @param slipDetail 이미 조회된 슬립 상세 (중복 호출 방지)
      * @return 영속화된 InboundInspection
-     * @throws BusinessException(NOT_FOUND) slip-service 에서 슬립을 찾을 수 없을 때
-     * @throws BusinessException(CONFLICT)  슬립 type 이 INBOUND 가 아니거나 검수 불가 상태일 때
+     * @throws BusinessException(CONFLICT) 슬립 type 이 INBOUND 가 아니거나 검수 불가 상태일 때
      */
-    private InboundInspection createInspectionFromSlip(UUID slipId) {
-        SlipDetail slipDetail = slipClient.getSlip(slipId);
-
+    private InboundInspection createInspectionFromSlipDetail(UUID slipId, SlipDetail slipDetail) {
         if (!"INBOUND".equals(slipDetail.slipType())) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "입고전표(INBOUND)만 검수 가능합니다: slipType=" + slipDetail.slipType());

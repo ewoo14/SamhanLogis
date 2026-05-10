@@ -1,4 +1,4 @@
--- V5__seed_p09_inbound_inspection.sql
+-- V6__seed_p09_inbound_inspection.sql
 -- P0-9 입고 검수 UI 검증용 seed — 검수 대상 입고 슬립 5건 + 라인 2~3건.
 -- [DEV-SEED] 결정적 UUID 패턴 — production 환경에서는 spring.flyway.locations 분리.
 --

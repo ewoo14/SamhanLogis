@@ -79,16 +79,20 @@ class InboundInspectionServiceTest {
     class GetOrCreate {
 
         @Test
-        @DisplayName("기존 검수 레코드가 있으면 slip-service 호출 없이 반환")
-        void existingInspection_returnsWithoutSlipCall() {
+        @DisplayName("기존 검수 레코드가 있으면 slip-service 를 호출해 부가 정보(partnerName/창고명/입고일)를 포함해 반환")
+        void existingInspection_returnsWithSlipCallForExtraInfo() {
             InboundInspection existing = makeInspection(slipId, "2025/01/10-001");
             when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
                     .thenReturn(Optional.of(existing));
+            SlipDetail slipDetail = makeSlipDetail(slipId, "INBOUND", "SAVED");
+            when(slipClient.getSlip(slipId)).thenReturn(slipDetail);
 
             var result = service.getOrCreateInspection(slipId);
 
             assertThat(result.slipId()).isEqualTo(slipId);
-            verify(slipClient, never()).getSlip(any());
+            assertThat(result.partnerName()).isEqualTo("테스트 거래처");
+            assertThat(result.destinationWarehouseName()).isEqualTo("본사창고");
+            assertThat(result.slipDate()).isEqualTo("2025-01-10");
         }
 
         @Test
@@ -152,6 +156,7 @@ class InboundInspectionServiceTest {
 
             when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
                     .thenReturn(Optional.of(inspection));
+            when(slipClient.getSlip(slipId)).thenReturn(makeSlipDetail(slipId, "INBOUND", "SAVED"));
 
             var request = new InboundInspectionRequest(
                     List.of(new InboundInspectionLineResult(lineId, 9, 1, "외관 불량")));
@@ -162,6 +167,25 @@ class InboundInspectionServiceTest {
             assertThat(result.lines().get(0).inspectedQty()).isEqualTo(9);
             assertThat(result.lines().get(0).defectQty()).isEqualTo(1);
             assertThat(result.lines().get(0).normalQty()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("defectQty>0 인데 defectReason 빈값이면 INVALID_INPUT 예외")
+        void defectQtyWithoutReason_throwsInvalidInput() {
+            InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
+            InboundInspectionLine line = makeLine(inspection, lineId, productId, 10);
+            inspection.addLine(line);
+
+            when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
+                    .thenReturn(Optional.of(inspection));
+
+            var request = new InboundInspectionRequest(
+                    List.of(new InboundInspectionLineResult(lineId, 9, 1, "")));
+
+            assertThatThrownBy(() -> service.saveInspectionResult(slipId, request, actorId))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_INPUT);
         }
 
         @Test
@@ -260,6 +284,8 @@ class InboundInspectionServiceTest {
 
             when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
                     .thenReturn(Optional.of(inspection));
+            lenient().when(slipClient.getSlip(slipId))
+                    .thenReturn(makeSlipDetail(slipId, "INBOUND", "SAVED"));
 
             var result = service.completeInspection(slipId, actorId);
 
@@ -329,7 +355,8 @@ class InboundInspectionServiceTest {
                 SHARED_SLIP_LINE_ID, productId, "테스트 제품", "MODEL-001",
                 10, new BigDecimal("100000"));
         return new SlipDetail(slipId, "2025/01/10-001", slipType, status,
-                warehouseId, List.of(slipLine));
+                warehouseId, "테스트 거래처", "본사창고", "2025-01-10",
+                List.of(slipLine));
     }
 
     private Warehouse makeWarehouse(UUID id) {

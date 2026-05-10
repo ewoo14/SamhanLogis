@@ -10,7 +10,7 @@ import {
 import { createPortal } from 'react-dom'
 import styles from './Modal.module.css'
 
-export type ModalSize = 'sm' | 'md' | 'lg'
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 
 export interface ModalProps {
   open: boolean
@@ -150,7 +150,13 @@ export function Modal({
   if (!open || typeof document === 'undefined') return null
 
   const sizeClass =
-    size === 'sm' ? styles['size-sm'] : size === 'lg' ? styles['size-lg'] : styles['size-md']
+    size === 'sm'
+      ? styles['size-sm']
+      : size === 'lg'
+        ? styles['size-lg']
+        : size === 'xl'
+          ? styles['size-xl']
+          : styles['size-md']
 
   return createPortal(
     <div
