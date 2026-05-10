@@ -30,9 +30,15 @@
  * - `/accounting/balances`              시산표 (월별)
  *
  * P0-1 Slice A 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard, BE @PreAuthorize 일치):
- * - `/accounting/reports`                    재무 보고서 목록 (3개 카드)
+ * - `/accounting/reports`                    재무 보고서 목록 (7개 카드 — Slice A 3 + B 4)
  * - `/accounting/reports/income-statement`   손익계산서 (월별)
  * - `/accounting/reports/balance-sheet`      재무상태표 (기준일)
+ *
+ * P0-1 Slice B 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard):
+ * - `/accounting/reports/vat`                부가세 신고서 (월별)
+ * - `/accounting/reports/corporate-tax`      법인세 신고서 (사업연도)
+ * - `/accounting/reports/partner-aging`      거래처별 미수/미지급 (기준일 + type)
+ * - 각 보고서 `/print` 서브 라우트 (인쇄 전용 새 창)
  *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
@@ -171,6 +177,15 @@ import { BalanceSheetPage } from './BalanceSheetPage'
 // REPORTS-DESIGN.md § 7~8 spec 준수.
 import { IncomeStatementPrintLayout } from './accounting/print/IncomeStatementPrintLayout'
 import { BalanceSheetPrintLayout } from './accounting/print/BalanceSheetPrintLayout'
+// [P0-1 Slice B] 세금/거래처 보고서 4개 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
+// BE: accounting-service `/accounting/reports/vat` + `/corporate-tax` + `/partner-aging`
+import { VatReportPage } from './VatReportPage'
+import { CorporateTaxReportPage } from './CorporateTaxReportPage'
+import { PartnerAgingPage } from './PartnerAgingPage'
+// [P0-1 Slice B] 인쇄 전용 레이아웃 3종.
+import { VatReportPrintLayout } from './accounting/print/VatReportPrintLayout'
+import { CorporateTaxReportPrintLayout } from './accounting/print/CorporateTaxReportPrintLayout'
+import { PartnerAgingPrintLayout } from './accounting/print/PartnerAgingPrintLayout'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -397,6 +412,57 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <BalanceSheetPrintLayout />
+          </RoleGuard>
+        ),
+      },
+
+      // [P0-1 Slice B] 세금/거래처 보고서 4개 — ACCOUNTANT/MANAGER/MASTER.
+      // 정적 `/print` suffix 먼저 등록 (부모 라우트 매칭 우선).
+      {
+        path: '/accounting/reports/vat',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <VatReportPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/vat/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <VatReportPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/corporate-tax',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <CorporateTaxReportPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/corporate-tax/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <CorporateTaxReportPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/partner-aging',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PartnerAgingPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/partner-aging/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PartnerAgingPrintLayout />
           </RoleGuard>
         ),
       },

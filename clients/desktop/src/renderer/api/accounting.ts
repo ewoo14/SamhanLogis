@@ -449,3 +449,180 @@ export async function getBalanceSheet(
   )
   return res.data.data
 }
+
+// ==========================================================================
+// P0-1 Slice B: 세금/거래처 보고서 API (부가세 / 법인세 / 거래처별 미수미지급)
+// ==========================================================================
+
+/**
+ * 부가세 신고서 응답 (BE `VatReportResponse`).
+ *
+ * 한국 부가가치세법 표준 형식 — 매출 VAT / 매입 VAT / 납부세액.
+ * UUID 비공개 가드: 이 DTO 에 UUID 필드 없음.
+ */
+export interface VatReportResponse {
+  /** 신고 기간 (YYYYMM). */
+  period: string
+  /** 신고 기간 시작일 (YYYY-MM-DD). */
+  fromDate: string
+  /** 신고 기간 종료일 (YYYY-MM-DD). */
+  toDate: string
+  /** 매출 공급가액 합계 (KRW 정수, string). */
+  salesSupplyAmount: string
+  /** 매출 부가세 합계 (KRW 정수, string). */
+  salesVatAmount: string
+  /** 매출 세금계산서 발행 매수. */
+  salesInvoiceCount: number
+  /** 매입 공급가액 합계 (KRW 정수, string). */
+  purchaseSupplyAmount: string
+  /** 매입 부가세 합계 (KRW 정수, string). */
+  purchaseVatAmount: string
+  /** 매입 세금계산서 수취 매수. */
+  purchaseInvoiceCount: number
+  /**
+   * 납부세액 = 매출VAT − 매입VAT (KRW 정수, string).
+   * 음수 시 환급세액.
+   */
+  vatPayable: string
+  /** 신고 기한 (YYYY-MM-DD). */
+  dueDate: string
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 법인세 신고서 응답 (BE `CorporateTaxReportResponse`).
+ *
+ * 한국 법인세법 표준 계산 형식 (단계별 세율 9% / 19% / 21% / 24%).
+ */
+export interface CorporateTaxReportResponse {
+  /** 사업연도 (YYYY). */
+  fiscalYear: number
+  /** 법인세차감전순이익 (KRW 정수, string). */
+  incomeBeforeTax: string
+  /** 가산조정 합계 (KRW 정수, string). */
+  addBack: string
+  /** 차감조정 합계 (KRW 정수, string). */
+  deductions: string
+  /** 과세표준 (KRW 정수, string). */
+  taxableIncome: string
+  /** 산출세액 (KRW 정수, string). */
+  calculatedTax: string
+  /** 기납부세액 (KRW 정수, string). */
+  prepaidTax: string
+  /**
+   * 차감납부세액 (KRW 정수, string).
+   * 음수 시 환급.
+   */
+  taxPayable: string
+  /** 신고 기한 (YYYY-MM-DD). */
+  dueDate: string
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 거래처별 미수/미지급 내역 1행 (BE `PartnerAgingLine`).
+ *
+ * UUID 비공개 가드: `partnerId` 는 내부 참조용. 화면 미노출.
+ * 사용자 노출 식별자: `partnerCode` / `partnerName` 만.
+ */
+export interface PartnerAgingLine {
+  /** 거래처 코드 (화면 표시 OK). */
+  partnerCode: string
+  /** 거래처명 (화면 표시 OK). */
+  partnerName: string
+  /** 잔액 (KRW 정수, string). */
+  balance: string
+  /** 가장 오래된 미결제 일자 (YYYY-MM-DD). */
+  oldestUnpaidDate: string | null
+  /** 연체일수 (0 이상 정수). */
+  agingDays: number
+  /**
+   * 거래처 UUID — 내부 참조용. 화면 절대 노출 금지 (feedback_uuid_no_user_visibility).
+   * @internal
+   */
+  partnerId: string
+}
+
+/**
+ * 거래처별 미수/미지급 응답 (BE `PartnerAgingResponse`).
+ */
+export interface PartnerAgingResponse {
+  /** 채권/채무 구분. */
+  type: 'RECEIVABLE' | 'PAYABLE'
+  /** 계정과목 코드 (3자리). */
+  accountCode: string
+  /** 계정과목명. */
+  accountName: string
+  /** 기준일 (YYYY-MM-DD). */
+  asOfDate: string
+  /** 조회된 거래처 수. */
+  partnerCount: number
+  /** 잔액 총합 (KRW 정수, string). */
+  totalAmount: string
+  /** 거래처별 행 목록. */
+  lines: PartnerAgingLine[]
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 부가세 신고서 조회.
+ *
+ * @param period 신고 기간 (YYYYMM, 예: `202604`).
+ * @returns `VatReportResponse`
+ */
+export async function getVatReport(period: string): Promise<VatReportResponse> {
+  const res = await apiClient.get<ApiEnvelope<VatReportResponse>>(
+    '/accounting/reports/vat',
+    { params: { period } },
+  )
+  return res.data.data
+}
+
+/**
+ * 법인세 신고서 조회.
+ *
+ * @param fiscalYear 사업연도 (YYYY 정수).
+ * @returns `CorporateTaxReportResponse`
+ */
+export async function getCorporateTaxReport(
+  fiscalYear: number,
+): Promise<CorporateTaxReportResponse> {
+  const res = await apiClient.get<ApiEnvelope<CorporateTaxReportResponse>>(
+    '/accounting/reports/corporate-tax',
+    { params: { fiscalYear } },
+  )
+  return res.data.data
+}
+
+/**
+ * 거래처별 미수/미지급 잔액 조회.
+ *
+ * @param asOfDate 기준일 (YYYY-MM-DD).
+ * @param type     `'RECEIVABLE'` = 미수금, `'PAYABLE'` = 미지급금.
+ * @returns `PartnerAgingResponse`
+ */
+export async function getPartnerAging(
+  asOfDate: string,
+  type: 'RECEIVABLE' | 'PAYABLE',
+): Promise<PartnerAgingResponse> {
+  const res = await apiClient.get<ApiEnvelope<PartnerAgingResponse>>(
+    '/accounting/reports/partner-aging',
+    { params: { asOfDate, type } },
+  )
+  return res.data.data
+}
+
+/**
+ * 회계 보고서 접근 권한 (Slice B 포함).
+ *
+ * ACCOUNTANT / MANAGER / MASTER 모두 보고서 조회 가능.
+ */
+export function canAccessAccountingReports(
+  role: string | undefined | null,
+): boolean {
+  if (!role) return false
+  return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
+}

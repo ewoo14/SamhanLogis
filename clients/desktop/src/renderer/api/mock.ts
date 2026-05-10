@@ -1291,6 +1291,51 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // P0-1 Slice B: 세금/거래처 보고서 mock endpoint
+  // ==========================================================================
+
+  // GET /accounting/reports/vat?period=YYYYMM — 부가세 신고서
+  if (method === 'GET' && url.includes('/accounting/reports/vat')) {
+    const period = (config.params?.['period'] ?? '202604') as string
+    const fromYear = period.slice(0, 4)
+    const fromMonth = period.slice(4, 6)
+    const lastDay = new Date(
+      Number.parseInt(fromYear, 10),
+      Number.parseInt(fromMonth, 10),
+      0,
+    ).getDate()
+    return envelope({
+      ...MOCK_VAT_REPORT,
+      period,
+      fromDate: `${fromYear}-${fromMonth}-01`,
+      toDate: `${fromYear}-${fromMonth}-${String(lastDay).padStart(2, '0')}`,
+    })
+  }
+
+  // GET /accounting/reports/corporate-tax?fiscalYear=YYYY — 법인세 신고서
+  if (method === 'GET' && url.includes('/accounting/reports/corporate-tax')) {
+    const fiscalYear = Number.parseInt(
+      String(config.params?.['fiscalYear'] ?? '2026'),
+      10,
+    )
+    return envelope({
+      ...MOCK_CORPORATE_TAX_REPORT,
+      fiscalYear,
+      dueDate: `${fiscalYear + 1}-03-31`,
+    })
+  }
+
+  // GET /accounting/reports/partner-aging?asOfDate=&type= — 거래처별 미수/미지급
+  if (method === 'GET' && url.includes('/accounting/reports/partner-aging')) {
+    const asOfDate = (config.params?.['asOfDate'] ?? '2026-05-31') as string
+    const type = (config.params?.['type'] ?? 'RECEIVABLE') as 'RECEIVABLE' | 'PAYABLE'
+    const base = type === 'RECEIVABLE'
+      ? MOCK_PARTNER_AGING_RECEIVABLE
+      : MOCK_PARTNER_AGING_PAYABLE
+    return envelope({ ...base, asOfDate })
+  }
+
+  // ==========================================================================
   // [Phase 6 v4] 판매 메뉴 mock — 캡처용 최소 시드
   // ==========================================================================
 
@@ -2991,5 +3036,152 @@ const MOCK_BALANCE_SHEET = {
   totalEquity: '30000000',
   totalLiabilitiesAndEquity: '55000000',
   balanced: true,
+  generatedAt: '2026-05-10T09:00:00+09:00',
+}
+
+// ==========================================================================
+// P0-1 Slice B: 세금/거래처 보고서 fixture
+// ==========================================================================
+
+/**
+ * 부가세 신고서 fixture — 2026년 4월.
+ *
+ * 매출 공급가액 20,000,000 / 매출VAT 2,000,000.
+ * 매입 공급가액 15,000,000 / 매입VAT 1,500,000.
+ * 납부세액 500,000. 세금계산서 매수: 매출 12매 / 매입 8매.
+ *
+ * accountCode/accountName 없음 — VAT 보고서는 계정 집계 단위가 아님.
+ * envelope() raw object 반환 — PageResponse 봉투 X (Slice A 패턴).
+ */
+const MOCK_VAT_REPORT = {
+  period: '202604',
+  fromDate: '2026-04-01',
+  toDate: '2026-04-30',
+  salesSupplyAmount: '20000000',
+  salesVatAmount: '2000000',
+  salesInvoiceCount: 12,
+  purchaseSupplyAmount: '15000000',
+  purchaseVatAmount: '1500000',
+  purchaseInvoiceCount: 8,
+  vatPayable: '500000',
+  dueDate: '2026-07-25',
+  generatedAt: '2026-05-10T09:00:00+09:00',
+}
+
+/**
+ * 법인세 신고서 fixture — 2026 사업연도.
+ *
+ * 과세표준 9,250,000. 2억 이하 9% 세율 → 산출세액 832,500.
+ * 중간예납 0. 차감납부세액 832,500.
+ * 신고 기한: 2027-03-31 (12월 결산 법인).
+ *
+ * envelope() raw object 반환.
+ */
+const MOCK_CORPORATE_TAX_REPORT = {
+  fiscalYear: 2026,
+  incomeBeforeTax: '9250000',
+  addBack: '0',
+  deductions: '0',
+  taxableIncome: '9250000',
+  calculatedTax: '832500',
+  prepaidTax: '0',
+  taxPayable: '832500',
+  dueDate: '2027-03-31',
+  generatedAt: '2026-05-10T09:00:00+09:00',
+}
+
+/**
+ * 거래처별 미수 fixture (RECEIVABLE) — 2026-05-31 기준.
+ *
+ * 계정과목: 110 외상매출금. 거래처 4건. 총잔액 5,000,000.
+ *
+ * UUID 비공개 가드:
+ * - `partnerId` 는 BE 내부 참조용 UUID (화면 노출 금지).
+ * - 사용자 노출: partnerCode / partnerName 만.
+ *
+ * accountCode 는 3자리 (PR #134 회고 — V1 chart_of_accounts seed 일치).
+ */
+const MOCK_PARTNER_AGING_RECEIVABLE = {
+  type: 'RECEIVABLE' as const,
+  accountCode: '110',
+  accountName: '외상매출금',
+  asOfDate: '2026-05-31',
+  partnerCount: 4,
+  totalAmount: '5000000',
+  lines: [
+    {
+      partnerCode: 'P-001',
+      partnerName: '삼성건설(주)',
+      balance: '1200000',
+      oldestUnpaidDate: '2026-03-15',
+      agingDays: 77,
+      partnerId: '00000000-0000-0000-0000-partner00001',
+    },
+    {
+      partnerCode: 'P-002',
+      partnerName: '현대종합개발',
+      balance: '800000',
+      oldestUnpaidDate: '2026-04-01',
+      agingDays: 60,
+      partnerId: '00000000-0000-0000-0000-partner00002',
+    },
+    {
+      partnerCode: 'P-003',
+      partnerName: '대우건설',
+      balance: '1500000',
+      oldestUnpaidDate: '2026-04-20',
+      agingDays: 41,
+      partnerId: '00000000-0000-0000-0000-partner00003',
+    },
+    {
+      partnerCode: 'P-004',
+      partnerName: '롯데건설',
+      balance: '1500000',
+      oldestUnpaidDate: '2026-05-15',
+      agingDays: 16,
+      partnerId: '00000000-0000-0000-0000-partner00004',
+    },
+  ],
+  generatedAt: '2026-05-10T09:00:00+09:00',
+}
+
+/**
+ * 거래처별 미지급 fixture (PAYABLE) — 2026-05-31 기준.
+ *
+ * 계정과목: 201 외상매입금. 거래처 3건. 총잔액 3,200,000.
+ */
+const MOCK_PARTNER_AGING_PAYABLE = {
+  type: 'PAYABLE' as const,
+  accountCode: '201',
+  accountName: '외상매입금',
+  asOfDate: '2026-05-31',
+  partnerCount: 3,
+  totalAmount: '3200000',
+  lines: [
+    {
+      partnerCode: 'V-001',
+      partnerName: '(주)에어텍',
+      balance: '1800000',
+      oldestUnpaidDate: '2026-03-01',
+      agingDays: 91,
+      partnerId: '00000000-0000-0000-0000-vendor000001',
+    },
+    {
+      partnerCode: 'V-002',
+      partnerName: '대한냉각기',
+      balance: '900000',
+      oldestUnpaidDate: '2026-04-10',
+      agingDays: 51,
+      partnerId: '00000000-0000-0000-0000-vendor000002',
+    },
+    {
+      partnerCode: 'V-003',
+      partnerName: '한국공조부품',
+      balance: '500000',
+      oldestUnpaidDate: '2026-05-01',
+      agingDays: 30,
+      partnerId: '00000000-0000-0000-0000-vendor000003',
+    },
+  ],
   generatedAt: '2026-05-10T09:00:00+09:00',
 }
