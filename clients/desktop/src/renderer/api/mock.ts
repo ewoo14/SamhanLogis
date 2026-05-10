@@ -1340,6 +1340,126 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // P0-1 Slice C: 분석 보고서 mock endpoint
+  // ==========================================================================
+
+  // GET /accounting/reports/cash-flow?period=YYYYMM — 현금흐름표
+  if (method === 'GET' && url.includes('/accounting/reports/cash-flow')) {
+    const period = (config.params?.['period'] ?? '202604') as string
+    const fromYear = period.slice(0, 4)
+    const fromMonth = period.slice(4, 6)
+    const lastDay = new Date(
+      Number.parseInt(fromYear, 10),
+      Number.parseInt(fromMonth, 10),
+      0,
+    ).getDate()
+    return envelope({
+      period,
+      fromDate: `${fromYear}-${fromMonth}-01`,
+      toDate: `${fromYear}-${fromMonth}-${String(lastDay).padStart(2, '0')}`,
+      netIncome: '8000000',
+      operatingAdjustments: [
+        { label: '매출채권 감소', amount: '2000000', sortOrder: 1 },
+        { label: '재고자산 감소', amount: '500000', sortOrder: 2 },
+        { label: '매입채무 증가', amount: '1500000', sortOrder: 3 },
+        { label: '감가상각비', amount: '300000', sortOrder: 4 },
+      ],
+      cashFromOperating: '12300000',
+      investingActivities: [
+        { label: '유형자산 취득', amount: '-3000000', sortOrder: 1 },
+        { label: '단기금융상품 감소', amount: '500000', sortOrder: 2 },
+      ],
+      cashFromInvesting: '-2500000',
+      financingActivities: [
+        { label: '단기차입금 증가', amount: '500000', sortOrder: 1 },
+        { label: '배당금 지급', amount: '-1000000', sortOrder: 2 },
+      ],
+      cashFromFinancing: '-500000',
+      netCashFlow: '9300000',
+      beginningCash: '2000000',
+      endingCash: '11300000',
+      cashReconciled: true,
+    })
+  }
+
+  // GET /accounting/reports/equity-changes?fromDate=&toDate= — 자본변동표
+  if (method === 'GET' && url.includes('/accounting/reports/equity-changes')) {
+    const fromDate = (config.params?.['fromDate'] ?? '2026-01-01') as string
+    const toDate = (config.params?.['toDate'] ?? '2026-12-31') as string
+    return envelope({
+      fromDate,
+      toDate,
+      beginningCapitalStock: '100000000',
+      capitalStockIncrease: '0',
+      capitalStockDecrease: '0',
+      endingCapitalStock: '100000000',
+      beginningRetainedEarnings: '45000000',
+      netIncome: '8000000',
+      dividends: '-3000000',
+      endingRetainedEarnings: '50000000',
+      totalChange: '5000000',
+    })
+  }
+
+  // GET /accounting/reports/daily-summary?date=YYYY-MM-DD — 일계표
+  if (method === 'GET' && url.includes('/accounting/reports/daily-summary')) {
+    const date = (config.params?.['date'] ?? '2026-05-10') as string
+    return envelope({
+      date,
+      journalCount: 7,
+      totalDebit: '15200000',
+      totalCredit: '15200000',
+      balanced: true,
+      accountSummary: [
+        { accountCode: '1010', accountName: '현금', category: '100', totalDebit: '3000000', totalCredit: '1500000', balance: '1500000', sortOrder: 1 },
+        { accountCode: '1020', accountName: '보통예금', category: '100', totalDebit: '5000000', totalCredit: '2000000', balance: '3000000', sortOrder: 2 },
+        { accountCode: '1080', accountName: '외상매출금', category: '100', totalDebit: '4200000', totalCredit: '0', balance: '4200000', sortOrder: 3 },
+        { accountCode: '2010', accountName: '외상매입금', category: '200', totalDebit: '0', totalCredit: '3500000', balance: '3500000', sortOrder: 4 },
+        { accountCode: '4010', accountName: '상품매출', category: '400', totalDebit: '0', totalCredit: '6200000', balance: '6200000', sortOrder: 5 },
+        { accountCode: '5010', accountName: '상품매입', category: '500', totalDebit: '3000000', totalCredit: '0', balance: '3000000', sortOrder: 6 },
+        { accountCode: '8010', accountName: '급여', category: '800', totalDebit: '0', totalCredit: '2000000', balance: '2000000', sortOrder: 7 },
+      ],
+    })
+  }
+
+  // GET /accounting/reports/monthly-summary?period=YYYYMM — 월계표
+  if (method === 'GET' && url.includes('/accounting/reports/monthly-summary')) {
+    const period = (config.params?.['period'] ?? '202604') as string
+    const fromYear = period.slice(0, 4)
+    const fromMonth = period.slice(4, 6)
+    const lastDay = new Date(
+      Number.parseInt(fromYear, 10),
+      Number.parseInt(fromMonth, 10),
+      0,
+    ).getDate()
+    const dailyBreakdown = Array.from({ length: Math.min(lastDay, 10) }, (_, i) => ({
+      date: `${fromYear}-${fromMonth}-${String(i + 1).padStart(2, '0')}`,
+      journalCount: Math.floor(Math.random() * 5) + 1,
+      totalDebit: String((Math.floor(Math.random() * 10) + 1) * 1000000),
+      totalCredit: String((Math.floor(Math.random() * 10) + 1) * 1000000),
+    }))
+    return envelope({
+      period,
+      fromDate: `${fromYear}-${fromMonth}-01`,
+      toDate: `${fromYear}-${fromMonth}-${String(lastDay).padStart(2, '0')}`,
+      journalCount: 82,
+      totalDebit: '185600000',
+      totalCredit: '185600000',
+      balanced: true,
+      accountSummary: [
+        { accountCode: '1010', accountName: '현금', category: '100', totalDebit: '35000000', totalCredit: '18000000', balance: '17000000', sortOrder: 1 },
+        { accountCode: '1020', accountName: '보통예금', category: '100', totalDebit: '62000000', totalCredit: '45000000', balance: '17000000', sortOrder: 2 },
+        { accountCode: '1080', accountName: '외상매출금', category: '100', totalDebit: '48000000', totalCredit: '12000000', balance: '36000000', sortOrder: 3 },
+        { accountCode: '2010', accountName: '외상매입금', category: '200', totalDebit: '10000000', totalCredit: '38000000', balance: '28000000', sortOrder: 4 },
+        { accountCode: '4010', accountName: '상품매출', category: '400', totalDebit: '0', totalCredit: '68000000', balance: '68000000', sortOrder: 5 },
+        { accountCode: '5010', accountName: '상품매입', category: '500', totalDebit: '28000000', totalCredit: '0', balance: '28000000', sortOrder: 6 },
+        { accountCode: '8010', accountName: '급여', category: '800', totalDebit: '2600000', totalCredit: '4600000', balance: '2000000', sortOrder: 7 },
+      ],
+      dailyBreakdown,
+    })
+  }
+
+  // ==========================================================================
   // [Phase 6 v4] 판매 메뉴 mock — 캡처용 최소 시드
   // ==========================================================================
 

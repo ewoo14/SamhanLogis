@@ -104,7 +104,10 @@ function SectionLabel({ label }: { label: string }) {
 }
 
 /**
- * 재무 보고서 목록 페이지 — Slice A 3개 + Slice B 4개 = 7개 카드.
+ * 재무 보고서 목록 페이지 — Slice A 3개 + Slice B 4개 + Slice C 4개 = 11개 카드.
+ *
+ * P0-1 Slice C 추가: 현금흐름표 / 자본변동표 / 일계표 / 월계표.
+ * 14건 보고서 100% 달성.
  */
 export function ReportListPage() {
   usePageTitle('재무 보고서')
@@ -156,6 +159,7 @@ export function ReportListPage() {
           flexWrap: 'wrap',
           alignItems: 'stretch',
           marginTop: 12,
+          marginBottom: 24,
         }}
       >
         <ReportCard
@@ -185,6 +189,48 @@ export function ReportListPage() {
           badge="채무"
           description="기준일 외상매입금 잔액 + 연체일수. 거래처별 채무 현황."
           path="/accounting/reports/partner-aging?type=PAYABLE"
+        />
+      </div>
+
+      {/* Slice C: 분석 보고서 4종 — P0-1 14건 100% 달성 */}
+      <SectionLabel label="분석 보고서 (Slice C)" />
+      <div
+        data-testid="accounting-report-list-slice-c"
+        style={{
+          display: 'flex',
+          gap: 20,
+          flexWrap: 'wrap',
+          alignItems: 'stretch',
+          marginTop: 12,
+        }}
+      >
+        <ReportCard
+          icon="💧"
+          title="현금흐름표"
+          badge="CFO"
+          description="월별 영업/투자/재무 활동 현금흐름 3분류 + 기초/기말 현금 대조."
+          path="/accounting/reports/cash-flow"
+        />
+        <ReportCard
+          icon="📈"
+          title="자본변동표"
+          badge="자본"
+          description="기간 자본금 / 이익잉여금 / 자본총계 기초→증감→기말 변동 현황."
+          path="/accounting/reports/equity-changes"
+        />
+        <ReportCard
+          icon="📅"
+          title="일계표"
+          badge="일별"
+          description="특정 일자 분개 건수 + 계정별 차/대변 합계 + 잔액. 균형 검증."
+          path="/accounting/reports/daily-summary"
+        />
+        <ReportCard
+          icon="🗓️"
+          title="월계표"
+          badge="월별"
+          description="회계 월 계정별 합계 + 일별 breakdown. 균형 검증 + 인쇄."
+          path="/accounting/reports/monthly-summary"
         />
       </div>
     </>

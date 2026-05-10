@@ -40,6 +40,13 @@
  * - `/accounting/reports/partner-aging`      거래처별 미수/미지급 (기준일 + type)
  * - 각 보고서 `/print` 서브 라우트 (인쇄 전용 새 창)
  *
+ * P0-1 Slice C 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard):
+ * - `/accounting/reports/cash-flow`          현금흐름표 (월별)
+ * - `/accounting/reports/equity-changes`     자본변동표 (기간)
+ * - `/accounting/reports/daily-summary`      일계표 (일자)
+ * - `/accounting/reports/monthly-summary`    월계표 (월별)
+ * - 각 보고서 `/print` 서브 라우트 (인쇄 전용 새 창)
+ *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
 import {
@@ -186,6 +193,17 @@ import { PartnerAgingPage } from './PartnerAgingPage'
 import { VatReportPrintLayout } from './accounting/print/VatReportPrintLayout'
 import { CorporateTaxReportPrintLayout } from './accounting/print/CorporateTaxReportPrintLayout'
 import { PartnerAgingPrintLayout } from './accounting/print/PartnerAgingPrintLayout'
+// [P0-1 Slice C] 분석 보고서 4개 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
+// BE: accounting-service `/accounting/reports/cash-flow` + `/equity-changes` + `/daily-summary` + `/monthly-summary`
+import { CashFlowStatementPage } from './CashFlowStatementPage'
+import { EquityChangesPage } from './EquityChangesPage'
+import { DailySummaryPage } from './DailySummaryPage'
+import { MonthlySummaryPage } from './MonthlySummaryPage'
+// [P0-1 Slice C] 인쇄 전용 레이아웃 4종.
+import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStatementPrintLayout'
+import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
+import { DailySummaryPrintLayout } from './accounting/print/DailySummaryPrintLayout'
+import { MonthlySummaryPrintLayout } from './accounting/print/MonthlySummaryPrintLayout'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -463,6 +481,73 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <PartnerAgingPrintLayout />
+          </RoleGuard>
+        ),
+      },
+
+      // [P0-1 Slice C] 분석 보고서 4개 — ACCOUNTANT/MANAGER/MASTER.
+      // 정적 `/print` suffix 먼저 등록 (부모 라우트 매칭 우선).
+      {
+        path: '/accounting/reports/cash-flow',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <CashFlowStatementPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/cash-flow/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <CashFlowStatementPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/equity-changes',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <EquityChangesPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/equity-changes/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <EquityChangesPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/daily-summary',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <DailySummaryPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/daily-summary/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <DailySummaryPrintLayout />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/monthly-summary',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <MonthlySummaryPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/reports/monthly-summary/print',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <MonthlySummaryPrintLayout />
           </RoleGuard>
         ),
       },

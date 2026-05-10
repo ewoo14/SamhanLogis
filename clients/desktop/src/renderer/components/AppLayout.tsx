@@ -297,6 +297,39 @@ export function AppLayout() {
               >
                 미지급금 (거래처별)
               </NavLink>
+              {/* [P0-1 Slice C] 분석 보고서 4종 */}
+              <NavLink
+                to="/accounting/reports/cash-flow"
+                end
+                data-testid="sidebar-accounting-cash-flow"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                현금흐름표
+              </NavLink>
+              <NavLink
+                to="/accounting/reports/equity-changes"
+                end
+                data-testid="sidebar-accounting-equity-changes"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                자본변동표
+              </NavLink>
+              <NavLink
+                to="/accounting/reports/daily-summary"
+                end
+                data-testid="sidebar-accounting-daily-summary"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                일계표
+              </NavLink>
+              <NavLink
+                to="/accounting/reports/monthly-summary"
+                end
+                data-testid="sidebar-accounting-monthly-summary"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                월계표
+              </NavLink>
               <NavLink to="/warehouse/closing">매출 마감</NavLink>
               {/* [PR-E2 FE-8] 거래명세서 일괄 — ACCOUNTANT/MASTER (회계 그룹 안). */}
               <NavLink

@@ -646,3 +646,243 @@ export function canAccessAccountingReports(
   if (!role) return false
   return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
 }
+
+// ==========================================================================
+// P0-1 Slice C: 분석 보고서 API (현금흐름표 / 자본변동표 / 일계표 / 월계표)
+// ==========================================================================
+
+/**
+ * 현금흐름표 영업/투자/재무 개별 활동 항목.
+ *
+ * 한국 일반기업회계기준 직접법 현금흐름표 기준.
+ * `amount` 양수 = 유입, 음수 = 유출 (KRW 정수, string 직렬화).
+ */
+export interface CashFlowItem {
+  /** 항목명 (한국어 표준 계정명). */
+  label: string
+  /** 금액 (KRW 정수, string). 음수 = 유출. */
+  amount: string
+  /** 표시 순서 (오름차순). */
+  sortOrder: number
+}
+
+/**
+ * 현금흐름표 응답 (BE `CashFlowStatementResponse`).
+ *
+ * 한국 일반기업회계기준 — 영업활동 / 투자활동 / 재무활동 현금흐름 3분류.
+ * `cashReconciled=false` 시 UI 경고 배너 표시.
+ *
+ * BE endpoint: `GET /api/v1/accounting/reports/cash-flow?period=YYYYMM`
+ */
+export interface CashFlowStatementResponse {
+  /** 회계 월 (YYYYMM). */
+  period: string
+  /** 기간 시작일 (YYYY-MM-DD). */
+  fromDate: string
+  /** 기간 종료일 (YYYY-MM-DD). */
+  toDate: string
+  /** 당기순이익 (KRW 정수, string). */
+  netIncome: string
+  /** 영업활동 조정 항목 목록. */
+  operatingAdjustments: CashFlowItem[]
+  /** 영업활동 현금흐름 합계 (KRW 정수, string). */
+  cashFromOperating: string
+  /** 투자활동 항목 목록. */
+  investingActivities: CashFlowItem[]
+  /** 투자활동 현금흐름 합계 (KRW 정수, string). */
+  cashFromInvesting: string
+  /** 재무활동 항목 목록. */
+  financingActivities: CashFlowItem[]
+  /** 재무활동 현금흐름 합계 (KRW 정수, string). */
+  cashFromFinancing: string
+  /** 현금 순증감 = CFO + CFI + CFF (KRW 정수, string). */
+  netCashFlow: string
+  /** 기초 현금 (KRW 정수, string). */
+  beginningCash: string
+  /** 기말 현금 (KRW 정수, string). */
+  endingCash: string
+  /** 기말현금 일치 여부 (기초+순증감 = 기말). false 시 경고 배너 표시. */
+  cashReconciled: boolean
+}
+
+/**
+ * 자본변동표 응답 (BE `EquityChangesResponse`).
+ *
+ * 한국 일반기업회계기준 — 자본금 / 이익잉여금 / 자본총계 기초→증감→기말 표.
+ *
+ * BE endpoint: `GET /api/v1/accounting/reports/equity-changes?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD`
+ */
+export interface EquityChangesResponse {
+  /** 기간 시작일 (YYYY-MM-DD). */
+  fromDate: string
+  /** 기간 종료일 (YYYY-MM-DD). */
+  toDate: string
+  /** 자본금 — 기초 잔액 (KRW 정수, string). */
+  beginningCapitalStock: string
+  /** 자본금 — 당기 증가 (KRW 정수, string). */
+  capitalStockIncrease: string
+  /** 자본금 — 당기 감소 (KRW 정수, string). */
+  capitalStockDecrease: string
+  /** 자본금 — 기말 잔액 (KRW 정수, string). */
+  endingCapitalStock: string
+  /** 이익잉여금 — 기초 잔액 (KRW 정수, string). */
+  beginningRetainedEarnings: string
+  /** 이익잉여금 — 당기순이익 (KRW 정수, string). */
+  netIncome: string
+  /** 이익잉여금 — 배당금 (KRW 정수, string). 음수 = 유출. */
+  dividends: string
+  /** 이익잉여금 — 기말 잔액 (KRW 정수, string). */
+  endingRetainedEarnings: string
+  /** 자본 총계 변동 (KRW 정수, string). */
+  totalChange: string
+}
+
+/**
+ * 일계표 / 월계표 계정별 요약 항목 (BE `AccountSummaryItem`).
+ */
+export interface AccountSummaryItem {
+  /** 4자리 계정 코드. */
+  accountCode: string
+  /** 계정명 (한국어 표준). */
+  accountName: string
+  /** 카테고리 prefix (100/200/300/400/500/800/900). */
+  category: string
+  /** 차변 합계 (KRW 정수, string). */
+  totalDebit: string
+  /** 대변 합계 (KRW 정수, string). */
+  totalCredit: string
+  /** 잔액 (KRW 정수, string). 차변 계정: 차-대, 대변 계정: 대-차. */
+  balance: string
+  /** 표시 순서 (오름차순). */
+  sortOrder: number
+}
+
+/**
+ * 월계표 일별 분해 항목 (BE `DailyBreakdownItem`).
+ */
+export interface DailyBreakdownItem {
+  /** 일자 (YYYY-MM-DD). */
+  date: string
+  /** 당일 분개 건수. */
+  journalCount: number
+  /** 당일 차변 합계 (KRW 정수, string). */
+  totalDebit: string
+  /** 당일 대변 합계 (KRW 정수, string). */
+  totalCredit: string
+}
+
+/**
+ * 일계표 응답 (BE `DailySummaryResponse`).
+ *
+ * 특정 일자의 분개 건수 + 계정별 차/대변 합계.
+ *
+ * BE endpoint: `GET /api/v1/accounting/reports/daily-summary?date=YYYY-MM-DD`
+ */
+export interface DailySummaryResponse {
+  /** 조회 일자 (YYYY-MM-DD). */
+  date: string
+  /** 당일 분개 건수. */
+  journalCount: number
+  /** 당일 총 차변 합계 (KRW 정수, string). */
+  totalDebit: string
+  /** 당일 총 대변 합계 (KRW 정수, string). */
+  totalCredit: string
+  /** 차변/대변 균형 여부. */
+  balanced: boolean
+  /** 계정별 요약 목록. */
+  accountSummary: AccountSummaryItem[]
+}
+
+/**
+ * 월계표 응답 (BE `MonthlySummaryResponse`).
+ *
+ * 회계 월 기준 분개 + 계정별 합계 + 일별 breakdown.
+ *
+ * BE endpoint: `GET /api/v1/accounting/reports/monthly-summary?period=YYYYMM`
+ */
+export interface MonthlySummaryResponse {
+  /** 회계 월 (YYYYMM). */
+  period: string
+  /** 기간 시작일 (YYYY-MM-DD). */
+  fromDate: string
+  /** 기간 종료일 (YYYY-MM-DD). */
+  toDate: string
+  /** 당월 총 분개 건수. */
+  journalCount: number
+  /** 당월 총 차변 합계 (KRW 정수, string). */
+  totalDebit: string
+  /** 당월 총 대변 합계 (KRW 정수, string). */
+  totalCredit: string
+  /** 차변/대변 균형 여부. */
+  balanced: boolean
+  /** 계정별 요약 목록. */
+  accountSummary: AccountSummaryItem[]
+  /** 일별 분해 목록 (날짜 오름차순). */
+  dailyBreakdown: DailyBreakdownItem[]
+}
+
+/**
+ * 현금흐름표 조회.
+ *
+ * @param period 회계 월 (YYYYMM, 예: `202605`). BE 가 해당 월 현금흐름 집계.
+ * @returns `CashFlowStatementResponse` (BE `CashFlowStatementController.byPeriod`)
+ */
+export async function getCashFlowStatement(
+  period: string,
+): Promise<CashFlowStatementResponse> {
+  const res = await apiClient.get<ApiEnvelope<CashFlowStatementResponse>>(
+    '/accounting/reports/cash-flow',
+    { params: { period } },
+  )
+  return res.data.data
+}
+
+/**
+ * 자본변동표 조회.
+ *
+ * @param fromDate 기간 시작일 (YYYY-MM-DD, 예: `2026-01-01`).
+ * @param toDate   기간 종료일 (YYYY-MM-DD, 예: `2026-12-31`).
+ * @returns `EquityChangesResponse` (BE `EquityChangesController.byDateRange`)
+ */
+export async function getEquityChanges(
+  fromDate: string,
+  toDate: string,
+): Promise<EquityChangesResponse> {
+  const res = await apiClient.get<ApiEnvelope<EquityChangesResponse>>(
+    '/accounting/reports/equity-changes',
+    { params: { fromDate, toDate } },
+  )
+  return res.data.data
+}
+
+/**
+ * 일계표 조회.
+ *
+ * @param date 조회 일자 (YYYY-MM-DD, 예: `2026-05-10`).
+ * @returns `DailySummaryResponse` (BE `DailySummaryController.byDate`)
+ */
+export async function getDailySummary(
+  date: string,
+): Promise<DailySummaryResponse> {
+  const res = await apiClient.get<ApiEnvelope<DailySummaryResponse>>(
+    '/accounting/reports/daily-summary',
+    { params: { date } },
+  )
+  return res.data.data
+}
+
+/**
+ * 월계표 조회.
+ *
+ * @param period 회계 월 (YYYYMM, 예: `202605`). BE 가 해당 월 합계 집계.
+ * @returns `MonthlySummaryResponse` (BE `MonthlySummaryController.byPeriod`)
+ */
+export async function getMonthlySummary(
+  period: string,
+): Promise<MonthlySummaryResponse> {
+  const res = await apiClient.get<ApiEnvelope<MonthlySummaryResponse>>(
+    '/accounting/reports/monthly-summary',
+    { params: { period } },
+  )
+  return res.data.data
+}
