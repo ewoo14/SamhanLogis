@@ -68,12 +68,18 @@ public class PasswordResetController {
      * <p>인증번호가 만료되었거나 이미 사용된 경우 401 반환.
      * 비밀번호 정책 위반 또는 confirmPassword 불일치 시 400 반환.
      *
-     * @param request loginId + 6자리 인증번호 + 새 비밀번호 + 확인 비밀번호 DTO
+     * <p>token brute-force 방지를 위해 confirm 단계에도 동일 rate-limit 정책 적용 (TM PR #138 통합 fix).
+     *
+     * @param request    loginId + 6자리 인증번호 + 새 비밀번호 + 확인 비밀번호 DTO
+     * @param httpRequest 요청자 IP 추출용 (rate-limit 키)
      * @return {@code { "success": true, "message": "비밀번호가 재설정되었습니다." }}
      */
     @PostMapping("/confirm")
     public ApiResponse<Void> confirmReset(
-            @Valid @RequestBody PasswordResetConfirmDto request) {
+            @Valid @RequestBody PasswordResetConfirmDto request,
+            HttpServletRequest httpRequest) {
+        String clientIp = resolveClientIp(httpRequest);
+        rateLimiter.checkAndIncrement(request.loginId(), clientIp);
         passwordResetTokenService.confirmReset(
                 request.loginId(),
                 request.token(),

@@ -48,12 +48,15 @@ export interface PasswordResetConfirmDto {
 
 /**
  * 비밀번호 재설정 공통 응답 — 성공/실패 메시지 포함.
- * BE {@code PasswordResetResultResponse} 와 1:1 일치.
+ *
+ * <p>BE 는 {@code ApiResponse<Void>} 를 반환하므로 별도 body DTO 가 존재하지 않는다.
+ * 본 인터페이스는 envelope ({@code ApiEnvelope}) 의 {@code success} / {@code message} 만
+ * 사용자에게 보여 주기 위해 추출한 view-model 형태이다 (TM PR #138 통합 fix).
  */
 export interface PasswordResetResultResponse {
-  /** 처리 성공 여부. */
+  /** 처리 성공 여부 (envelope.success). */
   success: boolean
-  /** 사용자 노출용 한국어 결과 메시지. */
+  /** 사용자 노출용 한국어 결과 메시지 (envelope.message). */
   message: string
 }
 
@@ -63,18 +66,24 @@ export interface PasswordResetResultResponse {
  * 사용자 존재 여부/이메일 일치 여부와 무관하게 항상 200 OK 반환 (enumeration 방지).
  * 등록된 계정인 경우에만 이메일이 실제 발송된다.
  *
+ * <p>BE: {@code POST /api/v1/auth/password-reset/request} → {@code ApiResponse.ok(null, "...")} —
+ * data 는 항상 {@code null}, success/message 는 envelope 최상단에 위치.
+ *
  * @param body loginId + email
- * @return 처리 결과 메시지 (사용자에게 노출)
+ * @return envelope 의 success/message 만 추출한 결과 객체
  * @throws AxiosError — 429 (rate limit 초과) / 5xx (서버 오류)
  */
 export async function requestPasswordReset(
   body: PasswordResetRequestDto,
 ): Promise<PasswordResetResultResponse> {
-  const res = await apiClient.post<ApiEnvelope<PasswordResetResultResponse>>(
+  const res = await apiClient.post<ApiEnvelope<unknown>>(
     '/api/v1/auth/password-reset/request',
     body,
   )
-  return res.data.data
+  return {
+    success: res.data?.success ?? true,
+    message: res.data?.message ?? '인증번호 요청이 처리되었습니다.',
+  }
 }
 
 /**
@@ -83,16 +92,22 @@ export async function requestPasswordReset(
  * 인증번호는 10분 유효. 정책 위반(8~32자/영문+숫자+특수문자) 시 400,
  * 인증번호 불일치/만료 시 401 응답.
  *
+ * <p>BE: {@code POST /api/v1/auth/password-reset/confirm} → {@code ApiResponse.ok(null, "...")} —
+ * data 는 항상 {@code null}, 성공 메시지는 envelope.message.
+ *
  * @param body loginId + token + newPassword + confirmPassword
- * @return 처리 결과 메시지
+ * @return envelope 의 success/message 만 추출한 결과 객체
  * @throws AxiosError — 400 (정책 위반 / 비밀번호 불일치) / 401 (인증번호 불일치 또는 만료)
  */
 export async function confirmPasswordReset(
   body: PasswordResetConfirmDto,
 ): Promise<PasswordResetResultResponse> {
-  const res = await apiClient.post<ApiEnvelope<PasswordResetResultResponse>>(
+  const res = await apiClient.post<ApiEnvelope<unknown>>(
     '/api/v1/auth/password-reset/confirm',
     body,
   )
-  return res.data.data
+  return {
+    success: res.data?.success ?? true,
+    message: res.data?.message ?? '비밀번호가 재설정되었습니다.',
+  }
 }

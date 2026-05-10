@@ -226,4 +226,23 @@ class PasswordResetControllerTest {
             assertThat(((BusinessException) cursor).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
         }
     }
+
+    // ---------------------------------------------------------------
+    // POST /auth/password-reset/confirm — confirm 단계 rate-limit (TM PR #138 통합 fix)
+    // ---------------------------------------------------------------
+
+    @Test
+    @DisplayName("confirmReset — confirm 단계도 rate-limit 적용 (token brute-force 방지)")
+    void confirmReset_callsRateLimiter() throws Exception {
+        var body = new PasswordResetConfirmDto("alice", "123456", "NewPass1!", "NewPass1!");
+
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andReturn();
+
+        // confirm 도 rate-limit 호출 검증 (request 와 동일 정책)
+        verify(rateLimiter).checkAndIncrement(eq("alice"), anyString());
+    }
 }
