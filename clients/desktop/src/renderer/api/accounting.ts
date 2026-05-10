@@ -299,3 +299,137 @@ export function canPostJournal(role: string | undefined | null): boolean {
   if (!role) return false
   return role === 'MASTER'
 }
+
+// ==========================================================================
+// P0-1 Slice A: 3대 재무 보고서 API (손익계산서 / 재무상태표)
+// ==========================================================================
+
+/**
+ * 손익계산서 / 재무상태표 개별 라인 항목.
+ *
+ * `amount` 는 KRW 정수 (BigDecimal → string 직렬화). 음수 = 비용/부채.
+ */
+export interface FinancialStatementLine {
+  /** 4자리 계정 코드. */
+  accountCode: string
+  /** 계정명 (한국어 표준 계정명). */
+  accountName: string
+  /** 카테고리 prefix (100/200/300/400/500/800/900). */
+  category: string
+  /** 금액 (KRW 정수, string). */
+  amount: string
+  /** 표시 순서 (오름차순). */
+  sortOrder: number
+}
+
+/**
+ * 손익계산서 응답 (BE `IncomeStatementResponse`).
+ *
+ * 한국 일반기업회계기준 형식 — 매출 → 매출원가 → 매출총이익 → 판관비 → 영업이익
+ * → 영업외 → 법인세차감전순이익 → 법인세 → 당기순이익.
+ */
+export interface IncomeStatementResponse {
+  /** 회계 월 (YYYYMM). */
+  period: string
+  /** 기간 시작일 (YYYY-MM-DD). */
+  fromDate: string
+  /** 기간 종료일 (YYYY-MM-DD). */
+  toDate: string
+  /** 매출액 라인. */
+  revenue: FinancialStatementLine[]
+  /** 매출원가 라인. */
+  costOfSales: FinancialStatementLine[]
+  /** 매출총이익 (KRW 정수, string). */
+  grossProfit: string
+  /** 판매비와관리비 라인. */
+  sga: FinancialStatementLine[]
+  /** 영업이익 (KRW 정수, string). */
+  operatingProfit: string
+  /** 영업외수익/비용 라인 (amount 양수 = 수익, 음수 = 비용). */
+  nonOperating: FinancialStatementLine[]
+  /** 법인세차감전순이익 (KRW 정수, string). */
+  incomeBeforeTax: string
+  /** 법인세비용 (KRW 정수, string). */
+  incomeTax: string
+  /** 당기순이익 (KRW 정수, string). */
+  netIncome: string
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 재무상태표 라인 항목 (자산 / 부채 / 자본 공통).
+ */
+export interface BalanceSheetLine {
+  /** 4자리 계정 코드. */
+  accountCode: string
+  /** 계정명 (한국어 표준 계정명). */
+  accountName: string
+  /** 카테고리 (100=자산, 200=부채, 300=자본). */
+  category: string
+  /** 금액 (KRW 정수, string). */
+  amount: string
+  /** 표시 순서 (오름차순). */
+  sortOrder: number
+}
+
+/**
+ * 재무상태표 응답 (BE `BalanceSheetResponse`).
+ *
+ * 한국 일반기업회계기준 형식 — 자산 (유동/비유동) / 부채 (유동/비유동) / 자본.
+ * `balanced=true` 이면 `totalAssets == totalLiabilitiesAndEquity`.
+ */
+export interface BalanceSheetResponse {
+  /** 기준일 (YYYY-MM-DD). */
+  asOfDate: string
+  /** 자산 라인 목록. */
+  assets: BalanceSheetLine[]
+  /** 자산 총계 (KRW 정수, string). */
+  totalAssets: string
+  /** 부채 라인 목록. */
+  liabilities: BalanceSheetLine[]
+  /** 부채 총계 (KRW 정수, string). */
+  totalLiabilities: string
+  /** 자본 라인 목록. */
+  equity: BalanceSheetLine[]
+  /** 자본 총계 (KRW 정수, string). */
+  totalEquity: string
+  /** 부채 + 자본 합계 (= totalAssets 이어야 함). */
+  totalLiabilitiesAndEquity: string
+  /** 자산 = 부채+자본 일치 여부. false 시 분개 오류 경고 배너 표시. */
+  balanced: boolean
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 손익계산서 조회.
+ *
+ * @param period 회계 월 (YYYYMM, 예: `202605`). BE 가 해당 월 분개 합산.
+ * @returns `IncomeStatementResponse` (BE `IncomeStatementController.byPeriod`)
+ */
+export async function getIncomeStatement(
+  period: string,
+): Promise<IncomeStatementResponse> {
+  const res = await apiClient.get<ApiEnvelope<IncomeStatementResponse>>(
+    '/accounting/reports/income-statement',
+    { params: { period } },
+  )
+  return res.data.data
+}
+
+/**
+ * 재무상태표 조회.
+ *
+ * @param asOfDate 기준일 (YYYY-MM-DD, 예: `2026-04-30`). BE 가 해당일 잔액 집계.
+ * @returns `BalanceSheetResponse` (BE `BalanceSheetController.byDate`)
+ */
+export async function getBalanceSheet(
+  asOfDate: string,
+): Promise<BalanceSheetResponse> {
+  const res = await apiClient.get<ApiEnvelope<BalanceSheetResponse>>(
+    '/accounting/reports/balance-sheet',
+    { params: { asOfDate } },
+  )
+  return res.data.data
+}

@@ -4,11 +4,14 @@
  * 회계월(YYYYMM) 선택 → BE 가 해당 월 분개 합산 + 카테고리 그룹별 표시.
  * 본 슬라이스는 read-only. PDF 출력 등은 추후 슬라이스에서 추가.
  *
+ * P0-1 Slice A 보강: 상단 summary 영역 (총 차변 / 총 대변 / 일치 여부 chip).
+ *
  * 권한: ACCOUNTANT / MASTER 만 진입 (RouteGuard).
  */
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Badge,
   Card,
   DataTable,
   Spinner,
@@ -130,6 +133,45 @@ export function TrialBalancePage() {
           />
         </label>
       </div>
+
+      {/* P0-1 Slice A: 총 차변 / 총 대변 / 일치 여부 summary 영역 */}
+      {query.data ? (
+        <Card
+          data-testid="accounting-trial-balance-summary"
+          style={{ marginBottom: 16 }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 32,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              padding: '4px 0',
+            }}
+          >
+            <div style={{ fontSize: 13, color: '#374151' }}>
+              <span style={{ fontWeight: 600 }}>총 차변:&nbsp;</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {fmtKrw(query.data.totalDebit)}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: '#374151' }}>
+              <span style={{ fontWeight: 600 }}>총 대변:&nbsp;</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {fmtKrw(query.data.totalCredit)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>균형:</span>
+              {query.data.totalDebit === query.data.totalCredit ? (
+                <Badge variant="success">일치</Badge>
+              ) : (
+                <Badge variant="danger">불일치 — 분개 검토 필요</Badge>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {query.isLoading ? (
         <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
