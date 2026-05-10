@@ -23,12 +23,13 @@ import { apiClient, type ApiEnvelope } from './client'
 /**
  * {@code POST /api/v1/auth/password-reset/request} 요청 body.
  * BE {@code PasswordResetRequestDto} 와 1:1 일치.
+ *
+ * <p>PASSWORD-RESET-DESIGN.md §1.2 spec: 사용자 ID 만 입력받아 인증번호 전송.
+ * email 은 BE 가 회원 등록 정보에서 자동 조회하므로 FE 에서 전송 불필요.
  */
 export interface PasswordResetRequestDto {
   /** 사용자 로그인 ID. */
   loginId: string
-  /** 가입 시 등록한 이메일 주소. */
-  email: string
 }
 
 /**

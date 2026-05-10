@@ -2,29 +2,34 @@
  * 비밀번호 셀프 재설정 확인 화면 — P0-2 신규 라우트 {@code /auth/password-reset/confirm}.
  *
  * 흐름:
- * 1) loginId (이전 페이지 state 자동 채움 / 수정 가능) + 인증번호 6자리 + 새 비밀번호 × 2 입력
- * 2) "비밀번호 재설정" 버튼 → {@code POST /api/v1/auth/password-reset/confirm}
- * 3) 성공 → {@code /login} 리다이렉트 + 토스트 메시지
+ * 1) 인증번호 6자리 + 새 비밀번호 × 2 입력
+ * 2) "비밀번호 재설정" 버튼 → {@code POST /api/v1/auth/password/reset-confirm}
+ * 3) 성공 → {@code /login} 리다이렉트 + 성공 토스트
  * 4) 실패 → 카드 안에 에러 배너 (인증번호 불일치/만료/정책 위반/비밀번호 불일치)
  *
  * 비밀번호 정책: 8~32자, 영문+숫자+특수문자 — 클라이언트 사이드 정규식 사전 검증.
- * 비밀번호 강도 indicator: 약/보통/강 3단계 (정규식 기반, Math.random 미사용).
+ * 비밀번호 강도 indicator: 약/보통/강 3단계 (결정적 알고리즘, Math.random 미사용).
  *
  * 레이아웃: LoginPage 와 동일한 {@code login-shell} + {@code Card} 중앙 정렬.
  *
- * data-testid:
- * - {@code password-reset-confirm-form}
- * - {@code password-reset-confirm-login-id-input}
- * - {@code password-reset-token-input}
- * - {@code password-reset-new-password-input}
- * - {@code password-reset-confirm-password-input}
- * - {@code password-reset-confirm-submit-button}
+ * data-testid (PASSWORD-RESET-DESIGN.md §8 기준):
+ * - {@code reset-confirm-token-input}
+ * - {@code reset-token-expiry-hint}
+ * - {@code reset-new-password-input}
  * - {@code password-strength-indicator}
+ * - {@code password-policy-hint}
+ * - {@code reset-confirm-password-input}
+ * - {@code reset-confirm-submit-button}
+ * - {@code reset-back-to-login-link}
+ * - {@code password-reset-back-button}
+ * - {@code password-toggle-newPassword}
+ * - {@code password-toggle-confirmPassword}
+ * - {@code password-reset-token-display} (DEV 전용)
  */
 import { useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button, Card, FormField } from '@samhan/design-system'
+import { Button, Card, FormField, Input } from '@samhan/design-system'
 import axios from 'axios'
 import {
   confirmPasswordReset,
@@ -49,7 +54,7 @@ const RE_SPECIAL = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/
 const RE_TOKEN_6 = /^\d{6}$/
 
 /** 정책 안내 문구 (UI 표시용). */
-const POLICY_HINT = `${PW_MIN}~${PW_MAX}자, 영문+숫자+특수문자 조합 필수`
+const POLICY_HINT = `비밀번호 정책: ${PW_MIN}~${PW_MAX}자, 영문 + 숫자 + 특수문자(!@#$%^&*) 조합`
 
 // ============================================================================
 // 비밀번호 강도 판별
@@ -81,10 +86,21 @@ const STRENGTH_LABEL: Record<PasswordStrength, string> = {
   strong: '강함',
 }
 
+/**
+ * 강도 인디케이터 색상 토큰 — PASSWORD-RESET-DESIGN.md §2.2 spec 기준.
+ * 미정의 토큰 fallback hex 없음.
+ */
 const STRENGTH_COLOR: Record<PasswordStrength, string> = {
-  weak: 'var(--color-danger-500, #EF4444)',
-  medium: 'var(--color-warning-500, #F59E0B)',
-  strong: 'var(--color-success-600, #16A34A)',
+  weak: 'var(--color-danger)',
+  medium: 'var(--state-warning)',
+  strong: 'var(--color-success)',
+}
+
+/** aria-valuenow 매핑 — role="progressbar" 스펙 (0~3 스케일). */
+const STRENGTH_LEVEL: Record<PasswordStrength, number> = {
+  weak: 1,
+  medium: 2,
+  strong: 3,
 }
 
 const STRENGTH_WIDTH: Record<PasswordStrength, string> = {
@@ -110,14 +126,57 @@ function validatePassword(pw: string): string | null {
   return null
 }
 
-/** 공통 input 인라인 스타일 — LoginPage 와 동일 톤 유지. */
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 6,
-  border: '1px solid var(--color-neutral-300)',
-  fontSize: 14,
-  width: '100%',
-  boxSizing: 'border-box',
+// ============================================================================
+// 비밀번호 보기 토글 아이콘 (SVG 직접 임베드 — Heroicons 24px outline 호환)
+// ============================================================================
+
+/** 눈 아이콘 — 비밀번호 보기 상태. */
+function EyeIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      width={20}
+      height={20}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      />
+    </svg>
+  )
+}
+
+/** 눈+사선 아이콘 — 비밀번호 숨기기 상태. */
+function EyeSlashIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      width={20}
+      height={20}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"
+      />
+    </svg>
+  )
 }
 
 // ============================================================================
@@ -140,14 +199,16 @@ export function PasswordResetConfirmPage() {
   const prefillLoginId =
     (location.state as { loginId?: string } | null)?.loginId ?? ''
 
-  const [loginId, setLoginId] = useState(prefillLoginId)
   const [token, setToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [completedMsg, setCompletedMsg] = useState('')
 
   const strength = newPassword.length > 0 ? measureStrength(newPassword) : null
+  const strengthLevel = strength ? STRENGTH_LEVEL[strength] : 0
 
   const passwordError = newPassword.length > 0 ? validatePassword(newPassword) : null
   const passwordMismatch =
@@ -164,15 +225,14 @@ export function PasswordResetConfirmPage() {
       const res = await confirmPasswordReset(body)
       // mock 모드에서는 status 200 + success:false 로 실패 응답 — 에러로 변환
       if (!res.success) {
-        const err = new Error(res.message || '인증번호가 일치하지 않거나 만료되었습니다.')
-        throw err
+        throw new Error(res.message || '인증번호가 일치하지 않거나 만료되었습니다.')
       }
       return res
     },
     onSuccess: (res) => {
       setCompleted(true)
       setCompletedMsg(
-        res.message || '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해주세요.',
+        res.message || '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인하세요.',
       )
     },
   })
@@ -182,7 +242,7 @@ export function PasswordResetConfirmPage() {
     if (mutation.isPending || completed) return
     if (passwordError || passwordMismatch) return
     if (!RE_TOKEN_6.test(token)) return
-    mutation.mutate({ loginId, token, newPassword, confirmPassword })
+    mutation.mutate({ loginId: prefillLoginId, token, newPassword, confirmPassword })
   }
 
   /** 사용자 친화 한국어 에러 메시지 추출. */
@@ -215,23 +275,27 @@ export function PasswordResetConfirmPage() {
     return (
       <div className="login-shell">
         <Card padding={6} shadow="lg">
-          <div
-            className="login-card-inner"
-            style={{ gap: 16 }}
-          >
-            <h2 style={{ margin: 0, color: 'var(--color-brand-700)' }}>
+          <div className="login-card-inner" style={{ gap: 16 }}>
+            <h2
+              style={{
+                margin: 0,
+                color: 'var(--color-brand-700)',
+                fontSize: 'var(--font-size-xl)',
+                fontWeight: 'var(--font-weight-semibold)',
+              }}
+            >
               비밀번호 재설정 완료
             </h2>
             <div
               role="status"
               style={{
-                background: 'var(--color-success-50, #F0FDF4)',
-                border: '1px solid var(--color-success-300, #86EFAC)',
-                borderRadius: 6,
-                padding: '12px 14px',
-                fontSize: 13,
-                color: 'var(--color-success-700, #15803D)',
-                lineHeight: 1.6,
+                background: 'var(--state-success-bg)',
+                border: '1px solid var(--color-success)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-3) var(--space-4)',
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--state-success)',
+                lineHeight: 'var(--line-height-normal)',
               }}
             >
               {completedMsg}
@@ -256,46 +320,35 @@ export function PasswordResetConfirmPage() {
         <form
           className="login-card-inner"
           onSubmit={handleSubmit}
-          data-testid="password-reset-confirm-form"
         >
-          <h2 style={{ margin: 0, color: 'var(--color-brand-700)' }}>
-            인증번호 입력
+          <h2
+            style={{
+              margin: 0,
+              color: 'var(--color-brand-700)',
+              fontSize: 'var(--font-size-xl)',
+              fontWeight: 'var(--font-weight-semibold)',
+            }}
+          >
+            비밀번호 재설정
           </h2>
 
           <p
             style={{
               margin: 0,
-              fontSize: 13,
-              color: 'var(--color-neutral-600, #6B7280)',
-              lineHeight: 1.6,
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--color-text-muted)',
+              lineHeight: 'var(--line-height-normal)',
             }}
           >
-            이메일로 발송된 인증번호(6자리)와 새 비밀번호를 입력해주세요.
-            <br />
-            인증번호는 <strong>10분</strong> 이내에 입력해야 합니다.
+            인증번호를 입력하세요
           </p>
 
+          {/* 인증번호 입력 */}
           <FormField
-            label="로그인 ID"
+            label="인증번호"
             required
             render={({ id }) => (
-              <input
-                id={id}
-                type="text"
-                value={loginId}
-                onChange={(e) => setLoginId(e.target.value)}
-                autoComplete="username"
-                data-testid="password-reset-confirm-login-id-input"
-                style={inputStyle}
-              />
-            )}
-          />
-
-          <FormField
-            label="인증번호 (6자리)"
-            required
-            render={({ id }) => (
-              <input
+              <Input
                 id={id}
                 type="text"
                 inputMode="numeric"
@@ -305,45 +358,101 @@ export function PasswordResetConfirmPage() {
                 onChange={(e) => setToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 autoComplete="one-time-code"
                 placeholder="123456"
-                data-testid="password-reset-token-input"
-                style={inputStyle}
+                data-testid="reset-confirm-token-input"
+                required
+                error={tokenFormatError ?? undefined}
               />
             )}
           />
-          {tokenFormatError ? (
-            <div className="error-banner" role="alert" style={{ marginTop: -8 }}>
-              {tokenFormatError}
-            </div>
-          ) : null}
 
+          {/* 인증번호 만료 안내 — 항상 표시 */}
+          <p
+            data-testid="reset-token-expiry-hint"
+            style={{
+              margin: 0,
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--color-text-muted)',
+              marginTop: 'var(--space-1)',
+            }}
+          >
+            ⏱ 인증번호는 10분 후 만료됩니다.
+          </p>
+
+          {/* 새 비밀번호 입력 (보기 토글 포함) */}
           <FormField
             label="새 비밀번호"
             required
             render={({ id }) => (
-              <input
-                id={id}
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                autoComplete="new-password"
-                placeholder={POLICY_HINT}
-                data-testid="password-reset-new-password-input"
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Input
+                  id={id}
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder={POLICY_HINT}
+                  data-testid="reset-new-password-input"
+                  required
+                  style={{ paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  aria-label={showNewPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  aria-pressed={showNewPassword}
+                  data-testid="password-toggle-newPassword"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  style={{
+                    position: 'absolute',
+                    right: 6,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 36,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--color-neutral-500)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => {
+                    const btn = e.currentTarget
+                    btn.style.color = 'var(--color-neutral-700)'
+                    btn.style.background = 'var(--surface-hover)'
+                  }}
+                  onMouseLeave={(e) => {
+                    const btn = e.currentTarget
+                    btn.style.color = 'var(--color-neutral-500)'
+                    btn.style.background = 'none'
+                  }}
+                >
+                  {showNewPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                </button>
+              </div>
             )}
           />
 
-          {/* 비밀번호 강도 indicator */}
+          {/* 비밀번호 강도 indicator — PASSWORD-RESET-DESIGN.md §2.2, §5.4 */}
           {strength ? (
             <div
               data-testid="password-strength-indicator"
-              style={{ marginTop: -8 }}
+              style={{ marginTop: 'calc(var(--space-1) * -1)' }}
             >
+              {/* 진행 바 — role="progressbar" + aria WCAG */}
               <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={3}
+                aria-valuenow={strengthLevel}
+                aria-label="비밀번호 강도"
                 style={{
                   height: 4,
-                  borderRadius: 2,
-                  background: 'var(--color-neutral-200, #E5E7EB)',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'var(--color-neutral-200)',
                   overflow: 'hidden',
                 }}
               >
@@ -352,68 +461,144 @@ export function PasswordResetConfirmPage() {
                     height: '100%',
                     width: STRENGTH_WIDTH[strength],
                     background: STRENGTH_COLOR[strength],
-                    transition: 'width 0.25s ease',
+                    transition: 'width var(--duration-base) ease',
                   }}
                 />
               </div>
               <p
                 style={{
-                  margin: '2px 0 0',
-                  fontSize: 11,
+                  margin: 'var(--space-1) 0 0',
+                  fontSize: 'var(--font-size-sm)',
                   color: STRENGTH_COLOR[strength],
-                  lineHeight: 1.4,
+                  lineHeight: 'var(--line-height-normal)',
                 }}
               >
-                강도: {STRENGTH_LABEL[strength]}
+                {STRENGTH_LABEL[strength]}
               </p>
             </div>
           ) : null}
 
           {passwordError && newPassword.length > 0 ? (
-            <div className="error-banner" role="alert" style={{ marginTop: -8 }}>
+            <div
+              role="alert"
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--state-danger-bg)',
+                border: '1px solid var(--color-danger)',
+                color: 'var(--state-danger)',
+                fontSize: 'var(--font-size-sm)',
+                lineHeight: 'var(--line-height-normal)',
+                marginTop: 'calc(var(--space-2) * -1)',
+              }}
+            >
               {passwordError}
             </div>
           ) : null}
 
+          {/* 비밀번호 정책 힌트 — PASSWORD-RESET-DESIGN.md §4.2 */}
+          <p
+            data-testid="password-policy-hint"
+            style={{
+              margin: 0,
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--color-neutral-600)',
+              lineHeight: 'var(--line-height-normal)',
+              marginTop: 'var(--space-2)',
+            }}
+          >
+            {POLICY_HINT}
+          </p>
+
+          {/* 새 비밀번호 확인 입력 (보기 토글 포함) */}
           <FormField
             label="새 비밀번호 확인"
             required
             render={({ id }) => (
-              <input
-                id={id}
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                data-testid="password-reset-confirm-password-input"
-                style={inputStyle}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Input
+                  id={id}
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  data-testid="reset-confirm-password-input"
+                  required
+                  style={{ paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  aria-label={showConfirmPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  aria-pressed={showConfirmPassword}
+                  data-testid="password-toggle-confirmPassword"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  style={{
+                    position: 'absolute',
+                    right: 6,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 36,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--color-neutral-500)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => {
+                    const btn = e.currentTarget
+                    btn.style.color = 'var(--color-neutral-700)'
+                    btn.style.background = 'var(--surface-hover)'
+                  }}
+                  onMouseLeave={(e) => {
+                    const btn = e.currentTarget
+                    btn.style.color = 'var(--color-neutral-500)'
+                    btn.style.background = 'none'
+                  }}
+                >
+                  {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                </button>
+              </div>
             )}
           />
+
           {passwordMismatch ? (
-            <div className="error-banner" role="alert" style={{ marginTop: -8 }}>
-              새 비밀번호와 확인 입력이 일치하지 않습니다.
+            <div
+              role="alert"
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--state-danger-bg)',
+                border: '1px solid var(--color-danger)',
+                color: 'var(--state-danger)',
+                fontSize: 'var(--font-size-sm)',
+                lineHeight: 'var(--line-height-normal)',
+                marginTop: 'calc(var(--space-2) * -1)',
+              }}
+            >
+              비밀번호가 일치하지 않습니다.
             </div>
           ) : null}
 
-          {/* 정책 안내 박스 */}
-          <div
-            style={{
-              background: 'var(--color-neutral-50, #F9FAFB)',
-              border: '1px solid var(--color-neutral-200, #E5E7EB)',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontSize: 12,
-              color: 'var(--color-neutral-600, #6B7280)',
-              lineHeight: 1.6,
-            }}
-          >
-            <strong>비밀번호 정책</strong>: {POLICY_HINT}
-          </div>
-
           {/* API 에러 배너 */}
           {errorMessage ? (
-            <div className="error-banner" role="alert">
+            <div
+              role="alert"
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--state-danger-bg)',
+                border: '1px solid var(--color-danger)',
+                color: 'var(--state-danger)',
+                fontSize: 'var(--font-size-sm)',
+                lineHeight: 'var(--line-height-normal)',
+              }}
+            >
               {errorMessage}
             </div>
           ) : null}
@@ -425,27 +610,27 @@ export function PasswordResetConfirmPage() {
             fullWidth
             loading={mutation.isPending}
             disabled={
-              !loginId ||
               !RE_TOKEN_6.test(token) ||
               !newPassword ||
               !confirmPassword ||
               !!passwordError ||
               passwordMismatch
             }
-            data-testid="password-reset-confirm-submit-button"
+            data-testid="reset-confirm-submit-button"
           >
             비밀번호 재설정
           </Button>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-4)' }}>
             <button
               type="button"
-              onClick={() => navigate('/auth/password-reset')}
+              onClick={() => navigate('/auth/password-reset/request')}
+              data-testid="password-reset-back-button"
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--color-neutral-500, #6B7280)',
-                fontSize: 13,
+                color: 'var(--color-brand-700)',
+                fontSize: 'var(--font-size-sm)',
                 cursor: 'pointer',
                 textDecoration: 'underline',
                 padding: 0,
@@ -456,11 +641,12 @@ export function PasswordResetConfirmPage() {
             <button
               type="button"
               onClick={() => navigate('/login')}
+              data-testid="reset-back-to-login-link"
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--color-neutral-500, #6B7280)',
-                fontSize: 13,
+                color: 'var(--color-brand-700)',
+                fontSize: 'var(--font-size-sm)',
                 cursor: 'pointer',
                 textDecoration: 'underline',
                 padding: 0,
@@ -469,6 +655,21 @@ export function PasswordResetConfirmPage() {
               로그인으로 돌아가기
             </button>
           </div>
+
+          {/* DEV 전용 — 인증번호 화면 표시 (운영 환경 비노출) */}
+          {import.meta.env.DEV ? (
+            <p
+              data-testid="password-reset-token-display"
+              style={{
+                margin: 0,
+                fontSize: 'var(--font-size-xs)',
+                color: 'var(--color-text-muted)',
+                textAlign: 'center',
+              }}
+            >
+              [DEV] 인증번호 확인: 이메일/SMS 확인 요망
+            </p>
+          ) : null}
         </form>
       </Card>
     </div>
