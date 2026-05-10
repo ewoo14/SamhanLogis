@@ -85,6 +85,13 @@ public class TaxInvoice extends BaseEntity {
     @Column(name = "partner_id", nullable = false)
     private UUID partnerId;
 
+    /**
+     * 거래처 코드 (snapshot at create) — 비즈니스 식별자, UUID 비공개 원칙 대응.
+     * P0-4 V11 신규 컬럼. legacy 레코드 = NULL.
+     */
+    @Column(name = "partner_code", length = 50)
+    private String partnerCode;
+
     /** 거래처 사업자등록번호 (snapshot at create). */
     @Column(name = "partner_business_no", length = 20)
     private String partnerBusinessNo;
@@ -142,6 +149,13 @@ public class TaxInvoice extends BaseEntity {
     @Column(name = "cancelled_by", length = 50)
     private String cancelledBy;
 
+    /**
+     * 취소 사유 — CANCELLED 전이 시 의무 (5자 이상, 최대 1000자).
+     * P0-4 V11 신규 컬럼. legacy 레코드 = NULL.
+     */
+    @Column(name = "cancel_reason", length = 1000)
+    private String cancelReason;
+
     /** 자동 분개 Journal UUID — ISSUED 시점에 service 가 연결. */
     @Column(name = "journal_id")
     private UUID journalId;
@@ -166,10 +180,11 @@ public class TaxInvoice extends BaseEntity {
             fetch = FetchType.LAZY)
     private List<TaxInvoiceLine> lines = new ArrayList<>();
 
-    private TaxInvoice(UUID partnerId, String partnerBusinessNo, String partnerName,
-                       String partnerAddress, LocalDate supplyDate, String description,
-                       TaxInvoiceType invoiceType) {
+    private TaxInvoice(UUID partnerId, String partnerCode, String partnerBusinessNo,
+                       String partnerName, String partnerAddress, LocalDate supplyDate,
+                       String description, TaxInvoiceType invoiceType) {
         this.partnerId = partnerId;
+        this.partnerCode = partnerCode;
         this.partnerBusinessNo = partnerBusinessNo;
         this.partnerName = partnerName;
         this.partnerAddress = partnerAddress;
@@ -184,20 +199,21 @@ public class TaxInvoice extends BaseEntity {
     }
 
     /**
-     * 신규 세금계산서 생성 (DRAFT). 라인은 별도 {@link #addLine}.
+     * 신규 세금계산서 생성 (DRAFT) — partnerCode 포함 풀 시그니처.
      *
      * <p>invoiceType 미지정 시 SALES 기본값 적용 (한국 물류업체 특성).
      *
-     * @param partnerId 거래처 UUID (필수)
+     * @param partnerId         거래처 UUID (필수)
+     * @param partnerCode       거래처 코드 — 비즈니스 식별자 (선택, ≤50자)
      * @param partnerBusinessNo 사업자등록번호 (선택, ≤20자)
-     * @param partnerName 상호 (필수, ≤200자) — snapshot
-     * @param partnerAddress 주소 (선택, ≤500자) — snapshot
-     * @param supplyDate 공급일자 (필수)
-     * @param description 적요 (선택, ≤500자)
-     * @param invoiceType 종류 (선택, null 이면 SALES)
+     * @param partnerName       상호 (필수, ≤200자) — snapshot
+     * @param partnerAddress    주소 (선택, ≤500자) — snapshot
+     * @param supplyDate        공급일자 (필수)
+     * @param description       적요 (선택, ≤500자)
+     * @param invoiceType       종류 (선택, null 이면 SALES)
      */
-    public static TaxInvoice create(UUID partnerId, String partnerBusinessNo, String partnerName,
-                                    String partnerAddress, LocalDate supplyDate,
+    public static TaxInvoice create(UUID partnerId, String partnerCode, String partnerBusinessNo,
+                                    String partnerName, String partnerAddress, LocalDate supplyDate,
                                     String description, TaxInvoiceType invoiceType) {
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
@@ -208,6 +224,9 @@ public class TaxInvoice extends BaseEntity {
         if (supplyDate == null) {
             throw new IllegalArgumentException("supplyDate 는 필수입니다");
         }
+        if (partnerCode != null && partnerCode.length() > 50) {
+            throw new IllegalArgumentException("partnerCode 는 최대 50자입니다");
+        }
         if (partnerBusinessNo != null && partnerBusinessNo.length() > 20) {
             throw new IllegalArgumentException("partnerBusinessNo 는 최대 20자입니다");
         }
@@ -217,24 +236,42 @@ public class TaxInvoice extends BaseEntity {
         if (description != null && description.length() > 500) {
             throw new IllegalArgumentException("description 은 최대 500자입니다");
         }
-        return new TaxInvoice(partnerId, partnerBusinessNo, partnerName, partnerAddress,
+        return new TaxInvoice(partnerId, partnerCode, partnerBusinessNo, partnerName, partnerAddress,
                 supplyDate, description, invoiceType);
     }
 
     /**
-     * 신규 세금계산서 생성 (DRAFT) — invoiceType 기본값 SALES. 기존 호출부 호환용.
+     * 신규 세금계산서 생성 (DRAFT) — partnerCode 생략, invoiceType 지정. 기존 호출부 호환용.
      *
-     * @param partnerId 거래처 UUID (필수)
+     * @param partnerId         거래처 UUID (필수)
      * @param partnerBusinessNo 사업자등록번호 (선택)
-     * @param partnerName 상호 (필수)
-     * @param partnerAddress 주소 (선택)
-     * @param supplyDate 공급일자 (필수)
-     * @param description 적요 (선택)
+     * @param partnerName       상호 (필수)
+     * @param partnerAddress    주소 (선택)
+     * @param supplyDate        공급일자 (필수)
+     * @param description       적요 (선택)
+     * @param invoiceType       종류 (선택, null 이면 SALES)
+     */
+    public static TaxInvoice create(UUID partnerId, String partnerBusinessNo, String partnerName,
+                                    String partnerAddress, LocalDate supplyDate,
+                                    String description, TaxInvoiceType invoiceType) {
+        return create(partnerId, null, partnerBusinessNo, partnerName, partnerAddress,
+                supplyDate, description, invoiceType);
+    }
+
+    /**
+     * 신규 세금계산서 생성 (DRAFT) — partnerCode 생략, invoiceType 기본값 SALES. 기존 호출부 호환용.
+     *
+     * @param partnerId         거래처 UUID (필수)
+     * @param partnerBusinessNo 사업자등록번호 (선택)
+     * @param partnerName       상호 (필수)
+     * @param partnerAddress    주소 (선택)
+     * @param supplyDate        공급일자 (필수)
+     * @param description       적요 (선택)
      */
     public static TaxInvoice create(UUID partnerId, String partnerBusinessNo, String partnerName,
                                     String partnerAddress, LocalDate supplyDate,
                                     String description) {
-        return create(partnerId, partnerBusinessNo, partnerName, partnerAddress,
+        return create(partnerId, null, partnerBusinessNo, partnerName, partnerAddress,
                 supplyDate, description, TaxInvoiceType.SALES);
     }
 
@@ -319,11 +356,41 @@ public class TaxInvoice extends BaseEntity {
     }
 
     /**
-     * 취소 (ISSUED → CANCELLED). 역분개 Journal 은 service 가 신규로 만들어
-     * {@link #linkReverseJournal(UUID)} 로 연결.
+     * 취소 (ISSUED → CANCELLED) — cancelReason 의무 버전 (P0-4).
+     * 역분개 Journal 은 service 가 신규로 만들어 {@link #linkReverseJournal(UUID)} 로 연결.
      *
+     * @param reason 취소 사유 (5자 이상, 최대 1000자, 필수)
+     * @param actorUserId 취소자 user-id (필수)
      * @throws BusinessException(CONFLICT) ISSUED 아닐 때
+     * @throws IllegalArgumentException reason 5자 미만이거나 actorUserId 없을 때
      */
+    public void cancel(String reason, String actorUserId) {
+        if (this.status != TaxInvoiceStatus.ISSUED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "취소는 ISSUED 단계에서만 허용됩니다 (현재: " + this.status + ")");
+        }
+        if (actorUserId == null || actorUserId.isBlank()) {
+            throw new IllegalArgumentException("actorUserId 는 필수입니다");
+        }
+        if (reason == null || reason.strip().length() < 5) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "취소 사유는 5자 이상이어야 합니다");
+        }
+        if (reason.length() > 1000) {
+            throw new IllegalArgumentException("취소 사유는 최대 1000자입니다");
+        }
+        this.status = TaxInvoiceStatus.CANCELLED;
+        this.cancelledAt = LocalDateTime.now();
+        this.cancelledBy = actorUserId;
+        this.cancelReason = reason.strip();
+    }
+
+    /**
+     * 취소 (ISSUED → CANCELLED) — 하위 호환 메서드 (cancelReason 생략 시 빈 사유로 처리).
+     *
+     * @deprecated P0-4 이후 {@link #cancel(String, String)} 을 사용하세요.
+     */
+    @Deprecated
     public void cancel(String actorUserId) {
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.CONFLICT,

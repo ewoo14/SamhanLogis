@@ -1,15 +1,23 @@
 package com.samhanair.logis.accounting.service;
 
+import com.samhanair.logis.accounting.config.CompanyProperties;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
+import com.samhanair.logis.accounting.util.KoreanAmountConverter;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceCancelRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceDetailResponse;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceLineRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoicePrintResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceResponse;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceSummaryResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
@@ -66,6 +74,7 @@ public class TaxInvoiceService {
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final TaxInvoiceNumberService taxInvoiceNumberService;
     private final JournalService journalService;
+    private final CompanyProperties companyProperties;
 
     /**
      * shared:realtime-abstraction audit recorder — PR-H4b. AccountingAuditLogService 가 본
@@ -196,7 +205,11 @@ public class TaxInvoiceService {
 
     /**
      * 취소 — ISSUED → CANCELLED. 원분개 자동 역분개 + reverse_journal_id 연결.
+     * 하위 호환용 — 취소 사유 없이 호출. 기존 controller 에서 사용.
+     *
+     * @deprecated P0-4 이후 {@link #cancelWithReason(UUID, TaxInvoiceCancelRequest, String)} 사용.
      */
+    @Deprecated
     public TaxInvoiceDetailResponse cancel(UUID id, String actorUserId) {
         TaxInvoice ti = findOrThrow(id);
         ti.cancel(actorUserId);
@@ -207,7 +220,145 @@ public class TaxInvoiceService {
         return TaxInvoiceDetailResponse.of(ti);
     }
 
-    /** 페이지 조회 — 4 필터 (status, from, to, partnerId). */
+    /**
+     * 신규 세금계산서 DRAFT 생성 (P0-4 신규 DTO — {@link TaxInvoiceCreateRequest}).
+     *
+     * <p>invoiceType 문자열 → {@link TaxInvoiceType} 변환. 잘못된 값이면 400.
+     * partnerCode / partnerBusinessNumber / issueDate / unit 필드 포함.
+     *
+     * @param request 발행 요청 DTO (P0-4)
+     * @return 생성된 세금계산서 상세 응답
+     */
+    public TaxInvoiceDetailResponse createFromRequest(TaxInvoiceCreateRequest request) {
+        TaxInvoiceType invoiceType = parseInvoiceType(request.invoiceType());
+
+        TaxInvoice ti = TaxInvoice.create(
+                request.partnerId(),
+                request.partnerCode(),
+                request.partnerBusinessNumber(),
+                request.partnerName(),
+                null,                // partnerAddress — P0-4 DTO 미포함, 향후 확장용
+                request.issueDate(),
+                request.memo(),
+                invoiceType
+        );
+
+        int lineNo = 1;
+        for (TaxInvoiceLineRequest lineReq : request.lines()) {
+            TaxInvoiceLine line = TaxInvoiceLine.create(
+                    ti, lineNo++,
+                    lineReq.itemName(),
+                    lineReq.specification(),
+                    lineReq.unit(),
+                    lineReq.quantity(),
+                    lineReq.unitPrice(),
+                    null   // memo — TaxInvoiceLineRequest 에 memo 미포함
+            );
+            ti.addLine(line);
+        }
+        TaxInvoice saved = taxInvoiceRepository.save(ti);
+        return TaxInvoiceDetailResponse.of(saved);
+    }
+
+    /**
+     * 취소 — ISSUED → CANCELLED (P0-4 신규 — 취소 사유 의무).
+     *
+     * <p>원분개 자동 역분개 + reverse_journal_id 연결.
+     *
+     * @param id          세금계산서 UUID
+     * @param cancelReq   취소 사유 DTO (5자 이상)
+     * @param actorUserId 취소자 user-id
+     * @return 취소된 세금계산서 상세 응답
+     */
+    public TaxInvoiceDetailResponse cancelWithReason(UUID id, TaxInvoiceCancelRequest cancelReq,
+                                                     String actorUserId) {
+        TaxInvoice ti = findOrThrow(id);
+        ti.cancel(cancelReq.reason(), actorUserId);
+        if (ti.getJournalId() != null) {
+            Journal reversal = journalService.autoReverse(ti.getJournalId(), actorUserId);
+            ti.linkReverseJournal(reversal.getId());
+        }
+        return TaxInvoiceDetailResponse.of(ti);
+    }
+
+    /**
+     * 발행 history 페이지 조회 (P0-4 신규 — type 필터 추가).
+     *
+     * <p>5 필터 조합: status / type / fromDate / toDate / partnerId. null 이면 무시.
+     * 정렬: 발행일자 DESC, 발행번호 DESC.
+     *
+     * @param status    세금계산서 상태 (선택)
+     * @param type      세금계산서 종류 SALES/PURCHASE (선택)
+     * @param fromDate  공급일자 시작 (선택)
+     * @param toDate    공급일자 종료 (선택)
+     * @param partnerId 거래처 UUID (선택)
+     * @param pageable  페이지 정보
+     * @return 페이지 결과 (TaxInvoiceSummaryResponse)
+     */
+    @Transactional(readOnly = true)
+    public Page<TaxInvoiceSummaryResponse> listWithType(TaxInvoiceStatus status,
+                                                        TaxInvoiceType type,
+                                                        LocalDate fromDate,
+                                                        LocalDate toDate,
+                                                        UUID partnerId,
+                                                        Pageable pageable) {
+        return taxInvoiceRepository
+                .findByFiltersWithType(status, type, fromDate, toDate, partnerId, pageable)
+                .map(TaxInvoiceSummaryResponse::of);
+    }
+
+    /**
+     * 인쇄용 데이터 조회 (P0-4).
+     *
+     * <p>공급자 정보 (회사) + 공급받는자 정보 (거래처 snapshot) + 라인 + 합계 + 한글 금액.
+     * ISSUED / CANCELLED 상태만 인쇄 허용 (DRAFT 인쇄 차단).
+     *
+     * @param id 세금계산서 UUID
+     * @return 인쇄용 응답 DTO
+     * @throws BusinessException(CONFLICT) DRAFT 상태일 때
+     */
+    @Transactional(readOnly = true)
+    public TaxInvoicePrintResponse print(UUID id) {
+        TaxInvoice ti = findOrThrow(id);
+        if (ti.getStatus() == TaxInvoiceStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태의 세금계산서는 인쇄할 수 없습니다. 먼저 발행하세요.");
+        }
+
+        List<TaxInvoicePrintResponse.PrintLine> printLines = ti.getLines().stream()
+                .map(l -> new TaxInvoicePrintResponse.PrintLine(
+                        l.getLineNo(),
+                        l.getItemName(),
+                        l.getSpec(),
+                        l.getQuantity(),
+                        l.getUnit(),
+                        l.getUnitPrice(),
+                        l.getSupplyAmount(),
+                        l.getVatAmount()
+                ))
+                .toList();
+
+        return new TaxInvoicePrintResponse(
+                companyProperties.getName(),
+                companyProperties.getBusinessNumber(),
+                companyProperties.getCeo(),
+                companyProperties.getAddress(),
+                companyProperties.getBusinessType(),
+                companyProperties.getBusinessItem(),
+                ti.getPartnerName(),
+                ti.getPartnerBusinessNo(),
+                ti.getPartnerAddress(),
+                ti.getTaxInvoiceNo(),
+                ti.getSupplyDate(),
+                printLines,
+                ti.getSupplyAmount(),
+                ti.getVatAmount(),
+                ti.getTotalAmount(),
+                KoreanAmountConverter.convert(ti.getTotalAmount())
+        );
+    }
+
+    /** 페이지 조회 — 4 필터 (status, from, to, partnerId). 기존 호환용. */
     @Transactional(readOnly = true)
     public Page<TaxInvoiceResponse> list(TaxInvoiceStatus status, LocalDate from, LocalDate to,
                                          UUID partnerId, Pageable pageable) {
@@ -219,6 +370,22 @@ public class TaxInvoiceService {
     @Transactional(readOnly = true)
     public TaxInvoiceDetailResponse getOne(UUID id) {
         return TaxInvoiceDetailResponse.of(findOrThrow(id));
+    }
+
+    /**
+     * invoiceType 문자열 → {@link TaxInvoiceType} 변환.
+     * null / 빈 문자열이면 SALES 기본값. 잘못된 값이면 400.
+     */
+    private TaxInvoiceType parseInvoiceType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return TaxInvoiceType.SALES;
+        }
+        try {
+            return TaxInvoiceType.valueOf(raw.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "invoiceType 은 SALES 또는 PURCHASE 만 허용됩니다: " + raw);
+        }
     }
 
     private TaxInvoice findOrThrow(UUID id) {

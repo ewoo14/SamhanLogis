@@ -36,6 +36,14 @@ app:
   # 운영 / staging 데이터 오염 방지 — default false. 복식부기 invariant 강제 (sum(debit)==sum(credit) per journal).
   accounting:
     seed-test-data: ${SAMHAN_ACCOUNTING_SEED_TEST_DATA:false}
+  # 세금계산서 인쇄용 공급자 (우리 회사) 정보 — P0-4
+  company:
+    name: ${SAMHAN_COMPANY_NAME:(주)삼한공조시스템}
+    business-number: ${SAMHAN_COMPANY_BUSINESS_NUMBER:000-00-00000}
+    ceo: ${SAMHAN_COMPANY_CEO:김미선}
+    address: ${SAMHAN_COMPANY_ADDRESS:서울특별시}
+    business-type: ${SAMHAN_COMPANY_BUSINESS_TYPE:도소매}
+    business-item: ${SAMHAN_COMPANY_BUSINESS_ITEM:공조기기}
 
 management:
   endpoints:

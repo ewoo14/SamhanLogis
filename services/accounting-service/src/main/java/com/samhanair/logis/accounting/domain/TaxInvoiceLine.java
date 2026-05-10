@@ -59,6 +59,13 @@ public class TaxInvoiceLine extends BaseEntity {
     @Column(name = "spec", length = 100)
     private String spec;
 
+    /**
+     * 단위 — 건 / kg / CBM / 박스 등 (≤20자, 선택).
+     * P0-4 V11 신규 컬럼. legacy 레코드 = NULL.
+     */
+    @Column(name = "unit", length = 20)
+    private String unit;
+
     /** 수량 (≥0). */
     @Column(name = "quantity", nullable = false, precision = 15, scale = 2)
     private BigDecimal quantity;
@@ -80,11 +87,12 @@ public class TaxInvoiceLine extends BaseEntity {
     private String memo;
 
     private TaxInvoiceLine(TaxInvoice taxInvoice, int lineNo, String itemName, String spec,
-                           BigDecimal quantity, BigDecimal unitPrice, String memo) {
+                           String unit, BigDecimal quantity, BigDecimal unitPrice, String memo) {
         this.taxInvoice = taxInvoice;
         this.lineNo = lineNo;
         this.itemName = itemName;
         this.spec = spec;
+        this.unit = unit;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.memo = memo;
@@ -92,19 +100,20 @@ public class TaxInvoiceLine extends BaseEntity {
     }
 
     /**
-     * 신규 라인 생성. 금액 자동 계산.
+     * 신규 라인 생성 (unit 포함). 금액 자동 계산.
      *
      * @param taxInvoice 부모 세금계산서 (cascade 영속화)
      * @param lineNo 표시 순번 (1 이상)
      * @param itemName 품목명 (1~200자)
      * @param spec 규격 (선택, ≤100자)
+     * @param unit 단위 — 건/kg/CBM 등 (선택, ≤20자)
      * @param quantity 수량 (≥0)
      * @param unitPrice 단가 (≥0)
      * @param memo 비고 (선택, ≤500자)
      */
     public static TaxInvoiceLine create(TaxInvoice taxInvoice, int lineNo, String itemName,
-                                        String spec, BigDecimal quantity, BigDecimal unitPrice,
-                                        String memo) {
+                                        String spec, String unit, BigDecimal quantity,
+                                        BigDecimal unitPrice, String memo) {
         if (itemName == null || itemName.isBlank() || itemName.length() > 200) {
             throw new IllegalArgumentException("itemName 은 1~200자 필수입니다");
         }
@@ -117,13 +126,33 @@ public class TaxInvoiceLine extends BaseEntity {
         if (spec != null && spec.length() > 100) {
             throw new IllegalArgumentException("spec 은 최대 100자입니다");
         }
+        if (unit != null && unit.length() > 20) {
+            throw new IllegalArgumentException("unit 은 최대 20자입니다");
+        }
         if (memo != null && memo.length() > 500) {
             throw new IllegalArgumentException("memo 는 최대 500자입니다");
         }
         if (lineNo < 1) {
             throw new IllegalArgumentException("lineNo 는 1 이상 필수입니다");
         }
-        return new TaxInvoiceLine(taxInvoice, lineNo, itemName, spec, quantity, unitPrice, memo);
+        return new TaxInvoiceLine(taxInvoice, lineNo, itemName, spec, unit, quantity, unitPrice, memo);
+    }
+
+    /**
+     * 신규 라인 생성 (unit 생략) — 기존 호출부 하위 호환.
+     *
+     * @param taxInvoice 부모 세금계산서
+     * @param lineNo 표시 순번 (1 이상)
+     * @param itemName 품목명 (1~200자)
+     * @param spec 규격 (선택, ≤100자)
+     * @param quantity 수량 (≥0)
+     * @param unitPrice 단가 (≥0)
+     * @param memo 비고 (선택, ≤500자)
+     */
+    public static TaxInvoiceLine create(TaxInvoice taxInvoice, int lineNo, String itemName,
+                                        String spec, BigDecimal quantity, BigDecimal unitPrice,
+                                        String memo) {
+        return create(taxInvoice, lineNo, itemName, spec, null, quantity, unitPrice, memo);
     }
 
     /** supplyAmount / vatAmount 재계산. */

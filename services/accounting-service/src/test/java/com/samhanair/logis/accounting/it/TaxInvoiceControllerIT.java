@@ -109,7 +109,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("cancel — ISSUED → CANCELLED + 자동 역분개 (reverseJournalId 채워짐)")
+    @DisplayName("cancel — ISSUED → CANCELLED + 자동 역분개 (P0-4: reason 필수 body 포함)")
     void cancelReverses() throws Exception {
         Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
 
@@ -120,13 +120,18 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
-        // cancel
+        // cancel (P0-4 — reason 필수)
+        Map<String, Object> cancelBody = new HashMap<>();
+        cancelBody.put("reason", "고객 요청으로 인한 취소");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/cancel")
                         .header("X-User-Id", "accountant-1")
-                        .header("X-User-Role", "ACCOUNTANT"))
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(cancelBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.cancelledBy").value("accountant-1"))
+                .andExpect(jsonPath("$.data.cancelReason").value("고객 요청으로 인한 취소"))
                 .andExpect(jsonPath("$.data.reverseJournalId").exists());
     }
 

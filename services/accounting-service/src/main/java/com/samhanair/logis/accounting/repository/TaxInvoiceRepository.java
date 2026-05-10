@@ -36,6 +36,34 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
                                    Pageable pageable);
 
     /**
+     * 페이지 조회 — 5개 필터 조합 (status, type, from, to, partnerId). P0-4 신규.
+     * null 인 필터는 무시.
+     *
+     * @param status    세금계산서 상태 (선택)
+     * @param type      세금계산서 종류 SALES/PURCHASE (선택)
+     * @param from      공급일자 시작 (선택)
+     * @param to        공급일자 종료 (선택)
+     * @param partnerId 거래처 UUID (선택)
+     * @param pageable  페이지 정보
+     * @return 페이지 결과
+     */
+    @Query("""
+            SELECT t FROM TaxInvoice t
+            WHERE (:status IS NULL OR t.status = :status)
+              AND (:type IS NULL OR t.invoiceType = :type)
+              AND (:from IS NULL OR t.supplyDate >= :from)
+              AND (:to IS NULL OR t.supplyDate <= :to)
+              AND (:partnerId IS NULL OR t.partnerId = :partnerId)
+            ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
+            """)
+    Page<TaxInvoice> findByFiltersWithType(@Param("status") TaxInvoiceStatus status,
+                                           @Param("type") TaxInvoiceType type,
+                                           @Param("from") LocalDate from,
+                                           @Param("to") LocalDate to,
+                                           @Param("partnerId") UUID partnerId,
+                                           Pageable pageable);
+
+    /**
      * 발행 상태 + 공급일자 범위 list 조회 (PR-E2 BE-A11 hometax export 용).
      *
      * <p>페이지 없이 전체 — caller (HometaxExportService) 가 100건 단위 sheet 분할.

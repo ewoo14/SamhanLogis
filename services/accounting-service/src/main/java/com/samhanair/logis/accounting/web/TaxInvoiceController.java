@@ -1,10 +1,15 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.service.TaxInvoiceService;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceCancelRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceDetailResponse;
+import com.samhanair.logis.accounting.web.dto.TaxInvoicePrintResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceResponse;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceSummaryResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -101,27 +106,103 @@ public class TaxInvoiceController {
         return ApiResponse.ok(taxInvoiceService.issue(id, callerOrSystem(callerHeader)));
     }
 
-    /** CANCELLED 전이 + 자동 역분개. */
+    /**
+     * CANCELLED 전이 + 자동 역분개 (P0-4 — 취소 사유 의무).
+     *
+     * <p>취소 사유 5자 이상 필수. 도메인 {@code TaxInvoice.cancel(reason, actorUserId)} 에서 검증.
+     */
     @Operation(summary = "세금계산서 취소",
-            description = "ISSUED → CANCELLED. 자동 역분개 (차/대 swap 신규 Journal POSTED)")
+            description = "ISSUED → CANCELLED. 취소 사유 5자 이상 필수. 자동 역분개 생성")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "취소 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "취소 사유 미입력 또는 5자 미만"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ISSUED 가 아닐 때")
     })
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<TaxInvoiceDetailResponse> cancel(
             @PathVariable UUID id,
+            @Valid @RequestBody TaxInvoiceCancelRequest cancelRequest,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(taxInvoiceService.cancel(id, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(taxInvoiceService.cancelWithReason(
+                id, cancelRequest, callerOrSystem(callerHeader)));
     }
 
-    /** 페이지 조회 — 4 필터 (status, from, to, partnerId). 모두 optional. */
-    @Operation(summary = "세금계산서 페이지 조회",
-            description = "status / 공급일자 [from, to] / partnerId 필터")
+    /**
+     * 세금계산서 신규 발행 DRAFT 생성 (P0-4 신규 DTO).
+     *
+     * <p>기존 {@code POST /accounting/tax-invoices} 와 같은 URL 이지만
+     * P0-4 {@link TaxInvoiceCreateRequest} DTO 를 사용. invoiceType / partnerBusinessNumber /
+     * unit 필드 포함.
+     */
+    @Operation(summary = "세금계산서 신규 발행 (P0-4)",
+            description = "DRAFT 생성. invoiceType(SALES/PURCHASE) / 사업자번호 형식 검증 / unit 포함")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패 (사업자번호 형식 / lines 미입력)")
+    })
+    @PostMapping("/issue-request")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    public ApiResponse<TaxInvoiceDetailResponse> createP04(
+            @Valid @RequestBody TaxInvoiceCreateRequest request) {
+        return ApiResponse.ok(taxInvoiceService.createFromRequest(request));
+    }
+
+    /**
+     * 발행 history 페이지 조회 (P0-4 — type 필터 추가).
+     *
+     * <p>5 필터: status / type / fromDate / toDate / partnerId. 모두 optional.
+     * 응답: {@link TaxInvoiceSummaryResponse} Page (Slice C 패턴).
+     */
+    @Operation(summary = "세금계산서 발행 목록 조회 (P0-4)",
+            description = "status / type(SALES|PURCHASE) / fromDate / toDate / partnerId 필터. "
+                    + "정렬: 발행일자 DESC")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
+    })
+    @GetMapping("/history")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    public ApiResponse<Page<TaxInvoiceSummaryResponse>> history(
+            @RequestParam(required = false) TaxInvoiceStatus status,
+            @RequestParam(required = false) TaxInvoiceType type,
+            @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) UUID partnerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.ok(
+                taxInvoiceService.listWithType(status, type, fromDate, toDate, partnerId, pageable));
+    }
+
+    /**
+     * 인쇄용 데이터 조회 (P0-4).
+     *
+     * <p>공급자 (회사) + 공급받는자 (거래처 snapshot) + 라인 + 합계 + 한글 금액.
+     * DRAFT 상태 차단 (ISSUED / CANCELLED 만 인쇄 가능).
+     */
+    @Operation(summary = "세금계산서 인쇄 데이터",
+            description = "인쇄 양식에 필요한 전체 데이터. DRAFT 상태 차단. 한글 금액 포함")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "인쇄 데이터 반환"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미존재"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 상태 — 발행 후 인쇄 가능")
+    })
+    @GetMapping("/{id}/print")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    public ApiResponse<TaxInvoicePrintResponse> print(@PathVariable UUID id) {
+        return ApiResponse.ok(taxInvoiceService.print(id));
+    }
+
+    /** 페이지 조회 — 4 필터 (status, from, to, partnerId). 기존 호환용. */
+    @Operation(summary = "세금계산서 페이지 조회 (기존)",
+            description = "status / 공급일자 [from, to] / partnerId 필터. P0-4 이후 /history 권장")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<Page<TaxInvoiceResponse>> list(
             @RequestParam(required = false) TaxInvoiceStatus status,
             @RequestParam(required = false)
@@ -138,7 +219,7 @@ public class TaxInvoiceController {
     /** 단건 조회 (라인 포함). */
     @Operation(summary = "세금계산서 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<TaxInvoiceDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(taxInvoiceService.getOne(id));
     }
