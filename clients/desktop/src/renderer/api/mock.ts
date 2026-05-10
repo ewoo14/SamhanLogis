@@ -1916,19 +1916,73 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 회계 — tax-invoices / closing / partner-ledger / statement-batch / hometax-export
   // ==========================================================================
 
-  // GET /accounting/tax-invoices/{id} (단건 상세)
+  // POST /accounting/tax-invoices/{id}/issue — DRAFT → ISSUED
+  const taxInvoiceIssueMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/issue$/)
+  if (method === 'POST' && taxInvoiceIssueMatch) {
+    const id = taxInvoiceIssueMatch[1]!
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[1]!
+    return envelope({
+      ...found,
+      taxInvoiceNo: found.taxInvoiceNo ?? `TI-2026/05-${String(Date.now()).slice(-3)}`,
+      status: 'ISSUED' as const,
+      issuedAt: new Date().toISOString(),
+      issuedBy: '이정훈',
+      journalId: 'jv-auto-' + Date.now(),
+    })
+  }
+
+  // POST /accounting/tax-invoices/{id}/cancel — ISSUED → CANCELLED
+  const taxInvoiceCancelMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/cancel$/)
+  if (method === 'POST' && taxInvoiceCancelMatch) {
+    const id = taxInvoiceCancelMatch[1]!
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
+    return envelope({
+      ...found,
+      status: 'CANCELLED' as const,
+      cancelledAt: new Date().toISOString(),
+      cancelledBy: '이정훈',
+      reverseJournalId: 'jv-rev-' + Date.now(),
+    })
+  }
+
+  // GET /accounting/tax-invoices/{id}/print — 인쇄용 데이터 (단건 상세와 동일 shape)
+  const taxInvoicePrintMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/print$/)
+  if (method === 'GET' && taxInvoicePrintMatch) {
+    const id = taxInvoicePrintMatch[1]!
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
+    return envelope(found)
+  }
+
+  // GET /accounting/tax-invoices/{id} (단건 상세) — print/issue/cancel 보다 후 등록
   const taxInvoiceDetailMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)$/)
-  if (method === 'GET' && taxInvoiceDetailMatch && !url.includes('/print')) {
+  if (method === 'GET' && taxInvoiceDetailMatch) {
     const id = taxInvoiceDetailMatch[1]!
     const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
     return envelope(found)
   }
 
-  // GET /accounting/tax-invoices (페이지)
-  if (method === 'GET' && url.includes('/accounting/tax-invoices')) {
+  // PUT /accounting/tax-invoices/{id} — DRAFT 수정 (헤더 + 라인 일괄 교체)
+  const taxInvoiceUpdateMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)$/)
+  if (method === 'PUT' && taxInvoiceUpdateMatch) {
+    const id = taxInvoiceUpdateMatch[1]!
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[1]!
+    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
     return envelope({
-      content: MOCK_TAX_INVOICES,
-      totalElements: MOCK_TAX_INVOICES.length,
+      ...found,
+      partnerName: typeof req['partnerName'] === 'string' ? req['partnerName'] : found.partnerName,
+      partnerBusinessNo: typeof req['partnerBusinessNo'] === 'string' ? req['partnerBusinessNo'] : found.partnerBusinessNo,
+      supplyDate: typeof req['supplyDate'] === 'string' ? req['supplyDate'] : found.supplyDate,
+      description: typeof req['description'] === 'string' ? req['description'] : found.description,
+    })
+  }
+
+  // GET /accounting/tax-invoices (페이지 목록)
+  if (method === 'GET' && url.includes('/accounting/tax-invoices')) {
+    // TaxInvoiceSummary shape — lines 제외
+    const summaries = MOCK_TAX_INVOICES.map(({ lines: _lines, ...rest }) => rest)
+    return envelope({
+      content: summaries,
+      totalElements: summaries.length,
       totalPages: 1,
       number: 0,
       size: 20,
@@ -1937,12 +1991,31 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // POST /accounting/tax-invoices — 신규
+  // POST /accounting/tax-invoices — 신규 DRAFT 생성
   if (method === 'POST' && url.endsWith('/accounting/tax-invoices')) {
+    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    const now = Date.now()
     return envelope({
-      id: 'ti-new-' + Date.now(),
-      taxInvoiceNo: 'TI-2026/05-099',
-      status: 'DRAFT',
+      id: 'ti-new-' + now,
+      taxInvoiceNo: null,
+      partnerId: typeof req['partnerId'] === 'string' ? req['partnerId'] : 'partner-uuid-new',
+      partnerBusinessNo: typeof req['partnerBusinessNo'] === 'string' ? req['partnerBusinessNo'] : null,
+      partnerName: typeof req['partnerName'] === 'string' ? req['partnerName'] : '거래처명',
+      partnerAddress: typeof req['partnerAddress'] === 'string' ? req['partnerAddress'] : null,
+      supplyDate: typeof req['supplyDate'] === 'string' ? req['supplyDate'] : '2026-05-11',
+      supplyAmount: '0',
+      vatAmount: '0',
+      totalAmount: '0',
+      status: 'DRAFT' as const,
+      issuedAt: null,
+      issuedBy: null,
+      cancelledAt: null,
+      cancelledBy: null,
+      journalId: null,
+      reverseJournalId: null,
+      eTaxExternalId: null,
+      description: typeof req['description'] === 'string' ? req['description'] : null,
+      lines: [],
     })
   }
 
@@ -3052,56 +3125,128 @@ const MOCK_BLOCKED_PARTNERS = [
 ]
 
 /**
- * 세금계산서 (`/accounting/tax-invoices`) — 3건 + DRAFT/ISSUED/CANCELED 분포.
+ * 세금계산서 (`/accounting/tax-invoices`) — 3건 + DRAFT/ISSUED/CANCELLED 분포.
+ *
+ * BE TaxInvoiceDetailResponse 필드명 1:1 일치 (PR #136 회고 회귀 회피):
+ * - taxInvoiceNo / partnerId / partnerBusinessNo / partnerName / partnerAddress
+ * - supplyDate / supplyAmount / vatAmount / totalAmount / status
+ * - issuedAt / issuedBy / cancelledAt / cancelledBy
+ * - journalId / reverseJournalId / eTaxExternalId / description / lines[]
+ * UUID 비공개: id / partnerId / journalId 는 path param 전용 — 화면 미노출.
  */
 const MOCK_TAX_INVOICES = [
   {
     id: 'ti-001',
     taxInvoiceNo: 'TI-2026/05-001',
-    issueDate: '2026-05-04',
-    status: 'ISSUED' as const,
-    supplierName: '삼한산업',
-    supplierBusinessNumber: '111-22-33333',
-    buyerCode: '1234567890',
-    buyerName: '엘에이시스템에어',
-    buyerBusinessNumber: '123-45-67890',
+    partnerId: 'partner-uuid-0001',
+    partnerBusinessNo: '123-45-67890',
+    partnerName: '엘에이시스템에어',
+    partnerAddress: '서울특별시 강남구 테헤란로 152 강남파이낸스센터 20층',
+    supplyDate: '2026-05-04',
     supplyAmount: '3700000',
-    taxAmount: '370000',
+    vatAmount: '370000',
     totalAmount: '4070000',
+    status: 'ISSUED' as const,
+    issuedAt: '2026-05-04T10:30:00+09:00',
+    issuedBy: '이정훈',
+    cancelledAt: null as string | null,
+    cancelledBy: null as string | null,
+    journalId: 'jv-ti-001',
+    reverseJournalId: null as string | null,
+    eTaxExternalId: null as string | null,
     description: '5월 1주차 시스템에어컨 출고',
-    issuedByName: '이정훈',
+    lines: [
+      {
+        lineId: 'tl-001-1',
+        lineNo: 0,
+        itemName: '시스템에어컨 4Way 4HP',
+        spec: 'AJ040RXH4BC1',
+        quantity: '2',
+        unitPrice: '1850000',
+        supplyAmount: '3700000',
+        vatAmount: '370000',
+        memo: null as string | null,
+      },
+    ],
   },
   {
     id: 'ti-002',
-    taxInvoiceNo: 'TI-2026/05-002',
-    issueDate: '2026-05-08',
-    status: 'DRAFT' as const,
-    supplierName: '삼한산업',
-    supplierBusinessNumber: '111-22-33333',
-    buyerCode: '2345678901',
-    buyerName: '강남에어솔루션',
-    buyerBusinessNumber: '234-56-78901',
+    taxInvoiceNo: null as string | null,
+    partnerId: 'partner-uuid-0002',
+    partnerBusinessNo: '234-56-78901',
+    partnerName: '강남에어솔루션',
+    partnerAddress: '서울특별시 서초구 서초대로 320 KT 서초타워 5층',
+    supplyDate: '2026-05-08',
     supplyAmount: '8000000',
-    taxAmount: '800000',
+    vatAmount: '800000',
     totalAmount: '8800000',
+    status: 'DRAFT' as const,
+    issuedAt: null as string | null,
+    issuedBy: null as string | null,
+    cancelledAt: null as string | null,
+    cancelledBy: null as string | null,
+    journalId: null as string | null,
+    reverseJournalId: null as string | null,
+    eTaxExternalId: null as string | null,
     description: '5월 2주차 (작성중)',
-    issuedByName: '이정훈',
+    lines: [
+      {
+        lineId: 'tl-002-1',
+        lineNo: 0,
+        itemName: '실외기 10HP',
+        spec: 'AJ100NCDKH',
+        quantity: '2',
+        unitPrice: '4000000',
+        supplyAmount: '8000000',
+        vatAmount: '800000',
+        memo: null as string | null,
+      },
+    ],
   },
   {
     id: 'ti-003',
     taxInvoiceNo: 'TI-2026/04-099',
-    issueDate: '2026-04-28',
-    status: 'CANCELED' as const,
-    supplierName: '삼한산업',
-    supplierBusinessNumber: '111-22-33333',
-    buyerCode: '3456789012',
-    buyerName: '한빛쾌적',
-    buyerBusinessNumber: '345-67-89012',
+    partnerId: 'partner-uuid-0003',
+    partnerBusinessNo: '345-67-89012',
+    partnerName: '한빛쾌적',
+    partnerAddress: '경기도 수원시 영통구 삼성로 129',
+    supplyDate: '2026-04-28',
     supplyAmount: '5000000',
-    taxAmount: '500000',
+    vatAmount: '500000',
     totalAmount: '5500000',
+    status: 'CANCELLED' as const,
+    issuedAt: '2026-04-28T09:00:00+09:00',
+    issuedBy: '이정훈',
+    cancelledAt: '2026-04-29T14:20:00+09:00',
+    cancelledBy: '이정훈',
+    journalId: 'jv-ti-003',
+    reverseJournalId: 'jv-ti-003-rev',
+    eTaxExternalId: null as string | null,
     description: '거래처 요청 취소 (오등록)',
-    issuedByName: '이정훈',
+    lines: [
+      {
+        lineId: 'tl-003-1',
+        lineNo: 0,
+        itemName: '천장형 1Way 3HP',
+        spec: 'AJ036NCH3CH',
+        quantity: '3',
+        unitPrice: '1450000',
+        supplyAmount: '4350000',
+        vatAmount: '435000',
+        memo: null as string | null,
+      },
+      {
+        lineId: 'tl-003-2',
+        lineNo: 1,
+        itemName: '유선 리모컨',
+        spec: 'MWR-WE10N',
+        quantity: '8',
+        unitPrice: '81250',
+        supplyAmount: '650000',
+        vatAmount: '65000',
+        memo: '추가 리모컨' as string | null,
+      },
+    ],
   },
 ]
 

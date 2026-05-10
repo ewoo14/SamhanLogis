@@ -118,6 +118,18 @@ export interface CreateTaxInvoiceRequest {
   lines: CreateTaxInvoiceLineRequest[]
 }
 
+/** 세금계산서 취소 요청 — 사유 필수 (BE `TaxInvoiceCancelRequest`). */
+export interface TaxInvoiceCancelRequest {
+  /** 취소 사유 (1~200자). */
+  reason: string
+}
+
+/** 세금계산서 인쇄용 응답 — GET /{id}/print. 단건 상세와 동일 shape (BE alias). */
+export type TaxInvoicePrintResponse = TaxInvoiceDetail
+
+/** 세금계산서 목록 요약 응답 — GET / 페이지용 (lines 제외). BE `TaxInvoiceSummaryResponse`. */
+export type TaxInvoiceSummaryResponse = TaxInvoiceSummary
+
 /** 페이지 조회 옵션. */
 export interface ListTaxInvoicesOptions {
   status?: TaxInvoiceStatus
@@ -193,11 +205,33 @@ export async function issueTaxInvoice(id: string): Promise<TaxInvoiceDetail> {
   return res.data.data
 }
 
-/** ISSUED → CANCELLED — 자동 역분개. */
-export async function cancelTaxInvoice(id: string): Promise<TaxInvoiceDetail> {
+/**
+ * ISSUED → CANCELLED — 자동 역분개.
+ *
+ * @param id 세금계산서 UUID (path param 전용).
+ * @param request 취소 사유 (필수).
+ */
+export async function cancelTaxInvoice(
+  id: string,
+  request: TaxInvoiceCancelRequest,
+): Promise<TaxInvoiceDetail> {
   const res = await apiClient.post<ApiEnvelope<TaxInvoiceDetail>>(
     `/accounting/tax-invoices/${id}/cancel`,
-    {},
+    request,
+  )
+  return res.data.data
+}
+
+/**
+ * 인쇄용 데이터 조회 — GET /{id}/print.
+ *
+ * @param id 세금계산서 UUID (path param 전용).
+ */
+export async function getTaxInvoicePrintData(
+  id: string,
+): Promise<TaxInvoicePrintResponse> {
+  const res = await apiClient.get<ApiEnvelope<TaxInvoicePrintResponse>>(
+    `/accounting/tax-invoices/${id}/print`,
   )
   return res.data.data
 }
