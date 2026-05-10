@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 /**
  * BalanceSheetService 단위 테스트.
@@ -47,6 +49,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * <p>Note: fixture 는 복식부기 완전성 없는 단순 단위 테스트용. balanced=false 는 의도된 결과.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT) // @BeforeEach stub 은 null 검증 케이스에서 미사용 — 의도적 lenient
 class BalanceSheetServiceTest {
 
     @Mock private JournalLineRepository journalLineRepository;

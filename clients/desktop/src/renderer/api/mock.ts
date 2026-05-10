@@ -2926,32 +2926,34 @@ const MOCK_AUDIT_LOGS_BY_DOMAIN: Record<string, Array<{
 // ==========================================================================
 
 /**
- * 손익계산서 fixture — 5월 기준 (202604 as period).
- * 매출 2건 / 매출원가 1건 / 판관비 3건 / 영업외 2건.
+ * 손익계산서 fixture — 4월 기준 (202604 as period).
+ * 매출 2건 / 매출원가 2건 / 판관비 4건 / 영업외 2건.
+ *
+ * accountCode 는 한국 일반기업회계기준 3자리 코드 (V1 chart_of_accounts seed 일치).
+ * 401/404 매출, 501 매출원가, 801/819 판관비, 901 이자수익, 951 이자비용 — V1 시드 준수.
  */
 const MOCK_INCOME_STATEMENT = {
   period: '202604',
   fromDate: '2026-04-01',
   toDate: '2026-04-30',
   revenue: [
-    { accountCode: '4001', accountName: '상품매출', category: '400', amount: '45000000', sortOrder: 1 },
-    { accountCode: '4002', accountName: '제품매출', category: '400', amount: '5000000', sortOrder: 2 },
+    { accountCode: '401', accountName: '상품매출', category: '400', amount: '45000000', sortOrder: 4010 },
+    { accountCode: '404', accountName: '제품매출', category: '400', amount: '5000000', sortOrder: 4040 },
   ],
   costOfSales: [
-    { accountCode: '5001', accountName: '상품매출원가', category: '500', amount: '30000000', sortOrder: 1 },
-    { accountCode: '5002', accountName: '제품매출원가', category: '500', amount: '3000000', sortOrder: 2 },
+    { accountCode: '501', accountName: '상품매출원가', category: '500', amount: '33000000', sortOrder: 5010 },
   ],
   grossProfit: '17000000',
   sga: [
-    { accountCode: '8101', accountName: '급여', category: '800', amount: '5000000', sortOrder: 1 },
-    { accountCode: '8201', accountName: '임차료', category: '800', amount: '2000000', sortOrder: 2 },
-    { accountCode: '8301', accountName: '광고선전비', category: '800', amount: '800000', sortOrder: 3 },
-    { accountCode: '8401', accountName: '통신비', category: '800', amount: '200000', sortOrder: 4 },
+    { accountCode: '801', accountName: '급여', category: '800', amount: '5000000', sortOrder: 8010 },
+    { accountCode: '819', accountName: '임차료', category: '800', amount: '2000000', sortOrder: 8190 },
+    { accountCode: '833', accountName: '광고선전비', category: '800', amount: '800000', sortOrder: 8330 },
+    { accountCode: '814', accountName: '통신비', category: '800', amount: '200000', sortOrder: 8140 },
   ],
   operatingProfit: '9000000',
   nonOperating: [
-    { accountCode: '9101', accountName: '이자수익', category: '900', amount: '500000', sortOrder: 1 },
-    { accountCode: '9201', accountName: '이자비용', category: '900', amount: '-300000', sortOrder: 2 },
+    { accountCode: '901', accountName: '이자수익', category: '900', amount: '500000', sortOrder: 9010 },
+    { accountCode: '951', accountName: '이자비용', category: '900', amount: '-300000', sortOrder: 9510 },
   ],
   incomeBeforeTax: '9200000',
   incomeTax: '1840000',
@@ -2963,25 +2965,28 @@ const MOCK_INCOME_STATEMENT = {
  * 재무상태표 fixture — 2026-04-30 기준.
  * 자산 4건 / 부채 3건 / 자본 2건. balanced=true.
  * totalAssets = 55,000,000 = totalLiabilitiesAndEquity.
+ *
+ * accountCode 는 한국 일반기업회계기준 3자리 코드 (V1 chart_of_accounts seed 일치).
+ * 102 보통예금 / 110 외상매출금 / 130 상품 / 142 건물 / 201 외상매입금 / 260 장기차입금 / 301 자본금 / 341 이익잉여금.
  */
 const MOCK_BALANCE_SHEET = {
   asOfDate: '2026-04-30',
   assets: [
-    { accountCode: '1011', accountName: '현금및현금성자산', category: '100', amount: '12000000', sortOrder: 1 },
-    { accountCode: '1021', accountName: '외상매출금', category: '100', amount: '18000000', sortOrder: 2 },
-    { accountCode: '1031', accountName: '재고자산', category: '100', amount: '10000000', sortOrder: 3 },
-    { accountCode: '1201', accountName: '유형자산', category: '100', amount: '15000000', sortOrder: 4 },
+    { accountCode: '102', accountName: '보통예금', category: '100', amount: '12000000', sortOrder: 1020 },
+    { accountCode: '110', accountName: '외상매출금', category: '100', amount: '18000000', sortOrder: 1100 },
+    { accountCode: '130', accountName: '상품', category: '100', amount: '10000000', sortOrder: 1300 },
+    { accountCode: '142', accountName: '건물', category: '100', amount: '15000000', sortOrder: 1420 },
   ],
   totalAssets: '55000000',
   liabilities: [
-    { accountCode: '2011', accountName: '외상매입금', category: '200', amount: '8000000', sortOrder: 1 },
-    { accountCode: '2021', accountName: '단기차입금', category: '200', amount: '7000000', sortOrder: 2 },
-    { accountCode: '2201', accountName: '장기차입금', category: '200', amount: '10000000', sortOrder: 3 },
+    { accountCode: '201', accountName: '외상매입금', category: '200', amount: '8000000', sortOrder: 2010 },
+    { accountCode: '260', accountName: '장기차입금', category: '200', amount: '10000000', sortOrder: 2600 },
+    { accountCode: '210', accountName: '미지급금', category: '200', amount: '7000000', sortOrder: 2100 },
   ],
   totalLiabilities: '25000000',
   equity: [
-    { accountCode: '3011', accountName: '자본금', category: '300', amount: '20000000', sortOrder: 1 },
-    { accountCode: '3021', accountName: '이익잉여금', category: '300', amount: '10000000', sortOrder: 2 },
+    { accountCode: '301', accountName: '자본금', category: '300', amount: '20000000', sortOrder: 3010 },
+    { accountCode: '341', accountName: '이익잉여금', category: '300', amount: '10000000', sortOrder: 3410 },
   ],
   totalEquity: '30000000',
   totalLiabilitiesAndEquity: '55000000',

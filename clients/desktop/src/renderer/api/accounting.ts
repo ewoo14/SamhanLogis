@@ -155,6 +155,18 @@ export interface TrialBalanceRow {
 }
 
 /**
+ * 시산표 summary — 총 차변/대변/일치 여부 (BE `TrialBalanceSummary`).
+ *
+ * P0-1 Slice A 보강 — `TrialBalanceResponse.summary` 필드. 옵셔널로 선언하여
+ * 기존 mock fixture 와의 하위 호환을 유지한다.
+ */
+export interface TrialBalanceSummary {
+  totalDebit: string
+  totalCredit: string
+  balanced: boolean
+}
+
+/**
  * 시산표 응답 (BE `TrialBalanceResponse`).
  */
 export interface TrialBalance {
@@ -168,6 +180,10 @@ export interface TrialBalance {
   totalCredit: string
   /** 마감 여부 (당월이 closed 인지). 본 슬라이스 기본 false. */
   closed: boolean
+  /**
+   * P0-1 Slice A 보강 — 총 차변/대변/일치 여부 요약. 기존 호출자 호환을 위해 옵셔널.
+   */
+  summary?: TrialBalanceSummary
 }
 
 /**

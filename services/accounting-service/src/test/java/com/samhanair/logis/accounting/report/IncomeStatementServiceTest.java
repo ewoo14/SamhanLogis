@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import java.time.YearMonth;
 
 /**
@@ -45,6 +47,7 @@ import java.time.YearMonth;
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT) // @BeforeEach stub 은 일부 시나리오(예외 케이스)에서 미사용 — 의도적 lenient
 class IncomeStatementServiceTest {
 
     @Mock private JournalLineRepository journalLineRepository;
