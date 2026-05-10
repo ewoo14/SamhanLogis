@@ -110,28 +110,35 @@ export interface CreateAdminUserRequest {
   phoneNumber?: string
 }
 
-/** 신규 사용자 등록 응답 — BE `CreateEmployeeResponse` 와 1:1 (임시 비밀번호 포함). */
+/**
+ * 신규 사용자 등록 응답 — BE `AdminUserCreateResponse` record 와 1:1 (flat).
+ *
+ * <p>임시 비밀번호 평문은 이 응답에서만 1회 노출. {@link AdminUser} 와 동일한 컬럼 +
+ * {@code temporaryPassword} / {@code passwordChangeRequired} 추가. UUID 비공개 가드는
+ * 기존과 동일 — id 는 routing key, 화면 라벨은 fullName / loginId.
+ */
 export interface CreateAdminUserResponse {
-  user: AdminUser
+  /** 직원 UUID — routing key 전용. */
+  id: string
+  loginId: string
+  fullName: string
+  role: AdminRole
+  departmentId: string
+  departmentName: string
+  email: string | null
+  phoneNumber: string | null
+  /** 임시 비밀번호 평문 (1회 노출). */
   temporaryPassword: string
+  /** 첫 로그인 시 비밀번호 변경 강제 여부 (BE 항상 true). */
+  passwordChangeRequired: boolean
 }
 
-/** 사용자 정보 수정 요청 — BE `UpdateEmployeeRequest` 와 1:1. */
+/** 사용자 정보 수정 요청 — BE `AdminUserUpdateRequest` 와 1:1. */
 export interface UpdateAdminUserRequest {
   fullName?: string
   email?: string
   phoneNumber?: string
   departmentId?: string
-}
-
-/** 비활성화(탈퇴) 요청 — BE `DisableEmployeeRequest` 와 1:1. */
-export interface DisableAdminUserRequest {
-  reason: string
-}
-
-/** 잠금 해제 응답 — BE `UnlockEmployeeResponse` 와 1:1. */
-export interface UnlockAdminUserResponse {
-  user: AdminUser
 }
 
 /**
@@ -201,32 +208,28 @@ export async function updateAdminUser(
   return res.data.data
 }
 
-/** 사용자 탈퇴(비활성화) — `POST /admin/users/{id}/disable`. MASTER 만 호출 가능. */
-export async function disableAdminUser(
-  id: string,
-  body: DisableAdminUserRequest,
-): Promise<AdminUser> {
-  const res = await apiClient.post<ApiEnvelope<AdminUser>>(
-    `/admin/users/${id}/disable`,
-    body,
-  )
-  return res.data.data
+/**
+ * 사용자 탈퇴(영구 퇴사 처리) — `POST /admin/users/{id}/disable`. MASTER 만 호출 가능.
+ *
+ * <p>BE 응답: HTTP 204 No Content (body 없음). 사유는 본 슬라이스에서 미적재 —
+ * UX 검증 (사용자 사유 입력 UX) 만 frontend 측에서 강제. 추후 audit 로그 슬라이스에서
+ * 사유를 별도 endpoint 로 적재 예정.
+ *
+ * @return Promise<void>
+ */
+export async function disableAdminUser(id: string): Promise<void> {
+  await apiClient.post<void>(`/admin/users/${id}/disable`)
 }
 
-/** 사용자 잠금 해제 — `POST /admin/users/{id}/unlock`. MASTER 만 호출 가능. */
-export async function unlockAdminUser(id: string): Promise<AdminUser> {
-  const res = await apiClient.post<ApiEnvelope<AdminUser>>(
-    `/admin/users/${id}/unlock`,
-  )
-  return res.data.data
-}
-
-/** 사용자 재활성화 (terminationDate = null). MASTER 만 호출 가능. */
-export async function enableAdminUser(id: string): Promise<AdminUser> {
-  const res = await apiClient.patch<ApiEnvelope<AdminUser>>(
-    `/admin/users/${id}/enable`,
-  )
-  return res.data.data
+/**
+ * 사용자 잠금 해제 — `POST /admin/users/{id}/unlock`. MASTER 만 호출 가능.
+ *
+ * <p>BE 응답: HTTP 204 No Content (body 없음). 호출 후 query invalidate 로 목록 재조회.
+ *
+ * @return Promise<void>
+ */
+export async function unlockAdminUser(id: string): Promise<void> {
+  await apiClient.post<void>(`/admin/users/${id}/unlock`)
 }
 
 /** 역할 변경 요청 body — BE `UpdateRoleRequest` 와 1:1. */

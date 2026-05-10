@@ -56,7 +56,6 @@ import {
   ADMIN_ROLE_LABEL,
   createAdminUser,
   disableAdminUser,
-  enableAdminUser,
   listAdminRoles,
   listAdminUsers,
   listDepartments,
@@ -161,13 +160,6 @@ export function UsersPage() {
     queryFn: listDepartments,
   })
 
-  const enableMutation = useMutation({
-    mutationFn: enableAdminUser,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-    },
-  })
-
   const unlockMutation = useMutation({
     mutationFn: unlockAdminUser,
     onSuccess: () => {
@@ -259,7 +251,11 @@ export function UsersPage() {
             >
               이력
             </Button>
-            {/* 탈퇴 처리 — 활성 사용자에만 표시 */}
+            {/*
+             * 탈퇴 처리 (영구 Soft Delete) — 활성 사용자에만 표시.
+             * 잠긴/탈퇴 사용자 재활성화 endpoint 는 본 슬라이스 미지원
+             * (BE adminDisable 은 markDeleted — enable 호출로 복구 불가).
+             */}
             {!isLocked(u) ? (
               <Button
                 variant="ghost"
@@ -272,25 +268,12 @@ export function UsersPage() {
               >
                 탈퇴
               </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (window.confirm(`${u.fullName} 사용자를 재활성화합니다.`)) {
-                    enableMutation.mutate(u.id)
-                  }
-                }}
-              >
-                재활성화
-              </Button>
-            )}
+            ) : null}
           </div>
         ),
       },
     ],
-    [enableMutation, unlockMutation],
+    [unlockMutation],
   )
 
   const totalPages = usersQuery.data
@@ -600,7 +583,7 @@ function CreateUserModal({
       >
         <div style={formColStyle}>
           <p style={{ margin: 0, fontSize: 14 }}>
-            <strong>{result.user.fullName}</strong> ({result.user.loginId}) 계정이
+            <strong>{result.fullName}</strong> ({result.loginId}) 계정이
             생성되었습니다.
           </p>
           <div
@@ -1100,11 +1083,12 @@ function DisableUserModal({ user, onClose, onCommitted }: DisableUserModalProps)
   const [reason, setReason] = useState('')
 
   const reasonTrimmed = reason.trim()
+  // 사유 5자 이상 입력 UX 강제 — BE 가 사유를 적재하지는 않으나 (audit 슬라이스 backlog),
+  // 관리자가 신중히 입력하도록 클라이언트 측에서 가드.
   const reasonValid = reasonTrimmed.length >= 5
 
   const mutation = useMutation({
-    mutationFn: () =>
-      disableAdminUser(user.id, { reason: reasonTrimmed }),
+    mutationFn: () => disableAdminUser(user.id),
     onSuccess: () => onCommitted(),
   })
 
