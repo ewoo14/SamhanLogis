@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 본 컨트롤러는 3대 재무 보고서 URL 체계 (P0-1 Slice A) 와의 일관성을 위한 별칭이다.
  * 내부적으로 동일한 {@link TrialBalanceService} 를 재사용한다.
  *
- * <p>권한: ACCOUNTING / MANAGER / MASTER.
+ * <p>권한: ACCOUNTANT / MANAGER / MASTER.
  */
 @Tag(name = "재무 보고서", description = "손익계산서 / 재무상태표 / 시산표")
 @RestController
@@ -55,7 +55,7 @@ public class TrialBalanceReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "period 형식 오류")
     })
     @GetMapping("/trial-balance")
-    @PreAuthorize("hasAnyRole('ACCOUNTING','ACCOUNTANT','MANAGER','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<TrialBalanceResponse> trialBalance(
             @Parameter(description = "회계 월 (yyyyMM, 예: 202604)")
             @RequestParam String period) {

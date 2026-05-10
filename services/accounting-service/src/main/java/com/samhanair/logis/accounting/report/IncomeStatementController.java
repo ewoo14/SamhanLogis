@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 손익계산서 (Income Statement / P&L) REST endpoint.
  *
- * <p>권한: ACCOUNTING / MANAGER / MASTER (X-User-Role 헤더 기반 gateway 전파).
+ * <p>권한: ACCOUNTANT / MANAGER / MASTER (X-User-Role 헤더 기반 gateway 전파).
  *
  * <p>endpoint 목록:
  * <ul>
@@ -57,7 +57,7 @@ public class IncomeStatementController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/income-statement")
-    @PreAuthorize("hasAnyRole('ACCOUNTING','ACCOUNTANT','MANAGER','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<IncomeStatementResponse> incomeStatement(
             @Parameter(description = "단월 기간 (yyyyMM)")
             @RequestParam(required = false) String period,

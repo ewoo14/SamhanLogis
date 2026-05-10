@@ -29,7 +29,7 @@
  * - `/accounting/journals/:id`          분개 상세 + 확정/역분개
  * - `/accounting/balances`              시산표 (월별)
  *
- * P0-1 Slice A 신규 라우트 (ACCOUNTANT/MASTER 만 — RoleGuard):
+ * P0-1 Slice A 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard, BE @PreAuthorize 일치):
  * - `/accounting/reports`                    재무 보고서 목록 (3개 카드)
  * - `/accounting/reports/income-statement`   손익계산서 (월별)
  * - `/accounting/reports/balance-sheet`      재무상태표 (기준일)
@@ -178,8 +178,11 @@ function NextDaySlipPrintRoute() {
   return <NextDaySlipView pageBreakPerRoom={perRoom} />
 }
 
-/** 회계 권한 풀네임 화이트리스트 (feedback_role_naming_full.md). */
-const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MASTER'] as const
+/**
+ * 회계 권한 풀네임 화이트리스트 (feedback_role_naming_full.md).
+ * ACCOUNTANT / MANAGER / MASTER — BE @PreAuthorize 와 1:1 일치 (PR #134 BE+QA 결함 fix).
+ */
+const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
 /** 재고 실사 권한 — WAREHOUSE / MASTER (사용자 요구). */
 const AUDIT_ROLES = ['WAREHOUSE', 'MASTER'] as const

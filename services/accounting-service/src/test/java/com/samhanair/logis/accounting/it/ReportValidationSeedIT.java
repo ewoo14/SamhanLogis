@@ -3,6 +3,10 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
+import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.ProductClient;
+import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.repository.JournalRepository;
@@ -14,6 +18,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * P0-1 Slice A — 손익계산서 / 재무상태표 보고서 검증용 seed 분개 7건 정합성 IT.
@@ -27,9 +33,22 @@ import org.springframework.boot.test.context.SpringBootTest;
  *
  * <p>이중 가드: {@code AbstractPostgresIT} Testcontainers PostgreSQL + Flyway V1~V6 자동 적용.
  * Docker 미가용 환경에서는 {@link AbstractPostgresIT.DockerAvailableCondition} 이 skip 처리.
+ *
+ * <p>외부 client {@code @MockBean} 격리 ({@code feedback_it_mockbean_external_clients}) — Eureka
+ * 비활성 환경에서 외부 RestClient 초기화 실패로 인한 5xx 회피.
+ *
+ * <p>{@code @Transactional} 적용 — {@code journal.getLines()} 등 Lazy 컬렉션 호출 시
+ * Hibernate Session 이 유지되어 {@code LazyInitializationException} 을 방지한다.
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
+@Transactional
 class ReportValidationSeedIT extends AbstractPostgresIT {
+
+    /** 외부 client @MockBean 격리 (feedback_it_mockbean_external_clients 가드 준수). */
+    @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private ProductClient productClient;
+    @MockBean private PartnerLookupClient partnerLookupClient;
+    @MockBean private ChatRoomMappingClient chatRoomMappingClient;
 
     /**
      * V6 seed 분개 UUID — V6 SQL 에 하드코딩된 결정적 UUID 와 일치.

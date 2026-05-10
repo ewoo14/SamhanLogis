@@ -5,7 +5,7 @@
  * 합계 행 굵게, 음수 금액 빨강, 빈 카테고리 표시 안 함.
  * 인쇄 시 "(주)삼한공조시스템" 헤더 + 작성일 + 회계 기간 포함.
  *
- * 권한: ACCOUNTANT / MASTER 만 진입 (RoleGuard — AppRouter 에서 적용).
+ * 권한: ACCOUNTANT / MANAGER / MASTER 진입 (RoleGuard — AppRouter 에서 적용, BE @PreAuthorize 일치).
  *
  * UUID 비공개 가드: 화면에 UUID 일절 노출 안 함.
  * API: `GET /accounting/reports/income-statement?period=YYYYMM`

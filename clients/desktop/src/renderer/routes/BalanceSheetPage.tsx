@@ -6,7 +6,7 @@
  * `balanced=false` 시 상단 빨강 배너 표시.
  * 인쇄 시 "(주)삼한공조시스템" 헤더 + 기준일 포함.
  *
- * 권한: ACCOUNTANT / MASTER 만 진입 (RoleGuard — AppRouter 에서 적용).
+ * 권한: ACCOUNTANT / MANAGER / MASTER 진입 (RoleGuard — AppRouter 에서 적용, BE @PreAuthorize 일치).
  *
  * UUID 비공개 가드: 화면에 UUID 일절 노출 안 함.
  * API: `GET /accounting/reports/balance-sheet?asOfDate=YYYY-MM-DD`

@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 재무상태표 (Balance Sheet / B/S) REST endpoint.
  *
- * <p>권한: ACCOUNTING / MANAGER / MASTER (X-User-Role 헤더 기반 gateway 전파).
+ * <p>권한: ACCOUNTANT / MANAGER / MASTER (X-User-Role 헤더 기반 gateway 전파).
  *
  * <p>endpoint 목록:
  * <ul>
@@ -50,7 +50,7 @@ public class BalanceSheetController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "asOfDate 파라미터 오류")
     })
     @GetMapping("/balance-sheet")
-    @PreAuthorize("hasAnyRole('ACCOUNTING','ACCOUNTANT','MANAGER','MASTER')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<BalanceSheetResponse> balanceSheet(
             @Parameter(description = "기준 일자 (YYYY-MM-DD)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {

@@ -2,7 +2,7 @@
  * 재무 보고서 목록 화면 (`/accounting/reports`).
  *
  * 3대 재무 보고서 (손익계산서 / 재무상태표 / 시산표) 진입 카드 3개.
- * 권한: ACCOUNTANT / MASTER 만 진입 (RoleGuard — AppRouter 에서 적용).
+ * 권한: ACCOUNTANT / MANAGER / MASTER 진입 (RoleGuard — AppRouter 에서 적용, BE @PreAuthorize 일치).
  */
 import { useNavigate } from 'react-router-dom'
 import { Button, Card } from '@samhan/design-system'

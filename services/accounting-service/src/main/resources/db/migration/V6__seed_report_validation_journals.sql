@@ -35,8 +35,9 @@
 --   SEED-RPT-007  법인세비용     2026-12-31  법인세 분개
 
 ----------------------------------------------------------------------
--- 분개 UUID 결정 계산 기준 (UUID v3, namespace = nil UUID):
---   Python: uuid.uuid3(uuid.UUID(int=0), 'samhan-seed:journal-report:<no>')
+-- 분개 UUID — 결정적 하드코딩 (re-run 안전, Flyway ON CONFLICT IGNORE 패턴).
+--   Python uuid3 계산 결과가 아님 — JournalSeeder 결정 UUID 패턴과 동일하게
+--   고정 UUID 를 수동 지정하여 재실행 시 중복 insert 를 방지한다.
 --   SEED-RPT-001 = fd0a7b35-3f5a-3b2d-ab94-44f45d25c7f6
 --   SEED-RPT-002 = 9b9d37e4-7623-3e55-87a1-8fd4e3a06e70
 --   SEED-RPT-003 = 51e4a24e-cf18-3b54-a10b-a5e7b831f52d
@@ -44,9 +45,6 @@
 --   SEED-RPT-005 = 2a7f1c8b-5e3d-3c6a-b2f8-d9e4a1c7f3b0
 --   SEED-RPT-006 = c3d5e8a1-b4f2-3d7c-98e6-a2f9b0c4e7d3
 --   SEED-RPT-007 = 7f2e9c4b-d1a3-3e8f-b5c7-e0d6a4f2b9c8
---
--- 라인 UUID: uuid3(nil, 'samhan-seed:journal-line-report:<no>:<lineNo>')
--- journal_number_sequences: uuid3(nil, 'samhan-seed:jns-report:<YYYY-MM-DD>')
 ----------------------------------------------------------------------
 
 ----------------------------------------------------------------------
