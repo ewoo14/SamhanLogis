@@ -64,7 +64,11 @@ class AuthServiceTest {
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            mocked.when(() -> JwtTokenProvider.generate(anyString(), eq("MANAGER"), anyLong(), any(byte[].class)))
+            // Phase 12 인사 가드: 4-arg overload (departmentName claim) — nullable
+            mocked.when(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MANAGER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    anyLong(), any(byte[].class)))
                     .thenReturn("jwt-token");
 
             LoginResponse response = authService.login("alice", "password123");
