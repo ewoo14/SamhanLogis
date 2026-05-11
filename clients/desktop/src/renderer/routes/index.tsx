@@ -234,6 +234,8 @@ import { SalesClosingPage } from './SalesClosingPage'
 // 기존 SlipListPage 는 그대로 두고 별도 페이지로 운영.
 import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
+// [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
+import { ForbiddenPage } from './ForbiddenPage'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -765,6 +767,9 @@ const router = createHashRouter([
       // 기존 `/purchases` (SlipListPage) 와 별개 경로. 정적 path — `/purchases/:id` 보다 먼저 매칭됨.
       { path: '/purchases/query', element: <PurchaseQueryPage /> },
 
+      // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
+      { path: '/forbidden', element: <ForbiddenPage /> },
+
       // [P2-4] 매출 마감 — `/sales/closing` (ACCOUNTANT/MASTER 진입).
       // 일별/월별 toggle + 세금계산서 detail + CSV.
       // 매뉴얼 docs/manual/02-창고/04-매출-마감.md Stage 1 일치.
@@ -821,12 +826,15 @@ const router = createHashRouter([
         ),
       },
 
-      // [Phase 10 P0-5 / slice 4] 관리자 통합 admin — MASTER 전용 5 페이지.
-      // AdminLayout 자체에 RoleGuard(MASTER) 가 있으므로 outlet children 은 별도 가드 불필요.
+      // [Phase 10 P0-5 / slice 4] 관리자 통합 admin — MASTER 전용 (대표실 부서 추가 가드 포함).
+      // AdminLayout 자체에 RoleGuard(MASTER) + useQuery(is-executive-office) 이중 가드.
+      // outlet children 은 AdminLayout 이 통과한 후이므로 별도 가드 불필요.
       {
         path: '/admin',
         element: <AdminLayout />,
         children: [
+          // [PR-HR] 신규 인사 등록 — /admin/users/new (정적 path 우선 매칭).
+          { path: 'users/new', element: <AdminUsersPage /> },
           { path: 'users', element: <AdminUsersPage /> },
           { path: 'roles', element: <AdminRolesPage /> },
           { path: 'partners', element: <AdminPartnersPage /> },

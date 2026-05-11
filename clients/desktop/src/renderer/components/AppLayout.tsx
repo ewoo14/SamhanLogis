@@ -64,6 +64,52 @@ import {
 import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 
 /**
+ * 사이드바 NavLink disabled 래퍼.
+ *
+ * <p>show=true 시 일반 NavLink, false 시 회색 disabled 처리 + tooltip.
+ * pointer-events:none 은 CSS(.sidebar-disabled) 가 담당하고,
+ * onClick preventDefault 를 이중 방어로 적용한다.
+ *
+ * @param show - 권한 보유 여부 (false 시 disabled)
+ * @param requiredRole - tooltip 에 표시할 필요 ROLE 설명 (선택)
+ */
+function SidebarLink({
+  to,
+  show,
+  requiredRole,
+  'data-testid': testId,
+  style,
+  children,
+}: {
+  to: string
+  show: boolean
+  requiredRole?: string
+  'data-testid'?: string
+  style?: React.CSSProperties
+  children: React.ReactNode
+}) {
+  const disabledTitle = requiredRole
+    ? `권한이 없습니다 (필요 ROLE: ${requiredRole})`
+    : '권한이 없습니다'
+
+  return (
+    <NavLink
+      to={to}
+      data-testid={testId}
+      className={show ? undefined : 'sidebar-disabled'}
+      aria-disabled={show ? undefined : true}
+      title={show ? undefined : disabledTitle}
+      onClick={(e) => {
+        if (!show) e.preventDefault()
+      }}
+      style={style}
+    >
+      {children}
+    </NavLink>
+  )
+}
+
+/**
  * [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES / MANAGER / MASTER.
  * legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
  * BE Tesseract OCR endpoint 합류 시 정식 가드 export 로 교체. 영업 그룹 메뉴.
@@ -263,40 +309,40 @@ export function AppLayout() {
           <NavLink to="/sales/partner-orders">주문서 조회</NavLink>
           <NavLink to="/sales/order-approvals">주문서 승인</NavLink>
           <NavLink to="/sales/partner-dc-config">거래처 DC 설정</NavLink>
-          {showSlipCleanup ? (
-            <NavLink
-              to="/sales/slip-cleanup"
-              data-testid="sidebar-sales-slip-cleanup"
-            >
-              전표 정리
-            </NavLink>
-          ) : null}
-          {showNextDaySlip ? (
-            <NavLink
-              to="/sales/next-day-slip"
-              data-testid="sidebar-sales-next-day-slip"
-            >
-              내일자 전표 이미지
-            </NavLink>
-          ) : null}
+          <SidebarLink
+            to="/sales/slip-cleanup"
+            show={showSlipCleanup}
+            requiredRole="SALES / MANAGER / MASTER / ACCOUNTANT"
+            data-testid="sidebar-sales-slip-cleanup"
+          >
+            전표 정리
+          </SidebarLink>
+          <SidebarLink
+            to="/sales/next-day-slip"
+            show={showNextDaySlip}
+            requiredRole="SALES / MANAGER / MASTER"
+            data-testid="sidebar-sales-next-day-slip"
+          >
+            내일자 전표 이미지
+          </SidebarLink>
           {/* [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER. */}
-          {showVendorOrderOcr ? (
-            <NavLink
-              to="/sales/vendor-order-upload"
-              data-testid="sidebar-sales-vendor-order-upload"
-            >
-              vendor 발주 OCR
-            </NavLink>
-          ) : null}
+          <SidebarLink
+            to="/sales/vendor-order-upload"
+            show={showVendorOrderOcr}
+            requiredRole="SALES / MANAGER / MASTER"
+            data-testid="sidebar-sales-vendor-order-upload"
+          >
+            vendor 발주 OCR
+          </SidebarLink>
           {/* [Slice 2] 발송금지 거래처 — /admin/blocked-partners (기존 admin 라우트 병행 노출) — SALES/MANAGER/MASTER */}
-          {showBlockedPartners ? (
-            <NavLink
-              to="/admin/blocked-partners"
-              data-testid="sidebar-sales-blocked-partners"
-            >
-              발송금지 거래처
-            </NavLink>
-          ) : null}
+          <SidebarLink
+            to="/admin/blocked-partners"
+            show={showBlockedPartners}
+            requiredRole="SALES / MANAGER / MASTER"
+            data-testid="sidebar-sales-blocked-partners"
+          >
+            발송금지 거래처
+          </SidebarLink>
 
           {showAccounting ? (
             <>
@@ -491,74 +537,83 @@ export function AppLayout() {
               >
                 arologis
               </div>
-              {showArologisManual ? (
-                <NavLink to="/arologis/manual">수동 배차</NavLink>
-              ) : null}
-              {/* [Phase 10 PR-E1 FE-2] 가배차 분류 — MASTER/MANAGER/DISPATCH 가시. */}
-              {showArologisPreClassify ? (
-                <NavLink
-                  to="/arologis/pre-classify"
-                  data-testid="sidebar-arologis-preclassify"
-                >
-                  가배차 분류
-                </NavLink>
-              ) : null}
-              {/* [Phase 10 PR-E1 FE-3] 미배차 리스트 — MASTER/MANAGER/DISPATCH 가시. */}
-              {showArologisUnassigned ? (
-                <NavLink
-                  to="/arologis/unassigned"
-                  data-testid="sidebar-arologis-unassigned"
-                >
-                  미배차 리스트
-                </NavLink>
-              ) : null}
-              {/* [PR-E1 FE-6] 배차안내 SMS — DISPATCH/MANAGER/MASTER 가시. */}
-              {showDispatchSms ? (
-                <NavLink
-                  to="/arologis/dispatch-sms"
-                  data-testid="sidebar-arologis-dispatch-sms"
-                >
-                  배차안내 SMS
-                </NavLink>
-              ) : null}
-              {/* [PR-D Phase B FE-B] 가배차 지역 분류 — MASTER/MANAGER 가시 (현재 ARO_MANUAL_DISPATCH_ROLES 와 동일 집합). */}
-              {showArologisManual ? (
-                <NavLink to="/admin/regions" data-testid="sidebar-arologis-regions">
-                  지역 분류
-                </NavLink>
-              ) : null}
-              {/* [Slice 2] 지역 관리 — /admin/regions (기존 admin 라우트 병행 노출) — DISPATCH/MANAGER/MASTER */}
-              {showRegionMgmt ? (
-                <NavLink
-                  to="/admin/regions"
-                  data-testid="sidebar-arologis-region-mgmt"
-                >
-                  지역 관리
-                </NavLink>
-              ) : null}
+              <SidebarLink
+                to="/arologis/manual"
+                show={showArologisManual}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+              >
+                수동 배차
+              </SidebarLink>
+              {/* [Phase 10 PR-E1 FE-2] 가배차 분류 — MASTER/MANAGER/DISPATCH. */}
+              <SidebarLink
+                to="/arologis/pre-classify"
+                show={showArologisPreClassify}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-preclassify"
+              >
+                가배차 분류
+              </SidebarLink>
+              {/* [Phase 10 PR-E1 FE-3] 미배차 리스트 — MASTER/MANAGER/DISPATCH. */}
+              <SidebarLink
+                to="/arologis/unassigned"
+                show={showArologisUnassigned}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-unassigned"
+              >
+                미배차 리스트
+              </SidebarLink>
+              {/* [PR-E1 FE-6] 배차안내 SMS — DISPATCH/MANAGER/MASTER. */}
+              <SidebarLink
+                to="/arologis/dispatch-sms"
+                show={showDispatchSms}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-dispatch-sms"
+              >
+                배차안내 SMS
+              </SidebarLink>
+              {/* [PR-D Phase B FE-B] 가배차 지역 분류 — MASTER/MANAGER (ARO_MANUAL_DISPATCH_ROLES 집합). */}
+              <SidebarLink
+                to="/admin/regions"
+                show={showArologisManual}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-regions"
+              >
+                지역 분류
+              </SidebarLink>
+              {/* [Slice 2] 지역 관리 — /admin/regions 병행 노출 — DISPATCH/MANAGER/MASTER */}
+              <SidebarLink
+                to="/admin/regions"
+                show={showRegionMgmt}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-region-mgmt"
+              >
+                지역 관리
+              </SidebarLink>
               {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — DISPATCH / MANAGER / MASTER. */}
-              {showArologisAdmin ? (
-                <>
-                  <NavLink
-                    to="/arologis/admin/auto-dispatch"
-                    data-testid="sidebar-arologis-auto-dispatch"
-                  >
-                    자동 매칭
-                  </NavLink>
-                  <NavLink
-                    to="/arologis/admin/manual-dispatch"
-                    data-testid="sidebar-arologis-manual-dispatch-admin"
-                  >
-                    배차 관리
-                  </NavLink>
-                  <NavLink
-                    to="/arologis/admin/driver-assignment"
-                    data-testid="sidebar-arologis-driver-assignment"
-                  >
-                    기사 배정
-                  </NavLink>
-                </>
-              ) : null}
+              <SidebarLink
+                to="/arologis/admin/auto-dispatch"
+                show={showArologisAdmin}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-auto-dispatch"
+              >
+                자동 매칭
+              </SidebarLink>
+              <SidebarLink
+                to="/arologis/admin/manual-dispatch"
+                show={showArologisAdmin}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-manual-dispatch-admin"
+              >
+                배차 관리
+              </SidebarLink>
+              <SidebarLink
+                to="/arologis/admin/driver-assignment"
+                show={showArologisAdmin}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-driver-assignment"
+              >
+                기사 배정
+              </SidebarLink>
             </>
           ) : null}
 
@@ -580,125 +635,85 @@ export function AppLayout() {
                 창고 운영
               </div>
               {/* [P0-9] 입고 검수 — WAREHOUSE/MANAGER/MASTER. */}
-              {showInboundInspection ? (
-                <NavLink
-                  to="/warehouse/inbound-inspections"
-                  data-testid="sidebar-warehouse-inbound-inspections"
-                >
-                  입고 검수
-                </NavLink>
-              ) : null}
-              {showAudit ? (
-                <NavLink to="/warehouse/audit">재고 실사</NavLink>
-              ) : null}
-              {showDpsCompare ? (
-                <NavLink
-                  to="/warehouse/dps-compare"
-                  data-testid="sidebar-warehouse-dps-compare"
-                >
-                  DPS 입고 비교
-                </NavLink>
-              ) : null}
-              {/* [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE/MANAGER/MASTER 가시. */}
-              {showSlipEditRequests ? (
-                <NavLink
-                  to="/admin/slip-edit-requests"
-                  data-testid="sidebar-warehouse-slip-edit-requests"
-                >
-                  전표 수정 요청
-                </NavLink>
-              ) : null}
-              {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE 가시. 배지로 건수 표시. */}
-              {showSafetyStockAlerts ? (
-                <NavLink
-                  to="/inventory/safety-stock-alerts"
-                  data-testid="sidebar-warehouse-safety-stock-alerts"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  안전재고 알림
-                  {safetyStockCount > 0 ? (
-                    <span
-                      data-testid="sidebar-safety-stock-badge"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 18,
-                        height: 18,
-                        borderRadius: 9,
-                        background: 'var(--color-danger-500)',
-                        color: 'var(--color-neutral-0)',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '0 5px',
-                        lineHeight: 1,
-                      }}
-                    >
-                      {safetyStockCount}
-                    </span>
-                  ) : null}
-                </NavLink>
-              ) : null}
+              <SidebarLink
+                to="/warehouse/inbound-inspections"
+                show={showInboundInspection}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-warehouse-inbound-inspections"
+              >
+                입고 검수
+              </SidebarLink>
+              <SidebarLink
+                to="/warehouse/audit"
+                show={showAudit}
+                requiredRole="WAREHOUSE / MASTER"
+              >
+                재고 실사
+              </SidebarLink>
+              <SidebarLink
+                to="/warehouse/dps-compare"
+                show={showDpsCompare}
+                requiredRole="WAREHOUSE / MANAGER / MASTER / INVENTORY"
+                data-testid="sidebar-warehouse-dps-compare"
+              >
+                DPS 입고 비교
+              </SidebarLink>
+              {/* [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE/MANAGER/MASTER. */}
+              <SidebarLink
+                to="/admin/slip-edit-requests"
+                show={showSlipEditRequests}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-warehouse-slip-edit-requests"
+              >
+                전표 수정 요청
+              </SidebarLink>
+              {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. 배지로 건수 표시. */}
+              <SidebarLink
+                to="/inventory/safety-stock-alerts"
+                show={showSafetyStockAlerts}
+                requiredRole="MASTER / MANAGER / WAREHOUSE"
+                data-testid="sidebar-warehouse-safety-stock-alerts"
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                안전재고 알림
+                {showSafetyStockAlerts && safetyStockCount > 0 ? (
+                  <span
+                    data-testid="sidebar-safety-stock-badge"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      background: 'var(--color-danger-500)',
+                      color: 'var(--color-neutral-0)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '0 5px',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {safetyStockCount}
+                  </span>
+                ) : null}
+              </SidebarLink>
             </>
           ) : null}
 
           {showAdmin ? (
             <>
-              <div
-                className="app-sidebar-group"
-                aria-hidden="true"
-                style={{
-                  marginTop: 16,
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--color-neutral-400)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                관리자
-              </div>
-              <NavLink to="/admin/users" data-testid="sidebar-admin-users">
-                사용자
-              </NavLink>
-              <NavLink to="/admin/roles" data-testid="sidebar-admin-roles">
-                권한
-              </NavLink>
-              <NavLink
-                to="/admin/partners"
-                data-testid="sidebar-admin-partners"
-              >
-                거래처
-              </NavLink>
-              <NavLink
-                to="/admin/warehouses"
-                data-testid="sidebar-admin-warehouses"
-              >
-                창고
-              </NavLink>
-              <NavLink
-                to="/admin/departments"
-                data-testid="sidebar-admin-departments"
-              >
-                부서
-              </NavLink>
               {/*
-                [PR-D Phase B FE-D] MASTER 시점: 관리자 그룹 안에서 단톡방 매핑 노출.
-                MANAGER 시점은 아래 별도 분기 (showChatRoomAdmin && !showAdmin).
+                [PR-HR] MASTER 시점: 관리자 그룹은 인사 카테고리(AdminLayout)로 이전.
+                AppLayout 에서는 단축 링크(사용자/권한 조회)만 유지.
+                실제 인사 관리는 사이드바 최하단 "인사" 카테고리에서 접근.
               */}
-              <NavLink
-                to="/admin/chat-rooms"
-                data-testid="sidebar-admin-chat-rooms"
-              >
-                단톡방 매핑
-              </NavLink>
             </>
           ) : null}
 
           {/*
-            [PR-D Phase B FE-D] MANAGER 전용 — MASTER 가 아닌 MANAGER 가 관리자 그룹
-            전체를 못 보지만 단톡방 매핑은 BE 가 허용하므로 entry 만 단독 노출.
+            [PR-D Phase B FE-D] MANAGER 전용 — 단톡방 매핑 단독 노출.
+            MASTER 는 인사 카테고리 (AdminLayout 내) 에서 접근.
           */}
           {showChatRoomAdmin && !showAdmin ? (
             <>
@@ -717,16 +732,18 @@ export function AppLayout() {
               >
                 알림 매핑
               </div>
-              <NavLink
+              <SidebarLink
                 to="/admin/chat-rooms"
+                show={showChatRoomAdmin}
+                requiredRole="MASTER / MANAGER"
                 data-testid="sidebar-admin-chat-rooms"
               >
                 단톡방 매핑
-              </NavLink>
+              </SidebarLink>
             </>
           ) : null}
 
-          {/* [Slice 2] 메신저 카테고리 — 알리고 주소록 (MANAGER/MASTER). 기존 /admin/aligo-address-book 병행 노출. */}
+          {/* [Slice 2] 메신저 카테고리 — 알리고 주소록 (MANAGER/MASTER). */}
           {showAligoAddressBook ? (
             <>
               <div
@@ -744,16 +761,18 @@ export function AppLayout() {
               >
                 메신저
               </div>
-              <NavLink
+              <SidebarLink
                 to="/admin/aligo-address-book"
+                show={showAligoAddressBook}
+                requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-messenger-aligo-address-book"
               >
                 알리고 주소록
-              </NavLink>
+              </SidebarLink>
             </>
           ) : null}
 
-          {/* [Slice 2] 설정 카테고리 — 시트 동기화 (MANAGER/MASTER). 기존 /admin/sheet-sync 병행 노출. */}
+          {/* [Slice 2] 설정 카테고리 — 시트 동기화 (MANAGER/MASTER). */}
           {showSheetSync ? (
             <>
               <div
@@ -771,14 +790,49 @@ export function AppLayout() {
               >
                 설정
               </div>
-              <NavLink
+              <SidebarLink
                 to="/admin/sheet-sync"
+                show={showSheetSync}
+                requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-settings-sheet-sync"
               >
                 시트 동기화
-              </NavLink>
+              </SidebarLink>
             </>
           ) : null}
+
+          {/*
+            [PR-HR] 인사 카테고리 — 대표실 부서 + MASTER 만 접근 가능.
+            disabled 시 tooltip: "대표실 부서 권한자만 접근 가능".
+            활성 시 AdminLayout (/admin/users) 로 진입.
+          */}
+          <div
+            className="app-sidebar-group"
+            aria-hidden="true"
+            style={{
+              marginTop: 16,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--color-neutral-400)',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            인사
+          </div>
+          <NavLink
+            to="/admin/users"
+            data-testid="sidebar-hr-users"
+            className={showAdmin ? undefined : 'sidebar-disabled'}
+            aria-disabled={showAdmin ? undefined : true}
+            title={showAdmin ? undefined : '대표실 부서 권한자만 접근 가능'}
+            onClick={(e) => {
+              if (!showAdmin) e.preventDefault()
+            }}
+          >
+            인사 관리
+          </NavLink>
         </nav>
         <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
           v0.1.0 · 사내 전용

@@ -568,6 +568,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // GET /users/me/is-executive-office — 대표실 부서 소속 여부 판정.
+  // ?mockRole=MASTER + ?mockDepartment=대표실 시 isExecutiveOffice: true.
+  // MASTER 이하 또는 대표실 미소속 시 false.
+  // [PR-HR] AdminLayout 진입 가드용 mock.
+  if (method === 'GET' && url.includes('/users/me/is-executive-office')) {
+    const params =
+      typeof window !== 'undefined' && window.location
+        ? new URLSearchParams(window.location.search)
+        : new URLSearchParams()
+    const mockRole = params.get('mockRole') ?? MOCK_AUTH.role
+    const mockDept = params.get('mockDepartment') ?? ''
+    const isExecutiveOffice =
+      mockRole === 'MASTER' && (mockDept === '대표실' || mockDept === '')
+    return envelope({
+      isExecutiveOffice,
+      departmentName: isExecutiveOffice ? '대표실' : (mockDept || '영업1팀'),
+    })
+  }
+
   // GET /inventory/warehouses
   if (method === 'GET' && url.endsWith('/inventory/warehouses')) {
     return envelope(MOCK_WAREHOUSES)

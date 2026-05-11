@@ -404,3 +404,35 @@ export async function listAdminWarehouses(
 export function canAccessAdmin(role: string | undefined | null): boolean {
   return role === 'MASTER'
 }
+
+// ---------------------------------------------------------------------------
+// 인사 카테고리 — 대표실 부서 + MASTER 전용 진입 가드
+// ---------------------------------------------------------------------------
+
+/**
+ * BE `IsExecutiveOfficeResponse` 와 1:1.
+ *
+ * <p>user-service `GET /api/v1/users/me/is-executive-office` 응답.
+ * 대표실 부서 소속 여부 + 부서명 반환. MASTER 가드는 RoleGuard 가 처리하고,
+ * 본 endpoint 는 대표실 부서 소속 여부만 판정한다.
+ */
+export interface IsExecutiveOfficeResponse {
+  /** 대표실 부서 소속 + MASTER 조합인지 여부. */
+  isExecutiveOffice: boolean
+  /** 현재 사용자 부서명 (null 이면 부서 미배정). */
+  departmentName: string | null
+}
+
+/**
+ * 현재 로그인 사용자가 대표실 부서 + MASTER 인지 조회.
+ *
+ * BE endpoint: `GET /api/v1/users/me/is-executive-office`
+ *
+ * @return IsExecutiveOfficeResponse
+ */
+export async function fetchIsExecutiveOffice(): Promise<IsExecutiveOfficeResponse> {
+  const res = await apiClient.get<ApiEnvelope<IsExecutiveOfficeResponse>>(
+    '/users/me/is-executive-office',
+  )
+  return res.data.data
+}

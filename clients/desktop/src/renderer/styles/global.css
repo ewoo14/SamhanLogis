@@ -80,6 +80,26 @@ button {
   text-decoration: none;
 }
 
+/**
+ * 사이드바 disabled 항목 — 권한 없는 메뉴 회색 처리 (PR-HR 슬라이스).
+ *
+ * 기존 hide(none) 패턴을 visible + disabled 패턴으로 전환.
+ * pointer-events: none 으로 클릭 차단 + onClick preventDefault 이중 방어.
+ * aria-disabled="true" 스크린리더 접근성 보장.
+ */
+.sidebar-disabled {
+  color: var(--color-neutral-400, #94a3b8) !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  opacity: 0.5;
+  text-decoration: none !important;
+}
+
+.sidebar-disabled:hover {
+  background: transparent !important;
+  color: var(--color-neutral-400, #94a3b8) !important;
+}
+
 .app-main {
   padding: var(--space-6);
   overflow: auto;
