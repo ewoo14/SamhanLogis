@@ -223,6 +223,13 @@ import { KakaoAutoDispatchPage } from './KakaoAutoDispatchPage'
 import { ManualDispatchAdminPage } from './ManualDispatchAdminPage'
 import { DriverAssignmentPage } from './DriverAssignmentPage'
 import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
+// [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MASTER 진입, 역마감은 MASTER 만).
+// 매뉴얼 docs/manual/03-회계/04-월말-마감.md 와 Stage 1 일치.
+import { PeriodCloseListPage } from './PeriodCloseListPage'
+// [P2-4] 매출 마감 — `/sales/closing` (ACCOUNTANT/MASTER 진입, 역마감은 MASTER 만).
+// 일별/월별 toggle + 일별 세금계산서 detail + CSV 다운로드.
+// 매뉴얼 docs/manual/02-창고/04-매출-마감.md 와 Stage 1 일치.
+import { SalesClosingPage } from './SalesClosingPage'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -731,6 +738,30 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <MonthEndClosingPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MASTER 진입).
+      // 매뉴얼 docs/manual/03-회계/04-월말-마감.md Stage 1 일치.
+      {
+        path: '/accounting/period-close',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PeriodCloseListPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P2-4] 매출 마감 — `/sales/closing` (ACCOUNTANT/MASTER 진입).
+      // 일별/월별 toggle + 세금계산서 detail + CSV.
+      // 매뉴얼 docs/manual/02-창고/04-매출-마감.md Stage 1 일치.
+      // 정적 path 이므로 `/sales/:id` 보다 먼저 매칭됨 (react-router 정적 우선 규칙).
+      {
+        path: '/sales/closing',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <SalesClosingPage />
           </RoleGuard>
         ),
       },
