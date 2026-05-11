@@ -70,13 +70,17 @@ class HrAuthorizationIT extends AbstractPostgresIT {
      * TC-1 — 대표실 부서 소속 MASTER 는 /admin/users 목록 접근 허용.
      *
      * <p>{@code X-User-Department: 대표실} + {@code X-User-Role: MASTER} 헤더를 직접 주입하여
-     * gateway 경유 요청을 시뮬레이션. {@link HrAuthorizationHelper#isExecutiveOffice()} 가 true 반환.
+     * gateway 경유 요청을 시뮬레이션. {@link HeaderAuthenticationFilter} 가
+     * {@code X-User-Role: MASTER} 를 {@code ROLE_MASTER} GrantedAuthority 로 자동 변환하므로
+     * {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER')")} 가 정상 통과한다.
+     * {@link HrAuthorizationHelper#isExecutiveOffice()} 는 {@code X-User-Department: 대표실} 헤더를
+     * 읽어 {@code true} 반환 → 전체 가드 통과 → 200.
+     *
+     * <p>PR #160 회고: {@code HeaderAuthenticationFilter} 구조 확인(옵션 C) 결과
+     * {@code "ROLE_" + role} prefix 자동 부여 확인 — @Disabled 제거.
      */
     @Test
     @DisplayName("TC-1: 대표실+MASTER → /admin/users 200")
-    @org.junit.jupiter.api.Disabled(
-            "후속 슬라이스에서 SecurityContext ROLE_MASTER prefix 처리 / HeaderAuthFilter 통합 검증 보강 후 재활성. " +
-            "기능 검증은 TC-2/TC-3 (가드 거절 시나리오) 가 cover.")
     void tc1_executiveOfficeMaster_allowed() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
@@ -178,20 +182,27 @@ class HrAuthorizationIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     /**
-     * TC-5 — X-User-Department 헤더 미존재 MASTER → /admin/users 403.
+     * TC-5 — X-User-Department 헤더 미존재 MASTER → /admin/users legacy fallback 허용(200).
      *
-     * <p>구버전 JWT(departmentName claim 없음) 를 사용하는 클라이언트가
-     * 인사 카테고리에 접근하면 거절됨을 확인.
+     * <p>PR #160 정책: {@link HrAuthorizationHelper#isExecutiveOffice()} 는
+     * {@code X-User-Department} 헤더 부재 시 {@code X-User-Role=MASTER} 인 경우
+     * 임시 허용(legacy fallback) → 200 반환.
+     *
+     * <h3>향후 복원 지점</h3>
+     * 전체 활성 토큰이 {@code departmentName} JWT claim 을 포함하도록 재발급된 후
+     * (모든 사용자 재로그인 완료 기준) legacy fallback 을 {@link HrAuthorizationHelper} 에서
+     * 제거하고, 본 TC 의 expects 를 {@code status().isForbidden()} 으로 복원한다.
+     *
+     * @see HrAuthorizationHelper#isExecutiveOffice()
      */
     @Test
-    @DisplayName("TC-5: X-User-Department 헤더 없는 MASTER → /admin/users (legacy fallback)")
-    @org.junit.jupiter.api.Disabled(
-            "PR #160 회귀 가드 — HrAuthorizationHelper 가 X-User-Department 부재 시 X-User-Role MASTER/MANAGER 임시 허용. " +
-            "전체 사용자 재로그인 완료 후 fallback 제거 시점에 본 TC 를 expects(403) 으로 재활성.")
+    @DisplayName("TC-5: X-User-Department 헤더 없는 MASTER → /admin/users 200 (legacy fallback 정책)")
     void tc5_missingDepartmentHeader_forbidden() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
                         .header("X-User-Role", "MASTER"))
-                .andExpect(status().isForbidden());
+                // PR #160 legacy fallback 정책: X-User-Department 부재 + MASTER → 임시 허용
+                // TODO: 전체 사용자 재로그인 완료 후 → .andExpect(status().isForbidden()) 으로 복원
+                .andExpect(status().isOk());
     }
 }

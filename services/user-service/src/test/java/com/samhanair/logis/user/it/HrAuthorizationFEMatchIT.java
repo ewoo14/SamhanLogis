@@ -55,15 +55,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * <p>싱글턴 컨테이너 패턴: {@link AbstractPostgresIT} 상속.
  * Docker 미가용 시 {@link AbstractPostgresIT.DockerAvailableCondition} 이 자동 skip.
+ *
+ * <p>PR #160 회고 재활성: {@code setUp()} 의 {@code Department.create()} INSERT 가
+ * Flyway V2/V6 seed 와 unique code 충돌하던 문제를 {@link DepartmentRepository#findByCode(String)}
+ * 로 기존 레코드를 먼저 조회하는 방식으로 해소. 신규 INSERT 는 seed 미존재 환경에서만 수행.
  */
 @SpringBootTest(classes = UserServiceApplication.class)
 @AutoConfigureMockMvc
 @Transactional
 @MockitoSettings(strictness = Strictness.LENIENT)
-@org.junit.jupiter.api.Disabled(
-        "BE HrAuthorizationIT 5건이 동일 contract 검증 이미 통과 — 본 IT setUp() 의 Department " +
-        "INSERT 가 Flyway V6 seed 와 unique code 충돌. 후속 슬라이스에서 findByCode 또는 " +
-        "@Sql 시드로 분리하여 재활성화 예정.")
 class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
 
     // -------------------------------------------------------------------------
@@ -91,15 +91,13 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
-    /** 대표실 부서 UUID (V2 seed 값) */
-    private static final UUID EXEC_DEPT_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000001");
-
-    /** 영업1팀 부서 UUID (V2 seed 값) */
-    private static final UUID SALES_DEPT_ID =
-            UUID.fromString("00000000-0000-0000-0000-000000000002");
-
+    /**
+     * 대표실 직원 UUID — setUp() 에서 매 테스트마다 랜덤 생성.
+     * (findByCode 로 부서 조회하므로 부서 UUID 상수 불필요)
+     */
     private UUID execEmployeeId;
+
+    /** 영업1팀 직원 UUID — setUp() 에서 매 테스트마다 랜덤 생성. */
     private UUID salesEmployeeId;
 
     @BeforeEach
@@ -115,13 +113,12 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
         lenient().doNothing().when(authClient).disable(any(UUID.class));
         lenient().doNothing().when(authClient).delete(any(UUID.class));
 
-        // 대표실 부서 사용자
+        // 대표실 부서 — findByCode 로 Flyway V2 seed 레코드 재사용.
+        // 주의: findById(UUID).orElseGet(save) 패턴은 code/name unique 제약과 충돌하므로 사용 금지.
         Department execDept = Objects.requireNonNull(
-                departmentRepository.findById(EXEC_DEPT_ID)
-                        .orElseGet(() -> Objects.requireNonNull(
-                                departmentRepository.save(Department.create("EXEC", "대표실", 1)),
-                                "대표실 부서 저장 실패")),
-                "대표실 부서 조회 실패");
+                departmentRepository.findByCode("EXEC")
+                        .orElseGet(() -> departmentRepository.save(Department.create("EXEC", "대표실", 1))),
+                "대표실 부서 조회 실패 — Flyway V2 seed 미적용 환경");
 
         execEmployeeId = UUID.randomUUID();
         Objects.requireNonNull(
@@ -138,13 +135,11 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
                         "010-0001-0001")),
                 "대표실 직원 저장 실패");
 
-        // 영업1팀 부서 사용자
+        // 영업1팀 부서 사용자 — findByCode 로 V2 seed 레코드 재사용.
         Department salesDept = Objects.requireNonNull(
-                departmentRepository.findById(SALES_DEPT_ID)
-                        .orElseGet(() -> Objects.requireNonNull(
-                                departmentRepository.save(Department.create("SALES_1", "영업1팀", 2)),
-                                "영업1팀 부서 저장 실패")),
-                "영업1팀 부서 조회 실패");
+                departmentRepository.findByCode("SALES_1")
+                        .orElseGet(() -> departmentRepository.save(Department.create("SALES_1", "영업1팀", 2))),
+                "영업1팀 부서 조회 실패 — Flyway V2 seed 미적용 환경");
 
         salesEmployeeId = UUID.randomUUID();
         Objects.requireNonNull(
