@@ -3129,10 +3129,100 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
-  // 세금계산서 일괄발행 (홈택스 양식) — GAS 이식 슬라이스
+  // 홈택스 일괄 양식 — BE cleanup agent 신규 endpoint (/accounting/hometax-export/...)
   // ==========================================================================
 
-  // POST /accounting/tax-invoices/batch/preview — 미리보기 생성 (250건, splitFileCount=3)
+  // POST /accounting/hometax-export/preview — 미리보기 생성 (250건, splitFileCount=3)
+  if (method === 'POST' && url.includes('/accounting/hometax-export/preview')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      fromDate?: string
+      toDate?: string
+    }
+    return envelope({
+      batchNo: `BATCH-${Date.now().toString().slice(-8)}`,
+      batchId: '00000000-0000-0000-0000-batchmocknew1',
+      totalRowCount: MOCK_BATCH_ROWS.length,
+      splitFileCount: Math.ceil(MOCK_BATCH_ROWS.length / 100),
+      rows: MOCK_BATCH_ROWS,
+      exclusions: MOCK_BATCH_EXCLUSIONS.map((e) => e.partnerCode),
+      fromDate: body.fromDate ?? '2026-05-01',
+      toDate: body.toDate ?? '2026-05-31',
+    })
+  }
+
+  // GET /accounting/hometax-export/{batchId}/split — 분할 Excel blob (text/csv 시뮬레이션)
+  if (method === 'GET' && /\/accounting\/hometax-export\/[^/]+\/split/.test(url)) {
+    const fileIndex = Number((config.params?.['fileIndex'] as string | undefined) ?? '0')
+    const pageRows = MOCK_BATCH_ROWS.slice(fileIndex * 100, (fileIndex + 1) * 100)
+    const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
+    const csv = pageRows
+      .map((r) =>
+        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
+          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+      )
+      .join('\n')
+    return `${header}${csv}`
+  }
+
+  // GET /accounting/hometax-export/history/{batchId} — 단건 이력 (Tab 4 복원)
+  if (method === 'GET' && /\/accounting\/hometax-export\/history\/[^/]+$/.test(url)) {
+    return envelope({
+      batchNo: 'BATCH-20260501-001',
+      batchId: '00000000-0000-0000-0000-batch0000001',
+      totalRowCount: MOCK_BATCH_ROWS.length,
+      splitFileCount: Math.ceil(MOCK_BATCH_ROWS.length / 100),
+      rows: MOCK_BATCH_ROWS,
+      exclusions: MOCK_BATCH_EXCLUSIONS.map((e) => e.partnerCode),
+      fromDate: '2026-05-01',
+      toDate: '2026-05-15',
+    })
+  }
+
+  // GET /accounting/hometax-export/history — 이력 목록
+  if (method === 'GET' && url.includes('/accounting/hometax-export/history')) {
+    return envelope({
+      content: MOCK_BATCH_HISTORIES,
+      totalElements: MOCK_BATCH_HISTORIES.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+
+  // POST /accounting/hometax-export/exclusions — 제외 거래처 추가
+  if (method === 'POST' && url.includes('/accounting/hometax-export/exclusions')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      partnerCode?: string
+      partnerName?: string
+      reason?: string
+    }
+    return envelope({
+      partnerCode: body.partnerCode ?? 'P-NEW',
+      partnerName: body.partnerName ?? '신규 거래처',
+      reason: body.reason ?? '—',
+      createdAt: new Date().toISOString(),
+      createdBy: '오병승',
+    })
+  }
+
+  // DELETE /accounting/hometax-export/exclusions/{partnerCode}
+  if (method === 'DELETE' && url.includes('/accounting/hometax-export/exclusions/')) {
+    return envelope({ deleted: true })
+  }
+
+  // GET /accounting/hometax-export/exclusions — 제외 거래처 목록
+  if (method === 'GET' && url.includes('/accounting/hometax-export/exclusions')) {
+    return envelope(MOCK_BATCH_EXCLUSIONS)
+  }
+
+  // ==========================================================================
+  // 세금계산서 일괄발행 — 구 endpoint (Deprecation: true 반환, URL 호환 유지)
+  // ==========================================================================
+
+  // @deprecated — POST /accounting/tax-invoices/batch/preview
+  // HometaxExportPage 로 통합됨. /accounting/tax-invoices/batch route 는 Navigate redirect.
   if (method === 'POST' && url.includes('/accounting/tax-invoices/batch/preview')) {
     const body = (config.data ? JSON.parse(config.data as string) : {}) as {
       fromDate?: string
@@ -3150,7 +3240,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /accounting/tax-invoices/batch/{id}/excel — 간이 Excel blob (text/csv 시뮬레이션)
+  // @deprecated — GET /accounting/tax-invoices/batch/{id}/excel
   if (method === 'GET' && /\/accounting\/tax-invoices\/batch\/[^/]+\/excel/.test(url)) {
     const fileIndex = Number((config.params?.['fileIndex'] as string | undefined) ?? '0')
     const pageRows = MOCK_BATCH_ROWS.slice(fileIndex * 100, (fileIndex + 1) * 100)
@@ -3161,16 +3251,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
-    // Blob 은 브라우저 환경에서만 유효 — mock adapter 는 string 반환 후 client 가 Blob 처리
     return `${header}${csv}`
   }
 
-  // GET /accounting/tax-invoices/batch/exclusions — 제외 거래처 목록
+  // @deprecated — GET /accounting/tax-invoices/batch/exclusions
   if (method === 'GET' && url.includes('/accounting/tax-invoices/batch/exclusions')) {
     return envelope(MOCK_BATCH_EXCLUSIONS)
   }
 
-  // POST /accounting/tax-invoices/batch/exclusions — 제외 거래처 추가
+  // @deprecated — POST /accounting/tax-invoices/batch/exclusions
   if (method === 'POST' && url.includes('/accounting/tax-invoices/batch/exclusions')) {
     const body = (config.data ? JSON.parse(config.data as string) : {}) as {
       partnerCode?: string
@@ -3186,12 +3275,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
+  // @deprecated — DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
   if (method === 'DELETE' && url.includes('/accounting/tax-invoices/batch/exclusions/')) {
     return envelope({ deleted: true })
   }
 
-  // GET /accounting/tax-invoices/batch/history/{batchId} — 단건 이력 (Tab 4 복원)
+  // @deprecated — GET /accounting/tax-invoices/batch/history/{batchId}
   if (method === 'GET' && /\/accounting\/tax-invoices\/batch\/history\/[^/]+$/.test(url)) {
     return envelope({
       batchNo: 'BATCH-20260501-001',
@@ -3205,7 +3294,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /accounting/tax-invoices/batch/history — 이력 목록 10건
+  // @deprecated — GET /accounting/tax-invoices/batch/history
   if (method === 'GET' && url.includes('/accounting/tax-invoices/batch/history')) {
     return envelope({
       content: MOCK_BATCH_HISTORIES,

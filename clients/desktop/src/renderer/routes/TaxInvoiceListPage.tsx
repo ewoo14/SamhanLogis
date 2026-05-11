@@ -179,10 +179,10 @@ export function TaxInvoiceListPage() {
       >
         <h3 style={{ margin: 0 }}>세금계산서</h3>
         <div style={{ display: 'flex', gap: 8 }}>
-          {/* GAS 이식 — 일괄발행 4탭 페이지 진입 (ACCOUNTANT / MANAGER / MASTER). */}
+          {/* GAS 이식 — 홈택스 일괄 양식 5탭 페이지 진입 (ACCOUNTANT / MANAGER / MASTER). URL: /accounting/hometax-export */}
           <Button
             variant="secondary"
-            onClick={() => navigate('/accounting/tax-invoices/batch')}
+            onClick={() => navigate('/accounting/hometax-export')}
             data-testid="tax-invoice-batch-button"
           >
             일괄 발행 (홈택스 양식)
