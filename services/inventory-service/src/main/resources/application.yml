@@ -5,6 +5,11 @@ server:
 spring:
   application:
     name: inventory-service
+  servlet:
+    multipart:
+      # P1 검수 사진 첨부 — 단일 파일 ≤5MB (이미지 전용, PDF 제외)
+      max-file-size: 5MB
+      max-request-size: 6MB
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:inventory_db}
     username: ${DB_USER:samhan}
@@ -37,6 +42,16 @@ app:
     # dev profile + true 시에만 활성. CI/prod 기본 OFF (idempotent — 안전 재실행).
     # W10-5 회고 — env 변수 prefix 통일 (SAMHAN_INVENTORY_SEED_TEST_DATA 우선, INVENTORY_SEED_TEST_DATA legacy fallback).
     seed-test-data: ${SAMHAN_INVENTORY_SEED_TEST_DATA:${INVENTORY_SEED_TEST_DATA:false}}
+    # P1 검수 사진 첨부 — MinIO bucket `inspection-attachments`.
+    # default false → NoopInspectionAttachmentStorage fallback (CI / 단위 테스트 안전).
+    # DevOps 가 별도 dispatch 로 bucket 생성 후 활성화.
+    minio:
+      enabled: ${SAMHAN_INVENTORY_MINIO_ENABLED:false}
+      endpoint: ${SAMHAN_INVENTORY_MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${SAMHAN_INVENTORY_MINIO_ACCESS_KEY:samhan}
+      secret-key: ${SAMHAN_INVENTORY_MINIO_SECRET_KEY:samhan_dev_pw}
+      bucket: ${SAMHAN_INVENTORY_MINIO_BUCKET:inspection-attachments}
+      presigned-expiry-seconds: 3600
 
 management:
   endpoints:

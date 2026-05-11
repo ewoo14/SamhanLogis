@@ -116,6 +116,20 @@ public class SlipAttachmentService {
     }
 
     /**
+     * 슬립 + 첨부 유형 조합 목록 — 배송 사진(DELIVERY) 전용 조회 등에 사용.
+     *
+     * @param slipId         대상 Slip UUID
+     * @param attachmentType 첨부 유형 필터
+     * @return 해당 유형의 첨부 목록 (업로드 시각 오름차순)
+     */
+    @Transactional(readOnly = true)
+    public List<SlipAttachment> listByType(UUID slipId, SlipAttachmentType attachmentType) {
+        return attachmentRepository
+                .findBySlipIdAndAttachmentTypeAndIsDeletedFalseOrderByUploadedAtAsc(
+                        slipId, attachmentType);
+    }
+
+    /**
      * 다운로드 — presigned URL 신규 발급 + DB 캐시 갱신.
      */
     @Transactional

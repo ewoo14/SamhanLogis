@@ -11,6 +11,7 @@ package com.samhanair.logis.partner.domain;
  *   <li>{@link #BUSINESS_CARD} — 거래처 담당자 명함 이미지</li>
  *   <li>{@link #TAX_INVOICE} — 세금계산서 사본 (계산서 발행/수취 증빙)</li>
  *   <li>{@link #CONTRACT} — 거래/공급 계약서 PDF</li>
+ *   <li>{@link #VISIT_PHOTO} — 영업 방문 사진 (P1 — 영업 직원 거래처 방문 시 현장 촬영)</li>
  *   <li>{@link #OTHER} — 그 외 잡다 문서 (사용자가 분류 미정 시 fallback)</li>
  * </ul>
  *
@@ -22,5 +23,7 @@ public enum AttachmentType {
     BUSINESS_CARD,
     TAX_INVOICE,
     CONTRACT,
+    /** P1 — 영업 직원 거래처 방문 시 현장 촬영 사진. {@code /admin/partners/{partnerCode}/visit-attachments} 전용. */
+    VISIT_PHOTO,
     OTHER
 }

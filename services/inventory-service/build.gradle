@@ -41,6 +41,11 @@ dependencies {
     // springdoc-openapi — /v3/api-docs (JSON) + /swagger-ui.html (대화형 UI) 자동 노출
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
+    // MinIO (S3 호환) — 검수 사진 첨부 (inspection-attachments bucket) 객체 스토리지.
+    // app.inventory.minio.enabled=true 일 때만 활성화 (default false → NoopInspectionAttachmentStorage fallback).
+    // Phase 11 AWS 마이그레이션 시 endpoint/credentials 만 S3 값으로 교체.
+    implementation 'io.minio:minio:8.5.12'
+
     // Apache POI — DPS 입고 비교 endpoint 의 .xlsx parse + template 다운로드 (PR-E1 BE-2)
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
 

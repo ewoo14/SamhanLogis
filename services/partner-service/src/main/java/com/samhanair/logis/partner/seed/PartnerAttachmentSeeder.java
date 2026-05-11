@@ -140,6 +140,7 @@ public class PartnerAttachmentSeeder implements CommandLineRunner {
             case BUSINESS_CARD -> "담당자명함";
             case TAX_INVOICE -> "세금계산서";
             case CONTRACT -> "공급계약서";
+            case VISIT_PHOTO -> "방문사진";
             case OTHER -> "기타문서";
         };
         String ext = (type == AttachmentType.CONTRACT) ? ".pdf" : ".png";
@@ -152,6 +153,7 @@ public class PartnerAttachmentSeeder implements CommandLineRunner {
             case BUSINESS_CARD -> "[seed] 담당자 명함 placeholder";
             case TAX_INVOICE -> "[seed] 세금계산서 placeholder";
             case CONTRACT -> "[seed] 공급계약서 placeholder";
+            case VISIT_PHOTO -> "[seed] 영업 방문 사진 placeholder";
             case OTHER -> "[seed] 기타 문서 placeholder";
         };
     }
