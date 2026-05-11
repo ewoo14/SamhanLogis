@@ -249,13 +249,15 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
     @DisplayName("TC-5: printed flag — recordPrint() 호출 전 false / 후 true")
     void tc5_printedFlag() throws Exception {
         String slipId = createOutboundSlip(TODAY, "TC5거래처", null);
+        String slipNo = getSlipNo(slipId);
 
-        // recordPrint 호출 전 — printed=false
+        // recordPrint 호출 전 — printed=false (slipNo 검색으로 결정적 1행 조회)
         mockMvc.perform(get(QUERY_PATH)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                        .header(USER_ROLE_HEADER, MASTER_ROLE))
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("searchSlipNo", slipNo))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[?(@.slipNo =~ /.*/)][0].printed").exists());
+                .andExpect(jsonPath("$.data.content[0].printed", is(false)));
 
         // recordPrint() 도메인 메서드로 인쇄 시각 기록
         applyPrint(slipId);
@@ -264,7 +266,7 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
         mockMvc.perform(get(QUERY_PATH)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_ROLE_HEADER, MASTER_ROLE)
-                        .param("searchSlipNo", getSlipNo(slipId)))
+                        .param("searchSlipNo", slipNo))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].printed", is(true)));
     }
