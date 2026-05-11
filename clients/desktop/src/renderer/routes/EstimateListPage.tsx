@@ -202,7 +202,7 @@ export function EstimateListPage() {
           }}
           data-testid="estimate-list-filter"
         >
-          <label style={{ fontSize: 13, color: '#374151' }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
             상태
             <br />
             <select
@@ -214,7 +214,7 @@ export function EstimateListPage() {
                 height: 36,
                 padding: '0 8px',
                 borderRadius: 6,
-                border: '1px solid #D1D5DB',
+                border: '1px solid var(--color-neutral-300)',
                 fontSize: 13,
                 minWidth: 140,
               }}

@@ -445,7 +445,7 @@ export function EstimateFormPage() {
                 right: 0,
                 marginTop: 4,
                 background: '#fff',
-                border: '1px solid #D1D5DB',
+                border: '1px solid var(--color-neutral-300)',
                 borderRadius: 6,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                 zIndex: 10,
@@ -552,7 +552,7 @@ export function EstimateFormPage() {
               '32px 160px 1fr 100px 80px 130px 130px 36px',
             gap: 8,
             padding: '8px 0',
-            borderBottom: '2px solid #E5E7EB',
+            borderBottom: '2px solid var(--line-default)',
             fontSize: 12,
             color: '#6B7280',
             fontWeight: 600,
@@ -602,15 +602,15 @@ export function EstimateFormPage() {
                     width: '100%',
                     padding: '0 8px',
                     border: line.lookupError
-                      ? '1px solid #DC2626'
-                      : '1px solid #D1D5DB',
+                      ? '1px solid var(--state-danger)'
+                      : '1px solid var(--color-neutral-300)',
                     borderRadius: 4,
                     fontSize: 13,
                   }}
                   data-testid={`estimate-form-line-${i}-model`}
                 />
                 {line.lookupError ? (
-                  <div style={{ fontSize: 10, color: '#DC2626', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: 'var(--state-danger)', marginTop: 2 }}>
                     {line.lookupError}
                   </div>
                 ) : null}
@@ -626,7 +626,7 @@ export function EstimateFormPage() {
                 style={{
                   height: 32,
                   padding: '0 8px',
-                  border: '1px solid #D1D5DB',
+                  border: '1px solid var(--color-neutral-300)',
                   borderRadius: 4,
                   fontSize: 13,
                   background: line.productId ? '#F9FAFB' : '#fff',
@@ -643,7 +643,7 @@ export function EstimateFormPage() {
                 style={{
                   height: 32,
                   padding: '0 8px',
-                  border: '1px solid #D1D5DB',
+                  border: '1px solid var(--color-neutral-300)',
                   borderRadius: 4,
                   fontSize: 13,
                 }}
@@ -657,7 +657,7 @@ export function EstimateFormPage() {
                 style={{
                   height: 32,
                   padding: '0 8px',
-                  border: '1px solid #D1D5DB',
+                  border: '1px solid var(--color-neutral-300)',
                   borderRadius: 4,
                   fontSize: 13,
                   textAlign: 'right',
@@ -674,7 +674,7 @@ export function EstimateFormPage() {
                 style={{
                   height: 32,
                   padding: '0 8px',
-                  border: '1px solid #D1D5DB',
+                  border: '1px solid var(--color-neutral-300)',
                   borderRadius: 4,
                   fontSize: 13,
                   textAlign: 'right',
@@ -686,7 +686,7 @@ export function EstimateFormPage() {
                 style={{
                   textAlign: 'right',
                   fontSize: 13,
-                  color: '#374151',
+                  color: 'var(--ink-primary)',
                   fontVariantNumeric: 'tabular-nums',
                   background: '#F9FAFB',
                   padding: '8px',
@@ -703,10 +703,10 @@ export function EstimateFormPage() {
                 style={{
                   height: 32,
                   width: 32,
-                  border: '1px solid #D1D5DB',
+                  border: '1px solid var(--color-neutral-300)',
                   borderRadius: 4,
                   background: '#fff',
-                  color: '#DC2626',
+                  color: 'var(--state-danger)',
                   cursor: isReadOnly ? 'not-allowed' : 'pointer',
                 }}
               >
@@ -762,7 +762,7 @@ export function EstimateFormPage() {
         <div
           className="error-banner"
           role="alert"
-          style={{ marginTop: 16, padding: 12, color: '#DC2626' }}
+          style={{ marginTop: 16, padding: 12, color: 'var(--state-danger)' }}
         >
           {topError}
         </div>

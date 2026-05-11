@@ -365,13 +365,13 @@ export function EstimateDetailPage() {
                 ) : null}
               </div>
               {e.partnerAddress ? (
-                <div style={{ marginTop: 4, color: '#374151' }}>
+                <div style={{ marginTop: 4, color: 'var(--ink-primary)' }}>
                   <strong>주소</strong>: {e.partnerAddress}
                 </div>
               ) : null}
               {/* PR-H4c: 비고 audit overlay — 수정 가능 필드 */}
               <div
-                style={{ marginTop: 4, color: '#374151' }}
+                style={{ marginTop: 4, color: 'var(--ink-primary)' }}
                 data-testid="estimate-detail-audit-overlay-memo"
               >
                 <strong>비고</strong>:{' '}
@@ -450,7 +450,7 @@ export function EstimateDetailPage() {
             style={{
               marginBottom: 16,
               padding: '12px 16px',
-              background: '#FEF3C7',
+              background: 'var(--state-warning-bg)',
               border: '1px solid #FDE68A',
               borderRadius: 6,
               fontSize: 13,
@@ -459,7 +459,7 @@ export function EstimateDetailPage() {
               alignItems: 'center',
             }}
           >
-            <strong style={{ color: '#92400E' }}>슬립 변환 완료</strong>
+            <strong style={{ color: 'var(--state-warning)' }}>슬립 변환 완료</strong>
             <a
               href={`${window.location.origin}/#/sales/${e.convertedSlipId}`}
               target="_blank"
@@ -514,7 +514,7 @@ export function EstimateDetailPage() {
         <div
           className="error-banner"
           role="alert"
-          style={{ marginTop: 16, padding: 12, color: '#DC2626' }}
+          style={{ marginTop: 16, padding: 12, color: 'var(--state-danger)' }}
         >
           {topError}
         </div>

@@ -30,9 +30,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AuditOverlay,
+  Badge,
   Button,
   Card,
   DataTable,
+  Modal,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -99,7 +101,7 @@ const inputStyle: CSSProperties = {
   height: 32,
   padding: '0 8px',
   borderRadius: 6,
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-neutral-300)',
   fontSize: 13,
 }
 
@@ -107,8 +109,8 @@ const noticeStyle: CSSProperties = {
   margin: 0,
   padding: '8px 12px',
   borderRadius: 6,
-  background: '#FEF3C7',
-  color: '#92400E',
+  background: 'var(--state-warning-bg)',
+  color: 'var(--state-warning)',
   fontSize: 12,
   lineHeight: 1.5,
 }
@@ -124,6 +126,9 @@ export function PeriodCloseListPage() {
   const [periodDate, setPeriodDate] = useState<string>(today())
   const [description, setDescription] = useState<string>('')
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null)
+
+  /** 역마감 확인 Modal 상태 */
+  const [reverseConfirmRow, setReverseConfirmRow] = useState<AccountingPeriod | null>(null)
 
   usePageTitle('월말 마감')
 
@@ -192,14 +197,9 @@ export function PeriodCloseListPage() {
         header: '상태',
         width: '70px',
         render: (r) => (
-          <span
-            style={{
-              fontWeight: 600,
-              color: r.status === 'CLOSED' ? '#DC2626' : '#059669',
-            }}
-          >
+          <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
             {PERIOD_STATUS_LABEL[r.status]}
-          </span>
+          </Badge>
         ),
       },
       {
@@ -252,15 +252,7 @@ export function PeriodCloseListPage() {
               variant="ghost"
               size="sm"
               data-testid="period-close-reverse-button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `${r.periodDate.slice(0, 7)} 월말 마감을 역마감 처리합니다.\n역마감 후 슬립/분개 변경이 다시 허용됩니다. 진행하시겠습니까?`,
-                  )
-                ) {
-                  reverseMutation.mutate(r.id)
-                }
-              }}
+              onClick={() => setReverseConfirmRow(r)}
               disabled={reverseMutation.isPending}
             >
               역마감
@@ -306,7 +298,7 @@ export function PeriodCloseListPage() {
             marginTop: 12,
           }}
         >
-          <label style={{ fontSize: 13, color: '#374151' }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
             마감 월:&nbsp;
             <input
               type="month"
@@ -319,7 +311,7 @@ export function PeriodCloseListPage() {
             />
           </label>
 
-          <label style={{ fontSize: 13, color: '#374151', flexGrow: 1, minWidth: 200 }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)', flexGrow: 1, minWidth: 200 }}>
             메모(옵션):&nbsp;
             <input
               type="text"
@@ -345,20 +337,20 @@ export function PeriodCloseListPage() {
             href="#/accounting/balances"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ fontSize: 13, color: '#2563EB', textDecoration: 'underline' }}
+            style={{ fontSize: 13, color: 'var(--color-brand-600)', textDecoration: 'underline' }}
           >
             시산표 열기 ↗
           </a>
         </div>
 
         {!canExecute ? (
-          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#DC2626' }}>
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-danger)' }}>
             마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
           </p>
         ) : null}
 
         {closeMutation.isSuccess ? (
-          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#059669' }}>
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-success)' }}>
             마감이 완료되었습니다.
           </p>
         ) : null}
@@ -399,6 +391,49 @@ export function PeriodCloseListPage() {
           </div>
         )}
       </Card>
+
+      {/* 역마감 확인 Modal */}
+      <Modal
+        open={reverseConfirmRow !== null}
+        onClose={() => setReverseConfirmRow(null)}
+        title="역마감 확인"
+        size="sm"
+        closeOnBackdropClick={false}
+        footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setReverseConfirmRow(null)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="period-close-reverse-confirm-button"
+              disabled={reverseMutation.isPending}
+              onClick={() => {
+                if (reverseConfirmRow) {
+                  reverseMutation.mutate(reverseConfirmRow.id)
+                  setReverseConfirmRow(null)
+                }
+              }}
+            >
+              {reverseMutation.isPending ? '처리 중...' : '역마감'}
+            </Button>
+          </div>
+        }
+      >
+        {reverseConfirmRow ? (
+          <p style={{ margin: 0, fontSize: 14 }}>
+            <strong>{reverseConfirmRow.periodDate.slice(0, 7)}</strong> 월말 마감을 역마감
+            처리합니다.
+            <br />
+            역마감 후 슬립/분개 변경이 다시 허용됩니다. 진행하시겠습니까?
+          </p>
+        ) : null}
+      </Modal>
 
       {/* 감사 이력 패널 */}
       {selectedClosing ? (

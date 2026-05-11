@@ -29,9 +29,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AuditOverlay,
+  Badge,
   Button,
   Card,
   DataTable,
+  Modal,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -144,7 +146,7 @@ const inputStyle: CSSProperties = {
   height: 32,
   padding: '0 8px',
   borderRadius: 6,
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-neutral-300)',
   fontSize: 13,
 }
 
@@ -152,8 +154,8 @@ const noticeStyle: CSSProperties = {
   margin: 0,
   padding: '8px 12px',
   borderRadius: 6,
-  background: '#FEF3C7',
-  color: '#92400E',
+  background: 'var(--state-warning-bg)',
+  color: 'var(--state-warning)',
   fontSize: 12,
   lineHeight: 1.5,
 }
@@ -169,6 +171,9 @@ export function MonthEndClosingPage() {
   const [description, setDescription] = useState<string>('')
   // PR-H4c: row 클릭으로 audit overlay panel 표시.
   const [selectedClosingId, setSelectedClosingId] = useState<string | null>(null)
+
+  /** 역마감 확인 Modal 상태 */
+  const [reverseConfirmRow, setReverseConfirmRow] = useState<AccountingPeriod | null>(null)
 
   usePageTitle('매출 마감')
 
@@ -261,14 +266,9 @@ export function MonthEndClosingPage() {
         header: '상태',
         width: '70px',
         render: (r) => (
-          <span
-            style={{
-              fontWeight: 600,
-              color: r.status === 'CLOSED' ? '#DC2626' : '#059669',
-            }}
-          >
+          <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
             {PERIOD_STATUS_LABEL[r.status]}
-          </span>
+          </Badge>
         ),
       },
       {
@@ -321,15 +321,7 @@ export function MonthEndClosingPage() {
               variant="ghost"
               size="sm"
               data-testid="closing-reverse-button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `${PERIOD_TYPE_LABEL[r.periodType]} ${r.periodDate.slice(0, r.periodType === 'MONTHLY' ? 7 : 10)} 마감을 역마감 처리합니다.\n역마감 후 슬립/분개 변경이 다시 허용됩니다. 진행하시겠습니까?`,
-                  )
-                ) {
-                  reverseMutation.mutate(r.id)
-                }
-              }}
+              onClick={() => setReverseConfirmRow(r)}
               disabled={reverseMutation.isPending}
             >
               역마감
@@ -458,7 +450,7 @@ export function MonthEndClosingPage() {
           </div>
 
           {/* 기간 일자 input — 일별/월별 분기 */}
-          <label style={{ fontSize: 13, color: '#374151' }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
             기간 일자:&nbsp;
             {periodType === 'MONTHLY' ? (
               <input
@@ -481,7 +473,7 @@ export function MonthEndClosingPage() {
           </label>
 
           {/* 메모 (옵션) */}
-          <label style={{ fontSize: 13, color: '#374151', flexGrow: 1, minWidth: 200 }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)', flexGrow: 1, minWidth: 200 }}>
             메모(옵션):&nbsp;
             <input
               type="text"
@@ -511,7 +503,7 @@ export function MonthEndClosingPage() {
             rel="noopener noreferrer"
             style={{
               fontSize: 13,
-              color: '#2563EB',
+              color: 'var(--color-brand-600)',
               textDecoration: 'underline',
             }}
           >
@@ -520,13 +512,13 @@ export function MonthEndClosingPage() {
         </div>
 
         {!canExecute ? (
-          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#DC2626' }}>
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-danger)' }}>
             마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
           </p>
         ) : null}
 
         {closeMutation.isSuccess ? (
-          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#059669' }}>
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-success)' }}>
             마감이 완료되었습니다.
           </p>
         ) : null}
@@ -608,7 +600,7 @@ export function MonthEndClosingPage() {
                     gap: 24,
                     marginTop: 12,
                     paddingTop: 8,
-                    borderTop: '1px solid #E5E7EB',
+                    borderTop: '1px solid var(--line-default)',
                     fontSize: 13,
                     fontWeight: 600,
                   }}
@@ -659,6 +651,55 @@ export function MonthEndClosingPage() {
           </div>
         )}
       </Card>
+
+      {/* 역마감 확인 Modal */}
+      <Modal
+        open={reverseConfirmRow !== null}
+        onClose={() => setReverseConfirmRow(null)}
+        title="역마감 확인"
+        size="sm"
+        closeOnBackdropClick={false}
+        footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setReverseConfirmRow(null)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="closing-reverse-confirm-button"
+              disabled={reverseMutation.isPending}
+              onClick={() => {
+                if (reverseConfirmRow) {
+                  reverseMutation.mutate(reverseConfirmRow.id)
+                  setReverseConfirmRow(null)
+                }
+              }}
+            >
+              {reverseMutation.isPending ? '처리 중...' : '역마감'}
+            </Button>
+          </div>
+        }
+      >
+        {reverseConfirmRow ? (
+          <p style={{ margin: 0, fontSize: 14 }}>
+            <strong>
+              {PERIOD_TYPE_LABEL[reverseConfirmRow.periodType]}{' '}
+              {reverseConfirmRow.periodDate.slice(
+                0,
+                reverseConfirmRow.periodType === 'MONTHLY' ? 7 : 10,
+              )}
+            </strong>{' '}
+            마감을 역마감 처리합니다.
+            <br />
+            역마감 후 슬립/분개 변경이 다시 허용됩니다. 진행하시겠습니까?
+          </p>
+        ) : null}
+      </Modal>
 
       {/* PR-H4c: 선택 마감 audit overlay panel — SlipDetailPage 패턴 1:1 */}
       {selectedClosing ? (

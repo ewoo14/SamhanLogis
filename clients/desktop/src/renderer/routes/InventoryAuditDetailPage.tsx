@@ -359,14 +359,14 @@ function DetailGrid({ audit, auditByField }: DetailGridProps) {
 }
 
 const dtStyle: React.CSSProperties = {
-  color: '#6B7280',
+  color: 'var(--color-neutral-500)',
   fontWeight: 600,
   margin: 0,
 }
 
 const ddStyle: React.CSSProperties = {
   margin: 0,
-  color: '#111827',
+  color: 'var(--color-neutral-900)',
 }
 
 interface BarcodeInputProps {
@@ -571,7 +571,7 @@ function LinesTable({ audit }: LinesTableProps) {
 const inputStyle: React.CSSProperties = {
   height: 36,
   padding: '0 10px',
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-neutral-300)',
   borderRadius: 6,
   fontSize: 14,
   width: '100%',
