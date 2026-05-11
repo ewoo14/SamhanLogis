@@ -231,8 +231,11 @@ Write-Host ' 완료 — 모든 버킷 정상' -ForegroundColor Green
 Write-Host '==============================================================' -ForegroundColor Cyan
 Write-Host ''
 Write-Host ' 후속 가이드:' -ForegroundColor Cyan
-Write-Host '   - partner-service : SAMHAN_PARTNER_MINIO_ENABLED=true 설정 후 bootRun'
-Write-Host '   - slip-service    : SAMHAN_SLIP_MINIO_ENABLED=true 설정 후 bootRun (P1-8 활성 시)'
+Write-Host '   - partner-service   : SAMHAN_PARTNER_MINIO_ENABLED=true 설정 후 bootRun'
+Write-Host '   - slip-service      : SAMHAN_SLIP_MINIO_ENABLED=true 설정 후 bootRun (P1-8 활성 시)'
+Write-Host '   - inventory-service : SAMHAN_INVENTORY_MINIO_ENABLED=true 설정 후 bootRun (P1 검수 사진)'
+Write-Host '       SAMHAN_INVENTORY_MINIO_BUCKET=samhan-attachments  (단일 bucket 통합)'
+Write-Host '       SAMHAN_S3_PRESIGNED_EXPIRY=300'
 Write-Host '   - 공통 AttachmentService (P1-photo):'
 Write-Host '       SAMHAN_S3_ENDPOINT=http://localhost:9000'
 Write-Host '       SAMHAN_S3_ACCESS_KEY=samhan'
