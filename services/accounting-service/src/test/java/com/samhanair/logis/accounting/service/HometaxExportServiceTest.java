@@ -3,16 +3,22 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchExclusionRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
+import com.samhanair.logis.accounting.client.SlipQueryClient;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -26,21 +32,31 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * HometaxExportService 단위 테스트 — BE-A11.
+ * HometaxExportService 단위 테스트 — BE-A11 + PR #161 흡수 회귀 검증.
  *
- * <p>커버 시나리오 5건:
+ * <p>커버 시나리오 5건 (기존 legacy 단순 export 회귀):
  * <ul>
  *   <li>POI workbook 생성 — sheet 1장 + 헤더</li>
  *   <li>sheet 분할 — 100건 초과 시 sheet 2개</li>
  *   <li>100건 — 정확히 100 라인 = sheet 1장 + 100 row</li>
- *   <li>홈택스 표준 컬럼 — 12 컬럼 헤더 검증</li>
+ *   <li>홈택스 표준 컬럼 — HEADER_COLUMNS_LEGACY_12 (12 컬럼) 헤더 검증</li>
  *   <li>빈 결과 — 헤더만 sheet 1장</li>
  * </ul>
+ *
+ * <p>신규 의존성 (PR #161 흡수):
+ * {@link SupplierProfileRepository}, {@link TaxInvoiceBatchRepository},
+ * {@link TaxInvoiceBatchExclusionRepository}, {@link SlipQueryClient}, {@link ObjectMapper}
+ * 는 모두 {@code @Mock} 으로 격리. SupplierProfile 미설정(empty) 시 fallback 사용.
  */
 @ExtendWith(MockitoExtension.class)
 class HometaxExportServiceTest {
 
     @Mock private TaxInvoiceRepository taxInvoiceRepository;
+    @Mock private TaxInvoiceBatchRepository batchRepository;
+    @Mock private TaxInvoiceBatchExclusionRepository exclusionRepository;
+    @Mock private SupplierProfileRepository supplierProfileRepository;
+    @Mock private SlipQueryClient slipQueryClient;
+    @Mock private ObjectMapper objectMapper;
 
     @InjectMocks private HometaxExportService service;
 
@@ -48,8 +64,12 @@ class HometaxExportServiceTest {
     private static final LocalDate TO = LocalDate.of(2026, 5, 31);
 
     @Test
-    @DisplayName("POI workbook — sheet 1장 + 헤더 + 1 라인")
+    @DisplayName("POI workbook — sheet 1장 + 헤더 + 1 라인 (fallback supplierRegNo 사용)")
     void singleSheetWithOneLine() throws Exception {
+        // SupplierProfile 미설정 → fallback 사용
+        when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
+
         TaxInvoice ti = newIssued("TI-001", LocalDate.of(2026, 5, 10));
         addLine(ti, "에어컨", "20평형", new BigDecimal("1"), new BigDecimal("500000"));
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
@@ -62,12 +82,18 @@ class HometaxExportServiceTest {
             Sheet sheet = wb.getSheetAt(0);
             assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("작성일");
             assertThat(sheet.getRow(1).getCell(4).getStringCellValue()).isEqualTo("에어컨");
+            // fallback 공급자등록번호 적용 확인
+            assertThat(sheet.getRow(1).getCell(1).getStringCellValue())
+                    .isEqualTo(HometaxExportService.FALLBACK_REG_NO);
         }
     }
 
     @Test
     @DisplayName("sheet 분할 — 101 라인 입력 → sheet 2개 (100/1)")
     void sheetSplit() throws Exception {
+        when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
+
         // 1개 세금계산서에 101 라인
         TaxInvoice ti = newIssued("TI-BIG", LocalDate.of(2026, 5, 15));
         for (int i = 0; i < 101; i++) {
@@ -90,6 +116,9 @@ class HometaxExportServiceTest {
     @Test
     @DisplayName("100건 — sheet 1장 + lastRowNum 100 (헤더 + 100 row)")
     void exactly100Lines() throws Exception {
+        when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
+
         TaxInvoice ti = newIssued("TI-100", LocalDate.of(2026, 5, 20));
         for (int i = 0; i < 100; i++) {
             addLine(ti, "품목" + i, null, BigDecimal.ONE, new BigDecimal("100"));
@@ -106,8 +135,10 @@ class HometaxExportServiceTest {
     }
 
     @Test
-    @DisplayName("홈택스 표준 컬럼 — 12 컬럼 헤더 정확")
+    @DisplayName("홈택스 표준 컬럼 — HEADER_COLUMNS_LEGACY_12 (12 컬럼) 헤더 정확")
     void standardColumns() throws Exception {
+        when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
                 .thenReturn(List.of());
 
@@ -115,8 +146,7 @@ class HometaxExportServiceTest {
 
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Row header = wb.getSheetAt(0).getRow(0);
-            String[] expected = {"작성일", "공급자등록번호", "공급받는자등록번호", "공급받는자상호",
-                    "품목", "규격", "수량", "단가", "공급가액", "세액", "합계", "비고"};
+            String[] expected = HometaxExportService.HEADER_COLUMNS_LEGACY_12;
             for (int i = 0; i < expected.length; i++) {
                 assertThat(header.getCell(i).getStringCellValue()).isEqualTo(expected[i]);
             }
@@ -126,6 +156,8 @@ class HometaxExportServiceTest {
     @Test
     @DisplayName("빈 결과 — 헤더만 sheet 1장")
     void emptyResult() throws Exception {
+        when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
                 .thenReturn(List.of());
 
@@ -136,6 +168,10 @@ class HometaxExportServiceTest {
             assertThat(wb.getSheetAt(0).getLastRowNum()).isEqualTo(0); // 헤더만
         }
     }
+
+    // =========================================================================
+    // 보조 메서드
+    // =========================================================================
 
     private static TaxInvoice newIssued(String taxInvoiceNo, LocalDate supplyDate) {
         UUID partnerId = UUID.randomUUID();
