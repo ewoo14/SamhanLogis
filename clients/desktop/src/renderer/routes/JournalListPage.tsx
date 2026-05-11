@@ -155,7 +155,9 @@ export function JournalListPage() {
               ))}
             </select>
           </label>
-          {/* P1-6: 현재 상태 필터 + 당월 기준 export */}
+          {/* P1-6: 현재 상태 필터 + 당월 기준 export.
+              BE JournalController.exportXlsx(from, to, status) 가 from/to 를 필수로 받음
+              (TM PR #146 cross-check — period→from/to 변환). */}
           <Button
             variant="secondary"
             size="sm"
@@ -163,11 +165,17 @@ export function JournalListPage() {
             disabled={downloading}
             onClick={() => {
               const now = new Date()
-              const period = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+              const yyyy = now.getFullYear()
+              const mm = String(now.getMonth() + 1).padStart(2, '0')
+              const period = `${yyyy}${mm}`
+              const lastDay = String(
+                new Date(yyyy, now.getMonth() + 1, 0).getDate(),
+              ).padStart(2, '0')
               download(
                 () =>
                   exportJournals({
-                    period,
+                    from: `${yyyy}-${mm}-01`,
+                    to: `${yyyy}-${mm}-${lastDay}`,
                     status: statusFilter || undefined,
                   }),
                 makeExportFilename(`분개장_${period}`),

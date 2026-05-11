@@ -3,6 +3,16 @@
  *
  * onFetch 콜백에 mock CSV blob 을 반환하는 함수를 주입해
  * 실 BE 없이 파일 다운로드 시연.
+ *
+ * <h2>색상 확인 포인트</h2>
+ * <ul>
+ *   <li>테두리/텍스트: #107C41 (Excel brand green)</li>
+ *   <li>hover 배경: #E8F5E9</li>
+ *   <li>active 배경: #C8E6C9</li>
+ * </ul>
+ *
+ * <h2>data-testid 정책</h2>
+ * <p>페이지별 고유 testid 를 전달. 컴포넌트 기본값 없음 (E2E 격리).
  */
 import type { Meta, StoryObj } from '@storybook/react'
 import { ExcelDownloadButton } from './ExcelDownloadButton'
@@ -57,13 +67,10 @@ const meta: Meta<typeof ExcelDownloadButton> = {
     filename: '거래처목록_2026-05-11.xlsx',
   },
   argTypes: {
-    variant: {
-      control: 'select',
-      options: ['primary', 'secondary', 'ghost', 'danger'],
-    },
     size: {
       control: 'select',
       options: ['sm', 'md', 'lg'],
+      description: 'layout 크기. 색상은 항상 Excel brand green (#107C41) 고정.',
     },
     disabled: { control: 'boolean' },
   },
@@ -82,6 +89,7 @@ export const 거래처목록: Story = {
     onFetch: fetchPartners,
     filename: '거래처목록_2026-05-11.xlsx',
     children: 'Excel 다운로드',
+    'data-testid': 'partners-excel-export',
   },
 }
 
@@ -91,6 +99,7 @@ export const 전표목록: Story = {
     onFetch: fetchSlips,
     filename: '출고전표목록_2026-05-11.xlsx',
     children: 'Excel 다운로드',
+    'data-testid': 'slip-list-excel-export',
   },
 }
 
@@ -100,6 +109,7 @@ export const 분개장: Story = {
     onFetch: fetchJournals,
     filename: '분개장_202605.xlsx',
     children: 'Excel 다운로드',
+    'data-testid': 'journal-list-excel-export',
   },
 }
 
@@ -109,6 +119,7 @@ export const 재고현황: Story = {
     onFetch: fetchStocks,
     filename: '재고현황_2026-05-11.xlsx',
     children: 'Excel 다운로드',
+    'data-testid': 'transfer-list-stocks-excel-export',
   },
 }
 
@@ -119,41 +130,54 @@ export const 로딩중: Story = {
     filename: '거래처목록.xlsx',
     disabled: true,
     children: '다운로드 중…',
+    'data-testid': 'excel-loading-demo',
   },
 }
 
-/** secondary + sm (기본 스타일). */
-export const 기본스타일: Story = {
+/** sm (기본) 크기 — Excel brand green (#107C41) 확인. */
+export const 기본_SM: Story = {
   args: {
-    variant: 'secondary',
     size: 'sm',
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
+    'data-testid': 'excel-sm-demo',
   },
 }
 
-/** primary 강조 스타일. */
-export const 강조스타일: Story = {
+/** md 크기 — Excel brand green (#107C41) 확인. */
+export const 중간_MD: Story = {
   args: {
-    variant: 'primary',
     size: 'md',
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
     children: 'Excel 다운로드',
+    'data-testid': 'excel-md-demo',
   },
 }
 
-/** 4가지 variant 한 번에. */
-export const 전체Variant: Story = {
+/** lg 크기 — Excel brand green (#107C41) 확인. */
+export const 크게_LG: Story = {
+  args: {
+    size: 'lg',
+    onFetch: fetchPartners,
+    filename: '거래처목록.xlsx',
+    children: 'Excel 다운로드',
+    'data-testid': 'excel-lg-demo',
+  },
+}
+
+/** 3 size 한 번에 — 색상/레이아웃 일관성 확인. */
+export const 전체Size: Story = {
   render: (args) => (
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-      <ExcelDownloadButton {...args} variant="primary">primary</ExcelDownloadButton>
-      <ExcelDownloadButton {...args} variant="secondary">secondary</ExcelDownloadButton>
-      <ExcelDownloadButton {...args} variant="ghost">ghost</ExcelDownloadButton>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <ExcelDownloadButton {...args} size="sm">SM — Excel 다운로드</ExcelDownloadButton>
+      <ExcelDownloadButton {...args} size="md">MD — Excel 다운로드</ExcelDownloadButton>
+      <ExcelDownloadButton {...args} size="lg">LG — Excel 다운로드</ExcelDownloadButton>
     </div>
   ),
   args: {
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
+    'data-testid': 'excel-size-demo',
   },
 }

@@ -1,0 +1,85 @@
+/**
+ * ExcelDownloadButton — Excel brand green 전용 스타일.
+ *
+ * 디자이너 spec:
+ *   - 테두리/텍스트/아이콘 stroke: #107C41 (Microsoft Excel brand green)
+ *   - hover bg: #E8F5E9
+ *   - active bg: #C8E6C9
+ *   - disabled: opacity 0.55
+ *   - loading: cursor progress
+ *
+ * Button.module.css 의 size/layout 규칙(height, padding, font-size, gap 등)은
+ * 동일 CSS 변수를 사용해 일관성 유지.
+ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid #107C41;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+  background-color: transparent;
+  color: #107C41;
+  transition: background-color var(--duration-fast) ease,
+              border-color var(--duration-fast) ease,
+              color var(--duration-fast) ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #107C41;
+  outline-offset: 2px;
+}
+
+.btn:hover:not(:disabled) {
+  background-color: #E8F5E9;
+}
+
+.btn:active:not(:disabled) {
+  background-color: #C8E6C9;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.loading {
+  cursor: progress;
+}
+
+/* ---------- sizes (Button.module.css 와 동일 기준) ---------- */
+
+.size-sm {
+  height: 28px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.size-md {
+  height: 36px;
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-base);
+}
+
+.size-lg {
+  height: 44px;
+  padding: 0 var(--space-5);
+  font-size: var(--font-size-lg);
+}
+
+.spinner {
+  display: inline-flex;
+  align-items: center;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}

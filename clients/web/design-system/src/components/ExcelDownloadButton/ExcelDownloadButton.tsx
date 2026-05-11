@@ -8,6 +8,13 @@
  * <p>design-system 은 UI 라이브러리이므로 axios/fetch 직접 사용 금지.
  * 네트워크 호출 책임은 호출 측 (`onFetch`) 에게 위임한다.
  *
+ * <h2>디자이너 spec — Excel brand green</h2>
+ * <ul>
+ *   <li>테두리/텍스트/아이콘 stroke: {@code #107C41}</li>
+ *   <li>hover 배경: {@code #E8F5E9}</li>
+ *   <li>active 배경: {@code #C8E6C9}</li>
+ * </ul>
+ *
  * <p>동작 흐름:
  * <ol>
  *   <li>버튼 클릭 → loading 상태 진입 + 버튼 비활성화</li>
@@ -18,17 +25,21 @@
  *
  * <p>UUID 비공개 가드: 이 컴포넌트 자체는 어떤 식별자도 렌더링하지 않는다.
  *
+ * <p>data-testid 정책: 호출 측 페이지마다 고유 testid 를 전달 — E2E 격리를 위해
+ * 컴포넌트 레벨의 기본값을 두지 않는다 (design-system 가이드 §ExcelDownloadButton).
+ *
  * @example
  * ```tsx
  * <ExcelDownloadButton
  *   onFetch={() => exportPartners({ type: 'CUSTOMER' })}
  *   filename="거래처목록_2026-05-11.xlsx"
- *   data-testid="excel-export-button"
+ *   data-testid="partners-excel-export"
  * />
  * ```
  */
 import { useState, type ButtonHTMLAttributes } from 'react'
-import { Button } from '../Button/Button'
+import { Spinner } from '../Spinner/Spinner'
+import styles from './ExcelDownloadButton.module.css'
 
 // ---------------------------------------------------------------------------
 // 타입
@@ -48,12 +59,24 @@ export interface ExcelDownloadButtonProps
    * 미전달 시 `console.error` 만 실행.
    */
   onError?: (err: unknown) => void
-  /** 버튼 variant — 기본 'secondary'. */
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
-  /** 버튼 size — 기본 'sm'. */
+  /**
+   * 버튼 size — 기본 'sm'.
+   * layout 크기(height/padding/font-size)만 제어.
+   * 색상은 항상 Excel brand green (#107C41) 고정.
+   */
   size?: 'sm' | 'md' | 'lg'
   /** 버튼 라벨 — 기본 'Excel 다운로드'. */
   children?: React.ReactNode
+}
+
+// ---------------------------------------------------------------------------
+// size 클래스 매핑
+// ---------------------------------------------------------------------------
+
+const sizeClass: Record<'sm' | 'md' | 'lg', string> = {
+  sm: styles['size-sm']!,
+  md: styles['size-md']!,
+  lg: styles['size-lg']!,
 }
 
 // ---------------------------------------------------------------------------
@@ -61,19 +84,19 @@ export interface ExcelDownloadButtonProps
 // ---------------------------------------------------------------------------
 
 /**
- * Excel/CSV 파일을 blob 스트림으로 다운로드하는 범용 버튼.
+ * Excel/CSV 파일을 blob 스트림으로 다운로드하는 전용 버튼.
  *
- * <p>design-system 의 Button 을 래핑하므로 loading / disabled 시맨틱을
- * 그대로 제공한다.
+ * <p>테두리·텍스트·아이콘 stroke 는 Excel brand green (#107C41) 고정.
+ * hover 시 배경 #E8F5E9, active 시 #C8E6C9.
  */
 export function ExcelDownloadButton({
   onFetch,
   filename,
   onError,
-  variant = 'secondary',
   size = 'sm',
   children = 'Excel 다운로드',
   disabled,
+  className,
   ...rest
 }: ExcelDownloadButtonProps) {
   const [loading, setLoading] = useState(false)
@@ -94,17 +117,31 @@ export function ExcelDownloadButton({
     }
   }
 
+  const classes = [
+    styles['btn'],
+    sizeClass[size],
+    loading ? styles['loading'] : null,
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <Button
-      variant={variant}
-      size={size}
-      loading={loading}
+    <button
+      type="button"
+      className={classes}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       onClick={() => void handleClick()}
       {...rest}
     >
-      {children}
-    </Button>
+      {loading ? (
+        <span className={styles['spinner']} aria-hidden="true">
+          <Spinner size="sm" tone="currentColor" />
+        </span>
+      ) : null}
+      <span className={styles['label']}>{children}</span>
+    </button>
   )
 }
 

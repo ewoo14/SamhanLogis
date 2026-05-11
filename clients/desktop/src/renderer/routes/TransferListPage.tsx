@@ -6,9 +6,9 @@
  * UUID 비공개: transferNo / source code / destination code / status / 사유
  * 만 컬럼에 노출. id 는 navigate 의 path param 으로만 사용.
  *
- * <h2>P1-6 보강 — 재고 현황 Excel 다운로드</h2>
+ * <h2>P1-6 보강 — Excel 다운로드</h2>
  * <ul>
- *   <li>헤더 우측 "재고 현황 Excel" 버튼 — `GET /api/v1/inventory/stocks/export`</li>
+ *   <li>헤더 우측 "Excel 다운로드" 버튼 — `GET /api/v1/inventory/stocks/export`</li>
  *   <li>전 창고 현황 export (warehouseCode 미지정 → BE 가 전 창고 집계)</li>
  *   <li>data-testid: transfer-list-stocks-excel-export</li>
  * </ul>
@@ -19,6 +19,7 @@ import {
   Badge,
   Button,
   DataTable,
+  ExcelDownloadButton,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -31,7 +32,7 @@ import {
 import { useSessionStore, canCreateTransfer } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { exportStocks } from '../api/excelExportApi'
-import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { makeExportFilename } from '../hooks/useExcelDownload'
 
 const STATUS_VARIANT: Record<
   TransferStatus,
@@ -52,9 +53,6 @@ export function TransferListPage() {
   usePageTitle('재고이동')
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
-
-  // P1-6: 재고 현황 Excel export
-  const { downloading, download } = useExcelDownload()
 
   const query = useQuery({
     queryKey: ['transfers', 'list'],
@@ -107,21 +105,13 @@ export function TransferListPage() {
         <h3 style={{ margin: 0 }}>재고이동 목록</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* P1-6: 전 창고 재고 현황 export */}
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={downloading}
-            disabled={downloading}
-            onClick={() =>
-              download(
-                () => exportStocks(),
-                makeExportFilename('재고현황'),
-              )
-            }
+          <ExcelDownloadButton
+            onFetch={() => exportStocks()}
+            filename={makeExportFilename('재고현황')}
             data-testid="transfer-list-stocks-excel-export"
           >
-            재고 현황 Excel
-          </Button>
+            Excel 다운로드
+          </ExcelDownloadButton>
           {canCreateTransfer(role) ? (
             <Button variant="primary" onClick={() => navigate('/transfers/new')}>
               새 이동전표

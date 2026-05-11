@@ -182,7 +182,8 @@ export function PartnersPage() {
           >
             실시간 자동 갱신 · 30초
           </span>
-          {/* P1-6: Excel 다운로드 — 현재 필터 조건(type/status) 그대로 전달 */}
+          {/* P1-6: Excel 다운로드 — 현재 검색어(q) + 상태 필터 BE 시그니처와 일치
+              (BE PartnerAdminController.exportXlsx(q, status) 는 type 미지원 — TM PR #146 cross-check) */}
           <Button
             variant="secondary"
             size="sm"
@@ -192,7 +193,7 @@ export function PartnersPage() {
               download(
                 () =>
                   exportPartners({
-                    type: typeFilter || undefined,
+                    q: q.trim() || undefined,
                     status: statusFilter || undefined,
                   }),
                 makeExportFilename('거래처목록'),

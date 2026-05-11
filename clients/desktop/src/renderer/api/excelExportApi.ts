@@ -5,21 +5,23 @@
  * 모든 함수는 `responseType: 'blob'` 로 이진 스트림을 수신하며,
  * 호출 측 (ExcelDownloadButton) 이 triggerDownload 로 파일 저장을 수행한다.
  *
- * <p>endpoint 목록 (API Gateway → 각 마이크로서비스):
+ * <p>endpoint 목록 (API Gateway StripPrefix=2 → 각 마이크로서비스 controller path):
  * <ul>
- *   <li>GET /api/v1/partners/export?type&amp;status          → partner-service</li>
- *   <li>GET /api/v1/slips/export?fromDate&amp;toDate&amp;slipType → slip-service</li>
- *   <li>GET /api/v1/accounting/journals/export?period       → accounting-service</li>
- *   <li>GET /api/v1/inventory/stocks/export?warehouseCode   → inventory-service</li>
+ *   <li>GET /api/v1/partners/admin/partners/export.xlsx        → partner-service @RequestMapping("/admin/partners")</li>
+ *   <li>GET /api/v1/slips/slips/export.xlsx                    → slip-service @RequestMapping("/slips")</li>
+ *   <li>GET /api/v1/accounting/accounting/journals/export.xlsx → accounting-service @RequestMapping("/accounting/journals")</li>
+ *   <li>GET /api/v1/inventory/inventory/stocks/export.xlsx     → inventory-service @RequestMapping("/inventory") + @GetMapping("/stocks/export.xlsx")</li>
  * </ul>
  *
- * <p>UUID 비공개 가드: 쿼리 파라미터에 UUID 사용 금지.
- * warehouseId 대신 warehouseCode 사용 (inventory-service 가 code→id 내부 변환).
+ * <p>TM PR #146 cross-check fix — 본 4 endpoint 의 path / query param 을 BE controller 와 1:1 정렬.
+ *
+ * <p>UUID 비공개 가드 (memory feedback_uuid_no_user_visibility):
+ * 본 슬라이스 FE 사용처 (TransferListPage) 는 warehouseId 인자를 보내지 않으므로 (전 창고 export 만)
+ * BE 가 받는 UUID warehouseId 가 사용자 화면에 노출되지 않는다.
  *
  * <p>mock 모드 (VITE_MOCK_MODE=1): getMockExcelBlob() 로 CSV blob 반환.
  */
 import { apiClient } from './client'
-import type { PartnerType } from './partnerApi'
 import type { PartnerStatus } from './adminApi'
 import type { SlipType } from './slip'
 import type { JournalStatus } from '@samhan/design-system'
@@ -32,35 +34,61 @@ import {
 } from './excelExportMock'
 
 // ---------------------------------------------------------------------------
-// 파라미터 타입
+// 파라미터 타입 — BE controller 시그니처와 1:1
 // ---------------------------------------------------------------------------
 
-/** 거래처 목록 export 파라미터. */
+/**
+ * 거래처 목록 export 파라미터 — BE PartnerAdminController.exportXlsx(q, status).
+ *
+ * @property q       partnerCode/name/bizNo/phone LIKE 검색어 (BE PartnerRepository.searchAdmin)
+ * @property status  거래 상태 enum
+ */
 export interface PartnersExportParams {
-  type?: PartnerType
+  q?: string
   status?: PartnerStatus
 }
 
-/** 전표 목록 export 파라미터. */
+/**
+ * 전표 목록 export 파라미터 — BE SlipController.exportXlsx(slipType, status, from, to, partnerCode).
+ *
+ * @property slipType    OUTBOUND / INBOUND
+ * @property status      DRAFT / SAVED / SENT / ACCEPTED / ... / CONFIRMED / REJECTED / CANCELED
+ * @property from        전표일자 시작 (ISO yyyy-MM-dd)
+ * @property to          전표일자 종료 (ISO yyyy-MM-dd)
+ * @property partnerCode 거래처코드 정확 일치
+ */
 export interface SlipsExportParams {
-  fromDate?: string  // ISO yyyy-MM-dd
-  toDate?: string    // ISO yyyy-MM-dd
   slipType?: SlipType
+  status?: string
+  from?: string
+  to?: string
+  partnerCode?: string
 }
 
-/** 분개장 export 파라미터. */
+/**
+ * 분개장 export 파라미터 — BE JournalController.exportXlsx(from, to, status).
+ *
+ * <p>from/to 는 BE 가 필수로 받음 (@RequestParam without required=false). FE 호출 측에서 항상 전달.
+ *
+ * @property from   분개일자 시작 (ISO yyyy-MM-dd, 필수)
+ * @property to     분개일자 종료 (ISO yyyy-MM-dd, 필수)
+ * @property status DRAFT / POSTED / REVERSED (선택)
+ */
 export interface JournalsExportParams {
-  period?: string    // YYYYMM
+  from: string
+  to: string
   status?: JournalStatus
 }
 
-/** 재고 현황 export 파라미터. */
+/**
+ * 재고 현황 export 파라미터 — BE StockController.exportXlsx(warehouseId).
+ *
+ * <p>BE 는 UUID warehouseId 를 받지만, FE 사용처 (TransferListPage) 는 전 창고 export 만 수행하므로
+ * 본 슬라이스에서는 인자를 비워 호출 (UUID 노출 0). 향후 창고별 export 도입 시 별도 슬라이스에서
+ * BE 가 warehouseCode → id 변환 endpoint 를 추가하는 것이 바람직.
+ */
 export interface StocksExportParams {
-  /**
-   * 창고 코드 — UUID 대신 코드 사용 (UUID 비공개 가드).
-   * 미전달 시 전 창고.
-   */
-  warehouseCode?: string
+  warehouseId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -70,9 +98,9 @@ export interface StocksExportParams {
 /**
  * 거래처 목록 Excel export.
  *
- * `GET /api/v1/partners/export?type&status`
+ * `GET /api/v1/partners/admin/partners/export.xlsx?q&status`
  *
- * @param params 필터 조건 (type / status). 미전달 시 전체.
+ * @param params 필터 조건 (q / status). 미전달 시 전체.
  * @returns Excel Blob (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
  */
 export async function exportPartners(
@@ -81,69 +109,81 @@ export async function exportPartners(
   if (isMockMode()) {
     return csvBlob(MOCK_PARTNERS_EXPORT_CSV)
   }
-  const res = await apiClient.get<Blob>('/api/v1/partners/export', {
-    params,
-    responseType: 'blob',
-  })
+  const res = await apiClient.get<Blob>(
+    '/api/v1/partners/admin/partners/export.xlsx',
+    {
+      params,
+      responseType: 'blob',
+    },
+  )
   return res.data
 }
 
 /**
  * 전표 목록 Excel export.
  *
- * `GET /api/v1/slips/export?fromDate&toDate&slipType`
+ * `GET /api/v1/slips/slips/export.xlsx?slipType&status&from&to&partnerCode`
  *
- * @param params 날짜 범위 + slipType 필터.
+ * @param params 필터.
  * @returns Excel Blob
  */
 export async function exportSlips(params?: SlipsExportParams): Promise<Blob> {
   if (isMockMode()) {
     return csvBlob(MOCK_SLIPS_EXPORT_CSV)
   }
-  const res = await apiClient.get<Blob>('/api/v1/slips/export', {
-    params,
-    responseType: 'blob',
-  })
+  const res = await apiClient.get<Blob>(
+    '/api/v1/slips/slips/export.xlsx',
+    {
+      params,
+      responseType: 'blob',
+    },
+  )
   return res.data
 }
 
 /**
  * 분개장 Excel export.
  *
- * `GET /api/v1/accounting/journals/export?period`
+ * `GET /api/v1/accounting/accounting/journals/export.xlsx?from&to&status`
  *
- * @param params period (YYYYMM) + status 필터.
+ * @param params from/to (필수) + status 필터.
  * @returns Excel Blob
  */
 export async function exportJournals(
-  params?: JournalsExportParams,
+  params: JournalsExportParams,
 ): Promise<Blob> {
   if (isMockMode()) {
     return csvBlob(MOCK_JOURNALS_EXPORT_CSV)
   }
-  const res = await apiClient.get<Blob>('/api/v1/accounting/journals/export', {
-    params,
-    responseType: 'blob',
-  })
+  const res = await apiClient.get<Blob>(
+    '/api/v1/accounting/accounting/journals/export.xlsx',
+    {
+      params,
+      responseType: 'blob',
+    },
+  )
   return res.data
 }
 
 /**
  * 재고 현황 Excel export.
  *
- * `GET /api/v1/inventory/stocks/export?warehouseCode`
+ * `GET /api/v1/inventory/inventory/stocks/export.xlsx?warehouseId`
  *
- * @param params warehouseCode (UUID 비공개 가드 — code 전달).
+ * @param params warehouseId (선택, 미지정 시 전 창고).
  * @returns Excel Blob
  */
 export async function exportStocks(params?: StocksExportParams): Promise<Blob> {
   if (isMockMode()) {
     return csvBlob(MOCK_STOCKS_EXPORT_CSV)
   }
-  const res = await apiClient.get<Blob>('/api/v1/inventory/stocks/export', {
-    params,
-    responseType: 'blob',
-  })
+  const res = await apiClient.get<Blob>(
+    '/api/v1/inventory/inventory/stocks/export.xlsx',
+    {
+      params,
+      responseType: 'blob',
+    },
+  )
   return res.data
 }
 

@@ -162,7 +162,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* P1-6: 현재 mode 의 전표 전체를 당월 기준으로 export */}
+          {/* P1-6: 현재 mode 의 전표 전체를 당월 기준으로 export
+              BE SlipController.exportXlsx(slipType, status, from, to, partnerCode) 시그니처 정렬
+              — TM PR #146 cross-check (fromDate/toDate → from/to). */}
           <Button
             variant="secondary"
             size="sm"
@@ -176,8 +178,8 @@ export function SlipListPage({ mode }: SlipListPageProps) {
                 () =>
                   exportSlips({
                     slipType: mode,
-                    fromDate: `${yyyy}-${mm}-01`,
-                    toDate: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
+                    from: `${yyyy}-${mm}-01`,
+                    to: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
                   }),
                 makeExportFilename(isOutbound ? '출고전표목록' : '입고전표목록'),
               )

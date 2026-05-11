@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>복합 필터 (slipType / status / from / to / partnerCode) 로 조회한 전표 목록을
  * Apache POI 기반 .xlsx 바이트 배열로 변환.
  * UUID 비공개 가드 (memory feedback_uuid_no_user_visibility) — slipNo / partnerName 등
- * 비즈니스 식별자만 출력, partnerId / sourceWarehouseId 등 UUID 미포함.
+ * 비즈니스 식별자만 출력.
+ * requesterId / acceptedBy 는 내부 UUID 또는 내부 식별자이므로 Excel 컬럼에서 제외
+ * (QA BUG-2 fix — PR #146).
  *
  * <p>최대 10,000 행 제한.
  */
@@ -36,7 +38,10 @@ public class SlipExcelExportService {
 
     private final SlipService slipService;
 
-    /** Excel 컬럼 정의 — 한국어 헤더, UUID 미포함. */
+    /**
+     * Excel 컬럼 정의 — 한국어 헤더, UUID 미포함.
+     * requesterId / acceptedBy 컬럼 제외 (UUID 비공개 가드, QA BUG-2).
+     */
     private static final List<ExcelColumn> COLUMNS = List.of(
             ExcelColumn.text("전표번호",   "slipNo",      5_000),
             ExcelColumn.text("전표일자",   "slipDate",    4_000),
@@ -44,8 +49,6 @@ public class SlipExcelExportService {
             ExcelColumn.text("상태",       "status",      3_500),
             ExcelColumn.text("거래처명",   "partnerName", 8_000),
             ExcelColumn.text("배송태그",   "deliveryTag", 3_500),
-            ExcelColumn.text("요청자",     "requesterId", 4_000),
-            ExcelColumn.text("수락자",     "acceptedBy",  4_000),
             ExcelColumn.text("수락일시",   "acceptedAt",  5_000),
             ExcelColumn.text("완료일시",   "completedAt", 5_000),
             ExcelColumn.text("확정일시",   "confirmedAt", 5_000)
@@ -76,7 +79,11 @@ public class SlipExcelExportService {
         return ExcelExporter.export(req);
     }
 
-    /** SlipResponse → row Map 변환. UUID 필드 제외, 비즈니스 식별자만 포함. */
+    /**
+     * SlipResponse → row Map 변환.
+     * UUID 필드 및 내부 사용자 식별자 (requesterId / acceptedBy) 제외,
+     * 비즈니스 식별자만 포함 (QA BUG-2 fix).
+     */
     private static Map<String, Object> toRow(SlipResponse s) {
         Map<String, Object> row = new HashMap<>();
         row.put("slipNo",      s.slipNo());
@@ -85,8 +92,6 @@ public class SlipExcelExportService {
         row.put("status",      s.status() != null ? statusLabel(s.status()) : "");
         row.put("partnerName", nvl(s.partnerName()));
         row.put("deliveryTag", s.deliveryTag() != null ? s.deliveryTag().name() : "");
-        row.put("requesterId", nvl(s.requesterId()));
-        row.put("acceptedBy",  nvl(s.acceptedBy()));
         row.put("acceptedAt",  s.acceptedAt());
         row.put("completedAt", s.completedAt());
         row.put("confirmedAt", s.confirmedAt());
