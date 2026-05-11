@@ -424,6 +424,75 @@ public class Slip extends BaseEntity {
     @Column(name = "agree_term", length = 50)
     private String agreeTerm;
 
+    // ---------- V20 (feature/sales-purchase-query-redesign) — 판매/구매조회 컬럼 확장 ----------
+
+    /**
+     * 거래처 사업자등록번호 snapshot — V20 신규.
+     *
+     * <p>partner-service 의 사업자등록번호를 전표 생성/수정 시점에 snapshot. UUID 비공개 가드 의무 —
+     * partnerId(UUID) 대신 사용자 화면에 표시되는 사업자등록번호. 판매/구매조회 화면 "사업자등록번호" 컬럼.
+     *
+     * <p>채움 정책: 본 슬라이스는 컬럼 + 도메인 메서드만. 실 채움은 후속 슬라이스에서 partner-service
+     * Feign 조회 또는 backfill 작업. 기존 row 는 NULL 유지 (legacy 호환).
+     */
+    @Column(name = "business_number", length = 20)
+    private String businessNumber;
+
+    /**
+     * 배송주소 (실제 인수 현장) — V20 신규.
+     *
+     * <p>shippingAddress(거래처 사업장 주소, V16) 와 별도 — 거래처 본사와 납품 현장이 다른 경우.
+     * 판매/구매조회 화면의 배송지 컬럼에 사용.
+     */
+    @Column(name = "delivery_address", length = 500)
+    private String deliveryAddress;
+
+    /**
+     * 감리주소 (실제 설치/감리 현장) — V20 신규.
+     *
+     * <p>inspectionAddress(검수지, V16) 와 의미 구분 — inspectionAddress 는 검수자 사무소,
+     * supervisionAddress 는 실제 설치 및 감리가 이루어지는 현장 주소.
+     * 판매/구매조회 화면 "감리주소" 컬럼.
+     */
+    @Column(name = "supervision_address", length = 500)
+    private String supervisionAddress;
+
+    /**
+     * 프로젝트명 — V20 신규.
+     *
+     * <p>복수의 전표가 동일 프로젝트에 묶이는 경우 조회 · 집계 기준이 된다.
+     * 판매/구매조회 화면 "프로젝트명" 컬럼 + 검색 필터.
+     */
+    @Column(name = "project_name", length = 200)
+    private String projectName;
+
+    /**
+     * 인수자 번호 — V20 신규.
+     *
+     * <p>signerName(인수자명, V5) 과 별도 — 서명인 성명이 아닌 현장 담당자의 직접 연락처.
+     * 판매/구매조회 화면 "인수자번호" 컬럼.
+     */
+    @Column(name = "recipient_phone", length = 20)
+    private String recipientPhone;
+
+    /**
+     * 입금예정일 — V20 신규.
+     *
+     * <p>paymentDueLabel(자유 텍스트, V16) 과 별도의 정형 DATE 컬럼. 회계 기간 매칭 / 미수금 관리에 활용.
+     * 판매/구매조회 화면 "입금예정일" 컬럼.
+     */
+    @Column(name = "payment_due_date")
+    private LocalDate paymentDueDate;
+
+    /**
+     * 인쇄 시각 — V20 신규.
+     *
+     * <p>null = 미인쇄. {@link #recordPrint()} 도메인 메서드 호출 시 서버 timestamp 기록.
+     * 판매/구매조회 화면 "인쇄여부" 컬럼 ({@code printedAt != null → 인쇄됨}).
+     */
+    @Column(name = "printed_at")
+    private LocalDateTime printedAt;
+
     /**
      * 누적 수정 횟수 — PR-H2 V18 신규.
      *
@@ -1159,6 +1228,68 @@ public class Slip extends BaseEntity {
         if (agreeTerm != null) {
             this.agreeTerm = agreeTerm;
         }
+    }
+
+    // ---------- V20 도메인 메서드 — 판매/구매조회 확장 필드 ----------
+
+    /**
+     * 인쇄 시각 기록 — 서버 timestamp 를 {@link #printedAt} 에 기입한다.
+     *
+     * <p>최초 인쇄 시 호출. 재호출 시에도 timestamp 가 갱신되며, 판매/구매조회 화면의
+     * "인쇄여부" 컬럼은 {@code printedAt != null} 로 판단하므로 재인쇄는 이미 "인쇄됨" 상태.
+     *
+     * <p>라이프사이클 단계 가드 없음 — 어떤 단계에서도 인쇄 가능 (운영 정책).
+     */
+    public void recordPrint() {
+        this.printedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 프로젝트 관련 정보 일괄 적용 — 판매/구매조회 화면의 주요 신규 필드를 한 번에 설정한다.
+     *
+     * <p>null 인 인자는 기존 값 보존 (부분 갱신 패턴). 도메인 메서드를 통해서만 해당 필드를
+     * 수정하여 직접 setter 호출을 방지한다 (프로젝트 컨벤션).
+     *
+     * @param businessNumber 사업자등록번호 snapshot (null 이면 보존)
+     * @param deliveryAddress 배송주소 (null 이면 보존)
+     * @param supervisionAddress 감리주소 (null 이면 보존)
+     * @param projectName 프로젝트명 (null 이면 보존)
+     * @param recipientPhone 인수자 번호 (null 이면 보존)
+     * @param paymentDueDate 입금예정일 (null 이면 보존)
+     */
+    public void withProjectInfo(String businessNumber, String deliveryAddress,
+                                String supervisionAddress, String projectName,
+                                String recipientPhone, LocalDate paymentDueDate) {
+        if (businessNumber != null) {
+            this.businessNumber = businessNumber;
+        }
+        if (deliveryAddress != null) {
+            this.deliveryAddress = deliveryAddress;
+        }
+        if (supervisionAddress != null) {
+            this.supervisionAddress = supervisionAddress;
+        }
+        if (projectName != null) {
+            this.projectName = projectName;
+        }
+        if (recipientPhone != null) {
+            this.recipientPhone = recipientPhone;
+        }
+        if (paymentDueDate != null) {
+            this.paymentDueDate = paymentDueDate;
+        }
+    }
+
+    /**
+     * 사업자등록번호 snapshot 단독 갱신 — partner-service Feign lookup 결과 적용용.
+     *
+     * <p>partnerCode({@link #setPartnerCode}) 와 동일 패턴 — 후속 슬라이스에서 partner-service
+     * 연동 시 본 메서드로 개별 채움. 기존 {@link #withProjectInfo} 와 병행 사용 가능.
+     *
+     * @param businessNumber 사업자등록번호 문자열 (예: "123-45-67890")
+     */
+    public void setBusinessNumber(String businessNumber) {
+        this.businessNumber = businessNumber;
     }
 
     private static String generateShareToken() {
