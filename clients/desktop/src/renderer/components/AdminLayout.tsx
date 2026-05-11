@@ -10,12 +10,16 @@
  * - 거래처 (`/admin/partners`)
  * - 창고    (`/admin/warehouses`)
  * - 부서    (`/admin/departments`)
- * - 시트 동기화 (`/admin/sheet-sync`) — PR-D Phase B FE-A
- * - 지역 분류 (`/admin/regions`) — PR-D Phase B FE-B (MASTER/MANAGER, 본 entry 는 MASTER 만 가시)
- * - 발송금지 거래처 (`/admin/blocked-partners`) — PR-D Phase B FE-E (MASTER, 민감)
  * - 단톡방 매핑 (`/admin/chat-rooms`) — PR-D Phase B FE-D (MASTER/MANAGER, 본 entry 는 MASTER 만 가시)
  * - DC 설정 (`/sales/partner-dc-config`) — PR-D Phase B FE-C (MASTER 만 CSV 일괄 업로드)
- * - 알리고 주소록 (`/admin/aligo-address-book`) — PR-F1 Designer mock (MASTER, FE-1 BE 연결 예정)
+ *
+ * <h2>Slice 2 (PR #159) 마스터 메뉴 제거</h2>
+ * 다음 4건은 일반 카테고리 메뉴 (설정/arologis/영업/메신저) 로 단독 이동되어 admin 사이드바에서 제거.
+ * 라우트는 유지 (legacy 호환):
+ * - 시트 동기화 (`/admin/sheet-sync`) → 설정
+ * - 지역 분류 (`/admin/regions`) → arologis
+ * - 발송금지 거래처 (`/admin/blocked-partners`) → 영업
+ * - 알리고 주소록 (`/admin/aligo-address-book`) → 메신저
  *
  * memory feedback_uuid_no_user_visibility — admin 화면도 비즈니스 식별자만 노출.
  * memory feedback_role_naming_full — entry 라벨/가드 표기 풀네임 사용.
@@ -78,28 +82,6 @@ export function AdminLayout() {
           <AdminNav to="/admin/departments" testId="admin-nav-departments">
             부서
           </AdminNav>
-          <AdminNav to="/admin/sheet-sync" testId="admin-nav-sheet-sync">
-            시트 동기화
-          </AdminNav>
-          {/*
-            [PR-D Phase B FE-B] arologis 지역 분류 — 라우트 자체는 MASTER/MANAGER (DISPATCH backlog)
-            허용. AdminLayout 은 MASTER 전용이므로 본 entry 는 MASTER 시점에서만 노출되며,
-            MANAGER 는 직접 URL (/admin/regions) 또는 AppLayout 좌측 arologis 그룹으로 접근.
-          */}
-          <AdminNav to="/admin/regions" testId="admin-nav-regions">
-            지역 분류
-          </AdminNav>
-          {/*
-            [PR-D Phase B FE-E] 발송금지 거래처 — partner-service /api/v1/partners/admin/blocks.
-            BE 가 MASTER 강제 (delete/import) + read 도 MANAGER 까지지만 AdminLayout 자체가
-            MASTER 전용이므로 본 entry 는 MASTER 만 노출. UUID 비공개 (사용자 노출 = partnerCode + 상호).
-          */}
-          <AdminNav
-            to="/admin/blocked-partners"
-            testId="admin-nav-blocked-partners"
-          >
-            발송금지 거래처
-          </AdminNav>
           {/*
             [PR-D Phase B FE-D] 단톡방 매핑 — 라우트 자체는 MASTER/MANAGER 허용.
             AdminLayout 은 MASTER 전용이므로 본 entry 는 MASTER 시점만 노출되며,
@@ -120,16 +102,10 @@ export function AdminLayout() {
             DC 설정
           </AdminNav>
           {/*
-            [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용.
-            legacy GAS 9번 이식, 거래처 → 알리고 발송 vendor 주소록 sync.
-            BE FE-1 endpoint 연결 예정.
+            [Slice 2 단독 노출] GAS 이식 4건 — 시트 동기화 / 지역 분류 / 발송금지 거래처 / 알리고 주소록 —
+            은 마스터 사이드바에서 제거되고 일반 카테고리 (설정/arologis/영업/메신저) 메뉴로만 노출됩니다.
+            라우트 자체는 그대로 유지 (legacy 호환).
           */}
-          <AdminNav
-            to="/admin/aligo-address-book"
-            testId="admin-nav-aligo-address-book"
-          >
-            알리고 주소록
-          </AdminNav>
         </aside>
         <section className="admin-main">
           <Outlet />
