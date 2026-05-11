@@ -71,10 +71,6 @@ import org.springframework.transaction.annotation.Transactional;
 @MockitoSettings(strictness = Strictness.LENIENT)
 @Transactional
 @SuppressWarnings("null") // ECJ @NonNull unchecked conversion — Gradle/JUnit 런타임 무영향
-@org.junit.jupiter.api.Disabled(
-        "seedIssuedInvoices() 가 POST /accounting/tax-invoices 호출 시 buildInvoiceBody schema 와 " +
-        "기존 CreateTaxInvoiceRequest DTO 가 불일치하여 400. 후속 슬라이스에서 DTO 일치화 또는 " +
-        "/issue-request endpoint 사용으로 재활성. BE agent TaxInvoiceBatchIT TC-1/2/3/5/6 동일 시나리오 cover.")
 class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
@@ -335,7 +331,8 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
     /**
      * ISSUED 세금계산서 {@code count} 건을 MockMvc 로 seed.
      *
-     * <p>TaxInvoice create → issue 2단계 API 호출로 도메인 불변식 보장.
+     * <p>POST /accounting/tax-invoices/issue-request (P0-4 {@code TaxInvoiceCreateRequest} DTO)
+     * → issue 2단계 API 호출로 도메인 불변식 보장.
      * 각 계산서에 라인 1건 (운임료, 100,000원) 포함.
      *
      * @param count       생성할 계산서 수
@@ -345,8 +342,9 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
         for (int i = 0; i < count; i++) {
             try {
                 Map<String, Object> body = buildInvoiceBody(partnerCode, i);
+                // P0-4 endpoint 사용 (TaxInvoiceCreateRequest DTO schema 일치)
                 MvcResult createResult = mockMvc.perform(
-                                post("/accounting/tax-invoices")
+                                post("/accounting/tax-invoices/issue-request")
                                         .header("X-User-Id",   USER_ID)
                                         .header("X-User-Role", USER_ROLE)
                                         .contentType(MediaType.APPLICATION_JSON)
@@ -371,27 +369,33 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
     }
 
     /**
-     * 세금계산서 생성 요청 body 조립.
+     * 세금계산서 생성 요청 body 조립 — P0-4 {@code TaxInvoiceCreateRequest} schema.
      *
-     * @param partnerCode 거래처 코드 (partnerCode 필드 — 새 P0-4 DTO)
-     * @param seq         순번 (partnerCode 구분자로 활용)
+     * <p>POST /accounting/tax-invoices/issue-request 에 맞는 필드 구조:
+     * partnerId(UUID) / partnerCode / partnerName / partnerBusinessNumber / issueDate / lines.
+     *
+     * @param partnerCode 거래처 코드 (사용자 노출 식별자)
+     * @param seq         순번 (고유값 생성용)
      */
     private Map<String, Object> buildInvoiceBody(String partnerCode, int seq) {
+        // TaxInvoiceLineRequest: itemName / specification / quantity / unit / unitPrice
         Map<String, Object> line = new HashMap<>();
-        line.put("itemName",  "운임 기본료");
-        line.put("spec",      "kg");
-        line.put("quantity",  new BigDecimal("100"));
-        line.put("unitPrice", new BigDecimal("1000"));
-        line.put("memo",      "E2E-IT seq=" + seq);
+        line.put("itemName",       "운임 기본료");
+        line.put("specification",  "kg");
+        line.put("quantity",       new BigDecimal("100"));
+        line.put("unit",           "건");
+        line.put("unitPrice",      new BigDecimal("1000"));
 
         Map<String, Object> body = new HashMap<>();
-        body.put("partnerCode",       partnerCode);
-        body.put("partnerBusinessNo", "123-45-" + String.format("%05d", seq));
-        body.put("partnerName",       "QA 거래처 " + partnerCode);
-        body.put("partnerAddress",    "서울시 강남구 QA로 " + seq);
-        body.put("supplyDate",        FROM.plusDays(seq % 28).toString());
-        body.put("description",       "E2E-IT 세금계산서 " + seq);
-        body.put("lines",             List.of(line));
+        // partnerId: 랜덤 UUID (IT seed 전용 — partner-service @MockBean 격리)
+        body.put("partnerId",              UUID.randomUUID().toString());
+        body.put("partnerCode",            partnerCode);
+        body.put("partnerName",            "QA 거래처 " + partnerCode);
+        // partnerBusinessNumber: XXX-XX-XXXXX 형식
+        body.put("partnerBusinessNumber",  "123-45-" + String.format("%05d", seq % 100000));
+        body.put("issueDate",              FROM.plusDays(seq % 28).toString());
+        body.put("memo",                   "E2E-IT 세금계산서 seq=" + seq);
+        body.put("lines",                  List.of(line));
         return body;
     }
 

@@ -60,10 +60,6 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@org.junit.jupiter.api.Disabled(
-        "BE SupplierProfileControllerIT TC-SP-1/2/3/5/6 가 동일 contract 검증. " +
-        "본 IT 의 schema/PUT 흐름은 후속 슬라이스에서 @Sql 시드 분리 후 재활성. " +
-        "Playwright TC-SP 7건이 FE 흐름 cover.")
 class SupplierProfileFEMatchIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;

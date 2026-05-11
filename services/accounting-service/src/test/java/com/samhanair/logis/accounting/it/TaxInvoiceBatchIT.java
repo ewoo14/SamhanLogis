@@ -168,9 +168,6 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
 
     @Test
     @DisplayName("TC-4: GET /batch/{id}/excel — content-type=xlsx, body >= 1000 bytes")
-    @org.junit.jupiter.api.Disabled(
-            "후속 슬라이스에서 batchId=COMPLETED 상태 전이 + ExcelGenerator 통합 흐름 검증 시 재활성. " +
-            "TC-1/TC-2 가 service layer 변환 + 분할 검증 cover, FE Playwright TC-TIB-3 가 download blob 검증.")
     void tc4_excelDownload() throws Exception {
         // 10개 row 로 배치 저장
         List<HomtaxRow> rows = buildHomtaxRows(10);
