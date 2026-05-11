@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -149,6 +150,33 @@ public class SlipController {
             @Valid @RequestBody EditHeaderRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(slipService.editHeader(id, request, callerOrSystem(callerHeader)));
+    }
+
+    /**
+     * 전표 헤더 + V20 프로젝트 정보 통합 수정 — DRAFT/SAVED 단계만.
+     *
+     * <p>V20 신규 5 필드 (deliveryAddress / supervisionAddress / projectName / recipientPhone /
+     * paymentDueDate) 를 포함한 통합 수정 endpoint. null 필드는 보존 (부분 갱신).
+     * businessNumber 는 partnerId 로 partner-service Feign 자동 resolve (사용자 직접 입력 X).
+     *
+     * @return 200, SlipDetailResponse (V20 필드 포함)
+     */
+    @Operation(summary = "전표 V20 통합 수정",
+            description = "헤더 + V20 프로젝트 정보 (deliveryAddress/supervisionAddress/projectName/" +
+                    "recipientPhone/paymentDueDate) 통합 수정. DRAFT/SAVED 단계만. null 필드 보존.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "전표 미존재"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
+    })
+    @PatchMapping("/{id}/v20")
+    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    public ApiResponse<SlipDetailResponse> updateV20(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateSlipRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(slipService.updateSlip(id, request, callerOrSystem(callerHeader)));
     }
 
     /** 라인 추가 — DRAFT/SAVED 만. */

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -219,6 +220,23 @@ public class PartnerService {
             return Optional.of(candidates.get(0));
         }
         return Optional.empty();
+    }
+
+    /**
+     * partnerId (UUID) 로 거래처 단건 조회 — slip-service 전표 생성 시 사업자등록번호 snapshot 용.
+     *
+     * <p>본 메서드는 {@link PartnerInternalController} 의 {@code GET /api/v1/partners/internal/{id}/business-number}
+     * endpoint 에서 호출된다. 미존재 시 404 BusinessException 발생.
+     *
+     * @param id 거래처 UUID
+     * @return 조회된 Partner
+     * @throws BusinessException NOT_FOUND 거래처 미존재 시
+     */
+    @Transactional(readOnly = true)
+    public Partner findById(UUID id) {
+        return partnerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "해당 ID의 거래처를 찾을 수 없습니다: " + id));
     }
 
     /**

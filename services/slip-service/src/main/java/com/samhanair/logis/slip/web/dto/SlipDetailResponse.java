@@ -19,6 +19,17 @@ import java.util.UUID;
  * <p>Slice B (notification-slice-B): {@code driverName}, {@code driverPhone},
  * {@code deliveryBatchId} 3 필드 신규 노출. 링크발송 화면 / SlipForm / DispatchView 결재란
  * 용달기사 자동 표시에 사용.
+ *
+ * <p>V20 신규 7 필드 (판매/구매조회 화면 매칭):
+ * <ul>
+ *   <li>{@code businessNumber} — 사업자등록번호 snapshot (partner-service Feign 자동 resolve)</li>
+ *   <li>{@code deliveryAddress} — 배송주소 (실제 인수 현장)</li>
+ *   <li>{@code supervisionAddress} — 감리주소 (실제 설치 현장)</li>
+ *   <li>{@code projectName} — 프로젝트명</li>
+ *   <li>{@code recipientPhone} — 인수자 번호</li>
+ *   <li>{@code paymentDueDate} — 입금예정일</li>
+ *   <li>{@code printed} — 인쇄여부 (printedAt != null)</li>
+ * </ul>
  */
 public record SlipDetailResponse(
         UUID id,
@@ -46,6 +57,21 @@ public record SlipDetailResponse(
         String driverPhone,
         UUID deliveryBatchId,
         Long version,
+        // V20 신규 7 필드 — 판매/구매조회 화면 매칭
+        /** 사업자등록번호 snapshot (partner-service Feign 자동 resolve, 사용자 직접 입력 X). */
+        String businessNumber,
+        /** 배송주소 — 실제 인수 현장 주소. */
+        String deliveryAddress,
+        /** 감리주소 — 실제 설치 및 감리 현장 주소. */
+        String supervisionAddress,
+        /** 프로젝트명. */
+        String projectName,
+        /** 인수자 번호. */
+        String recipientPhone,
+        /** 입금예정일. */
+        LocalDate paymentDueDate,
+        /** 인쇄여부 — printedAt != null 이면 true. */
+        boolean printed,
         List<SlipLineResponse> lines) {
 
     public static SlipDetailResponse from(Slip slip) {
@@ -75,6 +101,14 @@ public record SlipDetailResponse(
                 slip.getDriverPhone(),
                 slip.getDeliveryBatchId(),
                 slip.getVersion(),
+                // V20 필드
+                slip.getBusinessNumber(),
+                slip.getDeliveryAddress(),
+                slip.getSupervisionAddress(),
+                slip.getProjectName(),
+                slip.getRecipientPhone(),
+                slip.getPaymentDueDate(),
+                slip.getPrintedAt() != null,
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
     }
 }

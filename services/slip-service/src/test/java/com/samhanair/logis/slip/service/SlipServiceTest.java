@@ -17,8 +17,10 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -51,6 +53,10 @@ class SlipServiceTest {
     @Mock private InventoryClient inventoryClient;
     /** PR-H2 — editHeader 가 audit overlay 호출. 본 테스트에서는 mock 격리 (audit 자체는 별도 단위 테스트). */
     @Mock private SlipAuditLogService auditLogService;
+    /** PR-H3 — 잠금 정책 가드. 본 테스트에서는 mock 격리. */
+    @Mock private SlipEditRequestService editRequestService;
+    /** V20 — partner-service businessNumber resolve. 본 테스트에서는 mock 격리 (empty 반환). */
+    @Mock private PartnerInternalClient partnerInternalClient;
 
     @InjectMocks private SlipService service;
 
@@ -94,6 +100,8 @@ class SlipServiceTest {
                 null, null,
                 // PR-G1 backlog #2 — V16 e-Count 12 컬럼 (모두 null 시 기본 분기)
                 null, null, null, null, null, null, null, null, null, null, null, null,
+                // V20 신규 5 필드 (모두 null)
+                null, null, null, null, null,
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
                         2, new BigDecimal("100.00"), null)));
 
@@ -118,6 +126,8 @@ class SlipServiceTest {
                 null, null,
                 // PR-G1 backlog #2 — V16 e-Count 12 컬럼 (null 기본 분기)
                 null, null, null, null, null, null, null, null, null, null, null, null,
+                // V20 신규 5 필드 (모두 null)
+                null, null, null, null, null,
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "p", null, null,
                         1, new BigDecimal("10.00"), null)));
 

@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.DeliveryTag;
@@ -19,6 +20,7 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
@@ -65,6 +67,11 @@ public class SlipService {
     private final SlipAuditLogService auditLogService;
     /** PR-H3 — 사용자 명시 잠금 정책 mutation 가드 + APPROVED 1회 소진. */
     private final SlipEditRequestService editRequestService;
+    /**
+     * V20 — partner-service Feign client. businessNumber snapshot 자동 resolve.
+     * Feign fail 시 graceful fallback (businessNumber=NULL 유지).
+     */
+    private final PartnerInternalClient partnerInternalClient;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -150,6 +157,18 @@ public class SlipService {
                 req.paymentDueLabel(), req.discountInfo(),
                 req.collectTerm(), req.agreeTerm());
 
+        // 8. V20 — 판매/구매조회 신규 5 필드 저장
+        // businessNumber: partnerId 가 있으면 partner-service Feign 자동 resolve.
+        //                 Feign fail 시 NULL 유지 (legacy 호환, 로그만).
+        String resolvedBusinessNumber = resolveBusinessNumber(req.partnerId());
+        slip.withProjectInfo(
+                resolvedBusinessNumber,
+                req.deliveryAddress(),
+                req.supervisionAddress(),
+                req.projectName(),
+                req.recipientPhone(),
+                req.paymentDueDate());
+
         Slip saved = slipRepository.save(slip);
         return SlipDetailResponse.from(saved);
     }
@@ -182,6 +201,47 @@ public class SlipService {
             auditLogService.recordOverlayPatch(id, actorId, actorName, null,
                     "memo", oldMemo, newMemo);
         }
+        return SlipDetailResponse.from(slip);
+    }
+
+    /**
+     * 전표 헤더 + V20 프로젝트 정보 통합 수정 — DRAFT/SAVED 단계만.
+     *
+     * <p>V20 신규 5 필드 (deliveryAddress / supervisionAddress / projectName / recipientPhone /
+     * paymentDueDate) 를 부분 갱신한다. null 이면 기존 값 보존.
+     *
+     * <p>partnerId 가 변경되거나 businessNumber 가 아직 null 인 경우, partner-service Feign 을 호출하여
+     * businessNumber 를 자동 resolve 하고 snapshot. Feign fail 시 기존 값 유지 (legacy 호환).
+     *
+     * @param id 전표 ID
+     * @param req 수정 요청 (null 필드는 보존)
+     * @param callerId 호출자 user-id
+     * @return 갱신된 상세 응답
+     * @throws BusinessException(NOT_FOUND) 전표 미발견
+     * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
+     */
+    public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId) {
+        Slip slip = loadOrThrow(id);
+        // 기존 헤더 필드 수정 (도메인 메서드 chain — Slip.editHeader)
+        applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
+                req.deliveryTag(), req.memo(), req.driverName(), req.driverPhone()));
+
+        // V20 5 필드 부분 갱신 (Slip.withProjectInfo — null 이면 기존 값 보존)
+        // businessNumber: partnerId 변경 시 새로 resolve. 기존 businessNumber 가 이미 있고
+        // partnerId 변경이 없으면 기존 값 유지 (불필요한 Feign 호출 회피).
+        UUID effectivePartnerId = req.partnerId() != null ? req.partnerId() : slip.getPartnerId();
+        String resolvedBusinessNumber = null;
+        if (effectivePartnerId != null && (slip.getBusinessNumber() == null || req.partnerId() != null)) {
+            resolvedBusinessNumber = resolveBusinessNumber(effectivePartnerId);
+        }
+        slip.withProjectInfo(
+                resolvedBusinessNumber,
+                req.deliveryAddress(),
+                req.supervisionAddress(),
+                req.projectName(),
+                req.recipientPhone(),
+                req.paymentDueDate());
+
         return SlipDetailResponse.from(slip);
     }
 
@@ -667,6 +727,22 @@ public class SlipService {
             slip.lock();
         }
         return targets.size();
+    }
+
+    /**
+     * partnerId → 사업자등록번호 resolve — partner-service Feign 호출.
+     *
+     * <p>Feign fail (5xx / 연결 실패 / 토큰 미설정) 시 null 반환 (legacy 호환, businessNumber NULL 유지).
+     * 정상 응답 시 사업자등록번호 문자열 반환.
+     *
+     * @param partnerId 거래처 UUID (null 이면 null 반환)
+     * @return 사업자등록번호 문자열, 실패 시 null
+     */
+    private String resolveBusinessNumber(UUID partnerId) {
+        if (partnerId == null) {
+            return null;
+        }
+        return partnerInternalClient.resolveBusinessNumber(partnerId).orElse(null);
     }
 
     private Slip loadOrThrow(UUID id) {

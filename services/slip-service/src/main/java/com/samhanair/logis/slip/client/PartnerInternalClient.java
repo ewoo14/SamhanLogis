@@ -79,6 +79,67 @@ public class PartnerInternalClient {
     }
 
     /**
+     * partnerId → businessRegistrationNo (사업자등록번호) resolve.
+     *
+     * <p>전표 생성/수정 시 partner-service {@code GET /internal/partners/{id}/business-number}
+     * 를 호출하여 사업자등록번호 snapshot 을 채운다.
+     *
+     * <p>오류 처리 (graceful fallback):
+     * <ul>
+     *   <li>토큰 미설정 → empty Optional + warn log.</li>
+     *   <li>404 (미존재) → empty Optional.</li>
+     *   <li>5xx / 연결 실패 → empty Optional + warn log (legacy 호환, businessNumber NULL 유지).</li>
+     * </ul>
+     *
+     * @param partnerId 거래처 UUID (Slip.partnerId)
+     * @return 사업자등록번호 문자열 Optional. 실패 시 empty.
+     */
+    public Optional<String> resolveBusinessNumber(UUID partnerId) {
+        if (partnerId == null) {
+            return Optional.empty();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("PartnerInternalClient.resolveBusinessNumber — internal.token 미설정, skipped (partnerId={})",
+                    partnerId);
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/partners/{id}/business-number", partnerId)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            JsonNode bizNoNode = data.get("businessRegistrationNo");
+            if (bizNoNode == null || bizNoNode.isNull() || bizNoNode.asText().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(bizNoNode.asText());
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().is5xxServerError()) {
+                log.warn("PartnerInternalClient.resolveBusinessNumber 5xx — partnerId={}, status={}",
+                        partnerId, ex.getStatusCode());
+            } else {
+                log.debug("PartnerInternalClient.resolveBusinessNumber 4xx — partnerId={}, status={}",
+                        partnerId, ex.getStatusCode());
+            }
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("PartnerInternalClient.resolveBusinessNumber 호출 실패 — partnerId={}, msg={}",
+                    partnerId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Phase 10 PR-G1 backlog #1 — partnerCode strict 검증 + 결과 분류.
      *
      * <p>{@link #resolvePartnerId} 와 달리 호출 결과를 4가지로 분류하여 호출자

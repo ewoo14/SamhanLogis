@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -34,6 +35,16 @@ import java.util.UUID;
  *
  * <p>본 12 필드는 publish 흐름 ({@code from-estimate} / {@code from-partner-order}) 과 동일하게
  * {@code Slip.applyEcountSchema} 로 직접 컬럼 저장.
+ *
+ * <p>V20 신규 5 필드 (판매/구매조회 화면 매칭용, 모두 nullable):
+ * <ul>
+ *   <li>{@code deliveryAddress} — 배송주소 (실제 인수 현장, max 500).</li>
+ *   <li>{@code supervisionAddress} — 감리주소 (실제 설치 현장, max 500).</li>
+ *   <li>{@code projectName} — 프로젝트명 (max 200).</li>
+ *   <li>{@code recipientPhone} — 인수자 번호 (max 20, 숫자·하이픈만 허용 패턴).</li>
+ *   <li>{@code paymentDueDate} — 입금예정일 (LocalDate).</li>
+ * </ul>
+ * {@code businessNumber} 는 partnerId 로 partner-service Feign 자동 resolve (사용자 입력 X).
  */
 public record CreateSlipRequest(
         @NotNull SlipType slipType,
@@ -59,6 +70,17 @@ public record CreateSlipRequest(
         @Size(max = 200) String discountInfo,
         @Size(max = 100) String collectTerm,
         @Size(max = 100) String agreeTerm,
+        // V20 신규 5 필드 — 판매/구매조회 화면 매칭 (사용자 직접 입력, 모두 nullable)
+        /** 배송주소 — 실제 인수 현장 주소 (shippingAddress 와 별도 의미). */
+        @Size(max = 500) String deliveryAddress,
+        /** 감리주소 — 실제 설치 및 감리가 이루어지는 현장 주소. */
+        @Size(max = 500) String supervisionAddress,
+        /** 프로젝트명 — 복수 전표를 동일 프로젝트로 묶기 위한 분류 키. */
+        @Size(max = 200) String projectName,
+        /** 인수자 번호 — 현장 담당자 직접 연락처 (숫자 및 하이픈만 허용). */
+        @Size(max = 20) @Pattern(regexp = "^[0-9-]*$", message = "인수자 번호는 숫자와 하이픈만 허용합니다") String recipientPhone,
+        /** 입금예정일 — 정형 DATE. 회계 기간 매칭 / 미수금 관리에 활용. */
+        LocalDate paymentDueDate,
         @NotEmpty @Valid List<SlipLineRequest> lines) {
 
     /**

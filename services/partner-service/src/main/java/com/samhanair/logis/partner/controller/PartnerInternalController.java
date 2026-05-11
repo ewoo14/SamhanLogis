@@ -1,11 +1,13 @@
 package com.samhanair.logis.partner.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.partner.dto.PartnerBusinessNumberResponse;
 import com.samhanair.logis.partner.dto.PartnerInternalResponse;
 import com.samhanair.logis.partner.service.PartnerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -113,5 +115,33 @@ public class PartnerInternalController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<PartnerInternalResponse> lookupByName(@RequestParam("name") String name) {
         return ApiResponse.ok(PartnerInternalResponse.from(partnerService.findByName(name)));
+    }
+
+    /**
+     * partnerId (UUID) 로 사업자등록번호 조회 — slip-service 전표 생성/수정 시 businessNumber snapshot 용.
+     *
+     * <p>slip-service 가 전표 생성 시 partnerId 가 있으면 본 endpoint 를 호출하여 사업자등록번호를
+     * snapshot. Feign fail (5xx / 연결 실패) 시 slip-service 는 businessNumber=NULL 로 유지.
+     *
+     * <p>URL: {@code GET /api/v1/partners/internal/{id}/business-number}
+     *
+     * <p>인증: X-Internal-Token 필수 (ROLE_MASTER 부여). 토큰 누락 시 403, 불일치 시 401.
+     *
+     * @param id 거래처 UUID (path variable)
+     * @return 200 + PartnerBusinessNumberResponse (partnerId / businessRegistrationNo / partnerName)
+     *         ; 미존재 시 404 NOT_FOUND ; 토큰 누락 시 403 ; 토큰 불일치 시 401
+     */
+    @Operation(summary = "partnerId 로 사업자등록번호 조회",
+            description = "slip-service 전표 생성/수정 시 businessNumber snapshot 용. X-Internal-Token 필수.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
+    })
+    @GetMapping("/{id}/business-number")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<PartnerBusinessNumberResponse> getBusinessNumber(@PathVariable UUID id) {
+        return ApiResponse.ok(PartnerBusinessNumberResponse.from(partnerService.findById(id)));
     }
 }
