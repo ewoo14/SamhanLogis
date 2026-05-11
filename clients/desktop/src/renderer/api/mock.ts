@@ -2324,6 +2324,76 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // 회계 — supplier-profiles (사업자 양식)
+  // ==========================================================================
+
+  /**
+   * 사업자 seed 1건 — (주)삼한공조시스템 기본 사업자.
+   * UUID 비공개 가드: id 는 내부 경로용. 화면은 businessNumber / companyName 표시.
+   */
+  const MOCK_SUPPLIER_PRIMARY = {
+    id: '00000000-0000-0000-0000-supplier0001',
+    businessNumber: '1112233333',
+    subBusinessNumber: null,
+    companyName: '(주)삼한공조시스템',
+    ceoName: '김미선',
+    address: '서울특별시 강남구 테헤란로 152, 10층',
+    businessType: '도소매',
+    businessItem: '냉난방 설비, 물류 운송',
+    email: 'accounting@samhan-air.com',
+    isPrimary: true,
+    createdAt: '2026-01-01T00:00:00+09:00',
+    updatedAt: '2026-01-01T00:00:00+09:00',
+  }
+
+  // GET /accounting/supplier-profiles/primary → seed 기본 사업자
+  if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/primary')) {
+    return envelope(MOCK_SUPPLIER_PRIMARY)
+  }
+
+  // GET /accounting/supplier-profiles → seed 목록 (1건)
+  if (method === 'GET' && url.endsWith('/accounting/supplier-profiles')) {
+    return envelope([MOCK_SUPPLIER_PRIMARY])
+  }
+
+  // POST /accounting/supplier-profiles → 신규 등록 echo
+  if (method === 'POST' && url.endsWith('/accounting/supplier-profiles')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    return envelope({
+      ...MOCK_SUPPLIER_PRIMARY,
+      ...body,
+      id: `00000000-0000-0000-0000-supplier${Date.now()}`,
+      isPrimary: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  // PUT /accounting/supplier-profiles/{id} → echo 수정
+  const supplierPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
+  if (method === 'PUT' && supplierPutMatch) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    return envelope({
+      ...MOCK_SUPPLIER_PRIMARY,
+      ...body,
+      id: supplierPutMatch[1]!,
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  // POST /accounting/supplier-profiles/{id}/mark-primary → echo
+  const supplierMarkPrimaryMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/mark-primary$/)
+  if (method === 'POST' && supplierMarkPrimaryMatch) {
+    return envelope({ ...MOCK_SUPPLIER_PRIMARY, isPrimary: true, id: supplierMarkPrimaryMatch[1]! })
+  }
+
+  // DELETE /accounting/supplier-profiles/{id} → 204 no content
+  const supplierDeleteMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
+  if (method === 'DELETE' && supplierDeleteMatch) {
+    return null // 204 no content — axios adapter 는 null 을 정상 처리
+  }
+
+  // ==========================================================================
   // 회계 — tax-invoices / closing / partner-ledger / statement-batch / hometax-export
   // ==========================================================================
 

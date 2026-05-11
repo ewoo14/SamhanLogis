@@ -484,6 +484,13 @@ export function AppLayout() {
               >
                 홈택스 일괄 양식
               </NavLink>
+              {/* [supplier-profile + datagrid] 사업자 양식 — ACCOUNTANT 조회 / MANAGER/MASTER CRUD. */}
+              <NavLink
+                to="/accounting/supplier-profiles"
+                data-testid="sidebar-accounting-supplier-profile"
+              >
+                사업자 양식
+              </NavLink>
             </>
           ) : null}
 

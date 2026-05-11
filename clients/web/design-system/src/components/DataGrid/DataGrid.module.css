@@ -1,0 +1,259 @@
+/* DataGrid — Excel-like 다중 셀 선택 + 열헤더 필터 + 복사/붙여넣기 */
+
+.wrapper {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 6px;
+  background: var(--color-neutral-0);
+}
+
+.scroll {
+  overflow: auto;
+  max-height: 100%;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--color-neutral-800);
+}
+
+/* 헤더 */
+.thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-neutral-50);
+}
+
+.th {
+  padding: 0;
+  border-bottom: 2px solid var(--color-neutral-200);
+  border-right: 1px solid var(--color-neutral-200);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.th:last-child {
+  border-right: none;
+}
+
+.thInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  gap: 4px;
+  cursor: default;
+}
+
+.thLabel {
+  font-weight: 600;
+  color: var(--color-neutral-700);
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 필터 버튼 */
+.filterBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--color-neutral-400);
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.filterBtn:hover {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
+}
+
+.filterBtn.filterActive {
+  color: var(--color-primary-600);
+}
+
+/* 데이터 행 */
+.tr {
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.tr:last-child {
+  border-bottom: none;
+}
+
+.tr:hover {
+  background: var(--color-neutral-50);
+}
+
+/* 셀 */
+.td {
+  padding: 7px 10px;
+  border-right: 1px solid var(--color-neutral-100);
+  cursor: cell;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+  transition: background 0.07s;
+}
+
+.td:last-child {
+  border-right: none;
+}
+
+/* 선택된 셀 */
+.tdSelected {
+  background: #ebf8ff !important;
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+/* 빈 행 */
+.emptyRow td {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-neutral-400);
+  font-size: 13px;
+  cursor: default;
+}
+
+/* 로딩 오버레이 */
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.65);
+  z-index: 20;
+}
+
+/* ===== 필터 팝오버 ===== */
+.filterPopover {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 10px;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.filterPopoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.filterPopoverTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+
+.filterPopoverClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-neutral-400);
+  border-radius: 3px;
+}
+
+.filterPopoverClose:hover {
+  background: var(--color-neutral-100);
+}
+
+.filterInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  outline: none;
+}
+
+.filterInput:focus {
+  border-color: var(--color-primary-400);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.filterCheckList {
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.filterCheckItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.filterCheckItem:hover {
+  background: var(--color-neutral-50);
+}
+
+.filterCheckItem input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.filterActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.filterActionBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-neutral-200);
+  background: var(--color-neutral-0);
+  cursor: pointer;
+  color: var(--color-neutral-700);
+}
+
+.filterActionBtn:hover {
+  background: var(--color-neutral-50);
+}
+
+.filterActionBtn.filterApply {
+  background: var(--color-primary-600);
+  color: #fff;
+  border-color: var(--color-primary-600);
+}
+
+.filterActionBtn.filterApply:hover {
+  background: var(--color-primary-700);
+}

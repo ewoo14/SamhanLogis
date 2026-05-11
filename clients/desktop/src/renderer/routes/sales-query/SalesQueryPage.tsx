@@ -25,7 +25,7 @@
  */
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Modal, Input, FormField } from '@samhan/design-system'
+import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -156,6 +156,35 @@ export function SalesQueryPage() {
   const rows: SlipQueryRow[]  = slipsQuery.data?.content ?? []
   const totalPages             = slipsQuery.data?.totalPages ?? 1
   const totalElements          = slipsQuery.data?.totalElements ?? 0
+
+  // ── Excel-like DataGrid 보기 모드 토글 ──
+  const [gridMode, setGridMode] = useState(false)
+
+  /** DataGrid 열 정의 (행 선택 체크박스 열 제외 — DataGrid 자체 셀 선택 사용) */
+  const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
+    () => [
+      { key: 'slipNo',            label: '판매번호',    filter: 'text' },
+      { key: 'partnerName',       label: '거래처',      filter: 'text' },
+      { key: 'businessNumber',    label: '거래처코드',   filter: 'text' },
+      { key: 'deliveryAddress',   label: '배송주소',    filter: 'text' },
+      { key: 'memo',              label: '특이사항',    filter: 'text' },
+      { key: 'totalAmount',       label: '금액',        align: 'right' as const, filter: false as const,
+        format: (v: unknown) => typeof v === 'number' ? v.toLocaleString('ko-KR') : '—' },
+      { key: 'sourceWarehouseId', label: '출고창고',    filter: 'select' as const,
+        format: (v: unknown) => typeof v === 'string' ? resolveWarehouseName(v, warehouses) : '—' },
+      { key: 'recipientPhone',    label: '인수자 번호', filter: 'text' },
+      { key: 'editHistoryCount',  label: '전표수정내역', filter: false as const,
+        format: (v: unknown) => typeof v === 'number' ? fmtEditCount(v) : '—' },
+      { key: 'supervisionAddress', label: '감리주소',   filter: 'text' },
+      { key: 'projectName',       label: '프로젝트명',  filter: 'text' },
+      { key: 'salesPersonName',   label: '담당자명',    filter: 'text' },
+      { key: 'printed',           label: '인쇄',        filter: 'select' as const,
+        format: (v: unknown) => v ? '완료' : '미완' },
+      { key: 'paymentDueDate',    label: '입금예정일',  filter: 'text' },
+      { key: 'slipDate',          label: '전표일자',    filter: 'text' },
+    ],
+    [warehouses],
+  )
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -296,6 +325,17 @@ export function SalesQueryPage() {
         >
           검색
         </Button>
+
+        {/* Excel-like DataGrid 보기 토글 */}
+        <Button
+          variant={gridMode ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setGridMode((v) => !v)}
+          data-testid="sales-query-grid-mode-btn"
+          title="열헤더 필터 + 다중 셀 선택 + Ctrl+C 복사"
+        >
+          {gridMode ? '기본 보기' : 'Excel 보기'}
+        </Button>
       </div>
 
       {/* ── 총 건수 ── */}
@@ -304,7 +344,23 @@ export function SalesQueryPage() {
         {slipsQuery.isLoading ? ' · 로딩 중...' : ''}
       </div>
 
-      {/* ── 테이블 ── */}
+      {/* ── DataGrid 보기 (Excel-like: 열헤더 필터 + 다중 셀 선택 + Ctrl+C) ── */}
+      {gridMode ? (
+        <div style={{ height: 520 }} data-testid="sales-query-datagrid">
+          <DataGrid<SlipQueryRow>
+            columns={dataGridColumns}
+            rows={rows}
+            rowKey={(r) => r.id}
+            loading={slipsQuery.isLoading}
+            emptyMessage="조회된 판매 전표가 없습니다."
+            enableMultiSelect
+            enableCopy
+          />
+        </div>
+      ) : null}
+
+      {/* ── 테이블 (기본 보기) ── */}
+      {!gridMode ? (
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
@@ -434,6 +490,7 @@ export function SalesQueryPage() {
           </tbody>
         </table>
       </div>
+      ) : null}
 
       {/* ── 에러 ── */}
       {slipsQuery.isError ? (
@@ -443,7 +500,7 @@ export function SalesQueryPage() {
       ) : null}
 
       {/* ── 페이지네이션 ── */}
-      {totalPages > 1 ? (
+      {totalPages > 1 && !gridMode ? (
         <PaginationBar
           page={page}
           totalPages={totalPages}

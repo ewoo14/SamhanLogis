@@ -19,7 +19,7 @@
  */
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Modal, Input, FormField } from '@samhan/design-system'
+import { Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
@@ -138,6 +138,31 @@ export function PurchaseQueryPage() {
   const rows: SlipQueryRow[]  = slipsQuery.data?.content ?? []
   const totalPages             = slipsQuery.data?.totalPages ?? 1
   const totalElements          = slipsQuery.data?.totalElements ?? 0
+
+  // ── Excel-like DataGrid 보기 모드 토글 ──
+  const [gridMode, setGridMode] = useState(false)
+
+  /** DataGrid 열 정의 (입고전표 11컬럼 중 사용자 노출 컬럼) */
+  const dataGridColumns: DataGridColumn<SlipQueryRow>[] = useMemo(
+    () => [
+      { key: 'slipNo',                 label: '구매번호',    filter: 'text' },
+      { key: 'partnerName',            label: '거래처',      filter: 'text' },
+      { key: 'businessNumber',         label: '거래처코드',   filter: 'text' },
+      { key: 'totalAmount',            label: '금액',        align: 'right' as const, filter: false as const,
+        format: (v: unknown) => typeof v === 'number' ? v.toLocaleString('ko-KR') : '—' },
+      { key: 'totalQuantity',          label: '수량합계',    align: 'right' as const, filter: false as const,
+        format: (v: unknown) => typeof v === 'number' ? v.toLocaleString('ko-KR') : '—' },
+      { key: 'destinationWarehouseId', label: '입고창고',    filter: 'select' as const,
+        format: (v: unknown) => typeof v === 'string' ? resolveWarehouseName(v, warehouses) : '—' },
+      { key: 'memo',                   label: '적요',        filter: 'text' },
+      { key: 'salesPersonName',        label: '담당자명',    filter: 'text' },
+      { key: 'paymentDueDate',         label: '지급예정일',  filter: 'text' },
+      { key: 'slipDate',               label: '전표일자',    filter: 'text' },
+      { key: 'printed',                label: '인쇄',        filter: 'select' as const,
+        format: (v: unknown) => v ? '완료' : '미완' },
+    ],
+    [warehouses],
+  )
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -272,6 +297,17 @@ export function PurchaseQueryPage() {
         >
           검색
         </Button>
+
+        {/* Excel-like DataGrid 보기 토글 */}
+        <Button
+          variant={gridMode ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => setGridMode((v) => !v)}
+          data-testid="purchase-query-grid-mode-btn"
+          title="열헤더 필터 + 다중 셀 선택 + Ctrl+C 복사"
+        >
+          {gridMode ? '기본 보기' : 'Excel 보기'}
+        </Button>
       </div>
 
       {/* ── 총 건수 ── */}
@@ -280,7 +316,23 @@ export function PurchaseQueryPage() {
         {slipsQuery.isLoading ? ' · 로딩 중...' : ''}
       </div>
 
-      {/* ── 테이블 ── */}
+      {/* ── DataGrid 보기 (Excel-like: 열헤더 필터 + 다중 셀 선택 + Ctrl+C) ── */}
+      {gridMode ? (
+        <div style={{ height: 520 }} data-testid="purchase-query-datagrid">
+          <DataGrid<SlipQueryRow>
+            columns={dataGridColumns}
+            rows={rows}
+            rowKey={(r) => r.id}
+            loading={slipsQuery.isLoading}
+            emptyMessage="조회된 구매 전표가 없습니다."
+            enableMultiSelect
+            enableCopy
+          />
+        </div>
+      ) : null}
+
+      {/* ── 테이블 (기본 보기) ── */}
+      {!gridMode ? (
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
@@ -383,6 +435,7 @@ export function PurchaseQueryPage() {
           </tbody>
         </table>
       </div>
+      ) : null}
 
       {/* ── 에러 ── */}
       {slipsQuery.isError ? (
@@ -392,7 +445,7 @@ export function PurchaseQueryPage() {
       ) : null}
 
       {/* ── 페이지네이션 ── */}
-      {totalPages > 1 ? (
+      {totalPages > 1 && !gridMode ? (
         <PaginationBar
           page={page}
           totalPages={totalPages}

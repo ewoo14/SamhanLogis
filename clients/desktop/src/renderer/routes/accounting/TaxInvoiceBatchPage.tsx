@@ -20,7 +20,7 @@
  */
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Input } from '@samhan/design-system'
+import { Button, Input, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import {
   previewBatch,
   downloadBatchExcel,
@@ -282,10 +282,36 @@ function Tab1Preview({
 /** 100건 단위 분할 — fileIndex 0-based. */
 const PAGE_SIZE = 100
 
+/** Tab2 용 DataGrid 열 정의 — BatchPreviewRow 17 컬럼 */
+const BATCH_GRID_COLUMNS: DataGridColumn<BatchPreviewRow>[] = [
+  { key: 'rowNo',              label: '번호',       filter: false, align: 'right' as const },
+  { key: 'slipNo',             label: '전표번호',    filter: 'text' as const },
+  { key: 'issueDate',          label: '발행일자',    filter: 'text' as const },
+  { key: 'supplierName',       label: '공급자',      filter: 'text' as const },
+  { key: 'supplierBusinessNo', label: '공급자사업자', filter: 'text' as const },
+  { key: 'recipientName',      label: '공급받는자',  filter: 'text' as const },
+  { key: 'recipientBusinessNo',label: '사업자번호',  filter: 'text' as const },
+  { key: 'recipientEmail',     label: '이메일',      filter: 'text' as const },
+  { key: 'supplyAmount',       label: '공급가액',    filter: false, align: 'right' as const,
+    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+  { key: 'vatAmount',          label: '세액',        filter: false, align: 'right' as const,
+    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+  { key: 'totalAmount',        label: '합계금액',    filter: false, align: 'right' as const,
+    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+  { key: 'itemName',           label: '품목',        filter: 'text' as const },
+  { key: 'specification',      label: '규격',        filter: 'text' as const },
+  { key: 'quantity',           label: '수량',        filter: false, align: 'right' as const },
+  { key: 'unitPrice',          label: '단가',        filter: false, align: 'right' as const,
+    format: (v: unknown) => typeof v === 'string' ? parseInt(v, 10).toLocaleString('ko-KR') : '—' },
+  { key: 'partnerCode',        label: '거래처코드',   filter: 'text' as const },
+  { key: 'remark',             label: '비고',        filter: 'text' as const },
+]
+
 function Tab2Result({ data }: { data: BatchPreviewResponse | null }) {
   const [fileIndex, setFileIndex] = useState(0)
   const [downloading, setDownloading] = useState(false)
   const [dlError, setDlError] = useState<string | null>(null)
+  const [gridMode, setGridMode] = useState(false)
 
   if (!data) {
     return (
@@ -388,6 +414,16 @@ function Tab2Result({ data }: { data: BatchPreviewResponse | null }) {
           >
             {downloading ? '다운로드 중...' : `Excel 다운로드 (${fileIndex + 1}번)`}
           </Button>
+
+          {/* Excel-like DataGrid 보기 토글 */}
+          <Button
+            variant={gridMode ? 'secondary' : 'ghost'}
+            onClick={() => setGridMode((v) => !v)}
+            data-testid="batch-result-grid-mode-btn"
+            title="열헤더 필터 + 다중 셀 선택 + Ctrl+C 복사"
+          >
+            {gridMode ? '기본 보기' : 'Excel 보기'}
+          </Button>
         </div>
       </div>
 
@@ -397,7 +433,22 @@ function Tab2Result({ data }: { data: BatchPreviewResponse | null }) {
         </div>
       )}
 
-      {/* 가로 스크롤 테이블 */}
+      {/* Excel-like DataGrid 보기 */}
+      {gridMode ? (
+        <div style={{ height: 540 }} data-testid="batch-result-datagrid">
+          <DataGrid<BatchPreviewRow>
+            columns={BATCH_GRID_COLUMNS}
+            rows={pageRows}
+            rowKey={(r) => String(r.rowNo)}
+            enableMultiSelect
+            enableCopy
+            emptyMessage="결과 데이터가 없습니다."
+          />
+        </div>
+      ) : null}
+
+      {/* 가로 스크롤 테이블 (기본 보기) */}
+      {!gridMode ? (
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-neutral-200)', borderRadius: 8 }}>
         <table
           style={{
@@ -518,6 +569,7 @@ function Tab2Result({ data }: { data: BatchPreviewResponse | null }) {
           </tbody>
         </table>
       </div>
+      ) : null}
 
       <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-neutral-500)' }}>
         현재 {fileIndex + 1}번 파일 — {pageRows.length}건 표시
