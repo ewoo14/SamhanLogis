@@ -70,15 +70,12 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @MockitoSettings(strictness = Strictness.LENIENT)
 @Transactional
-@SuppressWarnings("null") // ECJ @NonNull unchecked conversion — Gradle/JUnit 런타임 무영향
-@org.junit.jupiter.api.Disabled(
-        "seedIssuedInvoices() 가 POST /accounting/tax-invoices 호출 시 buildInvoiceBody schema 와 " +
-        "기존 CreateTaxInvoiceRequest DTO 가 불일치하여 400. 후속 슬라이스에서 DTO 일치화 또는 " +
-        "/issue-request endpoint 사용으로 재활성. BE agent TaxInvoiceBatchIT TC-1/2/3/5/6 동일 시나리오 cover.")
+@SuppressWarnings({"null", "unused"}) // ECJ @NonNull + buildInvoiceBody 미사용 (legacy 보존)
 class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.samhanair.logis.accounting.service.TaxInvoiceService taxInvoiceService;
 
     /** 외부 client 격리 — IT 가 외부 서비스 호출하지 않음. */
     @MockBean private SlipServiceClient slipServiceClient;
@@ -342,28 +339,35 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
      * @param partnerCode 사용자 노출 거래처 코드
      */
     private void seedIssuedInvoices(int count, String partnerCode) {
+        // PR #166 회고 — HTTP endpoint + DTO schema 불일치 회피.
+        // taxInvoiceService.createFromRequest() + issue() 직접 호출 (service layer seed).
         for (int i = 0; i < count; i++) {
             try {
-                Map<String, Object> body = buildInvoiceBody(partnerCode, i);
-                MvcResult createResult = mockMvc.perform(
-                                post("/accounting/tax-invoices")
-                                        .header("X-User-Id",   USER_ID)
-                                        .header("X-User-Role", USER_ROLE)
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .content(objectMapper.writeValueAsString(body)))
-                        .andExpect(status().isCreated())
-                        .andReturn();
-
-                String id = objectMapper
-                        .readTree(createResult.getResponse().getContentAsString())
-                        .get("data").get("id").asText();
-
+                com.samhanair.logis.accounting.web.dto.TaxInvoiceLineRequest line =
+                        new com.samhanair.logis.accounting.web.dto.TaxInvoiceLineRequest(
+                                "운임 기본료 " + i,
+                                "kg",
+                                new BigDecimal("100"),
+                                "kg",
+                                new BigDecimal("1000"),
+                                null,  // supplyAmount — BE 재계산
+                                null   // vatAmount — BE 재계산
+                        );
+                com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest req =
+                        new com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest(
+                                "SALES",
+                                UUID.randomUUID(),                                // partnerId
+                                partnerCode,
+                                "QA 거래처 " + partnerCode,
+                                "123-45-" + String.format("%05d", i),             // XXX-XX-XXXXX 형식
+                                FROM.plusDays(i % 28),
+                                "E2E-IT 세금계산서 " + i,
+                                List.of(line)
+                        );
+                com.samhanair.logis.accounting.web.dto.TaxInvoiceDetailResponse created =
+                        taxInvoiceService.createFromRequest(req);
                 // DRAFT → ISSUED
-                mockMvc.perform(
-                                post("/accounting/tax-invoices/{id}/issue", id)
-                                        .header("X-User-Id",   USER_ID)
-                                        .header("X-User-Role", USER_ROLE))
-                        .andExpect(status().isOk());
+                taxInvoiceService.issue(created.id(), "system");
             } catch (Exception ex) {
                 throw new RuntimeException("세금계산서 seed 실패 (idx=" + i + "): " + ex.getMessage(), ex);
             }

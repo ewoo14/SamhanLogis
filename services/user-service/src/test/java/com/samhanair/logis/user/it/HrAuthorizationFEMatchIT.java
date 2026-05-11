@@ -60,10 +60,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Transactional
 @MockitoSettings(strictness = Strictness.LENIENT)
-@org.junit.jupiter.api.Disabled(
-        "PR #165 회고 — UUID 프리픽스 fix 시도 후에도 setUp() Employee/Department seed 가 V2/다른 IT seed " +
-        "와 ConstraintViolation. 후속 슬라이스에서 @Sql 시드 분리 또는 service layer seed 로 재작성 후 재활성. " +
-        "BE HrAuthorizationIT TC-1~5 (5건) + Playwright TC-HR (5건) 가 동일 contract cover.")
 class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
 
     // -------------------------------------------------------------------------
@@ -130,12 +126,12 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
                         execEmployeeId,
                         "hrm_it_exec_" + execShort,
                         "[DEV-SEED] 대표실테스트",
-                        "팀장",
+                        "팀원",
                         Role.MASTER,
                         execDept,
-                        true,
+                        // teamLead=false — V2 seed 의 대표실 teamLead 와 partial unique 충돌 회피
+                        false,
                         LocalDate.of(2026, 1, 1),
-                        // email/phone 도 UUID 프리픽스로 unique 보장 — 다른 IT seed / V2 seed 와 충돌 회피
                         "hrm_it_exec_" + execShort + "@samhan-air.com",
                         "010-" + execShort.substring(0, 4) + "-" + execShort.substring(4, 8))),
                 "대표실 직원 저장 실패");
@@ -181,7 +177,7 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
     void getIsExecutiveOffice_responseSchemaValid() throws Exception {
         MvcResult result = mockMvc.perform(
                         MockMvcRequestBuilders
-                                .get("/me/is-executive-office")
+                                .get("/api/v1/users/me/is-executive-office")
                                 .header("X-User-Id", execEmployeeId.toString())
                                 .header("X-User-Role", "MASTER")
                                 .accept(MediaType.APPLICATION_JSON))
@@ -236,7 +232,7 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
     void getIsExecutiveOffice_execDeptUser_returnsTrue() throws Exception {
         MvcResult result = mockMvc.perform(
                         MockMvcRequestBuilders
-                                .get("/me/is-executive-office")
+                                .get("/api/v1/users/me/is-executive-office")
                                 .header("X-User-Id", execEmployeeId.toString())
                                 .header("X-User-Role", "MASTER")
                                 .accept(MediaType.APPLICATION_JSON))
@@ -278,7 +274,7 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
     void getIsExecutiveOffice_salesDeptUser_returnsFalse() throws Exception {
         MvcResult result = mockMvc.perform(
                         MockMvcRequestBuilders
-                                .get("/me/is-executive-office")
+                                .get("/api/v1/users/me/is-executive-office")
                                 .header("X-User-Id", salesEmployeeId.toString())
                                 .header("X-User-Role", "SALES")
                                 .accept(MediaType.APPLICATION_JSON))
@@ -322,7 +318,7 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
     void getIsExecutiveOffice_unauthenticated_returns401() throws Exception {
         MvcResult result = mockMvc.perform(
                         MockMvcRequestBuilders
-                                .get("/me/is-executive-office")
+                                .get("/api/v1/users/me/is-executive-office")
                                 .accept(MediaType.APPLICATION_JSON))
                 .andReturn();
 
