@@ -115,6 +115,18 @@ public class Account extends BaseEntity {
     @Column(name = "password_change_required", nullable = false)
     private boolean passwordChangeRequired = false;
 
+    /**
+     * 소속 부서명 — Phase 12 인사 카테고리 가드.
+     *
+     * <p>JWT {@code departmentName} claim 으로 포함되어 api-gateway 가
+     * {@code X-User-Department} 헤더로 downstream 에 전파한다.
+     * user-service 에서 직원 등록/부서 변경 시 internal endpoint 로 동기화.
+     * NULL = 미배정 (부서 미설정 계정, 인사 가드 → 항상 403).
+     * V6 migration 추가 컬럼, NULLable.
+     */
+    @Column(name = "department_name", length = 100)
+    private String departmentName;
+
     private Account(String loginId, String passwordHash, String displayName, Role role) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
@@ -231,6 +243,17 @@ public class Account extends BaseEntity {
      */
     public void changeEmail(String email) {
         this.email = email;
+    }
+
+    /**
+     * 소속 부서명 갱신 — user-service 부서 변경 시 internal sync 호출.
+     *
+     * <p>Phase 12 인사 가드: JWT 재발급 시 갱신된 부서명이 포함되어 게이트웨이로 전파.
+     *
+     * @param departmentName 신규 부서명 (null = 미배정)
+     */
+    public void changeDepartmentName(String departmentName) {
+        this.departmentName = departmentName;
     }
 
     /** reset 토큰 발급 — 30 분 만료. 기존 토큰은 덮어씀. */

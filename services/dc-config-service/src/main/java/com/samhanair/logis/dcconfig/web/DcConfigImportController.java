@@ -51,7 +51,7 @@ public class DcConfigImportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 누락"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "MASTER role 부재")
     })
-    @PreAuthorize("hasRole('MASTER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasRole('MASTER')")
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DcConfigImportResult> importCsv(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {

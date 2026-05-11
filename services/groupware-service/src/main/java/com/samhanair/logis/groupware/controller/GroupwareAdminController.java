@@ -57,7 +57,7 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청자 / 결재자 미존재")
     })
     @PostMapping("/approvals")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
     public ResponseEntity<ApiResponse<ApprovalLineAdminResponse>> createApproval(
             @Valid @RequestBody ApprovalLineCreateRequest req) {
         var line = approvalLineService.create(req);
@@ -68,7 +68,7 @@ public class GroupwareAdminController {
     /** 결재 승인. */
     @Operation(summary = "결재 승인")
     @PutMapping("/approvals/{approvalId}/approve")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<ApprovalLineAdminResponse> approve(@PathVariable UUID approvalId,
                                                           @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.approve(approvalId, req.approverId());
@@ -78,7 +78,7 @@ public class GroupwareAdminController {
     /** 결재 반려. */
     @Operation(summary = "결재 반려")
     @PutMapping("/approvals/{approvalId}/reject")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<ApprovalLineAdminResponse> reject(@PathVariable UUID approvalId,
                                                          @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.reject(approvalId, req.approverId(), req.reason());

@@ -100,7 +100,7 @@ public class WarehouseController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public ApiResponse<WarehouseResponse> create(@Valid @RequestBody CreateWarehouseRequest request) {
         return ApiResponse.ok(warehouseService.create(request));
     }
@@ -114,7 +114,7 @@ public class WarehouseController {
      */
     @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용")
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request) {
         return ApiResponse.ok(warehouseService.update(id, request));
@@ -129,7 +129,7 @@ public class WarehouseController {
     @Operation(summary = "창고 삭제 (soft)", description = "is_deleted=true 마킹. row 는 보존")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         warehouseService.delete(id, callerHeader);

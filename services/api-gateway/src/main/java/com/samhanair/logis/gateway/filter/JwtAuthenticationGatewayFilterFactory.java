@@ -41,9 +41,14 @@ import reactor.core.publisher.Mono;
  *   <li>Missing {@code Authorization: Bearer ...} → {@code 401 UNAUTHORIZED}.</li>
  *   <li>Signature/expiry/parse failure → {@code 401 INVALID_TOKEN}.</li>
  *   <li>Authenticated but role not in allow-list → {@code 403 FORBIDDEN}.</li>
- *   <li>Otherwise: mutate request to add {@code X-User-Id} and
- *       {@code X-User-Role}, then continue.</li>
+ *   <li>Otherwise: mutate request to add {@code X-User-Id}, {@code X-User-Role},
+ *       and (Phase 12) {@code X-User-Department} headers, then continue.</li>
  * </ul>
+ *
+ * <h2>Phase 12 인사 카테고리 가드</h2>
+ * JWT claim {@code departmentName} 존재 시 {@code X-User-Department} 헤더로 전파.
+ * claim 미존재 시 헤더 미전송 → downstream 인사 가드는 부재로 판정 → 403.
+ * 기존 {@code X-User-Department} 를 사용하지 않는 endpoint 는 영향 0건 (backward compatible).
  *
  * <p>{@link JwtTokenProvider} is a stateless utility (static methods) — it
  * is intentionally instantiated nowhere; we just call its static API.
@@ -55,6 +60,8 @@ public class JwtAuthenticationGatewayFilterFactory
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_ROLE = "X-User-Role";
+    /** Phase 12 인사 가드 — 소속 부서명 헤더. JWT claim {@code departmentName} 에서 추출. */
+    private static final String HEADER_USER_DEPARTMENT = "X-User-Department";
 
     private final JwtProperties props;
 
@@ -93,6 +100,9 @@ public class JwtAuthenticationGatewayFilterFactory
 
             String userId = JwtTokenProvider.getUserId(jws);
             String roleName = JwtTokenProvider.getRole(jws);
+            // Phase 12 인사 가드: JWT claim departmentName → X-User-Department 헤더 전파.
+            // claim 미존재(구버전 토큰 포함) 시 null → 헤더 미전송.
+            String departmentName = JwtTokenProvider.getDepartmentName(jws);
 
             if (!config.getAllowedRoles().isEmpty()) {
                 Role role;
@@ -108,12 +118,15 @@ public class JwtAuthenticationGatewayFilterFactory
                 }
             }
 
-            ServerHttpRequest mutated = request.mutate()
+            ServerHttpRequest.Builder requestBuilder = request.mutate()
                     .header(HEADER_USER_ID, userId)
-                    .header(HEADER_USER_ROLE, roleName)
-                    .build();
+                    .header(HEADER_USER_ROLE, roleName);
+            // departmentName 이 존재할 때만 헤더 추가 — 미배정 계정은 헤더 미전송
+            if (departmentName != null && !departmentName.isBlank()) {
+                requestBuilder.header(HEADER_USER_DEPARTMENT, departmentName);
+            }
 
-            return chain.filter(exchange.mutate().request(mutated).build());
+            return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
         };
     }
 

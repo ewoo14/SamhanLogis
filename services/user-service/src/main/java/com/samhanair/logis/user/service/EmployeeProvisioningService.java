@@ -71,6 +71,8 @@ public class EmployeeProvisioningService {
                     req.hireDate(),
                     req.email(),
                     req.phone()));
+            // Phase 12 인사 가드: 부서명을 auth-service 에 동기화 → 다음 로그인 JWT claim 포함
+            authClient.updateDepartmentName(newId, department.getName());
             return EmployeeResponse.from(saved);
         } catch (RuntimeException persistFailure) {
             try {
@@ -99,6 +101,8 @@ public class EmployeeProvisioningService {
             Department dept = departmentRepository.findById(req.departmentId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "부서를 찾을 수 없습니다"));
             employee.changeDepartment(dept);
+            // Phase 12 인사 가드: 부서 변경 시 auth-service 동기화
+            authClient.updateDepartmentName(id, dept.getName());
         }
         if (req.teamLead() != null) {
             employee.setTeamLead(req.teamLead());
@@ -230,6 +234,8 @@ public class EmployeeProvisioningService {
                     Employee.DEFAULT_HIRE_DATE,
                     req.email(),
                     req.phoneNumber()));
+            // Phase 12 인사 가드: 부서명 auth-service 동기화
+            authClient.updateDepartmentName(newId, department.getName());
             log.info("Admin created employee — id={} loginId={} callerId={}", newId, req.loginId(), callerId);
             return AdminUserCreateResponse.from(saved, temporaryPassword);
         } catch (RuntimeException persistFailure) {
@@ -274,6 +280,8 @@ public class EmployeeProvisioningService {
             Department dept = departmentRepository.findById(req.departmentId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "부서를 찾을 수 없습니다"));
             employee.changeDepartment(dept);
+            // Phase 12 인사 가드: 부서 변경 시 auth-service 동기화
+            authClient.updateDepartmentName(id, dept.getName());
         }
         log.info("Admin updated employee — id={} callerId={}", id, callerId);
         return EmployeeResponse.from(employee);

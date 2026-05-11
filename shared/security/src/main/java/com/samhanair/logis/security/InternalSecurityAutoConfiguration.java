@@ -45,4 +45,16 @@ public class InternalSecurityAutoConfiguration {
     public InternalTokenGuard internalTokenGuard(InternalAuthProperties properties, Environment environment) {
         return new InternalTokenGuard(properties, environment);
     }
+
+    /**
+     * Phase 12 인사 카테고리 가드 helper — {@code @PreAuthorize} SpEL {@code @hr.isExecutiveOffice()} 로 참조.
+     *
+     * <p>{@code shared:security} 를 의존하는 모든 service 에 자동 등록.
+     * {@code @ConditionalOnMissingBean} — 각 service 가 별도 정의 시 우선.
+     */
+    @Bean("hr")
+    @ConditionalOnMissingBean(name = "hr")
+    public HrAuthorizationHelper hrAuthorizationHelper() {
+        return new HrAuthorizationHelper();
+    }
 }

@@ -151,6 +151,32 @@ public class AuthClient {
                 .toBodilessEntity());
     }
 
+    /**
+     * auth-service 계정 부서명 동기화 — Phase 12 인사 카테고리 가드.
+     *
+     * <p>user-service 에서 직원 등록/부서 변경 시 호출. 다음 로그인 JWT 에
+     * {@code departmentName} claim 이 갱신된 값으로 포함된다.
+     * {@code departmentName = null} 전달 시 미배정 상태로 초기화.
+     *
+     * @param id             대상 계정 UUID
+     * @param departmentName 신규 부서명 (null = 미배정)
+     */
+    public void updateDepartmentName(UUID id, String departmentName) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("departmentName", departmentName);  // null 허용 — HashMap 은 null value 지원
+        execute("PATCH updateDepartmentName", () -> restClient.patch()
+                .uri("/auth/internal/accounts/{id}/department-name", id)
+                .header(INTERNAL_TOKEN_HEADER, requireToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body((Object) body)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                            "auth-service updateDepartmentName failed: " + res.getStatusCode());
+                })
+                .toBodilessEntity());
+    }
+
     private String requireToken() {
         String token = properties.getToken();
         if (token == null || token.isBlank()) {

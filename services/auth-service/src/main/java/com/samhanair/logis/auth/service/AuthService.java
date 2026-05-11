@@ -65,8 +65,10 @@ public class AuthService {
 
         String userId = account.getId().toString();
         String role = account.getRole().name();
+        // Phase 12 인사 가드: departmentName claim 포함 JWT 발급 (null 허용 — 미배정 시 claim 제외)
         String token = JwtTokenProvider.generate(
-                userId, role, jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
+                userId, role, account.getDepartmentName(),
+                jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 
         return new LoginResponse(token, userId, role, account.getDisplayName());
     }
@@ -125,6 +127,21 @@ public class AuthService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
         account.changeDisplayName(displayName);
+    }
+
+    /**
+     * 소속 부서명 갱신 — Phase 12 인사 카테고리 가드.
+     *
+     * <p>user-service 에서 직원 등록/부서 변경 시 internal endpoint 를 통해 호출.
+     * 다음 로그인 시 발급되는 JWT 에 {@code departmentName} claim 이 갱신된 값으로 포함됨.
+     *
+     * @param id             갱신할 계정 UUID
+     * @param departmentName 신규 부서명 (null = 미배정)
+     */
+    public void updateAccountDepartmentName(UUID id, String departmentName) {
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+        account.changeDepartmentName(departmentName);
     }
 
     public void disableAccount(UUID id, String operatorId) {

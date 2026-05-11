@@ -4,6 +4,7 @@ import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.auth.service.AuthService;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.auth.web.dto.internal.CreateAccountInternalRequest;
+import com.samhanair.logis.auth.web.dto.internal.UpdateDepartmentNameInternalRequest;
 import com.samhanair.logis.auth.web.dto.internal.UpdateDisplayNameInternalRequest;
 import com.samhanair.logis.auth.web.dto.internal.UpdateRoleInternalRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -78,5 +79,22 @@ public class InternalAccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unlock(@PathVariable UUID id) {
         authService.unlockAccount(id);
+    }
+
+    /**
+     * 소속 부서명 동기화 — Phase 12 인사 카테고리 가드.
+     *
+     * <p>user-service 에서 직원 등록/부서 변경 시 호출. 다음 로그인 JWT 에 {@code departmentName} claim 갱신.
+     * {@code departmentName = null} 요청 시 미배정 상태로 초기화.
+     *
+     * @param id      대상 계정 UUID
+     * @param request 신규 부서명 ({@link UpdateDepartmentNameInternalRequest})
+     */
+    @PatchMapping("/{id}/department-name")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateDepartmentName(
+            @PathVariable UUID id,
+            @RequestBody UpdateDepartmentNameInternalRequest request) {
+        authService.updateAccountDepartmentName(id, request.departmentName());
     }
 }
