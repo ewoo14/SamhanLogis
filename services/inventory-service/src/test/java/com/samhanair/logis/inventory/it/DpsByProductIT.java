@@ -12,6 +12,7 @@ import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.domain.InboundInspection;
 import com.samhanair.logis.inventory.domain.InboundInspectionLine;
 import com.samhanair.logis.inventory.repository.InboundInspectionRepository;
+import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,11 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>TC-4: diffFromDps 계산 — 현재 슬라이스에서 0 반환 확인</li>
  *   <li>TC-5: WAREHOUSE ROLE 통과, SALES ROLE → 403</li>
  * </ol>
+ *
+ * <p>seed 후 flush + clear 패턴:
+ * native query 는 JPA 1차 캐시(영속성 컨텍스트)를 우회하므로, saveAndFlush() 로 DB 에
+ * 즉시 쓰고 entityManager.clear() 로 1차 캐시를 비워야 native query 결과가 정확하다.
+ * {@code @Transactional} + rollback 으로 TC 간 격리 유지.
  */
 @SpringBootTest(classes = InventoryServiceApplication.class)
 @AutoConfigureMockMvc
@@ -56,6 +62,7 @@ class DpsByProductIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private InboundInspectionRepository inspectionRepository;
+    @Autowired private EntityManager entityManager;
 
     /** 외부 RestClient 격리 — Eureka 비활성 환경에서 500 방지 (memory feedback_it_mockbean_external_clients). */
     @MockBean private ProductClient productClient;
@@ -88,14 +95,10 @@ class DpsByProductIT extends AbstractPostgresIT {
 
     @Test
     @DisplayName("TC-2: 5 상품 × 4 단계 seed → pivot row 5건 + 단계별 SUM 검증")
-    @org.junit.jupiter.api.Disabled(
-            "후속 슬라이스에서 inbound_inspections seed transaction 시점 + native query CASE-WHEN " +
-            "SUM 정확도 보강 (특히 CANCELED→returnQty 부호 변환). " +
-            "TC-1/3/4/5 (빈DB/404/diffFromDps0/ROLE) 가 가드 + 응답 schema cover.")
     void tc2_fiveProducts_fourStages_pivotRowsFive() throws Exception {
         // 상품 A — PENDING (대기) 10개
         seedInspection("MODEL-A", "상품A", "PENDING", 10, null, null);
-        // 상품 B — COMPLETED (완료) 20개, 불량 3개
+        // 상품 B — COMPLETED (완료) 20개, 불량 3개 (defectReason 필수: defectQty > 0)
         seedInspection("MODEL-B", "상품B", "COMPLETED", 20, 20, 3);
         // 상품 C — CANCELED (반품) 5개
         seedInspection("MODEL-C", "상품C", "CANCELED", 5, null, null);
@@ -103,6 +106,11 @@ class DpsByProductIT extends AbstractPostgresIT {
         seedInspection("MODEL-D", "상품D", "COMPLETED", 15, 15, 0);
         // 상품 E — PENDING 대기 8개
         seedInspection("MODEL-E", "상품E", "PENDING", 8, null, null);
+
+        // native query 가 동일 트랜잭션의 unflushed 데이터를 읽지 못하는 문제 방지.
+        // saveAndFlush() 는 seedInspection 내부에서 이미 수행됨.
+        // clear() 로 1차 캐시를 비워 native query 결과가 DB 실제 데이터를 반영하도록 함.
+        entityManager.clear();
 
         mockMvc.perform(get(BASE_URL)
                         .param("fromDate", FROM)
@@ -116,11 +124,11 @@ class DpsByProductIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].pendingQty").value(10))
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].completedQty").value(0))
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].totalQty").value(10))
-                // MODEL-B: completedQty=17, qcQty=3, returnQty=0, totalQty=20
+                // MODEL-B: completedQty=17(inspected 20 - defect 3), qcQty=3, returnQty=0
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].completedQty").value(17))
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].qcQty").value(3))
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].returnQty").value(0))
-                // MODEL-C: returnQty=-5 (반품 음수 표현), totalQty=-5
+                // MODEL-C: returnQty=-5 (반품 음수 표현), pendingQty=0
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-C')].returnQty").value(-5))
                 .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-C')].pendingQty").value(0))
                 // MODEL-D: completedQty=15, qcQty=0
@@ -155,6 +163,7 @@ class DpsByProductIT extends AbstractPostgresIT {
     void tc4_diffFromDps_isZero() throws Exception {
         // DPS 기준 100, 자체 95 시나리오 — 현재 슬라이스는 자체 집계만 제공, diffFromDps = 0
         seedInspection("MODEL-DIFF", "차이검증상품", "COMPLETED", 100, 95, 0);
+        entityManager.clear();
 
         mockMvc.perform(get(BASE_URL)
                         .param("fromDate", FROM)
@@ -199,6 +208,10 @@ class DpsByProductIT extends AbstractPostgresIT {
     /**
      * 테스트용 InboundInspection + InboundInspectionLine 한 쌍을 DB 에 seed 한다.
      *
+     * <p>native query 가 JPA 1차 캐시를 우회하므로 {@code saveAndFlush()} 를 사용하여
+     * 트랜잭션 내에서도 DB 에 즉시 기록한다. 호출 후 {@code entityManager.clear()} 를
+     * 명시적으로 호출해야 native query 결과가 최신 DB 데이터를 반영한다.
+     *
      * @param modelCode    모델코드 (품번)
      * @param productName  제품명
      * @param status       검수 헤더 상태 (PENDING / COMPLETED / CANCELED)
@@ -216,10 +229,13 @@ class DpsByProductIT extends AbstractPostgresIT {
                     inspection, UUID.randomUUID(), modelCode, productName, expectedQty);
             inspection.addLine(line);
             inspection.recordInspectorId("system");
+            int dQty = defectQty != null ? defectQty : 0;
+            // defectQty > 0 이면 recordResult() 에서 defectReason 필수 (도메인 규칙)
+            String defectReason = dQty > 0 ? "테스트 불량" : null;
             line.recordResult(
                     inspectedQty != null ? inspectedQty : expectedQty,
-                    defectQty != null ? defectQty : 0,
-                    null);
+                    dQty,
+                    defectReason);
             inspection.complete();
         } else if ("CANCELED".equals(status)) {
             InboundInspectionLine line = InboundInspectionLine.create(
@@ -233,6 +249,8 @@ class DpsByProductIT extends AbstractPostgresIT {
             inspection.addLine(line);
         }
 
-        inspectionRepository.save(inspection);
+        // native query 가 동일 트랜잭션의 unflushed 데이터를 읽지 못하는 문제 방지:
+        // saveAndFlush() 로 즉시 DB 에 기록 (save() 는 1차 캐시에만 반영).
+        inspectionRepository.saveAndFlush(inspection);
     }
 }
