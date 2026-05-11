@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.service.NextDaySlipImageService;
@@ -70,7 +71,7 @@ public class SlipController {
     private final SlipExcelExportService slipExcelExportService;
 
     /**
-     * 전표 페이지 조회 — PR-E1 BE-A0 (PR #117) 확장: 5 query param 신규 추가.
+     * 전표 페이지 조회 — PR-E1 BE-A0 (PR #117) 확장 + deliveryTag 멀티셀렉 필터 신규.
      *
      * <p>지원 query (모두 선택, 비어있으면 무시):
      * <ul>
@@ -81,12 +82,16 @@ public class SlipController {
      *   <li>{@code partnerCode} 정확 일치 (V15 신규 컬럼)</li>
      *   <li>{@code driverPhone} like 매칭 ({@code %phone%})</li>
      *   <li>{@code regionGroup} 정확 일치 (V15 신규 컬럼, arologis 가배차 그룹명)</li>
+     *   <li>{@code deliveryTag} 멀티셀렉 (반복 param 허용 — {@code ?deliveryTag=DAY&deliveryTag=RENTAL}).
+     *       {@code slipType} 과 정합되지 않는 태그 포함 시 400 BAD_REQUEST.</li>
      * </ul>
      *
-     * @return 200, Page&lt;SlipResponse&gt; — slip 요약 응답 (라인 미포함)
+     * @param deliveryTags 배송 태그 목록 (null/empty 이면 무시). 태그-slipType 정합 불일치 시 400.
+     * @return 200, Page&lt;SlipResponse&gt; — slip 요약 응답 (라인 미포함, deliveryTagLabel 포함)
      */
-    @Operation(summary = "전표 페이지 조회 (5 param 확장)",
-            description = "PR-E1 BE-A0 — slipType/status + 날짜 범위 + partnerCode + driverPhone + regionGroup 동적 조합 필터")
+    @Operation(summary = "전표 페이지 조회 (deliveryTag 멀티셀렉 확장)",
+            description = "slipType/status/날짜범위/partnerCode/driverPhone/regionGroup/deliveryTag 동적 조합 필터. " +
+                    "deliveryTag-slipType 정합 불일치 시 400.")
     @GetMapping
     public ApiResponse<Page<SlipResponse>> list(
             @RequestParam(required = false) SlipType slipType,
@@ -96,11 +101,12 @@ public class SlipController {
             @RequestParam(required = false) String partnerCode,
             @RequestParam(required = false) String driverPhone,
             @RequestParam(required = false) String regionGroup,
+            @RequestParam(required = false, name = "deliveryTag") java.util.List<DeliveryTag> deliveryTags,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(slipService.list(slipType, status, from, to,
-                partnerCode, driverPhone, regionGroup, pageable));
+                partnerCode, driverPhone, regionGroup, deliveryTags, pageable));
     }
 
     /**

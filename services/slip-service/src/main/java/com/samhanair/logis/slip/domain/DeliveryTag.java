@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
  * 배송 태그 (Plan §3.3 11종). 각 태그는 적용 가능한 전표 종류({@link #direction})를 제한하며,
  * {@link #autoMemo} 가 true 인 태그(야적/지방)는 {@code Slip.applyDeliveryTagAutoMemo()} 가
  * 자동 메모를 prepend 한다.
+ *
+ * <p>{@link #getKoreanLabel()} 은 FE 표시용 한국어 라벨을 반환하며, {@link #displayName} 과 동일.
+ * {@link #direction} 은 slipType 정합 가드 ({@code SlipService.list()}) 에서 사용된다.
  */
 @Getter
 @RequiredArgsConstructor
@@ -26,4 +29,18 @@ public enum DeliveryTag {
     private final String displayName;
     private final SlipType direction;
     private final boolean autoMemo;
+
+    /**
+     * FE 표시용 한국어 라벨을 반환한다.
+     *
+     * <p>DAY→"당일" / STACK→"야적" / REGION→"지방" / LOGEN→"로젠택배" /
+     * GYEONGDONG_PARCEL→"경동택배" / GYEONGDONG_FREIGHT→"경동화물" /
+     * RENTAL→"대여" / RETURN_RENTAL→"반납" (출고 전용) +
+     * RETURN_TRIP→"회차" / RETURN→"반품" / BORROW→"차용" (입고 전용).
+     *
+     * @return 한국어 라벨 ({@link #displayName} 과 동일)
+     */
+    public String getKoreanLabel() {
+        return displayName;
+    }
 }

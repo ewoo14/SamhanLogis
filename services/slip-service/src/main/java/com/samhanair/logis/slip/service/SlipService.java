@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -518,7 +519,7 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public Page<SlipResponse> list(SlipType slipType, SlipStatus status, Pageable pageable) {
-        return list(slipType, status, null, null, null, null, null, pageable);
+        return list(slipType, status, null, null, null, null, null, null, pageable);
     }
 
     /**
@@ -548,19 +549,63 @@ public class SlipService {
                                    LocalDate from, LocalDate to,
                                    String partnerCode, String driverPhone,
                                    String regionGroup, Pageable pageable) {
+        return list(slipType, status, from, to, partnerCode, driverPhone, regionGroup, null, pageable);
+    }
+
+    /**
+     * 페이지 조회 (deliveryTag 멀티셀렉 포함 — 최종 8+1 param 동적 필터).
+     *
+     * <p>{@code deliveryTags} 가 지정된 경우 {@code slipType} 과 정합을 검증한다.
+     * OUTBOUND 전용 태그를 slipType=INBOUND 와 함께 요청하거나, INBOUND 전용 태그를
+     * slipType=OUTBOUND 와 함께 요청하면 {@code 400 BAD_REQUEST} 를 반환한다.
+     *
+     * <p>정합 검증은 {@code slipType != null && deliveryTags != null && !deliveryTags.isEmpty()} 일 때만 수행.
+     *
+     * @param slipType 필터 (null 가능)
+     * @param status 필터 (null 가능)
+     * @param from 시작 날짜 (null 가능)
+     * @param to 종료 날짜 (null 가능)
+     * @param partnerCode 거래처 코드 (null 가능)
+     * @param driverPhone 기사 전화 (null 가능, like 매칭)
+     * @param regionGroup 지역 그룹 (null 가능)
+     * @param deliveryTags 배송 태그 목록 (null/empty 이면 무시). slipType 정합 불일치 시 400.
+     * @param pageable 페이지 정보
+     * @return 요약 응답 페이지
+     * @throws BusinessException(INVALID_INPUT) slipType-deliveryTag 정합 불일치
+     */
+    @Transactional(readOnly = true)
+    public Page<SlipResponse> list(SlipType slipType, SlipStatus status,
+                                   LocalDate from, LocalDate to,
+                                   String partnerCode, String driverPhone,
+                                   String regionGroup,
+                                   java.util.List<DeliveryTag> deliveryTags,
+                                   Pageable pageable) {
+        // slipType-deliveryTag 정합 가드
+        if (slipType != null && deliveryTags != null && !deliveryTags.isEmpty()) {
+            for (DeliveryTag tag : deliveryTags) {
+                if (tag.getDirection() != slipType) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "deliveryTag=" + tag.name() + " 는 " + tag.getDirection().name()
+                                    + " 전표 전용입니다. slipType=" + slipType.name() + " 와 정합되지 않습니다.");
+                }
+            }
+        }
         Specification<Slip> spec = buildListSpec(slipType, status, from, to,
-                partnerCode, driverPhone, regionGroup);
+                partnerCode, driverPhone, regionGroup, deliveryTags);
         return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
     }
 
     /**
-     * 7 param 동적 Specification 빌더 — list 메서드 추출. 본 메서드는 정적 헬퍼이지만
-     * cleanup / next-day-image 등 다른 service 가 같은 빌더를 재사용 시 확장 여지 보존.
+     * 동적 Specification 빌더 — deliveryTags IN 필터 포함.
+     *
+     * <p>deliveryTags 가 null/empty 이면 IN 조건 미적용 (전체 태그 포함).
+     * cleanup / next-day-image 등 다른 service 가 빌더 재사용 시 확장 여지 보존.
      */
     private Specification<Slip> buildListSpec(SlipType slipType, SlipStatus status,
                                               LocalDate from, LocalDate to,
                                               String partnerCode, String driverPhone,
-                                              String regionGroup) {
+                                              String regionGroup,
+                                              java.util.List<DeliveryTag> deliveryTags) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             // SQLRestriction 보강 — Criteria query 에서도 명시 가드
@@ -586,6 +631,9 @@ public class SlipService {
             }
             if (regionGroup != null && !regionGroup.isBlank()) {
                 predicates.add(cb.equal(root.get("classifiedRegionGroup"), regionGroup.trim()));
+            }
+            if (deliveryTags != null && !deliveryTags.isEmpty()) {
+                predicates.add(root.get("deliveryTag").in(deliveryTags));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
