@@ -166,16 +166,16 @@ export function ArologisPreClassifyPage() {
   const regionTotal = useMemo<number>(() => {
     const data = regionQuery.data
     if (!data) return 0
-    let n = data.unclassified.length
-    for (const list of Object.values(data.regionGroups)) n += list.length
+    let n = data.unclassified?.length ?? 0
+    for (const list of Object.values(data.regionGroups ?? {})) n += list?.length ?? 0
     return n
   }, [regionQuery.data])
 
   const regionalTotal = useMemo<number>(() => {
     const data = regionalQuery.data
     if (!data) return 0
-    let n = data.unmatched.length
-    for (const list of Object.values(data.sidoGroups)) n += list.length
+    let n = data.unmatched?.length ?? 0
+    for (const list of Object.values(data.sidoGroups ?? {})) n += list?.length ?? 0
     return n
   }, [regionalQuery.data])
 
@@ -314,20 +314,20 @@ function RegionTabPanel(props: RegionTabPanelProps) {
 
         {!query.isLoading && data ? (
           <>
-            {Object.keys(data.regionGroups).length === 0 && data.unclassified.length === 0 ? (
+            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0 ? (
               <div style={emptyStyle}>해당 기간에 출고전표가 없습니다.</div>
             ) : null}
 
-            {Object.entries(data.regionGroups).map(([groupName, entries]) => (
+            {Object.entries(data.regionGroups ?? {}).map(([groupName, entries]) => (
               <RegionGroupSection
                 key={groupName}
                 title={groupName}
-                count={entries.length}
-                entries={entries}
+                count={entries?.length ?? 0}
+                entries={entries ?? []}
               />
             ))}
 
-            {data.unclassified.length > 0 ? (
+            {(data.unclassified?.length ?? 0) > 0 ? (
               <UnclassifiedSection entries={data.unclassified} />
             ) : null}
           </>
@@ -501,20 +501,20 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
 
         {!query.isLoading && data ? (
           <>
-            {Object.keys(data.sidoGroups).length === 0 && data.unmatched.length === 0 ? (
+            {Object.keys(data.sidoGroups ?? {}).length === 0 && (data.unmatched?.length ?? 0) === 0 ? (
               <div style={emptyStyle}>해당 일자에 출고전표가 없습니다.</div>
             ) : null}
 
-            {Object.entries(data.sidoGroups).map(([sido, entries]) => (
+            {Object.entries(data.sidoGroups ?? {}).map(([sido, entries]) => (
               <RegionalGroupSection
                 key={sido}
                 title={sido}
-                count={entries.length}
-                entries={entries}
+                count={entries?.length ?? 0}
+                entries={entries ?? []}
               />
             ))}
 
-            {data.unmatched.length > 0 ? (
+            {(data.unmatched?.length ?? 0) > 0 ? (
               <RegionalUnmatchedSection entries={data.unmatched} />
             ) : null}
           </>
