@@ -364,6 +364,14 @@ export function AppLayout() {
               <NavLink to="/accounting/accounts">계정과목</NavLink>
               <NavLink to="/accounting/journals">분개장</NavLink>
               <NavLink to="/accounting/tax-invoices">세금계산서</NavLink>
+              {/* GAS 이식 — 세금계산서 일괄발행 (홈택스 양식) 4탭. ACCOUNTANT/MANAGER/MASTER. */}
+              <NavLink
+                to="/accounting/tax-invoices/batch"
+                data-testid="sidebar-accounting-tax-invoice-batch"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                세금계산서 일괄발행
+              </NavLink>
               <NavLink to="/accounting/balances">시산표</NavLink>
               {/* [P0-1 Slice A+B] 재무 보고서 서브메뉴 — 7개 보고서 진입점. */}
               {/* F1: end prop — 자식 라우트 진입 시 부모 active 강조 회피 */}

@@ -88,6 +88,9 @@ import { TrialBalancePage } from './TrialBalancePage'
 import { TaxInvoiceListPage } from './TaxInvoiceListPage'
 import { TaxInvoiceFormPage } from './TaxInvoiceFormPage'
 import { TaxInvoiceDetailPage } from './TaxInvoiceDetailPage'
+// GAS 이식 — 세금계산서 일괄발행 4탭 페이지 (ACCOUNTANT / MANAGER / MASTER).
+// BE: accounting-service POST /batch/preview / GET /batch/{id}/excel / /batch/exclusions / /batch/history
+import { TaxInvoiceBatchPage } from './accounting/TaxInvoiceBatchPage'
 // P2-1 견적서 라우트 3종 — slip-service `/slips/estimates/*` (commit 59232bd) 신규 BE 연결.
 // legacy webview (EstimateLegacyWebviewPage) 폐기 후 SamhanLogis 도메인 견적 화면으로 교체.
 import { EstimateListPage } from './EstimateListPage'
@@ -790,6 +793,16 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <TaxInvoiceListPage />
+          </RoleGuard>
+        ),
+      },
+      // GAS 이식 — 세금계산서 일괄발행 4탭 (ACCOUNTANT / MANAGER / MASTER).
+      // 정적 path (`/batch`) → `/accounting/tax-invoices/:id` 보다 먼저 매칭되어야 함.
+      {
+        path: '/accounting/tax-invoices/batch',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <TaxInvoiceBatchPage />
           </RoleGuard>
         ),
       },

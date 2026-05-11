@@ -3058,6 +3058,96 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // 세금계산서 일괄발행 (홈택스 양식) — GAS 이식 슬라이스
+  // ==========================================================================
+
+  // POST /accounting/tax-invoices/batch/preview — 미리보기 생성 (250건, splitFileCount=3)
+  if (method === 'POST' && url.includes('/accounting/tax-invoices/batch/preview')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      fromDate?: string
+      toDate?: string
+    }
+    return envelope({
+      batchNo: `BATCH-${Date.now().toString().slice(-8)}`,
+      batchId: '00000000-0000-0000-0000-batchmocknew1',
+      totalRowCount: MOCK_BATCH_ROWS.length,
+      splitFileCount: Math.ceil(MOCK_BATCH_ROWS.length / 100),
+      rows: MOCK_BATCH_ROWS,
+      exclusions: MOCK_BATCH_EXCLUSIONS.map((e) => e.partnerCode),
+      fromDate: body.fromDate ?? '2026-05-01',
+      toDate: body.toDate ?? '2026-05-31',
+    })
+  }
+
+  // GET /accounting/tax-invoices/batch/{id}/excel — 간이 Excel blob (text/csv 시뮬레이션)
+  if (method === 'GET' && /\/accounting\/tax-invoices\/batch\/[^/]+\/excel/.test(url)) {
+    const fileIndex = Number((config.params?.['fileIndex'] as string | undefined) ?? '0')
+    const pageRows = MOCK_BATCH_ROWS.slice(fileIndex * 100, (fileIndex + 1) * 100)
+    const header = '행번호,전표번호,작성일자,공급자상호,공급자사업자번호,공급받는자상호,공급받는자사업자번호,공급가액,세액,합계\n'
+    const csv = pageRows
+      .map((r) =>
+        [r.rowNo, r.slipNo, r.issueDate, r.supplierName, r.supplierBusinessNo,
+          r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
+      )
+      .join('\n')
+    // Blob 은 브라우저 환경에서만 유효 — mock adapter 는 string 반환 후 client 가 Blob 처리
+    return `${header}${csv}`
+  }
+
+  // GET /accounting/tax-invoices/batch/exclusions — 제외 거래처 목록
+  if (method === 'GET' && url.includes('/accounting/tax-invoices/batch/exclusions')) {
+    return envelope(MOCK_BATCH_EXCLUSIONS)
+  }
+
+  // POST /accounting/tax-invoices/batch/exclusions — 제외 거래처 추가
+  if (method === 'POST' && url.includes('/accounting/tax-invoices/batch/exclusions')) {
+    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
+      partnerCode?: string
+      partnerName?: string
+      reason?: string
+    }
+    return envelope({
+      partnerCode: body.partnerCode ?? 'P-NEW',
+      partnerName: body.partnerName ?? '신규 거래처',
+      reason: body.reason ?? '—',
+      createdAt: new Date().toISOString(),
+      createdBy: '오병승',
+    })
+  }
+
+  // DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
+  if (method === 'DELETE' && url.includes('/accounting/tax-invoices/batch/exclusions/')) {
+    return envelope({ deleted: true })
+  }
+
+  // GET /accounting/tax-invoices/batch/history/{batchId} — 단건 이력 (Tab 4 복원)
+  if (method === 'GET' && /\/accounting\/tax-invoices\/batch\/history\/[^/]+$/.test(url)) {
+    return envelope({
+      batchNo: 'BATCH-20260501-001',
+      batchId: '00000000-0000-0000-0000-batch0000001',
+      totalRowCount: MOCK_BATCH_ROWS.length,
+      splitFileCount: Math.ceil(MOCK_BATCH_ROWS.length / 100),
+      rows: MOCK_BATCH_ROWS,
+      exclusions: MOCK_BATCH_EXCLUSIONS.map((e) => e.partnerCode),
+      fromDate: '2026-05-01',
+      toDate: '2026-05-15',
+    })
+  }
+
+  // GET /accounting/tax-invoices/batch/history — 이력 목록 10건
+  if (method === 'GET' && url.includes('/accounting/tax-invoices/batch/history')) {
+    return envelope({
+      content: MOCK_BATCH_HISTORIES,
+      totalElements: MOCK_BATCH_HISTORIES.length,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+
   return null
 }
 
@@ -4279,3 +4369,119 @@ const MOCK_PARTNER_AGING_PAYABLE = {
   ],
   generatedAt: '2026-05-10T09:00:00+09:00',
 }
+
+// ==========================================================================
+// 세금계산서 일괄발행 (홈택스 양식) mock — GAS 이식 슬라이스
+// ==========================================================================
+
+/**
+ * 제외 거래처 마스터 시드 5건.
+ *
+ * UUID 비공개 가드 — partnerCode / partnerName 만 사용자 노출.
+ */
+const MOCK_BATCH_EXCLUSIONS = [
+  {
+    partnerCode: 'P-EX-001',
+    partnerName: '삼성건설(주)',
+    reason: '자체 전자세금계산서 발행',
+    createdAt: '2026-04-01T09:00:00+09:00',
+    createdBy: '오병승',
+  },
+  {
+    partnerCode: 'P-EX-002',
+    partnerName: '현대종합개발',
+    reason: '세무대리인 직접 발행',
+    createdAt: '2026-04-05T10:30:00+09:00',
+    createdBy: '오병승',
+  },
+  {
+    partnerCode: 'P-EX-003',
+    partnerName: '대우건설',
+    reason: '분기별 별도 일괄 처리',
+    createdAt: '2026-04-10T14:00:00+09:00',
+    createdBy: '김미선',
+  },
+  {
+    partnerCode: 'P-EX-004',
+    partnerName: '롯데건설',
+    reason: '매월 수기 발행',
+    createdAt: '2026-04-15T11:00:00+09:00',
+    createdBy: '오병승',
+  },
+  {
+    partnerCode: 'P-EX-005',
+    partnerName: '(주)에어텍',
+    reason: '비과세 거래처',
+    createdAt: '2026-05-01T09:30:00+09:00',
+    createdBy: '김미선',
+  },
+]
+
+/**
+ * 일괄발행 이력 시드 10건.
+ *
+ * batchId 는 path 전용 — 화면 미노출. batchNo 만 사용자 노출.
+ */
+const MOCK_BATCH_HISTORIES = Array.from({ length: 10 }, (_, i) => {
+  const idx = i + 1
+  const month = String(5 - Math.floor(i / 2)).padStart(2, '0')
+  const day = String(15 - (i % 2) * 7).padStart(2, '0')
+  return {
+    batchId: `00000000-0000-0000-0000-batch${String(idx).padStart(7, '0')}`,
+    batchNo: `BATCH-2026${month}${day}-${String(idx).padStart(3, '0')}`,
+    fromDate: `2026-${month}-01`,
+    toDate: `2026-${month}-${day}`,
+    processedAt: `2026-${month}-${day}T09:${String(i * 6).padStart(2, '0')}:00+09:00`,
+    processedBy: i % 2 === 0 ? '오병승' : '김미선',
+    totalRowCount: 200 + idx * 5,
+    splitFileCount: Math.ceil((200 + idx * 5) / 100),
+  }
+})
+
+/**
+ * 가상 미리보기 rows 250건 생성 — splitFileCount=3.
+ *
+ * UUID 비공개 가드: partnerCode / slipNo 만 사용자 노출. batchId 는 내부 전용.
+ */
+function generateMockBatchRows(count: number) {
+  const partners = [
+    { code: 'P-001', name: '○○종합건설', bizNo: '123-45-67890' },
+    { code: 'P-002', name: '△△인테리어', bizNo: '234-56-78901' },
+    { code: 'P-003', name: '□□설비공사', bizNo: '345-67-89012' },
+    { code: 'P-004', name: '◇◇냉난방', bizNo: '456-78-90123' },
+    { code: 'P-005', name: '☆☆건축자재', bizNo: '567-89-01234' },
+  ]
+  const supplier = { name: '(주)삼한로지스', bizNo: '111-22-33333' }
+
+  return Array.from({ length: count }, (_, i) => {
+    const p = partners[i % partners.length]!
+    const rowNo = i + 1
+    const day = String((i % 28) + 1).padStart(2, '0')
+    const supplyAmount = String(1000000 + i * 50000)
+    const vatAmount = String(Math.round((1000000 + i * 50000) * 0.1))
+    const totalAmount = String(
+      1000000 + i * 50000 + Math.round((1000000 + i * 50000) * 0.1),
+    )
+    return {
+      rowNo,
+      slipNo: `2026/05/${day}-${rowNo}`,
+      issueDate: `2026-05-${day}`,
+      supplierName: supplier.name,
+      supplierBusinessNo: supplier.bizNo,
+      recipientName: p.name,
+      recipientBusinessNo: p.bizNo,
+      recipientEmail: `billing@partner${(i % 5) + 1}.co.kr`,
+      supplyAmount,
+      vatAmount,
+      totalAmount,
+      itemName: i % 3 === 0 ? '냉난방 설비 운반' : i % 3 === 1 ? '자재 운송' : '물류 서비스',
+      specification: i % 2 === 0 ? '일식' : null,
+      quantity: '1',
+      unitPrice: supplyAmount,
+      partnerCode: p.code,
+      remark: i % 5 === 0 ? '현장 배송 완료' : null,
+    }
+  })
+}
+
+const MOCK_BATCH_ROWS = generateMockBatchRows(250)

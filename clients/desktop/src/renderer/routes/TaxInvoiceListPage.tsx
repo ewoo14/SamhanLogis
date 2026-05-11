@@ -178,15 +178,25 @@ export function TaxInvoiceListPage() {
         }}
       >
         <h3 style={{ margin: 0 }}>세금계산서</h3>
-        {canCreate ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {/* GAS 이식 — 일괄발행 4탭 페이지 진입 (ACCOUNTANT / MANAGER / MASTER). */}
           <Button
-            variant="primary"
-            onClick={() => navigate('/accounting/tax-invoices/new')}
-            data-testid="tax-invoice-new-button"
+            variant="secondary"
+            onClick={() => navigate('/accounting/tax-invoices/batch')}
+            data-testid="tax-invoice-batch-button"
           >
-            신규 작성
+            일괄 발행 (홈택스 양식)
           </Button>
-        ) : null}
+          {canCreate ? (
+            <Button
+              variant="primary"
+              onClick={() => navigate('/accounting/tax-invoices/new')}
+              data-testid="tax-invoice-new-button"
+            >
+              신규 작성
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* 필터 영역 */}
