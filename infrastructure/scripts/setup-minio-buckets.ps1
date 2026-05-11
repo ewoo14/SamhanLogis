@@ -1,13 +1,16 @@
 ﻿<#
 .SYNOPSIS
-    SamhanLogis MinIO 버킷 초기화 스크립트 (P0-3 거래처 첨부 + P1-8 슬립 모바일 사진).
+    SamhanLogis MinIO 버킷 초기화 스크립트 (P0-3 거래처 첨부 + P1-8 슬립 사진 + P1-photo 범용 첨부).
 
 .DESCRIPTION
     samhan-minio 컨테이너에 다음 버킷을 멱등 (idempotent) 으로 생성한다.
 
       - partner-attachments  : 거래처 첨부 (P0-3, PartnerAttachmentService) — 기존 패턴
-      - slip-attachments     : 슬립 첨부 / 모바일 현장 사진 (P1-8, slip-service 도메인 확장)
+      - slip-attachments     : 슬립 첨부 / 배송 현장 사진 (P1-8, slip-service 도메인 확장)
                                 매뉴얼 출처: docs/manual/04-모바일/04-사진-첨부.md §4-2 (V12 schema)
+      - samhan-attachments   : P1 범용 첨부 (P1-photo, 공통 AttachmentService)
+                                입고 검수 / 배송 완료 / 영업 방문 사진 — 단일 bucket 통합
+                                Phase 11 AWS 전환 시 동일 이름의 S3 bucket 으로 cutover
 
     각 버킷 정책:
       - bucket policy = private (인증 필요, 공개 anonymous read 금지)
@@ -95,9 +98,19 @@ $buckets = @(
     },
     @{
         Name        = 'slip-attachments'
-        Purpose     = '슬립 첨부 / 모바일 현장 사진 (P1-8, slip-service 도메인 확장)'
+        Purpose     = '슬립 첨부 / 배송 현장 사진 (P1-8, slip-service 도메인 확장)'
         ManualRef   = 'docs/manual/04-모바일/04-사진-첨부.md'
         PresignTtl  = 300    # 5분 (모바일 다운로드 link 단기 — 매뉴얼 §4-3)
+    },
+    @{
+        Name        = 'samhan-attachments'
+        Purpose     = 'P1 범용 첨부 (P1-photo, 공통 AttachmentService — 입고 검수/배송/영업 방문 사진)'
+        ManualRef   = 'docs/manual/04-모바일/04-사진-첨부.md'
+        PresignTtl  = 300    # 5분 — presigned URL 단기 (Phase 11 AWS S3 cutover 시 동일 TTL 유지)
+        # Phase 11 AWS cutover 메모:
+        #   SAMHAN_S3_ENDPOINT 를 빈 값으로 설정 → AWS SDK default S3 endpoint 자동 사용.
+        #   bucket 이름 samhan-attachments 동일 유지 (SAMHAN_S3_BUCKET=samhan-attachments).
+        #   IAM role AmazonS3FullAccess → 최소권한 s3:GetObject/PutObject/DeleteObject/GetPresignedUrl 로 교체.
     }
 )
 
@@ -220,7 +233,19 @@ Write-Host ''
 Write-Host ' 후속 가이드:' -ForegroundColor Cyan
 Write-Host '   - partner-service : SAMHAN_PARTNER_MINIO_ENABLED=true 설정 후 bootRun'
 Write-Host '   - slip-service    : SAMHAN_SLIP_MINIO_ENABLED=true 설정 후 bootRun (P1-8 활성 시)'
+Write-Host '   - 공통 AttachmentService (P1-photo):'
+Write-Host '       SAMHAN_S3_ENDPOINT=http://localhost:9000'
+Write-Host '       SAMHAN_S3_ACCESS_KEY=samhan'
+Write-Host '       SAMHAN_S3_SECRET_KEY=samhan_dev_pw'
+Write-Host '       SAMHAN_S3_BUCKET=samhan-attachments'
+Write-Host '       SAMHAN_S3_PRESIGNED_EXPIRY=300'
 Write-Host '   - MinIO Console   : http://localhost:9001  (samhan / samhan_dev_pw)'
+Write-Host ''
+Write-Host ' Phase 11 AWS S3 cutover (Phase 11 구축 완료 후):' -ForegroundColor DarkGray
+Write-Host '   SAMHAN_S3_ENDPOINT=   (빈 값 → AWS S3 default endpoint)' -ForegroundColor DarkGray
+Write-Host '   SAMHAN_S3_BUCKET=samhan-attachments  (동일)' -ForegroundColor DarkGray
+Write-Host '   SAMHAN_AWS_REGION=ap-northeast-2' -ForegroundColor DarkGray
+Write-Host '   IAM role: s3:GetObject / PutObject / DeleteObject (최소권한)' -ForegroundColor DarkGray
 Write-Host ''
 Write-Host ' lifecycle 활성 (90일 후 STANDARD_IA — 운영 시 별도 적용):' -ForegroundColor DarkGray
 Write-Host '   docker run --rm --network samhan-net minio/mc:latest \' -ForegroundColor DarkGray

@@ -111,6 +111,20 @@ services:
     image: minio/minio:latest
     container_name: samhan-minio
     restart: unless-stopped
+    # P1 사진 첨부 bucket 목록 (멱등 생성 = infrastructure/scripts/setup-minio-buckets.ps1).
+    # start-local-full.ps1 이 docker-compose up 직후 setup-minio-buckets.ps1 을 자동 호출.
+    #
+    #   - partner-attachments : 거래처 첨부 (P0-3, partner-service)
+    #                           presigned TTL 3600s | private
+    #   - slip-attachments    : 슬립 첨부 / 배송 현장 사진 (P1-8, slip-service)
+    #                           presigned TTL 300s  | private
+    #   - samhan-attachments  : P1 범용 첨부 (P1-photo, 공통 AttachmentService)
+    #                           presigned TTL 300s  | private
+    #                           Phase 11 AWS cutover 시 → S3 bucket samhan-attachments (ap-northeast-2)
+    #                           (SAMHAN_S3_ENDPOINT 빈 값 → AWS SDK default endpoint 자동 전환)
+    #
+    # 정책: 모든 버킷 anonymous read 금지 (private). 다운로드는 presigned URL 만 허용.
+    # Console: http://localhost:9001  (samhan / samhan_dev_pw — DEV-ONLY)
     command: server /data --console-address ':9001'
     environment:
       MINIO_ROOT_USER: samhan

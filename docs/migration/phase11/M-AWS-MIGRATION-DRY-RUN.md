@@ -74,36 +74,64 @@ Phase 10 production cutover 는 14 service + 5 frontend client + DNS 8 subdomain
 
 ### 3-1. 영향 컴포넌트
 
-| service | 사용처 | 환경변수 |
-|---|---|---|
-| slip-service | 출고 첨부 / 서명 PNG | `SAMHAN_S3_ENDPOINT` / `SAMHAN_S3_BUCKET` |
-| signature | Canvas SHA-256 PNG | (slip-service 위임) |
-| logging-service | log archive | `SAMHAN_S3_LOG_BUCKET` |
+| service | 사용처 | 환경변수 | bucket |
+|---|---|---|---|
+| slip-service | 출고 첨부 / 서명 PNG (P1-8) | `SAMHAN_SLIP_MINIO_*` | `slip-attachments` |
+| slip-service | P1 범용 현장 사진 (P1-photo) | `SAMHAN_S3_*` | `samhan-attachments` |
+| partner-service | 거래처 첨부 (P0-3) | `SAMHAN_PARTNER_MINIO_*` | `partner-attachments` |
+| logging-service | log archive | `SAMHAN_S3_LOG_BUCKET` | `samhan-logs` |
+
+**P1 신규 bucket: `samhan-attachments`** (2026-05-11 추가)
+
+입고 검수 / 배송 완료 / 영업 방문 현장 사진을 단일 범용 bucket 에 저장한다.
+로컬 개발 = MinIO `samhan-attachments` bucket, Phase 11 AWS = 동명 S3 bucket.
 
 ### 3-2. cutover 패턴
 
 ```yaml
-# 현재 (MinIO)
+# 현재 (로컬 MinIO — chained-default)
 samhan:
   s3:
-    endpoint: ${SAMHAN_S3_ENDPOINT:http://minio:9000}
-    region: us-east-1
-    path-style-access: true
-# Phase 10 (AWS S3)
-samhan:
-  s3:
-    endpoint: ${SAMHAN_S3_ENDPOINT:}   # 빈 값 시 AWS S3 default endpoint 사용
-    region: ${SAMHAN_AWS_REGION:ap-northeast-2}
-    path-style-access: false
+    endpoint: ${SAMHAN_S3_ENDPOINT:http://localhost:9000}
+    access-key: ${SAMHAN_S3_ACCESS_KEY:samhan}
+    secret-key: ${SAMHAN_S3_SECRET_KEY:samhan_dev_pw}
+    bucket: ${SAMHAN_S3_BUCKET:samhan-attachments}
+    presigned-expiry-seconds: ${SAMHAN_S3_PRESIGNED_EXPIRY:300}
+    region: ${SAMHAN_AWS_REGION:us-east-1}
+    path-style-access: ${SAMHAN_S3_PATH_STYLE_ACCESS:true}   # MinIO 필수
+
+# Phase 11 AWS S3 — 환경변수만 교체, application.yml 코드 변경 없음
+# .env / Secrets Manager override:
+#   SAMHAN_S3_ENDPOINT=                       (빈 값 → AWS SDK default endpoint)
+#   SAMHAN_S3_ACCESS_KEY=                     (EC2 IAM Role 사용 시 불필요)
+#   SAMHAN_S3_SECRET_KEY=                     (EC2 IAM Role 사용 시 불필요)
+#   SAMHAN_S3_BUCKET=samhan-attachments       (동일 이름 유지)
+#   SAMHAN_S3_PRESIGNED_EXPIRY=300
+#   SAMHAN_AWS_REGION=ap-northeast-2
+#   SAMHAN_S3_PATH_STYLE_ACCESS=false         (AWS S3 virtual-hosted-style)
 ```
 
-### 3-3. 검증 항목
+### 3-3. Phase 11 AWS S3 bucket 사전 준비 체크리스트
 
-- presigned URL 생성 + 만료 (15분) PASS
-- multipart upload (5MB 이상) PASS
-- bucket policy + IAM role 분리 (slip / log 별)
-- KMS 암호화 (SSE-KMS) 적용
-- CloudFront 또는 직접 S3 → 신호 비공개
+```
+[ ] S3 bucket samhan-attachments 생성 (ap-northeast-2)
+[ ] bucket policy: private (퍼블릭 액세스 차단 4개 항목 all ON)
+[ ] SSE-S3 (또는 SSE-KMS) 기본 암호화 활성
+[ ] 버전 관리: 활성 (우발적 삭제 방지)
+[ ] lifecycle: 180일 후 Glacier Instant Retrieval 전환 (월 비용 절감)
+[ ] IAM role 최소권한: s3:GetObject / PutObject / DeleteObject (bucket ARN/*) — EC2 IAM Role 연결
+[ ] presigned URL 생성 테스트 (TTL 300s 만료 검증)
+[ ] 기존 partner-attachments / slip-attachments bucket 동일 패턴 적용
+```
+
+### 3-4. 검증 항목
+
+- presigned URL 생성 + 만료 (300s = 5분) PASS
+- 단일 파일 ≤5MB PUT + GET presigned URL PASS
+- bucket policy private — anonymous GET 403 확인
+- SSE-S3 암호화 헤더 (`x-amz-server-side-encryption`) 확인
+- IAM role 최소권한: 다른 bucket PUT 시도 → 403 확인
+- `SAMHAN_S3_PATH_STYLE_ACCESS=false` 전환 후 virtual-hosted URL presigned 정상 동작
 
 ---
 
