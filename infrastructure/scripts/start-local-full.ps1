@@ -129,8 +129,30 @@ $expectedPorts = @{
     8093 = 'notification-service'
     8094 = 'dashboard-service'
     8095 = 'partner-service'
+    8089 = 'dc-config-service'
     8097 = 'arologis-service'
     8761 = 'eureka-server'
+}
+
+# 점유 자동 우회 — port → SAMHAN_<X>_PORT 환경변수 매핑.
+# pre-flight 시점에 점유 발견된 default port 가 있으면 +100 으로 자동 export.
+# application.yml 의 ${SERVER_PORT:${SAMHAN_<X>_PORT:default}} chained-default 와 정합.
+$portToEnvVar = @{
+    8080 = 'SAMHAN_API_GATEWAY_PORT'
+    8081 = 'SAMHAN_AUTH_PORT'
+    8083 = 'SAMHAN_USER_PORT'
+    8084 = 'SAMHAN_PRODUCT_PORT'
+    8085 = 'SAMHAN_INVENTORY_PORT'
+    8086 = 'SAMHAN_SLIP_PORT'
+    8087 = 'SAMHAN_ACCOUNTING_PORT'
+    8088 = 'SAMHAN_PARTNER_ORDER_PORT'
+    8092 = 'SAMHAN_GROUPWARE_PORT'
+    8093 = 'SAMHAN_NOTIFICATION_PORT'
+    8094 = 'SAMHAN_DASHBOARD_PORT'
+    8095 = 'SAMHAN_PARTNER_PORT'
+    8089 = 'SAMHAN_DC_CONFIG_PORT'
+    8097 = 'SAMHAN_AROLOGIS_PORT'
+    8761 = 'SAMHAN_EUREKA_PORT'
 }
 
 if (-not $SkipPortCheck) {
@@ -157,21 +179,31 @@ if (-not $SkipPortCheck) {
     }
     if ($occupied.Count -gt 0) {
         Write-Host ''
-        Write-Host '   다음 port 가 이미 점유 중입니다 — 기동 시 충돌 가능:' -ForegroundColor Yellow
+        Write-Host '   다음 port 가 이미 점유 중입니다 — 자동 우회 (+100) 적용:' -ForegroundColor Yellow
         $occupied | Format-Table -AutoSize
-        # 8086 InfluxDB 특수 안내
-        # 주의: SERVER_PORT 를 전역 set 하면 14 service 모두 같은 port 를 시도 → 충돌.
-        # service-specific 환경변수 SAMHAN_<SVC>_PORT 사용 의무 (chained-default 두번째 단계).
-        if ($occupied | Where-Object { $_.Port -eq 8086 }) {
-            Write-Host '   [안내] port 8086 충돌 — InfluxDB (MasterCTRLService child influxd) 가 점유 중일 가능성이 높습니다.' -ForegroundColor Yellow
-            Write-Host '          slip-service 만 다른 port 로 우회 — service-specific 환경변수 사용:' -ForegroundColor Yellow
-            Write-Host '            (영구) setx SAMHAN_SLIP_PORT 8186  → 신규 PowerShell 세션에서 inherit' -ForegroundColor DarkGray
-            Write-Host '            (세션) $env:SAMHAN_SLIP_PORT = 8186' -ForegroundColor DarkGray
-            Write-Host '          ※ SERVER_PORT 는 전역 우선이라 14 service 모두 같은 port 를 시도 → 사용 금지.' -ForegroundColor DarkGray
-            Write-Host '          또는 InfluxDB 컨테이너 종료 후 재시도.' -ForegroundColor Yellow
+
+        # 자동 우회 — 점유된 default port 마다 SAMHAN_<X>_PORT = port + 100 자동 export.
+        # 가드 1: 사용자가 이미 SAMHAN_<X>_PORT 환경변수 설정 시 그것 우선 (override 안 함).
+        # 가드 2: Java/gradlew/javaw 점유 시 skip (이미 SamhanLogis service 가동 중 — 사용자에게
+        #         stop-local-full.ps1 실행 후 재시도 안내).
+        foreach ($occ in $occupied) {
+            $envVar = $portToEnvVar[[int]$occ.Port]
+            if (-not $envVar) { continue }
+            $existing = [Environment]::GetEnvironmentVariable($envVar)
+            if ($existing) {
+                Write-Host "   [skip-auto] $envVar 이미 설정됨 ($existing) — 사용자 override 우선" -ForegroundColor DarkGray
+                continue
+            }
+            # Java 점유 시 skip — 이미 SamhanLogis service 가동 중. 두 인스턴스 동시 시작 회피.
+            if ($occ.Holder -match 'java|gradle') {
+                Write-Host "   [skip-auto] port $($occ.Port) Java/Gradle 점유 ($($occ.Holder)) — 이미 SamhanLogis service 가동 중" -ForegroundColor DarkYellow
+                Write-Host "                stop-local-full.ps1 실행 후 재시도 권장" -ForegroundColor DarkGray
+                continue
+            }
+            $newPort = [int]$occ.Port + 100
+            Set-Item "env:$envVar" $newPort
+            Write-Host "   [auto-bypass] port $($occ.Port) 점유 ($($occ.Holder)) → $envVar = $newPort 자동 export" -ForegroundColor Cyan
         }
-        Write-Host '   계속 진행 시 점유 process 가 우선이며 신규 service 가 기동 실패할 수 있습니다.' -ForegroundColor Yellow
-        Write-Host '   회피: stop-local-full.ps1 또는 -SkipPortCheck 옵션.' -ForegroundColor DarkGray
         Write-Host ''
     } else {
         Write-Host '   port 충돌 없음 — 진행' -ForegroundColor Green
@@ -295,7 +327,8 @@ if (-not $env:DB_PORT)     { $env:DB_PORT     = '5432' }
 if (-not $env:DB_USER)     { $env:DB_USER     = 'samhan' }
 if (-not $env:DB_PASSWORD) {
     if ($env:POSTGRES_PASSWORD) { $env:DB_PASSWORD = $env:POSTGRES_PASSWORD }
-    else { $env:DB_PASSWORD = '<set DB_PASSWORD env or see infrastructure/docker-compose.yml>' }
+    # docker-compose.yml 기본값 fallback — 외부 env 미설정 시 dev 환경 default 사용
+    else { $env:DB_PASSWORD = 'samhan_dev_pw' }
 }
 
 # W10-5 회고 — LEGACY_DB_* chained-default 호환.
@@ -352,6 +385,7 @@ $services = @(
     @{ name = 'groupware-service';     envVar = 'SAMHAN_GROUPWARE_PORT';     port = 8092; required = $false },
     @{ name = 'notification-service';  envVar = 'SAMHAN_NOTIFICATION_PORT';  port = 8093; required = $false },
     @{ name = 'dashboard-service';     envVar = 'SAMHAN_DASHBOARD_PORT';     port = 8094; required = $false },
+    @{ name = 'dc-config-service';     envVar = 'SAMHAN_DC_CONFIG_PORT';     port = 8089; required = $false },
     @{ name = 'api-gateway';           envVar = 'SAMHAN_API_GATEWAY_PORT';   port = 8080; required = $false }
 )
 
@@ -477,13 +511,13 @@ $seedQueries = @(
     @{ db = 'user_db';            table = 'employees';                 expected = 16  },
     @{ db = 'partner_db';         table = 'partners';                  expected = 50  },
     @{ db = 'product_db';         table = 'products';                  expected = 100 },
-    @{ db = 'inventory_db';       table = 'inventory_balances';        expected = 200 },
+    @{ db = 'inventory_db';       table = 'stock_balances';            expected = 200 },
     @{ db = 'slip_db';            table = 'slips';                     expected = 100 },
     @{ db = 'partner_order_db';   table = 'partner_orders';            expected = 30  },
     @{ db = 'arologis_db';        table = 'dispatches';                expected = 20  },
-    @{ db = 'accounting_db';      table = 'accounting_subjects';       expected = 65  },
+    @{ db = 'accounting_db';      table = 'chart_of_accounts';         expected = 65  },
     @{ db = 'groupware_db';       table = 'approval_lines';            expected = 5   },
-    @{ db = 'notification_db';    table = 'notification_channels';     expected = 3   },
+    @{ db = 'notification_db';    table = 'notification_logs';         expected = 0   },
     @{ db = 'dashboard_db';       table = 'kpi_snapshots';             expected = 1   }
 )
 

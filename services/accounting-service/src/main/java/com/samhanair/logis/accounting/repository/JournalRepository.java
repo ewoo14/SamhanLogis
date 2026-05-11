@@ -27,4 +27,10 @@ public interface JournalRepository extends JpaRepository<Journal, UUID> {
                                            @Param("to") LocalDate to,
                                            @Param("status") JournalStatus status,
                                            Pageable pageable);
+
+    /**
+     * 분개번호 존재 여부 — JournalSeeder idempotent 체크 (cleanup 후 재가동 시 unique 충돌 회피).
+     * Soft-delete row 도 포함 (journal_no unique partial index 가 is_deleted=FALSE 만 적용).
+     */
+    boolean existsByJournalNo(String journalNo);
 }

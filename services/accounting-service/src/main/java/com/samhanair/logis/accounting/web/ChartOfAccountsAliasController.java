@@ -11,25 +11,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 계정과목 마스터 endpoint (Plan §4).
- *
- * <p>권한 매트릭스:
- * <ul>
- *   <li>GET /accounting/accounts — 인증된 모든 사용자 (트리 전체 조회)</li>
- * </ul>
+ * 계정과목 alias endpoint — FE 가 사용하는 chart-of-accounts URL.
+ * GET /accounting/accounts 와 동일 응답.
  */
 @RestController
-@RequestMapping("/accounting/accounts")
+@RequestMapping("/accounting/chart-of-accounts")
 @RequiredArgsConstructor
-public class AccountController {
+public class ChartOfAccountsAliasController {
 
     private final AccountService accountService;
 
-    /** 계정과목 트리 전체 조회 — code 오름차순. */
-    @Operation(summary = "계정과목 트리", description = "ChartOfAccount 전체를 code asc 로 조회 (FE 가 parentCode 로 nest)")
+    @Operation(summary = "계정과목 트리 (chart-of-accounts alias)",
+            description = "GET /accounting/accounts 와 동등 응답")
     @GetMapping
     public ApiResponse<List<AccountTreeNodeResponse>> tree() {
         return ApiResponse.ok(accountService.findTree());
     }
-
 }

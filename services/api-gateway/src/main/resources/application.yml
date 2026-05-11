@@ -242,6 +242,68 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # ============================================================
+        # No-prefix routes — desktop API client legacy 호환 (PR-D 이전).
+        # baseURL=http://localhost:8080 + 직접 path (예: /slips/query, /inventory/transfers,
+        # /accounting/*, /admin/arologis/*) 호출 client 호환. StripPrefix 없음 (BE controller
+        # 가 동일 path 매핑 보유).
+        # ============================================================
+        - id: slip-service-noprefix
+          uri: lb://slip-service
+          predicates:
+            - Path=/slips/**
+          filters:
+            - JwtAuthentication
+
+        - id: inventory-service-noprefix
+          uri: lb://inventory-service
+          predicates:
+            - Path=/inventory/**,/warehouse/**
+          filters:
+            - JwtAuthentication
+
+        - id: accounting-service-noprefix
+          uri: lb://accounting-service
+          predicates:
+            - Path=/accounting/**
+          filters:
+            - JwtAuthentication
+
+        - id: arologis-service-noprefix
+          uri: lb://arologis-service
+          predicates:
+            - Path=/admin/arologis/**,/arologis/**
+          filters:
+            - JwtAuthentication
+
+        - id: notification-service-noprefix
+          uri: lb://notification-service
+          predicates:
+            - Path=/admin/notifications/**,/notify/**
+          filters:
+            - JwtAuthentication
+
+        - id: groupware-service-noprefix
+          uri: lb://groupware-service
+          predicates:
+            - Path=/admin/groupware/**,/groupware/**
+          filters:
+            - JwtAuthentication
+
+        - id: dashboard-service-noprefix
+          uri: lb://dashboard-service
+          predicates:
+            - Path=/dashboard/**
+          filters:
+            - JwtAuthentication
+
+        - id: partner-service-noprefix
+          uri: lb://partner-service
+          predicates:
+            - Path=/admin/partners/**
+          filters:
+            - JwtAuthentication
+
 eureka:
   client:
     service-url:

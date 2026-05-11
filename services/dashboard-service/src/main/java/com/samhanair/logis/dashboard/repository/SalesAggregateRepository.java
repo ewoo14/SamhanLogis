@@ -20,4 +20,7 @@ public interface SalesAggregateRepository extends JpaRepository<SalesAggregate, 
 
     List<SalesAggregate> findAllByPartnerIdAndAggregateDateBetweenOrderByAggregateDateAsc(
             UUID partnerId, LocalDate from, LocalDate to);
+
+    /** Seeder idempotent — partial unique (aggregate_date, partner_id) 충돌 회피. */
+    boolean existsByAggregateDateAndPartnerId(LocalDate aggregateDate, UUID partnerId);
 }

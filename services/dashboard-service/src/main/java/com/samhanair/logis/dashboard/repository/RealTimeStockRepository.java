@@ -16,4 +16,7 @@ public interface RealTimeStockRepository extends JpaRepository<RealTimeStock, UU
     Optional<RealTimeStock> findFirstByProductIdAndWarehouseCode(UUID productId, String warehouseCode);
 
     List<RealTimeStock> findAllByWarehouseCode(String warehouseCode);
+
+    /** Seeder idempotent — partial unique (product_id, warehouse_code) 충돌 회피. */
+    boolean existsByProductIdAndWarehouseCode(UUID productId, String warehouseCode);
 }

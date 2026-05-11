@@ -103,7 +103,8 @@ public class DashboardSnapshotSeeder implements CommandLineRunner {
         for (int i = 0; i < 100; i++) {
             LocalDate date = dailyBase.plusDays(i);
             UUID id = deterministicId("kpi", "DAILY_SALES:" + date);
-            if (kpiRepository.existsById(id)) {
+            if (kpiRepository.existsById(id)
+                    || kpiRepository.existsBySnapshotDateAndCategory(date, KpiCategory.DAILY_SALES)) {
                 skipped++;
                 continue;
             }
@@ -120,7 +121,8 @@ public class DashboardSnapshotSeeder implements CommandLineRunner {
         for (int m = 1; m <= 5; m++) {
             LocalDate date = LocalDate.of(2026, m, 1);
             UUID id = deterministicId("kpi", "MONTHLY_SALES:" + date);
-            if (kpiRepository.existsById(id)) {
+            if (kpiRepository.existsById(id)
+                    || kpiRepository.existsBySnapshotDateAndCategory(date, KpiCategory.MONTHLY_SALES)) {
                 skipped++;
                 continue;
             }
@@ -137,7 +139,8 @@ public class DashboardSnapshotSeeder implements CommandLineRunner {
         for (int i = 0; i < 30; i++) {
             LocalDate date = orderBase.plusDays(i);
             UUID id = deterministicId("kpi", "ORDER_COUNT:" + date);
-            if (kpiRepository.existsById(id)) {
+            if (kpiRepository.existsById(id)
+                    || kpiRepository.existsBySnapshotDateAndCategory(date, KpiCategory.ORDER_COUNT)) {
                 skipped++;
                 continue;
             }
@@ -167,7 +170,9 @@ public class DashboardSnapshotSeeder implements CommandLineRunner {
             for (String warehouse : WAREHOUSES) {
                 UUID id = deterministicId("realtime-stock",
                         productCode + ":" + warehouse);
-                if (realTimeStockRepository.existsById(id)) {
+                // Idempotent — UUID + (productId, warehouseCode) partial unique 양쪽 체크
+                if (realTimeStockRepository.existsById(id)
+                        || realTimeStockRepository.existsByProductIdAndWarehouseCode(productId, warehouse)) {
                     skipped++;
                     continue;
                 }
@@ -201,7 +206,9 @@ public class DashboardSnapshotSeeder implements CommandLineRunner {
                 UUID partnerId = deterministicId("partner", partnerCode);
                 UUID id = deterministicId("sales-aggregate",
                         date + ":" + partnerCode);
-                if (salesAggregateRepository.existsById(id)) {
+                // Idempotent — UUID + (date, partnerId) partial unique 양쪽 체크
+                if (salesAggregateRepository.existsById(id)
+                        || salesAggregateRepository.existsByAggregateDateAndPartnerId(date, partnerId)) {
                     skipped++;
                     continue;
                 }

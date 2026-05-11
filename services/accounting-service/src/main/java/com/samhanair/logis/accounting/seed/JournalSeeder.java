@@ -104,7 +104,10 @@ public class JournalSeeder implements CommandLineRunner {
             String journalNo = String.format("J-2026-%05d", seq);
             UUID journalId = deterministicId("journal", journalNo);
 
-            if (journalRepository.existsById(journalId)) {
+            // Idempotent — UUID + journalNo 양쪽 체크 (cleanup 후 deterministic UUID 가
+            // random 생성된 잔존 row 와 충돌 회피).
+            if (journalRepository.existsById(journalId)
+                    || journalRepository.existsByJournalNo(journalNo)) {
                 skipped++;
                 log.debug("Skipping journal seed (already present): {}", journalNo);
                 continue;

@@ -21,4 +21,7 @@ public interface KpiSnapshotRepository extends JpaRepository<KpiSnapshot, UUID> 
             KpiCategory category, LocalDate from, LocalDate to);
 
     List<KpiSnapshot> findAllBySnapshotDateBetweenOrderBySnapshotDateAsc(LocalDate from, LocalDate to);
+
+    /** Seeder idempotent — partial unique (snapshot_date, category) 충돌 회피. */
+    boolean existsBySnapshotDateAndCategory(LocalDate snapshotDate, KpiCategory category);
 }
