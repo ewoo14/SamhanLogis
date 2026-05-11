@@ -1,12 +1,15 @@
 package com.samhanair.logis.inventory.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.inventory.service.DpsByProductService;
 import com.samhanair.logis.inventory.service.DpsCompareGroupBy;
 import com.samhanair.logis.inventory.service.DpsCompareService;
+import com.samhanair.logis.inventory.web.dto.DpsByProductResponse;
 import com.samhanair.logis.inventory.web.dto.DpsCompareResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.LocalDate;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -21,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * DPS 입고 비교 endpoint — PR-E1 BE-2.
+ * DPS 입고 비교 endpoint — PR-E1 BE-2 + P0-B GAS 보강.
  *
  * <p>Samhan Public 자동화: legacy GAS 1번 (DPS 입고기록 비교) + 16번 (품목별 DPS 입고내역 비교)
  * 의 자체 운영 endpoint. 출고전표 = 자체 자동 조회 (slip-service Feign), DPS = 사용자 엑셀 업로드
@@ -29,8 +32,9 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>권한 매트릭스 (memory ROLE 풀네임 의무):
  * <ul>
- *   <li>POST /warehouse/audit/dps-compare — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
- *   <li>GET /warehouse/audit/dps-compare/template — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
+ *   <li>POST  /warehouse/audit/dps-compare — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
+ *   <li>GET   /warehouse/audit/dps-compare/template — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
+ *   <li>GET   /warehouse/audit/dps-compare/by-product — WAREHOUSE / MANAGER / MASTER (P0-B)</li>
  * </ul>
  *
  * <p>UUID 비공개 — 응답에는 slipNo / productCode / partnerCode / partnerName 비즈니스 식별자만
@@ -42,6 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class DpsCompareController {
 
     private final DpsCompareService dpsCompareService;
+    private final DpsByProductService dpsByProductService;
 
     /**
      * DPS 입고 비교 — multipart 업로드 + 출고전표 자동 조회 + 매칭 결과 응답.
@@ -92,5 +97,37 @@ public class DpsCompareController {
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(body);
+    }
+
+    /**
+     * 품목별 DPS 입고내역 pivot 분석 — P0-B GAS 보강 (legacy GAS 16번 이식).
+     *
+     * <p>기간 범위 내 {@code inbound_inspections} 를 상품코드 × 입고단계
+     * (대기/완료/품질검사/반품) 기준으로 집계한 pivot 테이블을 반환한다.
+     *
+     * <p>UUID 비공개 원칙 준수 — 응답 rows 의 식별자는 productCode / productName 만 노출.
+     *
+     * @param fromDate    조회 시작일 (포함, yyyy-MM-dd, 필수)
+     * @param toDate      조회 종료일 (포함, yyyy-MM-dd, 필수)
+     * @param warehouseId 창고 UUID 필터 (선택, 미지정 시 전체 창고)
+     * @return 품목별 pivot 분석 결과 ({@link DpsByProductResponse})
+     */
+    @Operation(summary = "품목별 DPS 입고내역 pivot 분석 (P0-B)",
+            description = "상품코드 × 입고단계(대기/완료/품질검사/반품) pivot 집계 — legacy GAS 16번 이식")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "집계 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "날짜 형식 오류 / fromDate > toDate"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 부족"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "warehouseId 창고 미존재")
+    })
+    @GetMapping("/by-product")
+    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    public ApiResponse<DpsByProductResponse> analyzeByProduct(
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(value = "warehouseId", required = false) UUID warehouseId) {
+        return ApiResponse.ok(
+                dpsByProductService.analyze(fromDate, toDate, warehouseId),
+                "품목별 DPS pivot 분석 완료");
     }
 }
