@@ -106,7 +106,7 @@ export function WarehousesPage() {
 
       <DataTable
         columns={columns}
-        rows={query.data ?? []}
+        rows={Array.isArray(query.data) ? query.data : []}
         loading={query.isLoading}
         rowKey={(w) => w.id}
         emptyMessage="등록된 창고가 없습니다."

@@ -46,7 +46,7 @@ export function RolesPage() {
     queryFn: listAdminRoles,
   })
 
-  const roles = rolesQuery.data ?? []
+  const roles = Array.isArray(rolesQuery.data) ? rolesQuery.data : []
 
   const countQueries = useQueries({
     queries: roles.map((role) => ({

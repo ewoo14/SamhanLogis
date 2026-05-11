@@ -363,7 +363,7 @@ export function TaxInvoiceFormPage() {
         {/* PR-H4c: 편집 모드 — 수정 횟수 + 복원 dropdown */}
         {isEdit ? (
           <AuditRevisionBadge
-            logs={auditQuery.data ?? []}
+            logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
             isError={auditQuery.isError}
             reverting={revertMutation.isPending}
             onRevert={(rev) => revertMutation.mutate(rev)}
@@ -417,7 +417,7 @@ export function TaxInvoiceFormPage() {
               }}
               role="listbox"
             >
-              {(partnerSearchQuery.data ?? []).map((p) => (
+              {(Array.isArray(partnerSearchQuery.data) ? partnerSearchQuery.data : []).map((p) => (
                 <div
                   key={p.businessRegistrationNumber}
                   role="option"

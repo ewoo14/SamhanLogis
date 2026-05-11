@@ -488,7 +488,7 @@ export function InboundInspectionDialog({
 
             {/* P1 검수 사진 viewer — mobile-staff 업로드 결과 thumbnail + lightbox */}
             <InspectionPhotoViewer
-              attachments={attachmentsQuery.data ?? []}
+              attachments={Array.isArray(attachmentsQuery.data) ? attachmentsQuery.data : []}
               loading={attachmentsQuery.isLoading}
               lightboxIndex={lightboxIndex}
               onOpenLightbox={setLightboxIndex}

@@ -297,7 +297,7 @@ export function RegionsPage() {
       <div data-testid="admin-regions-table">
         <DataTable
           columns={columns}
-          rows={regionsQuery.data ?? []}
+          rows={Array.isArray(regionsQuery.data) ? regionsQuery.data : []}
           loading={regionsQuery.isLoading}
           rowKey={(r) => r.id}
           emptyMessage="등록된 지역 분류가 없습니다."

@@ -267,7 +267,7 @@ export function JournalFormPage() {
             key={line.uid}
             index={i + 1}
             line={line}
-            accounts={accountsQuery.data ?? []}
+            accounts={Array.isArray(accountsQuery.data) ? accountsQuery.data : []}
             onChange={(patch) => updateLine(i, patch)}
             onRemove={() => removeLine(i)}
           />

@@ -44,7 +44,7 @@ export function DepartmentsPage() {
     queryFn: listDepartments,
   })
 
-  const departments = departmentsQuery.data ?? []
+  const departments = Array.isArray(departmentsQuery.data) ? departmentsQuery.data : []
 
   const countQueries = useQueries({
     queries: departments.map((d) => ({

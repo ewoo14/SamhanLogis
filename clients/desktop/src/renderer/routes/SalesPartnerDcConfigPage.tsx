@@ -358,7 +358,7 @@ export function SalesPartnerDcConfigPage() {
               </h4>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <AuditRevisionBadge
-                  logs={auditQuery.data ?? []}
+                  logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                   isError={auditQuery.isError}
                   testIdPrefix="partner-dc-config-audit"
                 />
@@ -380,7 +380,7 @@ export function SalesPartnerDcConfigPage() {
             >
               {PARTNER_DC_CONFIG_COLUMNS.map((c) => {
                 const history =
-                  groupAuditLogsByField(auditQuery.data ?? [])[c.key as string] ?? []
+                  groupAuditLogsByField(Array.isArray(auditQuery.data) ? auditQuery.data : [])[c.key as string] ?? []
                 if (history.length === 0) return null
                 const cur = selectedRow[c.key]
                 return (
@@ -397,7 +397,7 @@ export function SalesPartnerDcConfigPage() {
                   </div>
                 )
               })}
-              {(auditQuery.data ?? []).length === 0 ? (
+              {(Array.isArray(auditQuery.data) ? auditQuery.data : []).length === 0 ? (
                 <p style={{ margin: 0, fontSize: 12, color: '#6b7280', gridColumn: '1 / -1' }}>
                   변경 이력이 없습니다.
                 </p>

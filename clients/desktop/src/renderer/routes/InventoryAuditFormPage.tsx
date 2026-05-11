@@ -91,7 +91,7 @@ export function InventoryAuditFormPage() {
               style={inputStyle}
             >
               <option value="">선택...</option>
-              {(warehousesQuery.data ?? [])
+              {(Array.isArray(warehousesQuery.data) ? warehousesQuery.data : [])
                 .filter((w: Warehouse) => w.type !== 'VIRTUAL')
                 .map((w: Warehouse) => (
                   <option key={w.id} value={w.id}>

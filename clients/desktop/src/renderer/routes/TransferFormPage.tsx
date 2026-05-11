@@ -164,14 +164,14 @@ export function TransferFormPage() {
             <WarehouseSelector
               label="출발 창고"
               required
-              warehouses={warehousesQuery.data ?? []}
+              warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
               value={sourceWh}
               onChange={(id) => setSourceWh(id)}
             />
             <WarehouseSelector
               label="도착 창고"
               required
-              warehouses={warehousesQuery.data ?? []}
+              warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
               value={destWh}
               onChange={(id) => setDestWh(id)}
               error={

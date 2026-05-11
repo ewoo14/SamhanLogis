@@ -177,7 +177,7 @@ export function InventoryAuditListPage() {
           style={selectStyle}
         >
           <option value="">창고 전체</option>
-          {(warehousesQuery.data ?? []).map((w: Warehouse) => (
+          {(Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []).map((w: Warehouse) => (
             <option key={w.id} value={w.id}>
               {w.code} · {w.name}
             </option>

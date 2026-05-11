@@ -165,7 +165,7 @@ export function InventoryAuditDetailPage() {
 
   // PR-H4c FE-B: COMPLETED/CANCELLED 단계는 본문 변경 차단 — banner 노출
   const isLocked = audit.status === 'COMPLETED' || audit.status === 'CANCELLED'
-  const auditLogs = auditQuery.data ?? []
+  const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
   const auditByField = groupAuditLogsByField(auditLogs)
 
   return (

@@ -184,7 +184,7 @@ export function EstimateDetailPage() {
   const canMutate = canMutateEstimate(role)
   // PR-H4c: 변환/거절 단계 본문 잠금
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
-  const auditLogs = auditQuery.data ?? []
+  const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
   const auditByField = groupAuditLogsByField(auditLogs)
 
   const handleSend = () => {

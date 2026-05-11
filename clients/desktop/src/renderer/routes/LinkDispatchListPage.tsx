@@ -170,7 +170,7 @@ export function LinkDispatchListPage() {
 
       <DataTable
         columns={columns}
-        rows={query.data ?? []}
+        rows={Array.isArray(query.data) ? query.data : []}
         loading={query.isLoading}
         rowKey={(b) => b.id}
         rowClassName={(b) => (b.smsSentAt ? 'batch-row-sent' : undefined)}

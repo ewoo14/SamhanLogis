@@ -533,7 +533,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * - field 키 → AuditLogEntry[] (revisionNo 내림차순 정렬은 AuditOverlay 가 담당)
    * - actorId 는 색상 hash 입력 전용, 화면 노출 X.
    */
-  const auditLogs: SlipAuditLogEntry[] = auditLogsQuery.data ?? []
+  const auditLogs: SlipAuditLogEntry[] = Array.isArray(auditLogsQuery.data) ? auditLogsQuery.data : []
   const auditByField: Record<string, AuditLogEntry[]> = auditLogs.reduce(
     (acc, log) => {
       const list = acc[log.field] ?? []
@@ -1128,12 +1128,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             >
               코멘트를 불러오지 못했습니다.
             </p>
-          ) : (commentsQuery.data ?? []).length === 0 ? (
+          ) : (Array.isArray(commentsQuery.data) ? commentsQuery.data : []).length === 0 ? (
             <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>
               아직 코멘트가 없습니다.
             </p>
           ) : (
-            (commentsQuery.data ?? []).map((c) => (
+            (Array.isArray(commentsQuery.data) ? commentsQuery.data : []).map((c) => (
               <div
                 key={c.id}
                 data-testid={`slip-detail-comment-row-${c.id}`}

@@ -101,7 +101,7 @@ export function StatementBatchPage() {
   })
 
   const rows: StatementBatchRow[] = useMemo(
-    () => query.data ?? [],
+    () => Array.isArray(query.data) ? query.data : [],
     [query.data],
   )
 

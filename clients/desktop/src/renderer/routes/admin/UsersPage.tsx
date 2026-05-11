@@ -399,7 +399,7 @@ export function UsersPage() {
           style={selectStyle}
         >
           <option value="">권한 전체</option>
-          {(rolesQuery.data ?? []).map((r) => (
+          {(Array.isArray(rolesQuery.data) ? rolesQuery.data : []).map((r) => (
             <option key={r} value={r}>
               {ADMIN_ROLE_LABEL[r]}
             </option>
@@ -415,7 +415,7 @@ export function UsersPage() {
           style={selectStyle}
         >
           <option value="">부서 전체</option>
-          {(departmentsQuery.data ?? []).map((d) => (
+          {(Array.isArray(departmentsQuery.data) ? departmentsQuery.data : []).map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
             </option>
@@ -443,8 +443,8 @@ export function UsersPage() {
       {createModal ? (
         <div data-testid="admin-user-create-modal">
           <CreateUserModal
-            roles={rolesQuery.data ?? []}
-            departments={departmentsQuery.data ?? []}
+            roles={Array.isArray(rolesQuery.data) ? rolesQuery.data : []}
+            departments={Array.isArray(departmentsQuery.data) ? departmentsQuery.data : []}
             onClose={() => setCreateModal(false)}
             onCommitted={() => {
               setCreateModal(false)
@@ -459,7 +459,7 @@ export function UsersPage() {
         <div data-testid="admin-user-edit-modal">
           <EditUserModal
             user={editModal}
-            departments={departmentsQuery.data ?? []}
+            departments={Array.isArray(departmentsQuery.data) ? departmentsQuery.data : []}
             onClose={() => setEditModal(null)}
             onCommitted={() => {
               setEditModal(null)
@@ -474,7 +474,7 @@ export function UsersPage() {
         <div data-testid="admin-user-role-change-modal">
           <RoleChangeModal
             user={roleModal}
-            roles={rolesQuery.data ?? []}
+            roles={Array.isArray(rolesQuery.data) ? rolesQuery.data : []}
             onClose={() => setRoleModal(null)}
             onCommitted={() => {
               setRoleModal(null)
@@ -1160,7 +1160,7 @@ function RoleHistoryModal({ user, onClose }: RoleHistoryModalProps) {
     >
       <DataTable
         columns={columns}
-        rows={query.data ?? []}
+        rows={Array.isArray(query.data) ? query.data : []}
         loading={query.isLoading}
         rowKey={(h) => h.id}
         emptyMessage="권한 변경 이력이 없습니다."

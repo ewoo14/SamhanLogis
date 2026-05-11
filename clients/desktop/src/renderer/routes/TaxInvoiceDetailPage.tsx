@@ -177,7 +177,7 @@ export function TaxInvoiceDetailPage() {
   const canMutate = canAccessTaxInvoice(role)
   // PR-H4c: ISSUED/CANCELLED 단계는 본문 변경 차단 — banner 노출.
   const isLocked = t.status === 'ISSUED' || t.status === 'CANCELLED'
-  const auditLogs = auditQuery.data ?? []
+  const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
   const auditByField = groupAuditLogsByField(auditLogs)
 
   const handleIssue = () => {

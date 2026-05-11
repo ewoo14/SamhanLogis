@@ -159,7 +159,7 @@ export function SlipEditRequestsPage() {
     rejectMutation.mutate({ req: rejectTarget, reason: trimmed })
   }
 
-  const list = query.data ?? []
+  const list = Array.isArray(query.data) ? query.data : []
   const approveError = extractMessage(approveMutation.error)
   const rejectError = extractMessage(rejectMutation.error)
   const queryError = extractMessage(query.error)

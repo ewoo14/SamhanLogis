@@ -71,7 +71,7 @@ export function SafetyStockAlertsPage() {
 
   // 클라이언트 필터링 (창고 + 긴급도)
   const alerts = useMemo<SafetyStockAlert[]>(() => {
-    let all = alertsQuery.data ?? []
+    let all = Array.isArray(alertsQuery.data) ? alertsQuery.data : []
     if (warehouseId) {
       all = all.filter((a) => a.warehouseId === warehouseId)
     }
@@ -108,7 +108,7 @@ export function SafetyStockAlertsPage() {
               style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
             >
               임계 미만{' '}
-              <strong>{(alertsQuery.data ?? []).length}건</strong>
+              <strong>{(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length}건</strong>
               {' · '}1분 자동 갱신
             </span>
           ) : null}
@@ -131,7 +131,7 @@ export function SafetyStockAlertsPage() {
             }}
           >
             <option value="">전체 창고</option>
-            {(warehousesQuery.data ?? []).map((w: Warehouse) => (
+            {(Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []).map((w: Warehouse) => (
               <option key={w.id} value={w.id}>
                 {/* Designer 7: warehouseCode 제거 — warehouseName 단독 표시 */}
                 {w.name}
@@ -171,7 +171,7 @@ export function SafetyStockAlertsPage() {
       </div>
 
       {/* 알림 요약 배너 */}
-      {(alertsQuery.data ?? []).length > 0 ? (
+      {(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length > 0 ? (
         <div
           style={{
             display: 'flex',
@@ -189,7 +189,7 @@ export function SafetyStockAlertsPage() {
           <span style={{ fontWeight: 700 }}>재고 부족 경고</span>
           <span>
             현재 안전재고 임계 미만 품목{' '}
-            <strong>{(alertsQuery.data ?? []).length}건</strong>이 있습니다.
+            <strong>{(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length}건</strong>이 있습니다.
             발주를 검토하세요.
           </span>
         </div>

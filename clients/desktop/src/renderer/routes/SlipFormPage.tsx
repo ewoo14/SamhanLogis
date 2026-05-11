@@ -238,7 +238,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   /** 창고 컬럼 메타 (재고 모달용) — listWarehouses 결과에서 자동 생성. */
   const warehouseColumns = useMemo<WarehouseColumn[]>(() => {
-    const ws = warehousesQuery.data ?? []
+    const ws = Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []
     return ws.map((w) => ({
       code: w.code,
       label: w.name.length > 6 ? w.name.slice(0, 6) : w.name,
@@ -501,7 +501,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           <WarehouseSelector
             label={isOutbound ? '출발 창고' : '입고 창고'}
             required={isOutbound}
-            warehouses={warehousesQuery.data ?? []}
+            warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
             value={sourceWh}
             onChange={(id) => setSourceWh(id)}
             hideVirtual
@@ -509,7 +509,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           <WarehouseSelector
             label={isOutbound ? '도착 창고' : '출발 창고 (옵션)'}
             required={!isOutbound}
-            warehouses={warehousesQuery.data ?? []}
+            warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
             value={destWh}
             onChange={(id) => setDestWh(id)}
             hideVirtual

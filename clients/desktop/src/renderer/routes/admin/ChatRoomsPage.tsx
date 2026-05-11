@@ -126,7 +126,7 @@ export function ChatRoomsPage() {
   })
 
   const groups: ChatRoomGroup[] = useMemo(
-    () => groupByChatRoom(query.data ?? []),
+    () => groupByChatRoom(Array.isArray(query.data) ? query.data : []),
     [query.data],
   )
 

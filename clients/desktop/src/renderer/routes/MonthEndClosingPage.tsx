@@ -204,7 +204,7 @@ export function MonthEndClosingPage() {
 
   const selectedClosing = useMemo(
     () =>
-      (listQuery.data ?? []).find((c) => c.id === selectedClosingId) ?? null,
+      (Array.isArray(listQuery.data) ? listQuery.data : []).find((c) => c.id === selectedClosingId) ?? null,
     [listQuery.data, selectedClosingId],
   )
 
@@ -644,7 +644,7 @@ export function MonthEndClosingPage() {
           <div data-testid="closing-list-table">
             <DataTable
               columns={columns}
-              rows={listQuery.data ?? []}
+              rows={Array.isArray(listQuery.data) ? listQuery.data : []}
               rowKey={(r) => r.id}
               emptyMessage="해당 유형의 마감 이력이 없습니다."
             />
@@ -722,7 +722,7 @@ export function MonthEndClosingPage() {
             </h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <AuditRevisionBadge
-                logs={auditQuery.data ?? []}
+                logs={Array.isArray(auditQuery.data) ? auditQuery.data : []}
                 isError={auditQuery.isError}
                 testIdPrefix="closing-audit"
               />
@@ -748,7 +748,7 @@ export function MonthEndClosingPage() {
             <AuditOverlay
               field="description"
               currentValue={selectedClosing.description ?? null}
-              history={groupAuditLogsByField(auditQuery.data ?? [])['description'] ?? []}
+              history={groupAuditLogsByField(Array.isArray(auditQuery.data) ? auditQuery.data : [])['description'] ?? []}
             />
           </div>
         </Card>

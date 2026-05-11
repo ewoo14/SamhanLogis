@@ -54,7 +54,7 @@ export function AccountTreePage() {
 
   // 카테고리별 그룹화 (Map preserves insertion order)
   const grouped = useMemo(() => {
-    const accounts = query.data ?? []
+    const accounts = Array.isArray(query.data) ? query.data : []
     const map = new Map<string, Account[]>()
     for (const a of accounts) {
       const list = map.get(a.category) ?? []
