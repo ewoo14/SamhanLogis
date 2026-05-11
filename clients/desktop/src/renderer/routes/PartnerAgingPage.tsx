@@ -119,7 +119,7 @@ function agingBadgeStyle(agingDays: number): React.CSSProperties {
 /** CSV 다운로드 — Blob API (UUID partnerId 는 포함 안 함). */
 function downloadCsv(data: PartnerAgingResponse): void {
   const header = '거래처코드,거래처명,잔액,가장오래된일자,연체일수'
-  const rows = data.lines.map((l) =>
+  const rows = (data.lines ?? []).map((l) =>
     [l.partnerCode, l.partnerName, l.balance, l.oldestUnpaidDate ?? '', l.agingDays].join(','),
   )
   const csv = [header, ...rows].join('\n')

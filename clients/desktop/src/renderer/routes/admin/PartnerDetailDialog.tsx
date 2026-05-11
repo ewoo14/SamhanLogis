@@ -126,7 +126,7 @@ export function PartnerDetailDialog({
         paymentTermDays: data.priceDiscount.paymentTermDays ?? null,
         discountMemo: data.priceDiscount.discountMemo ?? null,
       },
-      shippingAddresses: data.shippingAddresses.map((a) => ({
+      shippingAddresses: (data.shippingAddresses ?? []).map((a) => ({
         alias: a.alias ?? '',
         zipCode: a.zipCode ?? '',
         address: a.address,
@@ -135,7 +135,7 @@ export function PartnerDetailDialog({
         isDefault: a.isDefault,
         memo: a.memo ?? '',
       })),
-      contacts: data.contacts.map((c) => ({
+      contacts: (data.contacts ?? []).map((c) => ({
         contactName: c.contactName,
         position: c.position ?? '',
         phone: c.phone ?? '',
@@ -495,10 +495,10 @@ function DetailShippingTab({
   if (!editing) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {data.shippingAddresses.length === 0 ? (
+        {(data.shippingAddresses?.length ?? 0) === 0 ? (
           <p style={emptyStyle}>등록된 배송지가 없습니다.</p>
         ) : (
-          data.shippingAddresses.map((a) => (
+          (data.shippingAddresses ?? []).map((a) => (
             <Card key={a.id} variant="outlined" shadow="none" padding={3}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>
@@ -635,10 +635,10 @@ function DetailContactTab({
   if (!editing) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {data.contacts.length === 0 ? (
+        {(data.contacts?.length ?? 0) === 0 ? (
           <p style={emptyStyle}>등록된 담당자가 없습니다.</p>
         ) : (
-          data.contacts.map((c) => (
+          (data.contacts ?? []).map((c) => (
             <Card key={c.id} variant="outlined" shadow="none" padding={3}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>

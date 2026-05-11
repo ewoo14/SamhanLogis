@@ -119,7 +119,7 @@ export function ArologisPreClassifyPage() {
     const rows: string[][] = [
       ['권역', '전표번호', '거래처코드', '거래처명', '주소', '배차여부'],
     ]
-    for (const [groupName, entries] of Object.entries(data.regionGroups)) {
+    for (const [groupName, entries] of Object.entries(data.regionGroups ?? {})) {
       for (const e of entries) {
         rows.push([
           groupName,
@@ -131,7 +131,7 @@ export function ArologisPreClassifyPage() {
         ])
       }
     }
-    for (const e of data.unclassified) {
+    for (const e of (data.unclassified ?? [])) {
       rows.push([
         '(미분류)',
         e.slipNo,
@@ -150,12 +150,12 @@ export function ArologisPreClassifyPage() {
     const rows: string[][] = [
       ['시도', '전표번호', '거래처코드', '거래처명', '주소'],
     ]
-    for (const [sidoName, entries] of Object.entries(data.sidoGroups)) {
+    for (const [sidoName, entries] of Object.entries(data.sidoGroups ?? {})) {
       for (const e of entries) {
         rows.push([sidoName, e.slipNo, e.partnerCode, e.partnerName, e.address])
       }
     }
-    for (const e of data.unmatched) {
+    for (const e of (data.unmatched ?? [])) {
       rows.push(['(미매칭)', e.slipNo, e.partnerCode, e.partnerName, e.address])
     }
     downloadCsv(`regional_${data.date}.csv`, rows)

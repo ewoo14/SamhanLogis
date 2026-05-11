@@ -348,7 +348,7 @@ export function SalesVendorOrderUploadPage() {
     mutationFn: ({ vendor: v, file: f }) => uploadVendorOrder(v, f),
     onSuccess: (data) => {
       setUploadResult(data)
-      setItems(data.parsedLines.map(fromPreviewLine))
+      setItems((data.parsedLines ?? []).map(fromPreviewLine))
       setError(null)
       setStep('PREVIEW')
     },

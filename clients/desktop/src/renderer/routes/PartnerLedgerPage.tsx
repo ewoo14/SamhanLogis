@@ -624,7 +624,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
         <span>{data.partnerBusinessNo || '-'}</span>
         <span style={{ fontWeight: 600 }}>단톡방</span>
         <span>
-          {data.chatRoomNames.length === 0 ? '-' : data.chatRoomNames.join(' / ')}
+          {(data.chatRoomNames?.length ?? 0) === 0 ? '-' : (data.chatRoomNames ?? []).join(' / ')}
         </span>
         <span style={{ fontWeight: 600 }}>기간</span>
         <span>
@@ -632,7 +632,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
         </span>
       </div>
 
-      {data.lines.length === 0 ? (
+      {(data.lines?.length ?? 0) === 0 ? (
         <div
           style={{
             padding: 24,
@@ -662,7 +662,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               </tr>
             </thead>
             <tbody>
-              {data.lines.map((ln, idx) => (
+              {(data.lines ?? []).map((ln, idx) => (
                 <tr key={`${ln.date}-${ln.journalNo}-${idx}`}>
                   <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>

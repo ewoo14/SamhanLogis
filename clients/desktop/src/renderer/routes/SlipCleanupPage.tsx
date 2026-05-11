@@ -239,7 +239,7 @@ export function SlipCleanupPage() {
           variant="secondary"
           data-testid="slip-cleanup-csv-download"
           onClick={handleCsv}
-          disabled={!query.data || query.data.entries.length === 0}
+          disabled={!query.data || (query.data.entries?.length ?? 0) === 0}
         >
           CSV 다운로드
         </Button>
@@ -294,7 +294,7 @@ export function SlipCleanupPage() {
         <div style={{ padding: 24, color: '#6B7280' }}>불러오는 중...</div>
       ) : null}
 
-      {query.data && query.data.entries.length === 0 ? (
+      {query.data && (query.data.entries?.length ?? 0) === 0 ? (
         <div
           style={{
             padding: 24,

@@ -108,7 +108,7 @@ export function SalesPartnerOrderDetailPage() {
             <div className={styles['card']} style={{ marginTop: 12 }}>
               <div className={styles['cardHead']}>
                 <div className={styles['cardTitle']}>
-                  라인 ({query.data.lines.length}건)
+                  라인 ({query.data.lines?.length ?? 0}건)
                 </div>
               </div>
               <div className={styles['tableWrap']}>
@@ -126,7 +126,7 @@ export function SalesPartnerOrderDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {query.data.lines.map((line) => (
+                    {(query.data.lines ?? []).map((line) => (
                       <tr key={line.id}>
                         <td style={{ textAlign: 'left' }}>{line.productName}</td>
                         <td>{line.modelCode}</td>
