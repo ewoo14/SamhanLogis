@@ -136,6 +136,25 @@ export interface SlipDetail extends SlipSummary {
   driverSignaturePng?: string | null
   driverSignatureHash?: string | null
   driverSignatureChannel?: 'MOBILE_CANVAS' | 'PAPER_SCAN' | string | null
+
+  /**
+   * V20 신규 5필드 — BE V20__add_slip_v20_fields.sql 컬럼과 1:1 대응 (모두 nullable).
+   * 판매/구매조회(SlipQueryRow) 와 동일 필드명 사용.
+   */
+  /** 배송주소 (최대 500자) — 거래처 shippingAddress 복사 또는 직접 입력. */
+  deliveryAddress?: string | null
+  /** 감리주소 (최대 500자) — "배송주소와 동일" 체크박스 연동. */
+  supervisionAddress?: string | null
+  /** 프로젝트명 (최대 200자). */
+  projectName?: string | null
+  /** 인수자 번호 (최대 20자, 010-XXXX-XXXX 형식 권장). */
+  recipientPhone?: string | null
+  /** 입금예정일 (ISO 8601 date string YYYY-MM-DD). */
+  paymentDueDate?: string | null
+  /** 사업자번호 — 거래처 선택 시 자동 표시 (사용자 입력 X, UUID 비공개 가드). */
+  businessNumber?: string | null
+  /** 인쇄 여부 — 서버에서 관리, readonly 표시 전용. */
+  printed?: boolean | null
 }
 
 /** 라인 input — BE `CreateSlipRequest.SlipLineRequest`. */
@@ -192,6 +211,17 @@ export interface CreateSlipRequest {
   collectTerm?: string
   /** 거래 약정 조건 (자유 입력). */
   agreeTerm?: string
+  // V20 신규 5필드 (BE V20__add_slip_v20_fields.sql 컬럼과 1:1 대응, 모두 옵션)
+  /** 배송주소 (최대 500자). */
+  deliveryAddress?: string
+  /** 감리주소 (최대 500자). */
+  supervisionAddress?: string
+  /** 프로젝트명 (최대 200자). */
+  projectName?: string
+  /** 인수자 번호 (최대 20자, 010-XXXX-XXXX 형식 권장). */
+  recipientPhone?: string
+  /** 입금예정일 (YYYY-MM-DD). */
+  paymentDueDate?: string
   lines: SlipLineInput[]
 }
 

@@ -70,6 +70,19 @@ import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
  */
 const VENDOR_ORDER_OCR_SIDEBAR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
+/**
+ * [Slice 2] admin GAS 이식 메뉴 — 일반 카테고리 병행 노출 ROLE 가드.
+ * 기존 /admin/* 라우트 그대로 유지 (마스터 메뉴 유지). 동일 라우트로 이동하는 항목만 추가.
+ */
+/** 지역 관리 (/admin/regions) — 배차(arologis) 카테고리 — DISPATCH/MANAGER/MASTER */
+const REGION_MGMT_SIDEBAR_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
+/** 시트 동기화 (/admin/sheet-sync) — 설정 카테고리 — MANAGER/MASTER */
+const SHEET_SYNC_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
+/** 알리고 주소록 (/admin/aligo-address-book) — 메신저 카테고리 — MANAGER/MASTER */
+const ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
+/** 발송금지 거래처 (/admin/blocked-partners) — 영업 카테고리 — SALES/MANAGER/MASTER */
+const BLOCKED_PARTNERS_SIDEBAR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+
 export function AppLayout() {
   const auth = useSessionStore((s) => s.auth)
   const logout = useSessionStore((s) => s.logout)
@@ -192,6 +205,16 @@ export function AppLayout() {
     && (VENDOR_ORDER_OCR_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
   const showChatRoomAdmin = canAccessChatRoomAdmin(auth?.role)
 
+  // [Slice 2] admin GAS 이식 — 일반 카테고리 병행 노출
+  const showRegionMgmt = !!auth?.role
+    && (REGION_MGMT_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+  const showSheetSync = !!auth?.role
+    && (SHEET_SYNC_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+  const showAligoAddressBook = !!auth?.role
+    && (ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+  const showBlockedPartners = !!auth?.role
+    && (BLOCKED_PARTNERS_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+
   return (
     <div className="app-shell">
       <aside className="app-sidebar no-print">
@@ -263,6 +286,15 @@ export function AppLayout() {
               data-testid="sidebar-sales-vendor-order-upload"
             >
               vendor 발주 OCR
+            </NavLink>
+          ) : null}
+          {/* [Slice 2] 발송금지 거래처 — /admin/blocked-partners (기존 admin 라우트 병행 노출) — SALES/MANAGER/MASTER */}
+          {showBlockedPartners ? (
+            <NavLink
+              to="/admin/blocked-partners"
+              data-testid="sidebar-sales-blocked-partners"
+            >
+              발송금지 거래처
             </NavLink>
           ) : null}
 
@@ -495,6 +527,15 @@ export function AppLayout() {
                   지역 분류
                 </NavLink>
               ) : null}
+              {/* [Slice 2] 지역 관리 — /admin/regions (기존 admin 라우트 병행 노출) — DISPATCH/MANAGER/MASTER */}
+              {showRegionMgmt ? (
+                <NavLink
+                  to="/admin/regions"
+                  data-testid="sidebar-arologis-region-mgmt"
+                >
+                  지역 관리
+                </NavLink>
+              ) : null}
               {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — DISPATCH / MANAGER / MASTER. */}
               {showArologisAdmin ? (
                 <>
@@ -681,6 +722,60 @@ export function AppLayout() {
                 data-testid="sidebar-admin-chat-rooms"
               >
                 단톡방 매핑
+              </NavLink>
+            </>
+          ) : null}
+
+          {/* [Slice 2] 메신저 카테고리 — 알리고 주소록 (MANAGER/MASTER). 기존 /admin/aligo-address-book 병행 노출. */}
+          {showAligoAddressBook ? (
+            <>
+              <div
+                className="app-sidebar-group"
+                aria-hidden="true"
+                style={{
+                  marginTop: 16,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-400)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                메신저
+              </div>
+              <NavLink
+                to="/admin/aligo-address-book"
+                data-testid="sidebar-messenger-aligo-address-book"
+              >
+                알리고 주소록
+              </NavLink>
+            </>
+          ) : null}
+
+          {/* [Slice 2] 설정 카테고리 — 시트 동기화 (MANAGER/MASTER). 기존 /admin/sheet-sync 병행 노출. */}
+          {showSheetSync ? (
+            <>
+              <div
+                className="app-sidebar-group"
+                aria-hidden="true"
+                style={{
+                  marginTop: 16,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-400)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                설정
+              </div>
+              <NavLink
+                to="/admin/sheet-sync"
+                data-testid="sidebar-settings-sheet-sync"
+              >
+                시트 동기화
               </NavLink>
             </>
           ) : null}

@@ -154,6 +154,14 @@ const MOCK_SLIPS = [
       signedAt: '2026-05-04T14:32:18+09:00',
     },
     inspector: null,
+    // V20 신규 필드
+    deliveryAddress: '서울특별시 강남구 테헤란로 152',
+    supervisionAddress: null,
+    projectName: '강남 오피스텔 A동 공조',
+    recipientPhone: '010-1234-5678',
+    paymentDueDate: '2026-05-31',
+    businessNumber: '123-45-67890',
+    printed: false,
   },
   {
     id: 'slip-002',
@@ -184,6 +192,14 @@ const MOCK_SLIPS = [
     },
     // signature-slice-C: 서명 완료 시드 — SlipDetailPage / DispatchView 인쇄 양쪽 시연
     ...MOCK_SIGNATURE_SEED,
+    // V20 신규 필드
+    deliveryAddress: '경기도 성남시 분당구 판교로 235',
+    supervisionAddress: '경기도 성남시 분당구 판교로 235',
+    projectName: '판교 테크노밸리 B동',
+    recipientPhone: '031-987-6543',
+    paymentDueDate: '2026-05-31',
+    businessNumber: '234-56-78901',
+    printed: true,
   },
   {
     id: 'slip-003',
@@ -1147,21 +1163,40 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // POST /slips → 신규 전표 1건 (라인 포함)
+  // POST /slips → 신규 전표 1건 (라인 포함, V20 필드 echo)
   if (method === 'POST' && url.endsWith('/slips')) {
+    const reqBody = (config.data ? JSON.parse(config.data as string) : {}) as {
+      partnerName?: string
+      deliveryAddress?: string
+      supervisionAddress?: string
+      projectName?: string
+      recipientPhone?: string
+      paymentDueDate?: string
+      slipType?: string
+      deliveryTag?: string
+      memo?: string
+    }
     return envelope({
       id: 'new-slip-' + Date.now(),
       slipNo: '2026/05/04-99',
-      slipType: 'OUTBOUND',
+      slipType: reqBody.slipType ?? 'OUTBOUND',
       slipDate: '2026-05-04',
       seqNo: 99,
       status: 'DRAFT',
       partnerId: null,
-      partnerName: '신규 거래처',
+      partnerName: reqBody.partnerName ?? '신규 거래처',
       sourceWarehouseId: HQ_ID,
       destinationWarehouseId: null,
-      deliveryTag: 'DAY',
-      memo: null,
+      deliveryTag: reqBody.deliveryTag ?? 'DAY',
+      memo: reqBody.memo ?? null,
+      // V20 필드 echo
+      deliveryAddress: reqBody.deliveryAddress ?? null,
+      supervisionAddress: reqBody.supervisionAddress ?? null,
+      projectName: reqBody.projectName ?? null,
+      recipientPhone: reqBody.recipientPhone ?? null,
+      paymentDueDate: reqBody.paymentDueDate ?? null,
+      businessNumber: null,
+      printed: false,
       lines: SAMPLE_LINES,
     })
   }

@@ -203,6 +203,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [discountInfo, setDiscountInfo] = useState('')
   const [collectTerm, setCollectTerm] = useState('')
   const [agreeTerm, setAgreeTerm] = useState('')
+  // V20 신규 5필드 form state
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [supervisionAddress, setSupervisionAddress] = useState('')
+  const [supervisionSameAsDelivery, setSupervisionSameAsDelivery] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState('')
+  const [paymentDueDate, setPaymentDueDate] = useState('')
+
   // ioType 은 mode 분기 자동 (OUTBOUND="10" / INBOUND="11"), 사용자 toggle 가능.
   const [ioType, setIoType] = useState<string>(isOutbound ? '10' : '11')
   // timeDate 는 BE 가 null 시 서버 시각 자동 채움 — 사용자 명시 입력 옵션 (HHmmss).
@@ -437,6 +445,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         discountInfo: discountInfo.trim() || undefined,
         collectTerm: collectTerm.trim() || undefined,
         agreeTerm: agreeTerm.trim() || undefined,
+        // V20 신규 5필드
+        deliveryAddress: deliveryAddress.trim() || undefined,
+        supervisionAddress: supervisionSameAsDelivery
+          ? (deliveryAddress.trim() || undefined)
+          : (supervisionAddress.trim() || undefined),
+        projectName: projectName.trim() || undefined,
+        recipientPhone: recipientPhone.trim() || undefined,
+        paymentDueDate: paymentDueDate || undefined,
         lines: lines
           .filter((l) => l.productId && Number(l.quantity) > 0)
           .map<SlipLineInput>((l) => ({
@@ -822,6 +838,147 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                 className="sfp-input"
                 placeholder="예: 143025 (자동)"
                 data-testid="slip-form-time-date"
+              />
+            )}
+          />
+        </div>
+      </Card>
+
+      {/*
+        V20 신규 5필드 입력 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일.
+        BE V20__add_slip_v20_fields.sql 컬럼과 1:1 대응 (모두 옵션).
+        UUID 비공개 가드: 거래처 businessNumber 는 자동 표시 전용, 사용자 직접 입력 X.
+      */}
+      <Card padding={6} shadow="sm" className="sfp-card">
+        <div className="sfp-section-title">배송 정보 (V20)</div>
+
+        {/* 배송주소 + 거래처 주소 복사 버튼 */}
+        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 8 }}>
+          <FormField
+            label="배송주소"
+            hint="배송 현장 주소 (최대 500자)"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={deliveryAddress}
+                onChange={(e) => {
+                  setDeliveryAddress(e.target.value)
+                  if (supervisionSameAsDelivery) {
+                    setSupervisionAddress(e.target.value)
+                  }
+                }}
+                maxLength={500}
+                className="sfp-input"
+                placeholder="예: 서울특별시 강남구 테헤란로 152"
+                data-testid="slip-form-delivery-address"
+              />
+            )}
+          />
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (customerAddress.trim()) {
+                  setDeliveryAddress(customerAddress.trim())
+                  if (supervisionSameAsDelivery) {
+                    setSupervisionAddress(customerAddress.trim())
+                  }
+                }
+              }}
+              disabled={!customerAddress.trim()}
+              data-testid="slip-form-copy-customer-address-btn"
+            >
+              거래처 주소 복사
+            </Button>
+          </div>
+        </div>
+
+        {/* 감리주소 + "배송주소와 동일" 체크박스 */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>감리주소</label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--color-neutral-600)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={supervisionSameAsDelivery}
+                onChange={(e) => {
+                  setSupervisionSameAsDelivery(e.target.checked)
+                  if (e.target.checked) {
+                    setSupervisionAddress(deliveryAddress)
+                  }
+                }}
+                data-testid="slip-form-supervision-same-checkbox"
+              />
+              배송주소와 동일
+            </label>
+          </div>
+          <input
+            value={supervisionSameAsDelivery ? deliveryAddress : supervisionAddress}
+            onChange={(e) => {
+              if (!supervisionSameAsDelivery) {
+                setSupervisionAddress(e.target.value)
+              }
+            }}
+            disabled={supervisionSameAsDelivery}
+            maxLength={500}
+            className="sfp-input"
+            style={{ width: '100%', opacity: supervisionSameAsDelivery ? 0.6 : 1 }}
+            placeholder="감리 현장 주소 (배송주소와 다를 경우)"
+            data-testid="slip-form-supervision-address"
+          />
+        </div>
+
+        {/* 프로젝트명 / 인수자 번호 / 입금예정일 */}
+        <div className="sfp-form-grid sfp-form-grid--3" style={{ marginTop: 16 }}>
+          <FormField
+            label="프로젝트명"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                maxLength={200}
+                className="sfp-input"
+                placeholder="예: 강남 오피스텔 A동 공조 설치"
+                data-testid="slip-form-project-name"
+              />
+            )}
+          />
+          <FormField
+            label="인수자 번호"
+            hint="010-1234-5678 형식"
+            render={({ id }) => (
+              <input
+                id={id}
+                value={recipientPhone}
+                onChange={(e) => setRecipientPhone(e.target.value)}
+                maxLength={20}
+                className="sfp-input"
+                placeholder="010-0000-0000"
+                data-testid="slip-form-recipient-phone"
+              />
+            )}
+          />
+          <FormField
+            label="입금예정일"
+            render={({ id }) => (
+              <input
+                id={id}
+                type="date"
+                value={paymentDueDate}
+                onChange={(e) => setPaymentDueDate(e.target.value)}
+                className="sfp-input"
+                data-testid="slip-form-payment-due-date"
               />
             )}
           />

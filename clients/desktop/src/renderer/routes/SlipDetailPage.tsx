@@ -873,6 +873,47 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       </Card>
 
       {/*
+        V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일
+        + businessNumber (거래처 자동 표시) + printed (인쇄 여부).
+        빈값(null/undefined) 은 "—" 로 표시. UUID 비공개 가드 준수.
+      */}
+      <Card padding={4} shadow="sm" style={{ marginTop: 16 }}>
+        <h4 style={{ marginTop: 0 }}>배송 · 정산 정보 (V20)</h4>
+        <div className="detail-grid">
+          <div data-testid="slip-detail-delivery-address">
+            <span className="detail-label">배송주소</span>
+            <span className="detail-value">{slip.deliveryAddress ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-supervision-address">
+            <span className="detail-label">감리주소</span>
+            <span className="detail-value">{slip.supervisionAddress ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-project-name">
+            <span className="detail-label">프로젝트명</span>
+            <span className="detail-value">{slip.projectName ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-recipient-phone">
+            <span className="detail-label">인수자 번호</span>
+            <span className="detail-value">{slip.recipientPhone ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-payment-due-date">
+            <span className="detail-label">입금예정일</span>
+            <span className="detail-value">{slip.paymentDueDate ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-business-number">
+            <span className="detail-label">사업자번호</span>
+            <span className="detail-value">{slip.businessNumber ?? '—'}</span>
+          </div>
+          <div data-testid="slip-detail-printed">
+            <span className="detail-label">인쇄 여부</span>
+            <span className="detail-value">
+              {slip.printed == null ? '—' : slip.printed ? '인쇄됨' : '미인쇄'}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/*
         link-dispatch-slice 신규: 기사 정보 카드 (driverName + driverPhone)
         DRAFT/SAVED 단계만 [편집] 가능 — BE 가드와 동일 (PATCH /slips/{id}/driver).
         OUTBOUND 만 표시 (입고전표는 거래처 측 기사 정보 무관).
