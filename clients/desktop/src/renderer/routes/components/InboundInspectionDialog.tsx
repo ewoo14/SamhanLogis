@@ -9,8 +9,10 @@
  * - 자동 합계 (정상 수량 = inspectedQty minus defectQty)
  * - 검수 저장 -> POST /inspect (PENDING 유지)
  * - 검수 완료 -> alertdialog 2단계 확인 -> POST /complete 재고 적용
+ * - [P1] 검수 사진 viewer 섹션 — mobile-staff 에서 업로드된 사진 썸네일 + 클릭 확대
  *
  * UUID 비공개 가드: slipId 는 API 호출에만 사용. 화면 표시 X.
+ * 사진 첨부 id 도 내부 삭제 요청 용도로만 사용, 화면 미노출.
  *
  * data-testid (Designer spec):
  * - inbound-inspection-dialog
@@ -21,6 +23,9 @@
  * - inbound-inspection-line-{lineId}-defect-reason
  * - inbound-inspection-save-button
  * - inbound-inspection-complete-button
+ * - inbound-inspection-photo-viewer
+ * - inbound-inspection-photo-thumb-{i}
+ * - inbound-inspection-photo-lightbox
  */
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -38,6 +43,10 @@ import {
   type InboundInspectionLine,
   type InboundInspectionStatus,
 } from '../../api/inboundInspectionApi'
+import {
+  listInspectionAttachments,
+  type AttachmentResponse,
+} from '../../api/attachmentApi'
 
 interface LineState {
   lineId: string
@@ -132,11 +141,21 @@ export function InboundInspectionDialog({
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const firstInputRef = useRef<HTMLInputElement | null>(null)
+  /** 사진 lightbox 인덱스 — null 이면 닫힘. */
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const detailQuery = useQuery({
     queryKey: ['inbound-inspection', slipId],
     queryFn: () => getInboundInspection(slipId),
     enabled: open && !!slipId,
+  })
+
+  /** 검수 사진 목록 — P1 사진 첨부 (mobile-staff 업로드 결과 viewer). */
+  const attachmentsQuery = useQuery({
+    queryKey: ['inbound-inspection-attachments', slipId],
+    queryFn: () => listInspectionAttachments(slipId),
+    enabled: open && !!slipId,
+    staleTime: 30_000,
   })
 
   useEffect(() => {
@@ -466,6 +485,15 @@ export function InboundInspectionDialog({
                 {successMsg}
               </div>
             ) : null}
+
+            {/* P1 검수 사진 viewer — mobile-staff 업로드 결과 thumbnail + lightbox */}
+            <InspectionPhotoViewer
+              attachments={attachmentsQuery.data ?? []}
+              loading={attachmentsQuery.isLoading}
+              lightboxIndex={lightboxIndex}
+              onOpenLightbox={setLightboxIndex}
+              onCloseLightbox={() => setLightboxIndex(null)}
+            />
           </>
         ) : null}
       </Modal>
@@ -537,4 +565,330 @@ const reasonInputStyle: React.CSSProperties = {
   border: '1px solid var(--color-neutral-300)',
   borderRadius: 4,
   fontSize: 13,
+}
+
+// ---------------------------------------------------------------------------
+// P1 검수 사진 Viewer 컴포넌트
+// ---------------------------------------------------------------------------
+
+/**
+ * 사진 파일 크기 포맷 유틸.
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '—'
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+/**
+ * 날짜 ISO → 한국어 표시 (짧은 형식).
+ */
+function fmtDateKo(iso: string | null): string {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return iso
+  }
+}
+
+/** 첨부 유형 → 한국어 라벨. */
+const ATTACHMENT_TYPE_LABEL: Record<string, string> = {
+  INSPECTION: '검수 사진',
+  DELIVERY: '배송 사진',
+  ESTIMATE: '견적 사진',
+}
+
+interface InspectionPhotoViewerProps {
+  attachments: AttachmentResponse[]
+  loading: boolean
+  lightboxIndex: number | null
+  onOpenLightbox: (index: number) => void
+  onCloseLightbox: () => void
+}
+
+/**
+ * 검수 사진 뷰어 — 썸네일 그리드 + 클릭 시 lightbox 확대.
+ *
+ * desktop 은 사진 업로드를 하지 않으므로 viewer 전용 (업로드 = mobile-staff).
+ * downloadUrl 이 null 인 경우 S3 미연동 환경으로 안내 메시지 표시.
+ *
+ * data-testid:
+ *   - inbound-inspection-photo-viewer
+ *   - inbound-inspection-photo-thumb-{i}
+ *   - inbound-inspection-photo-lightbox
+ */
+function InspectionPhotoViewer({
+  attachments,
+  loading,
+  lightboxIndex,
+  onOpenLightbox,
+  onCloseLightbox,
+}: InspectionPhotoViewerProps) {
+  const lightboxAttachment =
+    lightboxIndex !== null ? (attachments[lightboxIndex] ?? null) : null
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: '16px',
+        background: 'var(--color-neutral-50)',
+        borderRadius: 8,
+        border: '1px solid var(--color-neutral-200)',
+      }}
+      data-testid="inbound-inspection-photo-viewer"
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-neutral-800)' }}>
+          검수 사진
+        </span>
+        <Badge variant="neutral">
+          {loading ? '조회 중' : `${attachments.length}장`}
+        </Badge>
+        <span style={{ fontSize: 11, color: 'var(--color-neutral-500)', marginLeft: 'auto' }}>
+          mobile-staff 에서 업로드된 사진 (업로드는 앱에서 진행)
+        </span>
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+          <Spinner size="sm" />
+        </div>
+      ) : attachments.length === 0 ? (
+        <div
+          style={{
+            padding: '20px 0',
+            textAlign: 'center',
+            color: 'var(--color-neutral-500)',
+            fontSize: 13,
+          }}
+        >
+          첨부된 검수 사진이 없습니다.{' '}
+          <span style={{ fontSize: 12 }}>
+            (모바일 앱에서 [검수 사진 촬영]으로 추가 가능)
+          </span>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+            gap: 10,
+          }}
+        >
+          {attachments.map((att, i) => (
+            <AttachmentThumb
+              key={att.id}
+              attachment={att}
+              index={i}
+              onClick={() => onOpenLightbox(i)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox 확대 */}
+      {lightboxAttachment !== null ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="사진 확대"
+          data-testid="inbound-inspection-photo-lightbox"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1200,
+            background: 'rgba(0, 0, 0, 0.82)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={onCloseLightbox}
+        >
+          <div
+            style={{
+              background: 'var(--color-bg)',
+              borderRadius: 10,
+              overflow: 'hidden',
+              maxWidth: 800,
+              width: '100%',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 사진 영역 */}
+            {lightboxAttachment.downloadUrl ? (
+              <img
+                src={lightboxAttachment.downloadUrl}
+                alt={lightboxAttachment.fileName}
+                style={{
+                  width: '100%',
+                  maxHeight: 500,
+                  objectFit: 'contain',
+                  background: '#111',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  height: 240,
+                  background: 'var(--color-neutral-100)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  gap: 8,
+                  color: 'var(--color-neutral-500)',
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ fontSize: 32 }}>사진 없음</span>
+                <span>S3 연동 후 이미지 URL 이 제공됩니다</span>
+              </div>
+            )}
+            {/* 메타 정보 */}
+            <div
+              style={{
+                padding: '14px 18px',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '6px 24px',
+                fontSize: 12,
+                color: 'var(--color-neutral-700)',
+                borderTop: '1px solid var(--color-neutral-200)',
+              }}
+            >
+              <MetaRow label="파일명" value={lightboxAttachment.fileName} />
+              <MetaRow label="유형" value={ATTACHMENT_TYPE_LABEL[lightboxAttachment.attachmentType] ?? lightboxAttachment.attachmentType} />
+              <MetaRow label="크기" value={formatBytes(lightboxAttachment.fileSize)} />
+              <MetaRow label="촬영 시각" value={fmtDateKo(lightboxAttachment.capturedAt)} />
+              <MetaRow label="업로드" value={lightboxAttachment.uploadedBy} />
+              <MetaRow label="업로드 시각" value={fmtDateKo(lightboxAttachment.uploadedAt)} />
+              {lightboxAttachment.exifGpsLat && lightboxAttachment.exifGpsLng ? (
+                <MetaRow
+                  label="GPS"
+                  value={`${lightboxAttachment.exifGpsLat}, ${lightboxAttachment.exifGpsLng}`}
+                  colSpan
+                />
+              ) : null}
+            </div>
+            <div style={{ padding: '10px 18px', borderTop: '1px solid var(--color-neutral-200)', display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={onCloseLightbox}>닫기</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+interface AttachmentThumbProps {
+  attachment: AttachmentResponse
+  index: number
+  onClick: () => void
+}
+
+function AttachmentThumb({ attachment, index, onClick }: AttachmentThumbProps) {
+  const hasImage = !!attachment.downloadUrl && attachment.contentType.startsWith('image/')
+  return (
+    <button
+      type="button"
+      data-testid={`inbound-inspection-photo-thumb-${index}`}
+      onClick={onClick}
+      aria-label={`${attachment.fileName} 사진 확대`}
+      style={{
+        border: '1px solid var(--color-neutral-300)',
+        borderRadius: 6,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        padding: 0,
+        background: 'transparent',
+        textAlign: 'left',
+        width: '100%',
+        transition: 'box-shadow 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        ;(e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 0 2px var(--color-brand-400)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLButtonElement).style.boxShadow = 'none'
+      }}
+    >
+      {/* 썸네일 이미지 영역 */}
+      {hasImage ? (
+        <img
+          src={attachment.downloadUrl!}
+          alt={attachment.fileName}
+          style={{
+            width: '100%',
+            height: 100,
+            objectFit: 'cover',
+            display: 'block',
+            background: 'var(--color-neutral-100)',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            height: 100,
+            background: 'var(--color-neutral-100)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            color: 'var(--color-neutral-500)',
+          }}
+        >
+          {attachment.contentType.startsWith('image/') ? '미리보기 없음' : '사진'}
+        </div>
+      )}
+      {/* 메타 */}
+      <div style={{ padding: '6px 8px', background: 'var(--color-bg)' }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--color-neutral-800)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title={attachment.fileName}
+        >
+          {attachment.fileName}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--color-neutral-500)', marginTop: 2 }}>
+          {formatBytes(attachment.fileSize)} · {fmtDateKo(attachment.capturedAt ?? attachment.uploadedAt)}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+interface MetaRowProps {
+  label: string
+  value: string
+  colSpan?: boolean
+}
+
+function MetaRow({ label, value, colSpan = false }: MetaRowProps) {
+  return (
+    <div style={colSpan ? { gridColumn: '1 / -1' } : undefined}>
+      <span style={{ color: 'var(--color-neutral-500)', marginRight: 6 }}>{label}</span>
+      <span style={{ fontWeight: 500 }}>{value}</span>
+    </div>
+  )
 }

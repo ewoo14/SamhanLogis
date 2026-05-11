@@ -9,6 +9,7 @@
  *   - 견적 작성 (QuotationCreateScreen)
  *   - 주문 등록 (PartnerOrderCreateScreen)
  *   - 거래처 검색 (CustomerSearchScreen — standalone)
+ *   - [P1] 방문 사진 (VisitPhotoScreen — 거래처 선택 후 사진 첨부)
  *
  * react-navigation 미설치 환경에서도 동작하도록 자체 minimal tab 구현
  * (driver tab navigator 패턴 동등 적용).
@@ -25,16 +26,35 @@ import CustomerSearchScreen from './CustomerSearchScreen';
 import PartnerOrderCreateScreen from './PartnerOrderCreateScreen';
 import QuotationCreateScreen from './QuotationCreateScreen';
 import SalesHomeScreen from './SalesHomeScreen';
+import VisitPhotoScreen from './VisitPhotoScreen';
 
-type Tab = 'home' | 'quotation' | 'order' | 'customer';
+type Tab = 'home' | 'quotation' | 'order' | 'customer' | 'visit-photo';
 
 interface Props {
   /** JWT access token — sales API 호출 시 사용. */
   token: string | null;
 }
 
+/**
+ * 방문 사진 탭 진입 시 사용할 거래처 context.
+ * CustomerSearchScreen 에서 거래처 선택 후 방문 사진으로 이동하는 흐름에서 사용.
+ * 진입 시점(P1)은 stub 거래처 — 정식은 CustomerSearchScreen 의 onSelect callback 연결.
+ */
+interface VisitPhotoContext {
+  partnerId: string | null;
+  partnerCode: string;
+  partnerName: string;
+}
+
+const VISIT_PHOTO_STUB: VisitPhotoContext = {
+  partnerId: null, // 현재 stub — 거래처 선택 후 채워짐
+  partnerCode: '—',
+  partnerName: '거래처를 먼저 검색해주세요',
+};
+
 export default function SalesTabNavigator({ token }: Props): JSX.Element {
   const [tab, setTab] = useState<Tab>('home');
+  const [visitCtx, setVisitCtx] = useState<VisitPhotoContext>(VISIT_PHOTO_STUB);
 
   // 견적/주문 화면은 멀티스텝(거래처 선택 → 라인 → 완료)이므로
   // 완료/뒤로가기 시 home 탭으로 복귀 처리.
@@ -46,7 +66,11 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
         {tab === 'home' && (
           <SalesHomeScreen
             token={token}
-            onNavigate={(dest) => setTab(dest)}
+            onNavigate={(dest) => {
+              if (dest === 'quotation' || dest === 'order' || dest === 'customer') {
+                setTab(dest);
+              }
+            }}
           />
         )}
         {tab === 'quotation' && (
@@ -57,6 +81,16 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
         )}
         {tab === 'customer' && (
           <CustomerSearchScreen token={token} standalone />
+        )}
+        {tab === 'visit-photo' && (
+          <VisitPhotoScreen
+            partnerId={visitCtx.partnerId}
+            partnerCode={visitCtx.partnerCode}
+            partnerName={visitCtx.partnerName}
+            token={token}
+            onUploaded={() => setTab('home')}
+            onBack={() => setTab('home')}
+          />
         )}
       </View>
 
@@ -86,10 +120,23 @@ export default function SalesTabNavigator({ token }: Props): JSX.Element {
           onPress={() => setTab('customer')}
           testID="sales-tab-customer"
         />
+        <TabButton
+          label="방문사진"
+          active={tab === 'visit-photo'}
+          onPress={() => {
+            setVisitCtx(VISIT_PHOTO_STUB);
+            setTab('visit-photo');
+          }}
+          testID="sales-tab-visit-photo"
+        />
       </View>
     </View>
   );
 }
+
+// 내부 export — CustomerSearchScreen 이 거래처 선택 시 방문 사진 화면으로 이동하는
+// 향후 연결 포인트. 현재(P1)는 stub 거래처만 지원.
+export type { VisitPhotoContext };
 
 // -----------------------------------------------------------------------
 // 서브 컴포넌트

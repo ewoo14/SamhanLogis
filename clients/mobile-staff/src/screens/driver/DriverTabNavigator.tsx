@@ -23,9 +23,10 @@ import DriverDashboardScreen from './DriverDashboardScreen';
 import DriverLocationTrackingScreen from './DriverLocationTrackingScreen';
 import DriverSignatureScreen from './DriverSignatureScreen';
 import GpsBlockedScreen from './GpsBlockedScreen';
+import InspectionPhotoScreen from './InspectionPhotoScreen';
 import SlipDetailScreen from '../SlipDetailScreen';
 
-type Tab = 'dashboard' | 'tracking' | 'signature';
+type Tab = 'dashboard' | 'tracking' | 'signature' | 'inspection-photo';
 
 interface Props {
   /** JWT access token — driver tab 진입 직전 user-service `/auth/me` 로 ROLE_DRIVER 확인 후 보관. */
@@ -119,11 +120,21 @@ export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.
             stopLabel={stopForSignature.label}
           />
         )}
+        {tab === 'inspection-photo' && (
+          /* P1 검수 사진 — 배차/슬립 선택 시 slipId 연결 (현재 stub). */
+          <InspectionPhotoScreen
+            slipId={null}           // stub: dashboard → slip 선택 후 채워짐
+            slipNo="슬립을 배차 탭에서 선택해주세요"
+            token={token}
+            onUploaded={() => setTab('dashboard')}
+          />
+        )}
       </View>
       <View style={styles.tabBar}>
         <TabButton label="배차" active={tab === 'dashboard'} onPress={() => setTab('dashboard')} testID="driver-tab-dashboard" />
         <TabButton label="GPS" active={tab === 'tracking'} onPress={() => setTab('tracking')} testID="driver-tab-tracking" />
         <TabButton label="서명" active={tab === 'signature'} onPress={() => setTab('signature')} testID="driver-tab-signature" />
+        <TabButton label="검수사진" active={tab === 'inspection-photo'} onPress={() => setTab('inspection-photo')} testID="driver-tab-inspection-photo" />
       </View>
     </View>
   );

@@ -1,20 +1,32 @@
 /**
- * slip-service attachment API client — P1-8 (Stage 4) mobile-staff 사진 첨부.
+ * 첨부파일 API client — mobile-staff 사진 첨부 (P1 3건 통합).
  *
- * BE 출처: commit `59232bd` slip-service
- *   - {@code POST /slips/{slipId}/attachments} (admin / 인증 사용자)
- *   - {@code POST /public/batches/{token}/slips/{slipNo}/attachments} (mobile-staff 기사 — no auth)
- *   - {@code GET  /slips/{slipId}/attachments}
- *   - {@code DELETE /slips/{slipId}/attachments/{id}}
+ * <p>P1 사진 첨부 3가지 흐름:
+ * <ol>
+ *   <li>검수 사진 (INSPECTION) — {@link uploadInspectionAttachment}:
+ *       {@code POST /api/v1/inventory/inspections/{slipId}/attachments} (인증 필요)</li>
+ *   <li>배송 완료 사진 (DELIVERY) — {@link uploadAttachmentByToken}:
+ *       {@code POST /public/batches/{token}/slips/{slipNo}/attachments} (public token)</li>
+ *   <li>영업 방문 사진 (VISIT) — {@link uploadVisitAttachment}:
+ *       {@code POST /api/v1/partners/{partnerId}/visit-attachments} (인증 필요)</li>
+ * </ol>
  *
- * 매뉴얼: {@code docs/manual/04-모바일/04-사진-첨부.md}.
+ * <p>BE 출처 (P1 신규):
+ * <ul>
+ *   <li>{@code POST /api/v1/inventory/inspections/{slipId}/attachments}</li>
+ *   <li>{@code POST /public/batches/{token}/slips/{slipNo}/attachments}</li>
+ *   <li>{@code POST /api/v1/partners/{partnerId}/visit-attachments}</li>
+ *   <li>{@code GET  /slips/{slipId}/attachments}</li>
+ *   <li>{@code DELETE /api/v1/attachments/{attachmentId}}</li>
+ * </ul>
  *
- * 본 client 의 mobile-staff 진입 시점 = **public token 기반 업로드만 사용** (기사 driver mode).
- * 인증 기반 endpoint 는 향후 estimate mode 영업 사진 (P2 — Phase 12) 시 활성.
+ * <p>매뉴얼: {@code docs/manual/04-모바일/04-사진-첨부.md}.
  *
- * UUID 비공개 가드:
- *   - 응답 schema 의 `id` (attachment UUID), `slipId` 는 mobile-staff 자체 사용 (사용자 화면 노출 X).
- *   - 사용자에게는 fileName + uploadedAt + capturedAt 만 노출.
+ * <p>UUID 비공개 가드:
+ * <ul>
+ *   <li>응답 {@code id} (attachment UUID), {@code slipId}, {@code partnerId} 는 API 경로 전용, 화면 미노출.</li>
+ *   <li>사용자에게는 fileName + uploadedAt + capturedAt 만 노출.</li>
+ * </ul>
  */
 
 import { API_BASE_URL } from './arologis';
@@ -84,6 +96,67 @@ export async function uploadAttachmentByToken(
   const url = `${API_BASE_URL}/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/attachments`;
   const body = buildMultipart(input);
   return uploadWithRetry(url, body, undefined, onProgress);
+}
+
+// ----------------------------------------------------------------------
+// P1: 검수 사진 업로드 (창고/기사 — 인증 기반).
+// ----------------------------------------------------------------------
+
+/**
+ * 검수 사진 업로드 — 입고 검수 시 화물 상태 / 불량 증빙 사진 (INSPECTION).
+ *
+ * <p>BE = {@code POST /api/v1/inventory/inspections/{slipId}/attachments}
+ * (Bearer JWT + WAREHOUSE / DRIVER / MANAGER / MASTER role)
+ *
+ * @param token JWT access token (Bearer)
+ * @param slipId 슬립 UUID (path param 전용)
+ * @param input 업로드 파일 정규화 결과
+ */
+export async function uploadInspectionAttachment(
+  token: string | null,
+  slipId: string,
+  input: AttachmentUploadInput,
+  onProgress?: (ratio: number) => void,
+): Promise<SlipAttachmentResponseDto> {
+  const url = `${API_BASE_URL}/api/v1/inventory/inspections/${encodeURIComponent(slipId)}/attachments`;
+  const body = buildMultipart(input, 'INSPECTION');
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return uploadWithRetry(url, body, headers, onProgress);
+}
+
+// ----------------------------------------------------------------------
+// P1: 영업 방문 사진 업로드 (인증 기반).
+// ----------------------------------------------------------------------
+
+/** 방문 사진 업로드 입력 — AttachmentUploadInput + memo 필드 추가. */
+export interface VisitAttachmentUploadInput extends AttachmentUploadInput {
+  /** 방문 메모 (선택). */
+  memo?: string | null;
+}
+
+/**
+ * 영업 방문 사진 업로드.
+ *
+ * <p>BE = {@code POST /api/v1/partners/{partnerId}/visit-attachments}
+ * (Bearer JWT + SALES / MANAGER / MASTER role)
+ *
+ * @param token JWT access token (Bearer)
+ * @param partnerId 거래처 UUID (path param 전용)
+ * @param input 업로드 파일 + 메모
+ */
+export async function uploadVisitAttachment(
+  token: string | null,
+  partnerId: string,
+  input: VisitAttachmentUploadInput,
+  onProgress?: (ratio: number) => void,
+): Promise<SlipAttachmentResponseDto> {
+  const url = `${API_BASE_URL}/api/v1/partners/${encodeURIComponent(partnerId)}/visit-attachments`;
+  const body = buildMultipart(input, 'ESTIMATE');  // VISIT → BE 가 ESTIMATE 로 매핑 (sales 사진)
+  if (input.memo) body.append('memo', input.memo);
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return uploadWithRetry(url, body, headers, onProgress);
 }
 
 // ----------------------------------------------------------------------
