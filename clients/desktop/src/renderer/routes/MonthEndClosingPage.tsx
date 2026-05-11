@@ -294,7 +294,7 @@ export function MonthEndClosingPage() {
       },
       {
         key: 'lockedSlipCount',
-        header: '잠금 슬립',
+        header: '잠금 전표',
         width: '90px',
         align: 'right',
         render: (r) => r.lockedSlipCount.toLocaleString(),
@@ -419,8 +419,8 @@ export function MonthEndClosingPage() {
       <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 12px 0' }}>마감 실행</h3>
         <p style={noticeStyle}>
-          ⚠ 마감 실행 시 해당 기간의 모든 CONFIRMED 슬립이 LOCKED 상태로 전환되며,
-          이후 분개/슬립 입력이 차단됩니다. 변경이 필요하면 MASTER 권한자에게 역마감을
+          ⚠ 마감 실행 시 해당 기간의 모든 CONFIRMED 전표가 LOCKED 상태로 전환되며,
+          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 MASTER 권한자에게 역마감을
           요청하십시오.
         </p>
 
@@ -696,7 +696,7 @@ export function MonthEndClosingPage() {
             </strong>{' '}
             마감을 역마감 처리합니다.
             <br />
-            역마감 후 슬립/분개 변경이 다시 허용됩니다. 진행하시겠습니까?
+            역마감 후 전표/분개 변경이 다시 허용됩니다. 진행하시겠습니까?
           </p>
         ) : null}
       </Modal>

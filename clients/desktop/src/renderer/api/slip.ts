@@ -195,10 +195,12 @@ export interface CreateSlipRequest {
   lines: SlipLineInput[]
 }
 
-/** 페이지 조회 옵션 — slipType / status 필터, 0-based page. */
+/** 페이지 조회 옵션 — slipType / status / deliveryTag 필터, 0-based page. */
 export interface ListSlipsOptions {
   slipType?: SlipType
   status?: SlipStatus
+  /** 배송태그 필터 — OUTBOUND: 8종, INBOUND: 3종. */
+  deliveryTag?: DeliveryTagCode | null
   page?: number
   size?: number
 }
@@ -225,6 +227,7 @@ export async function listSlips(
   }
   if (options.slipType) params['slipType'] = options.slipType
   if (options.status) params['status'] = options.status
+  if (options.deliveryTag) params['deliveryTag'] = options.deliveryTag
 
   const res = await apiClient.get<ApiEnvelope<PageResponse<SlipSummary>>>(
     '/slips',

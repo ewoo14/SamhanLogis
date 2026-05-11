@@ -124,7 +124,7 @@ export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.
           /* P1 검수 사진 — 배차/슬립 선택 시 slipId 연결 (현재 stub). */
           <InspectionPhotoScreen
             slipId={null}           // stub: dashboard → slip 선택 후 채워짐
-            slipNo="슬립을 배차 탭에서 선택해주세요"
+            slipNo="전표를 배차 탭에서 선택해주세요"
             token={token}
             onUploaded={() => setTab('dashboard')}
           />

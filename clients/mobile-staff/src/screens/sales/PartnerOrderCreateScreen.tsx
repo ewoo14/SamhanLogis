@@ -177,7 +177,7 @@ export default function PartnerOrderCreateScreen({ token, onBack }: Props): JSX.
         <View style={styles.doneBox}>
           <Text style={styles.doneTitle}>주문이 등록되었습니다.</Text>
           {/* UUID 비공개 — slipId 노출 금지, slipNo 만 표시 */}
-          <InfoRow label="슬립 번호" value={result.slipNo} />
+          <InfoRow label="전표 번호" value={result.slipNo} />
           <InfoRow label="거래처" value={result.partnerName} />
           <InfoRow label="합계" value={`${result.totalAmount.toLocaleString('ko-KR')}원`} />
           <InfoRow label="상태" value={slipStatusLabel(result.status)} />

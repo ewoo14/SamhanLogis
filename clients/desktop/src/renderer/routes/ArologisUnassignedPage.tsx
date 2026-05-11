@@ -102,7 +102,7 @@ export function ArologisUnassignedPage() {
 
   const handleCsvDownload = () => {
     if (entries.length === 0) {
-      alert('내려받을 미배차 슬립이 없습니다.')
+      alert('내려받을 미배차 전표가 없습니다.')
       return
     }
     const csv = entriesToCsv(entries)

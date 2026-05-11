@@ -20,14 +20,22 @@
  *   <li>클릭 시 InboundInspectionDialog 오픈 — 검수 저장/완료 가능.</li>
  * </ul>
  *
+ * <h2>DeliveryTag 필터 보강</h2>
+ * <ul>
+ *   <li>판매조회(OUTBOUND): 당일/야적/지방/로젠택배/경동택배/경동화물/대여/반납 8종.</li>
+ *   <li>구매조회(INBOUND): 회차/반품/차용 3종.</li>
+ *   <li>BE 응답에 deliveryTag 포함 시 표 컬럼에 Badge 로 표시.</li>
+ * </ul>
+ *
  * 사용 컴포넌트:
  * - `DataTable` (rows + columns)
  * - `SlipNumberDisplay` (uuid prop 제거됨 — 비즈니스 식별자만)
  * - `SlipStatusBadge`
- * - `Badge` (구분: 출고/입고)
+ * - `Badge` (구분: 출고/입고, 배송태그)
  *
  * data-testid (PR-H4c FE-B 신규):
  * - slip-list-realtime-indicator
+ * - slip-list-delivery-tag-filter
  *
  * <h2>P1-6 보강 — Excel 다운로드</h2>
  * <ul>
@@ -46,6 +54,7 @@ import {
   SlipNumberDisplay,
   SlipStatusBadge,
   type DataTableColumn,
+  type DeliveryTagCode,
 } from '@samhan/design-system'
 import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
 import { useSessionStore, canCreateSlip } from '../stores/session'
@@ -59,6 +68,43 @@ export interface SlipListPageProps {
   mode: SlipType
 }
 
+/** 판매조회(OUTBOUND) 배송태그 옵션 — BE DeliveryTagCode 8종 */
+const OUTBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
+  { value: 'DAY',                label: '당일' },
+  { value: 'STACK',              label: '야적' },
+  { value: 'REGION',             label: '지방' },
+  { value: 'LOGEN',              label: '로젠택배' },
+  { value: 'GYEONGDONG_PARCEL',  label: '경동택배' },
+  { value: 'GYEONGDONG_FREIGHT', label: '경동화물' },
+  { value: 'RENTAL',             label: '대여' },
+  { value: 'RETURN_RENTAL',      label: '반납' },
+]
+
+/** 구매조회(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 3종 */
+const INBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
+  { value: 'RETURN_TRIP', label: '회차' },
+  { value: 'RETURN',      label: '반품' },
+  { value: 'BORROW',      label: '차용' },
+]
+
+/**
+ * deliveryTag 코드 → 한국어 라벨 변환 맵 (클라이언트 정적 fallback).
+ * BE 가 deliveryTagLabel 을 별도 응답할 경우 해당 값을 우선 사용.
+ */
+const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
+  DAY:                '당일',
+  STACK:              '야적',
+  REGION:             '지방',
+  LOGEN:              '로젠택배',
+  GYEONGDONG_PARCEL:  '경동택배',
+  GYEONGDONG_FREIGHT: '경동화물',
+  RENTAL:             '대여',
+  RETURN_RENTAL:      '반납',
+  RETURN_TRIP:        '회차',
+  RETURN:             '반품',
+  BORROW:             '차용',
+}
+
 export function SlipListPage({ mode }: SlipListPageProps) {
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
@@ -70,6 +116,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   // P0-9: INBOUND 모드 검수 Dialog 상태
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
 
+  // DeliveryTag 필터 상태
+  const [deliveryTagFilter, setDeliveryTagFilter] = useState<DeliveryTagCode | null>(null)
+
   // P1-6: Excel export
   const { downloading, download } = useExcelDownload()
 
@@ -77,14 +126,20 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   usePageTitle(isOutbound ? '판매조회' : '구매조회')
 
   const query = useQuery({
-    queryKey: ['slips', 'list', mode],
-    queryFn: () => listSlips({ slipType: mode, page: 0, size: 20 }),
+    queryKey: ['slips', 'list', mode, deliveryTagFilter],
+    queryFn: () =>
+      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, page: 0, size: 20 }),
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
   })
 
   /** P0-9: INBOUND 전표에서 검수 버튼 표시 조건 — SAVED / CONFIRMED 상태. */
   const INSPECTABLE_STATUSES: readonly string[] = ['SAVED', 'CONFIRMED']
+
+  /** mode 에 따른 배송태그 필터 옵션 목록. */
+  const deliveryTagOptions = isOutbound
+    ? OUTBOUND_DELIVERY_TAG_OPTIONS
+    : INBOUND_DELIVERY_TAG_OPTIONS
 
   const columns: DataTableColumn<SlipSummary>[] = [
     {
@@ -116,6 +171,16 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       render: (row) => <SlipStatusBadge status={row.status} />,
     },
     { key: 'partnerName', header: '거래처' },
+    {
+      key: 'deliveryTag',
+      header: '배송태그',
+      width: '110px',
+      render: (row) => {
+        if (!row.deliveryTag) return null
+        const label = DELIVERY_TAG_LABEL_MAP[row.deliveryTag] ?? row.deliveryTag
+        return <Badge variant="neutral">{label}</Badge>
+      },
+    },
     // P0-9: INBOUND 모드에서만 "검수" 액션 컬럼 표시
     ...(!isOutbound
       ? ([
@@ -194,6 +259,48 @@ export function SlipListPage({ mode }: SlipListPageProps) {
             </Button>
           ) : null}
         </div>
+      </div>
+
+      {/* 배송태그 필터 — mode 별 옵션 분리 */}
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}
+        data-testid="slip-list-delivery-tag-filter"
+      >
+        <span style={{ fontSize: 13, color: 'var(--color-neutral-600)', whiteSpace: 'nowrap' }}>
+          배송태그
+        </span>
+        <select
+          style={{
+            fontSize: 13,
+            padding: '4px 8px',
+            borderRadius: 4,
+            border: '1px solid var(--color-neutral-300)',
+            background: 'var(--color-white)',
+            cursor: 'pointer',
+          }}
+          value={deliveryTagFilter ?? ''}
+          onChange={(e) => {
+            const val = e.target.value as DeliveryTagCode | ''
+            setDeliveryTagFilter(val === '' ? null : val)
+          }}
+          aria-label="배송태그 필터"
+        >
+          <option value="">전체</option>
+          {deliveryTagOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {deliveryTagFilter !== null ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDeliveryTagFilter(null)}
+          >
+            초기화
+          </Button>
+        ) : null}
       </div>
 
       <DataTable

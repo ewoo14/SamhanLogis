@@ -283,18 +283,18 @@
 | GET | `/slips/{id}/signature` | MANAGER/MASTER | 서명 조회 | ✅ |
 | DELETE | `/slips/{id}/signature` | MASTER | 서명 삭제 | ✅ |
 | GET | `/slips/lookup-product` | 6-tier | product 조회 (slip 작성 시) | ✅ |
-| POST | `/api/v1/slips/from-estimate` | SALES/MANAGER/MASTER/INTEGRATION | 견적 → 슬립 자동 발행 | ✅ |
-| POST | `/api/v1/slips/from-partner-order` | MANAGER/MASTER/INTEGRATION/PARTNER_ADMIN | 거래처 주문 → 슬립 자동 발행 | ✅ |
+| POST | `/api/v1/slips/from-estimate` | SALES/MANAGER/MASTER/INTEGRATION | 견적 → 전표 자동 발행 | ✅ |
+| POST | `/api/v1/slips/from-partner-order` | MANAGER/MASTER/INTEGRATION/PARTNER_ADMIN | 거래처 주문 → 전표 자동 발행 | ✅ |
 | GET | `/api/v1/slips/by-source` | 인증 | source 별 조회 | ✅ |
 | POST | `/internal/slips/{slipId}/signatures` | INTERNAL | 외부 서명 입력 | ✅ |
-| GET | `/internal/slips/by-partner/{partnerId}/recent` | INTERNAL | 거래처별 최근 슬립 | ✅ |
+| GET | `/internal/slips/by-partner/{partnerId}/recent` | INTERNAL | 거래처별 최근 전표 | ✅ |
 | GET | `/internal/slips/by-partner-code/{partnerCode}/recent` | INTERNAL | partnerCode 검색 | ✅ |
 | POST | `/delivery-batches/auto-group` | MANAGER/MASTER | driverPhone 별 자동 grouping | ✅ |
 | GET | `/delivery-batches` | MANAGER/MASTER | list | ✅ |
 | GET | `/delivery-batches/{id}` | MANAGER/MASTER | 단건 | ✅ |
 | POST | `/delivery-batches/{id}/send-sms` | MANAGER/MASTER | 기사에게 SMS 발송 | ✅ |
-| POST | `/delivery-batches/{id}/slips` | MANAGER/MASTER | 슬립 추가 | ✅ |
-| DELETE | `/delivery-batches/{id}/slips/{slipId}` | MANAGER/MASTER | 슬립 제거 | ✅ |
+| POST | `/delivery-batches/{id}/slips` | MANAGER/MASTER | 전표 추가 | ✅ |
+| DELETE | `/delivery-batches/{id}/slips/{slipId}` | MANAGER/MASTER | 전표 제거 | ✅ |
 | POST | `/delivery-batches/{id}/regenerate-token` | MANAGER/MASTER | shareToken 재발급 | ✅ |
 | GET | `/public/batches/{token}` | open(token) | 모바일 batch 조회 | ✅ |
 | POST | `/public/batches/{token}/slips/{slipNo}/signature` | open(token) | 거래처 서명 | ✅ |
@@ -307,7 +307,7 @@ DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING → COMPLETE
       → SHIPPING → DELIVERED → CONFIRMED (+ 자동 분개)
        (보조: REJECTED / CANCELLED)
 ```
-- 견적/주문 → 슬립 자동 발행 (`from-estimate` / `from-partner-order`) + idempotency (V8/V9 audit + fingerprint)
+- 견적/주문 → 전표 자동 발행 (`from-estimate` / `from-partner-order`) + idempotency (V8/V9 audit + fingerprint)
 - DeliveryBatch — driverPhone 별 grouping → SMS 발송 → 모바일 서명 (token 기반 무인증)
 - Signature: WEB / MOBILE / DRIVER 3 source (V10 추가)
 
@@ -317,8 +317,8 @@ DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING → COMPLETE
 - 12 migration version (V12 가 이카운트 라인 필드)
 
 ### 7.4 누락 기능
-- ❌ **반품 슬립** (Return) — V1 schema 에 status 만, return endpoint 미구현
-- ❌ **부분 출고** (partial shipment) — 한 슬립 일부 라인만 출고 분할 미지원
+- ❌ **반품 전표** (Return) — V1 schema 에 status 만, return endpoint 미구현
+- ❌ **부분 출고** (partial shipment) — 한 전표 일부 라인만 출고 분할 미지원
 - ❌ **묶음 발행** (multi-slip 일괄) — UI/API 모두 단건만
 - ⏳ 인쇄 양식 — print-spec 진행중 (PR #21 회고)
 
@@ -418,7 +418,7 @@ DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING → COMPLETE
 - ⏳ **검색키워드** — 컬럼 추가됨 (V2), GIN index 미설정 → 한글 검색 느림 가능
 - ❌ **거래처 별 단가표** — 거래처 + 제품 매트릭스 단가 (특별가) 테이블 없음 (dc-config-service 에 일부)
 - ❌ **거래처 등록 신청 / 승인 워크플로** — 영업 신청 → 회계 승인 flow 없음
-- ❌ **여신 한도 자동 차단** — `creditPeriod` / `paymentDue` 컬럼만 있음, 슬립 발행 시 한도 검증 트리거 없음
+- ❌ **여신 한도 자동 차단** — `creditPeriod` / `paymentDue` 컬럼만 있음, 전표 발행 시 한도 검증 트리거 없음
 
 ---
 
@@ -688,7 +688,7 @@ DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING → COMPLETE
 - 부서 CRUD endpoint
 - 거래처 등록 신청 / 승인 워크플로
 - 거래처별 단가표 (특별가)
-- 슬립 반품 / 부분출고 / 묶음 발행
+- 전표 반품 / 부분출고 / 묶음 발행
 - 재고 실사 (physical count)
 - KPI threshold 알림 + drill-down
 

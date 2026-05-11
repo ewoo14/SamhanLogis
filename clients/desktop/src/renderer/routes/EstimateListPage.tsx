@@ -41,7 +41,7 @@ const STATUS_OPTIONS: Array<{ value: EstimateStatus | ''; label: string }> = [
   { value: 'QUOTE_SENT', label: '발송완료' },
   { value: 'QUOTE_ACCEPTED', label: '수주완료' },
   { value: 'QUOTE_REJECTED', label: '거절' },
-  { value: 'QUOTE_CONVERTED', label: '슬립변환완료' },
+  { value: 'QUOTE_CONVERTED', label: '전표변환완료' },
 ]
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {

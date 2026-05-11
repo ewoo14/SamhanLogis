@@ -97,12 +97,12 @@ function csvCell(v: string | number | null | undefined): string {
 /**
  * 결과를 CSV 다운로드 (UTF-8 BOM — Excel 호환).
  *
- * 컬럼: 슬립번호 / 슬립일자 / 상태 / 거래처코드 / 거래처명 / 지역그룹 / 라인수 / 합계금액 / 정합성플래그
+ * 컬럼: 전표번호 / 전표일자 / 상태 / 거래처코드 / 거래처명 / 지역그룹 / 라인수 / 합계금액 / 정합성플래그
  */
 function downloadCsv(filename: string, entries: CleanupEntry[]): void {
   const header = [
-    '슬립번호',
-    '슬립일자',
+    '전표번호',
+    '전표일자',
     '상태',
     '거래처코드',
     '거래처명',
@@ -346,8 +346,8 @@ export function SlipCleanupPage() {
             >
               <thead>
                 <tr style={{ background: '#FFFFFF', textAlign: 'left' }}>
-                  <th style={thStyle}>슬립번호</th>
-                  <th style={thStyle}>슬립일자</th>
+                  <th style={thStyle}>전표번호</th>
+                  <th style={thStyle}>전표일자</th>
                   <th style={thStyle}>거래처코드</th>
                   <th style={thStyle}>거래처명</th>
                   <th style={thStyle}>지역그룹</th>
@@ -395,7 +395,7 @@ export function SlipCleanupPage() {
                           data-testid={`slip-cleanup-row-${entry.slipNo}-link`}
                           style={linkBtnStyle}
                         >
-                          원본 슬립 보기
+                          원본 전표 보기
                         </button>
                       </td>
                     </tr>

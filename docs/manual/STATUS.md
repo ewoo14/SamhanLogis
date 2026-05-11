@@ -65,13 +65,13 @@
 |---|---|---|---|---|
 | 1 | `01-영업/01-거래처-등록.md` | ✅ | 📸 placeholder (P0-6 UI 부재) | 4 탭 mock + 우회 절차 |
 | 2 | `01-영업/02-거래처-조회.md` | ✅ | 📸 placeholder | 검색 / 페이지네이션 / 신용 history |
-| 3 | `01-영업/03-슬립-발행.md` | ✅ | 📸 placeholder | 11 status 흐름 도표 + 인쇄 / 모바일 서명 |
-| 4 | `01-영업/04-슬립-결재-라인.md` | ✅ | 📸 placeholder | 권한 매트릭스 + 거절 / 취소 / 자동 분개 |
+| 3 | `01-영업/03-전표-발행.md` | ✅ | 📸 placeholder | 11 status 흐름 도표 + 인쇄 / 모바일 서명 |
+| 4 | `01-영업/04-전표-결재-라인.md` | ✅ | 📸 placeholder | 권한 매트릭스 + 거절 / 취소 / 자동 분개 |
 | 5 | `01-영업/05-거래처-주문.md` | ✅ | 📸 placeholder | idempotency-key + draft → confirm → slip 자동 |
 | 6 | `02-창고/01-입고-처리.md` | ✅ | 📸 placeholder | 검수 UI 부재 (P0-9) 우회 안내 포함 |
 | 7 | `02-창고/02-출고-처리.md` | ✅ | 📸 placeholder | 9 transition 흐름 |
 | 8 | `02-창고/03-재고-조회.md` | ✅ | 📸 placeholder | balances/transfers/movements/lots |
-| 9 | `00-시작하기/03-역할별-권한.md` (Stage 1 backlog) | ✅ | 📸 placeholder | 9 ROLE × 14 service + 슬립 11 status × ROLE |
+| 9 | `00-시작하기/03-역할별-권한.md` (Stage 1 backlog) | ✅ | 📸 placeholder | 9 ROLE × 14 service + 전표 11 status × ROLE |
 
 ### 2.2 QA plan / Catalog 갱신 / STATUS
 
@@ -100,8 +100,8 @@
 
 | # | 파일 | 상태 | 의존 / 차단 | 비고 |
 |---|---|---|---|---|
-| 1 | `04-모바일/01-기사-앱.md` | ✅ | mobile-staff `/driver/*` ✅ | 로그인 / 슬립 list / 배차 수신 / GPS |
-| 2 | `04-모바일/02-전자-서명.md` | ✅ | `/sign-mock` + 실 서명 ✅ | 서명 collection + 슬립 DELIVERED transition |
+| 1 | `04-모바일/01-기사-앱.md` | ✅ | mobile-staff `/driver/*` ✅ | 로그인 / 전표 list / 배차 수신 / GPS |
+| 2 | `04-모바일/02-전자-서명.md` | ✅ | `/sign-mock` + 실 서명 ✅ | 서명 collection + 전표 DELIVERED transition |
 | 3 | `04-모바일/03-영업-앱.md` | ✅ (미구현 안내 docs) | P1-4 미구현 | 영업직원 native 앱 미구현 + legacy WebView 임시 안내 |
 | 4 | `04-모바일/04-사진-첨부.md` | ✅ (미구현 안내 docs) | 신규 P1 | 현장 사진 첨부 미구현 (검수 사진 P0-9 / 배송 완료 사진 / 영업 방문 사진) |
 
@@ -161,8 +161,8 @@
 | 3 | 시작하기 | `00-시작하기/03-역할별-권한.md` | ✅ | 📸 |
 | 4 | 영업 | `01-영업/01-거래처-등록.md` | ⚠️ (P0-6 UI 부재) | 📸 |
 | 5 | 영업 | `01-영업/02-거래처-조회.md` | ✅ | 📸 |
-| 6 | 영업 | `01-영업/03-슬립-발행.md` | ✅ | 📸 |
-| 7 | 영업 | `01-영업/04-슬립-결재-라인.md` | ✅ | 📸 |
+| 6 | 영업 | `01-영업/03-전표-발행.md` | ✅ | 📸 |
+| 7 | 영업 | `01-영업/04-전표-결재-라인.md` | ✅ | 📸 |
 | 8 | 영업 | `01-영업/05-거래처-주문.md` | ✅ | 📸 |
 | 9 | 영업 | `01-영업/06-견적서.md` | ⚠️ (legacy webview 안내) | 📸 |
 | 10 | 창고 | `02-창고/01-입고-처리.md` | ✅ (P0-9 검수 UI 부재 안내) | 📸 |

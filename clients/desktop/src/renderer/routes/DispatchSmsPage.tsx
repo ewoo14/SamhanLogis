@@ -353,7 +353,7 @@ export function DispatchSmsPage() {
                           [{p.partnerCode}]
                         </span>{' '}
                         <span style={{ color: '#6B7280' }}>
-                          · 슬립 {p.slipNo}
+                          · 전표 {p.slipNo}
                         </span>
                       </div>
                       {p.blocked ? (
@@ -410,7 +410,7 @@ export function DispatchSmsPage() {
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                   {preview.unmapped.map((u) => (
                     <li key={`${u.partnerCode}-${u.slipNo}`}>
-                      {u.partnerName} [{u.partnerCode}] · 슬립 {u.slipNo}
+                      {u.partnerName} [{u.partnerCode}] · 전표 {u.slipNo}
                     </li>
                   ))}
                 </ul>

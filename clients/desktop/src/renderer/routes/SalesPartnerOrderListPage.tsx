@@ -109,7 +109,7 @@ export function SalesPartnerOrderListPage() {
                 <th>발송일</th>
                 <th style={{ textAlign: 'right' }}>합계</th>
                 <th>상태</th>
-                <th>연결 슬립</th>
+                <th>연결 전표</th>
               </tr>
             </thead>
             <tbody>

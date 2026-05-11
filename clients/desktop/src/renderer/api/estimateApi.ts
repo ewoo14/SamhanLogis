@@ -40,7 +40,7 @@ export const ESTIMATE_STATUS_LABEL: Record<EstimateStatus, string> = {
   QUOTE_SENT: '발송완료',
   QUOTE_ACCEPTED: '수주완료',
   QUOTE_REJECTED: '거절',
-  QUOTE_CONVERTED: '슬립변환완료',
+  QUOTE_CONVERTED: '전표변환완료',
 }
 
 /** 견적 라인 응답 — BE {@code EstimateLineResponse}. */

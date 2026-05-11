@@ -147,7 +147,7 @@ export default function SignaturePhotoScreen({
         </Text>
         {stopLabel && (
           <View style={styles.labelCard}>
-            <Text style={styles.labelHead}>슬립 / 정차 정보</Text>
+            <Text style={styles.labelHead}>전표 / 정차 정보</Text>
             <Text style={styles.labelBody}>{slipNo} — {stopLabel}</Text>
           </View>
         )}

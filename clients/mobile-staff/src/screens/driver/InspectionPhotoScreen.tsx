@@ -76,7 +76,7 @@ export default function InspectionPhotoScreen({
 
   const uploadAll = useCallback(async () => {
     if (!slipId) {
-      Alert.alert('업로드 불가', '슬립 ID 가 없습니다. 담당자에게 문의해주세요.');
+      Alert.alert('업로드 불가', '전표 ID 가 없습니다. 담당자에게 문의해주세요.');
       return;
     }
     if (!token) {
@@ -171,9 +171,9 @@ export default function InspectionPhotoScreen({
         {/* 토큰 없음 경고 */}
         {!slipId && (
           <View style={styles.warnCard}>
-            <Text style={badgeStyle('warn')}>슬립 ID 없음</Text>
+            <Text style={badgeStyle('warn')}>전표 ID 없음</Text>
             <Text style={styles.warnText}>
-              슬립 정보가 전달되지 않았습니다. 담당자에게 문의해주세요.
+              전표 정보가 전달되지 않았습니다. 담당자에게 문의해주세요.
             </Text>
           </View>
         )}

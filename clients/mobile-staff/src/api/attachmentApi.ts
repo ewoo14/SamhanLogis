@@ -312,7 +312,7 @@ function friendlyMessage(status: number, text: string): string {
     case 400:
       return '파일 형식이 허용되지 않거나 크기가 5MB 를 초과합니다. 다시 촬영하거나 다른 사진을 선택해주세요.';
     case 404:
-      return '대상 슬립을 찾을 수 없습니다. 배차 토큰 / 슬립 번호를 확인해주세요.';
+      return '대상 전표를 찾을 수 없습니다. 배차 토큰 / 전표 번호를 확인해주세요.';
     case 410:
       return '배송 토큰이 만료되었습니다. 영업 / 배차 담당에게 새 링크를 요청해주세요.';
     case 413:

@@ -7,14 +7,14 @@
  *   <li>거래처 snapshot</li>
  *   <li>라인 표 (read-only) — 모델명 / 품목명 / 규격 / 수량 / 단가 / 공급가액 / 부가세 / 소계</li>
  *   <li>합계 박스 — 공급가액 / 부가세 / 총합</li>
- *   <li>변환 슬립 link — convertedSlipId 가 있으면 `/sales/:slipId` 로 link</li>
+ *   <li>변환 전표 link — convertedSlipId 가 있으면 `/sales/:slipId` 로 link</li>
  * </ul>
  *
  * <p>액션:
  * <ul>
  *   <li>QUOTE_DRAFT — 편집 / 발송</li>
  *   <li>QUOTE_SENT  — 편집 / 수락 / 거절</li>
- *   <li>QUOTE_ACCEPTED — 슬립 변환 (Slip OUTBOUND DRAFT 자동 발행)</li>
+ *   <li>QUOTE_ACCEPTED — 전표 변환 (Slip OUTBOUND DRAFT 자동 발행)</li>
  *   <li>모든 상태 — 인쇄 (`/sales/estimates/:estimateNumber/print` 새 창)</li>
  * </ul>
  *
@@ -128,7 +128,7 @@ export function EstimateDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
       queryClient.invalidateQueries({ queryKey: ['estimate', id] })
-      alert('수락 처리 완료\n\n이제 슬립으로 변환할 수 있습니다.')
+      alert('수락 처리 완료\n\n이제 전표로 변환할 수 있습니다.')
     },
     onError: (err: Error) => setTopError(`수락 실패: ${err.message}`),
   })
@@ -149,13 +149,13 @@ export function EstimateDetailPage() {
       if (converted.convertedSlipId) {
         if (
           confirm(
-            '슬립 변환 완료!\n\n신규 출고전표 (DRAFT) 가 생성되었습니다. 슬립 상세로 이동할까요?',
+            '전표 변환 완료!\n\n신규 출고전표 (DRAFT) 가 생성되었습니다. 전표 상세로 이동할까요?',
           )
         ) {
           navigate(`/sales/${converted.convertedSlipId}`)
         }
       } else {
-        alert('슬립 변환 완료')
+        alert('전표 변환 완료')
       }
     },
     onError: (err: Error) => setTopError(`변환 실패: ${err.message}`),
@@ -206,7 +206,7 @@ export function EstimateDetailPage() {
     setTopError('')
     if (
       !confirm(
-        '이 견적을 슬립 (출고전표 DRAFT) 로 변환하시겠습니까?\n변환 후 견적은 CONVERTED 상태로 잠깁니다.',
+        '이 견적을 전표 (출고전표 DRAFT) 로 변환하시겠습니까?\n변환 후 견적은 CONVERTED 상태로 잠깁니다.',
       )
     )
       return
@@ -431,7 +431,7 @@ export function EstimateDetailPage() {
                 disabled={convertMutation.isPending}
                 data-testid="estimate-detail-convert-button"
               >
-                {convertMutation.isPending ? '변환 중...' : '슬립 변환'}
+                {convertMutation.isPending ? '변환 중...' : '전표 변환'}
               </Button>
             ) : null}
             <Button
@@ -444,7 +444,7 @@ export function EstimateDetailPage() {
           </div>
         </div>
 
-        {/* 변환 슬립 link */}
+        {/* 변환 전표 link */}
         {e.convertedSlipId ? (
           <div
             style={{
@@ -459,7 +459,7 @@ export function EstimateDetailPage() {
               alignItems: 'center',
             }}
           >
-            <strong style={{ color: 'var(--state-warning)' }}>슬립 변환 완료</strong>
+            <strong style={{ color: 'var(--state-warning)' }}>전표 변환 완료</strong>
             <a
               href={`${window.location.origin}/#/sales/${e.convertedSlipId}`}
               target="_blank"
@@ -467,7 +467,7 @@ export function EstimateDetailPage() {
               style={{ color: '#B45309', textDecoration: 'underline' }}
               data-testid="estimate-detail-converted-slip-link"
             >
-              변환 슬립 보기 →
+              변환 전표 보기 →
             </a>
           </div>
         ) : null}

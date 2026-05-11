@@ -175,10 +175,10 @@ export function KakaoAutoDispatchPage() {
       <Card padding={4} shadow="sm" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--color-neutral-700, #374151)' }}>
           {unassignedQuery.isLoading ? (
-            '미배차 슬립 조회 중…'
+            '미배차 전표 조회 중…'
           ) : (
             <>
-              기준 일자 <strong>{date}</strong> 미배차 슬립{' '}
+              기준 일자 <strong>{date}</strong> 미배차 전표{' '}
               <strong>{unassignedCount}</strong>건 — 아래 배차 목록의 "자동 매칭 실행" 버튼으로
               DriverMatcher 를 실행합니다.
             </>

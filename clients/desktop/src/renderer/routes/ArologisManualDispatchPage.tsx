@@ -212,7 +212,7 @@ export function ArologisManualDispatchPage() {
         const numeric = prefill.slipNo.replace(/[^0-9]/g, '')
         if (numeric) stop.partnerCode = numeric
         // 메모에 원본 slipNo 보존 — 사용자가 추적 가능하도록.
-        stop.notes = `미배차 슬립 ${prefill.slipNo}`
+        stop.notes = `미배차 전표 ${prefill.slipNo}`
             + (prefill.partnerCode ? ` / 거래처코드 ${prefill.partnerCode}` : '')
       }
       return [vehicle]
@@ -732,7 +732,7 @@ export function ArologisManualDispatchPage() {
                       )}
                     />
                     <FormField
-                      label="슬립번호 (옵션)"
+                      label="전표번호 (옵션)"
                       render={({ id }) => (
                         <input
                           id={id}

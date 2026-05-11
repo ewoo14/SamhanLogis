@@ -77,7 +77,7 @@ export function SalesPartnerOrderDetailPage() {
                   <input readOnly value={query.data.partnerCode} />
                 </div>
                 <div className={styles['formField']}>
-                  <label>연결 슬립</label>
+                  <label>연결 전표</label>
                   <input readOnly value={query.data.linkedSlipNo ?? '-'} />
                 </div>
                 <div className={styles['formField']}>
