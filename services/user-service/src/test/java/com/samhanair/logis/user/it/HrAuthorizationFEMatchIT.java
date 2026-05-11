@@ -60,10 +60,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Transactional
 @MockitoSettings(strictness = Strictness.LENIENT)
-@org.junit.jupiter.api.Disabled(
-        "BE HrAuthorizationIT 5건이 동일 contract 검증 이미 통과 — 본 IT setUp() 의 Department " +
-        "INSERT 가 Flyway V6 seed 와 unique code 충돌. 후속 슬라이스에서 findByCode 또는 " +
-        "@Sql 시드로 분리하여 재활성화 예정.")
 class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
 
     // -------------------------------------------------------------------------
@@ -124,18 +120,20 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
                 "대표실 부서 조회 실패");
 
         execEmployeeId = UUID.randomUUID();
+        String execShort = execEmployeeId.toString().substring(0, 8);
         Objects.requireNonNull(
                 employeeRepository.save(Employee.create(
                         execEmployeeId,
-                        "hrm_it_exec_" + execEmployeeId.toString().substring(0, 8),
+                        "hrm_it_exec_" + execShort,
                         "[DEV-SEED] 대표실테스트",
                         "팀장",
                         Role.MASTER,
                         execDept,
                         true,
                         LocalDate.of(2026, 1, 1),
-                        "hrm_it_exec@samhan-air.com",
-                        "010-0001-0001")),
+                        // email/phone 도 UUID 프리픽스로 unique 보장 — 다른 IT seed / V2 seed 와 충돌 회피
+                        "hrm_it_exec_" + execShort + "@samhan-air.com",
+                        "010-" + execShort.substring(0, 4) + "-" + execShort.substring(4, 8))),
                 "대표실 직원 저장 실패");
 
         // 영업1팀 부서 사용자
@@ -147,18 +145,19 @@ class HrAuthorizationFEMatchIT extends AbstractPostgresIT {
                 "영업1팀 부서 조회 실패");
 
         salesEmployeeId = UUID.randomUUID();
+        String salesShort = salesEmployeeId.toString().substring(0, 8);
         Objects.requireNonNull(
                 employeeRepository.save(Employee.create(
                         salesEmployeeId,
-                        "hrm_it_sales_" + salesEmployeeId.toString().substring(0, 8),
+                        "hrm_it_sales_" + salesShort,
                         "[DEV-SEED] 영업팀테스트",
                         "사원",
                         Role.SALES,
                         salesDept,
                         false,
                         LocalDate.of(2026, 1, 1),
-                        "hrm_it_sales@samhan-air.com",
-                        "010-0002-0001")),
+                        "hrm_it_sales_" + salesShort + "@samhan-air.com",
+                        "010-" + salesShort.substring(0, 4) + "-" + salesShort.substring(4, 8))),
                 "영업1팀 직원 저장 실패");
 
         employeeRepository.flush();
