@@ -49,6 +49,8 @@ import { canAccessNextDaySlip } from '../api/nextDaySlipApi'
 import { canAccessDispatchSms } from '../api/dispatchSmsApi'
 // [PR-E1 FE-1] DPS 입고 비교 — WAREHOUSE / MASTER / MANAGER / INVENTORY (BE @PreAuthorize 일치)
 import { canAccessDpsCompare } from '../api/dpsCompareApi'
+// [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER (BE @PreAuthorize 일치)
+import { canAccessDpsByProduct } from '../api/dpsByProductApi'
 // [PR-E2 FE-9] 홈택스 일괄 등록 양식 — ACCOUNTANT / MANAGER / MASTER (BE @PreAuthorize 일치)
 import { canAccessHometaxExport } from '../api/hometaxExportApi'
 // [PR-E2 FE-7] 거래처별 원장 생성 — ACCOUNTANT / MANAGER / MASTER (사용자 명세 — MANAGER read-only 허용)
@@ -228,6 +230,8 @@ export function AppLayout() {
   const showAudit = canAccessAudit(auth?.role)
   // [PR-E1 FE-1] DPS 입고 비교 — WAREHOUSE / MASTER / MANAGER / INVENTORY 가시
   const showDpsCompare = canAccessDpsCompare(auth?.role)
+  // [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER 가시
+  const showDpsByProduct = canAccessDpsByProduct(auth?.role)
   // [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE / MANAGER / MASTER 가시
   const showSlipEditRequests = !!auth?.role
     && (SLIP_EDIT_REQUEST_REVIEWER_ROLES as readonly string[]).includes(auth.role)
@@ -237,8 +241,8 @@ export function AppLayout() {
     && (INBOUND_INSPECTION_ROLES as readonly string[]).includes(auth.role)
   // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE 가시
   const showSafetyStockAlerts = showSafetyStock
-  // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 전표 요청 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
-  const showWarehouseOps = showAudit || showDpsCompare || showSlipEditRequests || showInboundInspection || showSafetyStockAlerts
+  // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
+  const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showInboundInspection || showSafetyStockAlerts
   // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
   // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER / ACCOUNTANT
@@ -664,6 +668,16 @@ export function AppLayout() {
                 data-testid="sidebar-warehouse-dps-compare"
               >
                 DPS 입고 비교
+              </SidebarLink>
+              {/* [P0-B GAS 보강] 품목별 DPS 분석 — DPS 비교 하위 들여쓰기 sub item */}
+              <SidebarLink
+                to="/warehouse/dps-compare/by-product"
+                show={showDpsByProduct}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-warehouse-dps-by-product"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                품목별 DPS 분석
               </SidebarLink>
               {/* [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE/MANAGER/MASTER. */}
               <SidebarLink

@@ -160,6 +160,9 @@ import { SLIP_CLEANUP_ROLES } from '../api/slipCleanupApi'
 // [PR-E1 FE-1] DPS 입고 비교 (legacy GAS 1번/16번 native 이식 — WAREHOUSE/MASTER/MANAGER/INVENTORY)
 import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DPS_COMPARE_ROLES } from '../api/dpsCompareApi'
+// [P0-B GAS 보강] 품목별 DPS 분석 (품목별 DPS 입고 pivot — WAREHOUSE/MANAGER/MASTER)
+import { DpsByProductPage } from './warehouse/DpsByProductPage'
+import { DPS_BY_PRODUCT_ROLES } from '../api/dpsByProductApi'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
 import { DISPATCH_SMS_ROLES } from '../api/dispatchSmsApi'
@@ -969,6 +972,18 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={DPS_COMPARE_ROLES}>
             <InventoryDpsComparePage />
+          </RoleGuard>
+        ),
+      },
+
+      // [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER.
+      // BE: inventory-service `GET /warehouse/audit/dps-compare/by-product`
+      // 정적 path — `/warehouse/dps-compare` 뒤에 등록 (정적 path 우선 react-router 규칙 준수).
+      {
+        path: '/warehouse/dps-compare/by-product',
+        element: (
+          <RoleGuard allow={DPS_BY_PRODUCT_ROLES}>
+            <DpsByProductPage />
           </RoleGuard>
         ),
       },

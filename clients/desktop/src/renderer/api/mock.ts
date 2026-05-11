@@ -2660,6 +2660,35 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // GET /warehouse/audit/dps-compare/by-product — DpsByProductPage (P0-B GAS 보강)
+  // 정적 path — /warehouse/dps-compare 핸들러보다 먼저 위치해야 함
+  if (method === 'GET' && url.includes('/warehouse/audit/dps-compare/by-product')) {
+    const productSeeds = [
+      { productCode: 'PRD-0001', productName: '냉난방 실외기 (5HP)', pendingQty: 12, completedQty: 85, qcQty: 3, returnQty: -2, totalQty: 98, diffFromDps: 0 },
+      { productCode: 'PRD-0002', productName: '냉난방 실내기 (스탠드형)', pendingQty: 0, completedQty: 64, qcQty: 1, returnQty: 0, totalQty: 65, diffFromDps: -3 },
+      { productCode: 'PRD-0003', productName: '천장형 에어컨 2way', pendingQty: 5, completedQty: 42, qcQty: 0, returnQty: 0, totalQty: 47, diffFromDps: 2 },
+      { productCode: 'PRD-0004', productName: '덕트형 에어컨 (대형)', pendingQty: 0, completedQty: 30, qcQty: 2, returnQty: -5, totalQty: 27, diffFromDps: -5 },
+      { productCode: 'PRD-0005', productName: '환기유닛 ERV-200', pendingQty: 8, completedQty: 55, qcQty: 0, returnQty: 0, totalQty: 63, diffFromDps: 0 },
+      { productCode: 'PRD-0006', productName: '공조기 AHU-500', pendingQty: 2, completedQty: 18, qcQty: 4, returnQty: 0, totalQty: 24, diffFromDps: 1 },
+      { productCode: 'PRD-0007', productName: '보일러 가스형 24K', pendingQty: 0, completedQty: 72, qcQty: 0, returnQty: -1, totalQty: 71, diffFromDps: -8 },
+      { productCode: 'PRD-0008', productName: '열교환기 판형 (소)', pendingQty: 15, completedQty: 33, qcQty: 2, returnQty: 0, totalQty: 50, diffFromDps: 0 },
+      { productCode: 'PRD-0009', productName: '냉매 R-410A 10kg', pendingQty: 3, completedQty: 120, qcQty: 0, returnQty: -10, totalQty: 113, diffFromDps: -12 },
+      { productCode: 'PRD-0010', productName: '드레인 펌프 소형', pendingQty: 0, completedQty: 48, qcQty: 1, returnQty: 0, totalQty: 49, diffFromDps: 0 },
+      { productCode: 'PRD-0011', productName: '전기제어반 (표준형)', pendingQty: 6, completedQty: 22, qcQty: 0, returnQty: 0, totalQty: 28, diffFromDps: 4 },
+      { productCode: 'PRD-0012', productName: '배관 동관 1/2" (30m)', pendingQty: 20, completedQty: 200, qcQty: 5, returnQty: -3, totalQty: 222, diffFromDps: 0 },
+    ]
+    const whId = (config.params?.['warehouseId'] ?? null) as string | null
+    return envelope({
+      fromDate: (config.params?.['fromDate'] ?? '2026-05-01') as string,
+      toDate: (config.params?.['toDate'] ?? '2026-05-11') as string,
+      warehouseId: whId,
+      warehouseName: whId ? '본사창고' : null,
+      generatedAt: new Date().toISOString(),
+      totalProductCount: productSeeds.length,
+      rows: productSeeds,
+    })
+  }
+
   // GET /warehouse/dps-compare — DpsComparePage
   if (method === 'GET' && url.includes('/warehouse/dps-compare')) {
     return envelope({
