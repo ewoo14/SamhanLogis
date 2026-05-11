@@ -131,7 +131,7 @@ public class InventoryAuditSeeder implements CommandLineRunner {
                 // COMPLETED — 3건 (완료 + 차이금액 산출)
                 new AuditSpec("AU-20260131-001", LocalDate.of(2026, 1, 31), AuditPhase.COMPLETED, 5),
                 new AuditSpec("AU-20260201-001", LocalDate.of(2026, 2, 1),  AuditPhase.COMPLETED, 6),
-                new AuditSpec("AU-20260229-001", LocalDate.of(2026, 2, 29), AuditPhase.COMPLETED, 7),
+                new AuditSpec("AU-20260228-002", LocalDate.of(2026, 2, 28), AuditPhase.COMPLETED, 7),
                 // CANCELLED — 1건
                 new AuditSpec("AU-20260315-001", LocalDate.of(2026, 3, 15), AuditPhase.CANCELLED, 8)
         );
