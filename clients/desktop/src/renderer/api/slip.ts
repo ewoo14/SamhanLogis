@@ -395,6 +395,82 @@ export async function lookupPartnerForAutoFill(
 }
 
 /**
+ * 판매/구매 조회 전용 풍성한 컬럼 응답 — BE `SlipResponse` (신규 필드 포함).
+ *
+ * UUID 비공개 가드: `id` / `partnerId` / `sourceWarehouseId` / `destinationWarehouseId` 는
+ * 내부 처리 전용. 화면 표시에는 slipNo / partnerCode / businessNumber 만 사용.
+ */
+export interface SlipQueryRow {
+  id: string
+  slipType: SlipType
+  slipNo: string
+  slipDate: string
+  partnerName: string | null
+  partnerCode: string | null
+  businessNumber: string | null
+  deliveryAddress: string | null
+  supervisionAddress: string | null
+  projectName: string | null
+  recipientPhone: string | null
+  paymentDueDate: string | null
+  printed: boolean
+  memo: string | null
+  totalAmount: number
+  totalQuantity: number
+  salesPersonName: string | null
+  editHistoryCount: number
+  deliveryTag: DeliveryTagCode | null
+  deliveryTagLabel: string | null
+  sourceWarehouseId: string | null
+  destinationWarehouseId: string | null
+}
+
+/** 판매/구매 조회 검색 옵션 */
+export interface QuerySlipsOptions {
+  slipType: 'OUTBOUND' | 'INBOUND'
+  dateFrom: string
+  dateTo: string
+  page: number
+  size: number
+  searchPartnerName?: string
+  searchPartnerCode?: string
+  searchBusinessNumber?: string
+  searchSlipNo?: string
+  searchProjectName?: string
+  searchDeliveryAddress?: string
+}
+
+/**
+ * 판매/구매 조회 페이지 API.
+ *
+ * BE `GET /slips/query` — QuerySlipsOptions 를 쿼리 파라미터로 전달.
+ * 응답은 Page<SlipQueryRow> (Spring Data Page 형태).
+ */
+export async function querySlips(
+  opts: QuerySlipsOptions,
+): Promise<PageResponse<SlipQueryRow>> {
+  const params: Record<string, string | number> = {
+    slipType: opts.slipType,
+    dateFrom: opts.dateFrom,
+    dateTo: opts.dateTo,
+    page: opts.page,
+    size: opts.size,
+  }
+  if (opts.searchPartnerName)    params['searchPartnerName']    = opts.searchPartnerName
+  if (opts.searchPartnerCode)    params['searchPartnerCode']    = opts.searchPartnerCode
+  if (opts.searchBusinessNumber) params['searchBusinessNumber'] = opts.searchBusinessNumber
+  if (opts.searchSlipNo)         params['searchSlipNo']         = opts.searchSlipNo
+  if (opts.searchProjectName)    params['searchProjectName']    = opts.searchProjectName
+  if (opts.searchDeliveryAddress) params['searchDeliveryAddress'] = opts.searchDeliveryAddress
+
+  const res = await apiClient.get<ApiEnvelope<PageResponse<SlipQueryRow>>>(
+    '/slips/query',
+    { params },
+  )
+  return res.data.data
+}
+
+/**
  * 전표 라이프사이클 transition action 코드 — BE `SlipController` POST endpoint suffix 와 1:1.
  *
  * - `save`     DRAFT → SAVED

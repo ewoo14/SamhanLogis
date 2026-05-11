@@ -222,6 +222,20 @@ export function AppLayout() {
           >
             판매
           </div>
+          {/* [sales-purchase-query] 판매조회 신규 — 풍성한 컬럼 + 다중 선택 + 50/page */}
+          <NavLink
+            to="/sales/query"
+            data-testid="sidebar-sales-query"
+          >
+            판매 조회 (상세)
+          </NavLink>
+          {/* [sales-purchase-query] 구매조회 신규 — 창고 그룹 상단에 노출 */}
+          <NavLink
+            to="/purchases/query"
+            data-testid="sidebar-purchase-query"
+          >
+            구매 조회 (상세)
+          </NavLink>
           <NavLink to="/sales/estimates">견적서</NavLink>
           <NavLink to="/sales/partner-orders">주문서 조회</NavLink>
           <NavLink to="/sales/order-approvals">주문서 승인</NavLink>

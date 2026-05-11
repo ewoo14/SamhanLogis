@@ -804,6 +804,324 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // ============================================================================
+  // 판매/구매 조회 (SalesQueryPage / PurchaseQueryPage) — 풍성한 컬럼 mock
+  // GET /slips/query — 신규 필드 포함 10+ rows (페이지네이션 검증용)
+  // ============================================================================
+  if (method === 'GET' && url.includes('/slips/query')) {
+    const slipTypeMatch = url.match(/[?&]slipType=([^&]+)/)
+    const slipType = slipTypeMatch?.[1]
+    const pageMatch = url.match(/[?&]page=(\d+)/)
+    const pageNo = parseInt(pageMatch?.[1] ?? '0', 10)
+    const sizeMatch = url.match(/[?&]size=(\d+)/)
+    const pageSize = parseInt(sizeMatch?.[1] ?? '50', 10)
+
+    /** 판매(OUTBOUND) 조회 12건 mock rows */
+    const OUTBOUND_QUERY_ROWS = [
+      {
+        id: 'sq-001', slipType: 'OUTBOUND', slipNo: '2026/05/10-1',
+        slipDate: '2026-05-10', partnerName: '주식회사 윌리-정현수',
+        partnerCode: 'WR-001', businessNumber: '123-45-67890',
+        deliveryAddress: '서울특별시 강남구 테헤란로 152',
+        supervisionAddress: '서울 강남구 삼성동 100', projectName: '강남 오피스텔 A동',
+        recipientPhone: '010-1234-5678', paymentDueDate: '2026-05-31',
+        printed: true, memo: '9시까지 배송 요망', totalAmount: 3870000, totalQuantity: 4,
+        salesPersonName: '오병승', editHistoryCount: 2,
+        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-002', slipType: 'OUTBOUND', slipNo: '2026/05/10-2',
+        slipDate: '2026-05-10', partnerName: '○○종합건설',
+        partnerCode: 'OO-002', businessNumber: '234-56-78901',
+        deliveryAddress: '경기도 성남시 분당구 판교로 235',
+        supervisionAddress: null, projectName: null,
+        recipientPhone: '031-987-6543', paymentDueDate: '2026-05-31',
+        printed: false, memo: '[야적] 05/10 상차 05/11 하차', totalAmount: 5240000, totalQuantity: 3,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: 'STACK', deliveryTagLabel: '야적',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-003', slipType: 'OUTBOUND', slipNo: '2026/05/09-5',
+        slipDate: '2026-05-09', partnerName: '한일냉동기술',
+        partnerCode: 'HI-003', businessNumber: '345-67-89012',
+        deliveryAddress: '부산광역시 해운대구 센텀시티 100',
+        supervisionAddress: '부산 해운대구 센텀 A빌딩 3F', projectName: '센텀 물류센터 냉동 공사',
+        recipientPhone: '051-234-5678', paymentDueDate: '2026-06-15',
+        printed: true, memo: '경동화물 발송 확인 필요', totalAmount: 8400000, totalQuantity: 6,
+        salesPersonName: '이정훈', editHistoryCount: 1,
+        deliveryTag: 'GYEONGDONG_FREIGHT', deliveryTagLabel: '경동화물',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-004', slipType: 'OUTBOUND', slipNo: '2026/05/09-3',
+        slipDate: '2026-05-09', partnerName: '삼성물산 건설부문',
+        partnerCode: 'SM-004', businessNumber: '456-78-90123',
+        deliveryAddress: '인천광역시 연수구 송도과학로 32',
+        supervisionAddress: '인천 연수구 송도 B빌딩', projectName: '송도 국제도시 HVAC',
+        recipientPhone: '032-555-7777', paymentDueDate: null,
+        printed: false, memo: null, totalAmount: 12600000, totalQuantity: 8,
+        salesPersonName: '오병승', editHistoryCount: 3,
+        deliveryTag: 'REGION', deliveryTagLabel: '지방',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000002', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-005', slipType: 'OUTBOUND', slipNo: '2026/05/08-11',
+        slipDate: '2026-05-08', partnerName: '대림산업',
+        partnerCode: 'DL-005', businessNumber: '567-89-01234',
+        deliveryAddress: '대전광역시 유성구 테크노파크로 50',
+        supervisionAddress: null, projectName: '대전 테크노파크 공조 설치',
+        recipientPhone: '042-888-9999', paymentDueDate: '2026-05-30',
+        printed: true, memo: '긴급 — 당일 도착 필수', totalAmount: 2100000, totalQuantity: 2,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-006', slipType: 'OUTBOUND', slipNo: '2026/05/08-7',
+        slipDate: '2026-05-08', partnerName: '현대건설',
+        partnerCode: 'HD-006', businessNumber: '678-90-12345',
+        deliveryAddress: '서울특별시 송파구 올림픽로 300',
+        supervisionAddress: '서울 송파 현장사무소', projectName: '잠실 주상복합 A타워',
+        recipientPhone: '02-1234-5678', paymentDueDate: '2026-05-31',
+        printed: false, memo: null, totalAmount: 6720000, totalQuantity: 5,
+        salesPersonName: '이정훈', editHistoryCount: 0,
+        deliveryTag: 'LOGEN', deliveryTagLabel: '로젠택배',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-007', slipType: 'OUTBOUND', slipNo: '2026/05/07-2',
+        slipDate: '2026-05-07', partnerName: '롯데건설',
+        partnerCode: 'LT-007', businessNumber: '789-01-23456',
+        deliveryAddress: '경기도 수원시 영통구 삼성로 129',
+        supervisionAddress: null, projectName: null,
+        recipientPhone: '031-111-2222', paymentDueDate: '2026-06-10',
+        printed: true, memo: '대여품 포함', totalAmount: 1850000, totalQuantity: 1,
+        salesPersonName: '오병승', editHistoryCount: 1,
+        deliveryTag: 'RENTAL', deliveryTagLabel: '대여',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000002', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-008', slipType: 'OUTBOUND', slipNo: '2026/05/07-9',
+        slipDate: '2026-05-07', partnerName: 'GS건설',
+        partnerCode: 'GS-008', businessNumber: '890-12-34567',
+        deliveryAddress: '서울특별시 마포구 양화로 45',
+        supervisionAddress: '마포 현장 2공구', projectName: '마포 오피스텔 공조',
+        recipientPhone: '010-2222-3333', paymentDueDate: '2026-05-28',
+        printed: false, memo: '반납 포함 (4EA)', totalAmount: 3310000, totalQuantity: 3,
+        salesPersonName: '박서연', editHistoryCount: 2,
+        deliveryTag: 'RETURN_RENTAL', deliveryTagLabel: '반납',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-009', slipType: 'OUTBOUND', slipNo: '2026/05/06-4',
+        slipDate: '2026-05-06', partnerName: '포스코건설',
+        partnerCode: 'PC-009', businessNumber: '901-23-45678',
+        deliveryAddress: '광양시 금호동 포스코 1공장',
+        supervisionAddress: '광양 1공장 B구역', projectName: '광양제철소 냉각설비',
+        recipientPhone: '061-777-8888', paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 21000000, totalQuantity: 12,
+        salesPersonName: '이정훈', editHistoryCount: 0,
+        deliveryTag: 'GYEONGDONG_PARCEL', deliveryTagLabel: '경동택배',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-010', slipType: 'OUTBOUND', slipNo: '2026/05/06-1',
+        slipDate: '2026-05-06', partnerName: '두산중공업',
+        partnerCode: 'DS-010', businessNumber: '012-34-56789',
+        deliveryAddress: '창원시 성산구 두산대로 22',
+        supervisionAddress: '창원공장 C동', projectName: '창원 스팀터빈 보조냉각',
+        recipientPhone: '055-999-1111', paymentDueDate: '2026-06-30',
+        printed: false, memo: '특수 사양 주의', totalAmount: 15400000, totalQuantity: 7,
+        salesPersonName: '오병승', editHistoryCount: 5,
+        deliveryTag: 'REGION', deliveryTagLabel: '지방',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000002', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-011', slipType: 'OUTBOUND', slipNo: '2026/05/05-8',
+        slipDate: '2026-05-05', partnerName: '에스케이에코플랜트',
+        partnerCode: 'SK-011', businessNumber: '111-22-33444',
+        deliveryAddress: '수원시 권선구 SK로 1',
+        supervisionAddress: null, projectName: 'SK 수원캠퍼스 IDC 공조',
+        recipientPhone: '031-333-4444', paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 9800000, totalQuantity: 6,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: 'DAY', deliveryTagLabel: '당일',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+      {
+        id: 'sq-012', slipType: 'OUTBOUND', slipNo: '2026/05/05-3',
+        slipDate: '2026-05-05', partnerName: '롯데케미칼',
+        partnerCode: 'LC-012', businessNumber: '222-33-44555',
+        deliveryAddress: '울산광역시 남구 석유화학로 10',
+        supervisionAddress: '울산공장 A라인', projectName: '울산 석화단지 냉동 증설',
+        recipientPhone: '052-444-5555', paymentDueDate: '2026-06-15',
+        printed: false, memo: '야간 배송 가능', totalAmount: 5600000, totalQuantity: 4,
+        salesPersonName: '이정훈', editHistoryCount: 1,
+        deliveryTag: 'STACK', deliveryTagLabel: '야적',
+        sourceWarehouseId: '11111111-1111-1111-1111-000000000001', destinationWarehouseId: null,
+      },
+    ]
+
+    /** 구매(INBOUND) 조회 12건 mock rows */
+    const INBOUND_QUERY_ROWS = [
+      {
+        id: 'iq-001', slipType: 'INBOUND', slipNo: '2026/05/10-IN1',
+        slipDate: '2026-05-10', partnerName: '삼성전자',
+        partnerCode: 'SE-001', businessNumber: '101-81-25508',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: false, memo: '회차 입고 — 창고 B', totalAmount: 3700000, totalQuantity: 4,
+        salesPersonName: '오병승', editHistoryCount: 0,
+        deliveryTag: 'RETURN_TRIP', deliveryTagLabel: '회차',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-002', slipType: 'INBOUND', slipNo: '2026/05/10-IN2',
+        slipDate: '2026-05-10', partnerName: 'LG전자',
+        partnerCode: 'LG-001', businessNumber: '107-86-14075',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 2120000, totalQuantity: 2,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: null, deliveryTagLabel: null,
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-003', slipType: 'INBOUND', slipNo: '2026/05/09-IN3',
+        slipDate: '2026-05-09', partnerName: '캐리어에어컨',
+        partnerCode: 'CA-001', businessNumber: '126-87-00312',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: null,
+        printed: false, memo: '반품 처리', totalAmount: 1450000, totalQuantity: 1,
+        salesPersonName: '이정훈', editHistoryCount: 1,
+        deliveryTag: 'RETURN', deliveryTagLabel: '반품',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-004', slipType: 'INBOUND', slipNo: '2026/05/09-IN4',
+        slipDate: '2026-05-09', partnerName: '대우일렉트로닉스',
+        partnerCode: 'DW-001', businessNumber: '201-81-74932',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-28',
+        printed: false, memo: '차용품 반납 포함', totalAmount: 5100000, totalQuantity: 3,
+        salesPersonName: '오병승', editHistoryCount: 0,
+        deliveryTag: 'BORROW', deliveryTagLabel: '차용',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000002',
+      },
+      {
+        id: 'iq-005', slipType: 'INBOUND', slipNo: '2026/05/08-IN5',
+        slipDate: '2026-05-08', partnerName: '삼성전자',
+        partnerCode: 'SE-001', businessNumber: '101-81-25508',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 8400000, totalQuantity: 6,
+        salesPersonName: '박서연', editHistoryCount: 2,
+        deliveryTag: 'RETURN_TRIP', deliveryTagLabel: '회차',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-006', slipType: 'INBOUND', slipNo: '2026/05/08-IN6',
+        slipDate: '2026-05-08', partnerName: '대성산업',
+        partnerCode: 'DS-001', businessNumber: '130-81-28742',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-06-10',
+        printed: false, memo: '특가 구매', totalAmount: 4200000, totalQuantity: 2,
+        salesPersonName: '이정훈', editHistoryCount: 0,
+        deliveryTag: null, deliveryTagLabel: null,
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-007', slipType: 'INBOUND', slipNo: '2026/05/07-IN7',
+        slipDate: '2026-05-07', partnerName: 'LG전자',
+        partnerCode: 'LG-001', businessNumber: '107-86-14075',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 6300000, totalQuantity: 5,
+        salesPersonName: '오병승', editHistoryCount: 1,
+        deliveryTag: null, deliveryTagLabel: null,
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000002',
+      },
+      {
+        id: 'iq-008', slipType: 'INBOUND', slipNo: '2026/05/07-IN8',
+        slipDate: '2026-05-07', partnerName: '캐리어에어컨',
+        partnerCode: 'CA-001', businessNumber: '126-87-00312',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: null,
+        printed: false, memo: '반품 재입고', totalAmount: 1850000, totalQuantity: 1,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: 'RETURN', deliveryTagLabel: '반품',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-009', slipType: 'INBOUND', slipNo: '2026/05/06-IN9',
+        slipDate: '2026-05-06', partnerName: '삼성전자',
+        partnerCode: 'SE-001', businessNumber: '101-81-25508',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: true, memo: null, totalAmount: 7350000, totalQuantity: 5,
+        salesPersonName: '이정훈', editHistoryCount: 3,
+        deliveryTag: 'RETURN_TRIP', deliveryTagLabel: '회차',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-010', slipType: 'INBOUND', slipNo: '2026/05/06-IN10',
+        slipDate: '2026-05-06', partnerName: '대우일렉트로닉스',
+        partnerCode: 'DW-001', businessNumber: '201-81-74932',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-28',
+        printed: false, memo: '차용 — 반납 예정일 05/15', totalAmount: 3100000, totalQuantity: 3,
+        salesPersonName: '오병승', editHistoryCount: 0,
+        deliveryTag: 'BORROW', deliveryTagLabel: '차용',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000002',
+      },
+      {
+        id: 'iq-011', slipType: 'INBOUND', slipNo: '2026/05/05-IN11',
+        slipDate: '2026-05-05', partnerName: '대성산업',
+        partnerCode: 'DS-001', businessNumber: '130-81-28742',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-06-15',
+        printed: true, memo: null, totalAmount: 9600000, totalQuantity: 8,
+        salesPersonName: '박서연', editHistoryCount: 0,
+        deliveryTag: null, deliveryTagLabel: null,
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000001',
+      },
+      {
+        id: 'iq-012', slipType: 'INBOUND', slipNo: '2026/05/05-IN12',
+        slipDate: '2026-05-05', partnerName: 'LG전자',
+        partnerCode: 'LG-001', businessNumber: '107-86-14075',
+        deliveryAddress: null, supervisionAddress: null, projectName: null,
+        recipientPhone: null, paymentDueDate: '2026-05-31',
+        printed: false, memo: '회차 + 추가 구매 혼합', totalAmount: 2640000, totalQuantity: 2,
+        salesPersonName: '이정훈', editHistoryCount: 1,
+        deliveryTag: 'RETURN_TRIP', deliveryTagLabel: '회차',
+        sourceWarehouseId: null, destinationWarehouseId: '11111111-1111-1111-1111-000000000002',
+      },
+    ]
+
+    const allRows = slipType === 'OUTBOUND'
+      ? OUTBOUND_QUERY_ROWS
+      : slipType === 'INBOUND'
+        ? INBOUND_QUERY_ROWS
+        : [...OUTBOUND_QUERY_ROWS, ...INBOUND_QUERY_ROWS]
+
+    const start = pageNo * pageSize
+    const pageContent = allRows.slice(start, start + pageSize)
+    const totalElements = allRows.length
+    const totalPages = Math.ceil(totalElements / pageSize)
+
+    return envelope({
+      content: pageContent,
+      totalElements,
+      totalPages,
+      number: pageNo,
+      size: pageSize,
+      first: pageNo === 0,
+      last: pageNo >= totalPages - 1,
+    })
+  }
+
   // GET /slips (페이지) — lookup-product / {id} 가 아닌 경우.
   // SlipListPage 가 ?slipType=OUTBOUND (판매조회) 또는 INBOUND (구매조회) 로 필터링 →
   // mock 도 BE 와 동등하게 query param 으로 분리해 잘못된 슬립 노출 방지.

@@ -230,6 +230,10 @@ import { PeriodCloseListPage } from './PeriodCloseListPage'
 // 일별/월별 toggle + 일별 세금계산서 detail + CSV 다운로드.
 // 매뉴얼 docs/manual/02-창고/04-매출-마감.md 와 Stage 1 일치.
 import { SalesClosingPage } from './SalesClosingPage'
+// [sales-purchase-query] 판매조회 / 구매조회 신규 페이지 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
+// 기존 SlipListPage 는 그대로 두고 별도 페이지로 운영.
+import { SalesQueryPage } from './sales-query/SalesQueryPage'
+import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -752,6 +756,14 @@ const router = createHashRouter([
           </RoleGuard>
         ),
       },
+
+      // [sales-purchase-query] 판매조회 신규 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
+      // 기존 `/sales` (SlipListPage) 와 별개 경로. 정적 path — `/sales/:id` 보다 먼저 매칭됨.
+      { path: '/sales/query', element: <SalesQueryPage /> },
+
+      // [sales-purchase-query] 구매조회 신규 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
+      // 기존 `/purchases` (SlipListPage) 와 별개 경로. 정적 path — `/purchases/:id` 보다 먼저 매칭됨.
+      { path: '/purchases/query', element: <PurchaseQueryPage /> },
 
       // [P2-4] 매출 마감 — `/sales/closing` (ACCOUNTANT/MASTER 진입).
       // 일별/월별 toggle + 세금계산서 detail + CSV.
