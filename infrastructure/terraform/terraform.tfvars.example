@@ -1,0 +1,64 @@
+################################################################################
+# terraform.tfvars.example — Phase 11 입력 변수 예시
+#
+# 사용법:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # terraform.tfvars 에서 실제 값으로 교체
+#   terraform plan -var-file=terraform.tfvars
+#
+# 주의:
+#   - terraform.tfvars 는 .gitignore 에 추가 (비밀 정보 포함)
+#   - 비밀번호/API key 는 AWS Secrets Manager 또는 CI/CD 환경변수로 관리
+#   - 이 예시 파일은 placeholder 값만 포함 (실 값 없음)
+################################################################################
+
+# ─── 기본 설정 ────────────────────────────────────────────────────────────────
+aws_region   = "ap-northeast-2"
+project_name = "samhanlogis"
+environment  = "production"
+
+# ─── VPC 설정 ─────────────────────────────────────────────────────────────────
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]
+availability_zones   = ["ap-northeast-2a", "ap-northeast-2c"]
+
+# ─── EC2 설정 ─────────────────────────────────────────────────────────────────
+ec2_instance_type = "m5.xlarge"
+# AMI: Amazon Linux 2023 (ap-northeast-2) — 실 배포 전 최신 AMI 확인
+# aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*-x86_64" --query 'Images[0].ImageId'
+ec2_ami_id        = "ami-0c9c942bd7bf113a2"
+ec2_volume_size   = 100
+ec2_key_pair_name = "samhanlogis-prod-key"
+allowed_ssh_cidr  = "203.0.113.0/24"  # 실 운영자 IP 로 교체 필수
+
+# ─── RDS 설정 ─────────────────────────────────────────────────────────────────
+rds_instance_class        = "db.t3.medium"
+rds_engine_version        = "15.7"
+rds_allocated_storage     = 100
+rds_db_name               = "samhanlogis"
+rds_username              = "samhan"
+rds_password              = "REPLACE_WITH_STRONG_PASSWORD"  # Secrets Manager 관리 권장
+rds_backup_retention_days = 7  # RDS automated backup 7일 (무료)
+
+# ─── S3 설정 ──────────────────────────────────────────────────────────────────
+s3_attachments_bucket     = "samhan-attachments"
+s3_logs_bucket            = "samhan-logs"
+s3_terraform_state_bucket = "samhan-terraform-state"
+
+# ─── 알림 설정 ────────────────────────────────────────────────────────────────
+slack_webhook_url = "https://hooks.slack.com/services/REPLACE/WITH/REAL_WEBHOOK"
+alert_email       = "ewoo2821@gmail.com"
+
+# ─── 도메인 설정 ──────────────────────────────────────────────────────────────
+domain_name     = "samhan-air.com"
+route53_zone_id = "REPLACE_WITH_ZONE_ID"  # Route 53 Hosted Zone 생성 후 입력
+
+# ─── 태그 설정 ────────────────────────────────────────────────────────────────
+common_tags = {
+  Project     = "SamhanLogis"
+  Environment = "production"
+  ManagedBy   = "terraform"
+  Owner       = "devops"
+  Phase       = "11"
+}
