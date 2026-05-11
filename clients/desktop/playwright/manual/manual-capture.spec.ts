@@ -351,3 +351,126 @@ test.describe('P2 4건 대표 화면', () => {
   })
 
 })
+
+// ===========================================================================
+// 11. 잔여 placeholder 17건 — 파일명 정합성 신규 캡처 + placeholder 교체
+//     대상: 견적서 상세/인쇄, 매출 마감 2종, 세금계산서 취소 modal,
+//            월말마감 2종, 재고실사 3종, 04-모바일 사진첨부 4종,
+//            비밀번호 재설정 2종 (00-시작하기/01-로그인.md placeholder 잔존)
+// ===========================================================================
+
+test.describe('잔여 placeholder — 견적서 상세/인쇄 2종', () => {
+
+  test('견적서 상세 /sales/estimates/est-001', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/estimates/est-001'))
+    await capture(page, '01-영업/06-estimate-detail.png')
+  })
+
+  test('견적서 인쇄 /sales/estimates/est-001/print', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/estimates/est-001/print'))
+    await capture(page, '01-영업/06-estimate-print.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 매출 마감 2종', () => {
+
+  test('매출 마감 월별 /sales/closing (monthly view)', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/closing'))
+    await capture(page, '02-창고/04-sales-closing-monthly.png')
+  })
+
+  test('매출 마감 일별 detail /sales/closing/daily', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/closing/daily'))
+    await capture(page, '02-창고/04-sales-closing-daily-detail.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 세금계산서 취소 modal', () => {
+
+  test('세금계산서 취소 modal /accounting/tax-invoices/ti-001', async ({ page }) => {
+    await gotoAndSettle(page, url('/accounting/tax-invoices/ti-001'))
+    // 취소 버튼 클릭 후 modal 캡처
+    const cancelBtn = page.locator('button:has-text("취소"), button:has-text("발행취소"), [data-testid="cancel-btn"]').first()
+    await cancelBtn.click({ timeout: 5_000 }).catch(() => {})
+    await page.waitForTimeout(800)
+    await capture(page, '03-회계/03-tax-invoice-cancel-modal.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 월말 마감 2종', () => {
+
+  test('월말 마감 실행 폼 /accounting/period-close/new', async ({ page }) => {
+    await gotoAndSettle(page, url('/accounting/period-close/new'))
+    await capture(page, '03-회계/04-period-close-form.png')
+  })
+
+  test('월말 마감 이력 목록 /accounting/period-close', async ({ page }) => {
+    await gotoAndSettle(page, url('/accounting/period-close'))
+    await capture(page, '03-회계/04-period-close-list.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 재고 실사 3종 (정식 파일명)', () => {
+
+  test('재고 실사 목록 /warehouse/audit (05-audit-list)', async ({ page }) => {
+    await gotoAndSettle(page, url('/warehouse/audit', 'WAREHOUSE'))
+    await capture(page, '02-창고/05-audit-list.png')
+  })
+
+  test('재고 실사 등록 /warehouse/audit/new (05-audit-form)', async ({ page }) => {
+    await gotoAndSettle(page, url('/warehouse/audit/new', 'WAREHOUSE'))
+    await capture(page, '02-창고/05-audit-form.png')
+  })
+
+  test('재고 실사 상세 /warehouse/audit/audit-001 (05-audit-detail)', async ({ page }) => {
+    await gotoAndSettle(page, url('/warehouse/audit/audit-001', 'WAREHOUSE'))
+    await capture(page, '02-창고/05-audit-detail.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 04-모바일 사진 첨부 4종 (desktop viewer + Storybook fallback)', () => {
+
+  // 모바일 native 앱은 Detox 환경 필요. desktop 뷰어 / stub 화면으로 대체 캡처.
+  // VITE_MOCK_MODE=1 에서 mock 사진 첨부 화면이 라우팅되는 경우 fallback 캡처.
+
+  test('검수 사진 첨부 fallback /warehouse/inbound-inspections/insp-001', async ({ page }) => {
+    await gotoAndSettle(page, url('/warehouse/inbound-inspections/insp-001', 'WAREHOUSE'))
+    await capture(page, '04-모바일/04-inspection-photo.png')
+  })
+
+  test('배송 완료 사진 fallback /arologis/deliveries/del-001', async ({ page }) => {
+    await gotoAndSettle(page, url('/arologis/deliveries/del-001'))
+    await capture(page, '04-모바일/04-delivery-photo.png')
+  })
+
+  test('방문 사진 fallback /sales/visits/visit-001', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/visits/visit-001', 'SALES'))
+    await capture(page, '04-모바일/04-visit-photo.png')
+  })
+
+  test('Desktop 검수 사진 viewer /warehouse/inbound-inspections/insp-001/photos', async ({ page }) => {
+    await gotoAndSettle(page, url('/warehouse/inbound-inspections/insp-001/photos', 'WAREHOUSE'))
+    await capture(page, '04-모바일/04-inspection-viewer-desktop.png')
+  })
+
+})
+
+test.describe('잔여 placeholder — 견적서 파일명 정합성 (06- prefix)', () => {
+  // 06-견적서.md 가 06-estimate-list/form 참조 → p2-1 파일 복사하여 06- 파일명 동기화
+
+  test('견적서 목록 06-estimate-list alias', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/estimates'))
+    await capture(page, '01-영업/06-estimate-list.png')
+  })
+
+  test('견적서 작성 06-estimate-form alias', async ({ page }) => {
+    await gotoAndSettle(page, url('/sales/estimates/new'))
+    await capture(page, '01-영업/06-estimate-form.png')
+  })
+
+})
