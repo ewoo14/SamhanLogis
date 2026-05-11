@@ -88,10 +88,6 @@ class DpsByProductIT extends AbstractPostgresIT {
 
     @Test
     @DisplayName("TC-2: 5 상품 × 4 단계 seed → pivot row 5건 + 단계별 SUM 검증")
-    @org.junit.jupiter.api.Disabled(
-            "후속 슬라이스에서 inbound_inspections seed transaction 시점 + native query CASE-WHEN " +
-            "SUM 정확도 보강 (특히 CANCELED→returnQty 부호 변환). " +
-            "TC-1/3/4/5 (빈DB/404/diffFromDps0/ROLE) 가 가드 + 응답 schema cover.")
     void tc2_fiveProducts_fourStages_pivotRowsFive() throws Exception {
         // 상품 A — PENDING (대기) 10개
         seedInspection("MODEL-A", "상품A", "PENDING", 10, null, null);
@@ -104,6 +100,8 @@ class DpsByProductIT extends AbstractPostgresIT {
         // 상품 E — PENDING 대기 8개
         seedInspection("MODEL-E", "상품E", "PENDING", 8, null, null);
 
+        // ORDER BY model_code ASC → MODEL-A[0] / MODEL-B[1] / MODEL-C[2] / MODEL-D[3] / MODEL-E[4]
+        // (JsonPath filter [?(...)] 식은 array 반환 → .value(int) 비교 실패. 인덱스 직접 식 사용.)
         mockMvc.perform(get(BASE_URL)
                         .param("fromDate", FROM)
                         .param("toDate", TO)
@@ -112,20 +110,24 @@ class DpsByProductIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalProductCount").value(5))
                 .andExpect(jsonPath("$.data.rows.length()").value(5))
-                // MODEL-A: pendingQty=10, completedQty=0, qcQty=0, returnQty=0, totalQty=10
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].pendingQty").value(10))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].completedQty").value(0))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-A')].totalQty").value(10))
-                // MODEL-B: completedQty=17, qcQty=3, returnQty=0, totalQty=20
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].completedQty").value(17))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].qcQty").value(3))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-B')].returnQty").value(0))
-                // MODEL-C: returnQty=-5 (반품 음수 표현), totalQty=-5
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-C')].returnQty").value(-5))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-C')].pendingQty").value(0))
-                // MODEL-D: completedQty=15, qcQty=0
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-D')].completedQty").value(15))
-                .andExpect(jsonPath("$.data.rows[?(@.productCode=='MODEL-D')].qcQty").value(0));
+                // MODEL-A [0]: pendingQty=10, completedQty=0, qcQty=0, returnQty=0, totalQty=10
+                .andExpect(jsonPath("$.data.rows[0].productCode").value("MODEL-A"))
+                .andExpect(jsonPath("$.data.rows[0].pendingQty").value(10))
+                .andExpect(jsonPath("$.data.rows[0].completedQty").value(0))
+                .andExpect(jsonPath("$.data.rows[0].totalQty").value(10))
+                // MODEL-B [1]: completedQty=17 (20-3), qcQty=3, returnQty=0, totalQty=20
+                .andExpect(jsonPath("$.data.rows[1].productCode").value("MODEL-B"))
+                .andExpect(jsonPath("$.data.rows[1].completedQty").value(17))
+                .andExpect(jsonPath("$.data.rows[1].qcQty").value(3))
+                .andExpect(jsonPath("$.data.rows[1].returnQty").value(0))
+                // MODEL-C [2]: returnQty=-5 (반품 음수 표현), totalQty=-5
+                .andExpect(jsonPath("$.data.rows[2].productCode").value("MODEL-C"))
+                .andExpect(jsonPath("$.data.rows[2].returnQty").value(-5))
+                .andExpect(jsonPath("$.data.rows[2].pendingQty").value(0))
+                // MODEL-D [3]: completedQty=15, qcQty=0
+                .andExpect(jsonPath("$.data.rows[3].productCode").value("MODEL-D"))
+                .andExpect(jsonPath("$.data.rows[3].completedQty").value(15))
+                .andExpect(jsonPath("$.data.rows[3].qcQty").value(0));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -216,10 +218,11 @@ class DpsByProductIT extends AbstractPostgresIT {
                     inspection, UUID.randomUUID(), modelCode, productName, expectedQty);
             inspection.addLine(line);
             inspection.recordInspectorId("system");
+            int dQty = defectQty != null ? defectQty : 0;
             line.recordResult(
                     inspectedQty != null ? inspectedQty : expectedQty,
-                    defectQty != null ? defectQty : 0,
-                    null);
+                    dQty,
+                    dQty > 0 ? "테스트 불량" : null);
             inspection.complete();
         } else if ("CANCELED".equals(status)) {
             InboundInspectionLine line = InboundInspectionLine.create(
@@ -233,6 +236,7 @@ class DpsByProductIT extends AbstractPostgresIT {
             inspection.addLine(line);
         }
 
-        inspectionRepository.save(inspection);
+        // saveAndFlush — native query 가 1차 캐시 우회하므로 즉시 DB write 필요
+        inspectionRepository.saveAndFlush(inspection);
     }
 }
