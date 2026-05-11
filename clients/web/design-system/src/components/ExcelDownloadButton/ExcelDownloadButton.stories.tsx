@@ -12,7 +12,9 @@
  * </ul>
  *
  * <h2>data-testid 정책</h2>
- * <p>페이지별 고유 testid 를 전달. 컴포넌트 기본값 없음 (E2E 격리).
+ * <p>호출 측 페이지마다 고유 testid 를 전달한다. 컴포넌트 기본값 없음 (E2E 격리).
+ * Stories 의 args 는 Storybook 타입 제약으로 data-* 를 직접 포함하지 않으며,
+ * 실제 페이지 코드에서 prop 으로 전달한다.
  */
 import type { Meta, StoryObj } from '@storybook/react'
 import { ExcelDownloadButton } from './ExcelDownloadButton'
@@ -89,7 +91,6 @@ export const 거래처목록: Story = {
     onFetch: fetchPartners,
     filename: '거래처목록_2026-05-11.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'partners-excel-export',
   },
 }
 
@@ -99,7 +100,6 @@ export const 전표목록: Story = {
     onFetch: fetchSlips,
     filename: '출고전표목록_2026-05-11.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'slip-list-excel-export',
   },
 }
 
@@ -109,7 +109,6 @@ export const 분개장: Story = {
     onFetch: fetchJournals,
     filename: '분개장_202605.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'journal-list-excel-export',
   },
 }
 
@@ -119,7 +118,6 @@ export const 재고현황: Story = {
     onFetch: fetchStocks,
     filename: '재고현황_2026-05-11.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'transfer-list-stocks-excel-export',
   },
 }
 
@@ -130,7 +128,6 @@ export const 로딩중: Story = {
     filename: '거래처목록.xlsx',
     disabled: true,
     children: '다운로드 중…',
-    'data-testid': 'excel-loading-demo',
   },
 }
 
@@ -140,7 +137,6 @@ export const 기본_SM: Story = {
     size: 'sm',
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
-    'data-testid': 'excel-sm-demo',
   },
 }
 
@@ -151,7 +147,6 @@ export const 중간_MD: Story = {
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'excel-md-demo',
   },
 }
 
@@ -162,7 +157,6 @@ export const 크게_LG: Story = {
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
     children: 'Excel 다운로드',
-    'data-testid': 'excel-lg-demo',
   },
 }
 
@@ -178,6 +172,5 @@ export const 전체Size: Story = {
   args: {
     onFetch: fetchPartners,
     filename: '거래처목록.xlsx',
-    'data-testid': 'excel-size-demo',
   },
 }
