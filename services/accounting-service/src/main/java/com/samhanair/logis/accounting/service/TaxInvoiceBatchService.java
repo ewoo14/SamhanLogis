@@ -3,8 +3,10 @@ package com.samhanair.logis.accounting.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
+import com.samhanair.logis.accounting.domain.SupplierProfile;
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatchExclusion;
+import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchExclusionRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.web.dto.HomtaxRow;
@@ -64,6 +66,11 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  *
  * <p>Notion API 의존 제거 — 모든 데이터 {@code accounting_db} 저장.
+ *
+ * <p>공급자 정보 동적 조회 — 기존 GAS 하드코딩을 제거하고
+ * {@link SupplierProfileRepository#findByIsPrimaryTrueAndIsDeletedFalse()} 로 교체.
+ * 메서드 진입 시 1회 fetch 후 모든 row 변환에 재사용 (반복 DB 조회 방지).
+ * primary 사업자 미존재 시 legacy 하드코딩 fallback 값 사용.
  */
 @Service
 @RequiredArgsConstructor
@@ -73,14 +80,14 @@ public class TaxInvoiceBatchService {
     /** 홈택스 양식 한 파일당 최대 데이터 행 수. */
     public static final int ROWS_PER_FILE = 100;
 
-    /** 삼한공조시스템 공급자 고정 정보 (GAS hardcoded). */
-    private static final String SUPPLIER_REG_NO = "2148720659";
-    private static final String SUPPLIER_NAME = "（주）삼한공조시스템";
-    private static final String SUPPLIER_CEO = "김미선";
-    private static final String SUPPLIER_ADDRESS = "서울특별시 서초구 마방로2길 9, 4층(양재동)";
-    private static final String SUPPLIER_BIZ_TYPE = "도소매";
-    private static final String SUPPLIER_BIZ_ITEM = "가전제품";
-    private static final String SUPPLIER_EMAIL = "apjog09@daum.net";
+    // legacy fallback 공급자 정보 — primary 사업자 미존재 시 사용 (GAS 원본 하드코딩 값 보존)
+    static final String FALLBACK_REG_NO      = "2148720659";
+    static final String FALLBACK_NAME         = "（주）삼한공조시스템";
+    static final String FALLBACK_CEO          = "김미선";
+    static final String FALLBACK_ADDRESS      = "서울특별시 서초구 마방로2길 9, 4층(양재동)";
+    static final String FALLBACK_BIZ_TYPE     = "도소매";
+    static final String FALLBACK_BIZ_ITEM     = "가전제품";
+    static final String FALLBACK_EMAIL        = "apjog09@daum.net";
 
     /** 홈택스 양식 컬럼 헤더 (GAS HEADER_LIST 59종). */
     private static final String[] HOMTAX_HEADERS = {
@@ -107,6 +114,7 @@ public class TaxInvoiceBatchService {
     private final TaxInvoiceBatchExclusionRepository exclusionRepository;
     private final SlipQueryClient slipQueryClient;
     private final ObjectMapper objectMapper;
+    private final SupplierProfileRepository supplierProfileRepository;
 
     // =========================================================================
     // A. 일괄발행 미리보기
@@ -137,6 +145,10 @@ public class TaxInvoiceBatchService {
                                                    boolean excludeUnconfirmed,
                                                    List<String> requestExcludeCodes,
                                                    UUID actorUserId) {
+        // 0) 공급자 정보 1회 fetch (매 row 반복 조회 방지)
+        SupplierProfile supplier = supplierProfileRepository
+                .findByIsPrimaryTrueAndIsDeletedFalse().orElse(null);
+
         // 1) 판매조회 fetch
         List<Map<String, Object>> rawRows = slipQueryClient.fetchAllSalesRows(fromDate, toDate);
 
@@ -161,7 +173,7 @@ public class TaxInvoiceBatchService {
             if (exclusionSet.contains(partnerCode)) {
                 continue;
             }
-            homtaxRows.add(toHomtaxRow(raw));
+            homtaxRows.add(toHomtaxRow(raw, supplier));
         }
 
         // 4) 100건 분할 수 계산
@@ -324,19 +336,35 @@ public class TaxInvoiceBatchService {
      *
      * <p>GAS {@code runProcess()} switch 문 동등 구현:
      * <ul>
-     *   <li>공급자 정보: 삼한공조시스템 고정</li>
+     *   <li>공급자 정보: {@link SupplierProfile} 동적 조회값 사용.
+     *       null(primary 미설정) 이면 legacy fallback 상수 사용.</li>
      *   <li>공급받는자: partnerCode → 숫자만, partnerName → cleanCustomerName 처리</li>
      *   <li>작성일자: accountingDate 또는 slipDate (yyyyMMdd)</li>
      *   <li>일자1 (2자리): 작성년월 제외한 dd 부분</li>
      *   <li>영수/청구: "02" (청구) 고정</li>
      * </ul>
      *
-     * @param raw slip-service 판매조회 row Map
+     * @param raw      slip-service 판매조회 row Map
+     * @param supplier 공급자 프로필 (null 이면 fallback 사용)
      * @return 홈택스 양식 행
      */
-    HomtaxRow toHomtaxRow(Map<String, Object> raw) {
+    HomtaxRow toHomtaxRow(Map<String, Object> raw, SupplierProfile supplier) {
         String dateStr = resolveWriteDate(raw);
         String day2 = dateStr.length() >= 8 ? dateStr.substring(6, 8) : "01";
+
+        // 공급자 정보 — DB 값 우선, 미설정 시 legacy fallback
+        String supplierRegNo  = supplier != null ? supplier.getBusinessNumber()    : FALLBACK_REG_NO;
+        String supplierSubNo  = supplier != null && supplier.getSubBusinessNumber() != null
+                                ? supplier.getSubBusinessNumber() : "";
+        String supplierName   = supplier != null ? supplier.getCompanyName()        : FALLBACK_NAME;
+        String supplierCeo    = supplier != null ? supplier.getRepresentativeName() : FALLBACK_CEO;
+        String supplierAddr   = supplier != null ? supplier.getBusinessAddress()    : FALLBACK_ADDRESS;
+        String supplierBizTp  = supplier != null && supplier.getBusinessType() != null
+                                ? supplier.getBusinessType() : FALLBACK_BIZ_TYPE;
+        String supplierBizIt  = supplier != null && supplier.getBusinessItem() != null
+                                ? supplier.getBusinessItem() : FALLBACK_BIZ_ITEM;
+        String supplierEmail  = supplier != null && supplier.getEmail() != null
+                                ? supplier.getEmail() : FALLBACK_EMAIL;
 
         String partnerCode = safeStr(raw.get("partnerCode"));
         String buyerRegNo = partnerCode.replaceAll("[^0-9]", "");
@@ -354,43 +382,43 @@ public class TaxInvoiceBatchService {
         String slipNo = safeStr(raw.get("slipNo"));
 
         return new HomtaxRow(
-                "01",          // invoiceType: 일반
-                dateStr,       // writeDate
-                SUPPLIER_REG_NO,
-                "",            // supplierSubNo
-                SUPPLIER_NAME,
-                SUPPLIER_CEO,
-                SUPPLIER_ADDRESS,
-                SUPPLIER_BIZ_TYPE,
-                SUPPLIER_BIZ_ITEM,
-                SUPPLIER_EMAIL,
-                buyerRegNo,    // col10
-                "",            // buyerSubNo
+                "01",           // invoiceType: 일반
+                dateStr,        // writeDate
+                supplierRegNo,
+                supplierSubNo,
+                supplierName,
+                supplierCeo,
+                supplierAddr,
+                supplierBizTp,
+                supplierBizIt,
+                supplierEmail,
+                buyerRegNo,     // col10
+                "",             // buyerSubNo
                 buyerName,
                 buyerCeo,
                 buyerAddress,
                 buyerBizType,
                 buyerBizItem,
                 buyerEmail1,
-                "",            // buyerEmail2
-                supplyAmount,  // col19
-                vatAmount,     // col20
-                remark,        // col21
-                day2,          // col22: 일자1
-                itemName1,     // col23: 품목1
-                "",            // 규격1
-                null,          // 수량1
-                null,          // 단가1
-                supplyAmount,  // 공급가액1
-                vatAmount,     // 세액1
-                "",            // 품목비고1
+                "",             // buyerEmail2
+                supplyAmount,   // col19
+                vatAmount,      // col20
+                remark,         // col21
+                day2,           // col22: 일자1
+                itemName1,      // col23: 품목1
+                "",             // 규격1
+                null,           // 수량1
+                null,           // 단가1
+                supplyAmount,   // 공급가액1
+                vatAmount,      // 세액1
+                "",             // 품목비고1
                 // 품목2~4 빈값
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",
                 "", "", "", null, null, null, null, "",
                 null, null, null, null,  // 현금/수표/어음/외상미수금
-                "02",          // 영수(01),청구(02)
-                slipNo         // 내부용 전표번호
+                "02",           // 영수(01),청구(02)
+                slipNo          // 내부용 전표번호
         );
     }
 
@@ -752,6 +780,10 @@ public class TaxInvoiceBatchService {
                                                               boolean excludeUnconfirmed,
                                                               List<String> excludeCodes,
                                                               UUID actorUserId) {
+        // 공급자 정보 1회 fetch
+        SupplierProfile supplier = supplierProfileRepository
+                .findByIsPrimaryTrueAndIsDeletedFalse().orElse(null);
+
         Set<String> exclusionSet = new HashSet<>(exclusionRepository.findAllActiveCodes());
         if (excludeCodes != null) exclusionSet.addAll(excludeCodes);
 
@@ -763,7 +795,7 @@ public class TaxInvoiceBatchService {
             }
             String partnerCode = safeStr(raw.get("partnerCode"));
             if (exclusionSet.contains(partnerCode)) continue;
-            homtaxRows.add(toHomtaxRow(raw));
+            homtaxRows.add(toHomtaxRow(raw, supplier));
         }
 
         int total = homtaxRows.size();
