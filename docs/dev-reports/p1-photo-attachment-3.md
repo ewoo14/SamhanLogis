@@ -168,6 +168,52 @@ Phase 11 월 ₩405,000 계획 내 수용 가능.
 
 ---
 
+## 7. PR #147 CI fix 이력 (2026-05-11)
+
+### 7-1. BE — InspectionAttachmentServiceTest CI FAIL fix
+
+**원인**: `InboundInspection.create()` 팩토리 메서드가 `@UuidGenerator` 어노테이션에만 의존했기 때문에,
+JPA 영속화(DB INSERT) 없이 호출한 단위 테스트에서 `id` 가 null 이었다.
+서비스가 `inspection.getId()` 를 `InspectionAttachment.register()` 에 전달하면
+`inspectionId == null` 검사에서 `IllegalArgumentException` 이 발생해 테스트가 실패했다.
+
+**수정**: `InboundInspection.create()` 내부에서 `inspection.id = UUID.randomUUID()` 로 id 를 미리 할당.
+JPA 영속화 시 `@UuidGenerator` 는 이미 할당된 id 를 그대로 사용하므로 프로덕션 동작은 동일.
+
+**검증**: `./gradlew :services:inventory-service:compileJava compileTestJava` BUILD SUCCESSFUL.
+
+### 7-2. FE — uploadVisitAttachment ESTIMATE → VISIT_PHOTO
+
+**원인**: `attachmentApi.ts:155` 의 `buildMultipart(input, 'ESTIMATE')` 가 BE V8 migration
+(`V8__add_visit_photo_attachment_type.sql`) 에 추가된 `AttachmentType.VISIT_PHOTO` 를 사용하지 않고
+구 `ESTIMATE` 값을 전송하고 있었다. partner-service DB CHECK 제약이 거부해 500 오류 발생.
+
+**수정**:
+- `SlipAttachmentTypeApi` 유니온 타입에 `'VISIT_PHOTO'` 추가.
+- `buildMultipart(input, 'VISIT_PHOTO')` 로 변경.
+
+**검증**: `npm run typecheck` PASS (error 0).
+
+### 7-3. Designer — SignaturePhotoScreen DELIVERY maxItems=3
+
+**원인**: DELIVERY 타입 선택 시 배송 spec 상 최대 3장이지만 `maxItems` 를 지정하지 않아
+컴포넌트 기본값 5 가 적용되고 있었다.
+
+**수정**: `SignaturePhotoScreen` 의 `PhotoAttachmentCapture` 에
+`maxItems={type === 'DELIVERY' ? 3 : 5}` 를 추가해 타입별로 상한을 분리.
+
+### 7-4. Designer 후속 (iteration 2 — 본 PR 미처리)
+
+- Bottom Sheet 진입 UX (카메라/갤러리/파일 선택 Sheet)
+- 3열 grid 썸네일 레이아웃
+- 진행률 bar (per-item progress indicator)
+- 권한 설정 바로가기 (iOS Settings.openURL, Android intent)
+- QA 스크린샷 캡처
+
+iteration 2 는 별도 PR 로 분리한다.
+
+---
+
 ## 6. 참고 문서
 
 - [M-AWS-MIGRATION-DRY-RUN §3](../../docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md) — S3 SDK endpoint override dry-run

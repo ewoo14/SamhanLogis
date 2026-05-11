@@ -1,30 +1,31 @@
 /**
  * 첨부파일 API client — mobile-staff 사진 첨부 (P1 3건 통합).
  *
- * <p>P1 사진 첨부 3가지 흐름:
+ * <p>P1 사진 첨부 4가지 흐름 (TM PR #147 fix — gateway routing 정합성 확보):
  * <ol>
  *   <li>검수 사진 (INSPECTION) — {@link uploadInspectionAttachment}:
- *       {@code POST /api/v1/inventory/inspections/{slipId}/attachments} (인증 필요)</li>
- *   <li>배송 완료 사진 (DELIVERY) — {@link uploadAttachmentByToken}:
- *       {@code POST /public/batches/{token}/slips/{slipNo}/attachments} (public token)</li>
- *   <li>영업 방문 사진 (VISIT) — {@link uploadVisitAttachment}:
- *       {@code POST /api/v1/partners/{partnerId}/visit-attachments} (인증 필요)</li>
+ *       client URL {@code /api/v1/inventory/inspections/{slipId}/attachments} (인증).
+ *       gateway StripPrefix=2 후 inventory-service 도착 경로
+ *       {@code /inventory/inspections/{slipId}/attachments}.</li>
+ *   <li>배송 완료 사진 (DELIVERY, 인증) — {@link uploadDeliveryAttachment}:
+ *       client URL {@code /api/v1/slips/{slipId}/delivery-attachments}
+ *       (DRIVER/MANAGER/MASTER). gateway StripPrefix=2 후 slip-service 도착 경로
+ *       {@code /slips/{slipId}/delivery-attachments}.</li>
+ *   <li>배송 완료 사진 (token 비인증) — {@link uploadAttachmentByToken}:
+ *       client URL {@code /api/public/batches/{token}/slips/{slipNo}/attachments}.</li>
+ *   <li>영업 방문 사진 (VISIT_PHOTO) — {@link uploadVisitAttachment}:
+ *       client URL {@code /api/v1/partners/admin/partners/{partnerCode}/visit-attachments} (인증).
+ *       gateway StripPrefix=2 후 partner-service 도착 경로
+ *       {@code /admin/partners/{partnerCode}/visit-attachments}.
+ *       UUID 비공개 가드 — partnerCode (비즈니스 식별자) 만 사용.</li>
  * </ol>
- *
- * <p>BE 출처 (P1 신규):
- * <ul>
- *   <li>{@code POST /api/v1/inventory/inspections/{slipId}/attachments}</li>
- *   <li>{@code POST /public/batches/{token}/slips/{slipNo}/attachments}</li>
- *   <li>{@code POST /api/v1/partners/{partnerId}/visit-attachments}</li>
- *   <li>{@code GET  /slips/{slipId}/attachments}</li>
- *   <li>{@code DELETE /api/v1/attachments/{attachmentId}}</li>
- * </ul>
  *
  * <p>매뉴얼: {@code docs/manual/04-모바일/04-사진-첨부.md}.
  *
  * <p>UUID 비공개 가드:
  * <ul>
- *   <li>응답 {@code id} (attachment UUID), {@code slipId}, {@code partnerId} 는 API 경로 전용, 화면 미노출.</li>
+ *   <li>응답 {@code id} (attachment UUID), {@code slipId} 는 API 경로 전용, 화면 미노출.</li>
+ *   <li>방문 사진은 {@code partnerCode} (비즈니스 식별자) 만 사용 — UUID 비공개 의무 강제.</li>
  *   <li>사용자에게는 fileName + uploadedAt + capturedAt 만 노출.</li>
  * </ul>
  */
@@ -35,7 +36,7 @@ import { API_BASE_URL } from './arologis';
 // 응답 타입 — backend SlipAttachmentResponse record 와 1:1.
 // ----------------------------------------------------------------------
 
-export type SlipAttachmentTypeApi = 'DELIVERY' | 'INSPECTION' | 'ESTIMATE';
+export type SlipAttachmentTypeApi = 'DELIVERY' | 'INSPECTION' | 'ESTIMATE' | 'VISIT_PHOTO';
 
 export interface SlipAttachmentResponseDto {
   id: string;                      // UUID — UI 노출 X
@@ -78,7 +79,9 @@ export interface AttachmentUploadInput {
 /**
  * 기사 사진 업로드 (DeliveryBatch token + slipNo 검증).
  *
- * <p>BE = {@code POST /public/batches/{token}/slips/{slipNo}/attachments}
+ * <p>client URL = {@code POST /api/public/batches/{token}/slips/{slipNo}/attachments}
+ * <p>gateway slip-service-public route StripPrefix=1 후 도착
+ *    {@code /public/batches/{token}/slips/{slipNo}/attachments}.
  * <p>BE 가 attachmentType=DELIVERY 강제 (기사는 배송 사진만).
  *
  * @param token DeliveryBatch token (URL safe)
@@ -93,9 +96,39 @@ export async function uploadAttachmentByToken(
   input: AttachmentUploadInput,
   onProgress?: (ratio: number) => void,
 ): Promise<SlipAttachmentResponseDto> {
-  const url = `${API_BASE_URL}/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/attachments`;
+  const url = `${API_BASE_URL}/api/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/attachments`;
   const body = buildMultipart(input);
   return uploadWithRetry(url, body, undefined, onProgress);
+}
+
+// ----------------------------------------------------------------------
+// P1: 배송 완료 사진 업로드 (인증 — DRIVER/MANAGER/MASTER).
+// ----------------------------------------------------------------------
+
+/**
+ * 배송 완료 사진 업로드 (인증) — DeliveryAttachmentController 전용.
+ *
+ * <p>client URL = {@code POST /api/v1/slips/{slipId}/delivery-attachments}
+ * (Bearer JWT + DRIVER / SALES / MANAGER / MASTER role).
+ * <p>gateway StripPrefix=2 후 slip-service 도착 경로
+ *    {@code /slips/{slipId}/delivery-attachments}. BE 가 attachmentType=DELIVERY 강제.
+ * <p>슬립 상태가 SHIPPING / DELIVERED / COMPLETED / CONFIRMED 일 때만 허용 (BE 409).
+ *
+ * @param token JWT access token (Bearer)
+ * @param slipId 슬립 UUID (path param 전용)
+ * @param input 업로드 파일 정규화 결과
+ */
+export async function uploadDeliveryAttachment(
+  token: string | null,
+  slipId: string,
+  input: AttachmentUploadInput,
+  onProgress?: (ratio: number) => void,
+): Promise<SlipAttachmentResponseDto> {
+  const url = `${API_BASE_URL}/api/v1/slips/${encodeURIComponent(slipId)}/delivery-attachments`;
+  const body = buildMultipart(input);  // BE controller 가 type 파라미터 미요구 (DELIVERY 강제)
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return uploadWithRetry(url, body, headers, onProgress);
 }
 
 // ----------------------------------------------------------------------
@@ -138,22 +171,27 @@ export interface VisitAttachmentUploadInput extends AttachmentUploadInput {
 /**
  * 영업 방문 사진 업로드.
  *
- * <p>BE = {@code POST /api/v1/partners/{partnerId}/visit-attachments}
- * (Bearer JWT + SALES / MANAGER / MASTER role)
+ * <p>client URL = {@code POST /api/v1/partners/admin/partners/{partnerCode}/visit-attachments}
+ * (Bearer JWT + SALES / MANAGER / MASTER role).
+ * <p>gateway StripPrefix=2 후 partner-service 도착 경로
+ *    {@code /admin/partners/{partnerCode}/visit-attachments}.
+ * <p>BE controller 가 AttachmentType=VISIT_PHOTO 강제 — type 파라미터 미요구.
+ * <p>UUID 비공개 가드 — partnerCode (비즈니스 식별자) 만 사용.
  *
  * @param token JWT access token (Bearer)
- * @param partnerId 거래처 UUID (path param 전용)
- * @param input 업로드 파일 + 메모
+ * @param partnerCode 거래처 코드 (비즈니스 식별자, UUID 비공개)
+ * @param input 업로드 파일 + 메모 (description 으로 BE 전달)
  */
 export async function uploadVisitAttachment(
   token: string | null,
-  partnerId: string,
+  partnerCode: string,
   input: VisitAttachmentUploadInput,
   onProgress?: (ratio: number) => void,
 ): Promise<SlipAttachmentResponseDto> {
-  const url = `${API_BASE_URL}/api/v1/partners/${encodeURIComponent(partnerId)}/visit-attachments`;
-  const body = buildMultipart(input, 'ESTIMATE');  // VISIT → BE 가 ESTIMATE 로 매핑 (sales 사진)
-  if (input.memo) body.append('memo', input.memo);
+  const url = `${API_BASE_URL}/api/v1/partners/admin/partners/${encodeURIComponent(partnerCode)}/visit-attachments`;
+  const body = buildMultipart(input);  // type 미전송 (BE 가 VISIT_PHOTO 강제)
+  // BE PartnerVisitAttachmentController 는 description 파라미터를 받음 (memo → description 매핑).
+  if (input.memo) body.append('description', input.memo);
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   return uploadWithRetry(url, body, headers, onProgress);

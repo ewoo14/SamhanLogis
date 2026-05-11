@@ -188,6 +188,7 @@ export default function SignaturePhotoScreen({
               onChange={handleChange}
               title={type === 'DELIVERY' ? '배송 사진 (DELIVERY)' : '검수 사진 (INSPECTION)'}
               itemStatus={statuses}
+              maxItems={type === 'DELIVERY' ? 3 : 5}
             />
 
             {overallSummary && (

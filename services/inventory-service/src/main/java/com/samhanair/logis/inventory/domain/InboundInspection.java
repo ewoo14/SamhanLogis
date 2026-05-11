@@ -97,9 +97,13 @@ public class InboundInspection extends BaseEntity {
     /**
      * 새 입고 검수를 PENDING 상태로 생성한다.
      *
+     * <p>{@code id} 는 팩토리 호출 시점에 {@link UUID#randomUUID()} 로 미리 할당된다.
+     * JPA 영속화 시 {@code @UuidGenerator} 가 이미 할당된 id 를 재사용하므로 동작이 일관된다.
+     * 단위 테스트에서 DB 없이 {@code getId()} 를 참조해도 null 이 아닌 것이 보장된다.
+     *
      * @param slipId  slip-service Slip UUID (logical reference)
      * @param slipNo  슬립번호 snapshot (UUID 비공개 가드)
-     * @return PENDING 상태의 신규 InboundInspection (영속화 전)
+     * @return PENDING 상태의 신규 InboundInspection (영속화 전, id 미리 할당)
      * @throws IllegalArgumentException slipId 가 null 일 때
      */
     public static InboundInspection create(UUID slipId, String slipNo) {
@@ -107,6 +111,7 @@ public class InboundInspection extends BaseEntity {
             throw new IllegalArgumentException("slipId 는 필수입니다");
         }
         InboundInspection inspection = new InboundInspection();
+        inspection.id = UUID.randomUUID();   // 단위 테스트 / 서비스 레이어 양쪽 null-safe 보장
         inspection.slipId = slipId;
         inspection.slipNo = slipNo;
         inspection.status = InspectionStatus.PENDING;

@@ -31,18 +31,27 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>매뉴얼 출처: {@code docs/manual/04-모바일/04-사진-첨부.md} §검수 사진 첨부 (입고).
  *
+ * <p>경로 매핑 — gateway StripPrefix=2 후 도달하는 경로 기준 ({@code /inventory/inspections/...}).
+ * mobile/desktop client 는 풀 URL {@code /api/v1/inventory/inspections/{slipId}/attachments} 호출.
+ * P0-9 {@link com.samhanair.logis.inventory.web.InboundInspectionController} 풀패스 매핑 패턴과 일관 유지.
+ *
+ * <p>경로 변수 의미:
+ * <ul>
+ *   <li>{@code slipId} — slip-service Slip UUID. 내부에서 InboundInspection 으로 lookup.
+ *       검수 레코드가 없으면 404 (먼저 {@code /api/v1/inventory/inbound-inspections/{slipId}} 진입 의무).</li>
+ * </ul>
+ *
  * <p>권한 매트릭스:
  * <ul>
- *   <li>업로드 — WAREHOUSE / MANAGER / MASTER</li>
+ *   <li>업로드 — WAREHOUSE / DRIVER / MANAGER / MASTER (DRIVER 도 검수 사진 촬영 가능 — 매뉴얼)</li>
  *   <li>조회 / 다운로드 — 모든 인증 사용자</li>
  *   <li>삭제 — MANAGER / MASTER</li>
  * </ul>
  *
- * <p>UUID 비공개 가드 — inspectionId 는 path variable 로만 사용.
- * 사용자 화면은 slipNo / fileName 만 노출.
+ * <p>UUID 비공개 가드 — slipId 는 path variable 로만 사용. 사용자 화면은 slipNo / fileName 만 노출.
  */
 @RestController
-@RequestMapping("/inspections/{inspectionId}/attachments")
+@RequestMapping("/inventory/inspections/{slipId}/attachments")
 @RequiredArgsConstructor
 public class InspectionAttachmentController {
 
@@ -61,7 +70,7 @@ public class InspectionAttachmentController {
      *   <li>{@code description} — 비고 (선택 — 불량 내용 등)</li>
      * </ul>
      *
-     * @param inspectionId InboundInspection UUID (path variable)
+     * @param slipId       slip-service Slip UUID (path variable)
      * @param file         multipart 사진 파일
      * @param exifGpsLat   EXIF GPS 위도 (선택)
      * @param exifGpsLng   EXIF GPS 경도 (선택)
@@ -82,7 +91,7 @@ public class InspectionAttachmentController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     public ApiResponse<InspectionAttachmentResponse> upload(
-            @PathVariable UUID inspectionId,
+            @PathVariable UUID slipId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "exifGpsLat", required = false) BigDecimal exifGpsLat,
             @RequestParam(value = "exifGpsLng", required = false) BigDecimal exifGpsLng,
@@ -92,22 +101,24 @@ public class InspectionAttachmentController {
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         String uploaderId = callerOrSystem(callerHeader);
         return ApiResponse.ok(InspectionAttachmentResponse.from(
-                attachmentService.upload(inspectionId, file, exifGpsLat, exifGpsLng,
+                attachmentService.upload(slipId, file, exifGpsLat, exifGpsLng,
                         capturedAt, uploaderId, description)));
     }
 
     /**
-     * 검수 ID 기준 첨부 목록 — soft-deleted 자동 제외.
+     * 슬립 ID 기준 첨부 목록 — soft-deleted 자동 제외.
+     * 검수 레코드가 없으면 빈 목록 반환 (404 대신 graceful empty — desktop viewer 가 시작 시 호출).
      *
-     * @param inspectionId InboundInspection UUID
+     * @param slipId slip-service Slip UUID
      * @return 목록 (downloadUrl 은 캐시 — 만료 가능, 정확한 URL 은 단건 GET)
      */
     @Operation(summary = "검수 첨부 목록 조회",
-            description = "inspectionId 기준 업로드 시각 오름차순. downloadUrl 은 캐시(만료 가능)")
+            description = "slipId 기준 업로드 시각 오름차순. 검수 레코드 없으면 빈 목록. "
+                    + "downloadUrl 은 캐시(만료 가능)")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<List<InspectionAttachmentResponse>> list(@PathVariable UUID inspectionId) {
-        List<InspectionAttachmentResponse> items = attachmentService.list(inspectionId).stream()
+    public ApiResponse<List<InspectionAttachmentResponse>> list(@PathVariable UUID slipId) {
+        List<InspectionAttachmentResponse> items = attachmentService.listBySlipId(slipId).stream()
                 .map(InspectionAttachmentResponse::from)
                 .toList();
         return ApiResponse.ok(items);
@@ -116,7 +127,7 @@ public class InspectionAttachmentController {
     /**
      * 단건 조회 + presigned downloadUrl (1시간 유효) 발급.
      *
-     * @param inspectionId InboundInspection UUID
+     * @param slipId       slip-service Slip UUID (path variable)
      * @param attachmentId InspectionAttachment UUID
      * @return 단건 응답 (freshUrl 포함)
      */
@@ -125,7 +136,7 @@ public class InspectionAttachmentController {
     @GetMapping("/{attachmentId}")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<InspectionAttachmentResponse> detail(
-            @PathVariable UUID inspectionId,
+            @PathVariable UUID slipId,
             @PathVariable UUID attachmentId) {
         InspectionAttachmentService.DownloadView view = attachmentService.download(attachmentId);
         return ApiResponse.ok(
@@ -135,7 +146,7 @@ public class InspectionAttachmentController {
     /**
      * 검수 첨부 soft-delete (MinIO 객체는 보존).
      *
-     * @param inspectionId InboundInspection UUID
+     * @param slipId       slip-service Slip UUID (path variable)
      * @param attachmentId InspectionAttachment UUID
      * @param callerHeader X-User-Id 헤더
      * @return 200
@@ -145,7 +156,7 @@ public class InspectionAttachmentController {
     @DeleteMapping("/{attachmentId}")
     @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
     public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable UUID inspectionId,
+            @PathVariable UUID slipId,
             @PathVariable UUID attachmentId,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         attachmentService.delete(attachmentId, callerOrSystem(callerHeader));

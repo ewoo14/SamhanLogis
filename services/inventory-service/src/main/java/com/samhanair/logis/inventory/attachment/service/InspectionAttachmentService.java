@@ -34,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
  * <ul>
  *   <li>파일 크기 ≤ 5MB</li>
  *   <li>MIME ∈ { image/jpeg, image/png } (검수 사진은 이미지만 허용 — PDF 제외)</li>
- *   <li>inspectionId 미존재 → 404 NOT_FOUND</li>
+ *   <li>slipId 에 매칭되는 InboundInspection 미존재 → 404 NOT_FOUND</li>
  * </ul>
  */
 @Service
@@ -58,9 +58,12 @@ public class InspectionAttachmentService {
     private final InspectionAttachmentStorage storage;
 
     /**
-     * 검수 사진 업로드. inspectionId 존재 확인 → MinIO 업로드 → DB INSERT.
+     * 검수 사진 업로드. slipId → InboundInspection lookup → MinIO 업로드 → DB INSERT.
      *
-     * @param inspectionId 소속 InboundInspection UUID
+     * <p>경로 변수 {@code slipId} 는 slip-service Slip UUID. P0-9 검수 dialog 진입 시 자동
+     * 생성되는 InboundInspection 의 logical reference. 검수 레코드가 없으면 404.
+     *
+     * @param slipId       slip-service Slip UUID (path variable)
      * @param file         multipart 파일 (≤5MB, image/*)
      * @param exifGpsLat   EXIF GPS 위도 (선택)
      * @param exifGpsLng   EXIF GPS 경도 (선택)
@@ -68,20 +71,21 @@ public class InspectionAttachmentService {
      * @param uploaderId   업로더 user-id (gateway X-User-Id)
      * @param description  비고 (선택 — 불량 내용 등)
      * @return 영속화된 InspectionAttachment (presigned URL 캐시 포함)
-     * @throws BusinessException(NOT_FOUND)    inspectionId 미존재
+     * @throws BusinessException(NOT_FOUND)    검수 레코드 미존재
      * @throws BusinessException(INVALID_INPUT) 파일 크기/형식 위반
      * @throws BusinessException(INTERNAL_ERROR) MinIO 업로드 실패
      */
     @Transactional
-    public InspectionAttachment upload(UUID inspectionId, MultipartFile file,
+    public InspectionAttachment upload(UUID slipId, MultipartFile file,
                                        BigDecimal exifGpsLat, BigDecimal exifGpsLng,
                                        LocalDateTime capturedAt, String uploaderId,
                                        String description) {
         validateFile(file);
 
-        InboundInspection inspection = inspectionRepository.findById(inspectionId)
+        InboundInspection inspection = inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "검수 레코드를 찾을 수 없습니다: " + inspectionId));
+                        "검수 레코드를 찾을 수 없습니다 (slipId=" + slipId
+                                + "). 먼저 검수 dialog 로 진입해주세요."));
 
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String storageKey = buildStorageKey(inspection.getId(), fileName);
@@ -95,7 +99,7 @@ public class InspectionAttachmentService {
 
         InspectionAttachment attachment = InspectionAttachment.register(
                 inspection.getId(),
-                inspection.getSlipNo() != null ? inspection.getSlipNo() : inspectionId.toString(),
+                inspection.getSlipNo() != null ? inspection.getSlipNo() : slipId.toString(),
                 fileName,
                 file.getSize(),
                 file.getContentType(),
@@ -111,14 +115,16 @@ public class InspectionAttachmentService {
     }
 
     /**
-     * 검수 ID 기준 첨부 목록 — soft-deleted 자동 제외.
+     * 슬립 ID 기준 첨부 목록 — soft-deleted 자동 제외.
      *
-     * @param inspectionId InboundInspection UUID
-     * @return 업로드 시각 오름차순 목록
+     * @param slipId slip-service Slip UUID
+     * @return 업로드 시각 오름차순 목록 (검수 레코드 미존재 시 빈 목록)
      */
     @Transactional(readOnly = true)
-    public List<InspectionAttachment> list(UUID inspectionId) {
-        return attachmentRepository.findByInspectionIdOrderByUploadedAtAsc(inspectionId);
+    public List<InspectionAttachment> listBySlipId(UUID slipId) {
+        return inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)
+                .map(insp -> attachmentRepository.findByInspectionIdOrderByUploadedAtAsc(insp.getId()))
+                .orElseGet(List::of);
     }
 
     /**
