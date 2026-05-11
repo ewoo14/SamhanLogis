@@ -121,3 +121,37 @@ A. 모든 창고(본사창고, 차량재고, 위탁창고, 가상창고 포함)�
 
 **Q. 음수 반품 수량이 보이는 이유는?**
 A. 반품 단계(RETURN)에서 차감 처리된 수량이 음수로 표현됩니다. 이는 정상 동작이며, 순 입고 합계에 반영됩니다.
+
+---
+
+## 9. DataGrid 키보드 단축키 전체 목록
+
+| 단축키 | 동작 | 비고 |
+| --- | --- | --- |
+| 셀 클릭 | 단일 셀 선택 | 파란 outline 표시 |
+| Shift + 클릭 | 사각형 범위 선택 | 기준 셀~클릭 셀 전체 |
+| Ctrl + 클릭 | 선택 토글 | 기선택 셀 해제 / 비선택 셀 추가 |
+| Ctrl + A | 현재 페이지 전체 셀 선택 | DataGrid 포커스 후 |
+| Ctrl + C | 선택 범위 클립보드 복사 | TSV(탭+줄바꿈) 형식 |
+
+> Ctrl+C 복사 후 Excel 또는 Google Sheets 에서 Ctrl+V 붙여넣기 시 열 정렬이 유지됩니다.
+
+---
+
+## 10. QA 시나리오 인용
+
+QA 시나리오 전문: `docs/qa/p0-b-dps-by-product/scenarios/dps-by-product-scenarios.md`
+도메인 정합성 SQL: `docs/qa/p0-b-dps-by-product/domain-integrity-check.md`
+
+| 시나리오 | 유형 | 핵심 검증 |
+|----------|------|-----------|
+| TC-DBP-1 | E2E | toolbar 3요소 (from/to/warehouse/버튼) visible |
+| TC-DBP-2 | E2E | 조회 후 DataGrid 8 컬럼 헤더 + mock row 렌더링 |
+| TC-DBP-3 | E2E | 음수 row 빨강(#B91C1C) 색상 인라인 스타일 적용 |
+| TC-DBP-4 | E2E | 상품명 열헤더 필터 → 행 필터링 동작 |
+| TC-DBP-5 | E2E | Ctrl+C → clipboard TSV 형식 검증 |
+| TC-DBP-6 | E2E | 사이드바 "품목별 DPS 분석" NavLink visible (WAREHOUSE 역할) |
+| TC-DBP-7 | E2E | SALES 역할 → ForbiddenPage redirect 확인 |
+| DBP-FE-1 | IT | 응답 schema 8필드 + UUID 비공개 확인 |
+| DBP-FE-2 | IT | warehouseId 필터 파라미터 200 응답 확인 |
+| DBP-FE-3 | IT | 미래 날짜 → totalProductCount=0 + rows=[] |
