@@ -133,20 +133,20 @@
 
 ### P0-5. 사용자 / 권한 관리 화면
 
-> **검증 출처** — `services/user-service/src/main/java/com/samhanair/logis/user/web/EmployeeController.java` (POST/GET/POST lookup/POST terminate). desktop `routes/index.tsx` 27 라우트 중 `/admin/users` / `/admin/roles` 부재.
-> **메모리 가드** — `feedback_role_naming_full.md` 9 ROLE 풀네임 사용. desktop UI 부재 시 DB 직접 수정 필요 → IT 관리자 의존.
+> **갱신 (2026-05-11)** — PR #140 P0-5 정식 출시 완료. 아래 표는 이전 상태 이력.
+> **현황** — `/admin/users` / `/admin/roles` 정식 운영 중. MASTER 전용 사용자 관리 5 페이지 운영.
 
 | # | 기능 | 상태 | 비고 |
 |---|---|---|---|
-| 1 | 직원 목록 / 등록 / 수정 / 퇴사 | ⚠️ | backend ✅ / desktop UI **❌** |
-| 2 | 부서 등록 / 수정 / 조직도 | ⚠️ | backend ✅ (`OrgChartController`) / UI ❌ |
+| 1 | 직원 목록 / 등록 / 수정 / 퇴사 | ✅ | PR #140 정식 운영 |
+| 2 | 부서 등록 / 수정 / 조직도 | ⚠️ | backend ✅ / 조직도 시각화는 장기 backlog |
 | 3 | ROLE 변경 endpoint | ✅ | `/auth/internal/accounts/{id}/role` |
-| 4 | ROLE 변경 UI | ❌ | desktop UI 부재 |
-| 5 | 권한 매트릭스 시각화 (어떤 ROLE 이 어떤 endpoint) | ❌ | |
-| 6 | 신규 직원 등록 흐름 (직원 + 계정 + ROLE 일괄 등록) | ⚠️ | backend `OrgChartSeeder` 만, UI ❌ |
-| 7 | 계정 비활성화 / 활성화 토글 UI | ⚠️ | backend ✅ / UI ❌ |
+| 4 | ROLE 변경 UI | ✅ | PR #140 정식 운영 |
+| 5 | 권한 매트릭스 시각화 (어떤 ROLE 이 어떤 endpoint) | ❌ | 장기 backlog |
+| 6 | 신규 직원 등록 흐름 (직원 + 계정 + ROLE 일괄 등록) | ✅ | PR #140 정식 운영 |
+| 7 | 계정 비활성화 / 활성화 토글 UI | ✅ | PR #140 정식 운영 |
 
-**→ P0-5 누락: 5건 (UI 만). 시한: Phase 11 진입 전 1 PR.**
+**→ P0-5 ✅ 완료 (PR #140). 잔여 장기 backlog: 권한 매트릭스 시각화, 조직도 시각화.**
 
 ### P0-6. 거래처 등록 4 탭 화면 (이카운트 091522 / 091541 / 091555 / 091604)
 
