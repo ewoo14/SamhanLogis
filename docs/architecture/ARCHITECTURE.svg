@@ -4,7 +4,7 @@
   <rect width="1280" height="900" fill="#F8FAFC"/>
 
   <!-- 제목 -->
-  <text x="640" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">SamhanLogis — (주)삼한공조시스템 ERP 통합 플랫폼 시스템 구조도</text>
+  <text x="640" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">Samhan Public — (주)삼한공조시스템 ERP 통합 플랫폼 시스템 구조도</text>
   <text x="640" y="58" text-anchor="middle" font-size="12" fill="#64748B">14 Backend MSA · 5 Client · 8 Infrastructure</text>
 
   <!-- ===================== LAYER 1: 클라이언트 ===================== -->

@@ -1,9 +1,9 @@
-# SamhanLogis — (주)삼한공조시스템 자체 통합 플랫폼
+# Samhan Public — (주)삼한공조시스템 자체 통합 플랫폼
 
 > 삼성 시스템에어컨 공식 파트너사 (주)삼한공조시스템의 자체 물류·회계·견적·주문 통합 플랫폼.
 > 14 backend MSA + 5 client (web 2 / desktop 1 / mobile 2) + legacy 마이그레이션 (견적서 / 주문서 / 장기미수) 으로 구성된다.
 
-![SamhanLogis 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
+![Samhan Public 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
 
 ---
 
@@ -108,7 +108,7 @@ graph TB
 ## 디렉토리 구조
 
 ```
-SamhanLogis/
+SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 ├── README.md                  # 본 파일
 ├── ROADMAP.md                 # 단계별 로드맵 (Phase 0 ~ 10)
 ├── settings.gradle / build.gradle / gradlew
