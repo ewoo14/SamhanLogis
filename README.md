@@ -3,6 +3,8 @@
 > 삼성 시스템에어컨 공식 파트너사 (주)삼한공조시스템의 자체 물류·회계·견적·주문 통합 플랫폼.
 > 14 backend MSA + 5 client (web 2 / desktop 1 / mobile 2) + legacy 마이그레이션 (견적서 / 주문서 / 장기미수) 으로 구성된다.
 
+![SamhanLogis 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
+
 ---
 
 ## 프로젝트 개요
@@ -13,6 +15,69 @@
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
 | 진척률     | Phase 0 ~ 8 완료 (PR #88 / #89 / #90), Phase 9 완료 + post-W5 cleanup (W1 #91 / W2 #92 / W3 #93 / W4 #94 / W5 #95 / post-W5 #96), **Phase 10 진행 중 — W10-1 arologis-service skeleton (PR #97 `a98048e`) + W10-3 모바일 어플 driver tab (PR #98 `4b2c077`) + W10-4 slip-service 전자서명 통합 (본 PR #99 — D-P10-11/D-P10-12)** |
+
+---
+
+## 시스템 구조 (Mermaid)
+
+```mermaid
+graph TB
+  subgraph CLIENT["Layer 1 — 클라이언트"]
+    D["clients/desktop<br/>Electron 33 + React 18<br/>50+ 라우트 / Windows .exe"]
+    MS["clients/mobile-staff<br/>RN Expo SDK 53<br/>기사+영업 / 배차 통합"]
+    OA["clients/web/order-app v4<br/>Vite + React + PWA<br/>거래처 주문 포털"]
+    EA["clients/web/estimate-app v2<br/>Express + EJS<br/>견적 18,614 라인"]
+    DS["clients/web/design-system<br/>Vite + Storybook<br/>21+ 컴포넌트 / Pretendard"]
+  end
+
+  subgraph GW["Layer 2 — API Gateway + Auth"]
+    GWS["Spring Cloud Gateway :8080<br/>StripPrefix=2 + HeaderAuthFilter<br/>Resilience4j CB"]
+    EUR["Eureka Server :8761<br/>서비스 디스커버리"]
+    AUTH["auth-service :8081<br/>JWT HS256 + SMTP OTP"]
+    PAUTH["partner-auth-service :8091<br/>거래처 자체 인증"]
+  end
+
+  subgraph SVC["Layer 3 — 14 Service-per-DB MSA"]
+    SLP["slip-service :8086<br/>전표+견적+전자서명"]
+    PTN["partner-service :8095<br/>거래처 마스터+4탭"]
+    INV["inventory-service :8085<br/>재고+입고검수+FIFO"]
+    ACC["accounting-service :8087<br/>회계 14보고서+세금계산서"]
+    USR["user-service :8083<br/>직원+권한 관리"]
+    PRD["product-service :8084<br/>제품+안전재고"]
+    ARO["arologis-service :8097<br/>배차+GPS+카카오톡"]
+    GRP["groupware-service :8092<br/>결재선+메신저+일정"]
+    NTF["notification-service :8093<br/>SMTP+Aligo+FCM"]
+    DSH["dashboard-service :8094<br/>KPI+실시간재고"]
+    LOG["logging-service :8082<br/>감사 로그"]
+    EAS["estimate-app-service<br/>레거시 견적 backend"]
+    POS["partner-order-service :8088<br/>거래처 주문+outbox"]
+    DAS["driver-app-service<br/>모바일 기사 앱 backend"]
+  end
+
+  subgraph INFRA["Layer 4 — 인프라 (Docker / AWS Seoul)"]
+    PG["PostgreSQL 15<br/>service-per-DB × 14"]
+    RD["Redis<br/>세션 + Caffeine 캐시"]
+    RMQ["RabbitMQ<br/>이벤트 스트림"]
+    ES["Elasticsearch<br/>감사 로그 인덱스"]
+    MIO["MinIO<br/>S3 호환 / 사진+Excel"]
+    MON["Prometheus + Grafana<br/>메트릭 + 시각화"]
+  end
+
+  D & MS & OA & EA --> GWS
+  DS -.->|디자인 토큰| D
+  GWS --> EUR
+  GWS --> AUTH
+  GWS --> PAUTH
+  GWS --> SLP & PTN & INV & ACC & USR & PRD & ARO
+  GWS --> GRP & NTF & DSH & LOG & EAS & POS & DAS
+  SLP & PTN & INV & ACC & USR & PRD & ARO --> PG
+  GRP & NTF & DSH & LOG & EAS & POS & DAS --> PG
+  LOG --> RMQ --> ES
+  NTF --> RD
+  DSH --> RD
+  SLP & PTN & INV --> MIO
+  SVC --> MON
+```
 
 ---
 

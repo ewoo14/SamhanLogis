@@ -1,0 +1,309 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" width="1280" height="900" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+
+  <!-- 배경 -->
+  <rect width="1280" height="900" fill="#F8FAFC"/>
+
+  <!-- 제목 -->
+  <text x="640" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#0F172A">SamhanLogis — (주)삼한공조시스템 ERP 통합 플랫폼 시스템 구조도</text>
+  <text x="640" y="58" text-anchor="middle" font-size="12" fill="#64748B">14 Backend MSA · 5 Client · 8 Infrastructure</text>
+
+  <!-- ===================== LAYER 1: 클라이언트 ===================== -->
+  <rect x="20" y="74" width="1240" height="24" rx="4" fill="#DBEAFE"/>
+  <text x="640" y="90" text-anchor="middle" font-size="12" font-weight="600" fill="#1E3A8A">Layer 1 — 클라이언트</text>
+
+  <!-- clients/desktop -->
+  <rect x="28" y="106" width="228" height="88" rx="8" fill="#1E40AF" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="142" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">clients/desktop</text>
+  <text x="142" y="143" text-anchor="middle" font-size="10" fill="#BFDBFE">Electron 33 + electron-vite</text>
+  <text x="142" y="157" text-anchor="middle" font-size="10" fill="#BFDBFE">React 18 + zustand</text>
+  <text x="142" y="171" text-anchor="middle" font-size="10" fill="#BFDBFE">50+ 라우트 / Pretendard / design-system</text>
+  <text x="142" y="185" text-anchor="middle" font-size="10" fill="#BFDBFE">Windows .exe 배포</text>
+
+  <!-- clients/mobile-staff -->
+  <rect x="270" y="106" width="228" height="88" rx="8" fill="#1E40AF" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="384" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">clients/mobile-staff</text>
+  <text x="384" y="143" text-anchor="middle" font-size="10" fill="#BFDBFE">RN Expo SDK 53 + WebView</text>
+  <text x="384" y="157" text-anchor="middle" font-size="10" fill="#BFDBFE">기사 + 영업 통합 앱</text>
+  <text x="384" y="171" text-anchor="middle" font-size="10" fill="#BFDBFE">검수 / 배송 / 영업 사진</text>
+  <text x="384" y="185" text-anchor="middle" font-size="10" fill="#BFDBFE">driver tab (arologis-service 8097)</text>
+
+  <!-- clients/web/order-app -->
+  <rect x="512" y="106" width="228" height="88" rx="8" fill="#1E40AF" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="626" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">clients/web/order-app v4</text>
+  <text x="626" y="143" text-anchor="middle" font-size="10" fill="#BFDBFE">Vite + React + PWA</text>
+  <text x="626" y="157" text-anchor="middle" font-size="10" fill="#BFDBFE">거래처 주문 포털</text>
+  <text x="626" y="171" text-anchor="middle" font-size="10" fill="#BFDBFE">legacy partner-order 임베드</text>
+  <text x="626" y="185" text-anchor="middle" font-size="10" fill="#BFDBFE">Cloudflare Pages 배포</text>
+
+  <!-- clients/web/estimate-app -->
+  <rect x="754" y="106" width="228" height="88" rx="8" fill="#1E40AF" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="868" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">clients/web/estimate-app v2</text>
+  <text x="868" y="143" text-anchor="middle" font-size="10" fill="#BFDBFE">Express + EJS (legacy)</text>
+  <text x="868" y="157" text-anchor="middle" font-size="10" fill="#BFDBFE">견적 18,614 라인 1:1 변환</text>
+  <text x="868" y="171" text-anchor="middle" font-size="10" fill="#BFDBFE">B2 옵션 / Render 배포</text>
+  <text x="868" y="185" text-anchor="middle" font-size="10" fill="#BFDBFE">estimate-app-service 연동</text>
+
+  <!-- clients/web/design-system -->
+  <rect x="996" y="106" width="264" height="88" rx="8" fill="#1E40AF" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="1128" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">clients/web/design-system</text>
+  <text x="1128" y="143" text-anchor="middle" font-size="10" fill="#BFDBFE">Vite + TypeScript + Storybook</text>
+  <text x="1128" y="157" text-anchor="middle" font-size="10" fill="#BFDBFE">21+ 컴포넌트</text>
+  <text x="1128" y="171" text-anchor="middle" font-size="10" fill="#BFDBFE">Pretendard 9 weight self-host</text>
+  <text x="1128" y="185" text-anchor="middle" font-size="10" fill="#BFDBFE">한국어 토큰 (colors / typography)</text>
+
+  <!-- Layer 1 → Layer 2 화살표 -->
+  <line x1="142" y1="194" x2="142" y2="218" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="384" y1="194" x2="384" y2="218" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="626" y1="194" x2="626" y2="218" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="868" y1="194" x2="868" y2="218" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="1128" y1="194" x2="1128" y2="218" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== LAYER 2: API Gateway + Auth ===================== -->
+  <rect x="20" y="208" width="1240" height="24" rx="4" fill="#EDE9FE"/>
+  <text x="640" y="224" text-anchor="middle" font-size="12" font-weight="600" fill="#4C1D95">Layer 2 — API Gateway + Auth</text>
+
+  <!-- Spring Cloud Gateway -->
+  <rect x="28" y="240" width="380" height="76" rx="8" fill="#7C3AED" stroke="#6D28D9" stroke-width="1.5"/>
+  <text x="218" y="261" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Spring Cloud Gateway</text>
+  <text x="218" y="278" text-anchor="middle" font-size="10" fill="#EDE9FE">:8080 — ReactiveRouting + StripPrefix=2</text>
+  <text x="218" y="293" text-anchor="middle" font-size="10" fill="#EDE9FE">HeaderAuthenticationFilter + Resilience4j CB</text>
+  <text x="218" y="307" text-anchor="middle" font-size="10" fill="#EDE9FE">Internal-Token 전파 / 서비스별 라우트</text>
+
+  <!-- Eureka -->
+  <rect x="428" y="240" width="220" height="76" rx="8" fill="#7C3AED" stroke="#6D28D9" stroke-width="1.5"/>
+  <text x="538" y="261" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">Eureka Server</text>
+  <text x="538" y="278" text-anchor="middle" font-size="10" fill="#EDE9FE">:8761 — 서비스 디스커버리</text>
+  <text x="538" y="293" text-anchor="middle" font-size="10" fill="#EDE9FE">ServiceDiscoveryClient 추상화</text>
+  <text x="538" y="307" text-anchor="middle" font-size="10" fill="#EDE9FE">AWS Cloud Map 대체 가능 (Phase 11)</text>
+
+  <!-- auth-service -->
+  <rect x="668" y="240" width="372" height="76" rx="8" fill="#7C3AED" stroke="#6D28D9" stroke-width="1.5"/>
+  <text x="854" y="261" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">auth-service :8081</text>
+  <text x="854" y="278" text-anchor="middle" font-size="10" fill="#EDE9FE">JWT HS256 발급 + 검증 + 갱신</text>
+  <text x="854" y="293" text-anchor="middle" font-size="10" fill="#EDE9FE">비밀번호 셀프 재설정 (SMTP OTP P0-2)</text>
+  <text x="854" y="307" text-anchor="middle" font-size="10" fill="#EDE9FE">partner-auth-service :8091 (거래처 자체 인증)</text>
+
+  <!-- partner-auth-service -->
+  <rect x="1056" y="240" width="204" height="76" rx="8" fill="#7C3AED" stroke="#6D28D9" stroke-width="1.5"/>
+  <text x="1158" y="261" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">partner-auth-service</text>
+  <text x="1158" y="278" text-anchor="middle" font-size="10" fill="#EDE9FE">:8091</text>
+  <text x="1158" y="293" text-anchor="middle" font-size="10" fill="#EDE9FE">거래처 자체 인증 7 endpoint</text>
+  <text x="1158" y="307" text-anchor="middle" font-size="10" fill="#EDE9FE">Phase 6 신규</text>
+
+  <!-- Layer 2 → Layer 3 화살표 -->
+  <line x1="218" y1="316" x2="218" y2="344" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="538" y1="316" x2="538" y2="344" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="854" y1="316" x2="854" y2="344" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== LAYER 3: 14 MSA Services ===================== -->
+  <rect x="20" y="334" width="1240" height="24" rx="4" fill="#D1FAE5"/>
+  <text x="640" y="350" text-anchor="middle" font-size="12" font-weight="600" fill="#064E3B">Layer 3 — 14 Service-per-DB MSA (PostgreSQL + Flyway)</text>
+
+  <!-- Row 1 of services: 7 services -->
+  <!-- slip-service -->
+  <rect x="28" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="111" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">slip-service</text>
+  <text x="111" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8086</text>
+  <text x="111" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">전표 + 견적 P2-1</text>
+  <text x="111" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">전자서명 + 사진첨부</text>
+  <text x="111" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">10단계 라이프사이클</text>
+
+  <!-- partner-service -->
+  <rect x="204" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="287" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">partner-service</text>
+  <text x="287" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8095</text>
+  <text x="287" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">거래처 마스터 + 4탭</text>
+  <text x="287" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">신용한도 + 거래내역</text>
+  <text x="287" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">방문 사진 / P0-6</text>
+
+  <!-- inventory-service -->
+  <rect x="380" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="463" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">inventory-service</text>
+  <text x="463" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8085</text>
+  <text x="463" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">재고 + 입고검수 P0-9</text>
+  <text x="463" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">안전재고 P1-3</text>
+  <text x="463" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">4-tier 창고 / FIFO</text>
+
+  <!-- accounting-service -->
+  <rect x="556" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="639" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">accounting-service</text>
+  <text x="639" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8087</text>
+  <text x="639" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">회계 14 보고서 P0-1</text>
+  <text x="639" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">세금계산서 P0-4</text>
+  <text x="639" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">월말마감 P2-3</text>
+
+  <!-- user-service -->
+  <rect x="732" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="815" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">user-service</text>
+  <text x="815" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8083</text>
+  <text x="815" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">직원 + 권한 관리</text>
+  <text x="815" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">16명 시드 / P0-5</text>
+  <text x="815" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">AuthClient saga</text>
+
+  <!-- product-service -->
+  <rect x="908" y="366" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="991" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">product-service</text>
+  <text x="991" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8084</text>
+  <text x="991" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">제품 + 안전재고 임계</text>
+  <text x="991" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">jsonb 태그 + GIN</text>
+  <text x="991" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">Google Sheets cron</text>
+
+  <!-- arologis-service -->
+  <rect x="1084" y="366" width="176" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="1172" y="383" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">arologis-service</text>
+  <text x="1172" y="397" text-anchor="middle" font-size="9" fill="#D1FAE5">:8097</text>
+  <text x="1172" y="410" text-anchor="middle" font-size="9" fill="#D1FAE5">배차 P1-5 + 카카오톡</text>
+  <text x="1172" y="422" text-anchor="middle" font-size="9" fill="#D1FAE5">GPS 추적 + 서명</text>
+  <text x="1172" y="435" text-anchor="middle" font-size="9" fill="#D1FAE5">인성데이타 퀵 연동</text>
+
+  <!-- Row 2 of services: 7 services -->
+  <!-- groupware-service -->
+  <rect x="28" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="111" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">groupware-service</text>
+  <text x="111" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">:8092</text>
+  <text x="111" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">결재선 + 메신저</text>
+  <text x="111" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">일정 + UserClient</text>
+  <text x="111" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">Phase 9 2차</text>
+
+  <!-- notification-service -->
+  <rect x="204" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="287" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">notification-service</text>
+  <text x="287" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">:8093</text>
+  <text x="287" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">알림 통합 라우터</text>
+  <text x="287" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">SMTP + Aligo SMS</text>
+  <text x="287" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">FCM + SES 지원</text>
+
+  <!-- dashboard-service -->
+  <rect x="380" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="463" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">dashboard-service</text>
+  <text x="463" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">:8094</text>
+  <text x="463" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">KPI 대시보드</text>
+  <text x="463" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">실시간 재고 + 매출</text>
+  <text x="463" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">Caffeine KPI 캐시</text>
+
+  <!-- logging-service -->
+  <rect x="556" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="639" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">logging-service</text>
+  <text x="639" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">:8082</text>
+  <text x="639" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">감사 로그</text>
+  <text x="639" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">RabbitMQ → Elasticsearch</text>
+  <text x="639" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">Phase 1</text>
+
+  <!-- estimate-app-service -->
+  <rect x="732" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="815" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">estimate-app-service</text>
+  <text x="815" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">레거시 견적 backend</text>
+  <text x="815" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">ECount 이관 대상</text>
+  <text x="815" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">estimate-app v2 연동</text>
+  <text x="815" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">Phase 11 이관 예정</text>
+
+  <!-- partner-order-service -->
+  <rect x="908" y="454" width="166" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="991" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">partner-order-service</text>
+  <text x="991" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">:8088</text>
+  <text x="991" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">거래처 주문</text>
+  <text x="991" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">confirm 흐름 + outbox</text>
+  <text x="991" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">16종 bootstrap</text>
+
+  <!-- driver-app-service -->
+  <rect x="1084" y="454" width="176" height="80" rx="6" fill="#10B981" stroke="#059669" stroke-width="1.5"/>
+  <text x="1172" y="471" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">driver-app-service</text>
+  <text x="1172" y="485" text-anchor="middle" font-size="9" fill="#D1FAE5">모바일 기사 앱 backend</text>
+  <text x="1172" y="498" text-anchor="middle" font-size="9" fill="#D1FAE5">GPS / 서명 / 배송</text>
+  <text x="1172" y="511" text-anchor="middle" font-size="9" fill="#D1FAE5">arologis-service 연동</text>
+  <text x="1172" y="523" text-anchor="middle" font-size="9" fill="#D1FAE5">Phase 10</text>
+
+  <!-- Layer 3 → Layer 4 화살표 (대표) -->
+  <line x1="640" y1="534" x2="640" y2="558" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="218" y1="534" x2="218" y2="558" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="1060" y1="534" x2="1060" y2="558" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ===================== LAYER 4: 인프라 ===================== -->
+  <rect x="20" y="548" width="1240" height="24" rx="4" fill="#FEF3C7"/>
+  <text x="640" y="564" text-anchor="middle" font-size="12" font-weight="600" fill="#78350F">Layer 4 — 인프라 (Docker Compose · AWS Seoul Region)</text>
+
+  <!-- PostgreSQL -->
+  <rect x="28" y="580" width="152" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="104" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">PostgreSQL 15</text>
+  <text x="104" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">service-per-DB</text>
+  <text x="104" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">14개 독립 DB</text>
+  <text x="104" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">Flyway 마이그레이션</text>
+  <text x="104" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">RDS auto backup (Phase 11)</text>
+  <text x="104" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">db.t3.medium</text>
+
+  <!-- Redis -->
+  <rect x="192" y="580" width="152" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="268" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">Redis</text>
+  <text x="268" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">세션 캐시</text>
+  <text x="268" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">Caffeine 로컬 캐시</text>
+  <text x="268" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">TTL 60s (UserClient)</text>
+  <text x="268" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">KPI 캐시</text>
+  <text x="268" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">ElastiCache (Phase 11)</text>
+
+  <!-- RabbitMQ -->
+  <rect x="356" y="580" width="152" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="432" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">RabbitMQ</text>
+  <text x="432" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">이벤트 스트림</text>
+  <text x="432" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">Outbox 패턴</text>
+  <text x="432" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">서비스간 비동기</text>
+  <text x="432" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">logging-service 소비</text>
+  <text x="432" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">Amazon MQ (Phase 11)</text>
+
+  <!-- Elasticsearch -->
+  <rect x="520" y="580" width="152" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="596" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">Elasticsearch</text>
+  <text x="596" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">감사 로그 인덱스</text>
+  <text x="596" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">로그 검색 / 분석</text>
+  <text x="596" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">logging-service 타깃</text>
+  <text x="596" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">OpenSearch (Phase 11)</text>
+  <text x="596" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">Seoul Region</text>
+
+  <!-- MinIO -->
+  <rect x="684" y="580" width="152" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="760" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">MinIO</text>
+  <text x="760" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">S3 호환 Object Storage</text>
+  <text x="760" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">사진 첨부 + Excel</text>
+  <text x="760" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">전자서명 PNG 50KB</text>
+  <text x="760" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">slip / partner / inventory</text>
+  <text x="760" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">AWS S3 전환 (Phase 11)</text>
+
+  <!-- Prometheus + Grafana -->
+  <rect x="848" y="580" width="188" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="942" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">Prometheus + Grafana</text>
+  <text x="942" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">메트릭 수집 + 시각화</text>
+  <text x="942" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">서비스 Health Check</text>
+  <text x="942" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">Lambda 자동 복구 (Phase 11)</text>
+  <text x="942" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">CloudWatch 연동</text>
+  <text x="942" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">월 ₩405K 운영 비용</text>
+
+  <!-- Eureka (인프라 관점) -->
+  <rect x="1048" y="580" width="212" height="90" rx="6" fill="#F59E0B" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1154" y="599" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">서비스 디스커버리</text>
+  <text x="1154" y="614" text-anchor="middle" font-size="9" fill="#FEF3C7">Eureka :8761 (로컬)</text>
+  <text x="1154" y="627" text-anchor="middle" font-size="9" fill="#FEF3C7">AWS Cloud Map (Phase 11)</text>
+  <text x="1154" y="640" text-anchor="middle" font-size="9" fill="#FEF3C7">ServiceDiscoveryClient 추상화</text>
+  <text x="1154" y="653" text-anchor="middle" font-size="9" fill="#FEF3C7">EC2 Auto Recovery</text>
+  <text x="1154" y="666" text-anchor="middle" font-size="9" fill="#FEF3C7">m5.xlarge Seoul Region</text>
+
+  <!-- ===================== 범례 ===================== -->
+  <rect x="20" y="682" width="1240" height="28" rx="4" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+  <rect x="36" y="692" width="14" height="10" rx="2" fill="#1E40AF"/>
+  <text x="56" y="701" font-size="10" fill="#334155">클라이언트</text>
+  <rect x="136" y="692" width="14" height="10" rx="2" fill="#7C3AED"/>
+  <text x="156" y="701" font-size="10" fill="#334155">API Gateway / Auth</text>
+  <rect x="280" y="692" width="14" height="10" rx="2" fill="#10B981"/>
+  <text x="300" y="701" font-size="10" fill="#334155">MSA 서비스 (service-per-DB)</text>
+  <rect x="464" y="692" width="14" height="10" rx="2" fill="#F59E0B"/>
+  <text x="484" y="701" font-size="10" fill="#334155">인프라 (Docker / AWS)</text>
+  <line x1="620" y1="697" x2="660" y2="697" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="668" y="701" font-size="10" fill="#334155">통신 흐름</text>
+  <text x="900" y="701" font-size="10" fill="#64748B">Phase 0-10 완료 · Phase 11 AWS 이관 예정 · samhan-air.com</text>
+
+  <!-- ===================== 화살표 마커 ===================== -->
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+</svg>
