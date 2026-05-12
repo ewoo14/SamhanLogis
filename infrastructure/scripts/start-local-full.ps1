@@ -431,6 +431,7 @@ if (-not $SkipServices) {
         $job = Start-Job -Name $name -ScriptBlock {
             param($root, $module, $log)
             Set-Location $root
+            $env:JAVA_TOOL_OPTIONS = '-Xmx256m -Xms64m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC'
             & "$root\gradlew.bat" ":services:${module}:bootRun" --console=plain *>&1 |
                 Out-File -FilePath $log -Encoding utf8
         } -ArgumentList $ProjectRoot, $name, $logFile
