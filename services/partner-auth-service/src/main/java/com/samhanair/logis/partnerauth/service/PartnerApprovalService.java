@@ -47,7 +47,7 @@ public class PartnerApprovalService {
             page = partnerAuthRepository.findByStatusInOrderByCreatedAtDesc(
                     toInternalGroup(status), pageable);
         }
-        return page.map(pa -> PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo())));
+        return page.map(this::buildResponse);
     }
 
     public PartnerApprovalResponse updateStatus(String partnerCode, PartnerApprovalStatus next) {
@@ -72,27 +72,36 @@ public class PartnerApprovalService {
                 // 안전을 위해 진입은 허용하지 않고 현재 상태 유지 (no-op).
             }
         }
-        return PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo()));
+        return buildResponse(pa);
     }
 
     public PartnerApprovalResponse resetPassword(String partnerCode) {
         PartnerAuth pa = partnerAuthRepository.findByBizNo(partnerCode)
                 .orElseThrow(() -> new EntityNotFoundException("PartnerAuth not found: " + partnerCode));
         pa.issueTempPassword("{noop}TEMP-RESET");
-        return PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo()));
+        return buildResponse(pa);
     }
 
     /**
-     * 4a — dc-config-service 의 Partner.name 을 RPC 로 resolve.
+     * 4a 마무리 (manager 잔여 항목 포함) — dc-config-service 의 Partner 정보 RPC 한 번으로
+     * partnerName + assignedManagerName 둘 다 resolve.
      *
-     * <p>장애 / 미존재 / 토큰 오류 모두 {@link DcConfigClient} 가 {@code Optional.empty()} 로
-     * dampen 하므로 본 메서드는 null 반환 → {@link PartnerApprovalResponse} 에서 partnerCode 폴백.
+     * <p>{@link DcConfigClient.mapToDto} 가 dc-config Partner.manager(legacy CSV '담당자')
+     * 를 {@code PartnerConfigDto.representativeName} 위치에 매핑한다. 본 메서드는 그 매핑을
+     * 재활용해 영업담당자명을 채운다 (사내 user-service 조직도 lookup 은 추후 backlog).
+     *
+     * <p>장애 / 미존재 / 토큰 오류 모두 {@link DcConfigClient} 가 {@code Optional.empty()}
+     * 로 dampen 하므로, resolve 실패 시 두 필드 모두 null/폴백.
      */
-    private String resolveName(String bizNo) {
-        return dcConfigClient.findByBizNo(bizNo)
-                .map(PartnerConfigDto::partnerName)
-                .filter(s -> s != null && !s.isBlank())
-                .orElse(null);
+    private PartnerApprovalResponse buildResponse(PartnerAuth pa) {
+        PartnerConfigDto cfg = dcConfigClient.findByBizNo(pa.getBizNo()).orElse(null);
+        String name = (cfg == null) ? null : trimToNull(cfg.partnerName());
+        String manager = (cfg == null) ? null : trimToNull(cfg.representativeName());
+        return PartnerApprovalResponse.from(pa, name, manager);
+    }
+
+    private static String trimToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     /** 외부 6종 → 내부 10종 그룹 — list filter 용. */
