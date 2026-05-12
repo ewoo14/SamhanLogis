@@ -17,6 +17,8 @@ const BASE_URL: string = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 /** 세션 토큰 저장소 (sessionStorage 키). */
 const TOKEN_KEY = 'samhan-partner-token'
+/** 3d backlog — 로그인 응답의 config (거래처 + DC 설정) 캐시 키. */
+const CONFIG_KEY = 'samhan-partner-config'
 
 /** axios 인스턴스 — JWT bearer 자동 첨부 + 5초 timeout. */
 const http = axios.create({
@@ -54,7 +56,7 @@ http.interceptors.request.use((cfg) => {
  * 추가 (legacy index.html 외부 호출 대응 — Code.js 분석 §1):
  * - `getCustomerData(partnerCode)` → `GET /api/v1/partners/{partnerCode}` (M2)
  * - `getProducts(category)` → `GET /api/v1/products?usageScope=PARTNER_ORDER&category=...` (M1a 완료)
- * - `applyConfigFromServer(partnerCode)` → `GET /api/v1/partner-dc-configs/{partnerCode}` (M2 보강)
+ * - `applyConfigFromServer(partnerCode)` → 3d backlog 로 sessionStorage 캐시 재사용 (tryLogin 시점 저장)
  * - `requestTempPassword(bizNo)` → `POST /api/v1/auth/partner-temp-password` (M2)
  * - `register(payload)` → `POST /api/v1/auth/partner-register` (M2)
  * - `saveDraft(payload)` → `POST /api/v1/partner-orders/drafts` (M4) — saveOrderSnapshot 별칭
@@ -78,8 +80,17 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http
       .post('/auth/partner-login', { bizNo, password: pw })
       .then((r) => {
-        const data = r.data as { token?: string }
+        const data = r.data as { token?: string; config?: unknown }
         if (data?.token) sessionStorage.setItem(TOKEN_KEY, data.token)
+        // 3d backlog — partner-auth-service 의 로그인 응답 config (DC 율 포함) 캐싱.
+        // applyConfigFromServer 가 별도 backend 호출 없이 본 캐시를 재사용한다.
+        if (data?.config) {
+          try {
+            sessionStorage.setItem(CONFIG_KEY, JSON.stringify(data.config))
+          } catch (err) {
+            console.warn('[v4 shim] tryLogin: config 캐싱 실패', err)
+          }
+        }
         return data
       }),
   requestTempPassword: ([bizNo]) =>
@@ -138,10 +149,20 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http
       .get('/products', { params: { usageScope: 'PARTNER_ORDER', category } })
       .then((r) => r.data),
-  applyConfigFromServer: ([partnerCode]) =>
-    http
-      .get(`/partner-dc-configs/${encodeURIComponent(String(partnerCode))}`)
-      .then((r) => r.data),
+  // 3d backlog — partner-auth-service 의 로그인 응답이 이미 DC 정책을 nested 로 포함하므로
+  // 별도 backend 호출 없이 sessionStorage 캐시를 즉시 반환한다. 캐시 부재 시 graceful null.
+  // 외부 단건 endpoint `/partner-dc-configs/{partnerCode}` 는 admin list 전용 (4b backlog 와 별개).
+  applyConfigFromServer: ([_partnerCode]) => {
+    void _partnerCode
+    try {
+      const cached = sessionStorage.getItem(CONFIG_KEY)
+      if (!cached) return Promise.resolve(null)
+      return Promise.resolve(JSON.parse(cached))
+    } catch (err) {
+      console.warn('[v4 shim] applyConfigFromServer: config 캐시 파싱 실패', err)
+      return Promise.resolve(null)
+    }
+  },
 }
 
 /**
