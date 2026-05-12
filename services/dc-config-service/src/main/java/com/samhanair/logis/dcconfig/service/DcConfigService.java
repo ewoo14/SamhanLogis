@@ -3,8 +3,12 @@ package com.samhanair.logis.dcconfig.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dcconfig.domain.DcConfig;
+import com.samhanair.logis.dcconfig.domain.DcConfigSource;
 import com.samhanair.logis.dcconfig.domain.Partner;
+import com.samhanair.logis.dcconfig.dto.UpdatePartnerDcConfigRequest;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -58,6 +62,100 @@ public class DcConfigService {
         Partner partner = partnerService.getByBizNo(bizNo);
         return new PartnerWithDc(partner,
                 dcConfigRepository.findByPartner_Id(partner.getId()).orElse(null));
+    }
+
+    /**
+     * 4b — partnerCode 의 DC 설정을 인라인 PATCH. 외부 표시 문자열 입력값을 내부 도메인 값으로
+     * 파싱한 뒤 {@link DcConfig} 의 change* 메서드를 호출한다.
+     *
+     * <p>요청 필드가 null/blank 면 해당 컬럼 변경 없음 (PATCH 시맨틱).
+     *
+     * <p>DC 설정이 미존재 시 자동으로 신규 생성 (source={@link DcConfigSource#ADMIN_EDIT}).
+     *
+     * @throws BusinessException NOT_FOUND — Partner 자체가 미존재
+     * @throws BusinessException BAD_REQUEST — 파싱 실패 (잘못된 % / KRW 형식)
+     */
+    @Transactional
+    public DcConfig updatePartnerDcConfig(String partnerCode, UpdatePartnerDcConfigRequest req) {
+        Partner partner = partnerService.getByPartnerCode(partnerCode);
+        DcConfig dc = dcConfigRepository.findByPartner_Id(partner.getId())
+                .orElseGet(() -> dcConfigRepository.save(DcConfig.create(partner, DcConfigSource.ADMIN_EDIT)));
+
+        BigDecimal homeRate = parsePercent(req.homeMultiDc());
+        BigDecimal commercialRate = parsePercent(req.commercialMultiDc());
+        if (homeRate != null || commercialRate != null) {
+            dc.changeRates(
+                    homeRate != null ? homeRate : dc.getHomeDiscountRate(),
+                    commercialRate != null ? commercialRate : dc.getCommercialDiscountRate());
+        }
+
+        Boolean iHose = parseYesNo(req.flexibleHoseTypeI());
+        if (iHose != null) {
+            dc.changeShowIHose(iHose);
+        }
+
+        BigDecimal d360 = parseWon(req.threeSixty());
+        BigDecimal d4way = parseWon(req.fourWay());
+        BigDecimal d1way = parseWon(req.oneWay());
+        BigDecimal stand = parseWon(req.stand());
+        BigDecimal deluxe = parseWon(req.deluxe());
+        BigDecimal firstGrade = parseWon(req.firstGrade());
+        if (d360 != null || d4way != null || d1way != null
+                || stand != null || deluxe != null || firstGrade != null) {
+            dc.changeOptionAmounts(
+                    d360 != null ? d360 : dc.getDiscount360Amount(),
+                    d4way != null ? d4way : dc.getDiscount4WayAmount(),
+                    d1way != null ? d1way : dc.getDiscount1WayAmount(),
+                    stand != null ? stand : dc.getDiscountStandAmount(),
+                    deluxe != null ? deluxe : dc.getDiscountDeluxeAmount(),
+                    firstGrade != null ? firstGrade : dc.getDiscountFirstGradeAmount());
+        }
+
+        Boolean unitProc = parseYesNo(req.unitProcess());
+        if (unitProc != null) {
+            dc.changeUnitProcessingEnabled(unitProc);
+        }
+
+        if (req.remark() != null) {
+            dc.changeNote(req.remark().isBlank() ? null : req.remark());
+        }
+        return dc;
+    }
+
+    /** "46%" → BigDecimal("0.46"). null/blank → null. 파싱 실패 → BAD_REQUEST. */
+    private BigDecimal parsePercent(String raw) {
+        if (raw == null || raw.isBlank() || "—".equals(raw)) return null;
+        String digits = raw.replace("%", "").replace(",", "").trim();
+        try {
+            BigDecimal pct = new BigDecimal(digits);
+            return pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "DC율 형식 오류: " + raw);
+        }
+    }
+
+    /** "₩70,000" → BigDecimal(70000). null/blank → null. 파싱 실패 → BAD_REQUEST. */
+    private BigDecimal parseWon(String raw) {
+        if (raw == null || raw.isBlank() || "—".equals(raw)) return null;
+        String digits = raw.replace("₩", "").replace(",", "").trim();
+        try {
+            return new BigDecimal(digits);
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "금액 형식 오류: " + raw);
+        }
+    }
+
+    /** "Yes"/"No" (case-insensitive) → Boolean. null/blank/기타 → null. */
+    private Boolean parseYesNo(String raw) {
+        if (raw == null || raw.isBlank() || "—".equals(raw)) return null;
+        String s = raw.trim();
+        if (s.equalsIgnoreCase("Yes") || s.equalsIgnoreCase("Y") || s.equalsIgnoreCase("true")) {
+            return Boolean.TRUE;
+        }
+        if (s.equalsIgnoreCase("No") || s.equalsIgnoreCase("N") || s.equalsIgnoreCase("false")) {
+            return Boolean.FALSE;
+        }
+        return null;
     }
 
     /** Partner + (nullable) DcConfig 페어 — internal RPC 응답 빌드용. */
