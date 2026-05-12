@@ -24,10 +24,12 @@
  * id / sourceWarehouseId 는 내부 처리 전용.
  */
 import { useState, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
+import { useSessionStore, canCreateSlip } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
@@ -98,6 +100,9 @@ const EMPTY_SEARCH: SearchForm = {
 
 export function SalesQueryPage() {
   usePageTitle('판매조회')
+  const navigate = useNavigate()
+  const role = useSessionStore((s) => s.auth?.role)
+  const canCreate = canCreateSlip(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -318,13 +323,27 @@ export function SalesQueryPage() {
 
         {/* 검색 모달 열기 */}
         <Button
-          variant="primary"
+          variant="secondary"
           size="sm"
           onClick={openSearchModal}
           data-testid="sales-query-search-btn"
         >
           검색
         </Button>
+
+        {/* [2c 신규 전표 진입점] 권한 보유자만 노출 — SlipFormPage(/sales/new) 로 이동.
+            2a 통합 후 SalesQueryPage 가 /sales 정식 진입점이 되었으므로 신규 출고전표
+            작성 흐름이 사라지지 않도록 본 버튼이 필수. */}
+        {canCreate ? (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/sales/new')}
+            data-testid="sales-query-new-slip-btn"
+          >
+            신규 출고전표
+          </Button>
+        ) : null}
 
         {/* Excel-like DataGrid 보기 토글 */}
         <Button
