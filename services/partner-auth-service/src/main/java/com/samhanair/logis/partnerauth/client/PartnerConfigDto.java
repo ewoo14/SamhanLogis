@@ -17,7 +17,11 @@ import java.util.Map;
 public record PartnerConfigDto(
         String partnerCode,
         String partnerName,
-        String representativeName,
+        /**
+         * 거래처 영업담당자명 — dc-config-service {@code Partner.manager} (legacy CSV '담당자' 컬럼)
+         * 의 미러. 자유 텍스트, 사내 user-service 조직도 lookup 은 backlog.
+         */
+        String managerName,
         String mobileNo,
         List<String> allowedFeatures,
         Map<String, Object> options,

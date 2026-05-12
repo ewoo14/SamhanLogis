@@ -86,9 +86,9 @@ public class PartnerApprovalService {
      * 4a 마무리 (manager 잔여 항목 포함) — dc-config-service 의 Partner 정보 RPC 한 번으로
      * partnerName + assignedManagerName 둘 다 resolve.
      *
-     * <p>{@link DcConfigClient.mapToDto} 가 dc-config Partner.manager(legacy CSV '담당자')
-     * 를 {@code PartnerConfigDto.representativeName} 위치에 매핑한다. 본 메서드는 그 매핑을
-     * 재활용해 영업담당자명을 채운다 (사내 user-service 조직도 lookup 은 추후 backlog).
+     * <p>{@link DcConfigClient} 가 dc-config Partner.manager(legacy CSV '담당자') 를
+     * {@code PartnerConfigDto.managerName} 으로 매핑해온다. 본 메서드는 이를 그대로 활용해
+     * 영업담당자명을 채운다 (사내 user-service 조직도 lookup 은 추후 backlog).
      *
      * <p>장애 / 미존재 / 토큰 오류 모두 {@link DcConfigClient} 가 {@code Optional.empty()}
      * 로 dampen 하므로, resolve 실패 시 두 필드 모두 null/폴백.
@@ -96,7 +96,7 @@ public class PartnerApprovalService {
     private PartnerApprovalResponse buildResponse(PartnerAuth pa) {
         PartnerConfigDto cfg = dcConfigClient.findByBizNo(pa.getBizNo()).orElse(null);
         String name = (cfg == null) ? null : trimToNull(cfg.partnerName());
-        String manager = (cfg == null) ? null : trimToNull(cfg.representativeName());
+        String manager = (cfg == null) ? null : trimToNull(cfg.managerName());
         return PartnerApprovalResponse.from(pa, name, manager);
     }
 
