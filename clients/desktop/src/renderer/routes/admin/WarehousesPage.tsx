@@ -16,16 +16,24 @@
  * - admin-warehouses-table
  * - admin-warehouses-search-input
  * - admin-warehouses-row-{code}
+ * - admin-warehouses-edit-{code}
+ * - admin-warehouses-delete-{code}          — soft-delete 트리거 (창고 비활성화)
+ * - admin-warehouses-delete-confirm-{code}  — modal 확인 버튼
+ * - admin-warehouses-delete-error           — 실패 시 빨간 배너
  * - admin-warehouses-realtime-indicator
  */
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
+  Button,
   DataTable,
+  Modal,
   type DataTableColumn,
 } from '@samhan/design-system'
+import axios from 'axios'
 import {
+  deleteAdminWarehouse,
   listAdminWarehouses,
   type AdminWarehouse,
 } from '../../api/adminApi'
@@ -55,6 +63,7 @@ export function WarehousesPage() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const [editTarget, setEditTarget] = useState<AdminWarehouse | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AdminWarehouse | null>(null)
   const queryClient = useQueryClient()
 
   const query = useQuery({
@@ -68,6 +77,27 @@ export function WarehousesPage() {
     // PR-H4c FE-C: 30초 polling — 멀티 워크스테이션 동기화 안전망.
     refetchInterval: 30_000,
   })
+
+  /** soft-delete mutation — DELETE /inventory/warehouses/{id} (backend `WarehouseService.delete`). */
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteAdminWarehouse(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
+      // listWarehouses (활성 창고) 도 invalidate — 사이드바 / dropdown 동기화
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      setDeleteTarget(null)
+    },
+  })
+
+  const deleteErrorMessage = (() => {
+    if (!deleteMutation.isError) return null
+    const err = deleteMutation.error
+    if (axios.isAxiosError(err)) {
+      const data = err.response?.data as { message?: string } | undefined
+      return data?.message ?? '창고 비활성화에 실패했습니다.'
+    }
+    return '알 수 없는 오류'
+  })()
 
   const totalPages = query.data
     ? Math.max(1, Math.ceil(query.data.total / query.data.size))
@@ -104,27 +134,48 @@ export function WarehousesPage() {
     },
     {
       key: 'id',
-      header: '편집',
-      width: '80px',
+      header: '액션',
+      width: '160px',
       render: (w) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            setEditTarget(w)
-          }}
-          data-testid={`admin-warehouses-edit-${w.code}`}
-          style={{
-            padding: '4px 10px',
-            border: '1px solid #d1d5db',
-            borderRadius: 4,
-            background: '#fff',
-            cursor: 'pointer',
-            fontSize: 12,
-          }}
-        >
-          편집
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditTarget(w)
+            }}
+            data-testid={`admin-warehouses-edit-${w.code}`}
+            style={{
+              padding: '4px 10px',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            편집
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDeleteTarget(w)
+            }}
+            data-testid={`admin-warehouses-delete-${w.code}`}
+            style={{
+              padding: '4px 10px',
+              border: '1px solid var(--color-danger-300)',
+              borderRadius: 4,
+              background: '#fff',
+              color: 'var(--color-danger-700)',
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            비활성화
+          </button>
+        </div>
       ),
     },
   ]
@@ -243,6 +294,65 @@ export function WarehousesPage() {
           queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
         }}
       />
+
+      {/* [창고 soft-delete UI] backend WarehouseService.delete 호출 — is_deleted=true 마킹.
+          실제 row 는 보존되며 @SQLRestriction 가드로 활성 목록에서 자동 제외. 복구는 backend
+          별도 endpoint (현재 미노출 — 데이터 직접 수정 필요) 로 가능. */}
+      {deleteTarget ? (
+        <Modal
+          open
+          onClose={() => {
+            if (deleteMutation.isPending) return
+            setDeleteTarget(null)
+            deleteMutation.reset()
+          }}
+          title="창고 비활성화 확인"
+          footer={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setDeleteTarget(null)
+                  deleteMutation.reset()
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                취소
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => deleteMutation.mutate(deleteTarget.id)}
+                loading={deleteMutation.isPending}
+                data-testid={`admin-warehouses-delete-confirm-${deleteTarget.code}`}
+              >
+                비활성화
+              </Button>
+            </>
+          }
+        >
+          <div style={{ fontSize: 14, lineHeight: 1.6 }}>
+            <p style={{ margin: '0 0 8px' }}>
+              <strong>{deleteTarget.name}</strong> ({deleteTarget.code}) 창고를
+              비활성화합니다.
+            </p>
+            <ul style={{ margin: '8px 0 0 18px', padding: 0, fontSize: 13, color: 'var(--color-neutral-700)' }}>
+              <li>활성 창고 목록 / 사이드바 / 드롭다운에서 제외됩니다.</li>
+              <li>실제 데이터는 보존되며 (soft-delete), 기존 전표/이동 이력은 영향 받지 않습니다.</li>
+              <li>복구는 backend 데이터 직접 수정 또는 별도 마이그레이션이 필요합니다.</li>
+            </ul>
+            {deleteErrorMessage ? (
+              <div
+                className="error-banner"
+                role="alert"
+                style={{ marginTop: 12 }}
+                data-testid="admin-warehouses-delete-error"
+              >
+                {deleteErrorMessage}
+              </div>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
     </>
   )
 }

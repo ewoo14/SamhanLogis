@@ -18,6 +18,8 @@
  * - inventory-service
  *   - GET    /inventory/warehouses/search — q + 페이지네이션
  *   - POST   /inventory/warehouses      — 신규 등록 (기존 createWarehouse 재사용 권장)
+ *   - PATCH  /inventory/warehouses/{id} — 부분 수정 (MASTER/MANAGER/DEVELOPER)
+ *   - DELETE /inventory/warehouses/{id} — soft-delete (MASTER/MANAGER/DEVELOPER)
  *
  * UUID 비공개 가드: 응답 DTO 의 id 는 mutation path key 전용. 사용자 노출 식별자는
  * loginId / fullName / partnerCode / warehouseCode 등 비즈니스 식별자.
@@ -418,6 +420,18 @@ export async function updateAdminWarehouse(
     payload,
   )
   return res.data.data
+}
+
+/**
+ * 창고 soft-delete — `DELETE /inventory/warehouses/{id}` (MASTER/MANAGER/DEVELOPER).
+ *
+ * <p>backend `WarehouseService.delete` 가 `is_deleted=true` 마킹 + audit (callerId).
+ * 실제 row 는 보존되며 `@SQLRestriction` 가드로 활성 목록에서 자동 제외된다.
+ *
+ * <p>204 No Content 응답 — 응답 body 없음.
+ */
+export async function deleteAdminWarehouse(id: string): Promise<void> {
+  await apiClient.delete(`/inventory/warehouses/${encodeURIComponent(id)}`)
 }
 
 // ---------------------------------------------------------------------------
