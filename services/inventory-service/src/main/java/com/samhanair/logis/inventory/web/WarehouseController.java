@@ -7,6 +7,7 @@ import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
+import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -17,7 +18,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -45,6 +48,8 @@ public class WarehouseController {
     private static final String CALLER_HEADER = "X-User-Id";
 
     private final WarehouseService warehouseService;
+    /** PR-H4b 후속 — 창고 audit overlay 실시간 SSE broadcast 채널. */
+    private final RealtimeBroker realtimeBroker;
 
     /**
      * 활성 창고 전체 조회 — displayOrder ASC. 인증된 모든 역할.
@@ -135,6 +140,19 @@ public class WarehouseController {
         return ApiResponse.ok(warehouseService.listAuditLogs(id).stream()
                 .map(InventoryAuditLogResponse::from)
                 .toList());
+    }
+
+    /**
+     * 창고 audit overlay 실시간 SSE 구독 — 동일 broker (entityId=warehouseId) 사용.
+     *
+     * <p>{@code inventory:edit} 이벤트 stream — heartbeat 30s. 클라이언트는 EventSource 또는
+     * fetch streaming 으로 subscribe. PATCH / soft-delete 시점에 자동 publish.
+     */
+    @Operation(summary = "창고 audit SSE realtime 구독",
+            description = "PATCH/DELETE 시 발생하는 inventory:edit 이벤트를 SSE stream 으로 전달")
+    @GetMapping(value = "/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeRealtime(@PathVariable UUID id) {
+        return realtimeBroker.subscribe(id);
     }
 
     /**
