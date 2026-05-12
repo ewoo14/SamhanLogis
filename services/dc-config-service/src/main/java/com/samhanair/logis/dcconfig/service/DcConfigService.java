@@ -49,6 +49,17 @@ public class DcConfigService {
                 dcConfigRepository.findByPartner_Id(partner.getId()).orElse(null));
     }
 
+    /**
+     * bizNo 로 Partner 보장 후 DC 설정 조회 — 3d partner-auth-service 로그인 RPC.
+     *
+     * <p>partnerCode resolver 와 동일 의미 (Partner 미존재 404, DC 미설정은 dcConfig=null).
+     */
+    public PartnerWithDc resolveByBizNo(String bizNo) {
+        Partner partner = partnerService.getByBizNo(bizNo);
+        return new PartnerWithDc(partner,
+                dcConfigRepository.findByPartner_Id(partner.getId()).orElse(null));
+    }
+
     /** Partner + (nullable) DcConfig 페어 — internal RPC 응답 빌드용. */
     public record PartnerWithDc(Partner partner, DcConfig dcConfig) {}
 }

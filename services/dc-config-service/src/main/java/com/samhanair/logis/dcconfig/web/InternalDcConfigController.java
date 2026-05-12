@@ -56,6 +56,26 @@ public class InternalDcConfigController {
     }
 
     /**
+     * 3d 백로그 — partner-auth-service 가 로그인 직후 호출.
+     *
+     * <p>bizNo (사업자등록번호, '-' 제거 정규화 권장) 로 거래처 + DC 설정 통합 조회.
+     * 응답 구조는 {@link #getPartnerWithDc} 와 동일.
+     */
+    @Operation(summary = "거래처 + DC 설정 통합 조회 — bizNo 키 (internal)",
+            description = "X-Internal-Token 인증 후 호출. partner-auth-service 로그인 직후 사용. "
+                    + "Partner 미존재 시 404, DC 설정만 미존재면 dcConfig=null.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처를 찾을 수 없습니다 (bizNo)")
+    })
+    @GetMapping("/partners/by-bizno/{bizNo}")
+    public ApiResponse<PartnerInternalResponse> getPartnerWithDcByBizNo(@PathVariable String bizNo) {
+        DcConfigService.PartnerWithDc pair = dcConfigService.resolveByBizNo(bizNo);
+        return ApiResponse.ok(PartnerInternalResponse.from(pair.partner(), pair.dcConfig()));
+    }
+
+    /**
      * DC 설정 단건 조회 — 가격 계산 화면이 호출.
      */
     @Operation(summary = "거래처 DC 설정 단건 조회 (internal)",
