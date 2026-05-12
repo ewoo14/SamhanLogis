@@ -156,6 +156,27 @@ public class WarehouseController {
     }
 
     /**
+     * 특정 audit revision 으로 되돌림 (undo) — 신규 revision 으로 audit 자동 기록.
+     * 지원 필드: name / type / address / displayOrder / description.
+     * isDeleted revert 는 미지원 (POST /restore 또는 DELETE 사용).
+     */
+    @Operation(summary = "audit revert (특정 revision 복원)",
+            description = "선택 revision 의 oldValue 를 entity 에 재적용. 복원 자체도 신규 audit row 1행으로 영원 추적")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "복원 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "revisionNo < 1 또는 isDeleted revert 시도"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "창고/revision 미존재")
+    })
+    @PostMapping("/{id}/audit/revert/{revisionNo}")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    public ApiResponse<WarehouseResponse> revertAudit(
+            @PathVariable UUID id,
+            @PathVariable int revisionNo,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(warehouseService.revertToRevision(id, revisionNo, callerHeader));
+    }
+
+    /**
      * Soft delete. MASTER/MANAGER/DEVELOPER 만 허용. 204 No Content.
      *
      * @param id 창고 UUID

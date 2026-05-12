@@ -249,6 +249,94 @@ public class WarehouseService {
         return auditLogRecorder.listByEntity(id);
     }
 
+    /**
+     * 특정 revision 의 audit log 를 되돌린다 (undo). targetRevisionNo 의 각 ChangeEntry 에서
+     * {@code oldValue} 값을 entity 에 다시 적용 + revert 자체를 신규 revision 으로 audit 기록.
+     *
+     * <p>지원 필드: {@code name / type / address / displayOrder / description}.
+     * {@code isDeleted} 필드의 revert 는 미지원 — 활성/비활성화 토글은 별도 endpoint 사용
+     * (POST {@code /restore} / DELETE).
+     *
+     * @throws BusinessException(NOT_FOUND) 창고 또는 해당 revision 미존재
+     * @throws BusinessException(INVALID_INPUT) targetRevisionNo &lt; 1 또는 isDeleted revert 시도
+     */
+    public WarehouseResponse revertToRevision(UUID id, int targetRevisionNo, String callerId) {
+        if (targetRevisionNo < 1) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "targetRevisionNo 는 1 이상이어야 합니다: " + targetRevisionNo);
+        }
+        Warehouse w = loadOrThrow(id);
+        List<InventoryAuditLog> targetRows = auditLogRecorder.listByEntity(id).stream()
+                .filter(row -> row.getRevisionNo() == targetRevisionNo)
+                .toList();
+        if (targetRows.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "해당 revision 의 audit log 가 없습니다: revisionNo=" + targetRevisionNo);
+        }
+
+        List<ChangeEntry> revertedChanges = new ArrayList<>(targetRows.size());
+        for (InventoryAuditLog row : targetRows) {
+            String fieldName = row.getFieldName();
+            String restoreTo = row.getOldValue();
+            String currentValue = readWarehouseField(w, fieldName);
+            applyWarehouseField(w, fieldName, restoreTo);
+            revertedChanges.add(new ChangeEntry(fieldName, currentValue, restoreTo));
+        }
+        recordAuditSafe(id, callerId, revertedChanges);
+        return WarehouseResponse.from(w);
+    }
+
+    private static String readWarehouseField(Warehouse w, String fieldName) {
+        return switch (fieldName) {
+            case "name" -> w.getName();
+            case "type" -> w.getType() == null ? null : w.getType().name();
+            case "address" -> w.getAddress();
+            case "displayOrder" -> String.valueOf(w.getDisplayOrder());
+            case "description" -> w.getDescription();
+            case "isDeleted" -> String.valueOf(Boolean.TRUE.equals(w.getIsDeleted()));
+            default -> throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 필드의 revert 요청: " + fieldName);
+        };
+    }
+
+    private static void applyWarehouseField(Warehouse w, String fieldName, String newValue) {
+        switch (fieldName) {
+            case "name" -> {
+                if (newValue == null || newValue.isBlank()) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "복원 대상 name 값이 비어있습니다");
+                }
+                w.rename(newValue);
+            }
+            case "type" -> {
+                if (newValue == null) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "복원 대상 type 값이 null 입니다");
+                }
+                try {
+                    w.changeType(WarehouseType.valueOf(newValue));
+                } catch (IllegalArgumentException ex) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "잘못된 WarehouseType 값: " + newValue);
+                }
+            }
+            case "address" -> w.changeAddress(newValue);
+            case "displayOrder" -> {
+                try {
+                    w.changeDisplayOrder(Integer.parseInt(newValue));
+                } catch (NumberFormatException ex) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "displayOrder 형식 오류: " + newValue);
+                }
+            }
+            case "description" -> w.editDescription(newValue);
+            case "isDeleted" -> throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "isDeleted revert 는 미지원입니다 — POST /restore 또는 DELETE 를 사용하세요");
+            default -> throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 필드의 revert 요청: " + fieldName);
+        }
+    }
+
     /** ChangeEntry 가 비어있으면 no-op. audit 실패는 graceful fallback (도메인 진행). */
     private void recordAuditSafe(UUID warehouseId, String callerId, List<ChangeEntry> changes) {
         if (changes == null || changes.isEmpty()) {
