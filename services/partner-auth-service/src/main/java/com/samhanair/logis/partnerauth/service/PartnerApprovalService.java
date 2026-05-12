@@ -1,5 +1,7 @@
 package com.samhanair.logis.partnerauth.service;
 
+import com.samhanair.logis.partnerauth.client.DcConfigClient;
+import com.samhanair.logis.partnerauth.client.PartnerConfigDto;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.dto.PartnerApprovalResponse;
@@ -30,6 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerApprovalService {
 
     private final PartnerAuthRepository partnerAuthRepository;
+    /**
+     * 4a backlog — dc-config-service 의 Partner.name 을 가져와 partnerName 컬럼을 채운다.
+     * resolve 실패 시 PartnerApprovalResponse 는 partnerCode 폴백.
+     */
+    private final DcConfigClient dcConfigClient;
 
     @Transactional(readOnly = true)
     public Page<PartnerApprovalResponse> list(PartnerApprovalStatus status, Pageable pageable) {
@@ -40,7 +47,7 @@ public class PartnerApprovalService {
             page = partnerAuthRepository.findByStatusInOrderByCreatedAtDesc(
                     toInternalGroup(status), pageable);
         }
-        return page.map(PartnerApprovalResponse::from);
+        return page.map(pa -> PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo())));
     }
 
     public PartnerApprovalResponse updateStatus(String partnerCode, PartnerApprovalStatus next) {
@@ -65,14 +72,27 @@ public class PartnerApprovalService {
                 // 안전을 위해 진입은 허용하지 않고 현재 상태 유지 (no-op).
             }
         }
-        return PartnerApprovalResponse.from(pa);
+        return PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo()));
     }
 
     public PartnerApprovalResponse resetPassword(String partnerCode) {
         PartnerAuth pa = partnerAuthRepository.findByBizNo(partnerCode)
                 .orElseThrow(() -> new EntityNotFoundException("PartnerAuth not found: " + partnerCode));
         pa.issueTempPassword("{noop}TEMP-RESET");
-        return PartnerApprovalResponse.from(pa);
+        return PartnerApprovalResponse.from(pa, resolveName(pa.getBizNo()));
+    }
+
+    /**
+     * 4a — dc-config-service 의 Partner.name 을 RPC 로 resolve.
+     *
+     * <p>장애 / 미존재 / 토큰 오류 모두 {@link DcConfigClient} 가 {@code Optional.empty()} 로
+     * dampen 하므로 본 메서드는 null 반환 → {@link PartnerApprovalResponse} 에서 partnerCode 폴백.
+     */
+    private String resolveName(String bizNo) {
+        return dcConfigClient.findByBizNo(bizNo)
+                .map(PartnerConfigDto::partnerName)
+                .filter(s -> s != null && !s.isBlank())
+                .orElse(null);
     }
 
     /** 외부 6종 → 내부 10종 그룹 — list filter 용. */
