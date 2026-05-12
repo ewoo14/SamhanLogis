@@ -467,6 +467,32 @@ export async function listWarehouseAuditLogs(
   return res.data.data
 }
 
+/**
+ * 비활성화된 (soft-deleted) 창고 목록 — `GET /inventory/warehouses/deleted`.
+ *
+ * <p>복구 admin 화면 source. modified_at desc 정렬. native query 로 SQLRestriction 우회.
+ * 권한 MASTER/MANAGER/DEVELOPER.
+ */
+export async function listDeletedAdminWarehouses(): Promise<AdminWarehouse[]> {
+  const res = await apiClient.get<ApiEnvelope<AdminWarehouse[]>>(
+    '/inventory/warehouses/deleted',
+  )
+  return res.data.data
+}
+
+/**
+ * 창고 복구 (soft-delete undo) — `POST /inventory/warehouses/{id}/restore`.
+ *
+ * <p>backend `WarehouseService.restore` 가 `is_deleted=false` 마킹 + audit. 동일 code
+ * 의 활성 창고가 이미 존재하면 409 CONFLICT.
+ */
+export async function restoreAdminWarehouse(id: string): Promise<AdminWarehouse> {
+  const res = await apiClient.post<ApiEnvelope<AdminWarehouse>>(
+    `/inventory/warehouses/${encodeURIComponent(id)}/restore`,
+  )
+  return res.data.data
+}
+
 // ---------------------------------------------------------------------------
 // 권한 헬퍼
 // ---------------------------------------------------------------------------
