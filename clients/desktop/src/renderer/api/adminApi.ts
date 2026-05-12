@@ -434,6 +434,39 @@ export async function deleteAdminWarehouse(id: string): Promise<void> {
   await apiClient.delete(`/inventory/warehouses/${encodeURIComponent(id)}`)
 }
 
+/**
+ * 창고 변경 이력 — backend `InventoryAuditLog` (PR-H4b 인프라) 의 timeline 응답.
+ *
+ * <p>모든 필드 nullable — actor 미식별 시 actorId 는 `00000000-0000-0000-0000-000000000000`.
+ */
+export interface WarehouseAuditLog {
+  id: string
+  entityId: string
+  revisionNo: number
+  actorId: string
+  actorName: string | null
+  actorColor: string | null
+  fieldName: string | null
+  oldValue: string | null
+  newValue: string | null
+  changedAt: string
+}
+
+/**
+ * 창고 변경 이력 조회 — `GET /inventory/warehouses/{id}/audit-logs`.
+ *
+ * <p>최신 revision 우선. PR-H4b 인프라 `InventoryAuditLogRecorder.listByEntity` 위임.
+ * 미존재 창고는 404.
+ */
+export async function listWarehouseAuditLogs(
+  id: string,
+): Promise<WarehouseAuditLog[]> {
+  const res = await apiClient.get<ApiEnvelope<WarehouseAuditLog[]>>(
+    `/inventory/warehouses/${encodeURIComponent(id)}/audit-logs`,
+  )
+  return res.data.data
+}
+
 // ---------------------------------------------------------------------------
 // 권한 헬퍼
 // ---------------------------------------------------------------------------

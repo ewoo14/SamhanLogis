@@ -5,10 +5,13 @@
  * 권한: MASTER / MANAGER / DEVELOPER (backend @PreAuthorize 가드).
  */
 import { useEffect, useState, type CSSProperties } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
+  listWarehouseAuditLogs,
   updateAdminWarehouse,
   type AdminWarehouse,
   type UpdateAdminWarehousePayload,
+  type WarehouseAuditLog,
 } from '../api/adminApi'
 
 interface Props {
@@ -32,6 +35,14 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAudit, setShowAudit] = useState(false)
+
+  // 4b 후속 — 변경 이력 timeline. 패널을 펼친 시점에만 조회 (lazy fetch).
+  const auditQuery = useQuery({
+    queryKey: ['warehouse-audit-logs', warehouse?.id],
+    queryFn: () => listWarehouseAuditLogs(warehouse!.id),
+    enabled: !!warehouse && showAudit,
+  })
 
   useEffect(() => {
     if (warehouse) {
@@ -138,6 +149,52 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
         {error ? (
           <div style={{ color: '#dc2626', fontSize: 13, marginTop: 12 }}>{error}</div>
         ) : null}
+
+        {/* [4b 후속] 변경 이력 timeline — 접힘/펼침 토글. 펼친 시점에 GET 호출. */}
+        <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setShowAudit((v) => !v)}
+            data-testid="edit-warehouse-audit-toggle"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#2563eb',
+              cursor: 'pointer',
+              fontSize: 13,
+              padding: 0,
+            }}
+          >
+            {showAudit ? '▾ 변경 이력 접기' : '▸ 변경 이력 보기'}
+          </button>
+
+          {showAudit ? (
+            <div
+              data-testid="edit-warehouse-audit-panel"
+              style={{
+                marginTop: 8,
+                maxHeight: 200,
+                overflow: 'auto',
+                border: '1px solid #e5e7eb',
+                borderRadius: 4,
+                padding: 8,
+                fontSize: 12,
+                background: '#f9fafb',
+              }}
+            >
+              {auditQuery.isLoading ? (
+                <div style={{ color: '#6b7280' }}>이력 조회 중…</div>
+              ) : auditQuery.isError ? (
+                <div style={{ color: '#dc2626' }}>이력을 불러올 수 없습니다.</div>
+              ) : (auditQuery.data ?? []).length === 0 ? (
+                <div style={{ color: '#6b7280' }}>아직 기록된 변경 이력이 없습니다.</div>
+              ) : (
+                <AuditTimeline rows={auditQuery.data!} />
+              )}
+            </div>
+          ) : null}
+        </div>
+
         <div style={actionsStyle}>
           <button
             type="button"
@@ -228,4 +285,89 @@ const btnPrimaryStyle: CSSProperties = {
   color: '#fff',
   cursor: 'pointer',
   fontSize: 13,
+}
+
+/** 필드명 → 한국어 라벨 (audit 표시용). */
+const FIELD_LABEL: Record<string, string> = {
+  name: '창고명',
+  type: '분류',
+  address: '주소',
+  displayOrder: '표시 순서',
+  description: '설명',
+  isDeleted: '비활성화',
+}
+
+const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
+
+/** 변경 이력 timeline — revision 별 그룹 + 필드별 row. */
+function AuditTimeline({ rows }: { rows: WarehouseAuditLog[] }) {
+  // backend 가 이미 revisionNo desc + changedAt desc 로 정렬해서 반환.
+  // 같은 revisionNo 의 여러 row 를 그룹화해 같은 헤더 아래 표시.
+  const grouped = new Map<number, WarehouseAuditLog[]>()
+  for (const r of rows) {
+    const list = grouped.get(r.revisionNo) ?? []
+    list.push(r)
+    grouped.set(r.revisionNo, list)
+  }
+  const sortedRevisions = Array.from(grouped.keys()).sort((a, b) => b - a)
+  return (
+    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      {sortedRevisions.map((rev) => {
+        const group = grouped.get(rev)!
+        const head = group[0]!
+        const actorDisplay =
+          head.actorId === SYSTEM_ACTOR_ID
+            ? '시스템'
+            : (head.actorName ?? head.actorId.slice(0, 8))
+        return (
+          <li
+            key={rev}
+            data-testid={`edit-warehouse-audit-revision-${rev}`}
+            style={{
+              borderBottom: '1px dashed #e5e7eb',
+              paddingBottom: 6,
+              marginBottom: 6,
+            }}
+          >
+            <div style={{ color: '#374151', fontWeight: 600, marginBottom: 4 }}>
+              #{rev} · {actorDisplay}{' '}
+              <span style={{ color: '#9ca3af', fontWeight: 400 }}>
+                {fmtChangedAt(head.changedAt)}
+              </span>
+            </div>
+            {group.map((r) => (
+              <div
+                key={r.id}
+                style={{ marginLeft: 8, color: '#4b5563', marginBottom: 2 }}
+              >
+                <strong>{FIELD_LABEL[r.fieldName ?? ''] ?? r.fieldName}</strong>
+                {': '}
+                <span style={{ color: '#9ca3af', textDecoration: 'line-through' }}>
+                  {r.oldValue ?? '—'}
+                </span>
+                {' → '}
+                <span style={{ color: '#111827' }}>{r.newValue ?? '—'}</span>
+              </div>
+            ))}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function fmtChangedAt(iso: string): string {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('ko-KR', {
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
 }
