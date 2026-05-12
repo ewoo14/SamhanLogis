@@ -47,4 +47,16 @@ public abstract class BaseEntity {
         this.deletedAt = LocalDateTime.now();
         this.deletedBy = userId;
     }
+
+    /**
+     * soft-delete 복구 — is_deleted=false 로 마킹하고 deletedAt/deletedBy 를 비운다.
+     *
+     * <p>JPA {@code @SQLRestriction("is_deleted = false")} 가드를 만족시켜 다시 활성 행으로
+     * 노출. 호출자는 비활성화된 row 를 native query 등으로 미리 로드해 두어야 한다.
+     */
+    public void markRestored() {
+        this.isDeleted = Boolean.FALSE;
+        this.deletedAt = null;
+        this.deletedBy = null;
+    }
 }

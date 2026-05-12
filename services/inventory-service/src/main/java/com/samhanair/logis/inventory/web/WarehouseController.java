@@ -169,4 +169,35 @@ public class WarehouseController {
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         warehouseService.delete(id, callerHeader);
     }
+
+    /**
+     * 비활성화된 창고 목록 — 복구 admin 화면 source. MASTER/MANAGER/DEVELOPER 만 허용.
+     *
+     * <p>일반 GET / 와 별개 endpoint — native query 로 {@code @SQLRestriction} 우회.
+     */
+    @Operation(summary = "비활성화된 창고 목록",
+            description = "soft-deleted 창고 list (modified_at desc). 복구 admin 화면 backing.")
+    @GetMapping("/deleted")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    public ApiResponse<List<WarehouseResponse>> listDeleted() {
+        return ApiResponse.ok(warehouseService.listDeleted());
+    }
+
+    /**
+     * 비활성화된 창고를 복구 (soft-delete undo) — is_deleted=true → false.
+     * 동일 code 의 활성 창고가 있으면 409.
+     */
+    @Operation(summary = "창고 복구 (soft-delete undo)",
+            description = "비활성화된 창고를 다시 활성화. 동일 code 의 활성 창고 존재 시 CONFLICT.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "복구 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "비활성화된 창고 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동일 code 활성 창고 존재")
+    })
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
+                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(warehouseService.restore(id, callerHeader));
+    }
 }

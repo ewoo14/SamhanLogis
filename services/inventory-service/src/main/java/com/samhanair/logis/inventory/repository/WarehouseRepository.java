@@ -31,4 +31,21 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, UUID> {
             + " OR LOWER(w.name) LIKE LOWER(CONCAT('%', :q, '%')) "
             + " OR LOWER(COALESCE(w.address, '')) LIKE LOWER(CONCAT('%', :q, '%')) )")
     Page<Warehouse> searchAdmin(@Param("q") String q, Pageable pageable);
+
+    /**
+     * 비활성화된(soft-deleted) 창고 목록 — 복구 admin 화면용.
+     *
+     * <p>{@code @SQLRestriction} 우회를 위해 native query + 결과를 다시 JPA entity 로 hydrate.
+     * 표준 JPA 메서드는 항상 활성 행만 반환하므로 명시적 native SELECT 필요.
+     */
+    @Query(value = "SELECT * FROM warehouses w WHERE w.is_deleted = true "
+            + "ORDER BY w.modified_at DESC", nativeQuery = true)
+    List<Warehouse> findAllDeleted();
+
+    /**
+     * 비활성화된 단건 조회 (복구 시점 검증) — id 기준. {@code @SQLRestriction} 우회.
+     */
+    @Query(value = "SELECT * FROM warehouses w WHERE w.id = :id AND w.is_deleted = true",
+            nativeQuery = true)
+    Optional<Warehouse> findDeletedById(@Param("id") UUID id);
 }

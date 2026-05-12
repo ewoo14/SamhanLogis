@@ -200,6 +200,47 @@ public class WarehouseService {
     }
 
     /**
+     * 비활성화된 창고를 복구한다 — is_deleted=true → false. native query 로 deleted row 를
+     * 직접 로드한 뒤 {@link com.samhanair.logis.common.entity.BaseEntity#markRestored} 호출.
+     *
+     * <p>code 충돌 검증: 동일 code 의 다른 활성 창고가 있으면 CONFLICT (1a 자동 생성 코드의
+     * 재사용/충돌 가드와 정합).
+     *
+     * <p>복구 자체는 audit overlay 1행 기록 (fieldName="isDeleted", "true" → "false").
+     *
+     * @param id 창고 UUID
+     * @param callerId 복구자 user-id ('X-User-Id' 헤더 — null/blank 시 system sentinel)
+     * @return 복구된 창고 응답
+     * @throws BusinessException(NOT_FOUND) 비활성화된 창고 미발견
+     * @throws BusinessException(CONFLICT) 동일 code 의 활성 창고가 이미 존재
+     */
+    public WarehouseResponse restore(UUID id, String callerId) {
+        Warehouse w = warehouseRepository.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "비활성화된 창고를 찾을 수 없습니다"));
+        if (warehouseRepository.existsByCodeAndIsDeletedFalse(w.getCode())) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "동일 코드의 활성 창고가 이미 존재합니다: " + w.getCode());
+        }
+        w.markRestored();
+        recordAuditSafe(id, callerId,
+                List.of(new ChangeEntry("isDeleted", "true", "false")));
+        return WarehouseResponse.from(w);
+    }
+
+    /**
+     * 비활성화된 창고 목록 — 복구 admin 화면용. modified_at desc 정렬.
+     *
+     * <p>native query 로 {@code @SQLRestriction} 우회. 일반 list/검색과는 별개 채널.
+     */
+    @Transactional(readOnly = true)
+    public List<WarehouseResponse> listDeleted() {
+        return warehouseRepository.findAllDeleted().stream()
+                .map(WarehouseResponse::from)
+                .toList();
+    }
+
+    /**
      * 4b 후속 — 창고 변경 이력 timeline 조회. 최신 revision 우선.
      */
     @Transactional(readOnly = true)
