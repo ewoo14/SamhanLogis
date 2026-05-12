@@ -20,9 +20,20 @@ const ITEMS = [
   { to: '/sales/partner-dc-config', label: '거래처 DC 설정' },
 ]
 
+const EXTERNAL_ITEMS = [
+  { url: 'http://localhost:5183', label: '웹 종합견적서' },
+  { url: 'http://localhost:5180', label: '웹 주문서' },
+]
+
 export function SalesSubNav() {
+  const openExternal = (url: string) => {
+    window.samhanLegacy?.openExternal(url).catch((err) => {
+      console.warn('[SalesSubNav] 외부 link 열기 실패', err)
+    })
+  }
+
   return (
-    <nav className={styles['subNav']} aria-label="판매 sub navigation">
+    <nav className={styles['subNav']} aria-label="영업 sub navigation">
       {ITEMS.map((item) => (
         <NavLink
           key={item.to}
@@ -33,6 +44,26 @@ export function SalesSubNav() {
           {item.label}
         </NavLink>
       ))}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        {EXTERNAL_ITEMS.map((item) => (
+          <button
+            key={item.url}
+            type="button"
+            onClick={() => openExternal(item.url)}
+            title={`${item.label} (외부 브라우저로 열기)`}
+            style={{
+              padding: '6px 10px',
+              border: '1px solid #d0d7de',
+              borderRadius: 4,
+              background: '#fff',
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            {item.label} ↗
+          </button>
+        ))}
+      </span>
     </nav>
   )
 }

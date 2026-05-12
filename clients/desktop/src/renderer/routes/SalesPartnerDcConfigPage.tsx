@@ -51,7 +51,7 @@ export function SalesPartnerDcConfigPage() {
   const canImportCsv = role === 'MASTER'
 
   useEffect(() => {
-    setPageTitle({ title: '거래처 DC율 설정', meta: '판매' })
+    setPageTitle({ title: '거래처 DC율 설정', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 

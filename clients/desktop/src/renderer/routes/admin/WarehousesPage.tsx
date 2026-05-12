@@ -19,7 +19,7 @@
  * - admin-warehouses-realtime-indicator
  */
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
   DataTable,
@@ -30,6 +30,7 @@ import {
   type AdminWarehouse,
 } from '../../api/adminApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { EditWarehouseModal } from '../../components/EditWarehouseModal'
 
 const TYPE_LABEL: Record<AdminWarehouse['type'], string> = {
   HEADQUARTERS: '본사',
@@ -53,6 +54,8 @@ export function WarehousesPage() {
 
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
+  const [editTarget, setEditTarget] = useState<AdminWarehouse | null>(null)
+  const queryClient = useQueryClient()
 
   const query = useQuery({
     queryKey: ['admin', 'warehouses', q, page],
@@ -98,6 +101,31 @@ export function WarehousesPage() {
       key: 'address',
       header: '주소',
       render: (w) => w.address ?? '—',
+    },
+    {
+      key: 'id',
+      header: '편집',
+      width: '80px',
+      render: (w) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setEditTarget(w)
+          }}
+          data-testid={`admin-warehouses-edit-${w.code}`}
+          style={{
+            padding: '4px 10px',
+            border: '1px solid #d1d5db',
+            borderRadius: 4,
+            background: '#fff',
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+        >
+          편집
+        </button>
+      ),
     },
   ]
 
@@ -207,6 +235,14 @@ export function WarehousesPage() {
           </button>
         </div>
       ) : null}
+
+      <EditWarehouseModal
+        warehouse={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
+        }}
+      />
     </>
   )
 }

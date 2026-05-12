@@ -110,7 +110,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const role = useSessionStore((s) => s.auth?.role)
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
-  const titleLabel = isOutbound ? '판매조회 (출고전표)' : '구매조회 (입고전표)'
+  const titleLabel = isOutbound ? '영업조회 (출고전표)' : '구매조회 (입고전표)'
   const newButtonLabel = isOutbound ? '새 출고전표' : '새 입고전표'
 
   // P0-9: INBOUND 모드 검수 Dialog 상태

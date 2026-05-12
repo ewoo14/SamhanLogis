@@ -21,17 +21,36 @@ export function SalesPartnerOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
 
+  const isValidId = !!id && id !== 'undefined' && id !== 'null'
+
   useEffect(() => {
-    setPageTitle({ title: `주문서 ${id ?? ''}`, meta: '판매' })
+    setPageTitle({ title: `주문서 ${isValidId ? id : ''}`, meta: '영업' })
     return () => setPageTitle({ title: '' })
-  }, [setPageTitle, id])
+  }, [setPageTitle, id, isValidId])
 
   const query = useQuery({
     queryKey: ['partner-order', id],
     queryFn: () => getPartnerOrder(id!),
-    enabled: !!id,
+    enabled: isValidId,
     retry: 1,
   })
+
+  if (!isValidId) {
+    return (
+      <div className={styles['salesScope']}>
+        <SalesSubNav />
+        <div className={styles['wrap']}>
+          <div className={styles['emptyState']}>
+            <h3>주문번호가 지정되지 않았습니다</h3>
+            <p>주문서 목록에서 항목을 선택해 주세요.</p>
+            <Link to="/sales/partner-orders" className={styles['btnGhost']}>
+              ← 목록으로 이동
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={styles['salesScope']}>

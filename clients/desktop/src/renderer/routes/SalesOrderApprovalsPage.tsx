@@ -57,7 +57,7 @@ export function SalesOrderApprovalsPage() {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    setPageTitle({ title: '주문서 승인', meta: '판매' })
+    setPageTitle({ title: '주문서 승인', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 

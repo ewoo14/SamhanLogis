@@ -36,7 +36,7 @@ export function SalesPartnerOrderListPage() {
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('')
 
   useEffect(() => {
-    setPageTitle({ title: '주문서 조회', meta: '판매' })
+    setPageTitle({ title: '주문서 조회', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
@@ -115,10 +115,15 @@ export function SalesPartnerOrderListPage() {
             <tbody>
               {(query.data?.content ?? []).map((o) => (
                 <tr
-                  key={o.orderNumber}
-                  onClick={() =>
+                  key={o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
+                  style={!o.orderNumber ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  onClick={() => {
+                    if (!o.orderNumber) {
+                      console.warn('[SalesPartnerOrderListPage] orderNumber 누락 row 무시', o)
+                      return
+                    }
                     navigate(`/sales/partner-orders/${encodeURIComponent(o.orderNumber)}`)
-                  }
+                  }}
                 >
                   <td>{o.orderNumber}</td>
                   <td>{o.partnerCode}</td>

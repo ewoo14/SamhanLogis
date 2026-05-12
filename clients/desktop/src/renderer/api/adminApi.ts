@@ -396,6 +396,30 @@ export async function listAdminWarehouses(
   return res.data.data
 }
 
+/** 창고 부분 수정 payload. null/undefined 필드는 변경하지 않음. */
+export interface UpdateAdminWarehousePayload {
+  name?: string
+  type?: AdminWarehouse['type']
+  address?: string | null
+  displayOrder?: number
+  description?: string | null
+}
+
+/**
+ * 창고 PATCH — `/inventory/warehouses/{id}` (MASTER/MANAGER/DEVELOPER).
+ * null 이 아닌 필드만 적용.
+ */
+export async function updateAdminWarehouse(
+  id: string,
+  payload: UpdateAdminWarehousePayload,
+): Promise<AdminWarehouse> {
+  const res = await apiClient.patch<ApiEnvelope<AdminWarehouse>>(
+    `/inventory/warehouses/${encodeURIComponent(id)}`,
+    payload,
+  )
+  return res.data.data
+}
+
 // ---------------------------------------------------------------------------
 // 권한 헬퍼
 // ---------------------------------------------------------------------------
