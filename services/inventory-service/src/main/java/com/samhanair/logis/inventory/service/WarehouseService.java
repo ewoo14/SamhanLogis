@@ -8,6 +8,7 @@ import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -64,21 +65,57 @@ public class WarehouseService {
         return WarehouseResponse.from(loadOrThrow(id));
     }
 
+    /** 자동 생성 code 의 charset — 헷갈리는 글자 0/1/O/I/L 제외. */
+    private static final String CODE_CHARSET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+    /** 자동 생성 code 의 random 부분 길이 (총 길이 = "WH-" prefix + 6자 = 9자). */
+    private static final int CODE_RANDOM_LEN = 6;
+
+    /** 충돌 시 재시도 한도. CHARSET^6 = 30^6 ≈ 7.3억 — 5회 안에서 거의 확정. */
+    private static final int CODE_RETRY_LIMIT = 5;
+
+    private static final SecureRandom CODE_RANDOM = new SecureRandom();
+
     /**
      * 새 창고를 생성한다. code 중복 검증 → 영속화. displayOrder 가 null 이면 0 으로 기본화.
      *
-     * @param req CreateWarehouseRequest (code/name/type/address/displayOrder/description)
+     * <p>1a — {@code req.code()} 가 null/빈 문자열이면 시스템이 자동 생성 ({@code WH-XXXXXX} 패턴).
+     * 명시적으로 채워서 들어오면 그 값 사용 + 충돌 시 CONFLICT 에러. 자동 생성 시에는 충돌 발견 시
+     * 최대 {@link #CODE_RETRY_LIMIT}회 재시도 후 INTERNAL_ERROR.
+     *
+     * @param req CreateWarehouseRequest (code optional / name/type/address/displayOrder/description)
      * @return 생성된 창고 응답
-     * @throws BusinessException(CONFLICT) 동일 code 의 활성 창고가 이미 존재할 때
+     * @throws BusinessException(CONFLICT) 사용자가 명시한 code 가 이미 존재할 때
+     * @throws BusinessException(INTERNAL_ERROR) 자동 생성 재시도 한도 초과 (사실상 발생 X)
      */
     public WarehouseResponse create(CreateWarehouseRequest req) {
-        if (warehouseRepository.existsByCodeAndIsDeletedFalse(req.code())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 창고 코드입니다: " + req.code());
+        String code = (req.code() == null || req.code().isBlank())
+                ? generateUniqueCode()
+                : req.code().trim();
+        if (req.code() != null && !req.code().isBlank()
+                && warehouseRepository.existsByCodeAndIsDeletedFalse(code)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 창고 코드입니다: " + code);
         }
         int order = req.displayOrder() == null ? 0 : req.displayOrder();
         Warehouse saved = warehouseRepository.save(Warehouse.create(
-                req.code(), req.name(), req.type(), req.address(), order, req.description()));
+                code, req.name(), req.type(), req.address(), order, req.description()));
         return WarehouseResponse.from(saved);
+    }
+
+    /** {@code WH-XXXXXX} 패턴의 무중복 code 자동 생성. 재시도 한도 초과 시 INTERNAL_ERROR. */
+    private String generateUniqueCode() {
+        for (int attempt = 0; attempt < CODE_RETRY_LIMIT; attempt++) {
+            StringBuilder sb = new StringBuilder("WH-");
+            for (int i = 0; i < CODE_RANDOM_LEN; i++) {
+                sb.append(CODE_CHARSET.charAt(CODE_RANDOM.nextInt(CODE_CHARSET.length())));
+            }
+            String candidate = sb.toString();
+            if (!warehouseRepository.existsByCodeAndIsDeletedFalse(candidate)) {
+                return candidate;
+            }
+        }
+        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                "창고 코드 자동 생성 재시도 한도 (" + CODE_RETRY_LIMIT + "회) 초과");
     }
 
     /**

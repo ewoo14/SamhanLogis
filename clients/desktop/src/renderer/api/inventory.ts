@@ -39,9 +39,14 @@ export interface Warehouse {
   active: boolean
 }
 
-/** 창고 신규 등록 요청 body — BE `CreateWarehouseRequest`. */
+/**
+ * 창고 신규 등록 요청 body — BE `CreateWarehouseRequest`.
+ *
+ * 1a (2026-05) — `code` 는 optional. 미지정 시 backend 가 `WH-XXXXXX` 자동 생성.
+ * 데스크탑 신규 등록 모달은 코드 입력 필드를 노출하지 않음 (자동 생성 안내만).
+ */
 export interface CreateWarehouseRequest {
-  code: string
+  code?: string
   name: string
   type: WarehouseType
   address?: string

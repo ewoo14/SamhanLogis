@@ -135,15 +135,14 @@ interface CreateWarehouseModalProps {
  * 권한 부족 (403) 또는 code 중복 (409) 시 빨간 배너로 메시지 노출.
  */
 function CreateWarehouseModal({ onClose, onCreated }: CreateWarehouseModalProps) {
-  const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [type, setType] = useState<WarehouseType>('HEADQUARTERS')
   const [address, setAddress] = useState('')
 
+  // 1a (2026-05): 창고 코드는 backend 가 자동 생성 (WH-XXXXXX). 사용자 입력 필드 제거.
   const mutation = useMutation({
     mutationFn: () =>
       createWarehouse({
-        code: code.trim(),
         name: name.trim(),
         type,
         address: address.trim() || undefined,
@@ -181,7 +180,7 @@ function CreateWarehouseModal({ onClose, onCreated }: CreateWarehouseModalProps)
             variant="primary"
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
-            disabled={!code.trim() || !name.trim()}
+            disabled={!name.trim()}
           >
             등록
           </Button>
@@ -192,19 +191,19 @@ function CreateWarehouseModal({ onClose, onCreated }: CreateWarehouseModalProps)
         onSubmit={handleSubmit}
         style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
       >
-        <FormField
-          label="코드"
-          required
-          render={({ id }) => (
-            <input
-              id={id}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              maxLength={50}
-              style={inputStyle}
-            />
-          )}
-        />
+        <div
+          style={{
+            padding: '8px 12px',
+            background: '#f3f4f6',
+            border: '1px solid #d1d5db',
+            borderRadius: 4,
+            fontSize: 12,
+            color: '#4b5563',
+          }}
+          data-testid="warehouse-code-autogen-notice"
+        >
+          창고 코드는 등록 시 시스템이 자동 부여합니다 (예: <code>WH-7K2P9X</code>).
+        </div>
         <FormField
           label="창고명"
           required
