@@ -5,9 +5,10 @@
  * 권한: MASTER / MANAGER / DEVELOPER (backend @PreAuthorize 가드).
  */
 import { useEffect, useState, type CSSProperties } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   listWarehouseAuditLogs,
+  revertAdminWarehouseRevision,
   updateAdminWarehouse,
   type AdminWarehouse,
   type UpdateAdminWarehousePayload,
@@ -61,6 +62,21 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
     })
     return () => ctrl.abort()
   }, [warehouse, showAudit, queryClient])
+
+  /** audit revert mutation — POST /inventory/warehouses/{id}/audit/revert/{revisionNo}. */
+  const revertMutation = useMutation({
+    mutationFn: (revisionNo: number) =>
+      revertAdminWarehouseRevision(warehouse!.id, revisionNo),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['warehouse-audit-logs', warehouse?.id],
+      })
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      // 폼 필드도 갱신되어야 하므로 onSaved 호출 (parent 가 list 재조회 trigger).
+      onSaved()
+    },
+  })
 
   useEffect(() => {
     if (warehouse) {
@@ -207,8 +223,24 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
               ) : (auditQuery.data ?? []).length === 0 ? (
                 <div style={{ color: '#6b7280' }}>아직 기록된 변경 이력이 없습니다.</div>
               ) : (
-                <AuditTimeline rows={auditQuery.data!} />
+                <AuditTimeline
+                  rows={auditQuery.data!}
+                  onRevert={(rev) => revertMutation.mutate(rev)}
+                  revertingRevision={
+                    revertMutation.isPending
+                      ? (revertMutation.variables ?? null)
+                      : null
+                  }
+                />
               )}
+              {revertMutation.isError ? (
+                <div
+                  style={{ color: '#dc2626', marginTop: 8 }}
+                  data-testid="edit-warehouse-audit-revert-error"
+                >
+                  되돌리기 실패: {extractAxiosMsg(revertMutation.error)}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -317,8 +349,14 @@ const FIELD_LABEL: Record<string, string> = {
 
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
 
-/** 변경 이력 timeline — revision 별 그룹 + 필드별 row. */
-function AuditTimeline({ rows }: { rows: WarehouseAuditLog[] }) {
+interface AuditTimelineProps {
+  rows: WarehouseAuditLog[]
+  onRevert: (revisionNo: number) => void
+  revertingRevision: number | null
+}
+
+/** 변경 이력 timeline — revision 별 그룹 + 필드별 row + 되돌리기 버튼. */
+function AuditTimeline({ rows, onRevert, revertingRevision }: AuditTimelineProps) {
   // backend 가 이미 revisionNo desc + changedAt desc 로 정렬해서 반환.
   // 같은 revisionNo 의 여러 row 를 그룹화해 같은 헤더 아래 표시.
   const grouped = new Map<number, WarehouseAuditLog[]>()
@@ -337,6 +375,9 @@ function AuditTimeline({ rows }: { rows: WarehouseAuditLog[] }) {
           head.actorId === SYSTEM_ACTOR_ID
             ? '시스템'
             : (head.actorName ?? head.actorId.slice(0, 8))
+        // isDeleted revert 는 미지원 — group 내 isDeleted 필드만 있는 경우 버튼 숨김
+        const revertable = group.some((r) => r.fieldName && r.fieldName !== 'isDeleted')
+        const isReverting = revertingRevision === rev
         return (
           <li
             key={rev}
@@ -347,11 +388,40 @@ function AuditTimeline({ rows }: { rows: WarehouseAuditLog[] }) {
               marginBottom: 6,
             }}
           >
-            <div style={{ color: '#374151', fontWeight: 600, marginBottom: 4 }}>
-              #{rev} · {actorDisplay}{' '}
-              <span style={{ color: '#9ca3af', fontWeight: 400 }}>
-                {fmtChangedAt(head.changedAt)}
-              </span>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 4,
+              }}
+            >
+              <div style={{ color: '#374151', fontWeight: 600 }}>
+                #{rev} · {actorDisplay}{' '}
+                <span style={{ color: '#9ca3af', fontWeight: 400 }}>
+                  {fmtChangedAt(head.changedAt)}
+                </span>
+              </div>
+              {revertable ? (
+                <button
+                  type="button"
+                  onClick={() => onRevert(rev)}
+                  disabled={isReverting}
+                  data-testid={`edit-warehouse-audit-revert-${rev}`}
+                  style={{
+                    padding: '2px 8px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 3,
+                    background: '#fff',
+                    color: '#4b5563',
+                    cursor: isReverting ? 'wait' : 'pointer',
+                    fontSize: 11,
+                  }}
+                  title="이 revision 의 변경을 되돌립니다 (신규 audit row 로 기록)"
+                >
+                  {isReverting ? '되돌리는 중…' : '되돌리기'}
+                </button>
+              ) : null}
             </div>
             {group.map((r) => (
               <div
@@ -372,6 +442,15 @@ function AuditTimeline({ rows }: { rows: WarehouseAuditLog[] }) {
       })}
     </ul>
   )
+}
+
+/** axios 에러 메시지 추출 — backend 의 message field 우선, 없으면 fallback. */
+function extractAxiosMsg(err: unknown): string {
+  const e = err as {
+    response?: { data?: { message?: string } }
+    message?: string
+  }
+  return e?.response?.data?.message ?? e?.message ?? '알 수 없는 오류'
 }
 
 function fmtChangedAt(iso: string): string {

@@ -493,6 +493,22 @@ export async function restoreAdminWarehouse(id: string): Promise<AdminWarehouse>
   return res.data.data
 }
 
+/**
+ * audit revision 으로 되돌림 (undo) — `POST /inventory/warehouses/{id}/audit/revert/{revisionNo}`.
+ *
+ * <p>해당 revision 의 oldValue 를 entity 에 다시 적용 + revert 자체도 신규 audit row.
+ * isDeleted revert 는 미지원 (`POST /restore` / `DELETE` 사용).
+ */
+export async function revertAdminWarehouseRevision(
+  id: string,
+  revisionNo: number,
+): Promise<AdminWarehouse> {
+  const res = await apiClient.post<ApiEnvelope<AdminWarehouse>>(
+    `/inventory/warehouses/${encodeURIComponent(id)}/audit/revert/${revisionNo}`,
+  )
+  return res.data.data
+}
+
 // ---------------------------------------------------------------------------
 // 권한 헬퍼
 // ---------------------------------------------------------------------------
