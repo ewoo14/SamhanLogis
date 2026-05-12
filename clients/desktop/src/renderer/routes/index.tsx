@@ -8,15 +8,17 @@
  * - `/login` → LoginPage (보호 X)
  * - `/`             대시보드
  * - `/warehouses`   창고
- * - `/sales`        판매조회 (출고전표 목록)
+ * - `/sales`        판매조회 (SalesQueryPage — 풍성한 컬럼 + 다중 선택 + 50/page) [2a 통합]
+ * - `/sales/slips`  legacy 출고전표 list (SlipListPage) — 2c 작성 plumbing 합류 시 진입점
  * - `/sales/new`    출고전표 작성
  * - `/sales/link-dispatch`  링크발송 (배송 묶음 + e-sign URL SMS) — link-dispatch-slice
  * - `/sales/:id`    출고전표 상세 + lifecycle
  * - `/sales/:id/print/invoice`   거래명세서 인쇄 미리보기
  * - `/sales/:id/print/dispatch`  출고전표 작업지시서 인쇄
- * - `/purchases`    구매조회 (입고전표 목록)
- * - `/purchases/new` 입고전표 작성
- * - `/purchases/:id` 입고전표 상세 + lifecycle
+ * - `/purchases`        구매조회 (PurchaseQueryPage — 풍성한 컬럼 + 다중 선택) [2a 통합]
+ * - `/purchases/slips`  legacy 입고전표 list (SlipListPage) — 2c 작성 plumbing 합류 시 진입점
+ * - `/purchases/new`    입고전표 작성
+ * - `/purchases/:id`    입고전표 상세 + lifecycle
  * - `/transfers`     재고이동 목록
  * - `/transfers/new` 재고이동 작성
  * - `/transfers/:id` 재고이동 상세 + lifecycle
@@ -240,8 +242,9 @@ import { PeriodCloseListPage } from './PeriodCloseListPage'
 // 일별/월별 toggle + 일별 세금계산서 detail + CSV 다운로드.
 // 매뉴얼 docs/manual/02-창고/04-매출-마감.md 와 Stage 1 일치.
 import { SalesClosingPage } from './SalesClosingPage'
-// [sales-purchase-query] 판매조회 / 구매조회 신규 페이지 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
-// 기존 SlipListPage 는 그대로 두고 별도 페이지로 운영.
+// [2a 영업·구매 메뉴 통합] 판매조회 / 구매조회 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
+// `/sales`, `/purchases` 의 정식 페이지 (기존 SlipListPage 대체). legacy SlipListPage 는
+// `/sales/slips`, `/purchases/slips` 로 옮겨 2c 작성 plumbing 합류 전까지 보존.
 import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
@@ -307,8 +310,10 @@ const router = createHashRouter([
       { path: '/', element: <DashboardPage /> },
       { path: '/warehouses', element: <WarehousesPage /> },
 
-      // 판매조회 (출고전표)
-      { path: '/sales', element: <SlipListPage mode="OUTBOUND" /> },
+      // [2a 영업·구매 메뉴 통합] 판매조회 — 풍성한 컬럼 + 다중 선택 (SalesQueryPage).
+      // 기존 SlipListPage 는 `/sales/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용 예정.
+      { path: '/sales', element: <SalesQueryPage /> },
+      { path: '/sales/slips', element: <SlipListPage mode="OUTBOUND" /> },
       { path: '/sales/new', element: <SlipFormPage mode="OUTBOUND" /> },
       // link-dispatch-slice: 링크발송 (배송 묶음) — `/sales/:id` 보다 먼저 매칭되어야 함
       { path: '/sales/link-dispatch', element: <LinkDispatchListPage /> },
@@ -379,8 +384,11 @@ const router = createHashRouter([
       // P0-4 신규 — 출고전표 (88mm/A4 분기). 세금계산서는 별도 accounting-service id 라우트로 이전.
       { path: '/sales/:id/print/outbound', element: <OutboundView /> },
 
-      // 구매조회 (입고전표)
-      { path: '/purchases', element: <SlipListPage mode="INBOUND" /> },
+      // [2a 영업·구매 메뉴 통합] 구매조회 — 풍성한 컬럼 + 다중 선택 (PurchaseQueryPage).
+      // 기존 SlipListPage 는 `/purchases/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용.
+      // `/purchases/slips` 는 정적 path 이므로 `/purchases/:id` 보다 먼저 등록.
+      { path: '/purchases', element: <PurchaseQueryPage /> },
+      { path: '/purchases/slips', element: <SlipListPage mode="INBOUND" /> },
       { path: '/purchases/new', element: <SlipFormPage mode="INBOUND" /> },
       { path: '/purchases/:id', element: <SlipDetailPage mode="INBOUND" /> },
       // P0-4 신규 — 입고전표 (A4/88mm 분기)
@@ -769,12 +777,9 @@ const router = createHashRouter([
         ),
       },
 
-      // [sales-purchase-query] 판매조회 신규 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
-      // 기존 `/sales` (SlipListPage) 와 별개 경로. 정적 path — `/sales/:id` 보다 먼저 매칭됨.
+      // [2a 메뉴 통합] `/sales/query` / `/purchases/query` 는 기존 deep-link / bookmark
+      // 호환을 위한 alias — 사이드바에서는 제거되었고 `/sales`, `/purchases` 가 정식.
       { path: '/sales/query', element: <SalesQueryPage /> },
-
-      // [sales-purchase-query] 구매조회 신규 — 풍성한 컬럼 + 다중 선택 + 검색 모달 + 50/page.
-      // 기존 `/purchases` (SlipListPage) 와 별개 경로. 정적 path — `/purchases/:id` 보다 먼저 매칭됨.
       { path: '/purchases/query', element: <PurchaseQueryPage /> },
 
       // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.

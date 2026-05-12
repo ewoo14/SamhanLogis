@@ -4,8 +4,8 @@
  * 사이드바 메뉴 (slip-output-format 슬라이스 IA 재편 — Q1=A 새 슬라이스):
  * - 대시보드 (`/`)
  * - 창고 (`/warehouses`)
- * - 판매조회 (`/sales`)     — 출고전표, 영업원 메인
- * - 구매조회 (`/purchases`) — 입고전표, 회계원 메인
+ * - 판매조회 (`/sales`)     — [2a 통합] SalesQueryPage 직행. 영업원 메인. legacy SlipListPage 는 `/sales/slips`.
+ * - 구매조회 (`/purchases`) — [2a 통합] PurchaseQueryPage 직행. 회계원 메인. legacy SlipListPage 는 `/purchases/slips`.
  * - 재고이동 (`/transfers`) — 창고 간 이동, 창고원/재고원
  * - 링크발송 (`/sales/link-dispatch`) — 배송 묶음 + e-sign URL SMS 발송 (link-dispatch-slice)
  *
@@ -274,8 +274,11 @@ export function AppLayout() {
             대시보드
           </NavLink>
           <NavLink to="/warehouses">창고</NavLink>
-          <NavLink to="/sales">판매조회</NavLink>
-          <NavLink to="/purchases">구매조회</NavLink>
+          {/* [2a 메뉴 통합] /sales, /purchases 는 SalesQueryPage / PurchaseQueryPage
+              (풍성한 컬럼 + 다중 선택 + 50/page). legacy SlipListPage 는 /sales/slips,
+              /purchases/slips 로 이전 — 사이드바 미노출 (2c 작성 plumbing 합류 시 재진입). */}
+          <NavLink to="/sales" data-testid="sidebar-sales">판매조회</NavLink>
+          <NavLink to="/purchases" data-testid="sidebar-purchases">구매조회</NavLink>
           <NavLink to="/transfers">재고이동</NavLink>
           <NavLink to="/sales/link-dispatch">링크발송</NavLink>
 
@@ -295,20 +298,9 @@ export function AppLayout() {
           >
             판매
           </div>
-          {/* [sales-purchase-query] 판매조회 신규 — 풍성한 컬럼 + 다중 선택 + 50/page */}
-          <NavLink
-            to="/sales/query"
-            data-testid="sidebar-sales-query"
-          >
-            판매 조회 (상세)
-          </NavLink>
-          {/* [sales-purchase-query] 구매조회 신규 — 창고 그룹 상단에 노출 */}
-          <NavLink
-            to="/purchases/query"
-            data-testid="sidebar-purchase-query"
-          >
-            구매 조회 (상세)
-          </NavLink>
+          {/* [2a 메뉴 통합] '판매 조회 (상세)' / '구매 조회 (상세)' 중복 진입점 제거 —
+              이제 사이드바 최상단 '판매조회' / '구매조회' 가 SalesQueryPage / PurchaseQueryPage
+              로 직행한다. /sales/query, /purchases/query 라우트는 기존 bookmark 호환 유지. */}
           <NavLink to="/sales/estimates">견적서</NavLink>
           <NavLink to="/sales/partner-orders">주문서 조회</NavLink>
           <NavLink to="/sales/order-approvals">주문서 승인</NavLink>

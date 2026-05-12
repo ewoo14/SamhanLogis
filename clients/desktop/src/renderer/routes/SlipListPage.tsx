@@ -1,8 +1,16 @@
 /**
  * 전표 목록 화면 (출고/입고 공용) — slip-output-format 슬라이스 v2.
  *
+ * <h2>[2a 영업·구매 메뉴 통합] 라우팅 변경</h2>
+ * <ul>
+ *   <li>기존 `/sales`, `/purchases` 진입점 → SalesQueryPage / PurchaseQueryPage 로 이전.</li>
+ *   <li>본 화면은 `/sales/slips` (OUTBOUND), `/purchases/slips` (INBOUND) 로 유지 — 2c
+ *       전표 작성 plumbing 합류 시 재진입점으로 활용.</li>
+ *   <li>사이드바에서는 미노출 (직접 URL 진입). 모드 prop 은 그대로 OUTBOUND/INBOUND.</li>
+ * </ul>
+ *
  * 변경사항 (PR #18 → 본 슬라이스):
- * - 단일 `/slips` 라우트 폐기, mode prop 으로 OUTBOUND (`/sales`) / INBOUND (`/purchases`) 분리
+ * - 단일 `/slips` 라우트 폐기, mode prop 으로 OUTBOUND / INBOUND 분리
  * - DataTable 컬럼에서 ID 컬럼 미포함 (UUID 비공개 가드)
  * - 행 클릭 시 alert 가 아닌 상세 페이지로 navigate (`/sales/:id` 또는 `/purchases/:id`)
  *

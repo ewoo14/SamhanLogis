@@ -6,9 +6,9 @@
  * - `/sales/long-pending` → `/sales/order-approvals` (장기미발주 → '주문서 승인')
  * - `/sales/partner-dc-config` 신규 (거래처 DC율 설정)
  *
- * <p>기존 `/sales` (출고전표 SlipListPage) 와 충돌 회피를 위해 본 sub-nav 는 `/sales/...`
- * 하위 sales 화면 상단에만 표시한다. AppLayout 의 좌측 사이드바 에서는 [판매] 그룹
- * label + 4 NavLink 로 직접 노출한다.
+ * <p>[2a 메뉴 통합] `/sales` 는 SalesQueryPage 직행이 되었고 legacy SlipListPage 는
+ * `/sales/slips` 로 옮겨졌으므로 본 sub-nav 는 그대로 `/sales/...` 하위 화면 상단에서만
+ * 노출한다. AppLayout 의 좌측 사이드바 에서는 [판매] 그룹 label + 4 NavLink 로 직접 노출한다.
  */
 import { NavLink } from 'react-router-dom'
 import styles from './sales.module.css'
