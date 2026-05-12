@@ -3,26 +3,41 @@ package com.samhanair.logis.inventory.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.Warehouse;
+import com.samhanair.logis.inventory.domain.WarehouseType;
+import com.samhanair.logis.inventory.realtime.domain.InventoryAuditLog;
+import com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
+import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 창고 마스터 CRUD + soft-delete. */
+/**
+ * 창고 마스터 CRUD + soft-delete + audit overlay 기록 (PR-H4b 인프라 활용).
+ *
+ * <p>update / delete 시점에 {@link InventoryAuditLogRecorder} 호출 → 필드별 변경 1행 INSERT
+ * + SSE broadcast. 감사 실패는 graceful fallback (도메인 로직 진행 우선).
+ */
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class WarehouseService {
 
     private final WarehouseRepository warehouseRepository;
+    /** 4b 후속 — 창고 변경 이력 audit overlay 기록 / 조회. */
+    private final InventoryAuditLogRecorder auditLogRecorder;
 
     /**
      * 활성 창고 전체를 displayOrder ASC 로 반환한다 (soft-deleted 제외).
@@ -121,33 +136,57 @@ public class WarehouseService {
     /**
      * 부분 수정 — null 이 아닌 필드만 적용 (PATCH 시맨틱). code 변경은 미지원.
      *
+     * <p>변경 필드별로 ChangeEntry 를 모아 단일 audit revision 으로 기록 (Slip/DcConfig
+     * audit 패턴과 동일). audit 실패는 도메인 로직 진행을 막지 않는다 (graceful fallback).
+     *
      * @param id 창고 UUID
      * @param req UpdateWarehouseRequest (name/type/address/displayOrder/description, 모두 null 가능)
+     * @param callerId 수정자 user-id ('X-User-Id' 헤더 — null/blank 시 system sentinel)
      * @return 갱신된 창고 응답
      * @throws BusinessException(NOT_FOUND) 창고 미발견
      */
-    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req) {
+    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req, String callerId) {
         Warehouse w = loadOrThrow(id);
-        if (req.name() != null) {
+        List<ChangeEntry> changes = new ArrayList<>();
+        if (req.name() != null && !Objects.equals(req.name(), w.getName())) {
+            changes.add(new ChangeEntry("name", w.getName(), req.name()));
             w.rename(req.name());
         }
         if (req.type() != null) {
-            w.changeType(req.type());
+            WarehouseType prev = w.getType();
+            if (!Objects.equals(prev, req.type())) {
+                changes.add(new ChangeEntry("type", prev == null ? null : prev.name(), req.type().name()));
+                w.changeType(req.type());
+            }
         }
-        if (req.address() != null) {
+        if (req.address() != null && !Objects.equals(req.address(), w.getAddress())) {
+            changes.add(new ChangeEntry("address", w.getAddress(), req.address()));
             w.changeAddress(req.address());
         }
-        if (req.displayOrder() != null) {
+        if (req.displayOrder() != null && !Objects.equals(req.displayOrder(), w.getDisplayOrder())) {
+            changes.add(new ChangeEntry("displayOrder",
+                    String.valueOf(w.getDisplayOrder()), String.valueOf(req.displayOrder())));
             w.changeDisplayOrder(req.displayOrder());
         }
-        if (req.description() != null) {
+        if (req.description() != null && !Objects.equals(req.description(), w.getDescription())) {
+            changes.add(new ChangeEntry("description", w.getDescription(), req.description()));
             w.editDescription(req.description());
         }
+        recordAuditSafe(id, callerId, changes);
         return WarehouseResponse.from(w);
     }
 
     /**
+     * 후방 호환 — callerId 미공급 시 system sentinel 사용. 신규 호출자는
+     * {@link #update(UUID, UpdateWarehouseRequest, String)} 사용.
+     */
+    public WarehouseResponse update(UUID id, UpdateWarehouseRequest req) {
+        return update(id, req, null);
+    }
+
+    /**
      * Soft delete — 실제 row 는 보존하고 is_deleted=true 로 마킹 (BaseEntity.markDeleted 위임).
+     * 삭제 자체도 audit overlay 1행 기록 (fieldName="isDeleted", "false" → "true").
      *
      * @param id 창고 UUID
      * @param callerId 삭제자 user-id (null 이면 "system")
@@ -156,6 +195,44 @@ public class WarehouseService {
     public void delete(UUID id, String callerId) {
         Warehouse w = loadOrThrow(id);
         w.markDeleted(callerId == null ? "system" : callerId);
+        recordAuditSafe(id, callerId,
+                List.of(new ChangeEntry("isDeleted", "false", "true")));
+    }
+
+    /**
+     * 4b 후속 — 창고 변경 이력 timeline 조회. 최신 revision 우선.
+     */
+    @Transactional(readOnly = true)
+    public List<InventoryAuditLog> listAuditLogs(UUID id) {
+        loadOrThrow(id); // 404 검증 — 미존재 창고의 audit 조회 차단
+        return auditLogRecorder.listByEntity(id);
+    }
+
+    /** ChangeEntry 가 비어있으면 no-op. audit 실패는 graceful fallback (도메인 진행). */
+    private void recordAuditSafe(UUID warehouseId, String callerId, List<ChangeEntry> changes) {
+        if (changes == null || changes.isEmpty()) {
+            return;
+        }
+        UUID actorId = parseCallerUuid(callerId);
+        String actorName = (callerId == null || callerId.isBlank()) ? "system" : callerId;
+        try {
+            auditLogRecorder.recordBatch(warehouseId, actorId, actorName, null, changes);
+        } catch (RuntimeException ex) {
+            log.warn("[warehouse-audit] audit 기록 실패 — warehouseId={} cause={}",
+                    warehouseId, ex.getMessage());
+        }
+    }
+
+    /** X-User-Id 헤더가 UUID 형식이면 그대로, 아니면 system sentinel (0/0). */
+    private static UUID parseCallerUuid(String callerId) {
+        if (callerId == null || callerId.isBlank()) {
+            return new UUID(0L, 0L);
+        }
+        try {
+            return UUID.fromString(callerId.trim());
+        } catch (IllegalArgumentException ignored) {
+            return new UUID(0L, 0L);
+        }
     }
 
     Warehouse loadOrThrow(UUID id) {

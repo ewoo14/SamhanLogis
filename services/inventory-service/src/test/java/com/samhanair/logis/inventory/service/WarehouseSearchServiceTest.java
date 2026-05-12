@@ -26,7 +26,9 @@ import org.springframework.data.domain.Pageable;
 class WarehouseSearchServiceTest {
 
     private final WarehouseRepository repo = mock(WarehouseRepository.class);
-    private final WarehouseService service = new WarehouseService(repo);
+    private final com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder auditLogRecorder =
+            mock(com.samhanair.logis.inventory.realtime.service.InventoryAuditLogRecorder.class);
+    private final WarehouseService service = new WarehouseService(repo, auditLogRecorder);
 
     @Test
     @DisplayName("searchAdmin — q blank → repo 에 null 전달 (필터 미적용)")

@@ -1,6 +1,7 @@
 package com.samhanair.logis.inventory.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.inventory.realtime.web.dto.InventoryAuditLogResponse;
 import com.samhanair.logis.inventory.service.WarehouseService;
 import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
@@ -112,12 +113,28 @@ public class WarehouseController {
      * @param request UpdateWarehouseRequest (모든 필드 null 가능)
      * @return 갱신된 WarehouseResponse (200) / NOT_FOUND (404)
      */
-    @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용")
+    @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용 + audit overlay 기록")
     @PatchMapping("/{id}")
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
-                                                 @Valid @RequestBody UpdateWarehouseRequest request) {
-        return ApiResponse.ok(warehouseService.update(id, request));
+                                                 @Valid @RequestBody UpdateWarehouseRequest request,
+                                                 @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(warehouseService.update(id, request, callerHeader));
+    }
+
+    /**
+     * 4b 후속 — 창고 변경 이력 timeline 조회. 최신 revision 우선. 인증된 모든 역할.
+     *
+     * @param id 창고 UUID
+     * @return InventoryAuditLogResponse 리스트 (revisionNo desc + changedAt desc)
+     */
+    @Operation(summary = "창고 변경 이력 조회",
+            description = "InventoryAuditLogRecorder 가 PATCH / DELETE 시점에 기록한 audit overlay 를 timeline 형식으로 반환")
+    @GetMapping("/{id}/audit-logs")
+    public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
+        return ApiResponse.ok(warehouseService.listAuditLogs(id).stream()
+                .map(InventoryAuditLogResponse::from)
+                .toList());
     }
 
     /**
