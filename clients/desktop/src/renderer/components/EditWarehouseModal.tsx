@@ -5,7 +5,7 @@
  * 권한: MASTER / MANAGER / DEVELOPER (backend @PreAuthorize 가드).
  */
 import { useEffect, useState, type CSSProperties } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   listWarehouseAuditLogs,
   updateAdminWarehouse,
@@ -13,6 +13,7 @@ import {
   type UpdateAdminWarehousePayload,
   type WarehouseAuditLog,
 } from '../api/adminApi'
+import { WarehouseRealtimeClient } from '../realtime/WarehouseRealtimeClient'
 
 interface Props {
   warehouse: AdminWarehouse | null
@@ -36,6 +37,7 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAudit, setShowAudit] = useState(false)
+  const queryClient = useQueryClient()
 
   // 4b 후속 — 변경 이력 timeline. 패널을 펼친 시점에만 조회 (lazy fetch).
   const auditQuery = useQuery({
@@ -43,6 +45,22 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
     queryFn: () => listWarehouseAuditLogs(warehouse!.id),
     enabled: !!warehouse && showAudit,
   })
+
+  // 4b 후속 — audit timeline 실시간 SSE 구독. 다른 admin 이 PATCH / soft-delete 한 결과를
+  // 30초 polling 없이 즉시 반영. 패널이 닫혀있거나 warehouse 가 없으면 구독 안 함.
+  useEffect(() => {
+    if (!warehouse || !showAudit) return
+    const ctrl = WarehouseRealtimeClient.subscribe(warehouse.id, (ev) => {
+      if (ev.event === 'inventory:edit') {
+        void queryClient.invalidateQueries({
+          queryKey: ['warehouse-audit-logs', warehouse.id],
+        })
+        // 다른 사용자의 PATCH 가 본 화면의 명시적 폼에 영향 — 목록 query 도 동기화
+        void queryClient.invalidateQueries({ queryKey: ['admin', 'warehouses'] })
+      }
+    })
+    return () => ctrl.abort()
+  }, [warehouse, showAudit, queryClient])
 
   useEffect(() => {
     if (warehouse) {
