@@ -48,6 +48,15 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("app.security.internal.token", () -> "test-internal-token");
+        // ----------------------------------------------------------------
+        // HikariCP 풀 크기 축소 — PR #188 CI fail 회고 (2026-05-14):
+        //   다수의 IT 가 서로 다른 @MockBean / @WithMockUser / @TestPropertySource
+        //   조합을 사용하면 Spring Context 캐시가 N 개 컨텍스트 × HikariPool 기본 10 conn
+        //   = postgres max_connections(100) 초과 → "FATAL: sorry, too many clients already".
+        //   IT 는 sequential 실행이므로 conn pool 작아도 무방.
+        // ----------------------------------------------------------------
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */

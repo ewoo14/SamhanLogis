@@ -20,7 +20,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -28,7 +27,6 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
-@TestPropertySource(properties = {"spring.flyway.enabled=true"})
 @WithMockUser(username = "ewoo", authorities = {"ROLE_MASTER"})
 class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
 

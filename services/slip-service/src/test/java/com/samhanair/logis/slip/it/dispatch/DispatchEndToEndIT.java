@@ -33,7 +33,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * Mock 매칭 e2e — BE Task B14.
@@ -43,7 +42,6 @@ import org.springframework.test.context.TestPropertySource;
  * 별도 IT 로 검증).
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
-@TestPropertySource(properties = {"spring.flyway.enabled=true"})
 @WithMockUser(username = "ewoo", authorities = {"ROLE_MASTER"})
 class DispatchEndToEndIT extends AbstractPostgresIT {
 
