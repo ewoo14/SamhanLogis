@@ -26,7 +26,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   InternalTokenFilter internalTokenFilter,
+                                                   ArologisJwtFilter arologisJwtFilter)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -38,7 +40,9 @@ public class SecurityConfig {
                         .requestMatchers("/auth/admin/login", "/auth/driver/login", "/auth/refresh").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class);
+                // 2026-05-14 — Bearer JWT 자체 검증 (gateway 우회 직접 호출 대응). InternalToken 다음.
+                .addFilterAfter(arologisJwtFilter, InternalTokenFilter.class)
+                .addFilterAfter(new HeaderAuthenticationFilter(), ArologisJwtFilter.class);
         return http.build();
     }
 
