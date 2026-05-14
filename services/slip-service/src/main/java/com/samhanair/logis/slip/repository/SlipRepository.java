@@ -125,4 +125,26 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
      */
     List<Slip> findAllBySlipDateBetweenAndIsDeletedFalse(
             java.time.LocalDate startDate, java.time.LocalDate endDate);
+
+    // ---- Samhan Public 배차 메뉴 Phase A (BE Task B7) — 미배차 출고전표 페이지네이션 ----
+
+    /**
+     * 배차 메뉴 미배차 출고전표 페이지네이션 — 50/회 default.
+     *
+     * <p>필터:
+     * <ul>
+     *   <li>slipType = SHIPPING (출고 전표만)</li>
+     *   <li>slipDate ∈ [from, to] (default = Asia/Seoul today ± 1일)</li>
+     *   <li>dispatchStatus ∈ statuses (default = UNDISPATCHED)</li>
+     *   <li>is_deleted = false</li>
+     * </ul>
+     *
+     * <p>정렬은 호출자 {@link Pageable} 에서 지정 (slipDate desc + seqNo desc 권장).
+     */
+    Page<Slip> findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
+            SlipType slipType,
+            java.time.LocalDate from,
+            java.time.LocalDate to,
+            java.util.Collection<com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus> statuses,
+            Pageable pageable);
 }
