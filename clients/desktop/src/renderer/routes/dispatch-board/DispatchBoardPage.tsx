@@ -200,6 +200,7 @@ export default function DispatchBoardPage() {
             failureReason={task?.failureReason ?? null}
             matchedDrivers={task?.matchedDrivers ?? []}
             groups={groups}
+            task={task ?? null}
             onOpenSlipDetail={(id) => setDetailSlipId(id)}
           />
         </DndContext>

@@ -63,13 +63,53 @@ export const SLIP_DISPATCH_STATUS_LABEL: Record<SlipDispatchStatus, string> = {
   DISPATCHED: '배차 완료',
 };
 
-export type DispatchTaskStatus = 'DRAFT' | 'DISPATCHING' | 'DISPATCHED' | 'FAILED';
+/**
+ * DispatchTask 11 상태 — Phase A 4 + Phase C 7 (6 신규 + CANCELLED).
+ *
+ * <p>spec docs/superpowers/specs/2026-05-14-samhan-dispatch-modification-design.md § 4.1.
+ * desktop dispatchTask.ts 와 1:1.
+ */
+export type DispatchTaskStatus =
+  | 'DRAFT'
+  | 'DISPATCHING'
+  | 'DISPATCHED'
+  | 'FAILED'
+  | 'MODIFICATION_REQUESTED'
+  | 'MODIFICATION_ACCEPTED'
+  | 'MODIFICATION_REJECTED'
+  | 'CANCEL_REQUESTED'
+  | 'CANCEL_ACCEPTED'
+  | 'CANCEL_REJECTED'
+  | 'CANCELLED';
+
 export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
   DRAFT: '작성 중',
   DISPATCHING: '발송 완료, 매칭 대기',
   DISPATCHED: '배차 완료',
   FAILED: '배차 불가',
+  MODIFICATION_REQUESTED: '수정 요청 중',
+  MODIFICATION_ACCEPTED: '수정 가능 (편집 모드)',
+  MODIFICATION_REJECTED: '수정 거부됨',
+  CANCEL_REQUESTED: '취소 요청 중',
+  CANCEL_ACCEPTED: '취소 수락됨',
+  CANCEL_REJECTED: '취소 거부됨',
+  CANCELLED: '배차 취소 완료',
 };
+
+/**
+ * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED (D-DC-08).
+ * Phase A = DRAFT 만 편집. Phase C = MODIFICATION_ACCEPTED 추가.
+ */
+export function isEditableStatus(status: DispatchTaskStatus): boolean {
+  return status === 'DRAFT' || status === 'MODIFICATION_ACCEPTED';
+}
+
+/**
+ * DISPATCHED 상태에서만 [수정 요청] / [취소 요청] 버튼 활성 (D-DC-02).
+ */
+export function canRequestModificationOrCancel(status: DispatchTaskStatus): boolean {
+  return status === 'DISPATCHED';
+}
 
 // ---------------------------------------------------------------------------
 // 응답 타입 — BE record 1:1.
@@ -116,6 +156,12 @@ export interface DispatchTaskResponse {
   vehicleGroups: DispatchVehicleGroupResponse[];
   matchedDrivers: MatchedDriverResponse[];
   failureReason: string | null;
+  /** Phase C — 수정/취소 요청 시점 사용자 입력 사유. */
+  modificationReason?: string | null;
+  /** Phase C — 아로로지스 거부 시점 사유. */
+  rejectionReason?: string | null;
+  modificationRequestedAt?: string | null;
+  modificationDecidedAt?: string | null;
 }
 
 export interface PageResponse<T> {
@@ -266,6 +312,54 @@ export async function dispatchToArologis(
     method: 'POST',
   });
   assertApiResponseSuccess(json, 'dispatch-to-arologis');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (json as any).data as DispatchTaskResponse;
+}
+
+// ---------------------------------------------------------------------------
+// Phase C — 수정/취소 요청 (DISPATCHED 상태에서 활성).
+// ---------------------------------------------------------------------------
+
+/**
+ * 수정 요청 발송 — `POST /admin/dispatch-tasks/{taskId}/modification-request`.
+ * 호출 후 task.status = MODIFICATION_REQUESTED.
+ */
+export async function requestModification(
+  token: string | null,
+  taskId: string,
+  reason: string,
+): Promise<DispatchTaskResponse> {
+  const json = await authedFetch(
+    token,
+    `/admin/dispatch-tasks/${taskId}/modification-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  );
+  assertApiResponseSuccess(json, 'request-modification');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (json as any).data as DispatchTaskResponse;
+}
+
+/**
+ * 취소 요청 발송 — `POST /admin/dispatch-tasks/{taskId}/cancellation-request`.
+ * 호출 후 task.status = CANCEL_REQUESTED.
+ */
+export async function requestCancellation(
+  token: string | null,
+  taskId: string,
+  reason: string,
+): Promise<DispatchTaskResponse> {
+  const json = await authedFetch(
+    token,
+    `/admin/dispatch-tasks/${taskId}/cancellation-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  );
+  assertApiResponseSuccess(json, 'request-cancellation');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (json as any).data as DispatchTaskResponse;
 }

@@ -72,9 +72,28 @@ export const DISPATCH_VEHICLE_TYPE_OPTIONS: DispatchVehicleType[] = [
 ]
 
 /**
- * DispatchTask 4 상태 — spec § 4.1.
+ * DispatchTask 11 상태 — Phase A 4 + Phase C 7 (6 신규 + CANCELLED 최종).
+ *
+ * <p>spec docs/superpowers/specs/2026-05-14-samhan-dispatch-modification-design.md § 4.1.
+ *
+ * Phase C 신규 상태 흐름 (D-DC-03):
+ *  - DISPATCHED → MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED (편집 모드) → DISPATCHING → DISPATCHED
+ *  - DISPATCHED → MODIFICATION_REQUESTED → MODIFICATION_REJECTED (DISPATCHED 유지, rejectionReason 표시)
+ *  - DISPATCHED → CANCEL_REQUESTED → CANCEL_ACCEPTED → CANCELLED
+ *  - DISPATCHED → CANCEL_REQUESTED → CANCEL_REJECTED (DISPATCHED 유지)
  */
-export type DispatchTaskStatus = 'DRAFT' | 'DISPATCHING' | 'DISPATCHED' | 'FAILED'
+export type DispatchTaskStatus =
+  | 'DRAFT'
+  | 'DISPATCHING'
+  | 'DISPATCHED'
+  | 'FAILED'
+  | 'MODIFICATION_REQUESTED'
+  | 'MODIFICATION_ACCEPTED'
+  | 'MODIFICATION_REJECTED'
+  | 'CANCEL_REQUESTED'
+  | 'CANCEL_ACCEPTED'
+  | 'CANCEL_REJECTED'
+  | 'CANCELLED'
 
 /**
  * DispatchTask 상태 한국어 배지 라벨.
@@ -84,6 +103,30 @@ export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
   DISPATCHING: '발송 완료, 매칭 대기',
   DISPATCHED: '배차 완료',
   FAILED: '배차 불가',
+  MODIFICATION_REQUESTED: '수정 요청 중',
+  MODIFICATION_ACCEPTED: '수정 가능 (편집 모드)',
+  MODIFICATION_REJECTED: '수정 거부됨',
+  CANCEL_REQUESTED: '취소 요청 중',
+  CANCEL_ACCEPTED: '취소 수락됨',
+  CANCEL_REJECTED: '취소 거부됨',
+  CANCELLED: '배차 취소 완료',
+}
+
+/**
+ * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED.
+ *
+ * <p>Phase A = DRAFT 만 편집. Phase C = MODIFICATION_ACCEPTED 추가 (D-DC-08).
+ * drag-and-drop 활성 + [배차 완료] 버튼 노출 여부 판정에 사용.
+ */
+export function isEditableStatus(status: DispatchTaskStatus): boolean {
+  return status === 'DRAFT' || status === 'MODIFICATION_ACCEPTED'
+}
+
+/**
+ * DISPATCHED 상태에서만 [수정 요청] / [취소 요청] 버튼 활성 (D-DC-02).
+ */
+export function canRequestModificationOrCancel(status: DispatchTaskStatus): boolean {
+  return status === 'DISPATCHED'
 }
 
 /**
@@ -133,10 +176,14 @@ export interface DispatchVehicleGroupResponse {
  * @property id task UUID — API path 에만 사용.
  * @property taskCode 사용자 노출 식별자 (예: "DT-20260514-001").
  * @property dispatchDate 배차 일자 (yyyy-MM-dd).
- * @property status 4 상태 (DRAFT/DISPATCHING/DISPATCHED/FAILED).
+ * @property status 11 상태 (Phase A 4 + Phase C 7).
  * @property vehicleGroups 차량 그룹 리스트 (sequence 순서 보장).
  * @property matchedDrivers DISPATCHED 시점 채워지는 기사 매칭 결과.
  * @property failureReason FAILED 시점 사유 (UI 빨강 배지 노출).
+ * @property modificationReason MODIFICATION_REQUESTED / CANCEL_REQUESTED 시점 사유 (Phase C).
+ * @property rejectionReason MODIFICATION_REJECTED / CANCEL_REJECTED 시점 사유 (Phase C).
+ * @property modificationRequestedAt 수정/취소 요청 시각 (ISO instant).
+ * @property modificationDecidedAt 아로로지스 수락/거부 시각 (ISO instant).
  */
 export interface DispatchTaskResponse {
   id: string
@@ -146,6 +193,10 @@ export interface DispatchTaskResponse {
   vehicleGroups: DispatchVehicleGroupResponse[]
   matchedDrivers: MatchedDriverResponse[]
   failureReason: string | null
+  modificationReason?: string | null
+  rejectionReason?: string | null
+  modificationRequestedAt?: string | null
+  modificationDecidedAt?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +333,47 @@ export async function dispatchToArologis(
 ): Promise<DispatchTaskResponse> {
   const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
     `/admin/dispatch-tasks/${taskId}/dispatch`,
+  )
+  return res.data.data
+}
+
+// ---------------------------------------------------------------------------
+// Phase C — 수정/취소 요청 (DISPATCHED 상태에서 활성)
+// ---------------------------------------------------------------------------
+
+/**
+ * 수정 요청 발송 — `POST /admin/dispatch-tasks/{taskId}/modification-request`.
+ *
+ * <p>spec § 5.1 / plan BE B6.1. DISPATCHED 상태에서만 호출 가능 (BE 가드).
+ * 호출 후 task.status = MODIFICATION_REQUESTED 로 갱신. arologis 가 비동기 회신 시 ACCEPTED 또는 REJECTED.
+ *
+ * @param taskId DispatchTask UUID (API path 만 사용, UI 노출 X).
+ * @param reason 사유 텍스트 (500자 이하). BE @NotBlank 가드.
+ */
+export async function requestModification(
+  taskId: string,
+  reason: string,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+    `/admin/dispatch-tasks/${taskId}/modification-request`,
+    { reason },
+  )
+  return res.data.data
+}
+
+/**
+ * 취소 요청 발송 — `POST /admin/dispatch-tasks/{taskId}/cancellation-request`.
+ *
+ * <p>spec § 5.1 / plan BE B6.1. DISPATCHED 상태에서만 호출 가능.
+ * 호출 후 task.status = CANCEL_REQUESTED 로 갱신. arologis 회신 시 CANCEL_ACCEPTED → CANCELLED 또는 CANCEL_REJECTED.
+ */
+export async function requestCancellation(
+  taskId: string,
+  reason: string,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+    `/admin/dispatch-tasks/${taskId}/cancellation-request`,
+    { reason },
   )
   return res.data.data
 }

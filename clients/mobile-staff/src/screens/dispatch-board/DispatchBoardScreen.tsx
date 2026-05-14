@@ -46,6 +46,7 @@ import { colors, radii, spacing, typography } from '../../theme/tokens';
 import {
   addVehicleGroup,
   assignSlipToGroup,
+  canRequestModificationOrCancel,
   createDispatchTask,
   deleteVehicleGroup,
   DISPATCH_TASK_STATUS_LABEL,
@@ -53,12 +54,16 @@ import {
   DISPATCH_VEHICLE_TYPE_OPTIONS,
   dispatchToArologis,
   getDispatchTask,
+  isEditableStatus,
   listUnDispatchedSlips,
   offsetIsoSeoul,
   removeSlipFromGroup,
+  requestCancellation,
+  requestModification,
   SLIP_DISPATCH_STATUS_LABEL,
   todayIsoSeoul,
   type DispatchTaskResponse,
+  type DispatchTaskStatus,
   type DispatchVehicleType,
   type SlipBoardResponse,
   type SlipDispatchStatus,
@@ -102,6 +107,15 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
   // ---- 배차 완료 확인 dialog -----------------------------------------------
   const [completeOpen, setCompleteOpen] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+
+  // ---- Phase C — DispatchTask 상세 + 수정/취소 요청 sheet ---------------------
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [modificationOpen, setModificationOpen] = useState(false);
+  const [cancellationOpen, setCancellationOpen] = useState(false);
+  const [modificationReason, setModificationReason] = useState('');
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [modificationSubmitting, setModificationSubmitting] = useState(false);
+  const [cancellationSubmitting, setCancellationSubmitting] = useState(false);
 
   const refreshTask = useCallback(async () => {
     if (!task?.id) return;
@@ -223,12 +237,60 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
     }
   };
 
-  const canEdit = task?.status === 'DRAFT';
+  // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
+  const canEdit = !!task && isEditableStatus(task.status);
   const canDispatch =
     canEdit &&
     !!task &&
     task.vehicleGroups.length > 0 &&
     task.vehicleGroups.some((g) => g.slips.length > 0);
+
+  // Phase C — DISPATCHED 이후 상태에서 상세 sheet 진입 가능.
+  const canOpenDetail =
+    !!task && task.status !== 'DRAFT' && task.status !== 'DISPATCHING';
+  const showRequestButtons = !!task && canRequestModificationOrCancel(task.status);
+
+  const handleRequestModification = async () => {
+    if (!task) return;
+    const trimmed = modificationReason.trim();
+    if (trimmed.length === 0) {
+      Alert.alert('사유 입력 필요', '수정 요청 사유를 입력해주세요.');
+      return;
+    }
+    try {
+      setModificationSubmitting(true);
+      const updated = await requestModification(token, task.id, trimmed);
+      setTask(updated);
+      setModificationReason('');
+      setModificationOpen(false);
+      setDetailOpen(false);
+    } catch (e) {
+      Alert.alert('수정 요청 실패', e instanceof Error ? e.message : String(e));
+    } finally {
+      setModificationSubmitting(false);
+    }
+  };
+
+  const handleRequestCancellation = async () => {
+    if (!task) return;
+    const trimmed = cancellationReason.trim();
+    if (trimmed.length === 0) {
+      Alert.alert('사유 입력 필요', '취소 요청 사유를 입력해주세요.');
+      return;
+    }
+    try {
+      setCancellationSubmitting(true);
+      const updated = await requestCancellation(token, task.id, trimmed);
+      setTask(updated);
+      setCancellationReason('');
+      setCancellationOpen(false);
+      setDetailOpen(false);
+    } catch (e) {
+      Alert.alert('취소 요청 실패', e instanceof Error ? e.message : String(e));
+    } finally {
+      setCancellationSubmitting(false);
+    }
+  };
 
   const matchedByGroup = useMemo(() => {
     const m = new Map<number, string>();
@@ -278,21 +340,58 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
         />
       </View>
 
-      {/* Task status badge — 모든 탭 상단 공통 */}
+      {/* Task status badge — 모든 탭 상단 공통. Phase C: DISPATCHED 이후 tap → 상세 sheet. */}
       <View style={styles.statusRow}>
         <Text style={styles.taskCode}>{task.taskCode}</Text>
-        <View
-          style={[styles.statusBadge, statusBadgeStyle(task.status)]}
-          accessibilityLabel={`배차 상태: ${DISPATCH_TASK_STATUS_LABEL[task.status]}`}
-        >
-          <Text style={styles.statusBadgeText}>
-            {DISPATCH_TASK_STATUS_LABEL[task.status]}
-          </Text>
-        </View>
+        {canOpenDetail ? (
+          <TouchableOpacity
+            style={[styles.statusBadge, statusBadgeStyle(task.status)]}
+            onPress={() => setDetailOpen(true)}
+            accessibilityLabel={`배차 작업 상세 보기 — 현재 상태: ${DISPATCH_TASK_STATUS_LABEL[task.status]}`}
+            testID="dispatch-board-mobile-status-badge"
+          >
+            <Text style={styles.statusBadgeText}>
+              {DISPATCH_TASK_STATUS_LABEL[task.status]} ⓘ
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View
+            style={[styles.statusBadge, statusBadgeStyle(task.status)]}
+            accessibilityLabel={`배차 상태: ${DISPATCH_TASK_STATUS_LABEL[task.status]}`}
+          >
+            <Text style={styles.statusBadgeText}>
+              {DISPATCH_TASK_STATUS_LABEL[task.status]}
+            </Text>
+          </View>
+        )}
       </View>
       {task.status === 'FAILED' && task.failureReason ? (
         <View style={styles.failureBanner}>
           <Text style={styles.failureText}>배차 불가 사유: {task.failureReason}</Text>
+        </View>
+      ) : null}
+      {/* Phase C — 상태별 안내 배너 */}
+      {task.status === 'MODIFICATION_ACCEPTED' ? (
+        <View style={styles.acceptedBanner}>
+          <Text style={styles.acceptedBannerText}>
+            수정 가능 (편집 모드 활성): 차량/슬립 구성을 수정한 뒤 [배차 완료] 를 다시 누르세요.
+          </Text>
+        </View>
+      ) : null}
+      {(task.status === 'MODIFICATION_REQUESTED' ||
+        task.status === 'CANCEL_REQUESTED') &&
+      task.modificationReason ? (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingBannerText}>
+            아로로지스 회신 대기: {task.modificationReason}
+          </Text>
+        </View>
+      ) : null}
+      {(task.status === 'MODIFICATION_REJECTED' ||
+        task.status === 'CANCEL_REJECTED') &&
+      task.rejectionReason ? (
+        <View style={styles.failureBanner}>
+          <Text style={styles.failureText}>거부 사유: {task.rejectionReason}</Text>
         </View>
       ) : null}
 
@@ -325,6 +424,7 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
           matchedByGroup={matchedByGroup}
           canEdit={!!canEdit}
           canDispatch={!!canDispatch}
+          isEditMode={task.status === 'MODIFICATION_ACCEPTED'}
           onAddVehicle={() => setAddVehicleOpen(true)}
           onCompleteDispatch={() => setCompleteOpen(true)}
           onDeleteGroup={handleDeleteGroup}
@@ -449,6 +549,188 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
               >
                 <Text style={[styles.confirmBtnText, styles.confirmBtnTextPrimary]}>
                   {dispatching ? '발송 중…' : '✓ 발송하기'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phase C — DispatchTask 상세 sheet (DISPATCHED 이후) */}
+      <Modal
+        visible={detailOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailOpen(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>
+              배차 작업 {task.taskCode} — 상세
+            </Text>
+            <Text style={styles.sheetSub}>
+              {DISPATCH_TASK_STATUS_LABEL[task.status]}
+            </Text>
+            <ScrollView style={styles.sheetBody}>
+              <Text style={styles.muted}>배차 일자: {task.dispatchDate}</Text>
+              <Text style={styles.muted}>
+                차량 {task.vehicleGroups.length}대 · 슬립{' '}
+                {task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)}건
+              </Text>
+              {task.modificationReason ? (
+                <Text style={styles.muted}>
+                  요청 사유: {task.modificationReason}
+                </Text>
+              ) : null}
+              {task.rejectionReason ? (
+                <Text style={styles.failureText}>
+                  거부 사유: {task.rejectionReason}
+                </Text>
+              ) : null}
+            </ScrollView>
+            {showRequestButtons ? (
+              <View style={styles.confirmButtons}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, styles.requestBtnModification]}
+                  onPress={() => {
+                    setDetailOpen(false);
+                    setModificationOpen(true);
+                  }}
+                  accessibilityLabel={`배차 작업 ${task.taskCode} 수정 요청 발송`}
+                  testID="dispatch-board-mobile-request-modification"
+                >
+                  <Text style={styles.confirmBtnTextPrimary}>✏ 수정 요청</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, styles.requestBtnCancellation]}
+                  onPress={() => {
+                    setDetailOpen(false);
+                    setCancellationOpen(true);
+                  }}
+                  accessibilityLabel={`배차 작업 ${task.taskCode} 취소 요청 발송`}
+                  testID="dispatch-board-mobile-request-cancellation"
+                >
+                  <Text style={styles.confirmBtnTextPrimary}>✗ 취소 요청</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={styles.sheetCancel}
+              onPress={() => setDetailOpen(false)}
+              accessibilityLabel="배차 작업 상세 닫기"
+            >
+              <Text style={styles.sheetCancelText}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phase C — 수정 요청 sheet */}
+      <Modal
+        visible={modificationOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() =>
+          !modificationSubmitting && setModificationOpen(false)
+        }
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>수정 요청</Text>
+            <Text style={styles.sheetSub}>
+              {task.taskCode} — 아로로지스로 배차 수정 요청 발송
+            </Text>
+            <Text style={styles.requestLabel}>
+              사유 (필수, 최대 500자)
+            </Text>
+            <TextInput
+              style={styles.requestReasonInput}
+              value={modificationReason}
+              onChangeText={setModificationReason}
+              placeholder="예: 슬립 추가 + 정차 순서 조정"
+              multiline
+              maxLength={500}
+              accessibilityLabel="배차 수정 요청 사유"
+              testID="dispatch-board-mobile-modification-reason"
+              editable={!modificationSubmitting}
+            />
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnCancel]}
+                onPress={() => setModificationOpen(false)}
+                disabled={modificationSubmitting}
+              >
+                <Text style={styles.confirmBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.requestBtnModification]}
+                onPress={handleRequestModification}
+                disabled={
+                  modificationSubmitting ||
+                  modificationReason.trim().length === 0
+                }
+                accessibilityLabel="배차 수정 요청 발송"
+                testID="dispatch-board-mobile-modification-submit"
+              >
+                <Text style={styles.confirmBtnTextPrimary}>
+                  {modificationSubmitting ? '발송 중…' : '✏ 요청 발송'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Phase C — 취소 요청 sheet */}
+      <Modal
+        visible={cancellationOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() =>
+          !cancellationSubmitting && setCancellationOpen(false)
+        }
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>취소 요청</Text>
+            <Text style={styles.sheetSub}>
+              {task.taskCode} — 아로로지스로 배차 취소 요청 발송. 수락 시 슬립은
+              미배차로 복귀됩니다.
+            </Text>
+            <Text style={styles.requestLabel}>
+              사유 (필수, 최대 500자)
+            </Text>
+            <TextInput
+              style={styles.requestReasonInput}
+              value={cancellationReason}
+              onChangeText={setCancellationReason}
+              placeholder="예: 거래처 일정 변경"
+              multiline
+              maxLength={500}
+              accessibilityLabel="배차 취소 요청 사유"
+              testID="dispatch-board-mobile-cancellation-reason"
+              editable={!cancellationSubmitting}
+            />
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmBtnCancel]}
+                onPress={() => setCancellationOpen(false)}
+                disabled={cancellationSubmitting}
+              >
+                <Text style={styles.confirmBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.requestBtnCancellation]}
+                onPress={handleRequestCancellation}
+                disabled={
+                  cancellationSubmitting ||
+                  cancellationReason.trim().length === 0
+                }
+                accessibilityLabel="배차 취소 요청 발송"
+                testID="dispatch-board-mobile-cancellation-submit"
+              >
+                <Text style={styles.confirmBtnTextPrimary}>
+                  {cancellationSubmitting ? '발송 중…' : '✗ 요청 발송'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -621,6 +903,8 @@ interface GroupsTabProps {
   matchedByGroup: Map<number, string>;
   canEdit: boolean;
   canDispatch: boolean;
+  /** Phase C — MODIFICATION_ACCEPTED 시 true → [배차 완료] 라벨 "수정 배차 완료" 로 전환. */
+  isEditMode: boolean;
   onAddVehicle: () => void;
   onCompleteDispatch: () => void;
   onDeleteGroup: (groupId: string) => void;
@@ -632,6 +916,7 @@ function GroupsTab({
   matchedByGroup,
   canEdit,
   canDispatch,
+  isEditMode,
   onAddVehicle,
   onCompleteDispatch,
   onDeleteGroup,
@@ -717,10 +1002,16 @@ function GroupsTab({
           style={[styles.completeBtn, !canDispatch && styles.actionBtnDisabled]}
           disabled={!canDispatch}
           onPress={onCompleteDispatch}
-          accessibilityLabel="배차 완료 — 아로로지스 발송"
+          accessibilityLabel={
+            isEditMode
+              ? '수정 배차 완료 — 아로로지스로 재 발송'
+              : '배차 완료 — 아로로지스 발송'
+          }
           testID="dispatch-board-mobile-complete"
         >
-          <Text style={styles.completeBtnText}>✓ 배차 완료</Text>
+          <Text style={styles.completeBtnText}>
+            {isEditMode ? '✓ 수정 배차 완료 (재 발송)' : '✓ 배차 완료'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -755,16 +1046,26 @@ function TabButton({
   );
 }
 
-function statusBadgeStyle(status: DispatchTaskResponse['status']) {
+function statusBadgeStyle(status: DispatchTaskStatus) {
   switch (status) {
     case 'DRAFT':
       return { backgroundColor: colors.surface.subtle };
     case 'DISPATCHING':
       return { backgroundColor: colors.state.infoBg };
     case 'DISPATCHED':
+    case 'MODIFICATION_ACCEPTED':
+    case 'CANCEL_ACCEPTED':
       return { backgroundColor: colors.state.successBg };
     case 'FAILED':
+    case 'MODIFICATION_REJECTED':
+    case 'CANCEL_REJECTED':
       return { backgroundColor: colors.state.dangerBg };
+    case 'MODIFICATION_REQUESTED':
+    case 'CANCEL_REQUESTED':
+      // RN 토큰에 보라색이 없으므로 infoBg 위에 borderColor 로 구분.
+      return { backgroundColor: colors.state.infoBg };
+    case 'CANCELLED':
+      return { backgroundColor: colors.surface.subtle };
     default:
       return { backgroundColor: colors.surface.subtle };
   }
@@ -1193,5 +1494,57 @@ const styles = StyleSheet.create({
   confirmBtnTextPrimary: {
     color: colors.ink.onPrimary,
     fontWeight: typography.fontWeight.semibold,
+  },
+
+  // Phase C banners + 요청 dialog
+  acceptedBanner: {
+    margin: spacing[3],
+    padding: spacing[3],
+    backgroundColor: colors.state.successBg,
+    borderRadius: radii.card,
+  },
+  acceptedBannerText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.state.success,
+    fontFamily: typography.fontFamily.sans,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  pendingBanner: {
+    margin: spacing[3],
+    padding: spacing[3],
+    backgroundColor: colors.state.infoBg,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.state.info,
+  },
+  pendingBannerText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.ink.primary,
+    fontFamily: typography.fontFamily.sans,
+  },
+  requestLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.ink.secondary,
+    fontFamily: typography.fontFamily.sans,
+    marginBottom: spacing[1],
+  },
+  requestReasonInput: {
+    borderWidth: 1,
+    borderColor: colors.line.default,
+    borderRadius: radii.button,
+    padding: spacing[3],
+    fontSize: typography.fontSize.sm,
+    color: colors.ink.primary,
+    fontFamily: typography.fontFamily.sans,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: spacing[2],
+  },
+  requestBtnModification: {
+    // arologis-teal Phase A 일관 — RN 토큰에 보라색이 없으므로 brand 컬러 활용.
+    backgroundColor: colors.action.brand,
+  },
+  requestBtnCancellation: {
+    backgroundColor: colors.state.danger,
   },
 });
