@@ -1,8 +1,12 @@
 package com.samhanair.logis.arologis.controller;
 
+import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchRequest;
+import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchResponse;
+import com.samhanair.logis.arologis.service.dispatch.DispatchReceiveService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.Valid;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/internal/arologis")
 @RequiredArgsConstructor
 public class ArologisInternalController {
+
+    private final DispatchReceiveService dispatchReceiveService;
 
     /**
      * 외부 vendor 배차 상태 동기화 callback.
@@ -49,5 +55,27 @@ public class ArologisInternalController {
                 "phase", "W10-1",
                 "implementedAt", "W10-2 (인성데이타 vendor 통합 시점)"
         ));
+    }
+
+    /**
+     * Samhan Public 배차 메뉴 Phase A — slip-service 의 배차 발송 receive.
+     *
+     * <p>endpoint: {@code POST /internal/arologis/dispatches} (X-Internal-Token).
+     * Dispatch + Vehicle + VehicleStop 생성 후 비동기 매칭 (Phase A = Mock matcher) → 회신.
+     */
+    @Operation(summary = "Samhan Public 배차 발송 receive (Phase A)",
+            description = "slip-service 의 배차 메뉴 [배차 완료] trigger 시 호출. " +
+                    "Dispatch + Vehicle + VehicleStop 생성 후 비동기 매칭 → confirm/unavailable 회신.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "ack 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "payload 유효성 실패")
+    })
+    @PostMapping("/dispatches")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    public ArologisDispatchResponse receiveDispatch(@Valid @RequestBody ArologisDispatchRequest req) {
+        log.info("[ArologisInternalController] receiveDispatch — samhanTaskId={} taskCode={} groups={}",
+                req.samhanDispatchTaskId(), req.taskCode(), req.vehicles().size());
+        return dispatchReceiveService.receive(req);
     }
 }
