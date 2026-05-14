@@ -50,6 +50,14 @@ services:
       # 서비스 간 호출 토큰 (legacy share 시)
       SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
 
+      # 아로로지스 → Samhan Public slip-service 배차 회신 URL
+      # (Phase A — samhan-dispatch-board, Mock matcher 매칭 완료/실패 시점 회신)
+      SAMHAN_SLIP_DISPATCH_TASK_URL: ${SAMHAN_SLIP_DISPATCH_TASK_URL:-http://slip-service:8086}
+
+      # Mock matcher 실패 확률 (Phase A only)
+      # 0.0=항상 성공 (DISPATCHED) / 1.0=항상 실패 (FAILED → slip UNDISPATCHED 복귀)
+      SAMHAN_AROLOGIS_MOCK_FAIL_RATE: ${SAMHAN_AROLOGIS_MOCK_FAIL_RATE:-0.0}
+
       # JVM 옵션 (m5.xlarge = 4 vCPU / 16 GB → 아로로지스 1.5 GB heap)
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms512m -Xmx1536m -XX:+UseG1GC}
     healthcheck:
