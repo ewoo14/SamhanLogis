@@ -211,10 +211,16 @@ public class DispatchSeeder implements CommandLineRunner {
             sb.append(v).append(". ");
             VehicleTonnage tonnage = pickTonnage(seq, v);
             sb.append(switch (tonnage) {
+                case MOTORCYCLE -> "오토바이";
+                case DAMAS -> "다마스";
                 case TONNAGE_1 -> "1톤";
                 case TONNAGE_1_4 -> "1.4톤";
+                case TONNAGE_1_5 -> "1.5톤";
                 case TONNAGE_2_5 -> "2.5톤";
+                case TONNAGE_3 -> "3톤";
                 case TONNAGE_5 -> "5톤";
+                case TONNAGE_10 -> "10톤";
+                case TONNAGE_20 -> "20톤";
                 case TONNAGE_BIG -> "11톤";
             });
             sb.append(" ").append(seedRow.address()).append("\n");
