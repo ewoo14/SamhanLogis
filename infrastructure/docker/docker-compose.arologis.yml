@@ -1,0 +1,67 @@
+# 아로로지스 독립 운영 docker-compose (spec §8.4 — 2026-05-14)
+#
+# 운영 환경 (EC2 m5.xlarge):
+#   - Samhan Public 14 service = infrastructure/docker-compose.yml 로 기동.
+#   - 아로로지스 = 본 파일 (docker-compose.arologis.yml) 로 별도 기동.
+#   - 같은 host, 같은 network (samhan-net external), 별도 docker-compose lifecycle.
+#   - 한 쪽 docker-compose down → 다른 쪽 영향 0 (spec D-AX-04).
+#
+# 사용법 (EC2):
+#   cd /opt/arologis
+#   docker-compose -f docker-compose.arologis.yml pull   # GHCR 이미지 가져오기
+#   docker-compose -f docker-compose.arologis.yml up -d  # 백그라운드 기동
+#   curl -fsS http://localhost:8097/actuator/health      # 검증
+#
+# 환경변수 (/opt/arologis/.env — git ignored):
+#   - AROLOGIS_IMAGE          : 배포 이미지 (예: ghcr.io/.../samhanpublic/arologis-service:arologis-v1.0.0)
+#   - SAMHAN_AROLOGIS_DB_HOST : RDS endpoint (Phase 11 AWS)
+#   - SAMHAN_AROLOGIS_DB_PASSWORD : RDS password
+#   - SAMHAN_INTERNAL_TOKEN   : 서비스 간 호출 토큰 (legacy share 시)
+#   - EUREKA_URL              : http://eureka-server:8761/eureka/ (Phase 11 통합 Eureka)
+#
+# Roll-back (spec §10):
+#   docker-compose -f docker-compose.arologis.yml down  # 2분 — 기존 14 service 영향 0
+networks:
+  samhan-net:
+    external: true   # 기존 Samhan Public network 에 join (infrastructure/docker-compose.yml 이 생성)
+    name: samhan-net
+
+services:
+  arologis-service:
+    image: ${AROLOGIS_IMAGE:-ghcr.io/samhanlogis/samhanpublic/arologis-service:latest}
+    container_name: arologis-service
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      # Spring profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+
+      # DB (자체 arologis_db — RDS 같은 인스턴스의 별도 DB)
+      SAMHAN_AROLOGIS_DB_HOST: ${SAMHAN_AROLOGIS_DB_HOST:-postgres}
+      SAMHAN_AROLOGIS_DB_PORT: ${SAMHAN_AROLOGIS_DB_PORT:-5432}
+      SAMHAN_AROLOGIS_DB_NAME: ${SAMHAN_AROLOGIS_DB_NAME:-arologis_db}
+      SAMHAN_AROLOGIS_DB_USER: ${SAMHAN_AROLOGIS_DB_USER:-samhan}
+      SAMHAN_AROLOGIS_DB_PASSWORD: ${SAMHAN_AROLOGIS_DB_PASSWORD}
+
+      # Eureka (현재는 공유 — Phase 11 D-AX-08 결정 시 분리 가능)
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_URL:-http://eureka-server:8761/eureka/}
+
+      # 서비스 간 호출 토큰 (legacy share 시)
+      SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
+
+      # JVM 옵션 (m5.xlarge = 4 vCPU / 16 GB → 아로로지스 1.5 GB heap)
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms512m -Xmx1536m -XX:+UseG1GC}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8097/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - samhan-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

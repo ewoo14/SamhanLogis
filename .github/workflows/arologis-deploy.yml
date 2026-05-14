@@ -1,0 +1,135 @@
+# 아로로지스 (Samhan Public) 독립 배포 workflow
+#
+# 분리 사유 (spec §8.5 — 2026-05-14):
+#   - 아로로지스 = 별도 release cadence (`arologis-v*` tag), Samhan Public 14 service 의 release 와 완전 독립.
+#   - 한 쪽 배포가 다른 쪽 영향 0 (같은 EC2 호스트 + 같은 samhan-net network, 별도 docker-compose).
+#
+# 트리거:
+#   - tag push `arologis-v*` (예: arologis-v1.0.0)
+#   - workflow_dispatch (manual)
+#
+# 단계:
+#   1. checkout + JDK 17
+#   2. ./gradlew :services:arologis-service:bootJar
+#   3. docker build → ghcr.io 푸시 (samhanpublic/arologis-service:<tag>)
+#   4. EC2 ssh: docker-compose pull && up -d (infrastructure/docker/docker-compose.arologis.yml)
+#   5. curl http://localhost:8097/actuator/health (배포 검증, fail 시 exit 1)
+#
+# 필요 secrets:
+#   - AROLOGIS_EC2_HOST    : EC2 public DNS or IP
+#   - AROLOGIS_EC2_USER    : ssh 사용자 (예: ubuntu)
+#   - AROLOGIS_EC2_KEY     : ssh private key (PEM)
+#   - GITHUB_TOKEN         : ghcr.io push (자동 제공)
+name: arologis Deploy
+
+on:
+  push:
+    tags:
+      - 'arologis-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '배포 태그 (예: arologis-v1.0.0). 미지정 시 manual 라벨로 빌드.'
+        required: false
+        default: 'manual'
+
+permissions:
+  contents: read
+  packages: write   # ghcr.io 푸시
+
+jobs:
+  deploy:
+    name: arologis 배포 (build → push → EC2 ssh → health)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: JDK 17 설치 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 캐시 + Wrapper 검증
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: gradlew 실행 권한 보장
+        run: chmod +x ./gradlew
+
+      - name: bootJar (arologis-service)
+        run: ./gradlew :services:arologis-service:bootJar
+
+      # 이미지 태그 = git tag 그대로 사용 (workflow_dispatch 의 경우 input.tag 또는 'manual').
+      # spec §8.5 의 image 명칭 = samhanpublic/arologis-service:VERSION.
+      # ghcr.io 경로 = ghcr.io/<owner>/samhanpublic/arologis-service:<tag>.
+      - name: 이미지 태그 결정
+        id: image
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          IMAGE="ghcr.io/${{ github.repository_owner }}/samhanpublic/arologis-service:${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "image_lower=$(echo ${IMAGE} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: GHCR 로그인
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker 이미지 빌드 + 푸시
+        run: |
+          docker build \
+            -t "${{ steps.image.outputs.image_lower }}" \
+            -f services/arologis-service/Dockerfile \
+            services/arologis-service/
+          docker push "${{ steps.image.outputs.image_lower }}"
+
+      # EC2 배포 — docker-compose pull → up -d → health check.
+      # secrets 미설정 (스테이징 단계) 시 graceful skip — workflow_dispatch 로 build/push 만 검증 가능.
+      - name: EC2 시크릿 존재 확인
+        id: secrets_check
+        run: |
+          if [ -n "${{ secrets.AROLOGIS_EC2_HOST }}" ]; then
+            echo "ec2_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ec2_ready=false" >> "$GITHUB_OUTPUT"
+            echo '::warning::AROLOGIS_EC2_HOST 미설정 — EC2 deploy 단계 skip (build/push 만 실행).'
+          fi
+
+      - name: EC2 배포 (docker-compose pull + up + health check)
+        if: steps.secrets_check.outputs.ec2_ready == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AROLOGIS_EC2_HOST }}
+          username: ${{ secrets.AROLOGIS_EC2_USER }}
+          key: ${{ secrets.AROLOGIS_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/arologis
+            echo "=== docker-compose pull (이미지: ${{ steps.image.outputs.image_lower }}) ==="
+            docker-compose -f docker-compose.arologis.yml pull
+            echo "=== docker-compose up -d ==="
+            docker-compose -f docker-compose.arologis.yml up -d
+            echo "=== container 안정화 대기 (15s) ==="
+            sleep 15
+            echo "=== health check ==="
+            curl -fsS http://localhost:8097/actuator/health
+            echo ""
+            echo "=== 배포 완료 (tag=${{ steps.image.outputs.tag }}) ==="
+
+      - name: 배포 결과 요약
+        if: always()
+        run: |
+          echo "### arologis 배포 요약" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tag: \`${{ steps.image.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- image: \`${{ steps.image.outputs.image_lower }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- EC2 deploy: \`${{ steps.secrets_check.outputs.ec2_ready }}\`" >> "$GITHUB_STEP_SUMMARY"
