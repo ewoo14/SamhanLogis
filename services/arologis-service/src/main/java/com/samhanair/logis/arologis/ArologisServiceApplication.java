@@ -1,5 +1,6 @@
 package com.samhanair.logis.arologis;
 
+import com.samhanair.logis.arologis.config.ArologisJwtProperties;
 import com.samhanair.logis.arologis.config.ArologisMatcherProperties;
 import com.samhanair.logis.arologis.config.ArologisLocationCleanupProperties;
 import com.samhanair.logis.common.audit.JpaAuditingConfig;
@@ -30,7 +31,8 @@ import org.springframework.context.annotation.Import;
 @Import(JpaAuditingConfig.class)
 @EnableConfigurationProperties({
         ArologisMatcherProperties.class,
-        ArologisLocationCleanupProperties.class
+        ArologisLocationCleanupProperties.class,
+        ArologisJwtProperties.class
 })
 public class ArologisServiceApplication {
 
