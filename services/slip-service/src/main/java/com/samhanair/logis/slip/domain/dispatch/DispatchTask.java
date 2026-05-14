@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -23,6 +24,10 @@ import org.hibernate.annotations.UuidGenerator;
  * UUID 는 비공개 ([feedback_uuid_no_user_visibility]).
  *
  * <p>상태 머신 — {@link DispatchTaskStatus} 참조.
+ *
+ * <p>Phase C (수정/취소 흐름, D-DC-01~09) — DISPATCHED 상태에서 수정/취소 요청 → 아로로지스 수락/거부 →
+ * 재 dispatch 또는 취소. 4 신규 column ({@code modificationReason} / {@code rejectionReason} /
+ * {@code modificationRequestedAt} / {@code modificationDecidedAt}).
  */
 @Entity
 @Getter
@@ -52,6 +57,19 @@ public class DispatchTask extends BaseEntity {
 
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
+
+    // ---------- Phase C (수정/취소 흐름) 신규 4 column ----------
+    @Column(name = "modification_reason", length = 500)
+    private String modificationReason;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
+    @Column(name = "modification_requested_at")
+    private LocalDateTime modificationRequestedAt;
+
+    @Column(name = "modification_decided_at")
+    private LocalDateTime modificationDecidedAt;
 
     private DispatchTask(String taskCode, LocalDate dispatchDate) {
         if (taskCode == null || taskCode.isBlank()) {
@@ -94,5 +112,120 @@ public class DispatchTask extends BaseEntity {
         }
         this.status = DispatchTaskStatus.FAILED;
         this.failureReason = reason;
+    }
+
+    // ---------- Phase C 신규 전이 메서드 (D-DC-02 ~ D-DC-08) ----------
+
+    /**
+     * DISPATCHED → MODIFICATION_REQUESTED (D-DC-02). DISPATCHED 상태에서만 호출 가능.
+     *
+     * @param reason 배차담당자가 입력한 사유 (선택)
+     */
+    public void markModificationRequested(String reason) {
+        if (this.status != DispatchTaskStatus.DISPATCHED) {
+            throw new IllegalStateException(
+                    "MODIFICATION_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.MODIFICATION_REQUESTED;
+        this.modificationReason = reason;
+        this.modificationRequestedAt = LocalDateTime.now();
+    }
+
+    /**
+     * MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED (D-DC-04). 아로로지스 수락 시.
+     * 이후 배차담당자가 편집 모드로 진입하고 {@link #markBackToDraftForRedispatch()} 로 재 [배차 완료] 시작.
+     */
+    public void markModificationAccepted() {
+        if (this.status != DispatchTaskStatus.MODIFICATION_REQUESTED) {
+            throw new IllegalStateException(
+                    "MODIFICATION_ACCEPTED 는 MODIFICATION_REQUESTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.MODIFICATION_ACCEPTED;
+        this.modificationDecidedAt = LocalDateTime.now();
+    }
+
+    /**
+     * MODIFICATION_REQUESTED → MODIFICATION_REJECTED (D-DC-06). 아로로지스 거부 시.
+     *
+     * @param rejectionReason 아로로지스가 입력한 거부 사유
+     */
+    public void markModificationRejected(String rejectionReason) {
+        if (this.status != DispatchTaskStatus.MODIFICATION_REQUESTED) {
+            throw new IllegalStateException(
+                    "MODIFICATION_REJECTED 는 MODIFICATION_REQUESTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.MODIFICATION_REJECTED;
+        this.rejectionReason = rejectionReason;
+        this.modificationDecidedAt = LocalDateTime.now();
+    }
+
+    /**
+     * DISPATCHED → CANCEL_REQUESTED (D-DC-02). DISPATCHED 상태에서만 호출 가능.
+     *
+     * @param reason 배차담당자가 입력한 사유 (선택)
+     */
+    public void markCancelRequested(String reason) {
+        if (this.status != DispatchTaskStatus.DISPATCHED) {
+            throw new IllegalStateException(
+                    "CANCEL_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.CANCEL_REQUESTED;
+        this.modificationReason = reason;
+        this.modificationRequestedAt = LocalDateTime.now();
+    }
+
+    /**
+     * CANCEL_REQUESTED → CANCEL_ACCEPTED (D-DC-05). 아로로지스 취소 수락 시. 정정 단계 — 이후 자동으로
+     * {@link #markCancelled()} 로 final 전이.
+     */
+    public void markCancelAccepted() {
+        if (this.status != DispatchTaskStatus.CANCEL_REQUESTED) {
+            throw new IllegalStateException(
+                    "CANCEL_ACCEPTED 는 CANCEL_REQUESTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.CANCEL_ACCEPTED;
+        this.modificationDecidedAt = LocalDateTime.now();
+    }
+
+    /**
+     * CANCEL_REQUESTED → CANCEL_REJECTED (D-DC-06). 아로로지스 취소 거부 시.
+     *
+     * @param rejectionReason 아로로지스가 입력한 거부 사유
+     */
+    public void markCancelRejected(String rejectionReason) {
+        if (this.status != DispatchTaskStatus.CANCEL_REQUESTED) {
+            throw new IllegalStateException(
+                    "CANCEL_REJECTED 는 CANCEL_REQUESTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.CANCEL_REJECTED;
+        this.rejectionReason = rejectionReason;
+        this.modificationDecidedAt = LocalDateTime.now();
+    }
+
+    /**
+     * CANCEL_ACCEPTED → CANCELLED (final). slip UNDISPATCHED 복귀 + arologis Dispatch soft-delete
+     * 이후 호출.
+     */
+    public void markCancelled() {
+        if (this.status != DispatchTaskStatus.CANCEL_ACCEPTED) {
+            throw new IllegalStateException(
+                    "CANCELLED 는 CANCEL_ACCEPTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.CANCELLED;
+    }
+
+    /**
+     * MODIFICATION_ACCEPTED → DRAFT (D-DC-08). 배차담당자가 편집 작업 후 [배차 완료] 재 클릭 시점에 호출 →
+     * 이후 {@link #markDispatching()} 가 정상 진행. arologis 측 기존 Dispatch 는 별도 soft-delete 호출
+     * 로 처리 (delete-recreate, D-DC-04).
+     */
+    public void markBackToDraftForRedispatch() {
+        if (this.status != DispatchTaskStatus.MODIFICATION_ACCEPTED) {
+            throw new IllegalStateException(
+                    "DRAFT 재 진입은 MODIFICATION_ACCEPTED 에서만 가능 — 현재=" + this.status);
+        }
+        this.status = DispatchTaskStatus.DRAFT;
+        // arologisDispatchId 는 새 dispatch 발송 후 markDispatched() 에서 재 설정.
+        this.arologisDispatchId = null;
     }
 }
