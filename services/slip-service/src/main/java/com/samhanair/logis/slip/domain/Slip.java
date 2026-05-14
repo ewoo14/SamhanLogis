@@ -203,6 +203,28 @@ public class Slip extends BaseEntity {
     @Column(name = "delivery_batch_id")
     private UUID deliveryBatchId;
 
+    // ---------- Samhan Public 배차 메뉴 Phase A (D-DB-04) — slip 배차 상태 ----------
+
+    /**
+     * 배차 상태 — Samhan Public 배차 메뉴 Phase A (V22 migration).
+     *
+     * <ul>
+     *   <li>{@link com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus#UNDISPATCHED}
+     *       (default) — 배차 메뉴 "미배차" 목록 source</li>
+     *   <li>{@link com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus#DISPATCHING}
+     *       — 배차 완료 trigger → arologis 발송 후 매칭 대기</li>
+     *   <li>{@link com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus#DISPATCHED}
+     *       — arologis confirm 회신 완료 (매칭된 기사 정보 dispatch_matched_driver 테이블 참조)</li>
+     * </ul>
+     *
+     * <p>전이 메서드: {@link #markDispatchPending}, {@link #markDispatchConfirmed},
+     * {@link #markDispatchReleased}. Phase A 한정 — Phase C 부터 수정/취소 흐름 추가.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dispatch_status", nullable = false, length = 32)
+    private com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus dispatchStatus =
+            com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
+
     // ---------- Slice C (signature-slice-C Plan §1.1) — 인수자 전자서명 7 필드 ----------
 
     /**
@@ -1476,5 +1498,37 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     label + " 는 최대 " + max + "자입니다 (현재: " + value.length() + ")");
         }
+    }
+
+    // ---------- Samhan Public 배차 메뉴 Phase A (D-DB-04) — slip 배차 전이 ----------
+
+    /**
+     * UNDISPATCHED → DISPATCHING. 배차 완료 trigger 시점에 호출.
+     * Phase A Mock 환경에서도 idempotent 가드 (이미 DISPATCHING 인 경우 no-op).
+     */
+    public void markDispatchPending() {
+        if (this.dispatchStatus == com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 DISPATCHED 인 slip 은 다시 DISPATCHING 으로 전이할 수 없습니다.");
+        }
+        this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHING;
+    }
+
+    /**
+     * DISPATCHING → DISPATCHED. arologis confirm 회신 시점에 호출.
+     */
+    public void markDispatchConfirmed() {
+        this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED;
+    }
+
+    /**
+     * DISPATCHING → UNDISPATCHED. arologis unavailable 회신 시점에 호출 (재배차 대기).
+     */
+    public void markDispatchReleased() {
+        if (this.dispatchStatus == com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 DISPATCHED 인 slip 은 UNDISPATCHED 로 복귀할 수 없습니다.");
+        }
+        this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
     }
 }
