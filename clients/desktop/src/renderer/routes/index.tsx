@@ -249,6 +249,10 @@ import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
+// [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
+// BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*` (Phase A spec § 6).
+import DispatchBoardPage from './dispatch-board/DispatchBoardPage'
+const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -710,6 +714,18 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={DISPATCH_SMS_ROLES}>
             <DispatchSmsPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
+      // 미배차 출고전표 50/page + 차량 그룹 (9 종류) + drag-and-drop + arologis 발송.
+      // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*`.
+      {
+        path: '/dispatch-board',
+        element: (
+          <RoleGuard allow={DISPATCH_BOARD_ROLES}>
+            <DispatchBoardPage />
           </RoleGuard>
         ),
       },

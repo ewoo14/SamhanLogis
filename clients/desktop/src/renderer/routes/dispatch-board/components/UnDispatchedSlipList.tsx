@@ -1,0 +1,334 @@
+/**
+ * UnDispatchedSlipList — 배차 보드 좌측 미배차 출고전표 list (드래그 source).
+ *
+ * <p>Phase A FE-3.
+ *
+ * 기능:
+ * - 일자 from/to date picker (default Asia/Seoul today ±1일).
+ * - dispatchStatus multi-select (default `['UNDISPATCHED']`).
+ * - 50/page 페이지네이션 (Spring Page 응답).
+ * - 각 슬립 row 가 `useDraggable({ id: slip.id, data: { slipId, slipNumber, partnerName } })`.
+ *   → DndContext 가 VehicleGroupColumn 에 위치 (Phase A 의 dispatch board page level 통합).
+ *
+ * accessibility:
+ * - row `aria-label="출고전표 {slipNumber} {partnerName} 드래그 가능"` (한국어).
+ * - `tabIndex={0}` 키보드 포커스 + 스페이스 grab (PointerSensor + KeyboardSensor 기본 동작).
+ *
+ * UUID 비공개:
+ * - row 노출 = `slipNumber` + `partnerCode` + `partnerName` 만.
+ * - slip UUID 는 `useDraggable` id 로만 사용 (DOM data-* 속성은 testid 외 X).
+ */
+import { useState } from 'react'
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  SLIP_DISPATCH_STATUS_LABEL,
+  SLIP_DISPATCH_STATUS_OPTIONS,
+  offsetIsoSeoul,
+  todayIsoSeoul,
+  type SlipBoardResponse,
+  type SlipDispatchStatus,
+} from '../../../api/dispatchBoard'
+import { useUnDispatchedSlipsQuery } from '../hooks/useUnDispatchedSlipsQuery'
+
+/**
+ * draggable slip row 가 DndContext.onDragEnd 에 전달하는 payload type.
+ *
+ * <p>VehicleGroupColumn 의 onDragEnd handler 에서 `active.data.current` 로 접근하여
+ * assignSlip mutation 의 slipId 인자로 활용.
+ */
+export interface DispatchSlipDragData {
+  /** 드래그 source 종류 — 미배차 list 만 'slip' 사용. */
+  type: 'slip'
+  /** 슬립 UUID — API payload 에만 사용 (사용자 미노출). */
+  slipId: string
+  /** 사용자 노출 식별자 — DragOverlay / accessibility 라벨 노출. */
+  slipNumber: string
+  partnerName: string
+}
+
+interface UnDispatchedSlipListProps {
+  /** 슬립 row click 시 상세 modal 진입 callback (slipId 전달). */
+  onOpenSlipDetail: (slipId: string) => void
+}
+
+/**
+ * 50/page default 페이지 크기. 사용자 명세 (2026-05-14).
+ */
+const PAGE_SIZE = 50
+
+/**
+ * 좌측 미배차 출고전표 list.
+ */
+export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListProps) {
+  const today = todayIsoSeoul()
+  const [from, setFrom] = useState<string>(offsetIsoSeoul(today, -1))
+  const [to, setTo] = useState<string>(offsetIsoSeoul(today, 1))
+  const [statuses, setStatuses] = useState<SlipDispatchStatus[]>(['UNDISPATCHED'])
+  const [page, setPage] = useState(0)
+
+  const query = useUnDispatchedSlipsQuery({ from, to, statuses, page, size: PAGE_SIZE })
+  const data = query.data
+  const slips = data?.content ?? []
+  const totalPages = data?.totalPages ?? 0
+  const totalElements = data?.totalElements ?? 0
+
+  const handleStatusToggle = (s: SlipDispatchStatus, checked: boolean) => {
+    setPage(0)
+    setStatuses((prev) => {
+      if (checked) return Array.from(new Set([...prev, s]))
+      return prev.filter((v) => v !== s)
+    })
+  }
+
+  return (
+    <section
+      data-testid="dispatch-board-undispatched-list"
+      aria-label="미배차 출고전표 목록"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        background: 'var(--color-neutral-0)',
+        border: '1px solid var(--color-neutral-200)',
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
+    >
+      <header
+        style={{
+          padding: 12,
+          borderBottom: '1px solid var(--color-neutral-200)',
+          background: 'var(--color-neutral-50)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+          미배차 출고전표
+          <span
+            style={{ marginLeft: 8, fontSize: 12, color: 'var(--color-neutral-500)' }}
+          >
+            ({totalElements} 건)
+          </span>
+        </h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+            <span>날짜</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setPage(0)
+                setFrom(e.target.value)
+              }}
+              data-testid="dispatch-board-filter-from"
+              style={{ fontSize: 12 }}
+            />
+            <span>~</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => {
+                setPage(0)
+                setTo(e.target.value)
+              }}
+              data-testid="dispatch-board-filter-to"
+              style={{ fontSize: 12 }}
+            />
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+          <span style={{ color: 'var(--color-neutral-500)' }}>상태</span>
+          {SLIP_DISPATCH_STATUS_OPTIONS.map((s) => (
+            <label
+              key={s}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <input
+                type="checkbox"
+                checked={statuses.includes(s)}
+                onChange={(e) => handleStatusToggle(s, e.target.checked)}
+                data-testid={`dispatch-board-filter-status-${s}`}
+              />
+              {SLIP_DISPATCH_STATUS_LABEL[s]}
+            </label>
+          ))}
+        </div>
+      </header>
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          background: 'var(--color-neutral-0)',
+        }}
+      >
+        {query.isLoading ? (
+          <div style={{ padding: 16, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            불러오는 중…
+          </div>
+        ) : query.isError ? (
+          <div
+            style={{ padding: 16, fontSize: 13, color: 'var(--color-danger-500)' }}
+            role="alert"
+          >
+            미배차 출고전표 조회 실패. 잠시 후 다시 시도해주세요.
+          </div>
+        ) : slips.length === 0 ? (
+          <div style={{ padding: 16, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            조건에 해당하는 미배차 출고전표가 없습니다.
+          </div>
+        ) : (
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+            {slips.map((slip) => (
+              <DraggableSlipRow
+                key={slip.id}
+                slip={slip}
+                onClick={() => onOpenSlipDetail(slip.id)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <footer
+        style={{
+          padding: 8,
+          borderTop: '1px solid var(--color-neutral-200)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'var(--color-neutral-50)',
+          fontSize: 12,
+        }}
+      >
+        <button
+          type="button"
+          disabled={page <= 0 || query.isFetching}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          data-testid="dispatch-board-prev-page"
+          style={{
+            padding: '4px 10px',
+            background: 'var(--color-neutral-0)',
+            border: '1px solid var(--color-neutral-200)',
+            borderRadius: 4,
+            cursor: page <= 0 ? 'not-allowed' : 'pointer',
+          }}
+        >
+          ◀ 이전
+        </button>
+        <span>
+          {totalPages === 0 ? 0 : page + 1} / {totalPages} (50/회)
+        </span>
+        <button
+          type="button"
+          disabled={page + 1 >= totalPages || query.isFetching}
+          onClick={() => setPage((p) => p + 1)}
+          data-testid="dispatch-board-next-page"
+          style={{
+            padding: '4px 10px',
+            background: 'var(--color-neutral-0)',
+            border: '1px solid var(--color-neutral-200)',
+            borderRadius: 4,
+            cursor: page + 1 >= totalPages ? 'not-allowed' : 'pointer',
+          }}
+        >
+          다음 ▶
+        </button>
+      </footer>
+    </section>
+  )
+}
+
+/**
+ * 단일 슬립 row — `useDraggable` source.
+ *
+ * <p>row 클릭 = 슬립 상세 modal. 드래그는 별도 grab handle (`☰`) 통해 시작 — `listeners` 적용 영역을
+ * handle 만으로 한정하여 row click 과 drag 를 분리한다 (사용자 실수 방지).
+ */
+function DraggableSlipRow({
+  slip,
+  onClick,
+}: {
+  slip: SlipBoardResponse
+  onClick: () => void
+}) {
+  const dragData: DispatchSlipDragData = {
+    type: 'slip',
+    slipId: slip.id,
+    slipNumber: slip.slipNumber,
+    partnerName: slip.partnerName,
+  }
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `slip:${slip.id}`,
+    data: dragData,
+  })
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  }
+  const ariaLabel = `출고전표 ${slip.slipNumber} ${slip.partnerName} 드래그 가능`
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{
+        ...style,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--color-neutral-100)',
+        fontSize: 13,
+        background: 'var(--color-neutral-0)',
+      }}
+      data-testid={`dispatch-board-slip-row-${slip.slipNumber}`}
+    >
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        aria-label={ariaLabel}
+        title="드래그하여 차량 그룹에 추가"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          cursor: 'grab',
+          padding: 0,
+          color: 'var(--color-neutral-500)',
+          fontSize: 16,
+          lineHeight: 1,
+        }}
+        data-testid={`dispatch-board-slip-drag-${slip.slipNumber}`}
+      >
+        ☰
+      </button>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          flex: 1,
+          textAlign: 'left',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          fontSize: 13,
+          color: 'var(--color-neutral-800)',
+        }}
+        data-testid={`dispatch-board-slip-open-${slip.slipNumber}`}
+      >
+        <span style={{ fontWeight: 600, marginRight: 8 }}>{slip.slipNumber}</span>
+        <span>{slip.partnerName}</span>
+        <span
+          style={{ marginLeft: 8, fontSize: 11, color: 'var(--color-neutral-500)' }}
+        >
+          ({slip.partnerCode})
+        </span>
+      </button>
+    </li>
+  )
+}
