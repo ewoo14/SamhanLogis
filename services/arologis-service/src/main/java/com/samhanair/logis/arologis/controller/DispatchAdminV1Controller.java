@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET  /api/v1/arologis/admin/drivers/available} — 가용 기사 list</li>
  * </ol>
  *
- * <p>권한 — {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER')")} 전체 적용.
+ * <p>권한 — {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")} 전체 적용.
  * UUID 비공개 가드 — dispatchId (admin routing 용) 만 노출, driver / vehicle UUID 는 미포함.
  */
 @Slf4j
@@ -72,7 +72,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "배차 list 조회 (P1-5 Admin UI)",
             description = "status/fromDate/toDate 필터 + 페이징. fromDate 미지정 시 오늘.")
     @GetMapping("/dispatches")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchPageResponse> listDispatches(
             @RequestParam(required = false) DispatchType status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -104,7 +104,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "자동 매칭 trigger (P1-5 Admin UI, 카카오톡 배차)",
             description = "dispatchId 배차의 PENDING 차량 전체에 DriverMatcher 자동 매칭 호출.")
     @PostMapping("/dispatches/auto-match")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchService.AutoMatchResult> autoMatch(
             @RequestBody Map<String, String> body) {
         String dispatchIdStr = body == null ? null : body.get("dispatchId");
@@ -143,7 +143,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "수동 배차 (P1-5 Admin UI)",
             description = "vehicleSeq + driverCode 지정. MatchSource.MANUAL 기록.")
     @PostMapping("/dispatches/{id}/manual-assign")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, Object>> manualAssign(
             @PathVariable UUID id,
             @Valid @RequestBody ManualAssignRequest req) {
@@ -171,7 +171,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "기사 변경 (P1-5 Admin UI)",
             description = "vehicleSeq + newDriverCode 지정으로 기존 기사 교체. MatchSource.MANUAL.")
     @PatchMapping("/dispatches/{id}/driver")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, Object>> changeDriver(
             @PathVariable UUID id,
             @Valid @RequestBody DriverChangeRequest req) {
@@ -199,7 +199,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "가용 기사 list (P1-5 Admin UI)",
             description = "date 기준 배정 기사 제외 + zoneId 필터. UUID 비공개 가드 적용.")
     @GetMapping("/drivers/available")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<AvailableDriverResponse> availableDrivers(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) String zoneId) {

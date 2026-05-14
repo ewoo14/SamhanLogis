@@ -67,7 +67,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "오늘의 배정된 dispatch 목록 조회 (Driver-app)")
     @GetMapping("/dispatches/today")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<Map<String, Object>>> today(HttpServletRequest request) {
         String userIdHeader = request.getHeader("X-User-Id");
         if (userIdHeader == null || userIdHeader.isBlank()) {
@@ -107,7 +107,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "GPS 위치 보고 (Driver-app)")
     @PostMapping("/locations")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, Object>> reportLocation(
             HttpServletRequest request, @RequestBody Map<String, String> body) {
         String userIdHeader = request.getHeader("X-User-Id");
@@ -182,7 +182,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "전자서명 등록 (Driver-app, W10-4 — slip-service 양쪽 저장)")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, Object>> sign(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
             @RequestBody Map<String, String> body) {
