@@ -199,9 +199,17 @@ function Invoke-DnsCutover {
 
     Confirm-Action "DNS cutover 를 실행하면 실 트래픽이 AWS 로 전환됩니다. rollback TTL=60s."
 
+    # Samhan Public 본진 subdomain
     $subdomains = @("api", "app", "order", "sign", "chat", "files", "monitor", "quote")
     foreach ($sub in $subdomains) {
         Write-Phase11Log "INFO" "DNS record 확인: $sub.samhan-air.com → ALB"
+        # nslookup "$sub.samhan-air.com" 8.8.8.8
+    }
+
+    # 아로로지스 (spec 2026-05-14 분리) — 별도 subdomain 3개
+    $arologisSubdomains = @("api.arologis", "app.arologis", "mobile.arologis")
+    foreach ($sub in $arologisSubdomains) {
+        Write-Phase11Log "INFO" "DNS record 확인: $sub.samhan-air.com → ALB (아로로지스)"
         # nslookup "$sub.samhan-air.com" 8.8.8.8
     }
 
@@ -215,13 +223,21 @@ function Invoke-DnsCutover {
 function Invoke-HealthCheck {
     Write-Phase11Log "INFO" "=== Health Check 시작 ==="
 
+    # 아로로지스 분리 (spec 2026-05-14, plan DO6):
+    #   - api.samhan-air.com         : Samhan Public 14 service 통합 (api-gateway:8080)
+    #   - api.arologis.samhan-air.com: 아로로지스 단독 (arologis-service:8097, gateway 우회)
+    #   - app/mobile.arologis        : 정적 페이지 (200 응답만 확인)
     $endpoints = @(
         "https://api.samhan-air.com/actuator/health",
-        "https://api.samhan-air.com/actuator/info"
+        "https://api.samhan-air.com/actuator/info",
+        "https://api.arologis.samhan-air.com/actuator/health",
+        "https://app.arologis.samhan-air.com/",
+        "https://mobile.arologis.samhan-air.com/"
     )
 
     if ($EC2PublicIp) {
         $endpoints += "http://$EC2PublicIp:8080/actuator/health"
+        $endpoints += "http://$EC2PublicIp:8097/actuator/health"   # arologis-service direct
     }
 
     foreach ($url in $endpoints) {
