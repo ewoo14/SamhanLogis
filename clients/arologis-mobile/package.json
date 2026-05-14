@@ -1,0 +1,32 @@
+{
+  "name": "@samhan/arologis-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "아로로지스 기사 어플 (RN Expo) — passwordless 휴대번호 로그인 + 본인 배차 + 전자서명. mobile-staff 의 driver tab 분리 독립 (D-AX-03).",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "expo prebuild --no-install"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~5.0.5",
+    "expo": "~53.0.0",
+    "expo-font": "~13.0.0",
+    "expo-location": "~18.0.0",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-sse": "^1.2.1",
+    "react-native-web": "^0.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.10",
+    "typescript": "~5.8.3"
+  }
+}
