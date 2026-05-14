@@ -130,6 +130,11 @@ const SHEET_SYNC_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
 const ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
 /** 발송금지 거래처 (/admin/blocked-partners) — 영업 카테고리 — SALES/MANAGER/MASTER */
 const BLOCKED_PARTNERS_SIDEBAR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+/**
+ * [samhan-dispatch-board Phase A] 배차 메뉴 (/dispatch-board) — DISPATCH/MANAGER/MASTER.
+ * Samhan Public 배차담당자 → 차량 그룹 + arologis 발송 흐름.
+ */
+const DISPATCH_BOARD_SIDEBAR_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 
 export function AppLayout() {
   const auth = useSessionStore((s) => s.auth)
@@ -264,6 +269,9 @@ export function AppLayout() {
     && (ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
   const showBlockedPartners = !!auth?.role
     && (BLOCKED_PARTNERS_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+  // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER 가시.
+  const showDispatchBoard = !!auth?.role
+    && (DISPATCH_BOARD_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
 
   return (
     <div className="app-shell">
@@ -281,6 +289,16 @@ export function AppLayout() {
           <NavLink to="/purchases" data-testid="sidebar-purchases">구매조회</NavLink>
           <NavLink to="/transfers">재고이동</NavLink>
           <NavLink to="/sales/link-dispatch">링크발송</NavLink>
+          {/* [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER.
+              Samhan Public 배차담당자 → 미배차 출고전표 + 차량 그룹 + arologis 발송. */}
+          <SidebarLink
+            to="/dispatch-board"
+            show={showDispatchBoard}
+            requiredRole="DISPATCH / MANAGER / MASTER"
+            data-testid="sidebar-dispatch-board"
+          >
+            배차 메뉴
+          </SidebarLink>
 
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub. */}
           <div
