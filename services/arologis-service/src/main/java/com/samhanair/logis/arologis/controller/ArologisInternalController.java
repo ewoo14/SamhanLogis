@@ -1,19 +1,26 @@
 package com.samhanair.logis.arologis.controller;
 
+import com.samhanair.logis.arologis.dto.dispatch.ArologisCancellationRequest;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchRequest;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchResponse;
+import com.samhanair.logis.arologis.dto.dispatch.ArologisModificationRequest;
 import com.samhanair.logis.arologis.service.dispatch.DispatchReceiveService;
+import com.samhanair.logis.arologis.service.dispatch.ModificationRequestReceiveService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ArologisInternalController {
 
     private final DispatchReceiveService dispatchReceiveService;
+    private final ModificationRequestReceiveService modificationRequestReceiveService;
 
     /**
      * 외부 vendor 배차 상태 동기화 callback.
@@ -77,5 +85,43 @@ public class ArologisInternalController {
         log.info("[ArologisInternalController] receiveDispatch — samhanTaskId={} taskCode={} groups={}",
                 req.samhanDispatchTaskId(), req.taskCode(), req.vehicles().size());
         return dispatchReceiveService.receive(req);
+    }
+
+    // ---------- Phase C (배차 수정/취소 요청 receive, BE Task B7) ----------
+
+    /**
+     * Samhan Public 배차 수정 요청 receive — Phase C (D-DC-04).
+     *
+     * <p>Mock 자동 수락 정책: Dispatch soft-delete + 5초 후 modificationAccepted 회신 (delete-recreate).
+     */
+    @Operation(summary = "Samhan Public 배차 수정 요청 receive (Phase C)",
+            description = "DISPATCHED 상태의 DispatchTask 수정 요청 수신. Dispatch soft-delete 후 자동 수락 회신.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수신 ack"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "payload 유효성 실패")
+    })
+    @PostMapping("/dispatches/{arologisDispatchId}/modification-request")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void receiveModificationRequest(@PathVariable UUID arologisDispatchId,
+                                            @Valid @RequestBody ArologisModificationRequest req) {
+        modificationRequestReceiveService.receiveModification(arologisDispatchId, req);
+    }
+
+    /**
+     * Samhan Public 배차 취소 요청 receive — Phase C (D-DC-05).
+     */
+    @Operation(summary = "Samhan Public 배차 취소 요청 receive (Phase C)",
+            description = "DISPATCHED 상태의 DispatchTask 취소 요청 수신. Dispatch soft-delete 후 자동 수락 회신.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수신 ack"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "payload 유효성 실패")
+    })
+    @PostMapping("/dispatches/{arologisDispatchId}/cancellation-request")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void receiveCancellationRequest(@PathVariable UUID arologisDispatchId,
+                                            @Valid @RequestBody ArologisCancellationRequest req) {
+        modificationRequestReceiveService.receiveCancellation(arologisDispatchId, req);
     }
 }

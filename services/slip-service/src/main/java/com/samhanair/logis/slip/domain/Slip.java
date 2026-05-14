@@ -1531,4 +1531,14 @@ public class Slip extends BaseEntity {
         }
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
     }
+
+    /**
+     * DISPATCHED → UNDISPATCHED. Samhan Public 배차 취소 흐름 Phase C 의 CANCEL_ACCEPTED 시점에 호출
+     * (D-DC-05). DispatchTask 의 매핑된 모든 slip 을 미배차 풀로 복귀시킨다.
+     *
+     * <p>{@link #markDispatchReleased()} 와 달리 DISPATCHED 에서의 복귀를 허용한다 (취소 = 명시적 의도).
+     */
+    public void markDispatchCancelled() {
+        this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
+    }
 }

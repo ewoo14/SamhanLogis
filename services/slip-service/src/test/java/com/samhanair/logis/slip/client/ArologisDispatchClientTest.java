@@ -11,8 +11,10 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.security.InternalAuthProperties;
+import com.samhanair.logis.slip.dto.dispatch.ArologisCancellationRequest;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchRequest;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchResponse;
+import com.samhanair.logis.slip.dto.dispatch.ArologisModificationRequest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -95,6 +97,54 @@ class ArologisDispatchClientTest {
         ArologisDispatchRequest req = new ArologisDispatchRequest(
                 UUID.randomUUID(), "DT-x", LocalDate.now(), List.of());
         assertThatThrownBy(() -> noTokenClient.send(req))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    // ---------- Phase C (BE Task B2) ----------
+
+    @Test
+    void requestModification_success_posts_to_modification_request_path() {
+        UUID arologisId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+
+        server.expect(requestTo(AROLOGIS_BASE
+                        + "/internal/arologis/dispatches/" + arologisId + "/modification-request"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andRespond(withSuccess());
+
+        client.requestModification(arologisId,
+                new ArologisModificationRequest(taskId, "슬립 추가 필요"));
+        server.verify();
+    }
+
+    @Test
+    void requestCancellation_success_posts_to_cancellation_request_path() {
+        UUID arologisId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+
+        server.expect(requestTo(AROLOGIS_BASE
+                        + "/internal/arologis/dispatches/" + arologisId + "/cancellation-request"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andRespond(withSuccess());
+
+        client.requestCancellation(arologisId,
+                new ArologisCancellationRequest(taskId, "거래처 일정 변경"));
+        server.verify();
+    }
+
+    @Test
+    void requestModification_failure_throws_business_exception() {
+        UUID arologisId = UUID.randomUUID();
+
+        server.expect(requestTo(AROLOGIS_BASE
+                        + "/internal/arologis/dispatches/" + arologisId + "/modification-request"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.requestModification(arologisId,
+                new ArologisModificationRequest(UUID.randomUUID(), null)))
                 .isInstanceOf(BusinessException.class);
     }
 }

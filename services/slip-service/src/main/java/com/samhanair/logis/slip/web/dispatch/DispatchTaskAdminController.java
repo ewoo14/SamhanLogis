@@ -7,11 +7,14 @@ import com.samhanair.logis.slip.dto.dispatch.DispatchTaskResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchVehicleGroupResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchVehicleGroupSlipResponse;
 import com.samhanair.logis.slip.dto.dispatch.ReorderSlipsRequest;
+import com.samhanair.logis.slip.service.dispatch.DispatchTaskCancellationRequestService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskCompletionService;
+import com.samhanair.logis.slip.service.dispatch.DispatchTaskModificationRequestService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,11 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/dispatch-tasks")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_MANAGER','ROLE_MASTER')")
+@PreAuthorize("hasAnyAuthority('ROLE_DISPATCH','ROLE_MANAGER','ROLE_MASTER')")
 public class DispatchTaskAdminController {
 
     private final DispatchTaskService taskService;
     private final DispatchTaskCompletionService completionService;
+    private final DispatchTaskModificationRequestService modificationRequestService;
+    private final DispatchTaskCancellationRequestService cancellationRequestService;
 
     @Operation(summary = "DispatchTask 생성 (DRAFT)")
     @PostMapping
@@ -103,4 +108,37 @@ public class DispatchTaskAdminController {
                                          @RequestHeader(value = "X-User-Id", required = false) String actor) {
         return DispatchTaskResponse.from(completionService.dispatch(taskId));
     }
+
+    // ---------- Phase C (배차 수정/취소 요청, D-DC-02 / D-DC-07) ----------
+
+    @Operation(summary = "배차 수정 요청 발송 (DISPATCHED → MODIFICATION_REQUESTED)",
+            description = "DISPATCHED 상태의 DispatchTask 에 대해 아로로지스로 수정 요청을 발송. " +
+                    "권한 = ROLE_DISPATCH / ROLE_MANAGER / ROLE_MASTER (D-DC-07).")
+    @PostMapping("/{taskId}/modification-request")
+    public DispatchTaskResponse requestModification(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody ModificationRequestBody req,
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
+        String actorOrSystem = actor != null ? actor : "system";
+        return DispatchTaskResponse.from(
+                modificationRequestService.request(taskId, req.reason(), actorOrSystem));
+    }
+
+    @Operation(summary = "배차 취소 요청 발송 (DISPATCHED → CANCEL_REQUESTED)",
+            description = "DISPATCHED 상태의 DispatchTask 에 대해 아로로지스로 취소 요청을 발송.")
+    @PostMapping("/{taskId}/cancellation-request")
+    public DispatchTaskResponse requestCancellation(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody CancellationRequestBody req,
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
+        String actorOrSystem = actor != null ? actor : "system";
+        return DispatchTaskResponse.from(
+                cancellationRequestService.request(taskId, req.reason(), actorOrSystem));
+    }
+
+    /** 수정 요청 body — 사유 (선택, 0~500자). */
+    public record ModificationRequestBody(@Size(max = 500) String reason) {}
+
+    /** 취소 요청 body — 사유 (선택, 0~500자). */
+    public record CancellationRequestBody(@Size(max = 500) String reason) {}
 }
