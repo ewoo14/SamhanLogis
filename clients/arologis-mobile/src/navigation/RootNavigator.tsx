@@ -10,6 +10,7 @@
  * GPS 권한 조회는 useGpsPermission hook 이 mount 직후 1회 자동 수행.
  * `status === 'unknown'` 시점에는 splash 텍스트로 시각적 가드.
  */
+import * as React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../stores/authStore';
 import { useGpsPermission } from '../hooks/useGpsPermission';
@@ -18,7 +19,7 @@ import DispatchListScreen from '../screens/DispatchListScreen';
 import GpsPermissionScreen from '../screens/GpsPermissionScreen';
 import { colors, spacing, typography } from '../theme/tokens';
 
-export default function RootNavigator(): JSX.Element {
+export default function RootNavigator(): React.ReactElement {
   const auth = useAuth();
   const gps = useGpsPermission();
 

@@ -11,6 +11,7 @@
  * UUID 비공개 — driverCode 는 응답에 포함되어 RootNavigator 에서 표시 가능,
  * BE 내부 식별자 (UUID) 는 token 안에만 존재 + 화면 표시 X.
  */
+import * as React from 'react';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,7 +27,7 @@ import { ApiError } from '../api/client';
 import { setAuth } from '../stores/authStore';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
-export default function PhoneLoginScreen(): JSX.Element {
+export default function PhoneLoginScreen(): React.ReactElement {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

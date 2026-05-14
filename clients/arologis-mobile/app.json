@@ -33,17 +33,6 @@
         {
           "locationAlwaysAndWhenInUsePermission": "배송 도중 위치를 아로로지스 서버에 보고합니다 (foreground = 의무, background = 선택)."
         }
-      ],
-      [
-        "expo-font",
-        {
-          "fonts": [
-            "./assets/fonts/Pretendard-Regular.otf",
-            "./assets/fonts/Pretendard-Medium.otf",
-            "./assets/fonts/Pretendard-SemiBold.otf",
-            "./assets/fonts/Pretendard-Bold.otf"
-          ]
-        }
       ]
     ]
   }

@@ -6,11 +6,12 @@
  *
  * 본 placeholder 는 로그인 후 진입점 navigator 가 동작하도록 export 만 유지.
  */
+import * as React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, spacing, typography } from '../theme/tokens';
 import { useAuth, clearAuth } from '../stores/authStore';
 
-export default function DispatchListScreen(): JSX.Element {
+export default function DispatchListScreen(): React.ReactElement {
   const auth = useAuth();
   return (
     <View style={styles.container}>

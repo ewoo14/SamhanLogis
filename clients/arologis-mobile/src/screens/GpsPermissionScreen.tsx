@@ -10,6 +10,7 @@
  * - "다시 시도" 버튼 → hook 의 retry() 호출 (사용자가 OS 설정에서 허용 후 재시도).
  * - "OS 설정 열기" 안내 (Expo Linking — 본 PR scope 외, hint 텍스트로만 노출).
  */
+import * as React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -18,7 +19,7 @@ interface Props {
   onRetry: () => void;
 }
 
-export default function GpsPermissionScreen({ status, onRetry }: Props): JSX.Element {
+export default function GpsPermissionScreen({ status, onRetry }: Props): React.ReactElement {
   const isUnavailable = status === 'unavailable';
   return (
     <View style={styles.container}>

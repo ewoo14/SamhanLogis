@@ -8,11 +8,12 @@
  * 1) Pretendard font load (graceful guard — 미설치 환경에서도 RN UI 차단하지 않음).
  * 2) RootNavigator → 토큰 부재 시 PhoneLoginScreen, 있으면 DispatchListScreen.
  */
+import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 
-export default function App(): JSX.Element {
+export default function App(): React.ReactElement {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />

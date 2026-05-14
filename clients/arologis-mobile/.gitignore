@@ -1,0 +1,18 @@
+# Expo prebuild 산출물 — `npx expo prebuild` 시 자동 생성, VCS 추적 금지.
+# Managed workflow 유지 (eas build 가 cloud 에서 prebuild 수행).
+android/
+ios/
+
+# Expo 캐시
+.expo/
+.expo-shared/
+
+# Node
+node_modules/
+
+# Builds
+dist/
+web-build/
+
+# Logs
+*.log
