@@ -1,93 +1,156 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-14
+> 갱신일: 2026-05-14 (Phase A → C 머지 완료, Phase F spec 리뷰 대기)
 > 갱신자: PM (Claude Opus 4.7) + 개발책임자 (ewoo14)
-> 사용법: PC 이동 직전 갱신, 새 PC 에서 Claude 첫 세션 시작 시 이 파일 읽으면 즉시 컨텍스트 회복
+> 사용법: 새 conversation 시작 시 본 파일 read → CLAUDE.md 자동 로드 + `.claude/memory/` sync 후 이어 진행
 
 ---
 
-## 1. 최근 완료 — Phase 10.5 아로로지스 독립 분리 (PR #184, 2026-05-14 머지)
+## 1. 본 conversation 누적 머지 (6 PR)
 
-`arologis-service` 를 Samhan Public 14 마이크로서비스 묶음에서 **독립 운영 단위** 로 분리 완료.
-
-- merge commit: `f3cb306`
-- PR: https://github.com/ewoo14/SamhanLogis/pull/184
-- DECISIONS: D-AX-00 ~ D-AX-10 (단일 통합 entry, `migration/decisions/DECISIONS.md`)
-- 산출: BE 14 + FE 8 + Designer 5 + DevOps 6 + QA 3 + TM 6 + baseline 1 = **42 commit**
-- 회귀: unit 114 PASS / IT 70 Docker 가용 시 PASS
-- CI: 20 check 모두 PASS
-
-### 9 + 1 핵심 결정 요약
-
-| # | 결정 |
-|---|---|
-| D-AX-01 | monorepo 유지 + build/배포만 분리 |
-| D-AX-02 | Eureka 공유 + UserClient 제거 (3 client 유지) |
-| D-AX-03 | clients/arologis-desktop + clients/arologis-mobile 신규 |
-| D-AX-04 | 공유 RDS + arologis_db 격리 (비용 변경 0) |
-| D-AX-05 | arologis.samhan-air.com 3 sub-domain (api/app/mobile) |
-| D-AX-06 | 단일 통합 PR + 5-team 병렬 |
-| D-AX-07 | 자체 auth + user 도메인 (계정 완전 별도) |
-| D-AX-08 | arologis-service 내장 (단일 jar) |
-| D-AX-09 | 기사 인증 = 휴대번호 passwordless (사전 등록) |
-| D-AX-10 | EC2 Health Lambda 영향 분석 + 자동 reboot 별도 PR 위임 |
-
----
-
-## 2. 후속 작업 (별도 PR 위임)
-
-### 즉시 진입 가능 (개발책임자 trigger 대기)
-
-| Decision | 작업 | 우선순위 |
+| PR | merge commit | 내용 |
 |---|---|---|
-| **D-AX-11** | FE 산재 페이지 이전 — `ArologisManualDispatchPage` / `PreClassifyPage` / `UnassignedPage` / `DispatchReconcilePage` 4 page + `arologis*Api.ts` 3 + `ArologisRealtimeClient.ts` 가 `clients/desktop/{routes,api,realtime}` 루트에 산재. 본 PR = placeholder. 후속 = `git mv` + import 갱신 + 실 routing | **HIGH** (placeholder 상태 불완전) |
-| **D-AX-12** | mobile cross-import 분리 — `clients/mobile-staff/src/screens/driver/DriverTabNavigator.tsx` 가 `../SlipDetailScreen` (sales/slip) cross-import. `SlipDetailScreen` 처리 결정 (같이 이전 / shared 추출 / 복제) | **MEDIUM** |
-| **D-AX-13** | BE/FE auth schema 정합 검증 — `/auth/me` 응답 형태 (`AuthMeResponse` vs `MeResponse`) e2e 통합 검증 | **MEDIUM** |
+| #184 | `f3cb306` | 아로로지스 독립 분리 (D-AX-01~10) — monorepo 유지 + 자체 auth + 휴대번호 passwordless |
+| #185 | `26f2bc3` | post-merge follow-up — mock PNG 6장 + handoff + autopilot 메모리 v2 |
+| #186 | `2bd653f` | D-AX-14 자동 폰번호 인식 + 1-tap 로그인 (PR #184 보완) |
+| #187 | `cc106d1` | D-AX-14 mock 스크린샷 3장 follow-up |
+| #188 | `01d41f6` | **Phase A — 배차 메뉴 + 아로로지스 발송** (D-DB-01~09) |
+| #189 | `9bebe12` | **Phase C — 배차 수정/취소 요청 흐름** (D-DC-01~09) + 5-team 패턴 정정 메모리 |
 
-### 운영 환경 의무 (cutover 직전)
+---
 
-| 항목 | 작업 |
+## 2. 진행 중 — Phase F spec 리뷰 대기 (PR 미 발행)
+
+**branch**: `feat/samhan-signature-copy-spec` (origin push 완료, commit `5e9be6c`)
+**spec**: `docs/superpowers/specs/2026-05-14-samhan-signature-copy-design.md`
+
+Phase F = **전자서명 양쪽 저장 + PNG 사본 1회 발송**.
+
+### 10 핵심 결정 (D-DF-01~09)
+- D-DF-01 양쪽 저장 = PR #99 의 `SlipClient.registerSignature()` skeleton-mode=false 활성
+- D-DF-02 사본 = **PNG** (사용자 확정, 카톡 단일 이미지)
+- D-DF-03 발송 = notification-service Aligo
+- D-DF-04 1회 제한 = arologis `signature.copy_sent_at` column
+- D-DF-05 인수자 번호 = slip `recipientPhoneNumber` (Phase A SlipRef 에 포함)
+- D-DF-06 PNG 합성 = Java `BufferedImage` (외부 의존 0)
+- D-DF-07 endpoint = arologis `POST /driver-app/.../sign-and-send-copy` 1-tap UX
+- D-DF-08 권한 = ROLE_AROLOGIS_DRIVER
+- D-DF-09 PII = `recipientPhoneNumber` 마스킹 + Aligo audit
+
+### 다음 단계 (개발책임자 trigger 대기)
+1. spec 리뷰 → "승인" 시 `superpowers:writing-plans` 호출
+2. plan 작성 후 5-team 디스패치 (**새 패턴 첫 적용**)
+3. TM 통합 + PR 발행 + CI watch + 머지 요청
+
+---
+
+## 3. 5-team 패턴 정정 (2026-05-14)
+
+**기존**: BE + FE + Designer + QA + DevOps 5 parallel (QA = spec 기반 mock 만)
+**새 패턴**: BE + FE + Designer + DevOps **4 parallel** → QA **sequential** (실 BE/FE 산출 검증 + 실 화면 캡처 의무)
+
+**적용 시점**: PR #189 (Phase C) 머지 후 — Phase D~F 부터 의무.
+**메모리**: `.claude/memory/feedback_qa_sequential_after_be_fe.md` (양 PC sync 의무)
+
+QA agent 의 sequential prompt 차이:
+- BE/FE worktree branch 명 명시 → QA 가 merge 또는 cherry-pick 후 검증
+- 실 PNG 캡처 (mock X) — `npm run dev` electron / `npx expo start --web` mobile / Eureka dashboard / 실 e2e
+- 실 회귀 — `gradlew :services:slip-service:test` Docker 가용 시
+
+---
+
+## 4. 후속 (인성 자료 도착 대기 / 즉시 가능)
+
+### 인성데이타 API 링크 도착 대기 (사용자 요청 "추후")
+- **Phase B** — arologis `InsungQuickDriverMatcher` 실 활성 (W10-2 trigger)
+- **Phase D** — GPS 실시간 공유 (SSE) — 인성 LBS callback endpoint
+
+### 즉시 가능
+- **Phase F** — 본 핸드오프 후 첫 trigger 진행 (spec 리뷰 대기)
+- **Phase E** — 인수자 카톡/문자 발송 (배차 기사 정보) — notification-service Aligo
+- **D-AX-11** — FE 산재 페이지 이전 (`ArologisManualDispatchPage` 등 4 page + Api 3 + RealtimeClient) HIGH 우선순위
+- **D-AX-12** — mobile cross-import 분리 (`DriverTabNavigator` → `SlipDetailScreen`)
+- **D-AX-13** — BE/FE auth schema 정합 검증 (`/auth/me` 응답)
+- **ACM SAN 갱신** — Terraform `*.arologis.samhan-air.com` 추가 (Phase 11 cutover 전)
+- **EC2 Health Lambda** — CloudWatch alarm + SNS 별도 PR
+
+---
+
+## 5. 양 PC 메모리 sync (의무)
+
+본 conversation 으로 추가/갱신된 메모리 (총 8 신규/갱신):
+
+| 메모리 | 내용 |
 |---|---|
-| ACM SAN 갱신 | Terraform main.tf `aws_acm_certificate.main.subject_alternative_names` 에 `*.arologis.samhan-air.com` 추가 (별도 PR) |
-| EC2 Health Lambda | CloudWatch alarm + SNS 만 추가 (Samhan Public 14 service 함께 outage 회피, 별도 PR) |
+| `project_arologis_independent` | 아로로지스 독립 분리 (PR #184, 9 결정 D-AX-01~10) |
+| `feedback_arologis_name` | "아로로지스" 정식 표기 (단축 "아로로지" 금지) |
+| `feedback_samhan_public_name` | 외부 호칭 "Samhan Public" (SamhanLogis 는 폴더명일 뿐) |
+| `feedback_arologis_extract_autopilot` | 본 conversation 자율 진행 권한 (머지 외) + QA 캡처 자율 |
+| `project_samhan_dispatch_board` | Phase A 배차 메뉴 (PR #188, D-DB-01~09) |
+| `feedback_qa_sequential_after_be_fe` | **5-team 패턴 정정** (PR #189, Phase D~F 부터 의무) |
+
+회사 PC 동기화:
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+```
 
 ---
 
-## 3. 양 PC 메모리 sync (자동)
+## 6. 새 conversation 시작 시 권장 흐름
 
-본 PR 머지로 다음 메모리가 `.claude/memory/` 에 추가됨 (양 PC 자동 sync):
+1. CLAUDE.md 자동 로드 (project memory)
+2. `.claude/memory/` 모든 신규 메모리 인지
+3. **본 파일 read** → 진행 상태 즉시 파악
+4. Phase F spec 리뷰 trigger 또는 다른 후속 trigger 결정
 
-- `project_arologis_independent.md` — 9 결정 + 도메인 영향 (UserClient 제거 / 자체 auth / Flyway V7~V9)
-- `feedback_arologis_name.md` — 한국어 표기 "아로로지스" 정식
-- `feedback_samhan_public_name.md` — 외부 호칭 "Samhan Public"
-- `feedback_arologis_extract_autopilot.md` — 본 작업 자율 진행 권한 (머지 외 + QA 캡처 자율)
-
-회사 PC 에서 `git pull && ./scripts/sync-claude-memory.ps1` 실행으로 갱신.
-
----
-
-## 4. 미완료 / 사용자 결정 필요
-
-- [ ] D-AX-11 (FE 산재 페이지) 진입 시점 — 개발책임자 trigger 대기
-- [ ] ACM SAN 갱신 + EC2 Health Lambda 별도 PR — Phase 11 cutover 전 의무
-- [ ] arologis-teal `#2A9D8F` brand color — Samhan Public design system (`clients/web/design-system`) 확장 합의 필요 (Designer concern)
+### 다음 trigger 후보 (개발책임자 결정)
+- "Phase F 진행" — spec 리뷰 후 plan/디스패치
+- "Phase E 진행" — 인수자 카톡/문자 spec 신규
+- "D-AX-11 진행" — FE 산재 페이지 이전 spec 신규
+- "ACM SAN 갱신" — Terraform 작은 PR
+- "Phase B/D 진행" — 인성 자료 도착 후
 
 ---
 
-## 5. 양 PC 작업 인계 순서
+## 7. 자율 진행 권한 (본 conversation 한정)
+
+[[feedback_arologis_extract_autopilot]]:
+- **자율**: TM 통합 / PR 발행 / CI watch / GitGuardian / 5-team 검토 / QA 캡처 / 실 운영 환경 검증
+- **사용자 인터럽트**: 최종 머지 요청만
+
+새 conversation 에서 동일 권한 유지하려면 메모리 그대로 + 명시적 "자율 진행" 트리거.
+
+---
+
+## 8. 통계 (본 conversation)
+
+- 누적 PR 머지: 6 (PR #184~#189)
+- 진행 중 PR: 0 (Phase F spec branch 만, PR 발행 전)
+- 누적 commit: ~150+ (5-team x 5 cycle + TM + PM + fix)
+- 누적 메모리: 8 신규
+- 누적 DECISIONS entry: D-AX-01~14 + D-DB-01~09 + D-DC-01~09 + D-DF-01~09 (40+ entry)
+- 회귀 가드: 모든 PR 0 결함 (slip-service 단위 ~98 + IT 50+ 모두 유지)
+- AWS 비용 변경: ₩0 (Phase 11 계획 ₩405K/월 유지)
+
+---
+
+## 9. 양 PC 작업 인계 절차
 
 ### 떠나는 PC
 
 ```powershell
-git add docs/handoff/CURRENT-WORK.md
-git commit -m "handoff: Phase 10.5 머지 완료 + 후속 D-AX-11~13 + ACM/EC2 대기"
-git push
+# CURRENT-WORK.md 갱신은 본 commit
+git checkout main
+git pull
+# (필요 시) 미 머지 branch 도 push: feat/samhan-signature-copy-spec
 ```
 
 ### 도착하는 PC
 
 ```powershell
 git pull
-.\scripts\sync-claude-memory.ps1   # 4 신규 메모리 동기화
+.\scripts\sync-claude-memory.ps1   # 8 신규 메모리 동기화
 # Claude Code 새 세션 → CLAUDE.md 자동 로드 + 본 파일 read 으로 컨텍스트 회복
+# trigger: "Phase F spec 리뷰" 또는 "다른 Phase 시작"
 ```
