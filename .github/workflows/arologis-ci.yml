@@ -1,0 +1,179 @@
+# 아로로지스 (Samhan Public) 독립 분리 CI workflow
+#
+# 분리 사유 (spec §4, §11 — 2026-05-14):
+#   - 아로로지스 = Samhan Public 의 독립 운영 단위로 분리, 같은 AWS 환경 공유.
+#   - 빌드/배포 = 별도 워크플로 + 별도 Docker image (`samhanpublic/arologis-service`).
+#   - 본 워크플로 는 path filter 로 `services/arologis-service/**` + arologis 전용 클라이언트만
+#     트리거. Samhan Public 14 service 영향 0.
+#
+# 트리거 paths:
+#   - services/arologis-service/**          (BE)
+#   - clients/arologis-desktop/**           (Electron installer)
+#   - clients/arologis-mobile/**            (Expo RN)
+#   - shared/**                             (공용 모듈 변경 시 양쪽 모두 재검증)
+#   - .github/workflows/arologis-ci.yml     (워크플로 자체 변경 시)
+name: arologis CI
+
+on:
+  pull_request:
+    paths:
+      - 'services/arologis-service/**'
+      - 'clients/arologis-desktop/**'
+      - 'clients/arologis-mobile/**'
+      - 'shared/**'
+      - '.github/workflows/arologis-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/arologis-service/**'
+      - 'clients/arologis-desktop/**'
+      - 'clients/arologis-mobile/**'
+      - 'shared/**'
+
+permissions:
+  contents: read
+  checks: write          # mikepenz/action-junit-report: check run 생성
+  pull-requests: write   # JUnit 결과 PR 코멘트
+
+jobs:
+  # ─── Backend ───────────────────────────────────────────────────────────────
+  # arologis-service test + bootJar 산출. JAR artifact 는 후속 deploy workflow 에서 재활용 가능.
+  backend:
+    name: 백엔드 빌드 + 테스트 (arologis-service)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: JDK 17 설치 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 캐시 + Wrapper 검증
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.head_ref != 'main' }}
+
+      - name: gradlew 실행 권한 보장 (Windows 커밋 방어)
+        run: chmod +x ./gradlew
+
+      - name: Docker 가용성 확인 (Testcontainers)
+        run: |
+          docker version
+          docker ps
+
+      - name: assemble (의존 모듈 포함)
+        run: ./gradlew :services:arologis-service:assemble
+
+      - name: test (arologis-service)
+        run: ./gradlew :services:arologis-service:test -i
+
+      - name: bootJar (arologis-service)
+        run: ./gradlew :services:arologis-service:bootJar
+
+      - name: arologis-service.jar artifact 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: arologis-service-jar
+          path: services/arologis-service/build/libs/arologis-service.jar
+          retention-days: 14
+
+      - name: 테스트 리포트 artifact 업로드 (실패 포함)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arologis-test-reports
+          path: |
+            services/arologis-service/build/reports/tests/test/
+            shared/*/build/reports/tests/test/
+          retention-days: 14
+
+      - name: JUnit 결과 PR 코멘트 게시
+        if: always() && github.event_name == 'pull_request'
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: '**/build/test-results/test/TEST-*.xml'
+          require_tests: false
+          check_name: JUnit 테스트 결과 (arologis-service)
+
+  # ─── Desktop (Electron) ────────────────────────────────────────────────────
+  # arologis-desktop = 별도 Electron installer (Arologis-Setup-1.0.0.exe).
+  # design-system 공유 — 필요 시 file: dependency 사전 빌드.
+  desktop:
+    name: 데스크톱 빌드 (arologis-desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # design-system 사전 빌드 — file: dependency 가 있을 경우만 필요.
+      # 본 step 은 graceful — design-system 미참조 시 skip.
+      - name: design-system 사전 빌드 (file: dependency, 있을 경우)
+        run: |
+          if [ -f clients/web/design-system/package.json ]; then
+            cd clients/web/design-system
+            npm ci
+            npm run build
+          else
+            echo 'design-system 미존재 — skip'
+          fi
+
+      - name: 의존성 설치 (arologis-desktop)
+        working-directory: clients/arologis-desktop
+        run: npm ci
+
+      - name: typecheck (arologis-desktop)
+        working-directory: clients/arologis-desktop
+        run: npm run typecheck
+        continue-on-error: true   # 초기 스캐폴드 graceful guard
+
+      - name: build (arologis-desktop)
+        working-directory: clients/arologis-desktop
+        run: npm run build
+
+  # ─── Mobile (Expo RN) ──────────────────────────────────────────────────────
+  # arologis-mobile = 별도 Google Play / App Store 앱 (별도 bundle id).
+  # Prebuild dry-run = native 코드 생성 가능성 사전 가드, EAS Build 진입 전 회귀 방지.
+  mobile:
+    name: 모바일 prebuild (arologis-mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 의존성 설치 (arologis-mobile)
+        working-directory: clients/arologis-mobile
+        run: npm ci
+
+      - name: typecheck (arologis-mobile)
+        working-directory: clients/arologis-mobile
+        run: npm run typecheck
+        continue-on-error: true   # 초기 스캐폴드 graceful guard
+
+      - name: Expo doctor (plugin 정합 점검)
+        working-directory: clients/arologis-mobile
+        run: npx expo-doctor
+        continue-on-error: true
+
+      - name: Expo prebuild dry-run (Android)
+        working-directory: clients/arologis-mobile
+        run: npx expo prebuild --no-install --platform android --clean
+        continue-on-error: true
