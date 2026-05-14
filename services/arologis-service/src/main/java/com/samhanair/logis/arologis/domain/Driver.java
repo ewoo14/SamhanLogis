@@ -53,7 +53,14 @@ public class Driver extends BaseEntity {
     @Column(name = "app_installed", nullable = false)
     private Boolean appInstalled;
 
-    /** 본 어플 (RN Expo) 사용 시점 user-service userId — INTERNAL 기사일 때만 설정. */
+    /**
+     * 본 어플 (RN Expo) 사용 시점 user-service userId — INTERNAL 기사일 때만 설정.
+     *
+     * @deprecated 2026-05-14 분리 — 자체 user 도메인 도입 (Driver 가 자체 인증 식별자
+     *     = phoneNumber). user-service userId 매핑은 더 이상 필요 없음. NULL 허용 유지하여
+     *     기존 row 정합 보존. 새 row 는 항상 NULL.
+     */
+    @Deprecated(since = "2026-05-14", forRemoval = false)
     @Column(name = "app_user_id")
     private UUID appUserId;
 

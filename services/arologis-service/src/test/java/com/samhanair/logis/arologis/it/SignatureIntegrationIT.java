@@ -15,7 +15,6 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
-import com.samhanair.logis.arologis.client.UserClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
@@ -82,7 +81,7 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
     @Autowired private DriverLocationRepository locationRepository;
 
     @MockBean private PartnerClient partnerClient;
-    @MockBean private UserClient userClient;
+    // 2026-05-14 분리 — UserClient @MockBean 제거 (자체 user 도메인 도입).
     @MockBean private SlipClient slipClient;
     @MockBean private NotificationClient notificationClient;
     /** PR-E1 BE-3 — 출고전표 자동 조회 client 격리. */
@@ -93,7 +92,6 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
         // 외부 client mock — IT 외부 client @MockBean 격리 의무 가드 (PR #17 회고)
         lenient().when(partnerClient.findByCodes(any())).thenReturn(List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(userClient.findById(any())).thenReturn(Optional.empty());
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
 

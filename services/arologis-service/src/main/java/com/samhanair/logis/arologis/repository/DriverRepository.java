@@ -19,6 +19,14 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
     Optional<Driver> findByPhoneNumber(String phoneNumber);
 
     /**
+     * 활성 (`is_deleted=false`) phoneNumber 조회 — 2026-05-14 분리 (passwordless driver login).
+     *
+     * <p>{@code @SQLRestriction} 가드와 같이 명시적 메서드. arologis-mobile 의 driverLogin
+     * (passwordless) 진입점.
+     */
+    Optional<Driver> findByPhoneNumberAndIsDeletedFalse(String phoneNumber);
+
+    /**
      * 본 어플 사용자 (INTERNAL Driver) lookup — appUserId = user-service userId.
      *
      * <p>QA-2 채택 fix (2026-05-07) — Driver-app endpoint 풀스캔 회피. V2 partial unique index 가드

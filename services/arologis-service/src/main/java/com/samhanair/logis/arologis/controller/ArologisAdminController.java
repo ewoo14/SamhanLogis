@@ -62,7 +62,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * Admin endpoint — Phase 10 W10-1 arologis-service.
  *
- * <p>인증 = X-User-* 헤더 + {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER')")}.
+ * <p>인증 = X-User-* 헤더 + {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")}.
  *
  * <p>UUID 비공개 가드 — driverCode / partnerCode / vehicle sequence / stop sequence 응답에만 사용.
  * dispatchId 만 admin 화면 routing 용 노출.
@@ -94,7 +94,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "카톡 배차 메시지 파싱 미리보기 (Admin)")
     @PostMapping("/dispatches/parse-kakao")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ParsedDispatchResponse> parseKakao(@RequestBody Map<String, String> body) {
         String kakaoText = body == null ? null : body.get("kakaoText");
         if (kakaoText == null || kakaoText.isBlank()) {
@@ -110,7 +110,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 저장 (Admin)")
     @PostMapping("/dispatches")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> create(@RequestBody Map<String, String> body) {
         String kakaoText = body == null ? null : body.get("kakaoText");
         if (kakaoText == null || kakaoText.isBlank()) {
@@ -131,7 +131,7 @@ public class ArologisAdminController {
     @Operation(summary = "수동 배차 저장 (Admin)",
             description = "카톡 우회 외 admin UI 직접 입력. driverCode 미지정 시 자동 매칭.")
     @PostMapping("/dispatches/manual")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> manualCreate(@Valid @RequestBody ManualDispatchRequest req) {
         UUID id = manualService.manualCreate(req);
         return ApiResponse.ok(Map.of("dispatchId", id.toString()));
@@ -145,7 +145,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "수동 배차 미리보기 (Admin)", description = "검증만 + echo, 저장 X")
     @PostMapping("/dispatches/manual/preview")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ManualDispatchPreviewResponse> manualPreview(
             @Valid @RequestBody ManualDispatchRequest req) {
         return ApiResponse.ok(manualService.manualPreview(req));
@@ -156,7 +156,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 목록 조회 (Admin)")
     @GetMapping("/dispatches")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<DispatchResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) DispatchType type) {
@@ -170,7 +170,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 상세 조회 (Admin)")
     @GetMapping("/dispatches/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchDetailResponse> findById(@PathVariable UUID id) {
         DispatchService.DispatchAggregate agg = dispatchService.findById(id);
         // QA-1 채택 fix — N round-trip → batch findAllById (N+1 → 1 query).
@@ -190,7 +190,7 @@ public class ArologisAdminController {
     /** 자동 매칭 — 모든 vehicle 에 대해 활성 DriverMatcher 호출. */
     @Operation(summary = "Dispatch 자동 매칭 (Admin)")
     @PostMapping("/dispatches/{id}/auto-match")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchService.AutoMatchResult> autoMatch(@PathVariable UUID id) {
         return ApiResponse.ok(dispatchService.autoMatch(id));
     }
@@ -200,7 +200,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "특정 차량 외부 매칭 trigger (Admin)")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/match-external")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchService.AutoMatchResult> matchExternal(
             @PathVariable UUID id, @PathVariable Integer seq) {
         // 단순화 — 전체 auto-match 호출 후 결과 반환 (W10-2 시점에 단건 매칭으로 분리)
@@ -211,7 +211,7 @@ public class ArologisAdminController {
     /** 수동 기사 배정. */
     @Operation(summary = "수동 기사 배정 (Admin)")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/assign-driver")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> assignDriver(
             @PathVariable UUID id, @PathVariable Integer seq,
             @RequestBody Map<String, String> body) {
@@ -223,7 +223,7 @@ public class ArologisAdminController {
     /** 정차 상태 갱신. */
     @Operation(summary = "정차 상태 갱신 (Admin)")
     @PutMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/status")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> updateStopStatus(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
             @RequestBody Map<String, String> body) {
@@ -244,7 +244,7 @@ public class ArologisAdminController {
     /** Driver 목록 조회 — source / phoneNumber / appInstalled 필터. */
     @Operation(summary = "기사 목록 조회 (Admin)")
     @GetMapping("/drivers")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<DriverResponse>> listDrivers(
             @RequestParam(required = false) com.samhanair.logis.arologis.domain.DriverSource source,
             @RequestParam(required = false) String phoneNumber,
@@ -256,7 +256,7 @@ public class ArologisAdminController {
     /** Soft Delete — admin 전용. */
     @Operation(summary = "Dispatch Soft Delete (Admin)")
     @PutMapping("/dispatches/{id}/delete")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> softDelete(@PathVariable UUID id, HttpServletRequest request) {
         String userId = request.getHeader("X-User-Id");
         dispatchService.softDelete(id, userId == null ? "system" : userId);
@@ -283,7 +283,7 @@ public class ArologisAdminController {
     @Operation(summary = "가배차 분류 리스트 (Admin, PR-E1 BE-A2)",
             description = "출고전표 → 주소 → REGION 매칭 → 권역 그룹핑")
     @GetMapping("/dispatches/pre-classify")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<PreClassifyResponse> preClassify(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -304,7 +304,7 @@ public class ArologisAdminController {
     @Operation(summary = "미배차 출고전표 리스트 (Admin, PR-E1 BE-A3)",
             description = "출고전표 - dispatch left join 미할당 슬립")
     @GetMapping("/dispatches/unassigned")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<UnassignedSlipResponse> unassigned(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(unassignedService.findUnassigned(date));
@@ -321,7 +321,7 @@ public class ArologisAdminController {
     @Operation(summary = "지방 가배차 시도별 분류 (Admin, PR-E1 BE-A4)",
             description = "출고전표 → 광역 prefix 시도 분류 (REGION 마스터 의존 X)")
     @GetMapping("/dispatches/regional")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<RegionalDispatchResponse> regional(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(regionalService.classifyBySido(date));
@@ -337,7 +337,7 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch audit timeline (PR-H4b)",
             description = "Dispatch/VehicleStop 변경 이력 (최신 revision 우선)")
     @GetMapping("/dispatches/{id}/audit-logs")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<ArologisAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
         return ApiResponse.ok(auditLogRecorder.listByEntity(id).stream()
                 .map(ArologisAuditLogResponse::from).toList());
@@ -349,7 +349,7 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch SSE realtime 구독 (PR-H4b)",
             description = "audit/edit-request event SSE stream — heartbeat 30s")
     @GetMapping(value = "/dispatches/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public SseEmitter subscribeRealtime(@PathVariable UUID id) {
         return realtimeBroker.subscribe(id);
     }
@@ -365,7 +365,7 @@ public class ArologisAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Dispatch 미존재")
     })
     @PostMapping("/dispatches/{id}/edit-requests")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ArologisEditRequestResponse> createEditRequest(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
@@ -381,7 +381,7 @@ public class ArologisAdminController {
     /** 권한자 그룹 PENDING 대시보드. */
     @Operation(summary = "PENDING 요청 대시보드 (PR-H4b)")
     @GetMapping("/edit-requests/pending")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<ArologisEditRequestResponse>> listPending(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         return ApiResponse.ok(editRequestService.listPendingForRole(targetRole).stream()
@@ -391,7 +391,7 @@ public class ArologisAdminController {
     /** 요청 수락. */
     @Operation(summary = "수정/삭제 요청 수락 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ArologisEditRequestResponse> approveEditRequest(
             @PathVariable UUID requestId,
             @RequestBody(required = false) Map<String, String> body,
@@ -406,7 +406,7 @@ public class ArologisAdminController {
     /** 요청 거절. */
     @Operation(summary = "수정/삭제 요청 거절 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ArologisEditRequestResponse> rejectEditRequest(
             @PathVariable UUID requestId,
             @RequestBody Map<String, String> body,

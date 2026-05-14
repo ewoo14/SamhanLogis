@@ -53,6 +53,14 @@ samhan:
     # W10-2 시점 인성데이타 vendor 통합 + W10-4 시점 slip 통합 시점에 false 활성.
     client:
       skeleton-mode: ${SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE:true}
+    # 2026-05-14 — 아로로지스 독립 분리 (자체 JWT 발급/검증).
+    # secret 64+ char 의무 (HS256 안전성). dev 기본값은 "dev-only-secret-must-be-..." chained-default,
+    # prod 는 반드시 SAMHAN_AROLOGIS_JWT_SECRET 환경변수 주입.
+    jwt:
+      secret: ${SAMHAN_AROLOGIS_JWT_SECRET:dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x}
+      access-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_ACCESS_EXPIRY_SECONDS:3600}
+      refresh-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_REFRESH_EXPIRY_SECONDS:2592000}
+      issuer: ${SAMHAN_AROLOGIS_JWT_ISSUER:arologis-service}
     matcher:
       # mock (W10-1 default) | insung-quick (W10-2 통합 시점)
       provider: ${SAMHAN_AROLOGIS_MATCHER_PROVIDER:mock}

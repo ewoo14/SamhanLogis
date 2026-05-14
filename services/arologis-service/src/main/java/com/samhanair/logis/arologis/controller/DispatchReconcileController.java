@@ -64,7 +64,7 @@ public class DispatchReconcileController {
                     responseCode = "403", description = "권한 부족 (MASTER/MANAGER/DISPATCH 외)")
     })
     @PostMapping(value = "/reconcile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchReconcileResponse> reconcile(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

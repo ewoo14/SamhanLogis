@@ -10,7 +10,6 @@ import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
-import com.samhanair.logis.arologis.client.UserClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
@@ -64,7 +63,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  * <p>@MockBean 4종 격리 의무 (PR #134~#144 회고 가드):
  * <ul>
  *   <li>{@link PartnerClient} — skeleton-mode, lenient empty</li>
- *   <li>{@link UserClient} — skeleton-mode, lenient empty</li>
  *   <li>{@link SlipClient} — signature 등록 false (lenient)</li>
  *   <li>{@link NotificationClient} — send true (lenient)</li>
  *   <li>{@link SlipServiceClient} — 개별 테스트에서 stub 조정</li>
@@ -108,11 +106,9 @@ class P15ValidationIT extends AbstractPostgresIT {
     @Autowired
     private UnassignedService unassignedService;
 
-    /** 4종 @MockBean 격리 — PR #134~#144 회고 가드 의무. */
+    /** 3종 @MockBean 격리 — PR #134~#144 회고 가드 의무. 2026-05-14 UserClient 제거 (자체 user 도메인). */
     @MockBean
     private PartnerClient partnerClient;
-    @MockBean
-    private UserClient userClient;
     @MockBean
     private SlipClient slipClient;
     @MockBean
@@ -138,7 +134,6 @@ class P15ValidationIT extends AbstractPostgresIT {
         // lenient mock setup — 4종 외부 client 격리
         lenient().when(partnerClient.findByCodes(any())).thenReturn(List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(userClient.findById(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());

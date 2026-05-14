@@ -7,7 +7,6 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
-import com.samhanair.logis.arologis.client.UserClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,8 +35,7 @@ class ApplicationContextLoadIT extends AbstractPostgresIT {
 
     @MockBean
     private PartnerClient partnerClient;
-    @MockBean
-    private UserClient userClient;
+    // 2026-05-14 분리 — UserClient @MockBean 제거 (자체 user 도메인 도입).
     @MockBean
     private SlipClient slipClient;
     @MockBean

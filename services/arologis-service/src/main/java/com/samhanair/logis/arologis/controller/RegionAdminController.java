@@ -68,7 +68,7 @@ public class RegionAdminController {
     /** 단건 신규 등록 — group_name 활성 행 unique. */
     @Operation(summary = "지역 분류 단건 추가 (Admin)")
     @PostMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<RegionResponse> create(@Valid @RequestBody RegionUpsertRequest req) {
         if (req.groupName() == null || req.groupName().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "groupName 필수");
@@ -86,7 +86,7 @@ public class RegionAdminController {
     @Operation(summary = "지역 분류 CSV 일괄 import (Admin)",
             description = "노션 export CSV (UTF-8 BOM, RFC4180 quoted) 우리 DB native upsert")
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<RegionImportService.ImportResult> importCsv(
             @RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -109,7 +109,7 @@ public class RegionAdminController {
     /** 단건 수정 — keywords + sortOrder. group_name 불변. */
     @Operation(summary = "지역 분류 단건 수정 (Admin)")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<RegionResponse> update(
             @PathVariable UUID id, @Valid @RequestBody RegionUpsertRequest req) {
         RegionDispatchClassification updated = regionService.update(id, req.keywords(), req.sortOrder());
@@ -119,7 +119,7 @@ public class RegionAdminController {
     /** Soft Delete — admin 전용. */
     @Operation(summary = "지역 분류 Soft Delete (Admin)")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> softDelete(
             @PathVariable UUID id, HttpServletRequest request) {
         String userId = request.getHeader("X-User-Id");

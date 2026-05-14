@@ -67,11 +67,17 @@ dependencies {
     // Phase 10 PR-F1 BE-2 — 운송사 실배차 비교 (legacy GAS 11번) — multi-vendor .xlsx 업로드 parse.
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
 
+    // 2026-05-14 — 아로로지스 독립 분리 (자체 auth + JWT 발급/검증).
+    // HS256 (HMAC-SHA256) — auth-service / partner-auth-service 와 동일한 jjwt 0.12.x.
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
     implementation project(':shared:common')
     implementation project(':shared:security')
     implementation project(':shared:discovery-abstraction')
-    // Phase 10 W10-1 — UserVerifier 5번째 소비자 (notification + groupware + dashboard + partner + arologis).
-    implementation project(':shared:user-client-abstraction')
+    // 2026-05-14 분리 — shared:user-client-abstraction 의존 제거 (자체 user 도메인 도입,
+    // UserClient + UserVerifier 5번째 소비자 가드 모두 회수). AdminUser / Driver 자체 인증.
     // PR-H4b (Phase 12 Step 4b) — shared:realtime-abstraction module 활성.
     // Dispatch / VehicleStop 변경 시 audit overlay + SSE broadcast + Dispatch DISPATCHED/DELIVERED 후 잠금.
     implementation project(':shared:realtime-abstraction')

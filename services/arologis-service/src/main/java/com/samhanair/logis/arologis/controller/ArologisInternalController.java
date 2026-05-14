@@ -40,7 +40,7 @@ public class ArologisInternalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락")
     })
     @PostMapping("/dispatches/sync")
-    @PreAuthorize("hasRole('MASTER')")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
     public ApiResponse<Map<String, Object>> syncDispatch(@RequestBody(required = false) Map<String, Object> payload) {
         log.info("Internal dispatch sync 수신 — W10-1 단계 ack only, payload size={}",
                 payload == null ? 0 : payload.size());
