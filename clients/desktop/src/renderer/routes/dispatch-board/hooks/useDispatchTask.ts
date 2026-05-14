@@ -17,6 +17,8 @@ import {
   getDispatchTask,
   removeSlipFromGroup,
   reorderGroupSlips,
+  requestCancellation,
+  requestModification,
   type DispatchTaskResponse,
   type DispatchVehicleType,
 } from '../../../api/dispatchTask'
@@ -138,6 +140,36 @@ export function useDispatchToArologisMutation(taskId: string | null) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * Phase C — 수정 요청 mutation (DISPATCHED → MODIFICATION_REQUESTED).
+ *
+ * <p>plan FE F2.1. 성공 시 task query invalidate → 상태 배지 즉시 보라색으로 갱신.
+ */
+export function useRequestModificationMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reason: string) => requestModification(taskId as string, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+    },
+  })
+}
+
+/**
+ * Phase C — 취소 요청 mutation (DISPATCHED → CANCEL_REQUESTED).
+ *
+ * <p>plan FE F2.1. 성공 시 task query invalidate.
+ */
+export function useRequestCancellationMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reason: string) => requestCancellation(taskId as string, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
     },
   })
 }

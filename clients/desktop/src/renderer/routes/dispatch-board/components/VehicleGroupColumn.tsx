@@ -17,6 +17,8 @@
 import { useMemo, useState } from 'react'
 import {
   DISPATCH_TASK_STATUS_LABEL,
+  isEditableStatus,
+  type DispatchTaskResponse,
   type DispatchTaskStatus,
   type DispatchVehicleGroupResponse,
   type MatchedDriverResponse,
@@ -25,6 +27,7 @@ import { useAddVehicleGroupMutation } from '../hooks/useDispatchTask'
 import { VehicleGroupCard } from './VehicleGroupCard'
 import { AddVehicleModal } from './AddVehicleModal'
 import { DispatchCompleteDialog } from './DispatchCompleteDialog'
+import { DispatchTaskDetailModal } from './DispatchTaskDetailModal'
 
 interface VehicleGroupColumnProps {
   taskId: string | null
@@ -33,11 +36,19 @@ interface VehicleGroupColumnProps {
   failureReason: string | null
   matchedDrivers: MatchedDriverResponse[]
   groups: DispatchVehicleGroupResponse[]
+  /** 상세 modal 진입 시 사용. 전체 task 객체 (badge 클릭 시 modal 에 전달). */
+  task: DispatchTaskResponse | null
   onOpenSlipDetail: (slipId: string) => void
 }
 
 /**
- * 상태 → 배지 색상 매핑 (Samhan Public design tokens).
+ * 상태 → 배지 색상 매핑 (Samhan Public design tokens + Phase C 6 신규 + CANCELLED).
+ *
+ * <p>Phase C 색상 규칙 (spec § 6.1):
+ *  - MODIFICATION_REQUESTED / CANCEL_REQUESTED → 보라색 (요청 대기)
+ *  - MODIFICATION_ACCEPTED / CANCEL_ACCEPTED → 녹색 (수락됨)
+ *  - MODIFICATION_REJECTED / CANCEL_REJECTED → 빨강 (거부됨)
+ *  - CANCELLED → 회색 (취소 완료, 종착 상태)
  */
 const STATUS_BADGE_STYLE: Record<DispatchTaskStatus, React.CSSProperties> = {
   DRAFT: {
@@ -56,6 +67,34 @@ const STATUS_BADGE_STYLE: Record<DispatchTaskStatus, React.CSSProperties> = {
     background: 'var(--color-danger-100, #FEE2E2)',
     color: 'var(--color-danger-700, #B91C1C)',
   },
+  MODIFICATION_REQUESTED: {
+    background: 'var(--color-purple-100, #EDE9FE)',
+    color: 'var(--color-purple-700, #6B21A8)',
+  },
+  MODIFICATION_ACCEPTED: {
+    background: 'var(--color-success-100, #D1FAE5)',
+    color: 'var(--color-success-700, #047857)',
+  },
+  MODIFICATION_REJECTED: {
+    background: 'var(--color-danger-100, #FEE2E2)',
+    color: 'var(--color-danger-700, #B91C1C)',
+  },
+  CANCEL_REQUESTED: {
+    background: 'var(--color-purple-100, #EDE9FE)',
+    color: 'var(--color-purple-700, #6B21A8)',
+  },
+  CANCEL_ACCEPTED: {
+    background: 'var(--color-success-100, #D1FAE5)',
+    color: 'var(--color-success-700, #047857)',
+  },
+  CANCEL_REJECTED: {
+    background: 'var(--color-danger-100, #FEE2E2)',
+    color: 'var(--color-danger-700, #B91C1C)',
+  },
+  CANCELLED: {
+    background: 'var(--color-neutral-200)',
+    color: 'var(--color-neutral-700)',
+  },
 }
 
 export function VehicleGroupColumn({
@@ -65,10 +104,12 @@ export function VehicleGroupColumn({
   failureReason,
   matchedDrivers,
   groups,
+  task,
   onOpenSlipDetail,
 }: VehicleGroupColumnProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [completeOpen, setCompleteOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const addMutation = useAddVehicleGroupMutation(taskId)
 
@@ -79,9 +120,26 @@ export function VehicleGroupColumn({
     return m
   }, [matchedDrivers])
 
-  const canEdit = taskStatus === 'DRAFT'
+  // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
+  const canEdit = isEditableStatus(taskStatus)
   const canDispatch =
-    taskStatus === 'DRAFT' && groups.length > 0 && groups.some((g) => g.slips.length > 0)
+    canEdit && groups.length > 0 && groups.some((g) => g.slips.length > 0)
+
+  // Phase C — DISPATCHED 이후 (배차 완료 후) 상태에서 상세 모달 진입 가능.
+  // 단순화: DRAFT/DISPATCHING 외 모든 상태에서 상세 보기 활성.
+  const canOpenDetail =
+    !!task &&
+    taskStatus !== 'DRAFT' &&
+    taskStatus !== 'DISPATCHING'
+
+  // 거부 사유 / 요청 사유가 있을 때 헤더에 inline 안내 노출.
+  const showRejectionBanner =
+    !!task?.rejectionReason &&
+    (taskStatus === 'MODIFICATION_REJECTED' || taskStatus === 'CANCEL_REJECTED')
+  const showRequestBanner =
+    !!task?.modificationReason &&
+    (taskStatus === 'MODIFICATION_REQUESTED' || taskStatus === 'CANCEL_REQUESTED')
+  const showAcceptedBanner = taskStatus === 'MODIFICATION_ACCEPTED'
 
   return (
     <section
@@ -123,20 +181,89 @@ export function VehicleGroupColumn({
               {taskCode}
             </span>
           ) : null}
-          <span
-            data-testid="dispatch-board-task-status"
+          {canOpenDetail ? (
+            <button
+              type="button"
+              onClick={() => setDetailOpen(true)}
+              data-testid="dispatch-board-task-status"
+              aria-label={`배차 작업 상세 보기 — 현재 상태: ${DISPATCH_TASK_STATUS_LABEL[taskStatus]}`}
+              style={{
+                marginLeft: 'auto',
+                padding: '2px 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 600,
+                border: '1px dashed transparent',
+                cursor: 'pointer',
+                ...STATUS_BADGE_STYLE[taskStatus],
+              }}
+            >
+              {DISPATCH_TASK_STATUS_LABEL[taskStatus]} ⓘ
+            </button>
+          ) : (
+            <span
+              data-testid="dispatch-board-task-status"
+              style={{
+                marginLeft: 'auto',
+                padding: '2px 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 600,
+                ...STATUS_BADGE_STYLE[taskStatus],
+              }}
+            >
+              {DISPATCH_TASK_STATUS_LABEL[taskStatus]}
+            </span>
+          )}
+        </div>
+        {showAcceptedBanner ? (
+          <div
+            data-testid="dispatch-board-modification-accepted-banner"
+            role="status"
             style={{
-              marginLeft: 'auto',
-              padding: '2px 8px',
-              borderRadius: 10,
-              fontSize: 11,
-              fontWeight: 600,
-              ...STATUS_BADGE_STYLE[taskStatus],
+              padding: 8,
+              fontSize: 12,
+              color: 'var(--color-success-700, #047857)',
+              background: 'var(--color-success-50, #ECFDF5)',
+              border: '1px solid var(--color-success-200, #A7F3D0)',
+              borderRadius: 4,
             }}
           >
-            {DISPATCH_TASK_STATUS_LABEL[taskStatus]}
-          </span>
-        </div>
+            <strong>수정 가능 (편집 모드 활성):</strong> 차량/슬립 구성을 수정한 뒤 [배차 완료] 를 다시 누르면 아로로지스로 재 발송됩니다.
+          </div>
+        ) : null}
+        {showRequestBanner ? (
+          <div
+            data-testid="dispatch-board-modification-pending-banner"
+            role="status"
+            style={{
+              padding: 8,
+              fontSize: 12,
+              color: 'var(--color-purple-700, #6B21A8)',
+              background: 'var(--color-purple-50, #FAF5FF)',
+              border: '1px solid var(--color-purple-200, #E9D5FF)',
+              borderRadius: 4,
+            }}
+          >
+            <strong>아로로지스 회신 대기:</strong> {task?.modificationReason}
+          </div>
+        ) : null}
+        {showRejectionBanner ? (
+          <div
+            data-testid="dispatch-board-rejection-banner"
+            role="alert"
+            style={{
+              padding: 8,
+              fontSize: 12,
+              color: 'var(--color-danger-700, #B91C1C)',
+              background: 'var(--color-danger-50, #FEF2F2)',
+              border: '1px solid var(--color-danger-200, #FECACA)',
+              borderRadius: 4,
+            }}
+          >
+            <strong>거부 사유:</strong> {task?.rejectionReason}
+          </div>
+        ) : null}
         {taskStatus === 'FAILED' && failureReason ? (
           <div
             data-testid="dispatch-board-failure-reason"
@@ -223,6 +350,11 @@ export function VehicleGroupColumn({
           disabled={!canDispatch}
           onClick={() => setCompleteOpen(true)}
           data-testid="dispatch-board-complete-button"
+          aria-label={
+            taskStatus === 'MODIFICATION_ACCEPTED'
+              ? '수정 배차 완료 — 아로로지스로 재 발송'
+              : '배차 완료 — 아로로지스로 발송'
+          }
           style={{
             width: '100%',
             padding: '10px 12px',
@@ -237,7 +369,9 @@ export function VehicleGroupColumn({
             fontWeight: 600,
           }}
         >
-          ✓ 배차 완료
+          {taskStatus === 'MODIFICATION_ACCEPTED'
+            ? '✓ 수정 배차 완료 (재 발송)'
+            : '✓ 배차 완료'}
         </button>
       </footer>
 
@@ -260,6 +394,13 @@ export function VehicleGroupColumn({
           totalSlips={groups.reduce((sum, g) => sum + g.slips.length, 0)}
           totalGroups={groups.length}
           onClose={() => setCompleteOpen(false)}
+        />
+      ) : null}
+
+      {detailOpen && task ? (
+        <DispatchTaskDetailModal
+          task={task}
+          onClose={() => setDetailOpen(false)}
         />
       ) : null}
     </section>
