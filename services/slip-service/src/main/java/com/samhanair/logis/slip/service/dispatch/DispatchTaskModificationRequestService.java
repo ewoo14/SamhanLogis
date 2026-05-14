@@ -1,0 +1,84 @@
+package com.samhanair.logis.slip.service.dispatch;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
+import com.samhanair.logis.slip.dto.dispatch.ArologisModificationRequest;
+import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 배차 수정 요청 service — Phase C (BE Task B3, D-DC-02).
+ *
+ * <p>흐름:
+ * <ol>
+ *   <li>DispatchTask 조회 — DISPATCHED 상태 가드 (markModificationRequested 가 enforce)</li>
+ *   <li>상태 전이 → MODIFICATION_REQUESTED + modificationReason / modificationRequestedAt</li>
+ *   <li>arologis 발송 (POST /internal/arologis/dispatches/{id}/modification-request) — 실패 시
+ *       BusinessException(CONFLICT) → 트랜잭션 롤백</li>
+ *   <li>notification 발송 (배차담당자 알림) — graceful fallback</li>
+ * </ol>
+ *
+ * <p>arologis 발송 실패는 트랜잭션 롤백 (Phase A 의 dispatch() 패턴 일관) — 사용자에게 CONFLICT 반환.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class DispatchTaskModificationRequestService {
+
+    private final DispatchTaskRepository taskRepo;
+    private final ArologisDispatchClient arologisClient;
+    private final NotificationClient notificationClient;
+
+    /**
+     * DISPATCHED → MODIFICATION_REQUESTED + arologis 발송 + notification.
+     *
+     * @param taskId DispatchTask UUID
+     * @param reason 배차담당자가 입력한 사유 (선택, null/blank 허용)
+     * @param actor 호출자 (X-User-Id) — notification body 에 포함
+     * @return 갱신된 DispatchTask
+     */
+    public DispatchTask request(UUID taskId, String reason, String actor) {
+        DispatchTask task = taskRepo.findById(taskId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "DispatchTask 가 존재하지 않습니다: " + taskId));
+
+        if (task.getArologisDispatchId() == null) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "arologisDispatchId 가 없어 수정 요청 발송 불가 — taskCode=" + task.getTaskCode());
+        }
+
+        try {
+            task.markModificationRequested(reason);
+        } catch (IllegalStateException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+        }
+        taskRepo.save(task);
+
+        arologisClient.requestModification(task.getArologisDispatchId(),
+                new ArologisModificationRequest(task.getId(), reason));
+
+        // graceful — notification 실패는 비즈니스 로직 차단 X
+        try {
+            notificationClient.sendExternalSms(
+                    /* phone = */ null,
+                    "[배차 수정 요청]",
+                    task.getTaskCode() + " 수정 요청 발송 — 요청자=" + actor
+                            + (reason != null && !reason.isBlank() ? " / 사유=" + reason : ""));
+        } catch (Exception ex) {
+            log.warn("[DispatchTaskModificationRequestService] notification 발송 실패 (graceful) — msg={}",
+                    ex.getMessage());
+        }
+
+        log.info("[DispatchTaskModificationRequestService] 수정 요청 완료 — taskCode={} actor={}",
+                task.getTaskCode(), actor);
+        return task;
+    }
+}
