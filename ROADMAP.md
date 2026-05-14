@@ -21,7 +21,8 @@
 | 7     | 28 ~ 31 주차| 호스팅 인프라 + e2e QA + 운영 가드 + UI 통합                         | 완료 (PR #87) |
 | 8     | 32 주차 ~   | AWS 호환성 가드 (테스트 단계 유지) — 직접 cutover 보류              | **완료 (PR #88 / #89 / 본 PR)** |
 | 9     | -           | 잔여 도메인 (partner-service / groupware / notification / dashboard) | **4차 진행 (W1 partner #91 + W2 groupware #92 + W3 notification #93 + W4 dashboard skeleton 본 PR)** |
-| 10    | -           | arologis-service (배차 마이크로서비스) + 모바일 어플 driver tab + slip 통합 (renumber, D-P10-05) | **W10-1 PR #97 + W10-3 PR #98 + W10-4 본 PR (slip-service 전자서명 LINK+APP source 통합, V10 Flyway, ApiResponse wrapper IT 의무화) — D-P10-11 / D-P10-12** |
+| 10    | -           | arologis-service (배차 마이크로서비스) + 모바일 어플 driver tab + slip 통합 (renumber, D-P10-05) | **완료 — W10-1 PR #97 + W10-3 PR #98 + W10-4 PR #99 (slip-service 전자서명 LINK+APP source 통합, V10 Flyway, ApiResponse wrapper IT 의무화) — D-P10-11 / D-P10-12** |
+| 10.5  | -           | **아로로지스 독립 분리** (monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless + arologis.samhan-air.com 도메인 + clients/arologis-desktop + clients/arologis-mobile + 별도 GitHub Actions workflow) | **본 PR 진행 중 — D-AX-01~10 (5-team 통합 + 42 commit + 회귀 33+신규 IT 4 = 37 case PASS 의무)** |
 | 11    | -           | AWS 마이그레이션 + Migration Service + 운영 안정화 (AWS cutover 본격) — dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md` | 대기 |
 | 12    | -           | 실시간 협업 시리즈 (SSE infra + slip 코멘트 / audit overlay / 권한·수락 / 전 15 service 확장) — 총 ~13주 (사용자 결정 옵션 A) | **step-1 (PR #123) + step-2 (PR #124) + step-3 (PR #125) + step-4a (PR #126) 머지 + step-4b 진행 (PR-H4b BE 13 service 일괄 `shared/realtime-abstraction` 적용, 본 PR)** |
 

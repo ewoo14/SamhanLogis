@@ -1,15 +1,20 @@
-# arologis-service — Phase 10 W10-1 (renumber)
+# arologis-service — 독립 운영 단위 (Phase 10.5, 2026-05-14 분리)
 
-> **Phase 번호 renumber 적용 (D-P10-05, 사용자 결정 2026-05-07)** — 신규 Phase 10 = arologis-service / 기존 Phase 10 (AWS migration cutover) → Phase 11 으로 이동.
+> **Phase 10.5 — 아로로지스 독립 분리 (D-AX-01~10, 2026-05-14)** — Samhan Public 14 마이크로서비스 묶음에서 별도 운영 단위로 분리. monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless 기사 인증 + `arologis.samhan-air.com` 도메인. 같은 AWS 환경 (EC2 m5.xlarge + RDS db.t3.medium) 공유.
+>
+> 기존 Phase: W10-1 skeleton (PR #97) + W10-3 모바일 driver tab (PR #98) + W10-4 slip-service 전자서명 통합 (PR #99) 완료. 본 분리 작업 = Phase 10.5 통합 PR.
 
-배차 마이크로서비스 — 카톡 메시지 파싱 → 차량/정차/기사 매칭 → 전자서명 (W10-4 슬립 통합) → GPS 추적 (30일 자동 cleanup).
+배차 마이크로서비스 — 카톡 메시지 파싱 → 차량/정차/기사 매칭 → 전자서명 (slip-service 연동) → GPS 추적 (30일 자동 cleanup) — **+ 자체 auth/user 도메인 (admin loginId+password / driver phoneNumber passwordless)**.
 
 | 항목 | 값 |
 |---|---|
 | 포트 | **8097** (기존 14 service 8081~8095 + 8096 migration 예약 다음) |
-| DB | **arologis_db** (service-per-DB) |
-| 도입 시점 | Phase 10 W10-1 (본 PR) |
-| 외부 의존성 | partner-service (8095) / user-service (8083) / slip-service (8084, W10-4 활성) / notification-service (8093) |
+| DB | **arologis_db** (service-per-DB, 공유 RDS 인스턴스) |
+| 운영 단위 | **독립** (Samhan Public 14 service 와 별도 build/배포 cadence, 같은 docker network `samhan-net` + 같은 Eureka 공유) |
+| Docker image | `samhanpublic/arologis-service:VERSION` (별도 ghcr.io tag `arologis-v*`) |
+| 진입 도메인 | `api.arologis.samhan-air.com` (Nginx host-header → 8097, api-gateway 우회) |
+| 외부 의존성 | **3 client** — partner-service (8095) / slip-service (8084) / notification-service (8093). **UserClient 제거 (D-AX-07, 자체 user 도메인)** |
+| 인증 | **자체 JWT HS256** (`/auth/admin/login` loginId+password BCrypt / `/auth/driver/login` phoneNumber passwordless / `/auth/refresh` rotation / `/auth/logout` / `/auth/me`) — Samhan Public auth-service 와 무관 |
 | 외부 vendor | 인성데이타 퀵프로그램 (5만 프리랜서 풀, W10-2 통합 시점) |
 
 ## 1. 도입 배경

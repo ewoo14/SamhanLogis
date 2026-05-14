@@ -1359,3 +1359,56 @@ PR (`feature/integrated-phase-12-step-4c-fe-audit-overlay-rollout`) — PR #127 
 - **logging / dashboard / dc-config / groupware `ApplicationContextLoadIT` 보강** — PR-H4b 후속 잔존 backlog (audit overlay 도메인 도입 시 IT scaffold 일괄)
 - **partner-auth-service** — Phase 12 후속 별도 평가 (사용자 인증 도메인, audit overlay 의 비즈니스 가치 별도 산정)
 - **mobile-staff DispatchSmsScreen / StockAdjustScreen** — arologis broadcast endpoint 합류 시 30s polling → SSE 직접 구독 전환
+
+---
+
+## Phase 10.5 — 아로로지스 독립 분리 (2026-05-14, 본 통합 PR)
+
+### D-AX-00. 아로로지스 = Samhan Public 의 마이크로서비스 → 독립 운영 단위 분리 (single integrated PR, 9 + 1 핵심 결정)
+
+**배경**: 아로로지스 (`arologis-service`, Phase 10 W10-1~W10-4 완료) 를 Samhan Public 14 service 묶음에서 별도 운영 단위로 분리. 같은 AWS 환경 공유 + service-to-service 통신 유지 + 자체 auth + 휴대번호 passwordless 기사 인증.
+
+| # | 결정 |
+|---|---|
+| D-AX-01 | **분리 수준** = monorepo 유지 + build/배포만 분리 (settings.gradle 의 `:services:arologis-service` 그대로). 코드 재명명 (com.samhanair.logis.*) 비용 회피 |
+| D-AX-02 | **service-to-service 통신** = Eureka 클러스터 공유 (현 방식 유지). REST WebClient + load-balancer. `UserClient` 만 제거 (자체 user 도메인 도입), 3 client (Partner/Slip/Notification) 유지 |
+| D-AX-03 | **Client 분리** = `clients/arologis-desktop` (Electron + Vite + React, app id `com.samhanair.arologis.desktop`) + `clients/arologis-mobile` (RN Expo, bundle id `com.samhanair.arologis.driver`) 신규 추출. Samhan Public 의 `clients/desktop` + `clients/mobile-staff` 영향 최소 (산재 페이지 후속 슬라이스 = D-AX-11 issue 발행) |
+| D-AX-04 | **DB 인스턴스** = 공유 RDS (db.t3.medium) + `arologis_db` 격리 (service-per-DB). 비용 변경 0 |
+| D-AX-05 | **운영 도메인** = `arologis.samhan-air.com` 하위 (api / app / mobile 3 subdomain). Route53 A 레코드 3개 추가. **ACM 인증서 SAN 갱신 의무** (wildcard `*.samhan-air.com` 는 2-level wildcard `*.arologis.samhan-air.com` 미커버 — Terraform main.tf 의 `aws_acm_certificate.main` SAN 에 `*.arologis.samhan-air.com` 추가 별도 PR 권고). |
+| D-AX-06 | **PR 구조** = 단일 통합 PR (5-team 병렬 — BE 14 commit / FE 8 / Designer 5 / QA 3 / DevOps 6 = 36 + TM merge 5 + baseline 1 = **총 42 commit**). 메모리 `feedback_integrated_pr_pattern` 일관 |
+| D-AX-07 | **계정/인증** = 완전 별도 (자체 auth + user 도메인). Samhan Public 의 auth-service / user-service 와 무관. 동일인이 두 제품 사용 시 별도 계정 발급 |
+| D-AX-08 | **Auth 패키징** = arologis-service 내장 (단일 jar). 별도 microservice 도입 회피 (over-engineering 가드) |
+| D-AX-09 | **기사 인증** = 휴대번호 passwordless (사전 등록 기사만 허용). OTP/PIN 없음. 미등록 phoneNumber = 401 |
+| D-AX-10 | **EC2 Health Check Lambda 자동 reboot** = 아로로지스까지 확장 시 Samhan Public 14 service 도 함께 outage 위험 — 본 PR 범위 외, CloudWatch alarm + SNS 만 추가하는 별도 PR 권고. healthcheck 스크립트 (`phase11-deploy.ps1`) 보강 + 영향 분석 문서 (`docs/migration/arologis-extract/06-ec2-recovery-impact.md`) 본 PR 포함 |
+
+**산출 (요약)**:
+- spec: `docs/superpowers/specs/2026-05-14-arologis-extract-design.md` (12 섹션)
+- plan: `docs/superpowers/plans/2026-05-14-arologis-extract.md` (5-team 36 task + TM 5 + PM 2)
+- BE: `AdminUser` + `RefreshToken` entity + `JwtIssuer` + `ArologisJwtFilter` + 5 auth service (AdminLogin/DriverLogin/RefreshToken/MeResponse/...) + `ArologisAuthController` + Flyway V7/V8/V9 + IT 4 신규 (Admin/Driver/Security/Refresh) + `UserClient` 삭제 + `shared:user-client-abstraction` 의존 제거
+- FE: `clients/arologis-desktop` skeleton + LoginPage (admin loginId+password) + DriverManagementPage (phoneNumber 사전 등록) + `clients/arologis-mobile` skeleton + PhoneLoginScreen (passwordless) + GpsPermissionScreen (foreground 의무)
+- Designer: 5 화면 mock (`docs/uiux/arologis-extract/01~05.md`) + arologis-teal brand color (#2A9D8F) 정의
+- QA: 6 시나리오 절차 + 회귀 33 case + 5단계 롤백 dry-run runbook (`docs/qa/arologis-extract/`)
+- DevOps: `.github/workflows/arologis-{ci,deploy}.yml` + `infrastructure/docker/docker-compose.arologis.yml` + `services/arologis-service/Dockerfile` (신규) + `infrastructure/terraform/arologis.tf` (Route53 3 record) + `infrastructure/nginx/arologis.conf` (host-header 라우팅 4 server block) + EC2 Health Lambda 영향 분석
+- DECISIONS / ROADMAP / README / service README / CLAUDE.md 일괄 갱신
+
+**테스트 (BE Docker 미가용 환경 기준)**:
+- 신규 unit: 16 (5 JwtIssuer / 3 AdminLogin / 2 DriverLogin / 5 RefreshTokenService / 1 BcryptHash) PASS
+- 회귀 unit: ~98 (DispatchService / parser / matcher / realtime) PASS
+- 합 unit 114 PASS, IT 70 (Docker 가용 시) SKIPPED
+- arologis-service `assemble` + `compileTestJava` PASS
+
+**후속 (별도 issue / PR 위임)**:
+- **D-AX-11** (FE 산재 페이지 이전) — `ArologisManualDispatchPage` / `ArologisPreClassifyPage` / `ArologisUnassignedPage` / `ArologisDispatchReconcilePage` 4 page + `arologis*Api.ts` 3개 + `ArologisRealtimeClient.ts` 가 `clients/desktop/src/renderer/routes/`, `api/`, `realtime/` 루트에 산재 (현 `routes/arologis/` 폴더에는 `DISPATCH-DESIGN.md` 1건만 존재). 본 PR = placeholder + dispatches/ 폴더 skeleton. 후속 = 산재 페이지 `git mv` + import path 정정 + 실 routing.
+- **D-AX-12** (mobile cross-import 분리) — `clients/mobile-staff/src/screens/driver/DriverTabNavigator.tsx` 가 `../SlipDetailScreen` (sales/slip 도메인) 을 cross-import. 단순 `git mv` 시 mobile-staff 의 sales 도메인까지 영향 → `SlipDetailScreen` 처리 결정 (같이 이전 / shared 추출 / 복제) 별도 슬라이스.
+- **D-AX-13** (BE/FE auth schema 정합 검증) — `/auth/me` 응답 형태 (`AuthMeResponse` vs `MeResponse`) BE/FE 일치 확인. 본 PR 머지 후 통합 e2e 검증 시점에 정합.
+- **ACM SAN 갱신** (D-AX-05 의 부속) — Terraform main.tf `aws_acm_certificate.main` 의 `subject_alternative_names` 에 `*.arologis.samhan-air.com` 추가 별도 PR.
+- **EC2 Health Lambda** (D-AX-10 의 부속) — CloudWatch alarm + SNS 만 추가하는 별도 PR.
+
+**메모리 (양 PC sync)**:
+- `.claude/memory/project_arologis_independent.md` (project) — 9 결정 + 도메인 영향
+- `.claude/memory/feedback_arologis_name.md` (feedback) — 한국어 표기 "아로로지스" 정식
+- `.claude/memory/feedback_samhan_public_name.md` (feedback) — 외부 호칭 "Samhan Public"
+- `.claude/memory/feedback_arologis_extract_autopilot.md` (feedback) — 본 conversation 의 자율 진행 권한 (머지 외)
+
+**비용**: AWS 변경 0 (EC2 m5.xlarge 1대 + RDS db.t3.medium 1대 공유, ₩405K/월 유지)
+

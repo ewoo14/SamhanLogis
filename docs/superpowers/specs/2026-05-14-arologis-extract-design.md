@@ -263,7 +263,7 @@ clients/
 | EC2 | m5.xlarge 1대 (Seoul) — Samhan Public + 아로로지스 같은 호스트 |
 | RDS | db.t3.medium 1대 (Seoul) — `arologis_db` 가 추가 DB |
 | Route53 | hostedzone `samhan-air.com` — A 레코드 3개 추가 |
-| ACM | wildcard `*.samhan-air.com` 그대로 |
+| ACM | wildcard `*.samhan-air.com` **+ 별도 SAN `*.arologis.samhan-air.com` 추가 의무** (2-level wildcard 는 1-level 와일드카드로 커버 안 됨 — Terraform main.tf 의 `aws_acm_certificate.main.subject_alternative_names` 갱신 별도 PR) |
 | Nginx | host-header 기반 라우팅 (`api.arologis.samhan-air.com` → 8097) |
 
 ### 8.2 Route53 신규 레코드

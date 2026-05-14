@@ -1,6 +1,11 @@
-# SamhanLogis — Claude Code 진입점
+# SamhanLogis (Samhan Public + 아로로지스) — Claude Code 진입점
 
 > 본 파일은 Claude Code 세션 시작 시 자동 로드됩니다 (project memory).
+>
+> **운영 단위 명칭 (2026-05-14 결정)**:
+> - **Samhan Public** (삼한 퍼블릭) = 기존 14 service 묶음의 외부 호칭 ([feedback_samhan_public_name.md](.claude/memory/feedback_samhan_public_name.md))
+> - **아로로지스** (arologis) = Samhan Public 마이크로서비스에서 분리된 독립 운영 단위 (Phase 10.5, [project_arologis_independent.md](.claude/memory/project_arologis_independent.md))
+> - "SamhanLogis" = 폴더/repo working dir 명일 뿐 (외부 호칭 X)
 
 ---
 
@@ -57,3 +62,6 @@ PC 이동 직전에 반드시 갱신:
 - **한국어 커밋/PR** ([feedback_korean_commits.md](.claude/memory/feedback_korean_commits.md))
 - **UUID 사용자 비공개** ([feedback_uuid_no_user_visibility.md](.claude/memory/feedback_uuid_no_user_visibility.md))
 - **BaseEntity 7 audit + Soft Delete** ([project_build_conventions.md](.claude/memory/project_build_conventions.md))
+- **아로로지스 독립 운영 단위** ([project_arologis_independent.md](.claude/memory/project_arologis_independent.md)) — 2026-05-14
+- **아로로지스 명칭 규칙** ([feedback_arologis_name.md](.claude/memory/feedback_arologis_name.md)) — 한국어 표기 "아로로지스" 정식
+- **Samhan Public 명칭 규칙** ([feedback_samhan_public_name.md](.claude/memory/feedback_samhan_public_name.md)) — 외부 호칭 통일
