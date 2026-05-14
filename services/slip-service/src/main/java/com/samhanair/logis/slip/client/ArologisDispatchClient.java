@@ -8,6 +8,7 @@ import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchResponse;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -37,6 +38,7 @@ public class ArologisDispatchClient {
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
 
+    @Autowired
     public ArologisDispatchClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                   InternalAuthProperties internalAuthProperties) {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
