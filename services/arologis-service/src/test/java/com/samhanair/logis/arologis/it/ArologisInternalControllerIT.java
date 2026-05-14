@@ -8,7 +8,6 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
-import com.samhanair.logis.arologis.client.UserClient;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,8 +40,7 @@ class ArologisInternalControllerIT extends AbstractPostgresIT {
 
     @MockBean
     private PartnerClient partnerClient;
-    @MockBean
-    private UserClient userClient;
+    // 2026-05-14 분리 — UserClient @MockBean 제거 (자체 user 도메인 도입).
     @MockBean
     private SlipClient slipClient;
     @MockBean
@@ -55,7 +53,6 @@ class ArologisInternalControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(userClient.findById(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());

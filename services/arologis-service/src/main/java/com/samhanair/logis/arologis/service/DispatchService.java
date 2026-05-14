@@ -1,7 +1,6 @@
 package com.samhanair.logis.arologis.service;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
-import com.samhanair.logis.arologis.client.UserClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
@@ -49,12 +48,9 @@ public class DispatchService {
     private final DriverRepository driverRepository;
     private final DriverMatcher driverMatcher;
     private final NotificationClient notificationClient;
-    /**
-     * BE-3 채택 fix — UserClient.exists 위임 (UserVerifier 5번째 소비자 활성).
-     * 본 PR 시점 = skeleton-mode true → 항상 true (검증 통과). W10-3 driver-app 인증 시점에
-     * 비-skeleton 토글 → 본인 / 배차담당자 user-service lookup 활성.
-     */
-    private final UserClient userClient;
+    // 2026-05-14 분리 — UserClient 제거 (자체 user 도메인 도입). 기존 BE-3 의 UserVerifier 5번째
+    // 소비자 가드는 더 이상 적용되지 않음. 본 service 의 sender userId 는 driver.getAppUserId
+    // (Deprecated, NULL 허용) 또는 향후 driver.getId (자체 user 도메인) 로 전환 가능.
 
     /**
      * PR-H4b (Phase 12 Step 4b) — VehicleStop status 변경 시 audit overlay + SSE broadcast.

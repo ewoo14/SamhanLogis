@@ -7,11 +7,11 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * 4 외부 client (PartnerClient / UserClient / SlipClient / NotificationClient) 가
- * 사용하는 {@link RestClient.Builder} bean — multi-target 재사용.
+ * 3 외부 client (PartnerClient / SlipClient / NotificationClient) 가 사용하는
+ * {@link RestClient.Builder} bean — multi-target 재사용.
  *
  * <p>Phase 10 W10-1 — ServiceDiscoveryClient 5번째 소비자 (partner / groupware / notification /
- * dashboard → arologis).
+ * dashboard → arologis). 2026-05-14 분리 — UserClient 제거 (자체 user 도메인 도입).
  *
  * <p>W10-4 종합 TM (DV-1 채택, 2026-05-07) — connect 2s / read 3s timeout 적용. slip-service /
  * partner-service / user-service / notification-service hang 시 driver-app sign 응답 동기 차단

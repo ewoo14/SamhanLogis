@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
-import com.samhanair.logis.arologis.client.UserClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
@@ -48,14 +47,14 @@ class DispatchServiceTest {
     private final DriverRepository driverRepository = mock(DriverRepository.class);
     private final DriverMatcher driverMatcher = mock(DriverMatcher.class);
     private final NotificationClient notificationClient = mock(NotificationClient.class);
-    private final UserClient userClient = mock(UserClient.class);
+    // 2026-05-14 분리 — UserClient mock 제거 (자체 user 도메인 도입).
     // PR-H4b — DispatchService 가 stop status 변경 시 audit 기록 — 본 unit test 는 broker mock 만 검증
     private final com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder auditLogRecorder =
             mock(com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder.class);
 
     private final DispatchService service = new DispatchService(
             dispatchRepository, vehicleRepository, stopRepository,
-            driverRepository, driverMatcher, notificationClient, userClient, auditLogRecorder);
+            driverRepository, driverMatcher, notificationClient, auditLogRecorder);
 
     private static UUID idOf(Dispatch d) throws Exception {
         Field f = Dispatch.class.getDeclaredField("id");

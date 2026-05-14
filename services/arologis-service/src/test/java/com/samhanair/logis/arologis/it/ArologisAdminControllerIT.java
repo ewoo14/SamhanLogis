@@ -10,7 +10,6 @@ import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
-import com.samhanair.logis.arologis.client.UserClient;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
@@ -68,8 +67,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
 
     @MockBean
     private PartnerClient partnerClient;
-    @MockBean
-    private UserClient userClient;
+    // 2026-05-14 분리 — UserClient @MockBean 제거 (자체 user 도메인 도입).
     @MockBean
     private SlipClient slipClient;
     @MockBean
@@ -90,7 +88,6 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(userClient.findById(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         // PR-E1 BE-3 — 기본 빈 리스트 (graceful empty). 개별 테스트가 override 가능.
