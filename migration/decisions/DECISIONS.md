@@ -1482,3 +1482,33 @@ D-AX-09 (passwordless) 위에 **본인 번호 자동 인식 흐름** 추가. 입
 
 **비용**: AWS 변경 0 (기존 slip-service + arologis-service 그대로, 신규 service 도입 X)
 
+
+---
+
+### D-DC-00. Samhan Public 배차 수정/취소 요청 흐름 (Phase C, 2026-05-14)
+
+**배경**: Phase A (PR #188 머지 `01d41f6`) 후속. DispatchTask DISPATCHED 상태에서 수정/취소 요청 → 아로로지스 수락/거부 → 재 dispatch 또는 취소. Phase B (인성데이타 API 링크 도착 후 별도 진행).
+
+| # | 결정 |
+|---|---|
+| D-DC-01 | 수정 범위 = **전체** (사용자 확정) — slip + 차량 그룹 재배치 + 정차 순서 + 차량 종류 변경 |
+| D-DC-02 | 수정 lock = **DISPATCHED 만 요청 가능** (DRAFT/DISPATCHING/FAILED 는 직접 수정) |
+| D-DC-03 | DispatchTaskStatus 6 신규 + CANCELLED = 총 11 값 (MODIFICATION_REQUESTED / ACCEPTED / REJECTED + CANCEL_REQUESTED / ACCEPTED / REJECTED + CANCELLED) |
+| D-DC-04 | **아로로지스 측 = delete-recreate** (incremental 회피, race condition 가드) |
+| D-DC-05 | 취소 처리 = CANCELLED + slip UNDISPATCHED 복귀 + arologis Dispatch soft-delete |
+| D-DC-06 | 거부 처리 = rejectionReason + 배차담당자 notification |
+| D-DC-07 | 권한 = ROLE_DISPATCH + ROLE_MANAGER + ROLE_MASTER |
+| D-DC-08 | 재 dispatch = MODIFICATION_ACCEPTED 후 [배차 완료] 재 클릭 → arologis 재 발송 |
+| D-DC-09 | 알림 = notification-service Aligo (요청/수락/거부/취소 각 시점) |
+
+**5-team 산출 (16 commit + TM 4 merge = 20 commit)**:
+- BE 8 commit: DispatchTaskStatus 11 + Flyway V23 + 5 service + 2 controller endpoint + arologis 2 receive + 4 회신 client + Mock 자동 수락 5초 비동기. unit 24 PASS / IT 9 compile PASS
+- FE 2 commit: DispatchTaskDetailModal + 2 RequestDialog + 편집 모드 indicator + 11 상태 배지 + mobile-staff 동일
+- Designer 4 commit: 4 화면 mock 1951줄 + 11 상태 배지 매트릭스 종합 (Phase A 4 + Phase C 7)
+- QA 2 commit: 6 시나리오 + 회귀/롤백 + Mock PNG 6장 (PowerShell System.Drawing + UTF-8 BOM)
+- DevOps 0 (기존 환경변수 재활용)
+
+**테스트**: BE 단위 24 + arologis 3 = **27 PASS** / IT 9 compile PASS (Docker 가용 시 실행). 회귀 가드 0 결함.
+
+**5-team 패턴 정정 (2026-05-14)**: 본 Phase C 머지 후 — `feedback_qa_sequential_after_be_fe.md` 신규 메모리. 다음 Phase D~F 부터 BE/FE/Designer/DevOps 4-team 병렬 → QA sequential 의무.
+

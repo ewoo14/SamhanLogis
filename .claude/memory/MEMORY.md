@@ -17,6 +17,7 @@
 - [PR QA 스크린샷](feedback_pr_qa_screenshots.md) — 모든 PR 본문에 QA 결과 스크린샷 1장 이상 인라인 첨부 (docs/qa/<slug>/*.png)
 - [통합 PR 패턴 의무](feedback_integrated_pr_pattern.md) — 디자인/UI 차이는 단편 PR 금지, 전체 묶어서 통합 PR + QA + TM 승인 (PR #66 회고)
 - [TM 주도 + agent discussion 패턴](feedback_tm_led_agent_discussion.md) — TM 통합 PR 발행 후 reviewer agent (BE/FE/Designer/QA/DevOps) 가 PR comment 로 토론, TM 이 종합하여 추가 commit
+- [QA sequential after BE/FE](feedback_qa_sequential_after_be_fe.md) — 2026-05-14 정정. QA agent 는 BE/FE/Designer 완료 후 sequential dispatch (실 산출 검증 + 실 화면 캡처). 5-team 병렬에서 QA 만 분리
 - [문서 동기화 의무](feedback_continuous_docs_sync.md) — 매 작업 PR 에 README + ROADMAP + DECISIONS + 각 client/service README + dev-report 갱신 의무 포함, 별도 docs PR 금지 (PR #80/#85 패턴 폐기)
 - [인쇄 양식 디자인 반복 정정](feedback_print_design_iteration.md) — 인쇄 양식은 단번 완성 가정 금지, 사용자 이미지 → mock → Edge 캡처 → CSS-only 미세 조정 3~5회 iteration (PR #21 회고)
 - [gradlew 실행 권한](feedback_gradlew_exec_bit.md) — Windows 커밋 시 `git update-index --chmod=+x gradlew` 필수 (Linux CI Permission denied 방지)
