@@ -19,6 +19,7 @@ metadata:
 - 5-team 결과 검토 (결함 시 자동 fix dispatch)
 - 회귀 가드 (33 + 신규 IT 4 = 37 case)
 - **QA 캡처 6장** (QA agent 자동 dispatch → mock PNG 생성 + PR 본문 인라인 갱신, 2026-05-14 갱신)
+- **QA 캡처 6장** (QA agent 자동 dispatch → mock PNG 생성 + PR 본문 인라인 갱신, 2026-05-14 갱신)
 
 사용자 결정 대기 (유일한 예외):
 - **최종 머지 요청** — `@개발책임자: PR #XXX 머지 부탁드립니다` 메시지로 알림

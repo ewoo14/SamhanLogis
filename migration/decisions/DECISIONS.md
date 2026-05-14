@@ -1412,3 +1412,27 @@ PR (`feature/integrated-phase-12-step-4c-fe-audit-overlay-rollout`) — PR #127 
 
 **비용**: AWS 변경 0 (EC2 m5.xlarge 1대 + RDS db.t3.medium 1대 공유, ₩405K/월 유지)
 
+
+### D-AX-14. 기사 어플 — 본인 휴대번호 자동 인식 + 1-tap 로그인 (2026-05-14 사용자 결정)
+
+D-AX-09 (passwordless) 위에 **본인 번호 자동 인식 흐름** 추가. 입력 *방법* 만 자동화 (인증 정책 변경 X).
+
+**자동 인식 흐름**:
+1. **SecureStore 우선** (key `arologis.driver.phoneNumber`) — 이전 로그인 성공 시 저장. 다음 실행부터 1-tap.
+2. **Android `READ_PHONE_NUMBERS` 권한 요청** (SecureStore 미존재 시) — 첫 실행 dialog. 허용 시 `react-native-device-info.getPhoneNumber()` → 본인 번호 자동 채움. EAS Build dev client 의무 (Expo Go 미가용).
+3. **iOS / 권한 거부 / native 미가용** — 수동 입력 fallback (기존 `03-mobile-phone-login.md` mock NumPad).
+
+**UI**: 자동 인식 시 phoneNumber `fontSize 32 bold arologis-teal` 대형 표시 + "본인 번호로 로그인" 큰 버튼 1-tap + "다른 번호로 로그인" link.
+
+**구현**:
+- `clients/arologis-mobile/src/hooks/usePhoneNumberAutoFill.ts` (신규) — SecureStore → Android native → fallback 흐름 + `normalizeKorean` (+82 / hyphen 처리)
+- `clients/arologis-mobile/src/screens/PhoneLoginScreen.tsx` (갱신) — 자동/수동 카드 분기 + saveAutoFillNumber on success + clearAutoFillNumber on 401
+- `clients/arologis-mobile/package.json` (갱신) — `expo-secure-store` + `react-native-device-info` 의존 추가
+- `clients/arologis-mobile/app.json` (갱신) — Android `READ_PHONE_NUMBERS` + `READ_PHONE_STATE` permission 추가
+- `docs/uiux/arologis-extract/03b-mobile-phone-auto-detect.md` (신규) — Designer mock (3 흐름 분기)
+- `docs/uiux/arologis-extract/03-mobile-phone-login.md` (기존, 보존) — 수동 입력 fallback mock
+
+**PII**: phoneNumber 는 SecureStore (iOS keychain / Android EncryptedSharedPreferences) 에 암호화 저장. 일반 storage 노출 X. 401 미등록 시 자동 clear.
+
+**참조**: D-AX-09 (passwordless) / `feedback_arologis_extract_autopilot` (자율 진행)
+
