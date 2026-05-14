@@ -3,6 +3,9 @@
 - [Phase 11 AWS 단일 환경 + 자동 복구](project_phase11_aws.md) — Seoul, m5.xlarge + db.t3.medium + RDS auto backup + EC2 Auto Recovery + Health Check Lambda. 월 ₩405K (정상가)
 - [User Role](user_role.md) — 개발책임자 역할; Claude는 PM으로서 팀 에이전트를 병렬 디스패치
 - [사용자 호칭 규칙](feedback_user_title.md) — 사용자는 "개발책임자"; "대표"는 회사 실제 대표(김미선)에게만 사용
+- [아로로지스 독립 분리](project_arologis_independent.md) — 2026-05-14 결정, Samhan Public 마이크로서비스 → 독립 운영 단위 (monorepo 유지, build/배포만 분리, 자체 auth, 휴대번호 passwordless)
+- [아로로지스 명칭 규칙](feedback_arologis_name.md) — 한국어 표기 "아로로지스" 정식, "아로로지" 단축형 금지 (2026-05-14)
+- [Samhan Public 명칭 규칙](feedback_samhan_public_name.md) — 외부 호칭 = "Samhan Public" / "삼한 퍼블릭", SamhanLogis 는 폴더명일 뿐 (2026-05-14)
 - [Build Conventions](project_build_conventions.md) — Gradle multi-project, Java 17, BaseEntity 7 audit fields mandatory, Soft Delete only
 - [Domain Strategy](project_domain_strategy.md) — samhan-air.com subdomains: app/api/order/sign/chat/files/monitor
 - [Korean Audit Standard](project_korean_accounting.md) — 한국 일반기업회계기준 표준 계정과목 코드 (100/200/300/400/500/800/900) seed data required
