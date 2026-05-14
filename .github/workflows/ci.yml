@@ -1,10 +1,28 @@
 name: CI
 
+# 아로로지스 분리 (spec 2026-05-14, plan DO2):
+#   - `services/arologis-service/**` + `clients/arologis-{desktop,mobile}/**` 변경은
+#     별도 워크플로 `arologis-ci.yml` 에서 처리. 본 워크플로 에서 제외하여 중복 빌드 방지.
+#   - shared/** 변경 시는 양 쪽 (samhan-public + arologis) 모두 재검증 필요 → 양쪽 모두 트리거.
+#   - workflow_dispatch = 수동 트리거 (manual full run 보장).
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'services/arologis-service/**'
+      - 'clients/arologis-desktop/**'
+      - 'clients/arologis-mobile/**'
+      - '.github/workflows/arologis-ci.yml'
+      - '.github/workflows/arologis-deploy.yml'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'services/arologis-service/**'
+      - 'clients/arologis-desktop/**'
+      - 'clients/arologis-mobile/**'
+      - '.github/workflows/arologis-ci.yml'
+      - '.github/workflows/arologis-deploy.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,9 +62,12 @@ jobs:
           - name: accounting+partner
             timeout: 30
             test-tasks: ':services:accounting-service:test :services:partner-service:test :services:partner-auth-service:test :services:partner-order-service:test :services:dc-config-service:test'
-          - name: phase9-10 (groupware+notification+dashboard+arologis)
+          # 아로로지스 분리 (spec 2026-05-14, plan DO2):
+          #   `:services:arologis-service:test` 는 별도 워크플로 `arologis-ci.yml` 의 backend job
+          #   으로 이관. 본 그룹에서는 제외. Samhan Public 14 service 만 커버.
+          - name: phase9-10 (groupware+notification+dashboard)
             timeout: 30
-            test-tasks: ':services:groupware-service:test :services:notification-service:test :services:dashboard-service:test :services:arologis-service:test'
+            test-tasks: ':services:groupware-service:test :services:notification-service:test :services:dashboard-service:test'
 
     steps:
       - name: 저장소 체크아웃
