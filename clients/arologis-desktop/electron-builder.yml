@@ -1,0 +1,45 @@
+# arologis-desktop — electron-builder 설정
+#
+# Samhan Public 의 desktop 패턴을 복제하되 app id / productName 만 변경.
+# 별도 installer (Arologis-Setup-<version>-x64.exe) 로 배포한다.
+appId: com.samhanair.arologis.desktop
+productName: Arologis Desktop
+copyright: Copyright (c) 2026 (주)삼한공조시스템
+artifactName: ${productName}-${version}-${arch}.${ext}
+
+directories:
+  output: release/${version}
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+asarUnpack:
+  - resources/**
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  publisherName: Samhan Air Systems Co., Ltd.
+  requestedExecutionLevel: asInvoker  # 관리자 권한 불필요 (UAC 회피)
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false  # 사용자별 설치 — UAC 회피, 사내 일반 사원 권한 OK
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Arologis Desktop
+  installerLanguages:
+    - ko_KR
+  language: '1042'  # Korean
+
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
+
+publish: null  # 자동 업데이트 미도입 (Samhan Public 정책 일치).
