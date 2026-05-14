@@ -1436,3 +1436,49 @@ D-AX-09 (passwordless) 위에 **본인 번호 자동 인식 흐름** 추가. 입
 
 **참조**: D-AX-09 (passwordless) / `feedback_arologis_extract_autopilot` (자율 진행)
 
+
+---
+
+## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)
+
+### D-DB-00. Samhan Public 배차 메뉴 신규 + 아로로지스 service-to-service 발송 (5-team 통합 PR, 9 결정)
+
+**배경**: 출고전표 (slip-service) → 배차담당자 → 배차 메뉴 → 아로로지스 발송 흐름의 **Phase A** (Phase B~F 별도). 사용자 요구 (2026-05-14): 50개 페이지네이션 + 차량 추가 9 종류 + drag-and-drop + 배차 완료 → arologis Mock matcher 회신.
+
+| # | 결정 |
+|---|---|
+| D-DB-01 | 배차 도메인 위치 = slip-service 안 신규 (`dispatch_task` + `dispatch_vehicle_group` + `dispatch_vehicle_group_slip` + `dispatch_matched_driver`) |
+| D-DB-02 | drag-and-drop = `@dnd-kit/core` + `@dnd-kit/sortable` (desktop). RN mobile = long-press 250ms + slip→그룹 선택 sheet (RN 호환 fallback, 진짜 drag 는 Phase B 후보 `react-native-gesture-handler`) |
+| D-DB-03 | 차량 종류 9 = MOTORCYCLE / DAMAS / TONNAGE_1 / TONNAGE_1_5 / TONNAGE_2_5 / TONNAGE_3 / TONNAGE_5 / TONNAGE_10 / TONNAGE_20. arologis VehicleTonnage 확장 (legacy 2 deprecated 유지) |
+| D-DB-04 | Slip dispatchStatus = `slips` 테이블에 column 추가 (UNDISPATCHED / DISPATCHING / DISPATCHED). plan 의 'slip' 명칭은 실제 repo 의 'slips' 일관 적용 |
+| D-DB-05 | 발송 endpoint = `POST /internal/arologis/dispatches` (X-Internal-Token + ROLE_MASTER). arologis 발송 default URL = `http://arologis-service:8097` |
+| D-DB-06 | UI = desktop + mobile-staff (양쪽). mobile = AppRootNavigator 의 신규 `dispatch` mode (3rd mode, ROLE-aware) |
+| D-DB-07 | Phase A 매칭 = MockDriverMatcher (Phase B 에서 InsungQuickDriverMatcher 실 활성, W10-2 trigger) |
+| D-DB-08 | 회신 endpoint = `POST /internal/slip/dispatch-tasks/{id}/confirm` + `/unavailable`. slip-service 실 port = **8086** (plan 의 8084 정정, 실 application.yml 일관) |
+| D-DB-09 | 알림 = notification-service Aligo (배차담당자, 회신 시점). batch sendExternalSms phone resolve 는 후속 Phase |
+
+**산출 (25 commit)**:
+- BE 14 commit: slip-service 4 entity + Slip.dispatchStatus + Flyway V21/V22 (V16/V17 충돌 회피) + 5 service + 3 controller + 2 client + arologis VehicleTonnage 확장 (V10) + DispatchReceiveService + SlipDispatchTaskClient + 단위 ~45 + IT ~13 compile PASS
+- FE 3 commit: desktop dispatch-board 페이지 5 컴포넌트 + `@dnd-kit/core` + 사이드바 + mobile-staff DispatchBoardScreen (long-press fallback)
+- Designer 5 commit: 5 mock 1509줄 (desktop / mobile / add vehicle / slip detail / state badges) + arologis-teal #2A9D8F + a11y
+- QA 2 commit: 6 시나리오 + 회귀/롤백 runbook + Mock PNG 6장 (PowerShell System.Drawing + UTF-8 BOM, 재실행 가능)
+- DevOps 1 commit: env-templates 갱신 + docker-compose.arologis.yml + 배포 가이드
+
+**테스트**:
+- BE 단위 45 PASS / IT 13 compile PASS (Docker 가용 시 실 실행)
+- FE desktop typecheck + build PASS / mobile typecheck + prebuild PASS
+- 회귀 가드 0 결함 (TM compile assemble + compileTestJava 양쪽 PASS)
+
+**후속 (별도 issue / PR 위임)**:
+- **Phase B** — arologis `InsungQuickDriverMatcher` 실 활성 (W10-2 trigger 대기)
+- **Phase C** — 배차 완료 후 수정/취소 요청 흐름 (Samhan Public ↔ arologis)
+- **Phase D** — GPS 실시간 공유 (인성 LBS → arologis → SSE → Samhan Public)
+- **Phase E** — 인수자 카톡/문자 발송
+- **Phase F** — 전자서명 양쪽 저장 (재활용) + 사본 1회 발송
+- **mobile drag-and-drop** — `react-native-gesture-handler` + `react-native-reanimated` 도입 검토 (D-DB-02 fallback 의 후속)
+- **MatchedDriver.driverName** — Phase B 에서 InsungQuick 응답 시 정정 (현재 driverCode 임시 사용)
+- **SlipDispatchTaskClient skeleton-mode** — Phase B 시 `samhan.arologis.client.skeleton-mode=false` 활성 환경변수
+- **변수명 표준** — `SAMHAN_AROLOGIS_DISPATCH_URL` + `SAMHAN_SLIP_DISPATCH_TASK_URL` (spec § 8 의 _CLIENT_URL 명칭은 폐기, 본 결정 표준)
+
+**비용**: AWS 변경 0 (기존 slip-service + arologis-service 그대로, 신규 service 도입 X)
+
