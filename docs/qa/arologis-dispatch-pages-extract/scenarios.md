@@ -39,8 +39,8 @@ Scope: `clients/arologis-desktop` dispatch route extraction under `/dispatches/*
 - `./gradlew :services:arologis-service:test --tests com.samhanair.logis.arologis.service.DispatchManualServiceTest` - PASS
 - `cd clients/arologis-desktop; npm run typecheck` - PASS
 - `cd clients/arologis-desktop; npm run build` - PASS
-- `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` - PASS
+- `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` - PASS, Playwright Chromium mock render
 
 ## Operational Note
 
-The checked-in PNGs are deterministic QA captures generated from the D-AX-11 route states so reviewers can inspect the UI in PR without requiring a seeded desktop login. Live Electron capture remains a final pre-merge task when backend seed credentials are available.
+The checked-in PNGs are Korean Playwright Chromium mock captures generated from the D-AX-11 route states so reviewers can inspect the UI in PR without requiring a seeded desktop login. Live Electron capture remains a final pre-merge task when backend seed credentials are available.

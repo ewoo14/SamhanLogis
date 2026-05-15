@@ -2,7 +2,7 @@
 
 - D-AX-11: Arologis desktop에 배차 하위 라우트 4종을 이전했습니다.
 - 추가 보강: PR 리뷰에서 발견된 `partnerCode` 유실과 `slipNo -> kakaoSeq` 오매핑을 수정했습니다.
-- QA 캡처 4장, 5-team review, TM 통합, PM/CI gate를 PR에 포함합니다.
+- 한국어 Playwright mock QA 캡처 4장, 5-team review, TM 통합, PM/CI gate를 PR에 포함합니다.
 
 ## 이전된 라우트
 
@@ -20,7 +20,7 @@
 | BE | Pass after fix | `ManualStop.partnerCode` now persists to `VehicleStop.parsedPartnerCode`; `slipNo` is notes-only and no longer populates `kakaoSeq`. |
 | FE | Pass | `clients/arologis-desktop` typecheck/build pass; Samhan Public duplicate routes are intentional transition scope. |
 | Design | Conditional pass | Raw hex absent from implementation; preview status test id added; legacy design guide is marked historical below D-AX-11 extraction note. |
-| QA | Conditional pass | Four PR screenshots are included; live Electron capture remains the final seeded-login pre-merge check. |
+| QA | Conditional pass | Four Korean Playwright mock PR screenshots are included; live Electron capture remains the final seeded-login pre-merge check. |
 | DevOps | Conditional pass | Desktop typecheck is hard-fail; installer/deploy packaging and design-system CI path trigger are D-AX-13 follow-ups. |
 
 ## TM 통합
@@ -49,7 +49,7 @@
 | `./gradlew :services:arologis-service:test --tests com.samhanair.logis.arologis.service.DispatchManualServiceTest` | PASS |
 | `cd clients/arologis-desktop; npm run typecheck` | PASS |
 | `cd clients/arologis-desktop; npm run build` | PASS |
-| `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` | PASS |
+| `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` | PASS - Playwright Chromium mock render |
 
 ## PM / CI gate
 

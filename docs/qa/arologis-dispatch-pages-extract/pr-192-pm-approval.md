@@ -1,6 +1,6 @@
 ## PM final approval - CI green
 
-Latest head: `2941013c2ff4e9efbd20c03917683b9080a0f3b2`
+Latest head: see PR #192 head commit at approval time.
 
 ### CI status
 
@@ -18,7 +18,7 @@ All required checks are green on the latest pushed commit:
 
 - 5-team code review included in PR body/comment.
 - TM integration note included.
-- QA screenshot captures included inline in PR.
+- Korean Playwright mock QA screenshot captures included inline in PR.
 - Local validation commands are green.
 
 PM/CI approval is recorded. Merge remains a separate action and is not performed here.

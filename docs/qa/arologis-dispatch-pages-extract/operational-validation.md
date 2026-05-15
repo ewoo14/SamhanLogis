@@ -29,7 +29,7 @@ Validate the Arologis desktop dispatch extraction before PR review/merge:
 | `./gradlew :services:arologis-service:test --tests com.samhanair.logis.arologis.service.DispatchManualServiceTest` | PASS |
 | `cd clients/arologis-desktop; npm run typecheck` | PASS |
 | `cd clients/arologis-desktop; npm run build` | PASS |
-| `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` | PASS |
+| `powershell -ExecutionPolicy Bypass -File .\scripts\generate-arologis-dispatch-pages-screenshots.ps1` | PASS - Playwright Chromium mock render |
 
 ## PM Gate
 
