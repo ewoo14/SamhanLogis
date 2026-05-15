@@ -104,14 +104,14 @@ jest.mock('../../../screens/driver/GpsBlockedScreen', () => {
   };
 });
 
-jest.mock('../../SlipDetailScreen', () => {
+jest.mock('../../../screens/driver/DriverSlipDetailEntry', () => {
   const ReactActual = jest.requireActual('react');
   const RN = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: () => ReactActual.createElement(RN.View, { testID: 'slip-detail-screen-mock' }),
+    default: () => ReactActual.createElement(RN.View, { testID: 'driver-slip-detail-entry-mock' }),
   };
-}, { virtual: true });
+});
 
 import DriverTabNavigator from '../../../screens/driver/DriverTabNavigator';
 

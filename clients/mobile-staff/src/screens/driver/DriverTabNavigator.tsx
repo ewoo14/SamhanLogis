@@ -29,7 +29,7 @@ import DriverSignatureScreen from './DriverSignatureScreen';
 import GpsBlockedScreen from './GpsBlockedScreen';
 import InspectionPhotoScreen from './InspectionPhotoScreen';
 import SignaturePhotoScreen from './SignaturePhotoScreen';
-import SlipDetailScreen from '../SlipDetailScreen';
+import DriverSlipDetailEntry from './DriverSlipDetailEntry';
 
 type Tab = 'dashboard' | 'tracking' | 'signature' | 'inspection-photo' | 'signature-photo';
 
@@ -94,16 +94,14 @@ export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.
     );
   }
 
-  // PR-H1 — slip detail push 활성 시 tab UI 위로 SlipDetailScreen 노출.
-  // PR-H2 — DRIVER 는 audit revert 권한 없음 → currentUserRole 명시 (canRevert=false).
+  // D-AX-12 — Samhan Public SlipDetailScreen 직접 import 대신 driver-local entry 경계로 진입.
   if (slipDetailRoute) {
     return (
-      <SlipDetailScreen
+      <DriverSlipDetailEntry
         token={token}
         slipId={slipDetailRoute.slipId}
         slipNo={slipDetailRoute.slipNo}
         partnerName={slipDetailRoute.partnerName}
-        currentUserRole="DRIVER"
         onBack={() => setSlipDetailRoute(null)}
       />
     );
