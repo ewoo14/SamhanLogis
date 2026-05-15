@@ -32,23 +32,37 @@ clients/arologis-mobile/
 └── src/
     ├── api/
     │   ├── client.ts       (fetch 래퍼 + 401 자동 refresh)
-    │   └── auth.ts         (POST /auth/driver/login passwordless)
+    │   ├── auth.ts         (POST /auth/driver/login passwordless)
+    │   └── arologis.ts     (D-AX-15 dashboard/GPS driver-app API)
     ├── navigation/
     │   └── RootNavigator.tsx
     ├── screens/
     │   ├── PhoneLoginScreen.tsx     (휴대번호만 입력)
-    │   ├── DispatchListScreen.tsx   (본인 배차 — skeleton)
-    │   └── GpsPermissionScreen.tsx  (foreground 거부 시 차단 — F7)
+    │   ├── DispatchListScreen.tsx   (보존용 skeleton)
+    │   ├── GpsPermissionScreen.tsx  (foreground 거부 시 차단 — F7)
+    │   └── driver/
+    │       ├── DriverTabNavigator.tsx
+    │       ├── DriverDashboardScreen.tsx
+    │       └── DriverLocationTrackingScreen.tsx
     ├── stores/authStore.ts          (in-memory + listener)
-    └── theme/tokens.ts              (mobile-staff 토큰 일부 복제)
+    └── theme/tokens.ts              (RN driver 토큰)
 ```
 
 ## 인증 흐름 (passwordless)
 
 1. PhoneLoginScreen 에서 본인 휴대번호 입력.
 2. `POST /auth/driver/login` → 401 시 alert "등록되지 않은 번호입니다. 관리자에게 문의하세요." (사전 등록 admin 필요).
-3. 성공 → `setAuth(...)` → RootNavigator 가 DispatchListScreen 으로 분기.
+3. 성공 → `setAuth(...)` → RootNavigator 가 `DriverTabNavigator` 로 분기.
 4. 401 (만료 토큰) → fetch 인터셉터가 `/auth/refresh` rotation 1회 시도. 실패 시 clearAuth + 로그인 화면.
+
+## D-AX-15 dashboard/GPS 이식
+
+- 추천안 B 기준으로 `DriverDashboardScreen` 과 `DriverLocationTrackingScreen` 만 먼저 이식.
+- 하단 2탭: `배차` / `GPS` + 로그아웃.
+- API:
+  - `GET /driver-app/arologis/dispatches/today`
+  - `POST /driver-app/arologis/locations`
+- 이번 PR에서 서명/배송사진/검수사진/native photo dependency 는 추가하지 않음.
 
 ## GPS 권한 가드 (F7)
 
@@ -61,6 +75,7 @@ clients/arologis-mobile/
 
 ## 후속 슬라이스 (본 PR 외)
 
-- mobile-staff 의 driver/* 화면 (DriverDashboard / LocationTracking / Signature / GpsBlocked) 의 본 어플로 이식. D-AX-12 에서 `DriverTabNavigator` → `SlipDetailScreen` 직접 import 는 `DriverSlipDetailEntry` 경계로 분리 완료.
-- 실제 slip 연결값이 배차 응답에 포함되면 `DriverSlipDetailEntry` 를 아로로지스 모바일 전용 상세 bridge 로 확장.
+- 서명 / sign-and-send-copy 화면 이식.
+- 배송사진 / 검수사진 화면 이식.
+- 실제 slip 연결값이 배차 응답에 포함되면 아로로지스 모바일 전용 상세 bridge 설계.
 - mobile-staff 의 driver tab 제거 + AppRootNavigator 단순화 (estimate WebView 단일 모드).

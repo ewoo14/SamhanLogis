@@ -4,6 +4,36 @@
 > 갱신자: PM (Claude Opus 4.7) → 다음 진행 도구 = **OpenAI Codex CLI** (사용자 결정, 토큰 한도 사유)
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
+## 2026-05-15 Codex 최신 핸드오프 — D-AX-15 arologis-mobile dashboard/GPS 진행
+
+- 현재 branch: `codex/d-ax-15-arologis-mobile-driver-runtime`
+- 사용자 피드백: Claude처럼 진행 방향은 다자선택으로 제시하고, Codex가 멋대로 결정하지 않는다.
+- 채택 방향: 추천안 B — `clients/arologis-mobile` 에 dashboard + GPS 두 탭만 먼저 이식.
+- 구현:
+  - 로그인 성공 후 `RootNavigator` 가 `DriverTabNavigator` 로 진입.
+  - `DriverDashboardScreen` / `DriverLocationTrackingScreen` 을 독립 앱 내부로 이식.
+  - `api/arologis.ts` 는 `GET /driver-app/arologis/dispatches/today`, `POST /driver-app/arologis/locations` 만 담당.
+  - 서명 / 배송사진 / 검수사진 / mobile-staff driver 제거는 후속 PR 선택지로 남김.
+- 검증:
+  - `cd clients/arologis-mobile && npm install`
+  - `cd clients/arologis-mobile && npm run typecheck`
+  - `rg -n 'clients/mobile-staff|mobile-staff|../../../mobile-staff' clients/arologis-mobile/src` 결과 없음
+  - `.\scripts\generate-d-ax-15-arologis-mobile-driver-runtime-screenshots.ps1`
+- QA 캡처:
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/01-authenticated-driver-tabs.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/02-driver-dashboard.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/03-gps-tracking.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/04-dashboard-empty.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/05-dashboard-error.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/06-gps-permission-block.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/07-typecheck-pass.png`
+  - `docs/qa/d-ax-15-arologis-mobile-driver-runtime/screenshots/08-import-boundary-pass.png`
+- 다음 선택지:
+  - A: signature / sign-and-send-copy 이식
+  - B: 배송사진 / 검수사진 이식
+  - C: `/auth/me` schema 정합 검증
+  - D: 실기기 QA 후 `mobile-staff` driver mode 제거
+
 ## 2026-05-15 Codex 최신 핸드오프 — D-AX-12 mobile cross-import 분리 진행
 
 - 현재 branch: `codex/d-ax-12-mobile-cross-import`

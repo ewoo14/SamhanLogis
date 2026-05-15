@@ -31,6 +31,12 @@
 - 기존 Samhan Public `SlipDetailScreen` 의 comment / audit / edit-request / SSE 기능은 보존한다.
 - 후속 아로로지스 모바일 이식에서 실제 slip bridge 또는 아로로지스 전용 상세 화면으로 확장한다.
 
+### D-AX-15 아로로지스 모바일 dashboard/GPS 선이식
+
+- `clients/arologis-mobile` 이 로그인 후 자체 `DriverTabNavigator` 로 진입한다.
+- 이번 PR 범위는 dashboard + GPS 두 탭이며, `mobile-staff` driver mode 는 운영 검증 전까지 보존한다.
+- 서명 / 배송사진 / 검수사진 / driver mode 제거는 후속 PR에서 다자선택 후 진행한다.
+
 ### 화면 구성
 
 ```

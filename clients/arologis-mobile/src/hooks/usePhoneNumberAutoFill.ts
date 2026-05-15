@@ -97,9 +97,10 @@ export function usePhoneNumberAutoFill(): {
       // 2) Android native (`READ_PHONE_NUMBERS` + react-native-device-info)
       if (Platform.OS === 'android') {
         try {
+          const readPhoneNumbersPermission =
+            PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS ?? 'android.permission.READ_PHONE_NUMBERS';
           const granted = await PermissionsAndroid.request(
-            // @ts-expect-error — RN 0.79 의 PermissionsAndroid 타입에 READ_PHONE_NUMBERS 누락 가능
-            PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS ?? 'android.permission.READ_PHONE_NUMBERS',
+            readPhoneNumbersPermission,
             {
               title: '본인 휴대전화 번호 자동 인식',
               message:

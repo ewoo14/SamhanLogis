@@ -5,7 +5,7 @@
  * 1) useGpsPermission().blocked = true → GpsPermissionScreen 차단 화면 (F7).
  *    foreground 권한 = 의무 (사용자 결정 4 GPS 하이브리드).
  * 2) 비로그인 → PhoneLoginScreen (휴대번호 passwordless, F6).
- * 3) 로그인 → DispatchListScreen (본인 배차 목록).
+ * 3) 로그인 → DriverTabNavigator (본인 배차 + GPS).
  *
  * GPS 권한 조회는 useGpsPermission hook 이 mount 직후 1회 자동 수행.
  * `status === 'unknown'` 시점에는 splash 텍스트로 시각적 가드.
@@ -15,8 +15,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../stores/authStore';
 import { useGpsPermission } from '../hooks/useGpsPermission';
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
-import DispatchListScreen from '../screens/DispatchListScreen';
 import GpsPermissionScreen from '../screens/GpsPermissionScreen';
+import DriverTabNavigator from '../screens/driver/DriverTabNavigator';
 import { colors, spacing, typography } from '../theme/tokens';
 
 export default function RootNavigator(): React.ReactElement {
@@ -45,7 +45,13 @@ export default function RootNavigator(): React.ReactElement {
     return <PhoneLoginScreen />;
   }
 
-  return <DispatchListScreen />;
+  return (
+    <DriverTabNavigator
+      token={auth.accessToken}
+      driverCode={auth.driverCode}
+      backgroundGranted={gps.backgroundGranted}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

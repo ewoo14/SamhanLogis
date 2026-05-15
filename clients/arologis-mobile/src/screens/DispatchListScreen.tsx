@@ -1,8 +1,8 @@
 /**
  * DispatchListScreen — 본인 배차 목록 (skeleton).
  *
- * 실제 GET /driver-app/arologis/dispatches/today 호출 + 정차 목록 렌더는
- * 후속 슬라이스 (mobile-staff 의 DriverDashboardScreen 이식 후) 에서 구현.
+ * D-AX-15 이전 로그인 후 placeholder 화면.
+ * 현재 RootNavigator 는 로그인 후 driver tab 으로 진입하므로 보존용 화면이다.
  *
  * 본 placeholder 는 로그인 후 진입점 navigator 가 동작하도록 export 만 유지.
  */

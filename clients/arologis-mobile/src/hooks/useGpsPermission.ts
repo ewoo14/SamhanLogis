@@ -1,7 +1,7 @@
 /**
  * useGpsPermission — 아로로지스 GPS 권한 hook.
  *
- * mobile-staff/src/hooks/useGpsPermission.ts 의 패턴 복제 (Phase 10 W10-3 결정 일치).
+ * Phase 10 W10-3 GPS 권한 정책과 동일한 standalone driver 앱 hook.
  *
  * 사용자 결정 4 GPS 하이브리드 (2026-05-07):
  * - foreground 권한 = 의무 (배송 도중 위치 추적)
@@ -86,4 +86,21 @@ export function useGpsPermission(): GpsPermissionState {
   }, [attempt]);
 
   return { ...state, retry: () => setAttempt((n) => n + 1) };
+}
+
+/**
+ * 현재 1회 GPS 위치 조회 (latitude, longitude).
+ *
+ * 사용 위치:
+ * - DriverLocationTrackingScreen 30초 주기 보고
+ */
+export async function getCurrentPositionAsync(): Promise<{ latitude: number; longitude: number; capturedAt: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Location = require('expo-location') as typeof import('expo-location');
+  const pos = await Location.getCurrentPositionAsync({});
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    capturedAt: new Date(pos.timestamp).toISOString(),
+  };
 }

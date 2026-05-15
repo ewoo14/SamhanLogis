@@ -1436,6 +1436,30 @@ D-AX-09 (passwordless) 위에 **본인 번호 자동 인식 흐름** 추가. 입
 
 **참조**: D-AX-09 (passwordless) / `feedback_arologis_extract_autopilot` (자율 진행)
 
+### D-AX-15. arologis-mobile dashboard/GPS 선이식 (2026-05-15)
+
+D-AX-12 후속으로 `clients/arologis-mobile` 로그인 후 placeholder `DispatchListScreen` 대신 전용 `DriverTabNavigator` 로 진입한다.
+
+사용자 요청에 따라 진행 방향은 멋대로 단정하지 않고 다자선택 후 추천안 B를 승인받았다.
+
+**채택 범위**:
+- dashboard + GPS 두 탭만 먼저 이식.
+- 서명 / 배송사진 / 검수사진 / 실제 slip 상세 bridge 는 후속 PR 선택지로 분리.
+- `mobile-staff` driver mode 는 운영 검증 전까지 삭제하지 않음.
+
+**구현**:
+- `clients/arologis-mobile/src/screens/driver/DriverTabNavigator.tsx`
+- `clients/arologis-mobile/src/screens/driver/DriverDashboardScreen.tsx`
+- `clients/arologis-mobile/src/screens/driver/DriverLocationTrackingScreen.tsx`
+- `clients/arologis-mobile/src/api/arologis.ts`
+- `clients/arologis-mobile/src/utils/userColorHash.ts`
+- `clients/arologis-mobile/src/theme/tokens.ts`
+
+**검증**:
+- `clients/arologis-mobile npm run typecheck`
+- `rg` cross-import guard (`mobile-staff` 직접 참조 없음)
+- PR 본문용 1200px 한국어 QA 캡처 8장
+
 
 ---
 
