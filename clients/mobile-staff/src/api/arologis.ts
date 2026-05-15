@@ -1,7 +1,7 @@
 /**
- * arologis-service driver-app API client — Phase 10 W10-3 신규.
+ * arologis-service driver-app API client — Phase 10 W10-3 신규 + Phase F (D-DF-07/12) 갱신.
  *
- * 출처: `services/arologis-service/.../ArologisDriverAppController.java` 3 endpoint 1:1.
+ * 출처: `services/arologis-service/.../ArologisDriverAppController.java` 3 endpoint + sign-and-send-copy.
  *
  * Base URL = `EXPO_PUBLIC_API_BASE_URL` (default `http://localhost:8080` = api-gateway 진입).
  * gateway 가 JWT verify + ROLE_DRIVER 확인 + X-User-* 주입 후 arologis-service 8097 으로 forward.
@@ -15,6 +15,8 @@
  *   - 응답에 driverCode + 정차 식별자 (parsed_partner_code 전표번호) 만 노출.
  *   - dispatch UUID 는 path parameter 로만 사용 (UI 에 표시 X).
  */
+
+import { encode as base64Encode } from 'base-64';
 
 const DEFAULT_DEV_API = 'http://localhost:8080';
 const DEFAULT_PROD_API = 'https://api.samhan-air.com';
@@ -172,6 +174,161 @@ export async function submitSignature(
     slipBridged: Boolean(data?.slipBridged),
     capturedAt: data?.capturedAt ?? '',
   };
+}
+
+// ----------------------------------------------------------------------
+// Phase F (D-DF-07/12) — sign-and-send-copy 1-tap endpoint.
+// arologis POST /driver-app/.../sign-and-send-copy
+// 응답 분기:
+//   200 image/png        → success (PNG byte[] 응답 + X-* 헤더로 메타)
+//   200 application/json → fail (서명 양쪽 저장은 OK, 사본 합성/발송 실패)
+//   409 application/json → duplicate (이미 사본 발송됨)
+//   422 application/json → bridge fail (서명 양쪽 저장 자체 실패, 롤백)
+// ----------------------------------------------------------------------
+
+export interface SignAndSendCopyRequest {
+  /** 기사 서명 base64 PNG (헤더 prefix 포함 또는 raw). */
+  driverSignatureBase64: string;
+  /** 인수자 서명 base64 PNG. */
+  recipientSignatureBase64: string;
+  /** 캡처 시각 ISO LocalDateTime (서버 timezone — 'Z' 제거). */
+  capturedAt: string;
+  /** 캡처 시점 GPS 위도 (옵션). */
+  gpsLat?: number;
+  /** 캡처 시점 GPS 경도 (옵션). */
+  gpsLng?: number;
+}
+
+/**
+ * 사본 합성/발송 실패 사유 — backend `CopyFailureReason` enum 1:1.
+ * - `RECIPIENT_PHONE_MISSING` — slip 의 인수자 번호 미등록 (Admin 재발송 필요).
+ * - `RENDERER_TIMEOUT` — Playwright PNG 합성 timeout (재시도 가능).
+ * - `RENDERER_ERROR` — Playwright 렌더 실패 (재시도 가능).
+ * - `STORAGE_FULL` — 디스크 가용량 부족 (재시도 의미 없음).
+ */
+export type CopyFailureReason =
+  | 'RECIPIENT_PHONE_MISSING'
+  | 'RENDERER_TIMEOUT'
+  | 'RENDERER_ERROR'
+  | 'STORAGE_FULL';
+
+/**
+ * sign-and-send-copy JSON 응답 (fail / duplicate / bridge 모두 동일 schema).
+ * backend `SignAndSendCopyResponse` DTO 와 1:1.
+ */
+export interface SignAndSendCopyJsonResponse {
+  signatureId?: string;
+  slipBridged?: boolean;
+  copySent: boolean;
+  copySentAt?: string;
+  copyRecipientPhoneMasked?: string;
+  copyFailureReason?: CopyFailureReason;
+  error?: string;
+  previousCopySentAt?: string;
+  retryable?: boolean;
+}
+
+/**
+ * 성공 응답 — image/png byte[] + X-* 헤더 메타.
+ */
+export interface SignAndSendCopySuccess {
+  kind: 'success';
+  /** PNG byte[] base64 인코딩 (FileSystem.writeAsStringAsync encoding='base64' 호환). */
+  pngBase64: string;
+  signatureId: string;
+  copySentAt: string;
+  copyRecipientPhoneMasked: string;
+}
+
+/**
+ * 실패 응답 분기.
+ *  - kind='fail'      : 200 application/json (copySent=false) — 서명 OK, 사본 fail
+ *  - kind='duplicate' : 409 — 이미 사본 발송됨
+ *  - kind='bridge'    : 422 — 서명 양쪽 저장 자체 실패 (롤백)
+ */
+export interface SignAndSendCopyFail {
+  kind: 'fail' | 'duplicate' | 'bridge';
+  json: SignAndSendCopyJsonResponse;
+  status: number;
+}
+
+/**
+ * Phase F (D-DF-07) — 양쪽 저장 + 사본 PNG 합성/저장 1-tap.
+ *
+ * <p>Accept = `image/png, application/json` (서버가 분기 응답).
+ *
+ * <p>응답 분기:
+ * - 200 image/png → success (PNG byte[] base64, X-Signature-Id / X-Copy-Sent-At / X-Copy-Recipient-Phone-Masked 헤더)
+ * - 200 application/json (copySent=false) → fail (서명만 OK)
+ * - 409 application/json → duplicate (previousCopySentAt 포함)
+ * - 422 application/json → bridge fail (롤백 완료, retryable=true 시 재시도 가능)
+ */
+export async function signAndSendCopy(
+  token: string | null,
+  dispatchId: string,
+  vehicleSeq: number,
+  stopSeq: number,
+  request: SignAndSendCopyRequest,
+): Promise<SignAndSendCopySuccess | SignAndSendCopyFail> {
+  const url = `${API_BASE_URL}/driver-app/arologis/dispatches/${dispatchId}/vehicles/${vehicleSeq}/stops/${stopSeq}/sign-and-send-copy`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'image/png, application/json',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(request),
+  });
+
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (response.ok && contentType.includes('image/png')) {
+    const buffer = await response.arrayBuffer();
+    const pngBase64 = arrayBufferToBase64(buffer);
+    return {
+      kind: 'success',
+      pngBase64,
+      signatureId: response.headers.get('X-Signature-Id') ?? '',
+      copySentAt: response.headers.get('X-Copy-Sent-At') ?? '',
+      copyRecipientPhoneMasked: response.headers.get('X-Copy-Recipient-Phone-Masked') ?? '',
+    };
+  }
+
+  // JSON 분기 — 서버가 항상 ApiResponse wrapper 가 아니라 정의된 SignAndSendCopyResponse DTO 직접 반환.
+  // 따라서 assertApiResponseSuccess 우회.
+  let json: SignAndSendCopyJsonResponse;
+  try {
+    json = (await response.json()) as SignAndSendCopyJsonResponse;
+  } catch {
+    json = { copySent: false, error: `HTTP ${response.status} (응답 파싱 실패)` };
+  }
+  if (response.status === 409) {
+    return { kind: 'duplicate', json, status: 409 };
+  }
+  if (response.status === 422) {
+    return { kind: 'bridge', json, status: 422 };
+  }
+  return { kind: 'fail', json, status: response.status };
+}
+
+/**
+ * ArrayBuffer → base64 (RN/Hermes 호환). React Native 에는 atob/btoa 가 없으므로 base-64 npm 사용.
+ *
+ * <p>대용량 PNG (수백 KB) 는 String.fromCharCode(...new Uint8Array) 가 stack overflow 가능 →
+ * 8KB chunk 단위로 분할.
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; // 32KB chunk
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return base64Encode(binary);
 }
 
 /**
