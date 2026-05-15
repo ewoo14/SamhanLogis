@@ -163,4 +163,113 @@ public class SlipInternalController {
      * @param status 슬립 상태 (SIGNABLE_STATUSES 가드용 hint)
      */
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
+
+    // ---- Phase F (D-DF-05/06) — 인수자 번호 + 출고전표 사본 PNG 합성용 전체 상세 ----
+
+    /**
+     * Phase F (D-DF-05) — slip recipientPhone lookup. arologis SignAndSendCopyService 가 호출.
+     *
+     * <p>recipientPhone 은 Slip entity 의 V20 신규 필드 (인수자 번호) — signerName/receiverPhone 과 별도.
+     * null/blank 일 시 응답 data.recipientPhone=null (404 미반환, graceful).
+     *
+     * @param slipId 전표 UUID
+     * @return ApiResponse wrapper (data.recipientPhone 풀 번호 또는 null)
+     */
+    @Operation(summary = "Internal slip 인수자 번호 lookup (Phase F — arologis 사본 발송)",
+            description = "X-Internal-Token 인증. 응답 PII 풀 번호 — 호출자 마스킹 의무.")
+    @GetMapping("/{slipId}/recipient-phone")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<RecipientPhoneResponse> findRecipientPhone(@PathVariable UUID slipId) {
+        Slip slip = signatureService.findById(slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "slip 미발견"));
+        return ApiResponse.ok(new RecipientPhoneResponse(slip.getRecipientPhone()));
+    }
+
+    /**
+     * Phase F (D-DF-06) — print-renderer 용 slip 전체 상세 lookup. arologis 가 PNG 합성에 사용.
+     *
+     * <p>OutboundView 가 받는 props 와 1:1 매핑. lines 는 slip.getLines() flatten.
+     * sourceWarehouseName 은 본 PR 시점 sourceWarehouseId.toString() placeholder — 후속 PR 에서
+     * warehouse-service lookup 으로 정정 (양식 표시상 큰 영향 X).
+     *
+     * @param slipId 전표 UUID
+     * @return ApiResponse wrapper (data 미발견 시 404 → BusinessException)
+     */
+    @Operation(summary = "Internal slip 전체 상세 lookup (Phase F — arologis print-renderer)",
+            description = "X-Internal-Token 인증. lines 포함 — 라인 갯수 많을 경우 응답 크기 주의 (~50KB 이내 가정).")
+    @GetMapping("/{slipId}/full")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipFullDetailResponse> findFullDetail(@PathVariable UUID slipId) {
+        Slip slip = signatureService.findById(slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "slip 미발견"));
+        return ApiResponse.ok(SlipFullDetailResponse.from(slip));
+    }
+
+    /** Phase F (D-DF-05) — 인수자 번호 응답. */
+    public record RecipientPhoneResponse(String recipientPhone) {}
+
+    /**
+     * Phase F (D-DF-06) — print-renderer 용 slip 전체 상세 응답.
+     *
+     * <p>OutboundView 가 받는 props 와 1:1 매핑.
+     */
+    public record SlipFullDetailResponse(
+            String slipNo,
+            java.time.LocalDate slipDate,
+            String partnerName,
+            String deliveryAddress,
+            java.util.List<LineDto> lines,
+            java.math.BigDecimal totalSupply,
+            java.math.BigDecimal vat,
+            java.math.BigDecimal total,
+            String sourceWarehouseName) {
+
+        public static SlipFullDetailResponse from(Slip slip) {
+            // sourceWarehouseName placeholder — 후속 PR 에서 warehouse-service lookup 으로 정정.
+            String warehouseName = slip.getSourceWarehouseId() != null
+                    ? slip.getSourceWarehouseId().toString()
+                    : null;
+            // total = supply + vat (Slip entity 가 직접 보유하지 않음 — line 합계 + VAT 합계 별도 계산은 호출자 의무)
+            java.math.BigDecimal supplyTotal = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal vatTotal = java.math.BigDecimal.ZERO;
+            java.util.List<LineDto> lineDtos = new java.util.ArrayList<>();
+            for (com.samhanair.logis.slip.domain.SlipLine line : slip.getLines()) {
+                lineDtos.add(LineDto.from(line));
+                if (line.getSupplyAmount() != null) {
+                    supplyTotal = supplyTotal.add(line.getSupplyAmount());
+                }
+                if (line.getVatAmount() != null) {
+                    vatTotal = vatTotal.add(line.getVatAmount());
+                }
+            }
+            return new SlipFullDetailResponse(
+                    slip.getSlipNo(),
+                    slip.getSlipDate(),
+                    slip.getPartnerName(),
+                    slip.getDeliveryAddress(),
+                    lineDtos,
+                    supplyTotal,
+                    vatTotal,
+                    supplyTotal.add(vatTotal),
+                    warehouseName);
+        }
+    }
+
+    /** Slip line 1건 — print-renderer 표시용. */
+    public record LineDto(
+            String productName,
+            String specification,
+            int quantity,
+            java.math.BigDecimal unitPrice,
+            java.math.BigDecimal lineTotal) {
+
+        public static LineDto from(com.samhanair.logis.slip.domain.SlipLine line) {
+            return new LineDto(
+                    line.getProductName(),
+                    line.getSpecification(),
+                    line.getQuantity(),
+                    line.getUnitPrice(),
+                    line.getLineTotal());
+        }
+    }
 }

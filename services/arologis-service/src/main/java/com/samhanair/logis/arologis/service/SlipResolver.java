@@ -1,6 +1,10 @@
 package com.samhanair.logis.arologis.service;
 
 import com.samhanair.logis.arologis.client.SlipClient;
+import com.samhanair.logis.arologis.client.SlipClient.SlipFullDetail;
+import com.samhanair.logis.arologis.domain.VehicleStop;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -68,5 +72,57 @@ public class SlipResolver {
             return Optional.empty();
         }
         return slipClient.findRecentSlipIdByPartner(partnerId);
+    }
+
+    /**
+     * Phase F (D-DF-04~06) — VehicleStop → slipId 매핑 단일 helper.
+     *
+     * <p>SignAndSendCopyService 가 본인 dispatch 검증 후 stop 으로 slipId 를 resolve.
+     * stop.parsedKakaoSeq → slip-service by-partner-code lookup. 매핑 실패 시 empty.
+     */
+    public Optional<UUID> resolveSlipId(VehicleStop stop) {
+        if (stop == null) {
+            return Optional.empty();
+        }
+        return resolveByKakaoSeq(stop.getParsedKakaoSeq());
+    }
+
+    /**
+     * Phase F (D-DF-05) — 인수자 휴대번호 lookup. stop → slipId → slip recipientPhone.
+     *
+     * <p>매핑 실패 / phone null/blank 시 empty. SignAndSendCopyService 가 empty 시
+     * RECIPIENT_PHONE_MISSING reason 으로 사본 skip (200 + JSON).
+     */
+    public Optional<String> findRecipientPhone(VehicleStop stop) {
+        return resolveSlipId(stop).flatMap(slipClient::findRecipientPhone);
+    }
+
+    /**
+     * Phase F (D-DF-06) — print-renderer query param 으로 보낼 slip 데이터 map 빌드.
+     *
+     * <p>OutboundView 가 받는 props 와 1:1 — slipNo, slipDate, partnerName, deliveryAddress,
+     * lines [{productName, specification, quantity, unitPrice, lineTotal}], totalSupply, vat, total,
+     * sourceWarehouseName, capturedAt, gpsLat, gpsLng (capturedAt/gps 는 호출자가 후속 추가).
+     *
+     * @throws IllegalStateException slipId resolve 실패 또는 slip-service /full 응답 없음
+     */
+    public Map<String, Object> buildSlipDataMap(VehicleStop stop) {
+        UUID slipId = resolveSlipId(stop)
+                .orElseThrow(() -> new IllegalStateException(
+                        "slipId resolve 실패 — stopId=" + (stop != null ? stop.getId() : null)));
+        SlipFullDetail detail = slipClient.findFullDetail(slipId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "slip 상세 lookup 실패 — slipId=" + slipId));
+        Map<String, Object> data = new HashMap<>();
+        data.put("slipNo", detail.slipNo());
+        data.put("slipDate", detail.slipDate() != null ? detail.slipDate().toString() : null);
+        data.put("partnerName", detail.partnerName());
+        data.put("deliveryAddress", detail.deliveryAddress());
+        data.put("lines", detail.lines());
+        data.put("totalSupply", detail.totalSupply());
+        data.put("vat", detail.vat());
+        data.put("total", detail.total());
+        data.put("sourceWarehouseName", detail.sourceWarehouseName());
+        return data;
     }
 }

@@ -211,6 +211,112 @@ public class SlipClient {
         return body.length() > 200 ? body.substring(0, 200) + "..." : body;
     }
 
+    // ---- Phase F (D-DF-05/06) — 사본 PNG 발송 endpoint ----
+
+    /**
+     * Phase F (D-DF-05) — slip recipientPhone lookup. 인수자 휴대번호가 없으면 사본 발송 skip.
+     *
+     * <p>응답 예: {@code { success: true, data: { recipientPhone: "01012345678" } }}.
+     * data=null 또는 phone=null/blank 시 Optional.empty.
+     *
+     * @param slipId 전표 UUID
+     * @return 인수자 휴대번호 풀 String. 미발견/skeleton-mode/호출 실패 시 empty.
+     */
+    public Optional<String> findRecipientPhone(UUID slipId) {
+        if (skeletonMode || slipId == null) {
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/slips/{slipId}/recipient-phone", slipId)
+                    .header("X-Internal-Token", internalToken)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.get("data");
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            JsonNode phone = data.get("recipientPhone");
+            if (phone == null || phone.isNull()) {
+                return Optional.empty();
+            }
+            String value = phone.asText(null);
+            return (value == null || value.isBlank()) ? Optional.empty() : Optional.of(value);
+        } catch (RestClientResponseException ex) {
+            log.debug("findRecipientPhone — slipId={}, status={} (404 = 미발견, 정상)",
+                    slipId, ex.getStatusCode());
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("findRecipientPhone 실패 — slipId={}, msg={}", slipId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Phase F (D-DF-06) — print-renderer 용 slip 전체 상세 lookup.
+     *
+     * <p>응답 schema: {@code { success: true, data: SlipFullDetail }} (data=null 시 미발견).
+     *
+     * @param slipId 전표 UUID
+     * @return SlipFullDetail Optional. 미발견/skeleton-mode/호출 실패 시 empty.
+     */
+    public Optional<SlipFullDetail> findFullDetail(UUID slipId) {
+        if (skeletonMode || slipId == null) {
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/slips/{slipId}/full", slipId)
+                    .header("X-Internal-Token", internalToken)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.get("data");
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            return Optional.of(objectMapper.treeToValue(data, SlipFullDetail.class));
+        } catch (RestClientResponseException ex) {
+            log.debug("findFullDetail — slipId={}, status={} (404 = 미발견, 정상)",
+                    slipId, ex.getStatusCode());
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("findFullDetail 실패 — slipId={}, msg={}", slipId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * print-renderer 용 slip 전체 상세 — Phase F (D-DF-06).
+     *
+     * <p>OutboundView 가 받는 props 와 1:1 매핑 (slip-service SlipInternalController 의 응답 schema).
+     */
+    public record SlipFullDetail(
+            String slipNo,
+            java.time.LocalDate slipDate,
+            String partnerName,
+            String deliveryAddress,
+            java.util.List<SlipFullLine> lines,
+            java.math.BigDecimal totalSupply,
+            java.math.BigDecimal vat,
+            java.math.BigDecimal total,
+            String sourceWarehouseName) {}
+
+    /** Slip line 1건 — print-renderer 표시용. */
+    public record SlipFullLine(
+            String productName,
+            String specification,
+            int quantity,
+            java.math.BigDecimal unitPrice,
+            java.math.BigDecimal lineTotal) {}
+
     /**
      * /internal/slips/{slipId}/signatures POST request payload — slip-service 의
      * InternalSignatureRegistrationRequest record 와 1:1 매핑.

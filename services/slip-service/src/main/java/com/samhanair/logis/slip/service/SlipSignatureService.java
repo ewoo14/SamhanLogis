@@ -371,6 +371,18 @@ public class SlipSignatureService {
         return page.isEmpty() ? Optional.empty() : Optional.of(page.getContent().get(0));
     }
 
+    /**
+     * Phase F (D-DF-05/06) — slipId 단건 lookup. SlipInternalController 의 /recipient-phone 및 /full
+     * endpoint 에서 사용. 미발견 시 empty (404 매핑은 controller 책임).
+     */
+    @Transactional(readOnly = true)
+    public Optional<Slip> findById(UUID slipId) {
+        if (slipId == null) {
+            return Optional.empty();
+        }
+        return slipRepository.findById(slipId);
+    }
+
     public AdminSignatureResponse invalidateSignature(UUID slipId, String reason, String actorUserId) {
         Slip slip = slipRepository.findById(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다"));
