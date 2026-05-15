@@ -21,7 +21,11 @@ import { AppLayout } from '../components/AppLayout'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import { LoginPage } from './login/LoginPage'
 import { DriverManagementPage } from './drivers/DriverManagementPage'
-import { DispatchesPlaceholderPage } from './dispatches/DispatchesPlaceholderPage'
+import { DispatchesLayout } from './dispatches/DispatchesLayout'
+import { ArologisManualDispatchPage } from './dispatches/ManualDispatchPage'
+import { ArologisPreClassifyPage } from './dispatches/PreClassifyPage'
+import { ArologisUnassignedPage } from './dispatches/UnassignedPage'
+import { ArologisDispatchReconcilePage } from './dispatches/DispatchReconcilePage'
 
 const router = createHashRouter([
   { path: '/login', element: <LoginPage /> },
@@ -34,7 +38,17 @@ const router = createHashRouter([
     ),
     children: [
       { index: true, element: <Navigate to="/dispatches" replace /> },
-      { path: 'dispatches/*', element: <DispatchesPlaceholderPage /> },
+      {
+        path: 'dispatches',
+        element: <DispatchesLayout />,
+        children: [
+          { index: true, element: <Navigate to="/dispatches/manual" replace /> },
+          { path: 'manual', element: <ArologisManualDispatchPage /> },
+          { path: 'pre-classify', element: <ArologisPreClassifyPage /> },
+          { path: 'unassigned', element: <ArologisUnassignedPage /> },
+          { path: 'reconcile', element: <ArologisDispatchReconcilePage /> },
+        ],
+      },
       { path: 'drivers', element: <DriverManagementPage /> },
     ],
   },
