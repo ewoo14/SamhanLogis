@@ -16,7 +16,8 @@
  *
  * <p>제약:
  * <ul>
- *   <li>본 PR 진입 시점 = standalone 화면 — DriverTabNavigator 통합은 후속 deeplink (W10-4).</li>
+ *   <li>Phase F (D-DF-13) — W10-4 deep link 활성: DriverTabNavigator 가 본 화면을 'signature-photo'
+ *       탭으로 등록 + onUploaded → 'signature' 탭 자동 이동. 사진은 slip-service attachment 로만 보관.</li>
  *   <li>업로드는 public token 경로 (no auth) 만 활성. 인증 기반은 admin / estimate (P2 stub).</li>
  *   <li>EXIF GPS 는 BE 에 함께 전송 (slip-service 가 메타 보존).</li>
  *   <li>UUID 비공개 — 응답의 attachment id 는 UI 미노출, 사용자에게는 fileName + uploadedAt 만.</li>

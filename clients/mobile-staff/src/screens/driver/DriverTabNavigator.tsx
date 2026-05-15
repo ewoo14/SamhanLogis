@@ -3,8 +3,12 @@
  *
  * 사용자 결정 (2026-05-07) — `clients/mobile-staff` 내부 driver tab 채택 (별도 mobile-driver 신규 X).
  *
- * 본 navigator 는 react-navigation 의존성 미설치 환경에서도 동작하도록 자체 minimal tab 구현 — 3 화면
- * (Dashboard / LocationTracking / Signature) state-machine 으로 분기.
+ * 본 navigator 는 react-navigation 의존성 미설치 환경에서도 동작하도록 자체 minimal tab 구현 — 5 화면
+ * (Dashboard / LocationTracking / Signature / Inspection-photo / Signature-photo) state-machine 으로 분기.
+ *
+ * Phase F (D-DF-13) — W10-4 deep link 활성:
+ *   - signature-photo 탭 진입 → 사진 첨부 + 일괄 업로드 → onUploaded callback → signature 탭 자동 이동.
+ *   - 사진은 slip-service attachment 로만 저장 (사본 PNG 와 분리, 분쟁 증빙용).
  *
  * 후속 (선택):
  *   - `@react-navigation/native` + `@react-navigation/bottom-tabs` 정식 도입 시 본 파일을
@@ -12,10 +16,10 @@
  *
  * 가드:
  *   - GPS 권한 거부 / 미가용 → `<GpsBlockedScreen>` 노출 (driver 화면 진입 차단).
- *   - foreground 권한 OK → 3 tab 활성.
+ *   - foreground 권한 OK → 5 tab 활성.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useGpsPermission } from '../../hooks/useGpsPermission';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
@@ -24,9 +28,10 @@ import DriverLocationTrackingScreen from './DriverLocationTrackingScreen';
 import DriverSignatureScreen from './DriverSignatureScreen';
 import GpsBlockedScreen from './GpsBlockedScreen';
 import InspectionPhotoScreen from './InspectionPhotoScreen';
+import SignaturePhotoScreen from './SignaturePhotoScreen';
 import SlipDetailScreen from '../SlipDetailScreen';
 
-type Tab = 'dashboard' | 'tracking' | 'signature' | 'inspection-photo';
+type Tab = 'dashboard' | 'tracking' | 'signature' | 'inspection-photo' | 'signature-photo';
 
 interface Props {
   /** JWT access token — driver tab 진입 직전 user-service `/auth/me` 로 ROLE_DRIVER 확인 후 보관. */
@@ -68,6 +73,14 @@ export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.
   const [slipDetailRoute, setSlipDetailRoute] = useState<SlipDetailRoute | null>(null);
 
   const stopForSignature = useMemo(() => selectedStop ?? MOCK_STOP_FOR_PR, [selectedStop]);
+
+  /**
+   * Phase F (D-DF-13) W10-4 deep link — 사진 업로드 완료 → 서명 탭 자동 이동.
+   * SignaturePhotoScreen.onUploaded 콜백으로 호출됨 (배송 사진은 slip-service attachment 보관).
+   */
+  const handleSignaturePhotoUploaded = useCallback(() => {
+    setTab('signature');
+  }, []);
 
   if (gps.blocked) {
     return <GpsBlockedScreen />;
@@ -129,10 +142,21 @@ export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.
             onUploaded={() => setTab('dashboard')}
           />
         )}
+        {tab === 'signature-photo' && (
+          /* Phase F (D-DF-13) — 배송 사진 첨부 → 업로드 완료 시 서명 탭 자동 이동 (W10-4 deep link 활성). */
+          <SignaturePhotoScreen
+            batchToken={null /* dashboard → slip 선택 후 채워짐 */}
+            slipNo={stopForSignature.label ?? '전표 미선택'}
+            stopLabel={stopForSignature.label}
+            defaultType="DELIVERY"
+            onUploaded={handleSignaturePhotoUploaded}
+          />
+        )}
       </View>
       <View style={styles.tabBar}>
         <TabButton label="배차" active={tab === 'dashboard'} onPress={() => setTab('dashboard')} testID="driver-tab-dashboard" />
         <TabButton label="GPS" active={tab === 'tracking'} onPress={() => setTab('tracking')} testID="driver-tab-tracking" />
+        <TabButton label="배송사진" active={tab === 'signature-photo'} onPress={() => setTab('signature-photo')} testID="driver-tab-signature-photo" />
         <TabButton label="서명" active={tab === 'signature'} onPress={() => setTab('signature')} testID="driver-tab-signature" />
         <TabButton label="검수사진" active={tab === 'inspection-photo'} onPress={() => setTab('inspection-photo')} testID="driver-tab-inspection-photo" />
       </View>
