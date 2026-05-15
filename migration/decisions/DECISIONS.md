@@ -1399,7 +1399,7 @@ PR (`feature/integrated-phase-12-step-4c-fe-audit-overlay-rollout`) — PR #127 
 
 **후속 (별도 issue / PR 위임)**:
 - **D-AX-11** (FE 산재 페이지 이전) — `ArologisManualDispatchPage` / `ArologisPreClassifyPage` / `ArologisUnassignedPage` / `ArologisDispatchReconcilePage` 4 page + `arologis*Api.ts` 3개 + `ArologisRealtimeClient.ts` 가 `clients/desktop/src/renderer/routes/`, `api/`, `realtime/` 루트에 산재 (현 `routes/arologis/` 폴더에는 `DISPATCH-DESIGN.md` 1건만 존재). 본 PR = placeholder + dispatches/ 폴더 skeleton. 후속 = 산재 페이지 `git mv` + import path 정정 + 실 routing.
-- **D-AX-12** (mobile cross-import 분리) — `clients/mobile-staff/src/screens/driver/DriverTabNavigator.tsx` 가 `../SlipDetailScreen` (sales/slip 도메인) 을 cross-import. 단순 `git mv` 시 mobile-staff 의 sales 도메인까지 영향 → `SlipDetailScreen` 처리 결정 (같이 이전 / shared 추출 / 복제) 별도 슬라이스.
+- **D-AX-12** (mobile cross-import 분리, 2026-05-15) — `clients/mobile-staff/src/screens/driver/DriverTabNavigator.tsx` 의 `../SlipDetailScreen` 직접 import 제거. 채택안은 `SlipDetailScreen` 이동/복제/shared 추출이 아니라 driver-local `DriverSlipDetailEntry` 경계 추가. 현재 배차 응답의 placeholder `vehicle-*` slipId 는 안내 화면으로 처리하고, 실제 slip bridge 는 아로로지스 모바일 이식 후속 PR에서 확장. `SlipDetailScreen` 의 comment/audit/edit-request/SSE 기능은 보존.
 - **D-AX-13** (BE/FE auth schema 정합 검증) — `/auth/me` 응답 형태 (`AuthMeResponse` vs `MeResponse`) BE/FE 일치 확인. 본 PR 머지 후 통합 e2e 검증 시점에 정합.
 - **ACM SAN 갱신** (D-AX-05 의 부속) — Terraform main.tf `aws_acm_certificate.main` 의 `subject_alternative_names` 에 `*.arologis.samhan-air.com` 추가 별도 PR.
 - **EC2 Health Lambda** (D-AX-10 의 부속) — CloudWatch alarm + SNS 만 추가하는 별도 PR.

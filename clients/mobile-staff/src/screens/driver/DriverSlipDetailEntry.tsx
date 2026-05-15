@@ -18,8 +18,6 @@ interface Props {
   slipNo?: string;
   /** 사용자 노출용 거래처명. */
   partnerName?: string | null;
-  /** 후속 slip bridge 작업을 위해 기존 DriverTabNavigator role contract 를 유지. */
-  currentUserRole?: 'DRIVER';
   /** driver dashboard 로 복귀. */
   onBack: () => void;
 }

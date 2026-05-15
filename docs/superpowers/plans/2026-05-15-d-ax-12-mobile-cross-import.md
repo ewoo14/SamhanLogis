@@ -353,7 +353,7 @@ git commit -m "test(d-ax-12): driver 전표 상세 경계 회귀 추가"
 
 - [ ] **Step 1: Add Playwright screenshot script**
 
-Create a Playwright script that renders two large Korean mock pages at `1000x760`.
+Create a Playwright script that renders eight large Korean mock pages at `1000x760`.
 
 Script requirements:
 
@@ -422,8 +422,14 @@ Run:
 Expected:
 - `01-driver-slip-guard.png`
 - `02-signature-chain-regression.png`
+- `03-driver-route-test-flow.png`
+- `04-driver-back-navigation.png`
+- `05-typecheck-contract.png`
+- `06-jest-driver-route-pass.png`
+- `07-jest-signature-chain-pass.png`
+- `08-direct-import-search-guard.png`
 
-Both images must be readable at PR size and must not crop important Korean text.
+All images must be readable at PR size and must not crop important Korean text.
 
 - [ ] **Step 4: Commit QA screenshot tooling**
 
@@ -459,12 +465,18 @@ Create a concise QA doc with:
 |---|---|---|
 | Q1 | driver dashboard 전표 보기 | `DriverSlipDetailEntry` 안내 화면 표시, Samhan Public `SlipDetailScreen` 직접 진입 없음 |
 | Q2 | 배송사진 업로드 완료 | 기존처럼 서명 탭으로 자동 이동 |
-| Q3 | PR 캡처 가독성 | 1000px 폭 PNG 2장, 한국어 문구 잘림 없음 |
+| Q3 | PR 캡처 가독성 | 1000px 폭 PNG 8장, 한국어 문구 잘림 없음 |
 
 ## Screenshots
 
 ![driver slip guard](screenshots/01-driver-slip-guard.png)
 ![signature chain regression](screenshots/02-signature-chain-regression.png)
+![driver route test flow](screenshots/03-driver-route-test-flow.png)
+![driver back navigation](screenshots/04-driver-back-navigation.png)
+![typecheck contract](screenshots/05-typecheck-contract.png)
+![jest driver route pass](screenshots/06-jest-driver-route-pass.png)
+![jest signature chain pass](screenshots/07-jest-signature-chain-pass.png)
+![direct import search guard](screenshots/08-direct-import-search-guard.png)
 ```
 
 - [ ] **Step 2: Write dev report**
@@ -519,7 +531,7 @@ Append D-AX-12 near the D-AX decisions:
 `DriverTabNavigator` 가 Samhan Public `SlipDetailScreen` 을 직접 import 하던 구조를 driver-local
 `DriverSlipDetailEntry` 경계로 분리한다. 현 배차 응답에는 실 slipId 가 없으므로 전표 상세는 준비 안내를
 보여주고, 실제 아로로지스 모바일 이식은 후속 PR 로 진행한다. PR 캡처는 1000px 폭 한국어 Playwright mock
-PNG 2장을 인라인 첨부한다.
+PNG 8장을 인라인 첨부한다.
 ```
 
 - [ ] **Step 5: Update handoff**
@@ -531,7 +543,7 @@ Add a top section to `docs/handoff/CURRENT-WORK.md`:
 
 - Branch: `codex/d-ax-12-mobile-cross-import`
 - Scope: mobile-staff driver tab cross-import cleanup.
-- QA gate: PR 캡처 2장 large Korean Playwright mock render 필수.
+- QA gate: PR 캡처 8장 large Korean Playwright mock render 필수.
 ```
 
 - [ ] **Step 6: Commit docs**
@@ -580,7 +592,7 @@ Run:
 .\scripts\generate-d-ax-12-mobile-cross-import-screenshots.ps1
 ```
 
-Expected: 2 PNG files updated and readable.
+Expected: 8 PNG files updated and readable.
 
 - [ ] **Step 4: Inspect diff**
 

@@ -23,6 +23,14 @@
 
 > 사용자 결정 (2026-05-07) — `clients/mobile-staff` 내부 driver tab 채택 (별도 mobile-driver 신규 X).
 
+### D-AX-12 slip detail 경계
+
+- `DriverTabNavigator` 는 더 이상 상위 `../SlipDetailScreen` 을 직접 import 하지 않는다.
+- driver tab 의 전표 상세 진입은 `src/screens/driver/DriverSlipDetailEntry.tsx` 로 들어간다.
+- 현재 배차 응답은 실제 slip 연결값을 제공하지 않으므로 `vehicle-*` placeholder 는 안내 화면으로 처리한다.
+- 기존 Samhan Public `SlipDetailScreen` 의 comment / audit / edit-request / SSE 기능은 보존한다.
+- 후속 아로로지스 모바일 이식에서 실제 slip bridge 또는 아로로지스 전용 상세 화면으로 확장한다.
+
 ### 화면 구성
 
 ```

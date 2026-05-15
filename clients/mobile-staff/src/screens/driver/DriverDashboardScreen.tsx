@@ -44,7 +44,7 @@ interface Props {
    * slip 상세 진입 콜백 — Phase 12 PR-H1 신규.
    *
    * 본 PR (W10-3) 시점 backend 응답 = vehicle 단순 요약 (slip 식별자 미포함). 정식 deeplink 는 후속.
-   * 본 PR 단계는 vehicle card 우측 "전표 보기" 버튼 노출 — placeholder slipId 로 SlipDetailScreen
+   * D-AX-12 단계는 vehicle card 우측 "전표 보기" 버튼 노출 — placeholder slipId 로 DriverSlipDetailEntry
    * 진입 흐름 검증. backend 확장 (vehicleSequence → slipId 매핑) 시 실 slipId 전달.
    */
   onOpenSlipDetail?: (params: { slipId: string; slipNo?: string; partnerName?: string | null }) => void;

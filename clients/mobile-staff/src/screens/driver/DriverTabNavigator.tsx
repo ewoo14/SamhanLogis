@@ -69,7 +69,7 @@ interface SlipDetailRoute {
 export default function DriverTabNavigator({ token, selectedStop }: Props): JSX.Element {
   const gps = useGpsPermission();
   const [tab, setTab] = useState<Tab>('dashboard');
-  // PR-H1 — Dashboard slip card 에서 SlipDetailScreen 으로 push (정식 navigation library 도입 전 minimal stack).
+  // D-AX-12 — Dashboard slip card 에서 DriverSlipDetailEntry 로 push (정식 navigation library 도입 전 minimal stack).
   const [slipDetailRoute, setSlipDetailRoute] = useState<SlipDetailRoute | null>(null);
 
   const stopForSignature = useMemo(() => selectedStop ?? MOCK_STOP_FOR_PR, [selectedStop]);

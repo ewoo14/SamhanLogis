@@ -61,5 +61,6 @@ clients/arologis-mobile/
 
 ## 후속 슬라이스 (본 PR 외)
 
-- mobile-staff 의 driver/* 화면 (DriverDashboard / LocationTracking / Signature / GpsBlocked) 의 본 어플로 이식 — 다만 `SlipDetailScreen` cross-dependency 분리 작업이 별도 필요.
+- mobile-staff 의 driver/* 화면 (DriverDashboard / LocationTracking / Signature / GpsBlocked) 의 본 어플로 이식. D-AX-12 에서 `DriverTabNavigator` → `SlipDetailScreen` 직접 import 는 `DriverSlipDetailEntry` 경계로 분리 완료.
+- 실제 slip 연결값이 배차 응답에 포함되면 `DriverSlipDetailEntry` 를 아로로지스 모바일 전용 상세 bridge 로 확장.
 - mobile-staff 의 driver tab 제거 + AppRootNavigator 단순화 (estimate WebView 단일 모드).

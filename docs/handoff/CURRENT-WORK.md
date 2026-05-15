@@ -4,6 +4,39 @@
 > 갱신자: PM (Claude Opus 4.7) → 다음 진행 도구 = **OpenAI Codex CLI** (사용자 결정, 토큰 한도 사유)
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
+## 2026-05-15 Codex 최신 핸드오프 — D-AX-12 mobile cross-import 분리 진행
+
+- 현재 branch: `codex/d-ax-12-mobile-cross-import`
+- 방향: D-AX-11 완료 후 같은 아로로지스 추출 흐름으로 `clients/mobile-staff` driver tab 의 Samhan Public slip 직접 import 를 먼저 제거.
+- 구현:
+  - `DriverTabNavigator` 의 `../SlipDetailScreen` import 제거.
+  - `DriverSlipDetailEntry` 신규 경계 화면 추가.
+  - dashboard → entry → back Jest 추가.
+  - 기존 `SignaturePhotoScreenChain` mock 을 driver entry 로 교체.
+- 검증:
+  - `cd clients/mobile-staff && npm test -- DriverSlipDetailRoute.test.tsx --runInBand` PASS
+  - `cd clients/mobile-staff && npm test -- SignaturePhotoScreenChain.test.tsx --runInBand` PASS
+  - `cd clients/mobile-staff && npm run typecheck` PASS
+  - `rg -n "from '../SlipDetailScreen'|SlipDetailScreen from|\\.\\./SlipDetailScreen" clients/mobile-staff/src/screens/driver` 결과 없음
+  - `.\scripts\generate-d-ax-12-mobile-cross-import-screenshots.ps1` PASS
+- QA 캡처:
+  - PR 본문에 아래 8장을 모두 인라인 첨부한다. 캡처는 여러 테스트를 진행한 뒤 생성한 1000px 폭 PNG mock render 라서 GitHub 에서 문구와 버튼이 잘 보인다.
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/01-driver-slip-guard.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/02-signature-chain-regression.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/03-driver-route-test-flow.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/04-driver-back-navigation.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/05-typecheck-contract.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/06-jest-driver-route-pass.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/07-jest-signature-chain-pass.png`
+  - `docs/qa/d-ax-12-mobile-cross-import/screenshots/08-direct-import-search-guard.png`
+- 문서:
+  - spec: `docs/superpowers/specs/2026-05-15-d-ax-12-mobile-cross-import-design.md`
+  - dev report: `docs/dev-reports/d-ax-12-mobile-cross-import.md`
+  - QA: `docs/qa/d-ax-12-mobile-cross-import/scenarios.md`
+- 다음 후보:
+  - `clients/arologis-mobile` 로 driver dashboard / GPS / signature / photo 화면 이식.
+  - 실제 slip 연결값이 배차 응답에 포함되면 `DriverSlipDetailEntry` 를 아로로지스 전용 상세 bridge 로 확장.
+
 ## 2026-05-15 Codex 최신 핸드오프 — D-AX-11 PR #192 머지 완료
 
 이 섹션이 아래의 과거 `D-AX-11 in progress` 기록보다 우선한다.
