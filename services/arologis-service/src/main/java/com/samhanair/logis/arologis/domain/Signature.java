@@ -58,6 +58,24 @@ public class Signature extends BaseEntity {
     @Column(name = "captured_longitude", precision = 10, scale = 7)
     private BigDecimal capturedLongitude;
 
+    /**
+     * 사본 PNG download 시각 — Phase F (D-DF-04). NULL = 호출 OK, NOT NULL = 409 가드.
+     */
+    @Column(name = "copy_sent_at")
+    private LocalDateTime copySentAt;
+
+    /** Tx2 c/d 단계 fail 카운트 — Phase F (모니터링 alert). */
+    @Column(name = "copy_send_failure_count", nullable = false)
+    private int copySendFailureCount = 0;
+
+    /** 디스크 저장 경로 — Phase F (D-DF-10). Phase 11 S3 cutover. */
+    @Column(name = "copy_image_path", length = 255)
+    private String copyImagePath;
+
+    /** 발송 시점 인수자 번호 스냅샷 — Phase F (D-DF-09, 풀 번호). */
+    @Column(name = "copy_recipient_phone", length = 20)
+    private String copyRecipientPhone;
+
     private Signature(UUID stopId, SignatureSource source, String imageRef,
                       LocalDateTime capturedAt, BigDecimal lat, BigDecimal lng) {
         if (stopId == null) {
@@ -90,5 +108,35 @@ public class Signature extends BaseEntity {
     public static Signature of(UUID stopId, SignatureSource source, String imageRef,
                                LocalDateTime capturedAt, BigDecimal lat, BigDecimal lng) {
         return new Signature(stopId, source, imageRef, capturedAt, lat, lng);
+    }
+
+    /**
+     * 사본 PNG download 직전 호출 — 성공 1회 가드 set. Phase F (D-DF-04).
+     *
+     * @param imagePath 디스크 path (절대 경로)
+     * @param recipientPhone 발송 시점 인수자 번호 스냅샷 (풀 번호)
+     * @throws IllegalStateException 이미 copySentAt set (중복 호출)
+     * @throws IllegalArgumentException imagePath 누락
+     */
+    public void markCopySent(String imagePath, String recipientPhone) {
+        if (this.copySentAt != null) {
+            throw new IllegalStateException("이미 사본 발송 완료 — copySentAt=" + this.copySentAt);
+        }
+        if (imagePath == null || imagePath.isBlank()) {
+            throw new IllegalArgumentException("imagePath 필수");
+        }
+        this.copySentAt = LocalDateTime.now();
+        this.copyImagePath = imagePath;
+        this.copyRecipientPhone = recipientPhone;
+    }
+
+    /** Tx2 c/d 단계 fail 시 카운트 증분 (copySentAt 미설정 — 재시도 가능). Phase F. */
+    public void markCopyFailure() {
+        this.copySendFailureCount++;
+    }
+
+    /** 1회 가드 readonly check. Phase F (D-DF-04). */
+    public boolean isCopySent() {
+        return this.copySentAt != null;
     }
 }
