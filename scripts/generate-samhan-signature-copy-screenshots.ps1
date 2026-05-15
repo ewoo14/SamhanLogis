@@ -13,7 +13,11 @@
 #   - Join-Path 단일 arg (PowerShell 5.1 호환)
 #   - arologis-teal `#2A9D8F` brand 일관 (Phase A/C 와 동일 팔레트)
 #   - 재실행 가능 (한 번 실행으로 7장 재생성)
-#   - Pretendard 폰트 fallback → 시스템 default 'Segoe UI'
+#   - 폰트: Malgun Gothic Bold 강제 (PR #191 회고 — 한글 글리프 누락 fix)
+#   - 이모지 사용 금지 → 한글/영어 라벨 ([차], [전화], [사진] 등) 로 교체
+#   - 하단 탭 (홈/배차/출고/내정보) 제거 (Phase F 무관 + 작은 폰트 글리프 누락 회피)
+#   - 메타 텍스트는 toast 와 겹치지 않도록 별도 footer 영역 배치
+#   - 모든 텍스트 최소 12px (가독성 + 글리프 누락 회피)
 #
 # 시나리오 매핑 (docs/qa/samhan-signature-copy/scenarios.md §1 참조):
 #   01 - 1-tap 완료+발송 success (시나리오 1)
@@ -27,6 +31,10 @@
 Add-Type -AssemblyName System.Drawing
 
 $ErrorActionPreference = 'Stop'
+
+# 폰트 패밀리 (PR #191 fix — Malgun Gothic Bold 강제)
+$FontHan = 'Malgun Gothic'
+$FontMono = 'Consolas'
 
 # arologis brand teal palette (Designer §3.1, Phase A/C 와 일관)
 $ArologisTeal500 = [System.Drawing.ColorTranslator]::FromHtml('#2A9D8F')
@@ -92,8 +100,11 @@ function Draw-Line {
     $pen.Dispose()
 }
 
+# Min size guard — 모든 텍스트 ≥12px (PR #191 fix)
 function Draw-Text {
-    param($Graphics, [string]$Text, [int]$X, [int]$Y, [int]$Size, [System.Drawing.Color]$Color, [string]$Family = 'Segoe UI', [string]$Style = 'Regular')
+    param($Graphics, [string]$Text, [int]$X, [int]$Y, [int]$Size, [System.Drawing.Color]$Color, [string]$Family = $null, [string]$Style = 'Bold')
+    if($null -eq $Family){ $Family = $script:FontHan }
+    if($Size -lt 12){ $Size = 12 }
     $fontStyle = [System.Drawing.FontStyle]::$Style
     $font = New-Object System.Drawing.Font $Family, $Size, $fontStyle, ([System.Drawing.GraphicsUnit]::Pixel)
     $brush = New-Object System.Drawing.SolidBrush $Color
@@ -103,7 +114,9 @@ function Draw-Text {
 }
 
 function Measure-Text {
-    param($Graphics, [string]$Text, [int]$Size, [string]$Family = 'Segoe UI', [string]$Style = 'Regular')
+    param($Graphics, [string]$Text, [int]$Size, [string]$Family = $null, [string]$Style = 'Bold')
+    if($null -eq $Family){ $Family = $script:FontHan }
+    if($Size -lt 12){ $Size = 12 }
     $fontStyle = [System.Drawing.FontStyle]::$Style
     $font = New-Object System.Drawing.Font $Family, $Size, $fontStyle, ([System.Drawing.GraphicsUnit]::Pixel)
     $sz = $Graphics.MeasureString($Text, $font)
@@ -112,7 +125,8 @@ function Measure-Text {
 }
 
 function Draw-CenteredText {
-    param($Graphics, [string]$Text, [int]$CenterX, [int]$Y, [int]$Size, [System.Drawing.Color]$Color, [string]$Family = 'Segoe UI', [string]$Style = 'Regular')
+    param($Graphics, [string]$Text, [int]$CenterX, [int]$Y, [int]$Size, [System.Drawing.Color]$Color, [string]$Family = $null, [string]$Style = 'Bold')
+    if($null -eq $Family){ $Family = $script:FontHan }
     $sz = Measure-Text -Graphics $Graphics -Text $Text -Size $Size -Family $Family -Style $Style
     $x = [int]($CenterX - $sz.Width / 2)
     Draw-Text -Graphics $Graphics -Text $Text -X $x -Y $Y -Size $Size -Color $Color -Family $Family -Style $Style
@@ -132,30 +146,31 @@ function Draw-MobileChrome {
     param($Graphics, [int]$W, [string]$ScreenTitle)
     # status bar
     Draw-FilledRect $Graphics 0 0 $W 44 $Neutral0
-    Draw-Text $Graphics '9:41' 18 14 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $Graphics '5G   100%' ($W - 88) 14 12 $Neutral700
+    Draw-Text $Graphics '9:41' 18 14 14 $Neutral900
+    Draw-Text $Graphics '5G   100%' ($W - 100) 14 13 $Neutral700
     # app bar
     Draw-FilledRect $Graphics 0 44 $W 56 $ArologisTeal500
-    Draw-Text $Graphics '< 뒤로' 16 64 13 $Neutral0
-    Draw-Text $Graphics $ScreenTitle 80 60 16 $Neutral0 'Segoe UI' 'Bold'
-    Draw-Text $Graphics '⚙' ($W - 36) 64 18 $Neutral0
+    Draw-Text $Graphics '< 뒤로' 16 64 14 $Neutral0
+    Draw-Text $Graphics $ScreenTitle 80 60 16 $Neutral0
+    Draw-Text $Graphics '설정' ($W - 50) 64 14 $Neutral0
 }
 
-function Draw-MobileBottomNav {
-    param($Graphics, [int]$W, [int]$H)
-    $bnY = $H - 80
-    Draw-FilledRect $Graphics 0 $bnY $W 80 $Neutral0
-    Draw-StrokeRect $Graphics 0 $bnY $W 1 $Neutral200 1
-    $navItems = @(@('홈','🏠',$false), @('배차','📋',$false), @('출고','📦',$true), @('내정보','👤',$false))
-    $navX = 0
-    $navW = [int]($W / 4)
-    foreach($n in $navItems){
-        $cx = $navX + [int]($navW / 2)
-        $color = if($n[2]){ $ArologisTeal700 } else { $Neutral500 }
-        $style = if($n[2]){ 'Bold' } else { 'Regular' }
-        Draw-CenteredText $Graphics $n[1] $cx ($bnY + 14) 22 $color 'Segoe UI' $style
-        Draw-CenteredText $Graphics $n[0] $cx ($bnY + 46) 11 $color 'Segoe UI' $style
-        $navX += $navW
+# QA 캡처 footer (PR #191 fix — 메타 텍스트 toast 와 분리, 별도 영역)
+function Draw-MetaFooter {
+    param($Graphics, [int]$W, [int]$H, [string[]]$Lines, [string]$Caption)
+    # 하단 탭 제거 — Phase F 무관 + 작은 폰트 글리프 누락 회피
+    # 대신 별도 메타 footer (toast 와 명확히 분리)
+    $footerH = 4 + ($Lines.Count * 16) + 22
+    $footerY = $H - $footerH
+    Draw-FilledRect $Graphics 0 $footerY $W $footerH $Neutral100
+    Draw-Line $Graphics 0 $footerY $W $footerY $Neutral200 1
+    $ly = $footerY + 6
+    foreach($line in $Lines){
+        Draw-Text $Graphics $line 12 $ly 12 $Neutral700
+        $ly += 16
+    }
+    if($Caption){
+        Draw-Text $Graphics $Caption 12 ($H - 16) 12 $Neutral500 $script:FontHan 'Italic'
     }
 }
 
@@ -165,7 +180,7 @@ function Draw-SignaturePad {
     Draw-FilledRect $Graphics $X $Y $W $H $Neutral0
     Draw-StrokeRect $Graphics $X $Y $W $H $Neutral300 1
     # corner label
-    Draw-Text $Graphics $Label ($X + 8) ($Y + 6) 11 $Neutral500
+    Draw-Text $Graphics $Label ($X + 8) ($Y + 6) 12 $Neutral500
     if($Signed){
         # mock signature stroke
         $pen = New-Object System.Drawing.Pen $Neutral900, 2
@@ -181,26 +196,36 @@ function Draw-SignaturePad {
             $Graphics.DrawCurve($pen, [System.Drawing.PointF[]]$points)
         }
         $pen.Dispose()
-        Draw-Text $Graphics '✓ 서명 완료' ($X + $W - 80) ($Y + $H - 22) 10 $Green500 'Segoe UI' 'Bold'
+        Draw-Text $Graphics '[OK] 서명 완료' ($X + $W - 100) ($Y + $H - 24) 12 $Green500
     } else {
-        Draw-CenteredText $Graphics '여기에 서명하세요' ($X + [int]($W / 2)) ($Y + [int]($H / 2) - 8) 12 $Neutral300 'Segoe UI' 'Italic'
+        Draw-CenteredText $Graphics '여기에 서명하세요' ($X + [int]($W / 2)) ($Y + [int]($H / 2) - 8) 13 $Neutral300 $script:FontHan 'Italic'
     }
 }
 
 function Draw-Toast {
-    param($Graphics, [int]$X, [int]$Y, [int]$W, [int]$H, [System.Drawing.Color]$BgColor, [System.Drawing.Color]$BorderColor, [string]$Icon, [string]$Title, [string]$Body)
+    param($Graphics, [int]$X, [int]$Y, [int]$W, [int]$H, [System.Drawing.Color]$BgColor, [System.Drawing.Color]$BorderColor, [string]$IconText, [string]$Title, [string]$Body)
     Draw-FilledRect $Graphics $X $Y $W $H $BgColor
     Draw-StrokeRect $Graphics $X $Y $W $H $BorderColor 1
-    Draw-Text $Graphics $Icon ($X + 12) ($Y + 12) 18 $BorderColor
-    Draw-Text $Graphics $Title ($X + 44) ($Y + 8) 13 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $Graphics $Body ($X + 44) ($Y + 28) 11 $Neutral700
+    # 아이콘은 텍스트 라벨로 (이모지 글리프 누락 회피)
+    Draw-Text $Graphics $IconText ($X + 12) ($Y + 12) 14 $BorderColor
+    Draw-Text $Graphics $Title ($X + 56) ($Y + 8) 14 $Neutral900
+    Draw-Text $Graphics $Body ($X + 56) ($Y + 28) 12 $Neutral700
+}
+
+# 앱 아이콘 (이모지 대신 텍스트 약자) — Share Sheet 용
+function Draw-AppIconBox {
+    param($Graphics, [int]$CenterX, [int]$Y, [int]$Size, [System.Drawing.Color]$BgColor, [string]$IconLabel, [string]$AppName, [System.Drawing.Color]$TextColor)
+    $x = $CenterX - [int]($Size / 2)
+    Draw-FilledRect $Graphics $x $Y $Size $Size $BgColor
+    Draw-CenteredText $Graphics $IconLabel $CenterX ($Y + [int]($Size / 2 - 8)) 14 $Neutral0
+    Draw-CenteredText $Graphics $AppName $CenterX ($Y + $Size + 4) 12 $TextColor
 }
 
 # ------------------------------------------------------------
 # 01 — DriverSignatureScreen 1-tap 완료+발송 success
 # ------------------------------------------------------------
 function Render-01-SignatureSuccess {
-    $W = 390; $H = 844
+    $W = 390; $H = 900
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral50
     $g = $pack.Graphics
 
@@ -209,42 +234,42 @@ function Render-01-SignatureSuccess {
     # context card
     Draw-FilledRect $g 16 116 ($W - 32) 70 $Neutral0
     Draw-StrokeRect $g 16 116 ($W - 32) 70 $Neutral200 1
-    Draw-Text $g '🚚 1톤 #1   ① SL-001' 28 128 13 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 11 $Neutral500
+    Draw-Text $g '[차] 1톤 #1   [1] SL-001' 28 128 13 $ArologisTeal700
+    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900
+    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 12 $Neutral500
 
     # signature panels
-    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700 'Segoe UI' 'Bold'
+    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700
 
     # driver pad
-    Draw-Text $g '기사 본인' 16 222 11 $Neutral500
+    Draw-Text $g '기사 본인' 16 222 12 $Neutral500
     Draw-SignaturePad $g 16 240 ($W - 32) 130 'Driver' $true
 
     # recipient pad
-    Draw-Text $g '인수자' 16 384 11 $Neutral500
+    Draw-Text $g '인수자' 16 384 12 $Neutral500
     Draw-SignaturePad $g 16 402 ($W - 32) 130 'Recipient' $true
 
     # masked phone display
     Draw-FilledRect $g 16 548 ($W - 32) 60 $ArologisTeal50
     Draw-StrokeRect $g 16 548 ($W - 32) 60 $ArologisTeal400 1
-    Draw-Text $g '📱 인수자 번호 (마스킹)' 28 558 11 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '010-****-5678' 28 578 18 $ArologisTeal700 'Consolas' 'Bold'
-    Draw-Text $g '(DB 풀 번호 보관, 응답/UI 마스킹)' ($W - 196) 582 10 $Neutral500
+    Draw-Text $g '[전화] 인수자 번호 (마스킹)' 28 558 12 $ArologisTeal700
+    Draw-Text $g '010-****-5678' 28 578 18 $ArologisTeal700 $FontMono 'Bold'
+    Draw-Text $g '(DB 풀 번호 보관, 응답/UI 마스킹)' ($W - 200) 582 12 $Neutral500
 
     # 1-tap button (success state — sending)
     $btnY = 624
     Draw-FilledRect $g 16 $btnY ($W - 32) 56 $ArologisTeal500
-    Draw-CenteredText $g '⟳ 발송 중...' ([int]($W / 2)) ($btnY + 18) 16 $Neutral0 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '발송 중...' ([int]($W / 2)) ($btnY + 18) 16 $Neutral0
 
-    # toast — success
-    Draw-Toast $g 16 696 ($W - 32) 56 $Green100 $Green500 '✅' '서명 저장 완료' 'Share Sheet 에서 인수자 (010-****-5678) 에게 보내세요'
+    # toast — success (별도 영역, 메타와 분리)
+    Draw-Toast $g 16 696 ($W - 32) 64 $Green100 $Green500 '[OK]' '서명 저장 완료' 'Share Sheet 에서 인수자에게 보내세요'
 
-    # response headers debug overlay
-    Draw-FilledRect $g 16 760 ($W - 32) 4 $Neutral200
-    Draw-Text $g 'X-Slip-Bridged: true · X-Copy-Sent-At: 14:30:12 · 200 image/png' 16 ($H - 100) 9 $Neutral500
-
-    Draw-MobileBottomNav $g $W $H
-    Draw-Text $g 'QA Mock - 시나리오 1 (1-tap success → Share Sheet)' 12 ($H - 12) 8 $Neutral300
+    # meta footer (toast 와 명확히 분리, 하단 탭 없음)
+    Draw-MetaFooter $g $W $H @(
+        'X-Slip-Bridged: true',
+        'X-Copy-Sent-At: 14:30:12 KST',
+        '응답: 200 image/png (signature-copy.png)'
+    ) 'QA Mock - 시나리오 1 (1-tap success → Share Sheet)'
 
     Save-Bitmap $pack (Join-Path $OutDir '01-signature-1tap-success.png')
 }
@@ -253,16 +278,16 @@ function Render-01-SignatureSuccess {
 # 02 — Android expo-sharing Share Sheet
 # ------------------------------------------------------------
 function Render-02-ShareSheetAndroid {
-    $W = 390; $H = 844
+    $W = 390; $H = 900
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral0
     $g = $pack.Graphics
 
     # status bar + app bar dim (overlay 위에 sheet)
     Draw-FilledRect $g 0 0 $W 100 $Neutral50
-    Draw-Text $g '9:41' 18 14 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g 'Android   100%' ($W - 110) 14 12 $Neutral700
+    Draw-Text $g '9:41' 18 14 14 $Neutral900
+    Draw-Text $g 'Android   100%' ($W - 120) 14 13 $Neutral700
     Draw-FilledRect $g 0 44 $W 56 $ArologisTeal500
-    Draw-Text $g '서명 + 사본 발송' 80 60 16 $Neutral0 'Segoe UI' 'Bold'
+    Draw-Text $g '서명 + 사본 발송' 80 60 16 $Neutral0
 
     # dim background (signature screen blurred)
     $overlay = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(160, 0, 0, 0))
@@ -270,59 +295,50 @@ function Render-02-ShareSheetAndroid {
     $overlay.Dispose()
 
     # share sheet panel (bottom 60%)
-    $sY = [int]($H * 0.4)
+    $sY = [int]($H * 0.36)
     Draw-FilledRect $g 0 $sY $W ($H - $sY) $Neutral0
-    # rounded top corners visual
-    Draw-FilledRect $g 0 $sY $W 12 $Neutral0
 
     # handle
     Draw-FilledRect $g ([int]($W / 2 - 24)) ($sY + 8) 48 4 $Neutral300
 
     # title
-    Draw-Text $g '공유' 24 ($sY + 24) 18 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '김인수 님에게 출고전표 사본 보내기' 24 ($sY + 50) 12 $Neutral500
-    Draw-Text $g '010-****-5678' 24 ($sY + 70) 11 $ArologisTeal700 'Consolas' 'Bold'
+    Draw-Text $g '공유' 24 ($sY + 24) 18 $Neutral900
+    Draw-Text $g '김인수 님에게 출고전표 사본 보내기' 24 ($sY + 50) 13 $Neutral500
+    Draw-Text $g '010-****-5678' 24 ($sY + 70) 13 $ArologisTeal700 $FontMono 'Bold'
 
-    # PNG preview (small)
-    Draw-FilledRect $g ($W - 80) ($sY + 28) 64 80 $Neutral100
-    Draw-StrokeRect $g ($W - 80) ($sY + 28) 64 80 $Neutral300 1
-    Draw-CenteredText $g '📄' ($W - 48) ($sY + 50) 24 $Neutral500
-    Draw-CenteredText $g 'PNG' ($W - 48) ($sY + 86) 9 $Neutral500
-    Draw-CenteredText $g '~480KB' ($W - 48) ($sY + 100) 8 $Neutral500
+    # PNG preview (small, label 로 명시)
+    Draw-FilledRect $g ($W - 88) ($sY + 28) 72 88 $Neutral100
+    Draw-StrokeRect $g ($W - 88) ($sY + 28) 72 88 $Neutral300 1
+    Draw-CenteredText $g '[PNG]' ($W - 52) ($sY + 50) 13 $Neutral700
+    Draw-CenteredText $g '~480KB' ($W - 52) ($sY + 96) 12 $Neutral500
 
-    Draw-FilledRect $g 16 ($sY + 116) ($W - 32) 1 $Neutral200
+    Draw-FilledRect $g 16 ($sY + 130) ($W - 32) 1 $Neutral200
 
-    # row 1: 카카오톡, 메시지, Drive (suggested apps)
-    $r1y = $sY + 132
+    # row 1: 카카오톡, 메시지, Drive (suggested apps) — 텍스트 약자 라벨
+    $r1y = $sY + 148
     $apps1 = @(
-        @('💬', '카카오톡', $Yellow500),
-        @('💬', '메시지',   $Green500),
-        @('📁', 'Drive',    $Blue500),
-        @('📧', 'Gmail',    $Red500)
+        @('Talk', '카카오톡', $Yellow500),
+        @('SMS',  '메시지',   $Green500),
+        @('Drive','Drive',    $Blue500),
+        @('Mail', 'Gmail',    $Red500)
     )
     $colW = [int](($W - 32) / 4)
     for($i = 0; $i -lt 4; $i++){
         $cx = 16 + $i * $colW + [int]($colW / 2)
-        $cy = $r1y
-        Draw-FilledRect $g ($cx - 24) $cy 48 48 $apps1[$i][2]
-        Draw-CenteredText $g $apps1[$i][0] $cx ($cy + 12) 22 $Neutral0
-        Draw-CenteredText $g $apps1[$i][1] $cx ($cy + 60) 11 $Neutral700 'Segoe UI' 'Bold'
+        Draw-AppIconBox $g $cx $r1y 56 $apps1[$i][2] $apps1[$i][0] $apps1[$i][1] $Neutral700
     }
 
     # row 2: 더 많은 앱
     $r2y = $r1y + 110
     $apps2 = @(
-        @('📷', '갤러리', $Purple500),
-        @('☁',  '파일',  $Neutral500),
-        @('📋', '복사',  $Neutral500),
-        @('▶',  '더보기', $Neutral500)
+        @('Pic',  '갤러리',  $Purple500),
+        @('File', '파일',    $Neutral500),
+        @('Copy', '복사',    $Neutral500),
+        @('More', '더보기',  $Neutral500)
     )
     for($i = 0; $i -lt 4; $i++){
         $cx = 16 + $i * $colW + [int]($colW / 2)
-        $cy = $r2y
-        Draw-FilledRect $g ($cx - 24) $cy 48 48 $apps2[$i][2]
-        Draw-CenteredText $g $apps2[$i][0] $cx ($cy + 12) 20 $Neutral0
-        Draw-CenteredText $g $apps2[$i][1] $cx ($cy + 60) 11 $Neutral700
+        Draw-AppIconBox $g $cx $r2y 56 $apps2[$i][2] $apps2[$i][0] $apps2[$i][1] $Neutral700
     }
 
     # divider
@@ -331,10 +347,13 @@ function Render-02-ShareSheetAndroid {
     # cancel
     $cy = $r2y + 130
     Draw-FilledRect $g 16 $cy ($W - 32) 48 $Neutral100
-    Draw-CenteredText $g '취소' ([int]($W / 2)) ($cy + 14) 14 $Neutral900 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '취소' ([int]($W / 2)) ($cy + 14) 14 $Neutral900
 
-    # mock label
-    Draw-Text $g 'QA Mock - 시나리오 1 (Android expo-sharing OS Share Sheet)' 12 ($H - 16) 9 $Neutral300
+    # meta footer
+    Draw-MetaFooter $g $W $H @(
+        'expo-sharing.shareAsync({ mimeType: image/png })',
+        'Android Intent.ACTION_SEND → 4+ 앱 노출'
+    ) 'QA Mock - 시나리오 1 (Android expo-sharing OS Share Sheet)'
 
     Save-Bitmap $pack (Join-Path $OutDir '02-share-sheet-android.png')
 }
@@ -343,17 +362,17 @@ function Render-02-ShareSheetAndroid {
 # 03 — iOS expo-sharing Share Sheet
 # ------------------------------------------------------------
 function Render-03-ShareSheetIOS {
-    $W = 390; $H = 844
+    $W = 390; $H = 900
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral0
     $g = $pack.Graphics
 
     # status bar (iOS notch)
     Draw-FilledRect $g 0 0 $W 100 $Neutral50
     Draw-FilledRect $g ([int]($W / 2 - 60)) 0 120 28 $Neutral900
-    Draw-Text $g '9:41' 18 14 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '5G    100%' ($W - 100) 14 12 $Neutral700
+    Draw-Text $g '9:41' 18 14 14 $Neutral900
+    Draw-Text $g '5G    100%' ($W - 110) 14 13 $Neutral700
     Draw-FilledRect $g 0 44 $W 56 $ArologisTeal500
-    Draw-Text $g '서명 + 사본 발송' 80 60 16 $Neutral0 'Segoe UI' 'Bold'
+    Draw-Text $g '서명 + 사본 발송' 80 60 16 $Neutral0
 
     # dim
     $overlay = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(120, 0, 0, 0))
@@ -361,74 +380,76 @@ function Render-03-ShareSheetIOS {
     $overlay.Dispose()
 
     # iOS share sheet (centered card)
-    $sY = [int]($H * 0.32)
-    Draw-FilledRect $g 12 $sY ($W - 24) ($H - $sY - 60) $Neutral50
-    Draw-StrokeRect $g 12 $sY ($W - 24) ($H - $sY - 60) $Neutral200 1
+    $sY = [int]($H * 0.30)
+    $sH = $H - $sY - 110
+    Draw-FilledRect $g 12 $sY ($W - 24) $sH $Neutral50
+    Draw-StrokeRect $g 12 $sY ($W - 24) $sH $Neutral200 1
 
     # title bar with PNG icon
-    Draw-Text $g 'signature-copy.png' 28 ($sY + 14) 13 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g 'iCloud Drive · 480 KB · PNG image' 28 ($sY + 32) 10 $Neutral500
-    Draw-Text $g '✕' ($W - 36) ($sY + 12) 18 $Neutral500
+    Draw-Text $g 'signature-copy.png' 28 ($sY + 14) 14 $Neutral900
+    Draw-Text $g 'iCloud Drive · 480 KB · PNG image' 28 ($sY + 34) 12 $Neutral500
+    Draw-Text $g '닫기' ($W - 56) ($sY + 14) 13 $Neutral500
 
-    # PNG preview thumb (left aligned)
-    Draw-FilledRect $g 28 ($sY + 60) 80 100 $Neutral100
-    Draw-StrokeRect $g 28 ($sY + 60) 80 100 $Neutral300 1
-    Draw-CenteredText $g '📄' 68 ($sY + 88) 28 $Neutral500
-    Draw-CenteredText $g '출고전표' 68 ($sY + 130) 10 $Neutral700 'Segoe UI' 'Bold'
-    Draw-CenteredText $g 'SL-001' 68 ($sY + 144) 9 $Neutral500
+    # PNG preview thumb (left aligned, [PNG] 라벨 명시)
+    Draw-FilledRect $g 28 ($sY + 60) 88 108 $Neutral100
+    Draw-StrokeRect $g 28 ($sY + 60) 88 108 $Neutral300 1
+    Draw-CenteredText $g '[PNG]' 72 ($sY + 86) 14 $Neutral700
+    Draw-CenteredText $g '출고전표' 72 ($sY + 138) 12 $Neutral700
+    Draw-CenteredText $g 'SL-001' 72 ($sY + 154) 12 $Neutral500
 
     # recipient hint
-    Draw-Text $g '받는 사람:' 124 ($sY + 64) 11 $Neutral500
-    Draw-Text $g '김인수' 124 ($sY + 80) 16 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '☎ 010-****-5678' 124 ($sY + 102) 12 $ArologisTeal700 'Consolas' 'Bold'
-    Draw-Text $g '(DB 풀 번호, UI 마스킹)' 124 ($sY + 122) 10 $Neutral500
+    Draw-Text $g '받는 사람' 132 ($sY + 64) 12 $Neutral500
+    Draw-Text $g '김인수' 132 ($sY + 82) 16 $Neutral900
+    Draw-Text $g '010-****-5678' 132 ($sY + 106) 13 $ArologisTeal700 $FontMono 'Bold'
+    Draw-Text $g '(DB 풀 번호, UI 마스킹)' 132 ($sY + 128) 12 $Neutral500
 
     # divider
-    Draw-FilledRect $g 16 ($sY + 180) ($W - 32) 1 $Neutral200
+    Draw-FilledRect $g 16 ($sY + 188) ($W - 32) 1 $Neutral200
 
-    # iOS app row (horizontal scroll suggestion)
-    $r1y = $sY + 198
-    Draw-Text $g '제안' 24 $r1y 11 $Neutral500
+    # iOS app row (horizontal scroll suggestion) — 텍스트 약자
+    $r1y = $sY + 206
+    Draw-Text $g '제안' 24 $r1y 12 $Neutral500
     $apps = @(
-        @('💬', 'Messages', $Green500),
-        @('💌', '카카오톡',  $Yellow500),
-        @('✉',  'Mail',     $Blue500),
-        @('☁',  'iCloud',   $Blue100)
+        @('SMS',  'Messages', $Green500),
+        @('Talk', '카카오톡',  $Yellow500),
+        @('Mail', 'Mail',     $Blue500),
+        @('Cloud','iCloud',   $Blue100)
     )
     $colW = [int](($W - 32) / 4)
     $r1y2 = $r1y + 22
     for($i = 0; $i -lt 4; $i++){
         $cx = 16 + $i * $colW + [int]($colW / 2)
-        Draw-FilledRect $g ($cx - 24) $r1y2 48 48 $apps[$i][2]
-        Draw-CenteredText $g $apps[$i][0] $cx ($r1y2 + 12) 22 $Neutral0
-        Draw-CenteredText $g $apps[$i][1] $cx ($r1y2 + 60) 10 $Neutral900 'Segoe UI' 'Bold'
+        Draw-AppIconBox $g $cx $r1y2 56 $apps[$i][2] $apps[$i][0] $apps[$i][1] $Neutral900
     }
 
-    # actions list (iOS style)
+    # actions list (iOS style) — 이모지 대신 텍스트 라벨
     $aY = $r1y2 + 100
     Draw-FilledRect $g 16 $aY ($W - 32) 1 $Neutral200
     $actions = @(
-        @('📋', '복사'),
-        @('💾', '이미지 저장'),
-        @('📥', '파일에 저장'),
-        @('🖨', 'AirPrint')
+        @('[복]', '복사'),
+        @('[저]', '이미지 저장'),
+        @('[파]', '파일에 저장'),
+        @('[인]', 'AirPrint')
     )
     for($i = 0; $i -lt $actions.Count; $i++){
         $rowY = $aY + 8 + ($i * 36)
-        Draw-Text $g $actions[$i][0] 28 $rowY 16 $Neutral700
-        Draw-Text $g $actions[$i][1] 64 ($rowY + 4) 13 $Neutral900
-        Draw-Text $g '›' ($W - 32) ($rowY + 4) 14 $Neutral500
+        Draw-Text $g $actions[$i][0] 28 ($rowY + 2) 13 $Neutral700
+        Draw-Text $g $actions[$i][1] 70 ($rowY + 4) 13 $Neutral900
+        Draw-Text $g '>' ($W - 32) ($rowY + 4) 14 $Neutral500
         Draw-FilledRect $g 16 ($rowY + 28) ($W - 32) 1 $Neutral100
     }
 
     # cancel button
-    $cY = $H - 56
+    $cY = $H - 100
     Draw-FilledRect $g 12 $cY ($W - 24) 48 $Neutral0
     Draw-StrokeRect $g 12 $cY ($W - 24) 48 $Neutral200 1
-    Draw-CenteredText $g '취소' ([int]($W / 2)) ($cY + 14) 16 $Blue500 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '취소' ([int]($W / 2)) ($cY + 14) 16 $Blue500
 
-    # mock label
-    Draw-Text $g 'QA Mock - 시나리오 1 (iOS expo-sharing Share Sheet)' 12 ($H - 16) 8 $Neutral300
+    # meta footer
+    Draw-MetaFooter $g $W $H @(
+        'expo-sharing.shareAsync({ UTI: public.png })',
+        'iOS UIActivityViewController → Suggested + Actions'
+    ) 'QA Mock - 시나리오 1 (iOS expo-sharing Share Sheet)'
 
     Save-Bitmap $pack (Join-Path $OutDir '03-share-sheet-ios.png')
 }
@@ -437,7 +458,7 @@ function Render-03-ShareSheetIOS {
 # 04 — RECIPIENT_PHONE_MISSING toast (시나리오 3)
 # ------------------------------------------------------------
 function Render-04-RecipientPhoneMissing {
-    $W = 390; $H = 844
+    $W = 390; $H = 920
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral50
     $g = $pack.Graphics
 
@@ -446,37 +467,37 @@ function Render-04-RecipientPhoneMissing {
     # context (different slip — null phone test)
     Draw-FilledRect $g 16 116 ($W - 32) 70 $Neutral0
     Draw-StrokeRect $g 16 116 ($W - 32) 70 $Neutral200 1
-    Draw-Text $g '🚚 1톤 #1   ② SL-T-NULL' 28 128 13 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '시험거래처 (P-TEST)' 28 150 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '서울 강남구 역삼동 (테스트용)' 28 170 11 $Neutral500
+    Draw-Text $g '[차] 1톤 #1   [2] SL-T-NULL' 28 128 13 $ArologisTeal700
+    Draw-Text $g '시험거래처 (P-TEST)' 28 150 14 $Neutral900
+    Draw-Text $g '서울 강남구 역삼동 (테스트용)' 28 170 12 $Neutral500
 
-    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700 'Segoe UI' 'Bold'
-    Draw-Text $g '기사 본인' 16 222 11 $Neutral500
+    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700
+    Draw-Text $g '기사 본인' 16 222 12 $Neutral500
     Draw-SignaturePad $g 16 240 ($W - 32) 130 'Driver' $true
-    Draw-Text $g '인수자' 16 384 11 $Neutral500
+    Draw-Text $g '인수자' 16 384 12 $Neutral500
     Draw-SignaturePad $g 16 402 ($W - 32) 130 'Recipient' $true
 
     # masked phone — empty/missing
     Draw-FilledRect $g 16 548 ($W - 32) 60 $Amber100
     Draw-StrokeRect $g 16 548 ($W - 32) 60 $Amber500 1
-    Draw-Text $g '⚠ 인수자 번호 미등록' 28 558 11 $Amber500 'Segoe UI' 'Bold'
-    Draw-Text $g '(없음)' 28 578 18 $Neutral500 'Consolas' 'Bold'
-    Draw-Text $g 'slip recipient_phone_number = NULL' ($W - 220) 582 9 $Neutral500
+    Draw-Text $g '[!] 인수자 번호 미등록' 28 558 12 $Amber500
+    Draw-Text $g '(없음)' 28 578 18 $Neutral500 $FontMono 'Bold'
+    Draw-Text $g 'recipient_phone_number = NULL' ($W - 220) 582 12 $Neutral500
 
     # button — done state (after request)
     $btnY = 624
     Draw-FilledRect $g 16 $btnY ($W - 32) 56 $Neutral300
-    Draw-CenteredText $g '✓ 완료 + 사본 발송' ([int]($W / 2)) ($btnY + 18) 16 $Neutral0 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '[OK] 완료 + 사본 발송' ([int]($W / 2)) ($btnY + 18) 16 $Neutral0
 
     # toast — phone missing skip
-    Draw-Toast $g 16 696 ($W - 32) 80 $Amber100 $Amber500 '⚠' '서명 저장 완료' '인수자 번호 미등록 — Admin 재발송 필요'
+    Draw-Toast $g 16 696 ($W - 32) 80 $Amber100 $Amber500 '[!]' '서명 저장 완료' '인수자 번호 미등록 — Admin 재발송 필요'
 
-    # response body overlay
-    Draw-Text $g '200 application/json — copyFailureReason: "RECIPIENT_PHONE_MISSING"' 16 ($H - 100) 9 $Neutral500
-    Draw-Text $g 'copy_sent_at = NULL · slipBridged = true · 1회 가드 미소비' 16 ($H - 86) 9 $Neutral500
-
-    Draw-MobileBottomNav $g $W $H
-    Draw-Text $g 'QA Mock - 시나리오 3 (RECIPIENT_PHONE_MISSING)' 12 ($H - 12) 8 $Neutral300
+    # meta footer — toast 와 충분히 분리
+    Draw-MetaFooter $g $W $H @(
+        '응답: 200 application/json',
+        'copyFailureReason: "RECIPIENT_PHONE_MISSING"',
+        'copy_sent_at = NULL · slipBridged = true · 1회 가드 미소비'
+    ) 'QA Mock - 시나리오 3 (RECIPIENT_PHONE_MISSING)'
 
     Save-Bitmap $pack (Join-Path $OutDir '04-recipient-phone-missing.png')
 }
@@ -485,7 +506,7 @@ function Render-04-RecipientPhoneMissing {
 # 05 — RENDERER_TIMEOUT + 재시도 (시나리오 4)
 # ------------------------------------------------------------
 function Render-05-RendererTimeoutRetry {
-    $W = 390; $H = 844
+    $W = 390; $H = 920
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral50
     $g = $pack.Graphics
 
@@ -494,41 +515,42 @@ function Render-05-RendererTimeoutRetry {
     # context
     Draw-FilledRect $g 16 116 ($W - 32) 70 $Neutral0
     Draw-StrokeRect $g 16 116 ($W - 32) 70 $Neutral200 1
-    Draw-Text $g '🚚 1톤 #1   ① SL-001' 28 128 13 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 11 $Neutral500
+    Draw-Text $g '[차] 1톤 #1   [1] SL-001' 28 128 13 $ArologisTeal700
+    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900
+    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 12 $Neutral500
 
-    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700 'Segoe UI' 'Bold'
-    Draw-Text $g '기사 본인' 16 222 11 $Neutral500
+    Draw-Text $g '서명 (자신 + 인수자)' 16 200 13 $Neutral700
+    Draw-Text $g '기사 본인' 16 222 12 $Neutral500
     Draw-SignaturePad $g 16 240 ($W - 32) 130 'Driver' $true
-    Draw-Text $g '인수자' 16 384 11 $Neutral500
+    Draw-Text $g '인수자' 16 384 12 $Neutral500
     Draw-SignaturePad $g 16 402 ($W - 32) 130 'Recipient' $true
 
     # masked phone
     Draw-FilledRect $g 16 548 ($W - 32) 60 $ArologisTeal50
     Draw-StrokeRect $g 16 548 ($W - 32) 60 $ArologisTeal400 1
-    Draw-Text $g '📱 인수자 번호 (마스킹)' 28 558 11 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '010-****-5678' 28 578 18 $ArologisTeal700 'Consolas' 'Bold'
+    Draw-Text $g '[전화] 인수자 번호 (마스킹)' 28 558 12 $ArologisTeal700
+    Draw-Text $g '010-****-5678' 28 578 18 $ArologisTeal700 $FontMono 'Bold'
 
     # disabled completed button
     $btnY = 624
-    Draw-FilledRect $g 16 $btnY ([int](($W - 32) / 2 - 6)) 56 $Neutral200
-    Draw-CenteredText $g '✓ 완료됨' 100 ($btnY + 18) 14 $Neutral500 'Segoe UI' 'Bold'
+    $halfW = [int](($W - 32) / 2 - 6)
+    Draw-FilledRect $g 16 $btnY $halfW 56 $Neutral200
+    Draw-CenteredText $g '[OK] 완료됨' (16 + [int]($halfW / 2)) ($btnY + 18) 14 $Neutral500
 
     # retry button (active)
-    $rbX = 16 + [int](($W - 32) / 2) + 6
-    Draw-FilledRect $g $rbX $btnY ([int](($W - 32) / 2 - 6)) 56 $Amber500
-    Draw-CenteredText $g '↺ 재시도' ($rbX + [int](($W - 32) / 2 / 2 - 6)) ($btnY + 18) 16 $Neutral0 'Segoe UI' 'Bold'
+    $rbX = 16 + $halfW + 12
+    Draw-FilledRect $g $rbX $btnY $halfW 56 $Amber500
+    Draw-CenteredText $g '재시도' ($rbX + [int]($halfW / 2)) ($btnY + 18) 16 $Neutral0
 
     # toast — fail with retry
-    Draw-Toast $g 16 696 ($W - 32) 80 $Red100 $Red500 '⚠' '사본 합성 실패' 'RENDERER_TIMEOUT — [재시도] 또는 사무실 요청'
+    Draw-Toast $g 16 696 ($W - 32) 80 $Red100 $Red500 '[X]' '사본 합성 실패' 'RENDERER_TIMEOUT — [재시도] 또는 사무실 요청'
 
-    # response body overlay
-    Draw-Text $g '200 application/json — copyFailureReason: "RENDERER_TIMEOUT"' 16 ($H - 100) 9 $Neutral500
-    Draw-Text $g 'copy_send_failure_count = 1 · copy_sent_at = NULL · 재호출 가능' 16 ($H - 86) 9 $Neutral500
-
-    Draw-MobileBottomNav $g $W $H
-    Draw-Text $g 'QA Mock - 시나리오 4 (RENDERER_TIMEOUT + 재시도 OK)' 12 ($H - 12) 8 $Neutral300
+    # meta footer
+    Draw-MetaFooter $g $W $H @(
+        '응답: 200 application/json',
+        'copyFailureReason: "RENDERER_TIMEOUT"',
+        'copy_send_failure_count = 1 · copy_sent_at = NULL · 재호출 가능'
+    ) 'QA Mock - 시나리오 4 (RENDERER_TIMEOUT + 재시도 OK)'
 
     Save-Bitmap $pack (Join-Path $OutDir '05-renderer-timeout-retry.png')
 }
@@ -537,7 +559,7 @@ function Render-05-RendererTimeoutRetry {
 # 06 — 409 COPY_ALREADY_SENT (시나리오 2)
 # ------------------------------------------------------------
 function Render-06-AlreadySent409 {
-    $W = 390; $H = 844
+    $W = 390; $H = 920
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral50
     $g = $pack.Graphics
 
@@ -546,50 +568,50 @@ function Render-06-AlreadySent409 {
     # context
     Draw-FilledRect $g 16 116 ($W - 32) 70 $Neutral0
     Draw-StrokeRect $g 16 116 ($W - 32) 70 $Neutral200 1
-    Draw-Text $g '🚚 1톤 #1   ① SL-001' 28 128 13 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900 'Segoe UI' 'Bold'
-    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 11 $Neutral500
+    Draw-Text $g '[차] 1톤 #1   [1] SL-001' 28 128 13 $ArologisTeal700
+    Draw-Text $g '대구공조 (P-1234)' 28 150 14 $Neutral900
+    Draw-Text $g '인천 남동구 남동대로215번길 30' 28 170 12 $Neutral500
 
     # already sent banner
     Draw-FilledRect $g 16 196 ($W - 32) 80 $Red100
     Draw-StrokeRect $g 16 196 ($W - 32) 80 $Red500 2
-    Draw-Text $g '🚫' 28 220 28 $Red500
-    Draw-Text $g '이미 발송된 사본' 76 208 16 $Red500 'Segoe UI' 'Bold'
-    Draw-Text $g '이전 발송: 2026-05-15 14:30:12 (KST)' 76 232 12 $Neutral700
-    Draw-Text $g 'Admin 재발송 필요 시 사무실에 요청' 76 252 11 $Neutral500
+    Draw-Text $g '[중복]' 28 220 18 $Red500
+    Draw-Text $g '이미 발송된 사본' 96 208 16 $Red500
+    Draw-Text $g '이전 발송: 2026-05-15 14:30:12 (KST)' 96 232 13 $Neutral700
+    Draw-Text $g 'Admin 재발송 필요 시 사무실에 요청' 96 252 12 $Neutral500
 
     # context: signature pads (read-only/dimmed)
-    Draw-Text $g '서명 (이미 저장됨)' 16 290 13 $Neutral500 'Segoe UI' 'Bold'
+    Draw-Text $g '서명 (이미 저장됨)' 16 290 13 $Neutral500
     Draw-FilledRect $g 16 312 ($W - 32) 100 $Neutral100
     Draw-StrokeRect $g 16 312 ($W - 32) 100 $Neutral300 1
-    Draw-Text $g 'Driver' 24 320 11 $Neutral500
-    Draw-Text $g '🔒 read-only' ($W - 100) 320 11 $Neutral500
-    Draw-CenteredText $g '서명 saved (PR #99 LINK 또는 Phase F APP)' ([int]($W / 2)) 360 12 $Neutral500 'Segoe UI' 'Italic'
+    Draw-Text $g 'Driver' 24 320 12 $Neutral500
+    Draw-Text $g '[잠금] read-only' ($W - 130) 320 12 $Neutral500
+    Draw-CenteredText $g '서명 saved (PR #99 LINK 또는 Phase F APP)' ([int]($W / 2)) 360 13 $Neutral500 $FontHan 'Italic'
 
     Draw-FilledRect $g 16 424 ($W - 32) 100 $Neutral100
     Draw-StrokeRect $g 16 424 ($W - 32) 100 $Neutral300 1
-    Draw-Text $g 'Recipient' 24 432 11 $Neutral500
-    Draw-Text $g '🔒 read-only' ($W - 100) 432 11 $Neutral500
-    Draw-CenteredText $g '인수자 서명 saved' ([int]($W / 2)) 472 12 $Neutral500 'Segoe UI' 'Italic'
+    Draw-Text $g 'Recipient' 24 432 12 $Neutral500
+    Draw-Text $g '[잠금] read-only' ($W - 130) 432 12 $Neutral500
+    Draw-CenteredText $g '인수자 서명 saved' ([int]($W / 2)) 472 13 $Neutral500 $FontHan 'Italic'
 
     # button disabled
     $btnY = 548
     Draw-FilledRect $g 16 $btnY ($W - 32) 56 $Neutral300
-    Draw-CenteredText $g '✓ 완료 + 사본 발송 (불가)' ([int]($W / 2)) ($btnY + 18) 14 $Neutral500 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '[OK] 완료 + 사본 발송 (불가)' ([int]($W / 2)) ($btnY + 18) 14 $Neutral500
 
     # admin contact card
     Draw-FilledRect $g 16 624 ($W - 32) 88 $ArologisTeal50
     Draw-StrokeRect $g 16 624 ($W - 32) 88 $ArologisTeal400 1
-    Draw-Text $g '☎ 사무실 연락' 28 636 13 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '02-1234-5678 (배차담당 김배차)' 28 658 13 $ArologisTeal700 'Consolas'
-    Draw-Text $g '재발송 사유 + signatureId 전달' 28 680 11 $Neutral500
+    Draw-Text $g '[전화] 사무실 연락' 28 636 13 $ArologisTeal700
+    Draw-Text $g '02-1234-5678 (배차담당 김배차)' 28 658 13 $ArologisTeal700 $FontMono 'Regular'
+    Draw-Text $g '재발송 사유 + signatureId 전달' 28 680 12 $Neutral500
 
-    # response body overlay
-    Draw-Text $g '409 application/json — { error: "COPY_ALREADY_SENT" }' 16 ($H - 100) 9 $Neutral500
-    Draw-Text $g 'previousCopySentAt: "2026-05-15T14:30:12+09:00"' 16 ($H - 86) 9 $Neutral500
-
-    Draw-MobileBottomNav $g $W $H
-    Draw-Text $g 'QA Mock - 시나리오 2 (409 COPY_ALREADY_SENT)' 12 ($H - 12) 8 $Neutral300
+    # meta footer
+    Draw-MetaFooter $g $W $H @(
+        '응답: 409 application/json',
+        '{ error: "COPY_ALREADY_SENT" }',
+        'previousCopySentAt: "2026-05-15T14:30:12+09:00"'
+    ) 'QA Mock - 시나리오 2 (409 COPY_ALREADY_SENT)'
 
     Save-Bitmap $pack (Join-Path $OutDir '06-already-sent-409.png')
 }
@@ -598,82 +620,86 @@ function Render-06-AlreadySent409 {
 # 07 — 사진 → 서명 chain (시나리오 7, D-DF-13 W10-4 deep link)
 # ------------------------------------------------------------
 function Render-07-PhotoSignatureChain {
-    $W = 390; $H = 900
+    $W = 390; $H = 980
     $pack = New-Bitmap -Width $W -Height $H -Background $Neutral50
     $g = $pack.Graphics
 
-    Draw-MobileChrome $g $W 'D-DF-13 사진→서명 chain'
+    Draw-MobileChrome $g $W 'D-DF-13 사진->서명 chain'
 
     # split view: top = SignaturePhotoScreen done, bottom = DriverSignatureScreen entry
 
     # top half: SignaturePhotoScreen (DELIVERY 업로드 완료)
     $topY = 116
     $topH = 380
-    Draw-FilledRect $g 16 $topY ($W - 32) 24 $ArologisTeal500
-    Draw-Text $g 'SignaturePhotoScreen (P1-8 Stage 4)' 24 ($topY + 4) 13 $Neutral0 'Segoe UI' 'Bold'
+    Draw-FilledRect $g 16 $topY ($W - 32) 28 $ArologisTeal500
+    Draw-Text $g 'SignaturePhotoScreen (P1-8 Stage 4)' 24 ($topY + 6) 13 $Neutral0
 
-    Draw-FilledRect $g 16 ($topY + 24) ($W - 32) ($topH - 24) $Neutral0
-    Draw-StrokeRect $g 16 ($topY + 24) ($W - 32) ($topH - 24) $Neutral200 1
+    Draw-FilledRect $g 16 ($topY + 28) ($W - 32) ($topH - 28) $Neutral0
+    Draw-StrokeRect $g 16 ($topY + 28) ($W - 32) ($topH - 28) $Neutral200 1
 
     # toggle ON + DELIVERY type
-    Draw-FilledRect $g 28 ($topY + 38) ($W - 56) 28 $ArologisTeal50
-    Draw-Text $g '✓ 사진 첨부 ON · 유형: DELIVERY' 36 ($topY + 44) 12 $ArologisTeal700 'Segoe UI' 'Bold'
+    Draw-FilledRect $g 28 ($topY + 42) ($W - 56) 30 $ArologisTeal50
+    Draw-Text $g '[ON] 사진 첨부 · 유형: DELIVERY' 36 ($topY + 48) 13 $ArologisTeal700
 
-    # 3 thumb mock
-    $thumbY = $topY + 78
+    # 3 thumb mock — 텍스트 라벨 ([사진 1])
+    $thumbY = $topY + 84
     for($i = 0; $i -lt 3; $i++){
         $tx = 28 + $i * 110
         Draw-FilledRect $g $tx $thumbY 100 130 $Neutral100
         Draw-StrokeRect $g $tx $thumbY 100 130 $Neutral300 1
-        Draw-CenteredText $g '📷' ($tx + 50) ($thumbY + 36) 32 $Neutral500
-        Draw-CenteredText $g ("delivery_$($i+1).jpg") ($tx + 50) ($thumbY + 78) 9 $Neutral700 'Segoe UI' 'Bold'
-        Draw-CenteredText $g '~720KB · 1MB 압축' ($tx + 50) ($thumbY + 92) 8 $Neutral500
-        Draw-CenteredText $g '✓ 업로드 완료' ($tx + 50) ($thumbY + 110) 9 $Green500 'Segoe UI' 'Bold'
+        # placeholder 명시 텍스트 ([사진 N])
+        Draw-CenteredText $g ("[사진 $($i+1)]") ($tx + 50) ($thumbY + 36) 14 $Neutral700
+        Draw-CenteredText $g ("delivery_$($i+1).jpg") ($tx + 50) ($thumbY + 78) 12 $Neutral700
+        Draw-CenteredText $g '~720KB · 1MB 압축' ($tx + 50) ($thumbY + 94) 12 $Neutral500
+        Draw-CenteredText $g '[OK] 업로드' ($tx + 50) ($thumbY + 110) 12 $Green500
     }
 
     # GPS exif + uploaded indicator
-    $upY = $topY + 226
-    Draw-FilledRect $g 28 $upY ($W - 56) 56 $Green100
-    Draw-StrokeRect $g 28 $upY ($W - 56) 56 $Green500 1
-    Draw-Text $g '✓ 3장 업로드 완료' 40 ($upY + 8) 13 $Green500 'Segoe UI' 'Bold'
-    Draw-Text $g 'batchToken · slip_attachments INSERT (slip-service V14)' 40 ($upY + 28) 10 $Neutral700
-    Draw-Text $g 'EXIF GPS: 37.4979, 127.0276 · capturedAt 보관' 40 ($upY + 42) 9 $Neutral500
+    $upY = $topY + 232
+    Draw-FilledRect $g 28 $upY ($W - 56) 60 $Green100
+    Draw-StrokeRect $g 28 $upY ($W - 56) 60 $Green500 1
+    Draw-Text $g '[OK] 3장 업로드 완료' 40 ($upY + 6) 13 $Green500
+    Draw-Text $g 'batchToken · slip_attachments INSERT (slip-service V14)' 40 ($upY + 26) 12 $Neutral700
+    Draw-Text $g 'EXIF GPS: 37.4979, 127.0276 · capturedAt 보관' 40 ($upY + 42) 12 $Neutral500
 
     # auto navigate notice (W10-4 deep link)
-    Draw-FilledRect $g 28 ($upY + 64) ($W - 56) 38 $ArologisTeal500
-    Draw-CenteredText $g '⏬ onUploaded → DriverSignatureScreen 자동 진입 (W10-4 deep link)' ([int]($W / 2)) ($upY + 76) 11 $Neutral0 'Segoe UI' 'Bold'
+    Draw-FilledRect $g 28 ($upY + 68) ($W - 56) 38 $ArologisTeal500
+    Draw-CenteredText $g 'onUploaded -> DriverSignatureScreen 자동 진입 (W10-4 deep link)' ([int]($W / 2)) ($upY + 80) 12 $Neutral0
 
-    # arrow
-    Draw-CenteredText $g '⇩' ([int]($W / 2)) ($topY + $topH + 4) 28 $ArologisTeal500
+    # arrow (텍스트 화살표)
+    Draw-CenteredText $g 'V' ([int]($W / 2)) ($topY + $topH + 6) 22 $ArologisTeal500
 
     # bottom half: DriverSignatureScreen (chain 진입 완료)
     $botY = $topY + $topH + 40
-    $botH = $H - $botY - 100
-    Draw-FilledRect $g 16 $botY ($W - 32) 24 $ArologisTeal700
-    Draw-Text $g 'DriverSignatureScreen (Phase F D-DF-07)' 24 ($botY + 4) 13 $Neutral0 'Segoe UI' 'Bold'
+    $botH = $H - $botY - 110
+    Draw-FilledRect $g 16 $botY ($W - 32) 28 $ArologisTeal700
+    Draw-Text $g 'DriverSignatureScreen (Phase F D-DF-07)' 24 ($botY + 6) 13 $Neutral0
 
-    Draw-FilledRect $g 16 ($botY + 24) ($W - 32) ($botH - 24) $Neutral0
-    Draw-StrokeRect $g 16 ($botY + 24) ($W - 32) ($botH - 24) $Neutral200 1
+    Draw-FilledRect $g 16 ($botY + 28) ($W - 32) ($botH - 28) $Neutral0
+    Draw-StrokeRect $g 16 ($botY + 28) ($W - 32) ($botH - 28) $Neutral200 1
 
-    Draw-Text $g 'SL-001 대구공조 (P-1234) · 010-****-5678' 28 ($botY + 38) 12 $ArologisTeal700 'Segoe UI' 'Bold'
-    Draw-Text $g '사진 3장 첨부됨 (DELIVERY) — slip-service attachment 적재' 28 ($botY + 56) 10 $Neutral500
+    Draw-Text $g 'SL-001 대구공조 (P-1234) · 010-****-5678' 28 ($botY + 42) 13 $ArologisTeal700
+    Draw-Text $g '사진 3장 첨부됨 (DELIVERY) — slip-service attachment 적재' 28 ($botY + 62) 12 $Neutral500
 
     # mini sign pads
-    Draw-SignaturePad $g 28 ($botY + 78) 152 70 'Driver' $true
-    Draw-SignaturePad $g 192 ($botY + 78) 162 70 'Recipient' $true
+    Draw-SignaturePad $g 28 ($botY + 88) 152 70 'Driver' $true
+    Draw-SignaturePad $g 192 ($botY + 88) 162 70 'Recipient' $true
 
     # 1-tap 완료+발송 button
-    $btnY = $botY + 162
+    $btnY = $botY + 174
     Draw-FilledRect $g 28 $btnY ($W - 56) 48 $ArologisTeal500
-    Draw-CenteredText $g '✓ 완료 + 사본 발송 (1-tap)' ([int]($W / 2)) ($btnY + 14) 14 $Neutral0 'Segoe UI' 'Bold'
+    Draw-CenteredText $g '[OK] 완료 + 사본 발송 (1-tap)' ([int]($W / 2)) ($btnY + 14) 14 $Neutral0
 
     # SQL audit overlay
-    Draw-Text $g '검증 SQL (slip-service):' 28 ($botY + 226) 10 $Neutral700 'Segoe UI' 'Bold'
-    Draw-Text $g 'SELECT ... FROM slip_attachments WHERE slip_id=? AND attachment_type=DELIVERY' 28 ($botY + 240) 8 $Neutral500 'Consolas'
-    Draw-Text $g '→ 3 row · uploaded_at = chain 시각 ±5초' 28 ($botY + 252) 8 $Green500 'Consolas'
+    Draw-Text $g '검증 SQL (slip-service):' 28 ($botY + 234) 12 $Neutral700
+    Draw-Text $g 'SELECT ... FROM slip_attachments WHERE slip_id=? AND type=DELIVERY' 28 ($botY + 250) 12 $Neutral500 $FontMono 'Regular'
+    Draw-Text $g '-> 3 row · uploaded_at = chain 시각 +-5초' 28 ($botY + 266) 12 $Green500 $FontMono 'Regular'
 
-    Draw-MobileBottomNav $g $W $H
-    Draw-Text $g 'QA Mock - 시나리오 7 (D-DF-13 사진→서명 chain)' 12 ($H - 12) 8 $Neutral300
+    # meta footer
+    Draw-MetaFooter $g $W $H @(
+        'D-DF-13 chain: SignaturePhotoScreen.onUploaded -> navigate(DriverSignature)',
+        'slip-service V14 slip_attachments 적재 검증 SQL'
+    ) 'QA Mock - 시나리오 7 (D-DF-13 사진->서명 chain)'
 
     Save-Bitmap $pack (Join-Path $OutDir '07-photo-then-signature-chain.png')
 }
