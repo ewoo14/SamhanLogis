@@ -88,7 +88,6 @@ export default function DispatchBoardPage() {
       onSuccess: (task) => setTaskId(task.id),
     })
     // intentionally exclude createMutation from deps (mutate stable reference)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId])
 
   const task = taskQuery.data

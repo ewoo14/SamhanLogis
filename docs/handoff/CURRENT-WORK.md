@@ -1,13 +1,61 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (D-AX-19 **구현/검증 진행**, Codex)
+> 갱신일: 2026-05-16 (D-AX-20 **구현/검증 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — D-AX-19 mobile-staff 기사 모드 은퇴 진행
+## 2026-05-16 Codex 최신 핸드오프 — D-AX-20 Admin 사진 감사/재업로드 후보 진행
 
-- 현재 branch: `codex/d-ax-19-mobile-staff-driver-retirement`
+- 현재 branch: `codex/d-ax-20-arologis-admin-photo-audit`
+- 직전 완료: D-AX-19 `clients/mobile-staff` 기사 모드 은퇴 PR #199 merge, 원격 브랜치 삭제 완료.
+- 사용자 선택/운영 방식:
+  - 추천안 1번 — Admin 사진 감사/재업로드 후보 화면.
+  - 동시 agent 슬롯 제약상 1개 팀만 운영하고, Codex 가 부모 PM 으로 문서/PR/CI/머지/브랜치 정리까지 통합 관리.
+  - 테스트는 skip 하지 않고, 필요한 테스트 환경을 구축해 통과 여부를 확인한다. Docker/Testcontainers 는 가능하면 로컬에서 실행하고, 로컬 접근 불가 시 CI 결과로 재점검한다.
+- 새 도메인 정책:
+  - UUID 는 내부 PK 이며 Samhan Public / 아로로지스 화면에 표시하지 않는다.
+  - 전표/배차 등 사용자 노출 업무번호는 `YYYY/MM/DD-{순번}` 형식을 표준으로 삼는다.
+  - 날짜가 바뀌면 해당 날짜의 마지막 순번 이후로 증가하고, soft-delete/복구 이력은 UUID PK 와 audit 으로 보존한다.
+  - D-AX20 신규 샘플/캡처는 위 형식으로 맞췄고, 기존 `001` padding / `S-2026-*` / `SL-*` 계열은 후속 전역 표준화 PR 후보로 남긴다.
+- 구현:
+  - BE `GET /slips/admin/photo-audit` 추가. gateway 외부 경로는 `/api/v1/slips/admin/photo-audit`.
+  - `type/from/to/slipNo/page/size` 필터, `WAREHOUSE/MANAGER/MASTER` 권한, `uploadedAt desc`, size 최대 100.
+  - `slip_attachments` + `slips` read-only JPQL join. 신규 DB/Flyway 없음.
+  - 응답은 내부 `attachmentId`, `slipId`, `downloadUrl` 을 포함하지 않는다.
+  - desktop `/admin/photo-audit` route + 창고 운영 sidebar `사진 감사` entry 추가.
+  - FE 는 raw URL 없는 안전 placeholder 를 표시하고, `uploadedBy` 가 UUID 패턴이면 `업로더 확인 필요`로 치환한다.
+  - 현재 페이지 내 `slipNo + attachmentType` 중복을 `재업로드 {count}회` badge 로 표시한다.
+- 문서/QA:
+  - `docs/dev-reports/d-ax-20-arologis-admin-photo-audit.md`
+  - `docs/uiux/d-ax-20-arologis-admin-photo-audit/photo-audit-ux.md`
+  - `docs/qa/d-ax-20-arologis-admin-photo-audit/scenarios.md`
+  - `docs/qa/d-ax-20-arologis-admin-photo-audit/domain-integrity-check.md`
+  - `docs/team-reviews/d-ax-20/team-1-tm-integration-review.md`
+  - QA 캡처 7장: `01-scope-contract.png` ~ `07-pr-inline-capture-checklist.png`
+- 검증:
+  - D-AX20 screenshot generator PASS — PNG 7장 재생성, privacy guard PASS.
+  - `clients/desktop` typecheck/lint/build PASS. lint 는 기존 warning 3건, error 0.
+  - D-AX20 Playwright contract PASS — 3 tests, skip 없음.
+  - Docker Desktop TCP daemon 확인 PASS (`DOCKER_HOST=tcp://localhost:2375`).
+  - Docker/JDK Gradle `:services:slip-service:test --tests "*PhotoAudit*"` PASS.
+  - Docker/JDK Gradle `:services:slip-service:test` PASS — 461 tests, failure 0, error 0, 기존 Testcontainers IT skip 171.
+  - 5-agent 재검토 반영: 내부 audit rule id 캡처 제거, URL성 전표번호 입력 차단, MockMvc security role 테스트, repository JPQL/soft-delete projection 테스트 보강.
+  - 기존 IT skip 171건은 D-AX20 신규 skip 이 아니라 Testcontainers provider 가 Docker Desktop TCP remote env 를 valid 로 판정하지 못하는 no-skip hardening 과제.
+- 남은 즉시 작업:
+  - commit/push/PR 생성.
+  - PR 본문 raw screenshot URL 7장 HEAD 200 확인.
+  - `gh pr checks --watch` 후 PM 재점검/머지.
+- 다음 후보:
+  - A: 전표/배차 표시번호 `YYYY/MM/DD-{순번}` 전역 표준화
+  - B: 삼한 퍼블릭 거래처 생성/관리 UI gap 점검
+  - C: 전표 상세 comments/audit/SSE proxy 확장
+  - D: 실제 기기 QA
+
+## 2026-05-16 Codex 최신 핸드오프 — D-AX-19 mobile-staff 기사 모드 은퇴 완료
+
+- branch: `codex/d-ax-19-mobile-staff-driver-retirement`
 - 직전 완료: D-AX-18 전표 상세 브리지 PR #198 merge, 원격 브랜치 삭제 완료.
+- PR #199 merge 완료, 원격 브랜치 삭제 완료.
 - 사용자 선택: 1번 추천안 — `clients/mobile-staff` 기사 모드 제거, 기사 기능은 `clients/arologis-mobile` 전담.
 - 구현:
   - `AppRootNavigator` 를 `EstimateWebViewScreen` 단일 렌더로 축소.
@@ -29,10 +77,10 @@
   - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/03-no-driver-toggle.png`
   - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/04-code-boundary-import-guard.png`
   - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/05-verification-matrix.png`
-- 남은 즉시 작업:
+- 완료 메모:
   - 5-team 최종 리뷰: Designer/FE/BE/QA/DevOps blocker 없음.
-  - PR 본문 raw screenshot URL HEAD 200 확인.
-  - `gh pr checks --watch` 후 PM 재점검/머지.
+  - PR 본문 raw screenshot URL HEAD 200 확인 후 PR #199 merge.
+  - `gh pr checks --watch` 완료 후 PM 재점검/머지, 원격 브랜치 삭제 완료.
 - 다음 후보:
   - A: Admin 사진 관리/재업로드 감사 화면
   - B: 전표 상세 comments/audit/SSE proxy 확장

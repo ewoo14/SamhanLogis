@@ -64,6 +64,8 @@ import {
 } from '../api/safetyStockApi'
 // [P1-5] arologis 배차 admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER
 import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
+// [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER
+import { canAccessSlipPhotoAudit } from '../api/slipPhotoAuditApi'
 
 /**
  * 사이드바 NavLink disabled 래퍼.
@@ -240,14 +242,16 @@ export function AppLayout() {
   // [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE / MANAGER / MASTER 가시
   const showSlipEditRequests = !!auth?.role
     && (SLIP_EDIT_REQUEST_REVIEWER_ROLES as readonly string[]).includes(auth.role)
+  // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER
+  const showPhotoAudit = canAccessSlipPhotoAudit(auth?.role)
   // [P0-9] 입고 검수 — WAREHOUSE / MANAGER / MASTER (재고 적용 권한과 일치)
   const INBOUND_INSPECTION_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
   const showInboundInspection = !!auth?.role
     && (INBOUND_INSPECTION_ROLES as readonly string[]).includes(auth.role)
   // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE 가시
   const showSafetyStockAlerts = showSafetyStock
-  // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
-  const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showInboundInspection || showSafetyStockAlerts
+  // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 사진 감사 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
+  const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showPhotoAudit || showInboundInspection || showSafetyStockAlerts
   // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
   // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER / ACCOUNTANT
@@ -697,6 +701,15 @@ export function AppLayout() {
                 data-testid="sidebar-warehouse-slip-edit-requests"
               >
                 전표 수정 요청
+              </SidebarLink>
+              {/* [D-AX-20] 사진 감사 — WAREHOUSE/MANAGER/MASTER. */}
+              <SidebarLink
+                to="/admin/photo-audit"
+                show={showPhotoAudit}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-warehouse-photo-audit"
+              >
+                사진 감사
               </SidebarLink>
               {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. 배지로 건수 표시. */}
               <SidebarLink

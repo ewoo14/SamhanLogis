@@ -194,6 +194,10 @@ import { PartnerLedgerView } from '../print/PartnerLedgerView'
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
 import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
+// [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
+// Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
+import { PhotoAuditPage } from './admin/PhotoAuditPage'
+import { SLIP_PHOTO_AUDIT_ROLES } from '../api/slipPhotoAuditApi'
 // [P0-1 Slice A] 재무 보고서 3개 (ACCOUNTANT/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/reports/income-statement` + `/balance-sheet`
 import { ReportListPage } from './ReportListPage'
@@ -944,6 +948,16 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={SLIP_EDIT_REQUEST_REVIEWER_ROLES}>
             <SlipEditRequestsPage />
+          </RoleGuard>
+        ),
+      },
+      // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
+      // AdminLayout (MASTER 전용) 외부에 배치 — 창고 직원도 접근 가능.
+      {
+        path: '/admin/photo-audit',
+        element: (
+          <RoleGuard allow={SLIP_PHOTO_AUDIT_ROLES}>
+            <PhotoAuditPage />
           </RoleGuard>
         ),
       },

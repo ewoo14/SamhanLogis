@@ -6,16 +6,20 @@ import com.samhanair.logis.slip.attachment.domain.SlipAttachment;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.repository.SlipAttachmentRepository;
 import com.samhanair.logis.slip.attachment.storage.SlipAttachmentStorage;
+import com.samhanair.logis.slip.attachment.web.dto.SlipPhotoAuditResponse;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -130,6 +134,30 @@ public class SlipAttachmentService {
     }
 
     /**
+     * 관리자 사진 감사 목록 조회.
+     *
+     * <p>기존 {@code slip_attachments} 와 {@code slips} 만 조인해 조회하며 신규 감사 테이블은 만들지 않는다.
+     * 내부 {@code attachmentId} 와 {@code slipId} 는 응답에 포함하지 않는다.
+     *
+     * @param type 첨부 유형 필터, null 이면 전체
+     * @param from 전표일자 시작, null 이면 하한 없음
+     * @param to 전표일자 종료, null 이면 상한 없음
+     * @param slipNo 전표번호 부분 검색어, blank 면 전체
+     * @param pageable 페이지 요청. 호출자는 uploadedAt desc 정렬을 지정한다
+     * @return 관리자 사진 감사 응답 페이지
+     */
+    @Transactional(readOnly = true)
+    public Page<SlipPhotoAuditResponse> listPhotoAudit(
+            SlipAttachmentType type,
+            LocalDate from,
+            LocalDate to,
+            String slipNo,
+            Pageable pageable) {
+        String normalizedSlipNo = normalizeContainsFilter(slipNo);
+        return attachmentRepository.findPhotoAudit(type, from, to, normalizedSlipNo, pageable);
+    }
+
+    /**
      * 다운로드 — presigned URL 신규 발급 + DB 캐시 갱신.
      */
     @Transactional
@@ -182,6 +210,13 @@ public class SlipAttachmentService {
             return "untitled";
         }
         return original.replace("/", "_").replace("\\", "_");
+    }
+
+    private String normalizeContainsFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String buildStorageKey(UUID slipId, String fileName) {

@@ -25,8 +25,9 @@
 - D-AX-16: signature / sign-and-send-copy 를 today 정차 target 기반으로 이식 완료. `dispatchId` UUID 는 driver-facing 계약에서 제외.
 - D-AX-17: DELIVERY / INSPECTION 배송·검수 사진 이식 완료, PR #197 merge. public token/batchToken 복제 대신 인증된 today stop target + slip attachment bridge 를 채택.
 - D-AX-18: 전표 상세 bridge 완료, PR #198 merge. `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 서버가 내부 slip 을 해석하고, 앱에는 전표번호/거래처/주소/품목/합계만 노출.
-- D-AX-19: `clients/mobile-staff` 기사 모드 은퇴 진행. 기사 기능은 `clients/arologis-mobile` 전담, mobile-staff 는 estimate WebView 단일 진입으로 축소.
-- 다음 후보: Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장, 실제 기기 QA.
+- D-AX-19: `clients/mobile-staff` 기사 모드 은퇴 완료, PR #199 merge. 기사 기능은 `clients/arologis-mobile` 전담, mobile-staff 는 estimate WebView 단일 진입으로 축소.
+- D-AX-20: Admin 사진 감사/재업로드 후보 화면 진행. `GET /api/v1/slips/admin/photo-audit` 로 전표 첨부 사진을 조회하고, 화면에는 `YYYY/MM/DD-{순번}` 전표번호만 표시하며 UUID/원본 URL/raw 업로더 UUID 는 숨긴다.
+- 다음 후보: 전표/배차 표시번호 `YYYY/MM/DD-{순번}` 전역 표준화, comments/audit/SSE proxy 확장, 삼한 퍼블릭 거래처 생성 UI gap 점검, 실제 기기 QA.
 
 ## 시스템 구조 (Mermaid)
 

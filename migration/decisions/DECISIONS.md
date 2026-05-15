@@ -1570,6 +1570,34 @@ D-AX-15~18 로 `clients/arologis-mobile` 에 dashboard/GPS, 서명, 사진, 전�
 - no driver runtime import guard.
 - PR 본문용 1260px QA 캡처 5장.
 
+### D-AX-20. Admin 사진 감사/재업로드 후보 화면 (2026-05-16)
+
+D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자가 사진 업로드 상태를 조회하고 재업로드 후보를 확인할 수 있는 read-only Admin 화면을 추가한다.
+
+**선택지 기록**:
+- 1안(추천): `slip_attachments` + `slips` 기존 데이터를 조인해 Admin 사진 감사/재업로드 후보 화면을 만든다.
+- 2안: 전표 상세 comments/audit/SSE proxy 를 먼저 확장한다.
+- 3안: 실제 기기 QA 를 먼저 진행한다.
+
+사용자 이전 지시의 "추천 방식"에 따라 1안을 채택했다. 사진 업로드 기능이 이미 driver app 에 들어갔으므로 운영 확인 화면을 먼저 닫는 것이 리스크가 작다.
+
+**채택 범위**:
+- BE `GET /slips/admin/photo-audit` 추가. gateway 외부 경로는 `/api/v1/slips/admin/photo-audit`.
+- 권한은 `WAREHOUSE` / `MANAGER` / `MASTER`.
+- 필터는 `type/from/to/slipNo/page/size`, 기본 page size 50, 최대 100.
+- 신규 DB/Flyway 없이 `slip_attachments` 와 `slips` read-only join 으로 조회한다.
+- 응답에는 작업용 `attachmentId` 를 포함하되 `slipId` 는 포함하지 않는다. UI 는 `attachmentId` 를 표시하지 않는다.
+- desktop `/admin/photo-audit` route 와 창고 운영 sidebar `사진 감사` entry 를 추가한다.
+- 현재 페이지 기준 `slipNo + attachmentType` 중복을 `재업로드 {count}회` badge 로 표시한다.
+- `downloadUrl` 은 이미지 `src` 로만 사용하고 raw URL 텍스트는 표시하지 않는다.
+- `uploadedBy` 가 UUID 패턴이면 FE 에서 `업로더 확인 필요`로 치환한다.
+- 사용자 노출 전표번호 샘플은 `YYYY/MM/DD-{순번}` 형식을 사용한다.
+
+**후속 결정 후보**:
+- 기존 slip/dispatch/order 번호 예시 중 `001` padding, `S-2026-*`, `SL-*` 계열을 전역 표준 `YYYY/MM/DD-{순번}` 으로 정리하는 별도 PR.
+- 삼한 퍼블릭 거래처 생성/관리 UI gap 점검.
+- 사진 감사 후속 mutation(재업로드 요청 기록, 후보 해제)은 별도 role-gated PR.
+
 ---
 
 ## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)
