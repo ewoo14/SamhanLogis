@@ -15,11 +15,17 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.SlipResolver;
+import com.samhanair.logis.arologis.service.copy.CopyFailureReason;
+import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService;
+import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService.SignAndSendCopyResult;
+import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyRequest;
+import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -30,6 +36,9 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,6 +68,7 @@ public class ArologisDriverAppController {
     private final DriverLocationRepository locationRepository;
     private final SlipClient slipClient;
     private final SlipResolver slipResolver;
+    private final SignAndSendCopyService signAndSendCopyService;
 
     /**
      * 본인에게 배정된 dispatch 목록 — X-User-Id 헤더 기반.
@@ -180,7 +190,12 @@ public class ArologisDriverAppController {
      * @param stopSeq 정차 sequence
      * @param body {imageRef, latitude, longitude, driverCode}
      */
-    @Operation(summary = "전자서명 등록 (Driver-app, W10-4 — slip-service 양쪽 저장)")
+    /**
+     * @deprecated Phase F (D-DF-06) — {@link #signAndSendCopy} 로 대체. 본 endpoint 는 PR #99
+     *             SignatureIntegrationIT 보존용 유지, 후속 PR (1~2 분기 후) 에서 제거 예정.
+     */
+    @Deprecated(forRemoval = true)
+    @Operation(summary = "[DEPRECATED] 전자서명 등록 (W10-4) — Phase F /sign-and-send-copy 로 대체")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign")
     @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, Object>> sign(
@@ -227,5 +242,101 @@ public class ArologisDriverAppController {
                 "signatureId", saved.getId().toString(),
                 "slipBridged", slipBridged,
                 "capturedAt", capturedAt.toString()));
+    }
+
+    /**
+     * Phase F (D-DF-07) — 서명 양쪽 저장 + 출고전표 사본 PNG 합성/저장 1-tap endpoint.
+     *
+     * <p>응답 분기:
+     * <ul>
+     *   <li>성공 (PNG 합성 + 저장 OK) → 200 image/png byte[] + X-Signature-Id / X-Slip-Bridged /
+     *       X-Copy-Sent-At / X-Copy-Recipient-Phone-Masked 헤더</li>
+     *   <li>인수자 번호 없음 (D-DF-05) → 200 application/json (RECIPIENT_PHONE_MISSING)</li>
+     *   <li>사본 합성/저장 fail → 200 application/json (RENDERER_TIMEOUT/RENDERER_ERROR/STORAGE_FULL)</li>
+     *   <li>이미 발송됨 (D-DF-04) → 409 application/json (COPY_ALREADY_SENT)</li>
+     *   <li>본인 dispatch 가 아님 (D-DF-08) → 403 application/json</li>
+     *   <li>Tx1 양쪽 저장 fail (D-DF-01) → 422 application/json (SIGNATURE_BRIDGE_FAILED)</li>
+     * </ul>
+     *
+     * <p>권한: ROLE_AROLOGIS_DRIVER. 본인 dispatch 만 호출 가능 (서비스 레이어 driverId 검증).
+     * Aligo 미사용 — 응답 PNG 를 mobile 이 받아 expo-sharing Share Sheet 으로 인수자에게 발송.
+     */
+    @Operation(summary = "서명 양쪽 저장 + 사본 PNG 합성/저장 (Phase F)",
+            description = "ROLE_AROLOGIS_DRIVER. 본인 dispatch 만 호출 가능. "
+                    + "Aligo 미사용 — 응답 PNG 를 mobile 이 받아 Share Sheet 으로 인수자에게 발송.")
+    @PostMapping(value = "/dispatches/{dispatchId}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
+            produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
+    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    public ResponseEntity<?> signAndSendCopy(
+            @PathVariable UUID dispatchId,
+            @PathVariable Integer vehicleSeq,
+            @PathVariable Integer stopSeq,
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody SignAndSendCopyRequest request) {
+
+        // X-User-Id → driverId resolve (Phase 10 W10-1 기존 패턴 — DriverPrincipal 미도입 환경)
+        String userIdHeader = httpRequest.getHeader("X-User-Id");
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "X-User-Id 헤더 필수"));
+        }
+        UUID userId;
+        try {
+            userId = UUID.fromString(userIdHeader);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "X-User-Id 형식 무효: " + userIdHeader));
+        }
+        Driver self = driverRepository.findByAppUserId(userId).orElse(null);
+        if (self == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "본 어플 driver 미등록"));
+        }
+
+        SignAndSendCopyResult result;
+        try {
+            result = signAndSendCopyService.execute(dispatchId, vehicleSeq, stopSeq,
+                    self.getId(), request);
+        } catch (SignAndSendCopyService.BridgeFailedException ex) {
+            log.warn("Phase F Tx1 fail — dispatchId={}, reason={}", dispatchId, ex.getMessage());
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(SignAndSendCopyResponse.bridgeFailed(ex.getMessage()));
+        } catch (SecurityException ex) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "FORBIDDEN", "message", ex.getMessage()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "INVALID_INPUT", "message", ex.getMessage()));
+        }
+
+        if (result.alreadySent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(SignAndSendCopyResponse.alreadySent(result.previousCopySentAt()));
+        }
+        if (result.failureReason() != null) {
+            if (result.failureReason() == CopyFailureReason.RECIPIENT_PHONE_MISSING) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(SignAndSendCopyResponse.phoneMissing(result.signatureId()));
+            }
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(SignAndSendCopyResponse.copyFailed(result.signatureId(), result.failureReason()));
+        }
+        // 성공 — image/png + 헤더
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header("X-Signature-Id", result.signatureId().toString())
+                .header("X-Slip-Bridged", "true")
+                .header("X-Copy-Sent-At", result.copySentAt().toString())
+                .header("X-Copy-Recipient-Phone-Masked", result.copyRecipientPhoneMasked())
+                .body(result.png());
     }
 }
