@@ -9,8 +9,9 @@
 
 ## 1. 배경 / 목적
 
-기사 어플 (arologis-mobile) 전자서명 흐름 완성:
-- 기사님이 어플에서 전표 클릭 → 자신 + 인수자 서명 캡처
+기사 어플 (arologis-mobile / 현 mobile-staff) 배송 완료 흐름 완성:
+- 기사님이 정차 도착 → **DELIVERY 사진 첨부** (인수자/배송지/물품 증거, 옵션 toggle, 기존 `SignaturePhotoScreen` 인프라 활용 — D-DF-13)
+- → 자신 + 인수자 서명 캡처
 - 자동으로 **서명 정보가 양쪽 저장** (PR #99 의 skeleton-mode false 활성)
   - **arologis-service 측**: 자체 `signatures` 테이블 INSERT (배차/기사 도메인 운영 사본)
   - **slip-service (Samhan Public) 측**: `slips.signature_source = APP` 갱신 + `slip_signature_audit` 적재 (출고전표의 서명 상태 변화)
@@ -44,6 +45,7 @@
 | D-DF-10 | PNG 보관 = disk path (`/var/lib/arologis/signature-copies/{signatureId}.png`, env `AROLOGIS_SIGNATURE_COPY_DIR`). Phase 11 AWS 이전 시 S3 키로 갈아탐 | Admin 재발송용 |
 | D-DF-11 | PNG 양식 사이즈 = A4 portrait, ~600×850 px viewport (OutboundView 의 `a4-portrait` variant 디자인) | 가독성 + 1MB 이내 |
 | D-DF-12 | mobile Share API = **`expo-sharing`** (RN Expo 표준). 카톡/SMS Share Sheet OS 표준. 인수자 번호 화면 표시 ("010-****-5678 에게 보내세요"). 사용자가 카톡 friend / SMS 수신자 선택 | KakaoLink SDK 의존 X |
+| D-DF-13 | **배송 완료 증거 사진 (DELIVERY) 사전 첨부** = 기존 `SignaturePhotoScreen` 인프라 활용 (P1-8 Stage 4 완료, batchToken 기반 public 업로드, 1MB 자동 압축, 최대 3장). W10-4 deep link 활성 — `SignaturePhotoScreen.onUploaded` → `DriverSignatureScreen` navigation chain. 사진은 slip-service attachment 로만 저장 (사본 PNG 와 분리, Admin/거래처 분쟁 증빙용) | 신규 |
 
 ---
 
@@ -218,10 +220,19 @@ Aligo client / kakao-image endpoint 호출 제거. notification-service 변경 �
 
 ## 7. UI 흐름 (v3 변경)
 
-### arologis-mobile SignatureScreen 갱신
+### mobile-staff 흐름 갱신 (W10-4 deep link 활성)
 
-기존 (W10-3) — 자신 + 인수자 서명 → POST `/sign`
-신규 — POST `/sign-and-send-copy` → PNG 받기 → expo-sharing Share Sheet 자동 호출
+```
+[정차 도착 — SignaturePhotoScreen]
+  사진 첨부 toggle ON → DELIVERY 유형 → 사진 1~3장 → 일괄 업로드
+  → onUploaded callback → DriverSignatureScreen navigate (deep link)
+        ▼
+[DriverSignatureScreen]
+  자신 + 인수자 서명 → [완료 + 사본 발송] → POST sign-and-send-copy
+```
+
+기존 (W10-3) — 자신 + 인수자 서명 → POST `/sign` (사진 별도 화면)
+신규 — 사진 첨부 → 서명 → POST `/sign-and-send-copy` → PNG 받기 → expo-sharing Share Sheet 자동 호출
 
 ```
 ┌─ SignatureScreen ──────────────────────────────┐
@@ -394,3 +405,4 @@ if (await Sharing.isAvailableAsync()) {
 | W10 업로드 형식 | (v3 변경) | mobile 업로드 X (서버가 합성, 응답 PNG byte[]) |
 | W11 Share API | (신규) | `expo-sharing` 일반 Share Sheet (KakaoLink SDK 미사용) |
 | W12 1회 가드 시점 | (신규) | PNG download 시각 (mobile confirm 불필요) |
+| W13 사진 첨부 통합 | (사용자 추가 요구) | 기존 SignaturePhotoScreen + W10-4 deep link 활성. DELIVERY 사진은 slip-service attachment 별도, 사본 PNG 와 분리 |
