@@ -33,12 +33,12 @@
  * - arologis-manual-submit-button
  *
  * NOTE: 슬라이스 prompt 의 "품목 (품명/수량) list" 는 BE `ManualStop` schema 미보유
- *       (address / partnerName / kakaoSeq / notes 만). 정차당 품목은 메모(notes)에 자유 기술.
+ *       (address / partnerName / kakaoSeq / partnerCode / notes). 정차당 품목은 메모(notes)에 자유 기술.
  */
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, FormField } from '@samhan/design-system'
+import { Badge, Button, Card, FormField } from '@samhan/design-system'
 import axios from 'axios'
 import {
   createManualDispatch,
@@ -63,6 +63,7 @@ interface StopDraft {
   partnerName: string
   address: string
   kakaoSeq: string
+  partnerCode: string
   notes: string
 }
 
@@ -78,6 +79,7 @@ const emptyStop = (sequence: number): StopDraft => ({
   partnerName: '',
   address: '',
   kakaoSeq: '',
+  partnerCode: '',
   notes: '',
 })
 
@@ -130,6 +132,7 @@ function toRequest(
         kakaoSeq: s.kakaoSeq.trim()
           ? Number(s.kakaoSeq.trim())
           : undefined,
+        partnerCode: s.partnerCode.trim() || undefined,
         notes: s.notes.trim() || undefined,
       })),
     })),
@@ -205,10 +208,8 @@ export function ArologisManualDispatchPage() {
       const stop = vehicle.stops[0]!
       if (prefill.partnerName) stop.partnerName = prefill.partnerName
       if (prefill.address) stop.address = prefill.address
+      if (prefill.partnerCode) stop.partnerCode = prefill.partnerCode
       if (prefill.slipNo) {
-        // slipNo 는 W10-4 prefix 등 비숫자 포함 가능 → numeric 부분만 kakaoSeq 시도.
-        const numeric = prefill.slipNo.replace(/[^0-9]/g, '')
-        if (numeric) stop.kakaoSeq = numeric
         // 메모에 원본 slipNo 보존 — 사용자가 추적 가능하도록.
         stop.notes = `미배차 전표 ${prefill.slipNo}`
             + (prefill.partnerCode ? ` / 거래처코드 ${prefill.partnerCode}` : '')
@@ -427,6 +428,22 @@ export function ArologisManualDispatchPage() {
               }}
             >
               <h5 style={{ margin: '0 0 8px' }}>미리보기 결과</h5>
+              <div style={{ marginBottom: 8 }}>
+                <Badge
+                  data-testid="arologis-manual-preview-status"
+                  variant="success"
+                >
+                  Validated
+                </Badge>
+                <Button
+                  data-testid="arologis-manual-driver-lookup"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/dispatches/pre-classify')}
+                >
+                  Lookup
+                </Button>
+              </div>
               <p style={{ margin: '0 0 8px', fontSize: 13 }}>
                 도착일: <strong>{preview.dispatchDate}</strong> · 유형:{' '}
                 <strong>{DISPATCH_TYPE_LABEL[preview.dispatchType]}</strong>
@@ -525,6 +542,7 @@ export function ArologisManualDispatchPage() {
                   alignItems: 'center',
                   fontSize: 12,
                   color: 'var(--color-neutral-500)',
+                  gap: 8,
                   padding: '24px 0 0',
                 }}
               >
@@ -558,6 +576,7 @@ export function ArologisManualDispatchPage() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  data-testid={`arologis-manual-vehicle-remove-${vIdx}`}
                   onClick={() => removeVehicle(vIdx)}
                   disabled={vehicles.length === 1}
                 >
@@ -684,6 +703,7 @@ export function ArologisManualDispatchPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        data-testid={`arologis-manual-stop-remove-${vIdx}-${sIdx}`}
                         onClick={() => removeStop(vIdx, sIdx)}
                         disabled={vehicle.stops.length === 1}
                       >

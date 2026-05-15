@@ -17,6 +17,11 @@ Runtime desktop roles are `AROLOGIS_MASTER` and `AROLOGIS_MANAGER`. The legacy
 `MASTER` / `MANAGER` / `DISPATCH` values below remain historical notes for the
 Samhan Public source pages and must not be used in Arologis desktop guards.
 
+D-AX-11 current acceptance source is
+`docs/qa/arologis-dispatch-pages-extract/scenarios.md`. Sections below this note
+are retained as legacy design provenance until the full dispatch design guide is
+rewritten for `/dispatches/*`.
+
 > branch: `feature/p1-5-arologis-dispatch-ui`
 > 작성일: 2026-05-11
 > 담당: Designer (SamhanLogis 디자인 시스템 기준)

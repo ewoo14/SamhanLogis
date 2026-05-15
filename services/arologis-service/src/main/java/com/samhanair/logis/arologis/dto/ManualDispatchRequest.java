@@ -70,6 +70,7 @@ public record ManualDispatchRequest(
             @Size(max = 200) String partnerName,
             @NotBlank(message = "address 필수") @Size(max = 500) String address,
             Long kakaoSeq,
+            @Size(max = 50) String partnerCode,
             @Size(max = 1000) String notes
     ) {}
 }

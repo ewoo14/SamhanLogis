@@ -85,6 +85,7 @@ export interface ManualStopInput {
   partnerName?: string
   address: string
   kakaoSeq?: number
+  partnerCode?: string
   notes?: string
 }
 
@@ -119,6 +120,7 @@ export interface PreviewStop {
   partnerName: string | null
   address: string
   kakaoSeq: number | null
+  partnerCode: string | null
   notes: string | null
 }
 

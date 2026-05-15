@@ -91,7 +91,8 @@ public class DispatchManualService {
                         ms.kakaoSeq(),
                         ms.notes(),
                         StopStatus.PENDING,
-                        regionGroup));
+                        regionGroup,
+                        ms.partnerCode()));
             }
 
             // driver 배정 (수동 또는 자동).
@@ -131,7 +132,7 @@ public class DispatchManualService {
                         mv.stops().stream()
                                 .map(ms -> new ManualDispatchPreviewResponse.PreviewStop(
                                         ms.sequence(), ms.partnerName(), ms.address(),
-                                        ms.kakaoSeq(), ms.notes()))
+                                        ms.kakaoSeq(), ms.partnerCode(), ms.notes()))
                                 .toList()))
                 .toList();
 

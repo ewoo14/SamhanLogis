@@ -51,6 +51,7 @@ public record ManualDispatchPreviewResponse(
             String partnerName,
             String address,
             Long kakaoSeq,
+            String partnerCode,
             String notes
     ) {}
 }
