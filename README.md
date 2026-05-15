@@ -19,11 +19,13 @@
 
 ---
 
-### 최신 진행 메모 (2026-05-15)
+### 최신 진행 메모 (2026-05-16)
 
-- D-AX-11: 아로로지스 desktop 배차 산재 페이지 이전 완료, PR #192 merge.
-- D-AX-12: `clients/mobile-staff` driver tab 의 `../SlipDetailScreen` 직접 import 제거. `DriverSlipDetailEntry` 경계로 후속 `clients/arologis-mobile` 이식 준비 완료.
-- D-AX-13: `/auth/me` + login/refresh 응답 계약 정합 진행. admin `loginId/fullName`, driver `driverCode/phoneNumber` 공개 식별자를 BE/FE 모두에서 보존.
+- D-AX-15: `clients/arologis-mobile` driver dashboard GPS 이식 완료, PR #194 merge.
+- D-AX-16: signature / sign-and-send-copy 를 today 정차 target 기반으로 이식 완료. `dispatchId` UUID 는 driver-facing 계약에서 제외.
+- D-AX-17: DELIVERY / INSPECTION 배송·검수 사진 이식 완료, PR #197 merge. public token/batchToken 복제 대신 인증된 today stop target + slip attachment bridge 를 채택.
+- D-AX-18: 전표 상세 bridge 진행. `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 서버가 내부 slip 을 해석하고, 앱에는 전표번호/거래처/주소/품목/합계만 노출한다.
+- 다음 후보: 실제 기기 QA 후 `mobile-staff` driver mode 제거, Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장.
 
 ## 시스템 구조 (Mermaid)
 

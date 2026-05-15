@@ -1,6 +1,7 @@
 package com.samhanair.logis.arologis.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -24,6 +25,7 @@ import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.SlipResolver;
 import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService;
 import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyRequest;
+import com.samhanair.logis.arologis.web.dto.detail.DriverSlipDetailResponse;
 import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoType;
 import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoUploadResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -380,5 +382,218 @@ class ArologisDriverAppControllerTest {
         assertThat(body).isNotNull();
         assertThat(body.isSuccess()).isFalse();
         assertThat(body.getCode()).isEqualTo("SLIP_ATTACHMENT_UPLOAD_FAILED");
+    }
+
+    @Test
+    void slipDetailToday_returns_uuid_free_read_model() {
+        UUID userId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        Driver driver = Driver.of("DR-SLIP-001", "010-1111-2222", "1톤",
+                DriverSource.INTERNAL, true, userId);
+        ReflectionTestUtils.setField(driver, "id", driverId);
+        Vehicle vehicle = Vehicle.of(dispatchId, 4, VehicleTonnage.TONNAGE_1, "강남");
+        ReflectionTestUtils.setField(vehicle, "id", vehicleId);
+        vehicle.assignDriver(driverId, MatchSource.INTERNAL_APP, null);
+        VehicleStop stop = VehicleStop.of(vehicleId, 2, "서울 강남구 테스트로 1 (상세상사-5555)",
+                "서울 강남구 테스트로 1", "상세상사", 5555L, "문 앞", StopStatus.PENDING);
+        SlipClient.SlipFullDetail detail = new SlipClient.SlipFullDetail(
+                "SL-20260515-0001",
+                LocalDate.of(2026, 5, 15),
+                "상세상사",
+                "서울 강남구 테스트로 1",
+                List.of(new SlipClient.SlipFullLine(
+                        "테스트 상품", "BOX", 2, new BigDecimal("10000"), new BigDecimal("20000"))),
+                new BigDecimal("20000"),
+                new BigDecimal("2000"),
+                new BigDecimal("22000"),
+                "본사창고");
+
+        when(request.getHeader("X-User-Id")).thenReturn(userId.toString());
+        when(driverRepository.findByAppUserId(userId)).thenReturn(Optional.of(driver));
+        when(vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
+                driverId, today, DispatchType.NIGHT, 4)).thenReturn(List.of(vehicle));
+        when(stopRepository.findFirstByVehicleIdAndSequence(vehicleId, 2)).thenReturn(Optional.of(stop));
+        when(slipResolver.resolveSlipId(stop)).thenReturn(Optional.of(slipId));
+        when(slipClient.findFullDetail(slipId)).thenReturn(Optional.of(detail));
+
+        ArologisDriverAppController controller = new ArologisDriverAppController(
+                driverRepository,
+                dispatchRepository,
+                vehicleRepository,
+                stopRepository,
+                signatureRepository,
+                locationRepository,
+                slipClient,
+                slipResolver,
+                signAndSendCopyService);
+
+        var response = controller.slipDetailToday(DispatchType.NIGHT, 4, 2, request, 5555L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        ApiResponse<DriverSlipDetailResponse> body =
+                (ApiResponse<DriverSlipDetailResponse>) response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.isSuccess()).isTrue();
+        DriverSlipDetailResponse data = body.getData();
+        assertThat(data.dispatchType()).isEqualTo(DispatchType.NIGHT);
+        assertThat(data.vehicleSequence()).isEqualTo(4);
+        assertThat(data.stopSequence()).isEqualTo(2);
+        assertThat(data.parsedKakaoSeq()).isEqualTo(5555L);
+        assertThat(data.partnerName()).isEqualTo("상세상사");
+        assertThat(data.stopLabel()).isEqualTo("문 앞");
+        assertThat(data.slipNo()).isEqualTo("SL-20260515-0001");
+        assertThat(data.lines())
+                .singleElement()
+                .satisfies(line -> {
+                    assertThat(line.productName()).isEqualTo("테스트 상품");
+                    assertThat(line.quantity()).isEqualTo(2);
+                    assertThat(line.lineTotal()).isEqualByComparingTo("20000");
+                });
+        assertThat(Arrays.stream(DriverSlipDetailResponse.class.getRecordComponents())
+                .map(component -> component.getName()))
+                .doesNotContain("id", "dispatchId", "vehicleId", "stopId", "slipId", "downloadUrl");
+        assertThat(Arrays.stream(DriverSlipDetailResponse.Line.class.getRecordComponents())
+                .map(component -> component.getName()))
+                .doesNotContain("id", "dispatchId", "vehicleId", "stopId", "slipId", "downloadUrl");
+    }
+
+    @Test
+    void slipDetailToday_rejects_mismatched_parsedKakaoSeq_before_slip_lookup() {
+        UUID userId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        Driver driver = Driver.of("DR-SLIP-002", "010-3333-4444", "1톤",
+                DriverSource.INTERNAL, true, userId);
+        ReflectionTestUtils.setField(driver, "id", driverId);
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, "강남");
+        ReflectionTestUtils.setField(vehicle, "id", vehicleId);
+        vehicle.assignDriver(driverId, MatchSource.INTERNAL_APP, null);
+        VehicleStop stop = VehicleStop.of(vehicleId, 1, "서울 강남구 테스트로 1 (불일치상사-1111)",
+                "서울 강남구 테스트로 1", "불일치상사", 1111L, null, StopStatus.PENDING);
+
+        when(request.getHeader("X-User-Id")).thenReturn(userId.toString());
+        when(driverRepository.findByAppUserId(userId)).thenReturn(Optional.of(driver));
+        when(vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
+                driverId, today, DispatchType.NIGHT, 1)).thenReturn(List.of(vehicle));
+        when(stopRepository.findFirstByVehicleIdAndSequence(vehicleId, 1)).thenReturn(Optional.of(stop));
+
+        ArologisDriverAppController controller = new ArologisDriverAppController(
+                driverRepository,
+                dispatchRepository,
+                vehicleRepository,
+                stopRepository,
+                signatureRepository,
+                locationRepository,
+                slipClient,
+                slipResolver,
+                signAndSendCopyService);
+
+        var response = controller.slipDetailToday(DispatchType.NIGHT, 1, 1, request, 2222L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.isSuccess()).isFalse();
+        assertThat(body.getCode()).isEqualTo("INVALID_INPUT");
+        verifyNoInteractions(slipResolver, slipClient);
+    }
+
+    @Test
+    void slipDetailToday_returns_422_when_slip_mapping_not_found() {
+        UUID userId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        Driver driver = Driver.of("DR-SLIP-003", "010-5555-6666", "1톤",
+                DriverSource.INTERNAL, true, userId);
+        ReflectionTestUtils.setField(driver, "id", driverId);
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, "강남");
+        ReflectionTestUtils.setField(vehicle, "id", vehicleId);
+        vehicle.assignDriver(driverId, MatchSource.INTERNAL_APP, null);
+        VehicleStop stop = VehicleStop.of(vehicleId, 1, "서울 강남구 테스트로 1 (미매핑상사-3333)",
+                "서울 강남구 테스트로 1", "미매핑상사", 3333L, null, StopStatus.PENDING);
+
+        when(request.getHeader("X-User-Id")).thenReturn(userId.toString());
+        when(driverRepository.findByAppUserId(userId)).thenReturn(Optional.of(driver));
+        when(vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
+                driverId, today, DispatchType.NIGHT, 1)).thenReturn(List.of(vehicle));
+        when(stopRepository.findFirstByVehicleIdAndSequence(vehicleId, 1)).thenReturn(Optional.of(stop));
+        when(slipResolver.resolveSlipId(stop)).thenReturn(Optional.empty());
+
+        ArologisDriverAppController controller = new ArologisDriverAppController(
+                driverRepository,
+                dispatchRepository,
+                vehicleRepository,
+                stopRepository,
+                signatureRepository,
+                locationRepository,
+                slipClient,
+                slipResolver,
+                signAndSendCopyService);
+
+        var response = controller.slipDetailToday(DispatchType.NIGHT, 1, 1, request, 3333L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.isSuccess()).isFalse();
+        assertThat(body.getCode()).isEqualTo("SLIP_MAPPING_NOT_FOUND");
+    }
+
+    @Test
+    void slipDetailToday_maps_detail_fetch_failure_to_502() {
+        UUID userId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        Driver driver = Driver.of("DR-SLIP-004", "010-7777-8888", "1톤",
+                DriverSource.INTERNAL, true, userId);
+        ReflectionTestUtils.setField(driver, "id", driverId);
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, "강남");
+        ReflectionTestUtils.setField(vehicle, "id", vehicleId);
+        vehicle.assignDriver(driverId, MatchSource.INTERNAL_APP, null);
+        VehicleStop stop = VehicleStop.of(vehicleId, 1, "서울 강남구 테스트로 1 (상세실패상사-4444)",
+                "서울 강남구 테스트로 1", "상세실패상사", 4444L, null, StopStatus.PENDING);
+
+        when(request.getHeader("X-User-Id")).thenReturn(userId.toString());
+        when(driverRepository.findByAppUserId(userId)).thenReturn(Optional.of(driver));
+        when(vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
+                driverId, today, DispatchType.NIGHT, 1)).thenReturn(List.of(vehicle));
+        when(stopRepository.findFirstByVehicleIdAndSequence(vehicleId, 1)).thenReturn(Optional.of(stop));
+        when(slipResolver.resolveSlipId(stop)).thenReturn(Optional.of(slipId));
+        when(slipClient.findFullDetail(slipId)).thenReturn(Optional.empty());
+
+        ArologisDriverAppController controller = new ArologisDriverAppController(
+                driverRepository,
+                dispatchRepository,
+                vehicleRepository,
+                stopRepository,
+                signatureRepository,
+                locationRepository,
+                slipClient,
+                slipResolver,
+                signAndSendCopyService);
+
+        var response = controller.slipDetailToday(DispatchType.NIGHT, 1, 1, request, 4444L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.isSuccess()).isFalse();
+        assertThat(body.getCode()).isEqualTo("SLIP_DETAIL_FETCH_FAILED");
     }
 }

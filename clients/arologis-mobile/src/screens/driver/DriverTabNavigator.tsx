@@ -15,8 +15,10 @@ import DriverPhotoScreen from './DriverPhotoScreen';
 import type { PhotoTarget } from './DriverPhotoScreen';
 import DriverSignatureScreen from './DriverSignatureScreen';
 import type { SignatureTarget } from './DriverSignatureScreen';
+import DriverSlipDetailScreen from './DriverSlipDetailScreen';
+import type { SlipDetailTarget } from './DriverSlipDetailScreen';
 
-type Tab = 'dashboard' | 'tracking' | 'photo' | 'signature';
+type Tab = 'dashboard' | 'tracking' | 'detail' | 'photo' | 'signature';
 
 interface Props {
   token: string | null;
@@ -30,8 +32,14 @@ export default function DriverTabNavigator({
   backgroundGranted,
 }: Props): React.ReactElement {
   const [tab, setTab] = React.useState<Tab>('dashboard');
+  const [slipDetailTarget, setSlipDetailTarget] = React.useState<SlipDetailTarget | null>(null);
   const [signatureTarget, setSignatureTarget] = React.useState<SignatureTarget | null>(null);
   const [photoTarget, setPhotoTarget] = React.useState<PhotoTarget | null>(null);
+
+  const openSlipDetail = (target: SlipDetailTarget) => {
+    setSlipDetailTarget(target);
+    setTab('detail');
+  };
 
   const openSignature = (target: SignatureTarget) => {
     setSignatureTarget(target);
@@ -50,11 +58,18 @@ export default function DriverTabNavigator({
           <DriverDashboardScreen
             token={token}
             driverCode={driverCode}
+            onOpenSlipDetail={openSlipDetail}
             onOpenSignature={openSignature}
             onOpenPhoto={openPhoto}
           />
         ) : tab === 'tracking' ? (
           <DriverLocationTrackingScreen token={token} backgroundGranted={backgroundGranted} />
+        ) : tab === 'detail' ? (
+          <DriverSlipDetailScreen
+            token={token}
+            target={slipDetailTarget}
+            onBackToDashboard={() => setTab('dashboard')}
+          />
         ) : tab === 'photo' ? (
           <DriverPhotoScreen
             token={token}

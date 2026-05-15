@@ -1,8 +1,48 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-15 (D-AX-17 **구현/검증 진행**, Codex)
+> 갱신일: 2026-05-16 (D-AX-18 **구현/검증 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
+
+## 2026-05-16 Codex 최신 핸드오프 — D-AX-18 arologis-mobile 전표 상세 브리지 진행
+
+- 현재 branch: `codex/d-ax-18-arologis-mobile-slip-detail-bridge`
+- 직전 완료: D-AX-17 배송사진/검수사진 PR #197 merge, 원격 브랜치 삭제 완료.
+- 사용자 선택: 1번 — today 정차 target 기반 읽기 전용 전표 상세 bridge.
+- 세부 선택:
+  - 추천 1안 채택: `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 서버가 내부 dispatch/stop/slip UUID 를 해석.
+  - `mobile-staff` 전표 상세 직접 import/복제는 하지 않음.
+  - driver-facing API/UI 에 `id`, `dispatchId`, `vehicleId`, `stopId`, `slipId`, `downloadUrl` 을 노출하지 않음.
+  - comments/audit/SSE proxy, 전표 편집 기능은 후속 선택지로 분리.
+- 구현:
+  - BE `GET /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/slip-detail` 추가.
+  - BE `DriverSlipDetailResponse` 로 전표번호/거래처/주소/창고/품목/합계만 반환.
+  - 400 target mismatch, 422 slip mapping 없음, 502 slip-service 상세 실패를 분리.
+  - `clients/arologis-mobile` API `fetchStopSlipDetail(...)`, public type guard, dashboard `전표` 버튼, `DriverSlipDetailScreen` 추가.
+  - QA 캡처 generator 8장 추가.
+- 현재 검증:
+  - `.\gradlew.bat :services:arologis-service:test --tests com.samhanair.logis.arologis.controller.ArologisDriverAppControllerTest --no-daemon --rerun-tasks` PASS.
+  - `$env:DOCKER_HOST='tcp://localhost:2375'; .\gradlew.bat :services:arologis-service:test :services:slip-service:test --no-daemon --rerun-tasks` PASS.
+  - `cd clients/arologis-mobile && npm run typecheck` PASS.
+  - `cd clients/arologis-mobile && npm test -- DriverSlipDetailScreen.test.tsx arologisSlipDetail.test.ts --runInBand` PASS.
+  - `cd clients/arologis-mobile && npx expo install --check` PASS.
+  - `.\scripts\generate-d-ax-18-arologis-mobile-slip-detail-screenshots.ps1` PASS.
+- 남은 즉시 작업:
+  - PR 본문 raw screenshot URL HEAD 200 확인.
+  - `gh pr checks --watch` 후 PM 재점검/머지.
+- QA 캡처:
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/01-slip-detail-target-contract.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/02-dashboard-slip-detail-button.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/03-slip-detail-empty-target-guard.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/04-slip-detail-header.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/05-slip-detail-lines-and-total.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/06-slip-detail-mapping-failure-422.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/07-slip-detail-fetch-failure-retry.png`
+  - `docs/qa/d-ax-18-arologis-mobile-slip-detail-bridge/screenshots/08-verification-matrix.png`
+- 다음 후보:
+  - A: 실제 기기 QA 후 `mobile-staff` driver mode 제거
+  - B: Admin 사진 관리/재업로드 감사 화면
+  - C: 전표 상세 comments/audit/SSE proxy 확장
 
 ## 2026-05-15 Codex 최신 핸드오프 — D-AX-17 arologis-mobile 배송사진/검수사진 진행
 

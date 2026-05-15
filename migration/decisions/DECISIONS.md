@@ -1516,6 +1516,34 @@ D-AX-16 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-m
 - Expo dependency alignment: `npx expo install --check`.
 - PR 본문용 1260px 한국어 QA 캡처 10장.
 
+### D-AX-18. arologis-mobile 전표 상세 브리지 (2026-05-16)
+
+D-AX-17 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-mobile` 에 오늘 정차 기반 읽기 전용 전표 상세를 연결한다.
+
+**선택지 기록**:
+- 1안(추천): today 정차 target 을 서버에서 slip 상세로 해석하고 UUID 없는 읽기 전용 상세 화면을 제공.
+- 2안: `mobile-staff` 의 기존 전표 상세 화면을 직접 공유/복제.
+- 3안: dashboard 버튼과 empty state 만 먼저 붙이고 상세 API 는 후속 처리.
+
+사용자 이전 지시의 "추천 방식"에 따라 1안을 채택했다. `mobile-staff` 직접 import 는 D-AX-12 경계 분리 방향과 충돌하므로 복제하지 않는다.
+
+**채택 범위**:
+- `GET /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/slip-detail` 추가.
+- 요청 target 은 `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 구성하고 서버에서 내부 dispatch/stop/slip UUID 로 해석한다.
+- slip 매핑 없음은 422 `SLIP_MAPPING_NOT_FOUND`, slip-service 상세 조회 실패는 502 `SLIP_DETAIL_FETCH_FAILED` 로 분리한다.
+- driver-facing API/UI 응답에는 `id`, `dispatchId`, `vehicleId`, `stopId`, `slipId`, `downloadUrl` 을 노출하지 않는다.
+- `clients/arologis-mobile` dashboard 정차 행에 `전표` 버튼을 추가하고, 상세 화면은 전표번호/거래처/주소/창고/품목/합계만 읽기 전용으로 표시한다.
+- comments/audit/SSE proxy 와 편집 기능은 D-AX-18 범위에서 제외하고 후속 선택지로 남긴다.
+
+**검증**:
+- Backend targeted: `ArologisDriverAppControllerTest`.
+- Docker/Testcontainers actual run: `:services:arologis-service:test :services:slip-service:test`.
+- Frontend typecheck: `clients/arologis-mobile npm run typecheck`.
+- Frontend Jest: `DriverSlipDetailScreen.test.tsx`, `arologisSlipDetail.test.ts`.
+- Expo dependency alignment: `npx expo install --check`.
+- 공개 TS typecheck: `StopSlipDetailResponse` 에 `id/dispatchId/vehicleId/stopId/slipId/downloadUrl` 유입 차단.
+- PR 본문용 1260px 한국어 QA 캡처 8장.
+
 ---
 
 ## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)

@@ -24,6 +24,7 @@ import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService;
 import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService.SignAndSendCopyResult;
 import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyRequest;
 import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyResponse;
+import com.samhanair.logis.arologis.web.dto.detail.DriverSlipDetailResponse;
 import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoType;
 import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoUploadResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -387,6 +388,54 @@ public class ArologisDriverAppController {
     }
 
     /**
+     * D-AX-18 — 아로로지스 기사앱 전표 상세 조회.
+     *
+     * <p>driver-facing target 은 D-AX-16/17 과 동일하게 UUID 를 받지 않는다. 서버가 로그인 기사,
+     * 오늘 날짜, 배차 유형, 차량 순번, 정차 순번, 선택적 카톡 순번을 검증한 뒤 내부 slipId 를
+     * 해석하고 slip-service internal full detail 을 읽기 전용 공개 DTO 로 변환한다.
+     *
+     * <p>응답은 UUID-free 이며 dispatchId/vehicleId/stopId/slipId/downloadUrl 은 반환하지 않는다.
+     */
+    @Operation(summary = "아로로지스 기사앱 전표 상세 조회 (D-AX-18)",
+            description = "ROLE_AROLOGIS_DRIVER. 오늘 본인 배차 정차 기준으로 읽기 전용 전표 상세를 조회한다.")
+    @GetMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/slip-detail",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    public ResponseEntity<ApiResponse<DriverSlipDetailResponse>> slipDetailToday(
+            @PathVariable DispatchType dispatchType,
+            @PathVariable Integer vehicleSeq,
+            @PathVariable Integer stopSeq,
+            HttpServletRequest httpRequest,
+            @RequestParam(value = "parsedKakaoSeq", required = false) Long parsedKakaoSeq) {
+
+        Driver self = resolveDriverOrNull(httpRequest);
+        if (self == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(apiFail("FORBIDDEN", "본 어플 driver 미등록"));
+        }
+
+        TodayStopTarget target;
+        try {
+            target = resolveTodayStopTarget(self.getId(), dispatchType, vehicleSeq, stopSeq, parsedKakaoSeq);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest()
+                    .body(apiFail("INVALID_INPUT", ex.getMessage()));
+        }
+
+        UUID slipId = slipResolver.resolveSlipId(target.stop()).orElse(null);
+        if (slipId == null) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(apiFail("SLIP_MAPPING_NOT_FOUND", "정차와 연결된 전표를 찾을 수 없습니다"));
+        }
+
+        return slipClient.findFullDetail(slipId)
+                .map(detail -> ResponseEntity.ok(ApiResponse.ok(DriverSlipDetailResponse.from(
+                        dispatchType, vehicleSeq, stopSeq, target.stop(), detail))))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                        .body(apiFail("SLIP_DETAIL_FETCH_FAILED", "전표 상세를 불러오지 못했습니다")));
+    }
+
+    /**
      * @deprecated 기존 Phase F/mobile-staff 호환 endpoint. driver-facing 신규 앱은 UUID 없는
      *             {@link #signAndSendCopyToday} 를 사용한다.
      */
@@ -464,7 +513,7 @@ public class ArologisDriverAppController {
                 && (parsedKakaoSeq == null || Objects.equals(stop.get().getParsedKakaoSeq(), parsedKakaoSeq));
     }
 
-    private ApiResponse<DriverPhotoUploadResponse> apiFail(String code, String message) {
+    private <T> ApiResponse<T> apiFail(String code, String message) {
         return new ApiResponse<>(false, code, message, null, Instant.now());
     }
 

@@ -27,6 +27,40 @@ export interface DriverStopSummary {
   status: 'PENDING' | 'ARRIVED' | 'DELIVERED' | 'FAILED' | 'UNPARSED';
 }
 
+export interface StopSlipDetailLine {
+  productName: string;
+  specification?: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface StopSlipDetailResponse {
+  dispatchType: DispatchVehicleSummary['dispatchType'];
+  vehicleSequence: number;
+  stopSequence: number;
+  parsedKakaoSeq?: number | null;
+  stopLabel?: string | null;
+  slipDate?: string | null;
+  slipNo: string;
+  partnerName?: string | null;
+  deliveryAddress?: string | null;
+  sourceWarehouseName?: string | null;
+  totalSupply: number;
+  vat: number;
+  total: number;
+  lines: StopSlipDetailLine[];
+}
+
+interface StopSlipDetailRawResponse extends StopSlipDetailResponse {
+  id?: string | null;
+  dispatchId?: string | null;
+  vehicleId?: string | null;
+  stopId?: string | null;
+  slipId?: string | null;
+  downloadUrl?: string | null;
+}
+
 export type PhotoType = 'DELIVERY' | 'INSPECTION';
 
 export interface AttachmentUploadInput {
@@ -73,6 +107,43 @@ export async function fetchTodayDispatches(token: string | null): Promise<Dispat
   );
   assertApiResponseSuccess(response, '오늘의 배차');
   return response.data ?? [];
+}
+
+export async function fetchStopSlipDetail(
+  token: string | null,
+  dispatchType: DispatchVehicleSummary['dispatchType'],
+  vehicleSeq: number,
+  stopSeq: number,
+  options: { parsedKakaoSeq?: number | null } = {},
+): Promise<StopSlipDetailResponse> {
+  void token;
+  const query = options.parsedKakaoSeq != null
+    ? `?parsedKakaoSeq=${encodeURIComponent(String(options.parsedKakaoSeq))}`
+    : '';
+  const response = await apiFetchRaw(
+    `/driver-app/arologis/dispatches/today/${dispatchType}/vehicles/${vehicleSeq}/stops/${stopSeq}/slip-detail${query}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    },
+    { throwOnHttpError: false },
+  );
+  const json = (await parseJsonResponse<ApiResponse<StopSlipDetailRawResponse>>(response)) ?? {
+    success: false,
+    data: null,
+    code: 'INVALID_RESPONSE',
+    message: '전표 상세 응답 형식 오류',
+  };
+  if (!response.ok || json.success !== true || !json.data) {
+    throw new ArologisApiError(
+      response.status,
+      json.message ?? json.code ?? '전표 상세 조회 실패',
+      json.code,
+    );
+  }
+  return normalizeStopSlipDetailResponse(json.data);
 }
 
 export interface ReportLocationPayload {
@@ -257,6 +328,31 @@ function normalizeStopPhotoUploadResponse(
   };
 }
 
+function normalizeStopSlipDetailResponse(raw: StopSlipDetailRawResponse): StopSlipDetailResponse {
+  return {
+    dispatchType: raw.dispatchType,
+    vehicleSequence: raw.vehicleSequence,
+    stopSequence: raw.stopSequence,
+    parsedKakaoSeq: raw.parsedKakaoSeq ?? null,
+    stopLabel: raw.stopLabel ?? null,
+    slipDate: raw.slipDate ?? null,
+    slipNo: raw.slipNo,
+    partnerName: raw.partnerName ?? null,
+    deliveryAddress: raw.deliveryAddress ?? null,
+    sourceWarehouseName: raw.sourceWarehouseName ?? null,
+    totalSupply: raw.totalSupply,
+    vat: raw.vat,
+    total: raw.total,
+    lines: raw.lines.map((line) => ({
+      productName: line.productName,
+      specification: line.specification ?? null,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      lineTotal: line.lineTotal,
+    })),
+  };
+}
+
 function buildStopPhotoMultipart(input: AttachmentUploadInput): FormData {
   const form = new FormData();
   form.append('file', {
@@ -269,6 +365,14 @@ function buildStopPhotoMultipart(input: AttachmentUploadInput): FormData {
   if (input.exifGpsLng != null) form.append('exifGpsLng', String(input.exifGpsLng));
   if (input.capturedAt) form.append('capturedAt', input.capturedAt);
   return form;
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 async function parseSignAndSendCopyJson(response: Response): Promise<SignAndSendCopyJsonResponse> {
@@ -306,10 +410,12 @@ function assertApiResponseSuccess<T>(
 
 export class ArologisApiError extends Error {
   public readonly status: number;
+  public readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ArologisApiError';
     this.status = status;
+    this.code = code;
   }
 }

@@ -2,8 +2,8 @@
  * DriverDashboardScreen — Phase 10 W10-3 신규.
  * Phase 12 PR-H4c 보강 — 배차 갱신 audit overlay (마지막 동기화 시각 + 사용자 색상 dot) + 30초
  * polling fallback (gateway 가 user 단위 dispatch SSE 채널을 발행하기 전 임시 운영). 본 화면은
- * dispatch 응답이 slipId 를 포함하지 않으므로 (W10-1 단순화 응답) slip-service SSE 직접 구독
- * 대신 "마지막 갱신" overlay + 폴링으로 변경 가시성을 확보한다.
+ * dispatch 응답이 전표 내부 식별자를 포함하지 않으므로 slip-service SSE 직접 구독 대신
+ * "마지막 갱신" overlay + 폴링으로 변경 가시성을 확보한다.
  *
  * 본인 사용자 (ROLE_DRIVER) 의 오늘 배정 차량 목록 + 정차 상태 표시.
  *
@@ -37,18 +37,13 @@ import { badgeStyle, colors, radii, spacing, STOP_STATUS_BADGE, typography } fro
 import { userIdToColor } from '../../utils/userColorHash';
 import type { PhotoTarget } from './DriverPhotoScreen';
 import type { SignatureTarget } from './DriverSignatureScreen';
+import type { SlipDetailTarget } from './DriverSlipDetailScreen';
 
 interface Props {
   /** JWT access token — driver tab 진입 시점에 user-service `/auth/me` 로 확인 후 보관. */
   token: string | null;
-  /**
-   * slip 상세 진입 콜백 — Phase 12 PR-H1 신규.
-   *
-   * 본 PR (W10-3) 시점 backend 응답 = vehicle 단순 요약 (slip 식별자 미포함). 정식 deeplink 는 후속.
-   * D-AX-12 단계는 vehicle card 우측 "전표 보기" 버튼 노출 — placeholder slipId 로 DriverSlipDetailEntry
-   * 진입 흐름 검증. backend 확장 (vehicleSequence → slipId 매핑) 시 실 slipId 전달.
-   */
-  onOpenSlipDetail?: (params: { slipId: string; slipNo?: string; partnerName?: string | null }) => void;
+  /** D-AX-18 — 실제 정차 target 으로 UUID-free 전표 상세 화면 진입. */
+  onOpenSlipDetail?: (target: SlipDetailTarget) => void;
   /** D-AX-16 — 실제 정차 target 으로 전자서명 화면 진입. */
   onOpenSignature?: (target: SignatureTarget) => void;
   /** D-AX-17 — 실제 정차 target 으로 배송/검수 사진 화면 진입. */
@@ -209,6 +204,7 @@ export default function DriverDashboardScreen({
                   key={`${item.dispatchDate}-${item.dispatchType}-${item.vehicleSequence}-${stop.stopSequence}`}
                   vehicle={item}
                   stop={stop}
+                  onOpenSlipDetail={onOpenSlipDetail}
                   onOpenSignature={onOpenSignature}
                   onOpenPhoto={onOpenPhoto}
                 />
@@ -216,20 +212,6 @@ export default function DriverDashboardScreen({
                 <Text style={styles.stopEmpty}>정차 정보가 없습니다</Text>
               )}
             </View>
-            {onOpenSlipDetail ? (
-              <TouchableOpacity
-                style={styles.openSlipBtn}
-                onPress={() => onOpenSlipDetail({
-                  // 본 PR 시점 backend 응답 = vehicle 단순 요약 → placeholder slipId.
-                  // backend 확장 (vehicleSequence → slipId 매핑) 후 실 slipId 전달.
-                  slipId: `vehicle-${item.vehicleSequence}`,
-                  slipNo: `차량 #${item.vehicleSequence}`,
-                })}
-                testID={`driver-dashboard-open-slip-mobile-${item.vehicleSequence}`}
-              >
-                <Text style={styles.openSlipLabel}>전표 보기 / 코멘트</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
         )}
       />
@@ -240,14 +222,17 @@ export default function DriverDashboardScreen({
 function StopRow({
   vehicle,
   stop,
+  onOpenSlipDetail,
   onOpenSignature,
   onOpenPhoto,
 }: {
   vehicle: DispatchVehicleSummary;
   stop: DriverStopSummary;
+  onOpenSlipDetail?: (target: SlipDetailTarget) => void;
   onOpenSignature?: (target: SignatureTarget) => void;
   onOpenPhoto?: (target: PhotoTarget) => void;
 }): ReactElement {
+  const slipDisabled = !onOpenSlipDetail || stop.status === 'UNPARSED';
   const signatureDisabled = !onOpenSignature || stop.status === 'UNPARSED';
   const photoDisabled = !onOpenPhoto || stop.status === 'UNPARSED';
   const stopLabel = formatStopLabel(stop);
@@ -266,6 +251,15 @@ function StopRow({
         ) : null}
       </View>
       <View style={styles.stopActions}>
+        <TouchableOpacity
+          style={[styles.stopActionBtn, slipDisabled && styles.stopActionBtnDisabled]}
+          disabled={slipDisabled}
+          onPress={() => onOpenSlipDetail?.(target)}
+          testID={`arologis-open-slip-detail-${vehicle.vehicleSequence}-${stop.stopSequence}`}
+          accessibilityState={{ disabled: slipDisabled }}
+        >
+          <Text style={[styles.stopActionText, slipDisabled && styles.stopActionTextDisabled]}>전표</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.stopActionBtn, signatureDisabled && styles.stopActionBtnDisabled]}
           disabled={signatureDisabled}
@@ -314,7 +308,7 @@ function buildStopTarget(
   vehicle: DispatchVehicleSummary,
   stop: DriverStopSummary,
   stopLabel: string,
-): SignatureTarget {
+): SignatureTarget & PhotoTarget & SlipDetailTarget {
   return {
     dispatchType: vehicle.dispatchType,
     vehicleSequence: vehicle.vehicleSequence,
@@ -429,20 +423,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
     fontFamily: typography.fontFamily.sans,
   },
-  openSlipBtn: {
-    marginTop: spacing[3],
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[3],
-    borderRadius: radii.button,
-    backgroundColor: colors.action.brandSubtle,
-    alignSelf: 'flex-start',
-  },
-  openSlipLabel: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.action.brandActive,
-    fontFamily: typography.fontFamily.sans,
-  },
   stopList: {
     marginTop: spacing[3],
     borderTopWidth: 1,
@@ -500,7 +480,7 @@ const styles = StyleSheet.create({
     gap: spacing[1],
   },
   stopActionBtn: {
-    width: 52,
+    width: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.button,
