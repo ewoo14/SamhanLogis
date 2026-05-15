@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Print Renderer (Phase F — 출고전표 사본)</title>
+    <!--
+      Phase F (D-DF-06) — Playwright Chromium headless 가 본 페이지를 file:// 로 로드하여
+      ?slip=<base64>&driverSig=<b64>&recipientSig=<b64> 쿼리 파라미터로 출고전표 양식을 렌더한 뒤
+      A4 portrait 영역만 screenshot 으로 PNG 변환 (사본 파일 합성).
+
+      별도 multi-entry 빌드 (vite.print-renderer.config.ts) 산출물 = dist/print-renderer/.
+      Docker Stage 1 = clients/desktop 디렉토리 복사 후 `npm run build:print-renderer` 실행.
+    -->
+    <style>
+      html, body { margin: 0; padding: 0; background: #ffffff; }
+      body {
+        font-family: 'Noto Sans CJK KR', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+        font-size: 12px;
+        color: #111111;
+      }
+      #root { display: flex; justify-content: center; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
