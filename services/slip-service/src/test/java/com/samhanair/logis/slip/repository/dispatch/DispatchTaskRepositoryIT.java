@@ -35,26 +35,31 @@ class DispatchTaskRepositoryIT extends AbstractPostgresIT {
 
     @Test
     void save_and_lookup_by_code_active() {
-        DispatchTask t = DispatchTask.create("DT-20260514-001", LocalDate.of(2026, 5, 14));
+        String taskCode = "DT-IT-" + UUID.randomUUID().toString().substring(0, 8);
+        DispatchTask t = DispatchTask.create(taskCode, LocalDate.of(2099, 5, 14));
         taskRepo.save(t);
 
-        assertThat(taskRepo.findByTaskCodeAndIsDeletedFalse("DT-20260514-001")).isPresent();
-        assertThat(taskRepo.existsByTaskCodeAndIsDeletedFalse("DT-20260514-001")).isTrue();
+        assertThat(taskRepo.findByTaskCodeAndIsDeletedFalse(taskCode)).isPresent();
+        assertThat(taskRepo.existsByTaskCodeAndIsDeletedFalse(taskCode)).isTrue();
     }
 
     @Test
     void findByDispatchDateBetween_filters_date_and_status() {
-        DispatchTask t1 = DispatchTask.create("DT-A", LocalDate.of(2026, 5, 13));
-        DispatchTask t2 = DispatchTask.create("DT-B", LocalDate.of(2026, 5, 14));
-        DispatchTask t3 = DispatchTask.create("DT-C", LocalDate.of(2026, 5, 20));
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        LocalDate baseDate = LocalDate.of(2099, 6, 13);
+        DispatchTask t1 = DispatchTask.create("DT-R-" + suffix + "-A", baseDate);
+        DispatchTask t2 = DispatchTask.create("DT-R-" + suffix + "-B", baseDate.plusDays(1));
+        DispatchTask t3 = DispatchTask.create("DT-R-" + suffix + "-C", baseDate.plusDays(7));
         taskRepo.save(t1);
         taskRepo.save(t2);
         taskRepo.save(t3);
 
         Page<DispatchTask> page = taskRepo.findByDispatchDateBetweenAndStatusInAndIsDeletedFalse(
-                LocalDate.of(2026, 5, 13), LocalDate.of(2026, 5, 15),
+                baseDate, baseDate.plusDays(2),
                 Set.of(DispatchTaskStatus.DRAFT), PageRequest.of(0, 50));
-        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getContent())
+                .extracting(DispatchTask::getTaskCode)
+                .containsExactlyInAnyOrder(t1.getTaskCode(), t2.getTaskCode());
     }
 
     @Test

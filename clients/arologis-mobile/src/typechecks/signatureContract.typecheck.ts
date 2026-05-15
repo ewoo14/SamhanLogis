@@ -1,8 +1,10 @@
 import {
+  uploadStopPhoto,
   signAndSendCopy,
   type DispatchVehicleSummary,
   type SignAndSendCopyResult,
-} from '../../api/arologis';
+  type StopPhotoUploadResponse,
+} from '../api/arologis';
 
 const assignedVehicle: DispatchVehicleSummary = {
   dispatchDate: '2026-05-15',
@@ -52,3 +54,39 @@ async function readSuccessHeaders(token: string | null): Promise<string | null> 
 }
 
 void readSuccessHeaders(null);
+
+async function submitPhotoContract(token: string | null): Promise<StopPhotoUploadResponse> {
+  return uploadStopPhoto(
+    token,
+    assignedVehicle.dispatchType,
+    assignedVehicle.vehicleSequence,
+    stop.stopSequence,
+    'DELIVERY',
+    {
+      uri: 'file:///cache/delivery.jpg',
+      fileName: 'delivery.jpg',
+      mimeType: 'image/jpeg',
+      exifGpsLat: 37.5665,
+      exifGpsLng: 126.978,
+      capturedAt: '2026-05-15T12:00:00',
+      parsedKakaoSeq: stop.parsedKakaoSeq,
+    },
+  );
+}
+
+async function readPhotoPublicFields(token: string | null): Promise<string> {
+  const result = await submitPhotoContract(token);
+  // @ts-expect-error UUID 필드는 기사 앱 공개 응답 타입에 포함되면 안 된다.
+  const forbiddenUuid = result.id;
+  // @ts-expect-error presigned URL 은 기사 앱 공개 응답 타입에 포함되면 안 된다.
+  const forbiddenDownloadUrl = result.downloadUrl;
+  return [
+    result.attachmentType,
+    result.fileName,
+    result.uploadedAt,
+    forbiddenDownloadUrl ?? '',
+    forbiddenUuid,
+  ].join('|');
+}
+
+void readPhotoPublicFields(null);

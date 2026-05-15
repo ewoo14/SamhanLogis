@@ -2,6 +2,7 @@ package com.samhanair.logis.arologis.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -10,10 +11,17 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * slip-service 호출 client — Phase 10 W10-1 (skeleton) → W10-4 (PR #99) 실 호출 활성.
@@ -294,6 +302,148 @@ public class SlipClient {
     }
 
     /**
+     * D-AX-17 — arologis driver-app 사진 첨부를 slip-service internal attachment endpoint 로 전달한다.
+     *
+     * <p>driver-facing API 는 UUID-free 이므로 본 client 가 받은 slipId/attachmentId 는 내부 상태로만
+     * 사용하고, 호출자에게는 파일명/유형/시각 정보만 반환한다.
+     *
+     * @param slipId 내부 슬립 UUID
+     * @param attachmentType DELIVERY 또는 INSPECTION
+     * @param file multipart 파일
+     * @param exifGpsLat GPS 위도
+     * @param exifGpsLng GPS 경도
+     * @param capturedAt 촬영 시각
+     * @param uploadedBy driverCode 등 사용자 노출 식별자
+     * @return 업로드 성공 시 UUID-free attachment view
+     */
+    public Optional<UploadedAttachment> uploadAttachment(UUID slipId, String attachmentType,
+                                                         MultipartFile file,
+                                                         BigDecimal exifGpsLat,
+                                                         BigDecimal exifGpsLng,
+                                                         LocalDateTime capturedAt,
+                                                         String uploadedBy) {
+        if (skeletonMode || slipId == null) {
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.post()
+                    .uri("/internal/slips/{slipId}/attachments", slipId)
+                    .header("X-Internal-Token", internalToken)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(buildAttachmentMultipart(attachmentType, file, exifGpsLat, exifGpsLng,
+                            capturedAt, uploadedBy))
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                log.warn("SlipClient.uploadAttachment 응답 비어있음 — slipId={}, type={}", slipId, attachmentType);
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            if (!root.path("success").asBoolean(false)) {
+                log.warn("SlipClient.uploadAttachment 응답 success=false — slipId={}, type={}, body={}",
+                        slipId, attachmentType, truncate(body));
+                return Optional.empty();
+            }
+            JsonNode data = root.get("data");
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            return Optional.of(new UploadedAttachment(
+                    text(data, "attachmentType"),
+                    text(data, "fileName"),
+                    longValue(data, "fileSize"),
+                    text(data, "contentType"),
+                    localDateTime(data, "capturedAt"),
+                    localDateTime(data, "uploadedAt")));
+        } catch (RestClientResponseException ex) {
+            log.warn("SlipClient.uploadAttachment 4xx/5xx — slipId={}, type={}, status={}",
+                    slipId, attachmentType, ex.getStatusCode());
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("SlipClient.uploadAttachment 호출 실패 — slipId={}, type={}, msg={}",
+                    slipId, attachmentType, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private MultiValueMap<String, Object> buildAttachmentMultipart(String attachmentType, MultipartFile file,
+                                                                   BigDecimal exifGpsLat,
+                                                                   BigDecimal exifGpsLng,
+                                                                   LocalDateTime capturedAt,
+                                                                   String uploadedBy) throws IOException {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("type", attachmentType);
+        if (exifGpsLat != null) {
+            body.add("exifGpsLat", exifGpsLat.toPlainString());
+        }
+        if (exifGpsLng != null) {
+            body.add("exifGpsLng", exifGpsLng.toPlainString());
+        }
+        if (capturedAt != null) {
+            body.add("capturedAt", capturedAt.toString());
+        }
+        if (uploadedBy != null && !uploadedBy.isBlank()) {
+            body.add("uploadedBy", uploadedBy);
+        }
+        body.add("file", new HttpEntity<>(fileResource(file), fileHeaders(file)));
+        return body;
+    }
+
+    private ByteArrayResource fileResource(MultipartFile file) throws IOException {
+        String fileName = file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()
+                ? "arologis-photo.jpg"
+                : file.getOriginalFilename();
+        return new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return fileName;
+            }
+        };
+    }
+
+    private HttpHeaders fileHeaders(MultipartFile file) {
+        HttpHeaders headers = new HttpHeaders();
+        String fileName = file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()
+                ? "arologis-photo.jpg"
+                : file.getOriginalFilename();
+        headers.setContentDisposition(ContentDisposition.formData()
+                .name("file")
+                .filename(fileName)
+                .build());
+        MediaType contentType = parseMediaType(file.getContentType());
+        if (contentType != null) {
+            headers.setContentType(contentType);
+        }
+        return headers;
+    }
+
+    private MediaType parseMediaType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return MediaType.parseMediaType(raw);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String text(JsonNode data, String field) {
+        JsonNode node = data.get(field);
+        return node == null || node.isNull() ? null : node.asText();
+    }
+
+    private Long longValue(JsonNode data, String field) {
+        JsonNode node = data.get(field);
+        return node == null || node.isNull() ? null : node.asLong();
+    }
+
+    private LocalDateTime localDateTime(JsonNode data, String field) {
+        String value = text(data, field);
+        return value == null || value.isBlank() ? null : LocalDateTime.parse(value);
+    }
+
+    /**
      * print-renderer 용 slip 전체 상세 — Phase F (D-DF-06).
      *
      * <p>OutboundView 가 받는 props 와 1:1 매핑 (slip-service SlipInternalController 의 응답 schema).
@@ -308,6 +458,19 @@ public class SlipClient {
             java.math.BigDecimal vat,
             java.math.BigDecimal total,
             String sourceWarehouseName) {}
+
+    /**
+     * D-AX-17 internal attachment upload 결과.
+     *
+     * <p>slip-service 원응답의 UUID 필드는 의도적으로 보존하지 않는다.
+     */
+    public record UploadedAttachment(
+            String attachmentType,
+            String fileName,
+            Long fileSize,
+            String contentType,
+            LocalDateTime capturedAt,
+            LocalDateTime uploadedAt) {}
 
     /** Slip line 1건 — print-renderer 표시용. */
     public record SlipFullLine(

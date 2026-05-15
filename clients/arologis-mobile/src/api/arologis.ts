@@ -27,6 +27,35 @@ export interface DriverStopSummary {
   status: 'PENDING' | 'ARRIVED' | 'DELIVERED' | 'FAILED' | 'UNPARSED';
 }
 
+export type PhotoType = 'DELIVERY' | 'INSPECTION';
+
+export interface AttachmentUploadInput {
+  uri: string;
+  fileName: string;
+  mimeType: string;
+  exifGpsLat?: number | null;
+  exifGpsLng?: number | null;
+  capturedAt?: string | null;
+  parsedKakaoSeq?: number | null;
+}
+
+export interface StopPhotoUploadResponse {
+  attachmentType: PhotoType;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  exifGpsLat?: string | null;
+  exifGpsLng?: string | null;
+  capturedAt?: string | null;
+  uploadedAt: string;
+}
+
+interface StopPhotoUploadRawResponse extends Omit<StopPhotoUploadResponse, 'attachmentType'> {
+  photoType?: PhotoType;
+  attachmentType?: PhotoType;
+  downloadUrl?: string | null;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T | null;
@@ -182,6 +211,64 @@ export async function signAndSendCopy(
     error: json.error,
     retryable: json.retryable,
   };
+}
+
+export async function uploadStopPhoto(
+  token: string | null,
+  dispatchType: DispatchVehicleSummary['dispatchType'],
+  vehicleSeq: number,
+  stopSeq: number,
+  photoType: PhotoType,
+  input: AttachmentUploadInput,
+): Promise<StopPhotoUploadResponse> {
+  void token;
+  const body = buildStopPhotoMultipart(input);
+  const response = await apiFetchRaw(
+    `/driver-app/arologis/dispatches/today/${dispatchType}/vehicles/${vehicleSeq}/stops/${stopSeq}/photos/${photoType}`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+      },
+      body,
+    },
+  );
+  const json = (await response.json()) as ApiResponse<StopPhotoUploadRawResponse>;
+  assertApiResponseSuccess(json, '사진 업로드');
+  if (!json.data) {
+    throw new ArologisApiError(0, '사진 업로드 응답 데이터가 없습니다');
+  }
+  return normalizeStopPhotoUploadResponse(json.data, photoType);
+}
+
+function normalizeStopPhotoUploadResponse(
+  raw: StopPhotoUploadRawResponse,
+  requestedPhotoType: PhotoType,
+): StopPhotoUploadResponse {
+  return {
+    attachmentType: raw.attachmentType ?? raw.photoType ?? requestedPhotoType,
+    fileName: raw.fileName,
+    fileSize: raw.fileSize,
+    contentType: raw.contentType,
+    exifGpsLat: raw.exifGpsLat,
+    exifGpsLng: raw.exifGpsLng,
+    capturedAt: raw.capturedAt,
+    uploadedAt: raw.uploadedAt,
+  };
+}
+
+function buildStopPhotoMultipart(input: AttachmentUploadInput): FormData {
+  const form = new FormData();
+  form.append('file', {
+    uri: input.uri,
+    name: input.fileName,
+    type: input.mimeType,
+  } as unknown as Blob);
+  if (input.parsedKakaoSeq != null) form.append('parsedKakaoSeq', String(input.parsedKakaoSeq));
+  if (input.exifGpsLat != null) form.append('exifGpsLat', String(input.exifGpsLat));
+  if (input.exifGpsLng != null) form.append('exifGpsLng', String(input.exifGpsLng));
+  if (input.capturedAt) form.append('capturedAt', input.capturedAt);
+  return form;
 }
 
 async function parseSignAndSendCopyJson(response: Response): Promise<SignAndSendCopyJsonResponse> {

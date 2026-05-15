@@ -1,14 +1,17 @@
 package com.samhanair.logis.arologis.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.client.SlipClient.SignaturePayload;
+import com.samhanair.logis.arologis.client.SlipClient.UploadedAttachment;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -16,6 +19,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -51,6 +55,15 @@ class SlipClientTest {
         SlipClient client = new SlipClient(RestClient.builder(), new ObjectMapper(),
                 BASE_URL, INTERNAL_TOKEN, true);
         Optional<UUID> result = client.findRecentSlipIdByPartnerCode("214");
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void uploadAttachment_skeletonModeTrue_returnsEmpty() {
+        SlipClient client = new SlipClient(RestClient.builder(), new ObjectMapper(),
+                BASE_URL, INTERNAL_TOKEN, true);
+        Optional<UploadedAttachment> result = client.uploadAttachment(
+                SLIP_ID, "DELIVERY", file(), null, null, null, "DR-001");
         assertThat(result).isEmpty();
     }
 
@@ -92,6 +105,47 @@ class SlipClientTest {
                 BASE_URL, INTERNAL_TOKEN, false);
         Optional<UUID> result = client.findRecentSlipIdByPartnerCode("214");
         assertThat(result).isPresent().contains(SLIP_ID);
+        server.verify();
+    }
+
+    @Test
+    void uploadAttachment_postsMultipartWithInternalTokenAndParsesCompactResponse() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        LocalDateTime capturedAt = LocalDateTime.of(2026, 5, 15, 13, 30);
+        LocalDateTime uploadedAt = LocalDateTime.of(2026, 5, 15, 13, 31);
+        String body = """
+                {"success":true,"data":{
+                  "id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                  "slipId":"11111111-2222-3333-4444-555555555555",
+                  "attachmentType":"DELIVERY",
+                  "fileName":"delivery-proof.jpg",
+                  "fileSize":4,
+                  "contentType":"image/jpeg",
+                  "capturedAt":"2026-05-15T13:30:00",
+                  "uploadedAt":"2026-05-15T13:31:00",
+                  "downloadUrl":"https://storage.local/private"
+                }}""";
+
+        server.expect(requestTo(BASE_URL + "/internal/slips/" + SLIP_ID + "/attachments"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.MULTIPART_FORM_DATA))
+                .andExpect(content().string(containsString("name=\"type\"")))
+                .andExpect(content().string(containsString("DELIVERY")))
+                .andExpect(content().string(containsString("name=\"uploadedBy\"")))
+                .andExpect(content().string(containsString("DR-001")))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        SlipClient client = new SlipClient(builder, new ObjectMapper(),
+                BASE_URL, INTERNAL_TOKEN, false);
+        Optional<UploadedAttachment> result = client.uploadAttachment(
+                SLIP_ID, "DELIVERY", file(),
+                new BigDecimal("37.4979000"), new BigDecimal("127.0276000"),
+                capturedAt, "DR-001");
+
+        assertThat(result).contains(new UploadedAttachment(
+                "DELIVERY", "delivery-proof.jpg", 4L, "image/jpeg", capturedAt, uploadedAt));
         server.verify();
     }
 
@@ -146,6 +200,22 @@ class SlipClientTest {
         server.verify();
     }
 
+    @Test
+    void uploadAttachment_5xx_returnsEmpty() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+
+        server.expect(requestTo(BASE_URL + "/internal/slips/" + SLIP_ID + "/attachments"))
+                .andRespond(withServerError());
+
+        SlipClient client = new SlipClient(builder, new ObjectMapper(),
+                BASE_URL, INTERNAL_TOKEN, false);
+        Optional<UploadedAttachment> result = client.uploadAttachment(
+                SLIP_ID, "INSPECTION", file(), null, null, null, "DR-001");
+        assertThat(result).isEmpty();
+        server.verify();
+    }
+
     // ---------- helpers ----------
 
     private SignaturePayload payload() {
@@ -155,5 +225,10 @@ class SlipClientTest {
                 LocalDateTime.now(),
                 new BigDecimal("37.5"),
                 new BigDecimal("127.0"));
+    }
+
+    private MockMultipartFile file() {
+        return new MockMultipartFile(
+                "file", "delivery-proof.jpg", "image/jpeg", new byte[]{1, 2, 3, 4});
     }
 }

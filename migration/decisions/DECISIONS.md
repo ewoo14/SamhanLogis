@@ -1487,6 +1487,34 @@ D-AX-15 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-m
 - `clients/arologis-mobile npm run typecheck`
 - PR 본문용 1220px 한국어 QA 캡처 10장
 
+### D-AX-17. arologis-mobile 배송사진 / 검수사진 이식 (2026-05-15)
+
+D-AX-16 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-mobile` 에 DELIVERY / INSPECTION 사진 업로드 흐름을 이식한다.
+
+**선택지 기록**:
+- 1안(추천): 인증된 오늘 정차 target 기반 사진 API 를 추가하고 slip-service attachment 로 저장.
+- 2안: 기존 `mobile-staff` public token/batchToken 흐름을 복제.
+- 3안: UI 만 먼저 이식하고 업로드는 후속 처리.
+
+사용자 이전 지시의 "추천 방식"에 따라 1안을 채택했다. `mobile-staff` 의 public token 사진 흐름은 아로로지스 전용 today target/권한/UUID 비공개 계약과 맞지 않아 복제하지 않는다.
+
+**채택 범위**:
+- `POST /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/photos/{photoType}` 추가.
+- `photoType` 은 `DELIVERY` / `INSPECTION` 만 허용한다.
+- 요청 target 은 `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 구성하고 서버에서 내부 dispatch/stop/slip UUID 로 해석한다.
+- driver-facing API/UI 응답에는 `dispatchId`, `vehicleId`, `stopId`, `slipId`, `attachmentId`, `downloadUrl` 을 노출하지 않는다.
+- `arologis-service` 는 internal multipart 로 `slip-service` `/internal/slips/{slipId}/attachments` 에 위임한다.
+- `slip-service` internal attachment bridge 는 DELIVERY / INSPECTION 만 허용한다.
+- `clients/arologis-mobile` 은 사진 탭, dashboard 사진 버튼, empty-target guard, DELIVERY 최대 3장, INSPECTION 최대 5장, 업로드 진행/성공/실패/재시도를 제공한다.
+- `expo-image-picker` / `expo-image-manipulator` 로 촬영/선택/리사이즈 후 multipart 업로드한다.
+
+**검증**:
+- Backend targeted: `ArologisDriverAppControllerTest`, `SlipClientTest`, `SlipInternalAttachmentControllerTest`.
+- Docker/Testcontainers actual run: `:services:arologis-service:test :services:slip-service:test`.
+- Frontend typecheck: `clients/arologis-mobile npm run typecheck`.
+- Frontend Jest: `DriverPhotoScreen.test.tsx`, `arologisPhotoUpload.test.ts`.
+- Expo dependency alignment: `npx expo install --check`.
+- PR 본문용 1260px 한국어 QA 캡처 10장.
 
 ---
 

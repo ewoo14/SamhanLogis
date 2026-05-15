@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class KakaoDispatchParserTest {
 
     private final KakaoDispatchParser parser = new KakaoDispatchParser();
-    private final LocalDate REFERENCE = LocalDate.now();  // BE 부수 1 (Fix 6) — W4 시간 의존 가드 일관 (LocalDate.of hard-coded → 동적)
+    private static final LocalDate REFERENCE = LocalDate.of(2026, 5, 1);
 
     /** 사용자 제공 카톡 예시 (13 차량 — 1톤 12 + 1.4톤 1). */
     private static final String SAMPLE_KAKAO = """

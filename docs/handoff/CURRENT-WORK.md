@@ -1,8 +1,48 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-15 (D-AX-16 **검증 완료 / PR 준비**, Codex)
+> 갱신일: 2026-05-15 (D-AX-17 **구현/검증 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
+
+## 2026-05-15 Codex 최신 핸드오프 — D-AX-17 arologis-mobile 배송사진/검수사진 진행
+
+- 현재 branch: `codex/d-ax-17-arologis-mobile-photos`
+- 사용자 선택: 1번 — 인증된 today stop target 기반 DELIVERY / INSPECTION 사진 이식.
+- 세부 선택:
+  - 추천 1안 채택: `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 정차를 식별하고 서버 내부에서 slip attachment 로 연결.
+  - `mobile-staff` public token/batchToken 흐름은 복제하지 않음.
+  - driver-facing API/UI 에 UUID, internal attachment id, presigned/download URL 을 노출하지 않음.
+- 구현:
+  - BE `POST /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/photos/{photoType}` 추가.
+  - BE `SlipClient.uploadAttachment(...)` internal multipart bridge 추가.
+  - slip-service `/internal/slips/{slipId}/attachments` internal endpoint 추가, DELIVERY / INSPECTION 만 허용.
+  - `clients/arologis-mobile` 사진 탭, dashboard `사진` 버튼, empty-target guard, DELIVERY 3장 / INSPECTION 5장 limit, 업로드 진행/성공/실패/재시도 UI 추가.
+  - `expo-image-picker`, `expo-image-manipulator` 의존성 추가.
+  - typecheck 계약 파일은 `StopPhotoUploadResponse` 에 `attachmentType/fileName/fileSize/contentType/capturedAt/uploadedAt` 만 공개하고 `id/downloadUrl` 은 `@ts-expect-error` 로 차단.
+- 검증:
+  - `.\gradlew.bat :services:arologis-service:compileJava :services:slip-service:compileJava --no-daemon` PASS.
+  - `.\gradlew.bat :services:arologis-service:test --tests com.samhanair.logis.arologis.controller.ArologisDriverAppControllerTest --tests com.samhanair.logis.arologis.client.SlipClientTest --no-daemon --rerun-tasks` PASS.
+  - `$env:DOCKER_HOST='tcp://localhost:2375'; .\gradlew.bat :services:arologis-service:test :services:slip-service:test --no-daemon --rerun-tasks` PASS.
+  - `cd clients/arologis-mobile && npm run typecheck` PASS.
+  - `cd clients/arologis-mobile && npm test -- DriverPhotoScreen.test.tsx arologisPhotoUpload.test.ts --runInBand` PASS.
+  - `cd clients/arologis-mobile && npx expo install --check` PASS.
+  - `.\scripts\generate-d-ax-17-arologis-mobile-photos-screenshots.ps1` PASS.
+  - Docker actual run 중 드러난 기존 회귀도 함께 안정화: `KakaoDispatchParserTest` 시간 의존, `DispatchTaskRepositoryIT` seed 충돌, `SlipRealtimeControllerIT` shared realtime payload 계약.
+- QA 캡처:
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/01-today-photo-target-contract.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/02-dashboard-photo-and-signature-buttons.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/03-photo-empty-target-guard.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/04-delivery-photo-capture-preview.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/05-inspection-type-switch-max-count.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/06-upload-progress.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/07-upload-success-uuid-free-response.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/08-partial-failure-retry.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/09-slip-mapping-failure-422.png`
+  - `docs/qa/d-ax-17-arologis-mobile-photos/screenshots/10-verification-matrix.png`
+- 다음 후보:
+  - A: 실제 기기 QA 후 `mobile-staff` driver mode 제거
+  - B: 아로로지스 모바일 상세/전표 bridge 확장
+  - C: Admin 사진 관리/재업로드 감사 화면
 
 ## 2026-05-15 Codex 최신 핸드오프 — D-AX-16 arologis-mobile signature/sign-and-send-copy 진행
 

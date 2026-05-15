@@ -134,7 +134,7 @@ class SlipRealtimeControllerIT extends AbstractPostgresIT {
         // SseEmitter 의 초기 connected event 가 응답 buffer 에 작성될 때까지 dispatch
         String responseBody = mvcResult.getResponse().getContentAsString();
         assertThat(responseBody).contains("event:connected");
-        assertThat(responseBody).contains("\"slipId\":\"" + slipId + "\"");
+        assertThat(responseBody).contains("\"entityId\":\"" + slipId + "\"");
     }
 
     @Test

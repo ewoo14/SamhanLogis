@@ -35,6 +35,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchTodayDispatches, type DispatchVehicleSummary, type DriverStopSummary } from '../../api/arologis';
 import { badgeStyle, colors, radii, spacing, STOP_STATUS_BADGE, typography } from '../../theme/tokens';
 import { userIdToColor } from '../../utils/userColorHash';
+import type { PhotoTarget } from './DriverPhotoScreen';
 import type { SignatureTarget } from './DriverSignatureScreen';
 
 interface Props {
@@ -50,6 +51,8 @@ interface Props {
   onOpenSlipDetail?: (params: { slipId: string; slipNo?: string; partnerName?: string | null }) => void;
   /** D-AX-16 — 실제 정차 target 으로 전자서명 화면 진입. */
   onOpenSignature?: (target: SignatureTarget) => void;
+  /** D-AX-17 — 실제 정차 target 으로 배송/검수 사진 화면 진입. */
+  onOpenPhoto?: (target: PhotoTarget) => void;
   /**
    * (PR-H4c) 현재 driver 식별 코드 — audit overlay 의 색상 hash 입력 (UUID 미노출 가드).
    * 미전달 시 hash 입력은 'driver' 상수로 fallback (시각적 일관 유지).
@@ -90,6 +93,7 @@ export default function DriverDashboardScreen({
   token,
   onOpenSlipDetail,
   onOpenSignature,
+  onOpenPhoto,
   driverCode,
 }: Props): ReactElement {
   const [vehicles, setVehicles] = useState<DispatchVehicleSummary[]>([]);
@@ -206,6 +210,7 @@ export default function DriverDashboardScreen({
                   vehicle={item}
                   stop={stop}
                   onOpenSignature={onOpenSignature}
+                  onOpenPhoto={onOpenPhoto}
                 />
               )) : (
                 <Text style={styles.stopEmpty}>정차 정보가 없습니다</Text>
@@ -236,13 +241,17 @@ function StopRow({
   vehicle,
   stop,
   onOpenSignature,
+  onOpenPhoto,
 }: {
   vehicle: DispatchVehicleSummary;
   stop: DriverStopSummary;
   onOpenSignature?: (target: SignatureTarget) => void;
+  onOpenPhoto?: (target: PhotoTarget) => void;
 }): ReactElement {
-  const disabled = !onOpenSignature || stop.status === 'UNPARSED';
+  const signatureDisabled = !onOpenSignature || stop.status === 'UNPARSED';
+  const photoDisabled = !onOpenPhoto || stop.status === 'UNPARSED';
   const stopLabel = formatStopLabel(stop);
+  const target = buildStopTarget(vehicle, stop, stopLabel);
   return (
     <View style={styles.stopRow}>
       <View style={styles.stopBody}>
@@ -256,22 +265,26 @@ function StopRow({
           <Text style={styles.stopSeq}>카톡 순번 {stop.parsedKakaoSeq}</Text>
         ) : null}
       </View>
-      <TouchableOpacity
-        style={[styles.signBtn, disabled && styles.signBtnDisabled]}
-        disabled={disabled}
-        onPress={() => onOpenSignature?.({
-          dispatchType: vehicle.dispatchType,
-          vehicleSequence: vehicle.vehicleSequence,
-          stopSequence: stop.stopSequence,
-          parsedKakaoSeq: stop.parsedKakaoSeq,
-          partnerName: stop.parsedPartnerName,
-          stopLabel,
-        })}
-        testID={`arologis-open-signature-${vehicle.vehicleSequence}-${stop.stopSequence}`}
-        accessibilityState={{ disabled }}
-      >
-        <Text style={[styles.signBtnText, disabled && styles.signBtnTextDisabled]}>서명</Text>
-      </TouchableOpacity>
+      <View style={styles.stopActions}>
+        <TouchableOpacity
+          style={[styles.stopActionBtn, signatureDisabled && styles.stopActionBtnDisabled]}
+          disabled={signatureDisabled}
+          onPress={() => onOpenSignature?.(target)}
+          testID={`arologis-open-signature-${vehicle.vehicleSequence}-${stop.stopSequence}`}
+          accessibilityState={{ disabled: signatureDisabled }}
+        >
+          <Text style={[styles.stopActionText, signatureDisabled && styles.stopActionTextDisabled]}>서명</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.stopActionBtn, photoDisabled && styles.stopActionBtnDisabled]}
+          disabled={photoDisabled}
+          onPress={() => onOpenPhoto?.(target)}
+          testID={`arologis-open-photo-${vehicle.vehicleSequence}-${stop.stopSequence}`}
+          accessibilityState={{ disabled: photoDisabled }}
+        >
+          <Text style={[styles.stopActionText, photoDisabled && styles.stopActionTextDisabled]}>사진</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -295,6 +308,21 @@ function formatStopLabel(stop: DriverStopSummary): string {
     stop.parsedKakaoSeq ? `카톡 순번 ${stop.parsedKakaoSeq}` : null,
   ].filter(Boolean);
   return parts.join(' / ');
+}
+
+function buildStopTarget(
+  vehicle: DispatchVehicleSummary,
+  stop: DriverStopSummary,
+  stopLabel: string,
+): SignatureTarget {
+  return {
+    dispatchType: vehicle.dispatchType,
+    vehicleSequence: vehicle.vehicleSequence,
+    stopSequence: stop.stopSequence,
+    parsedKakaoSeq: stop.parsedKakaoSeq,
+    partnerName: stop.parsedPartnerName,
+    stopLabel,
+  };
 }
 
 /** PR-H4c — 마지막 동기화 시각 헤더 표시 (HH:mm:ss) — local timezone. */
@@ -466,25 +494,30 @@ const styles = StyleSheet.create({
     color: colors.ink.tertiary,
     fontFamily: typography.fontFamily.sans,
   },
-  signBtn: {
-    width: 58,
+  stopActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing[1],
+  },
+  stopActionBtn: {
+    width: 52,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.button,
     backgroundColor: colors.action.brandSubtle,
   },
-  signBtnDisabled: {
+  stopActionBtnDisabled: {
     backgroundColor: colors.surface.subtle,
     borderWidth: 1,
     borderColor: colors.line.default,
   },
-  signBtnText: {
+  stopActionText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
     color: colors.action.brandActive,
     fontFamily: typography.fontFamily.sans,
   },
-  signBtnTextDisabled: {
+  stopActionTextDisabled: {
     color: colors.ink.tertiary,
   },
   errorCard: {

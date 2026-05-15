@@ -3,6 +3,7 @@
  *
  * 이번 PR은 dashboard + GPS 두 탭만 활성화한다.
  * D-AX-16 — dashboard 정차 선택 후 전자서명 + 사본 발송 탭 활성화.
+ * D-AX-17 — 배송/검수 사진 탭 활성화.
  */
 import * as React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,10 +11,12 @@ import { clearAuth } from '../../stores/authStore';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 import DriverDashboardScreen from './DriverDashboardScreen';
 import DriverLocationTrackingScreen from './DriverLocationTrackingScreen';
+import DriverPhotoScreen from './DriverPhotoScreen';
+import type { PhotoTarget } from './DriverPhotoScreen';
 import DriverSignatureScreen from './DriverSignatureScreen';
 import type { SignatureTarget } from './DriverSignatureScreen';
 
-type Tab = 'dashboard' | 'tracking' | 'signature';
+type Tab = 'dashboard' | 'tracking' | 'photo' | 'signature';
 
 interface Props {
   token: string | null;
@@ -28,19 +31,37 @@ export default function DriverTabNavigator({
 }: Props): React.ReactElement {
   const [tab, setTab] = React.useState<Tab>('dashboard');
   const [signatureTarget, setSignatureTarget] = React.useState<SignatureTarget | null>(null);
+  const [photoTarget, setPhotoTarget] = React.useState<PhotoTarget | null>(null);
 
   const openSignature = (target: SignatureTarget) => {
     setSignatureTarget(target);
     setTab('signature');
   };
 
+  const openPhoto = (target: PhotoTarget) => {
+    setPhotoTarget(target);
+    setTab('photo');
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
         {tab === 'dashboard' ? (
-          <DriverDashboardScreen token={token} driverCode={driverCode} onOpenSignature={openSignature} />
+          <DriverDashboardScreen
+            token={token}
+            driverCode={driverCode}
+            onOpenSignature={openSignature}
+            onOpenPhoto={openPhoto}
+          />
         ) : tab === 'tracking' ? (
           <DriverLocationTrackingScreen token={token} backgroundGranted={backgroundGranted} />
+        ) : tab === 'photo' ? (
+          <DriverPhotoScreen
+            token={token}
+            target={photoTarget}
+            driverCode={driverCode}
+            onBackToDashboard={() => setTab('dashboard')}
+          />
         ) : (
           <DriverSignatureScreen
             token={token}
@@ -63,6 +84,12 @@ export default function DriverTabNavigator({
           active={tab === 'tracking'}
           onPress={() => setTab('tracking')}
           testID="arologis-tab-tracking"
+        />
+        <TabButton
+          label="사진"
+          active={tab === 'photo'}
+          onPress={() => setTab('photo')}
+          testID="arologis-tab-photo"
         />
         <TabButton
           label="서명"
@@ -113,8 +140,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line.default,
     paddingVertical: spacing[2],
-    paddingHorizontal: spacing[2],
-    gap: spacing[2],
+    paddingHorizontal: spacing[1],
+    gap: spacing[1],
   },
   tabBtn: {
     flex: 1,
@@ -137,7 +164,7 @@ const styles = StyleSheet.create({
   },
   logoutBtn: {
     paddingVertical: spacing[3],
-    paddingHorizontal: spacing[3],
+    paddingHorizontal: spacing[2],
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.button,

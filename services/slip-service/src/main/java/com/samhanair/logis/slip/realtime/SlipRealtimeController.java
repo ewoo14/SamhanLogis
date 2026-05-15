@@ -40,7 +40,7 @@ public class SlipRealtimeController {
      *
      * <p>클라이언트 onmessage 수신 event:
      * <ul>
-     *   <li>{@code connected} — 초기 1회 (slipId 페이로드)</li>
+     *   <li>{@code connected} — 초기 1회 ({@code entityId} 페이로드, 값은 path 의 slipId)</li>
      *   <li>{@code comment.created} — 신규 댓글 INSERT 시</li>
      *   <li>{@code comment.deleted} — 댓글 soft-delete 시</li>
      *   <li>SSE comment {@code :ping} — 30s heartbeat (event 이름 없음, 클라 onmessage 미발생)</li>

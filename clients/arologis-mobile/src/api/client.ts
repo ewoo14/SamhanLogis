@@ -65,7 +65,7 @@ export async function apiFetchRaw(
   const throwOnHttpError = options.throwOnHttpError ?? true;
   const auth = getAuth();
   const headers = new Headers(init.headers ?? {});
-  if (!headers.has('Content-Type') && init.body != null) {
+  if (!headers.has('Content-Type') && init.body != null && !isFormDataBody(init.body)) {
     headers.set('Content-Type', 'application/json');
   }
   if (auth?.accessToken) {
@@ -97,6 +97,10 @@ export async function apiFetchRaw(
   }
 
   return response;
+}
+
+function isFormDataBody(body: BodyInit): boolean {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
 }
 
 /**

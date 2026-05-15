@@ -24,6 +24,8 @@ import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService;
 import com.samhanair.logis.arologis.service.copy.SignAndSendCopyService.SignAndSendCopyResult;
 import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyRequest;
 import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyResponse;
+import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoType;
+import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoUploadResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -47,13 +49,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Driver-app endpoint — Phase 10 W10-1 arologis-service.
@@ -309,16 +314,76 @@ public class ArologisDriverAppController {
                     .body(Map.of("error", "본 어플 driver 미등록"));
         }
 
-        Vehicle vehicle;
+        TodayStopTarget target;
         try {
-            vehicle = resolveTodaySignTarget(self.getId(), dispatchType, vehicleSeq, stopSeq, request);
+            target = resolveTodayStopTarget(self.getId(), dispatchType, vehicleSeq, stopSeq,
+                    request.parsedKakaoSeq());
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest()
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("error", "INVALID_INPUT", "message", ex.getMessage()));
         }
 
-        return executeSignAndSendCopy(vehicle.getDispatchId(), vehicleSeq, stopSeq, self, request);
+        return executeSignAndSendCopy(target.vehicle().getDispatchId(), vehicleSeq, stopSeq, self, request);
+    }
+
+    /**
+     * D-AX-17 — 아로로지스 기사앱 정차 사진 업로드.
+     *
+     * <p>driver-facing target 은 D-AX-16 과 동일하게 UUID 를 받지 않는다. 서버가 로그인 기사,
+     * 오늘 날짜, 배차 유형, 차량 순번, 정차 순번, 선택적 카톡 순번을 검증한 뒤 내부 slipId 를
+     * 해석하고 slip-service internal attachment endpoint 로 저장한다.
+     *
+     * <p>응답은 UUID-free 이며 attachmentId/slipId/downloadUrl 은 반환하지 않는다.
+     */
+    @Operation(summary = "아로로지스 기사앱 정차 사진 업로드 (D-AX-17)",
+            description = "ROLE_AROLOGIS_DRIVER. 오늘 본인 배차 정차에 DELIVERY/INSPECTION 사진을 첨부한다.")
+    @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/photos/{photoType}",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    public ResponseEntity<ApiResponse<DriverPhotoUploadResponse>> uploadStopPhotoToday(
+            @PathVariable DispatchType dispatchType,
+            @PathVariable Integer vehicleSeq,
+            @PathVariable Integer stopSeq,
+            @PathVariable DriverPhotoType photoType,
+            HttpServletRequest httpRequest,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "parsedKakaoSeq", required = false) Long parsedKakaoSeq,
+            @RequestParam(value = "exifGpsLat", required = false) BigDecimal exifGpsLat,
+            @RequestParam(value = "exifGpsLng", required = false) BigDecimal exifGpsLng,
+            @RequestParam(value = "capturedAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime capturedAt) {
+
+        Driver self = resolveDriverOrNull(httpRequest);
+        if (self == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(apiFail("FORBIDDEN", "본 어플 driver 미등록"));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(apiFail("INVALID_INPUT", "사진 파일 필수"));
+        }
+
+        TodayStopTarget target;
+        try {
+            target = resolveTodayStopTarget(self.getId(), dispatchType, vehicleSeq, stopSeq, parsedKakaoSeq);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest()
+                    .body(apiFail("INVALID_INPUT", ex.getMessage()));
+        }
+
+        UUID slipId = slipResolver.resolveSlipId(target.stop()).orElse(null);
+        if (slipId == null) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(apiFail("SLIP_MAPPING_NOT_FOUND", "정차와 연결된 전표를 찾을 수 없습니다"));
+        }
+
+        return slipClient.uploadAttachment(slipId, photoType.name(), file, exifGpsLat, exifGpsLng,
+                        capturedAt, self.getDriverCode())
+                .map(result -> ResponseEntity.ok(ApiResponse.ok(DriverPhotoUploadResponse.from(result))))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                        .body(apiFail("SLIP_ATTACHMENT_UPLOAD_FAILED", "사진 저장 서비스 호출에 실패했습니다")));
     }
 
     /**
@@ -373,27 +438,34 @@ public class ArologisDriverAppController {
         }
     }
 
-    private Vehicle resolveTodaySignTarget(UUID driverId, DispatchType dispatchType, Integer vehicleSeq,
-                                           Integer stopSeq, SignAndSendCopyRequest request) {
+    private TodayStopTarget resolveTodayStopTarget(UUID driverId, DispatchType dispatchType, Integer vehicleSeq,
+                                                   Integer stopSeq, Long parsedKakaoSeq) {
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
         List<Vehicle> candidates = vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
                 driverId, today, dispatchType, vehicleSeq);
         List<Vehicle> matches = candidates.stream()
-                .filter(vehicle -> stopMatches(vehicle, stopSeq, request.parsedKakaoSeq()))
+                .filter(vehicle -> stopMatches(vehicle, stopSeq, parsedKakaoSeq))
                 .toList();
         if (matches.isEmpty()) {
-            throw new IllegalArgumentException("오늘 배차 서명 target 미발견");
+            throw new IllegalArgumentException("오늘 배차 정차 target 미발견");
         }
         if (matches.size() > 1) {
-            throw new IllegalArgumentException("오늘 배차 서명 target 중복 — 카톡 순번 확인 필요");
+            throw new IllegalArgumentException("오늘 배차 정차 target 중복 — 카톡 순번 확인 필요");
         }
-        return matches.get(0);
+        Vehicle vehicle = matches.get(0);
+        VehicleStop stop = stopRepository.findFirstByVehicleIdAndSequence(vehicle.getId(), stopSeq)
+                .orElseThrow(() -> new IllegalArgumentException("오늘 배차 정차 target 미발견"));
+        return new TodayStopTarget(vehicle, stop);
     }
 
     private boolean stopMatches(Vehicle vehicle, Integer stopSeq, Long parsedKakaoSeq) {
         Optional<VehicleStop> stop = stopRepository.findFirstByVehicleIdAndSequence(vehicle.getId(), stopSeq);
         return stop.isPresent()
                 && (parsedKakaoSeq == null || Objects.equals(stop.get().getParsedKakaoSeq(), parsedKakaoSeq));
+    }
+
+    private ApiResponse<DriverPhotoUploadResponse> apiFail(String code, String message) {
+        return new ApiResponse<>(false, code, message, null, Instant.now());
     }
 
     private ResponseEntity<?> executeSignAndSendCopy(UUID dispatchId, Integer vehicleSeq, Integer stopSeq,
@@ -441,4 +513,6 @@ public class ArologisDriverAppController {
                 .header("X-Copy-Recipient-Phone-Masked", result.copyRecipientPhoneMasked())
                 .body(result.png());
     }
+
+    private record TodayStopTarget(Vehicle vehicle, VehicleStop stop) {}
 }

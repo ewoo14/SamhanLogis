@@ -3,6 +3,9 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
+import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
+import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.dto.InternalSignatureRegistrationRequest;
@@ -10,17 +13,23 @@ import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Internal 전자서명 endpoint — Phase 10 W10-4 (PR #99) 신규.
@@ -47,6 +56,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SlipInternalController {
 
     private final SlipSignatureService signatureService;
+    private final SlipAttachmentService attachmentService;
 
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.
@@ -83,6 +93,45 @@ public class SlipInternalController {
                 slipId, request.signatureSource(),
                 request.driverCode() != null && !request.driverCode().isBlank());
         return ApiResponse.ok(signatureService.registerFromInternal(slipId, request));
+    }
+
+    /**
+     * Internal 슬립 첨부 업로드 — arologis-service 기사앱 사진 브리지.
+     *
+     * <p>공개/인증 사용자 endpoint 를 우회해 헤더를 가장하지 않고, 서비스 간 신뢰 경로
+     * ({@code X-Internal-Token}) 로만 호출한다. 본 endpoint 는 기사앱 증빙에 필요한
+     * {@link SlipAttachmentType#DELIVERY}, {@link SlipAttachmentType#INSPECTION} 만 허용한다.
+     *
+     * @param slipId 대상 슬립 UUID
+     * @param type 첨부 유형 (DELIVERY/INSPECTION)
+     * @param file 사진 파일
+     * @param exifGpsLat EXIF 또는 앱 GPS 위도
+     * @param exifGpsLng EXIF 또는 앱 GPS 경도
+     * @param capturedAt 촬영 시각
+     * @param uploadedBy 업로드 주체 표시값 (driverCode 권장)
+     * @return ApiResponse wrapper 안 첨부 응답
+     */
+    @Operation(summary = "Internal 슬립 첨부 업로드 (D-AX-17 — arologis driver photos)",
+            description = "X-Internal-Token 인증. DELIVERY/INSPECTION 만 허용한다.")
+    @PostMapping(value = "/{slipId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipAttachmentResponse> uploadAttachment(
+            @PathVariable UUID slipId,
+            @RequestParam("type") SlipAttachmentType type,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "exifGpsLat", required = false) BigDecimal exifGpsLat,
+            @RequestParam(value = "exifGpsLng", required = false) BigDecimal exifGpsLng,
+            @RequestParam(value = "capturedAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime capturedAt,
+            @RequestParam(value = "uploadedBy", required = false) String uploadedBy) {
+        if (type != SlipAttachmentType.DELIVERY && type != SlipAttachmentType.INSPECTION) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "기사앱 internal 첨부는 DELIVERY/INSPECTION 만 허용");
+        }
+        String uploader = uploadedBy == null || uploadedBy.isBlank() ? "arologis-driver-app" : uploadedBy;
+        return ApiResponse.ok(SlipAttachmentResponse.from(
+                attachmentService.upload(slipId, type, file, exifGpsLat, exifGpsLng,
+                        capturedAt, uploader)));
     }
 
     /**
