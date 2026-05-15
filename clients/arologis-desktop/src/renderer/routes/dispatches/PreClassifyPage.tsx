@@ -208,7 +208,7 @@ export function ArologisPreClassifyPage() {
         {/* PR-H4c FE-B: 실시간 자동 갱신 안내 (30s polling) */}
         <span
           data-testid="arologis-preclassify-realtime-indicator"
-          style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)', marginLeft: 'auto' }}
+          style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginLeft: 'auto' }}
         >
           실시간 자동 갱신 · 30초
         </span>
@@ -303,7 +303,7 @@ function RegionTabPanel(props: RegionTabPanelProps) {
           >
             CSV 다운로드
           </Button>
-          <div style={{ marginLeft: 'auto', fontSize: 12, color: '#6B7280' }}>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
             총 {total} 건
           </div>
         </div>
@@ -349,7 +349,7 @@ function RegionGroupSection({ title, count, entries }: RegionGroupSectionProps) 
   return (
     <section data-testid={`arologis-preclassify-group-${title}`}>
       <h3 style={groupHeadStyle}>
-        {title} <span style={{ color: '#6B7280', fontWeight: 400 }}>({count}건)</span>
+        {title} <span style={{ color: 'var(--color-neutral-500)', fontWeight: 400 }}>({count}건)</span>
       </h3>
       <table style={tableStyle}>
         <thead>
@@ -392,18 +392,18 @@ function UnclassifiedSection({ entries }: UnclassifiedSectionProps) {
     <section
       data-testid="arologis-preclassify-group-unclassified"
       style={{
-        border: '1px solid #FCD34D',
+        border: '1px solid var(--state-warning)',
         borderRadius: 6,
         padding: 12,
-        background: '#FFFBEB',
+        background: 'var(--state-warning-bg)',
       }}
     >
-      <h3 style={{ ...groupHeadStyle, color: '#92400E' }}>
-        미분류 거래처 <span style={{ color: '#92400E', fontWeight: 400 }}>({entries.length}건)</span>
+      <h3 style={{ ...groupHeadStyle, color: 'var(--state-warning)' }}>
+        미분류 거래처 <span style={{ color: 'var(--state-warning)', fontWeight: 400 }}>({entries.length}건)</span>
       </h3>
-      <p style={{ margin: '0 0 8px 0', fontSize: 13, color: '#92400E' }}>
+      <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--state-warning)' }}>
         주소가 권역 키워드와 매칭되지 않은 거래처입니다.{' '}
-        <Link to="/admin/regions" style={{ color: '#92400E', textDecoration: 'underline' }}>
+        <Link to="/admin/regions" style={{ color: 'var(--state-warning)', textDecoration: 'underline' }}>
           REGION 마스터에 추가하세요
         </Link>
         .
@@ -490,7 +490,7 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
           >
             CSV 다운로드
           </Button>
-          <div style={{ marginLeft: 'auto', fontSize: 12, color: '#6B7280' }}>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
             총 {total} 건
           </div>
         </div>
@@ -536,7 +536,7 @@ function RegionalGroupSection({ title, count, entries }: RegionalGroupSectionPro
   return (
     <section data-testid={`arologis-preclassify-group-${title}`}>
       <h3 style={groupHeadStyle}>
-        {title} <span style={{ color: '#6B7280', fontWeight: 400 }}>({count}건)</span>
+        {title} <span style={{ color: 'var(--color-neutral-500)', fontWeight: 400 }}>({count}건)</span>
       </h3>
       <table style={tableStyle}>
         <thead>
@@ -571,17 +571,17 @@ function RegionalUnmatchedSection({ entries }: RegionalUnmatchedSectionProps) {
     <section
       data-testid="arologis-preclassify-group-unmatched"
       style={{
-        border: '1px solid #FCA5A5',
+        border: '1px solid var(--state-danger)',
         borderRadius: 6,
         padding: 12,
-        background: '#FEF2F2',
+        background: 'var(--state-danger-bg)',
       }}
     >
-      <h3 style={{ ...groupHeadStyle, color: '#991B1B' }}>
+      <h3 style={{ ...groupHeadStyle, color: 'var(--state-danger)' }}>
         미매칭 (광역 prefix){' '}
-        <span style={{ color: '#991B1B', fontWeight: 400 }}>({entries.length}건)</span>
+        <span style={{ color: 'var(--state-danger)', fontWeight: 400 }}>({entries.length}건)</span>
       </h3>
-      <p style={{ margin: '0 0 8px 0', fontSize: 13, color: '#991B1B' }}>
+      <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--state-danger)' }}>
         17 시도 광역 prefix 와 매칭되지 않은 출고전표입니다. 거래처 주소를 확인해 주세요.
       </p>
       <table style={tableStyle}>
@@ -613,7 +613,7 @@ function RegionalUnmatchedSection({ entries }: RegionalUnmatchedSectionProps) {
 // ===========================================================================
 
 const inputStyle: React.CSSProperties = {
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-neutral-300)',
   borderRadius: 4,
   padding: '6px 10px',
   fontSize: 13,
@@ -629,36 +629,36 @@ const tableStyle: React.CSSProperties = {
 const thStyle: React.CSSProperties = {
   textAlign: 'left',
   padding: '6px 10px',
-  borderBottom: '2px solid #E5E7EB',
-  background: '#F9FAFB',
+  borderBottom: '2px solid var(--color-neutral-200)',
+  background: 'var(--color-neutral-50)',
   fontWeight: 600,
 }
 
 const tdStyle: React.CSSProperties = {
   padding: '6px 10px',
-  borderBottom: '1px solid #F3F4F6',
+  borderBottom: '1px solid var(--color-neutral-100)',
 }
 
 const groupHeadStyle: React.CSSProperties = {
   margin: '0 0 8px 0',
   fontSize: 14,
   fontWeight: 600,
-  color: '#1F2937',
+  color: 'var(--color-neutral-800)',
 }
 
 const emptyStyle: React.CSSProperties = {
   padding: 24,
   textAlign: 'center',
-  color: '#6B7280',
+  color: 'var(--color-neutral-500)',
   fontSize: 13,
 }
 
 const errorStyle: React.CSSProperties = {
   padding: 12,
-  border: '1px solid #FCA5A5',
+  border: '1px solid var(--state-danger)',
   borderRadius: 4,
-  background: '#FEF2F2',
-  color: '#991B1B',
+  background: 'var(--state-danger-bg)',
+  color: 'var(--state-danger)',
   fontSize: 13,
 }
 
@@ -667,11 +667,11 @@ function tabButtonStyle(active: boolean): React.CSSProperties {
     padding: '8px 16px',
     fontSize: 13,
     fontWeight: active ? 600 : 400,
-    border: '1px solid #E5E7EB',
-    borderBottom: active ? '2px solid #1F2937' : '1px solid #E5E7EB',
+    border: '1px solid var(--color-neutral-200)',
+    borderBottom: active ? '2px solid var(--color-neutral-800)' : '1px solid var(--color-neutral-200)',
     borderRadius: '4px 4px 0 0',
-    background: active ? '#fff' : '#F9FAFB',
-    color: active ? '#1F2937' : '#6B7280',
+    background: active ? 'var(--color-neutral-0)' : 'var(--color-neutral-50)',
+    color: active ? 'var(--color-neutral-800)' : 'var(--color-neutral-500)',
     cursor: 'pointer',
   }
 }

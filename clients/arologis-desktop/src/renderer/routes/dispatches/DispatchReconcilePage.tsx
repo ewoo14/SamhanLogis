@@ -209,7 +209,7 @@ export function ArologisDispatchReconcilePage() {
 
   const handleRun = () => {
     if (files.length === 0) {
-      setError('vendor 엑셀 파일을 1개 이상 업로드하세요.')
+      setError('운송사 엑셀 파일을 1개 이상 업로드하세요.')
       return
     }
     if (!from || !to) {
@@ -258,7 +258,7 @@ export function ArologisDispatchReconcilePage() {
   const handleCsv = () => {
     if (!response) return
     const out: string[][] = [
-      ['상태', 'slipNo', '일자', 'vendor', '우리 시간', '운송사 시간', '비고'],
+      ['상태', '전표번호', '일자', '운송사', '우리 시간', '운송사 시간', '비고'],
     ]
     for (const r of filteredRows) {
       out.push([
@@ -289,13 +289,13 @@ export function ArologisDispatchReconcilePage() {
           {/* PR-H4c FE-B: 비교 도구 — read-only. 원 dispatch 변경 이력은 dispatch 상세에서 자동 추적 */}
           <span
             data-testid="reconcile-realtime-notice"
-            style={{ fontSize: 11, color: 'var(--color-neutral-500, #6B7280)' }}
+            style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}
           >
             감사 추적 (수정 이력) 은 원 dispatch 화면에서 자동 (PR-H4c)
           </span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
-          vendor 별 엑셀 (.xlsx) 다중 업로드 → 우리 dispatch 기록과 비교 →
+          운송사별 엑셀 (.xlsx) 다중 업로드 → 우리 dispatch 기록과 비교 →
           누락 / 시각 오차 식별. 외부 vendor 콘솔 접속 불요.
         </div>
       </header>
@@ -320,12 +320,12 @@ export function ArologisDispatchReconcilePage() {
           border: `2px dashed ${
             dragOver
               ? 'var(--color-brand-500)'
-              : 'var(--color-neutral-300, #D1D5DB)'
+              : 'var(--color-neutral-300)'
           }`,
           borderRadius: 8,
           background: dragOver
             ? 'var(--color-brand-50)'
-            : 'var(--color-neutral-50, #F9FAFB)',
+            : 'var(--color-neutral-50)',
           textAlign: 'center',
           cursor: 'pointer',
           transition: 'border-color 0.15s, background 0.15s',
@@ -335,14 +335,14 @@ export function ArologisDispatchReconcilePage() {
           style={{
             fontSize: 14,
             fontWeight: 600,
-            color: 'var(--color-neutral-700, #374151)',
+            color: 'var(--color-neutral-700)',
             marginBottom: 4,
           }}
         >
-          vendor 엑셀 파일을 끌어다 놓거나 클릭하여 선택
+          운송사 엑셀 파일을 끌어다 놓거나 클릭하여 선택
         </div>
         <div
-          style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
+          style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
         >
           .xlsx 만 허용 · 파일당 최대 {MAX_FILE_SIZE_MB}MB · 다중 업로드 지원
         </div>
@@ -362,9 +362,9 @@ export function ArologisDispatchReconcilePage() {
           role="alert"
           style={{
             padding: '8px 12px',
-            border: '1px solid var(--color-danger-300, #fca5a5)',
-            background: 'var(--color-danger-50, #fef2f2)',
-            color: 'var(--color-danger-700, #b91c1c)',
+            border: '1px solid var(--state-danger)',
+            background: 'var(--state-danger-bg)',
+            color: 'var(--state-danger)',
             borderRadius: 6,
             fontSize: 13,
           }}
@@ -378,9 +378,9 @@ export function ArologisDispatchReconcilePage() {
           role="alert"
           style={{
             padding: '8px 12px',
-            border: '1px solid var(--color-danger-300, #fca5a5)',
-            background: 'var(--color-danger-50, #fef2f2)',
-            color: 'var(--color-danger-700, #b91c1c)',
+            border: '1px solid var(--state-danger)',
+            background: 'var(--state-danger-bg)',
+            color: 'var(--state-danger)',
             borderRadius: 6,
             fontSize: 13,
           }}
@@ -394,7 +394,7 @@ export function ArologisDispatchReconcilePage() {
       {files.length > 0 ? (
         <div
           style={{
-            border: '1px solid var(--color-neutral-200, #E5E7EB)',
+            border: '1px solid var(--color-neutral-200)',
             borderRadius: 6,
             overflow: 'hidden',
           }}
@@ -404,9 +404,9 @@ export function ArologisDispatchReconcilePage() {
               padding: '8px 12px',
               fontSize: 12,
               fontWeight: 600,
-              color: 'var(--color-neutral-700, #374151)',
-              background: 'var(--color-neutral-50, #F9FAFB)',
-              borderBottom: '1px solid var(--color-neutral-200, #E5E7EB)',
+              color: 'var(--color-neutral-700)',
+              background: 'var(--color-neutral-50)',
+              borderBottom: '1px solid var(--color-neutral-200)',
             }}
           >
             업로드 대기 ({files.length}건)
@@ -423,7 +423,7 @@ export function ArologisDispatchReconcilePage() {
                   borderTop:
                     idx === 0
                       ? 'none'
-                      : '1px solid var(--color-neutral-100, #F3F4F6)',
+                      : '1px solid var(--color-neutral-100)',
                   fontSize: 13,
                 }}
               >
@@ -437,7 +437,7 @@ export function ArologisDispatchReconcilePage() {
                   <div
                     style={{
                       fontWeight: 500,
-                      color: 'var(--color-neutral-800, #1F2937)',
+                      color: 'var(--color-neutral-800)',
                     }}
                   >
                     {f.file.name}
@@ -445,10 +445,10 @@ export function ArologisDispatchReconcilePage() {
                   <div
                     style={{
                       fontSize: 11,
-                      color: 'var(--color-neutral-500, #6B7280)',
+                      color: 'var(--color-neutral-500)',
                     }}
                   >
-                    추정 vendor: <strong>{f.vendorGuess}</strong> ·{' '}
+                    추정 운송사: <strong>{f.vendorGuess}</strong> ·{' '}
                     {formatSize(f.file.size)}
                   </div>
                 </div>
@@ -459,12 +459,12 @@ export function ArologisDispatchReconcilePage() {
                   style={{
                     height: 28,
                     padding: '0 10px',
-                    border: '1px solid var(--color-neutral-300, #D1D5DB)',
+                    border: '1px solid var(--color-neutral-300)',
                     borderRadius: 4,
-                    background: '#fff',
+                    background: 'var(--surface-card)',
                     cursor: running ? 'not-allowed' : 'pointer',
                     fontSize: 12,
-                    color: 'var(--color-neutral-700, #374151)',
+                    color: 'var(--color-neutral-700)',
                   }}
                 >
                   제거
@@ -568,7 +568,7 @@ export function ArologisDispatchReconcilePage() {
               htmlFor="reconcile-status-filter"
               style={{
                 fontSize: 13,
-                color: 'var(--color-neutral-700, #374151)',
+                color: 'var(--color-neutral-700)',
               }}
             >
               상태 필터
@@ -602,9 +602,9 @@ export function ArologisDispatchReconcilePage() {
         <div
           data-testid="reconcile-result-table"
           style={{
-            border: '1px solid var(--color-neutral-200, #E5E7EB)',
+            border: '1px solid var(--color-neutral-200)',
             borderRadius: 6,
-            background: 'var(--color-neutral-0, #fff)',
+            background: 'var(--color-neutral-0)',
             overflow: 'auto',
           }}
         >
@@ -618,14 +618,14 @@ export function ArologisDispatchReconcilePage() {
             <thead>
               <tr
                 style={{
-                  background: 'var(--color-neutral-50, #F9FAFB)',
-                  color: 'var(--color-neutral-700, #374151)',
+                  background: 'var(--color-neutral-50)',
+                  color: 'var(--color-neutral-700)',
                 }}
               >
                 <th style={{ ...thStyle, width: 120 }}>상태</th>
-                <th style={thStyle}>slipNo</th>
+                <th style={thStyle}>전표번호</th>
                 <th style={{ ...thStyle, width: 110 }}>일자</th>
-                <th style={thStyle}>vendor</th>
+                <th style={thStyle}>운송사</th>
                 <th style={{ ...thStyle, width: 90 }}>우리 시간</th>
                 <th style={{ ...thStyle, width: 90 }}>운송사 시간</th>
                 <th style={thStyle}>비고</th>
@@ -639,7 +639,7 @@ export function ArologisDispatchReconcilePage() {
                     style={{
                       padding: 24,
                       textAlign: 'center',
-                      color: 'var(--color-neutral-500, #6B7280)',
+                      color: 'var(--color-neutral-500)',
                     }}
                   >
                     {statusFilter
@@ -655,7 +655,7 @@ export function ArologisDispatchReconcilePage() {
                     key={`${r.slipNo}-${r.dispatchDate}-${r.status}`}
                     data-testid={`reconcile-row-${r.slipNo}`}
                     style={{
-                      borderTop: '1px solid var(--color-neutral-100, #F3F4F6)',
+                      borderTop: '1px solid var(--color-neutral-100)',
                     }}
                   >
                     <td
@@ -677,7 +677,7 @@ export function ArologisDispatchReconcilePage() {
                     <td
                       style={{
                         ...tdStyle,
-                        color: 'var(--color-neutral-600, #4B5563)',
+                        color: 'var(--color-neutral-600)',
                       }}
                     >
                       {r.reason}
@@ -704,15 +704,15 @@ interface SummaryChipProps {
 }
 
 const SUMMARY_BG: Record<SummaryChipProps['tone'], string> = {
-  success: 'var(--color-success-50, #ecfdf5)',
-  warning: 'var(--color-warning-50, #fffbeb)',
-  danger: 'var(--color-danger-50, #fef2f2)',
+  success: 'var(--state-success-bg)',
+  warning: 'var(--state-warning-bg)',
+  danger: 'var(--state-danger-bg)',
 }
 
 const SUMMARY_FG: Record<SummaryChipProps['tone'], string> = {
-  success: 'var(--color-success-700, #047857)',
-  warning: 'var(--color-warning-700, #b45309)',
-  danger: 'var(--color-danger-700, #b91c1c)',
+  success: 'var(--state-success)',
+  warning: 'var(--state-warning)',
+  danger: 'var(--state-danger)',
 }
 
 function SummaryChip({ label, value, tone }: SummaryChipProps) {
@@ -738,9 +738,9 @@ function SummaryChip({ label, value, tone }: SummaryChipProps) {
 // ---------------------------------------------------------------------------
 
 const STATUS_CELL_BG: Record<ReconcileStatus, string> = {
-  TRUE: 'var(--color-success-50, #ecfdf5)',
-  FALSE_LEFT: 'var(--color-warning-50, #fffbeb)',
-  FALSE_RIGHT: 'var(--color-danger-50, #fef2f2)',
+  TRUE: 'var(--state-success-bg)',
+  FALSE_LEFT: 'var(--state-warning-bg)',
+  FALSE_RIGHT: 'var(--state-danger-bg)',
 }
 
 // ---------------------------------------------------------------------------
@@ -750,7 +750,7 @@ const STATUS_CELL_BG: Record<ReconcileStatus, string> = {
 const inputStyle: React.CSSProperties = {
   height: 32,
   padding: '0 10px',
-  border: '1px solid #D1D5DB',
+  border: '1px solid var(--color-neutral-300)',
   borderRadius: 6,
   fontSize: 13,
 }
@@ -759,7 +759,7 @@ const thStyle: React.CSSProperties = {
   padding: '10px 12px',
   textAlign: 'left',
   fontWeight: 600,
-  borderBottom: '1px solid var(--color-neutral-200, #E5E7EB)',
+  borderBottom: '1px solid var(--color-neutral-200)',
 }
 
 const tdStyle: React.CSSProperties = {

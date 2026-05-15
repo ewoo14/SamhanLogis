@@ -140,7 +140,7 @@ export function ArologisUnassignedPage() {
           {/* PR-H4c FE-B: 실시간 자동 갱신 안내 (30s polling) */}
           <span
             data-testid="arologis-unassigned-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
+            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
           >
             실시간 자동 갱신 · 30초
           </span>
@@ -183,7 +183,7 @@ export function ArologisUnassignedPage() {
             background: 'var(--color-neutral-50)',
             border: '1px solid var(--color-neutral-200)',
             fontSize: 13,
-            color: 'var(--color-neutral-700, #374151)',
+            color: 'var(--color-neutral-700)',
           }}
         >
           기준 일자 <strong>{query.data.date}</strong> · 출고전표{' '}
@@ -198,7 +198,7 @@ export function ArologisUnassignedPage() {
           border: '1px solid var(--color-neutral-200)',
           borderRadius: 6,
           overflow: 'hidden',
-          background: '#fff',
+          background: 'var(--surface-card)',
         }}
       >
         <table
@@ -225,7 +225,7 @@ export function ArologisUnassignedPage() {
                   style={{
                     padding: '24px 12px',
                     textAlign: 'center',
-                    color: 'var(--color-neutral-500, #6B7280)',
+                    color: 'var(--color-neutral-500)',
                   }}
                 >
                   {emptyMessage}
@@ -273,12 +273,12 @@ const thStyle = {
   textAlign: 'left',
   fontSize: 12,
   fontWeight: 600,
-  color: 'var(--color-neutral-700, #374151)',
+  color: 'var(--color-neutral-700)',
   borderBottom: '1px solid var(--color-neutral-200)',
 } as const
 
 const tdStyle = {
   padding: '10px 12px',
   verticalAlign: 'top',
-  color: 'var(--color-neutral-800, #1F2937)',
+  color: 'var(--color-neutral-800)',
 } as const

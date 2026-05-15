@@ -129,14 +129,13 @@ export async function reconcileDispatch(
 export function canAccessDispatchReconcile(
   role: string | undefined | null,
 ): boolean {
-  return role === 'MASTER' || role === 'MANAGER' || role === 'DISPATCH'
+  return role === 'AROLOGIS_MASTER' || role === 'AROLOGIS_MANAGER'
 }
 
 /** 운송사 실배차 비교 진입 가능 ROLE 풀네임 화이트리스트 — RoleGuard prop 용. */
 export const ARO_DISPATCH_RECONCILE_ROLES = [
-  'MASTER',
-  'MANAGER',
-  'DISPATCH',
+  'AROLOGIS_MASTER',
+  'AROLOGIS_MANAGER',
 ] as const
 
 // ---------------------------------------------------------------------------

@@ -136,7 +136,6 @@ jobs:
       - name: typecheck (arologis-desktop)
         working-directory: clients/arologis-desktop
         run: npm run typecheck
-        continue-on-error: true   # 초기 스캐폴드 graceful guard
 
       - name: build (arologis-desktop)
         working-directory: clients/arologis-desktop

@@ -21,7 +21,7 @@
  * - dispatchId UUID 는 저장 후 toast 로만 노출 X — 사용자에겐 "저장 완료" 만 표시
  *
  * driverAutoMatch 안내 (매뉴얼 §6-2):
- * - driverCode 비워두면 BE 가 MockDriverMatcher 로 자동 매칭 (현재 mock = MOCK-001 단일)
+ * - driverCode 비워두면 BE 가 기사 자동 매칭을 수행
  *
  * /dispatches/unassigned 연계 (Phase 10 PR-E1 FE-3):
  * - query param (date / slipNo / partnerCode / partnerName / address) 가 있으면
@@ -33,9 +33,7 @@
  * - arologis-manual-submit-button
  *
  * NOTE: 슬라이스 prompt 의 "품목 (품명/수량) list" 는 BE `ManualStop` schema 미보유
- *       (address / partnerName / partnerCode / notes 만). 본 슬라이스는 BE schema 정렬
- *       원칙에 따라 정차당 메모(notes) 에 품목 자유 기술 + arologis-manual-item-add testid 는
- *       backlog placeholder 로 hidden 토글 button 에 부여하여 명세 준수.
+ *       (address / partnerName / kakaoSeq / notes 만). 정차당 품목은 메모(notes)에 자유 기술.
  */
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
@@ -64,7 +62,7 @@ interface StopDraft {
   sequence: string
   partnerName: string
   address: string
-  partnerCode: string
+  kakaoSeq: string
   notes: string
 }
 
@@ -79,7 +77,7 @@ const emptyStop = (sequence: number): StopDraft => ({
   sequence: String(sequence),
   partnerName: '',
   address: '',
-  partnerCode: '',
+  kakaoSeq: '',
   notes: '',
 })
 
@@ -129,8 +127,8 @@ function toRequest(
         sequence: Number(s.sequence) || 0,
         partnerName: s.partnerName.trim() || undefined,
         address: s.address.trim(),
-        partnerCode: s.partnerCode.trim()
-          ? Number(s.partnerCode.trim())
+        kakaoSeq: s.kakaoSeq.trim()
+          ? Number(s.kakaoSeq.trim())
           : undefined,
         notes: s.notes.trim() || undefined,
       })),
@@ -208,9 +206,9 @@ export function ArologisManualDispatchPage() {
       if (prefill.partnerName) stop.partnerName = prefill.partnerName
       if (prefill.address) stop.address = prefill.address
       if (prefill.slipNo) {
-        // slipNo 는 W10-4 prefix 등 비숫자 포함 가능 → numeric 부분만 partnerCode 시도.
+        // slipNo 는 W10-4 prefix 등 비숫자 포함 가능 → numeric 부분만 kakaoSeq 시도.
         const numeric = prefill.slipNo.replace(/[^0-9]/g, '')
-        if (numeric) stop.partnerCode = numeric
+        if (numeric) stop.kakaoSeq = numeric
         // 메모에 원본 slipNo 보존 — 사용자가 추적 가능하도록.
         stop.notes = `미배차 전표 ${prefill.slipNo}`
             + (prefill.partnerCode ? ` / 거래처코드 ${prefill.partnerCode}` : '')
@@ -351,7 +349,7 @@ export function ArologisManualDispatchPage() {
           {/* PR-H4c FE-B: 신규 작성 form — 저장 후 dispatch 상세에서 audit overlay 자동 활성 */}
           <span
             data-testid="arologis-manual-realtime-notice"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
+            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
           >
             저장 후 변경 이력 자동 추적 (PR-H4c)
           </span>
@@ -374,7 +372,7 @@ export function ArologisManualDispatchPage() {
         {/* =========================================================== */}
         <Card padding={5} shadow="sm">
           <h4 style={{ marginTop: 0 }}>카톡 텍스트 (참고)</h4>
-          <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0 }}>
+          <p style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginTop: 0 }}>
             카톡 메시지를 복사해서 붙여 넣고 [미리보기] 를 눌러 검증하세요.
             본 슬라이스는 우측 폼 입력값을 BE 로 전송합니다 (카톡 파싱은 별도
             메뉴 사용).
@@ -419,6 +417,7 @@ export function ArologisManualDispatchPage() {
 
           {preview ? (
             <div
+              data-testid="arologis-manual-preview-result"
               style={{
                 marginTop: 16,
                 padding: 12,
@@ -434,11 +433,11 @@ export function ArologisManualDispatchPage() {
                 {' · '}차량 <strong>{preview.totalVehicles}</strong>대 / 정차{' '}
                 <strong>{preview.totalStops}</strong>건
               </p>
-              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#6B7280' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-neutral-500)' }}>
                 기사:{' '}
                 {preview.driverCodeApplied
                   ? <strong>{preview.driverCodeApplied}</strong>
-                  : <em>미지정 — 자동 매칭됩니다 (현재 mock: MOCK-001 단일)</em>}
+                  : <em>미지정 — 저장 시 기사 자동 매칭을 시도합니다</em>}
               </p>
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
                 {preview.vehicles.map((v) => (
@@ -511,6 +510,7 @@ export function ArologisManualDispatchPage() {
                 render={({ id }) => (
                   <input
                     id={id}
+                    data-testid="arologis-manual-driver-code"
                     value={driverCode}
                     onChange={(e) => setDriverCode(e.target.value)}
                     placeholder="비워두면 자동 매칭"
@@ -524,12 +524,11 @@ export function ArologisManualDispatchPage() {
                   display: 'flex',
                   alignItems: 'center',
                   fontSize: 12,
-                  color: '#6B7280',
+                  color: 'var(--color-neutral-500)',
                   padding: '24px 0 0',
                 }}
               >
-                ⓘ 기사 미지정 시 자동 매칭됩니다 (현재 mock: MOCK-001 단일
-                driver — 매뉴얼 §6-2)
+                기사 미지정 시 저장 시점에 자동 매칭을 시도합니다.
               </div>
             </div>
           </div>
@@ -652,7 +651,7 @@ export function ArologisManualDispatchPage() {
                     borderRadius: 4,
                     border: '1px solid var(--color-neutral-200)',
                     marginBottom: 6,
-                    background: '#fff',
+                    background: 'var(--color-neutral-0)',
                   }}
                 >
                   <div
@@ -663,13 +662,12 @@ export function ArologisManualDispatchPage() {
                       marginBottom: 6,
                     }}
                   >
-                    <span style={{ fontSize: 12, color: '#6B7280' }}>
+                    <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
                       정차 {sIdx + 1}
                     </span>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <Button
-                        // 슬라이스 명세 testid — 품목 단위 add (BE schema 미보유,
-                        // backlog placeholder. 클릭 시 notes 영역 강조).
+                        // 품목 상세는 메모 필드로 수집한다. 클릭 시 notes 영역으로 이동.
                         data-testid="arologis-manual-item-add"
                         variant="ghost"
                         size="sm"
@@ -679,7 +677,7 @@ export function ArologisManualDispatchPage() {
                           )
                           target?.focus()
                         }}
-                        title="품목은 BE schema 미보유 — 메모 영역에 자유 기재 (P1-5 backlog)"
+                        title="품목과 특이사항은 메모 영역에 기재합니다."
                       >
                         + 품목 (메모)
                       </Button>
@@ -737,13 +735,13 @@ export function ArologisManualDispatchPage() {
                         <input
                           id={id}
                           type="number"
-                          value={stop.partnerCode}
+                          value={stop.kakaoSeq}
                           onChange={(e) =>
                             updateStop(vIdx, sIdx, {
-                              partnerCode: e.target.value,
+                              kakaoSeq: e.target.value,
                             })
                           }
-                          placeholder="W10-4 자동 brige"
+                          placeholder="예: 1001"
                           style={inputStyle}
                         />
                       )}

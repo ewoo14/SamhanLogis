@@ -94,7 +94,10 @@ export interface RegionalResponse {
  * <p>BE {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")} 와 1:1.
  * DISPATCH 가 신규로 추가됨 — 운영 가능 role 전체 노출.
  */
-export const ARO_PRECLASSIFY_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const
+export const ARO_PRECLASSIFY_ROLES = [
+  'AROLOGIS_MASTER',
+  'AROLOGIS_MANAGER',
+] as const
 
 /**
  * 가배차 분류 (REGION 권역) 조회.
@@ -190,4 +193,7 @@ export async function getUnassigned(date: string): Promise<UnassignedResponse> {
  * 신규 role 이며 현재 운영 사용자는 MASTER / MANAGER 만 매핑되지만, BE 가 이미
  * 화이트리스트에 포함하므로 FE 도 동일 집합 유지.
  */
-export const ARO_UNASSIGNED_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const
+export const ARO_UNASSIGNED_ROLES = [
+  'AROLOGIS_MASTER',
+  'AROLOGIS_MANAGER',
+] as const

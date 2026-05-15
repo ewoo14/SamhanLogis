@@ -6,6 +6,8 @@
 
 **Architecture:** Keep Samhan Public desktop intact for this PR. Copy and adapt only the dispatch pages, API clients, and realtime helper that the new Arologis desktop app needs, then replace the placeholder route with a nested dispatch route shell.
 
+**Review correction:** Implementation follows the handoff pattern. The 2026-05-15 review dispatch used BE / FE / Designer / DevOps / QA reviewers. Reviewer fixes are applied in the same D-AX-11 branch before verification, not deferred to a later PR.
+
 **Tech Stack:** Electron Vite, React 18, React Router 6, TanStack Query 5, Axios, TypeScript.
 
 ---

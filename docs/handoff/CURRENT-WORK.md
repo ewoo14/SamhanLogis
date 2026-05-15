@@ -4,6 +4,15 @@
 > 갱신자: PM (Claude Opus 4.7) → 다음 진행 도구 = **OpenAI Codex CLI** (사용자 결정, 토큰 한도 사유)
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
+## 2026-05-15 Codex Update — D-AX-11 in progress
+
+- Current branch: `feat/arologis-dispatch-pages-extract`
+- Current scope: Arologis desktop dispatch pages under `clients/arologis-desktop/src/renderer/routes/dispatches`
+- Handoff pattern: 5-team review dispatched and received (BE / FE / Designer / QA / DevOps). Review fixes are being applied in this same branch.
+- Implemented routes: `/dispatches/manual`, `/dispatches/pre-classify`, `/dispatches/unassigned`, `/dispatches/reconcile`
+- Key fixes from review: `kakaoSeq` DTO alignment, Arologis role constants, design-system CSS import, raw hex cleanup, desktop CI typecheck hard-fail, D-AX-11 route IA note.
+- Phone check: remote/PR viewing requires push/PR network access. Per owner instruction, no approval prompt will be requested for non-merge work; keep local handoff current until a permitted push path is available.
+
 ---
 
 ## 0. 즉시 시작 — 코덱스에서 첫 명령

@@ -1,5 +1,22 @@
 # P1-5 arologis 배차 UI 디자인 가이드
 
+## D-AX-11 Extraction Note (2026-05-15)
+
+This file originally described the older `/arologis/*` IA. For
+`clients/arologis-desktop`, D-AX-11 now implements the extracted dispatch IA
+under `/dispatches/*`:
+
+| Page | Current route | Current file |
+|---|---|---|
+| Manual | `/dispatches/manual` | `ManualDispatchPage.tsx` |
+| Pre-classify | `/dispatches/pre-classify` | `PreClassifyPage.tsx` |
+| Unassigned | `/dispatches/unassigned` | `UnassignedPage.tsx` |
+| Reconcile | `/dispatches/reconcile` | `DispatchReconcilePage.tsx` |
+
+Runtime desktop roles are `AROLOGIS_MASTER` and `AROLOGIS_MANAGER`. The legacy
+`MASTER` / `MANAGER` / `DISPATCH` values below remain historical notes for the
+Samhan Public source pages and must not be used in Arologis desktop guards.
+
 > branch: `feature/p1-5-arologis-dispatch-ui`
 > 작성일: 2026-05-11
 > 담당: Designer (SamhanLogis 디자인 시스템 기준)

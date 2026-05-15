@@ -21,11 +21,15 @@ export type ArologisDispatchType = 'DAY' | 'NIGHT' | 'EXPRESS'
 
 /** BE `VehicleTonnage` enum 과 1:1. */
 export type ArologisVehicleTonnage =
+  | 'MOTORCYCLE'
+  | 'DAMAS'
   | 'TONNAGE_1'
-  | 'TONNAGE_1_4'
+  | 'TONNAGE_1_5'
   | 'TONNAGE_2_5'
+  | 'TONNAGE_3'
   | 'TONNAGE_5'
-  | 'TONNAGE_BIG'
+  | 'TONNAGE_10'
+  | 'TONNAGE_20'
 
 /** DispatchType → 한국어 표시 라벨 (운영자 시점). */
 export const DISPATCH_TYPE_LABEL: Record<ArologisDispatchType, string> = {
@@ -36,11 +40,15 @@ export const DISPATCH_TYPE_LABEL: Record<ArologisDispatchType, string> = {
 
 /** VehicleTonnage → 한국어 표시 라벨. */
 export const TONNAGE_LABEL: Record<ArologisVehicleTonnage, string> = {
+  MOTORCYCLE: '오토바이',
+  DAMAS: '다마스',
   TONNAGE_1: '1톤',
-  TONNAGE_1_4: '1.4톤',
+  TONNAGE_1_5: '1.5톤',
   TONNAGE_2_5: '2.5톤',
+  TONNAGE_3: '3톤',
   TONNAGE_5: '5톤',
-  TONNAGE_BIG: '11톤 이상',
+  TONNAGE_10: '10톤',
+  TONNAGE_20: '20톤',
 }
 
 /** 모든 DispatchType 옵션 — 폼 select 용. */
@@ -52,11 +60,15 @@ export const DISPATCH_TYPE_OPTIONS: ArologisDispatchType[] = [
 
 /** 모든 VehicleTonnage 옵션 — 폼 select 용. */
 export const TONNAGE_OPTIONS: ArologisVehicleTonnage[] = [
+  'MOTORCYCLE',
+  'DAMAS',
   'TONNAGE_1',
-  'TONNAGE_1_4',
+  'TONNAGE_1_5',
   'TONNAGE_2_5',
+  'TONNAGE_3',
   'TONNAGE_5',
-  'TONNAGE_BIG',
+  'TONNAGE_10',
+  'TONNAGE_20',
 ]
 
 /**
@@ -65,14 +77,14 @@ export const TONNAGE_OPTIONS: ArologisVehicleTonnage[] = [
  * @property sequence 정차 순서 (1 이상)
  * @property partnerName 거래처명 (옵션 — 입력 시 사용자 노출 식별자)
  * @property address 주소 (필수, 매뉴얼 §2-2)
- * @property partnerCode 슬립번호 (옵션, W10-4 자동 brige)
+ * @property kakaoSeq 카톡 슬립번호 (옵션, W10-4 자동 bridge)
  * @property notes 도착시각 / 특이사항 (옵션)
  */
 export interface ManualStopInput {
   sequence: number
   partnerName?: string
   address: string
-  partnerCode?: number
+  kakaoSeq?: number
   notes?: string
 }
 
@@ -90,13 +102,13 @@ export interface ManualVehicleInput {
 /**
  * 수동 배차 요청 body — BE `ManualDispatchRequest`.
  *
- * driverCode 미지정 시 BE 가 MockDriverMatcher 자동 매칭 (매뉴얼 §6-2 — 현재 mock = MOCK-001 단일).
+ * driverCode 미지정 시 BE 가 기사 자동 매칭을 수행한다.
  */
 export interface ManualDispatchRequest {
   /** yyyy-MM-dd. */
   dispatchDate: string
   dispatchType: ArologisDispatchType
-  /** null/undefined 시 자동 매칭 (mock MOCK-001). */
+  /** null/undefined 시 자동 매칭. */
   driverCode?: string
   vehicles: ManualVehicleInput[]
 }
@@ -106,7 +118,7 @@ export interface PreviewStop {
   sequence: number
   partnerName: string | null
   address: string
-  partnerCode: number | null
+  kakaoSeq: number | null
   notes: string | null
 }
 
@@ -125,7 +137,7 @@ export interface ManualDispatchPreviewResponse {
   vehicles: PreviewVehicle[]
   totalVehicles: number
   totalStops: number
-  /** null 이면 자동 매칭 예정 (MockDriverMatcher = MOCK-001). */
+  /** null 이면 자동 매칭 예정. */
   driverCodeApplied: string | null
 }
 
@@ -170,9 +182,9 @@ export async function createManualDispatch(
 /**
  * arologis 수동 배차 admin UI 진입 권한.
  *
- * BE `@PreAuthorize("hasAnyRole('MASTER','MANAGER')")` 와 1:1 매핑.
- * 매뉴얼 §5 권한 표 + 풀네임 의무 (feedback_role_naming_full.md).
- *
- * 별도 DISPATCH role 은 backlog — 현재는 MASTER / MANAGER 만.
+ * 아로로지스 자체 admin role 과 1:1 매핑.
  */
-export const ARO_MANUAL_DISPATCH_ROLES = ['MASTER', 'MANAGER'] as const
+export const ARO_MANUAL_DISPATCH_ROLES = [
+  'AROLOGIS_MASTER',
+  'AROLOGIS_MANAGER',
+] as const
