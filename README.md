@@ -24,8 +24,9 @@
 - D-AX-15: `clients/arologis-mobile` driver dashboard GPS 이식 완료, PR #194 merge.
 - D-AX-16: signature / sign-and-send-copy 를 today 정차 target 기반으로 이식 완료. `dispatchId` UUID 는 driver-facing 계약에서 제외.
 - D-AX-17: DELIVERY / INSPECTION 배송·검수 사진 이식 완료, PR #197 merge. public token/batchToken 복제 대신 인증된 today stop target + slip attachment bridge 를 채택.
-- D-AX-18: 전표 상세 bridge 진행. `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 서버가 내부 slip 을 해석하고, 앱에는 전표번호/거래처/주소/품목/합계만 노출한다.
-- 다음 후보: 실제 기기 QA 후 `mobile-staff` driver mode 제거, Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장.
+- D-AX-18: 전표 상세 bridge 완료, PR #198 merge. `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 서버가 내부 slip 을 해석하고, 앱에는 전표번호/거래처/주소/품목/합계만 노출.
+- D-AX-19: `clients/mobile-staff` 기사 모드 은퇴 진행. 기사 기능은 `clients/arologis-mobile` 전담, mobile-staff 는 estimate WebView 단일 진입으로 축소.
+- 다음 후보: Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장, 실제 기기 QA.
 
 ## 시스템 구조 (Mermaid)
 
@@ -33,7 +34,7 @@
 graph TB
   subgraph CLIENT["Layer 1 — 클라이언트"]
     D["clients/desktop<br/>Electron 33 + React 18<br/>50+ 라우트 / Windows .exe"]
-    MS["clients/mobile-staff<br/>RN Expo SDK 53<br/>기사+영업 / 배차 통합"]
+    MS["clients/mobile-staff<br/>RN Expo SDK 53<br/>영업 견적 WebView"]
     OA["clients/web/order-app v4<br/>Vite + React + PWA<br/>거래처 주문 포털"]
     EA["clients/web/estimate-app v2<br/>Express + EJS<br/>견적 18,614 라인"]
     DS["clients/web/design-system<br/>Vite + Storybook<br/>21+ 컴포넌트 / Pretendard"]
@@ -104,7 +105,7 @@ graph TB
 - `clients/web/order-app` v4 — Vite + React + legacy `partner-order/index.html` 9427 라인 임베드 + PWA
 - `clients/web/estimate-app` v2 — Node.js + Express + EJS + legacy estimate 18614 라인 1:1 변환 (B2 옵션)
 - `clients/mobile` v4 — Expo SDK 53 + react-native-webview (order-app v4 임베드)
-- `clients/mobile-staff` v4 — Expo SDK 53 + react-native-webview (estimate WebView, v2/v3 보존) + **driver tab (W10-3 신규 — Dashboard / GPS Tracking / Signature, arologis-service 8097 통합, D-P10-07/08/09)**
+- `clients/mobile-staff` — Expo SDK 53 + react-native-webview (estimate WebView 단일 진입, D-AX-19 이후 기사 기능은 `clients/arologis-mobile` 전담)
 
 ### DevOps / QA
 - Docker / Docker Compose (인프라) + GitHub Actions (CI)
@@ -151,7 +152,7 @@ SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 │   │   ├── order-app/         # Vite + legacy partner-order 임베드 (v4)
 │   │   └── estimate-app/      # Express + EJS + legacy estimate 임베드 (v2)
 │   ├── mobile/                # Expo + RN WebView (order-app v4)
-│   └── mobile-staff/          # Expo + RN WebView (estimate-app v2) + driver tab (W10-3 — arologis-service 8097 통합)
+│   └── mobile-staff/          # Expo + RN WebView (estimate-app v2 단일 진입)
 ├── qa/
 │   ├── playwright/            # web + electron + mobile emul e2e (60+ cell)
 │   └── detox/                 # iOS/Android e2e (6 시나리오)

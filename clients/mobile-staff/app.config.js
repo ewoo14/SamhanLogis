@@ -1,17 +1,17 @@
 /**
  * app.config.js — mobile-staff 동적 Expo 설정 (P1-4 영업 native 앱 분기 포함).
  *
- * 정적 app.json 을 대체하지 않고 병행한다. Expo SDK 53 은 app.config.js 가 있으면
- * app.json 을 base 로 읽고 여기서 반환하는 객체를 deep-merge 한다.
+ * D-AX-19 부터 app.config.js 가 Expo 설정의 단일 source of truth 이다.
+ * 정적 app.json 병행 시 expo-doctor 경고가 발생하므로 본 파일만 유지한다.
  *
  * 환경변수 체계:
  *   - EXPO_PUBLIC_*   — Expo Metro 번들 시점 클라이언트 노출 (process.env.EXPO_PUBLIC_*)
  *   - BUILD_ENV       — CI / EAS 빌드 환경 구분 ("development" | "preview" | "production")
- *   - APP_VARIANT     — 앱 분기 ("staff" = 영업+배송 통합, 현재 단일값, P1-4 분리 시 "sales" 추가 예정)
+ *   - APP_VARIANT     — 앱 분기 ("staff" = 영업 견적 WebView, P1-4 분리 시 "sales" 추가 예정)
  *
  * P1-4 영업 native 앱 로드맵:
  *   Phase 11+1개월 후 APP_VARIANT="sales" 로 영업 전용 번들 분리 예정.
- *   현재는 APP_VARIANT="staff" (default) 로 estimate (WebView) + driver (native) 통합 운영.
+ *   현재는 APP_VARIANT="staff" (default) 로 estimate WebView 단일 운영.
  *
  * EAS Build 프로파일 → eas.json 참조.
  *
@@ -71,12 +71,12 @@ function resolveAppId() {
 
 /**
  * 앱 표시 이름 결정.
- *   - production  : 삼한공조 견적+배차
- *   - preview     : 삼한공조 견적+배차 (Preview)
- *   - development : 삼한공조 견적+배차 (Dev)
+ *   - production  : 삼한공조 견적
+ *   - preview     : 삼한공조 견적 (Preview)
+ *   - development : 삼한공조 견적 (Dev)
  */
 function resolveAppName() {
-  const base = APP_VARIANT === 'sales' ? '삼한공조 영업' : '삼한공조 견적+배차';
+  const base = APP_VARIANT === 'sales' ? '삼한공조 영업' : '삼한공조 견적';
   if (BUILD_ENV === 'production') return base;
   if (BUILD_ENV === 'preview')    return `${base} (Preview)`;
   return `${base} (Dev)`;
@@ -132,17 +132,12 @@ module.exports = {
       bundleIdentifier:   appId,
       buildNumber:        BUILD_NUMBER,
       infoPlist: {
-        NSLocationWhenInUseUsageDescription:
-          '배송 도중 위치를 arologis-service 에 보고합니다 (foreground = 의무, 거부 시 driver tab 사용 불가, 사용자 결정 4 GPS 하이브리드).',
-        NSLocationAlwaysAndWhenInUseUsageDescription:
-          'background 위치 추적은 운영 시점 결정 — 본 PR (W10-3) 시점은 선택입니다.',
         NSCameraUsageDescription:
-          '배송 / 검수 / 견적 현장 사진 촬영을 위해 카메라를 사용합니다 (P1-8 사진 첨부, 거부 시 갤러리 / 파일 첨부만 사용 가능).',
+          '견적 현장 사진 촬영을 위해 카메라를 사용합니다 (거부 시 갤러리 / 파일 첨부만 사용 가능).',
         NSPhotoLibraryUsageDescription:
-          '갤러리에서 배송 / 검수 / 견적 현장 사진을 선택해 첨부합니다 (P1-8 사진 첨부).',
+          '갤러리에서 견적 현장 사진을 선택해 첨부합니다.',
         NSPhotoLibraryAddUsageDescription:
-          '촬영한 현장 사진을 선택적으로 갤러리에 저장합니다.',
-        UIBackgroundModes: ['location'],
+          '촬영한 견적 현장 사진을 선택적으로 갤러리에 저장합니다.',
       },
     },
 
@@ -150,9 +145,6 @@ module.exports = {
       package:     appId,
       versionCode: Number(BUILD_NUMBER),
       permissions: [
-        'ACCESS_COARSE_LOCATION',
-        'ACCESS_FINE_LOCATION',
-        'ACCESS_BACKGROUND_LOCATION',
         'CAMERA',
         'READ_EXTERNAL_STORAGE',
         'READ_MEDIA_IMAGES',
@@ -164,13 +156,6 @@ module.exports = {
     },
 
     plugins: [
-      [
-        'expo-location',
-        {
-          locationAlwaysAndWhenInUsePermission:
-            '배송 도중 위치를 arologis-service 에 보고합니다 (foreground = 의무, background = 선택).',
-        },
-      ],
       [
         'expo-font',
         {
@@ -186,9 +171,9 @@ module.exports = {
         'expo-image-picker',
         {
           cameraPermission:
-            '배송 / 검수 / 견적 현장 사진 촬영을 위해 카메라를 사용합니다 (거부 시 갤러리 / 파일 첨부만 사용 가능).',
+            '견적 현장 사진 촬영을 위해 카메라를 사용합니다 (거부 시 갤러리 / 파일 첨부만 사용 가능).',
           photosPermission:
-            '갤러리에서 배송 / 검수 / 견적 현장 사진을 선택해 첨부합니다.',
+            '갤러리에서 견적 현장 사진을 선택해 첨부합니다.',
           microphonePermission: false,
         },
       ],

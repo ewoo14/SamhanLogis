@@ -3,7 +3,7 @@
  * Phase 12 PR-H2 보강 — slip 헤더 필드에 AuditOverlay (변경 이력 취소선 + 수정자 색상) 적용.
  * Phase 12 PR-H3 보강 — slip 수정 요청 / 수락 / 거절 워크플로우 UI 분기.
  *
- * mobile-staff v3 (Phase 10 W10-3) 시점 = driver/estimate tab 만 보유 → slip 상세 화면 부재.
+ * mobile-staff D-AX-19 이후 = estimate WebView 단일 진입. 본 화면은 후속 영업/창고 native 진입 후보로 보존.
  * 본 화면은 PR-H1 의 SSE 실시간 + 코멘트 의 사용처로서 신규되었고, PR-H2 에서 audit overlay
  * 컴포넌트가 추가되어 partnerName / statusLabel 등 헤더 필드의 변경 이력을 시각적으로 노출한다.
  * PR-H3 에서는 사용자 ROLE 에 따라 수정 요청 (SALES) 또는 PENDING 요청 list (WAREHOUSE) UI 가
@@ -80,7 +80,7 @@ import { subscribeToSlip, type SlipRealtimeEvent } from '../realtime/SlipRealtim
 import { badgeStyle, colors, radii, spacing, typography } from '../theme/tokens';
 
 interface Props {
-  /** JWT access token — driver tab 진입 시점에 user-service `/auth/me` 로 확인 후 보관. */
+  /** JWT access token — 호출 화면 진입 시점에 user-service `/auth/me` 로 확인 후 보관. */
   token: string | null;
   /** slip 식별자 — path 만, UI 미노출. */
   slipId: string;

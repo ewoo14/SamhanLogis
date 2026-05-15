@@ -1,74 +1,35 @@
-# @samhan/mobile-staff — SamhanLogis 영업직원 + 배송기사 (React Native Expo) — v4 (Phase 10 W10-3)
+# @samhan/mobile-staff — SamhanLogis 영업직원 견적 앱 (React Native Expo) — D-AX-19
 
-> Phase 6 frontend mobile client (영업직원용 — v2/v3) + Phase 10 W10-3 driver tab (배송기사용 — v4).
-> Expo SDK 53. AppRootNavigator 의 `mode='estimate' | 'driver'` 분기 로 두 역할 통합.
+> Phase 6 frontend mobile client (영업직원용 v2/v3) 을 보존한다.
+> D-AX-19 이후 배송기사 런타임은 `clients/arologis-mobile` 이 전담하며, `mobile-staff` 는 estimate WebView 단일 진입만 제공한다.
 
 ## 개요
 
-(주)삼한공조시스템 **영업직원 + 배송기사 통합 어플**. v3 까지 영업직원 단일 화면이었으나, Phase 10 W10-3
-(2026-05-07 사용자 결정) 부터 **mobile-staff 내부에 driver tab 통합** (별도 mobile-driver 신규 X).
+(주)삼한공조시스템 **영업직원 견적 어플**. D-AX-19에서 과거 Phase 10 W10-3의 기사 모드를 은퇴시키고, 기존 영업직원 estimate WebView 동작을 단일 진입으로 유지한다.
 
-- **estimate mode** (default — v2/v3 100% 보존)
+- **estimate WebView** (default — v2/v3 100% 보존)
   영업직원이 estimate-app v2 (Express + EJS 임베드된 legacy estimate 18614 라인) 를 그대로 사용.
   react-native-webview 단일 screen 으로 estimate-app v2 를 모바일 viewport 임베드.
-- **driver mode** (Phase 10 W10-3 신규)
-  배송기사가 arologis-service (port 8097) 의 driver-app 3 endpoint (today / locations / sign) 를 호출.
-  RN native UI — 오늘 배차 / GPS 30초 추적 / 전자서명 + GPS 캡처.
-
 - RN 측은 SafeAreaProvider + StatusBar + WebView wrapper 만 책임.
 - 캡처 script 는 estimate-app v2 dev server (port 5183) 에 직접 진입하여 실 화면을 캡처
   (mock HTML overlay 미사용).
 
-## driver tab (Phase 10 W10-3 신규)
+## D-AX-19 driver mode retirement
 
-> 사용자 결정 (2026-05-07) — `clients/mobile-staff` 내부 driver tab 채택 (별도 mobile-driver 신규 X).
+> 선택 1번: `mobile-staff` 에서 기사 모드를 제거하고, 기사 기능은 `clients/arologis-mobile` 로 일원화한다.
 
-### D-AX-12 slip detail 경계
-
-- `DriverTabNavigator` 는 더 이상 상위 `../SlipDetailScreen` 을 직접 import 하지 않는다.
-- driver tab 의 전표 상세 진입은 `src/screens/driver/DriverSlipDetailEntry.tsx` 로 들어간다.
-- 현재 배차 응답은 실제 slip 연결값을 제공하지 않으므로 `vehicle-*` placeholder 는 안내 화면으로 처리한다.
-- 기존 Samhan Public `SlipDetailScreen` 의 comment / audit / edit-request / SSE 기능은 보존한다.
-- 후속 아로로지스 모바일 이식에서 실제 slip bridge 또는 아로로지스 전용 상세 화면으로 확장한다.
-
-### D-AX-15 아로로지스 모바일 dashboard/GPS 선이식
-
-- `clients/arologis-mobile` 이 로그인 후 자체 `DriverTabNavigator` 로 진입한다.
-- 이번 PR 범위는 dashboard + GPS 두 탭이며, `mobile-staff` driver mode 는 운영 검증 전까지 보존한다.
-- 서명 / 배송사진 / 검수사진 / driver mode 제거는 후속 PR에서 다자선택 후 진행한다.
+- 삭제 범위: `src/screens/driver/**`, `src/hooks/useGpsPermission.ts`, `src/api/arologis.ts`, 기사 전용 Jest.
+- 루트 진입: `AppRootNavigator` 는 `EstimateWebViewScreen` 만 렌더링한다.
+- 제거 의존성: `base-64`, `@types/base-64`, `expo-file-system`, `expo-location`, `expo-sharing`.
+- 유지 의존성: `expo-image-picker`, `expo-image-manipulator`, `react-native-sse`, `react-native-webview`.
+- 운영 안내: 앱 내부에 기사 대체 CTA 를 추가하지 않는다. 기사 앱 배포/안내는 `clients/arologis-mobile` 운영 경로에서 처리한다.
 
 ### 화면 구성
 
 ```
-AppRootNavigator (mode bar 우상단 토글)
-├── mode='estimate' (default) → EstimateWebViewScreen (v2/v3 보존)
-└── mode='driver' (W10-3 신규) → DriverTabNavigator
-    ├── (GPS 권한 거부 / 미가용) → GpsBlockedScreen (어플 사용 불가)
-    └── (GPS OK)
-        ├── tab='dashboard'  → DriverDashboardScreen   (오늘 배차 vehicle 목록)
-        ├── tab='tracking'   → DriverLocationTrackingScreen (30초 GPS 보고)
-        └── tab='signature'  → DriverSignatureScreen   (전자서명 + GPS 캡처)
+AppRootNavigator
+└── EstimateWebViewScreen (v2/v3 보존)
 ```
-
-### GPS 권한 정책 (사용자 결정 4 GPS 하이브리드, 2026-05-07)
-
-| 항목 | 정책 |
-|---|---|
-| **foreground 권한** | **의무** (`expo-location.requestForegroundPermissionsAsync`) |
-| **background 권한** | 선택 (`requestBackgroundPermissionsAsync`, graceful) |
-| **거부 fallback** | **어플 사용 불가** (`GpsBlockedScreen` 노출, driver tab 진입 차단) |
-| **본 PR (W10-3) source** | `APP_GPS_ACTIVE` 만 활성 (인성 LBS 통합은 W10-2 시점) |
-
-### arologis-service 3 endpoint (`src/api/arologis.ts`)
-
-| 함수 | endpoint | 설명 |
-|---|---|---|
-| `fetchTodayDispatches(token)` | GET `/driver-app/arologis/dispatches/today` | 본인 배정 vehicle 목록 |
-| `reportLocation(token, payload)` | POST `/driver-app/arologis/locations` | 30초 주기 GPS 위치 보고 |
-| `submitSignature(token, dispatchId, vehicleSeq, stopSeq, payload)` | POST `/driver-app/arologis/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign` | 전자서명 + GPS 동시 등록 |
-
-base URL = `EXPO_PUBLIC_API_BASE_URL` (default `http://localhost:8080` = api-gateway 진입). gateway 가
-JWT verify + ROLE_DRIVER 확인 + X-User-* 주입 후 arologis-service 8097 으로 forward.
 
 ### theme/tokens.ts — W3+W4+W5+post-W5+W10-1 토큰 1:1 복제 (Designer-2 채택)
 
@@ -85,7 +46,7 @@ JWT verify + ROLE_DRIVER 확인 + X-User-* 주입 후 arologis-service 8097 으�
 ### Pretendard self-host (Designer-2 채택)
 
 - jsdelivr CDN 회피 + 정식 도입 (`assets/fonts/Pretendard-*.otf` 4 weight).
-- `app.json` `plugins.expo-font` 정식 등록.
+- `app.config.js` `plugins.expo-font` 정식 등록.
 - `usePretendardFontGuarded()` = useFonts hook 정식 활성 + try/catch graceful (asset 미배치 환경 RN UI 미차단).
 
 ## 주요 화면 캡처 매핑
@@ -102,8 +63,8 @@ JWT verify + ROLE_DRIVER 확인 + X-User-* 주입 후 arologis-service 8097 으�
 
 ```
 clients/mobile-staff/
-├── package.json (Expo SDK 53 + react-native-webview + react-native-safe-area-context, v0.3.0)
-├── app.json (name "삼한공조 견적", bundleId com.samhan.estimate, v0.3.0)
+├── package.json (Expo SDK 53 + react-native-webview + react-native-safe-area-context, v0.4.0)
+├── app.config.js (name "삼한공조 견적", bundleId com.samhan.estimate, v0.4.0)
 ├── tsconfig.json
 ├── babel.config.js
 ├── App.tsx (단일 SafeAreaProvider + StatusBar + EstimateWebViewScreen)
@@ -227,50 +188,3 @@ Phase 7 추가: `qa/detox/e2e/mobile-staff/` 의 3 시나리오 (`estimate-form`
 
 - Mobile v4 (`clients/mobile`, 거래처용 — order-app v4 WebView) 와 분리.
 - 직접 캡처 원본: `docs/qa/legacy-original/estimate/`.
-
-## Phase F — DriverSignatureScreen 1-tap + Share Sheet (2026-05-15)
-
-[D-DF-07/12/13](../../migration/decisions/DECISIONS.md#d-df-00) 적용 — 기사 어플 정차 도착 → DELIVERY 사진 첨부 → 자체+인수자 서명 캡처 → arologis-service 가 양쪽 저장 + PNG 사본 합성 → mobile expo-sharing 으로 인수자 카톡/SMS 발송 (기사 본인 발신, Aligo 0).
-
-### 흐름 (W10-4 deep link 활성)
-
-```
-[정차 도착] DriverDashboardScreen
-  ↓ "배송 사진 + 서명" 탭
-[SignaturePhotoScreen]  (D-DF-13 — 1MB 압축, 최대 3장)
-  → onUploaded callback
-  ↓ navigation.replace('DriverSignature')
-[DriverSignatureScreen] (D-DF-07/12 — 1-tap)
-  → 자체 서명 + 인수자 서명 캡처
-  → btn-complete-and-share 1-tap
-    ↓ POST /sign-and-send-copy
-  → image/png 응답 (성공) → expo-file-system 임시 저장 → expo-sharing.shareAsync (Share Sheet)
-  → application/json {copyFailureReason} 응답 (실패) → toast + btn-retry-copy
-  → 409 duplicate → toast "이미 발송됨"
-```
-
-### 신규 의존성 (`package.json`)
-
-| 패키지 | 용도 |
-|---|---|
-| `expo-sharing` | OS Share Sheet 호출 (카톡/SMS/메시지 선택) |
-| `expo-file-system` | base64 PNG → 임시 파일 (Share Sheet 입력) |
-| `base-64` | base64 인코딩 헬퍼 |
-| `jest` + `@types/jest` + `jest-expo` | 단위 시나리오 (RN environment) |
-
-### 5 토스트 분기 (D-DF-07)
-
-| 상태 | 토스트 | 재시도 버튼 |
-|---|---|---|
-| 성공 | `010-****-5678 에게 보내세요` (마스킹) | X |
-| RECIPIENT_PHONE_MISSING | `인수자 번호 미등록 — Admin 재발송 요청` | X |
-| RENDERER_TIMEOUT | `사본 합성 실패 (RENDERER_TIMEOUT)` | O |
-| RENDERER_ERROR / STORAGE_FULL | `사본 합성 실패 — 잠시 후 재시도` | O |
-| 409 duplicate | `이미 발송됨 (YYYY-MM-DD HH:mm)` | X |
-
-### Jest
-
-```bash
-npx jest --testPathPattern='driver/(DriverSignatureScreen|SignaturePhotoScreenChain)'
-# 7 PASS / 0 fail (success/skip/timeout/duplicate/bridge/disabled + chain)
-```

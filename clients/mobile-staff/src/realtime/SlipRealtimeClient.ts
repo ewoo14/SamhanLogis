@@ -40,7 +40,7 @@ import EventSource, {
   type EventSourceListener,
   type MessageEvent,
 } from 'react-native-sse';
-import { API_BASE_URL } from '../api/arologis';
+import { API_BASE_URL } from '../api/salesUtils';
 
 /** SSE 이벤트 종류 — BE 발행 event name 과 1:1. */
 export type SlipRealtimeEventType =

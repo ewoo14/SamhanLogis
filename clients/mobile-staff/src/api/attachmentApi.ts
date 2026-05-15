@@ -30,7 +30,7 @@
  * </ul>
  */
 
-import { API_BASE_URL } from './arologis';
+import { API_BASE_URL } from './salesUtils';
 
 // ----------------------------------------------------------------------
 // 응답 타입 — backend SlipAttachmentResponse record 와 1:1.
@@ -73,16 +73,16 @@ export interface AttachmentUploadInput {
 }
 
 // ----------------------------------------------------------------------
-// public token 기반 업로드 (driver mode) — no auth, multipart/form-data.
+// public token 기반 업로드 — no auth, multipart/form-data.
 // ----------------------------------------------------------------------
 
 /**
- * 기사 사진 업로드 (DeliveryBatch token + slipNo 검증).
+ * 공개 배송 사진 업로드 (DeliveryBatch token + slipNo 검증).
  *
  * <p>client URL = {@code POST /api/public/batches/{token}/slips/{slipNo}/attachments}
  * <p>gateway slip-service-public route StripPrefix=1 후 도착
  *    {@code /public/batches/{token}/slips/{slipNo}/attachments}.
- * <p>BE 가 attachmentType=DELIVERY 강제 (기사는 배송 사진만).
+ * <p>BE 가 attachmentType=DELIVERY 를 강제한다.
  *
  * @param token DeliveryBatch token (URL safe)
  * @param slipNo 슬립 번호 (e.g. S-2026-00321)
@@ -343,7 +343,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ----------------------------------------------------------------------
-// ApiResponse wrapper schema assert — arologis client 패턴 일관 (silent fall-through 제거).
+// ApiResponse wrapper schema assert — mobile-staff API client 패턴 일관 (silent fall-through 제거).
 // ----------------------------------------------------------------------
 
 function assertApiResponseSuccess(

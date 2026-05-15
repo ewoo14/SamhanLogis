@@ -2,12 +2,12 @@
  * SalesEstimatePhotoScreen — P2 (Phase 12 예정) estimate mode 사진 첨부 stub.
  * Phase 12 PR-H4c 보강 — audit overlay 적용 예정 안내 stub 추가 (estimate → slip 변환 후 활성).
  *
- * <p>본 PR (P1-8 driver mode 우선) 진입 시점은 placeholder 화면 — 영업 직원 견적 답사 시
+ * <p>현재 진입 시점은 placeholder 화면 — 영업 직원 견적 답사 시
  * 현장 사진 첨부 흐름을 향후 활성화하기 위한 stub.
  *
  * <p>사용자 결정 (옵션 C 하이브리드 — 매뉴얼 §6) 일관:
  * <ul>
- *   <li>driver mode 배송 사진 (DELIVERY) = P1 활성 (본 PR — {@link SignaturePhotoScreen}).</li>
+ *   <li>D-AX-19 이후 배송기사 사진은 `clients/arologis-mobile` 이 전담한다.</li>
  *   <li>estimate mode 견적 사진 (ESTIMATE) = P2 — Phase 12 별도 PR.</li>
  * </ul>
  *
@@ -16,7 +16,7 @@
  *   <li>이름 = ESTIMATE (slip-service {@code SlipAttachmentType.ESTIMATE}).</li>
  *   <li>업로드 경로 = 인증 기반 {@code POST /slips/{slipId}/attachments} (estimate → slip 변환 후 ID 확보).</li>
  *   <li>견적서 인쇄 시 사진 부록 페이지 자동 첨부 (desktop-print 의 견적 양식 확장).</li>
- *   <li>최대 첨부 수 = 10장 (driver 5장 보다 다량 — 답사 사진 다수).</li>
+ *   <li>최대 첨부 수 = 10장 (견적 답사 사진 다수).</li>
  *   <li>(PR-H4c) 첨부 변경 시 SlipDetailScreen 동등 audit overlay (사용자 색상 dot + 시각).</li>
  * </ul>
  *

@@ -2,7 +2,7 @@
   "name": "@samhan/mobile-staff",
   "version": "0.4.0",
   "private": true,
-  "description": "SamhanLogis 영업직원 + 배송기사 React Native (Expo SDK 53). v4 (Phase 10 W10-3) = AppRootNavigator (estimate / driver mode 분기). estimate mode = v2/v3 영업직원 견적 WebView 100% 보존. driver mode = arologis-service 3 endpoint (today/locations/sign) + GPS foreground 추적 + 전자서명 캡처. GPS 권한 거부 fallback = 어플 사용 불가 (사용자 결정 4 GPS 하이브리드 2026-05-07). Pretendard self-host (Designer-2 채택). W3+W4+W5+post-W5+W10-1 토큰 1:1 복제 (theme/tokens.ts).",
+  "description": "SamhanLogis 영업직원 React Native (Expo SDK 53). D-AX-19 = 기사 모드 제거, EstimateWebView 단일 진입 보존. 배송기사 기능은 clients/arologis-mobile 전담.",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
@@ -17,14 +17,10 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.5",
-    "base-64": "^1.0.0",
     "expo": "~53.0.0",
-    "expo-file-system": "~18.0.0",
-    "expo-font": "~13.0.0",
+    "expo-font": "~13.3.2",
     "expo-image-manipulator": "~13.1.7",
     "expo-image-picker": "~16.1.4",
-    "expo-location": "~18.0.0",
-    "expo-sharing": "~13.0.0",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -36,7 +32,6 @@
   },
   "devDependencies": {
     "@testing-library/react-native": "^12.7.2",
-    "@types/base-64": "^1.0.2",
     "@types/jest": "^29.5.13",
     "@types/react": "~19.0.10",
     "babel-jest": "^29.7.0",

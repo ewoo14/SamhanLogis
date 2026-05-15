@@ -33,8 +33,9 @@
 - D-AX-15: `clients/arologis-mobile` driver dashboard GPS 이식 완료, PR #194 merge.
 - D-AX-16: signature / sign-and-send-copy 를 today 정차 target 기반으로 이식 완료. driver-facing 응답에서 `dispatchId` UUID 를 제거하고 정차 목록/서명 화면을 연결.
 - D-AX-17: DELIVERY / INSPECTION 배송·검수 사진 이식 완료, PR #197 merge. 서버 내부 slip attachment bridge 로 저장하고 앱에는 내부 id/download URL 을 노출하지 않음.
-- D-AX-18: 전표 상세 bridge 진행. today 정차 target 을 서버에서 slip 상세로 해석하고, 아로로지스 모바일은 읽기 전용 전표 상세/품목/합계 화면만 표시.
-- 다음 후보: 실제 기기 QA 후 `mobile-staff` driver mode 제거, Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장.
+- D-AX-18: 전표 상세 bridge 완료, PR #198 merge. today 정차 target 을 서버에서 slip 상세로 해석하고, 아로로지스 모바일은 읽기 전용 전표 상세/품목/합계 화면만 표시.
+- D-AX-19: `clients/mobile-staff` 기사 모드 은퇴 진행. 기사 기능은 `clients/arologis-mobile` 전담, mobile-staff 는 estimate WebView 단일 진입으로 축소.
+- 다음 후보: Admin 사진 관리/재업로드 감사 화면, comments/audit/SSE proxy 확장, 실제 기기 QA.
 
 ## Phase 0 — 저장소·가드 정립
 

@@ -1544,6 +1544,32 @@ D-AX-17 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-m
 - 공개 TS typecheck: `StopSlipDetailResponse` 에 `id/dispatchId/vehicleId/stopId/slipId/downloadUrl` 유입 차단.
 - PR 본문용 1260px 한국어 QA 캡처 8장.
 
+### D-AX-19. mobile-staff 기사 모드 은퇴 (2026-05-16)
+
+D-AX-15~18 로 `clients/arologis-mobile` 에 dashboard/GPS, 서명, 사진, 전표 상세이 모두 이관되었으므로 `clients/mobile-staff` 의 기사 런타임을 제거한다.
+
+**선택지 기록**:
+- 1안(추천): `mobile-staff` 기사 모드 런타임을 제거하고 estimate WebView 단일 진입으로 축소.
+- 2안: 앱 내부에 "기사 앱으로 이동" 안내 화면/딥링크를 추가.
+- 3안: 코드는 보존하고 hidden feature flag 로만 비활성화.
+
+사용자 이전 지시의 "추천 방식"에 따라 1안을 채택했다. 2안은 아직 배포/딥링크 운영 경로가 확정되지 않았고, 3안은 죽은 코드와 native 권한 의존성을 남겨 회귀 위험이 크다.
+
+**채택 범위**:
+- `clients/mobile-staff/src/screens/driver/**`, `src/api/arologis.ts`, `src/hooks/useGpsPermission.ts`, 기사 전용 Jest 제거.
+- `AppRootNavigator` 는 `EstimateWebViewScreen` 만 렌더링하고 `배송기사` mode switch 를 노출하지 않는다.
+- `base-64`, `@types/base-64`, `expo-file-system`, `expo-location`, `expo-sharing` 제거.
+- `app.config.js` 의 위치 권한, background location, `expo-location` plugin 제거. 정적 `app.json` 은 Expo Doctor 중복 경고를 피하기 위해 삭제하고 `app.config.js` 를 단일 source of truth 로 유지.
+- slip comment/audit/edit-request/attachment 공용 API 는 `salesUtils.API_BASE_URL` 로 base URL 을 이동한다.
+- `expo-image-picker`, `expo-image-manipulator`, `react-native-sse`, `react-native-webview` 는 영업 방문사진/전표 실시간/견적 WebView 용도로 유지한다.
+
+**검증**:
+- `clients/mobile-staff npm run typecheck`.
+- `npm test -- AppRootNavigator.test.tsx --runInBand`.
+- `npx expo install --check`, `npx expo-doctor`.
+- no driver runtime import guard.
+- PR 본문용 1260px QA 캡처 5장.
+
 ---
 
 ## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)

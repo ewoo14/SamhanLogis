@@ -6,7 +6,7 @@
  *   - POST   `/slips/{slipId}/comments`           — 신규 코멘트 작성
  *   - DELETE `/slips/{slipId}/comments/{id}`     — soft delete (작성자 본인만)
  *
- * arologis api client (`api/arologis.ts`) 의 fetch + ApiResponse wrapper 패턴 일관.
+ * mobile-staff API client 의 fetch + ApiResponse wrapper 패턴 일관.
  *
  * 인증:
  *   - JWT bearer (gateway 가 verify + ROLE 확인 + X-User-* 주입 후 slip-service 로 forward).
@@ -16,7 +16,7 @@
  *   - 응답에 작성자 fullName + role 표기 (UUID 미노출).
  */
 
-import { API_BASE_URL } from './arologis';
+import { API_BASE_URL } from './salesUtils';
 
 // ----------------------------------------------------------------------
 // 응답 타입 — BE SlipCommentResponse (Phase 12 PR-H1) 와 1:1.
@@ -62,7 +62,7 @@ export interface CreateSlipCommentRequest {
 }
 
 // ----------------------------------------------------------------------
-// fetch helper — arologis ApiResponse wrapper 패턴 일관.
+// fetch helper — mobile-staff ApiResponse wrapper 패턴 일관.
 // ----------------------------------------------------------------------
 
 export class SlipCommentApiError extends Error {

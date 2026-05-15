@@ -2,7 +2,7 @@
 
 > Designer-2 채택 (사용자 결정 2026-05-07) — jsdelivr CDN 회피 + 정식 도입.
 
-본 디렉토리는 Pretendard OTF 9 weight 의 정식 배치 위치다.
+본 디렉토리는 Pretendard OTF 운영 배치 위치다.
 
 > **W10-3 종합 TM 후속 (2026-05-07)**: Designer-2 / FE-2 / B-DEVOPS-1 통합 채택 — 본 PR 시점 4 weight OTF
 > 실배치 완료 (`Regular / Medium / SemiBold / Bold`, 약 6.2MB). 9 weight 정식 배치 + `usePretendardFontGuarded`
@@ -38,7 +38,7 @@ clients/mobile-staff/assets/fonts/
 ```
 
 추가 의무:
-- `app.json` `plugins.expo-font` 의 9 weight asset 등록
+- `app.config.js` `plugins.expo-font` 의 9 weight asset 등록
 - `usePretendardFontGuarded` 정정 — `useState(false)` + `useFonts` complete 후 `setReady(true)` + splash screen guard
 
 ## 출처

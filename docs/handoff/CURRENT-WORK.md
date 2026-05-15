@@ -1,8 +1,42 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (D-AX-18 **구현/검증 진행**, Codex)
+> 갱신일: 2026-05-16 (D-AX-19 **구현/검증 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
+
+## 2026-05-16 Codex 최신 핸드오프 — D-AX-19 mobile-staff 기사 모드 은퇴 진행
+
+- 현재 branch: `codex/d-ax-19-mobile-staff-driver-retirement`
+- 직전 완료: D-AX-18 전표 상세 브리지 PR #198 merge, 원격 브랜치 삭제 완료.
+- 사용자 선택: 1번 추천안 — `clients/mobile-staff` 기사 모드 제거, 기사 기능은 `clients/arologis-mobile` 전담.
+- 구현:
+  - `AppRootNavigator` 를 `EstimateWebViewScreen` 단일 렌더로 축소.
+  - `clients/mobile-staff/src/screens/driver/**`, `src/api/arologis.ts`, `src/hooks/useGpsPermission.ts`, 기사 전용 Jest 제거.
+  - `attachmentApi`, `slipAudit`, `slipComment`, `slipEditRequest`, `SlipRealtimeClient` 는 `salesUtils.API_BASE_URL` 로 이동.
+  - `base-64`, `@types/base-64`, `expo-file-system`, `expo-location`, `expo-sharing` 제거.
+  - `app.config.js` 에서 위치 권한과 `expo-location` plugin 제거, 정적 `app.json` 삭제.
+  - `expo-font` 는 SDK 53 기대 버전으로 정렬.
+- 검증:
+  - `cd clients/mobile-staff && npm run typecheck` PASS.
+  - `cd clients/mobile-staff && npm test -- --runInBand` PASS (1 suite / 1 test).
+  - `cd clients/mobile-staff && npx expo install --check` PASS.
+  - `cd clients/mobile-staff && npx expo-doctor` PASS (17/17).
+  - no driver runtime import guard PASS.
+  - `.\scripts\generate-d-ax-19-mobile-staff-driver-retirement-screenshots.ps1` PASS.
+- QA 캡처:
+  - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/01-retirement-decision.png`
+  - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/02-app-root-estimate-only.png`
+  - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/03-no-driver-toggle.png`
+  - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/04-code-boundary-import-guard.png`
+  - `docs/qa/d-ax-19-mobile-staff-driver-retirement/screenshots/05-verification-matrix.png`
+- 남은 즉시 작업:
+  - 5-team 최종 리뷰: Designer/FE/BE/QA/DevOps blocker 없음.
+  - PR 본문 raw screenshot URL HEAD 200 확인.
+  - `gh pr checks --watch` 후 PM 재점검/머지.
+- 다음 후보:
+  - A: Admin 사진 관리/재업로드 감사 화면
+  - B: 전표 상세 comments/audit/SSE proxy 확장
+  - C: 실제 기기 QA
 
 ## 2026-05-16 Codex 최신 핸드오프 — D-AX-18 arologis-mobile 전표 상세 브리지 진행
 

@@ -67,12 +67,11 @@
 - `POST /driver-app/arologis/locations` — GPS 위치 보고 (DriverLocation 적재)
 - `POST /driver-app/arologis/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign` — 전자서명 + slip-service bridge (W10-4)
 
-**W10-3 (`clients/mobile-staff` 내부 driver tab) client 통합 — D-P10-07 / D-P10-08 / D-P10-09 (2026-05-07)**:
-- 본 어플 client = `clients/mobile-staff/src/api/arologis.ts` (3 endpoint 1:1 호출)
-- 인증 = JWT bearer (user-service 발급) → api-gateway 가 X-User-* 주입 후 forward
-- GPS source = `APP_GPS_ACTIVE` (foreground 권한 O) / `APP_GPS_BACKGROUND` (선택) — 인성 LBS 통합 (`EXTERNAL_INSUNG_LBS`) 은 W10-2 시점
-- 권한 거부 fallback = 어플 사용 불가 (`GpsBlockedScreen` 노출)
-- IT 활성 (`ArologisDriverAppControllerIT` 6 case) 은 후속 fix 또는 W10-4 슬라이스에서 일괄 도입 권장 (본 PR 시점 backend 변경 0)
+**Driver client ownership — W10-3 historical / D-AX-19 이후 현재 상태**:
+- W10-3 당시 client 는 `clients/mobile-staff/src/api/arologis.ts` 였으나, D-AX-19 이후 배송기사 런타임은 `clients/arologis-mobile` 이 전담하고 해당 mobile-staff client 는 삭제됨.
+- `clients/mobile-staff` 는 `/driver-app/arologis/**` 를 더 이상 호출하지 않으며 estimate WebView 단일 진입만 제공한다.
+- Driver-app API 계약(`today` / `locations` / `sign`) 과 GPS source(`APP_GPS_ACTIVE` / `APP_GPS_BACKGROUND` / `EXTERNAL_INSUNG_LBS`) 는 유지한다.
+- D-AX-19 는 backend endpoint / DB / Flyway 변경이 없으므로 backend Docker/Testcontainers 필수 검증 대상이 아니다. backend controller/client 변경이 동반될 때만 `arologis-service` IT 로 격상한다.
 
 **W10-4 (PR #99) — slip-service 통합 활성**:
 - `SlipClient.registerSignature` 시그니처 변경 (UUID + SignaturePayload) + skeleton-mode 실 호출 분기

@@ -34,7 +34,7 @@
  * fetch + ApiResponse wrapper 패턴은 `api/slipComment.ts` / `api/slipAudit.ts` 와 1:1 동등.
  */
 
-import { API_BASE_URL } from './arologis';
+import { API_BASE_URL } from './salesUtils';
 
 // ----------------------------------------------------------------------
 // 응답 타입 — BE SlipEditRequestResponse (Phase 12 PR-H3) 와 1:1.

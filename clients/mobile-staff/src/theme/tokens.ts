@@ -5,7 +5,7 @@
  * 친화적 JS 객체로 1:1 복제. RGB 값 동등 (web/design-system tokens.css 의 :root scope 와 1:1).
  *
  * 사용 위치:
- *   - `src/screens/driver/*` 의 RN native UI (WebView 외부) 에서 inline style 로 직접 인용.
+ *   - WebView 외부 RN native UI 에서 inline style 로 직접 인용.
  *   - WebView 안 estimate-app v2 는 web tokens.css 그대로 인용 (본 파일 미참조).
  *
  * 출처 토큰 (web tokens.css line 번호):

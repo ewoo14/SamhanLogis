@@ -1,8 +1,8 @@
 /**
  * SalesTabNavigator — P1-4 영업 native 앱 탭 내비게이터.
  *
- * 사용자 결정 (P1-4) — mobile-staff 내부 'sales' mode 채택 (별도 mobile-sales 신규 X).
- * AppRootNavigator 에서 mode === 'sales' 로 분기 시 진입.
+ * 사용자 결정 (P1-4) — mobile-staff 내부 영업 native 탭 후보 (별도 mobile-sales 신규 X).
+ * D-AX-19 현재 root 는 estimate WebView 단일 진입이며, 본 navigator 는 후속 native 영업 모드 후보로 보존.
  *
  * 탭 구성:
  *   - 대시보드 (SalesHomeScreen)
@@ -12,11 +12,10 @@
  *   - [P1] 방문 사진 (VisitPhotoScreen — 거래처 선택 후 사진 첨부)
  *
  * react-navigation 미설치 환경에서도 동작하도록 자체 minimal tab 구현
- * (driver tab navigator 패턴 동등 적용).
+ * (react-navigation 미도입 minimal tab 패턴).
  *
  * @PreAuthorize SALES / MANAGER / MASTER — API 레이어에서 공통 검증.
- * RoleGuard: AppRootNavigator 에서 ROLE_SALES 확인 후 mode='sales' 진입하므로
- * 본 navigator 에서 별도 role 검증 불필요.
+ * RoleGuard: 후속 root 연결 시 ROLE_SALES 확인 후 진입한다.
  */
 
 import { useState } from 'react';

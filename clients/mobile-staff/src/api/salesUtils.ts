@@ -1,8 +1,8 @@
 /**
  * 영업 API client 공통 유틸 — P1-4 신규.
  *
- * arologis.ts 의 resolveApiBaseUrl / assertApiResponseSuccess / ArologisApiError 패턴을
- * 영업 API 용으로 동등 복제 (두 모듈이 독립 번들 — 상호 import 없음).
+ * mobile-staff 영업 API 용 base URL / ApiResponse wrapper / 에러 타입을 제공한다.
+ * D-AX-19 이후 삭제된 기사 전용 API client 와 상호 import 하지 않는다.
  */
 
 const DEFAULT_DEV_API = 'http://localhost:8080';
