@@ -3,6 +3,7 @@ package com.samhanair.logis.arologis.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.dto.AuthTokenResponse;
 import com.samhanair.logis.arologis.dto.DriverLoginRequest;
+import com.samhanair.logis.arologis.dto.MeResponse;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,6 +72,17 @@ class ArologisDriverAuthIT extends AbstractPostgresIT {
         assertThat(tokens.role()).isEqualTo("AROLOGIS_DRIVER");
         assertThat(tokens.accessToken()).isNotBlank();
         assertThat(tokens.refreshToken()).isNotBlank();
+        assertThat(tokens.driverCode()).isEqualTo("ITD001");
+        assertThat(tokens.phoneNumber()).isEqualTo("01011112222");
+
+        String meJson = mvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + tokens.accessToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        MeResponse me = om.readValue(meJson, MeResponse.class);
+        assertThat(me.role()).isEqualTo("AROLOGIS_DRIVER");
+        assertThat(me.driverCode()).isEqualTo("ITD001");
+        assertThat(me.phoneNumber()).isEqualTo("01011112222");
     }
 
     @Test

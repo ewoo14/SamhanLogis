@@ -18,6 +18,15 @@ export interface AuthLoginResponse {
   expiresAt: string;
 }
 
+export interface AuthMeResponse {
+  userId: string;
+  role: string;
+  loginId?: string | null;
+  fullName?: string | null;
+  driverCode?: string | null;
+  phoneNumber?: string | null;
+}
+
 /**
  * 본인 휴대번호로 로그인. 사전 등록되지 않은 번호는 401 응답.
  *
@@ -29,6 +38,10 @@ export async function driverLogin(phoneNumber: string): Promise<AuthLoginRespons
     method: 'POST',
     body: JSON.stringify({ phoneNumber }),
   }, { retryOnUnauthorized: false });
+}
+
+export async function fetchMe(): Promise<AuthMeResponse> {
+  return apiFetch<AuthMeResponse>('/auth/me');
 }
 
 export async function logout(refreshToken: string): Promise<void> {

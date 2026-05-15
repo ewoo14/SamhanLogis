@@ -46,6 +46,7 @@ public class DriverLoginService {
                 d.getId(), RefreshTokenUserType.DRIVER, issuer.hash(refresh), refreshExp));
 
         Instant accessExp = Instant.now().plusSeconds(props.getAccessExpirySeconds());
-        return new AuthTokenResponse(access, refresh, JwtIssuer.ROLE_DRIVER, accessExp);
+        return AuthTokenResponse.driver(
+                access, refresh, JwtIssuer.ROLE_DRIVER, accessExp, d.getDriverCode(), d.getPhoneNumber());
     }
 }

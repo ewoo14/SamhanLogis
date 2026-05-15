@@ -6,6 +6,7 @@ import com.samhanair.logis.arologis.dto.DriverLoginRequest;
 import com.samhanair.logis.arologis.dto.MeResponse;
 import com.samhanair.logis.arologis.dto.RefreshRequest;
 import com.samhanair.logis.arologis.service.auth.AdminLoginService;
+import com.samhanair.logis.arologis.service.auth.AuthIdentityService;
 import com.samhanair.logis.arologis.service.auth.DriverLoginService;
 import com.samhanair.logis.arologis.service.auth.RefreshTokenService;
 import jakarta.validation.Valid;
@@ -46,6 +47,7 @@ public class ArologisAuthController {
     private final AdminLoginService adminLogin;
     private final DriverLoginService driverLogin;
     private final RefreshTokenService refreshSvc;
+    private final AuthIdentityService identitySvc;
 
     @PostMapping("/admin/login")
     public AuthTokenResponse adminLogin(@RequestBody @Valid AdminLoginRequest req) {
@@ -72,14 +74,13 @@ public class ArologisAuthController {
     /**
      * 현재 사용자 정보 — JWT 검증 후 X-User-Id / X-User-Role 헤더 의존.
      *
-     * <p>UUID 비공개 가드 — UUID 자체만 반환, loginId/driverCode 는 client 가 JWT claim 에서
-     * 직접 사용.
+     * <p>UUID 비공개 가드 — userId 는 내부 저장용이고, 화면 노출 식별자는 role 별 공개 key 로 함께 반환한다.
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public MeResponse me(@RequestHeader("X-User-Id") UUID userId,
                          @RequestHeader("X-User-Role") String role) {
-        return new MeResponse(userId, role);
+        return identitySvc.me(userId, role);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

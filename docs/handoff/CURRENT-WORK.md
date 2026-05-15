@@ -1,8 +1,38 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-15 (Phase F PR #191 **머지 완료**, 코덱스 인계 정리)
-> 갱신자: PM (Claude Opus 4.7) → 다음 진행 도구 = **OpenAI Codex CLI** (사용자 결정, 토큰 한도 사유)
+> 갱신일: 2026-05-15 (D-AX-13 **진행 중**, Codex)
+> 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
+
+## 2026-05-15 Codex 최신 핸드오프 — D-AX-13 auth contract 정합 진행
+
+- 현재 branch: `codex/d-ax-13-auth-contract`
+- 선택된 방향: 사용자 승인 1번 — `/auth/me`와 login/refresh 응답의 공개 식별자 계약을 BE/FE에서 한 번에 정합.
+- 구현:
+  - BE `AuthTokenResponse`에 role별 공개 식별자(`loginId/fullName`, `driverCode/phoneNumber`) 추가.
+  - BE `MeResponse`도 같은 공개 식별자 schema 로 확장.
+  - `AuthIdentityService` 추가: JWT `X-User-Id`/`X-User-Role` 기준으로 DB row 재조회, role mismatch/user gone 은 401.
+  - desktop `LoginPage`와 refresh interceptor 에서 `loginId/fullName` undefined 저장 방지.
+  - mobile auth API와 refresh helper 에서 `driverCode/phoneNumber` 보존.
+- 검증:
+  - RED: 새 필드 테스트 추가 후 `compileTestJava`가 `loginId/fullName/driverCode/phoneNumber` method 없음으로 실패 확인.
+  - `.\gradlew.bat :services:arologis-service:test --tests "com.samhanair.logis.arologis.service.auth.AdminLoginServiceTest" --tests "com.samhanair.logis.arologis.service.auth.DriverLoginServiceTest" --tests "com.samhanair.logis.arologis.service.auth.RefreshTokenServiceTest"` PASS
+  - `.\gradlew.bat :services:arologis-service:test --tests "com.samhanair.logis.arologis.it.ArologisAdminAuthIT" --tests "com.samhanair.logis.arologis.it.ArologisDriverAuthIT"` PASS
+  - `cd clients/arologis-desktop && npm run typecheck` PASS
+  - `cd clients/arologis-mobile && npm run typecheck` PASS
+- QA 캡처:
+  - `docs/qa/d-ax-13-auth-contract/screenshots/01-contract-overview.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/02-admin-login-response.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/03-auth-me-admin.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/04-driver-login-response.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/05-auth-me-driver.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/06-refresh-rotation-identity.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/07-frontend-store-flow.png`
+  - `docs/qa/d-ax-13-auth-contract/screenshots/08-verification-matrix.png`
+- 다음 후보:
+  - A: signature / sign-and-send-copy 이식
+  - B: 배송사진 / 검수사진 이식
+  - C: 실제 기기 QA 및 `mobile-staff` driver mode 제거
 
 ## 2026-05-15 Codex 최신 핸드오프 — D-AX-15 arologis-mobile dashboard/GPS 진행
 

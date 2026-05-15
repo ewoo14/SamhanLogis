@@ -70,12 +70,19 @@ async function refreshAccessToken(): Promise<string | null> {
         refreshToken: string
         role: string
         expiresAt: string
+        loginId?: string | null
+        fullName?: string | null
+        driverCode?: string | null
+        phoneNumber?: string | null
       }>(`${BASE_URL}/auth/refresh`, { refreshToken: auth.refreshToken })
       const next = res.data
       await useAuthStore.getState().setAuth({
         ...auth,
         accessToken: next.accessToken,
         refreshToken: next.refreshToken,
+        role: next.role,
+        loginId: next.loginId ?? next.driverCode ?? auth.loginId,
+        fullName: next.fullName ?? auth.fullName,
         expiresAt: next.expiresAt,
       })
       return next.accessToken

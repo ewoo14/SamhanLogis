@@ -32,7 +32,8 @@
 
 - D-AX-11: 아로로지스 desktop 배차 산재 페이지 이전 완료, PR #192 merge.
 - D-AX-12: `clients/mobile-staff` driver tab 의 `../SlipDetailScreen` 직접 import 제거. `DriverSlipDetailEntry` 경계로 후속 `clients/arologis-mobile` 이식 준비 완료.
-- 다음 후보: `clients/arologis-mobile` 로 driver dashboard / GPS / signature / photo 화면 이식, 또는 D-AX-13 `/auth/me` schema 정합 검증.
+- D-AX-13: `/auth/me` + login/refresh auth contract 정합 진행. admin `loginId/fullName`, driver `driverCode/phoneNumber` 공개 식별자를 BE/FE 모두에서 보존.
+- 다음 후보: `clients/arologis-mobile` 로 signature / photo 화면 이식, 또는 실제 기기 QA 및 `mobile-staff` driver mode 제거.
 
 ## Phase 0 — 저장소·가드 정립
 

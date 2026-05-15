@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.config.ArologisJwtProperties;
+import com.samhanair.logis.arologis.domain.Driver;
+import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.domain.auth.AdminUser;
 import com.samhanair.logis.arologis.domain.auth.AdminUserRole;
 import com.samhanair.logis.arologis.domain.auth.RefreshToken;
@@ -76,6 +78,37 @@ class RefreshTokenServiceTest {
         assertThat(res.accessToken()).isEqualTo("NEW-ACCESS");
         assertThat(res.refreshToken()).isEqualTo("NEW-REFRESH");
         assertThat(res.role()).isEqualTo("AROLOGIS_MANAGER");
+        assertThat(res.loginId()).isEqualTo("admin");
+        assertThat(res.fullName()).isEqualTo(u.getName());
+        assertThat(existing.isRevoked()).isTrue();
+        verify(refreshRepo).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void driver_rotation_keeps_public_driver_identity() {
+        UUID userId = UUID.randomUUID();
+        Driver d = Driver.of("D001", "01012345678", "cargo", DriverSource.INTERNAL, false, null);
+        ReflectionTestUtils.setField(d, "id", userId);
+        RefreshToken existing = RefreshToken.issue(
+                userId, RefreshTokenUserType.DRIVER, "OLDHASH",
+                Instant.now().plus(60, ChronoUnit.MINUTES));
+
+        when(issuer.hash("OLD-DRIVER-REFRESH")).thenReturn("OLDHASH");
+        when(refreshRepo.findByTokenHashAndRevokedFalseAndIsDeletedFalse("OLDHASH"))
+                .thenReturn(Optional.of(existing));
+        when(driverRepo.findById(userId)).thenReturn(Optional.of(d));
+        when(issuer.issueAccessForDriver(userId, "D001", "01012345678"))
+                .thenReturn("NEW-DRIVER-ACCESS");
+        when(issuer.issueRefreshToken()).thenReturn("NEW-DRIVER-REFRESH");
+        when(issuer.hash("NEW-DRIVER-REFRESH")).thenReturn("NEWDRIVERHASH");
+
+        AuthTokenResponse res = svc.refresh("OLD-DRIVER-REFRESH");
+
+        assertThat(res.accessToken()).isEqualTo("NEW-DRIVER-ACCESS");
+        assertThat(res.refreshToken()).isEqualTo("NEW-DRIVER-REFRESH");
+        assertThat(res.role()).isEqualTo("AROLOGIS_DRIVER");
+        assertThat(res.driverCode()).isEqualTo("D001");
+        assertThat(res.phoneNumber()).isEqualTo("01012345678");
         assertThat(existing.isRevoked()).isTrue();
         verify(refreshRepo).save(any(RefreshToken.class));
     }

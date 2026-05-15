@@ -69,6 +69,8 @@ class AdminLoginServiceTest {
         assertThat(res.accessToken()).isEqualTo("ACCESS");
         assertThat(res.refreshToken()).isEqualTo("REFRESH");
         assertThat(res.role()).isEqualTo("AROLOGIS_MASTER");
+        assertThat(res.loginId()).isEqualTo("admin");
+        assertThat(res.fullName()).isEqualTo(u.getName());
         verify(refreshRepo).save(any(RefreshToken.class));
     }
 

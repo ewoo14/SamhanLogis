@@ -52,6 +52,7 @@ public class AdminLoginService {
                 user.getId(), RefreshTokenUserType.ADMIN, issuer.hash(refresh), refreshExp));
 
         Instant accessExp = Instant.now().plusSeconds(props.getAccessExpirySeconds());
-        return new AuthTokenResponse(access, refresh, user.getRole().name(), accessExp);
+        return AuthTokenResponse.admin(
+                access, refresh, user.getRole().name(), accessExp, user.getLoginId(), user.getName());
     }
 }

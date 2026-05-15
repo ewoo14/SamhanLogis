@@ -98,6 +98,8 @@ async function tryRefresh(): Promise<boolean> {
       refreshToken: string;
       role: string;
       expiresAt: string;
+      driverCode?: string | null;
+      phoneNumber?: string | null;
     };
     setAuth({
       ...auth,
@@ -105,6 +107,8 @@ async function tryRefresh(): Promise<boolean> {
       refreshToken: next.refreshToken,
       expiresAt: next.expiresAt,
       role: next.role,
+      driverCode: next.driverCode ?? auth.driverCode,
+      phoneNumber: next.phoneNumber ?? auth.phoneNumber,
     });
     return true;
   } catch {

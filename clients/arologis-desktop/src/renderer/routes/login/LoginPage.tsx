@@ -97,13 +97,15 @@ export function LoginPage(): JSX.Element {
         expiresAt: tokens.expiresAt,
       })
       const me = await fetchMe()
+      const profileLoginId = me.loginId ?? tokens.loginId ?? loginId.trim()
+      const profileFullName = me.fullName ?? tokens.fullName ?? profileLoginId
       await setAuth({
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         role: me.role,
         userId: me.userId,
-        loginId: me.loginId,
-        fullName: me.fullName,
+        loginId: profileLoginId,
+        fullName: profileFullName,
         expiresAt: tokens.expiresAt,
       })
       navigate('/dispatches', { replace: true })

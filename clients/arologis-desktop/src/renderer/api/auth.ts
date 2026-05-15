@@ -16,13 +16,19 @@ export interface AuthLoginResponse {
   refreshToken: string
   role: string
   expiresAt: string
+  loginId?: string | null
+  fullName?: string | null
+  driverCode?: string | null
+  phoneNumber?: string | null
 }
 
 export interface AuthMeResponse {
   userId: string
-  loginId: string
-  fullName: string
   role: string
+  loginId?: string | null
+  fullName?: string | null
+  driverCode?: string | null
+  phoneNumber?: string | null
 }
 
 /**

@@ -17,6 +17,7 @@ import com.samhanair.logis.arologis.domain.auth.AdminUser;
 import com.samhanair.logis.arologis.domain.auth.AdminUserRole;
 import com.samhanair.logis.arologis.dto.AdminLoginRequest;
 import com.samhanair.logis.arologis.dto.AuthTokenResponse;
+import com.samhanair.logis.arologis.dto.MeResponse;
 import com.samhanair.logis.arologis.repository.AdminUserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,6 +78,17 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
         assertThat(tokens.role()).isEqualTo("AROLOGIS_MASTER");
         assertThat(tokens.accessToken()).isNotBlank();
         assertThat(tokens.refreshToken()).isNotBlank();
+        assertThat(tokens.loginId()).isEqualTo("itadmin");
+        assertThat(tokens.fullName()).isEqualTo("IT Admin");
+
+        String meJson = mvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + tokens.accessToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        MeResponse me = om.readValue(meJson, MeResponse.class);
+        assertThat(me.role()).isEqualTo("AROLOGIS_MASTER");
+        assertThat(me.loginId()).isEqualTo("itadmin");
+        assertThat(me.fullName()).isEqualTo("IT Admin");
 
         // JWT bearer 로 /admin/arologis/dispatches 호출 가능 (AROLOGIS_MASTER 권한 매핑)
         mvc.perform(get("/admin/arologis/dispatches?date=2026-05-08")

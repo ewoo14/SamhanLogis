@@ -55,16 +55,24 @@ public class RefreshTokenService {
 
         String newAccess;
         String role;
+        String loginId = null;
+        String fullName = null;
+        String driverCode = null;
+        String phoneNumber = null;
         if (existing.getUserType() == RefreshTokenUserType.ADMIN) {
             AdminUser u = adminRepo.findById(existing.getUserId())
                     .orElseThrow(() -> new BadCredentialsException("user gone"));
             newAccess = issuer.issueAccessForAdmin(u.getId(), u.getLoginId(), u.getRole());
             role = u.getRole().name();
+            loginId = u.getLoginId();
+            fullName = u.getName();
         } else {
             Driver d = driverRepo.findById(existing.getUserId())
                     .orElseThrow(() -> new BadCredentialsException("driver gone"));
             newAccess = issuer.issueAccessForDriver(d.getId(), d.getDriverCode(), d.getPhoneNumber());
             role = JwtIssuer.ROLE_DRIVER;
+            driverCode = d.getDriverCode();
+            phoneNumber = d.getPhoneNumber();
         }
         String newRefresh = issuer.issueRefreshToken();
         Instant refreshExp = Instant.now().plusSeconds(props.getRefreshExpirySeconds());
@@ -72,7 +80,15 @@ public class RefreshTokenService {
                 existing.getUserId(), existing.getUserType(), issuer.hash(newRefresh), refreshExp));
 
         Instant accessExp = Instant.now().plusSeconds(props.getAccessExpirySeconds());
-        return new AuthTokenResponse(newAccess, newRefresh, role, accessExp);
+        return new AuthTokenResponse(
+                newAccess,
+                newRefresh,
+                role,
+                accessExp,
+                loginId,
+                fullName,
+                driverCode,
+                phoneNumber);
     }
 
     /**

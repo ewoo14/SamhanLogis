@@ -63,6 +63,8 @@ class DriverLoginServiceTest {
         assertThat(res.accessToken()).isEqualTo("ACCESS");
         assertThat(res.refreshToken()).isEqualTo("REFRESH");
         assertThat(res.role()).isEqualTo("AROLOGIS_DRIVER");
+        assertThat(res.driverCode()).isEqualTo("D001");
+        assertThat(res.phoneNumber()).isEqualTo("01012345678");
         verify(refreshRepo).save(any(RefreshToken.class));
     }
 
