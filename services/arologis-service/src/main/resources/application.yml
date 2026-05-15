@@ -74,6 +74,18 @@ samhan:
     # W10-2 진입 시점에 인성 LBS 우선 + 본 어플 GPS 보강 + 수동 fallback (값 = comma-separated source 우선순위).
     gps:
       priority: ${SAMHAN_AROLOGIS_GPS_PRIORITY:insung-lbs,app-gps,manual}
+    # Phase F (D-DF-10) — 사본 PNG 디스크 저장 경로. Phase 11 cutover 시 S3 키로 갈아탐.
+    signature-copy:
+      dir: ${AROLOGIS_SIGNATURE_COPY_DIR:/var/lib/arologis/signature-copies}
+    # Phase F (D-DF-06) — Playwright Chromium 출고전표 사본 PNG 합성 설정.
+    playwright:
+      copy:
+        # print-renderer 정적 빌드 file:// 경로 (Docker COPY 동봉).
+        base-url: ${AROLOGIS_PRINT_RENDERER_URL:file:///app/print-renderer/index.html}
+        # 단일 페이지 렌더 timeout (Chromium goto + load 완료까지) ms.
+        timeout-ms: ${AROLOGIS_PLAYWRIGHT_TIMEOUT_MS:8000}
+        viewport-width: ${AROLOGIS_PLAYWRIGHT_VIEWPORT_W:600}
+        viewport-height: ${AROLOGIS_PLAYWRIGHT_VIEWPORT_H:850}
 
 app:
   security:

@@ -67,6 +67,10 @@ dependencies {
     // Phase 10 PR-F1 BE-2 — 운송사 실배차 비교 (legacy GAS 11번) — multi-vendor .xlsx 업로드 parse.
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
 
+    // Phase F (D-DF-06) — 출고전표 양식 사본 PNG 합성. OutboundView URL → headless Chromium → PNG.
+    // Chromium browser binary 는 Docker 빌드 시 `playwright install chromium` 로 동봉.
+    implementation 'com.microsoft.playwright:playwright:1.47.0'
+
     // 2026-05-14 — 아로로지스 독립 분리 (자체 auth + JWT 발급/검증).
     // HS256 (HMAC-SHA256) — auth-service / partner-auth-service 와 동일한 jjwt 0.12.x.
     implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
