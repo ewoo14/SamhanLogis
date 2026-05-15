@@ -56,8 +56,9 @@ class ArologisDriverAuthIT extends AbstractPostgresIT {
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
-        Driver d = Driver.of("ITD001", "01011112222", "1톤", DriverSource.INTERNAL, false, null);
-        driverRepo.save(d);
+        driverRepo.findByPhoneNumberAndIsDeletedFalse("01011112222")
+                .orElseGet(() -> driverRepo.save(
+                        Driver.of("ITD001", "01011112222", "1톤", DriverSource.INTERNAL, false, null)));
     }
 
     @Test

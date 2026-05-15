@@ -62,8 +62,9 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
-        userRepo.save(AdminUser.create(
-                "itadmin", encoder.encode("pw1234"), "IT Admin", AdminUserRole.AROLOGIS_MASTER));
+        userRepo.findByLoginIdAndIsDeletedFalse("itadmin")
+                .orElseGet(() -> userRepo.save(AdminUser.create(
+                        "itadmin", encoder.encode("pw1234"), "IT Admin", AdminUserRole.AROLOGIS_MASTER)));
     }
 
     @Test

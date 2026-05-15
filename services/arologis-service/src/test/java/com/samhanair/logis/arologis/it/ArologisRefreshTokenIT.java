@@ -58,8 +58,9 @@ class ArologisRefreshTokenIT extends AbstractPostgresIT {
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
-        userRepo.save(AdminUser.create(
-                "rotuser", encoder.encode("pw"), "Rot", AdminUserRole.AROLOGIS_MANAGER));
+        userRepo.findByLoginIdAndIsDeletedFalse("rotuser")
+                .orElseGet(() -> userRepo.save(AdminUser.create(
+                        "rotuser", encoder.encode("pw"), "Rot", AdminUserRole.AROLOGIS_MANAGER)));
     }
 
     private AuthTokenResponse login() throws Exception {

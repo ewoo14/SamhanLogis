@@ -2,6 +2,8 @@ package com.samhanair.logis.arologis.controller;
 
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipClient.SignaturePayload;
+import com.samhanair.logis.arologis.domain.Dispatch;
+import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverLocation;
 import com.samhanair.logis.arologis.domain.DriverLocationSource;
@@ -9,6 +11,8 @@ import com.samhanair.logis.arologis.domain.Signature;
 import com.samhanair.logis.arologis.domain.SignatureSource;
 import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStop;
+import com.samhanair.logis.arologis.dto.DriverTodayVehicleResponse;
+import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.SignatureRepository;
@@ -28,11 +32,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +70,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ArologisDriverAppController {
 
     private final DriverRepository driverRepository;
+    private final DispatchRepository dispatchRepository;
     private final VehicleRepository vehicleRepository;
     private final VehicleStopRepository stopRepository;
     private final SignatureRepository signatureRepository;
@@ -73,12 +82,14 @@ public class ArologisDriverAppController {
     /**
      * 본인에게 배정된 dispatch 목록 — X-User-Id 헤더 기반.
      *
-     * <p>본 PR (W10-1) 은 단순화 — 인증된 driver 의 vehicle 목록만 sequence + tonnage + status 응답.
+     * <p>D-AX-16 — 인증된 driver 의 오늘 vehicle 목록에 sign-and-send-copy 호출 target
+     * (dispatchType / vehicleSequence / stopSequence / parsedKakaoSeq) 과 정차 표시 정보를 함께 응답한다.
+     * driver-facing API 에 dispatch UUID / vehicle UUID / stop UUID 는 노출하지 않는다.
      */
     @Operation(summary = "오늘의 배정된 dispatch 목록 조회 (Driver-app)")
     @GetMapping("/dispatches/today")
     @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<List<Map<String, Object>>> today(HttpServletRequest request) {
+    public ApiResponse<List<DriverTodayVehicleResponse>> today(HttpServletRequest request) {
         String userIdHeader = request.getHeader("X-User-Id");
         if (userIdHeader == null || userIdHeader.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "X-User-Id 헤더 필수");
@@ -94,14 +105,31 @@ public class ArologisDriverAppController {
         if (self == null) {
             return ApiResponse.ok(List.of());
         }
-        List<Vehicle> vehicles = vehicleRepository.findAllByAssignedDriverIdOrderByCreatedAtDesc(self.getId());
-        List<Map<String, Object>> response = vehicles.stream()
-                .map(v -> Map.of(
-                        "vehicleSequence", (Object) v.getSequence(),
-                        "tonnage", v.getTonnage().name(),
-                        "status", v.getStatus().name()))
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        List<Vehicle> vehicles = vehicleRepository.findAllAssignedToDriverOnDate(self.getId(), today);
+        Map<UUID, Dispatch> dispatchById = loadDispatches(vehicles);
+        List<DriverTodayVehicleResponse> response = vehicles.stream()
+                .map(vehicle -> toDriverVehicleResponse(vehicle, dispatchById.get(vehicle.getDispatchId())))
+                .filter(Objects::nonNull)
                 .toList();
         return ApiResponse.ok(response);
+    }
+
+    private Map<UUID, Dispatch> loadDispatches(List<Vehicle> vehicles) {
+        List<UUID> dispatchIds = vehicles.stream().map(Vehicle::getDispatchId).distinct().toList();
+        Map<UUID, Dispatch> result = new HashMap<>();
+        dispatchRepository.findAllById(dispatchIds).forEach(dispatch -> result.put(dispatch.getId(), dispatch));
+        return result;
+    }
+
+    private DriverTodayVehicleResponse toDriverVehicleResponse(Vehicle vehicle, Dispatch dispatch) {
+        if (dispatch == null) {
+            log.warn("기사앱 today 응답 skip — dispatch 미존재 vehicleId={}, dispatchId={}",
+                    vehicle.getId(), vehicle.getDispatchId());
+            return null;
+        }
+        List<VehicleStop> stops = stopRepository.findAllByVehicleIdOrderBySequenceAsc(vehicle.getId());
+        return DriverTodayVehicleResponse.from(dispatch, vehicle, stops);
     }
 
     /**
@@ -264,9 +292,43 @@ public class ArologisDriverAppController {
     @Operation(summary = "서명 양쪽 저장 + 사본 PNG 합성/저장 (Phase F)",
             description = "ROLE_AROLOGIS_DRIVER. 본인 dispatch 만 호출 가능. "
                     + "Aligo 미사용 — 응답 PNG 를 mobile 이 받아 Share Sheet 으로 인수자에게 발송.")
+    @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
+            produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
+    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    public ResponseEntity<?> signAndSendCopyToday(
+            @PathVariable DispatchType dispatchType,
+            @PathVariable Integer vehicleSeq,
+            @PathVariable Integer stopSeq,
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody SignAndSendCopyRequest request) {
+
+        Driver self = resolveDriverOrNull(httpRequest);
+        if (self == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "본 어플 driver 미등록"));
+        }
+
+        Vehicle vehicle;
+        try {
+            vehicle = resolveTodaySignTarget(self.getId(), dispatchType, vehicleSeq, stopSeq, request);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "INVALID_INPUT", "message", ex.getMessage()));
+        }
+
+        return executeSignAndSendCopy(vehicle.getDispatchId(), vehicleSeq, stopSeq, self, request);
+    }
+
+    /**
+     * @deprecated 기존 Phase F/mobile-staff 호환 endpoint. driver-facing 신규 앱은 UUID 없는
+     *             {@link #signAndSendCopyToday} 를 사용한다.
+     */
     @PostMapping(value = "/dispatches/{dispatchId}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
             produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
     @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    @Deprecated(forRemoval = false)
     public ResponseEntity<?> signAndSendCopy(
             @PathVariable UUID dispatchId,
             @PathVariable Integer vehicleSeq,
@@ -296,6 +358,46 @@ public class ArologisDriverAppController {
                     .body(Map.of("error", "본 어플 driver 미등록"));
         }
 
+        return executeSignAndSendCopy(dispatchId, vehicleSeq, stopSeq, self, request);
+    }
+
+    private Driver resolveDriverOrNull(HttpServletRequest httpRequest) {
+        String userIdHeader = httpRequest.getHeader("X-User-Id");
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+            return null;
+        }
+        try {
+            return driverRepository.findByAppUserId(UUID.fromString(userIdHeader)).orElse(null);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private Vehicle resolveTodaySignTarget(UUID driverId, DispatchType dispatchType, Integer vehicleSeq,
+                                           Integer stopSeq, SignAndSendCopyRequest request) {
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        List<Vehicle> candidates = vehicleRepository.findAllAssignedToDriverOnDateAndTypeAndSequence(
+                driverId, today, dispatchType, vehicleSeq);
+        List<Vehicle> matches = candidates.stream()
+                .filter(vehicle -> stopMatches(vehicle, stopSeq, request.parsedKakaoSeq()))
+                .toList();
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("오늘 배차 서명 target 미발견");
+        }
+        if (matches.size() > 1) {
+            throw new IllegalArgumentException("오늘 배차 서명 target 중복 — 카톡 순번 확인 필요");
+        }
+        return matches.get(0);
+    }
+
+    private boolean stopMatches(Vehicle vehicle, Integer stopSeq, Long parsedKakaoSeq) {
+        Optional<VehicleStop> stop = stopRepository.findFirstByVehicleIdAndSequence(vehicle.getId(), stopSeq);
+        return stop.isPresent()
+                && (parsedKakaoSeq == null || Objects.equals(stop.get().getParsedKakaoSeq(), parsedKakaoSeq));
+    }
+
+    private ResponseEntity<?> executeSignAndSendCopy(UUID dispatchId, Integer vehicleSeq, Integer stopSeq,
+                                                     Driver self, SignAndSendCopyRequest request) {
         SignAndSendCopyResult result;
         try {
             result = signAndSendCopyService.execute(dispatchId, vehicleSeq, stopSeq,

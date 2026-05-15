@@ -2,7 +2,7 @@
  * DriverTabNavigator — D-AX-15 arologis-mobile post-login runtime.
  *
  * 이번 PR은 dashboard + GPS 두 탭만 활성화한다.
- * 서명 / 사진 / 전표 상세 bridge 는 다음 PR에서 별도 선택 후 진행한다.
+ * D-AX-16 — dashboard 정차 선택 후 전자서명 + 사본 발송 탭 활성화.
  */
 import * as React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -10,8 +10,10 @@ import { clearAuth } from '../../stores/authStore';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 import DriverDashboardScreen from './DriverDashboardScreen';
 import DriverLocationTrackingScreen from './DriverLocationTrackingScreen';
+import DriverSignatureScreen from './DriverSignatureScreen';
+import type { SignatureTarget } from './DriverSignatureScreen';
 
-type Tab = 'dashboard' | 'tracking';
+type Tab = 'dashboard' | 'tracking' | 'signature';
 
 interface Props {
   token: string | null;
@@ -25,14 +27,27 @@ export default function DriverTabNavigator({
   backgroundGranted,
 }: Props): React.ReactElement {
   const [tab, setTab] = React.useState<Tab>('dashboard');
+  const [signatureTarget, setSignatureTarget] = React.useState<SignatureTarget | null>(null);
+
+  const openSignature = (target: SignatureTarget) => {
+    setSignatureTarget(target);
+    setTab('signature');
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
         {tab === 'dashboard' ? (
-          <DriverDashboardScreen token={token} driverCode={driverCode} />
-        ) : (
+          <DriverDashboardScreen token={token} driverCode={driverCode} onOpenSignature={openSignature} />
+        ) : tab === 'tracking' ? (
           <DriverLocationTrackingScreen token={token} backgroundGranted={backgroundGranted} />
+        ) : (
+          <DriverSignatureScreen
+            token={token}
+            target={signatureTarget}
+            driverCode={driverCode}
+            onBackToDashboard={() => setTab('dashboard')}
+          />
         )}
       </View>
 
@@ -48,6 +63,12 @@ export default function DriverTabNavigator({
           active={tab === 'tracking'}
           onPress={() => setTab('tracking')}
           testID="arologis-tab-tracking"
+        />
+        <TabButton
+          label="서명"
+          active={tab === 'signature'}
+          onPress={() => setTab('signature')}
+          testID="arologis-tab-signature"
         />
         <TouchableOpacity
           onPress={clearAuth}

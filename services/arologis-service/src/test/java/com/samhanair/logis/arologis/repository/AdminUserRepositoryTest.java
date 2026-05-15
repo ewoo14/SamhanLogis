@@ -26,31 +26,31 @@ class AdminUserRepositoryTest extends AbstractPostgresIT {
     @Test
     void save_and_lookup_by_loginId_active() {
         AdminUser u = AdminUser.create(
-                "admin", "$2a$10$bcrypthashplaceholder", "관리자", AdminUserRole.AROLOGIS_MASTER);
+                "repo-admin", "$2a$10$bcrypthashplaceholder", "관리자", AdminUserRole.AROLOGIS_MASTER);
         repo.save(u);
 
-        assertThat(repo.findByLoginIdAndIsDeletedFalse("admin")).isPresent();
+        assertThat(repo.findByLoginIdAndIsDeletedFalse("repo-admin")).isPresent();
     }
 
     @Test
     void soft_deleted_excluded() {
         AdminUser u = AdminUser.create(
-                "softdel", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
+                "repo-softdel", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
         u.markDeleted("system");
         repo.save(u);
 
-        assertThat(repo.findByLoginIdAndIsDeletedFalse("softdel")).isEmpty();
+        assertThat(repo.findByLoginIdAndIsDeletedFalse("repo-softdel")).isEmpty();
     }
 
     @Test
     void partial_unique_loginId_allows_reactivation_after_soft_delete() {
         AdminUser u1 = AdminUser.create(
-                "dup", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
+                "repo-dup", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
         u1.markDeleted("system");
         repo.saveAndFlush(u1);
 
         AdminUser u2 = AdminUser.create(
-                "dup", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
+                "repo-dup", "$2a$10$h", "n", AdminUserRole.AROLOGIS_MANAGER);
         assertThatCode(() -> repo.saveAndFlush(u2)).doesNotThrowAnyException();
     }
 }

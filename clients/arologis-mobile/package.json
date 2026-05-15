@@ -10,25 +10,44 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "prebuild": "expo prebuild --no-install"
+    "prebuild": "expo prebuild --no-install",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.5",
+    "base-64": "^1.0.0",
     "expo": "~53.0.0",
-    "expo-font": "~13.0.0",
-    "expo-location": "~18.0.0",
-    "expo-secure-store": "~14.0.0",
+    "expo-file-system": "~18.1.11",
+    "expo-font": "~13.3.2",
+    "expo-location": "~18.1.6",
+    "expo-secure-store": "~14.2.4",
+    "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
-    "react-native-device-info": "^14.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.6",
+    "react-native-device-info": "^14.0.0",
     "react-native-safe-area-context": "5.4.0",
+    "react-native-signature-canvas": "^5.0.2",
     "react-native-sse": "^1.2.1",
-    "react-native-web": "^0.20.0"
+    "react-native-web": "^0.20.0",
+    "react-native-webview": "13.13.5"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^12.9.0",
+    "@types/base-64": "^1.0.2",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.0.10",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~53.0.0",
+    "react-test-renderer": "19.0.0",
     "typescript": "~5.8.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-webview|react-native-signature-canvas|@testing-library))"
+    ]
   }
 }

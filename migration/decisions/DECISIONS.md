@@ -1460,6 +1460,33 @@ D-AX-12 후속으로 `clients/arologis-mobile` 로그인 후 placeholder `Dispat
 - `rg` cross-import guard (`mobile-staff` 직접 참조 없음)
 - PR 본문용 1200px 한국어 QA 캡처 8장
 
+### D-AX-16. arologis-mobile signature / sign-and-send-copy 이식 (2026-05-15)
+
+D-AX-15 후속 선택지 중 사용자 선택 1번에 따라 `clients/arologis-mobile` 에 전자서명 + sign-and-send-copy 1-tap 흐름을 이식한다.
+
+**선택지 기록**:
+- 1안(추천): backend `today` 응답을 실제 서명 가능한 정차 target 까지 확장하고 앱에서 정차 선택 후 호출.
+- 2안: 화면만 이식하고 비활성/mock target 으로 보류.
+- 3안: 테스트용 수동 target 만 둠.
+
+사용자 이전 지시의 “추천 방식”에 따라 1안을 채택했다. `mobile-staff` 의 임시 all-zero mock stop 방식은 `arologis-mobile` 에 복제하지 않는다.
+
+**채택 범위**:
+- `GET /driver-app/arologis/dispatches/today` 응답에 `dispatchDate`, `dispatchType`, `label`, `stops[]` 를 추가하고 `dispatchId` UUID 는 제외.
+- sign-and-send-copy 는 today UUID-free path 에서 `dispatchType + vehicleSequence + stopSequence + parsedKakaoSeq` 로 내부 `dispatchId` 를 해석한다.
+- dashboard 차량 카드 안에 정차 목록과 `서명` 버튼 표시.
+- 하단 `서명` 탭 추가. target 없이 탭 진입 시 배차 선택 안내.
+- `POST /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy` 호출.
+- 200 image/png success, 409 duplicate, 422 bridge fail, phone missing, renderer fail 분기 처리.
+- `react-native-signature-canvas` 로 실제 서명을 캡처하고, `expo-file-system` + `expo-sharing` 으로 PNG 저장 후 Share Sheet 호출.
+
+**검증**:
+- Backend unit RED/GREEN: `ArologisDriverAppControllerTest`
+- Backend IT: `ArologisDriverAppControllerIT.today_with_internal_driver_returns_200` 는 Docker 미가용 시 Testcontainers skip.
+- Frontend type RED/GREEN: `clients/arologis-mobile/src/__tests__/types/signatureContract.test-d.ts`
+- `clients/arologis-mobile npm run typecheck`
+- PR 본문용 1220px 한국어 QA 캡처 10장
+
 
 ---
 

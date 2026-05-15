@@ -23,7 +23,8 @@ class SignatureCopyRendererTimeoutIT extends AbstractSignAndSendCopyIT {
     void renderer_timeout_returns_200_with_RENDERER_TIMEOUT_and_retry_succeeds() throws Exception {
         // 1차 — timeout
         when(renderer.render(any(), any(), any()))
-                .thenThrow(new PlaywrightCopyRenderer.RendererTimeoutException("Timeout 8000ms exceeded", null));
+                .thenThrow(new PlaywrightCopyRenderer.RendererTimeoutException("Timeout 8000ms exceeded", null))
+                .thenReturn(new byte[]{0x01});
 
         mockMvc.perform(post(
                         "/driver-app/arologis/dispatches/{d}/vehicles/{v}/stops/{s}/sign-and-send-copy",
@@ -44,8 +45,6 @@ class SignatureCopyRendererTimeoutIT extends AbstractSignAndSendCopyIT {
         assertThat(saved.get(0).isCopySent()).isFalse();
 
         // 2차 — 같은 endpoint 재호출 → 가드 작동 X (copy_sent_at NULL), 다시 시도 후 성공
-        when(renderer.render(any(), any(), any())).thenReturn(new byte[]{0x01});
-
         mockMvc.perform(post(
                         "/driver-app/arologis/dispatches/{d}/vehicles/{v}/stops/{s}/sign-and-send-copy",
                         dispatchId, 1, 1)

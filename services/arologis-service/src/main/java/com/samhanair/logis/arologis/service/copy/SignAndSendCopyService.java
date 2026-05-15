@@ -14,13 +14,15 @@ import com.samhanair.logis.arologis.web.dto.copy.SignAndSendCopyRequest;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Phase F (D-DF-01~12) — 전자서명 양쪽 저장 + 사본 PNG 합성/저장 orchestration.
@@ -46,6 +48,7 @@ public class SignAndSendCopyService {
     private final SlipClient slipClient;
     private final PlaywrightCopyRenderer renderer;
     private final CopyImageDiskStorage storage;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * sign-and-send-copy endpoint orchestration.
@@ -77,7 +80,10 @@ public class SignAndSendCopyService {
         }
 
         // 2. Tx1 — atomic 양쪽 저장 (existing 이 있으면 재사용, fail 후 retry 케이스)
-        Signature signature = saveSignatureBoth(stop, request, existing);
+        TransactionTemplate tx1 = new TransactionTemplate(transactionManager);
+        tx1.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        Signature signature = Objects.requireNonNull(tx1.execute(
+                status -> saveSignatureBoth(stop, request, existing)));
 
         // 3. 인수자 번호 lookup (slip recipientPhone)
         Optional<String> recipientPhone = slipResolver.findRecipientPhone(stop);
@@ -94,10 +100,9 @@ public class SignAndSendCopyService {
      *
      * @throws BridgeFailedException slip-service 호출 실패 (controller 가 422 매핑)
      */
-    @Transactional(propagation = Propagation.REQUIRED)
-    protected Signature saveSignatureBoth(VehicleStop stop,
-                                           SignAndSendCopyRequest request,
-                                           Optional<Signature> existing) {
+    private Signature saveSignatureBoth(VehicleStop stop,
+                                        SignAndSendCopyRequest request,
+                                        Optional<Signature> existing) {
         // 기존 signature 가 있으면 (사본만 fail 후 retry 케이스) 재사용, 아니면 신규
         // imageRef placeholder — Phase F PoC, 실 imageRef 는 후속 file-server PR 에서 분리
         Signature signature = existing.orElseGet(() ->

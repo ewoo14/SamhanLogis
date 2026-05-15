@@ -40,7 +40,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Phase F (D-DF-07) — sign-and-send-copy IT 공통 베이스.
@@ -57,7 +56,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
-@Transactional
 abstract class AbstractSignAndSendCopyIT extends AbstractPostgresIT {
 
     @Autowired protected MockMvc mockMvc;

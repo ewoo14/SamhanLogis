@@ -16,5 +16,6 @@ public record SignAndSendCopyRequest(
         @NotBlank(message = "recipientSignatureBase64 필수") String recipientSignatureBase64,
         @NotNull(message = "capturedAt 필수") LocalDateTime capturedAt,
         BigDecimal gpsLat,
-        BigDecimal gpsLng
+        BigDecimal gpsLng,
+        Long parsedKakaoSeq
 ) {}

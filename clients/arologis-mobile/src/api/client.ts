@@ -29,6 +29,8 @@ export const API_BASE_URL = resolveBaseUrl();
 interface RequestOptions {
   /** 401 시 자동 refresh 시도 여부 — 본 모듈 내부 재진입 차단용 (default true). */
   retryOnUnauthorized?: boolean;
+  /** raw response 소비자가 4xx/5xx 분기를 직접 처리할 때 false 로 지정한다. */
+  throwOnHttpError?: boolean;
 }
 
 /**
@@ -41,13 +43,32 @@ export async function apiFetch<T>(
   init: RequestInit = {},
   options: RequestOptions = {},
 ): Promise<T> {
+  const response = await apiFetchRaw(path, init, options);
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  return (await response.json()) as T;
+}
+
+/**
+ * raw fetch 래퍼 — Authorization / refresh rotation 은 유지하고 응답 parsing 은 호출자가 담당한다.
+ *
+ * image/png 처럼 JSON 이 아닌 응답이나 409/422 JSON 분기 자체가 정상 계약인 endpoint 에서 사용한다.
+ */
+export async function apiFetchRaw(
+  path: string,
+  init: RequestInit = {},
+  options: RequestOptions = {},
+): Promise<Response> {
   const retryOnUnauthorized = options.retryOnUnauthorized ?? true;
+  const throwOnHttpError = options.throwOnHttpError ?? true;
   const auth = getAuth();
   const headers = new Headers(init.headers ?? {});
   if (!headers.has('Content-Type') && init.body != null) {
     headers.set('Content-Type', 'application/json');
   }
-  if (auth?.accessToken && !headers.has('Authorization')) {
+  if (auth?.accessToken) {
     headers.set('Authorization', `Bearer ${auth.accessToken}`);
   }
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
@@ -57,13 +78,14 @@ export async function apiFetch<T>(
     // refresh 후 본 요청 1회 재시도.
     const rotated = await tryRefresh();
     if (rotated) {
-      return apiFetch<T>(path, init, { retryOnUnauthorized: false });
+      return apiFetchRaw(path, init, { ...options, retryOnUnauthorized: false });
     }
     clearAuth();
     throw new ApiError(response.status, '인증이 만료되었습니다. 다시 로그인해 주세요.');
   }
 
   if (!response.ok) {
+    if (!throwOnHttpError) return response;
     let message = response.statusText;
     try {
       const body = (await response.json()) as { message?: string };
@@ -74,10 +96,7 @@ export async function apiFetch<T>(
     throw new ApiError(response.status, message);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
+  return response;
 }
 
 /**

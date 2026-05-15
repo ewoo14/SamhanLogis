@@ -33,7 +33,7 @@ clients/arologis-mobile/
     ├── api/
     │   ├── client.ts       (fetch 래퍼 + 401 자동 refresh)
     │   ├── auth.ts         (POST /auth/driver/login passwordless)
-    │   └── arologis.ts     (D-AX-15 dashboard/GPS driver-app API)
+    │   └── arologis.ts     (D-AX-15 dashboard/GPS + D-AX-16 sign-and-send-copy API)
     ├── navigation/
     │   └── RootNavigator.tsx
     ├── screens/
@@ -43,7 +43,8 @@ clients/arologis-mobile/
     │   └── driver/
     │       ├── DriverTabNavigator.tsx
     │       ├── DriverDashboardScreen.tsx
-    │       └── DriverLocationTrackingScreen.tsx
+    │       ├── DriverLocationTrackingScreen.tsx
+    │       └── DriverSignatureScreen.tsx
     ├── stores/authStore.ts          (in-memory + listener)
     └── theme/tokens.ts              (RN driver 토큰)
 ```
@@ -55,14 +56,21 @@ clients/arologis-mobile/
 3. 성공 → `setAuth(...)` → RootNavigator 가 `DriverTabNavigator` 로 분기.
 4. 401 (만료 토큰) → fetch 인터셉터가 `/auth/refresh` rotation 1회 시도. 실패 시 clearAuth + 로그인 화면.
 
-## D-AX-15 dashboard/GPS 이식
+## D-AX-15/16 driver runtime 이식
 
-- 추천안 B 기준으로 `DriverDashboardScreen` 과 `DriverLocationTrackingScreen` 만 먼저 이식.
-- 하단 2탭: `배차` / `GPS` + 로그아웃.
+- D-AX-15: 추천안 B 기준으로 `DriverDashboardScreen` 과 `DriverLocationTrackingScreen` 먼저 이식.
+- D-AX-16: 추천안 1 기준으로 `DriverSignatureScreen` + sign-and-send-copy 1-tap 흐름 이식.
+- 하단 3탭: `배차` / `GPS` / `서명` + 로그아웃.
 - API:
   - `GET /driver-app/arologis/dispatches/today`
   - `POST /driver-app/arologis/locations`
-- 이번 PR에서 서명/배송사진/검수사진/native photo dependency 는 추가하지 않음.
+  - `POST /driver-app/arologis/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy`
+- 서명 흐름:
+  - 배차 카드에서 실제 정차를 선택해야 서명 target 이 설정된다.
+  - `react-native-signature-canvas` 로 기사/인수자 실제 서명을 캡처하고 data URL prefix 는 제거해 전송한다.
+  - 기사 서명 시점 GPS 1회 캡처.
+  - 기사 + 인수자 서명 후 `image/png` 응답을 cache 파일로 저장하고 `expo-sharing` Share Sheet 로 전달.
+  - 409 duplicate / 422 bridge fail / `RECIPIENT_PHONE_MISSING` / renderer fail 분기를 화면 toast 로 표시.
 
 ## GPS 권한 가드 (F7)
 
@@ -71,11 +79,10 @@ clients/arologis-mobile/
 
 ## UUID 비공개
 
-화면 어디에도 UUID 노출 금지. 사용자 노출 = `driverCode` / `phoneNumber` / dispatch slip 번호 등.
+화면과 driver-facing API 어디에도 UUID 노출 금지. D-AX-16 은 `dispatchType` / `vehicleSequence` / `stopSequence` / 카톡 순번으로 today target 을 좁히고, 서버가 내부 `dispatchId` 를 해석한다. 사용자 노출 = `driverCode` / `phoneNumber` / 차량 순번 / 정차 순번 / 카톡 순번 등.
 
 ## 후속 슬라이스 (본 PR 외)
 
-- 서명 / sign-and-send-copy 화면 이식.
 - 배송사진 / 검수사진 화면 이식.
 - 실제 slip 연결값이 배차 응답에 포함되면 아로로지스 모바일 전용 상세 bridge 설계.
 - mobile-staff 의 driver tab 제거 + AppRootNavigator 단순화 (estimate WebView 단일 모드).

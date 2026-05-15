@@ -44,7 +44,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Phase 10 W10-4 (PR #99) — arologis driver-app sign + slip-service bridge 통합 IT.
@@ -68,7 +67,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
-@Transactional
 class SignatureIntegrationIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;

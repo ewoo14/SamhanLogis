@@ -27,6 +27,10 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
  * Phase F (D-DF-01~10) — SignAndSendCopyService Tx1 + Tx2 orchestration 단위 테스트.
@@ -61,7 +65,7 @@ class SignAndSendCopyServiceTest {
         renderer = mock(PlaywrightCopyRenderer.class);
         storage = mock(CopyImageDiskStorage.class);
         service = new SignAndSendCopyService(signatureRepo, vehicleRepo, stopRepo, slipResolver,
-                slipClient, renderer, storage);
+                slipClient, renderer, storage, transactionManager());
 
         vehicle = mock(Vehicle.class);
         when(vehicle.getId()).thenReturn(VEHICLE_ID);
@@ -79,7 +83,24 @@ class SignAndSendCopyServiceTest {
 
     private SignAndSendCopyRequest req() {
         return new SignAndSendCopyRequest("driverB64", "recipientB64",
-                LocalDateTime.now(), new BigDecimal("37.4979"), new BigDecimal("127.0276"));
+                LocalDateTime.now(), new BigDecimal("37.4979"), new BigDecimal("127.0276"), null);
+    }
+
+    private PlatformTransactionManager transactionManager() {
+        return new PlatformTransactionManager() {
+            @Override
+            public TransactionStatus getTransaction(TransactionDefinition definition) {
+                return new SimpleTransactionStatus();
+            }
+
+            @Override
+            public void commit(TransactionStatus status) {
+            }
+
+            @Override
+            public void rollback(TransactionStatus status) {
+            }
+        };
     }
 
     private Signature newSignature() {

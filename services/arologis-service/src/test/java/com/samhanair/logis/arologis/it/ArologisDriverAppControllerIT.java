@@ -132,6 +132,21 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
         vehicle.assignDriver(driver.getId(),
                 com.samhanair.logis.arologis.domain.MatchSource.INTERNAL_APP, null);
         vehicleRepository.save(vehicle);
+        stopRepository.save(VehicleStop.of(
+                vehicle.getId(), 1, "서울 강남구 테스트로 1 (테스트상사-1234)",
+                "서울 강남구 테스트로 1", "테스트상사", 1234L, "문 앞 전달", StopStatus.PENDING));
+        Dispatch yesterday = dispatchRepository.save(
+                Dispatch.of(LocalDate.now().minusDays(1), DispatchType.NIGHT, "old"));
+        Vehicle oldVehicle = Vehicle.of(yesterday.getId(), 1, VehicleTonnage.TONNAGE_1, "어제");
+        oldVehicle.assignDriver(driver.getId(),
+                com.samhanair.logis.arologis.domain.MatchSource.INTERNAL_APP, null);
+        vehicleRepository.save(oldVehicle);
+        Dispatch tomorrow = dispatchRepository.save(
+                Dispatch.of(LocalDate.now().plusDays(1), DispatchType.NIGHT, "future"));
+        Vehicle futureVehicle = Vehicle.of(tomorrow.getId(), 1, VehicleTonnage.TONNAGE_1, "내일");
+        futureVehicle.assignDriver(driver.getId(),
+                com.samhanair.logis.arologis.domain.MatchSource.INTERNAL_APP, null);
+        vehicleRepository.save(futureVehicle);
 
         mockMvc.perform(MockMvcRequestBuilders.get("/driver-app/arologis/dispatches/today")
                         .header("X-User-Id", userId.toString())
@@ -139,7 +154,16 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].vehicleSequence").value(1));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].dispatchId").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].dispatchDate").value(LocalDate.now().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].dispatchType").value("NIGHT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].vehicleSequence").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].label").value("테스트"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].stops[0].stopSequence").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].stops[0].parsedPartnerName").value("테스트상사"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].stops[0].parsedKakaoSeq").value(1234))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].stops[0].status").value("PENDING"));
     }
 
     /**

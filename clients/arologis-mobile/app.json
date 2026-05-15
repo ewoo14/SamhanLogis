@@ -6,14 +6,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.samhanair.arologis.driver",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "배송 도중 위치를 아로로지스 서버에 보고합니다 (foreground = 의무, 거부 시 어플 사용 불가).",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "background 위치 추적은 운영 시점 결정 — 본 PR (Phase 10.5) 시점은 선택입니다.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -35,7 +39,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "배송 도중 위치를 아로로지스 서버에 보고합니다 (foreground = 의무, background = 선택)."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store"
     ]
   }
 }
