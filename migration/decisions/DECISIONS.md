@@ -1512,3 +1512,44 @@ D-AX-09 (passwordless) 위에 **본인 번호 자동 인식 흐름** 추가. 입
 
 **5-team 패턴 정정 (2026-05-14)**: 본 Phase C 머지 후 — `feedback_qa_sequential_after_be_fe.md` 신규 메모리. 다음 Phase D~F 부터 BE/FE/Designer/DevOps 4-team 병렬 → QA sequential 의무.
 
+
+---
+
+### D-DF-00. Samhan Public 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송 (Phase F, 2026-05-15)
+
+**배경**: Phase A (PR #188) + C (PR #189) 머지 후. 기사 어플 (mobile-staff) 배송 완료 흐름 — 정차 도착 시 DELIVERY 사진 첨부 → 자체+인수자 서명 캡처 → arologis 양쪽 저장 (자체 `signatures` + slip-service `signature_source=APP`) → 서버 Playwright Chromium 으로 OutboundView 양식 사본 PNG 합성 → mobile expo-sharing 으로 인수자 카톡/SMS 발송 (기사 본인 발신, Aligo 0).
+
+| # | 결정 |
+|---|---|
+| D-DF-01 | **서명 정보 양쪽 저장** = PR #99 `SlipClient.registerSignature()` 활성 (`SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE=false`). arologis 자체 `signatures` INSERT + slip-service `slips.signature_source=APP` 갱신 + `slip_signature_audit` 적재. 출고전표 본체 (Slip) 는 slip-service 단일 source of truth |
+| D-DF-02 | 사본 형식 = **PNG** (출고전표 양식 사본 + 서명 2개 합성, OutboundView 시각 그대로) |
+| D-DF-03 | **사본 발송 채널 = mobile RN expo-sharing 일반 Share Sheet** (카톡/SMS, 기사 본인 계정 발신). Aligo / notification-service 호출 0 (v3 Aligo 폐기) |
+| D-DF-04 | 사본 1회 제한 = arologis `Signature.copy_sent_at` (PNG download 시각 기준). NULL → 호출 OK, NOT NULL → 409. 재발송은 Admin 후속 PR |
+| D-DF-05 | 인수자 번호 = slip-service `recipientPhoneNumber` (Phase A SlipRef). null/잘못된 형식 → 서명 OK + 사본 skip + reason 응답 |
+| D-DF-06 | **PNG 합성 = arologis-service in-process Playwright Java SDK + Chromium headless → `OutboundView.tsx` URL 렌더링 → PNG 캡처** (서버 단일 출처, drift 0) |
+| D-DF-07 | 사본 endpoint = arologis `POST /driver-app/.../sign-and-send-copy` (1-tap UX). 응답 = PNG image/png byte[] (성공) 또는 application/json `{copyFailureReason}` (실패) |
+| D-DF-08 | 권한 = `ROLE_AROLOGIS_DRIVER` + 서비스 레이어 `JWT.driverId == dispatch.driverId` 검증 (Phase A/C 패턴 일관) |
+| D-DF-09 | PII = `recipientPhoneNumber` 응답/로그/UI 마스킹 (`010-****-1234`), DB/audit 풀 번호 보관 (Admin 재발송용) |
+| D-DF-10 | PNG 보관 = disk path (`/var/lib/arologis/signature-copies/{signatureId}.png`, env `AROLOGIS_SIGNATURE_COPY_DIR`). Phase 11 AWS 이전 시 S3 키로 갈아탐 |
+| D-DF-11 | PNG 양식 사이즈 = A4 portrait, ~600×850 px viewport (OutboundView 의 `a4-portrait` variant), 1MB 이내 |
+| D-DF-12 | mobile Share API = **`expo-sharing`** (RN Expo 표준). 카톡/SMS Share Sheet OS 표준. 인수자 번호 화면 표시. KakaoLink SDK 의존 X |
+| D-DF-13 | **배송 완료 증거 사진 (DELIVERY) 사전 첨부** = 기존 `SignaturePhotoScreen` 인프라 (P1-8 Stage 4, batchToken 기반 public 업로드, 1MB 자동 압축, 최대 3장). W10-4 deep link 활성 — `SignaturePhotoScreen.onUploaded` → `DriverSignatureScreen` chain. 사진은 slip-service attachment 로만 별도 저장 (사본 PNG 와 분리) |
+
+**4-team + QA sequential 산출 (17 commit, QA 후속 sequential)**:
+- Designer 1 commit (`bacb6de`): 3 mock 812 lines (`docs/uiux/samhan-signature-copy/01~03`) — SignatureScreen 1-tap + Share Sheet Android/iOS
+- DevOps 3 commit (`7647323` → `4551ef2` → `3e0c359`): Dockerfile (Playwright + Chromium + fonts-noto-cjk) + 4 env + multi-entry print-renderer 빌드 + PrintRendererApp PoC + Phase 11 메모리/CPU 검증 노트 + cutover storage migration runbook
+- FE 5 commit (`dc5336c` → `d1dd8a2`): expo-sharing/expo-file-system 의존성 + `api/arologis.ts signAndSendCopy` + `DriverSignatureScreen` 1-tap 갱신 + 5 토스트 + 재시도 + `SignaturePhotoScreen → DriverSignature` chain (D-DF-13 deep link 활성). Jest 7 시나리오 (success/skip/timeout/duplicate/bridge/disabled/chain)
+- BE 8 commit (`895a713` → `2d169f5`): Signature 4 column + V11 + `CopyFailureReason` + `CopyImageDiskStorage` + `PlaywrightCopyRenderer` + `SignAndSendCopyService` Tx1+Tx2 orchestration + `POST /sign-and-send-copy` endpoint + 기존 `/sign` `@Deprecated` + slip-service 2 endpoint (`/recipient-phone`, `/full`) + 단위 19 + IT 5
+- QA: 후속 sequential — TM 통합 후 Designer 6 시나리오 + 실 PNG 캡처 + 실 Share Sheet 캡처 + 회귀 + 4단계 롤백 runbook 진행 예정
+
+**테스트**: 
+- arologis-service: **221 tests / 0 failure / 75 skipped** (단위 19 신규 + 기존 회귀, IT 75 Docker npipe skip, [feedback_testcontainers_windows_docker])
+- slip-service: **454 tests / 0 failure / 171 skipped** (PR #99 `SignatureIntegrationIT` 보존, IT 171 Docker npipe skip)
+- mobile-staff Jest: **7 PASS / 0 fail** (DriverSignatureScreen 6 + SignaturePhotoScreenChain 1)
+- mobile-staff `tsc --noEmit`: **0 error**
+- desktop `npm run build:print-renderer`: **SUCCESS** (148.67 kB, 787 ms)
+
+**5-team 패턴 첫 적용**: BE/FE/Designer/DevOps 4 parallel → QA sequential. 본 Phase F 가 새 패턴 첫 적용 사례. TM 통합 commit 후 QA 별도 단계로 실 산출 검증 + 실 PNG/Share Sheet 캡처.
+
+**자체 정정 (4 team 18건)**: BE 9건 + DevOps 4건 + FE 5건 — spec/plan vs 실 코드 정정 (예: SignatureRepository stream filter, 별도 vite.print-renderer.config.ts, mock dataURL guard 보존). 모두 worktree 자체에서 commit.
+

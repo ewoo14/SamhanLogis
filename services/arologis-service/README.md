@@ -146,7 +146,59 @@ W10-2 진입 시점: 인성 알림톡 직접 호출 + notification-service 호�
 
 DECISIONS — `D-P10-06` (2026-05-07).
 
-## 8. Phase 11 AWS cutover 영향
+## 8. Phase F — 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송 (2026-05-15)
+
+[D-DF-01~13](../../migration/decisions/DECISIONS.md#d-df-00) — 사용자 결정 13건. 자세한 dev-report = [`docs/dev-reports/samhan-signature-copy.md`](../../docs/dev-reports/samhan-signature-copy.md).
+
+### 8.1 신규 endpoint
+
+| method | path | 비고 |
+|---|---|---|
+| POST | `/driver-app/dispatches/{dispatchId}/stops/{stopId}/sign-and-send-copy` | 1-tap 서명 + PNG 사본 응답 (image/png) 또는 JSON fail (200) / duplicate (409). 권한 = `ROLE_AROLOGIS_DRIVER` + `JWT.driverId == dispatch.driverId` |
+| POST | `/driver-app/dispatches/{dispatchId}/stops/{stopId}/sign` | **`@Deprecated`** — 후속 PR 에서 제거 예정 |
+
+### 8.2 환경변수 (4건 신규)
+
+| 환경변수 | 기본값 | 비고 |
+|---|---|---|
+| `AROLOGIS_SIGNATURE_COPY_DIR` | `/var/lib/arologis/signature-copies` | PNG 사본 disk path. Phase 11 cutover 시 S3 키 prefix 로 갈아탐 |
+| `AROLOGIS_PLAYWRIGHT_BROWSER_PATH` | `/ms-playwright/chromium-...` | Docker image 내 Chromium 실행 파일 경로 |
+| `AROLOGIS_PRINT_RENDERER_PATH` | `file:///app/print-renderer/index.html` | OutboundView 양식 정적 HTML URL (Vite multi-entry 산출물) |
+| `AROLOGIS_COPY_RENDERER_TIMEOUT_MS` | `1024` | Playwright Chromium PNG 캡처 timeout (ms). 초과 시 Tx2 fail (`RENDERER_TIMEOUT`) |
+
+`SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE` 는 Phase F 부터 `false` (default 활성).
+
+### 8.3 Flyway V11 신규 컬럼 (`signatures` 4건)
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `copy_sent_at` | `TIMESTAMP NULL` | 사본 PNG download 시각 (성공 1회 가드, NULL → 호출 OK, NOT NULL → 409) |
+| `copy_send_failure_count` | `INT NOT NULL DEFAULT 0` | Tx2 fail 누적 카운트 (모니터링 alert 임계치용) |
+| `copy_image_path` | `VARCHAR(255) NULL` | disk 저장 경로 |
+| `copy_recipient_phone` | `VARCHAR(20) NULL` | 발송 시점 slip `recipientPhoneNumber` 풀 번호 스냅샷 |
+
+### 8.4 Docker 빌드 (Playwright + Chromium + 한글 폰트)
+
+`services/arologis-service/Dockerfile` — Playwright Java SDK 1.47 + Chromium headless + `fonts-noto-cjk` apt 패키지 설치.
+
+```bash
+docker build -t arologis-service:phase-f services/arologis-service/
+docker run --rm -p 8097:8097 \
+  -e AROLOGIS_SIGNATURE_COPY_DIR=/var/lib/arologis/signature-copies \
+  -e AROLOGIS_PRINT_RENDERER_PATH=file:///app/print-renderer/index.html \
+  -e AROLOGIS_COPY_RENDERER_TIMEOUT_MS=1024 \
+  -e SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE=false \
+  -v /var/lib/arologis/signature-copies:/var/lib/arologis/signature-copies \
+  arologis-service:phase-f
+```
+
+### 8.5 PNG 합성 출처
+
+`clients/desktop/print-renderer/` (Vite multi-entry 별도 빌드 산출물) — `OutboundView.tsx` a4-portrait variant 단일 출처. 빌드 = `cd clients/desktop && npm run build:print-renderer` → `dist/print-renderer/{index.html,assets/index-*.js}` → arologis-service Docker image `/app/print-renderer/` 동봉.
+
+---
+
+## 9. Phase 11 AWS cutover 영향
 
 - arologis_db RDS 호환 (Postgres standard SQL only — VARCHAR + NUMERIC + partial unique index 의무)
 - ShedLock 클러스터 — Phase 11 W11-2 시점에 통합 (DB 단일 lock 테이블 그대로 사용)

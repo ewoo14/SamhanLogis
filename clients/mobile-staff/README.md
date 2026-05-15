@@ -213,3 +213,50 @@ Phase 7 추가: `qa/detox/e2e/mobile-staff/` 의 3 시나리오 (`estimate-form`
 
 - Mobile v4 (`clients/mobile`, 거래처용 — order-app v4 WebView) 와 분리.
 - 직접 캡처 원본: `docs/qa/legacy-original/estimate/`.
+
+## Phase F — DriverSignatureScreen 1-tap + Share Sheet (2026-05-15)
+
+[D-DF-07/12/13](../../migration/decisions/DECISIONS.md#d-df-00) 적용 — 기사 어플 정차 도착 → DELIVERY 사진 첨부 → 자체+인수자 서명 캡처 → arologis-service 가 양쪽 저장 + PNG 사본 합성 → mobile expo-sharing 으로 인수자 카톡/SMS 발송 (기사 본인 발신, Aligo 0).
+
+### 흐름 (W10-4 deep link 활성)
+
+```
+[정차 도착] DriverDashboardScreen
+  ↓ "배송 사진 + 서명" 탭
+[SignaturePhotoScreen]  (D-DF-13 — 1MB 압축, 최대 3장)
+  → onUploaded callback
+  ↓ navigation.replace('DriverSignature')
+[DriverSignatureScreen] (D-DF-07/12 — 1-tap)
+  → 자체 서명 + 인수자 서명 캡처
+  → btn-complete-and-share 1-tap
+    ↓ POST /sign-and-send-copy
+  → image/png 응답 (성공) → expo-file-system 임시 저장 → expo-sharing.shareAsync (Share Sheet)
+  → application/json {copyFailureReason} 응답 (실패) → toast + btn-retry-copy
+  → 409 duplicate → toast "이미 발송됨"
+```
+
+### 신규 의존성 (`package.json`)
+
+| 패키지 | 용도 |
+|---|---|
+| `expo-sharing` | OS Share Sheet 호출 (카톡/SMS/메시지 선택) |
+| `expo-file-system` | base64 PNG → 임시 파일 (Share Sheet 입력) |
+| `base-64` | base64 인코딩 헬퍼 |
+| `jest` + `@types/jest` + `jest-expo` | 단위 시나리오 (RN environment) |
+
+### 5 토스트 분기 (D-DF-07)
+
+| 상태 | 토스트 | 재시도 버튼 |
+|---|---|---|
+| 성공 | `010-****-5678 에게 보내세요` (마스킹) | X |
+| RECIPIENT_PHONE_MISSING | `인수자 번호 미등록 — Admin 재발송 요청` | X |
+| RENDERER_TIMEOUT | `사본 합성 실패 (RENDERER_TIMEOUT)` | O |
+| RENDERER_ERROR / STORAGE_FULL | `사본 합성 실패 — 잠시 후 재시도` | O |
+| 409 duplicate | `이미 발송됨 (YYYY-MM-DD HH:mm)` | X |
+
+### Jest
+
+```bash
+npx jest --testPathPattern='driver/(DriverSignatureScreen|SignaturePhotoScreenChain)'
+# 7 PASS / 0 fail (success/skip/timeout/duplicate/bridge/disabled + chain)
+```

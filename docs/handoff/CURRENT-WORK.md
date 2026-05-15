@@ -1,8 +1,38 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-14
+> 갱신일: 2026-05-15
 > 갱신자: PM (Claude Opus 4.7) + 개발책임자 (ewoo14)
 > 사용법: PC 이동 직전 갱신, 새 PC 에서 Claude 첫 세션 시작 시 이 파일 읽으면 즉시 컨텍스트 회복
+
+---
+
+## 0. 진행 중 — Phase F 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송 (TM 통합 완료, QA sequential 진입 대기)
+
+**branch**: `feat/samhan-signature-copy-spec` (TM 통합 commit, push 완료).
+**spec**: `docs/superpowers/specs/2026-05-14-samhan-signature-copy-design.md` (v3.1)
+**plan**: `docs/superpowers/plans/2026-05-15-samhan-signature-copy.md`
+**dev-report**: `docs/dev-reports/samhan-signature-copy.md`
+**DECISIONS**: D-DF-01~13 (`migration/decisions/DECISIONS.md`)
+
+**TM 통합 산출 (4 team 17 commit, 충돌 0)**:
+- Designer 1 commit (`bacb6de`): 3 mock 812 lines (`docs/uiux/samhan-signature-copy/`)
+- DevOps 3 commit: Dockerfile (Playwright + Chromium + fonts-noto-cjk) + print-renderer multi-entry + Phase 11 메모리 노트
+- FE 5 commit: `expo-sharing/expo-file-system` + `signAndSendCopy` API + `DriverSignatureScreen` 1-tap + 5 토스트 + `SignaturePhotoScreen → DriverSignature` chain (D-DF-13)
+- BE 8 commit: Signature 4 column + V11 + `SignAndSendCopyService` Tx1+Tx2 + Playwright Java SDK + endpoint + 단위 19 + IT 5 + slip-service 2 endpoint
+
+**테스트**:
+- arologis-service: **221 / 0 fail / 75 skipped** (Docker npipe)
+- slip-service: **454 / 0 fail / 171 skipped**
+- mobile-staff Jest: **7 PASS** (Windows timeout 1건 → 15s 명시 정정)
+- mobile-staff `tsc --noEmit`: **0 error**
+- desktop `build:print-renderer`: **SUCCESS** (148.67 kB)
+
+**다음 단계 (TM2 + QA)**:
+1. **QA sequential 진입** — `feedback_qa_sequential_after_be_fe.md` 패턴 첫 적용. 6 시나리오 + 회귀 ~98 + 4단계 롤백 runbook + 실 PNG 캡처 + 실 Share Sheet 캡처 (Android/iOS 에뮬)
+2. **TM2 PR 발행** — QA 완료 후 통합 PR 발행, 5-team 검토, GitGuardian 자동 처리, CI green → PM 자동 머지
+
+**escalate to 사용자**:
+- `.claude/memory/MEMORY.md` 와 `.claude/memory/project_samhan_signature_copy.md` 신규 메모리 hook + 신규 프로젝트 메모리 추가 작업이 권한 거부됨 (TM 에이전트 권한 한계, hook 차단). 사용자 또는 TM2 단계에서 수동 작성 필요.
 
 ---
 

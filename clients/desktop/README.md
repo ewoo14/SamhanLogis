@@ -90,3 +90,24 @@ npm run build:win
 - 기존 `notification-slice-B` (배송 묶음 + e-sign URL SMS 발송 슬라이스) → `link-dispatch-slice` 로 일괄 정정.
 - 신규 `notification-service` (8093, FCM/SES/Aligo 통합 라우터) 와 명칭 충돌 회피 — `notification` 단어는 backend service 전용으로 예약.
 - 본 정정 영향 file: `src/renderer/api/delivery.ts` 외 11개 (slip / mock / routes / styles / components 일괄).
+
+## Phase F — print-renderer multi-entry 빌드 (2026-05-15)
+
+[D-DF-06](../../migration/decisions/DECISIONS.md#d-df-00) 적용 — `OutboundView.tsx` 양식을 arologis-service 의 in-process Playwright Chromium 으로 PNG 캡처. desktop 앱과 별도로 정적 HTML/JS 산출 (electron-vite 와 분리).
+
+```bash
+# print-renderer 정적 빌드 (Vite multi-entry)
+npm run build:print-renderer
+# → ../dist/print-renderer/index.html (~1 KB)
+# → ../dist/print-renderer/assets/index-*.js (~149 KB)
+# → arologis-service Docker image 의 /app/print-renderer/ 로 동봉
+```
+
+| 파일 | 용도 |
+|---|---|
+| `vite.print-renderer.config.ts` | Vite multi-entry 설정 (electron-vite 와 분리) |
+| `print-renderer/index.html` | Playwright Chromium 진입점 — `?slipNo=&driverSig=&recipientSig=` 쿼리스트링 파싱 |
+| `print-renderer/main.tsx` | React 진입점 (PrintRendererApp 마운트) |
+| `print-renderer/PrintRendererApp.tsx` | OutboundView a4-portrait variant 래핑 + 서명 2개 props 주입 |
+
+**desktop 앱 본체 빌드 (`npm run build`) 와 별도** — 본 print-renderer 빌드는 arologis-service 배포 시점에만 필요.

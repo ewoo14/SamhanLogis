@@ -131,7 +131,7 @@ describe('DriverSignatureScreen — Phase F (sign-and-send-copy)', () => {
 
     const toast = await utils.findByTestId('toast-result');
     expect(getToastText(toast as never)).toMatch(/010-\*\*\*\*-5678 에게 보내세요/);
-  });
+  }, 15000);
 
   it('2. RECIPIENT_PHONE_MISSING — Admin 재발송 toast + 재시도 버튼 미표시', async () => {
     (api.signAndSendCopy as jest.Mock).mockResolvedValue({
