@@ -13,6 +13,7 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const repoRoot = path.resolve(dirname, '../../../..')
 const SPEC_PATH = 'docs/planning/2026-05-16_sp-08-3-dispatch-legacy-gas-parity.md'
+// hex 32+dashes 패턴. UUID v1~v8 + base64 미만 form 모두 커버 (v4/v6/v7 등 variant 무관).
 const UUID_REGEX = /\b(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i
 
 type MatrixRow = {
@@ -30,7 +31,7 @@ const matrix: MatrixRow[] = [
   {
     legacyLabel: '가배차분류리스트',
     desktopRoute: '/dispatches/pre-classify',
-    currentRoute: '/dispatches/pre-classify',
+    currentRoute: '/arologis/pre-classify',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/pre-classify',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
@@ -40,17 +41,17 @@ const matrix: MatrixRow[] = [
   {
     legacyLabel: '지방가배차분류리스트',
     desktopRoute: '/dispatches/pre-classify',
-    currentRoute: '/dispatches/pre-classify',
+    currentRoute: '/arologis/pre-classify',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/regional',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'REGIONAL',
-    testidPrefix: 'regional-history',
+    testidPrefix: 'pre-classify-history',
   },
   {
     legacyLabel: '미배차리스트',
     desktopRoute: '/dispatches/unassigned',
-    currentRoute: '/dispatches/unassigned',
+    currentRoute: '/arologis/unassigned',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/unassigned',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
@@ -60,12 +61,12 @@ const matrix: MatrixRow[] = [
   {
     legacyLabel: '운송사-실배차내역 비교',
     desktopRoute: '/dispatches/reconcile',
-    currentRoute: '/dispatches/reconcile',
+    currentRoute: '/arologis/dispatch-reconcile',
     owner: 'arologis',
     sourceEndpoint: 'POST /admin/arologis/dispatch/reconcile',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'RECONCILE',
-    testidPrefix: 'reconcile-history',
+    testidPrefix: 'dispatch-reconcile-history',
   },
   {
     legacyLabel: '전표정리리스트',
@@ -134,6 +135,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     for (const row of matrix) {
       expect(spec).toContain(row.legacyLabel)
       expect(spec).toContain(row.desktopRoute)
+      expect(spec).toContain(row.currentRoute)
       expect(spec).toContain(row.sourceEndpoint)
       expect(spec).toContain(row.historyEndpoint)
       expect(spec).toContain(row.programType)
@@ -153,6 +155,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'clients/desktop/src/renderer/api/dispatchReconcileApi.ts',
       'clients/desktop/src/renderer/api/slipCleanupApi.ts',
       'clients/desktop/src/renderer/api/dispatchSmsApi.ts',
+      'clients/desktop/src/renderer/api/mock.ts',
       'clients/desktop/src/renderer/routes/index.tsx',
       'clients/arologis-desktop/src/renderer/api/arologisDispatch.ts',
       'clients/arologis-desktop/src/renderer/api/arologisManual.ts',
@@ -178,6 +181,8 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
 
     expect(sources).toContain('/admin/notifications/dispatch-batch/preview')
     expect(sources).toContain('/admin/notifications/dispatch-batch/send')
+    expect(sources).not.toContain('/arologis/dispatch-sms/preview')
+    expect(sources).not.toContain('/arologis/dispatch-sms/send')
     expect(sources).not.toContain('/admin/arologis/dispatches/history')
     expect(sources).not.toContain('/slips/cleanup/history')
     expect(sources).not.toContain('/admin/notifications/dispatch-sms/history')

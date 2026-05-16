@@ -1,6 +1,6 @@
 # SP-08-3 배차 legacy GAS DB/API parity dev-report
 
-> 작성일: 2026-05-16  
+> 작성일: 2026-05-16
 > 범위: SP-08-3-1 기반 잠금 — 배차 6개 legacy GAS 화면의 DB/API history parity 기획, 정적 계약, QA 캡처
 
 ## 구현 요약
@@ -22,6 +22,17 @@
 | 전표정리리스트 | `GET /slips/cleanup` | `POST/GET /slips/cleanup/history` | `SLIP_CLEANUP` | SP-08-3-3 |
 | 배차안내문자 | `POST /admin/notifications/dispatch-batch/{preview,send}` | `POST/GET /admin/notifications/dispatch-sms/history` | `DISPATCH_SMS` | SP-08-3-4 |
 
+## 실제 desktop route 정합
+
+| legacy GAS | legacy desktop route | 현재 Samhan desktop route | 저장내역 testid prefix |
+|---|---|---|---|
+| 가배차분류리스트 | `/dispatches/pre-classify` | `/arologis/pre-classify` | `pre-classify-history` |
+| 지방가배차분류리스트 | `/dispatches/pre-classify` 토글 | `/arologis/pre-classify` 토글 | `pre-classify-history` |
+| 미배차리스트 | `/dispatches/unassigned` | `/arologis/unassigned` | `unassigned-history` |
+| 운송사-실배차내역 비교 | `/dispatches/reconcile` | `/arologis/dispatch-reconcile` | `dispatch-reconcile-history` |
+| 전표정리리스트 | `/sales/slip-cleanup` | `/sales/slip-cleanup` | `slip-cleanup-history` |
+| 배차안내문자 | `/dispatch/sms` | `/arologis/dispatch-sms` | `dispatch-sms-history` |
+
 ## Backend 계약
 
 | 도메인 | 예정 table | saveMode | 구현 시점 |
@@ -35,19 +46,19 @@
 - 기존 endpoint의 `@PreAuthorize` role과 history endpoint role을 100% 매칭한다.
 - Testcontainers IT는 도메인별 외부 client 전체를 `@MockBean`으로 격리한다. SP-08-3-2 진입 시 `rg "Client" services/arologis-service/src/main/java` 결과 전체를 grep 하고 `SlipServiceClient` 단건 확인으로 끝내지 않는다.
 - notification `SEND_AUDIT`는 공통 `DispatchSaveMode`가 아니라 notification 전용 `DispatchSmsSaveMode`에만 둔다.
-- SP-08-3-4 commit 직전 `services/notification-service/src/main/resources/db/migration/V*.sql` glob 을 즉시 확인한다.
+- SP-08-3-2~4 진입 시 각 service `V*.sql` glob 을 즉시 확인하고 최신+1로 Flyway를 채번한다 (DECISIONS SP-08-3-1-08).
 - sub-sub-task 별 최소 IT: AUTO_LATEST race 1건 / MANUAL_NAMED append 1건 / latest empty 404 1건 / 타인 history 403 1건.
 
 ## Frontend 계약
 
 | 요소 | testid |
 |---|---|
-| 실행 탭 | `dispatch-history-tab-run` 등 domain prefix 기반 |
-| 저장내역 탭 | `dispatch-history-tab-list` |
-| 자동 복원 배너 | `dispatch-history-restored-banner` |
-| 저장 버튼 | `dispatch-history-save-button` |
-| 저장주제 입력 | `dispatch-history-topic-input` |
-| 저장내역 행 | `dispatch-history-row-{i}` |
+| 실행 탭 | `<screen-prefix>-tab-run` |
+| 저장내역 탭 | `<screen-prefix>-tab-list` |
+| 자동 복원 배너 | `<screen-prefix>-restored-banner` |
+| 저장 버튼 | `<screen-prefix>-save-button` |
+| 저장주제 입력 | `<screen-prefix>-topic-input` |
+| 저장내역 행 | `<screen-prefix>-row-{i}` |
 | 배차문자 send audit 행 | `dispatch-sms-history-row-{i}-send-audit` |
 
 UUID는 path param과 내부 상태에만 사용하고 화면 텍스트와 `data-testid`에는 노출하지 않는다.
@@ -56,7 +67,7 @@ UUID는 path param과 내부 상태에만 사용하고 화면 텍스트와 `data
 - 공통 컴포넌트 리팩토링 전 `DpsHistoryTab.tsx` props 인터페이스 snapshot 을 본 dev-report 후속 섹션에 기록한다.
 - 각 page 는 `isSaving: boolean` prop 에 `mutation.isPending`을 외부 주입한다.
 - design-system 검증은 `grep -r '<input\|<select' src/renderer/pages/<target>` PASS 를 포함한다.
-- testid prefix 는 arologis=`dispatch`, slip=`slip-cleanup`, notification=`dispatch-sms`로 고정한다.
+- testid prefix 는 화면별로 `pre-classify-history`(REGIONAL 토글 포함) / `unassigned-history` / `dispatch-reconcile-history` / `slip-cleanup-history` / `dispatch-sms-history`로 고정한다.
 - SMS 발송 버튼은 `--color-warning` token + 이중 confirm dialog 를 적용한다.
 
 ## QA/IT 매핑 보강
@@ -77,8 +88,8 @@ UUID는 path param과 내부 상태에만 사용하고 화면 텍스트와 `data
 
 | 항목 | 기준 |
 |---|---|
-| Local Playwright 단독 | `npx playwright test playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts --reporter=line` |
-| Local Playwright 회귀 | `npx playwright test playwright/sp-08-3-dispatch-parity playwright/sp-08-2-dps-history playwright/sp-08-legacy-gas-db-api-parity playwright/full-menu-contract --reporter=line` |
+| Local Playwright 단독 | `cd clients/desktop && npx playwright test playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts --reporter=line` |
+| Local Playwright 회귀 | `cd clients/desktop && npx playwright test playwright/sp-08-3-dispatch-parity playwright/sp-08-2-dps-history playwright/sp-08-legacy-gas-db-api-parity playwright/full-menu-contract --reporter=line` |
 | QA mock PNG | `scripts/generate-sp-08-3-dispatch-parity-screenshots.ps1` — 6 PNG / 1280×900 / non-zero |
 | Secret scan | docs / desktop Playwright / 신규 diff 0 matches |
 | Notion runtime scan | arologis/slip/notification `src/main`, desktop renderer 0 matches |

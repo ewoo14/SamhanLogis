@@ -111,11 +111,11 @@ Save-Shot '02-arologis-history-seat.png' {
     Draw-Chrome $G 'arologis history seat lock' 'SP-08-3-2 target: pre-classify/regional/unassigned/reconcile'
     Draw-Rect $G 286 138 900 254 $Card $Line
     Draw-Text $G 'dispatch_save_history' 316 174 24 $Blue 'Bold'
-    Draw-Text $G 'Flyway V12 planned - AUTO_LATEST / MANUAL_NAMED' 316 216 16 $Ink
+    Draw-Text $G 'Flyway: re-check V*.sql then latest+1 - AUTO_LATEST / MANUAL_NAMED' 316 216 16 $Ink
     Draw-Rect $G 316 264 824 1 $Line
     Draw-Text $G 'Shared endpoint: POST/GET /admin/arologis/dispatches/history' 316 292 16 $Ink
     Draw-Text $G 'detail/latest: /history/{id}, /history/latest?programType=' 316 326 16 $Muted
-    Draw-Text $G 'row testid: dispatch-history-row-{i}; UUID hidden from UI' 316 360 16 $Green 'Bold'
+    Draw-Text $G 'row testid: pre-classify/unassigned/dispatch-reconcile-history-row-{i}; UUID hidden' 316 360 16 $Green 'Bold'
 }
 
 Save-Shot '03-slip-cleanup-history-seat.png' {
@@ -123,7 +123,7 @@ Save-Shot '03-slip-cleanup-history-seat.png' {
     Draw-Chrome $G 'Slip cleanup history seat lock' 'SP-08-3-3 target: /sales/slip-cleanup run/history tabs'
     Draw-Rect $G 286 138 900 254 $Card $Line
     Draw-Text $G 'slip_cleanup_save_history' 316 174 24 $Blue 'Bold'
-    Draw-Text $G 'Flyway V25 planned - programType=SLIP_CLEANUP' 316 216 16 $Ink
+    Draw-Text $G 'Flyway: re-check V*.sql then latest+1 - programType=SLIP_CLEANUP' 316 216 16 $Ink
     Draw-Rect $G 316 264 824 1 $Line
     Draw-Text $G 'Current source: GET /slips/cleanup' 316 292 16 $Ink
     Draw-Text $G 'history: POST/GET /slips/cleanup/history' 316 326 16 $Ink
@@ -135,7 +135,7 @@ Save-Shot '04-dispatch-sms-preview-send.png' {
     Draw-Chrome $G 'Dispatch SMS preview/send audit' 'SP-08-3-4 target: preview save + send audit append'
     Draw-Rect $G 286 138 900 330 $Card $Line
     Draw-Text $G 'dispatch_sms_save_history' 316 174 24 $Blue 'Bold'
-    Draw-Text $G 'Flyway V4 planned - DISPATCH_SMS' 316 216 16 $Ink
+    Draw-Text $G 'Flyway: re-check V*.sql then latest+1 - DISPATCH_SMS' 316 216 16 $Ink
     Draw-Rect $G 316 262 230 80 $SoftBlue $Blue
     Draw-Text $G 'PREVIEW' 338 286 18 $Blue 'Bold'
     Draw-Text $G 'AUTO_LATEST / MANUAL_NAMED' 338 318 14 $Ink
@@ -172,9 +172,25 @@ Save-Shot '06-sp-08-2-pattern-consistency.png' {
     Draw-Text $G 'BaseEntity 7 audit + Soft Delete only + JSONB payload + user isolation' 326 430 16 $Green 'Bold'
 }
 
+$expected = @(
+    '01-six-endpoint-matrix.png',
+    '02-arologis-history-seat.png',
+    '03-slip-cleanup-history-seat.png',
+    '04-dispatch-sms-preview-send.png',
+    '05-uuid-notion-zero-scan.png',
+    '06-sp-08-2-pattern-consistency.png'
+)
+
 $pngs = Get-ChildItem $OutDir -Filter '*.png'
-if ($pngs.Count -lt 5) {
-    throw "expected at least 5 PNGs, got $($pngs.Count)"
+foreach ($name in $expected) {
+    $path = Join-Path $OutDir $name
+    if (-not (Test-Path $path)) {
+        throw "Missing $name"
+    }
+}
+
+if ($pngs.Count -ne $expected.Count) {
+    throw "expected exactly $($expected.Count) PNGs, got $($pngs.Count)"
 }
 
 foreach ($png in $pngs) {

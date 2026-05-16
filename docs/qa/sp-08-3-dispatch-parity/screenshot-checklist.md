@@ -1,7 +1,9 @@
 # SP-08-3 배차 legacy GAS parity QA 캡처 체크리스트
 
-> 생성 스크립트: `scripts/generate-sp-08-3-dispatch-parity-screenshots.ps1`  
+> Windows 전용 스크립트 (System.Drawing GDI+ 기반). Linux/macOS CI 비실행, 로컬 Windows 에서만 재생성.
+> 생성 스크립트: `scripts/generate-sp-08-3-dispatch-parity-screenshots.ps1`
 > 산출 위치: `docs/qa/sp-08-3-dispatch-parity/screenshots/`
+> 현 PNG 는 영문 라벨 + 일부 텍스트 폭 초과. SP-08-3-2 진입 시 한국어 라벨 + 폭 조정 컴포넌트 실 캡처로 교체.
 
 | 파일 | §4.1 시나리오 매핑 | caption / 검증 의도 |
 |---|---|---|
@@ -25,7 +27,7 @@
 
 ## 완료 기준
 
-- PNG 5장 이상 생성.
+- PNG 6장 정확 생성: `01-six-endpoint-matrix.png` / `02-arologis-history-seat.png` / `03-slip-cleanup-history-seat.png` / `04-dispatch-sms-preview-send.png` / `05-uuid-notion-zero-scan.png` / `06-sp-08-2-pattern-consistency.png`.
 - 모든 PNG는 1280×900.
 - 파일 크기 0 byte 없음.
 - PR 본문에는 최종 commit SHA 기준 raw URL로 최소 1장 이상 인라인 첨부.

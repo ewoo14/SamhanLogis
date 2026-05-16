@@ -2980,8 +2980,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /arologis/dispatch-sms/preview — DispatchSmsPage preview
-  if (method === 'GET' && url.includes('/arologis/dispatch-sms/preview')) {
+  // POST /admin/notifications/dispatch-batch/preview — DispatchSmsPage preview
+  if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/preview')) {
     return envelope({
       date: '2026-05-10',
       previews: [
@@ -2994,7 +2994,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       blockedCount: 1,
     })
   }
-  if (method === 'POST' && url.includes('/arologis/dispatch-sms/send')) {
+  if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/send')) {
     return envelope({ sentCount: 2, failedCount: 0, blockedCount: 1, message: 'SMS 발송 완료' })
   }
 

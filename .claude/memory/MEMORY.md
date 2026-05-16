@@ -38,4 +38,4 @@
 - [PR 표준 리뷰 워크플로우](feedback_pr_review_workflow.md) — 5-team 리뷰 → TM 승인 → CI green → PM 최종 승인 → 개발책임자 머지. 단순 PR 도 적용
 - [SP-08 legacy GAS DB/API parity](project_sp_08_legacy_gas_parity.md) — 2026-05-16~ 전메뉴 GAS 동등 기능 우리 DB/API 잠금, raw read-only snapshot, Notion runtime zero, 자격 비공개 가드
 - [PR 제목 `[FEAT]`/`[FIX]` 대괄호+대문자](feedback_pr_title_caps_bracket.md) — 2026-05-16 신규. `[codex]` 대신 모든 PR 제목 `[FEAT]`/`[FIX]`/`[CHORE]` 등 대괄호+대문자 prefix (PR #211 머지 후 사용자 명시)
-- [Claude + Codex 5-agent 양쪽 리뷰 의무](feedback_dual_5agent_review.md) — 2026-05-16 신규. 모든 PR 에 Claude 5 subagent 병렬 + Codex 1회 5-섹션 통합 prompt 양쪽 리뷰 (PR #211 cross-check 결함 9건 추가 발견 회고)
+- [Claude + Codex 5-agent 양쪽 리뷰 의무](feedback_dual_5agent_review.md) — 2026-05-16 신규. 모든 PR 에 Claude 5 subagent 병렬 + Codex 1회 5-섹션 통합 prompt 양쪽 리뷰 (PR #211 cross-check 결함 9건 추가 발견 회고). `--dangerously-bypass-approvals-and-sandbox` fix 실행은 로컬/격리 환경 한정, 공용 CI runner 는 수동 commit 또는 sandbox=workspace-write 대체.
