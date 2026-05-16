@@ -62,7 +62,7 @@
 | 영역 | 남은 일 |
 |---|---|
 | DPS | 완료 (SP-08-2) — `DpsSaveHistory` DB/API + DPS 비교/품목별 DPS 실행/저장내역 2탭 + latest 자동 복원/명시 저장 |
-| 배차 | 가배차/지방가배차/미배차/전표정리/배차문자/운송사 비교의 저장/복원/preview/send 흐름 정렬 |
+| 배차 | 진행 중 (SP-08-3-1) — 가배차/지방가배차/미배차/전표정리/배차문자/운송사 비교의 저장/복원/preview/send history 매트릭스 기반 잠금 |
 | 회계 | 원장/거래명세서/내일자 전표 print `MOCK_DATA` 제거, accounting/slip DB 데이터 연결 |
 | Vendor/OCR | 에어디자이너 PDF 다중 파일, 제이시스템 이미지 다중 파일/슬라이드 preview, 담당자명 입력 parity |
 | Aligo | 주소록 sync dry-run/mock 경로와 secret guard 강화 |

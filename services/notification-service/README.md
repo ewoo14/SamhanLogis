@@ -47,6 +47,17 @@ BaseEntity 7 audit (`created_at` / `created_by` / `modified_at` / `modified_by` 
 | GET | `/admin/notifications/{id}` | 단건 조회 |
 | POST | `/admin/notifications/{id}/retry` | 실패 발송 재시도 |
 
+### SP-08-3 예정 배차문자 history API (2026-05-16 기반 잠금)
+
+SP-08-3-1은 구현 없이 계약만 잠근다. SP-08-3-4에서 legacy GAS `배차안내문자`의 preview/save/send audit 흐름을 `dispatch_sms_save_history`로 추가한다.
+
+| 기존 endpoint | 예정 history endpoint | programType | saveMode |
+|---|---|---|---|
+| `POST /admin/notifications/dispatch-batch/preview` | `POST/GET /admin/notifications/dispatch-sms/history` + detail/latest | `DISPATCH_SMS` | `AUTO_LATEST`, `MANUAL_NAMED` |
+| `POST /admin/notifications/dispatch-batch/send` | 동일 table append | `DISPATCH_SMS` | `SEND_AUDIT` |
+
+`SEND_AUDIT`는 send 후 append-only audit 용도이며, 운영자 정리도 hard delete가 아니라 Soft Delete only를 따른다. Aligo 실 API 활성화는 SP-08-6 별도 범위다.
+
 ## 4. Adapter (3 channel — strategy pattern)
 
 `NotificationGateway` 공통 인터페이스 + channel 별 어댑터:

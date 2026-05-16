@@ -1889,3 +1889,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-2-07 | 내부 UUID는 path param과 React 상태에서만 사용한다. 사용자 화면과 Playwright `data-testid`는 `dps-history-row-{i}` 같은 row index/업무 문구 기반으로 둔다. |
 | SP-08-2-08 | payload는 UTF-8 JSON 직렬화 기준 100KB를 초과하면 422로 거절한다. 파일/이미지 본문을 history에 넣지 않고 결과 요약 JSON만 저장한다. |
 | SP-08-2-09 | Notion runtime call은 재도입하지 않는다. `api.notion.com`, `Notion-Version`, `@notionhq` import는 inventory-service main과 desktop renderer에서 0건이어야 한다. |
+
+### SP-08-3-1. 배차 legacy GAS DB/API parity 기반 잠금 (2026-05-16)
+
+**배경**: SP-08-2에서 DPS history parity가 완료되었고, SP-08 후속 구현 대상 2번인 배차 영역은 가배차/지방가배차/미배차/전표정리/배차문자/운송사 비교 6개 화면이 3개 서비스에 분산되어 있다. 실제 DB/API/UI 구현에 앞서 legacy GAS 저장/복원/preview/send 흐름과 도메인별 history 소유권을 먼저 잠근다.
+
+| 결정 | 내용 |
+|---|---|
+| SP-08-3-1-01 | 배차 history는 공통 `legacy_gas_history` table이 아니라 도메인별 table로 둔다. arologis는 `dispatch_save_history`, slip은 `slip_cleanup_save_history`, notification은 `dispatch_sms_save_history`를 사용한다. |
+| SP-08-3-1-02 | arologis 4 화면(가배차/지방가배차/미배차/운송사 비교)은 `POST/GET /admin/arologis/dispatches/history` 하위 4 endpoint로 통합하고 `PRE_CLASSIFY`, `REGIONAL`, `UNASSIGNED`, `RECONCILE` programType으로 격리한다. |
+| SP-08-3-1-03 | 전표정리는 `POST/GET /slips/cleanup/history`, programType `SLIP_CLEANUP`으로 둔다. |
+| SP-08-3-1-04 | 배차문자는 `POST/GET /admin/notifications/dispatch-sms/history`, programType `DISPATCH_SMS`로 두고, preview 저장은 `AUTO_LATEST`/`MANUAL_NAMED`, send audit은 `SEND_AUDIT` append로 구분한다. |
+| SP-08-3-1-05 | 모든 history table은 BaseEntity 7 audit + Soft Delete only + JSONB payload + 사용자 격리 + AUTO_LATEST per user/program active 1건 정책을 따른다. |
+| SP-08-3-1-06 | 화면의 저장내역 row testid는 `dispatch-history-row-{i}` 같은 index 기반을 사용하고, 내부 UUID는 화면 텍스트와 testid에 노출하지 않는다. |
+| SP-08-3-1-07 | SP-08-3-1은 기획/정적 계약/QA 캡처/문서 동기화만 수행한다. 실제 Flyway/controller/UI 2-Tab 구현은 SP-08-3-2~4에서 분리 진행한다. |

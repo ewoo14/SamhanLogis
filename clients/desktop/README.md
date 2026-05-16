@@ -118,3 +118,10 @@ npm run build:print-renderer
 - 실행 탭은 latest `AUTO_LATEST`를 자동 복원하고, 새 비교/조회 결과는 silent auto-save 한다.
 - `[내역으로 저장]`은 `MANUAL_NAMED` topic dialog를 열고, 저장내역 탭 행 클릭은 실행 탭으로 복원한다.
 - `data-testid`는 `dps-history-row-{i}` 기반이며 내부 UUID는 화면 텍스트와 test id에 노출하지 않는다.
+
+## SP-08-3-1 — 배차 legacy GAS parity 정적 계약 (2026-05-16)
+
+- 정적 계약: `playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts`.
+- 대상 화면은 가배차/지방가배차/미배차/운송사 비교, 전표정리, 배차안내 SMS 6개다.
+- 본 단계는 route/UI 변경 없이 기존 endpoint와 후속 history endpoint matrix를 잠근다.
+- SP-08-3-2~4에서 6 화면 모두 `실행 / 저장내역` 2탭과 `*-history-row-{i}` 기반 UUID 비노출 testid를 적용한다.

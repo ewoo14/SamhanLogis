@@ -45,8 +45,9 @@
 - SP-05: Samhan Public 실사용 CRUD 표면 재점검 완료, PR #207 merge. 판매관리/구매관리 목록에서 명시 `상세` 버튼으로 `/sales/:id`, `/purchases/:id`에 진입하도록 보정하고, 거래처 기본 UI와 구매 검수 CTA 문서 상태를 최신화했다.
 - SP-06: legacy GAS/Notion DB 이관 정합성 완료, PR #208 merge. 단톡방/발송금지/배차지역/DC 원본 CSV는 cutover 시 각 service DB로 이관하고, 이후 모든 조회·수정·삭제는 Samhan Public DB CRUD 화면/API만 사용하도록 gateway/스크립트/문서 계약을 고정했다.
 - SP-07: Google Sheets 견적/주문 E2E 진행. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환한다. `종합 견적서` live spreadsheet 27개 tab을 재검증하고, `*_단가인상` 기본 단가와 base `인상 전 단가`를 product DB/PriceHistory로 고정하며 output/control form(`종합견적서`, `전표업로드목록`, credential-bearing `전표생성폼`)을 runtime 원본에서 분리한다.
-- SP-08-2: DPS legacy GAS 저장내역 parity 진행. `DpsSaveHistory` 도메인을 `inventory-service`에 추가하고, DPS 비교/품목별 DPS 화면 모두 실행/저장내역 2탭 + latest 자동 복원 + 명시 저장/복원으로 정렬한다. Notion runtime 호출은 재도입하지 않는다.
-- 다음 후보: SP-08 배차/회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI, Service Account runtime 검증.
+- SP-08-2: DPS legacy GAS 저장내역 parity 완료, PR #211 merge. `DpsSaveHistory` 도메인을 `inventory-service`에 추가하고, DPS 비교/품목별 DPS 화면 모두 실행/저장내역 2탭 + latest 자동 복원 + 명시 저장/복원으로 정렬했다.
+- SP-08-3-1: 배차 legacy GAS 저장/복원/preview/send parity 기반 잠금 진행. 6개 화면의 기존 endpoint와 SP-08-3-2~4 신규 history endpoint를 정적 계약으로 고정하고, UUID/Notion runtime/secret-like marker zero guard를 추가한다.
+- 다음 후보: SP-08-3-2 arologis 배차 4 화면 history, SP-08-3-3 전표정리 history, SP-08-3-4 배차문자 preview/send audit history.
 
 ## Phase 0 — 저장소·가드 정립
 

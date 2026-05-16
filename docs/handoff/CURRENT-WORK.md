@@ -1,6 +1,24 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-08-2 **DPS legacy GAS DB/API parity 진행**, Codex)
+## 2026-05-16 Codex 최신 핸드오프 — SP-08-3-1 배차 legacy GAS parity 기반 잠금
+
+- 현재 branch: `feat/sp-08-3-1-dispatch-parity-base`
+- 기준 main: PR #211 merge commit `ce947fe8`.
+- 첫 commit: `docs(sp-08-3-1): SP-08-3 배차 GAS parity 기획서`.
+- 범위:
+  - `docs/planning/2026-05-16_sp-08-3-dispatch-legacy-gas-parity.md`를 마스터 기획서로 커밋.
+  - `clients/desktop/playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts`로 6 endpoint matrix, UUID literal zero, Notion runtime call zero, secret-like marker zero를 정적 계약화.
+  - `scripts/generate-sp-08-3-dispatch-parity-screenshots.ps1`와 `docs/qa/sp-08-3-dispatch-parity/` QA 산출 추가.
+  - `docs/dev-reports/sp-08-3-dispatch-legacy-gas-parity.md` 신규 작성.
+  - README / ROADMAP / DECISIONS / SP-08 dev-report / 관련 service README 문서 동기화.
+- 범위 밖:
+  - SP-08-3-2~4의 Flyway table, controller, UI 2-Tab 실제 구현은 아직 하지 않는다.
+  - Aligo 실 API 활성화 없음.
+- 다음 단계:
+  - 로컬 검증: SP-08-3 단독 Playwright, SP-08-3+SP-08-2+SP-08-1+full-menu 회귀, QA PNG, `git diff --check`, secret/runtime scan.
+  - push 후 Claude PM이 PR 생성: `[FEAT] SP-08-3-1 배차 GAS parity 기반 잠금`.
+
+> 갱신일: 2026-05-16 (SP-08-3-1 **배차 legacy GAS parity 기반 잠금 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
