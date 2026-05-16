@@ -27,6 +27,11 @@ const _dirname = path.dirname(_filename)
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
+/** desktop renderer 는 createHashRouter 기반이므로 Vite 단독 QA도 hash route 로 진입한다. */
+function appUrl(route: string): string {
+  return `${BASE_URL}/#${route}`
+}
+
 /** 스크린샷 저장 디렉토리 */
 const QA_DIR = path.resolve(
   _dirname,
@@ -81,7 +86,7 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// 구매조회 11 컬럼 정의
+// 구매관리 12 컬럼 정의
 // ---------------------------------------------------------------------------
 
 const EXPECTED_PURCHASE_COLUMNS = [
@@ -96,6 +101,7 @@ const EXPECTED_PURCHASE_COLUMNS = [
   '입고창고',
   '적요',
   '비고',
+  '상세',
 ]
 
 // ---------------------------------------------------------------------------
@@ -112,17 +118,17 @@ test.describe('구매조회 페이지 (TC-P1~P3)', () => {
   })
 
   /**
-   * TC-P1: /purchases/query 진입 → 컬럼 11개 노출
+   * TC-P1: /purchases/query 진입 → 컬럼 12개 노출
    *
    * 기대 결과:
-   *   - 체크박스/순번/구매번호/거래처/거래처코드/품목/금액/수량합계/입고창고/적요/비고
+   *   - 체크박스/순번/구매번호/거래처/거래처코드/품목/금액/수량합계/입고창고/적요/비고/상세
    *   - 페이지 에러 없음
    */
-  test('TC-P1: 구매조회 컬럼 11개 노출', async ({ page }) => {
+  test('TC-P1: 구매관리 컬럼 12개 노출', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/purchases/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/purchases/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -147,7 +153,7 @@ test.describe('구매조회 페이지 (TC-P1~P3)', () => {
 
     ensureQaDir()
     await page.screenshot({
-      path: path.join(QA_DIR, 'TC-P1-purchase-query-11-columns.png'),
+      path: path.join(QA_DIR, 'TC-P1-purchase-query-12-columns.png'),
       fullPage: true,
     })
 
@@ -168,7 +174,7 @@ test.describe('구매조회 페이지 (TC-P1~P3)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/purchases/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/purchases/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -219,7 +225,7 @@ test.describe('구매조회 페이지 (TC-P1~P3)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/purchases/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/purchases/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -255,10 +261,10 @@ test.describe('구매조회 페이지 (TC-P1~P3)', () => {
       }
     } else {
       // URL 파라미터 검색 방식 fallback
-      await page.goto(
-        `${BASE_URL}/purchases/query?mockRole=MASTER&businessNumber=123-45-67890`,
-        { waitUntil: 'domcontentloaded', timeout: 20000 },
-      )
+      await page.goto(appUrl('/purchases/query?mockRole=MASTER&businessNumber=123-45-67890'), {
+        waitUntil: 'domcontentloaded',
+        timeout: 20000,
+      })
       await page.waitForTimeout(1000)
     }
 

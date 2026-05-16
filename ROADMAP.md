@@ -41,8 +41,9 @@
 - SP-01: Samhan Public 거래처 관리 메뉴 gap 정합화 완료, PR #203 merge. `판매 > 거래처 관리`와 `/admin/partners`, `/admin/partners/new`를 `SALES / MANAGER / MASTER` 공용 권한으로 정렬했다.
 - SP-02: Samhan Public 회계 마감 메뉴 gap 정합화 완료, PR #204 merge. `매출 마감`은 `/sales/closing`, `월말 마감`은 `/accounting/period-close`로 고정하고 MANAGER 조회 전용 백엔드 계약 및 accounting-service Docker 무스킵 테스트(204 tests / 0 skipped)를 맞췄다.
 - SP-03: Samhan Public 구매관리 검수 CTA + 관리형 메뉴명/표시번호 정리 완료, PR #205 merge. `/purchases` 통합 화면에서 `WAREHOUSE / MANAGER / MASTER`가 `SAVED / CONFIRMED` 구매전표를 같은 행의 **[검수]** 버튼으로 `InboundInspectionDialog`에 연결하고, 판매/구매/재고이동/창고/견적서/주문서 메뉴는 `…관리` 명칭으로 정렬했다. 재고이동 이동번호도 `T-`/`TR-` 없이 `YYYY/MM/DD-{순번}`으로 통일했다.
-- SP-04: Samhan Public 전메뉴/권한/legacy GAS·노션 이식 감사 진행. `/tools/legacy-gas` 27개 GAS 카테고리와 PR #115/#117/#118/#119/#120/#163을 대조하고, 단톡방/발송금지/배차지역/DC CSV row count를 현재 export 기준으로 재검증한다. 종합견적서/주문서는 legacy Google Spreadsheet 원본 tab을 직접 읽도록 재검증했으며, 견적번호/주문번호/재고이동/전표/배차번호는 공개 업무번호 `YYYY/MM/DD-{순번}` 표준으로 정렬한다.
-- 다음 후보: 품목 마스터 7탭 UI, 창고 재고 조회 IA, comments/audit/SSE proxy 확장, Testcontainers no-skip hardening.
+- SP-04: Samhan Public 전메뉴/권한/legacy GAS·노션 이식 감사 완료, PR #206 merge. `/tools/legacy-gas` 27개 GAS 카테고리와 PR #115/#117/#118/#119/#120/#163을 대조하고, 단톡방/발송금지/배차지역/DC CSV row count와 종합견적서/주문서 Google Sheet 원본 tab 계약을 재검증했다.
+- SP-05: Samhan Public 실사용 CRUD 표면 재점검 진행. 판매관리/구매관리 목록에서 명시 `상세` 버튼으로 `/sales/:id`, `/purchases/:id`에 진입하도록 보정하고, 거래처 기본 UI와 구매 검수 CTA 문서 상태를 최신화한다.
+- 다음 후보: SP-06 legacy GAS 기능 완전 대조, SP-07 Google Sheets 견적/주문 E2E, SP-08 권한/역할/UUID 비노출 전메뉴 회귀, 품목 마스터 7탭 UI.
 
 ## Phase 0 — 저장소·가드 정립
 

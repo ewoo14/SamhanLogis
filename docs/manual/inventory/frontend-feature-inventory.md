@@ -8,6 +8,17 @@
 
 ---
 
+## 2026-05-16 SP-05 현재 상태 우선 적용
+
+이 문서는 2026-05-09 Stage 1 inventory 를 원본으로 보존하되, 이후 PR #203~#206 머지로 바뀐 Samhan Public 운영 화면은 본 블록을 우선한다.
+
+- 거래처 기본 관리 UI는 `/admin/partners` 목록과 `/admin/partners/new` 생성 화면으로 운영 가능하다. 4탭 중 여신/단가·부가정보의 일부 고급 필드는 후속 보강 대상이지만, 더 이상 “거래처 UI 부재” 상태는 아니다.
+- 판매관리와 구매관리는 목록에서 명시 상세 버튼으로 `/sales/:id`, `/purchases/:id`에 진입한다. 신규 작성은 각각 `/sales/new`, `/purchases/new`에서 처리하고, 상세 화면에서 수정/상태 전이를 이어간다.
+- 구매관리는 `SAVED / CONFIRMED` 구매전표 행의 `검수` CTA로 `InboundInspectionDialog`에 진입한다. 라인별 불량/사진 첨부 등 고급 검수는 후속 P0/P1 보강 대상이다.
+- `clients/mobile-staff`의 기사 모드는 D-AX-19 이후 은퇴했고, 기사 배차/GPS/서명은 `clients/arologis-mobile`이 전담한다.
+
+---
+
 ## 0. 종합 통계
 
 | 영역 | 수량 | 비고 |
@@ -17,7 +28,7 @@
 | **desktop 화면 (route)** | **27** | login 1 + dashboard 1 + warehouse 1 + slip 8 + transfer 3 + accounting 6 + sales-v4 7 + signature mock 2 (모바일 시뮬) |
 | **mobile-staff 화면** | **6** | EstimateWebView 1 (영업) + driver tab 4 (Dashboard / GPS / Signature / GpsBlocked) + AppRootNavigator 1 |
 | **백엔드 endpoint 호출** | **약 60+** | desktop = auth/inventory/slip/sales/accounting/delivery/signature 7 도메인. mobile-staff = arologis 3 endpoint + 영업 WebView (cookie 인증) |
-| **누락 후보 (이카운트 비교)** | **6+** | 거래처 등록 4 탭 / 판매입력 line item table / 견적·주문서 모바일 / 회계 시산표 보강 등 (§ 5 참고) |
+| **누락 후보 (이카운트 비교)** | **6+** | 거래처 고급 4탭 잔여 필드 / 판매·구매 line item 자동단가 / 견적·주문서 모바일 / 회계 보고서 보강 등 (§ 5 참고) |
 
 ---
 
@@ -288,7 +299,7 @@
 
 | # | 이카운트 화면 | desktop 대응 라우트 | 상태 | 우선순위 |
 |---|---|---|---|---|
-| 1 | **거래처 등록 4 탭** (기본정보 / 거래처정보 / 여신단가 / 부가정보) | (없음 — partner-service backend 만 존재) | ❌ 미구현 | **HIGH** (영업 흐름 필수) |
+| 1 | **거래처 등록 4 탭** (기본정보 / 거래처정보 / 여신단가 / 부가정보) | `/admin/partners`, `/admin/partners/new` | ⏳ 기본 생성 UI 운영 / 고급 4탭 필드 잔여 | **HIGH** (영업 흐름 필수) |
 | 2 | **판매입력 화면** (line item table + 단가 자동 + 부가세) | `/sales/new` (SlipFormPage, LineRow 기반) | ⏳ 부분 (이카운트 만큼 단가 자동 연동 약함) | MED |
 | 3 | **구매입력 화면** | `/purchases/new` (SlipFormPage mode=INBOUND) | ⏳ 부분 (판매입력과 동일 화면 재사용 — 구매 전용 필드 부족) | MED |
 | 4 | **품목 등록 화면** (model / spec / category / 가격 정책) | (없음 — sales-service backend 만 존재) | ❌ 미구현 | HIGH |

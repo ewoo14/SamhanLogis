@@ -8,6 +8,16 @@
 
 ---
 
+## 2026-05-16 SP-05 재점검
+
+PR #203~#206 이후 Samhan Public 전메뉴를 다시 보며 아래 P0 항목의 “UI 부재” 판정을 정정한다.
+
+- 거래처 기본 생성 UI는 `/admin/partners/new`로 운영 가능하다. `/admin/partners` 목록, 생성, 상세/수정 진입은 `SALES / MANAGER / MASTER` 공용 권한으로 정렬됐다. 이카운트 4탭 중 여신/단가·부가정보 고급 필드는 잔여 보강으로 남긴다.
+- 판매관리와 구매관리는 각각 `/sales/new`, `/purchases/new` 생성 진입점과 `/sales/:id`, `/purchases/:id` 상세/수정 진입점을 노출한다.
+- 구매관리 목록 CTA로 입고 검수 Dialog 진입 가능하다. `SAVED / CONFIRMED` 구매전표는 `WAREHOUSE / MANAGER / MASTER` 권한에서 행 단위 `검수` 버튼을 통해 처리한다.
+
+---
+
 ## 0. 우선순위 분류 정의
 
 | 등급 | 의미 | 시한 권고 | Phase 11 진입 가드 |
@@ -151,16 +161,16 @@
 ### P0-6. 거래처 등록 4 탭 화면 (이카운트 091522 / 091541 / 091555 / 091604)
 
 > **이카운트 reference** — 4 탭 (기본 / 거래처정보 / 여신단가 / 부가정보). 사업자등록번호, 종사업장번호, 종목, 업태, 통화, 영업단가그룹, 출하조정률, 여신한도, 수금/지급예정일.
-> **현재 Samhan Public** — `partner-service` backend `PartnerAdminController` (POST/GET/PUT/DELETE) 완성. desktop UI **부재**.
+> **현재 Samhan Public** — `partner-service` backend `PartnerAdminController` (POST/GET/PUT/DELETE) + desktop `/admin/partners`, `/admin/partners/new` 기본 관리 UI 운영. 여신/단가·부가정보의 이카운트 고급 필드는 잔여 보강.
 
 | # | 탭 | 항목 | 상태 |
 |---|---|---|---|
-| 1 | **기본** | 거래처코드 / 상호 / 대표자 / 업태 / 전화 / 종목 / Fax / Email / 검색창내용 / 담당자 / 주소1·2 / 거래처계층그룹 / 적요 / 특이사항 | backend Partner entity 부분 ✅ / **UI ❌** |
-| 2 | **거래처정보** | 사업자등록번호 / 비사업자(내국인/외국인) / 세무신고거래처 / 종사업장번호 / 모바일 / 업종별구분 (일반/관세사) / 통화 / 파일관리 / 거래처그룹1·2 / 홈페이지 / 출하대상거래처 / 거래유형(영업/구매) | backend 일부 ⏳ / **UI ❌** |
-| 3 | **여신/단가** | 담당자 / 수금/지급예정일 (4 옵션) / 채권번호관리 / 채무번호관리 / 여신한도 / 출고조정률 / 입고조정률 / 영업단가그룹 / 구매단가그룹 / 여신기간 | backend `PartnerCreditService` ⏳ / **UI ❌** |
+| 1 | **기본** | 거래처코드 / 상호 / 대표자 / 업태 / 전화 / 종목 / Fax / Email / 검색창내용 / 담당자 / 주소1·2 / 거래처계층그룹 / 적요 / 특이사항 | `/admin/partners/new` 기본 생성 UI ✅ / 일부 확장 필드 ⏳ |
+| 2 | **거래처정보** | 사업자등록번호 / 비사업자(내국인/외국인) / 세무신고거래처 / 종사업장번호 / 모바일 / 업종별구분 (일반/관세사) / 통화 / 파일관리 / 거래처그룹1·2 / 홈페이지 / 출하대상거래처 / 거래유형(영업/구매) | 기본 사업자/연락처/주소 UI ✅ / 세무·그룹·파일 고급 필드 ⏳ |
+| 3 | **여신/단가** | 담당자 / 수금/지급예정일 (4 옵션) / 채권번호관리 / 채무번호관리 / 여신한도 / 출고조정률 / 입고조정률 / 영업단가그룹 / 구매단가그룹 / 여신기간 | backend `PartnerCreditService` ⏳ / desktop 고급 탭 ⏳ |
 | 4 | **부가정보** | 거래처코드 / 순번 / E-mail 2 / 특이사항 / 주소2 / 등록일자 / 은행 / 숫자형추가항목 1·2·3 | backend ❌ / **UI ❌** |
 
-**→ P0-6 누락: 4 탭 + 부가 필드 약 30개. 시한: Phase 11 진입 전 2 PR (탭 1+2 / 탭 3+4).**
+**→ P0-6 상태: 기본 거래처 등록/수정 UI는 운영 가능. 잔여는 이카운트 4탭 고급 필드 약 20~30개 보강으로 재분류한다.**
 
 ### P0-7. 품목 등록 화면 (이카운트 091955 / 092006 / 092016)
 
@@ -195,18 +205,18 @@
 
 ### P0-9. 입고 검수 (INSPECTING) UI 화면 — Stage 2 신규 발견
 
-> **검증 출처** — `docs/qa/manual-verification/stage2-scenarios.md` §2.1 S5 / §2.2 S5. `SlipTransitionService.inspect()` backend ✅ / desktop renderer 의 `INSPECTING` 키워드 hit = 0. 매뉴얼 작성 시 검수 단계 자체가 우회 안내 → 창고 작업 차단.
-> **메모리 가드** — `feedback_pm_integration_build_check.md` (Layer 4 도메인 메서드 의미 정렬). backend lifecycle 9 transition 중 `inspect` 만 UI 부재 → 의미 정렬 위반.
+> **검증 출처** — `docs/qa/manual-verification/stage2-scenarios.md` §2.1 S5 / §2.2 S5. SP-03 이후 구매관리 행 단위 검수 CTA가 추가되어 기본 입고 검수 진입은 가능하다.
+> **메모리 가드** — `feedback_pm_integration_build_check.md` (Layer 4 도메인 메서드 의미 정렬). 남은 항목은 라인별 불량/사진/회계 연동의 고급 검수다.
 
 | # | 기능 | 상태 | 비고 |
 |---|---|---|---|
-| 1 | 검수 전용 UI 페이지 (`/slips/{id}/inspect`) | ❌ | 라우트 자체 부재 |
+| 1 | 검수 전용 UI 페이지 (`/slips/{id}/inspect`) | ✅ | 별도 라우트 대신 구매관리 행 CTA + `InboundInspectionDialog` 사용 |
 | 2 | 라인별 검수 결과 (정상 / 불량 / 누락) 입력 | ❌ | `SlipLine.inspectionStatus` 컬럼 부재 |
 | 3 | 검수 사진 첨부 (multipart upload) | ❌ | P0-3 첨부 의존 (slip 도메인) |
 | 4 | 불량 처리 (반품 / 폐기 분개 자동 생성) | ❌ | accounting-service 연계 없음 |
-| 5 | 검수 완료 → DELIVERED transition 자동 트리거 | ⏳ | backend `inspect()` ✅ / UI 만 ❌ |
+| 5 | 검수 완료 → DELIVERED transition 자동 트리거 | ⏳ | backend `inspect()` ✅ / 기본 Dialog CTA ✅ / 자동 회계·불량 연동 잔여 |
 
-**→ P0-9 누락: 5건. 시한: Phase 11 진입 전 1 PR. 창고 작업 lifecycle 차단.**
+**→ P0-9 상태: 기본 검수 진입은 SP-03으로 해소. 잔여 3건(라인별 결과, 사진 첨부, 불량 처리 회계 연동)은 후속 통합 PR 대상.**
 
 ---
 

@@ -1,7 +1,7 @@
 /**
  * 판매관리 — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
  *
- * 컬럼 17개 (슬립 #17 판매관리 명세):
+ * 컬럼 18개 (슬립 #17 판매관리 명세 + SP-05 상세 진입):
  *  1. 체크박스 (다중 선택 + 전체 선택)
  *  2. 순번 (slipDate desc 기준 row index)
  *  3. 판매번호 (slipNo)
@@ -19,6 +19,7 @@
  * 15. 담당자명 (salesPersonName)
  * 16. 인쇄 (printed → Badge)
  * 17. 입금예정일 (paymentDueDate)
+ * 18. 상세 (전표 상세/수정 진입)
  *
  * UUID 비공개 가드: slipNo / businessNumber / partnerCode 만 사용자 노출.
  * id / sourceWarehouseId 는 내부 처리 전용.
@@ -79,6 +80,10 @@ function resolveWarehouseName(id: string | null, warehouses: Warehouse[]): strin
   if (!id) return '—'
   const found = warehouses.find((w) => w.id === id)
   return found?.name ?? '—'
+}
+
+function toPublicTestId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9가-힣_-]/g, '-')
 }
 
 /** 검색 폼 상태 */
@@ -187,10 +192,32 @@ export function SalesQueryPage() {
       { key: 'printed',           label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
       { key: 'paymentDueDate',    label: '입금예정일',  filter: 'text' },
+      {
+        key: 'detailAction',
+        label: '상세',
+        width: 72,
+        align: 'center' as const,
+        filter: false as const,
+        render: (row: SlipQueryRow) => (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/sales/${row.id}`)
+            }}
+            aria-label={`${row.slipNo} 상세 보기`}
+            data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
+          >
+            상세
+          </Button>
+        ),
+      },
       { key: 'slipDate',          label: '전표일자',    filter: 'text' },
     ],
-    [warehouses],
+    [navigate, warehouses],
   )
+  const tableColumnCount = 18
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -407,29 +434,30 @@ export function SalesQueryPage() {
               <Th width="130px">거래처</Th>
               <Th width="120px">거래처코드</Th>
               <Th width="180px">배송주소</Th>
-              <Th width="120px">품 목</Th>
+              <Th width="120px">품목</Th>
               <Th width="160px">특이사항</Th>
-              <Th width="100px" align="right">금 액</Th>
+              <Th width="100px" align="right">금액</Th>
               <Th width="100px">출고창고</Th>
-              <Th width="120px">인수자 번호</Th>
+              <Th width="120px">인수자번호</Th>
               <Th width="90px">전표수정내역</Th>
               <Th width="160px">감리주소</Th>
               <Th width="140px">프로젝트명</Th>
               <Th width="90px">담당자명</Th>
-              <Th width="70px">인 쇄</Th>
+              <Th width="70px">인쇄</Th>
               <Th width="100px">입금예정일</Th>
+              <Th width="72px" align="center">상세</Th>
             </tr>
           </thead>
           <tbody>
             {slipsQuery.isLoading ? (
               <tr>
-                <td colSpan={17} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
+                <td colSpan={tableColumnCount} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
                   로딩 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={17} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
+                <td colSpan={tableColumnCount} style={{ textAlign: 'center', padding: 32, color: 'var(--color-neutral-400)' }}>
                   조회된 판매 전표가 없습니다.
                 </td>
               </tr>
@@ -502,6 +530,20 @@ export function SalesQueryPage() {
                     </Td>
                     {/* 입금예정일 */}
                     <Td>{row.paymentDueDate ?? '—'}</Td>
+                    <Td align="center">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/sales/${row.id}`)
+                        }}
+                        aria-label={`${row.slipNo} 상세 보기`}
+                        data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
+                      >
+                        상세
+                      </Button>
+                    </Td>
                   </tr>
                 )
               })

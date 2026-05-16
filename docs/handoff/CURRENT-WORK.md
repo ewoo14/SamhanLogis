@@ -1,14 +1,43 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-04 **전메뉴/legacy GAS/노션 이식 감사 진행**, Codex)
+> 갱신일: 2026-05-16 (SP-05 **Samhan Public CRUD 표면 재점검 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-04 Samhan Public 전메뉴/legacy GAS/노션 이식 감사
+## 2026-05-16 Codex 최신 핸드오프 — SP-05 Samhan Public CRUD 표면 재점검
 
-- 현재 branch: `codex/sp-04-full-menu-audit`
+- 현재 branch: `codex/sp-05-samhan-public-crud-audit`
+- 기준 main: PR #206 `[codex] SP-04 Samhan Public 전메뉴와 legacy GAS/노션 이식 감사` merge commit `0d77e0815ad6a43ca7cf0a2f59bcb909eb043991`.
+- 현재 PR: 생성 예정 — `[codex] SP-05 Samhan Public CRUD 표면 재점검`
+- 사용자 최신 요청:
+  - SP-04 이후 할 일을 순서대로 진행한다.
+  - 우선순위는 SP-05 → SP-06 → SP-07 → SP-08 순서다.
+  - 판매/구매/거래처 등 실제 사용자가 생성/상세/수정/검수 흐름을 찾을 수 있어야 한다.
+- SP-05 진행:
+  - 판매관리 목록에서 `상세` 버튼을 추가하고 `/sales/:id` 상세/수정 화면으로 명시 진입하게 했다.
+  - 구매관리 목록에서 `상세` 버튼을 추가하고 기존 `검수` CTA와 공존하게 했다.
+  - 상세 버튼의 `data-testid`와 aria label은 내부 UUID가 아니라 공개 업무번호(`slipNo`, `YYYY/MM/DD-{순번}`) 기반이다.
+  - `clients/desktop/playwright/sp-05-crud-surface/sp-05-crud-surface.spec.ts`를 RED 후 GREEN으로 통과시켰다.
+  - `frontend-feature-inventory.md`, `missing-features-catalog.md`에 2026-05-16 SP-05 현재 상태 블록을 추가했다. 거래처 기본 UI와 구매관리 검수 CTA는 더 이상 “UI 부재”로 표기하지 않는다.
+- 로컬 검증:
+  - SP-05 QA 캡처 8장 생성 및 non-zero 확인 완료.
+  - `clients/desktop` typecheck/lint/build PASS. lint는 기존 warning 2건, error 0.
+  - static Playwright contract PASS: SP-05 + full-menu 14 tests / skipped 0.
+  - Vite mock UI Playwright PASS: sales/purchase query 9 tests / skipped 0.
+- 남은 즉시 작업:
+  - 커밋/push/PR 생성.
+  - PR 본문에 QA 캡처 8장을 commit-SHA raw URL로 인라인 첨부.
+  - CI watch 후 PM 재점검/머지.
+- 다음 후보:
+  - SP-06 legacy GAS 기능 완전 대조
+  - SP-07 Google Sheets 견적/주문 E2E
+  - SP-08 권한/역할/UUID 비노출 전메뉴 회귀
+
+## 2026-05-16 Codex 핸드오프 — SP-04 Samhan Public 전메뉴/legacy GAS/노션 이식 감사
+
+- branch: `codex/sp-04-full-menu-audit`
 - 기준 main: PR #205 `[codex] SP-03 Samhan Public 구매관리 검수 CTA와 표시번호 정합화` merge.
-- 현재 PR: 생성 예정 — `[codex] SP-04 Samhan Public 전메뉴와 legacy GAS/노션 이식 감사`
+- PR #206 merge 완료 — `[codex] SP-04 Samhan Public 전메뉴와 legacy GAS/노션 이식 감사`.
 - 사용자 최신 요청:
   - 전메뉴를 전체 점검한다.
   - `/tools/legacy-gas` 안 기존 이카운트 + Google Apps Script 연동 프로그램이 기능 누락 없이 Samhan Public 으로 이식됐는지 확인한다.
@@ -32,13 +61,11 @@
   - `DISPATCH` 공통 role 을 추가하고 배차/지역 조회 전용 계약에 연결했다.
   - 견적번호/주문번호/재고이동/전표/배차번호를 공개 업무번호 `YYYY/MM/DD-{순번}` 표준으로 정렬 중이다. 판매전표와 구매전표처럼 메뉴/업무 타입이 다르면 같은 날짜 같은 순번을 가질 수 있다.
   - PR 캡처용 SP-04 스크린샷 생성 스크립트와 static Playwright contract 를 추가했다.
-- 남은 즉시 작업:
-  - SP-04 screenshot 12장 생성 및 링크 검증.
-  - `clients/desktop` typecheck/lint/build + static Playwright contract.
-  - Gradle targeted tests: role/dispatch/transfer/estimate/order/import services.
-  - Google Sheets source validation targeted tests는 1차 PASS: `ProductCatalogLookupClientTest`, `ProductSheetSyncServiceIT`.
-  - Docker local stack 에서 operational validation 실제 import 검증.
-  - PR 본문에 상세 캡처 여러 장 인라인 첨부 후 CI watch.
+- 완료:
+  - SP-04 screenshot 12장 생성 및 PR body commit-SHA raw URL 링크 검증 완료.
+  - `clients/desktop` typecheck/lint/build + static Playwright contract 완료.
+  - targeted Gradle/Google Sheets/import validation + Docker smoke 완료.
+  - PR #206 merge 및 미사용 브랜치 정리 완료.
 
 ## 2026-05-16 Codex 핸드오프 — SP-03 Samhan Public 구매관리 검수 CTA + 관리형 메뉴/이동번호 정합화
 

@@ -179,6 +179,27 @@ export function PurchaseQueryPage() {
       { key: 'slipDate',               label: '전표일자',    filter: 'text' },
       { key: 'printed',                label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
+      {
+        key: 'detailAction',
+        label: '상세',
+        width: 72,
+        align: 'center' as const,
+        filter: false as const,
+        render: (row: SlipQueryRow) => (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/purchases/${row.id}`)
+            }}
+            aria-label={`${row.slipNo} 상세 보기`}
+            data-testid={`purchase-query-detail-${toPublicTestId(row.slipNo)}`}
+          >
+            상세
+          </Button>
+        ),
+      },
       ...(canInspect
         ? [{
             key: 'inspectionAction',
@@ -204,9 +225,9 @@ export function PurchaseQueryPage() {
           } satisfies DataGridColumn<SlipQueryRow>]
         : []),
     ],
-    [canInspect, warehouses],
+    [canInspect, navigate, warehouses],
   )
-  const tableColumnCount = canInspect ? 12 : 11
+  const tableColumnCount = canInspect ? 13 : 12
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -419,12 +440,13 @@ export function PurchaseQueryPage() {
               <Th width="130px">구매번호</Th>
               <Th width="130px">거래처</Th>
               <Th width="120px">거래처코드</Th>
-              <Th width="140px">품 목</Th>
-              <Th width="100px" align="right">금 액</Th>
+              <Th width="140px">품목</Th>
+              <Th width="100px" align="right">금액</Th>
               <Th width="80px" align="right">수량합계</Th>
               <Th width="100px">입고창고</Th>
-              <Th width="160px">적 요</Th>
-              <Th width="160px">비 고</Th>
+              <Th width="160px">적요</Th>
+              <Th width="160px">비고</Th>
+              <Th width="72px" align="center">상세</Th>
               {canInspect ? <Th width="86px" align="center">검수</Th> : null}
             </tr>
           </thead>
@@ -488,6 +510,20 @@ export function PurchaseQueryPage() {
                     {/* 비고 — 현재 memo 와 동일 (BE 분리 컬럼 추가 시 후속 갱신) */}
                     <Td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {row.memo ?? '—'}
+                    </Td>
+                    <Td align="center">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/purchases/${row.id}`)
+                        }}
+                        aria-label={`${row.slipNo} 상세 보기`}
+                        data-testid={`purchase-query-detail-${toPublicTestId(row.slipNo)}`}
+                      >
+                        상세
+                      </Button>
                     </Td>
                     {canInspect ? (
                       <Td align="center">

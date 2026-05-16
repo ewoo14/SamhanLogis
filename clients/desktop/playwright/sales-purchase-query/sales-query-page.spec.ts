@@ -27,6 +27,11 @@ const _dirname = path.dirname(_filename)
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
+/** desktop renderer 는 createHashRouter 기반이므로 Vite 단독 QA도 hash route 로 진입한다. */
+function appUrl(route: string): string {
+  return `${BASE_URL}/#${route}`
+}
+
 /** 스크린샷 저장 디렉토리 (docs/qa/sales-purchase-query-redesign/) */
 const QA_DIR = path.resolve(
   _dirname,
@@ -102,7 +107,7 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// 판매조회 17 컬럼 정의 (FE agent 마크업의 data-column 속성 기준)
+// 판매관리 18 컬럼 정의 (FE agent 마크업의 data-column 속성 기준)
 // ---------------------------------------------------------------------------
 
 const EXPECTED_SALES_COLUMNS = [
@@ -123,6 +128,7 @@ const EXPECTED_SALES_COLUMNS = [
   '담당자명',
   '인쇄',
   '입금예정일',
+  '상세',
 ]
 
 // ---------------------------------------------------------------------------
@@ -150,7 +156,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -202,17 +208,17 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
   })
 
   /**
-   * TC-S2: 판매조회 컬럼 17개 모두 노출
+   * TC-S2: 판매관리 컬럼 18개 모두 노출
    *
    * 기대 결과:
-   *   - 헤더 행에 17개 컬럼이 텍스트/aria-label/data-column 으로 모두 노출
+   *   - 헤더 행에 18개 컬럼이 텍스트/aria-label/data-column 으로 모두 노출
    *   - 체크박스 컬럼 포함
    */
-  test('TC-S2: 컬럼 17개 모두 노출', async ({ page }) => {
+  test('TC-S2: 컬럼 18개 모두 노출', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -237,7 +243,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
 
     ensureQaDir()
     await page.screenshot({
-      path: path.join(QA_DIR, 'TC-S2-sales-query-17-columns.png'),
+      path: path.join(QA_DIR, 'TC-S2-sales-query-18-columns.png'),
       fullPage: true,
     })
 
@@ -256,7 +262,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -312,7 +318,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -325,13 +331,13 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const headerExists = (await headerCheckbox.count()) > 0
 
     if (headerExists) {
-      await headerCheckbox.check()
-      await page.waitForTimeout(500)
-
       const rowCheckboxes = page.locator('tbody input[type="checkbox"]')
       const total = await rowCheckboxes.count()
 
       if (total > 0) {
+        await headerCheckbox.check()
+        await page.waitForTimeout(500)
+
         // 모든 행 체크박스가 checked 상태인지 검증
         let checkedCount = 0
         for (let i = 0; i < total; i++) {
@@ -339,6 +345,9 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
           if (checked) checkedCount++
         }
         expect(checkedCount, `헤더 체크박스 클릭 후 ${total}행 중 ${checkedCount}행만 선택됨`).toBe(total)
+      } else {
+        const body = (await page.textContent('body')) ?? ''
+        expect(body.length, '판매조회 페이지 body 비어있음').toBeGreaterThan(50)
       }
     } else {
       const body = (await page.textContent('body')) ?? ''
@@ -365,7 +374,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -405,7 +414,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
       expect(pageText.length, '검색 후 body 비어있음').toBeGreaterThan(50)
     } else {
       // 모달 트리거 미구현 — URL 파라미터 검색 방식 fallback
-      await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER&partnerName=삼한`, {
+      await page.goto(appUrl('/sales/query?mockRole=MASTER&partnerName=삼한'), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -434,7 +443,7 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/sales/query?mockRole=MASTER`, {
+    await page.goto(appUrl('/sales/query?mockRole=MASTER'), {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
