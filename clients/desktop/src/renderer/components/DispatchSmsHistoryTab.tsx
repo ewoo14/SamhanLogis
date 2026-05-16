@@ -2,49 +2,49 @@ import { useCallback, useMemo, useState, type CSSProperties } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, DataGrid, Input, Select, type DataGridColumn } from '@samhan/design-system'
 import {
-  getSlipCleanupHistoryDetail,
-  listSlipCleanupHistory,
-  type SlipCleanupProgramType,
-  type SlipCleanupSaveHistoryDetailResponse,
-  type SlipCleanupSaveHistoryListRow,
-  type SlipCleanupSaveMode,
-} from '../api/slipCleanupSaveHistoryApi'
+  getDispatchSmsHistoryDetail,
+  listDispatchSmsHistory,
+  type DispatchSmsProgramType,
+  type DispatchSmsSaveHistoryDetailResponse,
+  type DispatchSmsSaveHistoryListRow,
+  type DispatchSmsSaveMode,
+} from '../api/dispatchSmsSaveHistoryApi'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 
-interface SlipCleanupHistoryTabProps {
-  programType: SlipCleanupProgramType
+interface DispatchSmsHistoryTabProps {
+  programType: DispatchSmsProgramType
   testIdPrefix: string
   isSaving?: boolean
-  onRestore: (detail: SlipCleanupSaveHistoryDetailResponse) => void
+  onRestore: (detail: DispatchSmsSaveHistoryDetailResponse) => void
 }
 
-type HistoryGridRow = SlipCleanupSaveHistoryListRow & { __index: number }
+type HistoryGridRow = DispatchSmsSaveHistoryListRow & { __index: number }
 
-/** 전표정리 저장내역 목록 탭. */
-export function SlipCleanupHistoryTab({
+/** 배차문자 저장내역 목록 탭. */
+export function DispatchSmsHistoryTab({
   programType,
   testIdPrefix,
   isSaving = false,
   onRestore,
-}: SlipCleanupHistoryTabProps) {
+}: DispatchSmsHistoryTabProps) {
   const queryClient = useQueryClient()
   const today = useMemo(todayIso, [])
   const [from, setFrom] = useState(today.slice(0, 8) + '01')
   const [to, setTo] = useState(today)
-  const [mode, setMode] = useState<SlipCleanupSaveMode | 'ALL'>('MANUAL_NAMED')
+  const [mode, setMode] = useState<DispatchSmsSaveMode | 'ALL'>('MANUAL_NAMED')
   const [query, setQuery] = useState({ from, to, mode })
   const [error, setError] = useState<string | null>(null)
 
-  const historyQueryKey = ['slip-cleanup-history-list', programType, query] as const
+  const historyQueryKey = ['dispatch-sms-history-list', programType, query] as const
   const historyQuery = useQuery({
     queryKey: historyQueryKey,
-    queryFn: () => listSlipCleanupHistory({ programType, ...query }),
+    queryFn: () => listDispatchSmsHistory({ programType, ...query }),
   })
 
   const handleRestore = useCallback(async (id: string) => {
     try {
       setError(null)
-      const detail = await getSlipCleanupHistoryDetail(id)
+      const detail = await getDispatchSmsHistoryDetail(id)
       onRestore(detail)
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장내역 복원에 실패했습니다.')
@@ -80,20 +80,21 @@ export function SlipCleanupHistoryTab({
         <Select
           label="모드"
           value={mode}
-          onChange={(e) => setMode(e.target.value as SlipCleanupSaveMode | 'ALL')}
+          onChange={(e) => setMode(e.target.value as DispatchSmsSaveMode | 'ALL')}
           selectSize="sm"
           fullWidth={false}
           data-testid={`${testIdPrefix}-mode`}
         >
           <option value="MANUAL_NAMED">명시 저장만</option>
           <option value="AUTO_LATEST">자동 저장만</option>
+          <option value="SEND_AUDIT">발송 audit</option>
           <option value="ALL">전체</option>
         </Select>
         <Button
           variant="primary"
           onClick={() => {
             setQuery({ from, to, mode })
-            void queryClient.invalidateQueries({ queryKey: ['slip-cleanup-history-list', programType] })
+            void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list', programType] })
           }}
           loading={historyQuery.isFetching || isSaving}
           data-testid={`${testIdPrefix}-query`}
@@ -147,16 +148,22 @@ function columns(testIdPrefix: string): DataGridColumn<HistoryGridRow>[] {
       key: 'mode',
       label: '구분',
       filter: false,
-      render: (row) => row.saveMode === 'AUTO_LATEST' ? '자동' : '명시',
+      render: (row) => modeLabel(row.saveMode),
     },
     {
       key: 'rowCount',
-      label: '전표 수',
+      label: '건수',
       align: 'right',
       filter: false,
       render: (row) => (row.rowCount ?? 0).toLocaleString('ko-KR'),
     },
   ]
+}
+
+function modeLabel(mode: DispatchSmsSaveMode): string {
+  if (mode === 'AUTO_LATEST') return '자동'
+  if (mode === 'SEND_AUDIT') return '발송 audit'
+  return '명시'
 }
 
 function todayIso(): string {

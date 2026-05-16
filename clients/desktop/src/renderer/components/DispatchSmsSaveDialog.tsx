@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Button, Input, Modal } from '@samhan/design-system'
 
-interface SlipCleanupSaveDialogProps {
+interface DispatchSmsSaveDialogProps {
   open: boolean
   isSaving: boolean
   testIdPrefix: string
@@ -9,14 +9,14 @@ interface SlipCleanupSaveDialogProps {
   onSave: (topic: string) => void
 }
 
-/** 전표정리 명시 저장 주제 입력 dialog. */
-export function SlipCleanupSaveDialog({
+/** 배차문자 preview 명시 저장 주제 입력 dialog. */
+export function DispatchSmsSaveDialog({
   open,
   isSaving,
   testIdPrefix,
   onClose,
   onSave,
-}: SlipCleanupSaveDialogProps) {
+}: DispatchSmsSaveDialogProps) {
   const [topic, setTopic] = useState('')
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function SlipCleanupSaveDialog({
   return (
     <Modal
       open={open}
-      title="전표정리 결과 저장"
+      title="배차문자 preview 저장"
       onClose={onClose}
       closeOnEsc={!isSaving}
       closeOnBackdropClick={!isSaving}
@@ -53,7 +53,7 @@ export function SlipCleanupSaveDialog({
         label="저장주제"
         value={topic}
         onChange={(e) => setTopic(e.target.value)}
-        placeholder="예: 월말 마감 직전 점검"
+        placeholder="예: 오전 배차문자 발송 전 점검"
         data-testid={`${testIdPrefix}-topic-input`}
         maxLength={200}
         autoFocus
