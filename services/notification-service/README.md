@@ -47,16 +47,16 @@ BaseEntity 7 audit (`created_at` / `created_by` / `modified_at` / `modified_by` 
 | GET | `/admin/notifications/{id}` | 단건 조회 |
 | POST | `/admin/notifications/{id}/retry` | 실패 발송 재시도 |
 
-### SP-08-3 예정 배차문자 history API (2026-05-16 기반 잠금)
+### SP-08-3-4 배차문자 history API (2026-05-17 구현)
 
-SP-08-3-1은 구현 없이 계약만 잠근다. SP-08-3-4에서 legacy GAS `배차안내문자`의 preview/save/send audit 흐름을 `dispatch_sms_save_history`로 추가한다.
+legacy GAS `배차안내문자`의 preview/save/send audit 흐름을 `dispatch_sms_save_history`로 보존한다. Flyway `V4__add_dispatch_sms_save_history.sql`이 테이블과 `AUTO_LATEST` partial unique index를 생성한다.
 
-| 기존 endpoint | 예정 history endpoint | programType | saveMode |
+| 기존 endpoint | history endpoint | programType | saveMode |
 |---|---|---|---|
 | `POST /admin/notifications/dispatch-batch/preview` | `POST/GET /admin/notifications/dispatch-sms/history` + detail/latest | `DISPATCH_SMS` | `AUTO_LATEST`, `MANUAL_NAMED` |
 | `POST /admin/notifications/dispatch-batch/send` | 동일 table append | `DISPATCH_SMS` | `SEND_AUDIT` |
 
-`SEND_AUDIT`는 send 후 append-only audit 용도이며, 운영자 정리도 hard delete가 아니라 Soft Delete only를 따른다. Aligo 실 API 활성화는 SP-08-6 별도 범위다.
+`AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 retry 3회 + `REQUIRES_NEW` transaction으로 unique race를 흡수한다. `SEND_AUDIT`는 send 후 append-only audit 용도이며 latest 자동 복원 대상이 아니다. 모든 detail 조회는 `findByIdAndCreatedBy` 사용자 격리를 거치고, 운영자 정리도 hard delete가 아니라 Soft Delete only를 따른다. Aligo 실 API 활성화는 SP-08-6 별도 범위다.
 
 ## 4. Adapter (3 channel — strategy pattern)
 

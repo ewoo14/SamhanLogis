@@ -1941,3 +1941,21 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-3-09 | desktop `/sales/slip-cleanup`은 `실행 / 저장내역` 2탭을 제공한다. latest active row가 있으면 진입 시 자동 복원 배너를 노출하고, row click은 결과 payload를 실행 탭에 복원한다. |
 | SP-08-3-3-10 | 화면 row testid는 `slip-cleanup-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 UUID 및 X-User-Id 형식 모두 `maskCreatedBy`로 `사용자` 마스킹한다. |
 | SP-08-3-3-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
+
+### SP-08-3-4. 배차문자 preview/send audit 저장내역 DB/API/UI 구현 (2026-05-17)
+
+**배경**: SP-08-3-1에서 notification 배차문자 history 소유권을 `dispatch_sms_save_history`로 잠갔다. SP-08-3-4는 legacy GAS `배차안내문자`의 preview 결과와 실발송 audit 결과를 DB/API/UI 저장내역으로 보존한다.
+
+| 결정 ID | 결정 |
+|---|---|
+| SP-08-3-4-01 | 배차문자 저장내역 테이블은 `dispatch_sms_save_history`로 둔다. payload는 `DispatchBatchPreviewResponse`와 `DispatchBatchSendResponse` shape 보존을 위해 `JSONB`로 저장한다. |
+| SP-08-3-4-02 | API는 `/admin/notifications/dispatch-sms/history` 하위 `POST`, list, detail, latest 4 endpoint로 둔다. |
+| SP-08-3-4-03 | 권한은 기존 dispatch-batch controller와 동일하게 `DISPATCH / MANAGER / MASTER`로 둔다. |
+| SP-08-3-4-04 | programType은 `DISPATCH_SMS` 단일 값으로 고정하고, saveMode는 `AUTO_LATEST`, `MANUAL_NAMED`, `SEND_AUDIT` 세 값을 둔다. |
+| SP-08-3-4-05 | `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 soft-delete 한다. partial unique race는 service retry 3회 + REQUIRES_NEW `TransactionTemplate`으로 흡수한다. |
+| SP-08-3-4-06 | `MANUAL_NAMED`와 `SEND_AUDIT`는 append-only 저장내역이다. `SEND_AUDIT`는 실발송 audit 의도이므로 자동 저장 upsert 대상이 아니며 latest 자동 복원 대상도 아니다. |
+| SP-08-3-4-07 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 존재 은닉을 위해 404 `DISPATCH_SMS_HISTORY_NOT_FOUND`로 응답한다. |
+| SP-08-3-4-08 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 `DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE` 422로 거절한다. |
+| SP-08-3-4-09 | desktop 배차문자 화면은 `실행 / 저장내역` 2탭을 제공한다. latest active row는 `AUTO_LATEST`만 자동 복원하고, row click은 preview 또는 send audit payload를 실행 탭에 복원한다. |
+| SP-08-3-4-10 | 화면 row testid는 `dispatch-sms-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 공통 `maskCreatedBy`로 `사용자` 마스킹한다. |
+| SP-08-3-4-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
