@@ -42,6 +42,7 @@
  */
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -49,7 +50,7 @@ import {
   type CSSProperties,
 } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Button } from '@samhan/design-system'
+import { Button, Tabs } from '@samhan/design-system'
 import {
   compareDps,
   downloadDpsTemplate,
@@ -59,6 +60,14 @@ import {
   type DpsCompareResponse,
   type DpsRowMismatch,
 } from '../api/dpsCompareApi'
+import {
+  getLatestDpsHistory,
+  saveDpsHistory,
+  type DpsSaveHistoryDetailResponse,
+} from '../api/dpsSaveHistoryApi'
+import { DpsHistoryTab } from '../components/DpsHistoryTab'
+import { DpsRestoredBanner } from '../components/DpsRestoredBanner'
+import { DpsSaveDialog } from '../components/DpsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 /** 오늘 날짜 (YYYY-MM-DD) — date input 기본값. */
@@ -135,6 +144,10 @@ export function InventoryDpsComparePage() {
   const [groupBy, setGroupBy] = useState<DpsCompareGroupBy>('SLIP')
   const [file, setFile] = useState<File | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState(0)
+  const [restoredResult, setRestoredResult] = useState<DpsCompareResponse | null>(null)
+  const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // ── BE 호출 mutation ───────────────────────────────────────
@@ -143,8 +156,65 @@ export function InventoryDpsComparePage() {
       if (!file) throw new Error('DPS 엑셀 파일을 먼저 선택해 주세요.')
       return compareDps(file, from, to, groupBy)
     },
+    onSuccess: (data) => {
+      setRestoredResult(null)
+      void saveDpsHistory({
+        programType: 'DPS_COMPARE',
+        saveMode: 'AUTO_LATEST',
+        requestParams: {
+          from,
+          to,
+          groupBy,
+          fileName: file?.name ?? null,
+          rowCount: data.dpsRowCount,
+          mismatchCount: data.mismatchCount,
+        },
+        responsePayload: data,
+      }).catch(() => {
+        // 자동 저장 실패는 비교 실행 UX 를 막지 않는다. 명시 저장에서 사용자에게 재시도 기회를 제공한다.
+      })
+    },
   })
-  const result: DpsCompareResponse | undefined = compareMutation.data
+  const saveManualMutation = useMutation({
+    mutationFn: (topic: string) => {
+      const payload = compareMutation.data ?? restoredResult
+      if (!payload) throw new Error('저장할 DPS 비교 결과가 없습니다.')
+      return saveDpsHistory({
+        programType: 'DPS_COMPARE',
+        saveMode: 'MANUAL_NAMED',
+        topic,
+        requestParams: {
+          from: payload.from,
+          to: payload.to,
+          groupBy: payload.groupBy,
+          mismatchCount: payload.mismatchCount,
+          rowCount: payload.dpsRowCount,
+        },
+        responsePayload: payload,
+      })
+    },
+    onSuccess: () => {
+      setSaveDialogOpen(false)
+      setActiveTab(1)
+    },
+  })
+  const result: DpsCompareResponse | undefined = compareMutation.data ?? restoredResult ?? undefined
+
+  useEffect(() => {
+    let cancelled = false
+    void getLatestDpsHistory('DPS_COMPARE')
+      .then((detail) => {
+        if (cancelled || !detail) return
+        setRestoredResult(detail.responsePayload as DpsCompareResponse)
+        setRestoreBanner(`이전 결과 복원됨 · ${formatDateTime(detail.createdAt)}`)
+      })
+      .catch(() => {
+        // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // ── 파일 선택 ─────────────────────────────────────────────
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -189,8 +259,16 @@ export function InventoryDpsComparePage() {
       return
     }
     setValidationError(null)
+    setRestoreBanner(null)
     compareMutation.mutate()
   }, [compareMutation, file, from, to])
+
+  const handleRestore = useCallback((detail: DpsSaveHistoryDetailResponse) => {
+    const payload = detail.responsePayload as DpsCompareResponse
+    setRestoredResult(payload)
+    setActiveTab(0)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+  }, [])
 
   // ── 결과 CSV 다운로드 ─────────────────────────────────────
   const handleCsvDownload = useCallback(() => {
@@ -228,8 +306,25 @@ export function InventoryDpsComparePage() {
         </span>
       </div>
 
-      {/* ── 폼 영역 ─────────────────────────────────────────── */}
-      <section style={formCardStyle}>
+      <Tabs
+        tabs={[
+          { label: '실행', testId: 'dps-history-tab-run' },
+          { label: '저장내역', testId: 'dps-history-tab-list' },
+        ]}
+        activeIndex={activeTab}
+        onTabChange={setActiveTab}
+        ariaLabel="DPS 입고 비교 탭"
+      >
+        <div>
+          {restoreBanner ? (
+            <DpsRestoredBanner
+              message={restoreBanner}
+              onClose={() => setRestoreBanner(null)}
+            />
+          ) : null}
+
+          {/* ── 폼 영역 ─────────────────────────────────────────── */}
+          <section style={formCardStyle}>
         <div style={formRowStyle}>
           <label style={fieldLabelStyle}>
             <span>조회 기간 시작</span>
@@ -345,8 +440,8 @@ export function InventoryDpsComparePage() {
         </div>
       </section>
 
-      {/* ── 결과 통계 카드 + mismatch 표 ─────────────────────── */}
-      {result ? (
+          {/* ── 결과 통계 카드 + mismatch 표 ─────────────────────── */}
+          {result ? (
         <section style={resultSectionStyle}>
           <div style={statsRowStyle}>
             <StatCard label="조회 기간" value={`${result.from} ~ ${result.to}`} />
@@ -375,6 +470,13 @@ export function InventoryDpsComparePage() {
               disabled={result.mismatches.length === 0}
             >
               결과 CSV 다운로드
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => setSaveDialogOpen(true)}
+              data-testid="dps-history-save-button"
+            >
+              내역으로 저장
             </Button>
           </div>
 
@@ -442,7 +544,16 @@ export function InventoryDpsComparePage() {
             </div>
           )}
         </section>
-      ) : null}
+          ) : null}
+        </div>
+        <DpsHistoryTab programType="DPS_COMPARE" onRestore={handleRestore} />
+      </Tabs>
+      <DpsSaveDialog
+        open={saveDialogOpen}
+        saving={saveManualMutation.isPending}
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={(topic) => saveManualMutation.mutate(topic)}
+      />
     </>
   )
 }
@@ -470,6 +581,21 @@ function StatCard({ label, value, tone = 'neutral' }: StatCardProps) {
       </div>
     </div>
   )
+}
+
+function formatDateTime(value: string): string {
+  try {
+    return new Date(value).toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return value
+  }
 }
 
 const headerRowStyle: CSSProperties = {

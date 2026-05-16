@@ -34,14 +34,22 @@
  *   <li>{@code dps-by-product-summary} — 하단 요약 행</li>
  * </ul>
  */
-import { useState, useMemo, useCallback, type CSSProperties } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, DataGrid, type DataGridColumn } from '@samhan/design-system'
+import { Button, DataGrid, Tabs, type DataGridColumn } from '@samhan/design-system'
 import {
   getDpsByProduct,
   type DpsByProductRow,
   type DpsByProductResponse,
 } from '../../api/dpsByProductApi'
+import {
+  getLatestDpsHistory,
+  saveDpsHistory,
+  type DpsSaveHistoryDetailResponse,
+} from '../../api/dpsSaveHistoryApi'
+import { DpsHistoryTab } from '../../components/DpsHistoryTab'
+import { DpsRestoredBanner } from '../../components/DpsRestoredBanner'
+import { DpsSaveDialog } from '../../components/DpsSaveDialog'
 import { usePageTitle } from '../../hooks/usePageTitle'
 
 // ---------------------------------------------------------------------------
@@ -223,6 +231,11 @@ export function DpsByProductPage() {
     warehouseId?: string
   } | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState(0)
+  const [restoredData, setRestoredData] = useState<DpsByProductResponse | null>(null)
+  const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const lastAutoSaveKeyRef = useRef<string | null>(null)
 
   // ── 조회 ─────────────────────────────────────────────────
   const {
@@ -249,6 +262,8 @@ export function DpsByProductPage() {
       return
     }
     setValidationError(null)
+    setRestoreBanner(null)
+    setRestoredData(null)
     setQueryKey({
       fromDate,
       toDate,
@@ -257,7 +272,72 @@ export function DpsByProductPage() {
   }, [fromDate, toDate, selectedWarehouse])
 
   // ── 표시 rows ─────────────────────────────────────────────
-  const rows = useMemo(() => data?.rows ?? [], [data])
+  useEffect(() => {
+    let cancelled = false
+    void getLatestDpsHistory('DPS_BY_PRODUCT')
+      .then((detail) => {
+        if (cancelled || !detail) return
+        setRestoredData(detail.responsePayload as DpsByProductResponse)
+        setRestoreBanner(`이전 결과 복원됨 · ${fmtGeneratedAt(detail.createdAt)}`)
+      })
+      .catch(() => {
+        // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!data || !queryKey) return
+    const autoSaveKey = `${queryKey.fromDate}|${queryKey.toDate}|${queryKey.warehouseId ?? ''}|${data.generatedAt}`
+    if (lastAutoSaveKeyRef.current === autoSaveKey) return
+    lastAutoSaveKeyRef.current = autoSaveKey
+    void saveDpsHistory({
+      programType: 'DPS_BY_PRODUCT',
+      saveMode: 'AUTO_LATEST',
+      requestParams: {
+        from: queryKey.fromDate,
+        to: queryKey.toDate,
+        warehouseId: queryKey.warehouseId ?? null,
+        rowCount: data.rows.length,
+        mismatchCount: data.rows.filter((row) => row.diffFromDps !== 0).length,
+      },
+      responsePayload: data,
+    }).catch(() => {
+      // 자동 저장 실패는 조회 UX 를 막지 않는다.
+    })
+  }, [data, queryKey])
+
+  const displayData = data ?? restoredData
+  const rows = useMemo(() => displayData?.rows ?? [], [displayData])
+
+  const handleRestore = useCallback((detail: DpsSaveHistoryDetailResponse) => {
+    setRestoredData(detail.responsePayload as DpsByProductResponse)
+    setActiveTab(0)
+    setRestoreBanner(`복원: ${fmtGeneratedAt(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+  }, [])
+
+  const handleManualSave = useCallback((topic: string) => {
+    const payload = displayData
+    if (!payload) return
+    void saveDpsHistory({
+      programType: 'DPS_BY_PRODUCT',
+      saveMode: 'MANUAL_NAMED',
+      topic,
+      requestParams: {
+        from: payload.fromDate,
+        to: payload.toDate,
+        warehouseId: payload.warehouseId,
+        rowCount: payload.rows.length,
+        mismatchCount: payload.rows.filter((row) => row.diffFromDps !== 0).length,
+      },
+      responsePayload: payload,
+    }).then(() => {
+      setSaveDialogOpen(false)
+      setActiveTab(1)
+    })
+  }, [displayData])
 
   return (
     <div style={pageStyle}>
@@ -269,8 +349,25 @@ export function DpsByProductPage() {
         </span>
       </div>
 
-      {/* ── Toolbar ─────────────────────────────────────── */}
-      <section style={toolbarStyle} aria-label="조회 조건">
+      <Tabs
+        tabs={[
+          { label: '실행', testId: 'dps-history-tab-run' },
+          { label: '저장내역', testId: 'dps-history-tab-list' },
+        ]}
+        activeIndex={activeTab}
+        onTabChange={setActiveTab}
+        ariaLabel="품목별 DPS 저장내역 탭"
+      >
+        <div style={pageStyle}>
+          {restoreBanner ? (
+            <DpsRestoredBanner
+              message={restoreBanner}
+              onClose={() => setRestoreBanner(null)}
+            />
+          ) : null}
+
+          {/* ── Toolbar ─────────────────────────────────────── */}
+          <section style={toolbarStyle} aria-label="조회 조건">
         <label style={fieldStyle}>
           <span style={fieldLabelStyle}>조회 시작일</span>
           <input
@@ -329,8 +426,8 @@ export function DpsByProductPage() {
         </div>
       </section>
 
-      {/* ── DataGrid 본문 ─────────────────────────────────── */}
-      <section style={gridSectionStyle}>
+          {/* ── DataGrid 본문 ─────────────────────────────────── */}
+          <section style={gridSectionStyle} data-testid="dps-by-product-grid">
         <DataGrid<DpsByProductRow>
           columns={COLUMNS}
           rows={rows}
@@ -344,24 +441,41 @@ export function DpsByProductPage() {
           enableMultiSelect={true}
           enableCopy={true}
           className={undefined}
-          data-testid="dps-by-product-grid"
         />
       </section>
 
-      {/* ── 하단 요약 ─────────────────────────────────────── */}
-      {data ? (
+          {/* ── 하단 요약 ─────────────────────────────────────── */}
+          {displayData ? (
         <div style={summaryStyle} data-testid="dps-by-product-summary">
-          <span>총 품목 수: <strong>{data.totalProductCount.toLocaleString('ko-KR')}</strong>건</span>
-          {data.warehouseName ? (
+          <span>총 품목 수: <strong>{displayData.totalProductCount.toLocaleString('ko-KR')}</strong>건</span>
+          {displayData.warehouseName ? (
             <span style={{ marginLeft: 16 }}>
-              창고: <strong>{data.warehouseName}</strong>
+              창고: <strong>{displayData.warehouseName}</strong>
             </span>
           ) : null}
           <span style={{ marginLeft: 16, color: '#6B7280' }}>
-            기준: {fmtGeneratedAt(data.generatedAt)}
+            기준: {fmtGeneratedAt(displayData.generatedAt)}
           </span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setSaveDialogOpen(true)}
+            data-testid="dps-history-save-button"
+            style={{ marginLeft: 16 }}
+          >
+            내역으로 저장
+          </Button>
         </div>
-      ) : null}
+          ) : null}
+        </div>
+        <DpsHistoryTab programType="DPS_BY_PRODUCT" onRestore={handleRestore} />
+      </Tabs>
+      <DpsSaveDialog
+        open={saveDialogOpen}
+        saving={false}
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={handleManualSave}
+      />
     </div>
   )
 }

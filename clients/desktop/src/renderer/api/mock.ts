@@ -2764,6 +2764,92 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // SP-08-2: DPS 저장내역 — legacy GAS history 탭 mock
+  if (url.includes('/warehouse/audit/dps-history')) {
+    const isByProduct = String(config.params?.['programType'] ?? '').includes('DPS_BY_PRODUCT')
+      || url.includes('dps-history-mock-by-product')
+    const comparePayload = {
+      from: '2026-05-01',
+      to: '2026-05-16',
+      groupBy: 'SLIP',
+      outboundCount: 18,
+      dpsRowCount: 18,
+      matchedCount: 16,
+      mismatchCount: 2,
+      mismatches: [
+        {
+          rowType: 'QUANTITY_MISMATCH',
+          slipNo: '2026/05/16-1',
+          productCode: 'AJ052RXH5BC1',
+          partnerCode: 'P-001',
+          expectedQty: 5,
+          actualQty: 4,
+          reason: '수량 불일치 — 출고: 5 / DPS: 4',
+        },
+        {
+          rowType: 'DPS_NOT_FOUND',
+          slipNo: '2026/05/16-2',
+          productCode: 'MWR-WE10N',
+          partnerCode: 'P-002',
+          expectedQty: 3,
+          actualQty: 0,
+          reason: 'DPS 엑셀에서 매칭 row 미발견',
+        },
+      ],
+    }
+    const byProductPayload = {
+      fromDate: '2026-05-01',
+      toDate: '2026-05-16',
+      warehouseId: null,
+      warehouseName: null,
+      generatedAt: new Date().toISOString(),
+      totalProductCount: 3,
+      rows: [
+        { productCode: 'PRD-0001', productName: '냉난방 실외기 (5HP)', pendingQty: 12, completedQty: 85, qcQty: 3, returnQty: -2, totalQty: 98, diffFromDps: 0 },
+        { productCode: 'PRD-0002', productName: '냉난방 실내기 (스탠드형)', pendingQty: 0, completedQty: 64, qcQty: 1, returnQty: 0, totalQty: 65, diffFromDps: -3 },
+        { productCode: 'PRD-0003', productName: '천장형 에어컨 2way', pendingQty: 5, completedQty: 42, qcQty: 0, returnQty: 0, totalQty: 47, diffFromDps: 2 },
+      ],
+    }
+    const detail = {
+      id: isByProduct ? 'dps-history-mock-by-product-001' : 'dps-history-mock-compare-001',
+      programType: isByProduct ? 'DPS_BY_PRODUCT' : 'DPS_COMPARE',
+      saveMode: 'AUTO_LATEST',
+      topic: '자동저장',
+      createdAt: '2026-05-16T14:32:00',
+      createdBy: MOCK_AUTH.fullName,
+      requestParams: { from: '2026-05-01', to: '2026-05-16', mismatchCount: 2 },
+      mismatchCount: 2,
+      responsePayload: isByProduct ? byProductPayload : comparePayload,
+    }
+    if (method === 'POST') {
+      return envelope({ id: 'dps-history-mock-saved', savedAt: new Date().toISOString() })
+    }
+    if (method === 'GET' && url.includes('/latest')) {
+      return envelope(detail)
+    }
+    if (method === 'GET' && /\/warehouse\/audit\/dps-history\/[^/?]+$/.test(url)) {
+      return envelope({ ...detail, saveMode: 'MANUAL_NAMED', topic: '오전 마감 점검' })
+    }
+    return envelope({
+      content: [
+        { ...detail, saveMode: 'MANUAL_NAMED', topic: '오전 마감 점검', mismatchCount: 2 },
+        {
+          ...detail,
+          id: isByProduct ? 'dps-history-mock-by-product-002' : 'dps-history-mock-compare-002',
+          saveMode: 'MANUAL_NAMED',
+          topic: '월말 마감',
+          mismatchCount: 0,
+        },
+      ],
+      totalElements: 2,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    })
+  }
+
   // GET /warehouse/audit (재고 실사 목록)
   if (method === 'GET' && url.includes('/warehouse/audit') && !url.includes('/dps-compare')) {
     const auditMatch = url.match(/\/warehouse\/audit\/([^/?]+)$/)

@@ -1,10 +1,37 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-08 **legacy GAS DB/API parity 기반 잠금 진행**, Codex)
+> 갱신일: 2026-05-16 (SP-08-2 **DPS legacy GAS DB/API parity 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-08 legacy GAS DB/API parity
+## 2026-05-16 Codex 최신 핸드오프 — SP-08-2 DPS legacy GAS DB/API parity
+
+- 현재 branch: `codex/sp-08-2-dps-legacy-gas-parity`
+- 기준 main: PR #210 merge 후 `af67edde`.
+- Claude PM 산출:
+  - `docs/planning/2026-05-16_sp-08-2-dps-legacy-gas-parity.md`가 단일 구현 source of truth.
+  - 첫 commit `2cdc007f`가 해당 기획서와 Claude brainstorming visual companion용 `.superpowers/` gitignore를 함께 묶었다.
+- SP-08-2 구현:
+  - `inventory-service`에 `DpsSaveHistory` entity/repository/service/controller/DTO와 Flyway `V11__add_dps_save_history.sql`을 추가했다.
+  - `POST /warehouse/audit/dps-history`, list/detail/latest API를 `WAREHOUSE / MANAGER / MASTER` 권한으로 제공한다.
+  - `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하고 이전 자동 저장 row는 BaseEntity soft-delete 처리한다.
+  - `MANUAL_NAMED`는 topic 필수 append-only 저장내역으로 보존한다.
+  - desktop `/warehouse/dps-compare`, `/warehouse/dps-compare/by-product`에 `실행 / 저장내역` 2탭, latest 자동 복원 배너, 명시 저장 dialog, row click 복원 UX를 연결했다.
+  - `data-testid`는 `dps-history-row-{i}` 등 row index/업무 문구 기반이며 사용자 화면에 UUID를 노출하지 않는다.
+  - QA mock PNG generator는 `scripts/generate-sp-08-2-dps-history-screenshots.ps1`, 산출 위치는 `docs/qa/sp-08-2-dps-history/screenshots/`.
+- 로컬 검증:
+  - `.\gradlew.bat :services:inventory-service:test --tests "*DpsSaveHistory*" --tests "*DpsCompare*" --tests "*DpsByProduct*" --no-daemon --rerun-tasks` PASS — XML 집계 36 tests / skipped 0.
+  - `clients/desktop` `npm run typecheck`, `npm run lint`, `npm run build` PASS — lint 기존 warning 2건, error 0.
+  - `npx playwright test playwright/sp-08-2-dps-history/sp-08-2-dps-history.spec.ts playwright/sp-08-legacy-gas-db-api-parity playwright/dps-by-product playwright/full-menu-contract --reporter=line` PASS — 29 passed / skipped 0 (`VITE_MOCK_MODE=1`, renderer Vite config, port 5185).
+  - `.\scripts\generate-sp-08-2-dps-history-screenshots.ps1` PASS — 7 PNG / non-zero.
+  - `git diff --check` PASS — CRLF 안내 warning만 출력.
+  - secret-like artifact scan / 신규 FE UUID regex scan / Notion runtime call scan PASS — 0 matches.
+- 다음 SP-08 후속 후보:
+  - 배차 GAS(가배차/미배차/배차문자/운송사 비교) 저장/복원/preview/send parity.
+  - 회계 출력(원장/거래명세서/내일자 전표) `MOCK_DATA` 제거.
+  - vendor OCR 2종 UI parity, 알리고 dry-run sync parity.
+
+## 2026-05-16 Codex 핸드오프 — SP-08 legacy GAS DB/API parity
 
 - 현재 branch: `codex/sp-08-legacy-gas-db-api-parity`
 - 직전 완료: PR #209 `[codex] SP-07 Google Sheets 견적 주문 원본 계약 정렬` merge commit `1b545a7c`.

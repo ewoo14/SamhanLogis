@@ -9,6 +9,7 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 - **재고 잔량 (`stock_balances`)** — `(product, warehouse)` 집계 + 낙관적 락
 - **재고 이동 (`stock_movements`)** — append-only 감사 로그
 - **이동전표 (`stock_transfers` + `stock_transfer_lines`)** — 창고 간 재배치 워크플로우
+- **DPS 저장내역 (`dps_save_history`)** — legacy GAS DPS 비교/품목별 DPS 결과의 자동 latest 저장 + 명시 저장/복원
 
 ## 외부 의존
 
@@ -42,3 +43,11 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 | dashboard-service      | 8094 | dashboard_db      | KPI + 실시간 재고 + 매출            |
 
 dashboard-service 는 본 inventory-service 의 stock_balances + stock_movements 를 실시간 KPI 집계 source 로 사용 예정. 상세는 `docs/migration/phase9/M-PHASE-9-readiness.md` 참조.
+
+## SP-08-2 DPS 저장내역 parity
+
+- API: `POST /warehouse/audit/dps-history`, `GET /warehouse/audit/dps-history`, `GET /warehouse/audit/dps-history/{id}`, `GET /warehouse/audit/dps-history/latest`
+- 권한: `WAREHOUSE / MANAGER / MASTER`
+- 저장 정책: `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하고 이전 row는 soft-delete, `MANUAL_NAMED`는 append-only
+- payload: `request_params`, `response_payload`는 PostgreSQL `JSONB`; `responsePayload`는 100KB 초과 시 422
+- 사용자 격리: 상세/latest/list 모두 `createdBy` 기준으로 현재 사용자 저장내역만 조회

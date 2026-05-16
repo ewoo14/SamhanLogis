@@ -111,3 +111,10 @@ npm run build:print-renderer
 | `print-renderer/PrintRendererApp.tsx` | OutboundView a4-portrait variant 래핑 + 서명 2개 props 주입 |
 
 **desktop 앱 본체 빌드 (`npm run build`) 와 별도** — 본 print-renderer 빌드는 arologis-service 배포 시점에만 필요.
+
+## SP-08-2 — DPS 저장내역 2탭 parity (2026-05-16)
+
+- `/warehouse/dps-compare`, `/warehouse/dps-compare/by-product`는 `실행 / 저장내역` 2탭 구조를 사용한다.
+- 실행 탭은 latest `AUTO_LATEST`를 자동 복원하고, 새 비교/조회 결과는 silent auto-save 한다.
+- `[내역으로 저장]`은 `MANUAL_NAMED` topic dialog를 열고, 저장내역 탭 행 클릭은 실행 탭으로 복원한다.
+- `data-testid`는 `dps-history-row-{i}` 기반이며 내부 UUID는 화면 텍스트와 test id에 노출하지 않는다.

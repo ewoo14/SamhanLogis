@@ -1871,3 +1871,21 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-03-07 | 사이드바/페이지 타이틀에서 `판매조회` → `판매관리`, `구매조회` → `구매관리`, `재고이동` → `재고이동 관리`, `창고` → `창고 관리`, `견적서` → `견적서 관리`, `주문서 조회` → `주문서 관리`로 정리한다. |
 | SP-03-08 | `주문서 승인`, `거래처 DC 설정`은 이미 단일 업무 행위를 표현하므로 명칭을 유지한다. |
 | SP-03-09 | 재고이동 이동번호도 전표번호 표준과 동일하게 `YYYY/MM/DD-{순번}`으로 둔다. 신규 채번은 같은 날짜의 마지막 numeric suffix + 1을 사용한다. `T-YYYY/MM/DD-N`, `TR-YYYYMMDD-NNN` 같은 prefix/zero-padding 형식은 폐기하고 Flyway V10으로 기존 prefix 값을 정규화한다. |
+
+---
+
+### SP-08-2. DPS legacy GAS 저장내역 DB/API parity (2026-05-16)
+
+**배경**: SP-08-1은 legacy GAS/Notion runtime 호출 제거와 기반 계약을 잠갔지만, DPS 비교/품목별 DPS 화면은 GAS의 저장내역/최근 결과 복원 사용감을 아직 DB/API로 보존하지 못했다. SP-08-2는 Notion runtime 호출 없이 Samhan Public `inventory-service`가 DPS 실행 결과 history의 단일 runtime source가 되도록 한다.
+
+| # | 결정 |
+|---|---|
+| SP-08-2-01 | DPS 저장내역은 `inventory-service`의 `dps_save_history` 테이블에 둔다. payload는 프로그램별 응답 shape를 보존하기 위해 PostgreSQL `JSONB`로 저장한다. |
+| SP-08-2-02 | 프로그램 구분은 `DPS_COMPARE`, `DPS_BY_PRODUCT` 두 값으로 고정한다. 두 화면은 같은 API를 쓰되 저장내역 list/latest 조회는 program type으로 격리한다. |
+| SP-08-2-03 | 저장 방식은 `AUTO_LATEST`, `MANUAL_NAMED` 두 값으로 둔다. 자동 저장은 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 BaseEntity soft-delete 처리한다. |
+| SP-08-2-04 | 명시 저장은 topic 필수 append-only 기록이다. 동일 사용자의 수동 저장내역은 자동 저장 대체 대상이 아니며 사용자가 행을 클릭해 복원한다. |
+| SP-08-2-05 | API는 `/warehouse/audit/dps-history` 하위 `POST`, list, detail, latest 4개 endpoint로 둔다. 권한은 `WAREHOUSE / MANAGER / MASTER`로 정렬한다. |
+| SP-08-2-06 | 화면은 legacy GAS 사용감과 맞춰 `실행 / 저장내역` 2탭을 제공한다. latest active row가 있으면 진입 시 자동 복원 배너를 노출하고, row click은 결과 payload를 실행 탭에 복원한다. |
+| SP-08-2-07 | 내부 UUID는 path param과 React 상태에서만 사용한다. 사용자 화면과 Playwright `data-testid`는 `dps-history-row-{i}` 같은 row index/업무 문구 기반으로 둔다. |
+| SP-08-2-08 | payload는 UTF-8 JSON 직렬화 기준 100KB를 초과하면 422로 거절한다. 파일/이미지 본문을 history에 넣지 않고 결과 요약 JSON만 저장한다. |
+| SP-08-2-09 | Notion runtime call은 재도입하지 않는다. `api.notion.com`, `Notion-Version`, `@notionhq` import는 inventory-service main과 desktop renderer에서 0건이어야 한다. |
