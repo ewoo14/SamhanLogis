@@ -45,6 +45,7 @@
  */
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -52,7 +53,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Badge, Button } from '@samhan/design-system'
+import { Badge, Button, Tabs } from '@samhan/design-system'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   reconcileDispatch,
@@ -61,6 +62,14 @@ import {
   type MismatchedRow,
   type ReconcileStatus,
 } from '../../api/dispatchReconcile'
+import {
+  getLatestDispatchHistory,
+  saveDispatchHistory,
+  type DispatchSaveHistoryDetailResponse,
+} from '../../api/dispatchSaveHistoryApi'
+import { HistoryTab, formatDateTime } from './HistoryTab'
+import { RestoredBanner } from './RestoredBanner'
+import { SaveDialog } from './SaveDialog'
 
 // ---------------------------------------------------------------------------
 // 도메인 표시 매핑 (Designer mock 보존)
@@ -138,16 +147,77 @@ export function ArologisDispatchReconcilePage() {
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<ReconcileStatus | ''>('')
   const [dragOver, setDragOver] = useState(false)
+  const [activeTab, setActiveTab] = useState(0)
+  const [restoredResponse, setRestoredResponse] = useState<DispatchReconcileResponse | null>(null)
+  const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 비교 실행 mutation — 다중 multipart POST → 매칭 + mismatch 응답.
   const reconcileMutation = useMutation({
     mutationFn: (params: { files: File[]; from: string; to: string }) =>
       reconcileDispatch(params.files, params.from, params.to),
+    onSuccess: (data) => {
+      setRestoredResponse(null)
+      setRestoreBanner(null)
+      void saveDispatchHistory({
+        programType: 'RECONCILE',
+        saveMode: 'AUTO_LATEST',
+        requestParams: {
+          from,
+          to,
+          fileCount: files.length,
+          rowCount: data.mismatchedRows.length,
+          matchedCount: data.matchedCount,
+        },
+        responsePayload: data,
+      }).catch(() => {
+        // 자동 저장 실패는 비교 실행 UX 를 막지 않는다.
+      })
+    },
   })
 
-  const response: DispatchReconcileResponse | null = reconcileMutation.data ?? null
+  const response: DispatchReconcileResponse | null = reconcileMutation.data ?? restoredResponse ?? null
   const running = reconcileMutation.isPending
+
+  useEffect(() => {
+    let cancelled = false
+    void getLatestDispatchHistory('RECONCILE')
+      .then((detail) => {
+        if (cancelled || !detail) return
+        setRestoredResponse(detail.responsePayload as DispatchReconcileResponse)
+        setRestoreBanner(`이전 결과 복원됨 · ${formatDateTime(detail.createdAt)}`)
+      })
+      .catch(() => {
+        // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const saveManualMutation = useMutation({
+    mutationFn: (topic: string) => {
+      if (!response) throw new Error('저장할 실배차 비교 결과가 없습니다.')
+      return saveDispatchHistory({
+        programType: 'RECONCILE',
+        saveMode: 'MANUAL_NAMED',
+        topic,
+        requestParams: {
+          from: response.from,
+          to: response.to,
+          rowCount: response.mismatchedRows.length,
+          matchedCount: response.matchedCount,
+          vendorCount: response.vendorCount,
+        },
+        responsePayload: response,
+      })
+    },
+    onSuccess: () => {
+      setSaveDialogOpen(false)
+      setActiveTab(1)
+    },
+  })
 
   // ----- 파일 추가 -----
 
@@ -221,6 +291,8 @@ export function ArologisDispatchReconcilePage() {
       return
     }
     setError(null)
+    setRestoredResponse(null)
+    setRestoreBanner(null)
     reconcileMutation.mutate({
       files: files.map((f) => f.file),
       from,
@@ -274,6 +346,12 @@ export function ArologisDispatchReconcilePage() {
     downloadCsv(`reconcile_${from}_${to}.csv`, out)
   }
 
+  const handleRestore = useCallback((detail: DispatchSaveHistoryDetailResponse) => {
+    setRestoredResponse(detail.responsePayload as DispatchReconcileResponse)
+    setActiveTab(0)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+  }, [])
+
   return (
     <div
       style={{
@@ -299,6 +377,24 @@ export function ArologisDispatchReconcilePage() {
           누락 / 시각 오차 식별. 외부 vendor 콘솔 접속 불요.
         </div>
       </header>
+
+      <Tabs
+        tabs={[
+          { label: '실행', testId: 'dispatch-reconcile-history-tab-run' },
+          { label: '저장내역', testId: 'dispatch-reconcile-history-tab-list' },
+        ]}
+        activeIndex={activeTab}
+        onTabChange={setActiveTab}
+        ariaLabel="운송사 실배차 저장내역 탭"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {restoreBanner ? (
+            <RestoredBanner
+              message={restoreBanner}
+              testIdPrefix="dispatch-reconcile-history"
+              onClose={() => setRestoreBanner(null)}
+            />
+          ) : null}
 
       {/* ───── 다중 drag-drop 업로드 영역 (Designer mock 보존) ───── */}
       <div
@@ -593,6 +689,13 @@ export function ArologisDispatchReconcilePage() {
             >
               결과 CSV 다운로드
             </Button>
+            <Button
+              variant="primary"
+              onClick={() => setSaveDialogOpen(true)}
+              data-testid="dispatch-reconcile-history-save-button"
+            >
+              내역으로 저장
+            </Button>
           </div>
         </div>
       ) : null}
@@ -689,6 +792,22 @@ export function ArologisDispatchReconcilePage() {
           </table>
         </div>
       ) : null}
+        </div>
+        <HistoryTab
+          programType="RECONCILE"
+          testIdPrefix="dispatch-reconcile-history"
+          rowCountLabel="불일치 건수"
+          onRestore={handleRestore}
+        />
+      </Tabs>
+      <SaveDialog
+        open={saveDialogOpen}
+        isSaving={saveManualMutation.isPending}
+        testIdPrefix="dispatch-reconcile-history"
+        title="실배차 비교 결과 저장"
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={(topic) => saveManualMutation.mutate(topic)}
+      />
     </div>
   )
 }

@@ -28,15 +28,24 @@
  *   <li>{@code arologis-unassigned-manual-dispatch-{slipNo}} — 행별 액션 버튼</li>
  * </ul>
  */
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '@samhan/design-system'
+import { Button, Tabs } from '@samhan/design-system'
 import {
   getUnassigned,
   type UnassignedEntry,
+  type UnassignedResponse,
 } from '../../api/arologisDispatch'
+import {
+  getLatestDispatchHistory,
+  saveDispatchHistory,
+  type DispatchSaveHistoryDetailResponse,
+} from '../../api/dispatchSaveHistoryApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { HistoryTab, formatDateTime } from './HistoryTab'
+import { RestoredBanner } from './RestoredBanner'
+import { SaveDialog } from './SaveDialog'
 
 /** 오늘 날짜 (YYYY-MM-DD) — 기본 필터값. */
 function todayIso(): string {
@@ -77,6 +86,11 @@ export function ArologisUnassignedPage() {
   const navigate = useNavigate()
 
   const [date, setDate] = useState<string>(todayIso())
+  const [activeTab, setActiveTab] = useState(0)
+  const [restoredData, setRestoredData] = useState<UnassignedResponse | null>(null)
+  const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const lastAutoSaveKeyRef = useRef<string | null>(null)
 
   const query = useQuery({
     queryKey: ['arologis-unassigned', date],
@@ -86,7 +100,75 @@ export function ArologisUnassignedPage() {
     refetchInterval: 30_000,
   })
 
-  const entries: UnassignedEntry[] = query.data?.entries ?? []
+  const displayData = restoredData ?? query.data
+  const entries: UnassignedEntry[] = displayData?.entries ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    void getLatestDispatchHistory('UNASSIGNED')
+      .then((detail) => {
+        if (cancelled || !detail) return
+        setRestoredData(detail.responsePayload as UnassignedResponse)
+        setRestoreBanner(`이전 결과 복원됨 · ${formatDateTime(detail.createdAt)}`)
+      })
+      .catch(() => {
+        // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    setRestoredData(null)
+    setRestoreBanner(null)
+  }, [date])
+
+  useEffect(() => {
+    if (!query.data) return
+    const autoSaveKey = `${query.data.date}|${query.data.unassignedCount}|${query.data.totalOutbound}`
+    if (lastAutoSaveKeyRef.current === autoSaveKey) return
+    lastAutoSaveKeyRef.current = autoSaveKey
+    void saveDispatchHistory({
+      programType: 'UNASSIGNED',
+      saveMode: 'AUTO_LATEST',
+      requestParams: {
+        date: query.data.date,
+        rowCount: query.data.unassignedCount,
+        totalOutbound: query.data.totalOutbound,
+      },
+      responsePayload: query.data,
+    }).catch(() => {
+      // 자동 저장 실패는 조회 UX 를 막지 않는다.
+    })
+  }, [query.data])
+
+  const saveManualMutation = useMutation({
+    mutationFn: (topic: string) => {
+      if (!displayData) throw new Error('저장할 미배차 결과가 없습니다.')
+      return saveDispatchHistory({
+        programType: 'UNASSIGNED',
+        saveMode: 'MANUAL_NAMED',
+        topic,
+        requestParams: {
+          date: displayData.date,
+          rowCount: displayData.unassignedCount,
+          totalOutbound: displayData.totalOutbound,
+        },
+        responsePayload: displayData,
+      })
+    },
+    onSuccess: () => {
+      setSaveDialogOpen(false)
+      setActiveTab(1)
+    },
+  })
+
+  const handleRestore = useCallback((detail: DispatchSaveHistoryDetailResponse) => {
+    setRestoredData(detail.responsePayload as UnassignedResponse)
+    setActiveTab(0)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+  }, [])
 
   const handleManualDispatch = (entry: UnassignedEntry) => {
     // /dispatches/manual 이 useSearchParams 로 자동 채움 (FE-3 추가 hook 은 manual page 측 책임).
@@ -174,7 +256,25 @@ export function ArologisUnassignedPage() {
       </div>
 
       {/* 요약 banner — 사용자가 일자별 분포를 즉시 확인. */}
-      {query.data ? (
+      <Tabs
+        tabs={[
+          { label: '실행', testId: 'unassigned-history-tab-run' },
+          { label: '저장내역', testId: 'unassigned-history-tab-list' },
+        ]}
+        activeIndex={activeTab}
+        onTabChange={setActiveTab}
+        ariaLabel="미배차 저장내역 탭"
+      >
+        <div>
+          {restoreBanner ? (
+            <RestoredBanner
+              message={restoreBanner}
+              testIdPrefix="unassigned-history"
+              onClose={() => setRestoreBanner(null)}
+            />
+          ) : null}
+
+      {displayData ? (
         <div
           style={{
             marginBottom: 12,
@@ -186,9 +286,19 @@ export function ArologisUnassignedPage() {
             color: 'var(--color-neutral-700)',
           }}
         >
-          기준 일자 <strong>{query.data.date}</strong> · 출고전표{' '}
-          <strong>{query.data.totalOutbound}</strong>건 중 미배차{' '}
-          <strong>{query.data.unassignedCount}</strong>건
+          기준 일자 <strong>{displayData.date}</strong> · 출고전표{' '}
+          <strong>{displayData.totalOutbound}</strong>건 중 미배차{' '}
+          <strong>{displayData.unassignedCount}</strong>건
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="unassigned-history-save-button"
+            onClick={() => setSaveDialogOpen(true)}
+            disabled={entries.length === 0}
+            style={{ marginLeft: 16 }}
+          >
+            내역으로 저장
+          </Button>
         </div>
       ) : null}
 
@@ -264,6 +374,22 @@ export function ArologisUnassignedPage() {
           미배차 리스트를 불러오지 못했습니다. 백엔드 연결을 확인하세요.
         </div>
       ) : null}
+        </div>
+        <HistoryTab
+          programType="UNASSIGNED"
+          testIdPrefix="unassigned-history"
+          rowCountLabel="미배차 건수"
+          onRestore={handleRestore}
+        />
+      </Tabs>
+      <SaveDialog
+        open={saveDialogOpen}
+        isSaving={saveManualMutation.isPending}
+        testIdPrefix="unassigned-history"
+        title="미배차 결과 저장"
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={(topic) => saveManualMutation.mutate(topic)}
+      />
     </>
   )
 }

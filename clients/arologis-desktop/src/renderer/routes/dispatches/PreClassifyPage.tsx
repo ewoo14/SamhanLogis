@@ -35,10 +35,10 @@
  * - arologis-preclassify-csv (탭별 단일 — 활성 탭 결과 다운로드)
  * - arologis-preclassify-search (조회 트리거)
  */
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, FormField } from '@samhan/design-system'
+import { Badge, Button, Card, FormField, Tabs } from '@samhan/design-system'
 import {
   getPreClassify,
   getRegional,
@@ -47,7 +47,16 @@ import {
   type RegionalEntry,
   type RegionalResponse,
 } from '../../api/arologisDispatch'
+import {
+  getLatestDispatchHistory,
+  saveDispatchHistory,
+  type DispatchProgramType,
+  type DispatchSaveHistoryDetailResponse,
+} from '../../api/dispatchSaveHistoryApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { HistoryTab, formatDateTime } from './HistoryTab'
+import { RestoredBanner } from './RestoredBanner'
+import { SaveDialog } from './SaveDialog'
 
 type TabKey = 'region' | 'regional'
 
@@ -84,6 +93,12 @@ export function ArologisPreClassifyPage() {
   usePageTitle('가배차 분류')
 
   const [tab, setTab] = useState<TabKey>('region')
+  const [historyTab, setHistoryTab] = useState(0)
+  const [restoredRegion, setRestoredRegion] = useState<PreClassifyResponse | null>(null)
+  const [restoredRegional, setRestoredRegional] = useState<RegionalResponse | null>(null)
+  const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const lastAutoSaveKeyRef = useRef<string | null>(null)
 
   // 탭1 — REGION 권역: from/to 날짜 (default 오늘 단일 일자)
   const today = todayIso()
@@ -110,6 +125,95 @@ export function ArologisPreClassifyPage() {
     // PR-H4c FE-B: 30초 polling
     refetchInterval: 30_000,
   })
+
+  const programType: DispatchProgramType = tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'
+  const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'regional-history'
+  const regionData = restoredRegion ?? regionQuery.data
+  const regionalData = restoredRegional ?? regionalQuery.data
+  const activePayload = tab === 'region' ? regionData : regionalData
+
+  useEffect(() => {
+    let cancelled = false
+    void getLatestDispatchHistory(programType)
+      .then((detail) => {
+        if (cancelled || !detail) return
+        if (programType === 'PRE_CLASSIFY') {
+          setRestoredRegion(detail.responsePayload as PreClassifyResponse)
+        } else {
+          setRestoredRegional(detail.responsePayload as RegionalResponse)
+        }
+        setRestoreBanner(`이전 결과 복원됨 · ${formatDateTime(detail.createdAt)}`)
+      })
+      .catch(() => {
+        // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [programType])
+
+  useEffect(() => {
+    if (tab === 'region') {
+      setRestoredRegion(null)
+      setRestoreBanner(null)
+      return
+    }
+    setRestoredRegional(null)
+    setRestoreBanner(null)
+  }, [tab, from, to, date])
+
+  useEffect(() => {
+    const data = tab === 'region' ? regionQuery.data : regionalQuery.data
+    if (!data) return
+    const rowCount = tab === 'region' ? countRegionRows(data as PreClassifyResponse) : countRegionalRows(data as RegionalResponse)
+    const autoSaveKey = `${programType}|${from}|${to}|${date}|${rowCount}`
+    if (lastAutoSaveKeyRef.current === autoSaveKey) return
+    lastAutoSaveKeyRef.current = autoSaveKey
+    void saveDispatchHistory({
+      programType,
+      saveMode: 'AUTO_LATEST',
+      requestParams: tab === 'region'
+        ? { from, to, rowCount }
+        : { date, rowCount },
+      responsePayload: data,
+    }).catch(() => {
+      // 자동 저장 실패는 조회 UX 를 막지 않는다.
+    })
+  }, [date, from, programType, regionQuery.data, regionalQuery.data, tab, to])
+
+  const saveManualMutation = useMutation({
+    mutationFn: (topic: string) => {
+      if (!activePayload) throw new Error('저장할 배차 결과가 없습니다.')
+      const rowCount = tab === 'region'
+        ? countRegionRows(activePayload as PreClassifyResponse)
+        : countRegionalRows(activePayload as RegionalResponse)
+      return saveDispatchHistory({
+        programType,
+        saveMode: 'MANUAL_NAMED',
+        topic,
+        requestParams: tab === 'region'
+          ? { from, to, rowCount }
+          : { date, rowCount },
+        responsePayload: activePayload,
+      })
+    },
+    onSuccess: () => {
+      setSaveDialogOpen(false)
+      setHistoryTab(1)
+    },
+  })
+
+  const handleRestore = useCallback((detail: DispatchSaveHistoryDetailResponse) => {
+    if (detail.programType === 'PRE_CLASSIFY') {
+      setTab('region')
+      setRestoredRegion(detail.responsePayload as PreClassifyResponse)
+    } else if (detail.programType === 'REGIONAL') {
+      setTab('regional')
+      setRestoredRegional(detail.responsePayload as RegionalResponse)
+    }
+    setHistoryTab(0)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+  }, [])
 
   // ----- CSV 다운로드 -----
 
@@ -164,20 +268,16 @@ export function ArologisPreClassifyPage() {
   // ----- 합계 (탭별 entry 총수) -----
 
   const regionTotal = useMemo<number>(() => {
-    const data = regionQuery.data
+    const data = regionData
     if (!data) return 0
-    let n = data.unclassified?.length ?? 0
-    for (const list of Object.values(data.regionGroups ?? {})) n += list?.length ?? 0
-    return n
-  }, [regionQuery.data])
+    return countRegionRows(data)
+  }, [regionData])
 
   const regionalTotal = useMemo<number>(() => {
-    const data = regionalQuery.data
+    const data = regionalData
     if (!data) return 0
-    let n = data.unmatched?.length ?? 0
-    for (const list of Object.values(data.sidoGroups ?? {})) n += list?.length ?? 0
-    return n
-  }, [regionalQuery.data])
+    return countRegionalRows(data)
+  }, [regionalData])
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -214,25 +314,62 @@ export function ArologisPreClassifyPage() {
         </span>
       </div>
 
-      {tab === 'region' ? (
-        <RegionTabPanel
-          from={from}
-          to={to}
-          onFromChange={setFrom}
-          onToChange={setTo}
-          query={regionQuery}
-          total={regionTotal}
-          onCsv={handleCsvRegion}
+      <Tabs
+        tabs={[
+          { label: '실행', testId: `${testIdPrefix}-tab-run` },
+          { label: '저장내역', testId: `${testIdPrefix}-tab-list` },
+        ]}
+        activeIndex={historyTab}
+        onTabChange={setHistoryTab}
+        ariaLabel="아로로지스 가배차 저장내역 탭"
+      >
+        <div>
+          {restoreBanner ? (
+            <RestoredBanner
+              message={restoreBanner}
+              testIdPrefix={testIdPrefix}
+              onClose={() => setRestoreBanner(null)}
+            />
+          ) : null}
+          {tab === 'region' ? (
+            <RegionTabPanel
+              from={from}
+              to={to}
+              onFromChange={setFrom}
+              onToChange={setTo}
+              query={regionQuery}
+              data={regionData}
+              total={regionTotal}
+              onCsv={handleCsvRegion}
+              onSave={() => setSaveDialogOpen(true)}
+            />
+          ) : (
+            <RegionalTabPanel
+              date={date}
+              onDateChange={setDate}
+              query={regionalQuery}
+              data={regionalData}
+              total={regionalTotal}
+              onCsv={handleCsvRegional}
+              onSave={() => setSaveDialogOpen(true)}
+            />
+          )}
+        </div>
+        <HistoryTab
+          programType={programType}
+          testIdPrefix={testIdPrefix}
+          rowCountLabel="분류 건수"
+          onRestore={handleRestore}
         />
-      ) : (
-        <RegionalTabPanel
-          date={date}
-          onDateChange={setDate}
-          query={regionalQuery}
-          total={regionalTotal}
-          onCsv={handleCsvRegional}
-        />
-      )}
+      </Tabs>
+      <SaveDialog
+        open={saveDialogOpen}
+        isSaving={saveManualMutation.isPending}
+        testIdPrefix={testIdPrefix}
+        title="배차 결과 저장"
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={(topic) => saveManualMutation.mutate(topic)}
+      />
     </div>
   )
 }
@@ -247,13 +384,14 @@ interface RegionTabPanelProps {
   onFromChange: (v: string) => void
   onToChange: (v: string) => void
   query: ReturnType<typeof useQuery<PreClassifyResponse>>
+  data: PreClassifyResponse | undefined
   total: number
   onCsv: () => void
+  onSave: () => void
 }
 
 function RegionTabPanel(props: RegionTabPanelProps) {
-  const { from, to, onFromChange, onToChange, query, total, onCsv } = props
-  const data = query.data
+  const { from, to, onFromChange, onToChange, query, data, total, onCsv, onSave } = props
 
   return (
     <Card>
@@ -302,6 +440,14 @@ function RegionTabPanel(props: RegionTabPanelProps) {
             disabled={!data || total === 0}
           >
             CSV 다운로드
+          </Button>
+          <Button
+            variant="primary"
+            data-testid="pre-classify-history-save-button"
+            onClick={onSave}
+            disabled={!data || total === 0}
+          >
+            내역으로 저장
           </Button>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
             총 {total} 건
@@ -448,13 +594,14 @@ interface RegionalTabPanelProps {
   date: string
   onDateChange: (v: string) => void
   query: ReturnType<typeof useQuery<RegionalResponse>>
+  data: RegionalResponse | undefined
   total: number
   onCsv: () => void
+  onSave: () => void
 }
 
 function RegionalTabPanel(props: RegionalTabPanelProps) {
-  const { date, onDateChange, query, total, onCsv } = props
-  const data = query.data
+  const { date, onDateChange, query, data, total, onCsv, onSave } = props
 
   return (
     <Card>
@@ -490,6 +637,14 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
           >
             CSV 다운로드
           </Button>
+          <Button
+            variant="primary"
+            data-testid="regional-history-save-button"
+            onClick={onSave}
+            disabled={!data || total === 0}
+          >
+            내역으로 저장
+          </Button>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
             총 {total} 건
           </div>
@@ -524,6 +679,18 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
       </div>
     </Card>
   )
+}
+
+function countRegionRows(data: PreClassifyResponse): number {
+  let n = data.unclassified?.length ?? 0
+  for (const list of Object.values(data.regionGroups ?? {})) n += list?.length ?? 0
+  return n
+}
+
+function countRegionalRows(data: RegionalResponse): number {
+  let n = data.unmatched?.length ?? 0
+  for (const list of Object.values(data.sidoGroups ?? {})) n += list?.length ?? 0
+  return n
 }
 
 interface RegionalGroupSectionProps {
