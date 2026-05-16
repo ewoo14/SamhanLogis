@@ -117,7 +117,7 @@ legacy GAS 의 배차 관련 6 앱 (`tools/legacy-gas/{가배차분류리스트,
 | 1 | 가배차분류 (가배차분류리스트) | `/dispatches/pre-classify` | arologis `GET /admin/arologis/dispatches/pre-classify` | `POST/GET /admin/arologis/dispatches/history` (4개 공통) | `PRE_CLASSIFY` |
 | 2 | 지방가배차분류 (지방가배차분류리스트) | `/dispatches/pre-classify` 토글 | arologis `GET /admin/arologis/dispatches/regional` | (동일 history endpoint, programType 격리) | `REGIONAL` |
 | 3 | 미배차 (미배차리스트) | `/dispatches/unassigned` | arologis `GET /admin/arologis/dispatches/unassigned` | (동일) | `UNASSIGNED` |
-| 4 | 운송사 비교 (운송사-실배차내역 비교) | `/dispatches/reconcile` | arologis `POST /arologis/dispatch/reconcile` | (동일) | `RECONCILE` |
+| 4 | 운송사 비교 (운송사-실배차내역 비교) | `/dispatches/reconcile` | arologis `POST /admin/arologis/dispatch/reconcile` | (동일) | `RECONCILE` |
 | 5 | 전표정리 (전표정리리스트) | `/sales/slip-cleanup` | slip `GET /slips/cleanup` | `POST/GET /slips/cleanup/history` | `SLIP_CLEANUP` |
 | 6 | 배차문자 (배차안내문자) | `/dispatch/sms` | notification `POST /admin/notifications/dispatch-batch/{preview,send}` | `POST/GET /admin/notifications/dispatch-sms/history` | `DISPATCH_SMS` (saveMode 에 `SEND_AUDIT` 추가) |
 
@@ -202,6 +202,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 - append-only (AUTO_LATEST 처럼 upsert 안 함)
 - soft-delete 일반 허용 (운영자 삭제 가능 — `project_build_conventions` 일관)
 - preview history (AUTO/MANUAL) 와 동일 table 안에서 saveMode flag 로 구분 → 별도 audit table 불필요
+- `SEND_AUDIT` enum 은 공통 `DispatchSaveMode`가 아니라 notification 전용 `DispatchSmsSaveMode`에만 둔다.
 
 ### 5.4 BaseEntity / Soft Delete / UUID 비공개
 
@@ -229,14 +230,20 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
   - 행 클릭 → GET /history/{id} → 실행 탭 navigate + 결과 복원
 ```
 
+- PRE_CLASSIFY/REGIONAL 토글 시 `useEffect` 의존 배열에 `programType` 포함 의무 — programType 별 latest 자동 복원 격리 보장.
+- `isSaving: boolean` prop 외부 주입 의무 — 각 page 가 `mutation.isPending`을 바인딩해 SP-08-2 FE-Blocker-1 회귀를 피한다.
+- SMS 발송 버튼은 `--color-warning` token 사용 + 이중 confirm dialog 의무 (sub-sub-task SP-08-3-4).
+
 ### 6.2 공통 컴포넌트 재사용
 
 - SP-08-2 의 `DpsHistoryTab.tsx` / `DpsRestoredBanner.tsx` / `DpsSaveDialog.tsx` 를 일반화 → `HistoryTab.tsx` / `RestoredBanner.tsx` / `SaveDialog.tsx` 로 추상화. 신규 6 화면 + 기존 DPS 2 화면 모두 동일 컴포넌트 사용. SP-08-3-2 진입 시 리팩토링.
+- 리팩토링 전 `DpsHistoryTab.tsx` props 인터페이스 snapshot 을 dev-report 에 기록 → 회귀 기준으로 사용.
 
 ### 6.3 design-system 의무
 
 - `Button` / `DataGrid` / `TabBar` / **`Input` / `Select`** 모두 `@samhan/design-system` import (SP-08-2 P2 결함 회고 — HTML 네이티브 사용 금지).
 - Pretendard 9 weight + 색상 token (CSS var) (SP-08-2 P2 결함 회고 — hex literal 금지).
+- sub-sub-task 완료 전 `grep -r '<input\|<select' src/renderer/pages/<target>` PASS 의무.
 
 ### 6.4 data-testid (UUID 비공개)
 
@@ -249,6 +256,14 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 | Topic input | `<domain>-history-topic-input` |
 | 저장내역 행 i | `<domain>-history-row-{i}` (UUID 미사용) |
 | send audit 행 (notification 만) | `dispatch-sms-history-row-{i}-send-audit` |
+
+도메인 prefix 매핑:
+
+| 도메인 | prefix |
+|---|---|
+| arologis | `dispatch` |
+| slip | `slip-cleanup` |
+| notification | `dispatch-sms` |
 
 ---
 
@@ -266,6 +281,19 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 | 8 | RBAC role 미달 | 401/403 — `@PreAuthorize` |
 | 9 | Notion runtime 호출 재유입 | SP-08-1 grep 가드 자동 차단 |
 | 10 | **(notification 만)** send audit 저장 실패 | SMS 발송 자체는 성공했어도 audit 저장 실패 시 명시적 사용자 메시지 + 운영 로그. 사용자가 직접 named 저장 재시도 가능 |
+| 11 | 동일일 `from=to` 경계 | 당일 데이터 포함 검증 IT |
+| 12 | `from`/`to` 모두 null | 전체 기간 동작 IT |
+
+### 7.1 예외 → IT 시나리오 매핑
+
+| 예외 | 필수 IT |
+|---|---|
+| #1 payload 100KB 초과 | `historyPayloadTooLargeReturns422` |
+| #2 AUTO_LATEST race | `autoLatestRaceKeepsSingleActiveRow` |
+| #4 topic 미입력 | `manualNamedBlankTopicReturns400` |
+| #5 soft-deleted 복원 | `restoreDeletedHistoryReturns404` |
+| #6 타인 history 접근 | `otherUserHistoryReturns403` |
+| #10 send audit 저장 실패 | `sendAuditFailureReturnsExplicitMessage` |
 
 ---
 
@@ -286,7 +314,8 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 - [ ] entity `DispatchSaveHistory` + enum `DispatchProgramType` (PRE_CLASSIFY/REGIONAL/UNASSIGNED/RECONCILE) + `DispatchSaveMode` (AUTO_LATEST/MANUAL_NAMED)
 - [ ] repository / service (AUTO upsert + retry, 사용자 격리 `findByIdAndCreatedBy` — SP-08-2 BE-P1-1 회고) / controller (4 endpoint, `@PreAuthorize` arologis role)
 - [ ] DTO 4 record + 한국어 Javadoc + `@Operation`
-- [ ] Unit + IT (Testcontainers + `@MockBean SlipServiceClient`)
+- [ ] Unit + IT (Testcontainers + arologis 외부 client 전체 `@MockBean` — `SlipServiceClient` 단건만 보지 말고 `rg "Client" services/arologis-service/src/main/java` 결과 전체 grep)
+- [ ] IT 최소 4건: AUTO_LATEST race 1건 / MANUAL_NAMED append 1건 / latest empty 404 1건 / 타인 history 403 1건
 - [ ] FE: `dispatchSaveHistoryApi.ts` + `HistoryTab.tsx` (DpsHistoryTab 일반화) / `RestoredBanner.tsx` / `SaveDialog.tsx`
 - [ ] 4 page modified (`/dispatches/pre-classify` + 토글 / `/dispatches/unassigned` / `/dispatches/reconcile`) — 2-Tab + 자동 복원 + 명시 저장
 - [ ] Playwright `sp-08-3-2-dispatch-history` (4 정적 계약 + 2 mock UI)
@@ -312,8 +341,10 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
   - preview 결과 자동 AUTO_LATEST + 명시 MANUAL_NAMED
   - send 후 자동 SEND_AUDIT append (사용자 noop, silent)
   - 저장내역 탭에 send audit 별도 mode select 옵션 추가
+- [ ] commit 직전 notification `V*.sql` glob 즉시 확인 (`Get-ChildItem services/notification-service/src/main/resources/db/migration -Filter 'V*.sql'`)
 - [ ] Playwright `sp-08-3-4-dispatch-sms-history` (preview/send 흐름 정적 계약 + mock UI)
 - [ ] QA mock PNG ≥6장 (preview / send 후 audit / 저장내역 탭 mode 선택 etc.)
+- [ ] SP-08-3-9 통합 또는 후속: 6 화면 통합 운영자 동선 e2e — 가배차 분류 → 미배차 확인 → 배차문자 send
 - [ ] **PR 제목**: `[FEAT] SP-08-3-4 배차문자 preview+send+audit 저장내역`
 
 ---
@@ -375,6 +406,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 | Playwright 정적 계약 | `clients/desktop/playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts` |
 | QA 캡처 | `docs/qa/sp-08-3-dispatch-parity/screenshots/*.png` |
 | QA 캡처 스크립트 | `scripts/generate-sp-08-3-dispatch-parity-screenshots.ps1` |
+| QA 캡처 교체 기준 | SP-08-3-2 진입 시 02/03/06 PNG 를 실 컴포넌트 레이아웃으로 교체 |
 | 핸드오프 | `docs/handoff/CURRENT-WORK.md` (갱신) |
 | 결정 누적 | `migration/decisions/DECISIONS.md` (신규 entry: `D-SP-08-3-01 배차 history 3 도메인 분산` 등) |
 | Flyway migration | SP-08-3-2~4 에서 작성: arologis V12 / slip V25 / notification V4 |

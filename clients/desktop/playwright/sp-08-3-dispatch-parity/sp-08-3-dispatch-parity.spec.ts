@@ -1,3 +1,9 @@
+/**
+ * @file SP-08-3-1 dispatch parity static contract.
+ *
+ * Local-only execution: CI `qa-e2e.yml` runs `qa/playwright` and does not run
+ * `clients/desktop/playwright`; this spec is a dev-time defensive contract.
+ */
 import { expect, test } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -7,7 +13,7 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const repoRoot = path.resolve(dirname, '../../../..')
 const SPEC_PATH = 'docs/planning/2026-05-16_sp-08-3-dispatch-legacy-gas-parity.md'
-const UUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i
+const UUID_REGEX = /\b(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i
 
 type MatrixRow = {
   legacyLabel: string
@@ -52,7 +58,7 @@ const matrix: MatrixRow[] = [
     desktopRoute: '/dispatches/reconcile',
     currentRoute: '/arologis/dispatch-reconcile',
     owner: 'arologis',
-    sourceEndpoint: 'POST /arologis/dispatch/reconcile',
+    sourceEndpoint: 'POST /admin/arologis/dispatch/reconcile',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'RECONCILE',
   },
@@ -101,6 +107,11 @@ function scanFiles(files: string[], patterns: RegExp[]): string[] {
   })
 }
 
+function endpointPathRegex(endpointPath: string): RegExp {
+  const escaped = endpointPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^A-Za-z0-9/_-])${escaped}([^A-Za-z0-9/_-]|$)`)
+}
+
 test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
   test('기획서가 6개 배차 화면 endpoint/history/programType 매트릭스를 고정한다', () => {
     const spec = read(SPEC_PATH)
@@ -109,7 +120,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(spec).toContain('BaseEntity 7 audit')
     expect(spec).toContain('Soft Delete only')
     expect(spec).toContain('한국어 Javadoc + `@Operation`')
-    expect(spec).toContain('`@MockBean SlipServiceClient`')
+    expect(spec).toContain('arologis 외부 client 전체 `@MockBean`')
     expect(spec).toContain('PR 제목')
     expect(spec).toContain('[FEAT] SP-08-3-1 배차 GAS parity 기반 잠금')
 
@@ -143,9 +154,10 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
 
     for (const row of matrix) {
       const [, endpointPath] = row.sourceEndpoint.split(' ')
-      const normalizedPath = endpointPath.replace('/{preview,send}', '')
       expect(sources).toContain(row.currentRoute)
-      expect(sources).toContain(normalizedPath)
+      if (!endpointPath.includes('{preview,send}')) {
+        expect(sources).toMatch(endpointPathRegex(endpointPath))
+      }
     }
 
     expect(sources).toContain('/admin/notifications/dispatch-batch/preview')
