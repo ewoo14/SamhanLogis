@@ -665,6 +665,20 @@ const MOCK_SAFETY_STOCK_ALERTS = [
   },
 ]
 
+interface MockDispatchSmsHistoryRow {
+  id: string
+  programType: string
+  saveMode: string
+  topic: string
+  createdAt: string
+  createdBy: string
+  requestParams: Record<string, unknown>
+  rowCount: number
+  responsePayload?: unknown
+}
+
+const mockDispatchSmsHistoryRows: MockDispatchSmsHistoryRow[] = []
+
 /**
  * URL + method 매칭으로 mock 응답을 반환. 매칭 실패 시 null.
  */
@@ -3040,7 +3054,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
       ],
     }
-    const row = {
+    const row: MockDispatchSmsHistoryRow = {
       id: 'dispatch-sms-history-demo',
       programType: 'DISPATCH_SMS',
       saveMode: 'MANUAL_NAMED',
@@ -3050,11 +3064,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       requestParams: { date: '2026-05-17', rowCount: 3 },
       rowCount: 3,
     }
-    const auditRow = {
+    const auditRow: MockDispatchSmsHistoryRow = {
       ...row,
       id: 'dispatch-sms-history-send-audit',
       saveMode: 'SEND_AUDIT',
-      topic: '발송 audit 2026-05-17',
+      topic: '발송 감사 2026-05-17',
       requestParams: { date: '2026-05-17', rowCount: 2, sent: 2, failed: 0, blocked: 1 },
       rowCount: 2,
     }
@@ -3069,24 +3083,60 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ],
     }
     if (method === 'POST') {
-      return envelope({ id: 'dispatch-sms-history-saved', savedAt: now })
+      const body = parseMockBody(config)
+      const saveMode = String(body['saveMode'] ?? 'MANUAL_NAMED')
+      const requestParams = (body['requestParams'] && typeof body['requestParams'] === 'object')
+        ? body['requestParams'] as Record<string, unknown>
+        : {}
+      const responsePayload = body['responsePayload']
+      const rowCount = Number(requestParams['rowCount'] ?? 0)
+      const savedRow: MockDispatchSmsHistoryRow = {
+        id: `dispatch-sms-history-${saveMode.toLowerCase()}-${mockDispatchSmsHistoryRows.length + 1}`,
+        programType: 'DISPATCH_SMS',
+        saveMode,
+        topic: String(body['topic'] ?? (saveMode === 'AUTO_LATEST' ? '자동저장' : '저장내역')),
+        createdAt: new Date().toISOString(),
+        createdBy: 'dispatch-user',
+        requestParams,
+        rowCount,
+        responsePayload,
+      }
+      if (saveMode === 'AUTO_LATEST') {
+        for (let i = mockDispatchSmsHistoryRows.length - 1; i >= 0; i -= 1) {
+          if (mockDispatchSmsHistoryRows[i]?.saveMode === 'AUTO_LATEST') {
+            mockDispatchSmsHistoryRows.splice(i, 1)
+          }
+        }
+      }
+      mockDispatchSmsHistoryRows.unshift(savedRow)
+      return envelope({ id: savedRow.id, savedAt: savedRow.createdAt })
     }
     if (method === 'GET' && url.includes('/latest')) {
       if (mockLocationParams().get('mockDispatchSmsLatest404') === '1') {
         return mockError(404, 'DISPATCH_SMS_HISTORY_NOT_FOUND', '배차문자 저장내역을 찾을 수 없습니다.')
       }
-      return envelope({ ...row, saveMode: 'AUTO_LATEST', topic: '자동저장', responsePayload: previewPayload })
+      const latest = mockDispatchSmsHistoryRows.find(item => item.saveMode === 'AUTO_LATEST')
+      return envelope(latest ?? { ...row, saveMode: 'AUTO_LATEST', topic: '자동저장', responsePayload: previewPayload })
     }
     if (method === 'GET' && /\/admin\/notifications\/dispatch-sms\/history\/[^/?]+/.test(url)) {
+      const id = url.split('/').pop()?.split('?')[0] ?? ''
+      const savedRow = mockDispatchSmsHistoryRows.find(item => item.id === id)
+      if (savedRow) return envelope(savedRow)
       if (url.includes('send-audit')) {
         return envelope({ ...auditRow, responsePayload: auditPayload })
       }
       return envelope({ ...row, responsePayload: previewPayload })
     }
     if (method === 'GET') {
+      const mode = new URL(url, 'http://mock.local').searchParams.get('mode')
+      const baseRows = [auditRow, row]
+      const allRows = [...mockDispatchSmsHistoryRows, ...baseRows]
+      const filteredRows = mode && mode !== 'ALL'
+        ? allRows.filter(item => item.saveMode === mode)
+        : allRows
       return envelope({
-        content: [auditRow, row],
-        totalElements: 2,
+        content: filteredRows,
+        totalElements: filteredRows.length,
         totalPages: 1,
         size: 50,
         number: 0,

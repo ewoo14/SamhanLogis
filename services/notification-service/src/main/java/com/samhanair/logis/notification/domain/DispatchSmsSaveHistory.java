@@ -19,9 +19,9 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 배차문자 preview/send 저장내역.
+ * 배차문자 미리보기/발송 저장내역.
  *
- * <p>legacy GAS 배차안내문자의 preview 결과와 send audit payload 를 PostgreSQL JSONB 로
+ * <p>legacy GAS 배차안내문자의 미리보기 결과와 발송 감사 payload 를 PostgreSQL JSONB 로
  * 저장한다. BaseEntity 7 audit 필드와 {@code is_deleted=false} soft-delete restriction 을 사용한다.
  */
 @Entity

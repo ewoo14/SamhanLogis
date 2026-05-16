@@ -6,7 +6,7 @@ import com.samhanair.logis.notification.domain.DispatchSmsSaveHistory;
 /**
  * 배차문자 저장내역 상세 DTO.
  *
- * @param responsePayload preview 복원 또는 send audit 확인용 payload
+ * @param responsePayload 미리보기 복원 또는 발송 감사 확인용 payload
  */
 public record DispatchSmsSaveHistoryDetailResponse(
         java.util.UUID id,

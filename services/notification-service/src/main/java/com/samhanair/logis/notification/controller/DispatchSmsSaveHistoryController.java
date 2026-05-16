@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 배차문자 저장내역 API controller.
  *
- * <p>legacy GAS 배차안내문자의 preview 저장, 명시 저장, send audit 탭을
+ * <p>legacy GAS 배차안내문자의 미리보기 저장, 명시 저장, 발송 감사 탭을
  * notification-service DB/API 로 대체한다.
  */
 @RestController
@@ -48,7 +48,7 @@ public class DispatchSmsSaveHistoryController {
     private final DispatchSmsSaveHistoryService service;
 
     /**
-     * 배차문자 preview/send 결과 저장.
+     * 배차문자 미리보기/발송 결과 저장.
      *
      * @param request 저장 요청
      * @param callerHeader gateway 전파 사용자 ID
@@ -56,7 +56,7 @@ public class DispatchSmsSaveHistoryController {
      * @return 저장된 ID 와 저장시각
      */
     @Operation(summary = "배차문자 저장내역 저장",
-            description = "배차문자 preview 결과를 AUTO_LATEST/MANUAL_NAMED 로, send 결과를 SEND_AUDIT 로 기록한다.")
+            description = "배차문자 미리보기 결과를 AUTO_LATEST/MANUAL_NAMED 로, 발송 결과를 SEND_AUDIT 로 기록한다.")
     @PostMapping
     @PreAuthorize(DISPATCH_SMS_HISTORY_ROLES)
     public ApiResponse<DispatchSmsSaveHistorySaveResponse> save(
@@ -117,10 +117,10 @@ public class DispatchSmsSaveHistoryController {
      * @param id 저장내역 ID
      * @param callerHeader gateway 전파 사용자 ID
      * @param authentication Spring Security 인증
-     * @return 복원 또는 audit 확인용 상세 payload
+     * @return 복원 또는 발송 감사 확인용 상세 payload
      */
     @Operation(summary = "배차문자 저장내역 상세 조회",
-            description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원하거나 발송 audit 을 확인한다.")
+            description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원하거나 발송 감사를 확인한다.")
     @GetMapping("/{id}")
     @PreAuthorize(DISPATCH_SMS_HISTORY_ROLES)
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> detail(
@@ -133,7 +133,7 @@ public class DispatchSmsSaveHistoryController {
     }
 
     /**
-     * 최신 preview 자동저장 조회.
+     * 최신 미리보기 자동저장 조회.
      *
      * @param programType 프로그램 구분
      * @param callerHeader gateway 전파 사용자 ID

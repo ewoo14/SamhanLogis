@@ -24,6 +24,8 @@ export interface ModalProps {
   closeOnBackdropClick?: boolean
   /** Close on Escape key. Default true. */
   closeOnEsc?: boolean
+  /** Close when the header X button is clicked. Default true. */
+  closeOnHeaderX?: boolean
   /** Footer node — typically action buttons. */
   footer?: ReactNode
   /** Hide the close (X) button in the header. */
@@ -56,6 +58,7 @@ export function Modal({
   size = 'md',
   closeOnBackdropClick = true,
   closeOnEsc = true,
+  closeOnHeaderX = true,
   footer,
   hideCloseButton = false,
   children,
@@ -188,7 +191,10 @@ export function Modal({
                 type="button"
                 className={styles['closeBtn']}
                 aria-label="닫기"
-                onClick={onClose}
+                disabled={!closeOnHeaderX}
+                onClick={() => {
+                  if (closeOnHeaderX) onClose()
+                }}
               >
                 <svg
                   width="16"

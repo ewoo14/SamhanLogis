@@ -19,6 +19,22 @@ interface DispatchSmsHistoryTabProps {
 }
 
 type HistoryGridRow = DispatchSmsSaveHistoryListRow & { __index: number }
+type HistoryQuery = {
+  from: string
+  to: string
+  mode: DispatchSmsSaveMode | 'ALL'
+}
+
+export function dispatchSmsHistoryListQueryKey(
+  programType?: DispatchSmsProgramType,
+  query?: HistoryQuery,
+) {
+  return [
+    'dispatch-sms-history-list',
+    ...(programType ? [programType] : []),
+    ...(query ? [query] : []),
+  ] as const
+}
 
 /** 배차문자 저장내역 목록 탭. */
 export function DispatchSmsHistoryTab({
@@ -35,7 +51,7 @@ export function DispatchSmsHistoryTab({
   const [query, setQuery] = useState({ from, to, mode })
   const [error, setError] = useState<string | null>(null)
 
-  const historyQueryKey = ['dispatch-sms-history-list', programType, query] as const
+  const historyQueryKey = dispatchSmsHistoryListQueryKey(programType, query)
   const historyQuery = useQuery({
     queryKey: historyQueryKey,
     queryFn: () => listDispatchSmsHistory({ programType, ...query }),
@@ -87,14 +103,14 @@ export function DispatchSmsHistoryTab({
         >
           <option value="MANUAL_NAMED">명시 저장만</option>
           <option value="AUTO_LATEST">자동 저장만</option>
-          <option value="SEND_AUDIT">발송 audit</option>
+          <option value="SEND_AUDIT">발송 감사</option>
           <option value="ALL">전체</option>
         </Select>
         <Button
           variant="primary"
           onClick={() => {
             setQuery({ from, to, mode })
-            void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list', programType] })
+            void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey(programType) })
           }}
           loading={historyQuery.isFetching || isSaving}
           data-testid={`${testIdPrefix}-query`}
@@ -162,7 +178,7 @@ function columns(testIdPrefix: string): DataGridColumn<HistoryGridRow>[] {
 
 function modeLabel(mode: DispatchSmsSaveMode): string {
   if (mode === 'AUTO_LATEST') return '자동'
-  if (mode === 'SEND_AUDIT') return '발송 audit'
+  if (mode === 'SEND_AUDIT') return '발송 감사'
   return '명시'
 }
 

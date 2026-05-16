@@ -69,7 +69,7 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     expect(service).toContain('TransactionTemplate')
     expect(service).toContain('PROPAGATION_REQUIRES_NEW')
     expect(service).toContain('request.saveMode() == DispatchSmsSaveMode.AUTO_LATEST')
-    expect(service).toContain('DispatchSmsSaveMode.SEND_AUDIT')
+    expect(service).toContain('request.saveMode().requiresTopic()')
     expect(service).toContain('DateRange.of(from, to)')
     expect(service).toContain('DISPATCH_SMS_HISTORY_NOT_FOUND')
     expect(service).not.toContain('existsById')
@@ -96,17 +96,24 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     expect(pageSource).toContain("saveMode: 'AUTO_LATEST'")
     expect(pageSource).toContain("saveMode: 'MANUAL_NAMED'")
     expect(pageSource).toContain("saveMode: 'SEND_AUDIT'")
+    expect(pageSource).toContain('previewHistoryPayload(preview, edited)')
+    expect(pageSource).toContain('restored.edited ?? buildInitialEdited(restored.preview)')
+    expect(pageSource).toContain('dispatchSmsHistoryListQueryKey')
+    expect(pageSource).toContain('variant="warning"')
     expect(pageSource).toContain('saveSendAudit')
     expect(pageSource).toContain('정말 실 발송을 진행하시겠습니까?')
-    expect(pageSource).toContain('var(--color-warning)')
-    expect(historyTab).toContain('<option value="SEND_AUDIT">발송 audit</option>')
+    expect(pageSource).toContain('발송 감사 이력')
+    expect(historyTab).toContain('<option value="SEND_AUDIT">발송 감사</option>')
+    expect(historyTab).toContain('dispatchSmsHistoryListQueryKey')
     expect(historyTab).toContain('maskCreatedBy')
     expect(historyTab).toContain('DataGrid')
     expect(historyTab).toContain('`${testIdPrefix}-row-${row.__index}`')
     expect(saveDialog).toContain('closeOnEsc={!isSaving}')
+    expect(saveDialog).toContain('closeOnHeaderX={!isSaving}')
     expect(saveDialog).toContain('autoFocus')
     expect(mock).toContain('/admin/notifications/dispatch-sms/history')
     expect(mock).toContain('mockDispatchSmsLatest404')
+    expect(mock).toContain('mockDispatchSmsHistoryRows.unshift(savedRow)')
   })
 
   test('new artifacts expose no literal UUIDs or Notion runtime calls', () => {
@@ -147,9 +154,9 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     await page.locator('[data-testid="dispatch-sms-history-tab-list"]').click()
     await page.locator('[data-testid="dispatch-sms-history-mode"]').selectOption('SEND_AUDIT')
     await page.locator('[data-testid="dispatch-sms-history-query"]').click()
-    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText(/audit|Audit|발송/)
+    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText(/감사|발송/)
     await page.locator('[data-testid="dispatch-sms-history-row-0"]').click()
-    await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).toContainText(/audit|Audit|발송/)
+    await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).toContainText(/감사|발송/)
     await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).not.toContainText(UUID_REGEX)
   })
 
@@ -170,15 +177,15 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
         <select data-testid="dispatch-sms-history-mode">
           <option value="MANUAL_NAMED">명시 저장만</option>
           <option value="AUTO_LATEST">자동 저장만</option>
-          <option value="SEND_AUDIT" selected>발송 audit</option>
+          <option value="SEND_AUDIT" selected>발송 감사</option>
         </select>
-        <div data-testid="dispatch-sms-history-row-0" role="row">2026. 05. 17. 사용자 발송 audit 2건</div>
-        <button data-testid="dispatch-sms-send-button" style="background: var(--color-warning)">SMS 발송</button>
+        <div data-testid="dispatch-sms-history-row-0" role="row">2026. 05. 17. 사용자 발송 감사 2건</div>
+        <button data-testid="dispatch-sms-send-button" class="variant-warning">SMS 발송</button>
       </main>
     `)
 
-    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText('발송 audit')
+    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText('발송 감사')
     await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).not.toContainText(UUID_REGEX)
-    await expect(page.locator('[data-testid="dispatch-sms-send-button"]')).toHaveAttribute('style', /var\(--color-warning\)/)
+    await expect(page.locator('[data-testid="dispatch-sms-send-button"]')).toHaveClass(/variant-warning/)
   })
 })

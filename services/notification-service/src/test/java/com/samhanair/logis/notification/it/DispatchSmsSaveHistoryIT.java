@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MvcResult;
 /**
  * 배차문자 저장내역 통합 테스트.
  *
- * <p>Testcontainers PostgreSQL + Flyway schema 로 preview 저장, send audit append,
+ * <p>Testcontainers PostgreSQL + Flyway schema 로 미리보기 저장, 발송 감사 append,
  * 사용자 격리, 날짜 경계, partial unique race guard 를 검증한다.
  */
 @SpringBootTest(classes = NotificationServiceApplication.class)
@@ -70,11 +70,20 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("MANUAL_NAMED 는 append 저장되고 목록/상세로 복원된다")
+    @DisplayName("MANUAL_NAMED 는 2건 이상 append 저장되고 edited 본문까지 목록/상세로 복원된다")
     void manualNamedAppendListDetailFlow() throws Exception {
-        MvcResult created = mockMvc.perform(post(BASE_URL)
+        MvcResult createdFirst = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(manualBody("오전 미리보기 점검", 2))
+                        .content(manualBody("오전 미리보기 점검", 2, "P-001", "편집 본문 A"))
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "DISPATCH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.savedAt").exists())
+                .andReturn();
+        MvcResult createdSecond = mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(manualBody("오후 미리보기 점검", 3, "P-002", "편집 본문 B"))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
@@ -82,7 +91,9 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.savedAt").exists())
                 .andReturn();
 
-        String historyId = objectMapper.readTree(created.getResponse().getContentAsString())
+        String firstHistoryId = objectMapper.readTree(createdFirst.getResponse().getContentAsString())
+                .path("data").path("id").asText();
+        String secondHistoryId = objectMapper.readTree(createdSecond.getResponse().getContentAsString())
                 .path("data").path("id").asText();
 
         mockMvc.perform(get(BASE_URL)
@@ -93,16 +104,26 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content.length()").value(1))
-                .andExpect(jsonPath("$.data.content[0].topic").value("오전 미리보기 점검"))
-                .andExpect(jsonPath("$.data.content[0].rowCount").value(2));
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].topic").value("오후 미리보기 점검"))
+                .andExpect(jsonPath("$.data.content[0].rowCount").value(3))
+                .andExpect(jsonPath("$.data.content[1].topic").value("오전 미리보기 점검"))
+                .andExpect(jsonPath("$.data.content[1].rowCount").value(2));
 
-        mockMvc.perform(get(BASE_URL + "/" + historyId)
+        mockMvc.perform(get(BASE_URL + "/" + firstHistoryId)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.topic").value("오전 미리보기 점검"))
-                .andExpect(jsonPath("$.data.responsePayload.totalMessages").value(2));
+                .andExpect(jsonPath("$.data.responsePayload.preview.totalMessages").value(2))
+                .andExpect(jsonPath("$['data']['responsePayload']['edited']['P-001']").value("편집 본문 A"));
+        mockMvc.perform(get(BASE_URL + "/" + secondHistoryId)
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "DISPATCH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.topic").value("오후 미리보기 점검"))
+                .andExpect(jsonPath("$.data.responsePayload.preview.totalMessages").value(3))
+                .andExpect(jsonPath("$['data']['responsePayload']['edited']['P-002']").value("편집 본문 B"));
     }
 
     @Test
@@ -130,7 +151,8 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.saveMode").value("AUTO_LATEST"))
                 .andExpect(jsonPath("$.data.topic").value("자동저장"))
-                .andExpect(jsonPath("$.data.responsePayload.totalMessages").value(4));
+                .andExpect(jsonPath("$.data.responsePayload.preview.totalMessages").value(4))
+                .andExpect(jsonPath("$['data']['responsePayload']['edited']['P-001']").value("자동 편집 4"));
     }
 
     @Test
@@ -144,13 +166,13 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("발송 audit 1", 2, 0))
+                        .content(sendAuditBody("발송 감사 1", 2, 0))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk());
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("발송 audit 2", 1, 1))
+                        .content(sendAuditBody("발송 감사 2", 1, 1))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk());
@@ -170,7 +192,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.saveMode").value("AUTO_LATEST"))
-                .andExpect(jsonPath("$.data.responsePayload.totalMessages").value(2));
+                .andExpect(jsonPath("$.data.responsePayload.preview.totalMessages").value(2));
 
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "DISPATCH_SMS")
@@ -354,13 +376,19 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     }
 
     private String manualBody(String topic, int rowCount) throws Exception {
+        return manualBody(topic, rowCount, "P-001", "편집 본문");
+    }
+
+    private String manualBody(String topic, int rowCount, String partnerCode, String editedMessage) throws Exception {
         return objectMapper.writeValueAsString(Map.of(
                 "programType", "DISPATCH_SMS",
                 "saveMode", "MANUAL_NAMED",
                 "topic", topic,
                 "requestParams", Map.of("date", "2026-05-17", "rowCount", rowCount),
-                "responsePayload", Map.of("totalMessages", rowCount, "groups",
-                        java.util.List.of(Map.of("chatRoom", "발주방 A")))));
+                "responsePayload", Map.of(
+                        "preview", Map.of("totalMessages", rowCount, "groups",
+                                java.util.List.of(Map.of("chatRoom", "발주방 A"))),
+                        "edited", Map.of(partnerCode, editedMessage))));
     }
 
     private String autoBody(int rowCount) throws Exception {
@@ -368,7 +396,9 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 "programType", "DISPATCH_SMS",
                 "saveMode", "AUTO_LATEST",
                 "requestParams", Map.of("date", "2026-05-17", "rowCount", rowCount),
-                "responsePayload", Map.of("totalMessages", rowCount)));
+                "responsePayload", Map.of(
+                        "preview", Map.of("totalMessages", rowCount),
+                        "edited", Map.of("P-001", "자동 편집 " + rowCount))));
     }
 
     private String sendAuditBody(String topic, int sent, int failed) throws Exception {

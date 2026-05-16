@@ -49,7 +49,7 @@
 - SP-08-3-1: 배차 legacy GAS 저장/복원/preview/send parity 기반 잠금 진행. 6개 화면의 기존 endpoint와 SP-08-3-2~4 신규 history endpoint를 정적 계약으로 고정하고, UUID/Notion runtime/secret-like marker zero guard를 추가한다.
 - SP-08-3-2: arologis 배차 4 화면 history 구현 진행. `dispatch_save_history` JSONB 저장내역과 `/admin/arologis/dispatches/history` 4 endpoint를 추가하고, 가배차/지방가배차/미배차/운송사 비교 화면에 공통 저장내역 탭을 연결한다.
 - SP-08-3-3: slip 전표정리 저장내역 구현 완료, PR #214 merge. `slip_cleanup_save_history` JSONB 저장내역과 `/slips/cleanup/history` 4 endpoint를 추가하고, `/sales/slip-cleanup` 화면에 실행/저장내역 2탭과 latest 자동 복원/명시 저장을 연결했다.
-- SP-08-3-4: notification 배차문자 preview/send audit 저장내역 구현 진행. `dispatch_sms_save_history` JSONB 저장내역과 `/admin/notifications/dispatch-sms/history` 4 endpoint를 추가하고, `/arologis/dispatch-sms` 화면에 실행/저장내역 2탭, `AUTO_LATEST`/`MANUAL_NAMED` preview 저장, `SEND_AUDIT` 발송 audit append를 연결한다.
+- SP-08-3-4: notification 배차문자 미리보기/발송 감사 저장내역 구현 진행. `dispatch_sms_save_history` JSONB 저장내역과 `/admin/notifications/dispatch-sms/history` 4 endpoint를 추가하고, `/arologis/dispatch-sms` 화면에 실행/저장내역 2탭, `AUTO_LATEST`/`MANUAL_NAMED` 미리보기 저장, `SEND_AUDIT` 발송 감사 append를 연결한다.
 - 다음 후보: SP-08 회계/vendor OCR/Aligo 후속 parity.
 
 ## Phase 0 — 저장소·가드 정립

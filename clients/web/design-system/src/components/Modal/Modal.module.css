@@ -88,6 +88,14 @@
   background-color: var(--color-bg-muted);
   color: var(--color-text);
 }
+.closeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.closeBtn:disabled:hover {
+  background: transparent;
+  color: var(--color-text-muted);
+}
 .closeBtn:focus-visible {
   outline: 2px solid var(--color-brand-400);
   outline-offset: 2px;

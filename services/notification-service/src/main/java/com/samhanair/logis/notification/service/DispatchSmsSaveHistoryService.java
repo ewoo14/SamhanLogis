@@ -43,7 +43,7 @@ public class DispatchSmsSaveHistoryService {
     private final PlatformTransactionManager transactionManager;
 
     /**
-     * 배차문자 preview/send 결과를 저장한다.
+     * 배차문자 미리보기/발송 결과를 저장한다.
      *
      * @param request 저장 요청
      * @param currentUser 현재 사용자 ID
@@ -188,19 +188,14 @@ public class DispatchSmsSaveHistoryService {
                 || request.requestParams() == null || request.responsePayload() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "배차문자 저장내역 필수값이 누락되었습니다.");
         }
-        if (requiresTopic(request.saveMode())
+        if (request.saveMode().requiresTopic()
                 && (request.topic() == null || request.topic().isBlank())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "명시 저장과 발송 audit 은 저장주제가 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "명시 저장과 발송 감사는 저장주제가 필수입니다.");
         }
         if (payloadSize(request.responsePayload()) > MAX_RESPONSE_PAYLOAD_BYTES) {
             throw new BusinessException(ErrorCode.DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE,
                     "배차문자 결과가 너무 큽니다. 기간을 좁혀 다시 시도하세요.");
         }
-    }
-
-    private boolean requiresTopic(DispatchSmsSaveMode saveMode) {
-        return saveMode == DispatchSmsSaveMode.MANUAL_NAMED
-                || saveMode == DispatchSmsSaveMode.SEND_AUDIT;
     }
 
     private BusinessException detailNotAccessible() {

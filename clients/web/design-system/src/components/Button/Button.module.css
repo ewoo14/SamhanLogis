@@ -112,6 +112,19 @@
   filter: brightness(0.85);
 }
 
+.variant-warning {
+  background-color: var(--state-warning);
+  border-color: var(--state-warning);
+  color: var(--color-text-on-brand);
+}
+.variant-warning:hover:not(:disabled) {
+  background-color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+.variant-warning:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+
 .loading {
   cursor: progress;
 }

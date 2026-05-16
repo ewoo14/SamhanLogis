@@ -49,7 +49,7 @@ BaseEntity 7 audit (`created_at` / `created_by` / `modified_at` / `modified_by` 
 
 ### SP-08-3-4 배차문자 history API (2026-05-17 구현)
 
-legacy GAS `배차안내문자`의 preview/save/send audit 흐름을 `dispatch_sms_save_history`로 보존한다. Flyway `V4__add_dispatch_sms_save_history.sql`이 테이블과 `AUTO_LATEST` partial unique index를 생성한다.
+legacy GAS `배차안내문자`의 미리보기/명시 저장/발송 감사 흐름을 `dispatch_sms_save_history`로 보존한다. Flyway `V4__add_dispatch_sms_save_history.sql`이 테이블과 `AUTO_LATEST` partial unique index를 생성한다.
 
 | 기존 endpoint | history endpoint | programType | saveMode |
 |---|---|---|---|

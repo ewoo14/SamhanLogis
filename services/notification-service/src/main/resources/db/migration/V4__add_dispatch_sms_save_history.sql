@@ -21,7 +21,7 @@ CREATE TABLE dispatch_sms_save_history (
         CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED', 'SEND_AUDIT'))
 );
 
-COMMENT ON TABLE dispatch_sms_save_history IS '배차문자 preview/save/send audit 사용자별 저장내역';
+COMMENT ON TABLE dispatch_sms_save_history IS '배차문자 미리보기/명시저장/발송감사 사용자별 저장내역';
 COMMENT ON COLUMN dispatch_sms_save_history.program_type IS 'DISPATCH_SMS';
 COMMENT ON COLUMN dispatch_sms_save_history.save_mode IS 'AUTO_LATEST preview 자동 복원, MANUAL_NAMED 명시 저장, SEND_AUDIT 발송 감사';
 COMMENT ON COLUMN dispatch_sms_save_history.request_params IS 'preview/send 요청 조건과 rowCount 요약 JSON';

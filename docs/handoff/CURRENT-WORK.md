@@ -7,7 +7,7 @@
 - 범위:
   - `notification-service` `dispatch_sms_save_history` entity/repository/service/controller/DTO/Flyway V4.
   - `/admin/notifications/dispatch-sms/history` POST/list/detail/latest 4 endpoint.
-  - `SEND_AUDIT` append-only 저장 모드 추가. preview는 `AUTO_LATEST`/`MANUAL_NAMED`, 실발송 audit은 `SEND_AUDIT`로 보존한다.
+  - `SEND_AUDIT` append-only 저장 모드 추가. 미리보기는 `AUTO_LATEST`/`MANUAL_NAMED`, 실발송 감사는 `SEND_AUDIT`로 보존한다.
   - desktop 배차문자 화면 실행/저장내역 2탭, latest 자동 복원, 명시 저장, 이중 confirm 발송, 발송 후 audit 저장.
   - `clients/desktop/playwright/sp-08-3-4-dispatch-sms-history` static/mock contract.
   - QA mock PNG generator `scripts/generate-sp-08-3-4-dispatch-sms-history-screenshots.ps1`.

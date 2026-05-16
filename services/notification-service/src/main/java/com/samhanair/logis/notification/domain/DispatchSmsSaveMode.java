@@ -7,5 +7,10 @@ public enum DispatchSmsSaveMode {
     /** 운영자가 이름을 붙여 저장하는 preview 결과. */
     MANUAL_NAMED,
     /** SMS send 이후 append-only 로 남기는 발송 감사 이력. */
-    SEND_AUDIT
+    SEND_AUDIT;
+
+    /** 저장주제를 반드시 받아야 하는 append 이력인지 반환한다. */
+    public boolean requiresTopic() {
+        return this == MANUAL_NAMED || this == SEND_AUDIT;
+    }
 }

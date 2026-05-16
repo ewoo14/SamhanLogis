@@ -1899,7 +1899,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-1-01 | 배차 history는 공통 `legacy_gas_history` table이 아니라 도메인별 table로 둔다. arologis는 `dispatch_save_history`, slip은 `slip_cleanup_save_history`, notification은 `dispatch_sms_save_history`를 사용한다. |
 | SP-08-3-1-02 | arologis 4 화면(가배차/지방가배차/미배차/운송사 비교)은 `POST/GET /admin/arologis/dispatches/history` 하위 4 endpoint로 통합하고 `PRE_CLASSIFY`, `REGIONAL`, `UNASSIGNED`, `RECONCILE` programType으로 격리한다. |
 | SP-08-3-1-03 | 전표정리는 `POST/GET /slips/cleanup/history`, programType `SLIP_CLEANUP`으로 둔다. |
-| SP-08-3-1-04 | 배차문자는 `POST/GET /admin/notifications/dispatch-sms/history`, programType `DISPATCH_SMS`로 두고, preview 저장은 `AUTO_LATEST`/`MANUAL_NAMED`, send audit은 `SEND_AUDIT` append로 구분한다. |
+| SP-08-3-1-04 | 배차문자는 `POST/GET /admin/notifications/dispatch-sms/history`, programType `DISPATCH_SMS`로 두고, 미리보기 저장은 `AUTO_LATEST`/`MANUAL_NAMED`, 발송 감사는 `SEND_AUDIT` append로 구분한다. |
 | SP-08-3-1-05 | 모든 history table은 BaseEntity 7 audit + Soft Delete only + JSONB payload + 사용자 격리 + AUTO_LATEST per user/program active 1건 정책을 따른다. |
 | SP-08-3-1-06 | 화면의 저장내역 row testid는 `pre-classify-history-row-{i}`(REGIONAL 토글 포함), `unassigned-history-row-{i}`, `dispatch-reconcile-history-row-{i}`, `slip-cleanup-history-row-{i}`, `dispatch-sms-history-row-{i}`처럼 화면별 prefix + index 기반을 사용하고, 내부 UUID는 화면 텍스트와 testid에 노출하지 않는다. |
 | SP-08-3-1-07 | SP-08-3-1은 기획/정적 계약/QA 캡처/문서 동기화만 수행한다. 실제 Flyway/controller/UI 2-Tab 구현은 SP-08-3-2~4에서 분리 진행한다. |
@@ -1942,9 +1942,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-3-10 | 화면 row testid는 `slip-cleanup-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 UUID 및 X-User-Id 형식 모두 `maskCreatedBy`로 `사용자` 마스킹한다. |
 | SP-08-3-3-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
 
-### SP-08-3-4. 배차문자 preview/send audit 저장내역 DB/API/UI 구현 (2026-05-17)
+### SP-08-3-4. 배차문자 미리보기/발송 감사 저장내역 DB/API/UI 구현 (2026-05-17)
 
-**배경**: SP-08-3-1에서 notification 배차문자 history 소유권을 `dispatch_sms_save_history`로 잠갔다. SP-08-3-4는 legacy GAS `배차안내문자`의 preview 결과와 실발송 audit 결과를 DB/API/UI 저장내역으로 보존한다.
+**배경**: SP-08-3-1에서 notification 배차문자 history 소유권을 `dispatch_sms_save_history`로 잠갔다. SP-08-3-4는 legacy GAS `배차안내문자`의 미리보기 결과와 실발송 감사 결과를 DB/API/UI 저장내역으로 보존한다.
 
 | 결정 ID | 결정 |
 |---|---|
@@ -1953,9 +1953,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-4-03 | 권한은 기존 dispatch-batch controller와 동일하게 `DISPATCH / MANAGER / MASTER`로 둔다. |
 | SP-08-3-4-04 | programType은 `DISPATCH_SMS` 단일 값으로 고정하고, saveMode는 `AUTO_LATEST`, `MANUAL_NAMED`, `SEND_AUDIT` 세 값을 둔다. |
 | SP-08-3-4-05 | `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 soft-delete 한다. partial unique race는 service retry 3회 + REQUIRES_NEW `TransactionTemplate`으로 흡수한다. |
-| SP-08-3-4-06 | `MANUAL_NAMED`와 `SEND_AUDIT`는 append-only 저장내역이다. `SEND_AUDIT`는 실발송 audit 의도이므로 자동 저장 upsert 대상이 아니며 latest 자동 복원 대상도 아니다. |
+| SP-08-3-4-06 | `MANUAL_NAMED`와 `SEND_AUDIT`는 append-only 저장내역이다. `SEND_AUDIT`는 실발송 감사 의도이므로 자동 저장 upsert 대상이 아니며 latest 자동 복원 대상도 아니다. |
 | SP-08-3-4-07 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 존재 은닉을 위해 404 `DISPATCH_SMS_HISTORY_NOT_FOUND`로 응답한다. |
 | SP-08-3-4-08 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 `DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE` 422로 거절한다. |
-| SP-08-3-4-09 | desktop 배차문자 화면은 `실행 / 저장내역` 2탭을 제공한다. latest active row는 `AUTO_LATEST`만 자동 복원하고, row click은 preview 또는 send audit payload를 실행 탭에 복원한다. |
+| SP-08-3-4-09 | desktop 배차문자 화면은 `실행 / 저장내역` 2탭을 제공한다. latest active row는 `AUTO_LATEST`만 자동 복원하고, row click은 미리보기 또는 발송 감사 payload를 실행 탭에 복원한다. |
 | SP-08-3-4-10 | 화면 row testid는 `dispatch-sms-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 공통 `maskCreatedBy`로 `사용자` 마스킹한다. |
 | SP-08-3-4-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |

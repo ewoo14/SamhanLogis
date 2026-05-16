@@ -34,7 +34,7 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 /**
  * 배차문자 저장내역 service 단위 테스트.
  *
- * <p>preview AUTO_LATEST, 명시 저장, send audit append-only, payload 제한,
+ * <p>preview AUTO_LATEST, 명시 저장, 발송 감사 append-only, payload 제한,
  * 날짜 범위 정규화를 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -105,7 +105,7 @@ class DispatchSmsSaveHistoryServiceTest {
                 ArgumentCaptor.forClass(DispatchSmsSaveHistory.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getSaveMode()).isEqualTo(DispatchSmsSaveMode.SEND_AUDIT);
-        assertThat(captor.getValue().getTopic()).isEqualTo("발송 audit");
+        assertThat(captor.getValue().getTopic()).isEqualTo("발송 감사");
     }
 
     @Test
@@ -130,7 +130,7 @@ class DispatchSmsSaveHistoryServiceTest {
         DispatchSmsSaveHistoryRequest request = new DispatchSmsSaveHistoryRequest(
                 DispatchSmsProgramType.DISPATCH_SMS,
                 DispatchSmsSaveMode.SEND_AUDIT,
-                "발송 audit",
+                "발송 감사",
                 json("{\"rowCount\":1}"),
                 objectMapper.createObjectNode().put("body", oversized));
 
@@ -219,7 +219,7 @@ class DispatchSmsSaveHistoryServiceTest {
         return new DispatchSmsSaveHistoryRequest(
                 DispatchSmsProgramType.DISPATCH_SMS,
                 DispatchSmsSaveMode.SEND_AUDIT,
-                "발송 audit",
+                "발송 감사",
                 json("{\"date\":\"2026-05-17\",\"rowCount\":3}"),
                 json("{\"sent\":3,\"failed\":0,\"blocked\":0}"));
     }

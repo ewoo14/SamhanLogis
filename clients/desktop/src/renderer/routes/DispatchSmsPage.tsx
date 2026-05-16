@@ -1,12 +1,12 @@
 /**
  * 배차안내 SMS 발송 admin UI — `/arologis/dispatch-sms`.
  *
- * <p>preview 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED,
- * 실 발송 결과는 SEND_AUDIT append-only 저장내역으로 남긴다.
+ * <p>미리보기 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED,
+ * 실 발송 결과는 발송 감사 append-only 저장내역으로 남긴다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, FormField, Tabs } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Tabs } from '@samhan/design-system'
 import axios from 'axios'
 import {
   previewDispatchBatch,
@@ -20,13 +20,30 @@ import {
   saveDispatchSmsHistory,
   type DispatchSmsSaveHistoryDetailResponse,
 } from '../api/dispatchSmsSaveHistoryApi'
-import { DispatchSmsHistoryTab, formatDateTime } from '../components/DispatchSmsHistoryTab'
+import {
+  DispatchSmsHistoryTab,
+  dispatchSmsHistoryListQueryKey,
+  formatDateTime,
+} from '../components/DispatchSmsHistoryTab'
 import { DispatchSmsRestoredBanner } from '../components/DispatchSmsRestoredBanner'
 import { DispatchSmsSaveDialog } from '../components/DispatchSmsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 
 type EditedMessages = Record<string, string>
+type PreviewHistoryPayload =
+  | DispatchSmsPreviewResponse
+  | {
+      preview: DispatchSmsPreviewResponse
+      edited?: EditedMessages
+    }
+type SendAuditHistoryPayload =
+  | DispatchSmsSendResponse
+  | {
+      result: DispatchSmsSendResponse
+      preview?: DispatchSmsPreviewResponse
+      edited?: EditedMessages
+    }
 
 const TEST_ID_PREFIX = 'dispatch-sms-history'
 
@@ -76,6 +93,35 @@ function previewRequestParams(preview: DispatchSmsPreviewResponse): Record<strin
   }
 }
 
+function previewHistoryPayload(
+  preview: DispatchSmsPreviewResponse,
+  edited: EditedMessages,
+): { preview: DispatchSmsPreviewResponse; edited: EditedMessages } {
+  return { preview, edited }
+}
+
+function readPreviewHistoryPayload(payload: unknown): {
+  preview: DispatchSmsPreviewResponse
+  edited?: EditedMessages
+} {
+  const candidate = payload as PreviewHistoryPayload
+  if (candidate && typeof candidate === 'object' && 'preview' in candidate) {
+    return {
+      preview: candidate.preview,
+      edited: candidate.edited,
+    }
+  }
+  return { preview: candidate as DispatchSmsPreviewResponse }
+}
+
+function readSendAuditHistoryPayload(payload: unknown): DispatchSmsSendResponse {
+  const candidate = payload as SendAuditHistoryPayload
+  if (candidate && typeof candidate === 'object' && 'result' in candidate) {
+    return candidate.result
+  }
+  return candidate as DispatchSmsSendResponse
+}
+
 function sendAuditRequestParams(
   date: string,
   entries: DispatchSmsSendEntry[],
@@ -116,12 +162,12 @@ export function DispatchSmsPage() {
       .then((detail) => {
         if (cancelled || !detail) return
         if (detail.saveMode !== 'AUTO_LATEST') return
-        const payload = detail.responsePayload as DispatchSmsPreviewResponse
-        setPreview(payload)
-        setEdited(buildInitialEdited(payload))
-        setDate(payload.date)
+        const restored = readPreviewHistoryPayload(detail.responsePayload)
+        setPreview(restored.preview)
+        setEdited(restored.edited ?? buildInitialEdited(restored.preview))
+        setDate(restored.preview.date)
         skipNextAutoSaveRef.current = true
-        setRestoreBanner(`이전 preview 복원됨 · ${formatDateTime(detail.createdAt)}`)
+        setRestoreBanner(`이전 미리보기 복원됨 · ${formatDateTime(detail.createdAt)}`)
       })
       .catch(() => {
         // latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.
@@ -140,18 +186,21 @@ export function DispatchSmsPage() {
       skipNextAutoSaveRef.current = false
       return
     }
-    const autoSaveKey = `${preview.date}|${preview.totalSlips}|${preview.mappedSlips}|${preview.unmappedSlips}`
+    const autoSaveKey = `${preview.date}|${preview.totalSlips}|${preview.mappedSlips}|${preview.unmappedSlips}|${JSON.stringify(edited)}`
     if (lastAutoSaveKeyRef.current === autoSaveKey) return
     lastAutoSaveKeyRef.current = autoSaveKey
     void saveDispatchSmsHistory({
       programType: 'DISPATCH_SMS',
       saveMode: 'AUTO_LATEST',
       requestParams: previewRequestParams(preview),
-      responsePayload: preview,
+      responsePayload: previewHistoryPayload(preview, edited),
+    }).then(() => {
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey('DISPATCH_SMS') })
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey() })
     }).catch(() => {
-      // 자동 저장 실패는 preview 검토 UX 를 막지 않는다.
+      // 자동 저장 실패는 미리보기 검토 UX 를 막지 않는다.
     })
-  }, [latestRestoreSettled, preview])
+  }, [edited, latestRestoreSettled, preview, queryClient])
 
   const handlePreview = async () => {
     setPreviewLoading(true)
@@ -180,20 +229,20 @@ export function DispatchSmsPage() {
 
   const saveManualMutation = useMutation({
     mutationFn: (topic: string) => {
-      if (!preview) throw new Error('저장할 배차문자 preview 결과가 없습니다.')
+      if (!preview) throw new Error('저장할 배차문자 미리보기 결과가 없습니다.')
       return saveDispatchSmsHistory({
         programType: 'DISPATCH_SMS',
         saveMode: 'MANUAL_NAMED',
         topic,
         requestParams: previewRequestParams(preview),
-        responsePayload: preview,
+        responsePayload: previewHistoryPayload(preview, edited),
       })
     },
     onSuccess: () => {
       setSaveDialogOpen(false)
       setActiveTab(1)
-      void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list', 'DISPATCH_SMS'] })
-      void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list'] })
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey('DISPATCH_SMS') })
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey() })
     },
   })
 
@@ -206,23 +255,27 @@ export function DispatchSmsPage() {
       await saveDispatchSmsHistory({
         programType: 'DISPATCH_SMS',
         saveMode: 'SEND_AUDIT',
-        topic: `발송 audit ${result.date}`,
-        requestParams: sendAuditRequestParams(date, entries, result),
-        responsePayload: result,
+        topic: `발송 감사 ${result.date}`,
+        requestParams: sendAuditRequestParams(result.date ?? todayIso(), entries, result),
+        responsePayload: {
+          result,
+          preview,
+          edited,
+        },
       })
-      void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list', 'DISPATCH_SMS'] })
-      void queryClient.invalidateQueries({ queryKey: ['dispatch-sms-history-list'] })
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey('DISPATCH_SMS') })
+      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey() })
     } catch (err) {
       const message = axios.isAxiosError(err)
-        ? ((err.response?.data as { message?: string } | undefined)?.message ?? '발송 audit 저장에 실패했습니다.')
-        : '발송 audit 저장에 실패했습니다.'
+        ? ((err.response?.data as { message?: string } | undefined)?.message ?? '발송 감사 저장에 실패했습니다.')
+        : '발송 감사 저장에 실패했습니다.'
       setAuditError(message)
     }
-  }, [date, queryClient])
+  }, [edited, preview, queryClient])
 
   const sendMutation = useMutation<DispatchSmsSendResponse, unknown, void>({
     mutationFn: async () => {
-      if (!preview) throw new Error('preview 결과가 없습니다.')
+      if (!preview) throw new Error('미리보기 결과가 없습니다.')
       const entries = buildSendEntries(preview, edited)
       lastSendEntriesRef.current = entries
       return await sendDispatchBatch(date, entries)
@@ -269,22 +322,22 @@ export function DispatchSmsPage() {
       `발송 전 최종 확인입니다.\n발송 대상 ${sendableCount}건, 발송금지 ${blockedCount}건 제외 상태입니다.`,
     )
     if (!firstOk) return
-    const secondOk = window.confirm('정말 실 발송을 진행하시겠습니까? 발송 후 SEND_AUDIT 이력이 자동 저장됩니다.')
+    const secondOk = window.confirm('정말 실 발송을 진행하시겠습니까? 발송 후 발송 감사 이력이 자동 저장됩니다.')
     if (!secondOk) return
     sendMutation.mutate()
   }
 
   const handleRestore = useCallback((detail: DispatchSmsSaveHistoryDetailResponse) => {
     if (detail.saveMode === 'SEND_AUDIT') {
-      setSendResult(detail.responsePayload as DispatchSmsSendResponse)
+      setSendResult(readSendAuditHistoryPayload(detail.responsePayload))
       setActiveTab(0)
-      setRestoreBanner(`발송 audit 확인: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)}`)
+      setRestoreBanner(`발송 감사 확인: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)}`)
       return
     }
-    const payload = detail.responsePayload as DispatchSmsPreviewResponse
-    setPreview(payload)
-    setEdited(buildInitialEdited(payload))
-    setDate(payload.date)
+    const restored = readPreviewHistoryPayload(detail.responsePayload)
+    setPreview(restored.preview)
+    setEdited(restored.edited ?? buildInitialEdited(restored.preview))
+    setDate(restored.preview.date)
     setSendResult(null)
     skipNextAutoSaveRef.current = true
     setActiveTab(0)
@@ -367,7 +420,7 @@ function Header({
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0 }}>배차안내 SMS 발송</h3>
         <span data-testid="dispatch-sms-realtime-notice" style={noticeStyle}>
-          preview 저장내역 + send audit
+          미리보기 저장내역 + 발송 감사
         </span>
       </div>
       <Button
@@ -409,19 +462,15 @@ function PreviewSection({
       </p>
 
       <div className="form-row" style={{ alignItems: 'flex-end' }}>
-        <FormField
+        <Input
           label="배차일"
           required
-          render={({ id }) => (
-            <input
-              id={id}
-              data-testid="dispatch-sms-date"
-              type="date"
-              value={date}
-              onChange={(e) => onDateChange(e.target.value)}
-              style={inputStyle}
-            />
-          )}
+          data-testid="dispatch-sms-date"
+          type="date"
+          value={date}
+          onChange={(e) => onDateChange(e.target.value)}
+          inputSize="md"
+          fullWidth={false}
         />
         <div style={{ paddingBottom: 4 }}>
           <Button
@@ -488,7 +537,7 @@ function PreviewSection({
 
           {preview.unmapped.length > 0 ? (
             <div style={warningBoxStyle}>
-              <strong>단톡방 미매핑 거래처 {preview.unmapped.length}건</strong> — 단톡방 매핑 admin 에서 등록 후 다시 미리보기 하세요.
+              <strong>단톡방 미매핑 거래처 {preview.unmapped.length}건</strong> — 단톡방 매핑 관리자 화면에서 등록 후 다시 미리보기 하세요.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {preview.unmapped.map((u) => (
                   <li key={`${u.partnerCode}-${u.slipNo}`}>
@@ -554,11 +603,10 @@ function SendSection({
           <div style={sendButtonRowStyle}>
             <Button
               data-testid="dispatch-sms-send-button"
-              variant="danger"
+              variant="warning"
               onClick={onSend}
               disabled={sendDisabled}
               loading={sendPending}
-              style={sendButtonStyle}
             >
               SMS 발송 ({sendableCount}건)
             </Button>
@@ -613,13 +661,6 @@ const headerStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)' }
 const mutedTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)', marginTop: 0 }
 const summaryTextStyle: React.CSSProperties = { fontSize: 13, marginTop: 0, marginBottom: 12 }
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 6,
-  border: '1px solid var(--color-neutral-300)',
-  fontSize: 14,
-  width: '100%',
-}
 const emptyBoxStyle: React.CSSProperties = {
   padding: 12,
   background: 'var(--color-neutral-50)',
@@ -683,10 +724,6 @@ const sendButtonRowStyle: React.CSSProperties = {
   gap: 12,
   marginBottom: 12,
   flexWrap: 'wrap',
-}
-const sendButtonStyle: React.CSSProperties = {
-  background: 'var(--color-warning)',
-  borderColor: 'var(--color-warning)',
 }
 const auditErrorStyle: React.CSSProperties = {
   marginTop: 12,

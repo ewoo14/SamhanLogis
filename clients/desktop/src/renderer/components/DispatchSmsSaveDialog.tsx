@@ -9,7 +9,7 @@ interface DispatchSmsSaveDialogProps {
   onSave: (topic: string) => void
 }
 
-/** 배차문자 preview 명시 저장 주제 입력 dialog. */
+/** 배차문자 미리보기 명시 저장 주제 입력 dialog. */
 export function DispatchSmsSaveDialog({
   open,
   isSaving,
@@ -29,10 +29,11 @@ export function DispatchSmsSaveDialog({
   return (
     <Modal
       open={open}
-      title="배차문자 preview 저장"
+      title="배차문자 미리보기 저장"
       onClose={onClose}
       closeOnEsc={!isSaving}
       closeOnBackdropClick={!isSaving}
+      closeOnHeaderX={!isSaving}
       footer={(
         <div style={actionStyle}>
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>

@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import styles from './Button.module.css'
 import { Spinner } from '../Spinner/Spinner'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'warning'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,6 +17,7 @@ const variantClass: Record<ButtonVariant, string> = {
   secondary: styles['variant-secondary']!,
   ghost:     styles['variant-ghost']!,
   danger:    styles['variant-danger']!,
+  warning:   styles['variant-warning']!,
 }
 
 const sizeClass: Record<ButtonSize, string> = {
