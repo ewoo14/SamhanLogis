@@ -47,7 +47,8 @@
 - SP-07: Google Sheets 견적/주문 E2E 진행. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환한다. `종합 견적서` live spreadsheet 27개 tab을 재검증하고, `*_단가인상` 기본 단가와 base `인상 전 단가`를 product DB/PriceHistory로 고정하며 output/control form(`종합견적서`, `전표업로드목록`, credential-bearing `전표생성폼`)을 runtime 원본에서 분리한다.
 - SP-08-2: DPS legacy GAS 저장내역 parity 완료, PR #211 merge. `DpsSaveHistory` 도메인을 `inventory-service`에 추가하고, DPS 비교/품목별 DPS 화면 모두 실행/저장내역 2탭 + latest 자동 복원 + 명시 저장/복원으로 정렬했다.
 - SP-08-3-1: 배차 legacy GAS 저장/복원/preview/send parity 기반 잠금 진행. 6개 화면의 기존 endpoint와 SP-08-3-2~4 신규 history endpoint를 정적 계약으로 고정하고, UUID/Notion runtime/secret-like marker zero guard를 추가한다.
-- 다음 후보: SP-08-3-2 arologis 배차 4 화면 history, SP-08-3-3 전표정리 history, SP-08-3-4 배차문자 preview/send audit history.
+- SP-08-3-2: arologis 배차 4 화면 history 구현 진행. `dispatch_save_history` JSONB 저장내역과 `/admin/arologis/dispatches/history` 4 endpoint를 추가하고, 가배차/지방가배차/미배차/운송사 비교 화면에 공통 저장내역 탭을 연결한다.
+- 다음 후보: SP-08-3-3 전표정리 history, SP-08-3-4 배차문자 preview/send audit history.
 
 ## Phase 0 — 저장소·가드 정립
 

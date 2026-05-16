@@ -1,5 +1,22 @@
 # 현재 작업 핸드오프 노트
 
+## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-2 아로로지스 배차 저장내역 구현
+
+- 현재 branch: `feat/sp-08-3-2-arologis-dispatch-history`
+- 기준: SP-08-3-1 이후 arologis 4 화면 history 실제 구현.
+- 범위:
+  - `arologis-service` `dispatch_save_history` entity/repository/service/controller/DTO/Flyway V12.
+  - `/admin/arologis/dispatches/history` POST/list/detail/latest 4 endpoint.
+  - `clients/arologis-desktop` 가배차 권역/지방가배차/미배차/운송사 비교 화면의 실행/저장내역 2탭, latest 자동 복원, 명시 저장, row click 복원.
+  - `clients/desktop/playwright/sp-08-3-2-arologis-history` static/mock contract.
+  - QA mock PNG generator `scripts/generate-sp-08-3-2-arologis-history-screenshots.ps1`.
+- 다음 단계:
+  - 전체 frontend lint/build 및 Playwright 회귀.
+  - QA PNG 생성, `git diff --check`, secret/UUID/Notion scan.
+  - 한국어 conventional commit 분리 후 push.
+
+---
+
 ## 2026-05-16 Codex 최신 핸드오프 — SP-08-3-1 배차 legacy GAS parity 기반 잠금
 
 - 현재 branch: `feat/sp-08-3-1-dispatch-parity-base`

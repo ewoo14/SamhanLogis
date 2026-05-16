@@ -61,9 +61,9 @@
 - `GET /admin/arologis/drivers?source=&phoneNumber=&appInstalled=` — 기사 목록
 - `PUT /admin/arologis/dispatches/{id}/delete` — Soft Delete
 
-### SP-08-3 예정 history API (2026-05-16 기반 잠금)
+### SP-08-3-2 history API (2026-05-17 구현)
 
-SP-08-3-1은 구현 없이 계약만 잠근다. SP-08-3-2에서 가배차/지방가배차/미배차/운송사 비교 4 화면의 저장내역을 `dispatch_save_history`로 추가한다.
+SP-08-3-2에서 가배차/지방가배차/미배차/운송사 비교 4 화면의 저장내역을 `dispatch_save_history`로 추가한다.
 
 | 화면 | 기존 endpoint | 예정 history endpoint | programType |
 |---|---|---|---|
@@ -72,7 +72,7 @@ SP-08-3-1은 구현 없이 계약만 잠근다. SP-08-3-2에서 가배차/지방
 | 미배차 | `GET /admin/arologis/dispatches/unassigned` | 동일 | `UNASSIGNED` |
 | 운송사 비교 | `POST /admin/arologis/dispatch/reconcile` | 동일 | `RECONCILE` |
 
-신규 entity는 BaseEntity 7 audit + Soft Delete only, JSONB payload, 사용자별 `AUTO_LATEST` active 1건, `MANUAL_NAMED` append 정책을 따른다.
+`DispatchSaveHistory` entity는 BaseEntity 7 audit + Soft Delete only, JSONB payload, 사용자별 `AUTO_LATEST` active 1건, `MANUAL_NAMED` append 정책을 따른다. API는 `POST`, list, detail, latest 4 endpoint이며 권한은 `MASTER / MANAGER / DISPATCH / AROLOGIS_MASTER / AROLOGIS_MANAGER`로 둔다. payload는 100KB 초과 시 422로 거절한다.
 
 ### Driver-app API (W10-3 활성, JWT + ROLE_DRIVER)
 

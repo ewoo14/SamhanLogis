@@ -1906,3 +1906,20 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-1-08 | SP-08-3 sub-sub-task PR 시작 시 각 service `src/main/resources/db/migration/V*.sql` glob 을 즉시 재확인하고, 발견된 최신 번호 + 1 로 Flyway migration 을 채번한다. 문서의 예정 번호(V12/V25/V4)는 시작 시점 참고값이며 최종 채번 근거가 아니다. |
 | SP-08-3-1-09 | PR #192 D-AX-11 이후 Samhan desktop 실제 route는 arologis 4 화면 기준 `/arologis/pre-classify`, `/arologis/unassigned`, `/arologis/dispatch-reconcile`이며, legacy arologis-desktop route(`/dispatches/*`)는 과거 비교값으로만 문서화한다. |
 | SP-08-3-1-10 | SP-08-3 history endpoint RBAC는 기존 endpoint grep 결과와 1:1로 맞춘다. arologis=`MASTER/MANAGER/DISPATCH/AROLOGIS_MASTER/AROLOGIS_MANAGER`, slip cleanup=`SALES/MANAGER/MASTER`, notification dispatch-batch=`DISPATCH/MANAGER/MASTER`. |
+
+### SP-08-3-2. 아로로지스 배차 저장내역 DB/API/UI 구현 (2026-05-17)
+
+**배경**: SP-08-3-1에서 배차 6개 화면의 history 소유권과 endpoint matrix를 잠갔다. SP-08-3-2는 그중 arologis 소유 4개 화면(가배차/지방가배차/미배차/운송사 비교)의 실제 DB/API/UI 저장/복원 parity를 구현한다.
+
+| 결정 | 내용 |
+|---|---|
+| SP-08-3-2-01 | arologis 저장내역 테이블은 `dispatch_save_history`로 둔다. payload는 화면별 응답 shape 보존을 위해 `JSONB`로 저장한다. |
+| SP-08-3-2-02 | API는 `/admin/arologis/dispatches/history` 하위 `POST`, list, detail, latest 4 endpoint로 둔다. |
+| SP-08-3-2-03 | 권한은 SP-08-3-1-10에 따라 `MASTER / MANAGER / DISPATCH / AROLOGIS_MASTER / AROLOGIS_MANAGER`로 둔다. |
+| SP-08-3-2-04 | `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 soft-delete 한다. unique race는 1회 retry한다. |
+| SP-08-3-2-05 | `MANUAL_NAMED`는 topic 필수 append-only 저장내역이다. 명시 저장 row는 자동 저장 대체 대상이 아니다. |
+| SP-08-3-2-06 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 payload를 반환하지 않는다. |
+| SP-08-3-2-07 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 422로 거절한다. 파일/이미지 원본은 history에 저장하지 않는다. |
+| SP-08-3-2-08 | 가배차 권역과 지방가배차는 같은 화면 파일을 공유하지만 `PRE_CLASSIFY`와 `REGIONAL` programType 및 `pre-classify-history-*` / `regional-history-*` testid prefix를 분리한다. |
+| SP-08-3-2-09 | 화면은 공통 `HistoryTab`, `RestoredBanner`, `SaveDialog`를 사용한다. row testid는 화면별 prefix + index 기반이며 내부 UUID를 포함하지 않는다. |
+| SP-08-3-2-10 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
