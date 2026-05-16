@@ -154,6 +154,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'clients/desktop/src/renderer/api/arologisDispatchApi.ts',
       'clients/desktop/src/renderer/api/dispatchReconcileApi.ts',
       'clients/desktop/src/renderer/api/slipCleanupApi.ts',
+      'clients/desktop/src/renderer/api/slipCleanupSaveHistoryApi.ts',
       'clients/desktop/src/renderer/api/dispatchSmsApi.ts',
       'clients/desktop/src/renderer/api/mock.ts',
       'clients/desktop/src/renderer/routes/index.tsx',
@@ -170,6 +171,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/ArologisAdminController.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/DispatchReconcileController.java',
       'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java',
+      'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipCleanupSaveHistoryController.java',
       'services/notification-service/src/main/java/com/samhanair/logis/notification/controller/DispatchBatchAdminController.java',
     ].map(read).join('\n')
 
@@ -187,7 +189,8 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(sources).not.toContain('/arologis/dispatch-sms/send')
     expect(sources).toContain('/admin/arologis/dispatches/history')
     expect(sources).toContain('/admin/arologis/dispatches/history/latest')
-    expect(sources).not.toContain('/slips/cleanup/history')
+    expect(sources).toContain('/slips/cleanup/history')
+    expect(sources).toContain('/slips/cleanup/history/latest')
     expect(sources).not.toContain('/admin/notifications/dispatch-sms/history')
   })
 
