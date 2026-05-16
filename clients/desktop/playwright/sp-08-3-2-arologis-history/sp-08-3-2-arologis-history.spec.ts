@@ -25,7 +25,7 @@ const screens: ScreenContract[] = [
     label: '가배차 권역 분류',
     programType: 'PRE_CLASSIFY',
     source: 'clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx',
-    prefix: 'pre-classify-history',
+    prefix: 'regional-history',
   },
   {
     label: '지방가배차 시도 분류',
@@ -106,10 +106,11 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     const source = read('clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx')
 
     expect(source).toContain("tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'")
-    expect(source).toContain("tab === 'region' ? 'pre-classify-history' : 'pre-classify-history'")
+    expect(source).toContain("tab === 'region' ? 'pre-classify-history' : 'regional-history'")
     expect(source).toContain('[programType]')
     expect(source).toContain('[date, from, programType, regionQuery.data, regionalQuery.data, tab, to]')
     expect(source).toContain('pre-classify-history')
+    expect(source).toContain('regional-history')
   })
 
   test('신규 저장내역 산출물에는 literal UUID와 Notion runtime call이 없다', () => {

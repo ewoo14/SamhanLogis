@@ -76,16 +76,17 @@ class DispatchSaveHistoryServiceTest {
 
     @Test
     @DisplayName("AUTO_LATEST partial unique 충돌은 1회 재시도한다")
-    void saveAutoLatest_retriesOnceAfterUniqueConflict() {
+    void saveAutoLatest_retriesUpToThreeTimesAfterUniqueConflict() {
         when(repository.findActiveAutoLatest("dispatch-user", DispatchProgramType.PRE_CLASSIFY))
                 .thenReturn(Optional.empty());
         when(repository.save(any(DispatchSaveHistory.class)))
+                .thenThrow(new DataIntegrityViolationException("ux_dispatch_save_history_auto_latest"))
                 .thenThrow(new DataIntegrityViolationException("ux_dispatch_save_history_auto_latest"))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         service.save(autoRequest(), "dispatch-user");
 
-        verify(repository, org.mockito.Mockito.times(2)).save(any(DispatchSaveHistory.class));
+        verify(repository, org.mockito.Mockito.times(3)).save(any(DispatchSaveHistory.class));
     }
 
     @Test

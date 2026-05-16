@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,21 +134,58 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("AUTO_LATEST 동시 저장은 partial unique 충돌 후 재시도되어 활성 1건만 남는다")
     void concurrentAutoLatestRaceKeepsOneActiveRow() throws Exception {
-        var executor = Executors.newFixedThreadPool(2);
-        var barrier = new CyclicBarrier(2);
+        int threadCount = 3;
+        var executor = Executors.newFixedThreadPool(threadCount);
+        var barrier = new CyclicBarrier(threadCount);
         try {
-            CompletableFuture<Integer> first = CompletableFuture.supplyAsync(
-                    () -> postAutoAfterBarrier(barrier, 11), executor);
-            CompletableFuture<Integer> second = CompletableFuture.supplyAsync(
-                    () -> postAutoAfterBarrier(barrier, 12), executor);
+            var results = IntStream.rangeClosed(11, 13)
+                    .mapToObj(rowCount -> CompletableFuture.supplyAsync(
+                            () -> postAutoAfterBarrier(barrier, rowCount), executor))
+                    .toList();
 
-            assertThat(first.get()).isEqualTo(200);
-            assertThat(second.get()).isEqualTo(200);
+            for (CompletableFuture<Integer> result : results) {
+                assertThat(result.get()).isEqualTo(200);
+            }
         } finally {
             executor.shutdownNow();
         }
 
         assertThat(repository.countActiveAutoLatest(USER_A, DispatchProgramType.PRE_CLASSIFY)).isEqualTo(1);
+
+        Integer totalRows = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM dispatch_save_history
+                 WHERE created_by = ?
+                   AND program_type = 'PRE_CLASSIFY'
+                   AND save_mode = 'AUTO_LATEST'
+                """, Integer.class, USER_A);
+        Integer supersededRows = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM dispatch_save_history
+                 WHERE created_by = ?
+                   AND program_type = 'PRE_CLASSIFY'
+                   AND save_mode = 'AUTO_LATEST'
+                   AND is_deleted = TRUE
+                """, Integer.class, USER_A);
+        Integer latestRowCount = jdbcTemplate.queryForObject("""
+                SELECT (response_payload ->> 'rowCount')::int
+                  FROM dispatch_save_history
+                 WHERE created_by = ?
+                   AND program_type = 'PRE_CLASSIFY'
+                   AND save_mode = 'AUTO_LATEST'
+                 ORDER BY created_at DESC
+                 LIMIT 1
+                """, Integer.class, USER_A);
+
+        assertThat(totalRows).isEqualTo(3);
+        assertThat(supersededRows).isEqualTo(2);
+
+        mockMvc.perform(get(BASE_URL + "/latest")
+                        .param("programType", "PRE_CLASSIFY")
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.responsePayload.rowCount").value(latestRowCount));
     }
 
     @Test

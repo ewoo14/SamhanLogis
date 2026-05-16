@@ -19,6 +19,7 @@ on:
     paths:
       - 'services/arologis-service/**'
       - 'clients/arologis-desktop/**'
+      - 'clients/web/design-system/**'
       - 'clients/arologis-mobile/**'
       - 'shared/**'
       - '.github/workflows/arologis-ci.yml'
@@ -27,6 +28,7 @@ on:
     paths:
       - 'services/arologis-service/**'
       - 'clients/arologis-desktop/**'
+      - 'clients/web/design-system/**'
       - 'clients/arologis-mobile/**'
       - 'shared/**'
 

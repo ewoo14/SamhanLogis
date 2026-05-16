@@ -128,7 +128,7 @@ export function ArologisPreClassifyPage() {
   })
 
   const programType: DispatchProgramType = tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'
-  const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'pre-classify-history'
+  const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'regional-history'
   const regionData = restoredRegion ?? regionQuery.data
   const regionalData = restoredRegional ?? regionalQuery.data
   const activePayload = tab === 'region' ? regionData : regionalData
@@ -629,7 +629,7 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
           </Button>
           <Button
             variant="primary"
-            data-testid="pre-classify-history-save-button"
+            data-testid="regional-history-save-button"
             onClick={onSave}
             disabled={!data || total === 0}
           >

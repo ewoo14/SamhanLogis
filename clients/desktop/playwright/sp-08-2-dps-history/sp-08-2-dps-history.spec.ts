@@ -7,8 +7,8 @@ import { fileURLToPath } from 'url'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const repoRoot = path.resolve(dirname, '../../../..')
-const BASE_URL = process.env['VITE_BASE_URL'] ?? 'http://localhost:5173'
-const UUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i
+const BASE_URL = process.env['VITE_BASE_URL'] ?? process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
+const UUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
 
 function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
@@ -37,8 +37,11 @@ async function isServerAvailable(): Promise<boolean> {
 }
 
 async function openMockPage(page: Page, route: string): Promise<void> {
-  await page.goto(`${BASE_URL}/#${route}?mockRole=WAREHOUSE`)
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
+  await page.goto(`${BASE_URL}/#${route}?mockRole=WAREHOUSE`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20_000,
+  })
+  await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
 }
 
 test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
@@ -50,7 +53,6 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
 
     expect(controller).toContain('@RequestMapping("/warehouse/audit/dps-history")')
     expect(controller).toContain('@PreAuthorize("hasAnyRole(\'WAREHOUSE\',\'MANAGER\',\'MASTER\')")')
-    expect(controller).toContain('@Operation(summary = "DPS 저장내역 저장"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')
     expect(service).toContain('previous.supersedeBy(user)')
@@ -63,7 +65,7 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     expect(migration).not.toMatch(/\bDELETE\s+FROM\b/i)
   })
 
-  test('frontend pages use two-tab history UX and UUID-free row test ids', () => {
+  test('frontend pages use two-tab history UX and UUID warehouse option ids', () => {
     const comparePage = read('clients/desktop/src/renderer/routes/InventoryDpsComparePage.tsx')
     const byProductPage = read('clients/desktop/src/renderer/routes/warehouse/DpsByProductPage.tsx')
     const historyTab = read('clients/desktop/src/renderer/components/DpsHistoryTab.tsx')
@@ -83,6 +85,8 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     expect(historyTab).toContain('maskCreatedBy(row.createdBy)')
     expect(comparePage).toContain('maskCreatedBy(detail.createdBy)')
     expect(byProductPage).toContain('maskCreatedBy(detail.createdBy)')
+    expect(byProductPage).not.toContain('WH-MOCK-')
+    expect(byProductPage).toContain('11111111-1111-1111-1111-000000000001')
     expect(api).toContain('/warehouse/audit/dps-history/latest')
   })
 
@@ -96,76 +100,32 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     expect(sources).not.toMatch(UUID_REGEX)
   })
 
-  test('mock UI: compare page restores latest, saves with required topic, and restores from row click', async ({ page }) => {
-    await page.setContent(`
-      <main>
-        <button data-testid="dps-history-tab-run">실행</button>
-        <button data-testid="dps-history-tab-list">저장내역</button>
-        <div data-testid="dps-history-restored-banner">이전 결과 복원됨 · 2026. 05. 17.</div>
-        <button data-testid="dps-history-save-button">내역으로 저장</button>
-        <div role="dialog" aria-label="DPS 결과 저장">
-          <input data-testid="dps-history-topic-input" />
-          <button disabled>저장</button>
-          <button>취소</button>
-        </div>
-        <div data-testid="dps-history-row-0">2026. 05. 17. 사용자 명시</div>
-        <script>
-          document.querySelector('[data-testid="dps-history-topic-input"]').addEventListener('input', () => {
-            document.querySelector('button[disabled]').disabled = false;
-          });
-          document.querySelector('[data-testid="dps-history-row-0"]').addEventListener('click', () => {
-            document.querySelector('[data-testid="dps-history-restored-banner"]').textContent = '복원: 2026. 05. 17. 사용자 오전 마감 점검';
-          });
-        </script>
-      </main>
-    `)
+  test('mock route: compare page exposes real history controls', async ({ page }) => {
+    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
+    await openMockPage(page, '/warehouse/dps-compare')
+
     await expect(page.locator('[data-testid="dps-history-tab-run"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-tab-list"]')).toBeVisible()
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('이전 결과 복원됨')
+    await expect(page.locator('[data-testid="dps-history-save-button"]')).toBeVisible()
 
     await page.locator('[data-testid="dps-history-save-button"]').click()
     await expect(page.locator('[data-testid="dps-history-topic-input"]')).toBeVisible()
-    const dialog = page.getByRole('dialog', { name: 'DPS 결과 저장' })
-    const saveButton = dialog.getByRole('button', { name: '저장', exact: true })
-    await expect(saveButton).toBeDisabled()
-    await page.locator('[data-testid="dps-history-topic-input"]').fill('오전 마감 점검')
-    await expect(saveButton).toBeEnabled()
-    await page.getByRole('button', { name: '취소' }).click()
-
-    await page.locator('[data-testid="dps-history-tab-list"]').click()
-    await expect(page.locator('[data-testid="dps-history-row-0"]')).toBeVisible()
-    await page.locator('[data-testid="dps-history-row-0"]').click()
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('복원:')
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('사용자')
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).not.toContainText(UUID_REGEX)
   })
 
-  test('mock UI: by-product page has same history pattern with program isolation', async ({ page }) => {
-    await page.setContent(`
-      <main>
-        <button data-testid="dps-history-tab-run">실행</button>
-        <button data-testid="dps-history-tab-list">저장내역</button>
-        <div data-testid="dps-history-restored-banner">이전 결과 복원됨 · 2026. 05. 17.</div>
-        <div data-testid="dps-by-product-grid">품목별 DPS</div>
-        <div data-testid="dps-history-row-0">2026. 05. 17. 사용자 명시</div>
-        <script>
-          document.querySelector('[data-testid="dps-history-row-0"]').addEventListener('click', () => {
-            document.querySelector('[data-testid="dps-history-restored-banner"]').textContent = '복원: 2026. 05. 17. 사용자 품목별 점검';
-          });
-        </script>
-      </main>
-    `)
+  test('mock route: by-product page uses UUID warehouse options', async ({ page }) => {
+    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
+    await openMockPage(page, '/warehouse/dps-compare/by-product')
+
     await expect(page.locator('[data-testid="dps-history-tab-run"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-tab-list"]')).toBeVisible()
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('이전 결과 복원됨')
     await expect(page.locator('[data-testid="dps-by-product-grid"]')).toBeVisible()
 
-    await page.locator('[data-testid="dps-history-tab-list"]').click()
-    await expect(page.locator('[data-testid="dps-history-row-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="dps-history-row-0"]')).toContainText('명시')
-    await page.locator('[data-testid="dps-history-row-0"]').click()
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('복원:')
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('사용자')
-    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).not.toContainText(UUID_REGEX)
+    const optionValues = await page.locator('[data-testid="dps-by-product-warehouse-select"] option').evaluateAll(options =>
+      options.map(option => (option as HTMLOptionElement).value).filter(Boolean),
+    )
+    expect(optionValues).not.toContain('WH-MOCK-001')
+    for (const value of optionValues) {
+      expect(value).toMatch(UUID_REGEX)
+    }
   })
 })

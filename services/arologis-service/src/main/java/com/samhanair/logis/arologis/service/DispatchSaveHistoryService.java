@@ -36,6 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class DispatchSaveHistoryService {
 
     private static final int MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024;
+    private static final int MAX_AUTO_LATEST_RETRIES = 3;
 
     private final DispatchSaveHistoryRepository repository;
     private final ObjectMapper objectMapper;
@@ -53,16 +54,38 @@ public class DispatchSaveHistoryService {
             String currentUser) {
         validateRequest(request);
         String user = normalizeUser(currentUser);
-        DispatchSaveHistory saved;
-        try {
-            saved = saveInNewTransaction(request, user);
-        } catch (DataIntegrityViolationException ex) {
-            if (request.saveMode() != DispatchSaveMode.AUTO_LATEST) {
-                throw ex;
-            }
-            saved = saveInNewTransaction(request, user);
-        }
+        DispatchSaveHistory saved = saveWithAutoLatestRetry(request, user);
         return new DispatchSaveHistorySaveResponse(saved.getId(), saved.getCreatedAt());
+    }
+
+    private DispatchSaveHistory saveWithAutoLatestRetry(
+            DispatchSaveHistoryRequest request,
+            String user) {
+        if (request.saveMode() != DispatchSaveMode.AUTO_LATEST) {
+            return saveInNewTransaction(request, user);
+        }
+
+        DataIntegrityViolationException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_AUTO_LATEST_RETRIES; attempt++) {
+            try {
+                return saveInNewTransaction(request, user);
+            } catch (DataIntegrityViolationException ex) {
+                lastFailure = ex;
+                if (attempt == MAX_AUTO_LATEST_RETRIES) {
+                    break;
+                }
+                backoffBeforeRetry(attempt);
+            }
+        }
+        throw lastFailure;
+    }
+
+    private void backoffBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(25L * attempt);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
