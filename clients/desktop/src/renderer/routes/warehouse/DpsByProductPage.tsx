@@ -50,6 +50,7 @@ import {
 import { DpsHistoryTab } from '../../components/DpsHistoryTab'
 import { DpsRestoredBanner } from '../../components/DpsRestoredBanner'
 import { DpsSaveDialog } from '../../components/DpsSaveDialog'
+import { maskCreatedBy } from '../../utils/maskCreatedBy'
 import { usePageTitle } from '../../hooks/usePageTitle'
 
 // ---------------------------------------------------------------------------
@@ -74,7 +75,7 @@ function todayIso(): string {
 }
 
 // ---------------------------------------------------------------------------
-// 창고 목록 (mock 고정 — warehouseId 는 내부 전송용)
+// 창고 목록 (mock 고정 — warehouseId 는 내부 전송용, UUID literal 미사용)
 // ---------------------------------------------------------------------------
 
 interface WarehouseOption {
@@ -85,10 +86,10 @@ interface WarehouseOption {
 }
 
 const WAREHOUSE_OPTIONS: WarehouseOption[] = [
-  { id: '11111111-1111-1111-1111-000000000001', name: '본사창고' },
-  { id: '11111111-1111-1111-1111-000000000002', name: '1호차 차량재고' },
-  { id: '11111111-1111-1111-1111-000000000003', name: '거래처 위탁창고' },
-  { id: '11111111-1111-1111-1111-000000000004', name: '가상창고' },
+  { id: 'WH-MOCK-001', name: '본사창고' },
+  { id: 'WH-MOCK-002', name: '1호차 차량재고' },
+  { id: 'WH-MOCK-003', name: '거래처 위탁창고' },
+  { id: 'WH-MOCK-004', name: '가상창고' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -315,7 +316,7 @@ export function DpsByProductPage() {
   const handleRestore = useCallback((detail: DpsSaveHistoryDetailResponse) => {
     setRestoredData(detail.responsePayload as DpsByProductResponse)
     setActiveTab(0)
-    setRestoreBanner(`복원: ${fmtGeneratedAt(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+    setRestoreBanner(`복원: ${fmtGeneratedAt(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
   }, [])
 
   const handleManualSave = useCallback((topic: string) => {

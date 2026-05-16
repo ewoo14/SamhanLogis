@@ -18,16 +18,21 @@ import com.samhanair.logis.arologis.domain.DispatchProgramType;
 import com.samhanair.logis.arologis.repository.DispatchSaveHistoryRepository;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 배차 저장내역 통합 테스트.
@@ -37,7 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
-@Transactional
 class DispatchSaveHistoryIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/admin/arologis/dispatches/history";
@@ -47,6 +51,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DispatchSaveHistoryRepository repository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     /** 외부 client 격리 — Eureka 비활성 Testcontainers 환경에서 500 방지. */
     @MockBean private PartnerClient partnerClient;
@@ -54,6 +59,12 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private SlipClient slipClient;
     @MockBean private SlipDispatchTaskClient slipDispatchTaskClient;
     @MockBean private SlipServiceClient slipServiceClient;
+
+    @BeforeEach
+    @AfterEach
+    void cleanHistory() {
+        jdbcTemplate.update("DELETE FROM dispatch_save_history");
+    }
 
     @Test
     @DisplayName("MANUAL_NAMED 는 append 저장되고 목록/상세로 복원된다")
@@ -120,6 +131,26 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("AUTO_LATEST 동시 저장은 partial unique 충돌 후 재시도되어 활성 1건만 남는다")
+    void concurrentAutoLatestRaceKeepsOneActiveRow() throws Exception {
+        var executor = Executors.newFixedThreadPool(2);
+        var barrier = new CyclicBarrier(2);
+        try {
+            CompletableFuture<Integer> first = CompletableFuture.supplyAsync(
+                    () -> postAutoAfterBarrier(barrier, 11), executor);
+            CompletableFuture<Integer> second = CompletableFuture.supplyAsync(
+                    () -> postAutoAfterBarrier(barrier, 12), executor);
+
+            assertThat(first.get()).isEqualTo(200);
+            assertThat(second.get()).isEqualTo(200);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(repository.countActiveAutoLatest(USER_A, DispatchProgramType.PRE_CLASSIFY)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("latest 미존재 시 404")
     void latestNotFoundReturns404() throws Exception {
         mockMvc.perform(get(BASE_URL + "/latest")
@@ -145,7 +176,46 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL + "/" + id)
                         .header("X-User-Id", USER_B)
                         .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("MANUAL_NAMED topic blank 는 400 INVALID_INPUT")
+    void manualNamedBlankTopicReturns400() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(manualBody("PRE_CLASSIFY", "  ", 1))
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "DISPATCH"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("저장주제")));
+    }
+
+    @Test
+    @DisplayName("soft-delete 된 저장내역 상세 복원은 404")
+    void restoreDeletedHistoryReturns404() throws Exception {
+        MvcResult created = mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(manualBody("UNASSIGNED", "삭제 row", 1))
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "DISPATCH"))
+                .andExpect(status().isOk())
+                .andReturn();
+        UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
+                .path("data").path("id").asText());
+        jdbcTemplate.update("""
+                UPDATE dispatch_save_history
+                   SET is_deleted = TRUE, deleted_by = ?, deleted_at = now()
+                 WHERE id = ?
+                """, USER_A, id);
+
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "DISPATCH"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test
@@ -164,7 +234,9 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .content(body)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("DISPATCH_HISTORY_PAYLOAD_TOO_LARGE"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("너무 큽니다")));
     }
 
     @Test
@@ -234,5 +306,21 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                 "saveMode", "AUTO_LATEST",
                 "requestParams", Map.of("from", "2026-05-01", "to", "2026-05-16", "rowCount", rowCount),
                 "responsePayload", Map.of("rowCount", rowCount)));
+    }
+
+    private int postAutoAfterBarrier(CyclicBarrier barrier, int rowCount) {
+        try {
+            barrier.await();
+            return mockMvc.perform(post(BASE_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(autoBody("PRE_CLASSIFY", rowCount))
+                            .header("X-User-Id", USER_A)
+                            .header("X-User-Role", "MANAGER"))
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

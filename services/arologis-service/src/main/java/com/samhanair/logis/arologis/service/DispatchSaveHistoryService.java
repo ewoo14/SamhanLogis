@@ -20,7 +20,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 아로로지스 배차 저장내역 service.
@@ -36,6 +39,7 @@ public class DispatchSaveHistoryService {
 
     private final DispatchSaveHistoryRepository repository;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * 배차 결과를 저장한다.
@@ -44,13 +48,20 @@ public class DispatchSaveHistoryService {
      * @param currentUser 현재 사용자 ID
      * @return 생성된 저장내역 ID 와 저장시각
      */
-    @Transactional
     public DispatchSaveHistorySaveResponse save(
             DispatchSaveHistoryRequest request,
             String currentUser) {
         validateRequest(request);
         String user = normalizeUser(currentUser);
-        DispatchSaveHistory saved = saveInternal(request, user, true);
+        DispatchSaveHistory saved;
+        try {
+            saved = saveInNewTransaction(request, user);
+        } catch (DataIntegrityViolationException ex) {
+            if (request.saveMode() != DispatchSaveMode.AUTO_LATEST) {
+                throw ex;
+            }
+            saved = saveInNewTransaction(request, user);
+        }
         return new DispatchSaveHistorySaveResponse(saved.getId(), saved.getCreatedAt());
     }
 
@@ -96,7 +107,7 @@ public class DispatchSaveHistoryService {
         String user = normalizeUser(currentUser);
         return repository.findByIdAndCreatedBy(id, user)
                 .map(DispatchSaveHistoryDetailResponse::from)
-                .orElseThrow(() -> detailNotAccessible(id));
+                .orElseThrow(this::detailNotAccessible);
     }
 
     /**
@@ -119,33 +130,31 @@ public class DispatchSaveHistoryService {
                         "자동 저장 내역이 없습니다."));
     }
 
+    private DispatchSaveHistory saveInNewTransaction(
+            DispatchSaveHistoryRequest request,
+            String user) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transactionTemplate.execute(status -> saveInternal(request, user));
+    }
+
     private DispatchSaveHistory saveInternal(
             DispatchSaveHistoryRequest request,
-            String user,
-            boolean allowRetry) {
-        try {
-            if (request.saveMode() == DispatchSaveMode.AUTO_LATEST) {
-                repository.findActiveAutoLatest(user, request.programType())
-                        .ifPresent(previous -> previous.supersedeBy(user));
-                repository.flush();
-            }
-            DispatchSaveHistory history = DispatchSaveHistory.create(
-                    request.programType(),
-                    request.saveMode(),
-                    request.topic(),
-                    request.requestParams(),
-                    request.responsePayload());
-            DispatchSaveHistory saved = repository.save(history);
+            String user) {
+        if (request.saveMode() == DispatchSaveMode.AUTO_LATEST) {
+            repository.findActiveAutoLatest(user, request.programType())
+                    .ifPresent(previous -> previous.supersedeBy(user));
             repository.flush();
-            return saved;
-        } catch (DataIntegrityViolationException ex) {
-            if (allowRetry && request.saveMode() == DispatchSaveMode.AUTO_LATEST) {
-                repository.findActiveAutoLatest(user, request.programType())
-                        .ifPresent(previous -> previous.supersedeBy(user));
-                return saveInternal(request, user, false);
-            }
-            throw ex;
         }
+        DispatchSaveHistory history = DispatchSaveHistory.create(
+                request.programType(),
+                request.saveMode(),
+                request.topic(),
+                request.requestParams(),
+                request.responsePayload());
+        DispatchSaveHistory saved = repository.save(history);
+        repository.flush();
+        return saved;
     }
 
     private void validateRequest(DispatchSaveHistoryRequest request) {
@@ -161,15 +170,12 @@ public class DispatchSaveHistoryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "명시 저장은 저장주제가 필수입니다.");
         }
         if (payloadSize(request.responsePayload()) > MAX_RESPONSE_PAYLOAD_BYTES) {
-            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+            throw new BusinessException(ErrorCode.DISPATCH_HISTORY_PAYLOAD_TOO_LARGE,
                     "배차 결과가 너무 큽니다. 기간을 좁혀 다시 시도하세요.");
         }
     }
 
-    private BusinessException detailNotAccessible(UUID id) {
-        if (repository.existsById(id)) {
-            return new BusinessException(ErrorCode.FORBIDDEN, "다른 사용자의 저장내역입니다.");
-        }
+    private BusinessException detailNotAccessible() {
         return new BusinessException(ErrorCode.NOT_FOUND, "해당 저장 내역을 찾을 수 없습니다.");
     }
 

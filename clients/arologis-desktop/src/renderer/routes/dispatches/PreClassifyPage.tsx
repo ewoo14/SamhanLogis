@@ -38,7 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, FormField, Tabs } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Tabs } from '@samhan/design-system'
 import {
   getPreClassify,
   getRegional,
@@ -57,6 +57,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import { HistoryTab, formatDateTime } from './HistoryTab'
 import { RestoredBanner } from './RestoredBanner'
 import { SaveDialog } from './SaveDialog'
+import { maskCreatedBy } from '../../utils/maskCreatedBy'
 
 type TabKey = 'region' | 'regional'
 
@@ -127,7 +128,7 @@ export function ArologisPreClassifyPage() {
   })
 
   const programType: DispatchProgramType = tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'
-  const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'regional-history'
+  const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'pre-classify-history'
   const regionData = restoredRegion ?? regionQuery.data
   const regionalData = restoredRegional ?? regionalQuery.data
   const activePayload = tab === 'region' ? regionData : regionalData
@@ -212,7 +213,7 @@ export function ArologisPreClassifyPage() {
       setRestoredRegional(detail.responsePayload as RegionalResponse)
     }
     setHistoryTab(0)
-    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
   }, [])
 
   // ----- CSV 다운로드 -----
@@ -358,6 +359,7 @@ export function ArologisPreClassifyPage() {
         <HistoryTab
           programType={programType}
           testIdPrefix={testIdPrefix}
+          isSaving={saveManualMutation.isPending}
           rowCountLabel="분류 건수"
           onRestore={handleRestore}
         />
@@ -397,33 +399,25 @@ function RegionTabPanel(props: RegionTabPanelProps) {
     <Card>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <FormField
+          <Input
             label="시작일"
             id="arologis-preclassify-from"
-            render={({ id }) => (
-              <input
-                id={id}
-                data-testid="arologis-preclassify-from"
-                type="date"
-                value={from}
-                onChange={(e) => onFromChange(e.target.value)}
-                style={inputStyle}
-              />
-            )}
+            data-testid="arologis-preclassify-from"
+            type="date"
+            value={from}
+            onChange={(e) => onFromChange(e.target.value)}
+            inputSize="sm"
+            fullWidth={false}
           />
-          <FormField
+          <Input
             label="종료일"
             id="arologis-preclassify-to"
-            render={({ id }) => (
-              <input
-                id={id}
-                data-testid="arologis-preclassify-to"
-                type="date"
-                value={to}
-                onChange={(e) => onToChange(e.target.value)}
-                style={inputStyle}
-              />
-            )}
+            data-testid="arologis-preclassify-to"
+            type="date"
+            value={to}
+            onChange={(e) => onToChange(e.target.value)}
+            inputSize="sm"
+            fullWidth={false}
           />
           <Button
             variant="primary"
@@ -607,19 +601,15 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
     <Card>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <FormField
+          <Input
             label="조회일"
             id="arologis-preclassify-date"
-            render={({ id }) => (
-              <input
-                id={id}
-                data-testid="arologis-preclassify-date"
-                type="date"
-                value={date}
-                onChange={(e) => onDateChange(e.target.value)}
-                style={inputStyle}
-              />
-            )}
+            data-testid="arologis-preclassify-date"
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+            inputSize="sm"
+            fullWidth={false}
           />
           <Button
             variant="primary"
@@ -639,7 +629,7 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
           </Button>
           <Button
             variant="primary"
-            data-testid="regional-history-save-button"
+            data-testid="pre-classify-history-save-button"
             onClick={onSave}
             disabled={!data || total === 0}
           >
@@ -778,14 +768,6 @@ function RegionalUnmatchedSection({ entries }: RegionalUnmatchedSectionProps) {
 // ===========================================================================
 // 인라인 스타일 (페이지 전용 — design-system token 참조)
 // ===========================================================================
-
-const inputStyle: React.CSSProperties = {
-  border: '1px solid var(--color-neutral-300)',
-  borderRadius: 4,
-  padding: '6px 10px',
-  fontSize: 13,
-  minWidth: 140,
-}
 
 const tableStyle: React.CSSProperties = {
   width: '100%',

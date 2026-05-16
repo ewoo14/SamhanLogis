@@ -8,6 +8,7 @@ import {
   type DpsSaveHistoryDetailResponse,
   type DpsSaveMode,
 } from '../api/dpsSaveHistoryApi'
+import { maskCreatedBy } from '../utils/maskCreatedBy'
 
 interface DpsHistoryTabProps {
   programType: DpsProgramType
@@ -115,7 +116,7 @@ export function DpsHistoryTab({ programType, onRestore }: DpsHistoryTabProps) {
                 >
                   {formatDateTime(row.createdAt)}
                 </td>
-                <td style={tdStyle}>{row.createdBy}</td>
+                <td style={tdStyle}>{maskCreatedBy(row.createdBy)}</td>
                 <td style={tdStyle}>{row.topic}</td>
                 <td style={tdStyle}>{row.saveMode === 'AUTO_LATEST' ? '자동' : '명시'}</td>
                 <td style={{ ...tdStyle, textAlign: 'right' }}>

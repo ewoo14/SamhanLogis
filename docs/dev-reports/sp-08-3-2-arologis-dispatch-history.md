@@ -33,7 +33,7 @@
   - `SaveDialog.tsx`
 - 화면별 programType/testid:
   - `PRE_CLASSIFY`: `pre-classify-history-*`
-  - `REGIONAL`: `regional-history-*`
+  - `REGIONAL`: `pre-classify-history-*`
   - `UNASSIGNED`: `unassigned-history-*`
   - `RECONCILE`: `dispatch-reconcile-history-*`
 

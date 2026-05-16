@@ -1,0 +1,63 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.select {
+  width: 100%;
+  border: 1px solid var(--color-neutral-300);
+  border-radius: 6px;
+  background: var(--color-neutral-0);
+  color: var(--color-neutral-800);
+  font: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.select:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px var(--color-brand-100);
+  outline: none;
+}
+
+.select:disabled {
+  background: var(--color-neutral-50);
+  color: var(--color-neutral-400);
+  cursor: not-allowed;
+}
+
+.size-sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.size-md {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.size-lg {
+  min-height: 42px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.hasError {
+  border-color: var(--state-danger);
+}
+
+.hint {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+}
+
+.error {
+  color: var(--state-danger);
+  font-size: 12px;
+}

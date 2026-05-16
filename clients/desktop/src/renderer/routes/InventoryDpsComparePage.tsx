@@ -68,6 +68,7 @@ import {
 import { DpsHistoryTab } from '../components/DpsHistoryTab'
 import { DpsRestoredBanner } from '../components/DpsRestoredBanner'
 import { DpsSaveDialog } from '../components/DpsSaveDialog'
+import { maskCreatedBy } from '../utils/maskCreatedBy'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 /** 오늘 날짜 (YYYY-MM-DD) — date input 기본값. */
@@ -267,7 +268,7 @@ export function InventoryDpsComparePage() {
     const payload = detail.responsePayload as DpsCompareResponse
     setRestoredResult(payload)
     setActiveTab(0)
-    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
   }, [])
 
   // ── 결과 CSV 다운로드 ─────────────────────────────────────

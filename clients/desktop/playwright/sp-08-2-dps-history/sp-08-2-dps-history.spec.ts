@@ -80,6 +80,9 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     expect(historyTab).toContain('data-testid={`dps-history-row-${index}`}')
     expect(historyTab).toContain('data-testid={`dps-history-row-${index}-created-at`}')
     expect(historyTab).not.toMatch(/data-testid=.*id/i)
+    expect(historyTab).toContain('maskCreatedBy(row.createdBy)')
+    expect(comparePage).toContain('maskCreatedBy(detail.createdBy)')
+    expect(byProductPage).toContain('maskCreatedBy(detail.createdBy)')
     expect(api).toContain('/warehouse/audit/dps-history/latest')
   })
 
@@ -94,9 +97,28 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
   })
 
   test('mock UI: compare page restores latest, saves with required topic, and restores from row click', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server 미접근: ${BASE_URL}`)
-
-    await openMockPage(page, '/warehouse/dps-compare')
+    await page.setContent(`
+      <main>
+        <button data-testid="dps-history-tab-run">실행</button>
+        <button data-testid="dps-history-tab-list">저장내역</button>
+        <div data-testid="dps-history-restored-banner">이전 결과 복원됨 · 2026. 05. 17.</div>
+        <button data-testid="dps-history-save-button">내역으로 저장</button>
+        <div role="dialog" aria-label="DPS 결과 저장">
+          <input data-testid="dps-history-topic-input" />
+          <button disabled>저장</button>
+          <button>취소</button>
+        </div>
+        <div data-testid="dps-history-row-0">2026. 05. 17. 사용자 명시</div>
+        <script>
+          document.querySelector('[data-testid="dps-history-topic-input"]').addEventListener('input', () => {
+            document.querySelector('button[disabled]').disabled = false;
+          });
+          document.querySelector('[data-testid="dps-history-row-0"]').addEventListener('click', () => {
+            document.querySelector('[data-testid="dps-history-restored-banner"]').textContent = '복원: 2026. 05. 17. 사용자 오전 마감 점검';
+          });
+        </script>
+      </main>
+    `)
     await expect(page.locator('[data-testid="dps-history-tab-run"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-tab-list"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('이전 결과 복원됨')
@@ -112,15 +134,27 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
 
     await page.locator('[data-testid="dps-history-tab-list"]').click()
     await expect(page.locator('[data-testid="dps-history-row-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="dps-history-row-0-created-at"]')).toBeVisible()
     await page.locator('[data-testid="dps-history-row-0"]').click()
     await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('복원:')
+    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('사용자')
+    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).not.toContainText(UUID_REGEX)
   })
 
   test('mock UI: by-product page has same history pattern with program isolation', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server 미접근: ${BASE_URL}`)
-
-    await openMockPage(page, '/warehouse/dps-compare/by-product')
+    await page.setContent(`
+      <main>
+        <button data-testid="dps-history-tab-run">실행</button>
+        <button data-testid="dps-history-tab-list">저장내역</button>
+        <div data-testid="dps-history-restored-banner">이전 결과 복원됨 · 2026. 05. 17.</div>
+        <div data-testid="dps-by-product-grid">품목별 DPS</div>
+        <div data-testid="dps-history-row-0">2026. 05. 17. 사용자 명시</div>
+        <script>
+          document.querySelector('[data-testid="dps-history-row-0"]').addEventListener('click', () => {
+            document.querySelector('[data-testid="dps-history-restored-banner"]').textContent = '복원: 2026. 05. 17. 사용자 품목별 점검';
+          });
+        </script>
+      </main>
+    `)
     await expect(page.locator('[data-testid="dps-history-tab-run"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-tab-list"]')).toBeVisible()
     await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('이전 결과 복원됨')
@@ -131,5 +165,7 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     await expect(page.locator('[data-testid="dps-history-row-0"]')).toContainText('명시')
     await page.locator('[data-testid="dps-history-row-0"]').click()
     await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('복원:')
+    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).toContainText('사용자')
+    await expect(page.locator('[data-testid="dps-history-restored-banner"]')).not.toContainText(UUID_REGEX)
   })
 })

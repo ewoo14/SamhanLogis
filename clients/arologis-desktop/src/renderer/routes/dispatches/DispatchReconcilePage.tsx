@@ -70,6 +70,7 @@ import {
 import { HistoryTab, formatDateTime } from './HistoryTab'
 import { RestoredBanner } from './RestoredBanner'
 import { SaveDialog } from './SaveDialog'
+import { maskCreatedBy } from '../../utils/maskCreatedBy'
 
 // ---------------------------------------------------------------------------
 // 도메인 표시 매핑 (Designer mock 보존)
@@ -349,7 +350,7 @@ export function ArologisDispatchReconcilePage() {
   const handleRestore = useCallback((detail: DispatchSaveHistoryDetailResponse) => {
     setRestoredResponse(detail.responsePayload as DispatchReconcileResponse)
     setActiveTab(0)
-    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
   }, [])
 
   return (
@@ -796,6 +797,7 @@ export function ArologisDispatchReconcilePage() {
         <HistoryTab
           programType="RECONCILE"
           testIdPrefix="dispatch-reconcile-history"
+          isSaving={saveManualMutation.isPending}
           rowCountLabel="불일치 건수"
           onRestore={handleRestore}
         />

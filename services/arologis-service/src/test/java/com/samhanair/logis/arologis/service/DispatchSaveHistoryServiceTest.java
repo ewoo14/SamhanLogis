@@ -25,6 +25,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 
 /**
  * 배차 저장내역 서비스 단위 테스트.
@@ -43,7 +47,7 @@ class DispatchSaveHistoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DispatchSaveHistoryService(repository, objectMapper);
+        service = new DispatchSaveHistoryService(repository, objectMapper, transactionManager());
     }
 
     @Test
@@ -144,11 +148,31 @@ class DispatchSaveHistoryServiceTest {
     void detail_deletedRowNotFound() {
         java.util.UUID id = java.util.UUID.randomUUID();
         when(repository.findByIdAndCreatedBy(id, "dispatch-user")).thenReturn(Optional.empty());
-        when(repository.existsById(id)).thenReturn(false);
 
         assertThatThrownBy(() -> service.findDetail(id, "dispatch-user"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("찾을 수 없습니다");
+    }
+
+    private PlatformTransactionManager transactionManager() {
+        return new AbstractPlatformTransactionManager() {
+            @Override
+            protected Object doGetTransaction() {
+                return new Object();
+            }
+
+            @Override
+            protected void doBegin(Object transaction, TransactionDefinition definition) {
+            }
+
+            @Override
+            protected void doCommit(DefaultTransactionStatus status) {
+            }
+
+            @Override
+            protected void doRollback(DefaultTransactionStatus status) {
+            }
+        };
     }
 
     private DispatchSaveHistoryRequest autoRequest() {

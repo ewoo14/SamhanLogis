@@ -64,6 +64,10 @@ export interface DataGridProps<T> {
   onPaste?: (cells: PasteCell[]) => void
   /** 선택 변경 시 콜백 — 현재 선택된 행 목록. */
   onSelectionChange?: (rows: T[]) => void
+  /** 행 클릭 콜백. */
+  onRowClick?: (row: T, index: number) => void
+  /** 행별 testid 생성자. */
+  getRowTestId?: (row: T, index: number) => string
   /** wrapper div 추가 className */
   className?: string
 }
@@ -104,6 +108,8 @@ export function DataGrid<T>({
   enablePaste = false,
   onPaste,
   onSelectionChange,
+  onRowClick,
+  getRowTestId,
   className,
 }: DataGridProps<T>) {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
@@ -338,7 +344,13 @@ export function DataGrid<T>({
               </tr>
             ) : (
               filteredRows.map((row, rIdx) => (
-                <tr key={rowKey(row)} className={styles['tr']}>
+                <tr
+                  key={rowKey(row)}
+                  className={styles['tr']}
+                  data-testid={getRowTestId?.(row, rIdx)}
+                  onClick={() => onRowClick?.(row, rIdx)}
+                  style={onRowClick ? { cursor: 'pointer' } : undefined}
+                >
                   {columns.map((col, cIdx) => {
                     const sel = enableMultiSelect && isSelected(rIdx, cIdx)
                     return (

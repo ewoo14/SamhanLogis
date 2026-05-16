@@ -102,6 +102,7 @@
   --shadow-md:    0 2px 6px rgba(15, 18, 22, 0.08);
   --shadow-lg:    0 8px 20px rgba(15, 18, 22, 0.12);
   --shadow-modal: 0 24px 48px rgba(15, 18, 22, 0.20);
+  --overlay-backdrop: rgba(17, 24, 39, 0.35);
 
   /* ---------- durations ---------- */
   --duration-fast: 120ms;
@@ -159,6 +160,7 @@
   --state-warning-bg:  #FEF3C7;
   --state-info:        #3B82F6;
   --state-info-bg:     #DBEAFE;
+  --state-info-border: #BFDBFE;
 
   /* spacing semantic alias (4-base scale 그대로) */
   --space-row-y:     8px;

@@ -1920,6 +1920,6 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-2-05 | `MANUAL_NAMED`는 topic 필수 append-only 저장내역이다. 명시 저장 row는 자동 저장 대체 대상이 아니다. |
 | SP-08-3-2-06 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 payload를 반환하지 않는다. |
 | SP-08-3-2-07 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 422로 거절한다. 파일/이미지 원본은 history에 저장하지 않는다. |
-| SP-08-3-2-08 | 가배차 권역과 지방가배차는 같은 화면 파일을 공유하지만 `PRE_CLASSIFY`와 `REGIONAL` programType 및 `pre-classify-history-*` / `regional-history-*` testid prefix를 분리한다. |
+| SP-08-3-2-08 | 가배차 권역과 지방가배차는 같은 화면 파일을 공유하며 `PRE_CLASSIFY`와 `REGIONAL` programType은 분리하되, 저장내역 row testid prefix는 SP-08-3-1 §6.4와 동일하게 `pre-classify-history-*`로 고정한다. |
 | SP-08-3-2-09 | 화면은 공통 `HistoryTab`, `RestoredBanner`, `SaveDialog`를 사용한다. row testid는 화면별 prefix + index 기반이며 내부 UUID를 포함하지 않는다. |
 | SP-08-3-2-10 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |

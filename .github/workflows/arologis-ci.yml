@@ -137,6 +137,10 @@ jobs:
         working-directory: clients/arologis-desktop
         run: npm run typecheck
 
+      - name: lint (arologis-desktop)
+        working-directory: clients/arologis-desktop
+        run: npm run lint
+
       - name: build (arologis-desktop)
         working-directory: clients/arologis-desktop
         run: npm run build

@@ -46,6 +46,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import { HistoryTab, formatDateTime } from './HistoryTab'
 import { RestoredBanner } from './RestoredBanner'
 import { SaveDialog } from './SaveDialog'
+import { maskCreatedBy } from '../../utils/maskCreatedBy'
 
 /** 오늘 날짜 (YYYY-MM-DD) — 기본 필터값. */
 function todayIso(): string {
@@ -167,7 +168,7 @@ export function ArologisUnassignedPage() {
   const handleRestore = useCallback((detail: DispatchSaveHistoryDetailResponse) => {
     setRestoredData(detail.responsePayload as UnassignedResponse)
     setActiveTab(0)
-    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${detail.createdBy} '${detail.topic}'`)
+    setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
   }, [])
 
   const handleManualDispatch = (entry: UnassignedEntry) => {
@@ -378,6 +379,7 @@ export function ArologisUnassignedPage() {
         <HistoryTab
           programType="UNASSIGNED"
           testIdPrefix="unassigned-history"
+          isSaving={saveManualMutation.isPending}
           rowCountLabel="미배차 건수"
           onRestore={handleRestore}
         />

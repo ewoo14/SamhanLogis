@@ -2,6 +2,8 @@
     [string]$OutputDir = "docs/qa/sp-08-3-2-arologis-history/screenshots"
 )
 
+# mock-only — Malgun Gothic + raw hex; 실 화면은 Pretendard + CSS var 사용 (SP-08-3-2 진입 시 실 컴포넌트 캡처로 교체)
+# Windows-only (System.Drawing GDI+). Do not add to CI; Linux runner will fail.
 $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Drawing
@@ -102,9 +104,9 @@ function New-Shot {
 
 New-Shot "01-pre-classify-run.png" "가배차 권역 분류 저장내역" "PRE_CLASSIFY · 실행 탭 자동 복원" "pre-classify-history" "권역 분류" @("오전 권역 분류", "자동저장")
 New-Shot "02-pre-classify-history.png" "가배차 권역 분류 저장내역" "PRE_CLASSIFY · 저장내역 목록" "pre-classify-history" "권역 저장내역" @("월말 권역 점검", "자동저장")
-New-Shot "03-regional-history.png" "지방가배차 저장내역" "REGIONAL · programType 격리" "regional-history" "시도 분류" @("부산/경남 분류", "자동저장")
+New-Shot "03-regional-history.png" "지방가배차 저장내역" "REGIONAL · programType 격리" "pre-classify-history" "시도 분류" @("부산/경남 분류", "자동저장")
 New-Shot "04-unassigned-history.png" "미배차 리스트 저장내역" "UNASSIGNED · 미배차 결과 복원" "unassigned-history" "미배차" @("오전 미배차 점검", "자동저장")
 New-Shot "05-reconcile-history.png" "운송사 실배차 비교 저장내역" "RECONCILE · 불일치 결과 복원" "dispatch-reconcile-history" "운송사 비교" @("CJ대한통운 비교", "자동저장")
-New-Shot "06-history-dialog.png" "아로로지스 공통 저장 Dialog" "4 화면 공통 SaveDialog / HistoryTab" "dispatch-reconcile-history" "공통 컴포넌트" @("명시 저장", "자동저장")
+New-Shot "06-history-dialog.png" "아로로지스 공통 저장 다이얼로그" "4 화면 공통 저장 다이얼로그 / 저장내역 탭" "dispatch-reconcile-history" "공통 컴포넌트" @("명시 저장", "자동저장")
 
 Write-Host "SP-08-3-2 QA mock screenshots generated in $OutputDir"

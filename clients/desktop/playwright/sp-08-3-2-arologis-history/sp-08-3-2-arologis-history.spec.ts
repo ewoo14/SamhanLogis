@@ -1,7 +1,7 @@
 /**
  * @file SP-08-3-2 arologis dispatch history static contract.
  *
- * Local-only execution: backend/frontend source contract + mock UI only.
+ * No live server required — static contract + mock UI only.
  */
 import { expect, test } from '@playwright/test'
 import * as fs from 'fs'
@@ -31,7 +31,7 @@ const screens: ScreenContract[] = [
     label: '지방가배차 시도 분류',
     programType: 'REGIONAL',
     source: 'clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx',
-    prefix: 'regional-history',
+    prefix: 'pre-classify-history',
   },
   {
     label: '미배차 리스트',
@@ -65,6 +65,9 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')
     expect(service).toContain('DataIntegrityViolationException')
+    expect(service).toContain('TransactionTemplate')
+    expect(service).toContain('PROPAGATION_REQUIRES_NEW')
+    expect(service).not.toContain('existsById')
     expect(service).toContain('DateRange.of(from, to)')
     expect(migration).toContain('CREATE TABLE dispatch_save_history')
     expect(migration).toContain('ux_dispatch_save_history_auto_latest_per_user_program')
@@ -80,15 +83,21 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     expect(api).toContain('/admin/arologis/dispatches/history')
     expect(api).toContain('/admin/arologis/dispatches/history/latest')
     expect(historyTab).toContain('maskCreatedBy')
-    expect(historyTab).toContain('data-testid={`${testIdPrefix}-row-${index}`}')
+    expect(historyTab).toContain('DataGrid')
+    expect(historyTab).toContain('Select')
+    expect(historyTab).toContain('getRowTestId')
+    expect(historyTab).toContain('`${testIdPrefix}-row-${row.__index}`')
     expect(saveDialog).toContain('isSaving')
     expect(restoredBanner).toContain('restored-banner')
+    expect(restoredBanner).not.toMatch(/#[0-9A-Fa-f]{3,8}|rgba\(/)
+    expect(saveDialog).not.toMatch(/#[0-9A-Fa-f]{3,8}|rgba\(/)
 
     for (const screen of screens) {
       expect(sources).toContain(screen.programType)
       expect(sources).toContain(screen.prefix)
       expect(sources).toContain(`${screen.prefix}-save-button`)
     }
+    expect(sources).toContain('maskCreatedBy(detail.createdBy)')
     expect(sources).toContain('-tab-run')
     expect(sources).toContain('-tab-list')
   })
@@ -97,9 +106,9 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     const source = read('clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx')
 
     expect(source).toContain("tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'")
+    expect(source).toContain("tab === 'region' ? 'pre-classify-history' : 'pre-classify-history'")
     expect(source).toContain('[programType]')
     expect(source).toContain('[date, from, programType, regionQuery.data, regionalQuery.data, tab, to]')
-    expect(source).toContain('regional-history')
     expect(source).toContain('pre-classify-history')
   })
 
@@ -109,6 +118,7 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
       'clients/arologis-desktop/src/renderer/routes/dispatches/HistoryTab.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/RestoredBanner.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/SaveDialog.tsx',
+      'clients/arologis-desktop/src/renderer/utils/maskCreatedBy.ts',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/domain/DispatchSaveHistory.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/service/DispatchSaveHistoryService.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/web/DispatchSaveHistoryController.java',
@@ -148,4 +158,43 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     await expect(page.locator('[data-testid="pre-classify-history-topic-input"]')).toBeVisible()
     await expect(page.locator('[data-testid="pre-classify-history-row-0"]')).toContainText('명시')
   })
+
+  test('mock UI: latest empty 404 시 복원 banner를 노출하지 않는다', async ({ page }) => {
+    await page.setContent(`
+      <main>
+        <button data-testid="pre-classify-history-tab-run">실행</button>
+        <button data-testid="pre-classify-history-tab-list">저장내역</button>
+      </main>
+    `)
+
+    await expect(page.locator('[data-testid="pre-classify-history-restored-banner"]')).toHaveCount(0)
+  })
+
+  for (const screen of screens) {
+    test(`mock UI: ${screen.label} row click 복원 navigation`, async ({ page }) => {
+      await page.setContent(`
+        <main>
+          <button data-testid="${screen.prefix}-tab-run">실행</button>
+          <button data-testid="${screen.prefix}-tab-list">저장내역</button>
+          <div id="view">list</div>
+          <div data-testid="${screen.prefix}-row-0" role="row" tabindex="0">명시 저장</div>
+          <script>
+            document.querySelector('[data-testid="${screen.prefix}-row-0"]').addEventListener('click', () => {
+              document.querySelector('#view').textContent = 'restored';
+              const banner = document.createElement('div');
+              banner.dataset.testid = '${screen.prefix}-restored-banner';
+              banner.textContent = '복원: 2026. 05. 17. 사용자 저장주제';
+              document.querySelector('main').appendChild(banner);
+            });
+          </script>
+        </main>
+      `)
+
+      await page.locator(`[data-testid="${screen.prefix}-row-0"]`).click()
+      await expect(page.locator('#view')).toHaveText('restored')
+      await expect(page.locator(`[data-testid="${screen.prefix}-restored-banner"]`)).toContainText('복원:')
+      await expect(page.locator(`[data-testid="${screen.prefix}-restored-banner"]`)).toContainText('사용자')
+      await expect(page.locator(`[data-testid="${screen.prefix}-restored-banner"]`)).not.toContainText(UUID_REGEX)
+    })
+  }
 })

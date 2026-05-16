@@ -25,10 +25,10 @@ const bannerStyle: CSSProperties = {
   alignItems: 'center',
   gap: 12,
   padding: '8px 12px',
-  border: '1px solid #BFDBFE',
+  border: '1px solid var(--state-info-border)',
   borderRadius: 6,
-  background: '#EFF6FF',
-  color: '#1D4ED8',
+  background: 'var(--state-info-bg)',
+  color: 'var(--state-info)',
   fontSize: 13,
   marginBottom: 12,
 }
