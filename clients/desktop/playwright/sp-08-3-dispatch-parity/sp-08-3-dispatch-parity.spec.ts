@@ -149,7 +149,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(matrix.filter(row => row.owner === 'notification')).toHaveLength(1)
   })
 
-  test('현재 API/route 소스가 6개 기존 endpoint를 유지하고 history endpoint는 후속 범위로만 기록한다', () => {
+  test('현재 API/route 소스가 6개 기존 endpoint를 유지하고 SP-08-3-2 arologis history endpoint를 허용한다', () => {
     const sources = [
       'clients/desktop/src/renderer/api/arologisDispatchApi.ts',
       'clients/desktop/src/renderer/api/dispatchReconcileApi.ts',
@@ -160,11 +160,13 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'clients/arologis-desktop/src/renderer/api/arologisDispatch.ts',
       'clients/arologis-desktop/src/renderer/api/arologisManual.ts',
       'clients/arologis-desktop/src/renderer/api/dispatchReconcile.ts',
+      'clients/arologis-desktop/src/renderer/api/dispatchSaveHistoryApi.ts',
       'clients/arologis-desktop/src/renderer/routes/index.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/DispatchesLayout.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/UnassignedPage.tsx',
       'clients/arologis-desktop/src/renderer/routes/dispatches/DispatchReconcilePage.tsx',
+      'services/arologis-service/src/main/java/com/samhanair/logis/arologis/web/DispatchSaveHistoryController.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/ArologisAdminController.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/DispatchReconcileController.java',
       'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java',
@@ -183,7 +185,8 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(sources).toContain('/admin/notifications/dispatch-batch/send')
     expect(sources).not.toContain('/arologis/dispatch-sms/preview')
     expect(sources).not.toContain('/arologis/dispatch-sms/send')
-    expect(sources).not.toContain('/admin/arologis/dispatches/history')
+    expect(sources).toContain('/admin/arologis/dispatches/history')
+    expect(sources).toContain('/admin/arologis/dispatches/history/latest')
     expect(sources).not.toContain('/slips/cleanup/history')
     expect(sources).not.toContain('/admin/notifications/dispatch-sms/history')
   })
