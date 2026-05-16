@@ -1,5 +1,5 @@
 /**
- * 관리자 — 지역 관리 (`/admin/regions`).
+ * 관리자 — 배차지역 관리 (`/admin/regions`).
  *
  * Phase 10 W10-1 PR-D Phase B FE-B 슬라이스. BE 출처 commit 645428e.
  *
@@ -88,7 +88,7 @@ const EMPTY_FORM: FormState = {
 }
 
 export function RegionsPage() {
-  usePageTitle('지역 관리')
+  usePageTitle('배차지역 관리')
   const queryClient = useQueryClient()
   const auth = useSessionStore((s) => s.auth)
   const canManageRegions = auth?.role === 'MASTER' || auth?.role === 'MANAGER'
@@ -262,7 +262,7 @@ export function RegionsPage() {
           marginBottom: 8,
         }}
       >
-        <h3 style={{ margin: 0 }}>지역 관리 (가배차)</h3>
+        <h3 style={{ margin: 0 }}>배차지역 관리</h3>
         <span
           data-testid="admin-regions-realtime-indicator"
           style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}

@@ -120,6 +120,14 @@ spring:
         # (NoStripPrefix). 기본 14 service routing 은 아래.
         # ============================================================
 
+        # partner-auth-service — 거래처 주문서 인증 controller 가 `/api/v1/auth/*`
+        # 풀패스를 보유하므로 StripPrefix 없음. auth-service `/api/v1/auth/**`
+        # generic route 보다 먼저 선언해 거래처 인증 요청을 가로채지 않게 한다.
+        - id: partner-auth-public-v1
+          uri: lb://partner-auth-service
+          predicates:
+            - Path=/api/v1/auth/partner-status,/api/v1/auth/partner-register,/api/v1/auth/partner-password,/api/v1/auth/partner-login,/api/v1/auth/partner-temp-password,/api/v1/auth/partner-expiration,/api/v1/auth/partner-tutorial
+
         # auth-service — login/token endpoint, JWT 필터 미적용
         - id: auth-service-v1
           uri: lb://auth-service
@@ -143,6 +151,16 @@ spring:
             - Path=/api/v1/users/**
           filters:
             - StripPrefix=2
+            - JwtAuthentication
+
+        # partner-service — 발송금지리스트는 Notion 원본 CSV 를 partner DB 로 이관한 뒤
+        # `/api/v1/partners/admin/blocks` 풀패스 CRUD 로 운영한다. controller 가
+        # `/api/v1/...` 를 보유하므로 generic StripPrefix route 보다 먼저 no-strip.
+        - id: partner-blocks-v1
+          uri: lb://partner-service
+          predicates:
+            - Path=/api/v1/partners/admin/blocks/**
+          filters:
             - JwtAuthentication
 
         # partner-service — Phase 10 W10-6 신규 GET /admin/partners 검증 entry
@@ -194,6 +212,15 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # notification-service — 단톡방리스트는 Notion 원본 CSV 를 notification DB 로
+        # 이관한 뒤 `/api/v1/notification/admin/chat-rooms` 풀패스 CRUD 로 운영한다.
+        - id: notification-chat-rooms-v1
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notification/admin/chat-rooms/**
+          filters:
+            - JwtAuthentication
+
         - id: notification-service-v1
           uri: lb://notification-service
           predicates:
@@ -226,13 +253,32 @@ spring:
           filters:
             - JwtAuthentication
 
-        # partner-auth-service — controller `/api/v1/auth` 풀패스 (거래처 인증) → StripPrefix=0, JWT 필터 미적용
+        # partner-auth-service — 주문서 승인 controller 가 `/api/v1/partner-approvals`
+        # 풀패스를 보유하므로 StripPrefix 없음. Desktop 주문서 승인 CRUD 경로.
+        - id: partner-auth-approvals-v1
+          uri: lb://partner-auth-service
+          predicates:
+            - Path=/api/v1/partner-approvals/**
+          filters:
+            - JwtAuthentication
+
+        # partner-auth-service — legacy alias. `/api/v1/partner-auth/**` 로 들어온 경우만
+        # 기존 호환을 위해 prefix 를 제거한다.
         - id: partner-auth-service-v1
           uri: lb://partner-auth-service
           predicates:
             - Path=/api/v1/partner-auth/**
           filters:
             - StripPrefix=2
+
+        # dc-config-service — DC정보는 Notion 원본 CSV 를 dc-config DB 로 이관한 뒤
+        # `/api/v1/dc-config/admin` 풀패스 import endpoint 로 seed/update 한다.
+        - id: dc-config-admin-v1
+          uri: lb://dc-config-service
+          predicates:
+            - Path=/api/v1/dc-config/admin/**
+          filters:
+            - JwtAuthentication
 
         - id: dc-config-service-v1
           uri: lb://dc-config-service

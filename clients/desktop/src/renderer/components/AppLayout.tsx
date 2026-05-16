@@ -130,7 +130,7 @@ const VENDOR_ORDER_OCR_SIDEBAR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
  * [Slice 2] admin GAS 이식 메뉴 — 일반 카테고리 병행 노출 ROLE 가드.
  * 기존 /admin/* 라우트 그대로 유지 (마스터 메뉴 유지). 동일 라우트로 이동하는 항목만 추가.
  */
-/** 지역 관리 (/admin/regions) — 배차(arologis) 카테고리 — DISPATCH/MANAGER/MASTER */
+/** 배차지역 관리 (/admin/regions) — 배차(arologis) 카테고리 — DISPATCH/MANAGER/MASTER */
 const REGION_MGMT_SIDEBAR_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 /** 시트 동기화 (/admin/sheet-sync) — 설정 카테고리 — MANAGER/MASTER */
 const SHEET_SYNC_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
@@ -657,14 +657,14 @@ export function AppLayout() {
               >
                 실배차 비교
               </SidebarLink>
-              {/* [SP-04] 지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
+              {/* [SP-06] 배차지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
               <SidebarLink
                 to="/admin/regions"
                 show={showRegionMgmt || showArologisManual}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-region-mgmt"
               >
-                지역 관리
+                배차지역 관리
               </SidebarLink>
               {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
               <SidebarLink

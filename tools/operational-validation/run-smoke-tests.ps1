@@ -14,15 +14,15 @@
             - GET /api/v1/products?page=0&size=10          (product-service via gateway, controller /products)
             - GET /api/v1/inventory/balances?page=0&size=10 (inventory-service via gateway, controller /inventory/balances)
             - GET /api/v1/slips?page=0&size=10             (slip-service via gateway, controller /slips)
-            - GET http://localhost:8095/admin/partners?page=0&size=10  (partner-service direct)
-            - GET http://localhost:8093/admin/notifications?page=0&size=10  (notification-service direct)
-            - GET http://localhost:8094/admin/dashboard/kpi?from=...&to=... (dashboard-service direct)
+            - GET http://localhost:<resolved>/admin/partners?page=0&size=10  (partner-service direct)
+            - GET http://localhost:<resolved>/admin/notifications?page=0&size=10  (notification-service direct)
+            - GET http://localhost:<resolved>/admin/dashboard/kpi?from=...&to=... (dashboard-service direct)
         4) 종합 합격/불합격 판정
 
 .PARAMETER GatewayUrl
-    API Gateway base URL (default http://localhost:8080). 일부 admin endpoint 는
-    controller @RequestMapping 이 gateway StripPrefix=2 와 정합되지 않아 service port
-    직접 호출 (Authorization + X-User-Id + X-User-Role 헤더 동시 전달). 로그인은 gateway 경유.
+    API Gateway base URL (default http://localhost:8080). 기본값 사용 시 health 검증에서 탐지한
+    api-gateway 실제 포트로 보정한다. 일부 admin endpoint 는 service port 직접 호출
+    (Authorization + X-User-Id + X-User-Role 헤더 동시 전달).
 
 .PARAMETER LoginId
     JWT 발급용 loginId (default kimmiseon).
@@ -44,7 +44,7 @@
     - UTF-8 (BOM 있음, PowerShell 5.1 한글 호환) 으로 저장 — feedback_powershell_utf8_writes 준수
     - secret hardcode 금지 — kimmiseon 비밀번호는 OrgChartSeeder seed (dev only)
     - Endpoint path 는 controller @RequestMapping 실측 + gateway routing (PR #122 BE 리뷰 정합 fix).
-      gateway StripPrefix=2 와 mismatch 인 경우 service port 직접 호출 + JWT 헤더 위임.
+      gateway 라우팅하지 않는 direct endpoint 는 health 검증에서 탐지한 service port 재사용.
     - 사전 의존 — start-local-full.ps1 부팅 + 14 service UP
 #>
 
@@ -57,6 +57,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$defaultGatewayUrl = 'http://localhost:8080'
 
 # -----------------------------------------------------------------------------
 # 0. 설정
@@ -143,9 +144,11 @@ function Get-JwtClaims {
 Write-Host '[1/3] service /actuator/health 검증' -ForegroundColor Yellow
 
 $healthResults = @()
+$servicePortByName = @{}
 foreach ($svc in $services) {
     $actualPort = Resolve-ServicePort -Service $svc
     $svc.port = $actualPort
+    $servicePortByName[$svc.name] = $actualPort
     $url    = "http://localhost:$actualPort/actuator/health"
     $status = 'DOWN'
     $body   = ''
@@ -181,6 +184,11 @@ if ($downCount -gt 0) {
     Write-Host "   $downCount service DOWN — smoke test 진행하지만 endpoint fail 가능" -ForegroundColor Yellow
 } else {
     Write-Host '   모든 service UP' -ForegroundColor Green
+}
+
+if ($GatewayUrl -eq $defaultGatewayUrl -and $servicePortByName.ContainsKey('api-gateway')) {
+    $GatewayUrl = "http://localhost:$($servicePortByName['api-gateway'])"
+    Write-Host "   GatewayUrl 보정 — $GatewayUrl" -ForegroundColor DarkGray
 }
 
 # -----------------------------------------------------------------------------
@@ -233,15 +241,15 @@ $today    = (Get-Date).ToString('yyyy-MM-dd')
 $kpiQuery = "from=$today&to=$today"
 
 # transport = 'gateway' (Authorization 만) | 'direct' (Authorization + X-User-Id + X-User-Role)
-# direct 는 controller @RequestMapping 이 gateway StripPrefix=2 와 mismatch 인 경우 사용 (PR #122 BE 리뷰 fix).
+# direct 는 gateway 대신 health 검증에서 탐지한 service port 로 호출한다.
 $smokeEndpoints = @(
-    @{ name = 'auth-service /auth/me';                transport = 'direct';  url = 'http://localhost:8081/auth/me' },
+    @{ name = 'auth-service /auth/me';                transport = 'direct';  url = "http://localhost:$($servicePortByName['auth-service'])/auth/me" },
     @{ name = 'product-service /products';            transport = 'gateway'; url = "$GatewayUrl/api/v1/products?page=0&size=10" },
     @{ name = 'inventory-service /warehouses';        transport = 'gateway'; url = "$GatewayUrl/api/v1/inventory/warehouses?page=0&size=10" },
     @{ name = 'slip-service /slips';                  transport = 'gateway'; url = "$GatewayUrl/api/v1/slips?page=0&size=10" },
-    @{ name = 'partner-service /admin/partners';      transport = 'direct';  url = 'http://localhost:8095/admin/partners?page=0&size=10' },
-    @{ name = 'notification-service /admin/notifications'; transport = 'direct'; url = 'http://localhost:8093/admin/notifications?page=0&size=10' },
-    @{ name = 'dashboard-service /admin/dashboard/kpi';    transport = 'direct'; url = "http://localhost:8094/admin/dashboard/kpi?$kpiQuery" }
+    @{ name = 'partner-service /admin/partners';      transport = 'direct';  url = "http://localhost:$($servicePortByName['partner-service'])/admin/partners?page=0&size=10" },
+    @{ name = 'notification-service /admin/notifications'; transport = 'direct'; url = "http://localhost:$($servicePortByName['notification-service'])/admin/notifications?page=0&size=10" },
+    @{ name = 'dashboard-service /admin/dashboard/kpi';    transport = 'direct'; url = "http://localhost:$($servicePortByName['dashboard-service'])/admin/dashboard/kpi?$kpiQuery" }
 )
 
 $smokeResults = @()

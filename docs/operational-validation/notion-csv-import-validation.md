@@ -1,8 +1,12 @@
-# 항목 4 — 4 CSV import 실 데이터 (Notion export) 검증
+# 항목 4 — 4 CSV DB 이관 실 데이터 (Notion export) 검증
 
 > **선행 산출물** — `tools/legacy-gas/_notion-export/` (사용자 노션 export)
-> **본 문서** — 4 CSV 일괄 import + DB row count 검증 + reject 보고 절차
+> **본 문서** — 4 CSV 일괄 DB 이관 + DB row count 검증 + reject 보고 절차
 > **자동화** — `tools/operational-validation/import-notion-csv.ps1`
+
+본 항목의 목적은 Notion 을 Samhan Public 의 런타임 데이터 소스로 유지하는 것이 아니다.
+노션 원본 표를 cutover 시점에 우리 service-per-DB 테이블로 그대로 이관하고, 이후
+조회·수정·삭제는 Samhan Public DB CRUD 화면/API 에서만 수행한다.
 
 ---
 
@@ -11,7 +15,7 @@
 | Notion DB | CSV 위치 (legacy-gas/_notion-export 하위) | 대상 service | endpoint | 기대 row | 인증 |
 | --------- | ----------------------------------------- | ------------ | -------- | -------- | ---- |
 | 가배차용 지역별 분류표 | `가배차용 지역별 분류표/*.csv` | arologis-service (8097) | `POST /admin/arologis/regions/import` | CSV non-empty row 수 자동 계산 (2026-05-16 현재 20) | MASTER/MANAGER |
-| 거래처 DC정보 | `거래처 DC정보/*.csv` | dc-config-service (8089) | `POST /api/v1/dc-config/admin/import` | CSV non-empty row 수 자동 계산 (2026-05-16 현재 213) | MASTER |
+| 거래처 DC정보 | `거래처 DC정보/*.csv` | dc-config-service (8089) | `POST /api/v1/dc-config/admin/import` | CSV 거래처코드 row 수 자동 계산 (2026-05-16 현재 213, unique partnerCode 210) | MASTER |
 | 단톡방리스트 | `단톡방리스트/*.csv` | notification-service (8093) | `POST /api/v1/notification/admin/chat-rooms/import` | CSV non-empty row 수 자동 계산 (2026-05-16 현재 112) | MASTER/MANAGER |
 | 발송금지리스트 | `발송금지리스트/*.csv` | partner-service (8095) | `POST /api/v1/partners/admin/blocks/import` | CSV non-empty row 수 자동 계산 (2026-05-16 현재 6) | MASTER |
 
@@ -37,7 +41,7 @@
 - notification-service (8093)
 - partner-service (8095)
 
-### 2-2. import 자동화 스크립트 실행
+### 2-2. DB 이관 자동화 스크립트 실행
 
 ```powershell
 .\tools\operational-validation\import-notion-csv.ps1
@@ -45,9 +49,18 @@
 
 스크립트 동작:
 1. kimmiseon (MASTER) 로그인 → JWT 발급
-2. 4 CSV 파일을 multipart 로 admin endpoint 4 회 호출
+2. 4 CSV 파일을 multipart 로 admin endpoint 4 회 호출하여 각 서비스 DB 로 이관
 3. 각 응답을 표 형식으로 표시 (inserted / updated / rejected / skipped)
 4. 종합 표 + 합격/불합격 판정
+
+성공 후 운영 흐름:
+- 단톡방리스트: `/admin/chat-rooms` 화면과 `notification-service` DB CRUD
+- 발송금지리스트: `/admin/blocked-partners` 화면과 `partner-service` DB CRUD
+- 배차지역 분류표: `/admin/regions` 배차지역 관리 화면과 `arologis-service` DB CRUD
+- 거래처 DC정보: `/sales/partner-dc-config` 화면과 `dc-config-service` DB CRUD
+
+이후 조회·수정·삭제는 Samhan Public DB CRUD 만 사용하며, Notion 은 더 이상
+애플리케이션 런타임 조회처가 아니다.
 
 ### 2-3. 결과 검증
 
@@ -64,11 +77,16 @@ BLOCK   POST /api/v1/partners/admin/blocks/import        CSV기준   CSV기준  
 
 ### 2-4. DB row count 직접 검증 (선택 — psql)
 
+2026-05-16 현재 `거래처 DC정보` CSV는 거래처코드가 있는 row 213건 중 partnerCode 중복 3건이 있어,
+`dc_configs` 활성 row는 unique partner 기준 210건이다. import 응답의 inserted/updated 합계는 처리 row 수,
+DB count는 active partner별 최종 설정 수로 해석한다.
+
 ```powershell
-docker exec samhan-postgres psql -U samhan -d arologis_db        -c "SELECT count(*) FROM regions;"
-docker exec samhan-postgres psql -U samhan -d dc_config_db       -c "SELECT count(*) FROM dc_configs;"
-docker exec samhan-postgres psql -U samhan -d notification_db    -c "SELECT count(*) FROM chat_room_mappings;"
-docker exec samhan-postgres psql -U samhan -d partner_db         -c "SELECT count(*) FROM blocked_partners;"
+docker exec samhan-postgres psql -U samhan -d arologis_db        -c "SELECT count(*) FROM region_dispatch_classifications WHERE is_deleted = false;"
+docker exec samhan-postgres psql -U samhan -d dc_config_db       -c "SELECT count(*) FROM dc_configs WHERE is_deleted = false;"
+docker exec samhan-postgres psql -U samhan -d dc_config_db       -c "SELECT count(DISTINCT p.partner_code) FROM dc_configs d JOIN partners p ON d.partner_id = p.id WHERE d.is_deleted = false AND p.is_deleted = false;"
+docker exec samhan-postgres psql -U samhan -d notification_db    -c "SELECT count(*) FROM partner_chat_room_mappings WHERE is_deleted = false;"
+docker exec samhan-postgres psql -U samhan -d partner_db         -c "SELECT count(*) FROM blocked_partners WHERE is_deleted = false;"
 ```
 
 ---
@@ -138,7 +156,7 @@ Notion CSV 중 단톡방리스트/발송금지리스트는 **사업자명 텍스
 
 ## 7. AWS 진입 (Phase 11) 영향
 
-- 본 항목 = **production 부팅 직후 1 회 import** 의무 (실 데이터 cutover)
+- 본 항목 = **production 부팅 직후 1 회 DB 이관** 의무 (실 데이터 cutover)
 - production EC2 에서도 동일 endpoint 호출 가능 — `start-local-full.ps1` 대신 systemd unit 부팅 후 `import-notion-csv.ps1` 의 PowerShell 명령을 bash + curl 로 변환 (Phase 11 cutover 슬라이스 별도)
 - 주의 — production 에서는 `kimmiseon` 비밀번호 cutover 직후 변경 후 import 작업 진행 (기본 비밀번호 `samhan!2026` 노출 위험)
 

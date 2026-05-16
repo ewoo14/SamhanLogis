@@ -131,7 +131,7 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   test('region menu has a single public entry with dispatch read-only path', () => {
     expect(countOccurrences(appLayout, 'to="/admin/regions"')).toBe(1)
     expect(appLayout).not.toContain('지역 분류')
-    expect(appLayout).toContain('지역 관리')
+    expect(appLayout).toContain('배차지역 관리')
   })
 
   test('stock transfer numbers keep YYYY/MM/DD-N without T/TR prefixes', () => {

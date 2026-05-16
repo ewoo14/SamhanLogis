@@ -1671,6 +1671,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 
 ---
 
+### SP-06. legacy GAS/Notion DB 이관 정합성 (2026-05-16)
+
+**배경**: SP-04에서 `/tools/legacy-gas`와 기존 PR을 대조하며 Notion 단톡방/발송금지/배차지역/DC 데이터의 이식 상태를 확인했지만, 개발책임자는 “Notion import 후 Notion과 통신”이 아니라 “Notion 원본을 우리 DB로 이관하고 이후 모든 통신은 Samhan Public DB CRUD로 전환”하는 것이 원래 방향임을 재확인했다. 따라서 gateway, 운영 스크립트, 사용자-facing CRUD 라벨, 활성 web app의 잔여 Notion endpoint를 같이 정리한다.
+
+| # | 결정 |
+|---|---|
+| SP-06-01 | Notion 4표(단톡방리스트, 발송금지리스트, 배차지역 분류표, 거래처 DC정보)는 cutover seed 원본일 뿐 runtime source가 아니다. 이관 후 source-of-truth는 각 service DB다. |
+| SP-06-02 | 단톡방은 `notification-service.partner_chat_room_mappings`, 발송금지는 `partner-service.blocked_partners`, 배차지역은 `arologis-service.region_dispatch_classifications`, DC는 `dc-config-service.dc_configs`로 소유권을 둔다. |
+| SP-06-03 | desktop CRUD 화면/API는 `/admin/chat-rooms`, `/admin/blocked-partners`, `/admin/regions`, `/sales/partner-dc-config`를 기준으로 운영한다. `/admin/regions` 표시명은 `배차지역 관리`로 둔다. |
+| SP-06-04 | gateway는 full-path controller에 대해 generic StripPrefix route보다 앞선 no-strip route를 둔다. 대상: `/api/v1/notification/admin/chat-rooms/**`, `/api/v1/partners/admin/blocks/**`, `/api/v1/dc-config/admin/**`, `/api/v1/partner-approvals/**`. |
+| SP-06-05 | 거래처 주문 인증 `/api/v1/auth/partner-*`는 `auth-service` generic route가 아니라 `partner-auth-service` no-strip public route로 먼저 라우팅한다. |
+| SP-06-06 | `import-notion-csv.ps1`는 “Notion import”가 아니라 “DB 이관” 스크립트로 정의한다. 로컬 포트 충돌 시 `SAMHAN_API_GATEWAY_PORT` 및 `SAMHAN_*_PORT` override, default+100 health fallback을 따라 gateway 로그인과 service endpoint를 호출한다. |
+| SP-06-07 | `run-smoke-tests.ps1`는 health 단계에서 해석한 실제 service port를 gateway/direct smoke endpoint에 재사용한다. 하드코딩 포트와 실제 부팅 포트가 달라 검증이 실패하면 안 된다. |
+| SP-06-08 | 활성 web/order app에 `https://api.notion.com` 또는 `Notion-Version` runtime endpoint 문자열을 남기지 않는다. legacy 함수명은 호환을 위해 유지하되 DB 로그 RPC로 위임하고, shim은 legacy 4-인자와 migrated 2-인자 호출을 모두 정규화한다. |
+| SP-06-09 | 운영 검증 SQL은 실제 Flyway 테이블명과 soft-delete active 조건 기준으로 작성한다: `region_dispatch_classifications`, `partner_chat_room_mappings`, `blocked_partners`, `dc_configs`. |
+| SP-06-10 | SP-06 PR 캡처는 DB 이관 흐름, gateway no-strip route, CRUD 화면별 소유 DB, smoke 포트 재사용, Notion endpoint 제거, 검증 matrix를 여러 장으로 분리한다. |
+| SP-06-11 | `partner-approvals` no-strip gateway route는 partner-auth-service downstream에서도 `X-User-*` header auth를 수용해야 한다. gateway route 추가만으로 인증 정합성이 끝났다고 보지 않는다. |
+
+---
+
 ## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)
 
 ### D-DB-00. Samhan Public 배차 메뉴 신규 + 아로로지스 service-to-service 발송 (5-team 통합 PR, 9 결정)

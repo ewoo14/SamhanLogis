@@ -8245,42 +8245,17 @@ window.openDetail = function(idx) {
   el('#dlgOrderDetail').showModal();
 };
 
-// 동작 로그 노션 기록
+// 동작 로그 DB 기록 (legacy 함수명은 호환을 위해 유지)
 function logActionToNotion(bizCode, bizName, message) {
-  const NOTION_TOKEN_LOG = 'REDACTED_NOTION_TOKEN_LOG_007';
-  const NOTION_DB_ID_LOG = '2eda1006d65880d696b3da4a8d281ea2';
-  
-  const url = 'https://api.notion.com/v1/pages';
-  const headers = {
-    'Authorization': 'Bearer ' + NOTION_TOKEN_LOG,
-    'Notion-Version': '2022-06-28',
-    'Content-Type': 'application/json'
-  };
-
-  // 데이터 정제
   const safeBizCode = Number(String(bizCode).replace(/[^\d]/g, '')) || 0;
   const safeBizName = String(bizName || '미확인').trim();
   const safeMsg = String(message || '');
-
-  const payload = {
-    parent: { database_id: NOTION_DB_ID_LOG },
-    properties: {
-      '거래처명': { title: [{ text: { content: safeBizName } }] },
-      '거래처코드': { number: safeBizCode },
-      '로그': { rich_text: [{ text: { content: safeMsg } }] }
-    }
-  };
+  const dbLogMessage = `[${safeBizCode} ${safeBizName}] ${safeMsg}`;
 
   try {
-    UrlFetchApp.fetch(url, {
-      method: 'post',
-      headers: headers,
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-    // Logger.log('>> 📝 로그 기록 성공: ' + safeMsg);
+    google.script.run.logFrontEvent(String(safeBizCode), 'legacy-action', dbLogMessage, isMobileNow());
   } catch (e) {
-    Logger.log('>> ❌ 로그 기록 실패: ' + e);
+    console.warn('로그 기록 실패:', e);
   }
 }
 

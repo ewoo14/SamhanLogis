@@ -109,15 +109,23 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http
       .get('/partner-orders/history', { params: { bizCode, ...(dateRange || {}) } })
       .then((r) => r.data),
-  logFrontEvent: ([action, detail]) =>
-    http
-      .post('/partner-orders/log', { action, detail })
+  logFrontEvent: (args) => {
+    const [first, second, third] = args
+    const action = args.length >= 4 ? second : first
+    const detail = args.length >= 4 ? third : second
+
+    return http
+      .post('/partner-orders/log', {
+        action: String(action || 'legacy-action'),
+        detail: String(detail || ''),
+      })
       .then((r) => r.data)
       .catch((err: unknown) => {
         // 로그 실패는 swallow (legacy 동작 — sendLog 도 silent)
         console.warn('[v4 shim] logFrontEvent silent fail', err)
         return null
-      }),
+      })
+  },
 
   // ─── 임시저장 / 스냅샷 (RPC §U/§V 카테고리) ──────────────────────────
   saveOrderSnapshot: ([payload]) =>

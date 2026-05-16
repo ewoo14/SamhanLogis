@@ -11,7 +11,7 @@
 | 전메뉴 IA | 보정 진행 | 판매/구매/재고이동/창고/견적서/주문서의 관리형 메뉴명 정렬, hidden 운영 라우트 공식 메뉴화, backend 권한과 router/sidebar 가드 재정렬 |
 | 업무번호 | 보정 진행 | 전표/배차/재고이동은 기존 표준 유지, 견적번호/주문번호/seed/mock/인쇄 샘플까지 `yyyy/MM/dd-{순번}`으로 정렬 |
 | legacy GAS 27개 기능 | PR 기준 이식 완료 + P0 보강 이력 확인 | PR #115, #117, #118, #119, #120, #163 dev-report 기준. #163 이후 품목별 DPS pivot route도 현재 메뉴/감사 대상에 포함 |
-| Notion 운영 CSV 4종 | 보정 진행 | import endpoint/service는 존재. PR #115 고정 row count를 최신 CSV 기준으로 정렬하고, 현재 Notion 표처럼 거래처코드 없이 사업자명만 있는 CHAT/BLOCK 행도 legacy 방식 그대로 보존하도록 alias 이식 경로를 추가 |
+| Notion 운영 CSV 4종 | 보정 진행 | 노션 원본 데이터를 Samhan Public DB로 이관하고, 이후 화면/API는 우리 DB CRUD만 사용한다. PR #115 고정 row count를 최신 CSV 기준으로 정렬하고, 현재 Notion 표처럼 거래처코드 없이 사업자명만 있는 CHAT/BLOCK 행도 legacy 방식 그대로 보존하도록 alias 이식 경로를 추가 |
 | 종합견적서/주문서 Google Sheets | 보정 완료 | legacy GAS `SRC_SHEET_ID=1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`와 실제 Google Sheet metadata/range를 재검증. `종합견적서` tab은 출력 양식이므로 원본 카탈로그 tab을 직접 읽도록 product/partner-order 매핑 보정 |
 
 ## 2. 기존 PR 확인
@@ -35,7 +35,7 @@
 | 발송금지리스트 | `collection://34da1006-d658-8069-921a-000be16368a3` | `이카운트 사업자명`, `생성 일시` | 6 | `partner-service` `blocked_partners`, `/admin/blocked-partners` |
 | 배차지역 분류표 | `collection://34ea1006-d658-8072-bf59-000ba8a8557f` | `분류 그룹`, `검색어` | 20 | `arologis-service` `region_dispatch_classifications`, `/admin/regions` |
 
-추가로 PR #115 범위였던 `거래처 DC정보` CSV는 현재 non-empty 213 rows이며 `dc-config-service` `/api/v1/dc-config/admin/import`로 이식된다.
+추가로 PR #115 범위였던 `거래처 DC정보` CSV는 현재 non-empty 213 rows이며 `dc-config-service` `/api/v1/dc-config/admin/import`로 DB에 이관된다. 이관 후 `단톡방리스트` / `발송금지리스트` / `배차지역 분류표` / `거래처 DC정보`는 모두 Samhan Public 각 서비스 DB가 source-of-truth 이며, 노션은 런타임 조회처가 아니다.
 
 ## 4. 종합견적서 / 거래처 발송 주문서 Google Sheets 원본 대조
 
@@ -69,7 +69,7 @@ Google Sheets connector 재검증 결과:
 | 현재 단톡방/발송금지 Notion 표가 `이카운트 사업자명`만 보유하고 `거래처코드`를 보유하지 않음 | PR #115의 code-first 계약만 엄격 적용하면 실제 운영 표 112/6 rows 중 일부가 reject되어 legacy GAS 대비 기능 누락 발생 | `LEGACY-NAME-{hash}` alias를 생성해 name-only 행을 유실 없이 저장하고, 내일자 전표/배차안내 조회 시 `partnerName` fallback 으로 단톡방/발송금지를 적용 |
 | DC CSV에는 거래처코드가 있지만 로컬 `dc_config_db.partners` seed가 비어 있음 | DC 213 rows 전체 import가 `partner not found`로 reject될 수 있음 | DC import 시 CSV의 `거래처코드`/`업체명`으로 최소 Partner snapshot을 자동 생성한 뒤 DC config를 upsert |
 | import service Javadoc에 과거 row count가 남아 있음 | 운영자가 현재 export와 문서 불일치로 혼동 가능 | 하드코딩된 row count 문구 제거 |
-| `/admin/regions` 중복 entry와 `지역 분류` legacy 라벨 | 배차담당자 화면에서 같은 기능이 두 메뉴로 보임 | 단일 `지역 관리` entry로 정리, DISPATCH 조회 전용/관리자는 수정 가능 |
+| `/admin/regions` 중복 entry와 `지역 분류` legacy 라벨 | 배차담당자 화면에서 같은 기능이 두 메뉴로 보임 | 단일 `배차지역 관리` entry로 정리, DISPATCH 조회 전용/관리자는 수정 가능 |
 | `DISPATCH` role이 FE/BE 사용처에는 있으나 shared Role enum에 없음 | user-service role 목록/토큰/권한 부여 경로에서 배차담당자 부재 | `Role.DISPATCH("배차담당자")` 추가 및 user/desktop label 보강 |
 | 견적/주문 신규 채번과 seed/mock 샘플이 `EQ-`, `PO-`, `OUT-` prefix 또는 `YYYY/MM/DD - 0001` 형태를 일부 유지 | 전표번호 표준과 화면 샘플이 어긋나 사용자가 업무번호 규칙을 다르게 이해할 수 있음 | 신규 견적/주문 채번, dev seed, desktop mock/print 샘플을 `YYYY/MM/DD-{순번}`으로 정렬 |
 | partner-order vendor OCR catalog lookup 이 `종합견적서!A2:C`를 flat catalog로 가정 | 실제 `종합견적서` tab은 출력 양식이라 모델 lookup이 비거나 잘못될 수 있음 | legacy GAS와 동일하게 원본 category tab을 직접 읽고, 단가인상 tab 우선/base tab fallback으로 보정 |

@@ -139,10 +139,10 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
   })
 
   /**
-   * TC-M1: 배차(arologis) 카테고리에 "지역 관리" 항목 visible
+   * TC-M1: 배차(arologis) 카테고리에 "배차지역 관리" 항목 visible
    * 접근 가능 역할: DISPATCH / MANAGER / MASTER
    */
-  test('TC-M1: 배차(arologis) 카테고리 — "지역 관리" 항목 DISPATCH/MANAGER/MASTER 진입 가능', async ({ page }) => {
+  test('TC-M1: 배차(arologis) 카테고리 — "배차지역 관리" 항목 DISPATCH/MANAGER/MASTER 진입 가능', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -157,9 +157,9 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       })
       await page.waitForTimeout(1000)
 
-      const visible = await isSidebarMenuVisible(page, '배차', '지역 관리')
+      const visible = await isSidebarMenuVisible(page, '배차', '배차지역 관리')
       results[role] = visible
-      console.log(`[TC-M1] role=${role}, "지역 관리" visible: ${visible}`)
+      console.log(`[TC-M1] role=${role}, "배차지역 관리" visible: ${visible}`)
     }
 
     await page.screenshot({
@@ -170,7 +170,7 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     // 최소 1개 이상의 역할에서 visible 이어야 함 (FE agent 미완성 허용 — 0건이면 경고)
     const anyVisible = Object.values(results).some(v => v)
     if (!anyVisible) {
-      console.warn('[TC-M1] "지역 관리" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요. 현재 메뉴 구조:')
+      console.warn('[TC-M1] "배차지역 관리" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요. 현재 메뉴 구조:')
       const allLinks = await page.locator('nav a, sidebar a, .menu-item').allTextContents()
       console.warn('발견된 메뉴 항목:', allLinks.slice(0, 20))
     }
@@ -324,7 +324,7 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
 
     // 기존 마스터 메뉴 4가지 확인 (경로 또는 메뉴 텍스트 기준)
     const legacyMenus = [
-      { label: '지역 관리', path: '/admin/regions', alt: '지역관리' },
+      { label: '배차지역 관리', path: '/admin/regions', alt: '배차지역관리' },
       { label: '사용자 관리', path: '/admin/users', alt: '사용자관리' },
       { label: '거래처 관리', path: '/admin/partners', alt: '거래처관리' },
       { label: '제품 관리', path: '/admin/products', alt: '제품관리' },

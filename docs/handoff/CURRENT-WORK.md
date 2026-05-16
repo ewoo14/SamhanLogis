@@ -1,37 +1,53 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-05 **Samhan Public CRUD 표면 재점검 진행**, Codex)
+> 갱신일: 2026-05-16 (SP-06 **legacy GAS/Notion DB 이관 정합성 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-05 Samhan Public CRUD 표면 재점검
+## 2026-05-16 Codex 최신 핸드오프 — SP-06 legacy GAS/Notion DB 이관 정합성
 
-- 현재 branch: `codex/sp-05-samhan-public-crud-audit`
-- 기준 main: PR #206 `[codex] SP-04 Samhan Public 전메뉴와 legacy GAS/노션 이식 감사` merge commit `0d77e0815ad6a43ca7cf0a2f59bcb909eb043991`.
-- 현재 PR: 생성 예정 — `[codex] SP-05 Samhan Public CRUD 표면 재점검`
-- 사용자 최신 요청:
-  - SP-04 이후 할 일을 순서대로 진행한다.
-  - 우선순위는 SP-05 → SP-06 → SP-07 → SP-08 순서다.
-  - 판매/구매/거래처 등 실제 사용자가 생성/상세/수정/검수 흐름을 찾을 수 있어야 한다.
-- SP-05 진행:
-  - 판매관리 목록에서 `상세` 버튼을 추가하고 `/sales/:id` 상세/수정 화면으로 명시 진입하게 했다.
-  - 구매관리 목록에서 `상세` 버튼을 추가하고 기존 `검수` CTA와 공존하게 했다.
-  - 상세 버튼의 `data-testid`와 aria label은 내부 UUID가 아니라 공개 업무번호(`slipNo`, `YYYY/MM/DD-{순번}`) 기반이다.
-  - `clients/desktop/playwright/sp-05-crud-surface/sp-05-crud-surface.spec.ts`를 RED 후 GREEN으로 통과시켰다.
-  - `frontend-feature-inventory.md`, `missing-features-catalog.md`에 2026-05-16 SP-05 현재 상태 블록을 추가했다. 거래처 기본 UI와 구매관리 검수 CTA는 더 이상 “UI 부재”로 표기하지 않는다.
+- 현재 branch: `codex/sp-06-legacy-gas-functional-parity`
+- 기준 main: PR #207 `[codex] SP-05 Samhan Public CRUD 표면 재점검` merge commit `4c1048129481eb42fbaefab8aea6b7b4e5e379f2`.
+- 현재 PR: 생성 예정 — `[codex] SP-06 legacy GAS/Notion DB 이관 정합성`
+- 사용자 최신 정정:
+  - Notion 데이터를 runtime source로 import해서 쓰는 것이 아니다.
+  - Notion 원본 표는 우리 service-per-DB로 그대로 이관하고, 이후 모든 통신/CRUD는 Samhan Public DB 화면/API로 변경한다.
+  - 삼한 퍼블릭에서는 단톡방/발송금지/배차지역/DC 이관 내역을 CRUD할 수 있어야 한다.
+- SP-06 진행:
+  - `clients/desktop/playwright/sp-06-notion-db-crud/sp-06-notion-db-crud.spec.ts`를 추가해 단톡방/발송금지/배차지역/DC가 각 service DB CRUD와 연결되는지 계약화했다.
+  - api-gateway에 no-strip route를 추가했다: `notification-chat-rooms-v1`, `partner-blocks-v1`, `dc-config-admin-v1`, `partner-auth-public-v1`, `partner-auth-approvals-v1`.
+  - `tools/operational-validation/import-notion-csv.ps1`를 “DB 이관” 스크립트로 정리하고 `SAMHAN_API_GATEWAY_PORT`/`SAMHAN_*_PORT` override 및 default+100 health fallback을 반영했다.
+  - `tools/operational-validation/run-smoke-tests.ps1`가 health 단계에서 탐지한 실제 service port를 gateway/direct endpoint smoke에 재사용하도록 보정했다.
+  - `/admin/regions` 사용자-facing 라벨을 `배차지역 관리`로 정리했다.
+  - `clients/web/order-app/index.html`에 남아 있던 Notion HTTP endpoint 문자열을 제거하고 legacy 함수명은 DB 로그 RPC(`google.script.run.logFrontEvent`)로 위임했다. `samhanApi.ts`는 legacy 4-인자와 migrated 2-인자 로그 호출을 모두 정규화한다.
+  - `partner-auth-service`에 gateway `X-User-*` header auth를 추가해 `partner-approvals` no-strip route가 downstream에서 인증되도록 보정했다.
+  - 운영 검증 SQL의 실제 테이블명과 soft-delete active count 조건을 정정했다.
 - 로컬 검증:
-  - SP-05 QA 캡처 8장 생성 및 non-zero 확인 완료.
+  - RED 확인: smoke port 계약과 배차지역 관리 라벨 계약, order-app Notion HTTP endpoint 계약이 각각 기존 코드에서 실패함을 확인했다.
+  - GREEN 확인: `npx playwright test playwright/sp-06-notion-db-crud/sp-06-notion-db-crud.spec.ts --reporter=line` PASS — 10 tests / skipped 0.
+  - 병행 계약: `npx playwright test playwright/sp-06-notion-db-crud/sp-06-notion-db-crud.spec.ts playwright/full-menu-contract/full-menu-contract.spec.ts --reporter=line` PASS — 21 tests / skipped 0.
   - `clients/desktop` typecheck/lint/build PASS. lint는 기존 warning 2건, error 0.
-  - static Playwright contract PASS: SP-05 + full-menu 14 tests / skipped 0.
-  - Vite mock UI Playwright PASS: sales/purchase query 9 tests / skipped 0.
+  - backend targeted tests PASS: `PartnerBlock*`, `ChatRoom*`, `Region*`, `DcConfig*`, `partner-auth-service:test`, `api-gateway:test`.
+  - Docker/local full stack PASS: `start-local-full.ps1 -SkipDocker` service health UP 15/15.
+  - DB 이관 PASS: REGION 20 / DC 213 processed (unique active 210) / CHAT 112 / BLOCK 6, rejected 0.
+  - Smoke PASS: service health UP 15/15, endpoint smoke OK 7/7.
+  - QA 캡처 9장 생성 및 non-zero 확인 완료.
 - 남은 즉시 작업:
-  - 커밋/push/PR 생성.
-  - PR 본문에 QA 캡처 8장을 commit-SHA raw URL로 인라인 첨부.
-  - CI watch 후 PM 재점검/머지.
+  - 커밋/push/PR 생성 후 CI watch, green이면 PM 재점검 후 merge/브랜치 정리.
 - 다음 후보:
-  - SP-06 legacy GAS 기능 완전 대조
   - SP-07 Google Sheets 견적/주문 E2E
   - SP-08 권한/역할/UUID 비노출 전메뉴 회귀
+  - 품목 마스터 7탭 UI
+
+## 2026-05-16 Codex 핸드오프 — SP-05 Samhan Public CRUD 표면 재점검
+
+- branch: `codex/sp-05-samhan-public-crud-audit`
+- PR #207 merge 완료 — `[codex] SP-05 Samhan Public CRUD 표면 재점검`.
+- 판매관리/구매관리 목록에서 공개 업무번호 기반 `상세` 버튼을 추가하고 `/sales/:id`, `/purchases/:id` 상세 화면으로 명시 진입하게 했다.
+- 구매관리 상세 버튼은 기존 `검수` CTA와 공존한다.
+- 상세 버튼의 `data-testid`와 aria label은 내부 UUID가 아니라 공개 업무번호(`slipNo`, `YYYY/MM/DD-{순번}`) 기반이다.
+- `frontend-feature-inventory.md`, `missing-features-catalog.md`에 2026-05-16 SP-05 현재 상태 블록을 추가했다. 거래처 기본 UI와 구매관리 검수 CTA는 더 이상 “UI 부재”로 표기하지 않는다.
+- 검증: SP-05 QA 캡처 8장, desktop typecheck/lint/build, static Playwright contract, Vite mock UI Playwright 완료.
 
 ## 2026-05-16 Codex 핸드오프 — SP-04 Samhan Public 전메뉴/legacy GAS/노션 이식 감사
 
