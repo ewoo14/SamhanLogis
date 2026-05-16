@@ -13,8 +13,8 @@
 
 - legacy GAS UI/기능은 유지하고 Notion live save/import 문구만 Samhan DB/API 의미로 정리.
 - `estimate-app` 견적 저장 confirm: `노션에 저장` → `Samhan DB에 저장`.
-- `order-app` `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` legacy 인자를 `/partner-orders/drafts?bizNo=&from=&to=` query params로 전달.
-- `partner-order-service` draft list endpoint에 optional `from/to` 날짜 필터 추가. 기존 caller는 파라미터 없이 그대로 동작.
+- `order-app` `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` legacy 시그니처를 유지하되 `safeBizNo`는 client-side 호환 인자로만 소비하고 `/partner-orders/drafts?from=&to=` query params로 날짜만 전달.
+- `partner-order-service` draft list endpoint에 optional `from/to` 날짜 필터 추가. 한쪽 범위만 온 경우 sentinel date 없이 전용 repository method로 분기하며, 기존 caller는 파라미터 없이 그대로 동작.
 - 단톡방/발송금지/배차지역/DC 관리 화면의 사용자 노출 import/source label을 `기존 운영 CSV`, `DB 이관 시드`, `원본 생성`으로 정렬.
 - SP-08 static contract와 QA PNG 11장 생성 스크립트 추가.
 

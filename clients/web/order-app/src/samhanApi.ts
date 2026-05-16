@@ -49,7 +49,7 @@ http.interceptors.request.use((cfg) => {
  * - `getOrderHistory(bizCode, dateRange)` → `GET /api/v1/partner-orders/history?bizCode=...`
  * - `logFrontEvent(action, detail)` → `POST /api/v1/partner-orders/log` (frontend audit)
  * - `saveOrderSnapshot(payload)` → `POST /api/v1/partner-orders/drafts` (M4, 30일 expiry)
- * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?bizNo=&from=&to=`
+ * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?from=&to=`
  * - `sendOrderFromUi(payload)` → `POST /api/v1/partner-orders/{id}/confirm` + slip-service Event (M4)
  * - `saveTutorialState(state)` → `PATCH /api/v1/auth/partner-tutorial`
  *
@@ -60,9 +60,33 @@ http.interceptors.request.use((cfg) => {
  * - `requestTempPassword(bizNo)` → `POST /api/v1/auth/partner-temp-password` (M2)
  * - `register(payload)` → `POST /api/v1/auth/partner-register` (M2)
  * - `saveDraft(payload)` → `POST /api/v1/partner-orders/drafts` (M4) — saveOrderSnapshot 별칭
- * - `getDraftList(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?bizNo=&from=&to=` (M4) — getOrderSnapshotHistory 별칭
+ * - `getDraftList(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?from=&to=` (M4) — getOrderSnapshotHistory 별칭
  */
 type RpcHandler = (args: unknown[]) => Promise<unknown>
+
+function toIsoDateParam(value: unknown): string | undefined {
+  if (value == null || value === '') return undefined
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return undefined
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${value.getFullYear()}-${month}-${day}`
+  }
+
+  const text = String(value).trim()
+  if (!text) return undefined
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`
+
+  const parsed = new Date(text)
+  return Number.isNaN(parsed.getTime()) ? text : toIsoDateParam(parsed)
+}
+
+function draftHistoryParams(args: unknown[]): { from?: string; to?: string } {
+  const [bizNo, from, to] = args
+  void bizNo
+  return { from: toIsoDateParam(from), to: toIsoDateParam(to) }
+}
 
 const RPC_MAP: Record<string, RpcHandler> = {
   // ─── 인증 / 등록 / 잠금 (RPC §S 카테고리) ───────────────────────────────
@@ -132,10 +156,10 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http.post('/partner-orders/drafts', payload).then((r) => r.data),
   saveDraft: ([payload]) =>
     http.post('/partner-orders/drafts', payload).then((r) => r.data),
-  getOrderSnapshotHistory: ([bizNo, from, to]) =>
-    http.get('/partner-orders/drafts', { params: { bizNo, from, to } }).then((r) => r.data),
-  getDraftList: ([bizNo, from, to]) =>
-    http.get('/partner-orders/drafts', { params: { bizNo, from, to } }).then((r) => r.data),
+  getOrderSnapshotHistory: (args) =>
+    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => r.data),
+  getDraftList: (args) =>
+    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => r.data),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
   sendOrderFromUi: ([payload]) => {

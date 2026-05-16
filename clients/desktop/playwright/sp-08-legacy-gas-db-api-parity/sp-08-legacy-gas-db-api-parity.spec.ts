@@ -65,9 +65,11 @@ test.describe('SP-08 legacy GAS DB/API parity guard', () => {
 
   test('order-app snapshot history preserves legacy partner/date arguments through DB API query params', () => {
     expect(orderAppHtml).toContain('.getOrderSnapshotHistory(safeBizNo, sDate, eDate)')
-    expect(orderAppApi).toContain('getOrderSnapshotHistory: ([bizNo, from, to])')
-    expect(orderAppApi).toContain("params: { bizNo, from, to }")
-    expect(orderAppApi).toContain('getDraftList: ([bizNo, from, to])')
+    expect(orderAppApi).toContain('function toIsoDateParam(value: unknown): string | undefined')
+    expect(orderAppApi).toContain('function draftHistoryParams(args: unknown[]): { from?: string; to?: string }')
+    expect(orderAppApi).toContain('void bizNo')
+    expect(orderAppApi).toContain('params: draftHistoryParams(args)')
+    expect(orderAppApi).not.toContain('params: { bizNo, from, to }')
   })
 
   test('partner-order draft backend supports optional legacy date range filter without changing old callers', () => {
@@ -77,6 +79,10 @@ test.describe('SP-08 legacy GAS DB/API parity guard', () => {
     expect(draftController).toContain('draftService.list(partnerCode, from, to, pageable)')
     expect(draftService).toContain('public Page<DraftResponse> list(String partnerCode, LocalDate from, LocalDate to, Pageable pageable)')
     expect(draftRepository).toContain('findAllByPartnerCodeAndCreatedAtBetweenOrderByCreatedAtDesc')
+    expect(draftRepository).toContain('findAllByPartnerCodeAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc')
+    expect(draftRepository).toContain('findAllByPartnerCodeAndCreatedAtLessThanEqualOrderByCreatedAtDesc')
+    expect(draftService).not.toContain('LocalDate.of(1970, 1, 1)')
+    expect(draftService).not.toContain('LocalDate.of(9999, 12, 31)')
   })
 
   test('active runtime code does not keep a Notion HTTP endpoint as data source', () => {

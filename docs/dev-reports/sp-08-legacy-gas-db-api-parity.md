@@ -35,12 +35,13 @@
 ### 주문서 저장내역 기간 필터 복원
 
 - `clients/web/order-app/src/samhanApi.ts`
-  - legacy `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` 인자를 `/partner-orders/drafts?bizNo=&from=&to=` query params로 전달.
-  - `getDraftList` alias도 같은 인자를 허용.
+  - legacy `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` 시그니처를 유지하되 `safeBizNo`는 client-side 호환 인자로만 소비하고 `/partner-orders/drafts?from=&to=` query params로 날짜만 전달.
+  - `getDraftList` alias도 같은 인자를 허용하고, JS `Date` 객체와 문자열 날짜를 모두 `YYYY-MM-DD`로 정규화.
 - `services/partner-order-service`
   - `PartnerOrderDraftController.list`에 optional `from/to` ISO date query param 추가.
   - `PartnerOrderDraftService.list(partnerCode, from, to, pageable)` 추가.
   - `PartnerOrderDraftRepository.findAllByPartnerCodeAndCreatedAtBetweenOrderByCreatedAtDesc` 추가.
+  - 한쪽 범위만 온 경우 sentinel date 없이 전용 repository method로 분기.
   - 기존 no-arg list 경로는 그대로 유지해 old caller 호환을 보존.
 
 ### 정적 계약과 캡처

@@ -25,6 +25,18 @@ public interface PartnerOrderDraftRepository extends JpaRepository<PartnerOrderD
             LocalDateTime to,
             Pageable pageable);
 
+    /** 거래처별 draft 페이지 시작일 필터. */
+    Page<PartnerOrderDraft> findAllByPartnerCodeAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+            String partnerCode,
+            LocalDateTime from,
+            Pageable pageable);
+
+    /** 거래처별 draft 페이지 종료일 필터. */
+    Page<PartnerOrderDraft> findAllByPartnerCodeAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
+            String partnerCode,
+            LocalDateTime to,
+            Pageable pageable);
+
     /** 거래처별 다음 draftSeq 산출용 (MAX+1). */
     @Query("SELECT COALESCE(MAX(d.draftSeq), 0) FROM PartnerOrderDraft d "
             + "WHERE d.partnerCode = :partnerCode")

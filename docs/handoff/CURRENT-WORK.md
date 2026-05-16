@@ -17,8 +17,8 @@
   - 5-role 감사(BE/FE/Designer/DevOps/QA) 결과를 반영해 이번 기반 PR 범위를 확정.
   - `clients/desktop/playwright/sp-08-legacy-gas-db-api-parity/sp-08-legacy-gas-db-api-parity.spec.ts` 추가.
   - `estimate-app` 저장 confirm의 `노션에 저장` 사용자 문구를 `Samhan DB에 저장`으로 수정.
-  - `order-app` `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` 인자를 `/partner-orders/drafts?bizNo=&from=&to=` query params로 전달.
-  - `partner-order-service` draft list endpoint에 optional `from/to` 날짜 필터를 추가하고 기존 caller 호환을 유지.
+  - `order-app` `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` 시그니처를 유지하되 `safeBizNo`는 client-side 호환 인자로만 소비하고 `/partner-orders/drafts?from=&to=` query params로 날짜만 전달.
+  - `partner-order-service` draft list endpoint에 optional `from/to` 날짜 필터를 추가하고, 한쪽 범위는 sentinel date 없이 전용 repository method로 분기하며, 기존 caller 호환을 유지.
   - 단톡방/발송금지/배차지역/DC 관리 화면의 사용자 노출 import/source label을 `기존 운영 CSV`, `DB 이관 시드`, `원본 생성`으로 정렬.
   - `scripts/generate-sp-08-legacy-gas-db-api-parity-screenshots.mjs` 추가, QA PNG 11장 생성.
 - 로컬 검증:

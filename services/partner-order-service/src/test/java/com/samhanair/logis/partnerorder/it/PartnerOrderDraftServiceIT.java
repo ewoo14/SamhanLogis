@@ -97,9 +97,18 @@ class PartnerOrderDraftServiceIT extends AbstractPostgresIT {
         draftService.create(
                 "P004", "user-4",
                 new DraftCreateRequest("오늘 저장", "{\"items\":[]}"));
+        draftService.create(
+                "P005", "user-5",
+                new DraftCreateRequest("다른 거래처 저장", "{\"items\":[]}"));
 
         assertThat(draftService.list(
                 "P004", LocalDate.now(), LocalDate.now(), PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(1L);
+        assertThat(draftService.list(
+                "P004", LocalDate.now(), null, PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(1L);
+        assertThat(draftService.list(
+                "P004", null, LocalDate.now(), PageRequest.of(0, 20)).getTotalElements())
                 .isEqualTo(1L);
         assertThat(draftService.list(
                 "P004", LocalDate.now().plusDays(1), LocalDate.now().plusDays(1), PageRequest.of(0, 20)).getTotalElements())

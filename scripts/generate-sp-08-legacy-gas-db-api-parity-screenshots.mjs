@@ -186,7 +186,7 @@ const screens = [
     headers: ['기능', 'legacy 인자', 'Samhan API', 'SP-08 보정'],
     rows: [
       ['견적 저장', 'custName + snapshot', 'Samhan DB save', '노션 저장 문구 제거'],
-      ['주문 저장내역', 'safeBizNo, sDate, eDate', 'GET /partner-orders/drafts', 'query params 전달'],
+      ['주문 저장내역', 'safeBizNo, sDate, eDate', 'GET /partner-orders/drafts', 'from/to만 query 전달'],
       ['draft backend', '거래처 + 기간', 'createdAt date range', 'optional filter 추가'],
       ['카탈로그', '_단가인상 기본', 'product DB / partner-order lookup', 'SP-07 유지'],
     ],

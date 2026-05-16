@@ -83,11 +83,19 @@ public class PartnerOrderDraftService {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
         }
-        if (from != null || to != null) {
-            LocalDateTime fromDateTime = (from == null ? LocalDate.of(1970, 1, 1) : from).atStartOfDay();
-            LocalDateTime toDateTime = (to == null ? LocalDate.of(9999, 12, 31) : to).atTime(LocalTime.MAX);
+        if (from != null && to != null) {
             return draftRepository.findAllByPartnerCodeAndCreatedAtBetweenOrderByCreatedAtDesc(
-                            partnerCode, fromDateTime, toDateTime, pageable)
+                            partnerCode, from.atStartOfDay(), to.atTime(LocalTime.MAX), pageable)
+                    .map(DraftResponse::from);
+        }
+        if (from != null) {
+            return draftRepository.findAllByPartnerCodeAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+                            partnerCode, from.atStartOfDay(), pageable)
+                    .map(DraftResponse::from);
+        }
+        if (to != null) {
+            return draftRepository.findAllByPartnerCodeAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
+                            partnerCode, to.atTime(LocalTime.MAX), pageable)
                     .map(DraftResponse::from);
         }
         return draftRepository.findAllByPartnerCodeOrderByCreatedAtDesc(partnerCode, pageable)
