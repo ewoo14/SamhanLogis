@@ -79,4 +79,16 @@ public class PriceHistory extends BaseEntity {
             throw new IllegalArgumentException("deliveryPrice 0 이상 필수");
         return new PriceHistory(productId, effectiveDate, releasePrice, deliveryPrice, setMaterialKey);
     }
+
+    /** 시트 재동기화 시 같은 effectiveDate row 의 단가를 갱신한다. */
+    public void changePrices(BigDecimal releasePrice, BigDecimal deliveryPrice) {
+        if (releasePrice == null || releasePrice.signum() < 0) {
+            throw new IllegalArgumentException("releasePrice 0 이상 필수");
+        }
+        if (deliveryPrice == null || deliveryPrice.signum() < 0) {
+            throw new IllegalArgumentException("deliveryPrice 0 이상 필수");
+        }
+        this.releasePrice = releasePrice;
+        this.deliveryPrice = deliveryPrice;
+    }
 }

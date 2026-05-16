@@ -3,17 +3,20 @@ package com.samhanair.logis.product.service;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
+import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,30 +69,40 @@ public class ProductSheetSyncService {
     /** sync 시 default category — V2 시드의 INDOOR_WALL (BaseEntity FK 강제 충족용). */
     private static final String DEFAULT_CATEGORY_CODE = "INDOOR_WALL";
 
+    /** PriceHistory 기준일 — legacy 시드와 동일하게 인상본은 2026-04-01부터 적용한다. */
+    private static final LocalDate PRICE_INCREASE_EFFECTIVE_DATE = LocalDate.of(2026, 4, 1);
+
+    /** PriceHistory 기준일 — 인상 전 단가는 충분히 과거 날짜로 보존한다. */
+    private static final LocalDate BEFORE_INCREASE_EFFECTIVE_DATE = LocalDate.of(2000, 1, 1);
+
     /**
      * 시트 → 도메인 매핑 (PR #38 보존).
      *
      * <p>legacy Google Sheet 는 tab 마다 모델/가격 컬럼 위치가 다르다.
      * 특히 싱글 세트/싱글 구성품은 B열이 평형이고 C열이 모델명이라서
      * 홈멀티 기준 B열 모델명 매핑을 재사용하면 실제 모델코드 대신 평형을 저장한다.
+     *
+     * <p>2026-05-16 개발책임자 정정: 종합견적서 UI/기능은 legacy GAS 1:1 보존.
+     * 따라서 ProductMaster 기본 단가는 {@code *_단가인상} tab 이며, base tab 은
+     * {@code 인상 전 단가} 선택용 PriceHistory 로만 보존한다.
      */
     private static final List<SheetTabMapping> TAB_MAPPINGS = List.of(
-            new SheetTabMapping("홈멀티", ProductCategory.HOME_MULTI,
+            new SheetTabMapping("홈멀티", "홈멀티_단가인상", "홈멀티", ProductCategory.HOME_MULTI,
                     UsageScope.BOTH, EstimateCategory.HOME_MULTI,
                     0, 1, 3, 5),
-            new SheetTabMapping("싱글 세트", ProductCategory.SINGLE_SET,
+            new SheetTabMapping("싱글 세트", "싱글 세트_단가인상", "싱글 세트", ProductCategory.SINGLE_SET,
                     UsageScope.BOTH, EstimateCategory.SINGLE_SET,
                     0, 2, 4, 7),
-            new SheetTabMapping("싱글 구성품", ProductCategory.SINGLE_PART,
+            new SheetTabMapping("싱글 구성품", "싱글 구성품_단가인상", "싱글 구성품", ProductCategory.SINGLE_PART,
                     UsageScope.NONE, null,
                     0, 2, 5, 7),
-            new SheetTabMapping("상업멀티", ProductCategory.COMMERCIAL_MULTI,
+            new SheetTabMapping("상업멀티", "상업멀티_단가인상", "상업멀티", ProductCategory.COMMERCIAL_MULTI,
                     UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI,
                     0, 1, 4, 6),
-            new SheetTabMapping("상업멀티 구성", ProductCategory.COMMERCIAL_PART,
+            new SheetTabMapping("상업멀티 구성", "상업멀티 구성_단가인상", "상업멀티 구성", ProductCategory.COMMERCIAL_PART,
                     UsageScope.NONE, null,
                     0, 1, 3, 5),
-            new SheetTabMapping("구형", ProductCategory.OLD,
+            new SheetTabMapping("구형", "구형", null, ProductCategory.OLD,
                     UsageScope.BOTH, EstimateCategory.LEGACY,
                     0, 1, 3, 5)
     );
@@ -97,16 +110,19 @@ public class ProductSheetSyncService {
     private final GoogleSheetsClient sheetsClient;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final PriceHistoryRepository priceHistoryRepository;
 
     /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
     private final Map<String, String> lastKnownRowHash = new HashMap<>();
 
     public ProductSheetSyncService(GoogleSheetsClient sheetsClient,
                                    ProductRepository productRepository,
-                                   CategoryRepository categoryRepository) {
+                                   CategoryRepository categoryRepository,
+                                   PriceHistoryRepository priceHistoryRepository) {
         this.sheetsClient = sheetsClient;
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.priceHistoryRepository = priceHistoryRepository;
     }
 
     /**
@@ -167,7 +183,7 @@ public class ProductSheetSyncService {
     @Transactional
     public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
         TabSyncResult result = new TabSyncResult();
-        String range = mapping.tabName + "!A1:Z";
+        String range = mapping.currentTabName + "!A1:Z";
         // legacy getDisplayValues() 1:1 — formatted value (천단위 콤마/통화 포함).
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, range);
         if (rows == null || rows.isEmpty()) {
@@ -213,6 +229,7 @@ public class ProductSheetSyncService {
                         mapping.usageScope,
                         mapping.estimateCategory);
                 productRepository.save(p);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 lastKnownRowHash.put(modelCode, rowHash);
                 result.inserted++;
             } else if (prevHash == null || !prevHash.equals(rowHash)) {
@@ -220,12 +237,16 @@ public class ProductSheetSyncService {
                 p.changePrices(releasePrice, deliveryPrice);
                 p.changeUsage(mapping.usageScope, mapping.estimateCategory);
                 productRepository.save(p);
+                upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 lastKnownRowHash.put(modelCode, rowHash);
                 result.updated++;
             } else {
+                upsertPriceHistory(existing.get().getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 result.unchanged++;
             }
         }
+
+        syncBeforeIncreasePriceHistory(mapping, sheetModelCodes);
 
         // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것
         List<Product> dbProducts = productRepository.findByUsageScopeAndIsDeletedFalse(mapping.usageScope);
@@ -246,6 +267,53 @@ public class ProductSheetSyncService {
                 mapping.tabName, result.inserted, result.updated, result.unchanged,
                 result.softDeleted, result.skipped);
         return result;
+    }
+
+    private void syncBeforeIncreasePriceHistory(SheetTabMapping mapping, Set<String> currentModelCodes) throws Exception {
+        if (mapping.beforeIncreaseTabName == null || currentModelCodes.isEmpty()) {
+            return;
+        }
+        String range = mapping.beforeIncreaseTabName + "!A1:Z";
+        List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, range);
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        int headerIdx = findHeaderRow(rows);
+        if (headerIdx < 0) {
+            log.warn("[ProductSheetSync] 인상 전 tab '{}' 헤더 row 탐색 실패 — priceHistory skip",
+                    mapping.beforeIncreaseTabName);
+            return;
+        }
+        for (int i = headerIdx + 1; i < rows.size(); i++) {
+            List<Object> row = rows.get(i);
+            if (row == null || row.isEmpty()) continue;
+            List<String> cells = GoogleSheetsClient.toStringRow(row,
+                    Math.max(16, mapping.requiredColumnCount()));
+            String modelCode = safeGet(cells, mapping.modelCodeColumn).trim();
+            if (modelCode.isBlank() || !currentModelCodes.contains(modelCode)) {
+                continue;
+            }
+            Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
+            if (product.isEmpty()) {
+                continue;
+            }
+            BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
+            BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
+            upsertPriceHistory(product.get().getId(), BEFORE_INCREASE_EFFECTIVE_DATE,
+                    releasePrice, deliveryPrice);
+        }
+    }
+
+    private void upsertPriceHistory(UUID productId, LocalDate effectiveDate,
+                                    BigDecimal releasePrice, BigDecimal deliveryPrice) {
+        PriceHistory row = priceHistoryRepository
+                .findByProductIdAndEffectiveDate(productId, effectiveDate)
+                .orElseGet(() -> PriceHistory.seed(productId, effectiveDate,
+                        releasePrice, deliveryPrice, null));
+        if (row.getId() != null) {
+            row.changePrices(releasePrice, deliveryPrice);
+        }
+        priceHistoryRepository.save(row);
     }
 
     private int findHeaderRow(List<List<Object>> rows) {
@@ -297,6 +365,8 @@ public class ProductSheetSyncService {
 
     /** 시트 tab → 도메인 매핑 record. */
     public record SheetTabMapping(String tabName,
+                                   String currentTabName,
+                                   String beforeIncreaseTabName,
                                    ProductCategory productCategory,
                                    UsageScope usageScope,
                                    EstimateCategory estimateCategory,

@@ -1,14 +1,47 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-06 **legacy GAS/Notion DB 이관 정합성 진행**, Codex)
+> 갱신일: 2026-05-16 (SP-07 **Google Sheets 견적/주문 E2E 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-06 legacy GAS/Notion DB 이관 정합성
+## 2026-05-16 Codex 최신 핸드오프 — SP-07 Google Sheets 견적/주문 E2E
 
-- 현재 branch: `codex/sp-06-legacy-gas-functional-parity`
-- 기준 main: PR #207 `[codex] SP-05 Samhan Public CRUD 표면 재점검` merge commit `4c1048129481eb42fbaefab8aea6b7b4e5e379f2`.
-- 현재 PR: 생성 예정 — `[codex] SP-06 legacy GAS/Notion DB 이관 정합성`
+- 현재 branch: `codex/sp-07-google-sheets-quote-order-e2e`
+- 직전 완료: PR #208 `[codex] SP-06 legacy GAS/Notion DB 이관 정합성` merge commit `e413d82e`.
+- 사용자 최신 정정:
+  - Notion은 runtime source가 아니라 우리 DB로 이관해야 한다.
+  - 모든 Notion 관련 통신/CRUD는 Samhan Public DB/API로 전환한다.
+  - 종합견적서/주문서는 Google Spreadsheet 데이터를 그대로 가져오는지 재검증한다.
+  - 나머지 GAS 코드는 UI와 기능을 그대로 유지하고, Notion 통신만 DB/API로 바꾼다.
+- SP-07 진행:
+  - Google Drive connector로 `종합 견적서` spreadsheet (`1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ`) metadata와 safe ranges를 live 확인했다.
+  - 27개 tab inventory를 문서화하고, `홈멀티_단가인상`, `싱글 세트_단가인상`, `상업멀티 구성_단가인상` 등 source tab과 `종합견적서`/`전표업로드목록` output form, credential-bearing `전표생성폼`을 분리했다.
+  - `partner-order-service` bootstrap `range-map`에서 존재하지 않는 `설정!A1:Z` config read를 제거했다. 거래처 발송 주문서 GAS처럼 base payload + `*_단가인상` helper map을 prefetch하고, config는 V2 seed fallback + DC secret strip만 사용한다.
+  - `product-service`는 `*_단가인상`을 ProductMaster 기본 단가로 저장하고 base tab은 `PriceHistory` 인상 전 단가로 보존한다.
+  - 새 `priceBasis` UI/API 옵션은 만들지 않는다. legacy UI 기능은 그대로 유지한다.
+  - `clients/desktop/playwright/sp-07-google-sheets-source/sp-07-google-sheets-source.spec.ts`를 추가해 range-map, catalog lookup, product DB sync, 문서/secret guard 계약을 검증한다.
+  - `docs/operational-validation/google-sheets-live-source-snapshot.md`, SP-07 spec/plan/dev-report, QA screenshot generator를 추가했다.
+  - Claude Code workflow 1단계로 `docs/planning/2026-05-16_google-sheets-quote-order-e2e.md` 기획 문서를 생성했고, Codex가 최신 구현 계약과 대조해 bootstrap/catalog 역할 구분 문구를 보정했다.
+  - QA 캡처 6장을 생성했고 01/06 원본 이미지를 직접 확인했다.
+- 로컬 검증:
+  - RED 확인: SP-07 static contract 문구 assertion 2건이 실제 문서/주석 표기와 달라 실패함을 확인했다.
+  - GREEN 확인: `npx playwright test playwright/sp-07-google-sheets-source/sp-07-google-sheets-source.spec.ts --reporter=line` PASS — 7 tests / skipped 0.
+  - 병행 계약: `npx playwright test playwright/sp-07-google-sheets-source/sp-07-google-sheets-source.spec.ts playwright/full-menu-contract/full-menu-contract.spec.ts --reporter=line` PASS — 18 tests / skipped 0.
+  - backend targeted tests PASS: `BootstrapServiceTest` / `ProductCatalogLookupClientTest` / `VendorOrderServiceTest` / `VendorOrderControllerIT`, skipped 0.
+  - backend targeted tests PASS: `ProductSheetSyncServiceIT` 9 tests, skipped 0.
+  - `clients/desktop` typecheck/lint/build PASS. lint는 기존 warning 2건, error 0.
+  - `git diff --check` PASS. CRLF 안내 warning만 출력.
+- 남은 즉시 작업:
+  - commit/push/PR 생성 후 CI watch, green이면 PM 재점검 후 merge/브랜치 정리.
+- 다음 후보:
+  - SP-08 권한/역할/UUID 비노출 전메뉴 회귀
+  - 품목 마스터 7탭 UI
+  - Service Account runtime 검증
+
+## 2026-05-16 Codex 핸드오프 — SP-06 legacy GAS/Notion DB 이관 정합성
+
+- branch: `codex/sp-06-legacy-gas-functional-parity`
+- PR #208 merge 완료 — `[codex] SP-06 legacy GAS/Notion DB 이관 정합성`.
 - 사용자 최신 정정:
   - Notion 데이터를 runtime source로 import해서 쓰는 것이 아니다.
   - Notion 원본 표는 우리 service-per-DB로 그대로 이관하고, 이후 모든 통신/CRUD는 Samhan Public DB 화면/API로 변경한다.
@@ -32,8 +65,8 @@
   - DB 이관 PASS: REGION 20 / DC 213 processed (unique active 210) / CHAT 112 / BLOCK 6, rejected 0.
   - Smoke PASS: service health UP 15/15, endpoint smoke OK 7/7.
   - QA 캡처 9장 생성 및 non-zero 확인 완료.
-- 남은 즉시 작업:
-  - 커밋/push/PR 생성 후 CI watch, green이면 PM 재점검 후 merge/브랜치 정리.
+- 완료:
+  - 커밋/push/PR #208 생성, CI green 확인, PM 재점검 후 merge 및 브랜치 정리 완료.
 - 다음 후보:
   - SP-07 Google Sheets 견적/주문 E2E
   - SP-08 권한/역할/UUID 비노출 전메뉴 회귀
@@ -72,7 +105,7 @@
   - DC import 는 로컬 `dc_config_db.partners` seed 가 비어 있어도 CSV `거래처코드`/`업체명`으로 최소 Partner snapshot 을 생성한 뒤 213 rows 를 이식할 수 있게 보정했다.
   - Google Sheets connector로 legacy spreadsheet `종합 견적서` metadata와 핵심 range를 재검증했다. `종합견적서!A1:H20`은 출력 양식이고, 실제 카탈로그 원본은 `홈멀티_단가인상`, `싱글 세트_단가인상`, `상업멀티 구성_단가인상` 등 source tab임을 확인했다.
   - `ProductSheetSyncService`는 tab별 column mapping으로 보정했다. `싱글 세트`/`싱글 구성품`은 C열 모델명, H열 납품가를 사용한다.
-  - `ProductCatalogLookupClient`는 `종합견적서!A2:C` flat range 가정을 제거하고, `*_단가인상` source tab 우선 + 주문서 base tab fallback으로 modelCode 단가를 lookup한다. `INTEGRATED_QUOTE_RANGE`는 별도 flat catalog가 있을 때만 override한다.
+  - `ProductCatalogLookupClient`는 `종합견적서!A2:C` flat range 가정을 제거하고, 기존 vendor OCR UI/API를 바꾸지 않은 상태로 `_단가인상` source tab에서 modelCode 단가를 lookup한다. `INTEGRATED_QUOTE_RANGE`는 별도 flat catalog가 있을 때만 override한다.
   - 전메뉴 IA/권한을 보정했다: `/sales/new`, `/purchases/new`, `/transfers/new`, `/sales/link-dispatch`, admin-origin 시트/발송금지/단톡방/지역 화면 route guard.
   - `DISPATCH` 공통 role 을 추가하고 배차/지역 조회 전용 계약에 연결했다.
   - 견적번호/주문번호/재고이동/전표/배차번호를 공개 업무번호 `YYYY/MM/DD-{순번}` 표준으로 정렬 중이다. 판매전표와 구매전표처럼 메뉴/업무 타입이 다르면 같은 날짜 같은 순번을 가질 수 있다.

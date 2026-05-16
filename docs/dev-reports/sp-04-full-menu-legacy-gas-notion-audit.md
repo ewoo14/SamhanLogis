@@ -59,7 +59,7 @@ Google Sheets connector 재검증 결과:
 보정:
 - `ProductSheetSyncService`는 tab별 모델/가격 컬럼 index를 별도 계약으로 갖는다. 싱글 세트/싱글 구성품은 B열 평형이 아니라 C열 모델명을 사용한다.
 - `ProductCatalogLookupClient`는 기본값에서 `종합견적서!A2:C` flat range 가정을 제거하고, legacy GAS 원본 tab을 직접 읽는다. `INTEGRATED_QUOTE_RANGE`는 운영자가 별도 3열 flat catalog를 만든 경우에만 override로 사용한다.
-- 단가 lookup 우선순위는 종합견적서 `*_단가인상` tab 우선, 거래처 발송 주문서 base tab fallback 이다.
+- SP-07 정정: 단가 lookup/UI는 GAS를 그대로 유지한다. 종합견적서 기본값은 `*_단가인상`, `인상 전 단가`는 base tab PriceHistory를 사용하며, vendor OCR 업로드에는 새 price basis UI를 추가하지 않는다.
 
 ## 5. 발견한 정합성 이슈와 처리
 
@@ -72,7 +72,7 @@ Google Sheets connector 재검증 결과:
 | `/admin/regions` 중복 entry와 `지역 분류` legacy 라벨 | 배차담당자 화면에서 같은 기능이 두 메뉴로 보임 | 단일 `배차지역 관리` entry로 정리, DISPATCH 조회 전용/관리자는 수정 가능 |
 | `DISPATCH` role이 FE/BE 사용처에는 있으나 shared Role enum에 없음 | user-service role 목록/토큰/권한 부여 경로에서 배차담당자 부재 | `Role.DISPATCH("배차담당자")` 추가 및 user/desktop label 보강 |
 | 견적/주문 신규 채번과 seed/mock 샘플이 `EQ-`, `PO-`, `OUT-` prefix 또는 `YYYY/MM/DD - 0001` 형태를 일부 유지 | 전표번호 표준과 화면 샘플이 어긋나 사용자가 업무번호 규칙을 다르게 이해할 수 있음 | 신규 견적/주문 채번, dev seed, desktop mock/print 샘플을 `YYYY/MM/DD-{순번}`으로 정렬 |
-| partner-order vendor OCR catalog lookup 이 `종합견적서!A2:C`를 flat catalog로 가정 | 실제 `종합견적서` tab은 출력 양식이라 모델 lookup이 비거나 잘못될 수 있음 | legacy GAS와 동일하게 원본 category tab을 직접 읽고, 단가인상 tab 우선/base tab fallback으로 보정 |
+| partner-order vendor OCR catalog lookup 이 `종합견적서!A2:C`를 flat catalog로 가정 | 실제 `종합견적서` tab은 출력 양식이라 모델 lookup이 비거나 잘못될 수 있음 | legacy GAS와 동일하게 원본 category tab을 직접 읽고, SP-07에서 vendor OCR은 `_단가인상` tab lookup 유지 / 종합견적서 `인상 전 단가`는 product DB `PriceHistory`로 보정 |
 | product-service Google Sheet sync 가 모든 tab을 홈멀티 컬럼 구조로 해석 | `싱글 세트`의 평형이 modelCode로 저장되고 단가 컬럼이 어긋날 수 있음 | tab별 column mapping 추가 + `ProductSheetSyncServiceIT`에 싱글 세트/상업멀티 구성 실제 시트 shape 회귀 테스트 추가 |
 
 ## 6. 남은 운영 리스크

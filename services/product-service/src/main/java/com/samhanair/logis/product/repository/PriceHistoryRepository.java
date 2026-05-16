@@ -14,6 +14,8 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, UUID
 
     List<PriceHistory> findByProductIdOrderByEffectiveDateDesc(UUID productId);
 
+    Optional<PriceHistory> findByProductIdAndEffectiveDate(UUID productId, LocalDate effectiveDate);
+
     /** 견적일 기준 가장 최근 가격 row (effective_date <= asOf). */
     @Query("SELECT ph FROM PriceHistory ph WHERE ph.productId = :productId "
             + "AND ph.effectiveDate <= :asOf ORDER BY ph.effectiveDate DESC")

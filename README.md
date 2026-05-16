@@ -34,8 +34,9 @@
 - SP-03: Samhan Public 구매관리 검수 CTA + 관리형 메뉴명/표시번호 정리 완료, PR #205 merge. `/purchases` 통합 화면에서 `WAREHOUSE / MANAGER / MASTER`가 `SAVED / CONFIRMED` 구매전표를 같은 행의 **[검수]** 버튼으로 `InboundInspectionDialog`에 연결하고, 판매/구매/재고이동/창고/견적서/주문서 메뉴는 `…관리` 명칭으로 정렬했다. 재고이동 이동번호도 `T-`/`TR-` 없이 `YYYY/MM/DD-{순번}`으로 통일했다.
 - SP-04: Samhan Public 전메뉴/권한/legacy GAS·노션 이식 감사 완료, PR #206 merge. `/tools/legacy-gas` 27개 GAS 카테고리와 PR #115/#117/#118/#119/#120/#163을 대조하고, 단톡방/발송금지/배차지역/DC CSV row count와 종합견적서/주문서 Google Sheet 원본 tab 계약을 재검증했다.
 - SP-05: Samhan Public 실사용 CRUD 표면 재점검 완료, PR #207 merge. 판매관리/구매관리 목록에서 명시 `상세` 버튼으로 `/sales/:id`, `/purchases/:id`에 진입하도록 보정하고, 거래처 기본 UI와 구매 검수 CTA 문서 상태를 최신화했다.
-- SP-06: legacy GAS/Notion DB 이관 정합성 진행. 단톡방/발송금지/배차지역/DC 원본 CSV는 cutover 시 각 service DB로 이관하고, 이후 모든 조회·수정·삭제는 Samhan Public DB CRUD 화면/API만 사용하도록 gateway/스크립트/문서 계약을 고정한다.
-- 다음 후보: SP-07 Google Sheets 견적/주문 E2E, SP-08 권한/역할/UUID 비노출 전메뉴 회귀, 품목 마스터 7탭 UI.
+- SP-06: legacy GAS/Notion DB 이관 정합성 완료, PR #208 merge. 단톡방/발송금지/배차지역/DC 원본 CSV는 cutover 시 각 service DB로 이관하고, 이후 모든 조회·수정·삭제는 Samhan Public DB CRUD 화면/API만 사용하도록 gateway/스크립트/문서 계약을 고정했다.
+- SP-07: Google Sheets 견적/주문 E2E 진행. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환한다. `종합 견적서` live spreadsheet 27개 tab을 재검증하고, `*_단가인상` 기본 단가와 base `인상 전 단가`를 product DB/PriceHistory로 고정하며 output/control form(`종합견적서`, `전표업로드목록`, credential-bearing `전표생성폼`)을 runtime 원본에서 분리한다.
+- 다음 후보: SP-08 권한/역할/UUID 비노출 전메뉴 회귀, 품목 마스터 7탭 UI, Service Account runtime 검증.
 
 ## 시스템 구조 (Mermaid)
 

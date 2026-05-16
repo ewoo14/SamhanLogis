@@ -1651,7 +1651,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-04-08 | PR 캡처는 1장 요약이 아니라 메뉴/권한/노션 row count/legacy GAS 대조/표시번호/검증 matrix 를 여러 장으로 첨부한다. |
 | SP-04-09 | 현재 Notion 단톡방리스트/발송금지리스트는 `거래처코드`가 없고 `이카운트 사업자명`만 있다. legacy GAS 도 사업자명 index 로 동작했으므로, Samhan Public import 는 code-first 를 유지하되 lookup miss row 를 `LEGACY-NAME-{hash}` alias 로 저장해 기능 누락 없이 보존한다. 사용자 화면에는 alias/UUID를 노출하지 않는다. |
 | SP-04-10 | DC CSV는 거래처코드가 있지만 `dc_config_db.partners` seed가 비어 있을 수 있다. import 는 CSV의 `거래처코드`/`업체명`으로 최소 Partner snapshot 을 자동 생성한 뒤 DC config 를 upsert 하며, 이후 정식 partner master 동기화가 들어와도 UUID PK와 partnerCode 로 복구 가능하게 둔다. |
-| SP-04-11 | `종합견적서` tab 자체는 출력 양식이므로 modelCode/단가 원본으로 보지 않는다. 종합견적서는 `*_단가인상` tab, 거래처 발송 주문서는 base tab을 legacy GAS와 동일하게 source-of-truth로 읽는다. `ProductCatalogLookupClient`의 `INTEGRATED_QUOTE_RANGE`는 별도 3열 flat catalog가 있을 때만 override한다. |
+| SP-04-11 | `종합견적서` tab 자체는 출력 양식이므로 modelCode/단가 원본으로 보지 않는다. SP-07에서 정정: GAS UI/기능은 유지하고, 종합견적서는 `*_단가인상` 기본값 + base `인상 전 단가`를 product DB/PriceHistory로 보존한다. `ProductCatalogLookupClient`의 `INTEGRATED_QUOTE_RANGE`는 별도 3열 flat catalog가 있을 때만 override한다. |
 
 ---
 
@@ -1688,6 +1688,23 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-06-09 | 운영 검증 SQL은 실제 Flyway 테이블명과 soft-delete active 조건 기준으로 작성한다: `region_dispatch_classifications`, `partner_chat_room_mappings`, `blocked_partners`, `dc_configs`. |
 | SP-06-10 | SP-06 PR 캡처는 DB 이관 흐름, gateway no-strip route, CRUD 화면별 소유 DB, smoke 포트 재사용, Notion endpoint 제거, 검증 matrix를 여러 장으로 분리한다. |
 | SP-06-11 | `partner-approvals` no-strip gateway route는 partner-auth-service downstream에서도 `X-User-*` header auth를 수용해야 한다. gateway route 추가만으로 인증 정합성이 끝났다고 보지 않는다. |
+
+---
+
+### SP-07. Google Sheets 견적/주문 원본 재검증 + credential form 분리 (2026-05-16)
+
+**배경**: 개발책임자는 종합견적서/주문서가 Google Spreadsheet 데이터를 그대로 가져와야 하며, 외부 원천과의 통신 방향은 Samhan Public DB/API 계약으로 정리되어야 함을 재확인했다. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환한다. Notion은 SP-06에서 DB 이관 원칙을 고정했고, SP-07에서는 Google Sheets의 source tab과 output/control form을 분리해 견적/주문 데이터 흐름을 재검증한다.
+
+| # | 결정 |
+|---|---|
+| SP-07-01 | `종합견적서` tab 자체는 출력 양식이다. 모델/단가 원본은 `홈멀티_단가인상`, `싱글 세트_단가인상`, `싱글 구성품_단가인상`, `상업멀티_단가인상`, `상업멀티 구성_단가인상`, `구형` 등 source tab이다. |
+| SP-07-02 | `전표업로드목록`은 전표 업로드용 output/form이다. bootstrap prefetch나 catalog lookup source로 사용하지 않는다. |
+| SP-07-03 | `전표생성폼`은 credential-bearing 제어 폼이다. API 인증키/계정값은 문서, 테스트 fixture, PR 캡처에 게시하지 않으며 runtime bootstrap range-map에도 포함하지 않는다. |
+| SP-07-04 | `partner-order-service` bootstrap `range-map`은 거래처 발송 주문서 GAS처럼 base payload와 `*_단가인상` helper map을 모두 읽는다. 존재하지 않는 `설정!A1:Z` config read는 제거하고, config는 V2 seed fallback + DC secret strip으로 응답한다. |
+| SP-07-05 | `ProductCatalogLookupClient`는 기존 vendor OCR 업로드 UI/API를 바꾸지 않고 `_단가인상` tab에서 modelCode 단가를 찾는다. `INTEGRATED_QUOTE_RANGE`는 별도 3열 flat catalog를 운영자가 만든 경우에만 지정한다. |
+| SP-07-06 | `ProductSheetSyncService`는 `*_단가인상` tab을 ProductMaster 기본 단가로 동기화하고, 붙지 않은 base tab은 `인상 전 단가`용 `PriceHistory`로 보존한다. Samhan Public 화면/API는 DB 계약을 통해 조회/CRUD하고, 외부 spreadsheet는 검증/동기화 원천으로만 다룬다. |
+| SP-07-07 | live connector snapshot은 tab metadata와 민감값 없는 제품 샘플만 문서화한다. 거래처 tab은 header/row count 중심으로 기록하고 개인 연락처 row는 게시하지 않는다. |
+| SP-07-08 | SP-07 PR 캡처는 live tab inventory, source/output 분리, secure range-map, catalog column contract, product DB sync, verification matrix를 여러 장으로 첨부한다. |
 
 ---
 

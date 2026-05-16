@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.partnerorder.client.GoogleSheetsClient;
@@ -42,23 +44,20 @@ class ProductCatalogLookupClientTest {
     }
 
     @Test
-    void lookup_종합견적서_단가인상탭을_우선하고_base탭은_fallback으로_읽는다() throws Exception {
+    void lookup_주문서경로는_단가인상탭만_읽고_base탭을_사용하지_않는다() throws Exception {
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
                 row("품명", "모델명", "단위", "출고가", "수량", "납품가"),
                 row("홈멀티 최신", "AJ060MXHNBC1", "대", "2,000,000", "", "1,234,000")
-        ));
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(rows(
-                row("품명", "모델명", "단위", "출고가", "수량", "납품가"),
-                row("홈멀티 구단가", "AJ060MXHNBC1", "대", "1,900,000", "", "1,111,000"),
-                row("홈멀티 base only", "AJ999BASE", "대", "1,000,000", "", "700,000")
         ));
 
         Map<String, ProductCatalogLookupClient.CatalogEntry> catalog =
                 client.findByModelCodes(List.of("AJ060MXHNBC1", "AJ999BASE"));
 
         assertThat(catalog.get("AJ060MXHNBC1").productName()).isEqualTo("홈멀티 최신");
+        assertThat(catalog.get("AJ060MXHNBC1").releasePrice()).isEqualByComparingTo(new BigDecimal("2000000"));
         assertThat(catalog.get("AJ060MXHNBC1").unitPrice()).isEqualByComparingTo(new BigDecimal("1234000"));
-        assertThat(catalog.get("AJ999BASE").unitPrice()).isEqualByComparingTo(new BigDecimal("700000"));
+        assertThat(catalog).doesNotContainKey("AJ999BASE");
+        verify(sheetsClient, never()).readSheetDisplay("test-sheet-id", "홈멀티!A1:Z");
     }
 
     @Test
@@ -71,6 +70,7 @@ class ProductCatalogLookupClientTest {
         ProductCatalogLookupClient.CatalogEntry entry = client.findByModelCode("AC060CS6PBH1SY").orElseThrow();
 
         assertThat(entry.productName()).isEqualTo("360 CST UV");
+        assertThat(entry.releasePrice()).isEqualByComparingTo(new BigDecimal("2488200"));
         assertThat(entry.unitPrice()).isEqualByComparingTo(new BigDecimal("1490000"));
     }
 

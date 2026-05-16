@@ -56,7 +56,7 @@ class BootstrapServiceTest {
         setField("sheetPrefetchEnabled", true);
         setField("rangeMap", Map.of(
                 "homemulti", "홈멀티!A1:Z",
-                "config", "설정!A1:Z"));
+                "homeInc", "홈멀티_단가인상!A1:Z"));
     }
 
     private void setField(String name, Object value) throws Exception {
@@ -66,27 +66,36 @@ class BootstrapServiceTest {
     }
 
     @Test
-    void prefetch_시트read_성공시_sheetCache가_seed보다_우선() throws Exception {
-        // given — 시트 read 성공: homemulti row 1건
-        List<List<Object>> sheetRows = List.of(
+    void prefetch_시트read_성공시_GAS와_동일하게_base와_단가인상_source가_seed보다_우선하고_config는_seed_fallback() throws Exception {
+        // given — 시트 read 성공: 주문서 base payload + 단가인상 helper map
+        List<List<Object>> baseRows = List.of(
                 List.of("Hi-Multi 4-Way", "AJ040RXH4BC1", "1,500,000"));
+        List<List<Object>> increaseRows = List.of(
+                List.of("Hi-Multi 4-Way", "AJ040RXH4BC1", "1,611,115"));
         when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티!A1:Z"), eq(ValueRenderMode.FORMATTED)))
-                .thenReturn(sheetRows);
-        // config 시트 read 성공: Map 형태가 아닌 raw rows (DC strip 가드 적용 X — Map 만 strip)
-        when(sheetsClient.readSheet(eq("test-sheet-id"), eq("설정!A1:Z"), eq(ValueRenderMode.FORMATTED)))
-                .thenReturn(List.of(List.of("vatRate", "0.1")));
-        // V2 seed 는 빈 배열만 (시트 결과로 덮여야 함)
+                .thenReturn(baseRows);
+        when(sheetsClient.readSheet(eq("test-sheet-id"), eq("홈멀티_단가인상!A1:Z"), eq(ValueRenderMode.FORMATTED)))
+                .thenReturn(increaseRows);
+        // config 는 credential-bearing sheet 를 읽지 않고 V2 seed fallback 만 사용한다.
         when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
                 makeCacheRow("homemulti", "[]"),
-                makeCacheRow("config", "{\"vatRate\":0.1,\"shouldBeOverridden\":true}")));
+                makeCacheRow("homeInc", "[]"),
+                makeCacheRow("config", "{\"vatRate\":0.1,\"homeDiscount\":0.45,\"deliveryDays\":3}")));
 
         // when — 부팅 prefetch + fetch
         bootstrapService.prefetch();
         BootstrapResponse response = bootstrapService.fetch();
 
-        // then — homemulti 는 시트 row, config 도 시트 List (Map 아님 → strip 미적용)
-        assertThat(response.payloads().get("homemulti")).isEqualTo(sheetRows);
-        assertThat(response.payloads().get("config")).isEqualTo(List.of(List.of("vatRate", "0.1")));
+        // then — 제품 source 는 시트 row, config 는 seed fallback + DC 9키 strip
+        assertThat(response.payloads().get("homemulti")).isEqualTo(baseRows);
+        assertThat(response.payloads().get("homeInc")).isEqualTo(increaseRows);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> configMap = (Map<String, Object>) response.payloads().get("config");
+        assertThat(configMap).containsKey("vatRate").containsKey("deliveryDays");
+        assertThat(configMap).doesNotContainKey("homeDiscount");
+        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("설정!A1:Z"), any(ValueRenderMode.class));
+        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("전표생성폼!A1:Z"), any(ValueRenderMode.class));
+        verify(sheetsClient, never()).readSheet(eq("test-sheet-id"), eq("전표업로드목록!A1:Z"), any(ValueRenderMode.class));
         // 매핑 없는 키는 V2 seed 가 없으므로 빈 객체 (legacy graceful)
         assertThat(response.payloads().get("singleParts")).isEqualTo(List.of());
     }

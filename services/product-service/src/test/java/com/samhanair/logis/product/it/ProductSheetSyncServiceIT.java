@@ -12,9 +12,12 @@ import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.client.GoogleSheetsClient.ValueRenderMode;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.PriceHistory;
+import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +63,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private PriceHistoryRepository priceHistoryRepository;
+
     @BeforeEach
     void resetState() {
         // 메모리 hash 캐시 초기화 — 테스트 간 격리 (Spring 싱글턴 bean 의 in-memory state)
@@ -72,7 +78,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     void sync_첫실행_insert_only() throws Exception {
         // given: 홈멀티 시트 1 row 만 mock 응답 (legacy getDisplayValues 1:1 → readSheetDisplay)
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 4-Way", "AJ040RXH4BC1", "", "1,500,000", "", "1,200,000")
         ));
 
@@ -92,12 +98,44 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void sync_종합견적서는_단가인상탭을_기본값으로_저장하고_base탭을_인상전_priceHistory로_보존한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 최신", "AJ060MXHNBC1", "", "2,000,000", "", "1,611,115")
+        ));
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 기존", "AJ060MXHNBC1", "", "1,800,000", "", "1,519,760")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
+        assertThat(homeTab.inserted).isEqualTo(1);
+        Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AJ060MXHNBC1");
+        assertThat(product).isPresent();
+        assertThat(product.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("2000000"));
+        assertThat(product.get().getDeliveryPrice()).isEqualByComparingTo(new BigDecimal("1611115"));
+
+        List<PriceHistory> histories = priceHistoryRepository.findByProductIdOrderByEffectiveDateDesc(
+                product.get().getId());
+        assertThat(histories).hasSize(2);
+        assertThat(priceHistoryRepository.findApplicableLatest(product.get().getId(), LocalDate.of(2026, 5, 16)))
+                .get()
+                .satisfies(priceHistory -> assertThat(priceHistory.getDeliveryPrice())
+                        .isEqualByComparingTo(new BigDecimal("1611115")));
+        assertThat(priceHistoryRepository.findApplicableLatest(product.get().getId(), LocalDate.of(2026, 3, 31)))
+                .get()
+                .satisfies(priceHistory -> assertThat(priceHistory.getDeliveryPrice())
+                        .isEqualByComparingTo(new BigDecimal("1519760")));
+    }
+
+    @Test
     void sync_재실행_rowHash_동일이면_update_없음() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         List<List<Object>> homeMulti = homeMultiRows(
                 row("Hi-Multi", "MODEL_HASH_TEST", "", "1,000,000", "", "900,000")
         );
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMulti);
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMulti);
 
         // 1차 sync — insert
         syncService.syncAll();
@@ -114,13 +152,13 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Test
     void sync_가격변경시_update_발생() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi", "PRICE_CHANGE_MODEL", "", "1,000,000", "", "900,000")
         ));
         syncService.syncAll();
 
         // 가격 변경 시트 응답으로 swap
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi", "PRICE_CHANGE_MODEL", "", "1,100,000", "", "950,000")
         ));
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
@@ -135,14 +173,14 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Test
     void sync_시트에서_사라진_row_softDelete() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi", "WILL_VANISH", "", "1,000,000", "", "900,000")
         ));
         syncService.syncAll();
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("WILL_VANISH")).isPresent();
 
         // 시트에서 해당 row 제거 — 빈 응답
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows());
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
 
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
@@ -154,7 +192,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Test
     void sync_싱글세트는_구글시트_C열_모델명과_H열_납품가를_그대로_읽는다() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트!A1:Z")).thenReturn(rows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
                 row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
                 row("360 CST UV", "15", "AC060CS6PBH1SY", "SET", "2,488,200", "", "1,490,000", "1,490,000", "-")
         ));
@@ -173,7 +211,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Test
     void sync_상업멀티구성은_구글시트_F열_납품가를_그대로_읽는다() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성!A1:Z")).thenReturn(rows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
                 row("품    명", "모델명", "단위", "출고가", "수량", " 납품가", "소   계", " 비고", " 세트", " 고정DC"),
                 row("DVM S2 프라임 8HP", "AM080AXVHHH1", "대", "8,012,400", "", "4,406,820", "-", "프라임", "", "-")
         ));
@@ -198,14 +236,14 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     @Test
     void sync_시트read는_readSheetDisplay만_호출한다_legacy_getDisplayValues_1to1() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
-        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티!A1:Z")).thenReturn(homeMultiRows(
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi", "RENDER_MODE_GUARD", "", "1,000,000", "", "900,000")
         ));
 
         syncService.syncAll();
 
-        // 6 tab 전체에 대해 readSheetDisplay 가 호출되어야 함 (FORMATTED — legacy getDisplayValues 1:1)
-        verify(sheetsClient, times(6)).readSheetDisplay(eq("test-sheet-id"), anyString());
+        // 6 current tab + 홈멀티 base tab(인상 전 단가 PriceHistory) read.
+        verify(sheetsClient, times(7)).readSheetDisplay(eq("test-sheet-id"), anyString());
     }
 
     /**

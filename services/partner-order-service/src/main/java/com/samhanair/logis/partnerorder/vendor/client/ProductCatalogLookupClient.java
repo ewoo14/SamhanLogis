@@ -32,19 +32,13 @@ public class ProductCatalogLookupClient {
     private final GoogleSheetsClient sheetsClient;
 
     private static final List<CatalogTab> LEGACY_SOURCE_TABS = List.of(
-            // 종합견적서 Code.js 는 단가인상 tab 을 source-of-truth 로 사용한다.
-            new CatalogTab("홈멀티_단가인상!A1:Z", 0, 1, 5),
-            new CatalogTab("싱글 세트_단가인상!A1:Z", 0, 2, 7),
-            new CatalogTab("싱글 구성품_단가인상!A1:Z", 0, 2, 7),
-            new CatalogTab("상업멀티_단가인상!A1:Z", 0, 1, 6),
-            new CatalogTab("상업멀티 구성_단가인상!A1:Z", 0, 1, 5),
-            new CatalogTab("구형!A1:Z", 0, 1, 5),
-            // 거래처 발송 주문서 Code.js 는 base tab 도 직접 참조하므로 fallback 으로 보존한다.
-            new CatalogTab("홈멀티!A1:Z", 0, 1, 5),
-            new CatalogTab("싱글 세트!A1:Z", 0, 2, 7),
-            new CatalogTab("싱글 구성품!A1:Z", 0, 2, 7),
-            new CatalogTab("상업멀티!A1:Z", 0, 1, 6),
-            new CatalogTab("상업멀티 구성!A1:Z", 0, 1, 5)
+            // 주문서/발주 OCR 경로는 개발책임자 정정에 따라 *_단가인상 tab 만 사용한다.
+            new CatalogTab("홈멀티_단가인상!A1:Z", 0, 1, 3, 5),
+            new CatalogTab("싱글 세트_단가인상!A1:Z", 0, 2, 4, 7),
+            new CatalogTab("싱글 구성품_단가인상!A1:Z", 0, 2, 5, 7),
+            new CatalogTab("상업멀티_단가인상!A1:Z", 0, 1, 4, 6),
+            new CatalogTab("상업멀티 구성_단가인상!A1:Z", 0, 1, 3, 5),
+            new CatalogTab("구형!A1:Z", 0, 1, 3, 5)
     );
 
     /** 종합견적서 시트 ID — 운영에서는 INTEGRATED_QUOTE_SHEET_ID 환경변수 override. */
@@ -117,8 +111,10 @@ public class ProductCatalogLookupClient {
                         continue;
                     }
                     String productName = safeGet(cells, tab.nameColumn()).trim();
+                    BigDecimal releasePrice = parsePrice(safeGet(cells, tab.releasePriceColumn()));
                     BigDecimal unitPrice = parsePrice(safeGet(cells, tab.unitPriceColumn()));
-                    map.putIfAbsent(modelCode, new CatalogEntry(modelCode, productName, unitPrice));
+                    map.putIfAbsent(modelCode, new CatalogEntry(modelCode, productName,
+                            releasePrice, unitPrice));
                 }
             } catch (IOException | GeneralSecurityException ex) {
                 log.warn("ProductCatalogLookupClient — sheet read fail-soft: range={}, error={}",
@@ -193,14 +189,33 @@ public class ProductCatalogLookupClient {
      *
      * @param modelCode 모델코드 (lookup key)
      * @param productName 사용자 표시 제품명
-     * @param unitPrice 단가 (VAT 포함 — 종합견적서 표기 기준)
+     * @param releasePrice 선택된 가격 기준의 출고가
+     * @param unitPrice 선택된 가격 기준의 납품가 (VAT 포함 — 종합견적서 표기 기준)
      */
-    public record CatalogEntry(String modelCode, String productName, BigDecimal unitPrice) {
+    public record CatalogEntry(String modelCode,
+                               String productName,
+                               BigDecimal releasePrice,
+                               BigDecimal unitPrice) {
+
+        public CatalogEntry(String modelCode, String productName, BigDecimal unitPrice) {
+            this(modelCode, productName, BigDecimal.ZERO, zero(unitPrice));
+        }
     }
 
-    private record CatalogTab(String range, int nameColumn, int modelCodeColumn, int unitPriceColumn) {
+    private record CatalogTab(String range,
+                              int nameColumn,
+                              int modelCodeColumn,
+                              int releasePriceColumn,
+                              int unitPriceColumn) {
         int requiredColumnCount() {
-            return Math.max(Math.max(nameColumn, modelCodeColumn), unitPriceColumn) + 1;
+            return Math.max(
+                    Math.max(nameColumn, modelCodeColumn),
+                    Math.max(releasePriceColumn, unitPriceColumn)
+            ) + 1;
         }
+    }
+
+    private static BigDecimal zero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }

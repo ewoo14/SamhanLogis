@@ -55,9 +55,12 @@ app:
   bootstrap:
     sheet-id: ${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}
     sheet-prefetch-enabled: ${BOOTSTRAP_SHEET_PREFETCH_ENABLED:true}
-    # cacheKey → A1 range 매핑. legacy 16종 중 시트 source-of-truth 가 명확한 키만 우선 매핑.
+    # cacheKey → A1 range 매핑. 거래처 발송 주문서 GAS 와 동일하게 base payload 와
+    # *_단가인상 helper map 을 둘 다 읽는다. UI/계산 흐름은 그대로 두고 Notion 통신만 DB/API 로 치환한다.
+    # `전표생성폼` 은 API 인증키/계정값이 있는 제어 폼이고, `전표업로드목록`/`종합견적서` 는 출력 양식이다.
+    # config 는 DB seed fallback 만 사용하며, 존재하지 않는 `설정` tab 을 runtime read 하지 않는다.
     # SpEL Map literal — 빈 매핑 시 prefetch skip (V2 seed fallback only).
-    range-map: "{homemulti:'홈멀티!A1:Z',singleSets:'싱글 세트!A1:Z',singleParts:'싱글 구성품!A1:Z',commercialMulti:'상업멀티!A1:Z',commercialParts:'상업멀티 구성!A1:Z',oldProducts:'구형!A1:Z',config:'설정!A1:Z'}"
+    range-map: "{homemulti:'홈멀티!A1:Z',singleSets:'싱글 세트!A1:Z',singleParts:'싱글 구성품!A1:Z',commercialMulti:'상업멀티!A1:Z',commercialParts:'상업멀티 구성!A1:Z',oldProducts:'구형!A1:Z',homeInc:'홈멀티_단가인상!A1:Z',commInc:'상업멀티_단가인상!A1:Z',singleInc:'싱글 세트_단가인상!A1:Z',singlePartsInc:'싱글 구성품_단가인상!A1:Z'}"
 
 # PR-D Part 1 — Google Sheets 연동 (BootstrapService 부팅 prefetch + 5분 TTL 캐시).
 # 시크릿: GOOGLE_SERVICE_ACCOUNT_KEY 환경변수 → JSON path. 본 코드 placeholder 만 보유 (.env 별도)
