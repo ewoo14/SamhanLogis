@@ -1901,5 +1901,6 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-1-03 | 전표정리는 `POST/GET /slips/cleanup/history`, programType `SLIP_CLEANUP`으로 둔다. |
 | SP-08-3-1-04 | 배차문자는 `POST/GET /admin/notifications/dispatch-sms/history`, programType `DISPATCH_SMS`로 두고, preview 저장은 `AUTO_LATEST`/`MANUAL_NAMED`, send audit은 `SEND_AUDIT` append로 구분한다. |
 | SP-08-3-1-05 | 모든 history table은 BaseEntity 7 audit + Soft Delete only + JSONB payload + 사용자 격리 + AUTO_LATEST per user/program active 1건 정책을 따른다. |
-| SP-08-3-1-06 | 화면의 저장내역 row testid는 `dispatch-history-row-{i}` 같은 index 기반을 사용하고, 내부 UUID는 화면 텍스트와 testid에 노출하지 않는다. |
+| SP-08-3-1-06 | 화면의 저장내역 row testid는 `pre-classify-history-row-{i}`, `regional-history-row-{i}`, `unassigned-history-row-{i}`, `reconcile-history-row-{i}`, `slip-cleanup-history-row-{i}`, `dispatch-sms-history-row-{i}`처럼 화면별 prefix + index 기반을 사용하고, 내부 UUID는 화면 텍스트와 testid에 노출하지 않는다. |
 | SP-08-3-1-07 | SP-08-3-1은 기획/정적 계약/QA 캡처/문서 동기화만 수행한다. 실제 Flyway/controller/UI 2-Tab 구현은 SP-08-3-2~4에서 분리 진행한다. |
+| SP-08-3-1-08 | SP-08-3 sub-sub-task PR 시작 시 각 service `src/main/resources/db/migration/V*.sql` glob 을 즉시 재확인하고, 발견된 최신 번호 + 1 로 Flyway migration 을 채번한다. 문서의 예정 번호(V12/V25/V4)는 시작 시점 참고값이며 최종 채번 근거가 아니다. |

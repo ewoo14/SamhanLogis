@@ -23,44 +23,49 @@ type MatrixRow = {
   sourceEndpoint: string
   historyEndpoint: string
   programType: string
+  testidPrefix: string
 }
 
 const matrix: MatrixRow[] = [
   {
     legacyLabel: '가배차분류리스트',
     desktopRoute: '/dispatches/pre-classify',
-    currentRoute: '/arologis/pre-classify',
+    currentRoute: '/dispatches/pre-classify',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/pre-classify',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'PRE_CLASSIFY',
+    testidPrefix: 'pre-classify-history',
   },
   {
     legacyLabel: '지방가배차분류리스트',
     desktopRoute: '/dispatches/pre-classify',
-    currentRoute: '/arologis/pre-classify',
+    currentRoute: '/dispatches/pre-classify',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/regional',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'REGIONAL',
+    testidPrefix: 'regional-history',
   },
   {
     legacyLabel: '미배차리스트',
     desktopRoute: '/dispatches/unassigned',
-    currentRoute: '/arologis/unassigned',
+    currentRoute: '/dispatches/unassigned',
     owner: 'arologis',
     sourceEndpoint: 'GET /admin/arologis/dispatches/unassigned',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'UNASSIGNED',
+    testidPrefix: 'unassigned-history',
   },
   {
     legacyLabel: '운송사-실배차내역 비교',
     desktopRoute: '/dispatches/reconcile',
-    currentRoute: '/arologis/dispatch-reconcile',
+    currentRoute: '/dispatches/reconcile',
     owner: 'arologis',
     sourceEndpoint: 'POST /admin/arologis/dispatch/reconcile',
     historyEndpoint: 'POST/GET /admin/arologis/dispatches/history',
     programType: 'RECONCILE',
+    testidPrefix: 'reconcile-history',
   },
   {
     legacyLabel: '전표정리리스트',
@@ -70,6 +75,7 @@ const matrix: MatrixRow[] = [
     sourceEndpoint: 'GET /slips/cleanup',
     historyEndpoint: 'POST/GET /slips/cleanup/history',
     programType: 'SLIP_CLEANUP',
+    testidPrefix: 'slip-cleanup-history',
   },
   {
     legacyLabel: '배차안내문자',
@@ -79,6 +85,7 @@ const matrix: MatrixRow[] = [
     sourceEndpoint: 'POST /admin/notifications/dispatch-batch/{preview,send}',
     historyEndpoint: 'POST/GET /admin/notifications/dispatch-sms/history',
     programType: 'DISPATCH_SMS',
+    testidPrefix: 'dispatch-sms-history',
   },
 ]
 
@@ -130,6 +137,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       expect(spec).toContain(row.sourceEndpoint)
       expect(spec).toContain(row.historyEndpoint)
       expect(spec).toContain(row.programType)
+      expect(spec).toContain(`${row.testidPrefix}-row-0`)
     }
 
     expect(matrix).toHaveLength(6)
@@ -146,6 +154,14 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'clients/desktop/src/renderer/api/slipCleanupApi.ts',
       'clients/desktop/src/renderer/api/dispatchSmsApi.ts',
       'clients/desktop/src/renderer/routes/index.tsx',
+      'clients/arologis-desktop/src/renderer/api/arologisDispatch.ts',
+      'clients/arologis-desktop/src/renderer/api/arologisManual.ts',
+      'clients/arologis-desktop/src/renderer/api/dispatchReconcile.ts',
+      'clients/arologis-desktop/src/renderer/routes/index.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/DispatchesLayout.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/UnassignedPage.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/DispatchReconcilePage.tsx',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/ArologisAdminController.java',
       'services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/DispatchReconcileController.java',
       'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java',
@@ -183,6 +199,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       ...listFiles('services/slip-service/src/main', file => /\.(java|yml|yaml|properties)$/.test(file)),
       ...listFiles('services/notification-service/src/main', file => /\.(java|yml|yaml|properties)$/.test(file)),
       ...listFiles('clients/desktop/src/renderer', file => /\.(ts|tsx|js|jsx)$/.test(file)),
+      ...listFiles('clients/arologis-desktop/src/renderer', file => /\.(ts|tsx|js|jsx)$/.test(file)),
     ]
 
     const matches = scanFiles(files, [/api\.notion\.com/, /Notion-Version/, /@notionhq/])

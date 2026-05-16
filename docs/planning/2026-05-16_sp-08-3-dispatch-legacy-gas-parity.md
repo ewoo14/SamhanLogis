@@ -36,7 +36,7 @@ legacy GAS 의 배차 관련 6 앱 (`tools/legacy-gas/{가배차분류리스트,
 | payload | Full JSONB response | 동일 |
 | UI | 2-Tab `[실행 | 저장내역]` | 동일 (6 화면 적용) |
 | 보관 | AUTO_LATEST upsert (per user/programType), MANUAL_NAMED append | 동일. SEND_AUDIT 는 append (soft-delete 일반 허용) |
-| testid | `dps-history-row-{i}` 인덱스 기반 | `dispatch-history-row-{i}` 인덱스 기반 |
+| testid | `dps-history-row-{i}` 인덱스 기반 | 화면별 prefix (`pre-classify-history-row-{i}` 등) 인덱스 기반 |
 
 ### 1.4 적용 범위 (SP-08-3-1 본 PR)
 
@@ -179,6 +179,25 @@ CREATE TABLE <도메인>_save_history (
     is_deleted       BOOLEAN      NOT NULL DEFAULT FALSE
 );
 
+-- 도메인별 CHECK constraint 는 sub-sub-task Flyway 에서 실제 table 명으로 고정한다.
+-- arologis_db.dispatch_save_history (SP-08-3-2)
+ALTER TABLE dispatch_save_history ADD CONSTRAINT chk_dispatch_save_history_program_type
+    CHECK (program_type IN ('PRE_CLASSIFY', 'REGIONAL', 'UNASSIGNED', 'RECONCILE'));
+ALTER TABLE dispatch_save_history ADD CONSTRAINT chk_dispatch_save_history_save_mode
+    CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'));
+
+-- slip_db.slip_cleanup_save_history (SP-08-3-3)
+ALTER TABLE slip_cleanup_save_history ADD CONSTRAINT chk_slip_cleanup_save_history_program_type
+    CHECK (program_type IN ('SLIP_CLEANUP'));
+ALTER TABLE slip_cleanup_save_history ADD CONSTRAINT chk_slip_cleanup_save_history_save_mode
+    CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'));
+
+-- notification_db.dispatch_sms_save_history (SP-08-3-4)
+ALTER TABLE dispatch_sms_save_history ADD CONSTRAINT chk_dispatch_sms_save_history_program_type
+    CHECK (program_type IN ('DISPATCH_SMS'));
+ALTER TABLE dispatch_sms_save_history ADD CONSTRAINT chk_dispatch_sms_save_history_save_mode
+    CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED', 'SEND_AUDIT'));
+
 -- 기간 조회 인덱스
 CREATE INDEX ix_<도메인>_history_user_program_created
     ON <도메인>_save_history (created_by, program_type, created_at DESC)
@@ -208,7 +227,8 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 
 - BaseEntity 7 audit 필드 + `@SQLRestriction("is_deleted = false")` + Soft Delete only.
 - DELETE statement 신규 추가 0.
-- 화면 노출 식별자 = `topic` / `createdBy (managerName)` / `createdAt`. UUID 는 path param + `data-testid` 내부값으로만, 화면 라벨 미노출.
+- 화면 노출 식별자 = `topic` / `createdByLabel` / `createdAt`. UUID 는 path param 과 React 상태에서만 사용하고 화면 라벨 / `data-testid` 에 미노출.
+- createdBy 표시 정책은 **옵션 C** 를 채택한다. FE 는 `created_by` 또는 `X-User-Id` 계열 값이 UUID 형식이면 `"사용자"` 라벨로 mask 하고, UUID가 아닌 운영자명/로그인명만 그대로 표시한다. 별도 `created_by_name` snapshot column 과 user-service per-request lookup 은 이번 SP-08-3 하위 PR 범위에 넣지 않는다.
 
 ---
 
@@ -237,11 +257,16 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 ### 6.2 공통 컴포넌트 재사용
 
 - SP-08-2 의 `DpsHistoryTab.tsx` / `DpsRestoredBanner.tsx` / `DpsSaveDialog.tsx` 를 일반화 → `HistoryTab.tsx` / `RestoredBanner.tsx` / `SaveDialog.tsx` 로 추상화. 신규 6 화면 + 기존 DPS 2 화면 모두 동일 컴포넌트 사용. SP-08-3-2 진입 시 리팩토링.
+- `HistoryTab.tsx` 분리 지점:
+  - `list/detail adapter` interface: 도메인별 API client (`dps`, `arologis`, `slip`, `notification`) 주입.
+  - `columns: ColumnDef[]`: 도메인별 컬럼 정의 주입. `mismatchCount` 같은 DPS 특화 컬럼은 공통 컴포넌트에 하드코딩하지 않는다.
+  - `renderSummary` / `rowCountLabel`: 도메인별 요약 렌더링과 행 수 라벨 함수를 주입한다.
 - 리팩토링 전 `DpsHistoryTab.tsx` props 인터페이스 snapshot 을 dev-report 에 기록 → 회귀 기준으로 사용.
 
 ### 6.3 design-system 의무
 
-- `Button` / `DataGrid` / `TabBar` / **`Input` / `Select`** 모두 `@samhan/design-system` import (SP-08-2 P2 결함 회고 — HTML 네이티브 사용 금지).
+- 실제 `@samhan/design-system` export 기준 `Button` / `DataGrid` / `Tabs` / **`Input`** 을 import 한다. `TabBar` 명칭은 사용하지 않는다.
+- 현재 design-system 은 `Select` 를 export 하지 않는다. SP-08-3-2 진입 전 `Select` 컴포넌트를 design-system 에 선행 추가하거나, TM 승인 하에 기존 design-system 패턴으로 대체 컨트롤을 명시해야 한다. HTML 네이티브 `<select>` 직접 사용 금지.
 - Pretendard 9 weight + 색상 token (CSS var) (SP-08-2 P2 결함 회고 — hex literal 금지).
 - sub-sub-task 완료 전 `grep -r '<input\|<select' src/renderer/pages/<target>` PASS 의무.
 
@@ -249,21 +274,26 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 
 | 요소 | testid |
 |---|---|
-| 실행 탭 | `<domain>-history-tab-run` (e.g. `dispatch-history-tab-run`) |
-| 저장내역 탭 | `<domain>-history-tab-list` |
-| 자동 복원 배너 | `<domain>-history-restored-banner` |
-| 저장 버튼 | `<domain>-history-save-button` |
-| Topic input | `<domain>-history-topic-input` |
-| 저장내역 행 i | `<domain>-history-row-{i}` (UUID 미사용) |
+| 실행 탭 | `<screen-prefix>-tab-run` |
+| 저장내역 탭 | `<screen-prefix>-tab-list` |
+| 자동 복원 배너 | `<screen-prefix>-restored-banner` |
+| 저장 버튼 | `<screen-prefix>-save-button` |
+| Topic input | `<screen-prefix>-topic-input` |
+| 저장내역 행 i | `<screen-prefix>-row-{i}` (UUID 미사용) |
 | send audit 행 (notification 만) | `dispatch-sms-history-row-{i}-send-audit` |
 
-도메인 prefix 매핑:
+화면 prefix 매핑:
 
-| 도메인 | prefix |
+| 화면 | programType | prefix |
 |---|---|
-| arologis | `dispatch` |
-| slip | `slip-cleanup` |
-| notification | `dispatch-sms` |
+| arologis 가배차 | `PRE_CLASSIFY` | `pre-classify-history` |
+| arologis 지방가배차 | `REGIONAL` | `regional-history` |
+| arologis 미배차 | `UNASSIGNED` | `unassigned-history` |
+| arologis 운송사 비교 | `RECONCILE` | `reconcile-history` |
+| slip 전표정리 | `SLIP_CLEANUP` | `slip-cleanup-history` |
+| notification 배차문자 | `DISPATCH_SMS` | `dispatch-sms-history` |
+
+Playwright assertion 은 위 prefix 를 직접 기대값으로 고정한다. 예: `pre-classify-history-row-0`, `regional-history-row-0`, `unassigned-history-row-0`, `reconcile-history-row-0`, `slip-cleanup-history-row-0`, `dispatch-sms-history-row-0`.
 
 ---
 
@@ -286,14 +316,18 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 
 ### 7.1 예외 → IT 시나리오 매핑
 
-| 예외 | 필수 IT |
-|---|---|
-| #1 payload 100KB 초과 | `historyPayloadTooLargeReturns422` |
-| #2 AUTO_LATEST race | `autoLatestRaceKeepsSingleActiveRow` |
-| #4 topic 미입력 | `manualNamedBlankTopicReturns400` |
-| #5 soft-deleted 복원 | `restoreDeletedHistoryReturns404` |
-| #6 타인 history 접근 | `otherUserHistoryReturns403` |
-| #10 send audit 저장 실패 | `sendAuditFailureReturnsExplicitMessage` |
+SP-08-3-2~4 IT catalog 는 아래 형식으로 통일한다.
+
+| 케이스명 | 전제 | API 기대값 | 검증 SQL |
+|---|---|---|---|
+| `historyPayloadTooLargeReturns422` | UTF-8 JSON payload 100KB 초과 | 422 + `<DOMAIN>_HISTORY_PAYLOAD_TOO_LARGE` | insert row 0건 |
+| `autoLatestRaceKeepsSingleActiveRow` | 같은 사용자/프로그램에서 AUTO_LATEST 동시 저장 | 최종 200 또는 retry 후 200 | `save_mode='AUTO_LATEST' AND is_deleted=false` active count = 1 |
+| `manualNamedBlankTopicReturns400` | MANUAL_NAMED topic blank | 400 | insert row 0건 |
+| `restoreDeletedHistoryReturns404` | 대상 row soft delete | 404 | `is_deleted=true` row 는 조회 결과 제외 |
+| `otherUserHistoryReturns403` | created_by 가 다른 row detail 접근 | 403 | `created_by <> requester` row 미노출 |
+| `sameDayFromToIncludesRows` | `from=YYYY-MM-DD&to=YYYY-MM-DD` 동일일 | 200 + 당일 row 포함 | `created_at >= date AND created_at < date + interval '1 day'` 범위 count 일치 |
+| `nullFromToReturnsAllActiveRows` | `from`/`to` 모두 null | 200 + active 전체 기간 row | `is_deleted=false` active count 일치 |
+| `sendAuditFailureReturnsExplicitMessage` | notification SEND_AUDIT 저장 실패 | 발송 결과와 별개로 명시적 audit 실패 message | SEND_AUDIT row 0건 + 운영 로그 |
 
 ---
 
@@ -315,7 +349,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 - [ ] repository / service (AUTO upsert + retry, 사용자 격리 `findByIdAndCreatedBy` — SP-08-2 BE-P1-1 회고) / controller (4 endpoint, `@PreAuthorize` arologis role)
 - [ ] DTO 4 record + 한국어 Javadoc + `@Operation`
 - [ ] Unit + IT (Testcontainers + arologis 외부 client 전체 `@MockBean` — `SlipServiceClient` 단건만 보지 말고 `rg "Client" services/arologis-service/src/main/java` 결과 전체 grep)
-- [ ] IT 최소 4건: AUTO_LATEST race 1건 / MANUAL_NAMED append 1건 / latest empty 404 1건 / 타인 history 403 1건
+- [ ] IT 최소 6건: AUTO_LATEST race 1건 / MANUAL_NAMED append 1건 / latest empty 404 1건 / 타인 history 403 1건 / 동일일 `from=to` 1건 / `from=to=null` 전체 기간 1건. catalog 는 §7.1 형식(케이스명 / 전제 / API 기대값 / 검증 SQL) 준수.
 - [ ] FE: `dispatchSaveHistoryApi.ts` + `HistoryTab.tsx` (DpsHistoryTab 일반화) / `RestoredBanner.tsx` / `SaveDialog.tsx`
 - [ ] 4 page modified (`/dispatches/pre-classify` + 토글 / `/dispatches/unassigned` / `/dispatches/reconcile`) — 2-Tab + 자동 복원 + 명시 저장
 - [ ] Playwright `sp-08-3-2-dispatch-history` (4 정적 계약 + 2 mock UI)
@@ -327,6 +361,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 - [ ] `slip_db.slip_cleanup_save_history` Flyway V25
 - [ ] entity `SlipCleanupSaveHistory` + enum (SLIP_CLEANUP) + saveMode (AUTO/MANUAL)
 - [ ] repository / service / controller / DTO (arologis 와 동일 골격)
+- [ ] IT catalog 는 §7.1 형식(케이스명 / 전제 / API 기대값 / 검증 SQL)으로 작성하고 동일일 `from=to`, `from=to=null` 경계를 포함한다.
 - [ ] FE: `slipCleanupSaveHistoryApi.ts` + 공통 컴포넌트 재사용
 - [ ] `/sales/slip-cleanup` 2-Tab + UX
 - [ ] Playwright `sp-08-3-3-slip-cleanup-history` + QA PNG ≥5장
@@ -337,6 +372,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 - [ ] `notification_db.dispatch_sms_save_history` Flyway V4
 - [ ] entity `DispatchSmsSaveHistory` + enum (DISPATCH_SMS) + saveMode (AUTO/MANUAL/**SEND_AUDIT**)
 - [ ] repository / service (SEND_AUDIT append-only, preview/send 분기) / controller
+- [ ] IT catalog 는 §7.1 형식(케이스명 / 전제 / API 기대값 / 검증 SQL)으로 작성하고 동일일 `from=to`, `from=to=null`, SEND_AUDIT 실패 경계를 포함한다.
 - [ ] FE: `dispatchSmsSaveHistoryApi.ts` + `/dispatch/sms` 2-Tab
   - preview 결과 자동 AUTO_LATEST + 명시 MANUAL_NAMED
   - send 후 자동 SEND_AUDIT append (사용자 noop, silent)
@@ -359,8 +395,8 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 | 4 | SEND_AUDIT 추가로 mode filter 가 3 값 분기 → 기존 filter UI 복잡화 | UI 가독성 저하 | mode select option 3개 vs default 'MANUAL_NAMED' 유지, send audit 는 별도 옵션 |
 | 5 | payload 100KB 초과 (배차 결과는 DPS 보다 클 수 있음 — 수백~수천 전표) | 422 빈번 | sub-sub-task 진입 시 실제 운영 데이터 측정, 200KB 또는 300KB 로 상향 검토 |
 | 6 | Notion runtime 호출 재유입 | SP-08-1 회귀 | SP-08-1 grep 가드가 자동 잠금, SP-08-3-1 정적 계약에도 명시 추가 |
-| 7 | UUID 신규 화면 노출 (SP-08-2 P2-4 회고) | feedback_uuid_no_user_visibility 위반 | data-testid `<domain>-history-row-{i}` 인덱스 기반, createdBy UUID mask helper |
-| 8 | design-system 미사용 (SP-08-2 FE-Blocker-2 회고) | 컨벤션 위반 | sub-sub-task `Input`/`Select` 모두 design-system import 의무 |
+| 7 | UUID 신규 화면 노출 (SP-08-2 P2-4 회고) | feedback_uuid_no_user_visibility 위반 | data-testid 화면별 prefix 인덱스 기반, createdBy UUID mask helper |
+| 8 | design-system 미사용 (SP-08-2 FE-Blocker-2 회고) | 컨벤션 위반 | sub-sub-task `Button`/`DataGrid`/`Tabs`/`Input` design-system import 의무 + `Select` 선행 추가 |
 | 9 | 색상 토큰 hex literal (SP-08-2 Designer-Blocker-1 회고) | 토큰 단일 진실 위반 | sub-sub-task CSS var(--color-*) 사용 의무 |
 | 10 | Aligo dryRun=true 그대로 — 실 발송 불가 | SEND_AUDIT 의 실 운영 가치 약함 | SP-08-3-4 는 mock 으로 SEND_AUDIT 동작 검증만, 실 API 활성화는 SP-08-6 별도 |
 
@@ -371,7 +407,7 @@ CREATE UNIQUE INDEX ux_<도메인>_history_auto_latest_per_user_program
 ### 10.1 Playwright 정적 계약
 
 - [ ] `npx playwright test playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts --reporter=line` PASS (skipped 0)
-- [ ] `npx playwright test playwright/sp-08-3-dispatch-parity playwright/sp-08-2-dps-history playwright/sp-08-legacy-gas-db-api-parity playwright/full-menu-contract --reporter=line` PASS (회귀)
+- [ ] `npx playwright test playwright/sp-08-3-dispatch-parity playwright/sp-08-2-dps-history playwright/dps-by-product playwright/sp-08-legacy-gas-db-api-parity playwright/full-menu-contract --reporter=line` PASS (회귀)
 
 ### 10.2 자격 / Notion runtime / UUID 비노출 zero
 
