@@ -76,13 +76,13 @@ export function DashboardPage() {
             새 출고전표
           </Button>
           <Button variant="secondary" onClick={() => navigate('/sales')}>
-            판매조회
+            판매관리
           </Button>
           <Button variant="secondary" onClick={() => navigate('/purchases')}>
-            구매조회
+            구매관리
           </Button>
           <Button variant="secondary" onClick={() => navigate('/transfers')}>
-            재고이동
+            재고이동 관리
           </Button>
           <Button variant="ghost" onClick={() => navigate('/warehouses')}>
             창고 관리

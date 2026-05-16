@@ -112,7 +112,7 @@ export function buildAligoCsvFilename(date?: string): string {
 // 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
 // ---------------------------------------------------------------------------
 
-/** 알리고 주소록 sync 화면 진입 — MASTER (AdminLayout 가드와 일치, BE 는 MANAGER 도 허용). */
+/** 알리고 주소록 sync 화면 진입 — MASTER / MANAGER (BE @PreAuthorize 와 일치). */
 export function canAccessAligoAddressBook(
   role: string | undefined | null,
 ): boolean {

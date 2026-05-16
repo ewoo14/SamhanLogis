@@ -1,7 +1,7 @@
 /**
  * RoleGuard — 라우트 단위 role 화이트리스트 가드.
  *
- * accounting-slice-A 신규. 회계 라우트는 ACCOUNTANT/MASTER 만 진입을 허용하며,
+ * accounting-slice-A 신규. 회계 라우트는 ACCOUNTANT/MANAGER/MASTER 가 진입하며,
  * 그 외 role 의 사용자는 안내 메시지를 보고 대시보드로 돌아갈 수 있다.
  *
  * `feedback_role_naming_full.md` — role 표기는 풀네임 (M/M/D 약어 금지). 본

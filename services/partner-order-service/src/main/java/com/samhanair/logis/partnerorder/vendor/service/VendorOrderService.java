@@ -17,7 +17,7 @@ import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmRespons
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderUploadResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +44,8 @@ public class VendorOrderService {
     private static final Logger log = LoggerFactory.getLogger(VendorOrderService.class);
     private static final DateTimeFormatter ORDER_NO_DATE = DateTimeFormatter.ofPattern("yyyy/MM/dd");
     private static final int OCR_TEXT_MAX_PREVIEW = 2000;
+    private static LocalDate inMemoryOrderDate = LocalDate.MIN;
+    private static int inMemoryOrderSeq = 0;
 
     /** ObjectProvider — OcrEngine bean 미등록 시에도 service 자체는 부팅 가능. */
     private final ObjectProvider<OcrEngine> ocrEngineProvider;
@@ -240,7 +242,14 @@ public class VendorOrderService {
     }
 
     private String nextOrderNo() {
-        return LocalDateTime.now().format(ORDER_NO_DATE)
-                + " - V" + String.format("%04d", System.currentTimeMillis() % 10000);
+        LocalDate today = LocalDate.now();
+        synchronized (VendorOrderService.class) {
+            if (!today.equals(inMemoryOrderDate)) {
+                inMemoryOrderDate = today;
+                inMemoryOrderSeq = 0;
+            }
+            inMemoryOrderSeq += 1;
+            return today.format(ORDER_NO_DATE) + "-" + inMemoryOrderSeq;
+        }
     }
 }

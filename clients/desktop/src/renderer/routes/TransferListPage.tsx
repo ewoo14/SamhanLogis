@@ -113,21 +113,27 @@ export function TransferListPage() {
             Excel 다운로드
           </ExcelDownloadButton>
           {canCreateTransfer(role) ? (
-            <Button variant="primary" onClick={() => navigate('/transfers/new')}>
+            <Button
+              variant="primary"
+              onClick={() => navigate('/transfers/new')}
+              data-testid="transfer-list-add-button"
+            >
               새 이동전표
             </Button>
           ) : null}
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={query.data?.content ?? []}
-        loading={query.isLoading}
-        rowKey={(t) => t.id}
-        onRowClick={(t) => navigate(`/transfers/${t.id}`)}
-        emptyMessage="등록된 이동전표가 없습니다."
-      />
+      <div data-testid="transfer-list-table">
+        <DataTable
+          columns={columns}
+          rows={query.data?.content ?? []}
+          loading={query.isLoading}
+          rowKey={(t) => t.id}
+          onRowClick={(t) => navigate(`/transfers/${t.id}`)}
+          emptyMessage="등록된 이동전표가 없습니다."
+        />
+      </div>
 
       {query.isError ? (
         <div className="error-banner" role="alert" style={{ marginTop: 16 }}>

@@ -33,9 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * DC 거래처 할인 정보 CSV import 서비스 (PR-D Part 2-2).
  *
- * <p>Samhan Public Notion 에서 다운받은 "거래처 DC정보" CSV (221 거래처)를 native 보존하기 위해
- * dc_configs 테이블에 upsert 하는 일괄 처리. partner_code 가 CSV 에 직접 포함되어 있어 별도
- * lookup 불필요 — dc-config-service 자체 partners 테이블을 직접 매칭한다.
+ * <p>Samhan Public Notion 에서 다운받은 "거래처 DC정보" CSV 를 native 보존하기 위해
+ * dc_configs 테이블에 upsert 하는 일괄 처리. partner_code 가 CSV 에 직접 포함되어 있어
+ * dc-config-service 자체 partners 테이블을 우선 매칭하고, 로컬/신규 환경에 마스터가 없으면
+ * CSV 의 거래처코드+업체명으로 최소 거래처 row 를 자동 생성한다.
  *
  * <h3>CSV 컬럼 ↔ DB 매핑</h3>
  * <pre>
@@ -56,7 +57,6 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h3>거부 정책</h3>
  * <ul>
- *   <li>partner_code 미존재 → reject (자동 partner 생성 X)</li>
  *   <li>partner_code 부재 (CSV 빈 셀) → reject</li>
  *   <li>업체명 부재 → reject</li>
  *   <li>형식 변환 실패 (예: "abc%") → reject</li>
@@ -134,6 +134,10 @@ public class DcConfigImportService {
                 String partnerCode = normalize(get(row, col, COL_PARTNER_CODE));
                 String businessName = normalize(get(row, col, COL_BUSINESS_NAME));
 
+                if (partnerCode == null && businessName == null) {
+                    skipped++;
+                    continue;
+                }
                 if (partnerCode == null) {
                     rejected.add(new DcConfigImportResult.RejectedRow(
                             rowNo, partnerCode, businessName, "거래처코드 부재"));
@@ -145,14 +149,11 @@ public class DcConfigImportService {
                     continue;
                 }
 
-                Optional<Partner> partnerOpt = partnerRepository.findByPartnerCode(partnerCode);
-                if (partnerOpt.isEmpty()) {
-                    rejected.add(new DcConfigImportResult.RejectedRow(
-                            rowNo, partnerCode, businessName, "거래처코드 미존재 (자동 생성 X)"));
-                    continue;
-                }
-
                 try {
+                    Partner partner = partnerRepository.findByPartnerCode(partnerCode)
+                            .orElseGet(() -> partnerRepository.save(Partner.create(
+                                    partnerCode, partnerCode, businessName,
+                                    null, null, null, null, null, "NOTION_DC_IMPORT")));
                     BigDecimal homeRate = parsePercent(get(row, col, COL_HOME_DC));
                     BigDecimal commRate = parsePercent(get(row, col, COL_COMMERCIAL_DC));
                     boolean iHose = parseYesNo(get(row, col, COL_I_HOSE));
@@ -165,7 +166,6 @@ public class DcConfigImportService {
                     boolean unitProc = parseYesNo(get(row, col, COL_UNIT_PROC));
                     String note = normalize(get(row, col, COL_NOTE));
 
-                    Partner partner = partnerOpt.get();
                     Optional<DcConfig> existing = dcConfigRepository.findByPartner_Id(partner.getId());
                     DcConfig cfg = existing.orElseGet(() ->
                             DcConfig.create(partner, DcConfigSource.LEGACY_CSV));

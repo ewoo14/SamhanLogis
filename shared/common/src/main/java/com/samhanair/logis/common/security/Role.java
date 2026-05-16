@@ -3,13 +3,14 @@ package com.samhanair.logis.common.security;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 7-tier role taxonomy per plan §3.4 with Korean display names for UI rendering. */
+/** 8-role taxonomy with Korean display names for UI rendering. */
 @Getter
 @RequiredArgsConstructor
 public enum Role {
     MASTER("마스터"),
     DEVELOPER("개발자"),
     MANAGER("매니저"),
+    DISPATCH("배차담당자"),
     SALES("영업원"),
     ACCOUNTANT("회계원"),
     WAREHOUSE("창고원"),

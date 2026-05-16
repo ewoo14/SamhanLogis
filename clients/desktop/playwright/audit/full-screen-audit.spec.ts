@@ -16,8 +16,8 @@
  *
  * 스크린샷 저장 위치: docs/qa/full-audit/{role}_{slug}.png
  *
- * 참고: Playwright 는 package.json devDependencies 에 없음.
- * `npm i -D @playwright/test playwright` 후 `npx playwright install chromium` 필요.
+ * 참고: Playwright 는 package.json devDependencies 에 포함됨.
+ * 브라우저가 없는 환경에서는 `npx playwright install chromium` 필요.
  */
 import { test, expect, type Page } from '@playwright/test'
 import * as path from 'path'
@@ -68,11 +68,12 @@ const ROUTES: RouteCase[] = [
   { path: '/warehouses' },
   { path: '/password/change' },
 
-  // 판매조회 (출고전표)
+  // 판매관리 (출고전표)
   { path: '/sales' },
   { path: '/sales/new' },
   { path: '/sales/link-dispatch' },
   { path: '/sales/slip-cleanup' },
+  { path: '/sales/closing' },
   { path: '/sales/next-day-slip' },
   { path: '/sales/estimates' },
   { path: '/sales/estimates/new' },
@@ -89,7 +90,7 @@ const ROUTES: RouteCase[] = [
   { path: '/sales/slip-001/print/dispatch' },
   { path: '/sales/slip-001/print/outbound' },
 
-  // 구매조회 (입고전표)
+  // 구매관리 (입고전표)
   { path: '/purchases' },
   { path: '/purchases/new' },
   { path: '/purchases/slip-003' },
@@ -105,7 +106,7 @@ const ROUTES: RouteCase[] = [
   { path: '/print/statement-batch?from=2026-04-01&to=2026-04-30' },
   { path: '/print/partner-ledger?partnerCode=1234567890&from=2026-04-01&to=2026-04-30' },
 
-  // 회계 (ACCOUNTANT/MASTER)
+  // 회계 (ACCOUNTANT/MANAGER/MASTER)
   { path: '/accounting/accounts' },
   { path: '/accounting/journals' },
   { path: '/accounting/journals/new' },
@@ -115,18 +116,24 @@ const ROUTES: RouteCase[] = [
   { path: '/accounting/hometax-export' },
   { path: '/accounting/statement-batch' },
   { path: '/accounting/partner-ledger' },
+  { path: '/accounting/period-close' },
+  { path: '/accounting/supplier-profiles' },
   { path: '/accounting/tax-invoices' },
+  { path: '/accounting/tax-invoices/batch' },
   { path: '/accounting/tax-invoices/new' },
   { path: '/accounting/tax-invoices/ti-001' },
   { path: '/accounting/tax-invoices/ti-001/edit' },
   { path: '/accounting/tax-invoices/ti-001/print' },
 
   // 창고 / 재고
-  { path: '/warehouse/closing' },
+  { path: '/warehouse/closing' }, // legacy deep-link 호환
+  { path: '/warehouse/inbound-inspections' },
   { path: '/warehouse/audit' },
   { path: '/warehouse/audit/new' },
   { path: '/warehouse/audit/audit-001' },
   { path: '/warehouse/dps-compare' },
+  { path: '/warehouse/dps-compare/by-product' },
+  { path: '/inventory/safety-stock-alerts' },
 
   // arologis
   { path: '/arologis/manual', masterOnly: true },
@@ -134,19 +141,25 @@ const ROUTES: RouteCase[] = [
   { path: '/arologis/unassigned', masterOnly: true },
   { path: '/arologis/dispatch-sms', masterOnly: true },
   { path: '/arologis/dispatch-reconcile', masterOnly: true },
+  { path: '/arologis/admin/auto-dispatch', masterOnly: true },
+  { path: '/arologis/admin/manual-dispatch', masterOnly: true },
+  { path: '/arologis/admin/driver-assignment', masterOnly: true },
+  { path: '/dispatch-board' },
 
   // Admin (MASTER 전용)
   { path: '/admin/users', masterOnly: true },
   { path: '/admin/roles', masterOnly: true },
-  { path: '/admin/partners', masterOnly: true },
+  { path: '/admin/partners' },
+  { path: '/admin/partners/new' },
   { path: '/admin/warehouses', masterOnly: true },
   { path: '/admin/departments', masterOnly: true },
-  { path: '/admin/sheet-sync', masterOnly: true },
-  { path: '/admin/blocked-partners', masterOnly: true },
-  { path: '/admin/aligo-address-book', masterOnly: true },
-  { path: '/admin/regions', masterOnly: true },
-  { path: '/admin/chat-rooms', masterOnly: true },
-  { path: '/admin/slip-edit-requests', masterOnly: true },
+  { path: '/admin/sheet-sync' },
+  { path: '/admin/blocked-partners' },
+  { path: '/admin/aligo-address-book' },
+  { path: '/admin/regions' },
+  { path: '/admin/chat-rooms' },
+  { path: '/admin/slip-edit-requests' },
+  { path: '/admin/photo-audit' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -297,6 +310,8 @@ const SALES_ROUTES: RouteCase[] = [
   { path: '/sales' },
   { path: '/sales/new' },
   { path: '/sales/estimates' },
+  { path: '/admin/partners' },
+  { path: '/admin/partners/new' },
   { path: '/sales/partner-orders' },
   { path: '/sales/order-approvals' },
   { path: '/sales/partner-dc-config' },
@@ -337,11 +352,16 @@ const WAREHOUSE_ROUTES: RouteCase[] = [
   { path: '/purchases' },
   { path: '/purchases/slip-003' },
   { path: '/transfers' },
+  { path: '/transfers/new' },
   { path: '/transfers/tr-001' },
+  { path: '/warehouse/inbound-inspections' },
   { path: '/warehouse/audit' },
   { path: '/warehouse/audit/audit-001' },
   { path: '/warehouse/dps-compare' },
+  { path: '/warehouse/dps-compare/by-product' },
+  { path: '/inventory/safety-stock-alerts' },
   { path: '/admin/slip-edit-requests' },
+  { path: '/admin/photo-audit' },
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — WAREHOUSE (표본)', () => {
@@ -381,8 +401,9 @@ const ACCOUNTANT_ROUTES: RouteCase[] = [
   { path: '/accounting/statement-batch' },
   { path: '/accounting/partner-ledger' },
   { path: '/accounting/hometax-export' },
-  { path: '/warehouse/closing' },
-  { path: '/sales/slip-cleanup' },
+  { path: '/accounting/period-close' },
+  { path: '/accounting/supplier-profiles' },
+  { path: '/sales/closing' },
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — ACCOUNTANT (표본)', () => {

@@ -112,7 +112,7 @@ export interface VendorConfirmLine {
  * BE {@code VendorOrderConfirmResponse} 와 1:1.
  */
 export interface VendorOrderConfirmResponse {
-  /** 신규 PartnerOrder 의 사용자 표시 주문번호 (예: "2026/05/10 - V0001"). */
+  /** 신규 PartnerOrder 의 사용자 표시 주문번호 (예: "2026/05/10-1"). */
   orderNo: string
   /** 확정 vendor. */
   vendorName: string

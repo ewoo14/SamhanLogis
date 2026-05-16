@@ -50,7 +50,7 @@ import styles from './NextDaySlipView.module.css'
  * </pre>
  */
 interface NextDaySlipRow {
-  /** 사용자 노출 전표번호 (예: OUT-2026-05-10-001). */
+  /** 사용자 노출 전표번호 (예: 2026/05/10-1). */
   slipNo: string
   /** 거래처 코드 (사용자 노출 식별자 — UUID 비공개 가드). */
   partnerCode: string
@@ -99,7 +99,7 @@ const MOCK_DATA: NextDaySlipImageData = {
       chatRoomName: '서울 강남 단톡방',
       rows: [
         {
-          slipNo: 'OUT-2026-05-10-001',
+          slipNo: '2026/05/10-1',
           partnerCode: 'P-00123',
           partnerName: '강남공조㈜',
           address: '서울 강남구 테헤란로 152',
@@ -108,7 +108,7 @@ const MOCK_DATA: NextDaySlipImageData = {
           deliveryTime: '09:30',
         },
         {
-          slipNo: 'OUT-2026-05-10-002',
+          slipNo: '2026/05/10-2',
           partnerCode: 'P-00456',
           partnerName: '역삼냉동',
           address: '서울 강남구 역삼동 736-12',
@@ -117,7 +117,7 @@ const MOCK_DATA: NextDaySlipImageData = {
           deliveryTime: '11:00',
         },
         {
-          slipNo: 'OUT-2026-05-10-003',
+          slipNo: '2026/05/10-3',
           partnerCode: 'P-00789',
           partnerName: '대치설비',
           address: '서울 강남구 대치동 945',
@@ -131,7 +131,7 @@ const MOCK_DATA: NextDaySlipImageData = {
       chatRoomName: '경기 남부 단톡방',
       rows: [
         {
-          slipNo: 'OUT-2026-05-10-004',
+          slipNo: '2026/05/10-4',
           partnerCode: 'P-01024',
           partnerName: '수원에어시스템',
           address: '경기 수원시 영통구 광교로 145',
@@ -140,7 +140,7 @@ const MOCK_DATA: NextDaySlipImageData = {
           deliveryTime: '10:00',
         },
         {
-          slipNo: 'OUT-2026-05-10-005',
+          slipNo: '2026/05/10-5',
           partnerCode: 'P-01155',
           partnerName: '용인냉난방',
           address: '경기 용인시 처인구 김량장동 232',
@@ -154,7 +154,7 @@ const MOCK_DATA: NextDaySlipImageData = {
       chatRoomName: '충청 지방 단톡방',
       rows: [
         {
-          slipNo: 'OUT-2026-05-10-006',
+          slipNo: '2026/05/10-6',
           partnerCode: 'P-02001',
           partnerName: '천안공조설비',
           address: '충남 천안시 동남구 신부동 451',

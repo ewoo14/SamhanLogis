@@ -100,6 +100,48 @@ public class NotificationChatRoomClient {
         }
     }
 
+    /**
+     * partnerCode 조회가 비면 legacy Notion 의 사업자명 alias 로 한 번 더 조회한다.
+     */
+    public List<String> findChatRoomNames(String partnerCode, String partnerName) {
+        List<String> byCode = findChatRoomNames(partnerCode);
+        if (!byCode.isEmpty() || partnerName == null || partnerName.isBlank()) {
+            return byCode;
+        }
+        return findChatRoomNamesByPartnerBusinessName(partnerName);
+    }
+
+    private List<String> findChatRoomNamesByPartnerBusinessName(String partnerName) {
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName — internal token 미설정");
+            return Collections.emptyList();
+        }
+        try {
+            String body = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/api/v1/notification/admin/chat-rooms")
+                            .queryParam("partnerBusinessName", partnerName)
+                            .build())
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseChatRoomNames(body);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().is5xxServerError()) {
+                log.warn("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName 5xx — status={}",
+                        ex.getStatusCode());
+            } else {
+                log.debug("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName 4xx — status={}",
+                        ex.getStatusCode());
+            }
+            return Collections.emptyList();
+        } catch (Exception ex) {
+            log.warn("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName 호출 실패 — msg={}",
+                    ex.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     private List<String> parseChatRoomNames(String body) {
         if (body == null || body.isBlank()) {
             return Collections.emptyList();

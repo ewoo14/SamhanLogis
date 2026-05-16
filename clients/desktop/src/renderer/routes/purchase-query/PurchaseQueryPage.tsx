@@ -1,7 +1,7 @@
 /**
  * 구매관리 — 입고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
  *
- * 컬럼 12개 (슬립 #17 구매조회 명세 + SP-03 입고 검수 CTA):
+ * 컬럼 12개 (슬립 #17 구매관리 명세 + SP-03 입고 검수 CTA):
  *  1. 체크박스 (다중 선택 + 전체 선택)
  *  2. 순번 (slipDate desc 기준 row index)
  *  3. 구매번호 (slipNo)
@@ -26,7 +26,7 @@ import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canCreateSlip, canInspectInbound } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { exportSlips } from '../../api/excelExportApi'
+import { canExportSlips, exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
 
@@ -99,6 +99,7 @@ export function PurchaseQueryPage() {
   const role = useSessionStore((s) => s.auth?.role)
   const canCreate = canCreateSlip(role)
   const canInspect = canInspectInbound(role)
+  const canExport = canExportSlips(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -137,7 +138,7 @@ export function PurchaseQueryPage() {
   })
   const warehouses: Warehouse[] = warehousesQuery.data ?? []
 
-  // ── 구매조회 데이터 ──
+  // ── 구매관리 데이터 ──
   const slipsQuery = useQuery({
     queryKey: ['slips', 'query', 'INBOUND', dateFrom, dateTo, page, appliedSearch],
     queryFn: () =>
@@ -314,22 +315,24 @@ export function PurchaseQueryPage() {
           </Button>
         ) : null}
 
-        {/* Excel 다운로드 */}
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={downloading}
-          disabled={downloading}
-          onClick={() =>
-            download(
-              () => exportSlips({ slipType: 'INBOUND', from: dateFrom, to: dateTo }),
-              makeExportFilename('구매관리'),
-            )
-          }
-          data-testid="purchase-query-excel-download"
-        >
-          Excel 다운로드
-        </Button>
+        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용. */}
+        {canExport ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={downloading}
+            disabled={downloading}
+            onClick={() =>
+              download(
+                () => exportSlips({ slipType: 'INBOUND', from: dateFrom, to: dateTo }),
+                makeExportFilename('구매관리'),
+              )
+            }
+            data-testid="purchase-query-excel-download"
+          >
+            Excel 다운로드
+          </Button>
+        ) : null}
 
         {/* 검색 모달 열기 */}
         <Button

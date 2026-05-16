@@ -26,7 +26,7 @@ import org.hibernate.annotations.UuidGenerator;
  * 확정된 거래처 주문 (legacy partner-order/index.html sendOrderFromUi 6074 → 본 entity).
  * {@link #slipNo} 는 slip-service 발행 후 채워지며 UNIQUE 인덱스 + nullable 허용 (PENDING_RETRY 시 null).
  *
- * <p>UUID 비공개 가드 — 사용자 응답에서는 {@link #orderNo} (YYYY/MM/DD - 0001) / {@link #partnerCode} /
+ * <p>UUID 비공개 가드 — 사용자 응답에서는 {@link #orderNo} (YYYY/MM/DD-N) / {@link #partnerCode} /
  * {@link #bizCode} 만 노출. {@link #id} 는 form 의 hidden field 또는 path variable 로만 사용.
  */
 @Entity
@@ -50,7 +50,7 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "biz_code", nullable = false, length = 20)
     private String bizCode;
 
-    /** 사용자 표시용 주문번호 (legacy 'YYYY/MM/DD - 0001' 형식). */
+    /** 사용자 표시용 주문번호 (YYYY/MM/DD-N 형식). */
     @Column(name = "order_no", nullable = false, length = 30, unique = true)
     private String orderNo;
 

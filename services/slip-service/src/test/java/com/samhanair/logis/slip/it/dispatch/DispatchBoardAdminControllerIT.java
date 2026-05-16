@@ -51,6 +51,21 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @WithMockUser(username = "dispatcher", authorities = {"ROLE_DISPATCH"})
+    void GET_undispatched_slips_allows_dispatch_role() throws Exception {
+        mvc.perform(get("/admin/dispatch-board/undispatched-slips"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    @WithMockUser(username = "sales", authorities = {"ROLE_SALES"})
+    void GET_undispatched_slips_rejects_sales_role() throws Exception {
+        mvc.perform(get("/admin/dispatch-board/undispatched-slips"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void GET_undispatched_slips_with_custom_filters() throws Exception {
         mvc.perform(get("/admin/dispatch-board/undispatched-slips")
                         .param("from", "2026-05-10")

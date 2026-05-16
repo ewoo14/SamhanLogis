@@ -82,7 +82,7 @@ class NextDaySlipImageServiceTest {
         when(slipRepository.findAllBySlipDateAndIsDeletedFalse(targetDate))
                 .thenReturn(List.of(slip));
         when(partnerBlockClient.findAllBlockedPartnerCodes()).thenReturn(Set.of());
-        when(notificationChatRoomClient.findChatRoomNames("P-2026-0001"))
+        when(notificationChatRoomClient.findChatRoomNames("P-2026-0001", "삼한공조"))
                 .thenReturn(List.of("삼한 발주방"));
 
         NextDaySlipImageResponse res = service.buildImageData(baseDate);
@@ -99,7 +99,7 @@ class NextDaySlipImageServiceTest {
         assertThat(entry.partnerName()).isEqualTo("삼한공조");
         assertThat(entry.chatRoomNames()).containsExactly("삼한 발주방");
         assertThat(entry.blocked()).isFalse();
-        verify(notificationChatRoomClient, times(1)).findChatRoomNames("P-2026-0001");
+        verify(notificationChatRoomClient, times(1)).findChatRoomNames("P-2026-0001", "삼한공조");
     }
 
     @Test
@@ -109,7 +109,7 @@ class NextDaySlipImageServiceTest {
         when(slipRepository.findAllBySlipDateAndIsDeletedFalse(targetDate))
                 .thenReturn(List.of(slip));
         when(partnerBlockClient.findAllBlockedPartnerCodes()).thenReturn(Set.of());
-        when(notificationChatRoomClient.findChatRoomNames("P-2026-9999"))
+        when(notificationChatRoomClient.findChatRoomNames("P-2026-9999", "기타거래처"))
                 .thenReturn(List.of()); // graceful empty
 
         NextDaySlipImageResponse res = service.buildImageData(baseDate);
@@ -129,7 +129,7 @@ class NextDaySlipImageServiceTest {
         Set<String> blocked = new HashSet<>();
         blocked.add("P-2026-BLK");
         when(partnerBlockClient.findAllBlockedPartnerCodes()).thenReturn(blocked);
-        when(notificationChatRoomClient.findChatRoomNames(eq("P-2026-BLK")))
+        when(notificationChatRoomClient.findChatRoomNames(eq("P-2026-BLK"), eq("차단거래처")))
                 .thenReturn(List.of());
 
         NextDaySlipImageResponse res = service.buildImageData(baseDate);
@@ -145,7 +145,7 @@ class NextDaySlipImageServiceTest {
         when(slipRepository.findAllBySlipDateAndIsDeletedFalse(targetDate))
                 .thenReturn(List.of(slip));
         when(partnerBlockClient.findAllBlockedPartnerCodes()).thenReturn(Set.of());
-        when(notificationChatRoomClient.findChatRoomNames(any())).thenReturn(List.of());
+        when(notificationChatRoomClient.findChatRoomNames(any(), any())).thenReturn(List.of());
 
         NextDaySlipImageResponse res = service.buildImageData(baseDate);
 

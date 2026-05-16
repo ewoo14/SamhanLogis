@@ -53,7 +53,7 @@ import styles from './PartnerLedgerView.module.css'
 interface LedgerLine {
   /** 분개 일자 (YYYY-MM-DD). */
   date: string
-  /** 사용자 노출 전표/분개 번호 (예: JV-2026/05-001 또는 OUT-2026-05-09-001). */
+  /** 사용자 노출 전표/분개 번호 (예: 2026/05/09-7 또는 JV-2026/05-21). */
   slipNo: string
   /** 적요 (분개 헤더 description 또는 슬립 메모). */
   description: string
@@ -112,7 +112,7 @@ const MOCK_DATA: PartnerLedgerData = {
   lines: [
     {
       date: '2026-05-02',
-      slipNo: 'OUT-2026-05-02-014',
+      slipNo: '2026/05/02-14',
       description: '에어컨 출고 (AJ040RXH4BC1 외 2종)',
       debit: 3_450_000,
       credit: 0,
@@ -120,7 +120,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-05',
-      slipNo: 'JV-2026/05-021',
+      slipNo: 'JV-2026/05-21',
       description: '입금 — 보통예금 (신한)',
       debit: 0,
       credit: 2_000_000,
@@ -128,7 +128,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-09',
-      slipNo: 'OUT-2026-05-09-007',
+      slipNo: '2026/05/09-7',
       description: '에어컨 출고 (AJ052NXJ4FH1)',
       debit: 1_870_000,
       credit: 0,
@@ -136,7 +136,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-15',
-      slipNo: 'OUT-2026-05-15-022',
+      slipNo: '2026/05/15-22',
       description: '실외기 출고 (AVXC4H145EE 외 1종)',
       debit: 2_640_000,
       credit: 0,
@@ -144,7 +144,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-20',
-      slipNo: 'JV-2026/05-046',
+      slipNo: 'JV-2026/05-46',
       description: '입금 — 보통예금 (신한)',
       debit: 0,
       credit: 5_000_000,
@@ -152,7 +152,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-28',
-      slipNo: 'OUT-2026-05-28-031',
+      slipNo: '2026/05/28-31',
       description: '냉난방기 출고 (AJ080RBJ5KH 외 4종)',
       debit: 4_120_000,
       credit: 0,

@@ -33,7 +33,7 @@ import { apiClient, type ApiEnvelope } from './client'
 // ---------------------------------------------------------------------------
 
 /**
- * 7-tier ROLE 풀네임 (BE Role enum 과 동일).
+ * 8-role ROLE 풀네임 (BE Role enum 과 동일).
  *
  * memory feedback_role_naming_full — UI/PR/문서 모두 풀네임 의무 (M/M/D 약어 금지).
  */
@@ -41,6 +41,7 @@ export type AdminRole =
   | 'MASTER'
   | 'DEVELOPER'
   | 'MANAGER'
+  | 'DISPATCH'
   | 'SALES'
   | 'ACCOUNTANT'
   | 'WAREHOUSE'
@@ -51,6 +52,7 @@ export const ADMIN_ROLE_LABEL: Record<AdminRole, string> = {
   MASTER: '마스터',
   DEVELOPER: '개발자',
   MANAGER: '매니저',
+  DISPATCH: '배차담당자',
   SALES: '영업원',
   ACCOUNTANT: '회계원',
   WAREHOUSE: '창고원',

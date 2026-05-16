@@ -29,8 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>{@link SlipServiceClient#getOutboundSlips(java.time.LocalDate, java.time.LocalDate)} 로 출고전표
  *       N건 조회 (date=date 단일일).</li>
- *   <li>각 slip 의 partnerCode → {@link PartnerChatRoomMappingRepository#findAllByPartnerCode(String)}
- *       (단톡방 N개 추출).</li>
+ *   <li>각 slip 의 partnerCode → 단톡방 N개 추출. 미매핑 시 legacy Notion 이름 alias 로 fallback.</li>
  *   <li>각 partnerCode → {@link BlockedPartnerLookupClient#isBlocked(String)} (가드).</li>
  *   <li>{@link MessageTemplateService#renderDispatchMessage} 로 한국어 안내 본문 조립.</li>
  *   <li>단톡방별 그룹핑 (LinkedHashMap 으로 입력 순서 보존).</li>
@@ -81,6 +80,9 @@ public class DispatchBatchPreviewService {
             }
             List<PartnerChatRoomMapping> mappings =
                     chatRoomMappingRepository.findAllByPartnerCode(partnerCode);
+            if (mappings.isEmpty() && slip.partnerName() != null && !slip.partnerName().isBlank()) {
+                mappings = chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(slip.partnerName());
+            }
             if (mappings.isEmpty()) {
                 unmapped.add(new UnmappedPartner(partnerCode, slip.partnerName(), slip.slipNo()));
                 unmappedCount++;

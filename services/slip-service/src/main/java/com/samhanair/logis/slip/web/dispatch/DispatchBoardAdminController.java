@@ -19,13 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 배차 메뉴 좌측 패널 — 미배차 출고전표 페이지네이션 (BE Task B11, D-DB-06).
  *
- * <p>인증: ROLE_MANAGER / ROLE_MASTER ({@code @PreAuthorize}).
+ * <p>인증: ROLE_DISPATCH / ROLE_MANAGER / ROLE_MASTER ({@code @PreAuthorize}).
  */
 @Tag(name = "Dispatch Board (Admin)")
 @RestController
 @RequestMapping("/admin/dispatch-board")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_MANAGER','ROLE_MASTER')")
+@PreAuthorize("hasAnyAuthority('ROLE_DISPATCH','ROLE_MANAGER','ROLE_MASTER')")
 public class DispatchBoardAdminController {
 
     private final DispatchTaskBoardQueryService queryService;

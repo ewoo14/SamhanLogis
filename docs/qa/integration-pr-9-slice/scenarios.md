@@ -322,10 +322,10 @@
 
 | # | 페르소나 | 우선순위 | 선행 | 동작 | 기대 |
 |---|---|---|---|---|---|
-| 7.1.1 | 신입 영업 | 🟠 | seed 거래처 P-001 + 품목 PROD-001 | `/estimates/new` → 거래처 + 라인 1건 → DRAFT 저장 | DB estimates 1 row + status=DRAFT + 견적번호 EST-2026-0001 발급 |
+| 7.1.1 | 신입 영업 | 🟠 | seed 거래처 P-001 + 품목 PROD-001 | `/estimates/new` → 거래처 + 라인 1건 → DRAFT 저장 | DB estimates 1 row + status=DRAFT + 견적번호 `YYYY/MM/DD-N` 발급 |
 | 7.1.2 | 신입 영업 | 🟠 | 7.1.1 DRAFT | `estimate-form-send-button` 클릭 | status=SENT + 거래처 이메일 발송 (NoOp 시 로그) |
 | 7.1.3 | 회계 외주 | 🟠 | 7.1.2 SENT | `estimate-detail-accept-button` 클릭 (거래처 회신 mock) | status=ACCEPTED + accepted_at 저장 |
-| 7.1.4 | 신입 영업 | 🟠 | 7.1.3 ACCEPTED | `estimate-detail-convert-to-slip-button` 클릭 | status=CONVERTED + 슬립 자동 생성 (SLIP-2026-XXXX) + estimate.slip_number link |
+| 7.1.4 | 신입 영업 | 🟠 | 7.1.3 ACCEPTED | `estimate-detail-convert-to-slip-button` 클릭 | status=CONVERTED + 슬립 자동 생성 (`YYYY/MM/DD-N`) + estimate.slip_number link |
 | 7.1.5 | 신입 영업 | 🔴 | DRAFT 상태 | accept/convert 시도 (status 우회) | 422 + "DRAFT 에서 직접 ACCEPTED 불가, SENT 필수" |
 
 ### 7.2 슬립 자동 변환 chain (3 case)

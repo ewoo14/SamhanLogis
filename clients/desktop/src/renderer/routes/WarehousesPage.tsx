@@ -2,7 +2,7 @@
  * 창고 목록 화면 — `DataTable` + 신규 등록 `Modal`.
  *
  * - 표시 컬럼: code / name / type(Badge) / displayOrder
- * - 신규 등록 버튼은 `MASTER/MANAGER/DEVELOPER` 권한에서만 노출
+ * - 신규 등록 버튼은 `MASTER/MANAGER/DEVELOPER` + 대표실 가드 통과 시에만 노출
  * - 등록 성공 시 `queryClient.invalidateQueries(['warehouses'])` 로 목록 재조회
  */
 import { useState, type FormEvent } from 'react'
@@ -27,6 +27,7 @@ import {
 } from '../api/inventory'
 import { useSessionStore, hasAdminRole } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { fetchIsExecutiveOffice } from '../api/adminApi'
 import axios from 'axios'
 
 /**
@@ -57,7 +58,7 @@ const TYPE_VARIANT: Record<
 export function WarehousesPage() {
   usePageTitle('창고 관리')
   const role = useSessionStore((s) => s.auth?.role)
-  const canEdit = hasAdminRole(role)
+  const hasWarehouseWriteRole = hasAdminRole(role)
   const [modalOpen, setModalOpen] = useState(false)
   const queryClient = useQueryClient()
 
@@ -65,6 +66,15 @@ export function WarehousesPage() {
     queryKey: ['warehouses'],
     queryFn: listWarehouses,
   })
+
+  const executiveOfficeQuery = useQuery({
+    queryKey: ['users', 'me', 'is-executive-office'],
+    queryFn: fetchIsExecutiveOffice,
+    enabled: hasWarehouseWriteRole,
+    staleTime: 60_000,
+  })
+  const canEdit = hasWarehouseWriteRole
+    && executiveOfficeQuery.data?.isExecutiveOffice === true
 
   const columns: DataTableColumn<Warehouse>[] = [
     { key: 'code', header: '코드', width: '120px' },
@@ -98,19 +108,25 @@ export function WarehousesPage() {
       >
         <h3 style={{ margin: 0 }}>창고 목록</h3>
         {canEdit ? (
-          <Button variant="primary" onClick={() => setModalOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => setModalOpen(true)}
+            data-testid="warehouse-add-button"
+          >
             신규 창고 등록
           </Button>
         ) : null}
       </div>
 
-      <DataTable
-        columns={columns}
-        rows={Array.isArray(query.data) ? query.data : []}
-        loading={query.isLoading}
-        rowKey={(w) => w.id}
-        emptyMessage="등록된 창고가 없습니다."
-      />
+      <div data-testid="warehouse-list-table">
+        <DataTable
+          columns={columns}
+          rows={Array.isArray(query.data) ? query.data : []}
+          loading={query.isLoading}
+          rowKey={(w) => w.id}
+          emptyMessage="등록된 창고가 없습니다."
+        />
+      </div>
 
       {modalOpen ? (
         <CreateWarehouseModal

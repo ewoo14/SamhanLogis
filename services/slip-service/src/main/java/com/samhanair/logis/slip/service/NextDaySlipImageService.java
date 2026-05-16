@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>slip — slipRepository.findAllBySlipDateAndIsDeletedFalse(date+1)</li>
  *   <li>partner_code (slip.partnerCode 직접 — V15 snapshot)</li>
- *   <li>chat_room — notification-service GET /api/v1/notification/admin/chat-rooms?partnerCode= (Feign)</li>
+     *   <li>chat_room — notification-service partnerCode 조회, 미매핑 시 legacy 사업자명 alias fallback</li>
  *   <li>block — partner-service GET /api/v1/partners/admin/blocks (Feign, Set bulk)</li>
  *   <li>region — slip.classifiedRegionGroup 직접 (V15 snapshot, "미분류" fallback)</li>
  * </ol>
@@ -84,9 +84,10 @@ public class NextDaySlipImageService {
                 chatRoomNames = Collections.emptyList();
             } else {
                 chatRoomNames = chatRoomCache.computeIfAbsent(partnerCode,
-                        notificationChatRoomClient::findChatRoomNames);
+                        code -> notificationChatRoomClient.findChatRoomNames(code, slip.getPartnerName()));
             }
-            boolean blocked = partnerCode != null && blockedPartnerCodes.contains(partnerCode);
+            boolean blocked = (partnerCode != null && blockedPartnerCodes.contains(partnerCode))
+                    || blockedPartnerCodes.contains(PartnerBlockClient.legacyNameKey(slip.getPartnerName()));
 
             String regionGroup = slip.getClassifiedRegionGroup();
             if (regionGroup == null || regionGroup.isBlank()) {

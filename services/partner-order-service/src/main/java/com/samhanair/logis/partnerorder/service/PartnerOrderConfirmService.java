@@ -24,6 +24,7 @@ import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -201,10 +202,32 @@ public class PartnerOrderConfirmService {
         return draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1L;
     }
 
-    /** 사용자 표시 주문번호 (legacy 'YYYY/MM/DD - 0001'). 동일 일자 내 sequence 는 향후 슬라이스. */
+    /** 사용자 표시 주문번호 — 날짜별 마지막 순번 + 1, 공개 업무번호 표준({@code yyyy/MM/dd-N}). */
     private String nextOrderNo() {
-        return LocalDateTime.now().format(ORDER_NO_DATE)
-                + " - " + String.format("%04d", System.currentTimeMillis() % 10000);
+        String datePrefix = LocalDate.now().format(ORDER_NO_DATE);
+        int maxSeq = 0;
+        for (PartnerOrder order : orderRepository.findAllByOrderNoStartingWith(datePrefix)) {
+            maxSeq = Math.max(maxSeq, extractOrderSeq(datePrefix, order.getOrderNo()));
+        }
+        return datePrefix + "-" + (maxSeq + 1);
+    }
+
+    private int extractOrderSeq(String datePrefix, String orderNo) {
+        if (orderNo == null || !orderNo.startsWith(datePrefix)) {
+            return 0;
+        }
+        String suffix = orderNo.substring(datePrefix.length()).trim();
+        if (suffix.startsWith("-")) {
+            suffix = suffix.substring(1).trim();
+        }
+        if (suffix.startsWith("V")) {
+            suffix = suffix.substring(1).trim();
+        }
+        try {
+            return Integer.parseInt(suffix);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     /**

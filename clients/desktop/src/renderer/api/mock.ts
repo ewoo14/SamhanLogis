@@ -1246,7 +1246,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /slips (페이지) — lookup-product / {id} 가 아닌 경우.
-  // SlipListPage 가 ?slipType=OUTBOUND (판매조회) 또는 INBOUND (구매조회) 로 필터링 →
+  // legacy SlipListPage 가 ?slipType=OUTBOUND (판매관리 legacy) 또는 INBOUND (구매관리 legacy) 로 필터링 →
   // mock 도 BE 와 동등하게 query param 으로 분리해 잘못된 슬립 노출 방지.
   if (
     method === 'GET'
@@ -1994,7 +1994,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /api/v1/partner-orders — 주문서 조회
+  // GET /api/v1/partner-orders — 주문서 관리
   if (method === 'GET' && url.includes('/api/v1/partner-orders')) {
     return envelope({
       content: [],
@@ -2216,13 +2216,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /admin/users/roles — 7 ROLE string array (BE AdminRole[] 직렬화)
+  // GET /admin/users/roles — 8 ROLE string array (BE AdminRole[] 직렬화)
   // 결함 #8: 기존 {code,label}[] → AdminRole[] string array 정정 ([object Object] 회피)
   if (method === 'GET' && url.endsWith('/admin/users/roles')) {
     return envelope([
       'MASTER',
       'DEVELOPER',
       'MANAGER',
+      'DISPATCH',
       'SALES',
       'ACCOUNTANT',
       'WAREHOUSE',
@@ -2943,7 +2944,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/api/v1/estimates')) {
     return envelope({
       id: 'est-new-' + Date.now(),
-      estimateNumber: 'EST-2026/05-099',
+      estimateNumber: '2026/05/16-99',
       status: 'DRAFT',
     })
   }
@@ -2955,7 +2956,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && partnerOrderDetailMatch) {
     return envelope({
       id: partnerOrderDetailMatch[1],
-      orderNo: 'PO-2026/05-001',
+      orderNo: '2026/05/04-1',
       partnerCode: '1234567890',
       partnerName: '엘에이시스템에어',
       status: 'PENDING',
@@ -3092,8 +3093,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.includes('/admin/partner-order/vendor/confirm')) {
     const today = new Date()
     const yymmdd
-      = String(today.getFullYear()).slice(2)
+      = today.getFullYear()
+      + '/'
       + String(today.getMonth() + 1).padStart(2, '0')
+      + '/'
       + String(today.getDate()).padStart(2, '0')
     const seq = String(Math.floor(Math.random() * 900) + 100)
     const body = config.data as
@@ -3117,9 +3120,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     } catch {
       // ignore
     }
-    const prefix = vendorName.includes('제이시스템') ? 'PO-JS' : 'PO-AD'
     return envelope({
-      orderNo: `${prefix}-${yymmdd}-${seq}`,
+      orderNo: `${yymmdd}-${Number(seq)}`,
       partnerOrderId: '00000000-0000-0000-0000-' + Date.now().toString().padStart(12, '0'),
       status: 'PENDING',
       totalAmount: total,
@@ -3812,7 +3814,7 @@ const MOCK_TRIAL_BALANCE = {
 // ============================================================================
 
 /**
- * 사용자 admin (admin/UsersPage) — 8건 + 7 ROLE 분포 + 부서 5건.
+ * 사용자 admin (admin/UsersPage) — 8건 + 8 ROLE 분포 + 부서 5건.
  * UUID 비공개 가드 — 사용자 노출 식별자는 loginId / fullName.
  */
 const MOCK_ADMIN_USERS = [
@@ -4345,7 +4347,7 @@ const MOCK_DISPATCHES = [
 const MOCK_ESTIMATES = [
   {
     id: 'est-001',
-    estimateNumber: 'EST-2026/05-001',
+    estimateNumber: '2026/05/04-1',
     estimateDate: '2026-05-04',
     expirationDate: '2026-05-31',
     status: 'DRAFT' as const,
@@ -4358,7 +4360,7 @@ const MOCK_ESTIMATES = [
   },
   {
     id: 'est-002',
-    estimateNumber: 'EST-2026/05-002',
+    estimateNumber: '2026/05/06-2',
     estimateDate: '2026-05-06',
     expirationDate: '2026-06-06',
     status: 'SENT' as const,
@@ -4371,7 +4373,7 @@ const MOCK_ESTIMATES = [
   },
   {
     id: 'est-003',
-    estimateNumber: 'EST-2026/04-099',
+    estimateNumber: '2026/04/28-99',
     estimateDate: '2026-04-28',
     expirationDate: '2026-05-28',
     status: 'ACCEPTED' as const,

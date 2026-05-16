@@ -38,7 +38,7 @@ import { apiClient, type ApiEnvelope } from './client'
  * <p>슬립 1건의 이미지 데이터 — 단톡방 매핑 + 발송금지 flag 포함.
  */
 export interface NextDaySlipEntry {
-  /** 사용자 노출 전표번호 (예: OUT-2026-05-10-001). */
+  /** 사용자 노출 전표번호 (예: 2026/05/10-1). */
   slipNo: string
   /** 출고 예정일 (YYYY-MM-DD, 응답 targetDate 와 동일). */
   slipDate: string

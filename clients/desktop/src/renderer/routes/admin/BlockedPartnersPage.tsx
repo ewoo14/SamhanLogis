@@ -5,8 +5,7 @@
  * `/api/v1/partners/admin/blocks` 4 endpoint backing.
  *
  * <h2>접근 제어</h2>
- * MASTER 만 (사용자 명시: "발송금지는 민감"). AdminLayout 의 RoleGuard(MASTER) 가
- * 1차 가드, 본 페이지의 mutation 자체도 BE 가 MASTER 강제.
+ * MANAGER / MASTER 진입. 목록/단건 등록은 MANAGER 가능, CSV import / 차단 해제는 MASTER 전용.
  *
  * <h2>UI 구성</h2>
  * <ul>
@@ -57,6 +56,7 @@ import {
   type BlockedPartnerSource,
 } from '../../api/blockedPartnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { useSessionStore } from '../../stores/session'
 
 /** source enum → Badge variant 매핑. */
 const SOURCE_VARIANT: Record<
@@ -94,6 +94,8 @@ function extractMessage(err: unknown): string | null {
 export function BlockedPartnersPage() {
   usePageTitle('발송금지 거래처')
 
+  const role = useSessionStore((s) => s.auth?.role)
+  const canBulkManage = role === 'MASTER'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
   const [addOpen, setAddOpen] = useState(false)
@@ -171,28 +173,33 @@ export function BlockedPartnersPage() {
         key: 'action',
         header: '액션',
         width: '110px',
-        render: (b) => (
-          <button
-            type="button"
-            onClick={() => setUnblockTarget(b)}
-            data-testid={`admin-blocked-unblock-${b.partnerCode}`}
-            style={{
-              height: 28,
-              padding: '0 10px',
-              border: '1px solid var(--color-danger-300, #FCA5A5)',
-              borderRadius: 4,
-              background: 'var(--color-danger-50, #FEF2F2)',
-              color: 'var(--color-danger-700, #B91C1C)',
-              cursor: 'pointer',
-              fontSize: 12,
-            }}
-          >
-            차단 해제
-          </button>
-        ),
+        render: (b) =>
+          canBulkManage ? (
+            <button
+              type="button"
+              onClick={() => setUnblockTarget(b)}
+              data-testid={`admin-blocked-unblock-${b.partnerCode}`}
+              style={{
+                height: 28,
+                padding: '0 10px',
+                border: '1px solid var(--color-danger-300, #FCA5A5)',
+                borderRadius: 4,
+                background: 'var(--color-danger-50, #FEF2F2)',
+                color: 'var(--color-danger-700, #B91C1C)',
+                cursor: 'pointer',
+                fontSize: 12,
+              }}
+            >
+              차단 해제
+            </button>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-500, #6B7280)' }}>
+              MASTER 전용
+            </span>
+          ),
       },
     ],
-    [],
+    [canBulkManage],
   )
 
   return (
@@ -205,7 +212,7 @@ export function BlockedPartnersPage() {
           margin: '0 0 16px',
         }}
       >
-        <h3 style={{ margin: 0 }}>발송금지 거래처 (MASTER 전용)</h3>
+        <h3 style={{ margin: 0 }}>발송금지 거래처</h3>
         <span
           data-testid="admin-blocked-realtime-indicator"
           style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)' }}
@@ -240,13 +247,15 @@ export function BlockedPartnersPage() {
         >
           단건 차단
         </Button>
-        <Button
-          variant="secondary"
-          onClick={() => setImportOpen(true)}
-          data-testid="admin-blocked-import-button"
-        >
-          CSV 업로드
-        </Button>
+        {canBulkManage ? (
+          <Button
+            variant="secondary"
+            onClick={() => setImportOpen(true)}
+            data-testid="admin-blocked-import-button"
+          >
+            CSV 업로드
+          </Button>
+        ) : null}
       </div>
 
       <div data-testid="admin-blocked-table">

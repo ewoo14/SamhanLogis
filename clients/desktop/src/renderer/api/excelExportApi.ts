@@ -34,6 +34,20 @@ import {
 } from './excelExportMock'
 
 // ---------------------------------------------------------------------------
+// 권한 헬퍼 — BE export endpoint @PreAuthorize 와 1:1
+// ---------------------------------------------------------------------------
+
+/** 전표 목록 Excel export 가능 여부 — MANAGER / MASTER. */
+export function canExportSlips(role: string | undefined | null): boolean {
+  return role === 'MANAGER' || role === 'MASTER'
+}
+
+/** 거래처 목록 Excel export 가능 여부 — MANAGER / MASTER. */
+export function canExportPartners(role: string | undefined | null): boolean {
+  return role === 'MANAGER' || role === 'MASTER'
+}
+
+// ---------------------------------------------------------------------------
 // 파라미터 타입 — BE controller 시그니처와 1:1
 // ---------------------------------------------------------------------------
 

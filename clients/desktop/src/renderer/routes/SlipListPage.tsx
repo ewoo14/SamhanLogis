@@ -30,8 +30,8 @@
  *
  * <h2>DeliveryTag 필터 보강</h2>
  * <ul>
- *   <li>판매조회(OUTBOUND): 당일/야적/지방/로젠택배/경동택배/경동화물/대여/반납 8종.</li>
- *   <li>구매조회(INBOUND): 회차/반품/차용 3종.</li>
+ *   <li>판매관리 legacy(OUTBOUND): 당일/야적/지방/로젠택배/경동택배/경동화물/대여/반납 8종.</li>
+ *   <li>구매관리 legacy(INBOUND): 회차/반품/차용 3종.</li>
  *   <li>BE 응답에 deliveryTag 포함 시 표 컬럼에 Badge 로 표시.</li>
  * </ul>
  *
@@ -68,15 +68,15 @@ import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
 import { useSessionStore, canCreateSlip } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
-import { exportSlips } from '../api/excelExportApi'
+import { canExportSlips, exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 
 export interface SlipListPageProps {
-  /** OUTBOUND (판매조회) 또는 INBOUND (구매조회). */
+  /** OUTBOUND (판매관리 legacy) 또는 INBOUND (구매관리 legacy). */
   mode: SlipType
 }
 
-/** 판매조회(OUTBOUND) 배송태그 옵션 — BE DeliveryTagCode 8종 */
+/** 판매관리 legacy(OUTBOUND) 배송태그 옵션 — BE DeliveryTagCode 8종 */
 const OUTBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
   { value: 'DAY',                label: '당일' },
   { value: 'STACK',              label: '야적' },
@@ -88,7 +88,7 @@ const OUTBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[]
   { value: 'RETURN_RENTAL',      label: '반납' },
 ]
 
-/** 구매조회(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 3종 */
+/** 구매관리 legacy(INBOUND) 배송태그 옵션 — BE DeliveryTagCode 3종 */
 const INBOUND_DELIVERY_TAG_OPTIONS: { value: DeliveryTagCode; label: string }[] = [
   { value: 'RETURN_TRIP', label: '회차' },
   { value: 'RETURN',      label: '반품' },
@@ -118,8 +118,9 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const role = useSessionStore((s) => s.auth?.role)
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
-  const titleLabel = isOutbound ? '영업조회 (출고전표)' : '구매조회 (입고전표)'
+  const titleLabel = isOutbound ? '출고전표 목록 (legacy)' : '입고전표 목록 (legacy)'
   const newButtonLabel = isOutbound ? '새 출고전표' : '새 입고전표'
+  const canExport = canExportSlips(role)
 
   // P0-9: INBOUND 모드 검수 Dialog 상태
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
@@ -131,7 +132,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const { downloading, download } = useExcelDownload()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
-  usePageTitle(isOutbound ? '판매조회' : '구매조회')
+  usePageTitle(isOutbound ? '출고전표 목록' : '입고전표 목록')
 
   const query = useQuery({
     queryKey: ['slips', 'list', mode, deliveryTagFilter],
@@ -238,29 +239,31 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           {/* P1-6: 현재 mode 의 전표 전체를 당월 기준으로 export
               BE SlipController.exportXlsx(slipType, status, from, to, partnerCode) 시그니처 정렬
               — TM PR #146 cross-check (fromDate/toDate → from/to). */}
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={downloading}
-            disabled={downloading}
-            onClick={() => {
-              const now = new Date()
-              const yyyy = now.getFullYear()
-              const mm = String(now.getMonth() + 1).padStart(2, '0')
-              download(
-                () =>
-                  exportSlips({
-                    slipType: mode,
-                    from: `${yyyy}-${mm}-01`,
-                    to: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
-                  }),
-                makeExportFilename(isOutbound ? '출고전표목록' : '입고전표목록'),
-              )
-            }}
-            data-testid="slip-list-excel-export"
-          >
-            Excel 다운로드
-          </Button>
+          {canExport ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={downloading}
+              disabled={downloading}
+              onClick={() => {
+                const now = new Date()
+                const yyyy = now.getFullYear()
+                const mm = String(now.getMonth() + 1).padStart(2, '0')
+                download(
+                  () =>
+                    exportSlips({
+                      slipType: mode,
+                      from: `${yyyy}-${mm}-01`,
+                      to: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
+                    }),
+                  makeExportFilename(isOutbound ? '출고전표목록' : '입고전표목록'),
+                )
+              }}
+              data-testid="slip-list-excel-export"
+            >
+              Excel 다운로드
+            </Button>
+          ) : null}
           {canCreateSlip(role) ? (
             <Button variant="primary" onClick={() => navigate(`${basePath}/new`)}>
               {newButtonLabel}

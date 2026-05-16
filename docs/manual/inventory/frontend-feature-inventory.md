@@ -105,9 +105,9 @@
 
 | # | Route | 컴포넌트 | 권한 | 백엔드 API | 구현 상태 |
 |---|---|---|---|---|---|
-| 4 | `/sales` | `SlipListPage.tsx` (mode=OUTBOUND) | 인증 모두 | `GET /slips?slipType=OUTBOUND&status=&page=` | ✅ |
+| 4 | `/sales` | `SalesQueryPage.tsx` (판매관리) | 인증 모두 | `GET /slips/query?type=OUTBOUND&status=&page=` | ✅ |
 | 5 | `/sales/new` | `SlipFormPage.tsx` (mode=OUTBOUND) | SALES / MANAGER / MASTER | `GET /inventory/warehouses` + `GET /slips/lookup-product` + `POST /slips` | ✅ |
-| 6 | `/sales/link-dispatch` | `LinkDispatchListPage.tsx` | 인증 모두 (SMS 발송 = SALES/MANAGER/MASTER) | `GET/POST /delivery-batches` 7 endpoint | ✅ |
+| 6 | `/sales/link-dispatch` | `LinkDispatchListPage.tsx` | MANAGER/MASTER | `GET/POST /delivery-batches` 7 endpoint | ✅ |
 | 7 | `/sales/:id` | `SlipDetailPage.tsx` (mode=OUTBOUND) | 인증 모두 (transition = role 별) | `GET /slips/{id}` + `POST /slips/{id}/{action}` (save/send/accept/process/inspect/complete/ship/deliver/confirm/reject/cancel) | ✅ |
 | 8 | `/sales/:id/print/invoice` | `print/InvoiceView.tsx` | 인증 모두 | `GET /slips/{id}` (캐시 재사용) | ✅ |
 | 9 | `/sales/:id/print/dispatch` | `print/DispatchView.tsx` | 인증 모두 | `GET /slips/{id}` | ✅ |
@@ -128,7 +128,7 @@
 
 | # | Route | 컴포넌트 | 권한 | 백엔드 API | 구현 상태 |
 |---|---|---|---|---|---|
-| 17 | `/purchases` | `SlipListPage.tsx` (mode=INBOUND) | 인증 모두 | `GET /slips?slipType=INBOUND` | ✅ |
+| 17 | `/purchases` | `PurchaseQueryPage.tsx` (구매관리) | 인증 모두 | `GET /slips/query?type=INBOUND` | ✅ |
 | 18 | `/purchases/new` | `SlipFormPage.tsx` (mode=INBOUND) | SALES/MANAGER/MASTER | `POST /slips` (slipType=INBOUND) | ✅ |
 | 19 | `/purchases/:id` | `SlipDetailPage.tsx` (mode=INBOUND) | 인증 모두 | `GET /slips/{id}` + transition (confirm = ACCOUNTANT/MANAGER/MASTER) | ✅ |
 
@@ -140,15 +140,15 @@
 | 21 | `/transfers/new` | `TransferFormPage.tsx` | MASTER/MANAGER/WAREHOUSE/INVENTORY | `POST /inventory/transfers` | ✅ |
 | 22 | `/transfers/:id` | `TransferDetailPage.tsx` | 인증 모두 (transition = role 별) | `GET /inventory/transfers/{id}` + `POST /inventory/transfers/{id}/{approve\|reject\|ship\|receive\|confirm\|cancel}` | ✅ |
 
-#### 2.1.6 회계 (accounting-slice-A) — ACCOUNTANT/MASTER 만
+#### 2.1.6 회계 (accounting-slice-A) — ACCOUNTANT/MANAGER/MASTER
 
 | # | Route | 컴포넌트 | 권한 | 백엔드 API | 구현 상태 |
 |---|---|---|---|---|---|
-| 23 | `/accounting/accounts` | `AccountTreePage.tsx` | ACCOUNTANT/MASTER (RoleGuard) | `GET /accounting/accounts` | ✅ |
-| 24 | `/accounting/journals` | `JournalListPage.tsx` | ACCOUNTANT/MASTER | `GET /accounting/journals?period=&status=&page=` | ✅ |
-| 25 | `/accounting/journals/new` + `/:id/edit` | `JournalFormPage.tsx` | ACCOUNTANT/MASTER | `POST /accounting/journals` (DRAFT) | ✅ |
-| 26 | `/accounting/journals/:id` | `JournalDetailPage.tsx` | ACCOUNTANT/MASTER | `GET /accounting/journals/{id}` + `POST /{id}/post` + `POST /{id}/reverse` | ✅ |
-| 27 | `/accounting/balances` | `TrialBalancePage.tsx` | ACCOUNTANT/MASTER | `GET /accounting/balances?period=YYYYMM` | ✅ |
+| 23 | `/accounting/accounts` | `AccountTreePage.tsx` | ACCOUNTANT/MANAGER/MASTER (RoleGuard) | `GET /accounting/accounts` | ✅ |
+| 24 | `/accounting/journals` | `JournalListPage.tsx` | ACCOUNTANT/MANAGER/MASTER | `GET /accounting/journals?period=&status=&page=` | ✅ |
+| 25 | `/accounting/journals/new` + `/:id/edit` | `JournalFormPage.tsx` | ACCOUNTANT/MANAGER/MASTER | `POST /accounting/journals` (DRAFT) | ✅ |
+| 26 | `/accounting/journals/:id` | `JournalDetailPage.tsx` | ACCOUNTANT/MANAGER/MASTER | `GET /accounting/journals/{id}` + `POST /{id}/post` + `POST /{id}/reverse` | ✅ |
+| 27 | `/accounting/balances` | `TrialBalancePage.tsx` | ACCOUNTANT/MANAGER/MASTER | `GET /accounting/balances?period=YYYYMM` | ✅ |
 
 #### 2.1.7 모바일 mock (signature-slice-C, AuthGuard 외부)
 
@@ -175,9 +175,9 @@
 
 1. `/login` → `/sales` (출고 처리 대기 목록)
 2. SlipDetail → `accept` (수락) → `process` (처리) → `inspect` (검수) → `complete` (완료) → `ship` (출하) → `deliver` (배송)
-3. 사이드바 **재고이동** (`/transfers`) → 창고 간 자체 이동전표 작성 → 라이프사이클 (`approve`/`reject`/`ship`/`receive`/`confirm`)
+3. 사이드바 **재고이동 관리** (`/transfers`) → 창고 간 자체 이동전표 작성 → 라이프사이클 (`approve`/`reject`/`ship`/`receive`/`confirm`)
 
-#### 2.2.3 회계 흐름 (ACCOUNTANT/MASTER role)
+#### 2.2.3 회계 흐름 (ACCOUNTANT/MANAGER/MASTER role)
 
 1. `/login` → `/` 대시보드
 2. 사이드바 **회계** 그룹 활성 (RoleGuard) → **계정과목** (`/accounting/accounts`) → 표준 계정과목 트리 (한국 일반기업회계기준 100~900 코드)

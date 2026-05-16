@@ -115,7 +115,7 @@ curl -X POST "http://localhost:8080/api/delivery-batches/auto-group?date=2026-05
       "tokenExpiresAt": "2026-06-08T23:59:59",
       "smsSentAt": null,
       "slipCount": 5,
-      "slipNos": ["20260509-001", "20260509-002", "20260509-003", "20260509-004", "20260509-005"]
+      "slipNos": ["2026/05/09-1", "2026/05/09-2", "2026/05/09-3", "2026/05/09-4", "2026/05/09-5"]
     }
   ]
 }
@@ -171,11 +171,11 @@ curl http://localhost:8080/api/public/batches/$BATCH_TOKEN
     "driverName": "배송기사 박철수",
     "batchDate": "2026-05-09",
     "slips": [
-      {"slipNo":"20260509-001","partnerName":"(주)에스엠하나공조","lineCount":1,"status":"SHIPPING"},
-      {"slipNo":"20260509-002","partnerName":"(주)글로벌HVAC","lineCount":1,"status":"SHIPPING"},
-      {"slipNo":"20260509-003","partnerName":"(주)대성냉동","lineCount":1,"status":"SHIPPING"},
-      {"slipNo":"20260509-004","partnerName":"...","lineCount":1,"status":"SHIPPING"},
-      {"slipNo":"20260509-005","partnerName":"...","lineCount":1,"status":"SHIPPING"}
+      {"slipNo":"2026/05/09-1","partnerName":"(주)에스엠하나공조","lineCount":1,"status":"SHIPPING"},
+      {"slipNo":"2026/05/09-2","partnerName":"(주)글로벌HVAC","lineCount":1,"status":"SHIPPING"},
+      {"slipNo":"2026/05/09-3","partnerName":"(주)대성냉동","lineCount":1,"status":"SHIPPING"},
+      {"slipNo":"2026/05/09-4","partnerName":"...","lineCount":1,"status":"SHIPPING"},
+      {"slipNo":"2026/05/09-5","partnerName":"...","lineCount":1,"status":"SHIPPING"}
     ]
   }
 }
@@ -221,12 +221,12 @@ curl -i http://localhost:8080/api/public/batches/totally-invalid-token-string
 각 slip 에 대해 PNG canvas 서명 + SHA-256 hash 동봉.
 
 ```sh
-SLIP_NO="20260509-001"
+SLIP_NO_PATH="2026-05-09-1"  # URL path 용 slug. 응답/화면 표시는 "2026/05/09-1".
 # 50KB 이하 PNG (test fixture). base64 encode.
 PNG_BYTES=$(base64 -w 0 < /tmp/test-signature.png)   # ≤ ~70KB base64 (50KB raw PNG 한도)
 PNG_HASH=$(sha256sum /tmp/test-signature.png | cut -d' ' -f1)
 
-curl -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/$SLIP_NO/signature \
+curl -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/$SLIP_NO_PATH/signature \
   -H "Content-Type: application/json" \
   -d "{
     \"signerName\": \"(주)에스엠하나공조 박부장\",
@@ -243,7 +243,7 @@ curl -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/$SLIP_N
 {
   "ok": true,
   "data": {
-    "slipNo": "20260509-001",
+    "slipNo": "2026/05/09-1",
     "shareToken": "<32-char URL-safe>",
     "signerName": "(주)에스엠하나공조 박부장",
     "deliveredAt": "2026-05-09T15:30:00Z",
@@ -263,7 +263,7 @@ curl -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/$SLIP_N
 
 ```sh
 LARGE_PNG=$(base64 -w 0 < /tmp/large-100kb-signature.png)   # 100KB raw
-curl -i -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/20260509-001/signature \
+curl -i -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/2026-05-09-1/signature \
   -d "{\"signerName\":\"x\",\"imageBase64\":\"$LARGE_PNG\",\"imageHash\":\"...\",\"capturedAt\":\"2026-05-09T15:30:00Z\"}"
 ```
 
@@ -273,7 +273,7 @@ curl -i -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/2026
 ### 4.2 SHA-256 hash mismatch → 400
 
 ```sh
-curl -i -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/20260509-002/signature \
+curl -i -X POST http://localhost:8080/api/public/batches/$BATCH_TOKEN/slips/2026-05-09-2/signature \
   -d "{\"signerName\":\"x\",\"imageBase64\":\"$PNG_BYTES\",\"imageHash\":\"WRONG_HASH\",\"capturedAt\":\"2026-05-09T15:30:00Z\"}"
 ```
 
@@ -327,7 +327,7 @@ docker exec -it samhan-postgres psql -U samhan -d slip_db \
 
 driver-app (arologis) 가 호출하는 internal endpoint 도 동일 슬립에 서명을 발행할 수 있어야 함 (PR #99 W10-4).
 
-> 본 시나리오에서는 별도 슬립 1건 (`20260509-006` 가정 — SHIPPING 단계) 으로 검증.
+> 본 시나리오에서는 별도 슬립 1건 (`2026/05/09-6` 가정 — SHIPPING 단계) 으로 검증.
 
 ```sh
 NEW_SLIP_ID="<별도 SHIPPING 슬립 UUID>"
@@ -393,7 +393,7 @@ curl http://localhost:8080/api/public/signatures/$SHARE_TOKEN
 {
   "ok": true,
   "data": {
-    "slipNo": "20260509-001",
+    "slipNo": "2026/05/09-1",
     "partnerName": "(주)에스엠하나공조",
     "deliveredAt": "2026-05-09T15:30:00Z",
     "signerName": "(주)에스엠하나공조 박부장",
@@ -545,7 +545,7 @@ CREATE UNIQUE INDEX uk_delivery_batches_driver_date
 | 응답 필드 | type | 모바일 노출? | 비고 |
 |---|---|---|---|
 | `batch.driverName`, `driverPhone`, `batchDate` | string | YES | 상단 헤더 |
-| `batch.slips[].slipNo` | string | YES | 슬립번호 (예: 20260509-001) |
+| `batch.slips[].slipNo` | string | YES | 슬립번호 (예: 2026/05/09-1) |
 | `batch.slips[].partnerName` | string | YES | 거래처명 |
 | `batch.slips[].lineCount`, `status` | number/string | YES | 라인 수 + 상태 뱃지 |
 | `batch.id`, `batch.batchToken` | UUID/string | **NO** | URL 만 사용 |
@@ -589,21 +589,21 @@ WHERE delivery_batch_id='$BATCH_ID' ORDER BY slip_no;
 ### 17.1 서명 등록 log 패턴
 
 ```
-INFO  c.s.l.slip.delivery.web.PublicSlipController : POST /public/batches/<token>/slips/20260509-001/signature - signerName=...
+INFO  c.s.l.slip.delivery.web.PublicSlipController : POST /public/batches/<token>/slips/2026-05-09-1/signature - signerName=...
 INFO  c.s.l.slip.service.SlipSignatureService : Signature recorded: slipId=... source=APP signerName=... shareToken=...
-INFO  c.s.l.slip.service.SlipService : Slip 20260509-001 transition: SHIPPING → DELIVERED via signature
+INFO  c.s.l.slip.service.SlipService : Slip 2026/05/09-1 transition: SHIPPING → DELIVERED via signature
 ```
 
 ### 17.2 50KB 가드 위반 시 log
 
 ```
-WARN  c.s.l.slip.service.SlipSignatureService : PNG size exceeded: 102400 bytes > 51200 limit (slipNo=20260509-001)
+WARN  c.s.l.slip.service.SlipSignatureService : PNG size exceeded: 102400 bytes > 51200 limit (slipNo=2026/05/09-1)
 ```
 
 ### 17.3 hash mismatch 시 log
 
 ```
-WARN  c.s.l.slip.service.SlipSignatureService : SHA-256 hash mismatch (claimed=<a>, actual=<b>) — possible tampering, slipNo=20260509-001
+WARN  c.s.l.slip.service.SlipSignatureService : SHA-256 hash mismatch (claimed=<a>, actual=<b>) — possible tampering, slipNo=2026/05/09-1
 ```
 
 > 본 log 는 보안 audit 대상 — Elasticsearch 알림 룰 권장.

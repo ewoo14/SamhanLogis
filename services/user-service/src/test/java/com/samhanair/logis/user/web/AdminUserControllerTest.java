@@ -81,10 +81,10 @@ class AdminUserControllerTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("listRoles — 7 ROLE 모두 반환 (MASTER 포함)")
-    void listRoles_returns_all_seven_roles() {
+    @DisplayName("listRoles — 8 ROLE 모두 반환 (MASTER/DISPATCH 포함)")
+    void listRoles_returns_all_eight_roles() {
         ApiResponse<List<Role>> response = controller.listRoles();
-        assertThat(response.getData()).hasSize(7).contains(Role.MASTER, Role.MANAGER);
+        assertThat(response.getData()).hasSize(8).contains(Role.MASTER, Role.MANAGER, Role.DISPATCH);
     }
 
     // -------------------------------------------------------------------------

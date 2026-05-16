@@ -9,7 +9,7 @@
  * @example
  * ```tsx
  * // SalesListPage
- * usePageTitle('판매조회')
+ * usePageTitle('판매관리')
  *
  * // SlipDetailPage — slipNo bracket 동적
  * usePageTitle('출고전표 상세', slip?.slipNo)

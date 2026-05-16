@@ -44,6 +44,13 @@ export function canAccessPartnerFull(
   return !!role && (PARTNER_FULL_ROLES as readonly string[]).includes(role)
 }
 
+/** 거래처 4탭 수정 가능 여부 — BE PATCH/탭별 쓰기 endpoint 와 일치. */
+export function canEditPartnerFull(
+  role: string | undefined | null,
+): boolean {
+  return role === 'MANAGER' || role === 'MASTER'
+}
+
 /** PartnerType → 한국어 표시 라벨. */
 export const PARTNER_TYPE_LABEL: Record<PartnerType, string> = {
   CUSTOMER: '고객',

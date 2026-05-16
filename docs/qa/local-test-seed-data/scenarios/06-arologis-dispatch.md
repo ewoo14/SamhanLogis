@@ -511,7 +511,7 @@ curl http://localhost:8080/api/internal/slips/by-partner-code/214/recent \
   "ok": true,
   "data": {
     "slipId": "<UUID>",
-    "slipNo": "20260509-XXX",
+    "slipNo": "2026/05/09-N",
     "status": "SHIPPING"
   }
 }

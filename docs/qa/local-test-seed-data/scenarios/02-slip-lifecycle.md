@@ -111,7 +111,7 @@ curl -X POST http://localhost:8080/api/slips \
   "ok": true,
   "data": {
     "id": "<UUID>",
-    "slipNo": "20260509-001",
+    "slipNo": "2026/05/09-1",
     "status": "DRAFT",
     "slipType": "OUTBOUND",
     "lines": [{ "productName": "천장 카세트형 에어컨 12000BTU", "lineTotal": 8500000.00 }]
@@ -633,7 +633,7 @@ done
 
 | 응답 필드 | type | FE 화면 노출? | 대체 식별자 |
 |---|---|---|---|
-| `slip.id` | UUID | **NO** | `slipNo` (20260509-001) |
+| `slip.id` | UUID | **NO** | `slipNo` (2026/05/09-1) |
 | `slip.partnerId` | UUID | **NO** | `partnerName` |
 | `slip.sourceWarehouseId` | UUID | **NO** | `warehouseCode` (WH-MAIN) |
 | `slip.requesterId` | UUID 또는 'system' | **NO** | (FE 가 employee lookup 후 displayName) |
@@ -742,9 +742,9 @@ docker exec -it samhan-postgres psql -U samhan -d inventory_db \
 각 STEP 마다 slip-service 콘솔에 다음 로그 기록.
 
 ```
-INFO  c.s.l.slip.service.SlipService : Slip 20260509-001 transition: DRAFT → SAVED by sales-user-id
-INFO  c.s.l.slip.service.SlipService : Slip 20260509-001 transition: SAVED → SENT by sales-user-id
-INFO  c.s.l.slip.service.SlipService : Slip 20260509-001 transition: SENT → ACCEPTED by master-user-id, reserved 10 units (productId=...)
+INFO  c.s.l.slip.service.SlipService : Slip 2026/05/09-1 transition: DRAFT → SAVED by sales-user-id
+INFO  c.s.l.slip.service.SlipService : Slip 2026/05/09-1 transition: SAVED → SENT by sales-user-id
+INFO  c.s.l.slip.service.SlipService : Slip 2026/05/09-1 transition: SENT → ACCEPTED by master-user-id, reserved 10 units (productId=...)
 ...
 ```
 

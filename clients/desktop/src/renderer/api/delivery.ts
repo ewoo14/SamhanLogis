@@ -16,6 +16,20 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 
+// ---------------------------------------------------------------------------
+// 권한 헬퍼 — BE DeliveryBatchController @PreAuthorize 와 1:1
+// ---------------------------------------------------------------------------
+
+/** 링크발송/배송 묶음 화면 진입 가능 ROLE — MANAGER / MASTER. */
+export const DELIVERY_BATCH_ROLES = ['MANAGER', 'MASTER'] as const
+
+/** 링크발송/배송 묶음 화면 진입 가능 여부. */
+export function canAccessDeliveryBatch(
+  role: string | undefined | null,
+): boolean {
+  return role === 'MANAGER' || role === 'MASTER'
+}
+
 /** 배치 목록의 한 row — Designer wireframes.md § 1 인용 (LinkDispatchListPage 표 6 컬럼). */
 export interface DeliveryBatchSummary {
   /** UUID — path param 에만 사용, 화면 미노출. */

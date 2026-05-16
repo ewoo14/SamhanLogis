@@ -18,8 +18,8 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 견적번호 채번 시퀀스 — 일자별 last_seq 보조.
  *
- * <p>{@link com.samhanair.logis.slip.domain.SlipNumberSequence} 와 동일 패턴 — 단,
- * 견적은 {@code EQ-yyyyMMdd-NNNN} (4자리 시퀀스). slip 은 {@code yyyy/MM/dd-N}.
+ * <p>{@link com.samhanair.logis.slip.domain.SlipNumberSequence} 와 동일 패턴 —
+ * 견적서 메뉴 자체가 업무 타입 구분자이므로 공개번호는 {@code yyyy/MM/dd-N} 이다.
  */
 @Entity
 @Getter

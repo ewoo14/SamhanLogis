@@ -87,9 +87,9 @@ export interface CsvUploadResult {
  * 지역 분류 admin 진입 권한.
  *
  * <p>BE {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")} (목록) 와 1:1.
- * 별도 DISPATCH role 은 backlog — 현재 운영 가능 role 은 MASTER / MANAGER.
+ * create/update/delete 는 BE 가 MASTER/MANAGER 로 강제하므로 페이지 내부 버튼 권한에서 2차 가드한다.
  */
-export const ARO_REGIONS_ADMIN_ROLES = ['MASTER', 'MANAGER'] as const
+export const ARO_REGIONS_ADMIN_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const
 
 /** 전체 활성 지역 분류 조회 (sort_order 오름차순). */
 export async function listRegions(): Promise<RegionResponse[]> {

@@ -118,7 +118,7 @@ export function RolesPage() {
         </span>
       </div>
       <p style={{ marginTop: 0, color: '#6B7280', fontSize: 13 }}>
-        7-tier ROLE 정책 — 풀네임 의무 (M/M/D 약어 금지). 권한 변경은 사용자
+        8-role ROLE 정책 — 풀네임 의무 (M/M/D 약어 금지). 권한 변경은 사용자
         관리 화면에서 수행합니다.
       </p>
       <div data-testid="admin-roles-table">
@@ -138,6 +138,7 @@ const ROLE_DESCRIPTION: Record<AdminRole, string> = {
   MASTER: '최고 관리자 — admin 메뉴 + 전 권한',
   DEVELOPER: '개발자 — 마스터 데이터 변경 + 시스템 설정',
   MANAGER: '매니저 — 부서/거래처 운영 + 승인 권한',
+  DISPATCH: '배차담당자 — 배차 메뉴 + arologis 운영 조회/발송',
   SALES: '영업원 — 견적/판매 전표 작성',
   ACCOUNTANT: '회계원 — 분개 작성/확정 + 세금계산서',
   WAREHOUSE: '창고원 — 입출고 + 재고 실사',

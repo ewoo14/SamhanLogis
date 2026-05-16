@@ -242,6 +242,15 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # dc-config-service — 데스크톱 거래처 DC 설정 화면.
+        # controller 가 /api/v1/partner-dc-configs 풀패스를 보유하므로 StripPrefix 없음.
+        - id: dc-config-partner-dc-configs-v1
+          uri: lb://dc-config-service
+          predicates:
+            - Path=/api/v1/partner-dc-configs/**
+          filters:
+            - JwtAuthentication
+
         # ============================================================
         # No-prefix routes — desktop API client legacy 호환 (PR-D 이전).
         # baseURL=http://localhost:8080 + 직접 path (예: /slips/query, /inventory/transfers,

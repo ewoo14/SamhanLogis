@@ -22,6 +22,9 @@ public interface PartnerChatRoomMappingRepository extends JpaRepository<PartnerC
     /** 거래처별 매핑 N건 (1 거래처 → N 단톡방). */
     List<PartnerChatRoomMapping> findAllByPartnerCode(String partnerCode);
 
+    /** legacy Notion CSV 처럼 거래처코드 없이 상호만 있는 매핑 N건. */
+    List<PartnerChatRoomMapping> findAllByPartnerBusinessNameSnapshot(String partnerBusinessNameSnapshot);
+
     /** 단톡방별 매핑 N건 (1 단톡방 → N 거래처). */
     List<PartnerChatRoomMapping> findAllByChatRoomName(String chatRoomName);
 

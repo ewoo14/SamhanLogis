@@ -1635,6 +1635,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 
 ---
 
+### SP-04. Samhan Public 전메뉴 / legacy GAS / Notion CSV 이식 감사 (2026-05-16)
+
+**배경**: Samhan Public 전메뉴에서 판매/구매/창고/재고이동/견적/주문 화면이 조회 전용처럼 보이거나, admin-origin 운영 화면이 인사/대표실 셸에 묶여 일반 업무 역할이 접근하기 어려운 구간이 있었다. 또한 `/tools/legacy-gas` 의 기존 이카운트 + Google Apps Script 연동 기능과 Notion 단톡방/발송금지/배차지역 데이터가 실제 서비스로 빠짐없이 이식됐는지 PR/문서/CSV 기준 재감사가 필요했다.
+
+| # | 결정 |
+|---|---|
+| SP-04-01 | 전메뉴 primary label 은 조회 전용이 아닌 관리형 업무면 `…관리`로 표기한다. `판매관리`, `구매관리`, `재고이동 관리`, `창고 관리`, `견적서 관리`, `주문서 관리`가 기준이다. `주문서 승인`, `거래처 DC 설정`은 단일 행위를 드러내므로 유지한다. |
+| SP-04-02 | `DISPATCH` 는 공통 Role enum 에 포함한다. 배차 담당자는 배차/지역 조회를 수행할 수 있으나, 지역 CSV import/edit/delete 같은 운영 변경은 `MANAGER / MASTER`로 제한한다. |
+| SP-04-03 | `/sales/new`, `/purchases/new`, `/transfers/new`, `/sales/link-dispatch` 등 생성/발송 route 는 메뉴 노출뿐 아니라 router level `RoleGuard`도 반드시 둔다. |
+| SP-04-04 | Excel export 는 운영 데이터 유출 면적이 크므로 `MANAGER / MASTER`로 제한한다. `SALES`는 거래처/판매/구매 목록 조회와 생성 흐름은 사용할 수 있지만 Excel 전체 export 및 거래처 상세 직접 편집은 제한한다. |
+| SP-04-05 | 전표/배차/재고이동/견적/주문 등 사용자 노출 업무번호는 `YYYY/MM/DD-{순번}` 형식을 따른다. 메뉴/업무 타입이 다르면 같은 날짜 같은 순번이 중복될 수 있으며, 내부 UUID PK와 업무 타입이 정합성을 담당한다. |
+| SP-04-06 | legacy GAS/Notion row count 검증은 과거 PR #115 시점 hardcoded count가 아니라 현재 CSV export 의 non-empty row 기준으로 한다. 2026-05-16 현재 기준: 배차지역 20 / 거래처 DC 213 / 단톡방 112 / 발송금지 6. |
+| SP-04-07 | `/tools/legacy-gas` 이식 상태의 근거 PR은 #115(노션 4 CSV), #117(GAS B outbound), #118(GAS B accounting), #119(GAS C/D + Aligo mock), #120(vendor OCR), #163(legacy-gas cross-check + DPS)로 둔다. 누락이 아니라 mock/운영연동 후속인 항목은 dev-report 에 분리해 표시한다. |
+| SP-04-08 | PR 캡처는 1장 요약이 아니라 메뉴/권한/노션 row count/legacy GAS 대조/표시번호/검증 matrix 를 여러 장으로 첨부한다. |
+| SP-04-09 | 현재 Notion 단톡방리스트/발송금지리스트는 `거래처코드`가 없고 `이카운트 사업자명`만 있다. legacy GAS 도 사업자명 index 로 동작했으므로, Samhan Public import 는 code-first 를 유지하되 lookup miss row 를 `LEGACY-NAME-{hash}` alias 로 저장해 기능 누락 없이 보존한다. 사용자 화면에는 alias/UUID를 노출하지 않는다. |
+| SP-04-10 | DC CSV는 거래처코드가 있지만 `dc_config_db.partners` seed가 비어 있을 수 있다. import 는 CSV의 `거래처코드`/`업체명`으로 최소 Partner snapshot 을 자동 생성한 뒤 DC config 를 upsert 하며, 이후 정식 partner master 동기화가 들어와도 UUID PK와 partnerCode 로 복구 가능하게 둔다. |
+| SP-04-11 | `종합견적서` tab 자체는 출력 양식이므로 modelCode/단가 원본으로 보지 않는다. 종합견적서는 `*_단가인상` tab, 거래처 발송 주문서는 base tab을 legacy GAS와 동일하게 source-of-truth로 읽는다. `ProductCatalogLookupClient`의 `INTEGRATED_QUOTE_RANGE`는 별도 3열 flat catalog가 있을 때만 override한다. |
+
+---
+
 ## Phase A — Samhan Public 배차 메뉴 + 아로로지스 발송 (2026-05-14)
 
 ### D-DB-00. Samhan Public 배차 메뉴 신규 + 아로로지스 service-to-service 발송 (5-team 통합 PR, 9 결정)

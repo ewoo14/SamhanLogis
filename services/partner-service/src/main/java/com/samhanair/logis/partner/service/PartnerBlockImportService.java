@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Service;
 /**
  * Phase 10 PR-D Part B — Notion 발송금지 CSV (이카운트 사업자명 + 생성 일시) → BlockedPartner row import.
  *
- * <p>5 거래처 (Samhan Public legacy) — Notion export = UTF-8 BOM + 한국어 datetime ("2026년 4월 26일
+ * <p>Samhan Public legacy 발송금지 거래처 — Notion export = UTF-8 BOM + 한국어 datetime ("2026년 4월 26일
  * 오전 7:36") 포맷. {@link BOMInputStream} 으로 BOM 제거 후 OpenCSV 로 파싱.
  *
  * <p>매핑 우선순위 (TM PR-D Part 3 — 사용자 명시 "거래처명이 아니라 거래처코드로 매핑"):
@@ -35,7 +37,7 @@ import org.springframework.stereotype.Service;
  *       검증 (LIKE 모호성 회피, 정확 매칭).</li>
  *   <li>코드가 비거나 검증 실패 시 {@code 이카운트 사업자명} →
  *       {@link PartnerService#findByNameForLookup(String)} fallback.</li>
- *   <li>둘 다 실패 시 reject (LOOKUP_MISS).</li>
+ *   <li>둘 다 실패해도 legacy Notion 원본 보존을 위해 사업자명 alias 로 BLOCK row 를 저장한다.</li>
  * </ol>
  *
  * <p>흐름 (row 단위):
@@ -67,6 +69,7 @@ public class PartnerBlockImportService {
     private static final String COL_PARTNER_CODE = "거래처코드";
     /** TM PR-D Part 3 — 거래처코드 우선 매핑 컬럼 (영문 헤더 대안). */
     private static final String COL_PARTNER_CODE_EN = "partner_code";
+    private static final String LEGACY_ALIAS_PREFIX = "LEGACY-NAME-";
 
     private final PartnerService partnerService;
     private final PartnerBlockService blockService;
@@ -149,28 +152,34 @@ public class PartnerBlockImportService {
                     lookupVia = inputPartnerCode != null
                             ? "거래처코드 미매칭 → 사업자명 fallback" : "사업자명";
                 }
-                if (lookup.isEmpty()) {
+                if (lookup.isEmpty() && (businessName == null || businessName.isBlank())) {
                     rejected.add(new BlockedPartnerImportResult.RejectedRow(
                             rowNum, businessName,
-                            "LOOKUP_MISS: partnerCode 매핑 실패 (코드=" + inputPartnerCode + ")"));
+                            "LOOKUP_MISS: partnerCode 매핑 실패 및 사업자명 alias 생성 불가 (코드="
+                                    + inputPartnerCode + ")"));
                     continue;
                 }
-
-                Partner partner = lookup.get();
-                if (blockService.isBlocked(partner.getPartnerCode())) {
+                String resolvedPartnerCode = lookup.map(Partner::getPartnerCode)
+                        .orElseGet(() -> legacyAliasCode(businessName));
+                if (blockService.isBlocked(resolvedPartnerCode)) {
                     alreadyBlocked++;
                     continue;
                 }
 
                 // snapshot — 사업자명 우선, 미공급 시 partnerCode placeholder.
                 String snapshot = (businessName != null && !businessName.isBlank())
-                        ? businessName : ("[" + partner.getPartnerCode() + "]");
+                        ? businessName : ("[" + resolvedPartnerCode + "]");
                 try {
-                    blockService.block(partner.getPartnerCode(), null, blockedAt,
-                            "NOTION_IMPORT", snapshot);
+                    if (lookup.isPresent()) {
+                        blockService.block(resolvedPartnerCode, null, blockedAt,
+                                "NOTION_IMPORT", snapshot);
+                    } else {
+                        blockService.blockLegacySnapshot(resolvedPartnerCode, null, blockedAt,
+                                "NOTION_IMPORT", snapshot);
+                    }
                     imported++;
                     log.debug("BLOCK row={} partner_code={} via={}",
-                            rowNum, partner.getPartnerCode(), lookupVia);
+                            rowNum, resolvedPartnerCode, lookupVia);
                 } catch (BusinessException ex) {
                     // 동시 import / race condition 등 — CONFLICT 시 alreadyBlocked 분류
                     if (ex.getErrorCode() == ErrorCode.CONFLICT) {
@@ -216,5 +225,27 @@ public class PartnerBlockImportService {
             return null;
         }
         return row[idx] == null ? null : row[idx].trim();
+    }
+
+    static String legacyAliasCode(String businessName) {
+        String source = safeBusinessName(businessName);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(source.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 6; i++) {
+                hex.append(String.format("%02x", bytes[i]));
+            }
+            return LEGACY_ALIAS_PREFIX + hex;
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 미지원", ex);
+        }
+    }
+
+    private static String safeBusinessName(String businessName) {
+        if (businessName == null || businessName.isBlank()) {
+            throw new IllegalArgumentException("businessName 필수");
+        }
+        return businessName.trim();
     }
 }

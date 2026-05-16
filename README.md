@@ -31,8 +31,9 @@
 - D-AX-22: driver-facing GPS/서명/사본/전표상세 계약의 UUID 비노출 hardening 완료, PR #202 merge. 내부 PK/저장키/원본 URL 은 서버 내부 처리에만 쓰고 화면/API 응답에는 업무번호, target sequence, 표시명만 노출한다.
 - SP-01: Samhan Public 거래처 관리 메뉴 gap 정합화 완료, PR #203 merge. `판매 > 거래처 관리`와 `/admin/partners`, `/admin/partners/new`를 `SALES / MANAGER / MASTER` 공용 권한으로 정렬했다.
 - SP-02: Samhan Public 회계 마감 메뉴 gap 정합화 완료, PR #204 merge. `매출 마감`은 `/sales/closing`, `월말 마감`은 `/accounting/period-close`로 고정하고 MANAGER 조회 전용 백엔드 계약 및 accounting-service Docker 무스킵 테스트(204 tests / 0 skipped)를 맞췄다.
-- SP-03: Samhan Public 구매관리 검수 CTA + 관리형 메뉴명/표시번호 정리 진행. `/purchases` 통합 화면에서 `WAREHOUSE / MANAGER / MASTER`가 `SAVED / CONFIRMED` 구매전표를 같은 행의 **[검수]** 버튼으로 `InboundInspectionDialog`에 연결하고, 판매/구매/재고이동/창고/견적서/주문서 메뉴는 `…관리` 명칭으로 정렬한다. 재고이동 이동번호도 `T-`/`TR-` 없이 `YYYY/MM/DD-{순번}`으로 통일하며, 신규 채번은 같은 날짜 마지막 순번 이후로 이어진다.
-- 다음 후보: 품목 마스터 7탭 UI, 전표 작성 route guard, 창고 재고 조회 IA, comments/audit/SSE proxy 확장, Testcontainers no-skip hardening.
+- SP-03: Samhan Public 구매관리 검수 CTA + 관리형 메뉴명/표시번호 정리 완료, PR #205 merge. `/purchases` 통합 화면에서 `WAREHOUSE / MANAGER / MASTER`가 `SAVED / CONFIRMED` 구매전표를 같은 행의 **[검수]** 버튼으로 `InboundInspectionDialog`에 연결하고, 판매/구매/재고이동/창고/견적서/주문서 메뉴는 `…관리` 명칭으로 정렬했다. 재고이동 이동번호도 `T-`/`TR-` 없이 `YYYY/MM/DD-{순번}`으로 통일했다.
+- SP-04: Samhan Public 전메뉴/권한/legacy GAS·노션 이식 감사 진행. `/tools/legacy-gas` 27개 GAS 카테고리와 PR #115/#117/#118/#119/#120/#163을 대조하고, 단톡방/발송금지/배차지역/DC CSV row count를 현재 export 기준으로 재검증한다. 종합견적서/주문서는 legacy Google Spreadsheet 원본 tab을 직접 읽도록 재검증했으며, 견적번호/주문번호/재고이동/전표/배차번호는 공개 업무번호 `YYYY/MM/DD-{순번}` 표준으로 정렬한다.
+- 다음 후보: 품목 마스터 7탭 UI, 창고 재고 조회 IA, comments/audit/SSE proxy 확장, Testcontainers no-skip hardening.
 
 ## 시스템 구조 (Mermaid)
 
@@ -129,7 +130,7 @@ SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 ├── ROADMAP.md                 # 단계별 로드맵 (Phase 0 ~ 10)
 ├── settings.gradle / build.gradle / gradlew
 ├── shared/
-│   ├── common/                # BaseEntity, Role enum 7-tier, JwtTokenProvider, ApiResponse, BusinessException
+│   ├── common/                # BaseEntity, Role enum 8-role, JwtTokenProvider, ApiResponse, BusinessException
 │   ├── discovery-abstraction/ # ServiceDiscoveryClient (Eureka default + AWS Cloud Map placeholder, Phase 8 2차)
 │   └── user-client-abstraction/ # UserVerifier interface + DefaultUserVerifier (Caffeine TTL 60s, Phase 9 W4 신규)
 ├── services/                  # 14 backend MSA (Spring Boot 3 / Java 17)

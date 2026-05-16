@@ -4,7 +4,7 @@ import com.samhanair.logis.partnerorder.client.GoogleSheetsClient;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.GeneralSecurityException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,11 +14,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 종합견적서 시트 (product-service GoogleSheetsClient 1:1 복제 기 보유) 기반 modelCode → 단가 lookup.
+ * 종합견적서/주문서 Google Sheet 원본 tab 기반 modelCode → 단가 lookup.
  *
  * <p>사용자 명시 (memory project_arologis_phase10): legacy GAS 의 Notion 단가 마스터를 폐기하고
- * 우리 자체 종합견적서 시트로 일원화. partner-order-service 가 이미 PR-D 에서 시트 read 패턴을
- * 보유 중이므로 신규 client 는 sheetId/range/lookup 로직만 추가.
+ * 우리 자체 종합견적서 시트로 일원화. 단, {@code 종합견적서} tab 자체는 출력 양식이므로
+ * legacy GAS 와 동일하게 홈멀티/싱글/상업멀티 원본 tab 을 직접 읽는다.
  *
  * <p>fail-soft: 시트 read 실패 / 매칭 없음 시 empty 반환 — controller 가 OCR 단가 fallback.
  *
@@ -31,13 +31,32 @@ public class ProductCatalogLookupClient {
 
     private final GoogleSheetsClient sheetsClient;
 
+    private static final List<CatalogTab> LEGACY_SOURCE_TABS = List.of(
+            // 종합견적서 Code.js 는 단가인상 tab 을 source-of-truth 로 사용한다.
+            new CatalogTab("홈멀티_단가인상!A1:Z", 0, 1, 5),
+            new CatalogTab("싱글 세트_단가인상!A1:Z", 0, 2, 7),
+            new CatalogTab("싱글 구성품_단가인상!A1:Z", 0, 2, 7),
+            new CatalogTab("상업멀티_단가인상!A1:Z", 0, 1, 6),
+            new CatalogTab("상업멀티 구성_단가인상!A1:Z", 0, 1, 5),
+            new CatalogTab("구형!A1:Z", 0, 1, 5),
+            // 거래처 발송 주문서 Code.js 는 base tab 도 직접 참조하므로 fallback 으로 보존한다.
+            new CatalogTab("홈멀티!A1:Z", 0, 1, 5),
+            new CatalogTab("싱글 세트!A1:Z", 0, 2, 7),
+            new CatalogTab("싱글 구성품!A1:Z", 0, 2, 7),
+            new CatalogTab("상업멀티!A1:Z", 0, 1, 6),
+            new CatalogTab("상업멀티 구성!A1:Z", 0, 1, 5)
+    );
+
     /** 종합견적서 시트 ID — 운영에서는 INTEGRATED_QUOTE_SHEET_ID 환경변수 override. */
     @Value("${samhan.partner-order.vendor.catalog-sheet-id:${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}}")
     private String catalogSheetId;
 
-    /** 종합견적서 range — 컬럼 0=modelCode, 1=productName, 2=unitPrice 가정. */
-    @Value("${samhan.partner-order.vendor.catalog-range:종합견적서!A2:C}")
-    private String catalogRange;
+    /**
+     * 선택 override: 외부에서 이미 modelCode/productName/unitPrice 3열 flat range 를 만든 경우만 사용.
+     * 비어 있으면 legacy GAS 원본 tab 매핑을 사용한다.
+     */
+    @Value("${samhan.partner-order.vendor.catalog-range:}")
+    private String catalogRangeOverride;
 
     public ProductCatalogLookupClient(GoogleSheetsClient sheetsClient) {
         this.sheetsClient = sheetsClient;
@@ -63,7 +82,7 @@ public class ProductCatalogLookupClient {
             return Map.of();
         }
         Map<String, CatalogEntry> all = loadCatalog();
-        Map<String, CatalogEntry> result = new HashMap<>();
+        Map<String, CatalogEntry> result = new LinkedHashMap<>();
         for (String code : modelCodes) {
             if (code == null || code.isBlank()) {
                 continue;
@@ -76,15 +95,51 @@ public class ProductCatalogLookupClient {
         return result;
     }
 
-    /** 종합견적서 전체 → modelCode 인덱스. fail-soft (read 실패 시 빈 map). */
+    /** Google Sheet 원본 tab 전체 → modelCode 인덱스. fail-soft (read 실패 시 빈 map). */
     private Map<String, CatalogEntry> loadCatalog() {
+        if (catalogRangeOverride != null && !catalogRangeOverride.isBlank()) {
+            return loadFlatCatalog(catalogRangeOverride.trim());
+        }
+        Map<String, CatalogEntry> map = new LinkedHashMap<>();
+        for (CatalogTab tab : LEGACY_SOURCE_TABS) {
+            try {
+                List<List<Object>> rows = sheetsClient.readSheetDisplay(catalogSheetId, tab.range());
+                int headerIdx = findHeaderRow(rows);
+                if (headerIdx < 0) {
+                    log.warn("ProductCatalogLookupClient — header not found: {}", tab.range());
+                    continue;
+                }
+                for (int i = headerIdx + 1; i < rows.size(); i++) {
+                    List<String> cells = GoogleSheetsClient.toStringRow(
+                            rows.get(i), Math.max(16, tab.requiredColumnCount()));
+                    String modelCode = safeGet(cells, tab.modelCodeColumn()).trim();
+                    if (modelCode.isBlank()) {
+                        continue;
+                    }
+                    String productName = safeGet(cells, tab.nameColumn()).trim();
+                    BigDecimal unitPrice = parsePrice(safeGet(cells, tab.unitPriceColumn()));
+                    map.putIfAbsent(modelCode, new CatalogEntry(modelCode, productName, unitPrice));
+                }
+            } catch (IOException | GeneralSecurityException ex) {
+                log.warn("ProductCatalogLookupClient — sheet read fail-soft: range={}, error={}",
+                        tab.range(), ex.getMessage());
+            } catch (RuntimeException ex) {
+                log.warn("ProductCatalogLookupClient — 예상치 못한 오류 fail-soft: range={}, error={}",
+                        tab.range(), ex.getMessage());
+            }
+        }
+        return map;
+    }
+
+    /** 운영자가 별도 flat range 를 지정한 경우의 legacy 호환 loader. */
+    private Map<String, CatalogEntry> loadFlatCatalog(String flatRange) {
         try {
-            List<List<Object>> rows = sheetsClient.readSheet(catalogSheetId, catalogRange);
-            Map<String, CatalogEntry> map = new HashMap<>();
+            List<List<Object>> rows = sheetsClient.readSheetDisplay(catalogSheetId, flatRange);
+            Map<String, CatalogEntry> map = new LinkedHashMap<>();
             for (List<Object> row : rows) {
                 List<String> cells = GoogleSheetsClient.toStringRow(row, 3);
                 String modelCode = cells.get(0).trim();
-                if (modelCode.isEmpty()) {
+                if (modelCode.isEmpty() || modelCode.contains("모델")) {
                     continue;
                 }
                 String productName = cells.get(1).trim();
@@ -101,12 +156,33 @@ public class ProductCatalogLookupClient {
         }
     }
 
+    private static int findHeaderRow(List<List<Object>> rows) {
+        if (rows == null) {
+            return -1;
+        }
+        for (int i = 0; i < Math.min(10, rows.size()); i++) {
+            List<Object> row = rows.get(i);
+            if (row == null || row.isEmpty()) {
+                continue;
+            }
+            String first = row.get(0) == null ? "" : row.get(0).toString().replace(" ", "");
+            if (first.contains("품") && first.contains("명")) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String safeGet(List<String> cells, int index) {
+        return index < cells.size() ? cells.get(index) : "";
+    }
+
     private static BigDecimal parsePrice(String raw) {
         if (raw == null || raw.isBlank()) {
             return BigDecimal.ZERO;
         }
         try {
-            return new BigDecimal(raw.replace(",", "").replace("원", "").trim());
+            return new BigDecimal(raw.replace(",", "").replace("원", "").replace("₩", "").trim());
         } catch (NumberFormatException ex) {
             return BigDecimal.ZERO;
         }
@@ -120,5 +196,11 @@ public class ProductCatalogLookupClient {
      * @param unitPrice 단가 (VAT 포함 — 종합견적서 표기 기준)
      */
     public record CatalogEntry(String modelCode, String productName, BigDecimal unitPrice) {
+    }
+
+    private record CatalogTab(String range, int nameColumn, int modelCodeColumn, int unitPriceColumn) {
+        int requiredColumnCount() {
+            return Math.max(Math.max(nameColumn, modelCodeColumn), unitPriceColumn) + 1;
+        }
     }
 }

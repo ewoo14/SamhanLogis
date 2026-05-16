@@ -42,11 +42,11 @@ SAMHAN_AROLOGIS_SEED_TEST_DATA=true \
 
 | 필드 | 매핑 룰 |
 |---|---|
-| `orderNo` | `PO-2026-0001` ~ `PO-2026-0030` (zfill 4) |
+| `orderNo` | `2026/04/15-1` ~ `2026/04/15-30` |
 | `partnerCode` | Stage 1 `P-2026-0001` ~ `P-2026-0030` 순환 |
 | `bizCode` | partner.bizNo 매핑 (`211-87-12345` ~ `240-87-01234`) |
-| `slipNo` | seq 16~30 만 채움 — `2026/04/15-016` ~ `2026/04/15-030` (slip-service `SlipNumberService.next` 동일 포맷) |
-| `idempotencyKey` | `PO-CONF-SEED-PO-2026-NNNN` |
+| `slipNo` | seq 16~30 만 채움 — `2026/04/15-16` ~ `2026/04/15-30` (slip-service `SlipNumberService.next` 동일 포맷) |
+| `idempotencyKey` | `PO-CONF-SEED-2026/04/15-N` |
 | `confirmedAt` | 2026-01 ~ 2026-05 균등 분포 (월별 6건) |
 
 ### 3.2 PartnerOrderLine ↔ Stage 1 product

@@ -114,7 +114,7 @@ class EstimateDomainTest {
     }
 
     private Estimate newEstimate() {
-        return Estimate.create("EQ-20260509-0001", LocalDate.of(2026, 5, 9), 1,
+        return Estimate.create("2026/05/09-1", LocalDate.of(2026, 5, 9), 1,
                 PARTNER, "삼한공조", "123-45-67890", "서울시 강남구",
                 LocalDate.of(2026, 6, 9), "테스트 견적", "user-1");
     }

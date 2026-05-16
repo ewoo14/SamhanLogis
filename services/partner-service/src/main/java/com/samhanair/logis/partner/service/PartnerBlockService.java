@@ -79,6 +79,26 @@ public class PartnerBlockService {
     }
 
     /**
+     * legacy Notion 발송금지처럼 거래처코드 없이 상호만 있는 row 를 보존한다.
+     *
+     * <p>실제 거래처 마스터와 혼동되지 않도록 caller 가 {@code LEGACY-NAME-*} 형식의 alias code 를
+     * 전달한다. 추후 거래처코드가 보강되면 일반 {@link #block(String, String, LocalDateTime, String, String)}
+     * 경로로 재등록할 수 있다.
+     */
+    @Transactional
+    public BlockedPartner blockLegacySnapshot(String aliasPartnerCode, String blockReason,
+                                              LocalDateTime blockedAt, String source,
+                                              String businessNameSnapshot) {
+        if (blockedPartnerRepository.existsByPartnerCodeAndIsDeletedFalse(aliasPartnerCode)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 차단된 legacy alias: " + aliasPartnerCode);
+        }
+        BlockedPartner entity = BlockedPartner.create(aliasPartnerCode, businessNameSnapshot,
+                blockReason, blockedAt, source);
+        return blockedPartnerRepository.save(entity);
+    }
+
+    /**
      * 차단 해제 (soft-delete). id 미존재 시 404. 이미 해제된 row 는 SQLRestriction 으로 미조회 → 404.
      *
      * @param id BLOCK row UUID

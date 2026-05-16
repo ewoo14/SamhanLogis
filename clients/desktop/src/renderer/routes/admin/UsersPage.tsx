@@ -139,6 +139,7 @@ const ROLE_BADGE_VARIANT: Record<AdminRole, 'danger' | 'warning' | 'brand' | 'ne
   MASTER: 'danger',
   DEVELOPER: 'warning',
   MANAGER: 'brand',
+  DISPATCH: 'neutral',
   SALES: 'neutral',
   ACCOUNTANT: 'neutral',
   WAREHOUSE: 'neutral',

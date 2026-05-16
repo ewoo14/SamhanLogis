@@ -14,16 +14,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Stateless servlet security:
  * <ul>
  *   <li>{@code /internal/**} — {@link InternalTokenFilter} 가 X-Internal-Token 으로 인증</li>
- *   <li>{@code /partners/**} — gateway 가 주입한 X-User-* 헤더를 {@link HeaderAuthenticationFilter} 가 신뢰</li>
+ *   <li>desktop admin endpoints — gateway 가 주입한 X-User-* 헤더를 {@link HeaderAuthenticationFilter} 가 신뢰</li>
  * </ul>
  *
  * <p>DC 노출 5겹 가드:
  * <ol>
  *   <li>Controller 분리 — Public 컨트롤러는 DC 응답 X</li>
  *   <li>DTO 분리 — PartnerPublicResponse 에는 DC 필드 자체 부재</li>
- *   <li>Gateway 차단 — `/api/v1/partner-dc-configs/**` 외부 라우트 비등록 (게이트웨이 책임)</li>
- *   <li>QA assertion — IT 에서 외부 응답 페이로드 캡처 + DC 키 부재 assert</li>
- *   <li>internal token — 본 SecurityConfig + {@link InternalTokenFilter}</li>
+ *   <li>Gateway 분리 — public partner 응답과 desktop admin DC 설정 route 를 분리</li>
+ *   <li>QA assertion — public 응답 페이로드 캡처 + DC 키 부재 assert</li>
+ *   <li>internal token / method security — 본 SecurityConfig + {@link InternalTokenFilter} + {@code @PreAuthorize}</li>
  * </ol>
  *
  * <p>Phase 10 W10-4 DV-3 (PR #99): InternalTokenFilter 는 {@code shared:security} module 통합 자동 설정에서 주입.

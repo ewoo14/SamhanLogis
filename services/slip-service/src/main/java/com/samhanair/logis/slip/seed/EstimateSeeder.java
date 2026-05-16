@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>QUOTE_CONVERTED 5건 (슬립변환완료 — convertedSlipId 기록)</li>
  * </ul>
  *
- * <p>채번: 결정적 패턴 ({@code EQ-yyyyMMdd-NNNN}) — EstimateNumberSequence 직접 관리
+ * <p>채번: 결정적 패턴 ({@code yyyy/MM/dd-N}) — EstimateNumberSequence 직접 관리
  * (EstimateNumberService 는 REQUIRED propagation → 별도 tx 필요, 시드는 직접 채번).
  *
  * <p>idempotency: {@code estimateNo} EXISTS 체크 + 중복 시 skip. 안전 재실행.
@@ -218,9 +218,9 @@ public class EstimateSeeder implements CommandLineRunner {
         return LocalDate.of(2026, 1, 1).plusDays(idx % 119);
     }
 
-    /** {@code EQ-yyyyMMdd-NNNN} 형식. */
+    /** {@code yyyy/MM/dd-N} 형식. */
     private static String formatEstimateNo(LocalDate d, int seqNo) {
-        return String.format("EQ-%04d%02d%02d-%04d",
+        return String.format("%04d/%02d/%02d-%d",
                 d.getYear(), d.getMonthValue(), d.getDayOfMonth(), seqNo);
     }
 

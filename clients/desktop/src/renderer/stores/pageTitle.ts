@@ -5,7 +5,7 @@
  * 사용자 피드백 #2 ("상단 '업무 화면' 고정") 해결.
  *
  * 라우트별로 다른 화면명을 헤더에 표시하기 위한 zustand store.
- * 각 페이지 컴포넌트가 `usePageTitle('판매조회')` 훅으로 set, AppLayout 헤더가 read.
+ * 각 페이지 컴포넌트가 `usePageTitle('판매관리')` 훅으로 set, AppLayout 헤더가 read.
  *
  * race condition 처리: 빈 title 시 AppHeader 가 "업무 화면" fallback 표시.
  */

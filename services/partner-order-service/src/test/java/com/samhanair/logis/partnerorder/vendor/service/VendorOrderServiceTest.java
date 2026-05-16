@@ -19,6 +19,8 @@ import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmRespons
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderUploadResponse;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -163,7 +165,8 @@ class VendorOrderServiceTest {
         VendorOrderConfirmResponse resp = service.confirm(req, "tester");
         assertThat(resp.status()).isEqualTo("REGISTERED");
         assertThat(resp.totalAmount()).isEqualByComparingTo("2700000");
-        assertThat(resp.orderNo()).contains("V");
+        assertThat(resp.orderNo()).matches(
+                LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd")) + "-\\d+");
     }
 
     @Test

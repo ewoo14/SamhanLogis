@@ -151,6 +151,44 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("WILL_VANISH")).isEmpty();
     }
 
+    @Test
+    void sync_싱글세트는_구글시트_C열_모델명과_H열_납품가를_그대로_읽는다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("360 CST UV", "15", "AC060CS6PBH1SY", "SET", "2,488,200", "", "1,490,000", "1,490,000", "-")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        ProductSheetSyncService.TabSyncResult singleSet = summary.byTab.get("싱글 세트");
+        assertThat(singleSet.inserted).isEqualTo(1);
+        Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AC060CS6PBH1SY");
+        assertThat(product).isPresent();
+        assertThat(product.get().getProductCategory()).isEqualTo(ProductCategory.SINGLE_SET);
+        assertThat(product.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("2488200"));
+        assertThat(product.get().getDeliveryPrice()).isEqualByComparingTo(new BigDecimal("1490000"));
+    }
+
+    @Test
+    void sync_상업멀티구성은_구글시트_F열_납품가를_그대로_읽는다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성!A1:Z")).thenReturn(rows(
+                row("품    명", "모델명", "단위", "출고가", "수량", " 납품가", "소   계", " 비고", " 세트", " 고정DC"),
+                row("DVM S2 프라임 8HP", "AM080AXVHHH1", "대", "8,012,400", "", "4,406,820", "-", "프라임", "", "-")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        ProductSheetSyncService.TabSyncResult commercialPart = summary.byTab.get("상업멀티 구성");
+        assertThat(commercialPart.inserted).isEqualTo(1);
+        Optional<Product> product = productRepository.findByModelCodeAndIsDeletedFalse("AM080AXVHHH1");
+        assertThat(product).isPresent();
+        assertThat(product.get().getProductCategory()).isEqualTo(ProductCategory.COMMERCIAL_PART);
+        assertThat(product.get().getReleasePrice()).isEqualByComparingTo(new BigDecimal("8012400"));
+        assertThat(product.get().getDeliveryPrice()).isEqualByComparingTo(new BigDecimal("4406820"));
+    }
+
     /**
      * legacy 1:1 보존 가드 (개발책임자 정정 2026-05-05) — sync 가
      * {@link GoogleSheetsClient#readSheetDisplay} 만 호출 (legacy {@code getDisplayValues()} 동등)
@@ -205,6 +243,11 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         all.add(List.of("품 명", "모델명", "비고", "출고가", "비고", "납품가"));
         for (List<Object> r : dataRows) all.add(r);
         return all;
+    }
+
+    @SafeVarargs
+    private static List<List<Object>> rows(List<Object>... rows) {
+        return List.of(rows);
     }
 
     private static List<Object> row(Object... vals) {

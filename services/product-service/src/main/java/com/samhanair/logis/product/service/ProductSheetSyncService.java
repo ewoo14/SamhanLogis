@@ -66,20 +66,32 @@ public class ProductSheetSyncService {
     /** sync 시 default category — V2 시드의 INDOOR_WALL (BaseEntity FK 강제 충족용). */
     private static final String DEFAULT_CATEGORY_CODE = "INDOOR_WALL";
 
-    /** 시트 → 도메인 매핑 (PR #38 보존). */
+    /**
+     * 시트 → 도메인 매핑 (PR #38 보존).
+     *
+     * <p>legacy Google Sheet 는 tab 마다 모델/가격 컬럼 위치가 다르다.
+     * 특히 싱글 세트/싱글 구성품은 B열이 평형이고 C열이 모델명이라서
+     * 홈멀티 기준 B열 모델명 매핑을 재사용하면 실제 모델코드 대신 평형을 저장한다.
+     */
     private static final List<SheetTabMapping> TAB_MAPPINGS = List.of(
             new SheetTabMapping("홈멀티", ProductCategory.HOME_MULTI,
-                    UsageScope.BOTH, EstimateCategory.HOME_MULTI),
+                    UsageScope.BOTH, EstimateCategory.HOME_MULTI,
+                    0, 1, 3, 5),
             new SheetTabMapping("싱글 세트", ProductCategory.SINGLE_SET,
-                    UsageScope.BOTH, EstimateCategory.SINGLE_SET),
+                    UsageScope.BOTH, EstimateCategory.SINGLE_SET,
+                    0, 2, 4, 7),
             new SheetTabMapping("싱글 구성품", ProductCategory.SINGLE_PART,
-                    UsageScope.NONE, null),
+                    UsageScope.NONE, null,
+                    0, 2, 5, 7),
             new SheetTabMapping("상업멀티", ProductCategory.COMMERCIAL_MULTI,
-                    UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI),
+                    UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI,
+                    0, 1, 4, 6),
             new SheetTabMapping("상업멀티 구성", ProductCategory.COMMERCIAL_PART,
-                    UsageScope.NONE, null),
+                    UsageScope.NONE, null,
+                    0, 1, 3, 5),
             new SheetTabMapping("구형", ProductCategory.OLD,
-                    UsageScope.BOTH, EstimateCategory.LEGACY)
+                    UsageScope.BOTH, EstimateCategory.LEGACY,
+                    0, 1, 3, 5)
     );
 
     private final GoogleSheetsClient sheetsClient;
@@ -176,10 +188,11 @@ public class ProductSheetSyncService {
         for (int i = headerIdx + 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
             if (row == null || row.isEmpty()) continue;
-            List<String> cells = GoogleSheetsClient.toStringRow(row, 16);
+            List<String> cells = GoogleSheetsClient.toStringRow(row,
+                    Math.max(16, mapping.requiredColumnCount()));
 
-            String name = cells.get(0).trim();
-            String modelCode = cells.get(1).trim();
+            String name = safeGet(cells, mapping.nameColumn).trim();
+            String modelCode = safeGet(cells, mapping.modelCodeColumn).trim();
             if (name.isBlank() || modelCode.isBlank()) {
                 result.skipped++;
                 continue;
@@ -188,8 +201,8 @@ public class ProductSheetSyncService {
 
             String rowHash = sha256(cells.subList(0, Math.min(8, cells.size())).toString());
             String prevHash = lastKnownRowHash.get(modelCode);
-            BigDecimal releasePrice = parseDecimal(safeGet(cells, 3));
-            BigDecimal deliveryPrice = parseDecimal(safeGet(cells, 5));
+            BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
+            BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
 
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
             if (existing.isEmpty()) {
@@ -286,7 +299,18 @@ public class ProductSheetSyncService {
     public record SheetTabMapping(String tabName,
                                    ProductCategory productCategory,
                                    UsageScope usageScope,
-                                   EstimateCategory estimateCategory) {}
+                                   EstimateCategory estimateCategory,
+                                   int nameColumn,
+                                   int modelCodeColumn,
+                                   int releasePriceColumn,
+                                   int deliveryPriceColumn) {
+        int requiredColumnCount() {
+            return Math.max(
+                    Math.max(nameColumn, modelCodeColumn),
+                    Math.max(releasePriceColumn, deliveryPriceColumn)
+            ) + 1;
+        }
+    }
 
     /** tab 1개 sync 결과. */
     public static class TabSyncResult {

@@ -49,8 +49,8 @@
       "url": "/#/",
       "auth": "kimmiseon",
       "annotations": [
-        { "type": "box", "selector": "[data-testid='sidebar-sales']", "label": "1. 판매조회 메뉴" },
-        { "type": "box", "selector": "[data-testid='sidebar-warehouses']", "label": "2. 창고 메뉴" },
+        { "type": "box", "selector": "[data-testid='sidebar-sales']", "label": "1. 판매관리 메뉴" },
+        { "type": "box", "selector": "[data-testid='sidebar-warehouses']", "label": "2. 창고 관리 메뉴" },
         { "type": "box", "selector": "[data-testid='sidebar-logout']", "label": "3. 로그아웃 버튼" }
       ]
     },
@@ -69,7 +69,7 @@
     {
       "id": "02-sales-list",
       "category": "01-영업",
-      "name": "판매조회 (출고전표 목록)",
+      "name": "판매관리 (출고전표 목록)",
       "client": "desktop",
       "url": "/#/sales",
       "auth": "kimmiseon",
@@ -82,7 +82,7 @@
     {
       "id": "03-purchases-list",
       "category": "02-창고",
-      "name": "구매조회 (입고전표 목록)",
+      "name": "구매관리 (입고전표 목록)",
       "client": "desktop",
       "url": "/#/purchases",
       "auth": "kimmiseon",
@@ -94,12 +94,12 @@
     {
       "id": "04-transfers-list",
       "category": "02-창고",
-      "name": "재고이동 목록",
+      "name": "재고이동 관리",
       "client": "desktop",
       "url": "/#/transfers",
       "auth": "kimmiseon",
       "annotations": [
-        { "type": "box", "selector": "[data-testid='transfer-list-table']", "label": "1. 재고이동 목록" },
+        { "type": "box", "selector": "[data-testid='transfer-list-table']", "label": "1. 재고이동 관리 목록" },
         { "type": "box", "selector": "[data-testid='transfer-list-add-button']", "label": "2. 신규 이동" }
       ]
     },
@@ -130,7 +130,7 @@
     {
       "id": "07-sales-partner-orders",
       "category": "01-영업",
-      "name": "주문서 조회 (거래처)",
+      "name": "주문서 관리 (거래처)",
       "client": "desktop",
       "url": "/#/sales/partner-orders",
       "auth": "kimmiseon",

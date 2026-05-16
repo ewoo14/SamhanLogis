@@ -11,7 +11,7 @@
  *
  * <p>UUID 비공개 — 모든 식별자는 partnerCode (상호 / 사업자번호 표시 가능).
  *
- * <p>@PreAuthorize — SALES / MANAGER / MASTER (BE 와 1:1).
+ * <p>@PreAuthorize — 목록/신규 등록은 SALES / MANAGER / MASTER, Excel/수정은 MANAGER / MASTER.
  *
  * data-testid:
  * - admin-partners-table
@@ -32,8 +32,9 @@ import {
   DataTable,
   type DataTableColumn,
 } from '@samhan/design-system'
-import { exportPartners } from '../../api/excelExportApi'
+import { canExportPartners, exportPartners } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
+import { useSessionStore } from '../../stores/session'
 import {
   listAdminPartners,
   PARTNER_STATUS_LABEL,
@@ -75,6 +76,8 @@ function formatKrw(raw: string | number | null | undefined): string {
 export function PartnersPage() {
   usePageTitle('거래처 관리')
   const navigate = useNavigate()
+  const role = useSessionStore((s) => s.auth?.role)
+  const canExport = canExportPartners(role)
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerStatus | ''>('')
@@ -184,25 +187,27 @@ export function PartnersPage() {
           </span>
           {/* P1-6: Excel 다운로드 — 현재 검색어(q) + 상태 필터 BE 시그니처와 일치
               (BE PartnerAdminController.exportXlsx(q, status) 는 type 미지원 — TM PR #146 cross-check) */}
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={downloading}
-            disabled={downloading}
-            onClick={() =>
-              download(
-                () =>
-                  exportPartners({
-                    q: q.trim() || undefined,
-                    status: statusFilter || undefined,
-                  }),
-                makeExportFilename('거래처목록'),
-              )
-            }
-            data-testid="admin-partners-excel-export"
-          >
-            Excel 다운로드
-          </Button>
+          {canExport ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={downloading}
+              disabled={downloading}
+              onClick={() =>
+                download(
+                  () =>
+                    exportPartners({
+                      q: q.trim() || undefined,
+                      status: statusFilter || undefined,
+                    }),
+                  makeExportFilename('거래처목록'),
+                )
+              }
+              data-testid="admin-partners-excel-export"
+            >
+              Excel 다운로드
+            </Button>
+          ) : null}
           <Button
             variant="primary"
             size="sm"

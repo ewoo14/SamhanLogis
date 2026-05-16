@@ -80,7 +80,7 @@ class ChatRoomImportServiceTest {
     }
 
     @Test
-    @DisplayName("lookup miss → reject 누적 (정상 row 는 insert)")
+    @DisplayName("lookup miss → legacy alias 로 보존 (정상 row 도 insert)")
     void importCsv_lookupMiss_rejected() throws IOException {
         when(lookupClient.findPartnerCodeByName("정상 주식회사")).thenReturn(Optional.of("P-OK"));
         when(lookupClient.findPartnerCodeByName("미등록 주식회사")).thenReturn(Optional.empty());
@@ -92,11 +92,8 @@ class ChatRoomImportServiceTest {
 
         ChatRoomImportResult result = service.importCsv(stream);
 
-        assertThat(result.inserted()).isEqualTo(1);
-        assertThat(result.rejected()).hasSize(1);
-        assertThat(result.rejected().get(0).rowNumber()).isEqualTo(2);
-        assertThat(result.rejected().get(0).businessName()).isEqualTo("미등록 주식회사");
-        assertThat(result.rejected().get(0).reason()).contains("partner_code lookup miss");
+        assertThat(result.inserted()).isEqualTo(2);
+        assertThat(result.rejected()).isEmpty();
     }
 
     @Test

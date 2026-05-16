@@ -138,14 +138,12 @@ export function entryFlags(entry: CleanupEntry): CleanupFlag[] {
 }
 
 /**
- * 화면 진입 가드 role 화이트리스트 — SALES / MANAGER / MASTER + ACCOUNTANT.
+ * 화면 진입 가드 role 화이트리스트 — SALES / MANAGER / MASTER.
  *
- * <p>BE @PreAuthorize 는 SALES/MANAGER/MASTER 만 허용하나, 정합성 검증 회계 사용자도
- * FE 진입은 허용 (BE 호출 시 403 응답을 사용자에게 표시).
+ * <p>BE @PreAuthorize 와 1:1 일치시켜 전표 정리 메뉴의 403 dead-end 를 제거한다.
  */
 export const SLIP_CLEANUP_ROLES = [
   'SALES',
   'MANAGER',
   'MASTER',
-  'ACCOUNTANT',
 ] as const

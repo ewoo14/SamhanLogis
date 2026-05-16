@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 class RoleTest {
 
     @Test
-    void hasSevenRoles() {
-        assertEquals(7, Role.values().length);
+    void hasEightRoles() {
+        assertEquals(8, Role.values().length);
     }
 
     @Test
@@ -20,6 +20,11 @@ class RoleTest {
     @Test
     void fromAuthorityResolvesSales() {
         assertEquals(Role.SALES, Role.fromAuthority("ROLE_SALES"));
+    }
+
+    @Test
+    void fromAuthorityResolvesDispatch() {
+        assertEquals(Role.DISPATCH, Role.fromAuthority("ROLE_DISPATCH"));
     }
 
     @Test

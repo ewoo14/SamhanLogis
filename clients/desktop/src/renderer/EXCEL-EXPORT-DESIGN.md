@@ -215,8 +215,8 @@ const [isLoading, setIsLoading] = useState(false);
 | 페이지                       | 라우트                          | 파일명 예시                          |
 |-----------------------------|---------------------------------|--------------------------------------|
 | 거래처 관리                  | /admin/partners                 | 거래처목록_2026-05-11.xlsx           |
-| 출고전표 (판매조회)          | /sales                          | 출고전표_2026-05-11.xlsx             |
-| 입고전표 (구매조회)          | /purchases                      | 입고전표_2026-05-11.xlsx             |
+| 판매관리 (출고전표)          | /sales                          | 출고전표_2026-05-11.xlsx             |
+| 구매관리 (입고전표)          | /purchases                      | 입고전표_2026-05-11.xlsx             |
 | 재고이동                     | /transfers                      | 재고이동_2026-05-11.xlsx             |
 | 분개장                       | /accounting/journals            | 분개장_2026-05-11.xlsx               |
 | 세금계산서                   | /accounting/tax-invoices        | 세금계산서_2026-05-11.xlsx           |
@@ -379,8 +379,8 @@ button[data-testid="excel-export-button"]:hover:not(:disabled) {
 | 우선순위 | 페이지                    | 파일                                    | 비고                                |
 |---------|--------------------------|----------------------------------------|------------------------------------|
 | P0      | 거래처 관리              | routes/admin/PartnersPage.tsx          | 가장 사용 빈도 높은 목록             |
-| P0      | 출고전표 (판매조회)      | routes/sales-query/SalesQueryPage.tsx  | 핵심 업무 목록 — 2a 통합 후 정식    |
-| P0      | 입고전표 (구매조회)      | routes/purchase-query/PurchaseQueryPage.tsx | 핵심 업무 목록 — 2a 통합 후 정식 |
+| P0      | 판매관리 (출고전표)      | routes/sales-query/SalesQueryPage.tsx  | 핵심 업무 목록 — 2a 통합 후 정식    |
+| P0      | 구매관리 (입고전표)      | routes/purchase-query/PurchaseQueryPage.tsx | 핵심 업무 목록 — 2a 통합 후 정식 |
 | P0-legacy | (구) 전표 목록 통합     | routes/SlipListPage.tsx (OUTBOUND/INBOUND) | /sales/slips, /purchases/slips |
 | P1      | 견적서                   | routes/EstimateListPage.tsx            | 영업 업무 목록                      |
 | P1      | 세금계산서               | routes/TaxInvoiceListPage.tsx          | 회계 업무 목록                      |

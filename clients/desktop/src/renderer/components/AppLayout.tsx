@@ -3,13 +3,13 @@
  *
  * 사이드바 메뉴 (slip-output-format 슬라이스 IA 재편 — Q1=A 새 슬라이스):
  * - 대시보드 (`/`)
- * - 창고 (`/warehouses`)
+ * - 창고 관리 (`/warehouses`)
  * - 판매관리 (`/sales`)     — [2a 통합] SalesQueryPage 직행. 영업원 메인. legacy SlipListPage 는 `/sales/slips`.
  * - 구매관리 (`/purchases`) — [2a 통합] PurchaseQueryPage 직행. 회계원 메인. legacy SlipListPage 는 `/purchases/slips`.
- * - 재고이동 (`/transfers`) — 창고 간 이동, 창고원/재고원
- * - 링크발송 (`/sales/link-dispatch`) — 배송 묶음 + e-sign URL SMS 발송 (link-dispatch-slice)
+ * - 재고이동 관리 (`/transfers`) — 창고 간 이동, 창고원/재고원
+ * - 링크발송 (`/sales/link-dispatch`) — 배송 묶음 + e-sign URL SMS 발송, MANAGER/MASTER
  *
- * accounting-slice-A 신규 그룹 "회계" — ACCOUNTANT/MASTER 만 가시:
+ * accounting-slice-A 신규 그룹 "회계" — ACCOUNTANT/MANAGER/MASTER 가시:
  * - 계정과목 (`/accounting/accounts`)
  * - 분개장   (`/accounting/journals`)
  * - 시산표   (`/accounting/balances`)
@@ -62,12 +62,16 @@ import {
   canAccessSafetyStock,
   fetchSafetyStockAlertCount,
 } from '../api/safetyStockApi'
-// [P1-5] arologis 배차 admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER
+// [PR-F1 FE-2] 운송사 실배차 비교 — DISPATCH / MANAGER / MASTER
+import { canAccessDispatchReconcile } from '../api/dispatchReconcileApi'
+// [P1-5] arologis 배차 admin 3개 신규 화면 — MANAGER / MASTER
 import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER
 import { canAccessSlipPhotoAudit } from '../api/slipPhotoAuditApi'
 // [SP-01] 거래처 관리 — SALES / MANAGER / MASTER
 import { canAccessPartnerFull } from '../api/partnerApi'
+import { canAccessDeliveryBatch } from '../api/delivery'
+import { canAccessPartnerDcConfig } from '../api/sales'
 
 /**
  * 사이드바 NavLink disabled 래퍼.
@@ -132,8 +136,8 @@ const REGION_MGMT_SIDEBAR_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 const SHEET_SYNC_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
 /** 알리고 주소록 (/admin/aligo-address-book) — 메신저 카테고리 — MANAGER/MASTER */
 const ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
-/** 발송금지 거래처 (/admin/blocked-partners) — 영업 카테고리 — SALES/MANAGER/MASTER */
-const BLOCKED_PARTNERS_SIDEBAR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+/** 발송금지 거래처 (/admin/blocked-partners) — 영업 카테고리 — MANAGER/MASTER */
+const BLOCKED_PARTNERS_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
 /**
  * [samhan-dispatch-board Phase A] 배차 메뉴 (/dispatch-board) — DISPATCH/MANAGER/MASTER.
  * Samhan Public 배차담당자 → 차량 그룹 + arologis 발송 흐름.
@@ -202,7 +206,7 @@ export function AppLayout() {
   // race condition 호환 — 빈 title 시 "업무 화면" fallback (Designer § 2.7)
   const displayTitle = title || '업무 화면'
 
-  // accounting-slice-A — 회계 그룹은 ACCOUNTANT/MASTER/MANAGER 가시 (W-4: BE @PreAuthorize 일치)
+  // accounting-slice-A — 회계 그룹은 ACCOUNTANT/MANAGER/MASTER 가시 (W-4: BE @PreAuthorize 일치)
   const showAccounting = canAccessAccounting(auth?.role)
   // [PR-E2 FE-9] 홈택스 일괄 양식 entry — ACCOUNTANT / MANAGER / MASTER 가시.
   // showAccounting 이 false 인 MANAGER 도 entry 단독 노출 가능 (별도 분기).
@@ -210,8 +214,9 @@ export function AppLayout() {
   // [PR-E2 FE-7] 거래처 원장 entry — ACCOUNTANT / MANAGER / MASTER 가시.
   // showAccounting 이 false 인 MANAGER 도 entry 단독 노출 가능 (별도 분기).
   const showPartnerLedger = canAccessPartnerLedger(auth?.role)
+  const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
 
-  // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH/MASTER 가드 (현재 backlog DISPATCH role 부재로 MASTER/MANAGER 매핑)
+  // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH / MANAGER / MASTER 가드
   const showArologisManual = !!auth?.role
     && (ARO_MANUAL_DISPATCH_ROLES as readonly string[]).includes(auth.role)
   // [Phase 10 PR-E1 FE-2] arologis 가배차 분류 — MASTER / MANAGER / DISPATCH (BE 와 동일 화이트리스트)
@@ -222,15 +227,18 @@ export function AppLayout() {
   // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — MASTER / MANAGER / DISPATCH
   const showArologisUnassigned = !!auth?.role
     && (ARO_UNASSIGNED_ROLES as readonly string[]).includes(auth.role)
-  // [P1-5] arologis admin 3개 신규 화면 — DISPATCH / MANAGER / MASTER 모두 포함
+  // [PR-F1 FE-2] 운송사 실배차 비교 — DISPATCH / MANAGER / MASTER
+  const showDispatchReconcile = canAccessDispatchReconcile(auth?.role)
+  // [P1-5] arologis admin 3개 신규 화면 — MANAGER / MASTER
   const showArologisAdmin = !!auth?.role
     && (ARO_ADMIN_DISPATCH_ROLES as readonly string[]).includes(auth.role)
-  // arologis 그룹 가시성 — 수동 배차 / 가배차 분류 / 미배차 리스트 / 배차안내 SMS / P1-5 admin 중 하나라도 보이면 그룹 노출
+  // arologis 그룹 가시성 — 수동 배차 / 가배차 분류 / 미배차 리스트 / 배차안내 SMS / 실배차 비교 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
     || showArologisPreClassify
     || showArologisUnassigned
     || showDispatchSms
+    || showDispatchReconcile
     || showArologisAdmin
 
   // [Phase 10 P0-5] 관리자 admin 메뉴 — MASTER 만 가시
@@ -254,7 +262,7 @@ export function AppLayout() {
   const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showPhotoAudit || showInboundInspection || showSafetyStockAlerts
   // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
   // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
-  // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER / ACCOUNTANT
+  // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = !!auth?.role
     && (SLIP_CLEANUP_ROLES as readonly string[]).includes(auth.role)
   // [PR-E1 FE-4] 내일자 전표 이미지 entry — SALES / MANAGER / MASTER
@@ -274,6 +282,7 @@ export function AppLayout() {
   const showBlockedPartners = !!auth?.role
     && (BLOCKED_PARTNERS_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
   const showPartnerManagement = canAccessPartnerFull(auth?.role)
+  const showPartnerDcConfig = canAccessPartnerDcConfig(auth?.role)
   // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER 가시.
   const showDispatchBoard = !!auth?.role
     && (DISPATCH_BOARD_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
@@ -286,14 +295,21 @@ export function AppLayout() {
           <NavLink to="/" end>
             대시보드
           </NavLink>
-          <NavLink to="/warehouses">창고 관리</NavLink>
+          <NavLink to="/warehouses" data-testid="sidebar-warehouses">창고 관리</NavLink>
           {/* [2a 메뉴 통합 + SP-03 IA] /sales, /purchases 는 SalesQueryPage / PurchaseQueryPage
               (풍성한 컬럼 + 다중 선택 + 50/page). legacy SlipListPage 는 /sales/slips,
               /purchases/slips 로 이전. 메뉴명은 조회 전용 오해를 줄이기 위해 관리형 라벨을 사용. */}
           <NavLink to="/sales" data-testid="sidebar-sales">판매관리</NavLink>
           <NavLink to="/purchases" data-testid="sidebar-purchases">구매관리</NavLink>
-          <NavLink to="/transfers">재고이동 관리</NavLink>
-          <NavLink to="/sales/link-dispatch">링크발송</NavLink>
+          <NavLink to="/transfers" data-testid="sidebar-transfers">재고이동 관리</NavLink>
+          <SidebarLink
+            to="/sales/link-dispatch"
+            show={showDeliveryBatch}
+            requiredRole="MANAGER / MASTER"
+            data-testid="sidebar-link-dispatch"
+          >
+            링크발송
+          </SidebarLink>
           {/* [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER.
               Samhan Public 배차담당자 → 미배차 출고전표 + 차량 그룹 + arologis 발송. */}
           <SidebarLink
@@ -327,7 +343,14 @@ export function AppLayout() {
           <NavLink to="/sales/estimates">견적서 관리</NavLink>
           <NavLink to="/sales/partner-orders">주문서 관리</NavLink>
           <NavLink to="/sales/order-approvals">주문서 승인</NavLink>
-          <NavLink to="/sales/partner-dc-config">거래처 DC 설정</NavLink>
+          <SidebarLink
+            to="/sales/partner-dc-config"
+            show={showPartnerDcConfig}
+            requiredRole="SALES / MANAGER / MASTER"
+            data-testid="sidebar-sales-partner-dc-config"
+          >
+            거래처 DC 설정
+          </SidebarLink>
           {/* [SP-01] 거래처 관리 — 생성 성공 후 복귀 대상인 /admin/partners 를 SALES/MANAGER/MASTER 에 직접 노출. */}
           <SidebarLink
             to="/admin/partners"
@@ -340,7 +363,7 @@ export function AppLayout() {
           <SidebarLink
             to="/sales/slip-cleanup"
             show={showSlipCleanup}
-            requiredRole="SALES / MANAGER / MASTER / ACCOUNTANT"
+            requiredRole="SALES / MANAGER / MASTER"
             data-testid="sidebar-sales-slip-cleanup"
           >
             전표 정리
@@ -370,11 +393,11 @@ export function AppLayout() {
           >
             vendor 발주 OCR
           </SidebarLink>
-          {/* [Slice 2] 발송금지 거래처 — /admin/blocked-partners (기존 admin 라우트 병행 노출) — SALES/MANAGER/MASTER */}
+          {/* [Slice 2] 발송금지 거래처 — /admin/blocked-partners — MANAGER/MASTER */}
           <SidebarLink
             to="/admin/blocked-partners"
             show={showBlockedPartners}
-            requiredRole="SALES / MANAGER / MASTER"
+            requiredRole="MANAGER / MASTER"
             data-testid="sidebar-sales-blocked-partners"
           >
             발송금지 거래처
@@ -397,10 +420,10 @@ export function AppLayout() {
               >
                 회계
               </div>
-              <NavLink to="/accounting/accounts">계정과목</NavLink>
-              <NavLink to="/accounting/journals">분개장</NavLink>
-              <NavLink to="/accounting/tax-invoices">세금계산서</NavLink>
-              <NavLink to="/accounting/balances">시산표</NavLink>
+              <NavLink to="/accounting/accounts" data-testid="sidebar-accounting-accounts">계정과목</NavLink>
+              <NavLink to="/accounting/journals" data-testid="sidebar-accounting-journals">분개장</NavLink>
+              <NavLink to="/accounting/tax-invoices" data-testid="sidebar-accounting-tax-invoices">세금계산서</NavLink>
+              <NavLink to="/accounting/balances" data-testid="sidebar-accounting-balances">시산표</NavLink>
               {/* [P0-1 Slice A+B] 재무 보고서 서브메뉴 — 7개 보고서 진입점. */}
               {/* F1: end prop — 자식 라우트 진입 시 부모 active 강조 회피 */}
               <NavLink
@@ -625,29 +648,29 @@ export function AppLayout() {
               >
                 배차안내 SMS
               </SidebarLink>
-              {/* [PR-D Phase B FE-B] 가배차 지역 분류 — MASTER/MANAGER (ARO_MANUAL_DISPATCH_ROLES 집합). */}
+              {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
               <SidebarLink
-                to="/admin/regions"
-                show={showArologisManual}
+                to="/arologis/dispatch-reconcile"
+                show={showDispatchReconcile}
                 requiredRole="DISPATCH / MANAGER / MASTER"
-                data-testid="sidebar-arologis-regions"
+                data-testid="sidebar-arologis-dispatch-reconcile"
               >
-                지역 분류
+                실배차 비교
               </SidebarLink>
-              {/* [Slice 2] 지역 관리 — /admin/regions 병행 노출 — DISPATCH/MANAGER/MASTER */}
+              {/* [SP-04] 지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
               <SidebarLink
                 to="/admin/regions"
-                show={showRegionMgmt}
+                show={showRegionMgmt || showArologisManual}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-region-mgmt"
               >
                 지역 관리
               </SidebarLink>
-              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — DISPATCH / MANAGER / MASTER. */}
+              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
               <SidebarLink
                 to="/arologis/admin/auto-dispatch"
                 show={showArologisAdmin}
-                requiredRole="DISPATCH / MANAGER / MASTER"
+                requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-auto-dispatch"
               >
                 자동 매칭
@@ -655,7 +678,7 @@ export function AppLayout() {
               <SidebarLink
                 to="/arologis/admin/manual-dispatch"
                 show={showArologisAdmin}
-                requiredRole="DISPATCH / MANAGER / MASTER"
+                requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-manual-dispatch-admin"
               >
                 배차 관리
@@ -663,7 +686,7 @@ export function AppLayout() {
               <SidebarLink
                 to="/arologis/admin/driver-assignment"
                 show={showArologisAdmin}
-                requiredRole="DISPATCH / MANAGER / MASTER"
+                requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-driver-assignment"
               >
                 기사 배정
@@ -913,7 +936,7 @@ export function AppLayout() {
       </aside>
       <main className="app-main">
         <header className="app-header no-print">
-          <h2>
+          <h2 data-testid="header-page-title">
             {displayTitle}
             {meta ? <span className="app-header-meta">[{meta}]</span> : null}
           </h2>

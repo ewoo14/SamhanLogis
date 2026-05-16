@@ -4,7 +4,7 @@
  *
  * <p>v2 변경 (정정 라운드 §정정 9 / §정정 14):
  * - `/sales/long-pending` → `/sales/order-approvals` (장기미발주 → '주문서 승인')
- * - `/sales/partner-dc-config` 신규 (거래처 DC율 설정)
+ * - `/sales/partner-dc-config` 신규 (거래처 DC 설정)
  *
  * <p>[2a 메뉴 통합] `/sales` 는 SalesQueryPage 직행이 되었고 legacy SlipListPage 는
  * `/sales/slips` 로 옮겨졌으므로 본 sub-nav 는 그대로 `/sales/...` 하위 화면 상단에서만

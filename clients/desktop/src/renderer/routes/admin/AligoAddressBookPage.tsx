@@ -24,7 +24,7 @@
  * <ul>
  *   <li>UUID 비공개 (feedback_uuid_no_user_visibility) — 본 도메인 UUID 노출 없음
  *       (CSV / sync 응답 모두 비즈니스 식별자만).</li>
- *   <li>풀네임 ROLE (feedback_role_naming_full) — MASTER 가드 (AdminLayout 가드).</li>
+ *   <li>풀네임 ROLE (feedback_role_naming_full) — MANAGER / MASTER route 가드.</li>
  *   <li>한국어 라벨 100% — 영문 라벨 금지.</li>
  *   <li>한국어 파일명 의무 — {@code 알리고_주소록_YYYY-MM-DD.csv} (BE filename 무시).</li>
  *   <li>Designer mock 색상 / 4분 chip / UX 보존 — CSS 무수정.</li>

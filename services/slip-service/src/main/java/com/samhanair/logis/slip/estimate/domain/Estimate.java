@@ -166,7 +166,7 @@ public class Estimate extends BaseEntity {
      * 신규 견적서 생성 — DRAFT 상태로 출발. 거래처 정보는 service 레이어에서 partner-service 조회 후
      * snapshot 으로 전달.
      *
-     * @param estimateNo 채번된 견적번호 ({@code EQ-yyyyMMdd-NNNN})
+     * @param estimateNo 채번된 견적번호 ({@code yyyy/MM/dd-N})
      * @param estimateDate 견적 작성일
      * @param seqNo 같은 날짜 내 순번
      * @param partnerId 거래처 UUID (선택)

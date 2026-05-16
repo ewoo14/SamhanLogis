@@ -44,6 +44,12 @@ public class ChatRoomMappingService {
         return repository.findAllByPartnerCode(partnerCode);
     }
 
+    /** legacy Notion 이름 매핑 조회. 거래처코드 보강 전 운영 데이터 손실 방지용 fallback. */
+    @Transactional(readOnly = true)
+    public List<PartnerChatRoomMapping> findByPartnerBusinessName(String partnerBusinessName) {
+        return repository.findAllByPartnerBusinessNameSnapshot(partnerBusinessName);
+    }
+
     /** 단톡방별 매핑 N건. 발송 라우팅 (단톡방 → 거래처 fan-out) 시점 활용. */
     @Transactional(readOnly = true)
     public List<PartnerChatRoomMapping> findByChatRoomName(String chatRoomName) {

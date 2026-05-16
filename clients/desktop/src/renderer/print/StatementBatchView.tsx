@@ -126,7 +126,7 @@ const MOCK_DATA: StatementBatchData = {
       slips: [
         {
           slipDate: '2026-05-02',
-          slipNo: 'OUT-2026-05-02-014',
+          slipNo: '2026/05/02-14',
           productName: 'AJ040RXH4BC1 (시스템 에어컨)',
           specification: '4kW / 220V',
           quantity: 5,
@@ -135,7 +135,7 @@ const MOCK_DATA: StatementBatchData = {
         },
         {
           slipDate: '2026-05-09',
-          slipNo: 'OUT-2026-05-09-007',
+          slipNo: '2026/05/09-7',
           productName: 'AJ052NXJ4FH1 (멀티)',
           specification: '5.2kW / 380V',
           quantity: 2,
@@ -144,7 +144,7 @@ const MOCK_DATA: StatementBatchData = {
         },
         {
           slipDate: '2026-05-15',
-          slipNo: 'OUT-2026-05-15-022',
+          slipNo: '2026/05/15-22',
           productName: 'AVXC4H145EE (실외기)',
           specification: '14.5kW',
           quantity: 1,
@@ -163,7 +163,7 @@ const MOCK_DATA: StatementBatchData = {
       slips: [
         {
           slipDate: '2026-05-08',
-          slipNo: 'OUT-2026-05-08-018',
+          slipNo: '2026/05/08-18',
           productName: 'AJ052NXJ4FH1',
           specification: '5.2kW / 380V',
           quantity: 3,
@@ -172,7 +172,7 @@ const MOCK_DATA: StatementBatchData = {
         },
         {
           slipDate: '2026-05-22',
-          slipNo: 'OUT-2026-05-22-029',
+          slipNo: '2026/05/22-29',
           productName: 'AJ080RBJ5KH (시스템 에어컨)',
           specification: '8kW / 220V',
           quantity: 4,
@@ -191,7 +191,7 @@ const MOCK_DATA: StatementBatchData = {
       slips: [
         {
           slipDate: '2026-05-12',
-          slipNo: 'OUT-2026-05-12-019',
+          slipNo: '2026/05/12-19',
           productName: 'AJ040RXH4BC1',
           specification: '4kW / 220V',
           quantity: 8,
@@ -200,7 +200,7 @@ const MOCK_DATA: StatementBatchData = {
         },
         {
           slipDate: '2026-05-25',
-          slipNo: 'OUT-2026-05-25-027',
+          slipNo: '2026/05/25-27',
           productName: 'AVXC4H145EE',
           specification: '14.5kW',
           quantity: 2,

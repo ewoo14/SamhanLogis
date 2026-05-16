@@ -56,6 +56,8 @@ class DispatchBatchPreviewServiceTest {
         // default — 단톡방 매핑 없음, blocked false
         lenient().when(chatRoomMappingRepository.findAllByPartnerCode(anyString()))
                 .thenReturn(List.of());
+        lenient().when(chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(anyString()))
+                .thenReturn(List.of());
         lenient().when(blockedPartnerLookupClient.isBlocked(anyString())).thenReturn(false);
     }
 
@@ -99,6 +101,25 @@ class DispatchBatchPreviewServiceTest {
         assertThat(resp.unmapped()).hasSize(1);
         assertThat(resp.unmapped().get(0).partnerCode()).isEqualTo("P-002");
         assertThat(resp.unmapped().get(0).slipNo()).isEqualTo("OUT-002");
+    }
+
+    @Test
+    @DisplayName("partnerCode miss + legacy 이름 alias 매핑 → 단톡방 그룹 생성")
+    void preview_partnerCodeMiss_usesLegacyNameAlias() {
+        LocalDate date = LocalDate.of(2026, 5, 10);
+        OutboundSlipDto slip = newSlip("P-MISS", "에어디자이너 주식회사", "OUT-LEGACY");
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot("에어디자이너 주식회사"))
+                .thenReturn(List.of(PartnerChatRoomMapping.fromNotionImport(
+                        "LEGACY-NAME-abc123", "에어디자이너 주식회사", "에어디자이너 발주방", null)));
+
+        DispatchBatchPreviewResponse resp = service.preview(new DispatchBatchPreviewRequest(date));
+
+        assertThat(resp.mappedSlips()).isEqualTo(1);
+        assertThat(resp.unmappedSlips()).isZero();
+        assertThat(resp.chatRooms()).hasSize(1);
+        assertThat(resp.chatRooms().get(0).chatRoomName()).isEqualTo("에어디자이너 발주방");
+        assertThat(resp.chatRooms().get(0).partners().get(0).partnerCode()).isEqualTo("P-MISS");
     }
 
     @Test

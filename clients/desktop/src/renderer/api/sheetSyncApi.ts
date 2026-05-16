@@ -9,7 +9,7 @@
  * admin trigger (옵션 C-3) 호출. 두 endpoint 공히 메모리 보관된 마지막 sync
  * 메타 데이터 (LastSyncSnapshot) 를 갱신/조회한다.
  *
- * <p><b>가드</b>: 라우트 단의 RoleGuard(MASTER) 가 담당 (본 모듈은 horizontal HTTP 만).
+ * <p><b>가드</b>: 라우트 단의 RoleGuard(MANAGER / MASTER) 가 담당 (본 모듈은 horizontal HTTP 만).
  *
  * <p><b>UUID 비공개</b>: 본 도메인은 시트 → DB sync 결과 집계만 다루며 UUID 노출이 없다.
  */

@@ -10,9 +10,9 @@
  * DC 노출 5겹 가드:
  *   1. Controller 분리 — PartnerPublicController (외부) vs InternalDcConfigController (X-Internal-Token)
  *   2. DTO 분리 — PartnerPublicResponse 에는 DC 필드 자체 부재
- *   3. Gateway 차단 — `/api/v1/partner-dc-configs/**` 외부 라우트 비등록
- *   4. QA assertion — IT 에서 외부 응답 페이로드 캡처 + DC 키 부재 assert
- *   5. internal token — `X-Internal-Token` 헤더 검증
+ *   3. Gateway 분리 — public partner 응답과 desktop admin DC 설정 route 분리
+ *   4. QA assertion — public 응답 페이로드 캡처 + DC 키 부재 assert
+ *   5. internal token / method security — `X-Internal-Token` + `@PreAuthorize`
  *
  * Flyway day-one 활성, jsonb 매핑은 Hibernate 6 native @JdbcTypeCode 사용.
  */

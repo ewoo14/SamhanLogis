@@ -20,17 +20,17 @@
 
 | selector | element | 상태 |
 |----------|---------|------|
-| `[data-testid="sidebar-sales"]` | `<NavLink to="/sales">판매조회</NavLink>` | 누락 |
-| `[data-testid="sidebar-warehouses"]` | `<NavLink to="/warehouses">창고</NavLink>` | 누락 |
-| `[data-testid="sidebar-purchases"]` | `<NavLink to="/purchases">구매조회</NavLink>` | 누락 |
-| `[data-testid="sidebar-transfers"]` | `<NavLink to="/transfers">재고이동</NavLink>` | 누락 |
-| `[data-testid="sidebar-link-dispatch"]` | `<NavLink to="/sales/link-dispatch">링크발송</NavLink>` | 누락 |
-| `[data-testid="sidebar-accounting-accounts"]` | 회계 그룹 — 계정과목 (ACCOUNTANT/MASTER) | 누락 |
-| `[data-testid="sidebar-accounting-journals"]` | 회계 그룹 — 분개장 | 누락 |
-| `[data-testid="sidebar-accounting-balances"]` | 회계 그룹 — 시산표 | 누락 |
+| `[data-testid="sidebar-sales"]` | `<NavLink to="/sales">판매관리</NavLink>` | 완료 (SP-04) |
+| `[data-testid="sidebar-warehouses"]` | `<NavLink to="/warehouses">창고 관리</NavLink>` | 완료 (SP-04) |
+| `[data-testid="sidebar-purchases"]` | `<NavLink to="/purchases">구매관리</NavLink>` | 완료 (SP-04) |
+| `[data-testid="sidebar-transfers"]` | `<NavLink to="/transfers">재고이동 관리</NavLink>` | 완료 (SP-04) |
+| `[data-testid="sidebar-link-dispatch"]` | `<SidebarLink to="/sales/link-dispatch">링크발송</SidebarLink>` | 완료 (SP-04, MANAGER/MASTER 가드) |
+| `[data-testid="sidebar-accounting-accounts"]` | 회계 그룹 — 계정과목 (ACCOUNTANT/MANAGER/MASTER) | 완료 (SP-04) |
+| `[data-testid="sidebar-accounting-journals"]` | 회계 그룹 — 분개장 | 완료 (SP-04) |
+| `[data-testid="sidebar-accounting-balances"]` | 회계 그룹 — 시산표 | 완료 (SP-04) |
 | `[data-testid="sidebar-logout"]` | 우상단 로그아웃 `Button` | 누락 |
 | `[data-testid="header-user-name"]` | 우상단 사용자명 표시 | 누락 |
-| `[data-testid="header-page-title"]` | 동적 페이지 제목 (`usePageTitleStore`) | 누락 |
+| `[data-testid="header-page-title"]` | 동적 페이지 제목 (`usePageTitleStore`) | 완료 (SP-04) |
 
 ## 우선순위 2 — Stage 3 캡처 화면 (annotation 박스 미해석 — 즉시 필요)
 
@@ -56,10 +56,10 @@ Stage 3 (`capture.config.json` v3) 가 14 desktop + 4 mobile 화면을 정의했
 
 ### `WarehousesPage`
 
-| selector | element |
-|----------|---------|
-| `[data-testid="warehouse-list-table"]` | 창고 목록 table |
-| `[data-testid="warehouse-add-button"]` | 창고 추가 버튼 |
+| selector | element | 상태 |
+|----------|---------|------|
+| `[data-testid="warehouse-list-table"]` | 창고 목록 table | 완료 (SP-04) |
+| `[data-testid="warehouse-add-button"]` | 창고 추가 버튼 | 완료 (SP-04) |
 | `[data-testid="warehouse-edit-button"]` | row 별 편집 버튼 (`[data-testid="warehouse-row-{id}-edit"]`) |
 
 ### `SalesEstimateListPage` / `EstimateLegacyWebviewPage`
@@ -85,12 +85,12 @@ Stage 3 (`capture.config.json` v3) 가 14 desktop + 4 mobile 화면을 정의했
 
 ### `TransferListPage` / `LinkDispatchListPage` (Stage 3 신규)
 
-| selector | element |
-|----------|---------|
-| `[data-testid="transfer-list-table"]` | 재고이동 목록 |
-| `[data-testid="transfer-list-add-button"]` | 재고이동 신규 |
-| `[data-testid="link-dispatch-table"]` | 링크발송 배송 묶음 목록 |
-| `[data-testid="link-dispatch-send-button"]` | SMS 일괄 발송 |
+| selector | element | 상태 |
+|----------|---------|------|
+| `[data-testid="transfer-list-table"]` | 재고이동 목록 | 완료 (SP-04) |
+| `[data-testid="transfer-list-add-button"]` | 재고이동 신규 | 완료 (SP-04) |
+| `[data-testid="link-dispatch-table"]` | 링크발송 배송 묶음 목록 | 누락 |
+| `[data-testid="link-dispatch-send-button"]` | SMS 일괄 발송 | 누락 |
 
 ### `SalesPartnerOrderListPage` / `SalesOrderApprovalsPage` / `SalesPartnerDcConfigPage` (Phase 6 v4)
 

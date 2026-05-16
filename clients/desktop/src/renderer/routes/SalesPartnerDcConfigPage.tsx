@@ -1,12 +1,12 @@
 /**
- * 거래처 DC율 설정 — `/sales/partner-dc-config` (v2 §정정 14 신규).
+ * 거래처 DC 설정 — `/sales/partner-dc-config` (v2 §정정 14 신규).
  *
  * <h2>기능</h2>
  * <ul>
  *   <li>거래처 검색 (partnerCode / 거래처명 부분 매칭).</li>
  *   <li>DC 컬럼 11개 인라인 수정 (홈멀티DC/상업멀티DC/유연호스I형/360/4way/1way/스탠드/디럭스/1등급/단위처리/특이사항).</li>
  *   <li>저장 — 변경된 행만 PATCH (단건 단위).</li>
- *   <li>csv 시드 222 row (`거래처별 DC리스트 *.csv`) 표시.</li>
+ *   <li>Notion CSV export (`거래처 DC정보`) 기준 데이터 표시.</li>
  *   <li>CSV 일괄 업로드 (PR-D Phase B FE-C, MASTER 전용) — Notion 다운로드 CSV 를
  *       {@code POST /api/v1/dc-config/admin/import} 로 일괄 upsert.</li>
  * </ul>
@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuditOverlay, CsvUploadDialog } from '@samhan/design-system'
 import {
   PARTNER_DC_CONFIG_COLUMNS,
+  canEditPartnerDcConfig,
   type PartnerDcConfig,
   listPartnerDcConfigs,
   updatePartnerDcConfig,
@@ -49,9 +50,10 @@ export function SalesPartnerDcConfigPage() {
   // PR-D Phase B FE-C — CSV 일괄 업로드는 MASTER role 만 노출 (BE @PreAuthorize 와 일치).
   const role = useSessionStore((s) => s.auth?.role)
   const canImportCsv = role === 'MASTER'
+  const canEditDcConfig = canEditPartnerDcConfig(role)
 
   useEffect(() => {
-    setPageTitle({ title: '거래처 DC율 설정', meta: '영업' })
+    setPageTitle({ title: '거래처 DC 설정', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
@@ -102,6 +104,7 @@ export function SalesPartnerDcConfigPage() {
     key: keyof PartnerDcConfig,
     value: string,
   ) {
+    if (!canEditDcConfig) return
     setDirty((d) => ({
       ...d,
       [code]: { ...d[code], [key]: value || null },
@@ -148,9 +151,14 @@ export function SalesPartnerDcConfigPage() {
           message="DC 셀 변경은 BE audit log 에 자동 기록됩니다. 거래처 row 의 [이력] 버튼으로 변경 이력을 확인할 수 있습니다."
           testId="partner-dc-config-audit-info-banner"
         />
+        {!canEditDcConfig ? (
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>
+            현재 권한은 조회 전용입니다. DC 수정은 MANAGER / MASTER 권한에서만 가능합니다.
+          </p>
+        ) : null}
         <div className={styles['top']}>
           <div className={styles['title']}>
-            거래처 DC율 설정
+            거래처 DC 설정
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
             {dirtyCount > 0 ? (
               <span
@@ -235,7 +243,7 @@ export function SalesPartnerDcConfigPage() {
                   {PARTNER_DC_CONFIG_COLUMNS.map((c) => (
                     <th key={c.key}>{c.label}</th>
                   ))}
-                  <th>저장</th>
+                  <th>{canEditDcConfig ? '저장' : '권한'}</th>
                   <th>이력</th>
                 </tr>
               </thead>
@@ -274,6 +282,7 @@ export function SalesPartnerDcConfigPage() {
                               onChange={(e) =>
                                 handleCellChange(row.partnerCode, c.key, e.target.value)
                               }
+                              disabled={!canEditDcConfig}
                               placeholder={c.placeholder}
                               aria-label={`${row.companyName} ${c.label}`}
                             />
@@ -285,15 +294,18 @@ export function SalesPartnerDcConfigPage() {
                           type="button"
                           className={styles['btnMini']}
                           onClick={() => handleSaveRow(row)}
-                          disabled={!rowDirty || saveMutation.isPending}
+                          disabled={!canEditDcConfig || !rowDirty || saveMutation.isPending}
+                          title={canEditDcConfig ? undefined : 'MANAGER / MASTER 권한 필요'}
                           style={{
                             background: rowDirty ? '#059669' : '#11182710',
                             color: rowDirty ? '#fff' : '#9ca3af',
                           }}
                         >
-                          {saveMutation.isPending && saveMutation.variables?.code === row.partnerCode
-                            ? '저장 중…'
-                            : '저장'}
+                          {!canEditDcConfig
+                            ? '조회 전용'
+                            : saveMutation.isPending && saveMutation.variables?.code === row.partnerCode
+                              ? '저장 중…'
+                              : '저장'}
                         </button>
                       </td>
                       <td>

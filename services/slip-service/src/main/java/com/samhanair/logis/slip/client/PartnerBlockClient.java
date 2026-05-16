@@ -122,6 +122,10 @@ public class PartnerBlockClient {
                 if (codeNode != null && !codeNode.isNull() && !codeNode.asText().isBlank()) {
                     codes.add(codeNode.asText());
                 }
+                JsonNode nameNode = node.get("businessNameSnapshot");
+                if (nameNode != null && !nameNode.isNull() && !nameNode.asText().isBlank()) {
+                    codes.add(legacyNameKey(nameNode.asText()));
+                }
             }
             return codes;
         } catch (Exception ex) {
@@ -150,5 +154,17 @@ public class PartnerBlockClient {
      */
     static Set<String> toCodeSet(List<String> codes) {
         return codes == null ? Collections.emptySet() : new HashSet<>(codes);
+    }
+
+    public static String legacyNameKey(String partnerName) {
+        if (partnerName == null || partnerName.isBlank()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("NAME:");
+        partnerName.trim().codePoints()
+                .filter(Character::isLetterOrDigit)
+                .map(Character::toLowerCase)
+                .forEach(cp -> sb.appendCodePoint(cp));
+        return sb.toString();
     }
 }

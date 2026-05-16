@@ -138,8 +138,8 @@ echo "Slip published: slipNo=$SLIP_NO_FIRST orderId=$ORDER_ID"
   "ok": true,
   "data": {
     "orderId": "<UUID>",
-    "orderNo": "PO-20260509-001",
-    "slipNo": "20260509-006",
+    "orderNo": "2026/05/09-1",
+    "slipNo": "2026/05/09-6",
     "status": "PUBLISHED",
     "idempotentReplay": false
   }
@@ -243,7 +243,7 @@ curl "http://localhost:8080/api/v1/slips/by-source?sourceType=PARTNER_ORDER&sour
   "ok": true,
   "data": [
     {
-      "slipNo": "20260509-006",
+      "slipNo": "2026/05/09-6",
       "sourceType": "PARTNER_ORDER",
       "sourceId": "<orderId>",
       "idempotencyKey": "scenario-4-uuid-...",
@@ -619,8 +619,8 @@ docker start samhan-slip-service
 
 ```
 INFO  c.s.l.slip.publish.SlipPublishService : publishFromPartnerOrder request — sourceId=<orderId> idempotencyKey=<K>
-INFO  c.s.l.slip.publish.SlipPublishService : Slip published: slipNo=20260509-006 sourceType=PARTNER_ORDER
-INFO  c.s.l.slip.publish.SlipPublishService : Idempotent replay — same key+body, returning slipNo=20260509-006
+INFO  c.s.l.slip.publish.SlipPublishService : Slip published: slipNo=2026/05/09-6 sourceType=PARTNER_ORDER
+INFO  c.s.l.slip.publish.SlipPublishService : Idempotent replay — same key+body, returning slipNo=2026/05/09-6
 WARN  c.s.l.slip.publish.SlipPublishService : Idempotency conflict — same key=<K>, different body hash
 ```
 

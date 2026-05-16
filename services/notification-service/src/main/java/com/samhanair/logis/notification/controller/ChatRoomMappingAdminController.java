@@ -41,7 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>Endpoint 4개:
  * <ul>
- *   <li>GET /chat-rooms — 전체 목록 (옵션: partnerCode 또는 chatRoomName 필터)</li>
+ *   <li>GET /chat-rooms — 전체 목록 (옵션: partnerCode, partnerBusinessName 또는 chatRoomName 필터)</li>
  *   <li>POST /chat-rooms — 단건 등록 (partner_code 직접 입력)</li>
  *   <li>POST /chat-rooms/import — multipart CSV 일괄 import</li>
  *   <li>DELETE /chat-rooms/{id} — soft-delete</li>
@@ -59,6 +59,7 @@ public class ChatRoomMappingAdminController {
      * 단톡방 매핑 전체 목록.
      *
      * @param partnerCode (선택) 거래처별 필터
+     * @param partnerBusinessName (선택) legacy 이름 alias 필터
      * @param chatRoomName (선택) 단톡방별 필터
      */
     @Operation(summary = "단톡방 매핑 목록 (Admin)",
@@ -67,10 +68,15 @@ public class ChatRoomMappingAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<List<ChatRoomMappingResponse>> list(
             @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false) String partnerBusinessName,
             @RequestParam(required = false) String chatRoomName) {
         List<ChatRoomMappingResponse> result;
         if (partnerCode != null && !partnerCode.isBlank()) {
             result = mappingService.findByPartnerCode(partnerCode).stream()
+                    .map(ChatRoomMappingResponse::from)
+                    .toList();
+        } else if (partnerBusinessName != null && !partnerBusinessName.isBlank()) {
+            result = mappingService.findByPartnerBusinessName(partnerBusinessName).stream()
                     .map(ChatRoomMappingResponse::from)
                     .toList();
         } else if (chatRoomName != null && !chatRoomName.isBlank()) {

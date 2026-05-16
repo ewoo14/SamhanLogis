@@ -36,7 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * <ul>
  *   <li>정상 import (insert + update upsert)</li>
  *   <li>partner_code 부재 → reject</li>
- *   <li>partner_code 미존재 → reject (자동 partner 생성 X)</li>
+ *   <li>partner_code 미존재 → CSV 최소 거래처 자동 생성 후 import</li>
  *   <li>형식 변환 ("46%" / "₩20,000" / "Yes" / 빈 문자열)</li>
  *   <li>UTF-8 BOM 처리</li>
  * </ul>
@@ -129,19 +129,34 @@ class DcConfigImportServiceTest {
     }
 
     @Test
-    @DisplayName("partner_code DB 미존재 → reject (자동 partner 생성 X)")
-    void rejectWhenPartnerNotFound() {
+    @DisplayName("Notion export trailing row — 거래처코드/업체명 없이 No만 있으면 skip")
+    void skipsNotionTrailingBlankLikeRow() {
         String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
-                + "신규거래처,,,,,9999999999,,,,,,,\n";
-
-        when(partnerRepository.findByPartnerCode("9999999999")).thenReturn(Optional.empty());
+                + ",,,,,,,,,,No,,\n";
 
         DcConfigImportResult result = service.importCsv(toStream(csv));
 
         assertThat(result.inserted()).isZero();
-        assertThat(result.rejected()).hasSize(1);
-        assertThat(result.rejected().get(0).partnerCode()).isEqualTo("9999999999");
-        assertThat(result.rejected().get(0).reason()).contains("미존재");
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("partner_code DB 미존재 → CSV 최소 거래처 자동 생성 후 import")
+    void createsPartnerWhenPartnerNotFound() {
+        String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
+                + "신규거래처,,,,,9999999999,,,,,,,\n";
+
+        when(partnerRepository.findByPartnerCode("9999999999")).thenReturn(Optional.empty());
+        when(partnerRepository.save(any(Partner.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(dcConfigRepository.findByPartner_Id(any())).thenReturn(Optional.empty());
+
+        DcConfigImportResult result = service.importCsv(toStream(csv));
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+        verify(partnerRepository).save(any(Partner.class));
     }
 
     @Test

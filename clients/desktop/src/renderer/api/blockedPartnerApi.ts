@@ -18,7 +18,7 @@
  *   <li>CSV import / unblock (delete) — MASTER 만</li>
  * </ul>
  *
- * <p>FE 도 발송금지 화면 자체에 MASTER 가드 적용 (사용자 명시: "발송금지는 민감").
+ * <p>FE route 는 MANAGER / MASTER 진입을 허용하고, CSV import / unblock 은 페이지 내부에서 MASTER 만 노출한다.
  *
  * <p>UUID 비공개 — 화면 노출은 partnerCode + businessName snapshot + 차단사유 만.
  * id (BLOCK row UUID) 는 unblock path variable 전용 (data-testid 에만 사용).

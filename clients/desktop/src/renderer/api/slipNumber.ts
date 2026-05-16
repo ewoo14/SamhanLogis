@@ -1,17 +1,17 @@
 /**
- * 전표/견적/주문 번호 포맷 util — `YYYY/MM/DD - {전표번호}` 통일 (v2 정정 §정정 8).
+ * 전표/견적/주문 번호 포맷 util — `YYYY/MM/DD-{전표번호}` 통일.
  *
  * <p>EstimateMaster + PartnerOrderMaster + Slip 모두 본 util 로 표시 양식 통일.
- * 화면/인쇄/목록 grid 모든 곳에서 사용. backend 가 순번만 (`0001` zero-pad 4자리) 내려주는
+ * 화면/인쇄/목록 grid 모든 곳에서 사용. backend 가 순번만 내려주는
  * 구조와 호환.
  *
  * <p>입력:
  * <ul>
  *   <li>{@code dateOrIso} — `Date` 또는 ISO 8601 문자열 (`2026-05-05T...`)</li>
- *   <li>{@code seq} — 순번 (number 또는 zero-pad 문자열). 미지정 시 빈 표시 (`YYYY/MM/DD`).</li>
+ *   <li>{@code seq} — 순번 (number 또는 문자열). 미지정 시 빈 표시 (`YYYY/MM/DD`).</li>
  * </ul>
  *
- * <p>출력 예: `2026/05/05 - 0001` / `2026/05/05` (seq 미지정).
+ * <p>출력 예: `2026/05/05-1` / `2026/05/05` (seq 미지정).
  *
  * <p>UUID 비공개 가드 — `seq` 는 사용자 노출 식별자 (DB UUID 가 아님) 가정.
  */
@@ -42,11 +42,11 @@ export function formatSlipDate(dateOrIso: Date | string | null | undefined): str
 }
 
 /**
- * `YYYY/MM/DD - {전표번호}` 통일 양식 (v2 정정 §8).
+ * `YYYY/MM/DD-{전표번호}` 통일 양식.
  *
  * @param dateOrIso 발행일 (Date 또는 ISO 문자열)
- * @param seq 순번 (number 또는 zero-pad 문자열). number 면 4자리 zero-pad.
- * @return `2026/05/05 - 0001` 형태. seq 가 없거나 빈 값이면 `YYYY/MM/DD` 만.
+ * @param seq 순번 (number 또는 문자열). number 면 padding 없이 표시.
+ * @return `2026/05/05-1` 형태. seq 가 없거나 빈 값이면 `YYYY/MM/DD` 만.
  */
 export function formatSlipNumber(
   dateOrIso: Date | string | null | undefined,
@@ -55,6 +55,6 @@ export function formatSlipNumber(
   const datePart = formatSlipDate(dateOrIso)
   if (!datePart) return ''
   if (seq === null || seq === undefined || seq === '') return datePart
-  const seqStr = typeof seq === 'number' ? pad(seq, 4) : String(seq)
-  return `${datePart} - ${seqStr}`
+  const seqStr = typeof seq === 'number' ? String(Math.max(0, Math.floor(Math.abs(seq)))) : String(seq)
+  return `${datePart}-${seqStr}`
 }

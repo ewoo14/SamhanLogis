@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -30,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Notion CSV import 서비스 (PR-D Part 2-3, TM Part 3 매핑 정정).
  *
- * <p>Notion DB "단톡방리스트" export CSV (111 row) 를 partner_chat_room_mappings 테이블로 적재.
+ * <p>Notion DB "단톡방리스트" export CSV 를 partner_chat_room_mappings 테이블로 적재.
  * 컬럼 헤더는 순서 무관 (header-aware) 이며, 다음 두 형식을 동시 지원:
  * <ul>
  *   <li>기본 (Notion export 원본) — {@code "이카운트 사업자명"}, {@code "카톡방"}, {@code "생성 일시"}</li>
@@ -43,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       로 존재 검증 후 즉시 사용 — 사업자명 lookup 회피 (모호한 LIKE 매칭 제거).</li>
  *   <li>코드가 비어 있거나 검증 실패 시 {@code 이카운트 사업자명} 으로
  *       {@link PartnerLookupClient#findPartnerCodeByName(String)} fallback.</li>
- *   <li>둘 다 실패 시 reject 누적 (row 번호 + 코드 + 사업자명 + reason).</li>
+ *   <li>둘 다 실패하더라도 legacy Notion 원본처럼 사업자명만 있는 행은 alias partnerCode 로 보존한다.</li>
  * </ol>
  *
  * <p>처리 절차:
@@ -71,6 +73,7 @@ public class ChatRoomImportService {
     private static final String COL_PARTNER_CODE = "거래처코드";
     /** TM PR-D Part 3 — 거래처코드 우선 매핑 컬럼 (영문 헤더 대안). */
     private static final String COL_PARTNER_CODE_EN = "partner_code";
+    private static final String LEGACY_ALIAS_PREFIX = "LEGACY-NAME-";
 
     /**
      * Notion 한국어 datetime 포맷터 — "2026년 4월 26일 오전 7:34".
@@ -150,12 +153,12 @@ public class ChatRoomImportService {
                     continue;
                 }
 
-                if (partnerCodeOpt.isEmpty()) {
+                if (partnerCodeOpt.isEmpty() && businessName == null) {
                     rejected.add(new RejectedRow(rowNumber, businessName, chatRoomName,
-                            "partner_code lookup miss (코드/사업자명 모두 미매칭, 신규 거래처 또는 오타 추정)"));
+                            "partner_code lookup miss (사업자명 없이 alias 생성 불가)"));
                     continue;
                 }
-                String partnerCode = partnerCodeOpt.get();
+                String partnerCode = partnerCodeOpt.orElseGet(() -> legacyAliasCode(businessName));
                 log.debug("CHAT row={} partner_code={} via={}", rowNumber, partnerCode, lookupVia);
 
                 LocalDateTime notionCreatedAt = null;
@@ -204,5 +207,27 @@ public class ChatRoomImportService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /**
+     * 거래처코드가 없는 legacy Notion 행을 보존하기 위한 결정적 alias.
+     * 실제 거래처코드와 구분되는 prefix 를 사용하고, 화면에는 snapshot 사업자명을 함께 노출한다.
+     */
+    static String legacyAliasCode(String businessName) {
+        String source = trimToNull(businessName);
+        if (source == null) {
+            throw new IllegalArgumentException("businessName 필수");
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(source.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 6; i++) {
+                hex.append(String.format("%02x", bytes[i]));
+            }
+            return LEGACY_ALIAS_PREFIX + hex;
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 미지원", ex);
+        }
     }
 }

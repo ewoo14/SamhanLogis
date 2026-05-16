@@ -11,9 +11,9 @@
  * - 권한 조정    (`/admin/roles`)              — admin-nav-roles
  * - 부서         (`/admin/departments`)        — admin-nav-departments
  * - 단톡방 매핑  (`/admin/chat-rooms`)         — admin-nav-chat-rooms
- * - DC 설정      (`/sales/partner-dc-config`)  — admin-nav-dc-config
+ * - 거래처 DC 설정 (`/sales/partner-dc-config`)  — admin-nav-dc-config
  * - 거래처 관리  (`/admin/partners`)           — admin-nav-partners (공용 거래처 화면 quick link)
- * - 창고         (`/admin/warehouses`)         — admin-nav-warehouses
+ * - 창고 관리    (`/admin/warehouses`)         — admin-nav-warehouses
  *
  * memory feedback_uuid_no_user_visibility — admin 화면도 비즈니스 식별자만 노출.
  * memory feedback_role_naming_full — entry 라벨/가드 표기 풀네임 사용.
@@ -124,13 +124,13 @@ function AdminLayoutInner() {
           to="/sales/partner-dc-config"
           testId="admin-nav-dc-config"
         >
-          DC 설정
+          거래처 DC 설정
         </AdminNav>
         <AdminNav to="/admin/partners" testId="admin-nav-partners">
           거래처 관리
         </AdminNav>
         <AdminNav to="/admin/warehouses" testId="admin-nav-warehouses">
-          창고
+          창고 관리
         </AdminNav>
         {/*
           [Slice 2 이관 완료] 다음 4건은 PR #159 에서 일반 카테고리 (설정/arologis/영업/메신저)

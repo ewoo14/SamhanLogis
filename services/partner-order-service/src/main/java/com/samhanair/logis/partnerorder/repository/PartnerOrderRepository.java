@@ -25,6 +25,9 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     /** Order-No 중복 검사 (동일 일자 내 최대 sequence 산출용). */
     Optional<PartnerOrder> findByOrderNo(String orderNo);
 
+    /** 업무번호 표준({@code yyyy/MM/dd-N}) 채번 — 같은 날짜의 기존 주문번호를 조회한다. */
+    List<PartnerOrder> findAllByOrderNoStartingWith(String orderNoDatePrefix);
+
     /** Outbox scheduler — PENDING_RETRY 상태 주문 batch (slipNo IS NULL 인 row). */
     List<PartnerOrder> findAllBySlipPublishStatus(SlipPublishStatus status);
 }

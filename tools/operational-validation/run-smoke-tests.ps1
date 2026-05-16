@@ -69,25 +69,53 @@ Write-Host " GatewayUrl : $GatewayUrl"
 Write-Host " LoginId    : $LoginId"
 Write-Host ''
 
-# 14 service 정의 (start-local-full.ps1 와 일치)
+# 14 service 정의 (start-local-full.ps1 와 일치). 일부 개발 PC 는 8086/8088 등을 로컬 도구가
+# 이미 점유하여 start-local-full.ps1 가 +100 포트로 우회한다. health 검증 전 실제 포트를 탐지한다.
 $services = @(
-    @{ name = 'eureka-server';         port = 8761 },
-    @{ name = 'auth-service';          port = 8081 },
-    @{ name = 'user-service';          port = 8083 },
-    @{ name = 'product-service';       port = 8084 },
-    @{ name = 'partner-service';       port = 8095 },
-    @{ name = 'inventory-service';     port = 8085 },
-    @{ name = 'accounting-service';    port = 8087 },
-    @{ name = 'slip-service';          port = 8086 },
-    @{ name = 'partner-order-service'; port = 8088 },
-    @{ name = 'arologis-service';      port = 8097 },
-    @{ name = 'groupware-service';     port = 8092 },
-    @{ name = 'notification-service';  port = 8093 },
-    @{ name = 'dashboard-service';     port = 8094 },
-    @{ name = 'api-gateway';           port = 8080 }
+    @{ name = 'eureka-server';         port = 8761; env = 'SAMHAN_EUREKA_PORT' },
+    @{ name = 'auth-service';          port = 8081; env = 'SAMHAN_AUTH_PORT' },
+    @{ name = 'user-service';          port = 8083; env = 'SAMHAN_USER_PORT' },
+    @{ name = 'product-service';       port = 8084; env = 'SAMHAN_PRODUCT_PORT' },
+    @{ name = 'partner-service';       port = 8095; env = 'SAMHAN_PARTNER_PORT' },
+    @{ name = 'inventory-service';     port = 8085; env = 'SAMHAN_INVENTORY_PORT' },
+    @{ name = 'accounting-service';    port = 8087; env = 'SAMHAN_ACCOUNTING_PORT' },
+    @{ name = 'slip-service';          port = 8086; env = 'SAMHAN_SLIP_PORT' },
+    @{ name = 'partner-order-service'; port = 8088; env = 'SAMHAN_PARTNER_ORDER_PORT' },
+    @{ name = 'arologis-service';      port = 8097; env = 'SAMHAN_AROLOGIS_PORT' },
+    @{ name = 'groupware-service';     port = 8092; env = 'SAMHAN_GROUPWARE_PORT' },
+    @{ name = 'notification-service';  port = 8093; env = 'SAMHAN_NOTIFICATION_PORT' },
+    @{ name = 'dashboard-service';     port = 8094; env = 'SAMHAN_DASHBOARD_PORT' },
+    @{ name = 'api-gateway';           port = 8080; env = 'SAMHAN_API_GATEWAY_PORT' }
 )
 if (-not $SkipDcConfig) {
-    $services += @{ name = 'dc-config-service'; port = 8089 }
+    $services += @{ name = 'dc-config-service'; port = 8089; env = 'SAMHAN_DC_CONFIG_PORT' }
+}
+
+function Test-HealthPort {
+    param([int] $Port)
+    try {
+        $r = Invoke-WebRequest -Uri "http://localhost:$Port/actuator/health" `
+            -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        return $r.StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-ServicePort {
+    param($Service)
+    $envValue = [Environment]::GetEnvironmentVariable($Service.env)
+    if ($envValue -and $envValue -match '^\d+$') {
+        return [int] $envValue
+    }
+    if (Test-HealthPort -Port $Service.port) {
+        return [int] $Service.port
+    }
+    $fallback = [int] $Service.port + 100
+    if (Test-HealthPort -Port $fallback) {
+        return $fallback
+    }
+    return [int] $Service.port
 }
 
 # -----------------------------------------------------------------------------
@@ -116,7 +144,9 @@ Write-Host '[1/3] service /actuator/health 검증' -ForegroundColor Yellow
 
 $healthResults = @()
 foreach ($svc in $services) {
-    $url    = "http://localhost:$($svc.port)/actuator/health"
+    $actualPort = Resolve-ServicePort -Service $svc
+    $svc.port = $actualPort
+    $url    = "http://localhost:$actualPort/actuator/health"
     $status = 'DOWN'
     $body   = ''
     try {
@@ -139,7 +169,7 @@ foreach ($svc in $services) {
     }
     $healthResults += [pscustomobject]@{
         Service = $svc.name
-        Port    = $svc.port
+        Port    = $actualPort
         Status  = $status
         Body    = $body
     }
@@ -169,7 +199,11 @@ try {
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
     $token = $loginResp.data.accessToken
     if (-not $token) {
-        throw "응답에 accessToken 부재"
+        # auth-service 최신 응답은 accessToken 대신 token 필드를 사용한다.
+        $token = $loginResp.data.token
+    }
+    if (-not $token) {
+        throw "응답에 accessToken/token 부재"
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
@@ -201,9 +235,9 @@ $kpiQuery = "from=$today&to=$today"
 # transport = 'gateway' (Authorization 만) | 'direct' (Authorization + X-User-Id + X-User-Role)
 # direct 는 controller @RequestMapping 이 gateway StripPrefix=2 와 mismatch 인 경우 사용 (PR #122 BE 리뷰 fix).
 $smokeEndpoints = @(
-    @{ name = 'auth-service /auth/me';                transport = 'gateway'; url = "$GatewayUrl/api/v1/auth/me" },
+    @{ name = 'auth-service /auth/me';                transport = 'direct';  url = 'http://localhost:8081/auth/me' },
     @{ name = 'product-service /products';            transport = 'gateway'; url = "$GatewayUrl/api/v1/products?page=0&size=10" },
-    @{ name = 'inventory-service /inventory/balances';transport = 'gateway'; url = "$GatewayUrl/api/v1/inventory/balances?page=0&size=10" },
+    @{ name = 'inventory-service /warehouses';        transport = 'gateway'; url = "$GatewayUrl/api/v1/inventory/warehouses?page=0&size=10" },
     @{ name = 'slip-service /slips';                  transport = 'gateway'; url = "$GatewayUrl/api/v1/slips?page=0&size=10" },
     @{ name = 'partner-service /admin/partners';      transport = 'direct';  url = 'http://localhost:8095/admin/partners?page=0&size=10' },
     @{ name = 'notification-service /admin/notifications'; transport = 'direct'; url = 'http://localhost:8093/admin/notifications?page=0&size=10' },

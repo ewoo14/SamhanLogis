@@ -1,10 +1,46 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-03 **검증 완료 / PR 준비**, Codex)
+> 갱신일: 2026-05-16 (SP-04 **전메뉴/legacy GAS/노션 이식 감사 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-03 Samhan Public 구매관리 검수 CTA + 관리형 메뉴/이동번호 정합화
+## 2026-05-16 Codex 최신 핸드오프 — SP-04 Samhan Public 전메뉴/legacy GAS/노션 이식 감사
+
+- 현재 branch: `codex/sp-04-full-menu-audit`
+- 기준 main: PR #205 `[codex] SP-03 Samhan Public 구매관리 검수 CTA와 표시번호 정합화` merge.
+- 현재 PR: 생성 예정 — `[codex] SP-04 Samhan Public 전메뉴와 legacy GAS/노션 이식 감사`
+- 사용자 최신 요청:
+  - 전메뉴를 전체 점검한다.
+  - `/tools/legacy-gas` 안 기존 이카운트 + Google Apps Script 연동 프로그램이 기능 누락 없이 Samhan Public 으로 이식됐는지 확인한다.
+  - Notion 단톡방리스트 / 발송금지리스트 / 배차지역 분류표를 참조하며, 해당 데이터를 모두 이식한다.
+  - 기존 PR을 확인한다.
+  - 종합견적서와 주문서는 Google Spreadsheet 데이터를 그대로 가져오는지 재검증한다.
+- SP-04 구현/감사 진행:
+  - 기존 PR #115/#117/#118/#119/#120/#163을 legacy GAS/Notion migration 근거로 대조했다.
+  - Notion database schema 확인:
+    - 단톡방리스트: `이카운트 사업자명`, `카톡방`, `생성 일시`
+    - 발송금지리스트: `이카운트 사업자명`, `생성 일시`
+    - 배차지역 분류표: `분류 그룹`, `검색어`
+  - 로컬 CSV export 현재 row count 를 재검증했다: 배차지역 20 / 거래처 DC 213 / 단톡방 112 / 발송금지 6.
+  - `tools/operational-validation/import-notion-csv.ps1` 의 hardcoded 기대 row count 를 제거하고 현재 CSV non-empty row 기준으로 검증하도록 정렬했다.
+  - 현재 Notion 단톡방/발송금지 표가 `거래처코드` 없이 `이카운트 사업자명`만 갖는 것을 확인했다. legacy GAS 동작을 보존하기 위해 code-first import 후 lookup miss row 는 `LEGACY-NAME-{hash}` alias 로 저장하고, 내일자 전표/배차안내는 partner name fallback 으로 단톡방/발송금지를 적용하도록 보정했다.
+  - DC import 는 로컬 `dc_config_db.partners` seed 가 비어 있어도 CSV `거래처코드`/`업체명`으로 최소 Partner snapshot 을 생성한 뒤 213 rows 를 이식할 수 있게 보정했다.
+  - Google Sheets connector로 legacy spreadsheet `종합 견적서` metadata와 핵심 range를 재검증했다. `종합견적서!A1:H20`은 출력 양식이고, 실제 카탈로그 원본은 `홈멀티_단가인상`, `싱글 세트_단가인상`, `상업멀티 구성_단가인상` 등 source tab임을 확인했다.
+  - `ProductSheetSyncService`는 tab별 column mapping으로 보정했다. `싱글 세트`/`싱글 구성품`은 C열 모델명, H열 납품가를 사용한다.
+  - `ProductCatalogLookupClient`는 `종합견적서!A2:C` flat range 가정을 제거하고, `*_단가인상` source tab 우선 + 주문서 base tab fallback으로 modelCode 단가를 lookup한다. `INTEGRATED_QUOTE_RANGE`는 별도 flat catalog가 있을 때만 override한다.
+  - 전메뉴 IA/권한을 보정했다: `/sales/new`, `/purchases/new`, `/transfers/new`, `/sales/link-dispatch`, admin-origin 시트/발송금지/단톡방/지역 화면 route guard.
+  - `DISPATCH` 공통 role 을 추가하고 배차/지역 조회 전용 계약에 연결했다.
+  - 견적번호/주문번호/재고이동/전표/배차번호를 공개 업무번호 `YYYY/MM/DD-{순번}` 표준으로 정렬 중이다. 판매전표와 구매전표처럼 메뉴/업무 타입이 다르면 같은 날짜 같은 순번을 가질 수 있다.
+  - PR 캡처용 SP-04 스크린샷 생성 스크립트와 static Playwright contract 를 추가했다.
+- 남은 즉시 작업:
+  - SP-04 screenshot 12장 생성 및 링크 검증.
+  - `clients/desktop` typecheck/lint/build + static Playwright contract.
+  - Gradle targeted tests: role/dispatch/transfer/estimate/order/import services.
+  - Google Sheets source validation targeted tests는 1차 PASS: `ProductCatalogLookupClientTest`, `ProductSheetSyncServiceIT`.
+  - Docker local stack 에서 operational validation 실제 import 검증.
+  - PR 본문에 상세 캡처 여러 장 인라인 첨부 후 CI watch.
+
+## 2026-05-16 Codex 핸드오프 — SP-03 Samhan Public 구매관리 검수 CTA + 관리형 메뉴/이동번호 정합화
 
 - 현재 branch: `codex/sp-03-purchase-inspection-cta`
 - 기준 main: PR #204 `codex/sp-02-samhan-public-ui-gap-audit` merge commit `871e2a10`

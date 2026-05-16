@@ -1,7 +1,7 @@
 /**
  * 판매관리 — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
  *
- * 컬럼 17개 (슬립 #17 판매조회 명세):
+ * 컬럼 17개 (슬립 #17 판매관리 명세):
  *  1. 체크박스 (다중 선택 + 전체 선택)
  *  2. 순번 (slipDate desc 기준 row index)
  *  3. 판매번호 (slipNo)
@@ -31,7 +31,7 @@ import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canCreateSlip } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { exportSlips } from '../../api/excelExportApi'
+import { canExportSlips, exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 
 const PAGE_SIZE = 50
@@ -103,6 +103,7 @@ export function SalesQueryPage() {
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
   const canCreate = canCreateSlip(role)
+  const canExport = canExportSlips(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -140,7 +141,7 @@ export function SalesQueryPage() {
   })
   const warehouses: Warehouse[] = warehousesQuery.data ?? []
 
-  // ── 판매조회 데이터 ──
+  // ── 판매관리 데이터 ──
   const slipsQuery = useQuery({
     queryKey: ['slips', 'query', 'OUTBOUND', dateFrom, dateTo, page, appliedSearch],
     queryFn: () =>
@@ -301,22 +302,24 @@ export function SalesQueryPage() {
           </Button>
         ) : null}
 
-        {/* Excel 다운로드 */}
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={downloading}
-          disabled={downloading}
-          onClick={() =>
-            download(
-              () => exportSlips({ slipType: 'OUTBOUND', from: dateFrom, to: dateTo }),
-              makeExportFilename('판매관리'),
-            )
-          }
-          data-testid="sales-query-excel-download"
-        >
-          Excel 다운로드
-        </Button>
+        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용. */}
+        {canExport ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={downloading}
+            disabled={downloading}
+            onClick={() =>
+              download(
+                () => exportSlips({ slipType: 'OUTBOUND', from: dateFrom, to: dateTo }),
+                makeExportFilename('판매관리'),
+              )
+            }
+            data-testid="sales-query-excel-download"
+          >
+            Excel 다운로드
+          </Button>
+        ) : null}
 
         {/* 검색 모달 열기 */}
         <Button

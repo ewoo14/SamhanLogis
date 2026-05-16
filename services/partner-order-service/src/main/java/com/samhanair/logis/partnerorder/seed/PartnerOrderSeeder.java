@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>이중 가드 — {@code @Profile("dev")} + {@code @ConditionalOnProperty
  * (value = "app.partner-order.seed-test-data", havingValue = "true")} 양쪽 모두 활성일 때만 동작.
  *
- * <p>idempotent — orderNo (PO-2026-0001 ~ PO-2026-0030) 가 이미 존재하면 skip. {@link
+ * <p>idempotent — orderNo ({@code 2026/04/15-1 ~ 2026/04/15-30}) 가 이미 존재하면 skip. {@link
  * PartnerOrder#create} factory 는 {@code status = CONFIRMING + slipPublishStatus = PENDING_RETRY}
  * 로 진입하므로, 30건 분포는 reflection 으로 status / slipPublishStatus / slipNo 를 강제 세팅한다
  * (테스트 fixture 한정 — 운영 코드는 markSlipPublished / cancel 등 정상 transition 사용).
@@ -124,7 +124,7 @@ public class PartnerOrderSeeder implements CommandLineRunner {
         int skipped = 0;
 
         for (int seq = 1; seq <= 30; seq++) {
-            String orderNo = "PO-2026-" + zfill(seq, 4);
+            String orderNo = SLIP_DATE_PREFIX + "-" + seq;
             Optional<PartnerOrder> existing = partnerOrderRepository.findByOrderNo(orderNo);
             if (existing.isPresent()) {
                 skipped++;
@@ -223,10 +223,6 @@ public class PartnerOrderSeeder implements CommandLineRunner {
             }
         }
         return null;
-    }
-
-    private static String zfill(int v, int width) {
-        return String.format("%0" + width + "d", v);
     }
 
     private record PartnerSeed(String partnerCode, String partnerName, String bizNo) {}

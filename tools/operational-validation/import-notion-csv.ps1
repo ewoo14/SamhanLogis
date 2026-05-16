@@ -89,36 +89,54 @@ if (-not (Test-Path $NotionExportRoot)) {
 # 4 CSV import 정의
 # 디렉토리 이름은 한글 + Notion 의 base CSV 만 사용 (_all.csv 제외).
 # url 은 service port 직접 — controller @RequestMapping 과 gateway StripPrefix=2 정합 (PR #122 BE 리뷰 fix).
+# expectedRows 는 과거 PR 의 고정 숫자가 아니라 선택된 CSV 의 실제 non-empty row 수로 계산한다.
+# Notion 표는 운영 중 행이 늘거나 줄 수 있으므로, stale count 로 정상 import 를 실패 처리하지 않는다.
 $imports = @(
     @{
-        name           = 'REGION (19)'
+        name           = 'REGION'
         dirName        = '가배차용 지역별 분류표'
         url            = 'http://localhost:8097/admin/arologis/regions/import'
-        expectedRows   = 19
         formField      = 'file'
+        omitAuthorization = $true
     },
     @{
-        name           = 'DC (221)'
+        name           = 'DC'
         dirName        = '거래처 DC정보'
         url            = 'http://localhost:8089/api/v1/dc-config/admin/import'
-        expectedRows   = 221
         formField      = 'file'
     },
     @{
-        name           = 'CHAT (111)'
+        name           = 'CHAT'
         dirName        = '단톡방리스트'
         url            = 'http://localhost:8093/api/v1/notification/admin/chat-rooms/import'
-        expectedRows   = 111
         formField      = 'file'
     },
     @{
-        name           = 'BLOCK (5)'
+        name           = 'BLOCK'
         dirName        = '발송금지리스트'
         url            = 'http://localhost:8095/api/v1/partners/admin/blocks/import'
-        expectedRows   = 5
         formField      = 'file'
     }
 )
+
+function Get-CsvDataRowCount {
+    param([string] $Path)
+
+    $rows = @(Import-Csv -LiteralPath $Path)
+    if ($rows.Count -eq 0) {
+        return 0
+    }
+
+    $firstHeader = $rows[0].PSObject.Properties.Name | Select-Object -First 1
+    if (-not $firstHeader) {
+        return $rows.Count
+    }
+
+    return @($rows | Where-Object {
+        $value = $_.PSObject.Properties[$firstHeader].Value
+        -not [string]::IsNullOrWhiteSpace([string] $value)
+    }).Count
+}
 
 # -----------------------------------------------------------------------------
 # 0-1. JWT base64url payload 디코드 (X-User-Id / X-User-Role 추출 헬퍼)
@@ -154,7 +172,11 @@ try {
         -ContentType 'application/json' -Body $loginBody -TimeoutSec 10
     $token = $loginResp.data.accessToken
     if (-not $token) {
-        throw "응답에 accessToken 부재 — body=$($loginResp | ConvertTo-Json -Compress)"
+        # auth-service 최신 응답은 accessToken 대신 token 필드를 사용한다.
+        $token = $loginResp.data.token
+    }
+    if (-not $token) {
+        throw "응답에 accessToken/token 부재 — body=$($loginResp | ConvertTo-Json -Compress)"
     }
     $claims   = Get-JwtClaims -Token $token
     $userId   = $claims.sub
@@ -190,7 +212,7 @@ foreach ($imp in $imports) {
         $results += [pscustomobject]@{
             DB        = $imp.name
             Url       = $imp.url
-            Expected  = $imp.expectedRows
+            Expected  = '?'
             Inserted  = '?'
             Updated   = '?'
             Rejected  = '?'
@@ -207,7 +229,7 @@ foreach ($imp in $imports) {
         $results += [pscustomobject]@{
             DB        = $imp.name
             Url       = $imp.url
-            Expected  = $imp.expectedRows
+            Expected  = '?'
             Inserted  = '?'
             Updated   = '?'
             Rejected  = '?'
@@ -216,7 +238,8 @@ foreach ($imp in $imports) {
         }
         continue
     }
-    Write-Host "     CSV : $($csvFile.Name) ($($csvFile.Length) bytes)" -ForegroundColor DarkGray
+    $expectedRows = Get-CsvDataRowCount -Path $csvFile.FullName
+    Write-Host "     CSV : $($csvFile.Name) ($($csvFile.Length) bytes, expectedRows=$expectedRows)" -ForegroundColor DarkGray
 
     # multipart/form-data 호출
     # PowerShell 5.1 호환 — Invoke-WebRequest -Form 미지원 → 수동 multipart body 구성
@@ -224,25 +247,30 @@ foreach ($imp in $imports) {
     # downstream HeaderAuthenticationFilter 가 X-User-* 신뢰 → @PreAuthorize 통과.
     $url = $imp.url
     $headers = @{
-        Authorization   = "Bearer $token"
         'X-User-Id'     = $userId
         'X-User-Role'   = $roleName
+    }
+    if (-not $imp.omitAuthorization) {
+        $headers['Authorization'] = "Bearer $token"
     }
 
     $boundary = [System.Guid]::NewGuid().ToString()
     $LF       = "`r`n"
     $fileBytes = [System.IO.File]::ReadAllBytes($csvFile.FullName)
-    $fileEnc   = [System.Text.Encoding]::GetEncoding('iso-8859-1').GetString($fileBytes)
-
-    $bodyLines = (
-        "--$boundary",
-        "Content-Disposition: form-data; name=`"$($imp.formField)`"; filename=`"$($csvFile.Name)`"",
-        'Content-Type: text/csv',
-        '',
-        $fileEnc,
-        "--$boundary--",
-        ''
-    ) -join $LF
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $memory = New-Object System.IO.MemoryStream
+    $writeText = {
+        param([string] $Text)
+        $bytes = $utf8NoBom.GetBytes($Text)
+        $memory.Write($bytes, 0, $bytes.Length)
+    }
+    & $writeText "--$boundary$LF"
+    & $writeText "Content-Disposition: form-data; name=`"$($imp.formField)`"; filename=`"$($csvFile.Name)`"$LF"
+    & $writeText "Content-Type: text/csv; charset=utf-8$LF$LF"
+    $memory.Write($fileBytes, 0, $fileBytes.Length)
+    & $writeText "$LF--$boundary--$LF"
+    $bodyBytes = $memory.ToArray()
+    $memory.Dispose()
 
     $contentType = "multipart/form-data; boundary=$boundary"
 
@@ -253,7 +281,7 @@ foreach ($imp in $imports) {
     $verdict  = 'FAIL'
     try {
         $resp = Invoke-WebRequest -Uri $url -Method POST `
-            -Headers $headers -ContentType $contentType -Body $bodyLines `
+            -Headers $headers -ContentType $contentType -Body $bodyBytes `
             -TimeoutSec 60 -UseBasicParsing
 
         $status = "$($resp.StatusCode)"
@@ -276,9 +304,9 @@ foreach ($imp in $imports) {
                 }
 
                 $total = $inserted + $updated
-                if ($total -ge $imp.expectedRows -and $rejected -eq 0) {
+                if ($total -ge $expectedRows -and $rejected -eq 0) {
                     $verdict = 'OK'
-                } elseif ($total -ge $imp.expectedRows) {
+                } elseif ($total -ge $expectedRows) {
                     $verdict = 'OK_WITH_REJECTS'
                 } elseif ($total -gt 0) {
                     $verdict = 'PARTIAL'
@@ -307,7 +335,7 @@ foreach ($imp in $imports) {
             $results += [pscustomobject]@{
                 DB        = $imp.name
                 Url       = $imp.url
-                Expected  = $imp.expectedRows
+                Expected  = $expectedRows
                 Inserted  = $inserted
                 Updated   = $updated
                 Rejected  = $rejected
@@ -323,7 +351,7 @@ foreach ($imp in $imports) {
     $results += [pscustomobject]@{
         DB        = $imp.name
         Url       = $imp.url
-        Expected  = $imp.expectedRows
+        Expected  = $expectedRows
         Inserted  = $inserted
         Updated   = $updated
         Rejected  = $rejected
@@ -340,7 +368,7 @@ Write-Host '[3/3] 종합 결과' -ForegroundColor Yellow
 $results | Format-Table -AutoSize
 
 $okCount   = ($results | Where-Object { $_.Verdict -eq 'OK' }).Count
-$failCount = ($results | Where-Object { $_.Verdict -ne 'OK' -and $_.Verdict -ne 'OK_WITH_REJECTS' }).Count
+$failCount = ($results | Where-Object { $_.Verdict -ne 'OK' }).Count
 
 Write-Host ''
 if ($failCount -eq 0) {

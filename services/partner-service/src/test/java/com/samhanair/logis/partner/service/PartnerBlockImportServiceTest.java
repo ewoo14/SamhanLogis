@@ -91,7 +91,7 @@ class PartnerBlockImportServiceTest {
     }
 
     @Test
-    void importCsv_lookupMiss_rejectsRow() {
+    void importCsv_lookupMiss_preservesLegacyAlias() {
         String csv = "이카운트 사업자명,생성 일시\n"
                 + "존재하지않는상호,2026년 4월 26일 오전 7:36\n";
         when(partnerService.findByNameForLookup("존재하지않는상호")).thenReturn(Optional.empty());
@@ -99,11 +99,10 @@ class PartnerBlockImportServiceTest {
         BlockedPartnerImportResult result = service.importCsv(csvStream(csv, false), "admin-1");
 
         assertThat(result.totalRows()).isEqualTo(1);
-        assertThat(result.imported()).isZero();
-        assertThat(result.rejected()).hasSize(1);
-        assertThat(result.rejected().get(0).rowNumber()).isEqualTo(1);
-        assertThat(result.rejected().get(0).inputBusinessName()).isEqualTo("존재하지않는상호");
-        assertThat(result.rejected().get(0).reason()).contains("LOOKUP_MISS");
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+        verify(blockService).blockLegacySnapshot(anyString(), any(), any(LocalDateTime.class),
+                eq("NOTION_IMPORT"), eq("존재하지않는상호"));
         verify(blockService, never()).block(anyString(), any(), any(), anyString(), anyString());
     }
 
@@ -233,7 +232,7 @@ class PartnerBlockImportServiceTest {
 
     @Test
     void importCsv_partnerCodeAndNameBothMiss_rejects() {
-        // TM PR-D Part 3 — 코드/사업자명 둘 다 매칭 실패 시 reject.
+        // TM PR-D Part 3 — 코드/사업자명 둘 다 매칭 실패해도 legacy alias 로 보존.
         String csv = "거래처코드,이카운트 사업자명,생성 일시\n"
                 + "P-MISS,미등록상호,2026년 4월 26일 오전 7:36\n";
         when(partnerService.findByCodeForLookup("P-MISS")).thenReturn(Optional.empty());
@@ -241,9 +240,9 @@ class PartnerBlockImportServiceTest {
 
         BlockedPartnerImportResult result = service.importCsv(csvStream(csv, true), "admin-1");
 
-        assertThat(result.imported()).isZero();
-        assertThat(result.rejected()).hasSize(1);
-        assertThat(result.rejected().get(0).reason()).contains("LOOKUP_MISS");
-        assertThat(result.rejected().get(0).reason()).contains("P-MISS");
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+        verify(blockService).blockLegacySnapshot(anyString(), any(), any(LocalDateTime.class),
+                eq("NOTION_IMPORT"), eq("미등록상호"));
     }
 }

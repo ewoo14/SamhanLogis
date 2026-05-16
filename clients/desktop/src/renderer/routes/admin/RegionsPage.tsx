@@ -1,5 +1,5 @@
 /**
- * 관리자 — 가배차 지역 분류 (`/admin/regions`).
+ * 관리자 — 지역 관리 (`/admin/regions`).
  *
  * Phase 10 W10-1 PR-D Phase B FE-B 슬라이스. BE 출처 commit 645428e.
  *
@@ -17,7 +17,7 @@
  * - 사용자 노출 식별자 = groupName
  * - data-testid 의 {id} suffix 도 groupName 기준 (UUID 노출 X)
  *
- * <p>풀네임 ROLE 가드: MASTER / MANAGER (DISPATCH backlog) — RoleGuard 는 routes/index.tsx 에서.
+ * <p>풀네임 ROLE 가드: DISPATCH / MANAGER / MASTER — DISPATCH 는 조회 전용.
  *
  * <p><b>PR-H4c FE-C 보강 — 실시간 동기화</b>:
  * <ul>
@@ -61,6 +61,7 @@ import {
   type RegionUpsertRequest,
 } from '../../api/regionApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { useSessionStore } from '../../stores/session'
 
 /** keywords 컬럼 truncate 한도 (전각 문자 1자 = 1로 단순 계산). */
 const KEYWORDS_TRUNCATE = 60
@@ -87,8 +88,10 @@ const EMPTY_FORM: FormState = {
 }
 
 export function RegionsPage() {
-  usePageTitle('지역 분류')
+  usePageTitle('지역 관리')
   const queryClient = useQueryClient()
+  const auth = useSessionStore((s) => s.auth)
+  const canManageRegions = auth?.role === 'MASTER' || auth?.role === 'MANAGER'
 
   const [form, setForm] = useState<FormState | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -200,46 +203,50 @@ export function RegionsPage() {
         header: '관리',
         width: '180px',
         render: (r) => (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid={`admin-regions-edit-${r.groupName}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                setSubmitError(null)
-                setForm({
-                  editing: r,
-                  groupName: r.groupName,
-                  keywords: r.keywords,
-                  sortOrder: r.sortOrder == null ? '' : String(r.sortOrder),
-                })
-              }}
-            >
-              수정
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid={`admin-regions-delete-${r.groupName}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (
-                  window.confirm(
-                    `"${r.groupName}" 분류를 삭제하시겠습니까? (Soft Delete)`,
-                  )
-                ) {
-                  deleteMutation.mutate(r.id)
-                }
-              }}
-            >
-              삭제
-            </Button>
-          </div>
+          canManageRegions ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`admin-regions-edit-${r.groupName}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSubmitError(null)
+                  setForm({
+                    editing: r,
+                    groupName: r.groupName,
+                    keywords: r.keywords,
+                    sortOrder: r.sortOrder == null ? '' : String(r.sortOrder),
+                  })
+                }}
+              >
+                수정
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid={`admin-regions-delete-${r.groupName}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (
+                    window.confirm(
+                      `"${r.groupName}" 분류를 삭제하시겠습니까? (Soft Delete)`,
+                    )
+                  ) {
+                    deleteMutation.mutate(r.id)
+                  }
+                }}
+              >
+                삭제
+              </Button>
+            </div>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-500)' }}>조회 전용</span>
+          )
         ),
       },
     ],
-    [deleteMutation],
+    [canManageRegions, deleteMutation],
   )
 
   const isSubmitting =
@@ -255,7 +262,7 @@ export function RegionsPage() {
           marginBottom: 8,
         }}
       >
-        <h3 style={{ margin: 0 }}>지역 분류 (가배차)</h3>
+        <h3 style={{ margin: 0 }}>지역 관리 (가배차)</h3>
         <span
           data-testid="admin-regions-realtime-indicator"
           style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
@@ -267,32 +274,34 @@ export function RegionsPage() {
         시군구 검색어로 가배차 정차 자동 매칭. 정렬 순서가 낮을수록 우선 평가됩니다.
       </p>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Button
-          variant="primary"
-          data-testid="admin-regions-add-button"
-          onClick={() => {
-            setSubmitError(null)
-            setForm({ ...EMPTY_FORM })
+      {canManageRegions ? (
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: 'wrap',
           }}
         >
-          단건 추가
-        </Button>
-        <Button
-          variant="secondary"
-          data-testid="admin-regions-import-button"
-          onClick={() => setImportOpen(true)}
-        >
-          CSV 업로드
-        </Button>
-      </div>
+          <Button
+            variant="primary"
+            data-testid="admin-regions-add-button"
+            onClick={() => {
+              setSubmitError(null)
+              setForm({ ...EMPTY_FORM })
+            }}
+          >
+            단건 추가
+          </Button>
+          <Button
+            variant="secondary"
+            data-testid="admin-regions-import-button"
+            onClick={() => setImportOpen(true)}
+          >
+            CSV 업로드
+          </Button>
+        </div>
+      ) : null}
 
       <div data-testid="admin-regions-table">
         <DataTable

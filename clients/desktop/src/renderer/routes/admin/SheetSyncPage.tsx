@@ -15,7 +15,7 @@
  * - useMutation onSuccess 후 ['admin', 'sheet-sync', 'last'] invalidate
  * - PR-H4c FE-C: 30초 polling — sync 진행 중 다른 사용자가 동시에 trigger 한 결과 자동 반영
  *
- * <p><b>가드</b>: AdminLayout(MASTER) 가 상위 라우트에서 가드. 본 화면 내부 추가 가드 불요.
+ * <p><b>가드</b>: routes/index.tsx 의 RoleGuard(MANAGER / MASTER) 가 담당. 본 화면 내부 추가 가드 불요.
  *
  * <p><b>PR-H4c FE-C 보강 — 실시간 동기화</b>:
  * - 본 화면은 read-only — sync trigger 만 mutation. audit overlay / edit-request 미적용.
