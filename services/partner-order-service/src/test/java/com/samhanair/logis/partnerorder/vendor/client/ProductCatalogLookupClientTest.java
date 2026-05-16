@@ -61,6 +61,19 @@ class ProductCatalogLookupClientTest {
     }
 
     @Test
+    void lookup_단가인상탭이_비어도_base탭으로_silent_fallback하지_않는다() throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가")
+        ));
+
+        Map<String, ProductCatalogLookupClient.CatalogEntry> catalog =
+                client.findByModelCodes(List.of("AJ999BASE"));
+
+        assertThat(catalog).isEmpty();
+        verify(sheetsClient, never()).readSheetDisplay("test-sheet-id", "홈멀티!A1:Z");
+    }
+
+    @Test
     void lookup_싱글세트는_C열_모델명과_H열_납품가를_그대로_읽는다() throws Exception {
         when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
                 row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),

@@ -134,12 +134,12 @@ public class ProductCatalogLookupClient {
             Map<String, CatalogEntry> map = new LinkedHashMap<>();
             for (List<Object> row : rows) {
                 List<String> cells = GoogleSheetsClient.toStringRow(row, 3);
-                String modelCode = cells.get(0).trim();
+                String modelCode = safeGet(cells, 0).trim();
                 if (modelCode.isEmpty() || modelCode.contains("모델")) {
                     continue;
                 }
-                String productName = cells.get(1).trim();
-                BigDecimal unitPrice = parsePrice(cells.get(2));
+                String productName = safeGet(cells, 1).trim();
+                BigDecimal unitPrice = parsePrice(safeGet(cells, 2));
                 map.put(modelCode, new CatalogEntry(modelCode, productName, unitPrice));
             }
             return map;
@@ -192,11 +192,12 @@ public class ProductCatalogLookupClient {
      * @param releasePrice 선택된 가격 기준의 출고가
      * @param unitPrice 선택된 가격 기준의 납품가 (VAT 포함 — 종합견적서 표기 기준)
      */
-    public record CatalogEntry(String modelCode,
+        public record CatalogEntry(String modelCode,
                                String productName,
                                BigDecimal releasePrice,
                                BigDecimal unitPrice) {
 
+        /** 3열 flat override 는 납품가 전용 호환 경로라 출고가는 0으로 둔다. */
         public CatalogEntry(String modelCode, String productName, BigDecimal unitPrice) {
             this(modelCode, productName, BigDecimal.ZERO, zero(unitPrice));
         }

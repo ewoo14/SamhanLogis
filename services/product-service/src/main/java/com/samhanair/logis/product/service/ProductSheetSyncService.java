@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -113,7 +114,7 @@ public class ProductSheetSyncService {
     private final PriceHistoryRepository priceHistoryRepository;
 
     /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
-    private final Map<String, String> lastKnownRowHash = new HashMap<>();
+    private final Map<String, String> lastKnownRowHash = new ConcurrentHashMap<>();
 
     public ProductSheetSyncService(GoogleSheetsClient sheetsClient,
                                    ProductRepository productRepository,
@@ -249,9 +250,8 @@ public class ProductSheetSyncService {
         syncBeforeIncreasePriceHistory(mapping, sheetModelCodes);
 
         // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것
-        List<Product> dbProducts = productRepository.findByUsageScopeAndIsDeletedFalse(mapping.usageScope);
+        List<Product> dbProducts = productRepository.findByProductCategoryAndIsDeletedFalse(mapping.productCategory);
         for (Product p : dbProducts) {
-            if (p.getProductCategory() != mapping.productCategory) continue;
             String code = p.getModelCode();
             if (code == null) continue;
             if (!sheetModelCodes.contains(code)) {
@@ -273,6 +273,9 @@ public class ProductSheetSyncService {
         if (mapping.beforeIncreaseTabName == null || currentModelCodes.isEmpty()) {
             return;
         }
+        // legacy GAS 기준: base tab 은 current(`*_단가인상`) tab 에 존재하는 모델의
+        // "인상 전 단가" history 로만 보존한다. current tab 에 없는 base-only 모델을
+        // active ProductMaster 로 되살리는 silent fallback 은 허용하지 않는다.
         String range = mapping.beforeIncreaseTabName + "!A1:Z";
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, range);
         if (rows == null || rows.isEmpty()) {

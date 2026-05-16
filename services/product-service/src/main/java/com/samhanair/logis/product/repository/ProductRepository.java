@@ -2,6 +2,7 @@ package com.samhanair.logis.product.repository;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.util.Collection;
@@ -91,6 +92,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                                      Pageable pageable);
 
     List<Product> findByUsageScopeAndIsDeletedFalse(UsageScope usageScope);
+
+    List<Product> findByProductCategoryAndIsDeletedFalse(ProductCategory productCategory);
 
     List<Product> findByParentBundleSetModelAndIsDeletedFalse(String parentBundleSetModel);
 }
