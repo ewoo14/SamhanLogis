@@ -156,6 +156,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'clients/desktop/src/renderer/api/slipCleanupApi.ts',
       'clients/desktop/src/renderer/api/slipCleanupSaveHistoryApi.ts',
       'clients/desktop/src/renderer/api/dispatchSmsApi.ts',
+      'clients/desktop/src/renderer/api/dispatchSmsSaveHistoryApi.ts',
       'clients/desktop/src/renderer/api/mock.ts',
       'clients/desktop/src/renderer/routes/index.tsx',
       'clients/arologis-desktop/src/renderer/api/arologisDispatch.ts',
@@ -173,6 +174,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
       'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java',
       'services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipCleanupSaveHistoryController.java',
       'services/notification-service/src/main/java/com/samhanair/logis/notification/controller/DispatchBatchAdminController.java',
+      'services/notification-service/src/main/java/com/samhanair/logis/notification/controller/DispatchSmsSaveHistoryController.java',
     ].map(read).join('\n')
 
     for (const row of matrix) {
@@ -191,7 +193,8 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(sources).toContain('/admin/arologis/dispatches/history/latest')
     expect(sources).toContain('/slips/cleanup/history')
     expect(sources).toContain('/slips/cleanup/history/latest')
-    expect(sources).not.toContain('/admin/notifications/dispatch-sms/history')
+    expect(sources).toContain('/admin/notifications/dispatch-sms/history')
+    expect(sources).toContain('/admin/notifications/dispatch-sms/history/latest')
   })
 
   test('SP-08-3-1 산출물과 계획 문서에는 UUID literal을 포함하지 않는다', () => {
