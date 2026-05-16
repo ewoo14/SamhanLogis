@@ -245,7 +245,7 @@ const screens = [
     subtitle: 'SP-08-1은 정적 계약 + targeted backend + typecheck로 시작하고 후속 parity는 같은 가드에 누적',
     headers: ['검증', '명령', '기대', 'skip'],
     rows: [
-      ['static', 'sp-08-legacy-gas-db-api-parity.spec.ts', '5 passed', '0'],
+      ['static', 'sp-08-legacy-gas-db-api-parity.spec.ts', '6 passed', '0'],
       ['backend', 'PartnerOrderDraftServiceIT', '3 tests pass', '0'],
       ['desktop', 'npm run typecheck', 'pass', '0'],
       ['order-app', 'npm ci + npm run typecheck', 'pass', '0'],
