@@ -36,3 +36,4 @@
 - [PM 자동 머지 (5-team 0결함 + CI green 시)](feedback_user_merge_authority.md) — 2026-05-10 갱신 — 20+ 슬라이스 일괄 진행 효율화. 결함/UNSTABLE 시는 사용자 결정 대기
 - [GitGuardian = PM 자동 false positive 처리](feedback_gitguardian_false_positive.md) — 2026-05-11 갱신 — PM 자동 판정 후 머지, 사용자 dashboard 위임 X
 - [PR 표준 리뷰 워크플로우](feedback_pr_review_workflow.md) — 5-team 리뷰 → TM 승인 → CI green → PM 최종 승인 → 개발책임자 머지. 단순 PR 도 적용
+- [SP-08 legacy GAS DB/API parity](project_sp_08_legacy_gas_parity.md) — 2026-05-16~ 전메뉴 GAS 동등 기능 우리 DB/API 잠금, raw read-only snapshot, Notion runtime zero, 자격 비공개 가드

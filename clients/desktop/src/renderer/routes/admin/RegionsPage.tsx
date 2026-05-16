@@ -3,8 +3,8 @@
  *
  * Phase 10 W10-1 PR-D Phase B FE-B 슬라이스. BE 출처 commit 645428e.
  *
- * <p>매뉴얼: 노션 "지역 분류 (가배차)" 데이터를 Samhan Public 에 native 이식.
- * 노션 직접 통신 X — CSV 데이터 우리 DB 에 native 저장 후 KakaoDispatchParser 가
+ * <p>매뉴얼: 기존 "지역 분류 (가배차)" 운영 CSV 데이터를 Samhan Public 에 native 이식.
+ * 외부 DB 직접 통신 X — CSV 데이터 우리 DB 에 native 저장 후 KakaoDispatchParser 가
  * sort_order 우선 + 광역 prefix fallback 으로 자동 매칭한다.
  *
  * <p>화면 구성:
@@ -327,7 +327,7 @@ export function RegionsPage() {
             description={
               form.editing
                 ? '분류 그룹명은 변경할 수 없습니다. 검색어와 정렬 순서만 수정됩니다.'
-                : '노션 "지역 분류 (가배차)" 와 동일 형식으로 입력하세요.'
+                : '기존 지역 분류표와 동일 형식으로 입력하세요.'
             }
             size="md"
             footer={
@@ -446,7 +446,7 @@ export function RegionsPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         title="지역 분류 CSV 일괄 등록"
-        description="노션에서 export 한 CSV (분류 그룹, 검색어 헤더) 를 업로드하세요. UTF-8 BOM 자동 처리."
+        description="기존 운영 CSV (분류 그룹, 검색어 헤더) 를 업로드하세요. UTF-8 BOM 자동 처리."
         onUpload={async (file) => {
           const result = await importRegionsCsv(file)
           // 업로드 성공 시 표 갱신 — 결과 다이얼로그가 닫혀도 최신 상태 반영

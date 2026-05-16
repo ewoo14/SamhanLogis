@@ -8,7 +8,7 @@
  * <ol>
  *   <li>{@link listChatRooms} — 전체 매핑 목록 조회 (chatRoomName 으로 그룹핑하기 위함).</li>
  *   <li>{@link createChatRoom} — admin 단건 등록 (source=MANUAL, partner_code 직접 입력).</li>
- *   <li>{@link importChatRoomsCsv} — Notion DB "단톡방리스트" CSV multipart 업로드.</li>
+ *   <li>{@link importChatRoomsCsv} — 기존 "단톡방리스트" CSV multipart 업로드.</li>
  *   <li>{@link deleteChatRoom} — id 단건 soft-delete.</li>
  * </ol>
  *
@@ -33,7 +33,7 @@ export type ChatRoomMappingSource = 'NOTION_IMPORT' | 'MANUAL'
 
 /** 출처 → 한국어 표시 라벨 (운영자 시점 — 감사/마이그레이션 추적). */
 export const CHAT_ROOM_SOURCE_LABEL: Record<ChatRoomMappingSource, string> = {
-  NOTION_IMPORT: 'Notion 시드',
+  NOTION_IMPORT: 'DB 이관 시드',
   MANUAL: '수동 등록',
 }
 
@@ -49,7 +49,7 @@ export interface ChatRoomMapping {
   partnerBusinessName: string
   chatRoomName: string
   source: ChatRoomMappingSource
-  /** Notion 원본 생성 시각 (ISO-8601, NOTION_IMPORT 만 비-null). */
+  /** 원본 생성 시각 (ISO-8601, NOTION_IMPORT 만 비-null). */
   notionCreatedAt: string | null
   /** 우리 시스템 생성 시각 (ISO-8601). */
   createdAt: string
@@ -125,7 +125,7 @@ export async function createChatRoom(
 }
 
 /**
- * Notion CSV 일괄 import — {@code POST /api/v1/notification/admin/chat-rooms/import}.
+ * 기존 CSV 일괄 import — {@code POST /api/v1/notification/admin/chat-rooms/import}.
  *
  * <p>{@code CsvUploadDialog} 의 {@code onUpload} 시그니처에 맞춰 {@link UploadResult}
  * 형태로 reject 보고서를 변환한다 ({@code 사업자명} / {@code 단톡방이름} 컬럼).

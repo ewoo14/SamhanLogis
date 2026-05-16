@@ -39,7 +39,7 @@ export type BlockedPartnerSource = 'NOTION_IMPORT' | 'MANUAL' | 'LEGACY_GAS'
 
 /** source enum → 한국어 표시 라벨. */
 export const BLOCK_SOURCE_LABEL: Record<BlockedPartnerSource, string> = {
-  NOTION_IMPORT: '노션 가져오기',
+  NOTION_IMPORT: 'DB 이관 CSV',
   MANUAL: '수기 등록',
   LEGACY_GAS: '레거시(GAS)',
 }
@@ -149,7 +149,7 @@ export async function addBlockedPartner(
 }
 
 /**
- * CSV multipart import (Notion 발송금지 export) — {@code POST /api/v1/partners/admin/blocks/import}.
+ * CSV multipart import (기존 발송금지 export) — {@code POST /api/v1/partners/admin/blocks/import}.
  *
  * <p>{@code CsvUploadDialog} 의 {@code onUpload} 시그니처에 맞춰 {@link UploadResult} 로 변환:
  * <ul>

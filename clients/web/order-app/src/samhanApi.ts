@@ -49,7 +49,7 @@ http.interceptors.request.use((cfg) => {
  * - `getOrderHistory(bizCode, dateRange)` → `GET /api/v1/partner-orders/history?bizCode=...`
  * - `logFrontEvent(action, detail)` → `POST /api/v1/partner-orders/log` (frontend audit)
  * - `saveOrderSnapshot(payload)` → `POST /api/v1/partner-orders/drafts` (M4, 30일 expiry)
- * - `getOrderSnapshotHistory()` → `GET /api/v1/partner-orders/drafts`
+ * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?bizNo=&from=&to=`
  * - `sendOrderFromUi(payload)` → `POST /api/v1/partner-orders/{id}/confirm` + slip-service Event (M4)
  * - `saveTutorialState(state)` → `PATCH /api/v1/auth/partner-tutorial`
  *
@@ -60,7 +60,7 @@ http.interceptors.request.use((cfg) => {
  * - `requestTempPassword(bizNo)` → `POST /api/v1/auth/partner-temp-password` (M2)
  * - `register(payload)` → `POST /api/v1/auth/partner-register` (M2)
  * - `saveDraft(payload)` → `POST /api/v1/partner-orders/drafts` (M4) — saveOrderSnapshot 별칭
- * - `getDraftList()` → `GET /api/v1/partner-orders/drafts` (M4) — getOrderSnapshotHistory 별칭
+ * - `getDraftList(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?bizNo=&from=&to=` (M4) — getOrderSnapshotHistory 별칭
  */
 type RpcHandler = (args: unknown[]) => Promise<unknown>
 
@@ -132,10 +132,10 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http.post('/partner-orders/drafts', payload).then((r) => r.data),
   saveDraft: ([payload]) =>
     http.post('/partner-orders/drafts', payload).then((r) => r.data),
-  getOrderSnapshotHistory: () =>
-    http.get('/partner-orders/drafts').then((r) => r.data),
-  getDraftList: () =>
-    http.get('/partner-orders/drafts').then((r) => r.data),
+  getOrderSnapshotHistory: ([bizNo, from, to]) =>
+    http.get('/partner-orders/drafts', { params: { bizNo, from, to } }).then((r) => r.data),
+  getDraftList: ([bizNo, from, to]) =>
+    http.get('/partner-orders/drafts', { params: { bizNo, from, to } }).then((r) => r.data),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
   sendOrderFromUi: ([payload]) => {

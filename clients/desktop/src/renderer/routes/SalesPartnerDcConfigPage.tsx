@@ -6,8 +6,8 @@
  *   <li>거래처 검색 (partnerCode / 거래처명 부분 매칭).</li>
  *   <li>DC 컬럼 11개 인라인 수정 (홈멀티DC/상업멀티DC/유연호스I형/360/4way/1way/스탠드/디럭스/1등급/단위처리/특이사항).</li>
  *   <li>저장 — 변경된 행만 PATCH (단건 단위).</li>
- *   <li>Notion CSV export (`거래처 DC정보`) 기준 데이터 표시.</li>
- *   <li>CSV 일괄 업로드 (PR-D Phase B FE-C, MASTER 전용) — Notion 다운로드 CSV 를
+ *   <li>기존 운영 CSV (`거래처 DC정보`) 기준 데이터 표시.</li>
+ *   <li>CSV 일괄 업로드 (PR-D Phase B FE-C, MASTER 전용) — DB 이관용 CSV 를
  *       {@code POST /api/v1/dc-config/admin/import} 로 일괄 upsert.</li>
  * </ul>
  *
@@ -206,7 +206,7 @@ export function SalesPartnerDcConfigPage() {
                   color: '#fff',
                   borderColor: '#1d4ed8',
                 }}
-                title="Notion CSV 일괄 업로드 (MASTER 전용)"
+                title="기존 CSV 일괄 업로드 (MASTER 전용)"
               >
                 CSV 일괄 업로드
               </button>
@@ -332,7 +332,7 @@ export function SalesPartnerDcConfigPage() {
               open={importDialogOpen}
               onClose={() => setImportDialogOpen(false)}
               title="거래처 DC 정보 CSV 일괄 업로드"
-              description="노션에서 다운로드 받은 CSV 파일을 업로드합니다. 거래처코드 컬럼이 있어 자동으로 매핑됩니다."
+              description="기존 운영 CSV 파일을 업로드합니다. 거래처코드 컬럼이 있어 자동으로 매핑됩니다."
               onUpload={async (file) => {
                 const result = await importDcConfigCsv(file)
                 // 업로드 성공 시 거래처 DC 목록 refetch.

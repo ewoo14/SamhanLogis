@@ -11,7 +11,9 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -72,8 +74,21 @@ public class PartnerOrderDraftService {
     /** 거래처별 draft 페이지 조회 (legacy getDraftList). 본인 거래처만. */
     @Transactional(readOnly = true)
     public Page<DraftResponse> list(String partnerCode, Pageable pageable) {
+        return list(partnerCode, null, null, pageable);
+    }
+
+    /** 거래처별 draft 페이지 조회 (legacy getOrderSnapshotHistory). 날짜 필터는 선택이다. */
+    @Transactional(readOnly = true)
+    public Page<DraftResponse> list(String partnerCode, LocalDate from, LocalDate to, Pageable pageable) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
+        }
+        if (from != null || to != null) {
+            LocalDateTime fromDateTime = (from == null ? LocalDate.of(1970, 1, 1) : from).atStartOfDay();
+            LocalDateTime toDateTime = (to == null ? LocalDate.of(9999, 12, 31) : to).atTime(LocalTime.MAX);
+            return draftRepository.findAllByPartnerCodeAndCreatedAtBetweenOrderByCreatedAtDesc(
+                            partnerCode, fromDateTime, toDateTime, pageable)
+                    .map(DraftResponse::from);
         }
         return draftRepository.findAllByPartnerCodeOrderByCreatedAtDesc(partnerCode, pageable)
                 .map(DraftResponse::from);

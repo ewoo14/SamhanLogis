@@ -1,10 +1,42 @@
 # 현재 작업 핸드오프 노트
 
-> 갱신일: 2026-05-16 (SP-07 **Google Sheets 견적/주문 E2E 진행**, Codex)
+> 갱신일: 2026-05-16 (SP-08 **legacy GAS DB/API parity 기반 잠금 진행**, Codex)
 > 갱신자: Codex
 > 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
 
-## 2026-05-16 Codex 최신 핸드오프 — SP-07 Google Sheets 견적/주문 E2E
+## 2026-05-16 Codex 최신 핸드오프 — SP-08 legacy GAS DB/API parity
+
+- 현재 branch: `codex/sp-08-legacy-gas-db-api-parity`
+- 직전 완료: PR #209 `[codex] SP-07 Google Sheets 견적 주문 원본 계약 정렬` merge commit `1b545a7c`.
+- 사용자 최신 확정:
+  - 나머지 GAS 코드도 UI와 기능은 기존 그대로 유지한다.
+  - Notion 통신/외부 live source만 Samhan Public DB/API로 바꾼다.
+  - Notion 데이터는 runtime 조회처가 아니며, 우리 DB로 이관된 뒤 그 DB/API에서 CRUD한다.
+- SP-08-1 진행:
+  - Claude Code workflow 1단계로 `docs/planning/2026-05-16_legacy-gas-db-api-parity.md` 작성.
+  - 5-role 감사(BE/FE/Designer/DevOps/QA) 결과를 반영해 이번 기반 PR 범위를 확정.
+  - `clients/desktop/playwright/sp-08-legacy-gas-db-api-parity/sp-08-legacy-gas-db-api-parity.spec.ts` 추가.
+  - `estimate-app` 저장 confirm의 `노션에 저장` 사용자 문구를 `Samhan DB에 저장`으로 수정.
+  - `order-app` `getOrderSnapshotHistory(safeBizNo, sDate, eDate)` 인자를 `/partner-orders/drafts?bizNo=&from=&to=` query params로 전달.
+  - `partner-order-service` draft list endpoint에 optional `from/to` 날짜 필터를 추가하고 기존 caller 호환을 유지.
+  - 단톡방/발송금지/배차지역/DC 관리 화면의 사용자 노출 import/source label을 `기존 운영 CSV`, `DB 이관 시드`, `원본 생성`으로 정렬.
+  - `scripts/generate-sp-08-legacy-gas-db-api-parity-screenshots.mjs` 추가, QA PNG 11장 생성.
+- 로컬 검증:
+  - `npx playwright test playwright/sp-08-legacy-gas-db-api-parity/sp-08-legacy-gas-db-api-parity.spec.ts --reporter=line` PASS — 5 tests / skipped 0.
+  - `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderDraftServiceIT" --no-daemon --rerun-tasks` PASS — 3 tests / skipped 0.
+  - `clients/desktop` `npm run typecheck` PASS.
+  - `clients/web/order-app` `npm ci && npm run typecheck` PASS.
+  - `node scripts/generate-sp-08-legacy-gas-db-api-parity-screenshots.mjs` PASS — 11 PNG / non-zero.
+- 남은 즉시 작업:
+  - lint/build/full regression 실행.
+  - secret/runtime Notion grep guard 및 `git diff --check`.
+  - commit/push/PR 생성, PR 본문에 QA 캡처 11장 인라인 첨부.
+  - CI green 확인 후 PM 재점검/merge/branch cleanup.
+- 다음 SP-08 후속 후보:
+  - DPS 저장내역/품목 pivot DB history/state parity.
+  - 배차 GAS(가배차/미배차/배차문자/운송사 비교) 저장/복원/preview/send parity.
+  - 회계 출력(원장/거래명세서/내일자 전표) `MOCK_DATA` 제거.
+  - vendor OCR 2종 UI parity, 알리고 dry-run sync parity.
 
 - 현재 branch: `codex/sp-07-google-sheets-quote-order-e2e`
 - 직전 완료: PR #208 `[codex] SP-06 legacy GAS/Notion DB 이관 정합성` merge commit `e413d82e`.

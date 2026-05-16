@@ -10,7 +10,7 @@
  *       + 행 액션(삭제). chatRoomName 기준 그룹핑하여 같은 단톡방의 여러 거래처를
  *       묶어 표시한다 (header row 가 단톡방 이름, 그 아래 거래처 행 N개).</li>
  *   <li>"단건 추가" — partner_code + 사업자명 + 단톡방 이름 직접 입력 (source=MANUAL).</li>
- *   <li>"CSV 일괄 업로드" — Notion DB "단톡방리스트" CSV (이카운트 사업자명 →
+ *   <li>"CSV 일괄 업로드" — 기존 "단톡방리스트" CSV (이카운트 사업자명 →
  *       partner_code 자동 변환, 변환 실패는 reject 보고서 다운로드).</li>
  * </ul>
  *
@@ -262,7 +262,7 @@ export function ChatRoomsPage() {
               <th style={thStyle}>사업자명 (snapshot)</th>
               <th style={thStyle}>단톡방 이름</th>
               <th style={{ ...thStyle, width: 110 }}>출처</th>
-              <th style={{ ...thStyle, width: 160 }}>Notion 생성</th>
+              <th style={{ ...thStyle, width: 160 }}>원본 생성</th>
               <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>액션</th>
             </tr>
           </thead>

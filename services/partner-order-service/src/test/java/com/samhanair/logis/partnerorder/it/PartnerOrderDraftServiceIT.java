@@ -13,6 +13,7 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -88,5 +90,19 @@ class PartnerOrderDraftServiceIT extends AbstractPostgresIT {
 
         int affected = draftService.cleanupExpired("system");
         assertThat(affected).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void draft_list_filters_created_at_by_legacy_date_range() {
+        draftService.create(
+                "P004", "user-4",
+                new DraftCreateRequest("오늘 저장", "{\"items\":[]}"));
+
+        assertThat(draftService.list(
+                "P004", LocalDate.now(), LocalDate.now(), PageRequest.of(0, 20)).getTotalElements())
+                .isEqualTo(1L);
+        assertThat(draftService.list(
+                "P004", LocalDate.now().plusDays(1), LocalDate.now().plusDays(1), PageRequest.of(0, 20)).getTotalElements())
+                .isZero();
     }
 }

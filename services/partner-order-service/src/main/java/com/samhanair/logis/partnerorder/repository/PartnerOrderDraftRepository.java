@@ -18,6 +18,13 @@ public interface PartnerOrderDraftRepository extends JpaRepository<PartnerOrderD
     /** 거래처별 draft 페이지 (legacy getDraftList — 본인 거래처만). */
     Page<PartnerOrderDraft> findAllByPartnerCodeOrderByCreatedAtDesc(String partnerCode, Pageable pageable);
 
+    /** 거래처별 draft 페이지 날짜 필터 (legacy getOrderSnapshotHistory(safeBizNo, sDate, eDate)). */
+    Page<PartnerOrderDraft> findAllByPartnerCodeAndCreatedAtBetweenOrderByCreatedAtDesc(
+            String partnerCode,
+            LocalDateTime from,
+            LocalDateTime to,
+            Pageable pageable);
+
     /** 거래처별 다음 draftSeq 산출용 (MAX+1). */
     @Query("SELECT COALESCE(MAX(d.draftSeq), 0) FROM PartnerOrderDraft d "
             + "WHERE d.partnerCode = :partnerCode")

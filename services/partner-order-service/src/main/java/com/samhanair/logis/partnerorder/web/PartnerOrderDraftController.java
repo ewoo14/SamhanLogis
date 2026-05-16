@@ -7,11 +7,13 @@ import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,9 +67,11 @@ public class PartnerOrderDraftController {
     public ApiResponse<Page<DraftResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(draftService.list(partnerCode, pageable));
+        return ApiResponse.ok(draftService.list(partnerCode, from, to, pageable));
     }
 
     /**
