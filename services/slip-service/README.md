@@ -82,15 +82,15 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 
 기존 Phase 2 / 3 endpoint 23 + Phase 6 M5 endpoint 3 + 부가 4 = **30 endpoint**.
 
-### SP-08-3 예정 전표정리 history API (2026-05-16 기반 잠금)
+### SP-08-3-3 전표정리 history API (2026-05-17 구현)
 
-SP-08-3-1은 구현 없이 계약만 잠근다. SP-08-3-3에서 legacy GAS `전표정리리스트`의 저장/복원 흐름을 `slip_cleanup_save_history`로 추가한다.
+legacy GAS `전표정리리스트`의 저장/복원 흐름을 `slip_cleanup_save_history`로 추가했다.
 
-| 기존 endpoint | 예정 history endpoint | programType | saveMode |
+| 기존 endpoint | history endpoint | programType | saveMode |
 |---|---|---|---|
 | `GET /slips/cleanup` | `POST/GET /slips/cleanup/history` + detail/latest | `SLIP_CLEANUP` | `AUTO_LATEST`, `MANUAL_NAMED` |
 
-신규 table은 BaseEntity 7 audit + Soft Delete only, JSONB payload, 사용자 격리, 한국어 Javadoc + springdoc `@Operation`을 따른다.
+신규 table은 BaseEntity 7 audit + Soft Delete only, JSONB payload, 사용자 격리, AUTO_LATEST partial unique, payload 100KB guard, 한국어 Javadoc + springdoc `@Operation`을 따른다.
 
 ## Domain 핵심 변경 (Phase 6 M5)
 

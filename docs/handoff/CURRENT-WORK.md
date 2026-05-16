@@ -1,5 +1,22 @@
 # 현재 작업 핸드오프 노트
 
+## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-3 전표정리 저장내역 구현
+
+- 현재 branch: `feat/sp-08-3-3-slip-cleanup-history`
+- 기준: PR #213 merge 후 `ca5668fd`.
+- 범위:
+  - `slip-service` `slip_cleanup_save_history` entity/repository/service/controller/DTO/Flyway V25.
+  - `/slips/cleanup/history` POST/list/detail/latest 4 endpoint.
+  - `/sales/slip-cleanup` 실행/저장내역 2탭, latest 자동 복원, 명시 저장, row click 복원.
+  - `clients/desktop/playwright/sp-08-3-3-slip-cleanup-history` static/mock contract.
+  - QA mock PNG generator `scripts/generate-sp-08-3-3-slip-cleanup-history-screenshots.ps1`.
+- 다음 단계:
+  - 전체 frontend lint/build 및 Playwright 회귀.
+  - QA PNG 생성, `git diff --check`, secret/UUID/Notion scan.
+  - 한국어 conventional commit 분리 후 push.
+
+---
+
 ## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-2 아로로지스 배차 저장내역 구현
 
 - 현재 branch: `feat/sp-08-3-2-arologis-dispatch-history`

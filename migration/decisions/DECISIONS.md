@@ -1923,3 +1923,21 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-2-08 | 가배차 권역과 지방가배차는 같은 화면 파일을 공유하며 `PRE_CLASSIFY`와 `REGIONAL` programType은 분리하되, 저장내역 row testid prefix는 SP-08-3-1 §6.4와 동일하게 `pre-classify-history-*`로 고정한다. |
 | SP-08-3-2-09 | 화면은 공통 `HistoryTab`, `RestoredBanner`, `SaveDialog`를 사용한다. row testid는 화면별 prefix + index 기반이며 내부 UUID를 포함하지 않는다. |
 | SP-08-3-2-10 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
+
+### SP-08-3-3. 전표정리 저장내역 DB/API/UI 구현 (2026-05-17)
+
+**배경**: SP-08-3-1에서 slip 전표정리 history 소유권을 `slip_cleanup_save_history`로 잠갔다. SP-08-3-3은 `/sales/slip-cleanup`의 전표정리 결과를 DB/API 저장내역으로 보존하고, 월말 마감 직전 결과를 재현할 수 있게 한다.
+
+| 결정 | 내용 |
+|---|---|
+| SP-08-3-3-01 | 전표정리 저장내역 테이블은 `slip_cleanup_save_history`로 둔다. payload는 `SlipCleanupResponse` shape 보존을 위해 `JSONB`로 저장한다. |
+| SP-08-3-3-02 | API는 `/slips/cleanup/history` 하위 `POST`, list, detail, latest 4 endpoint로 둔다. |
+| SP-08-3-3-03 | 권한은 기존 `GET /slips/cleanup`과 동일하게 `SALES / MANAGER / MASTER`로 둔다. `WAREHOUSE`, `INVENTORY`, `ACCOUNTANT`를 history endpoint에 추가하지 않는다. |
+| SP-08-3-3-04 | programType은 `SLIP_CLEANUP` 단일 값으로 고정하고, saveMode는 `AUTO_LATEST`, `MANUAL_NAMED` 두 값만 둔다. `SEND_AUDIT`는 notification 전용이다. |
+| SP-08-3-3-05 | `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 soft-delete 한다. partial unique race는 service retry 3회 + REQUIRES_NEW `TransactionTemplate`으로 흡수한다. |
+| SP-08-3-3-06 | `MANUAL_NAMED`는 topic 필수 append-only 저장내역이다. 명시 저장 row는 자동 저장 대체 대상이 아니다. |
+| SP-08-3-3-07 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 payload를 반환하지 않는다. |
+| SP-08-3-3-08 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 `SLIP_CLEANUP_HISTORY_PAYLOAD_TOO_LARGE` 422로 거절한다. |
+| SP-08-3-3-09 | desktop `/sales/slip-cleanup`은 `실행 / 저장내역` 2탭을 제공한다. latest active row가 있으면 진입 시 자동 복원 배너를 노출하고, row click은 결과 payload를 실행 탭에 복원한다. |
+| SP-08-3-3-10 | 화면 row testid는 `slip-cleanup-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy UUID는 `maskCreatedBy`로 마스킹한다. |
+| SP-08-3-3-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |

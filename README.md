@@ -40,7 +40,8 @@
 - SP-08-2: DPS legacy GAS DB/API parity 완료, PR #211 merge. `inventory-service`에 `dps_save_history` JSONB 저장내역 도메인과 `/warehouse/audit/dps-history` API를 추가하고, `/warehouse/dps-compare`, `/warehouse/dps-compare/by-product`에 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결했다.
 - SP-08-3-1: 배차 legacy GAS DB/API parity 기반 잠금 진행. 가배차/지방가배차/미배차/운송사 비교(arologis), 전표정리(slip), 배차문자(notification)의 6 endpoint matrix와 도메인별 history 자리(`dispatch_save_history`, `slip_cleanup_save_history`, `dispatch_sms_save_history`)를 정적 계약/QA 캡처/문서로 고정한다.
 - SP-08-3-2: 아로로지스 배차 4 화면 저장내역 구현 진행. `arologis-service`의 `dispatch_save_history` + `/admin/arologis/dispatches/history` API로 가배차/지방가배차/미배차/운송사 비교 결과를 JSONB 저장하고, `clients/arologis-desktop`에 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결한다.
-- 다음 후보: SP-08-3-2~4 배차 history 실제 DB/API/UI 구현, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
+- SP-08-3-3: 전표정리 저장내역 구현 진행. `slip-service`의 `slip_cleanup_save_history` + `/slips/cleanup/history` API로 `/sales/slip-cleanup` 결과를 JSONB 저장하고, desktop 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결한다.
+- 다음 후보: SP-08-3-4 배차문자 preview/send audit history, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
 
 ## 시스템 구조 (Mermaid)
 
