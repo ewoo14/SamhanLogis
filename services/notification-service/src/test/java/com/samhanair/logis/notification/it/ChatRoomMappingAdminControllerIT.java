@@ -43,7 +43,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  *   <li>POST /chat-rooms — 단건 등록 → 201</li>
  *   <li>GET /chat-rooms — 전체 목록 조회 → 200, 1건</li>
  *   <li>POST /chat-rooms — 중복 등록 → 409 CONFLICT</li>
- *   <li>POST /chat-rooms/import — multipart CSV (3 row + 1 miss) → inserted=2, rejected=1</li>
+ *   <li>POST /chat-rooms/import — multipart CSV (3 row + legacy alias miss) → inserted=3, rejected=0</li>
  *   <li>DELETE /chat-rooms/{id} — soft-delete → 200</li>
  * </ol>
  */
@@ -139,10 +139,10 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    void importCsv_returns_inserted_and_rejected() throws Exception {
+    void importCsv_preserves_lookup_miss_as_legacy_alias() throws Exception {
         when(partnerLookupClient.findPartnerCodeByName("에어디자이너 주식회사")).thenReturn(Optional.of("P-A"));
         when(partnerLookupClient.findPartnerCodeByName("주식회사 제이시스템")).thenReturn(Optional.of("P-B"));
-        // "미등록 주식회사" 는 default empty → reject
+        // "미등록 주식회사" 는 조회 실패 → deterministic legacy alias 보존
 
         String csv = "﻿이카운트 사업자명,카톡방,생성 일시\n"
                 + "에어디자이너 주식회사,에어디자이너(구 지에스) 발주방,2026년 4월 26일 오전 7:34\n"
@@ -157,10 +157,9 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", "admin-1")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.inserted").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.inserted").value(3))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.updated").value(0))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.rejected.length()").value(1))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.rejected[0].businessName").value("미등록 주식회사"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.rejected.length()").value(0));
     }
 
     @Test
