@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Button, Modal } from '@samhan/design-system'
+import { Button, Input, Modal } from '@samhan/design-system'
 
 interface DpsSaveDialogProps {
   open: boolean
@@ -41,36 +41,17 @@ export function DpsSaveDialog({ open, saving, onClose, onSave }: DpsSaveDialogPr
         </div>
       )}
     >
-      <label style={fieldStyle}>
-        <span>저장주제</span>
-        <input
-          data-testid="dps-history-topic-input"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          maxLength={200}
-          placeholder="예: 오전 마감 점검"
-          style={inputStyle}
-          autoFocus
-        />
-      </label>
+      <Input
+        label="저장주제"
+        data-testid="dps-history-topic-input"
+        value={topic}
+        onChange={(e) => setTopic(e.target.value)}
+        maxLength={200}
+        placeholder="예: 오전 마감 점검"
+        autoFocus
+      />
     </Modal>
   )
-}
-
-const fieldStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  fontSize: 13,
-  color: '#374151',
-}
-
-const inputStyle: CSSProperties = {
-  height: 36,
-  padding: '0 10px',
-  border: '1px solid #D1D5DB',
-  borderRadius: 6,
-  fontSize: 13,
 }
 
 const footerStyle: CSSProperties = {

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type CSSProperties } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, DataGrid, Input, Select, type DataGridColumn } from '@samhan/design-system'
 import {
   getSlipCleanupHistoryDetail,
@@ -27,6 +27,7 @@ export function SlipCleanupHistoryTab({
   isSaving = false,
   onRestore,
 }: SlipCleanupHistoryTabProps) {
+  const queryClient = useQueryClient()
   const today = useMemo(todayIso, [])
   const [from, setFrom] = useState(today.slice(0, 8) + '01')
   const [to, setTo] = useState(today)
@@ -34,8 +35,9 @@ export function SlipCleanupHistoryTab({
   const [query, setQuery] = useState({ from, to, mode })
   const [error, setError] = useState<string | null>(null)
 
+  const historyQueryKey = ['slip-cleanup-history-list', programType, query] as const
   const historyQuery = useQuery({
-    queryKey: ['slip-cleanup-history-list', programType, query],
+    queryKey: historyQueryKey,
     queryFn: () => listSlipCleanupHistory({ programType, ...query }),
   })
 
@@ -89,7 +91,10 @@ export function SlipCleanupHistoryTab({
         </Select>
         <Button
           variant="primary"
-          onClick={() => setQuery({ from, to, mode })}
+          onClick={() => {
+            setQuery({ from, to, mode })
+            void queryClient.invalidateQueries({ queryKey: ['slip-cleanup-history-list', programType] })
+          }}
           loading={historyQuery.isFetching || isSaving}
           data-testid={`${testIdPrefix}-query`}
         >

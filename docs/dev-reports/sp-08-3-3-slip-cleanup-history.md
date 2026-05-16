@@ -45,6 +45,7 @@
 - Mock PNG generator:
   - `scripts/generate-sp-08-3-3-slip-cleanup-history-screenshots.ps1`
   - output: `docs/qa/sp-08-3-3-slip-cleanup-history/screenshots/`
+  - QA mock PNG 생성 스크립트는 Windows System.Drawing 전용이며 Linux CI에서는 실행하지 않는다.
 
 ## Verification
 

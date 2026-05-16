@@ -308,7 +308,7 @@ Playwright assertion 은 위 prefix 를 직접 기대값으로 고정한다. 예
 | 3 | latest 조회 시 active row 없음 | 404 + frontend 배너 미표시 |
 | 4 | MANUAL_NAMED 저장 시 topic 미입력 | 400 + frontend input required |
 | 5 | 복원하려는 행 soft-deleted | 404 + 사용자 message |
-| 6 | 다른 사용자 history 직접 접근 | 403 — `findByIdAndCreatedBy` 사용 (SP-08-2 BE-P1-1 회고) |
+| 6 | 다른 사용자 history 직접 접근 | 404 — `findByIdAndCreatedBy` 사용, 존재 은닉 정책으로 `SLIP_CLEANUP_HISTORY_NOT_FOUND` 반환 |
 | 7 | reverse range from > to | service swap-and-proceed (PR #210 패턴) |
 | 8 | RBAC role 미달 | 401/403 — `@PreAuthorize` |
 | 9 | Notion runtime 호출 재유입 | SP-08-1 grep 가드 자동 차단 |
@@ -326,7 +326,7 @@ SP-08-3-2~4 IT catalog 는 아래 형식으로 통일한다.
 | `autoLatestRaceKeepsSingleActiveRow` | 같은 사용자/프로그램에서 AUTO_LATEST 동시 저장 | 최종 200 또는 retry 후 200 | `save_mode='AUTO_LATEST' AND is_deleted=false` active count = 1 |
 | `manualNamedBlankTopicReturns400` | MANUAL_NAMED topic blank | 400 | insert row 0건 |
 | `restoreDeletedHistoryReturns404` | 대상 row soft delete | 404 | `is_deleted=true` row 는 조회 결과 제외 |
-| `otherUserHistoryReturns403` | created_by 가 다른 row detail 접근 | 403 | `created_by <> requester` row 미노출 |
+| `otherUserHistoryHiddenReturns404` | created_by 가 다른 row detail 접근 | 404 | `created_by <> requester` row 미노출 + 존재 은닉 |
 | `sameDayFromToIncludesRows` | `from=YYYY-MM-DD&to=YYYY-MM-DD` 동일일 | 200 + 당일 row 포함 | `created_at >= date AND created_at < date + interval '1 day'` 범위 count 일치 |
 | `nullFromToReturnsAllActiveRows` | `from`/`to` 모두 null | 200 + active 전체 기간 row | `is_deleted=false` active count 일치 |
 | `sendAuditFailureReturnsExplicitMessage` | notification SEND_AUDIT 저장 실패 | 발송 결과와 별개로 명시적 audit 실패 message | SEND_AUDIT row 0건 + 운영 로그 |
@@ -351,7 +351,7 @@ SP-08-3-2~4 IT catalog 는 아래 형식으로 통일한다.
 - [ ] repository / service (AUTO upsert + retry, 사용자 격리 `findByIdAndCreatedBy` — SP-08-2 BE-P1-1 회고) / controller (4 endpoint, `@PreAuthorize` arologis role)
 - [ ] DTO 4 record + 한국어 Javadoc + `@Operation`
 - [ ] Unit + IT (Testcontainers + arologis 외부 client 전체 `@MockBean` — `SlipServiceClient` 단건만 보지 말고 `rg "Client" services/arologis-service/src/main/java` 결과 전체 grep)
-- [ ] IT 최소 6건: AUTO_LATEST race 1건 / MANUAL_NAMED append 1건 / latest empty 404 1건 / 타인 history 403 1건 / 동일일 `from=to` 1건 / `from=to=null` 전체 기간 1건. catalog 는 §7.1 형식(케이스명 / 전제 / API 기대값 / 검증 SQL) 준수.
+- [ ] IT 최소 6건: AUTO_LATEST race 1건 / MANUAL_NAMED append 2건+ / latest empty 404 1건 / 타인 history 404 존재 은닉 1건 / 동일일 `from=to` 1건 / `from=to=null` 전체 기간 1건. catalog 는 §7.1 형식(케이스명 / 전제 / API 기대값 / 검증 SQL) 준수.
 - [ ] FE: `dispatchSaveHistoryApi.ts` + `HistoryTab.tsx` (DpsHistoryTab 일반화) / `RestoredBanner.tsx` / `SaveDialog.tsx`
 - [ ] 4 page modified (`/arologis/pre-classify` + 토글 / `/arologis/unassigned` / `/arologis/dispatch-reconcile`) — 2-Tab + 자동 복원 + 명시 저장
 - [ ] Playwright `sp-08-3-2-dispatch-history` (4 정적 계약 + 2 mock UI)

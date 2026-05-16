@@ -24,10 +24,10 @@ const bannerStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 12,
   padding: '10px 12px',
-  border: '1px solid #BFDBFE',
+  border: '1px solid var(--state-info-border)',
   borderRadius: 6,
-  background: '#EFF6FF',
-  color: '#1E40AF',
+  background: 'var(--state-info-bg)',
+  color: 'var(--state-info)',
   fontSize: 13,
   marginBottom: 12,
 }

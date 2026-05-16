@@ -26,6 +26,32 @@ function envelope<T>(data: T) {
   }
 }
 
+function mockError(status: number, code: string, message: string) {
+  return {
+    __mockStatus: status,
+    body: {
+      success: false,
+      code,
+      message,
+      data: null,
+      timestamp: new Date().toISOString(),
+    },
+  }
+}
+
+function mockLocationParams(): URLSearchParams {
+  if (typeof window === 'undefined' || typeof window.location === 'undefined') {
+    return new URLSearchParams()
+  }
+  const params = new URLSearchParams(window.location.search)
+  const hashQuery = window.location.hash.split('?')[1]
+  if (hashQuery) {
+    const hashParams = new URLSearchParams(hashQuery)
+    hashParams.forEach((value, key) => params.set(key, value))
+  }
+  return params
+}
+
 function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   if (!config.data) return {}
   if (typeof config.data === 'string') {
@@ -127,7 +153,7 @@ export function isMockMode(): boolean {
  */
 function _resolveMockRole(): string {
   if (typeof window !== 'undefined' && typeof window.location !== 'undefined') {
-    const params = new URLSearchParams(window.location.search)
+    const params = mockLocationParams()
     const override = params.get('mockRole')
     if (override) return override
   }
@@ -3106,6 +3132,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return envelope({ id: 'slip-cleanup-history-saved', savedAt: now })
     }
     if (method === 'GET' && url.includes('/latest')) {
+      if (mockLocationParams().get('mockLatest404') === '1') {
+        return mockError(404, 'SLIP_CLEANUP_HISTORY_NOT_FOUND', '전표정리 저장내역을 찾을 수 없습니다.')
+      }
       return envelope({ ...row, saveMode: 'AUTO_LATEST', topic: '자동저장', responsePayload: payload })
     }
     if (method === 'GET' && /\/slips\/cleanup\/history\/[^/?]+/.test(url)) {

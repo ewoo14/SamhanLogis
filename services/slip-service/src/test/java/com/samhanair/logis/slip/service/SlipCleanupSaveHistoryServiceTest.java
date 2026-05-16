@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.domain.SlipCleanupSaveHistory;
 import com.samhanair.logis.slip.domain.SlipCleanupSaveMode;
@@ -153,6 +154,28 @@ class SlipCleanupSaveHistoryServiceTest {
         assertThatThrownBy(() -> service.findDetail(id, "sales-user"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("latest 미존재는 전용 SLIP_CLEANUP_HISTORY_NOT_FOUND 코드로 응답한다")
+    void latest_missingUsesSlipCleanupHistoryNotFoundCode() {
+        when(repository.findActiveAutoLatest("sales-user", SlipCleanupProgramType.SLIP_CLEANUP))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.findLatestAutoLatest(SlipCleanupProgramType.SLIP_CLEANUP, "sales-user"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.SLIP_CLEANUP_HISTORY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("타인 저장내역 접근은 존재 은닉을 위해 404 전용 코드로 응답한다")
+    void detail_otherUserHiddenUsesSlipCleanupHistoryNotFoundCode() {
+        java.util.UUID id = java.util.UUID.randomUUID();
+        when(repository.findByIdAndCreatedBy(id, "sales-user-b")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.findDetail(id, "sales-user-b"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.SLIP_CLEANUP_HISTORY_NOT_FOUND);
     }
 
     private PlatformTransactionManager transactionManager() {

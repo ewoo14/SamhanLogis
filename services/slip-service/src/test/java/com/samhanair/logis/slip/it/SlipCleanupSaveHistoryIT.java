@@ -74,7 +74,7 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANUAL_NAMED 는 append 저장되고 목록/상세로 복원된다")
     void manualNamedAppendListDetailFlow() throws Exception {
-        MvcResult created = mockMvc.perform(post(BASE_URL)
+        MvcResult firstCreated = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("오전 마감 점검", 2))
                         .header("X-User-Id", USER_A)
@@ -84,7 +84,16 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.savedAt").exists())
                 .andReturn();
 
-        String historyId = objectMapper.readTree(created.getResponse().getContentAsString())
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(manualBody("cycle1-second", 4))
+                        .header("X-User-Id", USER_A)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.savedAt").exists());
+
+        String historyId = objectMapper.readTree(firstCreated.getResponse().getContentAsString())
                 .path("data").path("id").asText();
 
         mockMvc.perform(get(BASE_URL)
@@ -95,9 +104,11 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content.length()").value(1))
-                .andExpect(jsonPath("$.data.content[0].topic").value("오전 마감 점검"))
-                .andExpect(jsonPath("$.data.content[0].rowCount").value(2));
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].topic").value("cycle1-second"))
+                .andExpect(jsonPath("$.data.content[0].rowCount").value(4))
+                .andExpect(jsonPath("$.data.content[1].topic").value("오전 마감 점검"))
+                .andExpect(jsonPath("$.data.content[1].rowCount").value(2));
 
         mockMvc.perform(get(BASE_URL + "/" + historyId)
                         .header("X-User-Id", USER_A)
@@ -175,7 +186,8 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .param("programType", "SLIP_CLEANUP")
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SLIP_CLEANUP_HISTORY_NOT_FOUND"));
     }
 
     @Test
@@ -195,7 +207,7 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_B)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("SLIP_CLEANUP_HISTORY_NOT_FOUND"));
     }
 
     @Test
@@ -233,7 +245,7 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("SLIP_CLEANUP_HISTORY_NOT_FOUND"));
     }
 
     @Test

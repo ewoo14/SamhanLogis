@@ -15,6 +15,18 @@ import axios, {
 } from 'axios'
 import { getMockResponse, isMockMode } from './mock'
 
+interface MockHttpResponse {
+  __mockStatus: number
+  body: unknown
+}
+
+function isMockHttpResponse(value: unknown): value is MockHttpResponse {
+  return typeof value === 'object'
+    && value !== null
+    && '__mockStatus' in value
+    && 'body' in value
+}
+
 const BASE_URL =
   import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080'
 
@@ -34,14 +46,21 @@ apiClient.interceptors.request.use(
     if (isMockMode()) {
       const mock = getMockResponse(config)
       if (mock !== null) {
-        config.adapter = async () => ({
-          data: mock,
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config,
-          request: {},
-        })
+        const status = isMockHttpResponse(mock) ? mock.__mockStatus : 200
+        config.adapter = async () => {
+          const response = {
+            data: isMockHttpResponse(mock) ? mock.body : mock,
+            status,
+            statusText: status >= 400 ? 'Mock Error' : 'OK',
+            headers: {},
+            config,
+            request: {},
+          }
+          if (status >= 400) {
+            throw new axios.AxiosError('Mock Error', undefined, config, {}, response)
+          }
+          return response
+        }
         return config
       }
     }

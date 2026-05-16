@@ -149,7 +149,7 @@ public class SlipCleanupSaveHistoryService {
         }
         return repository.findActiveAutoLatest(normalizeUser(currentUser), programType)
                 .map(SlipCleanupSaveHistoryDetailResponse::from)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                .orElseThrow(() -> new BusinessException(ErrorCode.SLIP_CLEANUP_HISTORY_NOT_FOUND,
                         "자동 저장 내역이 없습니다."));
     }
 
@@ -199,7 +199,7 @@ public class SlipCleanupSaveHistoryService {
     }
 
     private BusinessException detailNotAccessible() {
-        return new BusinessException(ErrorCode.NOT_FOUND, "해당 저장 내역을 찾을 수 없습니다.");
+        return new BusinessException(ErrorCode.SLIP_CLEANUP_HISTORY_NOT_FOUND, "해당 저장 내역을 찾을 수 없습니다.");
     }
 
     private int payloadSize(Object payload) {

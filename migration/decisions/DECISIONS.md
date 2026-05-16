@@ -1936,8 +1936,8 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-3-04 | programType은 `SLIP_CLEANUP` 단일 값으로 고정하고, saveMode는 `AUTO_LATEST`, `MANUAL_NAMED` 두 값만 둔다. `SEND_AUDIT`는 notification 전용이다. |
 | SP-08-3-3-05 | `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 이전 자동 저장 row는 soft-delete 한다. partial unique race는 service retry 3회 + REQUIRES_NEW `TransactionTemplate`으로 흡수한다. |
 | SP-08-3-3-06 | `MANUAL_NAMED`는 topic 필수 append-only 저장내역이다. 명시 저장 row는 자동 저장 대체 대상이 아니다. |
-| SP-08-3-3-07 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 payload를 반환하지 않는다. |
+| SP-08-3-3-07 | 상세 조회는 `findByIdAndCreatedBy`를 사용해 사용자별 저장내역 접근을 격리한다. 다른 사용자의 UUID 직접 접근은 존재 은닉을 위해 404 `SLIP_CLEANUP_HISTORY_NOT_FOUND`로 응답하고 payload를 반환하지 않는다. |
 | SP-08-3-3-08 | payload는 UTF-8 JSON 직렬화 기준 100KB 초과 시 `SLIP_CLEANUP_HISTORY_PAYLOAD_TOO_LARGE` 422로 거절한다. |
 | SP-08-3-3-09 | desktop `/sales/slip-cleanup`은 `실행 / 저장내역` 2탭을 제공한다. latest active row가 있으면 진입 시 자동 복원 배너를 노출하고, row click은 결과 payload를 실행 탭에 복원한다. |
-| SP-08-3-3-10 | 화면 row testid는 `slip-cleanup-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy UUID는 `maskCreatedBy`로 마스킹한다. |
+| SP-08-3-3-10 | 화면 row testid는 `slip-cleanup-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 UUID 및 X-User-Id 형식 모두 `maskCreatedBy`로 `사용자` 마스킹한다. |
 | SP-08-3-3-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |

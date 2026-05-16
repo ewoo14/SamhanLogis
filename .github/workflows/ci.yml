@@ -212,7 +212,6 @@ jobs:
 
       - name: lint
         run: npm run lint
-        continue-on-error: true   # legacy 코드 사전 존재 오류 허용
 
       - name: build (electron-vite)
         run: npm run build
