@@ -32,6 +32,7 @@
  * 내부 식별자는 React key 또는 PATCH/DELETE path param 으로만 사용.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
+import type { AuditLogEntry } from './createAuditApi'
 
 // ---------------------------------------------------------------------------
 // product-service M1a — 카탈로그 / Spec / Template
@@ -316,12 +317,31 @@ export interface PartnerOrderLine {
 
 /** 주문 상세. */
 export interface PartnerOrderDetail extends PartnerOrderSummary {
+  bizCode: string
+  updatedAt: string
   deliveryAddress: string | null
   siteAddress: string | null
   contactPhone: string | null
   dueDate: string | null
   memo: string | null
   lines: PartnerOrderLine[]
+}
+
+/** 주문 수정 요청 — 본사 direct PUT 전용. */
+export interface PartnerOrderUpdateRequest {
+  updatedAt: string
+  partnerCode: string
+  bizCode: string
+  dueDate: string | null
+  memo: string | null
+  lines: Array<{
+    modelCode: string
+    productName: string
+    categoryKey: string
+    quantity: number
+    deliveryPrice: number
+    remark: string | null
+  }>
 }
 
 /**
@@ -359,6 +379,44 @@ export async function getPartnerOrder(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
   )
   return res.data.data
+}
+
+/** 주문 헤더/라인 direct PUT 수정. */
+export async function updatePartnerOrder(
+  orderNumber: string,
+  request: PartnerOrderUpdateRequest,
+): Promise<PartnerOrderDetail> {
+  const res = await apiClient.put<ApiEnvelope<PartnerOrderDetail>>(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
+    request,
+  )
+  return res.data.data
+}
+
+/** 주문 감사 이력 조회. */
+export async function listPartnerOrderAuditLogs(
+  orderNumber: string,
+): Promise<AuditLogEntry[]> {
+  const res = await apiClient.get<ApiEnvelope<Array<{
+    revisionNo: number
+    fieldName: string
+    oldValue: string | null
+    newValue: string | null
+    actorId: string
+    actorName: string
+    changedAt: string
+  }>>>(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/audit-logs`,
+  )
+  return res.data.data.map((entry) => ({
+    revisionNo: entry.revisionNo,
+    field: entry.fieldName,
+    beforeValue: entry.oldValue,
+    afterValue: entry.newValue,
+    actorId: entry.actorId,
+    actorName: entry.actorName,
+    changedAt: entry.changedAt,
+  }))
 }
 
 // ---------------------------------------------------------------------------

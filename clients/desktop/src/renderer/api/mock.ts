@@ -2036,11 +2036,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /api/v1/partner-orders — 주문서 관리
-  if (method === 'GET' && url.includes('/api/v1/partner-orders')) {
+  if (method === 'GET' && /\/api\/v1\/partner-orders(?:\?.*)?$/.test(url)) {
     return envelope({
-      content: [],
-      totalElements: 0,
-      totalPages: 0,
+      content: [{
+        orderNumber: '2026/05/04-1',
+        partnerCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        submittedAt: '2026-05-04T10:30:00',
+        status: 'CONFIRMED',
+        totalAmount: 3700000,
+        linkedSlipNo: 'SL-20260504-001',
+      }],
+      totalElements: 1,
+      totalPages: 1,
       number: 0,
       size: 50,
       first: true,
@@ -3222,17 +3230,79 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     return envelope({
-      id: partnerOrderDetailMatch[1],
-      orderNo: '2026/05/04-1',
+      orderNumber: '2026/05/04-1',
       partnerCode: '1234567890',
+      bizCode: '1234567890',
       partnerName: '엘에이시스템에어',
-      status: 'PENDING',
-      orderDate: '2026-05-04',
+      submittedAt: '2026-05-04T10:30:00',
+      updatedAt: '2026-05-17T10:00:00',
+      status: 'CONFIRMED',
       totalAmount: 3700000,
-      lines: SAMPLE_LINES,
-      createdByName: '오병승',
-      requestNote: '5/5 오전 배송 부탁드립니다',
+      linkedSlipNo: 'SL-20260504-001',
+      deliveryAddress: '서울시 강남구 테헤란로 1',
+      siteAddress: '현장 A동',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-30',
+      memo: '5/5 오전 배송 부탁드립니다',
+      lines: [
+        {
+          modelCode: 'AJ040RXH4BC1',
+          productName: '실외기',
+          quantity: 2,
+          deliveryPrice: 120000,
+          subtotal: 240000,
+          bundleMode: null,
+          expandedComponents: [],
+        },
+      ],
     })
+  }
+
+  if (method === 'PUT' && partnerOrderDetailMatch) {
+    const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+    if (body?.updatedAt === '409') {
+      return mockError(409, 'PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT', '최신 내용으로 다시 확인해 주세요.')
+    }
+    return envelope({
+      orderNumber: '2026/05/04-1',
+      partnerCode: body?.partnerCode ?? '1234567890',
+      bizCode: body?.bizCode ?? '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-04T10:30:00',
+      updatedAt: '2026-05-17T10:05:00',
+      status: 'CONFIRMED',
+      totalAmount: 685000,
+      linkedSlipNo: 'SL-20260504-001',
+      deliveryAddress: '서울시 강남구 테헤란로 1',
+      siteAddress: '현장 A동',
+      contactPhone: '010-1234-5678',
+      dueDate: body?.dueDate ?? null,
+      memo: body?.memo ?? null,
+      lines: body?.lines?.map((line: Record<string, unknown>) => ({
+        modelCode: line['modelCode'],
+        productName: line['productName'],
+        quantity: line['quantity'],
+        deliveryPrice: line['deliveryPrice'],
+        subtotal: Number(line['quantity']) * Number(line['deliveryPrice']),
+        bundleMode: null,
+        expandedComponents: [],
+      })) ?? [],
+    })
+  }
+
+  const partnerOrderAuditMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/audit-logs/)
+  if (method === 'GET' && partnerOrderAuditMatch) {
+    return envelope([
+      {
+        revisionNo: 1,
+        fieldName: '주문 수정',
+        oldValue: '이전 주문',
+        newValue: '수정 완료',
+        actorId: 'hidden',
+        actorName: '영업담당자',
+        changedAt: '2026-05-17T10:05:00',
+      },
+    ])
   }
 
   // ==========================================================================
