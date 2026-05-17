@@ -63,11 +63,11 @@
 | 검증 | 명령 | 실제 결과 |
 |---|---|---|
 | Spring RED | `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderUpdateIT" --no-daemon --rerun-tasks` | RED 확인: 6 tests / 6 failed (direct PUT 미구현) |
-| Spring targeted | `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderUpdate*" --tests "*PartnerOrderEdit*" --no-daemon --rerun-tasks` | PASS: 6 tests / 0 failed / 0 skipped |
+| Spring targeted | `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderUpdate*" --no-daemon --rerun-tasks` | PASS: 9 tests / 0 failed / 0 skipped |
 | Desktop typecheck | `npm run typecheck` | PASS |
 | Desktop lint | `npm run lint` | PASS: 0 errors / 2 existing warnings |
 | Desktop build | `npm run build` | PASS (exit 0, 사이클 1.5 재실행 시 정상) |
-| Playwright | `npx playwright test playwright/sp-08-4-2-partner-order-edit-put --reporter=line` | PASS — 4 passed, 0 skipped, 0 failed (3.3s) |
+| Playwright | `npx playwright test playwright/sp-08-4-2-partner-order-edit-put --reporter=line` | PASS — 5 passed, 0 skipped, 0 failed (3.3s) |
 | QA PNG | `.\scripts\generate-sp-08-4-2-partner-order-edit-put-screenshots.ps1` | PASS: 4 PNG / non-zero |
 | diff whitespace | `git diff --check` | PASS: whitespace error 0, CRLF warnings only |
 

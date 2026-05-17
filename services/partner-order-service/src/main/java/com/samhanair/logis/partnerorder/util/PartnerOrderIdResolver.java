@@ -55,7 +55,7 @@ public final class PartnerOrderIdResolver {
     public static Optional<PartnerOrder> findByUuid(PartnerOrderRepository repository, String value) {
         try {
             return repository.findById(UUID.fromString(value));
-        } catch (RuntimeException ignored) {
+        } catch (IllegalArgumentException ignored) {
             return Optional.empty();
         }
     }

@@ -190,8 +190,12 @@ public class PartnerOrder extends BaseEntity {
     }
 
     /**
-     * 본사 direct PUT 라인 전체 교체. orphanRemoval 로 기존 active line 을 제거하고 새 snapshot 으로
-     * 재구성한다.
+     * 본사 direct PUT 라인 전체 교체. 기존 active line 은 {@link BaseEntity#markDeleted(String)}
+     * soft-delete 로 보존하고 새 snapshot 으로 재구성한다.
+     *
+     * <p>{@code @OneToMany(orphanRemoval = true)} 는 외부 제거 trigger 가 없으므로 실제 hard delete
+     * 는 발생하지 않으며, {@code @SQLRestriction("is_deleted = false")} 가 SELECT 시점에 deleted line 을
+     * 필터링한다.
      *
      * @param replacementLines 새 주문 라인 snapshot
      */

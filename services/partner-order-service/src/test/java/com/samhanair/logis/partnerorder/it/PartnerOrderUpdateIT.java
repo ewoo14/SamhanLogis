@@ -159,6 +159,30 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
+    void testVerifyVersionAllowsFirstUpdateWhenModifiedAtIsNull() throws Exception {
+        PartnerOrder allowed = saveOrder("2026/05/17-9", false);
+        LocalDateTime createdAt = currentCreatedAt(allowed.getId());
+        clearModifiedAt(allowed.getId());
+
+        assertThat(orderRepository.findById(allowed.getId()).orElseThrow().getModifiedAt()).isNull();
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", allowed.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson(createdAt.toString(), 2)))
+                .andExpect(status().isOk());
+
+        PartnerOrder rejected = saveOrder("2026/05/17-10", false);
+        clearModifiedAt(rejected.getId());
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", rejected.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson(LocalDateTime.parse("2020-01-01T00:00:00").toString(), 2)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
     void update_soft_deleted_order_returns_404() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-3", true);
 
@@ -284,6 +308,17 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 .map(PartnerOrder::getModifiedAt)
                 .orElseThrow()
                 .toString();
+    }
+
+    private LocalDateTime currentCreatedAt(UUID orderId) {
+        return orderRepository.findById(orderId)
+                .map(PartnerOrder::getCreatedAt)
+                .orElseThrow();
+    }
+
+    private void clearModifiedAt(UUID orderId) {
+        jdbcTemplate.update("UPDATE partner_orders SET modified_at = NULL WHERE id = ?", orderId);
+        entityManager.clear();
     }
 
     private String updateJson(String updatedAt, int quantity) {

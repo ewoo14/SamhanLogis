@@ -63,7 +63,6 @@ public class PartnerOrderUpdateService {
             PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
             auditLogService.recordBatch(saved, actorId, actorName, null, changes);
-            partnerOrderRepository.flush();
             return PartnerOrderDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
             throw optimisticLockConflict();
@@ -78,7 +77,7 @@ public class PartnerOrderUpdateService {
     }
 
     private void verifyVersion(PartnerOrder order, LocalDateTime requestUpdatedAt) {
-        LocalDateTime current = order.getModifiedAt();
+        LocalDateTime current = order.getModifiedAt() == null ? order.getCreatedAt() : order.getModifiedAt();
         if (current == null || requestUpdatedAt == null || !current.isEqual(requestUpdatedAt)) {
             throw optimisticLockConflict();
         }
