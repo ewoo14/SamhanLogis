@@ -1,6 +1,29 @@
 # 현재 작업 핸드오프 노트
 
-## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-4 배차문자 저장내역 구현
+## 2026-05-17 SP-08-3-4 머지 완료 + SP-08-3 시리즈 종료 + SP-08-4 진입
+
+- **현재 main HEAD**: `601f1891 [FEAT] SP-08-3-4 배차문자 preview+send+audit 저장내역 (#215)`
+- **SP-08-3 시리즈 4 슬라이스 완료**:
+  - SP-08-3-1 기반 잠금 (PR #211/#212)
+  - SP-08-3-2 arologis 4 화면 (PR #213, `ca5668fd`)
+  - SP-08-3-3 slip 전표정리 (PR #214, `e165ce24`)
+  - SP-08-3-4 notification SEND_AUDIT (PR #215, `601f1891`) — 사이클 5 (양쪽 0 결함)
+- **Codex Plugin 영구 사용 패턴 확정** (commit `9365ec18` chore):
+  - `~/.codex/config.toml` `[windows] sandbox = "unelevated"` 필수 (UAC trap 회피)
+  - `gpt-5.5 + medium + read-only short prompt` 조합 → 2~3분 완료 (사이클 4/5 첫 plugin 성공)
+  - `spark + medium + 복잡 prompt` → collaboration tool wait hang (사이클 3 회피)
+  - `scripts/setup-codex-plugin.ps1` + `feedback_codex_plugin_setup.md` + `feedback_codex_model_auto_switch.md` (양 PC 셋업)
+- **다음 슬라이스 후보** (SP-08 plan §5 미진행):
+  - **SP-08-4** — 주문 CRUD parity (주문 목록/상세/수정/삭제/인쇄/견적→주문 변환 endpoint 잠금)
+  - **SP-08-5** — 매입/사입 CRUD parity + SP-03 검수 CTA 회귀
+  - **SP-08-6** — 매출/회계 CRUD parity (거래명세서/계산서/일마감/원장 인쇄 양식 GAS 1:1)
+  - **SP-08-7** — Notion runtime 의존 zero 정적 잠금 (grep 가드 확장)
+  - **SP-08-8** — 자격 평문 비공개 가드 강화
+- **진입 패턴**: codex 자율 dispatch → PR 발행 → 사이클 N (Claude + Codex plugin gpt-5.5+medium) → 머지
+
+---
+
+## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-4 배차문자 저장내역 구현 (✅ 머지 완료 - PR #215)
 
 - 현재 branch: `feat/sp-08-3-4-dispatch-sms-history`
 - 기준: PR #214 merge 후 `e165ce24`.
