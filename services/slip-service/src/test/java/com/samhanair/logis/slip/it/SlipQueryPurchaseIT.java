@@ -216,11 +216,9 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.slipNo", notNullValue()))
                 .andExpect(jsonPath("$.data.partnerName", is("SP0851-상세거래처")))
                 .andExpect(jsonPath("$.data.lines[0].productName", is("매입 IT 제품")))
-                .andExpect(jsonPath("$.data.id").doesNotExist())
-                .andExpect(jsonPath("$.data.partnerId").doesNotExist())
-                .andExpect(jsonPath("$.data.sourceWarehouseId").doesNotExist())
-                .andExpect(jsonPath("$.data.destinationWarehouseId").doesNotExist())
-                .andExpect(jsonPath("$.data.deliveryBatchId").doesNotExist())
+                .andExpect(jsonPath("$.data.id", is(id)))
+                .andExpect(jsonPath("$.data.partnerId", notNullValue()))
+                .andExpect(jsonPath("$.data.destinationWarehouseId", notNullValue()))
                 .andExpect(jsonPath("$.data.inspectionStatus", is("NOT_READY")));
     }
 
@@ -252,6 +250,123 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("type", "INBOUND")
                         .param("from", TODAY.toString())
                         .param("to", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "10")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].slipNo", is(secondSlipNo)))
+                .andExpect(jsonPath("$.data.content[1].slipNo", is(firstSlipNo)));
+    }
+
+    @Test
+    @DisplayName("R1: INVENTORY type omitted excludes INBOUND rows")
+    void testListInventoryRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0851-NULLTYPE-OUT");
+        createSlip("INBOUND", TODAY, "SP0851-NULLTYPE-IN");
+
+        MvcResult result = mockMvc.perform(get(SLIPS_PATH)
+                        .param("from", TODAY.toString())
+                        .param("to", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "INVENTORY"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("content");
+        assertThat(content.toString()).doesNotContain("SP0851-NULLTYPE-IN");
+        for (JsonNode item : content) {
+            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
+        }
+    }
+
+    @Test
+    @DisplayName("R1: SALES type omitted excludes INBOUND rows")
+    void testListSalesRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0851-NULLTYPE-SALES-OUT");
+        createSlip("INBOUND", TODAY, "SP0851-NULLTYPE-SALES-IN");
+
+        MvcResult result = mockMvc.perform(get(SLIPS_PATH)
+                        .param("from", TODAY.toString())
+                        .param("to", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("content");
+        assertThat(content.toString()).doesNotContain("SP0851-NULLTYPE-SALES-IN");
+        for (JsonNode item : content) {
+            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
+        }
+    }
+
+    @Test
+    @DisplayName("R1-query: INVENTORY slipType omitted excludes INBOUND rows")
+    void testListPurchaseQueryInventoryRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0851-QUERY-NULLTYPE-OUT");
+        createSlip("INBOUND", TODAY, "SP0851-QUERY-NULLTYPE-IN");
+
+        MvcResult result = mockMvc.perform(get("/slips/query")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "INVENTORY"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("content");
+        assertThat(content.toString()).doesNotContain("SP0851-QUERY-NULLTYPE-IN");
+        for (JsonNode item : content) {
+            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
+        }
+    }
+
+    @Test
+    @DisplayName("R1-query: SALES slipType omitted excludes INBOUND rows")
+    void testListPurchaseQuerySalesRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0851-QUERY-SALES-OUT");
+        createSlip("INBOUND", TODAY, "SP0851-QUERY-SALES-IN");
+
+        MvcResult result = mockMvc.perform(get("/slips/query")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("content");
+        assertThat(content.toString()).doesNotContain("SP0851-QUERY-SALES-IN");
+        for (JsonNode item : content) {
+            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
+        }
+    }
+
+    @Test
+    @DisplayName("R1-query: same slipDate sorts by seqNo DESC")
+    void testListPurchaseQueryOrderBySeqNo() throws Exception {
+        String firstId = createSlip("INBOUND", TODAY, "SP0851-QUERY-SEQ-1");
+        String secondId = createSlip("INBOUND", TODAY, "SP0851-QUERY-SEQ-2");
+        String firstSlipNo = slipNo(firstId);
+        String secondSlipNo = slipNo(secondId);
+
+        mockMvc.perform(get("/slips/query")
+                        .param("slipType", "INBOUND")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "10")
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())

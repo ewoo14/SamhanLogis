@@ -8,6 +8,7 @@ import com.samhanair.logis.slip.domain.SlipType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 전표 상세 응답 — 라인 포함. 단건 GET 및 mutation 응답에 사용.
@@ -32,13 +33,17 @@ import java.util.List;
  * </ul>
  */
 public record SlipDetailResponse(
+        UUID id,
         SlipType slipType,
         String slipNo,
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
+        UUID partnerId,
         String partnerName,
         String partnerCode,
+        UUID sourceWarehouseId,
+        UUID destinationWarehouseId,
         DeliveryTag deliveryTag,
         String memo,
         String requesterId,
@@ -52,6 +57,7 @@ public record SlipDetailResponse(
         LocalDateTime inspectorSignedAt,
         String driverName,
         String driverPhone,
+        UUID deliveryBatchId,
         Long version,
         // V20 신규 7 필드 — 판매/구매조회 화면 매칭
         /** 사업자등록번호 snapshot (partner-service Feign 자동 resolve, 사용자 직접 입력 X). */
@@ -77,13 +83,17 @@ public record SlipDetailResponse(
 
     public static SlipDetailResponse from(Slip slip) {
         return new SlipDetailResponse(
+                slip.getId(),
                 slip.getSlipType(),
                 slip.getSlipNo(),
                 slip.getSlipDate(),
                 slip.getSeqNo(),
                 slip.getStatus(),
+                slip.getPartnerId(),
                 slip.getPartnerName(),
                 slip.getPartnerCode(),
+                slip.getSourceWarehouseId(),
+                slip.getDestinationWarehouseId(),
                 slip.getDeliveryTag(),
                 slip.getMemo(),
                 slip.getRequesterId(),
@@ -97,6 +107,7 @@ public record SlipDetailResponse(
                 slip.getInspectorSignedAt(),
                 slip.getDriverName(),
                 slip.getDriverPhone(),
+                slip.getDeliveryBatchId(),
                 slip.getVersion(),
                 // V20 필드
                 slip.getBusinessNumber(),

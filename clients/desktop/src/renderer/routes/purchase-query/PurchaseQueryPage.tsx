@@ -42,7 +42,7 @@ const SLIP_STATUS_LABEL: Record<string, string> = {
   COMPLETED: '완료',
   SHIPPING: '배송중',
   DELIVERED: '배송완료',
-  CONFIRMED: '확인',
+  CONFIRMED: '확정',
   REJECTED: '반려',
   CANCELED: '취소',
 }

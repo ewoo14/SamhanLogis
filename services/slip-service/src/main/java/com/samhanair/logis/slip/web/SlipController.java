@@ -112,6 +112,7 @@ public class SlipController {
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         SlipType effectiveSlipType = slipType != null ? slipType : typeAlias;
         guardInboundPurchaseRead(effectiveSlipType, role);
+        effectiveSlipType = restrictInboundWhenTypeOmitted(effectiveSlipType, role);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipService.list(effectiveSlipType, status, from, to,
@@ -473,10 +474,21 @@ public class SlipController {
         if (slipType != SlipType.INBOUND) {
             return;
         }
-        if ("WAREHOUSE".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)) {
+        if (canReadInboundPurchase(role)) {
             return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
                 "매입 전표 조회는 WAREHOUSE / MANAGER / MASTER 권한만 허용됩니다");
+    }
+
+    private SlipType restrictInboundWhenTypeOmitted(SlipType slipType, String role) {
+        if (slipType != null || canReadInboundPurchase(role)) {
+            return slipType;
+        }
+        return SlipType.OUTBOUND;
+    }
+
+    private boolean canReadInboundPurchase(String role) {
+        return "WAREHOUSE".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role);
     }
 }

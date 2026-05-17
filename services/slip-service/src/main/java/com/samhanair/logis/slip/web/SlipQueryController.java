@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -140,9 +141,11 @@ public class SlipQueryController {
             @RequestHeader(value = "X-User-Role", required = false) String role) {
 
         guardInboundPurchaseRead(slipType, role);
-        Pageable pageable = PageRequest.of(page, size);
+        SlipType effectiveSlipType = restrictInboundWhenTypeOmitted(slipType, role);
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipQueryService.listForQuery(
-                slipType, status, dateFrom, dateTo, deliveryTags,
+                effectiveSlipType, status, dateFrom, dateTo, deliveryTags,
                 searchPartnerName, searchPartnerCode, searchBusinessNumber,
                 searchSlipNo, searchProjectName, searchDeliveryAddress,
                 pageable));
@@ -152,10 +155,21 @@ public class SlipQueryController {
         if (slipType != SlipType.INBOUND) {
             return;
         }
-        if ("WAREHOUSE".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)) {
+        if (canReadInboundPurchase(role)) {
             return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
                 "매입 전표 조회는 WAREHOUSE / MANAGER / MASTER 권한만 허용됩니다");
+    }
+
+    private SlipType restrictInboundWhenTypeOmitted(SlipType slipType, String role) {
+        if (slipType != null || canReadInboundPurchase(role)) {
+            return slipType;
+        }
+        return SlipType.OUTBOUND;
+    }
+
+    private boolean canReadInboundPurchase(String role) {
+        return "WAREHOUSE".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role);
     }
 }
