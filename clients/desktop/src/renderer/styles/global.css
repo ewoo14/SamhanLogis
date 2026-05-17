@@ -3009,6 +3009,17 @@ button {
   color: #333;
 }
 
+/* SP-08-5-3 삭제 차단 danger 배너 */
+.danger-banner {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-danger-300);
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+  font-size: var(--font-size-sm, 14px);
+}
+
 /* --- @media print 분기 (P0-4 신규 5 양식) --- */
 @media print {
   .paper {

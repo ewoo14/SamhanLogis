@@ -2,7 +2,54 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
-## 2026-05-18 SP-08-5-2 Codex 진입 — 매입 수정 direct PUT
+## 2026-05-18 SP-08-5-3 진입 — 매입 soft delete + InboundInspection 연계
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-3-purchase-slip-soft-delete
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `61925942` (PR #221 SP-08-5-2 squash merge)
+- master plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md` §3.3
+- 사용자 6/7회차 정책: PR 내 모든 문제 본 PR 안에서 해결, PM 자동 머지 후 다음 슬라이스 자동 진입.
+
+### SP-08-5-3 범위 (D1)
+
+- BE: `DELETE /api/v1/slips/{id}` 매입 soft delete (`Slip.markDeleted()` 컨벤션 재사용)
+- hard delete / orphan removal 금지 — BaseEntity Soft Delete only
+- 권한: `WAREHOUSE / MANAGER / MASTER`; `INVENTORY / SALES / ACCOUNTANT` 403
+- 낙관적 잠금: SP-08-5-2 와 동일 패턴 (request `updatedAt` 또는 `version` 기반)
+- 연결 `InboundInspection` 정책:
+  - 검수 완료 (`InspectionStatus.COMPLETED`) 매입은 삭제 차단 → ErrorCode `SLIP_DELETE_INSPECTION_COMPLETED` 422
+  - 미완료 상태 (`PENDING/IN_PROGRESS`) 는 같이 cascade soft-delete 또는 차단 (master plan 결정 시 BE agent 가 정책 결정)
+- audit log: `SLIP_DELETE` revision 1건 기록
+- FE: 매입 상세 화면 "삭제" CTA (권한 + status 가드) + 확인 dialog + 삭제 후 목록 이동
+- QA: `docs/qa/sp-08-5-3-purchase-slip-soft-delete/screenshots/` 4장
+  - 삭제 확인 modal
+  - 검수 완료 차단 alert
+  - 삭제 성공 + 목록 갱신
+  - 권한 가드 (INVENTORY 버튼 미렌더)
+
+### 머지 완료 직전 슬라이스 (PR #221)
+
+- branch: `feat/sp-08-5-2-purchase-slip-edit-put` (deleted)
+- mergeCommit: `61925942`
+- 사이클 통계: N=2 종료 (양쪽 5+5 = 10 agent APPROVE, CI 24/24 SUCCESS)
+- TM PR comment 4건 발행 (Claude 사이클 1 + Codex 사이클 1 + Claude 사이클 2 + Codex 사이클 2)
+- 신규 추가: warning/danger scale 토큰 (CSS + TS mirror), purchase-edit-* CSS 클래스, SlipUpdateService/Request/Controller/IT + Slip 도메인 INBOUND ordering
+
+### 다음 후보 (SP-08-5-3 머지 후)
+
+- SP-08-5-4 C1 검수 CTA 회귀 + InboundInspection 흐름 검증
+- SP-08-5-5 P1 매입 인쇄 양식
+
+## 2026-05-18 SP-08-5-2 머지 완료 — 매입 수정 direct PUT (참고 이력)
 
 ### 즉시 시작
 

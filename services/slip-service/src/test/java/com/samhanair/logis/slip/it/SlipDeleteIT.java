@@ -1,0 +1,340 @@
+package com.samhanair.logis.slip.it;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
+import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.NotificationChatRoomClient;
+import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.client.PartnerBlockClient;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.repository.SlipRepository;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * SP-08-5-3 매입 전표 soft delete endpoint IT.
+ *
+ * <p>WAREHOUSE / MANAGER / MASTER 가 INBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
+ * 삭제하는 경로를 잠근다. 비-INBOUND, 이미 삭제됨, 권한 없음, stale 잠금, 검수 진행 단계
+ * 등 8 케이스를 검증한다.
+ *
+ * <p>정책 결정 (InboundInspection):
+ * slip-service 에 별도 InboundInspection 도메인이 없으므로,
+ * 삭제 허용 조건은 {@code Slip.status ∈ {DRAFT, SAVED}} 로 제한한다.
+ * INSPECTING 이후 단계는 422 {@code SLIP_DELETE_INSPECTION_COMPLETED} 를 반환한다.
+ */
+@SpringBootTest(classes = SlipServiceApplication.class)
+@AutoConfigureMockMvc
+@Transactional
+class SlipDeleteIT extends AbstractPostgresIT {
+
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_NAME_HEADER = "X-User-Name";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String SLIPS_PATH = "/slips";
+    private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000053");
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private SlipRepository slipRepository;
+
+    @Autowired
+    private SlipAuditLogRepository auditLogRepository;
+
+    @MockBean
+    private InventoryClient inventoryClient;
+
+    @MockBean
+    private ProductClient productClient;
+
+    @MockBean
+    private NotificationClient notificationClient;
+
+    @MockBean
+    private NotificationChatRoomClient notificationChatRoomClient;
+
+    @MockBean
+    private PartnerInternalClient partnerInternalClient;
+
+    @MockBean
+    private PartnerBlockClient partnerBlockClient;
+
+    @MockBean
+    private ArologisDispatchClient arologisDispatchClient;
+
+    @BeforeEach
+    void setupLenientMocks() {
+        auditLogRepository.deleteAll();
+        Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
+                .thenAnswer(inv -> {
+                    List<UUID> ids = inv.getArgument(0);
+                    return ids.stream()
+                            .map(id -> new ProductSummary(
+                                    id, "매입 삭제 IT 제품", "PUR-DEL",
+                                    UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                            .toList();
+                });
+        Mockito.lenient().when(productClient.requireExists(ArgumentMatchers.any()))
+                .thenAnswer(inv -> new ProductSummary(
+                        inv.getArgument(0), "매입 삭제 IT 제품", "PUR-DEL",
+                        UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
+        Mockito.lenient().doNothing()
+                .when(notificationClient).sendUserSms(
+                        ArgumentMatchers.any(), ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.lenient().doNothing()
+                .when(notificationClient).sendExternalSms(
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.lenient().doNothing()
+                .when(notificationClient).sendUserPush(
+                        ArgumentMatchers.any(), ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.lenient().doNothing()
+                .when(inventoryClient).inbound(
+                        ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyInt(),
+                        ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("D1: WAREHOUSE 는 INBOUND 매입 전표를 soft delete 한다")
+    void testDeleteSuccess() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-삭제전");
+        String updatedAt = updatedAt(id);
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
+                .andExpect(status().isOk());
+
+        // DB 에서 soft-delete 확인 (SQLRestriction 우회 — native findById 는 isDeleted=true 도 로드 가능)
+        // @SQLRestriction 이 있으므로 is_deleted=true 행은 findById 로 조회 불가 → 404 확인으로 대체
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("D2: stale updatedAt 요청은 409 + SLIP_OPTIMISTIC_LOCK_CONFLICT 를 반환한다")
+    void testDeleteOptimisticLockConflict() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-락충돌");
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody("2026-01-01T00:00:00"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("SLIP_OPTIMISTIC_LOCK_CONFLICT")));
+    }
+
+    @Test
+    @DisplayName("D3: soft-deleted 전표 재삭제는 404 를 반환한다")
+    void testDeleteAlreadyDeletedReturns404() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-이미삭제");
+        String updatedAt = updatedAt(id);
+        Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        slip.markDeleted("test");
+        slipRepository.flush();
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("D4: INVENTORY 는 매입 soft delete 권한에서 제외된다")
+    void testDeleteForbiddenForInventory() throws Exception {
+        assertForbiddenForRole("INVENTORY");
+    }
+
+    @Test
+    @DisplayName("D5: SALES 는 매입 soft delete 권한에서 제외된다")
+    void testDeleteForbiddenForSales() throws Exception {
+        assertForbiddenForRole("SALES");
+    }
+
+    @Test
+    @DisplayName("D6: ACCOUNTANT 는 매입 soft delete 권한에서 제외된다")
+    void testDeleteForbiddenForAccountant() throws Exception {
+        assertForbiddenForRole("ACCOUNTANT");
+    }
+
+    @Test
+    @DisplayName("D7: OUTBOUND 전표는 매입 delete endpoint 에서 403 SLIP_DELETE_NON_INBOUND 를 반환한다")
+    void testDeleteNonInboundForbidden() throws Exception {
+        String id = createSlip("OUTBOUND", "SP0853-출고전표");
+        String updatedAt = updatedAt(id);
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", is("SLIP_DELETE_NON_INBOUND")));
+    }
+
+    @Test
+    @DisplayName("D8: INSPECTING 이후 단계 전표는 422 SLIP_DELETE_INSPECTION_COMPLETED 를 반환한다")
+    void testDeleteInspectionCompletedReturns422() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-검수진행");
+        String updatedAt = updatedAt(id);
+
+        // DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING 전이
+        Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        slip.save();
+        slip.send();
+        slip.accept("시스템");
+        slip.process();
+        slip.complete();  // PROCESSING → INSPECTING
+        slipRepository.flush();
+
+        // updatedAt 갱신 후 다시 가져옴
+        String freshUpdatedAt = updatedAt(id);
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(freshUpdatedAt))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is("SLIP_DELETE_INSPECTION_COMPLETED")));
+    }
+
+    @Test
+    @DisplayName("D9: 삭제 성공 시 SLIP_DELETE audit revision 1건을 기록한다")
+    void testDeleteAuditLogRecorded() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-audit-del");
+        String updatedAt = updatedAt(id);
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
+                .andExpect(status().isOk());
+
+        // @SQLRestriction 으로 slip 이 숨겨지지만 audit log 는 별도 테이블 조회 가능
+        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
+        assertThat(logs).isNotEmpty();
+        assertThat(logs).extracting(log -> log.getRevisionNo()).containsOnly(1);
+        assertThat(logs).anyMatch(log -> "SLIP_DELETE".equals(log.getFieldName()));
+        assertThat(logs).anyMatch(log -> "창고담당자".equals(log.getActorName()));
+    }
+
+    // -----------------------------------------------------------------------
+    // 헬퍼 메서드
+    // -----------------------------------------------------------------------
+
+    private void assertForbiddenForRole(String role) throws Exception {
+        String id = createSlip("INBOUND", "SP0853-" + role);
+        String updatedAt = updatedAt(id);
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, role + "사용자")
+                        .header(USER_ROLE_HEADER, role)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
+                .andExpect(status().isForbidden());
+    }
+
+    private String createSlip(String slipType, String partnerName) throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "매입 삭제 IT 제품");
+        line.put("modelName", "PUR-DEL");
+        line.put("quantity", 2);
+        line.put("unitPrice", 100000);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", slipType);
+        body.put("slipDate", TODAY.toString());
+        body.put("sourceWarehouseId", "OUTBOUND".equals(slipType) ? UUID.randomUUID().toString() : null);
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", partnerName);
+        body.put("memo", "SP-08-5-3 매입 삭제 IT");
+        body.put("lines", List.of(line));
+
+        MvcResult result = mockMvc.perform(post(SLIPS_PATH)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String slipNo = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("slipNo").asText();
+        return slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(
+                        SlipType.valueOf(slipType), slipNo)
+                .orElseThrow()
+                .getId()
+                .toString();
+    }
+
+    private String updatedAt(String id) throws Exception {
+        MvcResult result = mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        return data.path("updatedAt").asText();
+    }
+
+    private Map<String, Object> deleteBody(String updatedAt) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("updatedAt", updatedAt);
+        return body;
+    }
+}

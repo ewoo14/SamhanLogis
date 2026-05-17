@@ -35,6 +35,17 @@ public enum ErrorCode {
             "전표가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요."),
     SLIP_UPDATE_INVALID_LINE(HttpStatus.UNPROCESSABLE_ENTITY,
             "전표 라인 입력값이 올바르지 않습니다."),
+    /**
+     * 매입 전표 삭제 불가 — 검수/처리 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
+     * DRAFT/SAVED 상태만 삭제 허용 (운영 정책).
+     */
+    SLIP_DELETE_INSPECTION_COMPLETED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "검수 진행 중이거나 완료된 매입 전표는 삭제할 수 없습니다."),
+    /**
+     * 매입 전표 삭제 불가 — slipType 이 INBOUND 가 아닌 전표에 매입 삭제 endpoint 호출.
+     */
+    SLIP_DELETE_NON_INBOUND(HttpStatus.FORBIDDEN,
+            "매입 전표만 삭제할 수 있습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND(HttpStatus.NOT_FOUND,
             "변환할 견적을 찾을 수 없습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,

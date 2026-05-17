@@ -50,6 +50,7 @@ import {
 } from '@samhan/design-system'
 import axios from 'axios'
 import {
+  deletePurchaseSlip,
   duplicateSlip,
   getSlip,
   removeLine,
@@ -160,6 +161,7 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 }
 
 const PURCHASE_EDIT_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
+const PURCHASE_DELETE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
 
 type PurchaseEditLine = SlipLineInput & { key: string }
 
@@ -222,6 +224,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // PR-H3: 수락/거절 결과 toast (SSE slip:edit-request:decided 수신 시 표시).
   const [decisionToast, setDecisionToast]
     = useState<{ kind: 'success' | 'danger'; text: string } | null>(null)
+  // SP-08-5-3: 매입 soft delete confirm modal state.
+  const [purchaseDeleteOpen, setPurchaseDeleteOpen] = useState(false)
+  const [purchaseDeleteConflict, setPurchaseDeleteConflict] = useState(false)
+
   // SP-08-5-2: 매입 direct PUT 수정 modal state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
   const [purchaseConflictMessage, setPurchaseConflictMessage] = useState<string | null>(null)
@@ -409,6 +415,47 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
   })
 
+  /**
+   * SP-08-5-3: 매입 전표 soft delete mutation.
+   * 성공 → 매입 목록(/purchases)으로 redirect + list cache invalidate.
+   * 409  → 낙관적 잠금 충돌 배너 (purchaseDeleteConflict).
+   * 422  → 검수 완료 전표 삭제 불가 alert.
+   * 403  → 권한 없음 alert.
+   */
+  const deletePurchaseSlipMutation = useMutation({
+    mutationFn: () => deletePurchaseSlip(id, slip.updatedAt),
+    onSuccess: () => {
+      setPurchaseDeleteOpen(false)
+      setPurchaseDeleteConflict(false)
+      queryClient.setQueryData(['slip', id], undefined)
+      void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })
+      void queryClient.invalidateQueries({ queryKey: ['slips'] })
+      navigate('/purchases', {
+        state: { toast: '전표가 삭제되었습니다' },
+      })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+        if (status === 409) {
+          setPurchaseDeleteConflict(true)
+          return
+        }
+        if (status === 422) {
+          alert('검수 완료된 매입 전표는 삭제할 수 없습니다')
+          setPurchaseDeleteOpen(false)
+          return
+        }
+        if (status === 403) {
+          alert('매입 전표 삭제 권한이 없습니다')
+          setPurchaseDeleteOpen(false)
+          return
+        }
+      }
+      alert('매입 전표 삭제에 실패했습니다.')
+    },
+  })
+
   /** 라인 제거 (BE: DELETE /slips/{id}/lines/{lineId}). DRAFT/SAVED 만 허용. */
   const removeLineMutation = useMutation({
     mutationFn: (lineId: string) => removeLine(id, lineId),
@@ -540,6 +587,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canDirectEditPurchase = mode === 'INBOUND'
     && !!role
     && PURCHASE_EDIT_ROLES.includes(role)
+    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+
+  const canDirectDeletePurchase = mode === 'INBOUND'
+    && !!role
+    && PURCHASE_DELETE_ROLES.includes(role)
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
@@ -820,6 +872,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               }}
             >
               수정
+            </Button>
+          ) : null}
+          {canDirectDeletePurchase ? (
+            <Button
+              variant="danger"
+              size="sm"
+              data-testid="purchase-slip-delete-button"
+              onClick={() => {
+                setPurchaseDeleteConflict(false)
+                setPurchaseDeleteOpen(true)
+              }}
+            >
+              삭제
             </Button>
           ) : null}
           <Button variant="ghost" onClick={() => navigate(listPath)}>
@@ -1892,6 +1957,93 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             </tbody>
           </table>
         </div>
+      </Modal>
+
+      {/*
+        SP-08-5-3: 매입 전표 삭제 확인 modal.
+        - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
+        - 409 충돌 시 "최신 내용 불러오기" 배너 표시 + refetch 후 재시도.
+      */}
+      <Modal
+        open={purchaseDeleteOpen}
+        onClose={() => {
+          if (!deletePurchaseSlipMutation.isPending) {
+            setPurchaseDeleteOpen(false)
+            setPurchaseDeleteConflict(false)
+          }
+        }}
+        title="매입 전표 삭제"
+        size="sm"
+        data-testid="purchase-slip-delete-confirm"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setPurchaseDeleteOpen(false)
+                setPurchaseDeleteConflict(false)
+              }}
+              disabled={deletePurchaseSlipMutation.isPending}
+              data-testid="purchase-slip-delete-confirm-no"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deletePurchaseSlipMutation.isPending}
+              disabled={deletePurchaseSlipMutation.isPending}
+              onClick={() => deletePurchaseSlipMutation.mutate()}
+              data-testid="purchase-slip-delete-confirm-yes"
+            >
+              삭제
+            </Button>
+          </>
+        )}
+      >
+        <Card padding={4} shadow="none">
+          <p style={{ margin: 0, marginBottom: 8, fontSize: 15 }}>
+            정말 삭제하시겠습니까?
+          </p>
+          <p
+            style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--color-neutral-600)',
+            }}
+          >
+            전표번호: <strong>{slip.slipNo}</strong>
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger-700, #B91C1C)' }}>
+            삭제된 전표는 복구할 수 없습니다.
+          </p>
+          {purchaseDeleteConflict ? (
+            <div
+              className="error-banner"
+              role="alert"
+              data-testid="purchase-slip-delete-conflict-banner"
+              style={{ marginTop: 12 }}
+            >
+              <strong>다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 시도해 주세요.</strong>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                style={{ marginTop: 8 }}
+                onClick={async () => {
+                  const result = await refetchDetail()
+                  if (result.data) {
+                    setPurchaseDeleteConflict(false)
+                  }
+                }}
+              >
+                최신 내용 불러오기
+              </Button>
+            </div>
+          ) : null}
+        </Card>
       </Modal>
     </>
   )

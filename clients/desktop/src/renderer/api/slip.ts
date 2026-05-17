@@ -307,6 +307,30 @@ export async function createSlip(
 }
 
 /**
+ * 매입 전표 soft delete — optimistic lock (updatedAt 필수).
+ *
+ * BE `DELETE /slips/{id}` + request body `{ updatedAt }`.
+ * 응답 없음 (204). 204/200 모두 성공으로 처리.
+ *
+ * 에러 코드:
+ * - 409 Conflict       — 낙관적 잠금 충돌 (다른 사용자가 먼저 수정)
+ * - 422 Unprocessable  — SLIP_DELETE_INSPECTION_COMPLETED (검수 완료 전표 삭제 불가)
+ * - 403 Forbidden      — 권한 부족
+ *
+ * @param id        전표 UUID (path param 전용, 화면 표시 금지)
+ * @param updatedAt 낙관적 잠금용 마지막 수정 시각 (ISO 8601)
+ */
+export async function deletePurchaseSlip(
+  id: string,
+  updatedAt: string,
+): Promise<void> {
+  await apiClient.delete<ApiEnvelope<void>>(
+    `/slips/${encodeURIComponent(id)}`,
+    { data: { updatedAt } },
+  )
+}
+
+/**
  * 매입 전표 direct PUT 수정.
  *
  * @param id 전표 UUID (path param 전용, 화면 표시 금지)
