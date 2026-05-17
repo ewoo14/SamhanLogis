@@ -81,4 +81,13 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     expect(tsx).toContain("'조회 중'")
     expect(tsx).not.toMatch(/orderNumber \?\? id/)
   })
+
+  test('T6: 409 reload 후 재저장 흐름 정적 계약', () => {
+    const tsx = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
+
+    expect(tsx).toContain('setConflictMessage(null)')
+    expect(tsx).toContain('setReloadSuccessMessage')
+    expect(tsx).toMatch(/handleConflictReload[\s\S]*refetch\(\)/)
+    expect(tsx).toMatch(/syncFormFromData\(result\.data\)/)
+  })
 })

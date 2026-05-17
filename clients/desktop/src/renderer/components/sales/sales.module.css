@@ -989,6 +989,18 @@
   font-weight: 600;
 }
 
+.formFieldSpanAll {
+  grid-column: 1 / -1;
+}
+
+.cardMarginTop {
+  margin-top: 12px;
+}
+
+.expandedComponentText {
+  font-size: 11px;
+}
+
 .historyRow {
   display: grid;
   grid-template-columns: minmax(100px, 0.8fr) minmax(160px, 1fr) minmax(160px, 1.2fr);

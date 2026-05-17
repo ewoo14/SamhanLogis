@@ -35,6 +35,10 @@
 
   /* ---------- color: semantic ---------- */
   --color-success: #2A9D8F;
+  --color-success-50: #ecfdf5;
+  --color-success-200: #a7f3d0;
+  --color-success-500: #10b981;
+  --color-success-700: #047857;
   --color-warning: #E9A53D;
   --color-danger:  #D6504A;
   --color-info:    #3F7DB8;

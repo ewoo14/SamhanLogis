@@ -30,10 +30,18 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
 }
 const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 
-type EditLine = PartnerOrderUpdateRequest['lines'][number]
+type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
+
+function createEditLineKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Math.random().toString(36).slice(2)
+}
 
 function toEditLines(order: PartnerOrderDetail): EditLine[] {
   return order.lines.map((line) => ({
+    key: createEditLineKey(),
     modelCode: line.modelCode,
     productName: line.productName,
     categoryKey: line.categoryKey ?? 'homemulti',
@@ -66,6 +74,7 @@ export function SalesPartnerOrderDetailPage() {
     enabled: isValidId,
     retry: 1,
   })
+  const { refetch } = query
 
   const auditQuery = useQuery({
     queryKey: ['partner-order', id, 'audit-logs'],
@@ -105,7 +114,7 @@ export function SalesPartnerOrderDetailPage() {
   }, [query.data, editOpen, syncFormFromData])
 
   const handleConflictReload = useCallback(async () => {
-    const result = await query.refetch()
+    const result = await refetch()
     if (result.data) {
       syncFormFromData(result.data)
       setConflictMessage(null)
@@ -118,7 +127,7 @@ export function SalesPartnerOrderDetailPage() {
         reloadSuccessTimerRef.current = null
       }, 3000)
     }
-  }, [query, syncFormFromData])
+  }, [refetch, syncFormFromData])
 
   useEffect(() => {
     setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })
@@ -226,7 +235,7 @@ export function SalesPartnerOrderDetailPage() {
                   <Input aria-label="납기" readOnly inputSize="sm" value={query.data.dueDate ?? '-'} />
                 </div>
                 {query.data.memo ? (
-                  <div className={styles['formField']} style={{ gridColumn: '1 / -1' }}>
+                  <div className={`${styles['formField']} ${styles['formFieldSpanAll']}`}>
                     <label>요청사항</label>
                     <Input aria-label="요청사항" readOnly inputSize="sm" value={query.data.memo} />
                   </div>
@@ -234,7 +243,7 @@ export function SalesPartnerOrderDetailPage() {
               </div>
             </div>
 
-            <div className={styles['card']} style={{ marginTop: 12 }}>
+            <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
               <div className={styles['cardHead']}>
                 <div className={styles['cardTitle']}>
                   라인 ({query.data.lines?.length ?? 0}건)
@@ -256,7 +265,7 @@ export function SalesPartnerOrderDetailPage() {
                   </thead>
                   <tbody>
                     {(query.data.lines ?? []).map((line, index) => (
-                      <tr key={`${line.modelCode}-${index}`}>
+                      <tr key={`${line.modelCode}-${line.productName}-${index}`}>
                         <td style={{ textAlign: 'left' }}>{line.productName}</td>
                         <td>{line.modelCode}</td>
                         <td>{line.quantity}</td>
@@ -269,7 +278,7 @@ export function SalesPartnerOrderDetailPage() {
                             '-'
                           )}
                         </td>
-                        <td style={{ textAlign: 'left', fontSize: 11 }}>
+                        <td className={styles['expandedComponentText']} style={{ textAlign: 'left' }}>
                           {line.expandedComponents.length === 0
                             ? '-'
                             : line.expandedComponents.map((c) => (
@@ -285,7 +294,7 @@ export function SalesPartnerOrderDetailPage() {
               </div>
             </div>
 
-            <div className={styles['card']} style={{ marginTop: 12 }}>
+            <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
               <div className={styles['cardHead']}>
                 <div className={styles['cardTitle']}>수정 이력</div>
               </div>
@@ -336,7 +345,14 @@ export function SalesPartnerOrderDetailPage() {
                   bizCode: query.data.bizCode,
                   dueDate: dueDate || null,
                   memo: memo || null,
-                  lines,
+                  lines: lines.map((line) => ({
+                    modelCode: line.modelCode,
+                    productName: line.productName,
+                    categoryKey: line.categoryKey,
+                    quantity: line.quantity,
+                    deliveryPrice: line.deliveryPrice,
+                    remark: line.remark,
+                  })),
                 })
               }}
             >
@@ -392,7 +408,7 @@ export function SalesPartnerOrderDetailPage() {
             data-testid="partner-order-edit-memo"
           />
         </div>
-        <div className={styles['tableWrap']} style={{ marginTop: 12 }}>
+        <div className={`${styles['tableWrap']} ${styles['cardMarginTop']}`}>
           <table className={styles['estTable']}>
             <thead>
               <tr>
@@ -405,7 +421,7 @@ export function SalesPartnerOrderDetailPage() {
             </thead>
             <tbody>
               {lines.map((line, index) => (
-                <tr key={`${line.modelCode}-${index}`}>
+                <tr key={line.key}>
                   <td>
                     <Input
                       aria-label="품목명"

@@ -305,9 +305,10 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
 
     private String currentModifiedAt(UUID orderId) {
         return orderRepository.findById(orderId)
-                .map(PartnerOrder::getModifiedAt)
-                .orElseThrow()
-                .toString();
+                .map(order -> order.getModifiedAt() != null
+                        ? order.getModifiedAt().toString()
+                        : order.getCreatedAt().toString())
+                .orElseThrow();
     }
 
     private LocalDateTime currentCreatedAt(UUID orderId) {

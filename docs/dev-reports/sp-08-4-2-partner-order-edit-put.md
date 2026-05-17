@@ -110,3 +110,35 @@
 ### 9.3 Cycle 3 진입 사유
 
 Cycle 2.5는 reviewer 지적 5건을 통합 fix로 닫는 범위다. Cycle 3에서는 PR #217 head 기준으로 5-team 재검토, CI green 확인, QA PNG/Playwright 산출물 확인 후 개발책임자 머지 요청 단계로 진입한다.
+
+### 9.4 Cycle 3.5 종합 fix
+
+Cycle 3 재검토 후 잔존 결함 5건을 한 commit 으로 묶어 처리했다.
+
+- `PartnerOrderUpdateService.verifyVersion`은 legacy row 의 `modifiedAt = null` 케이스에서 `createdAt`으로 fallback 하도록 보강했다.
+- `PartnerOrderUpdateIT`는 direct PUT 성공/409/422/deleted guard/soft-delete/audit/createdAt fallback 을 포함해 9개 시나리오로 확장했다.
+- `PartnerOrderIdResolver`는 예외 catch 범위를 넓은 `Exception`에서 `IllegalArgumentException` 중심으로 좁혀 잘못된 repository 오류를 숨기지 않게 했다.
+- `replaceLines` 흐름의 중복 flush 를 제거하고 Javadoc 을 실제 soft-delete 전략에 맞게 정정했다.
+- §6 검증 수치를 최신 IT 9건 기준으로 갱신했다.
+
+### 9.5 Cycle 4 양쪽 TM 통합 결과
+
+Cycle 4는 Claude 5-team 과 Codex 5-team 총 10 reviewer 재검토로 진행했다. 양쪽 모두 blocker 없이 APPROVE 했고, 통합 TM 결과는 blocker 0 / non-blocker 및 Nit 8건이다.
+
+- BE: `currentModifiedAt` 테스트 helper null guard, `PartnerOrder.orphanRemoval = false` 명시.
+- FE: `handleConflictReload` dependency 축소, line table key 안정성.
+- Designer: design-system readOnly Input cue, success token scale, inline magic style 정리.
+- QA: dev-report cycle 기록 보강, 409 reload 후 재저장 정적 계약 추가.
+
+### 9.6 Cycle 4.5 일괄 fix
+
+개발책임자 정책에 따라 Cycle 4 잔존 Nit / non-blocker 를 후속 슬라이스로 미루지 않고 일괄 처리했다.
+
+- `PartnerOrderUpdateIT.currentModifiedAt`은 service fallback 정책과 동일하게 `modifiedAt`이 없으면 `createdAt`을 사용한다.
+- `PartnerOrder.lines`는 `orphanRemoval = false`로 명시하고, 라인 제거는 `BaseEntity.markDeleted()`만 사용하는 soft-delete 전략을 Javadoc 에 남겼다.
+- `SalesPartnerOrderDetailPage.handleConflictReload`는 `query` 객체 전체가 아니라 `refetch` 함수 참조만 dependency 로 둔다.
+- 편집 모달 라인은 로컬 key 를 생성해 React key 로 사용하고, PUT body 전송 시 key 를 제거한다.
+- 조회 라인 table 은 모델명/품목명/index 조합 fallback key 로 중복 모델 라인 충돌 가능성을 줄였다.
+- `Input.module.css`는 `:read-only:not(:disabled)` 시각 cue 를 추가했고, `tokens.css`는 `--color-success-50/200/500/700` scale 을 정의했다.
+- `sales.module.css`에 `.formFieldSpanAll`, `.cardMarginTop`, `.expandedComponentText`를 추가해 inline magic style 을 줄였다.
+- Playwright 정적 계약 T6로 409 reload 후 conflict 해제, success 피드백, form 재동기화 후 재저장 가능 흐름을 잠근다.

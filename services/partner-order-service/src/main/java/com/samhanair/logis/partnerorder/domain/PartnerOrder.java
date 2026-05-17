@@ -99,7 +99,7 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
     private String idempotencyKey;
 
-    @OneToMany(mappedBy = "partnerOrder", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "partnerOrder", cascade = CascadeType.ALL, orphanRemoval = false)
     private List<PartnerOrderLine> lines = new ArrayList<>();
 
     /**
@@ -193,9 +193,9 @@ public class PartnerOrder extends BaseEntity {
      * 본사 direct PUT 라인 전체 교체. 기존 active line 은 {@link BaseEntity#markDeleted(String)}
      * soft-delete 로 보존하고 새 snapshot 으로 재구성한다.
      *
-     * <p>{@code @OneToMany(orphanRemoval = true)} 는 외부 제거 trigger 가 없으므로 실제 hard delete
-     * 는 발생하지 않으며, {@code @SQLRestriction("is_deleted = false")} 가 SELECT 시점에 deleted line 을
-     * 필터링한다.
+     * <p>{@code orphanRemoval = false} 는 soft-delete 전략을 지키기 위한 명시 설정이다.
+     * 라인 제거는 컬렉션 {@code remove()} 가 아니라 {@link BaseEntity#markDeleted(String)} 만 사용하며,
+     * {@code @SQLRestriction("is_deleted = false")} 가 SELECT 시점에 deleted line 을 필터링한다.
      *
      * @param replacementLines 새 주문 라인 snapshot
      */

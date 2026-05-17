@@ -45,6 +45,11 @@
   cursor: not-allowed;
 }
 
+.input:read-only:not(:disabled) {
+  background-color: var(--color-bg-muted, #f8fafc);
+  cursor: default;
+}
+
 .size-sm {
   height: 28px;
   padding: 0 var(--space-2);
