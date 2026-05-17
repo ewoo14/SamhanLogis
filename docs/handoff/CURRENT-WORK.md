@@ -2,6 +2,123 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-3 진입 — D1 매출 soft delete + 출고 정책
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-3-sales-slip-soft-delete
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `85bb007f` (PR #227 SP-08-6-2 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.3
+- 사용자 6/7회차 정책
+
+### SP-08-6-3 범위 (D1)
+
+매출 (Slip slipType=OUTBOUND) soft delete endpoint. SP-08-5-3 매입 패턴 재사용:
+- `DELETE /api/v1/slips/{id}/sales` (또는 동등) — SP-08-6-2 옵션 B 패턴 일관
+- 권한 SALES/MANAGER/MASTER
+- 출고 정책 결정: SHIPPED/DELIVERED/CONFIRMED 상태 차단 → ErrorCode `SLIP_DELETE_SALES_SHIPPED` (또는 동등)
+- 도메인 메서드 `Slip.deleteForSales()` 신규 (OUTBOUND guard + EDITABLE_STATUSES guard)
+- audit `SLIP_DELETE` revision 1건
+- FE: SalesQueryPage + SlipDetailPage 매출 삭제 CTA + 확인 modal (SP-08-5-3 패턴)
+- Playwright + IT + PNG 4장
+
+### 🚨 회사 PC 이어가기 (2026-05-18 집 PC 중단 시점)
+
+**중단 사유**: 사용자 요청 (회사에서 이어감)
+
+**현재 진행 상태**:
+- branch: `feat/sp-08-6-3-sales-slip-soft-delete` (push 안 됨 — 회사 PC 진입 후 확인)
+- 5-team Claude agent 백그라운드 디스패치 **완료** (BE/FE/Designer/QA/DevOps)
+- 결과 도착 시 working tree 변경 발생 가능 (agent 자율 진행 — 중단 불가)
+- 집 PC 의 마지막 Claude Code 세션이 종료 후 agent 결과는 더 이상 받지 못함
+
+**회사 PC 진입 절차**:
+
+```powershell
+cd C:\dev\SamhanLogis
+
+# 1. 최신 main 동기화
+git fetch origin
+git checkout main
+git pull origin main  # HEAD: 85bb007f (PR #227 SP-08-6-2 머지)
+
+# 2. SP-08-6-3 branch 재생성 (집 PC 에서 push 안 됨)
+git checkout -b feat/sp-08-6-3-sales-slip-soft-delete
+# 또는 집 PC 에서 push 했다면:
+# git checkout feat/sp-08-6-3-sales-slip-soft-delete
+# git pull origin feat/sp-08-6-3-sales-slip-soft-delete
+
+# 3. 5-team agent 결과 working tree 확인
+git status --short
+# 예상 변경:
+# - services/slip-service/.../SalesSlipDeleteController.java (BE 신규)
+# - services/slip-service/.../SalesSlipDeleteService.java (BE 신규)
+# - services/slip-service/.../Slip.java (deleteForSales 메서드)
+# - shared/common/.../ErrorCode.java (SLIP_DELETE_SALES_SHIPPED 신규)
+# - services/slip-service/.../SlipSalesDeleteIT.java (9 case 신규)
+# - clients/desktop/src/renderer/api/slip.ts (deleteSalesSlip)
+# - clients/desktop/src/renderer/routes/SlipDetailPage.tsx (매출 삭제 modal)
+# - clients/desktop/src/renderer/routes/sales-query/SalesQueryPage.tsx (삭제 CTA)
+# - clients/desktop/playwright/sp-08-6-3-.../sp-08-6-3-...spec.ts
+# - docs/qa/sp-08-6-3-sales-slip-soft-delete/screenshots/ (PNG 4장)
+# - scripts/generate-sp-08-6-3-...-screenshots.ps1
+# - docs/dev-reports/sp-08-6-3-sales-slip-soft-delete.md
+
+# 4. agent 결과 없다면 (집 PC 종료 후 결과 미저장 시):
+# 동일 5-team agent 디스패치 재실행 (위 docs/handoff CURRENT-WORK.md prompt 참고)
+```
+
+**다음 단계 (회사 PC 에서)**:
+
+1. working tree 검증 + compile (`./gradlew :services:slip-service:compileJava :services:slip-service:compileTestJava`)
+2. typecheck (`cd clients/desktop && npm run typecheck`)
+3. 통합 commit + push
+4. PR 발행 (#228 예상, 제목: `[FEAT] SP-08-6-3 매출 soft delete + 출고 정책 (D1)`)
+5. 사이클 1 Claude 5-agent review + TM 통합 1건 PR comment 게시 (**agent 가 직접 PR comment 게시 금지** — 사용자 지적)
+6. 1c Claude fix → push
+7. Codex 5-agent 2a review + TM 통합 1건 게시
+8. 2c Codex fix (또는 Claude 직접) → push
+9. CI green + 양쪽 0 P0/P1 도달 시 PM 자동 머지
+10. SP-08-6-4 진입 (P1 거래명세서/계산서 인쇄)
+
+### 리뷰 규칙 엄수 (사용자 지적 2건)
+
+- **5 agent raw markdown 만 docs/qa/<slug>/ 저장, PR comment 직접 등록 금지**
+- **TM Claude 통합 1건 + TM Codex 통합 1건 = 사이클당 PR comment 2건만 게시**
+- agent prompt 에 "PR comment 게시 금지" 명시 의무 (회사 PC 에서 dispatch 시 재현)
+
+### PR #227 SP-08-6-2 사이클 통계 (회고)
+
+- TM PR comment 4건 (Claude 사이클 1 보완 등록 4472742152 + Codex 사이클 1 4472730898 + Claude 사이클 2 4472752584 + Codex 사이클 2 4472752645)
+- 사이클 1 결함: BLOCKER 3 + Medium 7 + LOW 4 (Designer/QA/FE/BE 등)
+- 사이클 2 fix: CI fail revisionNo 단언 + supervisionAddress audit summarize
+- N=2 종료 — head A → B (1c) → C (2c) → D (CI fix)
+- mergeCommit `85bb007f`
+
+### 리뷰 규칙 엄수 (사용자 지적 사항)
+
+- 5 agent raw markdown 만 docs/qa/ 저장, **PR comment 직접 등록 금지**
+- TM Claude 통합 1건 + TM Codex 통합 1건 = 사이클당 PR comment 2건만 게시
+- agent prompt 에 "PR comment 게시 금지" 명시 의무
+
+### 직전 머지 (PR #227)
+
+- branch: `feat/sp-08-6-2-sales-slip-edit-put` (deleted)
+- mergeCommit: `85bb007f`
+- 사이클 통계: N=2 (사이클 1 1c+2c + 사이클 2 CI fix + Codex APPROVE)
+- TM PR comment 4건 (Claude/Codex 각 사이클 통합)
+- 신규: SalesSlipUpdateController/Service + Slip.updateSalesHeader/replaceSalesLines + SLIP_UPDATE_NON_SALES + SlipSalesUpdateIT 10 case + .sales-edit-field + .success-banner CSS + supervisionAddress audit summarize
+
+## 2026-05-18 SP-08-6-2 머지 완료 — 매출 수정 PUT (참고 이력)
+
 ## 2026-05-18 SP-08-6-2 진입 — U1 매출 수정 direct PUT
 
 ### 즉시 시작
