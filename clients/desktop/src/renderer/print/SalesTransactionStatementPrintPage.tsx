@@ -30,19 +30,7 @@ import {
   krDate,
   calcAmounts,
 } from './PrintLayout'
-
-/** 출력일시 포맷 — "YYYY-MM-DD HH:mm" */
-function nowPrintedAt(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** ISO 8601 timestamp → "YYYY-MM-DD HH:mm" */
-function fmtDatetime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  return iso.slice(0, 10) + ' ' + iso.slice(11, 16)
-}
+import { nowPrintedAt, fmtDatetime } from './printUtils'
 
 export function SalesTransactionStatementPrintPage() {
   const params = useParams<{ id: string }>()
@@ -179,7 +167,8 @@ export function SalesTransactionStatementPrintPage() {
           <tbody>
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
-              const lineVat = Math.round(lineSupply * 0.1)
+              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
+              const lineVat = Math.floor(lineSupply * 0.1)
               return (
                 <tr key={l.id}>
                   <td className="col-no">{idx + 1}</td>
@@ -217,23 +206,33 @@ export function SalesTransactionStatementPrintPage() {
           </tfoot>
         </table>
 
-        {/* 합계 영역 */}
-        <section className="sales-print-totals">
-          <div className="sales-print-totals-row">
-            <span className="sales-print-totals-label">공급가액</span>
-            <span className="sales-print-totals-value num">{krw(supply)}</span>
+        {/* 합계/인수란 — spec §6 5셀 grid: 수량 / 공급가액 / VAT / 합계 / 인수 */}
+        <section className="sales-statement-totals-grid">
+          <div className="sales-statement-total-cell">
+            <div className="sales-statement-total-label">수량</div>
+            <div className="sales-statement-total-value num">
+              {slip.lines.reduce((s, l) => s + l.quantity, 0).toLocaleString('ko-KR')}
+            </div>
           </div>
-          <div className="sales-print-totals-row">
-            <span className="sales-print-totals-label">부가세 (10%)</span>
-            <span className="sales-print-totals-value num">{krw(vat)}</span>
+          <div className="sales-statement-total-cell">
+            <div className="sales-statement-total-label">공급가액</div>
+            <div className="sales-statement-total-value num">{krw(supply)}</div>
           </div>
-          <div className="sales-print-totals-row strong">
-            <span className="sales-print-totals-label">합계</span>
-            <span className="sales-print-totals-value num">{krw(total)} 원</span>
+          <div className="sales-statement-total-cell">
+            <div className="sales-statement-total-label">VAT</div>
+            <div className="sales-statement-total-value num">{krw(vat)}</div>
+          </div>
+          <div className="sales-statement-total-cell grand">
+            <div className="sales-statement-total-label">합계</div>
+            <div className="sales-statement-total-value num strong">{krw(total)}</div>
+          </div>
+          <div className="sales-statement-total-cell">
+            <div className="sales-statement-total-label">인수</div>
+            <div className="sales-statement-total-value">인</div>
           </div>
         </section>
 
-        {/* 푸터 — 비고 + audit */}
+        {/* 푸터 — 비고 + VAT 안내 + audit */}
         <footer className="sales-print-footer">
           {slip.memo ? (
             <div className="sales-print-memo">
@@ -241,6 +240,10 @@ export function SalesTransactionStatementPrintPage() {
               <span className="sales-print-memo-value">{slip.memo}</span>
             </div>
           ) : null}
+          {/* Designer MEDIUM: 단가 VAT 안내 문구 */}
+          <div className="sales-print-vat-notice">
+            단가는 공급가액 기준 (VAT 별도)
+          </div>
           <div className="sales-print-audit-row">
             <span>담당자: {slip.ownerFullName ?? '-'}</span>
             <span>최종수정: {fmtDatetime(slip.updatedAt)}</span>

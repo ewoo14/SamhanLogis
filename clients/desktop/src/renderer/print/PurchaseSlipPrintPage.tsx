@@ -31,20 +31,7 @@ import {
   krDate,
   calcAmounts,
 } from './PrintLayout'
-
-/** 출력일시 포맷 — "YYYY-MM-DD HH:mm" */
-function nowPrintedAt(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** ISO 8601 timestamp → "YYYY-MM-DD HH:mm" */
-function fmtDatetime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  // "2026-05-18T14:32:18+09:00" → "2026-05-18 14:32"
-  return iso.slice(0, 10) + ' ' + iso.slice(11, 16)
-}
+import { nowPrintedAt, fmtDatetime } from './printUtils'
 
 export function PurchaseSlipPrintPage() {
   const params = useParams<{ id: string }>()
@@ -181,7 +168,8 @@ export function PurchaseSlipPrintPage() {
           <tbody>
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
-              const lineVat = Math.round(lineSupply * 0.1)
+              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
+              const lineVat = Math.floor(lineSupply * 0.1)
               return (
                 <tr key={l.id}>
                   <td className="col-no">{idx + 1}</td>

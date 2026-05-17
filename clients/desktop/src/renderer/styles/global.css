@@ -3248,6 +3248,79 @@ button {
   color: #333;
 }
 
+/* Designer MEDIUM: 단가 VAT 안내 문구 (거래명세서 하단) */
+.sales-print-vat-notice {
+  font-size: 8pt;
+  color: #555;
+  margin-bottom: 1.5mm;
+  font-style: italic;
+}
+
+/* 거래명세서 합계/인수란 — spec §6 5셀 grid */
+.sales-statement-totals-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr 2fr 1fr;
+  border: 1px solid #000;
+  border-top: none;
+}
+
+.sales-statement-total-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #000;
+  padding: 1.5mm 2.5mm;
+  min-height: 14mm;
+  gap: 1mm;
+}
+
+.sales-statement-total-cell:last-child {
+  border-right: none;
+}
+
+.sales-statement-total-label {
+  background: #F0F0F0;
+  font-weight: 700;
+  font-size: 8.5pt;
+  padding: 0.5mm 2mm;
+  text-align: center;
+  width: 100%;
+}
+
+.sales-statement-total-value {
+  text-align: right;
+  font-weight: 600;
+  font-size: 9.5pt;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.sales-statement-total-cell.grand .sales-statement-total-value {
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+/* 인장 클래스 — 공급자 성명 옆 빨강 원형 [인] 도장 */
+.sales-invoice-seal,
+.sales-statement-seal {
+  display: inline-block;
+  margin-left: 4mm;
+  border: 1.5pt solid #C00;
+  border-radius: 50%;
+  padding: 0.5mm 2mm;
+  color: #C00;
+  font-size: 8pt;
+  font-weight: 700;
+  transform: rotate(-8deg);
+}
+
+/* 세금계산서 라인테이블 날짜 컬럼 */
+.sales-print-table .col-date {
+  width: 14mm;
+  text-align: center;
+}
+
 /* @media print — 인쇄 시 합계 영역 align 보정 + 색상 보존 + tr 분할 방지 */
 @media print {
   .sales-print-page {
@@ -3266,6 +3339,21 @@ button {
   }
   .sales-print-table tfoot {
     display: table-footer-group;
+  }
+  /* Designer HIGH: 흑백 프린터에서 빨강 인장([인]) 색상 보존 */
+  .sales-invoice-seal,
+  .sales-statement-seal {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* 거래명세서 5셀 합계 grid 분할 방지 */
+  .sales-statement-totals-grid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .sales-statement-total-label {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 

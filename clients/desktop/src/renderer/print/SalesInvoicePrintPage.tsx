@@ -1,5 +1,5 @@
 /**
- * 매출 세금계산서 인쇄 양식 — `/sales/:id/print/invoice-slip`.
+ * 매출 세금계산서 인쇄 양식 — `/sales/:id/print/invoice`.
  *
  * SP-08-6-4 P1 신규: legacy GAS 매출 세금계산서 100% 매칭 목표.
  * SP-08-5-5 PurchaseSlipPrintPage / SalesTransactionStatementPrintPage 패턴 이식.
@@ -30,19 +30,7 @@ import {
   krDate,
   calcAmounts,
 } from './PrintLayout'
-
-/** 출력일시 포맷 — "YYYY-MM-DD HH:mm" */
-function nowPrintedAt(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** ISO 8601 timestamp → "YYYY-MM-DD HH:mm" */
-function fmtDatetime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  return iso.slice(0, 10) + ' ' + iso.slice(11, 16)
-}
+import { nowPrintedAt, fmtDatetime } from './printUtils'
 
 export function SalesInvoicePrintPage() {
   const params = useParams<{ id: string }>()
@@ -185,57 +173,59 @@ export function SalesInvoicePrintPage() {
           </div>
         </section>
 
-        {/* 라인 테이블 — 8컬럼 */}
+        {/* 라인 테이블 — 7컬럼 (spec §12: 월/일 / 품목명 / 규격 / 수량 / 단가 / 공급가액 / 세액) */}
         <table className="sales-print-table">
           <thead>
             <tr>
-              <th className="col-no">No.</th>
+              <th className="col-date">월/일</th>
               <th className="col-product">품목명</th>
               <th className="col-spec">규격</th>
               <th className="col-qty">수량</th>
               <th className="col-price">단가</th>
               <th className="col-supply">공급가액</th>
               <th className="col-vat">세액</th>
-              <th className="col-memo">적요</th>
             </tr>
           </thead>
           <tbody>
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
-              const lineVat = Math.round(lineSupply * 0.1)
+              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
+              const lineVat = Math.floor(lineSupply * 0.1)
+              /** MM/DD 포맷 — 전표 slipDate 기준 (라인별 날짜 없음) */
+              const slipMmDd = slip.slipDate
+                ? slip.slipDate.slice(5, 7) + '/' + slip.slipDate.slice(8, 10)
+                : ''
               return (
-                <tr key={l.id}>
-                  <td className="col-no">{idx + 1}</td>
+                <tr key={`${l.id}-${idx}`}>
+                  <td className="col-date">{slipMmDd}</td>
                   <td className="col-product">{l.modelName ?? l.productName ?? '-'}</td>
                   <td className="col-spec">{l.specification ?? '-'}</td>
                   <td className="col-qty num">{l.quantity.toLocaleString('ko-KR')}</td>
                   <td className="col-price num">{krw(l.unitPrice)}</td>
                   <td className="col-supply num">{krw(lineSupply)}</td>
                   <td className="col-vat num">{krw(lineVat)}</td>
-                  <td className="col-memo">{l.note ?? ''}</td>
                 </tr>
               )
             })}
             {/* 최소 5행 유지 — 여백 행 */}
             {Array.from({ length: Math.max(0, 5 - lines.length) }).map((_, i) => (
               <tr key={`pad-${i}`} className="sales-print-pad-row">
-                <td className="col-no">&nbsp;</td>
+                <td className="col-date">&nbsp;</td>
                 <td className="col-product">&nbsp;</td>
                 <td className="col-spec">&nbsp;</td>
                 <td className="col-qty">&nbsp;</td>
                 <td className="col-price">&nbsp;</td>
                 <td className="col-supply">&nbsp;</td>
                 <td className="col-vat">&nbsp;</td>
-                <td className="col-memo">&nbsp;</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} className="sales-print-table-totals-label">합계</td>
+              <td colSpan={4} className="sales-print-table-totals-label">합계</td>
+              <td className="col-qty num strong">{slip.lines.reduce((s, l) => s + l.quantity, 0).toLocaleString('ko-KR')}</td>
               <td className="col-supply num strong">{krw(supply)}</td>
               <td className="col-vat num strong">{krw(vat)}</td>
-              <td className="col-memo">&nbsp;</td>
             </tr>
           </tfoot>
         </table>

@@ -36,6 +36,8 @@ function fileExists(relPath: string): boolean {
 // 거래명세서 (Sales Statement) 컴포넌트 후보 경로
 // ============================================================
 const STATEMENT_CANDIDATES = [
+  // SP-08-6-4 신규 거래명세서 인쇄 양식 — /sales/:id/print/statement 라우트
+  'clients/desktop/src/renderer/print/SalesTransactionStatementPrintPage.tsx',
   'clients/desktop/src/renderer/print/SalesSlipPrintPage.tsx',
   'clients/desktop/src/renderer/print/SalesStatementPrintPage.tsx',
   'clients/desktop/src/renderer/print/StatementView.tsx',
@@ -47,6 +49,8 @@ const STATEMENT_CANDIDATES = [
 // 세금계산서 (Tax Invoice) 컴포넌트 후보 경로
 // ============================================================
 const INVOICE_CANDIDATES = [
+  // SP-08-6-4 신규 세금계산서 인쇄 양식 — /sales/:id/print/invoice 라우트
+  'clients/desktop/src/renderer/print/SalesInvoicePrintPage.tsx',
   'clients/desktop/src/renderer/print/SalesTaxInvoicePrintPage.tsx',
   'clients/desktop/src/renderer/print/TaxInvoiceView.tsx', // 기존 TaxInvoiceView 재사용 허용
   'clients/desktop/src/renderer/print/TaxInvoicePrintView.tsx',

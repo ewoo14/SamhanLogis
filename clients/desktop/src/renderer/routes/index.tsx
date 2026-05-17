@@ -14,7 +14,7 @@
  * - `/sales/link-dispatch`  링크발송 (배송 묶음 + e-sign URL SMS) — link-dispatch-slice
  * - `/sales/:id`    출고전표 상세 + lifecycle
  * - `/sales/:id/print/statement` 거래명세서 인쇄 미리보기 (SP-08-6-4)
- * - `/sales/:id/print/invoice`   세금계산서 인쇄 미리보기 (SP-08-6-4, InvoiceView 대체)
+ * - `/sales/:id/print/invoice`   세금계산서 인쇄 미리보기 (SP-08-6-4)
  * - `/sales/:id/print/dispatch`  출고전표 작업지시서 인쇄
  * - `/purchases`        구매관리 (PurchaseQueryPage — 풍성한 컬럼 + 다중 선택) [2a 통합]
  * - `/purchases/slips`  legacy 입고전표 list (SlipListPage) — 2c 작성 plumbing 합류 시 진입점
