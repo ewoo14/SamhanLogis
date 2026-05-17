@@ -1,0 +1,31 @@
+# SamhanLogis EOL 정책 — SP-08-5-3 회고 follow-up (SP-08-5-4 적용)
+# Windows + Linux + macOS 양쪽에서 일관된 LF 라인 종결 보장.
+
+* text=auto eol=lf
+
+# 명시적으로 binary 처리 (LF 강제 회피)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.jar binary
+*.war binary
+*.class binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+# Windows-specific 스크립트 — CRLF 유지 (PowerShell/bat 호환)
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

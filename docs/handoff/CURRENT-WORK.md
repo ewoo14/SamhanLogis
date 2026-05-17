@@ -2,6 +2,46 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-5-4 진입 — C1 검수 CTA 회귀 + InboundInspection 흐름 검증
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-4-purchase-inspection-cta-regression
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `211711a1` (PR #222 SP-08-5-3 squash merge)
+- master plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md` §3.4
+- 사용자 6/7회차 정책 — PR 내 모든 결함 해결 + PM 자동 머지 + 자동 진입
+
+### SP-08-5-4 범위 (C1)
+
+- 회귀 검증: SP-03 구매관리 CTA 가 `SAVED / CONFIRMED` 행에 유지되는지
+- `InboundInspectionDialog` 저장/완료 성공 후 구매관리 query refetch 유지
+- inventory-service endpoint path 직접 `/api/v1` 와 gateway strip 양쪽 경로 회귀
+- Playwright 정적 spec + IT (필요 시) + QA PNG 회귀 mock
+- 신규 코드 변경 최소화 — 회귀 안전 가드 추가가 주
+
+### 직전 머지 (PR #222)
+
+- branch: `feat/sp-08-5-3-purchase-slip-soft-delete` (deleted)
+- mergeCommit: `211711a1`
+- 사이클 통계: N=2 종료 (양쪽 Claude+Codex 모두 APPROVE)
+- TM PR comment 4건 (Claude/Codex 각 사이클 1+2)
+- 신규: SlipDeleteController/Service/Request, Slip.deleteForPurchase, SlipDeleteIT 10 case, ErrorCode SLIP_DELETE_INSPECTION_COMPLETED + SLIP_DELETE_NON_INBOUND, `.danger-banner`/`.danger-text` CSS, 422 alert→banner state
+
+### 다음 후보
+
+- SP-08-5-5 P1 매입 인쇄 양식
+- SP-08-5-6 통합 검증 또는 누적 5 PR 대체
+
+## 2026-05-18 SP-08-5-3 머지 완료 — 매입 soft delete (참고 이력)
+
 ## 2026-05-18 SP-08-5-3 진입 — 매입 soft delete + InboundInspection 연계
 
 ### 즉시 시작

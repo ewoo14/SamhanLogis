@@ -201,6 +201,8 @@ export function InboundInspectionDialog({
       setSuccessMsg('검수 내용이 임시 저장되었습니다.')
       void qc.invalidateQueries({ queryKey: ['inbound-inspection', slipId] })
       void qc.invalidateQueries({ queryKey: ['inbound-inspections'] })
+      // 검수 저장 시 BE 가 슬립 상태를 INSPECTING 으로 전환하므로 구매관리 목록도 갱신.
+      void qc.invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })
     },
     onError: () => {
       setErrorMsg('검수 저장에 실패했습니다. 잠시 후 다시 시도하세요.')
