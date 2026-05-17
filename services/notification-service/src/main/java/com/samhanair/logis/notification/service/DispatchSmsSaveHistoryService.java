@@ -85,6 +85,7 @@ public class DispatchSmsSaveHistoryService {
             Thread.sleep(25L * attempt);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            throw new IllegalStateException("AUTO_LATEST 저장 재시도 대기가 중단되었습니다.", ex);
         }
     }
 

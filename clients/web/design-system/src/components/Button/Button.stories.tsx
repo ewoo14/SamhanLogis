@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
     size: 'md',
   },
   argTypes: {
-    variant: { control: 'select', options: ['primary', 'secondary', 'ghost', 'danger'] },
+    variant: { control: 'select', options: ['primary', 'secondary', 'ghost', 'danger', 'warning'] },
     size: { control: 'select', options: ['sm', 'md', 'lg'] },
     loading: { control: 'boolean' },
     disabled: { control: 'boolean' },
@@ -25,6 +25,7 @@ export const Primary: Story = { args: { variant: 'primary' } }
 export const Secondary: Story = { args: { variant: 'secondary', children: '취소' } }
 export const Ghost: Story = { args: { variant: 'ghost', children: '더 보기' } }
 export const Danger: Story = { args: { variant: 'danger', children: '삭제' } }
+export const Warning: Story = { args: { variant: 'warning', children: '주의' } }
 
 export const Small: Story = { args: { size: 'sm' } }
 export const Medium: Story = { args: { size: 'md' } }
@@ -41,6 +42,7 @@ export const AllVariants: Story = {
       <Button {...args} variant="secondary">secondary</Button>
       <Button {...args} variant="ghost">ghost</Button>
       <Button {...args} variant="danger">danger</Button>
+      <Button {...args} variant="warning">warning</Button>
     </div>
   ),
 }

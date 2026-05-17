@@ -24,10 +24,11 @@ async function isServerAvailable(): Promise<boolean> {
   return new Promise(resolve => {
     try {
       const url = new URL(BASE_URL)
+      const directPath = '/sp-08-3-4-dispatch-sms-history'
       const req = http.get(
-        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2000 },
+        { hostname: url.hostname, port: Number(url.port) || 80, path: directPath, timeout: 2000 },
         res => {
-          resolve(true)
+          resolve(Boolean(res.statusCode && res.statusCode < 500))
           res.resume()
         },
       )
@@ -48,6 +49,7 @@ async function openDispatchSms(page: Page, query = 'mockRole=DISPATCH'): Promise
     timeout: 20_000,
   })
   await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
+  await page.locator('[data-testid="dispatch-sms-history-tab-run"]').waitFor({ state: 'visible', timeout: 10_000 })
 }
 
 test.describe('SP-08-3-4 dispatch SMS history', () => {

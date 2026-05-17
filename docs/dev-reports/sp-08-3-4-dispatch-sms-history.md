@@ -50,6 +50,12 @@
 - QA 실행 수치는 placeholder가 아니라 최종 로컬 실행 수치로 본 문서에 고정했다.
 - mock route broad matcher가 `/slips/cleanup`을 먼저 잡던 회귀를 함께 보정해 SP-08-3-3 Playwright mock route를 다시 green으로 만들었다.
 
+## 짧은 backoff 결정
+
+- `AUTO_LATEST` 저장은 사용자+프로그램 active 1건 partial unique index를 유지하기 위해 soft-delete 후 신규 insert를 별도 `REQUIRES_NEW` 트랜잭션으로 재시도한다.
+- partial unique race guard는 25ms, 50ms, 75ms의 최대 3회 짧은 backoff로 제한한다. 전체 대기 상한이 75ms라 servlet thread 점유가 운영상 허용 가능한 수준이며, 별도 비동기 큐를 도입할 정도의 장기 작업이 아니다.
+- 대기 중 interrupt가 발생하면 interrupt flag를 복구하고 즉시 예외를 던져 요청 thread가 조용히 계속 진행하지 않도록 한다.
+
 ## QA
 
 - Playwright static/mock contract:

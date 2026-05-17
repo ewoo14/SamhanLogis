@@ -328,8 +328,13 @@ export function DispatchSmsPage() {
   }
 
   const handleRestore = useCallback((detail: DispatchSmsSaveHistoryDetailResponse) => {
+    setAuditError(null)
     if (detail.saveMode === 'SEND_AUDIT') {
       setSendResult(readSendAuditHistoryPayload(detail.responsePayload))
+      setPreview(null)
+      setEdited({})
+      lastSendEntriesRef.current = []
+      setConfirmChecked(false)
       setActiveTab(0)
       setRestoreBanner(`발송 감사 확인: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)}`)
       return

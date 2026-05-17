@@ -433,7 +433,7 @@ export function ArologisManualDispatchPage() {
                   data-testid="arologis-manual-preview-status"
                   variant="success"
                 >
-                  Validated
+                  검증 완료
                 </Badge>
                 <Button
                   data-testid="arologis-manual-driver-lookup"
@@ -441,7 +441,7 @@ export function ArologisManualDispatchPage() {
                   size="sm"
                   onClick={() => navigate('/dispatches/pre-classify')}
                 >
-                  Lookup
+                  기사 조회
                 </Button>
               </div>
               <p style={{ margin: '0 0 8px', fontSize: 13 }}>

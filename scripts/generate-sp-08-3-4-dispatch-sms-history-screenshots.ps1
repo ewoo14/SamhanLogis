@@ -98,8 +98,8 @@ function New-Shot {
     $g.DrawRectangle($penBorder, $tabList)
     $g.DrawString("저장내역", $fontBody, $brushText, 255, 129)
 
-    Draw-Card $g 44 184 560 124 "미리보기 자동 저장" @("data-testid=dispatch-sms-history-restored-banner", "AUTO_LATEST latest 복원", "createdBy UUID 는 '사용자' 로 마스킹")
-    Draw-Card $g 636 184 560 124 "발송 감사 append" @("발송 후 사용자 조작 없이 자동 저장", "saveMode=SEND_AUDIT", "latest 조회 대상 제외")
+    Draw-Card $g 44 184 560 124 "미리보기 자동 저장" @("자동 저장 최신 복원", "작성자는 '사용자' 로 표시", "내부 식별자는 화면에 표시하지 않음")
+    Draw-Card $g 636 184 560 124 "발송 감사 저장" @("발송 후 사용자 조작 없이 자동 저장", "저장 모드 = 발송 감사", "최신 미리보기 조회 대상 제외")
 
     Draw-Chip $g 44 334 "출고전표 3건" "info"
     Draw-Chip $g 208 334 "발송 가능 2건" "good"
@@ -128,7 +128,7 @@ function New-Shot {
         if ($row -match "자동") { $saveModeLabel = "자동" }
         $g.DrawString($saveModeLabel, $fontSmall, $brushText, 820, $y)
         $g.DrawString((($i + 1) * 2).ToString(), $fontSmall, $brushText, 1000, $y)
-        $g.DrawString("row testid: dispatch-sms-history-row-$i", $fontSmall, $brushMuted, 76, $y + 24)
+        $g.DrawString("목록 순번: $($i + 1)", $fontSmall, $brushMuted, 76, $y + 24)
         $g.DrawLine($penBorder, 64, $y + 52, 1176, $y + 52)
         $y += 64
         $i += 1
@@ -139,8 +139,8 @@ function New-Shot {
         $g.FillRectangle([System.Drawing.Brushes]::White, $dialog)
         $g.DrawRectangle($penBlue, $dialog)
         $g.DrawString("배차문자 미리보기 저장", $fontBody, $brushText, 458, 270)
-        $g.DrawString("data-testid=dispatch-sms-history-topic-input", $fontSmall, $brushMuted, 458, 310)
-        $g.DrawString("autoFocus + closeOnEsc={!isSaving}", $fontSmall, $brushText, 458, 346)
+        $g.DrawString("저장주제 입력", $fontSmall, $brushMuted, 458, 310)
+        $g.DrawString("저장 중 닫기 방지", $fontSmall, $brushText, 458, 346)
         $g.DrawString("[취소]  [저장]", $fontSmall, $brushBlue, 458, 398)
     }
 
@@ -156,7 +156,7 @@ function New-Shot {
         Draw-Card $g 780 614 360 100 "발송 결과" @("성공 2 / 실패 0 / 제외 1", "발송 감사 row append-only")
     }
 
-    $g.DrawString("UUID 비노출 · Notion runtime call 없음 · dispatch_sms_save_history JSONB 미리보기/발송 감사", $fontSmall, $brushMuted, 44, 812)
+    $g.DrawString("내부 식별자 비노출 · 외부 문서 도구 호출 없음 · 미리보기/발송 감사 저장", $fontSmall, $brushMuted, 44, 812)
 
     $path = Join-Path $OutputDir $FileName
     $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
@@ -165,12 +165,12 @@ function New-Shot {
     Write-Host "generated $path"
 }
 
-New-Shot "01-dispatch-sms-run-restored.png" "배차문자 저장내역 2-Tab" "실행 탭 · latest AUTO_LATEST 미리보기 복원" "자동 복원" @("자동저장", "오전 발송 전 점검")
-New-Shot "02-dispatch-sms-preview-auto.png" "배차문자 미리보기 자동 저장" "미리보기 결과 자동 AUTO_LATEST 저장" "미리보기" @("자동저장", "오전 발송 전 점검")
+New-Shot "01-dispatch-sms-run-restored.png" "배차문자 저장내역 2-Tab" "실행 탭 · 자동 저장 최신 미리보기 복원" "자동 복원" @("자동저장", "오전 발송 전 점검")
+New-Shot "02-dispatch-sms-preview-auto.png" "배차문자 미리보기 자동 저장" "미리보기 결과 자동 저장" "미리보기" @("자동저장", "오전 발송 전 점검")
 New-Shot "03-dispatch-sms-manual-save-dialog.png" "배차문자 명시 저장 창" "MANUAL_NAMED 주제 필수" "명시 저장" @("오전 발송 전 점검", "자동저장") $true
 New-Shot "04-dispatch-sms-send-confirm.png" "배차문자 SMS 발송" "var(--color-warning) 버튼 + 이중 확인" "발송" @("오전 발송 전 점검", "자동저장") $false $true
 New-Shot "05-dispatch-sms-send-audit.png" "배차문자 발송 감사" "발송 후 silent append + latest 제외" "발송 감사" @("발송 감사 2026-05-17", "자동저장") $false $true $true
-New-Shot "06-dispatch-sms-history-filter.png" "배차문자 저장내역 탭" "mode select 기본값: 명시 저장만" "명시 저장만" @("오전 발송 전 점검", "추가 수동 저장", "자동저장")
+New-Shot "06-dispatch-sms-history-filter.png" "배차문자 저장내역 탭" "저장 모드 선택 기본값: 명시 저장만" "명시 저장만" @("오전 발송 전 점검", "추가 수동 저장", "자동저장")
 New-Shot "07-dispatch-sms-restore-mask.png" "배차문자 복원 UX" "createdBy 마스킹 · 내부 ID 비노출" "복원" @("사용자 복원", "발송 감사 확인")
 
 Write-Host "SP-08-3-4 QA mock screenshots generated in $OutputDir"

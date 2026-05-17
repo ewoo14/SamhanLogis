@@ -33,6 +33,7 @@ export function SlipCleanupSaveDialog({
       onClose={onClose}
       closeOnEsc={!isSaving}
       closeOnBackdropClick={!isSaving}
+      closeOnHeaderX={!isSaving}
       footer={(
         <div style={actionStyle}>
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>
