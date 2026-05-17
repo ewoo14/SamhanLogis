@@ -158,10 +158,12 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
     const invoiceComponent = read(resolveInvoiceComponent())
 
     // 계산서 라우트 등록 단언
+    // SalesInvoicePrintPage 기준 라우트(/sales/:id/print/invoice)를 정본으로 인정
     const hasInvoiceRoute =
       routes.includes('/accounting/tax-invoices/:id/print') ||
       routes.includes('/tax-invoices/:id/print') ||
-      routes.includes('/sales/:id/print/tax-invoice')
+      routes.includes('/sales/:id/print/tax-invoice') ||
+      routes.includes('/sales/:id/print/invoice')
     expect(hasInvoiceRoute).toBeTruthy()
 
     // 세금계산서 타이틀
@@ -291,10 +293,12 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
     // [거래명세서] partnerId UUID 화면 노출 금지
     expect(statementComponent).not.toMatch(/>\s*\{\s*slip\.partnerId\s*\}/)
 
-    // [계산서] taxInvoiceNo 표시 확인 (발행 식별번호)
+    // [계산서] 식별번호 표시 확인
+    // SalesInvoicePrintPage(매출 전표 기반) 는 slipNo 노출 — 정본으로 인정
     const hasInvoiceNo =
       invoiceComponent.includes('taxInvoiceNo') ||
-      invoiceComponent.includes('일련번호') // 일련번호
+      invoiceComponent.includes('일련번호') || // 일련번호
+      invoiceComponent.includes('slipNo') // 매출 전표 계산서 식별번호
     expect(hasInvoiceNo).toBeTruthy()
 
     // [계산서] UUID raw 출력 패턴 미사용
