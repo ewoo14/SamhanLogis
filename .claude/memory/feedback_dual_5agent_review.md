@@ -46,15 +46,18 @@ metadata:
 
 ## 종료 조건
 
-- 양쪽 TM 통합 모두 신규 **P0/P1/P2/Nit/non-blocker 전부 0** + 이전 사이클 발견 모두 해소
-- CI 100% PASS
+- 양쪽 TM 통합 모두 신규 **P0/P1 blocker 0** + CI 100% PASS → 머지 (Nit/non-blocker 는 후속 슬라이스 가능)
+- 사이클 N=3 안 완료 의무 (2026-05-17 4회차 정정)
 - 종료 시 사용자/PM 머지 결정 (`feedback_user_merge_authority.md` PM 자동 머지 가능)
 
-## 결함 fix 정책 (2026-05-17 사용자 정정 3회차)
+## 결함 fix 정책 (2026-05-17 사용자 정정 4회차 — 최종)
 
-- **완전 fix 까지 사이클 무제한** — Nit / non-blocker 도 fix 대상. "후속 슬라이스 백로그" 로 미루지 않음
-- **한 사이클당 가급적 모든 결함 묶어 fix** — 다음 사이클 review 가 새로운 결함 0 만 확인하도록 일괄 처리
-- **예외**: Codex sandbox EPERM 등 환경 한계로 사이클 fix 불가능한 항목만 후속 (예: Playwright browser 미실행)
+- **사이클 N=3 안 완료 의무** — PR 1건당 사이클 1, 2, 3 안에서 모든 결함 (P0/P1/P2/Nit/non-blocker) fix + 머지. 사이클 4 이상 진행 금지.
+- **한 사이클당 가능한 한 모든 결함 묶어 fix** — 다음 사이클이 0 결함 검증만 하도록 일괄 처리. 사이클 1 review → 사이클 1.5 fix (가급적 모든 결함) → 사이클 2 review → (잔존 시) 사이클 2.5 fix → 사이클 3 review → 0 결함 시 머지.
+- **사이클 3 review 까지 잔존 결함 0 도달 못 한 경우**: blocker 만 fix 후 머지, Nit/non-blocker 는 후속 슬라이스 백로그.
+- **사이클 3 review 후에도 P0/P1 blocker 잔존 시**: 사용자에게 보고 + 결정 위임 (사이클 4 진입 또는 PR 분리 등).
+- **예외**: Codex sandbox EPERM 등 환경 한계로 사이클 fix 불가능한 항목 (예: Playwright browser 미실행)
+- **History**: 2026-05-17 3회차 "완전 fix 까지 무제한" → 4회차 "사이클 N=3 제한" 정정 (PR #217 사이클 6 회고). PR #217 은 정정 시점 이미 사이클 6 진행 중 예외.
 
 ## 운영 규칙
 
@@ -148,7 +151,7 @@ metadata:
 - PR 발행 직후 → CI watch background + 사이클 1 시작
 - **Claude 5 subagent 병렬 (single message multiple Agent tool calls)** → markdown body 5건 수집 → **tech-manager agent 통합** → 1 PR comment 등록
 - **Codex 5-agent 병렬 (single message multiple `mcp__codex__codex` tool calls)** → markdown body 5건 수집 → **tech-manager agent 통합** → 1 PR comment 등록
-- 사이클 N 무제한 (완전 fix 까지 — 2026-05-17 사용자 명시. N=3 제한 폐기)
+- **사이클 N=3 안 완료 의무** (2026-05-17 4회차 사용자 정정 — 최종). 사이클 4+ 진입 금지. 사이클 1.5/2.5 통합 fix 단계에서 가능한 한 모든 결함 묶어 처리.
 - 머지 trigger 는 사용자 또는 PM 자동 머지 (조건 충족 시)
 
 [[pr-title-caps-bracket]] [[multi-agent-team-pattern]] [[integrated-pr-pattern]] [[pr-review-workflow]] [[user-merge-authority]] [[codex-cli-mcp]]

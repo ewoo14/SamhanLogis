@@ -38,6 +38,6 @@
 - [PR 표준 리뷰 워크플로우](feedback_pr_review_workflow.md) — 5-team 리뷰 → TM 승인 → CI green → PM 최종 승인 → 개발책임자 머지. 단순 PR 도 적용
 - [SP-08 legacy GAS DB/API parity](project_sp_08_legacy_gas_parity.md) — 2026-05-16~ 전메뉴 GAS 동등 기능 우리 DB/API 잠금, raw read-only snapshot, Notion runtime zero, 자격 비공개 가드
 - [PR 제목 `[FEAT]`/`[FIX]` 대괄호+대문자](feedback_pr_title_caps_bracket.md) — 2026-05-16 신규. `[codex]` 대신 모든 PR 제목 `[FEAT]`/`[FIX]`/`[CHORE]` 등 대괄호+대문자 prefix (PR #211 머지 후 사용자 명시)
-- [Claude + Codex 5-agent 양쪽 리뷰 + TM 통합 게시 + 완전 fix 까지 사이클](feedback_dual_5agent_review.md) — 2026-05-17 사용자 정정 (3회차). **Claude 5 + Codex 5 = 10 reviewer + TM 통합 2 PR comment / 사이클** + **완전 fix 까지 사이클 무제한** (Nit/non-blocker 포함) + **한 사이클당 가급적 모든 결함 묶어 fix**.
+- [Claude + Codex 5-agent 양쪽 리뷰 + TM 통합 + N=3 제한](feedback_dual_5agent_review.md) — 2026-05-17 사용자 정정 (4회차 최종). **Claude 5 + Codex 5 = 10 reviewer + TM 통합 2 PR comment / 사이클** + **사이클 N=3 안 완료 의무** + 한 사이클당 가능한 한 모든 결함 묶어 fix (사이클 1.5/2.5 통합). 사이클 4+ 진입 금지.
 - [Codex CLI MCP 서버 사용](feedback_codex_plugin_setup.md) — 2026-05-17 사용자 정정. **`mcp__codex__codex` MCP 도구 사용** (Plugin 폐기). review = `sandbox: "read-only"`, fix = `sandbox: "workspace-write"`. 5 agents 병렬 호출 가능 → cross-check 가시화.
 - [Codex 모델 자동 전환](feedback_codex_model_auto_switch.md) — 2026-05-17 신규. Default spark+medium (fast). 보안/migration/architecture/race/incident/AWS sizing/vendor 시나리오 진입 시 PM 이 `--model gpt-5.5 --effort high/xhigh` 자동 override.

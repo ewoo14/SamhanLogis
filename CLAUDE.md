@@ -67,4 +67,4 @@ PC 이동 직전에 반드시 갱신:
 - **아로로지스 명칭 규칙** ([feedback_arologis_name.md](.claude/memory/feedback_arologis_name.md)) — 한국어 표기 "아로로지스" 정식
 - **Samhan Public 명칭 규칙** ([feedback_samhan_public_name.md](.claude/memory/feedback_samhan_public_name.md)) — 외부 호칭 통일
 - **Codex CLI MCP 서버 사용** ([feedback_codex_plugin_setup.md](.claude/memory/feedback_codex_plugin_setup.md)) — 2026-05-17 사용자 정정. **`mcp__codex__codex` 도구** 사용 (Plugin 폐기). review = `sandbox: "read-only"`, fix = `sandbox: "workspace-write"`, 5 agents 병렬 호출.
-- **Claude 5 + Codex 5 reviewer + TM 통합 게시** ([feedback_dual_5agent_review.md](.claude/memory/feedback_dual_5agent_review.md)) — 2026-05-17 사용자 정정 (2회차). 사이클당 PR comment = TM Claude 통합 1 + TM Codex 통합 1 = **2건**. 각자 5+5=10 별도 등록 폐기.
+- **Claude 5 + Codex 5 reviewer + TM 통합 + N=3 제한** ([feedback_dual_5agent_review.md](.claude/memory/feedback_dual_5agent_review.md)) — 2026-05-17 사용자 정정 (4회차 최종). 사이클당 PR comment = TM Claude 통합 1 + TM Codex 통합 1 = **2건**. **사이클 N=3 안 완료 의무**, 사이클 4+ 진입 금지, 한 사이클당 가능한 한 모든 결함 묶어 fix.
