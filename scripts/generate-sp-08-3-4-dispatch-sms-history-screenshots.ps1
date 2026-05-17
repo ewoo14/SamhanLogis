@@ -149,7 +149,7 @@ function New-Shot {
         $g.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(233, 165, 61))), $sendRect)
         $g.DrawRectangle($penWarn, $sendRect)
         $g.DrawString("SMS 발송 (2건)", $fontBody, [System.Drawing.Brushes]::White, 876, 332)
-        $g.DrawString("이중 confirm dialog", $fontSmall, $brushWarn, 842, 370)
+        $g.DrawString("이중 확인 창", $fontSmall, $brushWarn, 842, 370)
     }
 
     if ($ShowAudit) {
