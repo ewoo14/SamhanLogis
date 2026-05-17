@@ -1999,6 +1999,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               disabled={deletePurchaseSlipMutation.isPending}
               onClick={() => {
                 if (deletePurchaseSlipMutation.isPending) return
+                setPurchaseDeleteInspectionAlert(null)
+                setPurchaseDeleteConflict(false)
                 deletePurchaseSlipMutation.mutate()
               }}
               data-testid="purchase-slip-delete-confirm-yes"
