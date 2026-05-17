@@ -33,14 +33,15 @@
  */
 import { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
-import { querySlips, type SlipQueryRow } from '../../api/slip'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Badge, Button, Card, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
+import { querySlips, deleteSalesSlip, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canCreateSlip, canQuerySales } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { canExportSlips, exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
+import axios from 'axios'
 
 const PAGE_SIZE = 50
 
@@ -84,6 +85,12 @@ const SALES_EDITABLE_STATUSES = ['SAVED', 'DRAFT'] as const
 /** SP-08-6-2: 매출 직접 수정 권한 역할 */
 const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
+/** SP-08-6-3: 매출 soft delete 가능 상태 — SAVED / DRAFT */
+const SALES_DELETABLE_STATUSES = ['SAVED', 'DRAFT'] as const
+
+/** SP-08-6-3: 매출 soft delete 권한 역할 */
+const SALES_DELETE_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+
 function isShippable(row: SlipQueryRow): boolean {
   return SHIPPABLE_STATUSES.includes(row.status as (typeof SHIPPABLE_STATUSES)[number])
 }
@@ -91,6 +98,11 @@ function isShippable(row: SlipQueryRow): boolean {
 /** SP-08-6-2: 매출 직접 수정 가능 여부 (SAVED / DRAFT) */
 function isSalesEditable(row: SlipQueryRow): boolean {
   return SALES_EDITABLE_STATUSES.includes(row.status as (typeof SALES_EDITABLE_STATUSES)[number])
+}
+
+/** SP-08-6-3: 매출 soft delete 가능 여부 (SAVED / DRAFT) */
+function isSalesDeletable(row: SlipQueryRow): boolean {
+  return SALES_DELETABLE_STATUSES.includes(row.status as (typeof SALES_DELETABLE_STATUSES)[number])
 }
 
 /** YYYY-MM-DD 포맷 (Asia/Seoul 로케일 Date API) */
@@ -162,12 +174,15 @@ const EMPTY_SEARCH: SearchForm = {
 export function SalesQueryPage() {
   usePageTitle('매출 전표')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const role = useSessionStore((s) => s.auth?.role)
   const canCreate = canCreateSlip(role)
   const canExport = canExportSlips(role)
   const canQuery  = canQuerySales(role)
   /** SP-08-6-2: 매출 직접 수정 권한 (SALES / MANAGER / MASTER) */
   const canEditSales = !!role && (SALES_EDIT_ROLES as readonly string[]).includes(role)
+  /** SP-08-6-3: 매출 soft delete 권한 (SALES / MANAGER / MASTER) */
+  const canDeleteSales = !!role && (SALES_DELETE_ROLES as readonly string[]).includes(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -193,6 +208,12 @@ export function SalesQueryPage() {
 
   // ── 다중 선택 ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // ── SP-08-6-3: 매출 soft delete modal state ──
+  const [salesDeleteOpen, setSalesDeleteOpen] = useState(false)
+  const [salesDeleteTargetRow, setSalesDeleteTargetRow] = useState<SlipQueryRow | null>(null)
+  const [salesDeleteConflict, setSalesDeleteConflict] = useState(false)
+  const [salesDeleteShippedAlert, setSalesDeleteShippedAlert] = useState<string | null>(null)
 
   // ── Excel export ──
   const { downloading, download } = useExcelDownload()
@@ -226,6 +247,41 @@ export function SalesQueryPage() {
   const rows: SlipQueryRow[]  = slipsQuery.data?.content ?? []
   const totalPages             = slipsQuery.data?.totalPages ?? 1
   const totalElements          = slipsQuery.data?.totalElements ?? 0
+
+  // ── SP-08-6-3: 매출 soft delete mutation ──
+  const deleteSalesSlipMutation = useMutation({
+    mutationFn: () => {
+      if (!salesDeleteTargetRow) throw new Error('삭제 대상 전표 없음')
+      return deleteSalesSlip(salesDeleteTargetRow.id, salesDeleteTargetRow.updatedAt)
+    },
+    onSuccess: () => {
+      setSalesDeleteOpen(false)
+      setSalesDeleteConflict(false)
+      setSalesDeleteTargetRow(null)
+      setSelectedIds(new Set())
+      void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
+      void queryClient.invalidateQueries({ queryKey: ['slips'] })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+        if (status === 409) {
+          setSalesDeleteConflict(true)
+          return
+        }
+        if (status === 422) {
+          setSalesDeleteShippedAlert('출고 완료된 매출 전표는 삭제할 수 없습니다')
+          return
+        }
+        if (status === 403) {
+          alert('매출 전표 삭제 권한이 없습니다')
+          setSalesDeleteOpen(false)
+          return
+        }
+      }
+      alert('매출 전표 삭제에 실패했습니다.')
+    },
+  })
 
   // ── Excel-like DataGrid 보기 모드 토글 ──
   const [gridMode, setGridMode] = useState(false)
@@ -422,6 +478,27 @@ export function SalesQueryPage() {
                   aria-label={`${selectedRow.slipNo} 수정`}
                 >
                   수정
+                </Button>
+              ) : null
+            })()}
+            {/* SP-08-6-3: 삭제 — SAVED/DRAFT 상태 + SALES/MANAGER/MASTER 권한 활성 */}
+            {(() => {
+              const selectedRow = rows.find((r) => selectedIds.has(r.id))
+              return selectedRow && canDeleteSales && isSalesDeletable(selectedRow) ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSalesDeleteConflict(false)
+                    setSalesDeleteShippedAlert(null)
+                    setSalesDeleteTargetRow(selectedRow)
+                    setSalesDeleteOpen(true)
+                  }}
+                  data-testid="sales-slip-delete-button"
+                  aria-label={`${selectedRow.slipNo} 삭제`}
+                >
+                  삭제
                 </Button>
               ) : null
             })()}
@@ -801,6 +878,97 @@ export function SalesQueryPage() {
             )}
           />
         </div>
+      </Modal>
+
+      {/*
+        SP-08-6-3: 매출 전표 삭제 확인 modal.
+        - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
+        - 409 충돌 시 "최신 내용 불러오기" 배너 표시.
+        - 422 SHIPPED 시 삭제 불가 안내.
+      */}
+      <Modal
+        open={salesDeleteOpen}
+        onClose={() => {
+          if (!deleteSalesSlipMutation.isPending) {
+            setSalesDeleteOpen(false)
+            setSalesDeleteConflict(false)
+            setSalesDeleteShippedAlert(null)
+          }
+        }}
+        title="매출 전표 삭제"
+        size="sm"
+        data-testid="sales-slip-delete-confirm"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setSalesDeleteOpen(false)
+                setSalesDeleteConflict(false)
+                setSalesDeleteShippedAlert(null)
+              }}
+              disabled={deleteSalesSlipMutation.isPending}
+              data-testid="sales-slip-delete-confirm-no"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deleteSalesSlipMutation.isPending}
+              disabled={deleteSalesSlipMutation.isPending}
+              onClick={() => {
+                if (deleteSalesSlipMutation.isPending) return
+                setSalesDeleteShippedAlert(null)
+                setSalesDeleteConflict(false)
+                deleteSalesSlipMutation.mutate()
+              }}
+              data-testid="sales-slip-delete-confirm-yes"
+            >
+              삭제
+            </Button>
+          </>
+        )}
+      >
+        <Card padding={4} shadow="none">
+          <p style={{ margin: 0, marginBottom: 8, fontSize: 15 }}>
+            정말 삭제하시겠습니까?
+          </p>
+          <p
+            style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--color-neutral-600)',
+            }}
+          >
+            전표번호: <strong>{salesDeleteTargetRow?.slipNo ?? '—'}</strong>
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger-600)' }}>
+            삭제된 전표는 복구할 수 없습니다.
+          </p>
+          {salesDeleteShippedAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-shipped-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteShippedAlert}
+            </div>
+          )}
+          {salesDeleteConflict ? (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-conflict-banner"
+              style={{ marginTop: 12 }}
+            >
+              <strong>다른 사용자가 먼저 수정했습니다. 잠시 후 다시 시도해 주세요.</strong>
+            </div>
+          ) : null}
+        </Card>
       </Modal>
     </div>
   )

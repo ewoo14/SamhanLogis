@@ -331,6 +331,30 @@ export async function deletePurchaseSlip(
 }
 
 /**
+ * 매출 전표 soft delete — SP-08-6-3 신규. optimistic lock (updatedAt 필수).
+ *
+ * BE `DELETE /slips/{id}/sales` + request body `{ updatedAt }`.
+ * 응답 없음 (204). 204/200 모두 성공으로 처리.
+ *
+ * 에러 코드:
+ * - 409 Conflict       — 낙관적 잠금 충돌 (다른 사용자가 먼저 수정)
+ * - 422 Unprocessable  — SLIP_DELETE_SHIPPED (출고 완료 전표 삭제 불가)
+ * - 403 Forbidden      — 권한 부족 (SALES/MANAGER/MASTER 이외)
+ *
+ * @param id        전표 UUID (path param 전용, 화면 표시 금지)
+ * @param updatedAt 낙관적 잠금용 마지막 수정 시각 (ISO 8601)
+ */
+export async function deleteSalesSlip(
+  id: string,
+  updatedAt: string,
+): Promise<void> {
+  await apiClient.delete<ApiEnvelope<void>>(
+    `/slips/${encodeURIComponent(id)}/sales`,
+    { data: { updatedAt } },
+  )
+}
+
+/**
  * 매입 전표 direct PUT 수정.
  *
  * @param id 전표 UUID (path param 전용, 화면 표시 금지)
@@ -537,6 +561,8 @@ export interface SlipQueryRow {
   inspectionStatus?: 'READY' | 'NOT_READY' | null
   sourceWarehouseId: string | null
   destinationWarehouseId: string | null
+  /** 낙관적 잠금용 — soft delete / PUT 시 필요. ISO 8601. */
+  updatedAt: string
 }
 
 /** 판매/구매 조회 검색 옵션 */

@@ -1062,6 +1062,39 @@ public class Slip extends BaseEntity {
     }
 
     /**
+     * 매출 전표 soft delete — SP-08-6-3 신규.
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>slipType == OUTBOUND 가드 — 비-OUTBOUND 시 {@link ErrorCode#SLIP_DELETE_NON_SALES} (403)</li>
+     *   <li>삭제 가능 상태 가드 — DRAFT/SAVED 만 허용, 출고 진행(SENT 이후) 단계는
+     *       {@link ErrorCode#SLIP_DELETE_SALES_SHIPPED} (422)</li>
+     *   <li>{@link com.samhanair.logis.common.entity.BaseEntity#markDeleted(String)} 호출 +
+     *       하위 라인 cascade soft-delete</li>
+     * </ol>
+     *
+     * @param actorId 삭제 수행자 ID (audit 기록용, null 허용 → "system" 폴백)
+     * @throws BusinessException(SLIP_DELETE_NON_SALES)     slipType 이 OUTBOUND 가 아닐 때
+     * @throws BusinessException(SLIP_DELETE_SALES_SHIPPED) DRAFT/SAVED 외 출고 진행 단계일 때
+     */
+    public void deleteForSales(String actorId) {
+        if (this.slipType != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.SLIP_DELETE_NON_SALES,
+                    ErrorCode.SLIP_DELETE_NON_SALES.getDefaultMessage());
+        }
+        if (!EDITABLE_STATUSES.contains(this.status)) {
+            throw new BusinessException(ErrorCode.SLIP_DELETE_SALES_SHIPPED,
+                    ErrorCode.SLIP_DELETE_SALES_SHIPPED.getDefaultMessage());
+        }
+        String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+        this.markDeleted(deleter);
+    }
+
+    /**
      * 회계 마감 lock 적용 — V14 migration 신규.
      *
      * <p>accounting-service Feign 호출 ({@code POST /slips/lock-by-period}) 시점에 SlipService 가

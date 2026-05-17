@@ -51,6 +51,17 @@ public enum ErrorCode {
      */
     SLIP_UPDATE_NON_SALES(HttpStatus.FORBIDDEN,
             "매출 전표만 직접 수정할 수 있습니다."),
+    /**
+     * 매출 전표 삭제 불가 — 출고 진행 중이거나 완료된 전표는 삭제할 수 없습니다.
+     * DRAFT/SAVED 상태만 삭제 허용 (운영 정책).
+     */
+    SLIP_DELETE_SALES_SHIPPED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "출고 진행 중이거나 완료된 매출 전표는 삭제할 수 없습니다."),
+    /**
+     * 매출 전표 삭제 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 삭제 endpoint 호출.
+     */
+    SLIP_DELETE_NON_SALES(HttpStatus.FORBIDDEN,
+            "매출 전표만 삭제할 수 있습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND(HttpStatus.NOT_FOUND,
             "변환할 견적을 찾을 수 없습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,

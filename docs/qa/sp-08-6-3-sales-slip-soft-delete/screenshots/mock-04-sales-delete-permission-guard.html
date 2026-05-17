@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>SP-08-6-3 PNG 04 — INVENTORY 권한 가드 (삭제 버튼 미렌더)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
+    font-size: 14px;
+    background: #f3f4f6;
+  }
+
+  /* ---- 상단 nav stub ---- */
+  .topbar {
+    height: 56px; background: #111827;
+    display: flex; align-items: center; padding: 0 20px; gap: 12px;
+  }
+  .topbar-brand { color: #fff; font-weight: 700; font-size: 16px; }
+  .topbar-role { color: #fbbf24; font-size: 12px; font-weight: 600; background: #374151; padding: 2px 8px; border-radius: 4px; }
+
+  /* ---- page shell ---- */
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ---- 전표 상세 헤더 ---- */
+  .detail-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+  }
+  .detail-title { font-size: 20px; font-weight: 700; color: #111827; }
+  .slip-no { font-size: 14px; color: #6b7280; margin-left: 8px; }
+
+  /* action area — 삭제 버튼 없음 */
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  /* Button variant="secondary" — 수정 (SALES_EDIT_ROLES에도 미포함) */
+  .btn-secondary {
+    appearance: none; border: 1px solid #2563eb; background: #eff6ff;
+    color: #1d4ed8; border-radius: 8px; padding: 8px 16px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+
+  /* 인쇄 버튼만 존재 */
+  .btn-outline {
+    appearance: none; border: 1px solid #cbd5e1; background: transparent;
+    color: #111827; border-radius: 8px; padding: 8px 16px;
+    font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+  }
+
+  /* 전표 상세 정보 card */
+  .card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    overflow: hidden; margin-bottom: 16px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;
+  }
+  .card-title { font-size: 15px; font-weight: 700; color: #111827; }
+  .card-body { padding: 16px; }
+
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .info-field { display: flex; flex-direction: column; gap: 4px; }
+  .info-field label { font-size: 12px; color: #6b7280; font-weight: 600; }
+  .info-field span { font-size: 14px; color: #111827; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .badge-saved { background: #dbeafe; color: #1e40af; }
+
+  /* 권한 안내 note — INVENTORY role 전용 읽기 전용 UI 안내 */
+  .permission-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 12px;
+    border: 1px solid #e5e7eb;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-brand">삼한물류</span>
+  <span class="topbar-role">INVENTORY (재고담당)</span>
+</div>
+
+<div class="page">
+
+  <div class="detail-head">
+    <div>
+      <span class="detail-title">매출전표 상세</span>
+      <!-- UUID 비공개 가드: slipNo 만 노출, id(UUID) 미노출 -->
+      <span class="slip-no">SL-2026-00142</span>
+    </div>
+
+    <!--
+      SALES_DELETE_ROLES = ['SALES', 'MANAGER', 'MASTER']
+      INVENTORY role = 미포함 → 삭제 버튼 미렌더 (canDirectDeleteSales = false)
+      SALES_EDIT_ROLES 도 마찬가지로 INVENTORY 미포함 → 수정 버튼도 미렌더
+      인쇄 버튼 = PRINT_ROLES 에 INVENTORY 포함 여부는 BE/PM 결정 — 여기서는 노출 stub
+    -->
+    <div class="actions">
+      <!-- 삭제/수정 버튼 완전 미렌더 (canDirectDeleteSales = false) -->
+      <button class="btn-outline">인쇄</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">전표 정보</span>
+      <span class="badge badge-saved">저장</span>
+    </div>
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-field">
+          <label>전표번호</label>
+          <span>SL-2026-00142</span>
+        </div>
+        <div class="info-field">
+          <label>전표일자</label>
+          <span>2026-05-15</span>
+        </div>
+        <div class="info-field">
+          <label>거래처</label>
+          <span>세종전자</span>
+        </div>
+        <div class="info-field">
+          <label>출고창고</label>
+          <span>서울 본창고</span>
+        </div>
+        <div class="info-field">
+          <label>담당자</label>
+          <span>이영업</span>
+        </div>
+        <div class="info-field">
+          <label>합계</label>
+          <span>1,650,000 원</span>
+        </div>
+      </div>
+
+      <!--
+        QA 검증 주석:
+        - UUID(id) 화면 어디에도 노출 X (feedback_uuid_no_user_visibility)
+        - 삭제 버튼 DOM 에 존재 X (canDirectDeleteSales = false for INVENTORY)
+        - 수정 버튼 DOM 에 존재 X (canDirectEditSales = false for INVENTORY)
+        - 인쇄 버튼 존재 여부는 BE/PM 정책 결정
+      -->
+      <p class="permission-note">
+        재고담당(INVENTORY) 역할은 매출 전표 수정 및 삭제 권한이 없습니다. 읽기 전용으로 조회됩니다.
+      </p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

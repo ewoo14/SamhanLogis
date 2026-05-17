@@ -51,6 +51,7 @@ import {
 import axios from 'axios'
 import {
   deletePurchaseSlip,
+  deleteSalesSlip,
   duplicateSlip,
   getSlip,
   removeLine,
@@ -167,6 +168,9 @@ const PURCHASE_DELETE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
 /** SP-08-6-2: 매출 전표 직접 수정 권한 — SALES / MANAGER / MASTER. */
 const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 
+/** SP-08-6-3: 매출 전표 soft delete 권한 — SALES / MANAGER / MASTER. */
+const SALES_DELETE_ROLES = ['SALES', 'MANAGER', 'MASTER']
+
 type PurchaseEditLine = SlipLineInput & { key: string }
 
 function createEditLineKey() {
@@ -232,6 +236,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [purchaseDeleteOpen, setPurchaseDeleteOpen] = useState(false)
   const [purchaseDeleteConflict, setPurchaseDeleteConflict] = useState(false)
   const [purchaseDeleteInspectionAlert, setPurchaseDeleteInspectionAlert] = useState<string | null>(null)
+
+  // SP-08-6-3: 매출 soft delete confirm modal state.
+  const [salesDeleteOpen, setSalesDeleteOpen] = useState(false)
+  const [salesDeleteConflict, setSalesDeleteConflict] = useState(false)
+  const [salesDeleteShippedAlert, setSalesDeleteShippedAlert] = useState<string | null>(null)
 
   // SP-08-6-2: 매출 direct PUT 수정 modal state.
   const [salesEditOpen, setSalesEditOpen] = useState(false)
@@ -512,6 +521,46 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
   })
 
+  /**
+   * SP-08-6-3: 매출 전표 soft delete mutation.
+   * 성공 → 매출 목록(/sales)으로 redirect + list cache invalidate.
+   * 409  → 낙관적 잠금 충돌 배너 (salesDeleteConflict).
+   * 422  → 출고 완료 전표 삭제 불가 alert.
+   * 403  → 권한 없음 alert.
+   */
+  const deleteSalesSlipMutation = useMutation({
+    mutationFn: () => deleteSalesSlip(id, slip.updatedAt),
+    onSuccess: () => {
+      setSalesDeleteOpen(false)
+      setSalesDeleteConflict(false)
+      queryClient.setQueryData(['slip', id], undefined)
+      void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
+      void queryClient.invalidateQueries({ queryKey: ['slips'] })
+      navigate('/sales', {
+        state: { toast: '전표가 삭제되었습니다' },
+      })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+        if (status === 409) {
+          setSalesDeleteConflict(true)
+          return
+        }
+        if (status === 422) {
+          setSalesDeleteShippedAlert('출고 완료된 매출 전표는 삭제할 수 없습니다')
+          return
+        }
+        if (status === 403) {
+          alert('매출 전표 삭제 권한이 없습니다')
+          setSalesDeleteOpen(false)
+          return
+        }
+      }
+      alert('매출 전표 삭제에 실패했습니다.')
+    },
+  })
+
   /** 라인 제거 (BE: DELETE /slips/{id}/lines/{lineId}). DRAFT/SAVED 만 허용. */
   const removeLineMutation = useMutation({
     mutationFn: (lineId: string) => removeLine(id, lineId),
@@ -704,6 +753,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canDirectEditSales = mode === 'OUTBOUND'
     && !!role
     && SALES_EDIT_ROLES.includes(role)
+    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+
+  /**
+   * SP-08-6-3: 매출 전표 soft delete 권한 판단.
+   * - mode = OUTBOUND (출고전표)
+   * - role = SALES / MANAGER / MASTER
+   * - status = SAVED 또는 DRAFT
+   */
+  const canDirectDeleteSales = mode === 'OUTBOUND'
+    && !!role
+    && SALES_DELETE_ROLES.includes(role)
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
@@ -1021,6 +1081,20 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setPurchaseDeleteConflict(false)
                 setPurchaseDeleteInspectionAlert(null)
                 setPurchaseDeleteOpen(true)
+              }}
+            >
+              삭제
+            </Button>
+          ) : null}
+          {canDirectDeleteSales ? (
+            <Button
+              variant="danger"
+              size="sm"
+              data-testid="sales-slip-delete-button"
+              onClick={() => {
+                setSalesDeleteConflict(false)
+                setSalesDeleteShippedAlert(null)
+                setSalesDeleteOpen(true)
               }}
             >
               삭제
@@ -2446,6 +2520,111 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   const result = await refetchDetail()
                   if (result.data) {
                     setPurchaseDeleteConflict(false)
+                  }
+                }}
+              >
+                최신 내용 불러오기
+              </Button>
+            </div>
+          ) : null}
+        </Card>
+      </Modal>
+
+      {/*
+        SP-08-6-3: 매출 전표 삭제 확인 modal.
+        - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
+        - 409 충돌 시 "최신 내용 불러오기" 배너 표시 + refetch 후 재시도.
+        - 422 SHIPPED 시 삭제 불가 안내.
+      */}
+      <Modal
+        open={salesDeleteOpen}
+        onClose={() => {
+          if (!deleteSalesSlipMutation.isPending) {
+            setSalesDeleteOpen(false)
+            setSalesDeleteConflict(false)
+            setSalesDeleteShippedAlert(null)
+          }
+        }}
+        title="매출 전표 삭제"
+        size="sm"
+        data-testid="sales-slip-delete-confirm"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setSalesDeleteOpen(false)
+                setSalesDeleteConflict(false)
+                setSalesDeleteShippedAlert(null)
+              }}
+              disabled={deleteSalesSlipMutation.isPending}
+              data-testid="sales-slip-delete-confirm-no"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deleteSalesSlipMutation.isPending}
+              disabled={deleteSalesSlipMutation.isPending}
+              onClick={() => {
+                if (deleteSalesSlipMutation.isPending) return
+                setSalesDeleteShippedAlert(null)
+                setSalesDeleteConflict(false)
+                deleteSalesSlipMutation.mutate()
+              }}
+              data-testid="sales-slip-delete-confirm-yes"
+            >
+              삭제
+            </Button>
+          </>
+        )}
+      >
+        <Card padding={4} shadow="none">
+          <p style={{ margin: 0, marginBottom: 8, fontSize: 15 }}>
+            정말 삭제하시겠습니까?
+          </p>
+          <p
+            style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 13,
+              color: 'var(--color-neutral-600)',
+            }}
+          >
+            전표번호: <strong>{slip.slipNo}</strong>
+          </p>
+          <p style={{ margin: 0, fontSize: 13 }} className="danger-text">
+            삭제된 전표는 복구할 수 없습니다.
+          </p>
+          {salesDeleteShippedAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-shipped-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteShippedAlert}
+            </div>
+          )}
+          {salesDeleteConflict ? (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-conflict-banner"
+              style={{ marginTop: 12 }}
+            >
+              <strong>다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 시도해 주세요.</strong>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                style={{ marginTop: 8 }}
+                onClick={async () => {
+                  const result = await refetchDetail()
+                  if (result.data) {
+                    setSalesDeleteConflict(false)
                   }
                 }}
               >
