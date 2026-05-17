@@ -393,6 +393,13 @@ export async function updatePartnerOrder(
   return res.data.data
 }
 
+/** 주문 soft delete. */
+export async function deletePartnerOrder(orderNumber: string): Promise<void> {
+  await apiClient.delete(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // long-pending — partner-service M5 (LongPendingScheduler 결과)
 // ---------------------------------------------------------------------------

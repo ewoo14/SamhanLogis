@@ -51,6 +51,7 @@
 - SP-08-3-3: slip 전표정리 저장내역 구현 완료, PR #214 merge. `slip_cleanup_save_history` JSONB 저장내역과 `/slips/cleanup/history` 4 endpoint를 추가하고, `/sales/slip-cleanup` 화면에 실행/저장내역 2탭과 latest 자동 복원/명시 저장을 연결했다.
 - SP-08-3-4: notification 배차문자 미리보기/발송 감사 저장내역 구현 진행. `dispatch_sms_save_history` JSONB 저장내역과 `/admin/notifications/dispatch-sms/history` 4 endpoint를 추가하고, `/arologis/dispatch-sms` 화면에 실행/저장내역 2탭, `AUTO_LATEST`/`MANUAL_NAMED` 미리보기 저장, `SEND_AUDIT` 발송 감사 append를 연결한다.
 - SP-08-4-2: partner-order 주문 수정 direct PUT 구현 진행. 본사 운영자(`SALES / MANAGER / MASTER`)는 `PUT /api/v1/partner-orders/{id}`로 즉시 수정하고, 거래처(`PARTNER`)는 기존 EditRequest 요청/승인 흐름을 유지한다.
+- SP-08-4-3: partner-order 주문 soft delete + 견적 주문 변환 구현 진행. 본사 운영자(`SALES / MANAGER / MASTER`)는 `DELETE /api/v1/partner-orders/{id}`로 `DRAFT / CONFIRMING` 주문을 soft-delete하고, `POST /api/v1/partner-orders/from-estimate/{estimateId}`는 외부 estimate snapshot을 주문 row로 변환하며 `source_estimate_id` 중복을 409로 차단한다.
 - 다음 후보: SP-08 회계/vendor OCR/Aligo 후속 parity.
 
 ## Phase 0 — 저장소·가드 정립

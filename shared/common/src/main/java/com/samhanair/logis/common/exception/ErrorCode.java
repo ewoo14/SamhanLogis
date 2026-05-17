@@ -29,6 +29,12 @@ public enum ErrorCode {
             "주문서가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요."),
     PARTNER_ORDER_UPDATE_INVALID_LINE(HttpStatus.UNPROCESSABLE_ENTITY,
             "주문 라인 입력값이 올바르지 않습니다."),
+    PARTNER_ORDER_DELETE_FORBIDDEN_STATUS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "현재 상태에서는 주문서를 삭제할 수 없습니다."),
+    PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND(HttpStatus.NOT_FOUND,
+            "변환할 견적을 찾을 수 없습니다."),
+    PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,
+            "이미 주문으로 변환된 견적입니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.

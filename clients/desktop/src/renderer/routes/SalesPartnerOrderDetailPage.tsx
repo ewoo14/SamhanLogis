@@ -5,12 +5,13 @@
  * components + 자동 생성 슬립 번호 표시.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
+  deletePartnerOrder,
   getPartnerOrder,
   updatePartnerOrder,
   type PartnerOrderDetail,
@@ -56,10 +57,13 @@ export function SalesPartnerOrderDetailPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const auth = useSessionStore((s) => s.auth)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const canEdit = !!auth?.role && EDIT_ROLES.includes(auth.role)
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
   const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
@@ -98,6 +102,23 @@ export function SalesPartnerOrderDetailPage() {
         return
       }
       setConflictMessage('주문서 수정에 실패했습니다. 입력값을 확인해 주세요.')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePartnerOrder(query.data!.orderNumber),
+    onSuccess: async () => {
+      setDeleteErrorMessage(null)
+      setDeleteOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      navigate('/sales/partner-orders')
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 422) {
+        setDeleteErrorMessage('확정 또는 전표 발행된 주문서는 삭제할 수 없습니다.')
+        return
+      }
+      setDeleteErrorMessage('주문서 삭제에 실패했습니다. 상태를 확인해 주세요.')
     },
   })
 
@@ -180,6 +201,19 @@ export function SalesPartnerOrderDetailPage() {
                 }}
               >
                 수정
+              </Button>
+            ) : null}
+            {query.data && canEdit ? (
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="partner-order-delete-open"
+                onClick={() => {
+                  setDeleteErrorMessage(null)
+                  setDeleteOpen(true)
+                }}
+              >
+                삭제
               </Button>
             ) : null}
             <Link to="/sales/partner-orders" className={styles['btnGhost']}>
@@ -475,6 +509,47 @@ export function SalesPartnerOrderDetailPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </Modal>
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="주문서 삭제"
+        size="sm"
+        footer={(
+          <>
+            <Button type="button" variant="secondary" onClick={() => setDeleteOpen(false)}>
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="partner-order-delete-confirm"
+              disabled={deleteMutation.isPending || !query.data}
+              onClick={() => {
+                if (!query.data) return
+                deleteMutation.mutate()
+              }}
+            >
+              삭제
+            </Button>
+          </>
+        )}
+      >
+        <div data-testid="partner-order-delete-confirm-dialog">
+          <p>
+            주문서 {query.data?.orderNumber ?? ''}를 삭제하시겠습니까?
+          </p>
+          <p>삭제 후 목록과 상세 조회에서 제외됩니다.</p>
+          {deleteErrorMessage ? (
+            <div
+              className={styles['errorBanner']}
+              role="alert"
+              data-testid="partner-order-delete-error"
+            >
+              {deleteErrorMessage}
+            </div>
+          ) : null}
         </div>
       </Modal>
     </div>

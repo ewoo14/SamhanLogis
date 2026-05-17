@@ -3292,6 +3292,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'DELETE' && partnerOrderDetailMatch) {
+    return envelope(null)
+  }
+
   const partnerOrderAuditMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/audit-logs/)
   if (method === 'GET' && partnerOrderAuditMatch) {
     return envelope([

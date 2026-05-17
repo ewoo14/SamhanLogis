@@ -1974,3 +1974,19 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-4-2-06 | `PartnerOrder`에는 direct PUT 전용 `due_date`, `memo` nullable 컬럼을 추가한다. 기존 row backfill은 하지 않는다. |
 | SP-08-4-2-07 | `partnerName`처럼 현재 entity 컬럼이 없는 필드는 기존 SP-08-4-1 정책대로 null 유지 + `@JsonInclude(NON_NULL)` 직렬화 제외를 유지한다. |
 | SP-08-4-2-08 | desktop 수정 form은 design-system `Input / Select / Modal / Button`으로 구성하며, 운영자 화면 라벨은 한국어만 사용한다. |
+
+### SP-08-4-3. 거래처 주문 soft delete + 견적 주문 변환 endpoint (2026-05-17)
+
+**배경**: SP-08-4 주문 CRUD parity 중 D1 삭제와 C1 견적→주문 변환을 `partner-order-service` REST API로 잠근다. legacy GAS row 삭제는 물리 삭제가 아니라 BaseEntity soft-delete 정책으로 이관한다.
+
+| 결정 ID | 결정 |
+|---|---|
+| SP-08-4-3-01 | 주문 삭제 endpoint는 `DELETE /api/v1/partner-orders/{id}`로 둔다. path `{id}`는 주문번호(`YYYY/MM/DD-N` 또는 안전 path `YYYY-MM-DD-N`)와 내부 UUID를 모두 허용하되 화면에는 주문번호만 표시한다. |
+| SP-08-4-3-02 | 삭제 권한은 `SALES / MANAGER / MASTER`로 제한한다. `PARTNER` role direct DELETE 접근은 403이다. |
+| SP-08-4-3-03 | 삭제 가능 상태는 `DRAFT / CONFIRMING`으로 제한한다. `CONFIRMED` 또는 전표 발행 주문은 `PARTNER_ORDER_DELETE_FORBIDDEN_STATUS` 422로 거절한다. |
+| SP-08-4-3-04 | 삭제는 `PartnerOrder.markDeleted("system-partner-order-delete")`와 라인 전체 `markDeleted`만 사용한다. 컬렉션 remove / hard delete / orphan removal은 사용하지 않는다. |
+| SP-08-4-3-05 | 삭제 성공 시 `partner_order_audit_logs`에 `DELETE` action을 1 revision으로 기록한다. |
+| SP-08-4-3-06 | 견적→주문 변환 endpoint는 `POST /api/v1/partner-orders/from-estimate/{estimateId}`로 둔다. 권한은 `SALES / MANAGER / MASTER`다. |
+| SP-08-4-3-07 | `partner_orders.source_estimate_id` nullable 컬럼과 active unique index로 이미 변환된 estimate 재시도를 `PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED` 409로 차단한다. |
+| SP-08-4-3-08 | 현재 partner-order-service에서 호출 가능한 estimate-service client가 없어 `EstimateClient` port + 기본 empty fixture로 계약을 먼저 둔다. IT는 `@MockBean` snapshot으로 실제 변환 계약을 검증하고, 실제 HTTP client는 후속 estimate-service 분리 시 교체한다. |
+| SP-08-4-3-09 | desktop 본 PR 범위는 주문 상세 삭제 버튼/확인 Modal만 포함한다. 견적 변환 UI는 외부 `estimate-app` 흐름과 분리되어 후속 슬라이스에서 다룬다. |

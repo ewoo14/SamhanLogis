@@ -1,8 +1,44 @@
 # 현재 작업 핸드오프 노트
 
-## 2026-05-17 SP-08-3-4 머지 완료 + SP-08-3 시리즈 종료 + SP-08-4 진입
+## 2026-05-17 Codex 진행 — SP-08-4-3 주문 soft delete + 견적 주문 변환
 
-- **현재 main HEAD**: `601f1891 [FEAT] SP-08-3-4 배차문자 preview+send+audit 저장내역 (#215)`
+- 현재 branch: `feat/sp-08-4-3-order-delete-and-estimate-convert`
+- 기준 main HEAD: `0ead89bd [FEAT] SP-08-4-2 주문 수정 direct PUT endpoint + optimistic lock (#217)`
+- 범위:
+  - `DELETE /api/v1/partner-orders/{id}` soft delete endpoint.
+  - `POST /api/v1/partner-orders/from-estimate/{estimateId}` endpoint.
+  - `partner_orders.source_estimate_id` nullable + active unique.
+  - desktop 주문 상세 `삭제` 버튼 + 확인 Modal.
+  - Playwright static contract, QA PNG generator, dev-report/README/ROADMAP/DECISIONS/service README 동기화.
+- 정책:
+  - 삭제 가능 status는 `DRAFT / CONFIRMING`, `CONFIRMED` 이후는 422.
+  - estimate-service 실제 client 부재로 `EstimateClient` port + 기본 empty fixture를 두고, IT는 `@MockBean` snapshot으로 검증.
+- 다음 단계:
+  - targeted IT, desktop typecheck/lint, Playwright static spec, QA PNG, `git diff --check` 실행.
+  - 검증 후 한국어 conventional commit. push는 Claude PM이 처리.
+
+---
+
+## 2026-05-17 SP-08-4-2 머지 완료 (PR #217) + SP-08-4-3 진입
+
+- **현재 main HEAD**: `0ead89bd [FEAT] SP-08-4-2 주문 수정 direct PUT endpoint + optimistic lock (#217)`
+- **SP-08-4-2 완료**: 사이클 6.5 fix + 머지 (사용자 4회차 정정 후 본 PR 예외 — 다음 PR 부터 N=3 제한 엄격 적용)
+- **메모리 정정 누적** (PR #217 진행 중 4회차):
+  - Claude 5 + Codex 5 양쪽 reviewer (Plugin 1회 통합 폐기)
+  - Codex CLI MCP `mcp__codex__codex` 사용 (Plugin 폐기)
+  - TM 통합 2 PR comment / 사이클 (각자 5+5=10 별도 등록 폐기)
+  - **사이클 N=3 안 완료 의무** (사이클 4+ 진입 금지)
+- **다음 슬라이스 SP-08-4-3** (master plan `docs/planning/2026-05-17_sp-08-4-order-crud-parity.md` §3.3):
+  - **D1**: `DELETE /api/v1/partner-orders/{id}` soft delete (deletedAt + deletedBy)
+  - **C1**: `POST /api/v1/partner-orders/from-estimate/{estimateId}` 견적→주문 변환 정식 endpoint
+  - SP-07 견적 source tab 정합 cross-check (Playwright 정적 계약)
+- **진입 패턴**: codex CLI MCP workspace-write 자율 dispatch → push → Claude PM PR 발행 → 사이클 1/2/3 양쪽 review + TM 통합 → N=3 안 머지
+
+---
+
+## 2026-05-17 SP-08-3-4 머지 완료 + SP-08-3 시리즈 종료 + SP-08-4 진입 (이전 기록)
+
+- **이전 main HEAD**: `601f1891 [FEAT] SP-08-3-4 배차문자 preview+send+audit 저장내역 (#215)`
 - **SP-08-3 시리즈 4 슬라이스 완료**:
   - SP-08-3-1 기반 잠금 (PR #211/#212)
   - SP-08-3-2 arologis 4 화면 (PR #213, `ca5668fd`)

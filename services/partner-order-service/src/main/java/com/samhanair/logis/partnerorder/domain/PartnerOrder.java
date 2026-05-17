@@ -90,6 +90,10 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "memo", length = 1000)
     private String memo;
 
+    /** 견적 -> 주문 변환 source estimate UUID. 변환 주문만 채운다. */
+    @Column(name = "source_estimate_id")
+    private UUID sourceEstimateId;
+
     /** JPA optimistic lock version. modifiedAt 비교는 사용자 메시지용으로 별도 유지한다. */
     @Version
     @Column(name = "lock_version", nullable = false)
@@ -147,6 +151,24 @@ public class PartnerOrder extends BaseEntity {
     public static PartnerOrder create(String partnerCode, String bizCode, String orderNo,
                                       String idempotencyKey, BigDecimal totalAmount) {
         return new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+    }
+
+    /**
+     * 견적 snapshot 을 거래처 주문으로 변환한다.
+     *
+     * <p>source estimate 는 외부 estimate-service UUID 이며, 본 service 는 logical reference 로만 보존한다.
+     */
+    public static PartnerOrder createFromEstimate(String partnerCode, String bizCode, String orderNo,
+                                                  String idempotencyKey, BigDecimal totalAmount,
+                                                  UUID sourceEstimateId, LocalDate dueDate, String memo) {
+        if (sourceEstimateId == null) {
+            throw new IllegalArgumentException("sourceEstimateId 필수");
+        }
+        PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        order.sourceEstimateId = sourceEstimateId;
+        order.dueDate = dueDate;
+        order.memo = memo == null || memo.isBlank() ? null : memo.trim();
+        return order;
     }
 
     /** 라인 추가 — bidirectional 관계 동기화 + totalAmount 자동 누적. */
@@ -215,6 +237,16 @@ public class PartnerOrder extends BaseEntity {
             addLine(line);
         }
         recomputeTotal();
+    }
+
+    /** 주문 헤더와 전체 라인을 soft-delete 처리한다. */
+    public void softDeleteCascade(String actor) {
+        markDeleted(actor);
+        for (PartnerOrderLine line : this.lines) {
+            if (line.getDeletedAt() == null) {
+                line.markDeleted(actor);
+            }
+        }
     }
 
     /**
