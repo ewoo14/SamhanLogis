@@ -8,6 +8,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PartnerOrderLineRepository extends JpaRepository<PartnerOrderLine, UUID> {
-    /** PartnerOrder 의 모든 라인 조회 (cascade 외 별도 사용). */
+    /** PartnerOrder 의 active 라인 조회 ({@code @SQLRestriction("is_deleted = false")} 자동 적용). */
     List<PartnerOrderLine> findAllByPartnerOrder_Id(UUID partnerOrderId);
 }

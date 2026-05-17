@@ -266,7 +266,7 @@ export function SalesPartnerOrderDetailPage() {
                   <tbody>
                     {(query.data.lines ?? []).map((line, index) => (
                       <tr key={`${line.modelCode}-${line.productName}-${index}`}>
-                        <td style={{ textAlign: 'left' }}>{line.productName}</td>
+                        <td className={styles['tdLeft']}>{line.productName}</td>
                         <td>{line.modelCode}</td>
                         <td>{line.quantity}</td>
                         <td className="numeric">{krw(line.deliveryPrice)}</td>
@@ -278,7 +278,7 @@ export function SalesPartnerOrderDetailPage() {
                             '-'
                           )}
                         </td>
-                        <td className={styles['expandedComponentText']} style={{ textAlign: 'left' }}>
+                        <td className={styles['expandedComponentText']}>
                           {line.expandedComponents.length === 0
                             ? '-'
                             : line.expandedComponents.map((c) => (

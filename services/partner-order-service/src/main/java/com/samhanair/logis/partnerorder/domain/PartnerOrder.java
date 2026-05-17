@@ -196,6 +196,8 @@ public class PartnerOrder extends BaseEntity {
      * <p>{@code orphanRemoval = false} 는 soft-delete 전략을 지키기 위한 명시 설정이다.
      * 라인 제거는 컬렉션 {@code remove()} 가 아니라 {@link BaseEntity#markDeleted(String)} 만 사용하며,
      * {@code @SQLRestriction("is_deleted = false")} 가 SELECT 시점에 deleted line 을 필터링한다.
+     * 기존 active 라인만 markDeleted 처리한다. markDeleted 는 {@code isDeleted=true} 와 {@code deletedAt} 을 함께 세팅하여
+     * {@code @SQLRestriction("is_deleted = false")} 와 정합을 유지하고, {@code deletedAt == null} 가드는 재처리를 방지한다.
      *
      * @param replacementLines 새 주문 라인 snapshot
      */
