@@ -49,7 +49,8 @@ PC 이동 직전에 반드시 갱신:
 
 ## 3. 회사 PC 첫 셋업
 
-- **[docs/dev-environment-setup-multi-pc.md](docs/dev-environment-setup-multi-pc.md)** — 회사 PC 1회 셋업 가이드 (`.env`, Docker, 이카운트 raw 재다운로드 등)
+- **[docs/dev-environment-setup-multi-pc.md](docs/dev-environment-setup-multi-pc.md)** — 회사 PC 1회 셋업 가이드 (`.env`, Docker, 이카운트 raw 재다운로드, **§7 Codex Plugin 셋업** 등)
+- **[scripts/setup-codex-plugin.ps1](scripts/setup-codex-plugin.ps1)** — codex plugin Windows sandbox 자동 셋업 (양 PC 각 1회 실행)
 
 ---
 
@@ -65,3 +66,4 @@ PC 이동 직전에 반드시 갱신:
 - **아로로지스 독립 운영 단위** ([project_arologis_independent.md](.claude/memory/project_arologis_independent.md)) — 2026-05-14
 - **아로로지스 명칭 규칙** ([feedback_arologis_name.md](.claude/memory/feedback_arologis_name.md)) — 한국어 표기 "아로로지스" 정식
 - **Samhan Public 명칭 규칙** ([feedback_samhan_public_name.md](.claude/memory/feedback_samhan_public_name.md)) — 외부 호칭 통일
+- **Codex Plugin 셋업** ([feedback_codex_plugin_setup.md](.claude/memory/feedback_codex_plugin_setup.md)) — 2026-05-17. `[windows] sandbox = "unelevated"` 필수 (UAC trap). PowerShell + codex CLI 우회 영구 폐기.

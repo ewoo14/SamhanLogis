@@ -145,3 +145,63 @@ git push
 - [feedback_korean_path_jdk.md](../.claude/memory/feedback_korean_path_jdk.md) — 한글 경로 회피
 - [feedback_powershell_utf8_writes.md](../.claude/memory/feedback_powershell_utf8_writes.md) — PowerShell UTF-8 트랩
 - [feedback_gradlew_exec_bit.md](../.claude/memory/feedback_gradlew_exec_bit.md) — gradlew 실행 권한
+- [feedback_codex_plugin_setup.md](../.claude/memory/feedback_codex_plugin_setup.md) — codex plugin Windows sandbox 셋업
+
+---
+
+## 7. Codex Plugin 셋업 (2026-05-17 신규 — Claude Code 정식 plugin)
+
+`openai/codex-plugin-cc` 정식 plugin 설치 후 **PowerShell + codex CLI 우회 영구 폐기**. classifier 차단 회피 + 한국어 prompt 깨짐 (cp949) 회피.
+
+### 7-A. 첫 셋업 (양 PC 각 1회)
+
+```powershell
+# 1. codex CLI 설치 (npm)
+npm install -g @openai/codex
+
+# 2. ChatGPT 로그인 (브라우저 열림)
+codex login
+
+# 3. ~/.codex/config.toml 자동 설정 (Windows sandbox unelevated + SamhanLogis trust)
+.\scripts\setup-codex-plugin.ps1
+```
+
+### 7-B. Claude Code 세션 안에서 plugin 설치
+
+```
+/plugin marketplace add openai/codex-plugin-cc
+/plugin install codex@openai-codex
+/reload-plugins
+```
+
+### 7-C. 검증
+
+```
+/codex:setup
+```
+
+예상 출력:
+```
+codex: codex-cli 0.130.0; advanced runtime available
+auth: ChatGPT login active for <email>
+sessionRuntime: direct startup
+```
+
+### 7-D. Windows sandbox 트랩 (중요)
+
+`~/.codex/config.toml` 기본값 `[windows] sandbox = "elevated"` 는 일반 user account 에서 **`CreateProcessWithLogonW failed: 5`** UAC 권한 부족 → plugin task 호출 시 sandbox spawn fail 로 file 변경 0건. `setup-codex-plugin.ps1` 가 자동으로 `"unelevated"` 로 교정.
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `codex:rescue` 호출 시 "apply_patch 실패" / "0 files changed" | `[windows] sandbox = "elevated"` | `.\scripts\setup-codex-plugin.ps1` 재실행 |
+| `/codex:setup` 가 `Codex unavailable` | codex CLI 미설치 또는 PATH 누락 | `npm install -g @openai/codex` |
+| Auth `loggedIn: false` | ChatGPT 로그인 만료 | `! codex login` (Claude 세션 안에서) |
+
+### 7-E. Plugin 사용법
+
+- **fix 위임**: Claude 가 자동으로 `codex:codex-rescue` subagent 호출 (Agent tool)
+- **review 위임**: `/codex:review` 슬래시 커맨드
+- **adversarial review**: `/codex:adversarial-review`
+- **상태/취소**: `/codex:status`, `/codex:cancel`
+
+Plugin tool 노출 후 PowerShell `codex exec --dangerously-bypass-approvals-and-sandbox` 호출은 더 이상 사용 안 함.
