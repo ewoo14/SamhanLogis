@@ -97,7 +97,25 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.updatedAt").exists())
                 .andExpect(jsonPath("$.data.lines.length()").value(2))
                 .andExpect(jsonPath("$.data.lines[0].quantity").value(3))
+                .andExpect(jsonPath("$.data.lines[0].categoryKey").value("homemulti"))
+                .andExpect(jsonPath("$.data.lines[1].categoryKey").value("singleSets"))
                 .andExpect(jsonPath("$.data.lines[1].productName").value("벽걸이 실내기"));
+
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
+                .extracting("fieldName")
+                .contains("납기", "요청사항", "주문 라인");
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
+                .filteredOn(log -> "요청사항".equals(log.getFieldName()))
+                .extracting("oldValue", "newValue")
+                .containsExactly(org.assertj.core.api.Assertions.tuple(null, "오전 납품 요청"));
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
+                .filteredOn(log -> "납기".equals(log.getFieldName()))
+                .extracting("oldValue", "newValue")
+                .containsExactly(org.assertj.core.api.Assertions.tuple(null, "2026-05-30"));
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
+                .filteredOn(log -> "주문 라인".equals(log.getFieldName()))
+                .extracting(log -> log.getNewValue())
+                .allMatch(value -> value.toString().contains("AR09B9150HZ/벽걸이 실내기/1/310000"));
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
                         .header("X-User-Name", "영업담당자")
@@ -105,7 +123,9 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                         .content(updateJson(currentModifiedAt(order.getId()), 3)))
                 .andExpect(status().isOk());
 
-        org.assertj.core.api.Assertions.assertThat(auditLogRepository.count()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
+                .extracting("fieldName")
+                .contains("납기", "요청사항", "주문 라인");
     }
 
     @Test

@@ -3248,6 +3248,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           modelCode: 'AJ040RXH4BC1',
           productName: '실외기',
+          categoryKey: 'homemulti',
           quantity: 2,
           deliveryPrice: 120000,
           subtotal: 240000,
@@ -3281,6 +3282,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       lines: body?.lines?.map((line: Record<string, unknown>) => ({
         modelCode: line['modelCode'],
         productName: line['productName'],
+        categoryKey: line['categoryKey'],
         quantity: line['quantity'],
         deliveryPrice: line['deliveryPrice'],
         subtotal: Number(line['quantity']) * Number(line['deliveryPrice']),
@@ -3295,9 +3297,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope([
       {
         revisionNo: 1,
-        fieldName: '주문 수정',
-        oldValue: '이전 주문',
-        newValue: '수정 완료',
+        fieldName: '요청사항',
+        oldValue: '5/5 오전 배송 부탁드립니다',
+        newValue: '오전 납품 요청',
         actorId: 'hidden',
         actorName: '영업담당자',
         changedAt: '2026-05-17T10:05:00',

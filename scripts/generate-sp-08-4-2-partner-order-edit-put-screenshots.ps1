@@ -1,3 +1,5 @@
+# Windows-only (System.Drawing GDI+)
+# PowerShell mock QA screenshots for SP-08-4-2 partner order edit PUT.
 Add-Type -AssemblyName System.Drawing
 
 $ErrorActionPreference = "Stop"

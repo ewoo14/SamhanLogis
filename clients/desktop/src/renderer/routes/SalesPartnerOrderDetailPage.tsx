@@ -12,11 +12,11 @@ import { Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   getPartnerOrder,
-  listPartnerOrderAuditLogs,
   updatePartnerOrder,
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
 } from '../api/sales'
+import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { useSessionStore } from '../stores/session'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
@@ -36,7 +36,7 @@ function toEditLines(order: PartnerOrderDetail): EditLine[] {
   return order.lines.map((line) => ({
     modelCode: line.modelCode,
     productName: line.productName,
-    categoryKey: 'homemulti',
+    categoryKey: line.categoryKey ?? 'homemulti',
     quantity: line.quantity,
     deliveryPrice: line.deliveryPrice,
     remark: null,
@@ -67,7 +67,7 @@ export function SalesPartnerOrderDetailPage() {
 
   const auditQuery = useQuery({
     queryKey: ['partner-order', id, 'audit-logs'],
-    queryFn: () => listPartnerOrderAuditLogs(query.data!.orderNumber),
+    queryFn: () => partnerOrderAuditApi.listAuditLogs(query.data!.orderNumber),
     enabled: !!query.data?.orderNumber,
     retry: 1,
   })
@@ -175,32 +175,32 @@ export function SalesPartnerOrderDetailPage() {
               <div className={styles['formGrid']}>
                 <div className={styles['formField']}>
                   <label>거래처 코드</label>
-                  <input readOnly value={query.data.partnerCode} />
+                  <Input aria-label="거래처 코드" readOnly inputSize="sm" value={query.data.partnerCode} />
                 </div>
                 <div className={styles['formField']}>
                   <label>연결 전표</label>
-                  <input readOnly value={query.data.linkedSlipNo ?? '-'} />
+                  <Input aria-label="연결 전표" readOnly inputSize="sm" value={query.data.linkedSlipNo ?? '-'} />
                 </div>
                 <div className={styles['formField']}>
                   <label>배송지</label>
-                  <input readOnly value={query.data.deliveryAddress ?? '-'} />
+                  <Input aria-label="배송지" readOnly inputSize="sm" value={query.data.deliveryAddress ?? '-'} />
                 </div>
                 <div className={styles['formField']}>
                   <label>현장</label>
-                  <input readOnly value={query.data.siteAddress ?? '-'} />
+                  <Input aria-label="현장" readOnly inputSize="sm" value={query.data.siteAddress ?? '-'} />
                 </div>
                 <div className={styles['formField']}>
                   <label>연락처</label>
-                  <input readOnly value={query.data.contactPhone ?? '-'} />
+                  <Input aria-label="연락처" readOnly inputSize="sm" value={query.data.contactPhone ?? '-'} />
                 </div>
                 <div className={styles['formField']}>
                   <label>납기</label>
-                  <input readOnly value={query.data.dueDate ?? '-'} />
+                  <Input aria-label="납기" readOnly inputSize="sm" value={query.data.dueDate ?? '-'} />
                 </div>
                 {query.data.memo ? (
                   <div className={styles['formField']} style={{ gridColumn: '1 / -1' }}>
                     <label>요청사항</label>
-                    <textarea readOnly value={query.data.memo} rows={3} />
+                    <Input aria-label="요청사항" readOnly inputSize="sm" value={query.data.memo} />
                   </div>
                 ) : null}
               </div>

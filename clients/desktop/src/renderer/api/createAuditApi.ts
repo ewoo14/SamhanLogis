@@ -51,13 +51,38 @@ export interface AuditApi {
   revertToRevision: (entityId: string, revisionNo: number) => Promise<RevertResponse>
 }
 
+interface RawAuditLogEntry {
+  revisionNo: number
+  field?: string
+  fieldName?: string
+  beforeValue?: string | null
+  oldValue?: string | null
+  afterValue?: string | null
+  newValue?: string | null
+  actorId: string
+  actorName: string
+  changedAt: string
+}
+
+function normalizeAuditLogEntry(entry: RawAuditLogEntry): AuditLogEntry {
+  return {
+    revisionNo: entry.revisionNo,
+    field: entry.field ?? entry.fieldName ?? '',
+    beforeValue: entry.beforeValue ?? entry.oldValue ?? null,
+    afterValue: entry.afterValue ?? entry.newValue ?? null,
+    actorId: entry.actorId,
+    actorName: entry.actorName,
+    changedAt: entry.changedAt,
+  }
+}
+
 export function createAuditApi(config: AuditApiConfig): AuditApi {
   return {
     async listAuditLogs(entityId) {
-      const res = await apiClient.get<ApiEnvelope<AuditLogEntry[]>>(
+      const res = await apiClient.get<ApiEnvelope<RawAuditLogEntry[]>>(
         config.listPath(entityId),
       )
-      return res.data.data
+      return res.data.data.map(normalizeAuditLogEntry)
     },
     async revertToRevision(entityId, revisionNo) {
       if (!config.revertPath) {

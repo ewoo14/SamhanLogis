@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderListFilter;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderSummaryResponse;
@@ -56,9 +57,7 @@ public class PartnerOrderQueryService {
      * @throws BusinessException 주문이 없거나 soft-delete 된 경우
      */
     public PartnerOrderDetailResponse findDetailById(String id) {
-        PartnerOrder order = partnerOrderRepository.findByOrderNo(id)
-                .or(() -> partnerOrderRepository.findByOrderNo(toSlashOrderNo(id)))
-                .or(() -> findByUuid(id))
+        PartnerOrder order = PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
@@ -124,14 +123,6 @@ public class PartnerOrderQueryService {
         };
     }
 
-    private java.util.Optional<PartnerOrder> findByUuid(String value) {
-        try {
-            return partnerOrderRepository.findById(java.util.UUID.fromString(value));
-        } catch (RuntimeException ignored) {
-            return java.util.Optional.empty();
-        }
-    }
-
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -143,14 +134,4 @@ public class PartnerOrderQueryService {
         return "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
     }
 
-    private String toSlashOrderNo(String value) {
-        if (value == null || value.length() < 11) {
-            return value;
-        }
-        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
-            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/"
-                    + value.substring(8);
-        }
-        return value;
-    }
 }

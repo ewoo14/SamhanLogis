@@ -6,6 +6,7 @@ import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogServic
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
@@ -58,15 +59,13 @@ public class PartnerOrderUpdateService {
         order.replaceLines(request.lines().stream().map(this::toLine).toList());
         PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
-        auditLogService.recordBatch(saved.getId(), actorId, actorName, null, changes);
+        auditLogService.recordBatch(saved, actorId, actorName, null, changes);
         partnerOrderRepository.flush();
         return PartnerOrderDetailResponse.from(saved);
     }
 
     private PartnerOrder load(String id) {
-        return partnerOrderRepository.findByOrderNo(id)
-                .or(() -> partnerOrderRepository.findByOrderNo(toSlashOrderNo(id)))
-                .or(() -> findByUuid(id))
+        return PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
@@ -119,9 +118,7 @@ public class PartnerOrderUpdateService {
         String oldLines = summarizeLines(order.getLines());
         String newLines = summarizeRequestLines(request.lines());
         addIfChanged(changes, "주문 라인", oldLines, newLines);
-        return changes.isEmpty()
-                ? List.of()
-                : List.of(new ChangeEntry("주문 수정", "이전 주문", "수정 완료"));
+        return changes;
     }
 
     private void addIfChanged(List<ChangeEntry> changes, String fieldName, String oldValue, String newValue) {
@@ -165,21 +162,4 @@ public class PartnerOrderUpdateService {
         return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8));
     }
 
-    private java.util.Optional<PartnerOrder> findByUuid(String value) {
-        try {
-            return partnerOrderRepository.findById(UUID.fromString(value));
-        } catch (RuntimeException ignored) {
-            return java.util.Optional.empty();
-        }
-    }
-
-    private String toSlashOrderNo(String value) {
-        if (value == null || value.length() < 11) {
-            return value;
-        }
-        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
-            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
-        }
-        return value;
-    }
 }

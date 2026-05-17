@@ -1,6 +1,6 @@
 # SP-08-4-2 Partner Order direct PUT endpoint
 
-작성일: 2026-05-17  
+작성일: 2026-05-17
 브랜치: `feat/sp-08-4-2-partner-order-edit-put`
 
 ## 1. Gap 분석
@@ -66,8 +66,8 @@
 | Spring targeted | `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderUpdate*" --tests "*PartnerOrderEdit*" --no-daemon --rerun-tasks` | PASS: 6 tests / 0 failed / 0 skipped |
 | Desktop typecheck | `npm run typecheck` | PASS |
 | Desktop lint | `npm run lint` | PASS: 0 errors / 2 existing warnings |
-| Desktop build | `npm run build` | BLOCKED: Node `child_process.spawn` EPERM at electron-vite/esbuild |
-| Playwright | `npx playwright test playwright/sp-08-4-2-partner-order-edit-put --reporter=line` | BLOCKED: Node worker spawn EPERM |
+| Desktop build | `npm run build` | PASS (exit 0, 사이클 1.5 재실행 시 정상) |
+| Playwright | `npx playwright test playwright/sp-08-4-2-partner-order-edit-put --reporter=line` | PASS — 4 passed, 0 skipped, 0 failed (3.3s) |
 | QA PNG | `.\scripts\generate-sp-08-4-2-partner-order-edit-put-screenshots.ps1` | PASS: 4 PNG / non-zero |
 | diff whitespace | `git diff --check` | PASS: whitespace error 0, CRLF warnings only |
 

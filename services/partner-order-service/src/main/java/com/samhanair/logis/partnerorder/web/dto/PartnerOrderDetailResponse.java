@@ -65,6 +65,7 @@ public record PartnerOrderDetailResponse(
      *
      * @param modelCode 사용자 표시 모델명.
      * @param productName 품목명.
+     * @param categoryKey legacy 품목 카테고리 key.
      * @param quantity 수량.
      * @param deliveryPrice 납품 단가.
      * @param subtotal 라인 소계.
@@ -74,6 +75,7 @@ public record PartnerOrderDetailResponse(
     public record LineResponse(
             String modelCode,
             String productName,
+            String categoryKey,
             int quantity,
             BigDecimal deliveryPrice,
             BigDecimal subtotal,
@@ -84,6 +86,7 @@ public record PartnerOrderDetailResponse(
             return new LineResponse(
                     line.getModelName(),
                     line.getProductName(),
+                    line.getCategoryKey(),
                     line.getQuantity(),
                     line.getPriceVat(),
                     line.getSubtotal(),

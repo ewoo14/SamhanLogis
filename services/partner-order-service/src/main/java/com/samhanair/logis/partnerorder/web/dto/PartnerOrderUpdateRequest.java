@@ -1,6 +1,5 @@
 package com.samhanair.logis.partnerorder.web.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -17,7 +16,6 @@ import java.util.List;
  * 교체한다. {@code updatedAt} 은 상세 조회 시점의 {@code modifiedAt} 값이며 낙관적 잠금 비교에
  * 사용한다.
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record PartnerOrderUpdateRequest(
         @NotNull LocalDateTime updatedAt,
         @NotBlank String partnerCode,
@@ -31,7 +29,6 @@ public record PartnerOrderUpdateRequest(
      * 주문 수정 라인. {@code productId} 는 화면에 노출하지 않는 내부 참조라 요청 DTO 에 포함하지 않고,
      * service 가 모델명/품목명 기반 stable reference 로 보정한다.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record LineRequest(
             @NotBlank String modelCode,
             @NotBlank String productName,

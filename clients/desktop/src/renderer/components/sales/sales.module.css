@@ -5,8 +5,8 @@
  * table + button + chip + ratio 토큰을 100% 보존 방식으로 옮긴다.
  *
  * F1 (a) 100% 보존 결정 (Phase 6) — DS 컴포넌트 import 금지, 토큰만 활용.
- * 본 모듈은 desktop 전체 :root 토큰 (Pretendard / brand-500 등) 보다 우선해
- * legacy 의 system-ui / #2563eb / #11182710 등 색감을 직접 사용한다.
+ * 본 모듈은 desktop 전체 :root 토큰 (Pretendard / brand-500 등) 을 기반으로
+ * legacy 의 #2563eb / #11182710 등 색감을 직접 사용한다.
  *
  * 후속 모바일 대응 시 768/480 breakpoint 를 추가.
  */
@@ -21,7 +21,7 @@
   --c-accent: #2563eb;
   --row-h: 40px;
   --inp-h: 30px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-family-sans);
   color: var(--c-strong);
   background: var(--c-bg);
 }
