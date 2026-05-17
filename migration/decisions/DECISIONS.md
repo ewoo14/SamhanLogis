@@ -4,6 +4,19 @@
 
 ---
 
+## SP-08-5 매입 CRUD + 입고 검수 CTA parity 결정 (2026-05-17)
+
+**배경**: SP-08-4 주문 CRUD parity가 PR #216~#219로 완료된 뒤, legacy GAS 구매/매입 시트의 CRUD 및 입고 검수 CTA 흐름을 `slip-service`와 `inventory-service`에 잠그기 위해 SP-08-5를 시작한다. SP-03에서 복구한 구매관리 검수 CTA 권한/표시 정책은 회귀 금지 대상이다.
+
+| 결정 | 내용 |
+|---|---|
+| SP-08-5-01 | 매입/구매전표는 별도 `PurchaseSlip` entity를 만들지 않고 `slip-service` `Slip(type=INBOUND)`를 사용한다. |
+| SP-08-5-02 | R1 매입 목록은 gateway 기준 `GET /api/v1/slips?type=INBOUND&from=&to=&page=&size=`로 잠근다. service 내부 path는 `/slips`이며 기존 `slipType=INBOUND`와 legacy alias `type=INBOUND`를 모두 수용한다. |
+| SP-08-5-03 | R1 목록 기본 정렬은 `slipDate DESC, seqNo DESC`로 둔다. legacy 문서의 `receivedAt DESC` 의미는 현재 전표 도메인에서는 전표일자 최신순으로 해석한다. |
+| SP-08-5-04 | R1/R2 매입 조회 권한은 SP-03 검수 CTA와 동일하게 `WAREHOUSE / MANAGER / MASTER`만 허용한다. `INVENTORY`는 구매관리 검수 CTA 표면에서 제외하므로 매입 R1/R2에서도 403으로 잠근다. |
+| SP-08-5-05 | R2 매입 상세는 `GET /api/v1/slips/{id}` 기존 상세 응답을 사용하되 INBOUND 전표에 `inspectionStatus`를 포함한다. `SAVED / CONFIRMED`는 `READY`, 그 외는 `NOT_READY`다. |
+| SP-08-5-06 | SP-08-5 모든 슬라이스는 SP-03 `PurchaseQueryPage` 검수 CTA, UUID 비공개, 한국어 운영 문구, `@MockBean` 외부 client 격리, N=3 + 5회차 review/fix 워크플로우를 적용한다. |
+
 ## SP-08-4 주문 CRUD parity 결정 (2026-05-17)
 
 ### D-SP084-04. 주문 인쇄 양식은 BE HTML 직접 응답으로 고정

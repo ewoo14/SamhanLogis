@@ -52,8 +52,9 @@
 - SP-08-3-4: notification 배차문자 미리보기/발송 감사 저장내역 구현 진행. `dispatch_sms_save_history` JSONB 저장내역과 `/admin/notifications/dispatch-sms/history` 4 endpoint를 추가하고, `/arologis/dispatch-sms` 화면에 실행/저장내역 2탭, `AUTO_LATEST`/`MANUAL_NAMED` 미리보기 저장, `SEND_AUDIT` 발송 감사 append를 연결한다.
 - SP-08-4-2: partner-order 주문 수정 direct PUT 구현 진행. 본사 운영자(`SALES / MANAGER / MASTER`)는 `PUT /api/v1/partner-orders/{id}`로 즉시 수정하고, 거래처(`PARTNER`)는 기존 EditRequest 요청/승인 흐름을 유지한다.
 - SP-08-4-3: partner-order 주문 soft delete + 견적 주문 변환 구현 진행. 본사 운영자(`SALES / MANAGER / MASTER`)는 `DELETE /api/v1/partner-orders/{id}`로 `DRAFT / CONFIRMING` 주문을 soft-delete하고, `POST /api/v1/partner-orders/from-estimate/{estimateId}`는 외부 estimate snapshot을 주문 row로 변환하며 `source_estimate_id` 중복을 409로 차단한다.
-- SP-08-4-4: partner-order 주문 인쇄 양식 구현 진행. `GET /api/v1/partner-orders/{id}/print`는 브라우저 인쇄 가능한 A4 HTML을 반환하고, desktop 상세 화면은 인쇄 버튼으로 새 탭을 연다. `PARTNER`는 본인 `partnerCode` 주문만 인쇄 가능하도록 403 가드를 둔다.
-- 다음 후보: SP-08-4-5 통합 PR + 5-team 리뷰, SP-08 회계/vendor OCR/Aligo 후속 parity.
+- SP-08-4 시리즈 완료: partner-order 주문 목록·상세, 수정, 삭제+견적 변환, 인쇄 양식 4개 PR이 main `d5c3d573`까지 머지됐다.
+- SP-08-5-1 진행: 구매/매입 R1/R2를 `Slip(type=INBOUND)` 기준으로 잠근다. `type=INBOUND` alias, 최신 전표일자 정렬, `WAREHOUSE / MANAGER / MASTER` 권한, `INVENTORY` 제외, 상세 `inspectionStatus`를 IT/Playwright/QA PNG로 고정한다.
+- 다음 후보: SP-08-5-2 매입 수정 direct PUT, SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity.
 
 ## Phase 0 — 저장소·가드 정립
 

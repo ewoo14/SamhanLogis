@@ -82,6 +82,20 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 
 기존 Phase 2 / 3 endpoint 23 + Phase 6 M5 endpoint 3 + 부가 4 = **30 endpoint**.
 
+### SP-08-5-1 매입 목록·상세 R1/R2 (2026-05-17 구현)
+
+매입/구매전표는 별도 `PurchaseSlip` 없이 `Slip(type=INBOUND)`로 처리한다.
+
+| Method | Path | 권한 | 비고 |
+|---|---|---|---|
+| GET | `/api/v1/slips?type=INBOUND&from=&to=&page=&size=` | WAREHOUSE / MANAGER / MASTER | gateway strip 후 `/slips`; `slipType=INBOUND`도 유지 |
+| GET | `/api/v1/slips/{id}` | WAREHOUSE / MANAGER / MASTER (INBOUND일 때) | lines + 거래처 + `inspectionStatus` |
+
+정책:
+- `INVENTORY`는 SP-03 구매관리 검수 CTA 정책과 동일하게 매입 R1/R2 표면에서 제외한다.
+- 목록 기본 정렬은 `slipDate DESC, seqNo DESC`.
+- 상세 `inspectionStatus`: INBOUND `SAVED / CONFIRMED`는 `READY`, 그 외는 `NOT_READY`.
+
 ### SP-08-3-3 전표정리 history API (2026-05-17 구현)
 
 legacy GAS `전표정리리스트`의 저장/복원 흐름을 `slip_cleanup_save_history`로 추가했다.

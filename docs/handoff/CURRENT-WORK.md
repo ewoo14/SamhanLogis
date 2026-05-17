@@ -2,6 +2,61 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-17 SP-08-5-1 Codex 진입 — 매입 목록·상세 endpoint 잠금
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-1-purchase-slip-list-detail
+git status --short
+```
+
+### 현재 main HEAD
+
+```
+d5c3d573 [FEAT] SP-08-4-4 주문 인쇄 양식 endpoint + 인쇄 미리보기 UI (#219)
+e065ed43 [FEAT] SP-08-4-3 주문 soft delete + 견적→주문 변환 endpoint (#218)
+0ead89bd [FEAT] SP-08-4-2 주문 수정 direct PUT endpoint + optimistic lock (#217)
+f8f2c447 [FEAT] SP-08-4-1 주문 목록·상세 endpoint 잠금 (#216)
+```
+
+### SP-08-4 시리즈 완료
+
+| 슬라이스 | 상태 | PR | 머지 commit |
+|---|---|---|---|
+| SP-08-4-1 주문 목록·상세 | 완료 | #216 | `f8f2c447` |
+| SP-08-4-2 주문 수정 direct PUT | 완료 | #217 | `0ead89bd` |
+| SP-08-4-3 주문 soft delete + 견적→주문 변환 | 완료 | #218 | `e065ed43` |
+| SP-08-4-4 주문 인쇄 양식 | 완료 | #219 | `d5c3d573` |
+
+### SP-08-5 master plan
+
+- 신규 plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md`
+- 매입 도메인: 별도 `PurchaseSlip` 없음. `slip-service` `Slip(type=INBOUND)` 사용.
+- 입고 검수 도메인: `inventory-service` `InboundInspection`.
+- SP-03 구매관리 검수 CTA 회귀 검증은 모든 SP-08-5 슬라이스 필수.
+
+### SP-08-5-1 현재 범위
+
+- R1 `GET /api/v1/slips?type=INBOUND&from=&to=&page=&size=` alias 보강.
+- R2 `GET /api/v1/slips/{id}` INBOUND 상세에 `inspectionStatus` 보강.
+- 권한: `WAREHOUSE / MANAGER / MASTER`; `INVENTORY` 제외.
+- IT: `SlipQueryPurchaseIT` 5 case.
+- 정적 계약: `clients/desktop/playwright/sp-08-5-1-purchase-slip-list-detail/`.
+- QA PNG: `docs/qa/sp-08-5-1-purchase-slip-list-detail/screenshots/`.
+
+### SP-08-4 후속 백로그
+
+- SP-08-4-5 통합 리뷰는 PR #216~#219 누적 완료로 대체 가능하나, 필요 시 주문 CRUD 운영 QA만 별도 수행.
+- FE-C2-01 `partnerCode` editability 정책.
+- FE-C2-03 수정 후 목록 queryKey invalidate.
+- DevOps D-1 `FixtureEstimateClient` `@Profile` Phase 11.
+- DevOps D-2 `nextOrderNo` soft-delete row 제외 식별자 정책.
+- QA-Nit-02 `resolveActorName` Javadoc.
+
+---
+
 ## 2026-05-17 SP-08-4-3 머지 완료 (PR #218) + SP-08-4-4 자동 진입
 
 ### 즉시 시작 (회사 PC 첫 명령)

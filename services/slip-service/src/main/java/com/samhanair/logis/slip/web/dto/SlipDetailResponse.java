@@ -72,6 +72,11 @@ public record SlipDetailResponse(
         LocalDate paymentDueDate,
         /** 인쇄여부 — printedAt != null 이면 true. */
         boolean printed,
+        /**
+         * 입고 검수 CTA 기준 상태.
+         * INBOUND 전표의 SAVED/CONFIRMED 는 구매관리 화면에서 검수 Dialog 진입 가능 상태다.
+         */
+        String inspectionStatus,
         List<SlipLineResponse> lines) {
 
     public static SlipDetailResponse from(Slip slip) {
@@ -109,6 +114,17 @@ public record SlipDetailResponse(
                 slip.getRecipientPhone(),
                 slip.getPaymentDueDate(),
                 slip.getPrintedAt() != null,
+                inspectionStatusOf(slip),
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
+    }
+
+    private static String inspectionStatusOf(Slip slip) {
+        if (slip.getSlipType() != SlipType.INBOUND) {
+            return null;
+        }
+        return switch (slip.getStatus()) {
+            case SAVED, CONFIRMED -> "READY";
+            default -> "NOT_READY";
+        };
     }
 }
