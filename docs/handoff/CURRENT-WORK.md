@@ -23,6 +23,28 @@
 
 ---
 
+## 2026-05-17 Codex 진행 — SP-08-4-2 Partner Order direct PUT endpoint
+
+- 현재 branch: `feat/sp-08-4-2-partner-order-edit-put`
+- 범위:
+  - `partner-order-service` `PUT /api/v1/partner-orders/{id}` direct 수정 endpoint.
+  - `PartnerOrderUpdateService`, `PartnerOrder.updateHeader`, `PartnerOrder.replaceLines`, `PartnerOrderUpdateRequest`.
+  - `updatedAt` 낙관적 잠금 409, 라인 검증 422, audit log 1 revision 기록.
+  - 기존 `PartnerOrderEditRequestController` request → approve/reject flow 유지.
+  - desktop 주문 상세 수정 modal, 409 최신 내용 안내, audit timeline.
+  - Playwright static contract, QA PNG 4장, dev-report, README/ROADMAP/DECISIONS 동기화.
+- 로컬 검증:
+  - Spring targeted: `PartnerOrderUpdateIT` 6 tests / 0 failed / 0 skipped.
+  - desktop typecheck PASS.
+  - desktop lint PASS, 기존 warning 2건.
+  - QA PNG 4장 생성 PASS.
+  - `git diff --check` PASS (CRLF warning only).
+  - Codex Windows sandbox에서 Node `child_process.spawn` 자체가 EPERM이라 `npm run build`(electron-vite/esbuild)와 Playwright worker 실행은 환경 차단. `node -e spawnSync('cmd.exe')`도 EPERM으로 재현됨.
+- 다음 단계:
+  - branch push 후 Claude PM이 PR 생성 + CI/Linux에서 Playwright/build 확인.
+
+---
+
 ## 2026-05-17 Codex 최신 핸드오프 — SP-08-3-4 배차문자 저장내역 구현 (✅ 머지 완료 - PR #215)
 
 - 현재 branch: `feat/sp-08-3-4-dispatch-sms-history`

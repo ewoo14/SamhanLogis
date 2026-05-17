@@ -42,6 +42,7 @@
 - SP-08-3-2: 아로로지스 배차 4 화면 저장내역 구현 진행. `arologis-service`의 `dispatch_save_history` + `/admin/arologis/dispatches/history` API로 가배차/지방가배차/미배차/운송사 비교 결과를 JSONB 저장하고, `clients/arologis-desktop`에 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결한다.
 - SP-08-3-3: 전표정리 저장내역 구현 완료, PR #214 merge. `slip-service`의 `slip_cleanup_save_history` + `/slips/cleanup/history` API로 `/sales/slip-cleanup` 결과를 JSONB 저장하고, desktop 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결했다.
 - SP-08-3-4: 배차문자 미리보기/발송 감사 저장내역 구현 진행. `notification-service`의 `dispatch_sms_save_history` + `/admin/notifications/dispatch-sms/history` API로 미리보기 결과는 `AUTO_LATEST`/`MANUAL_NAMED`, 실발송 결과는 `SEND_AUDIT` append-only로 보존하고, desktop 배차문자 화면을 실행/저장내역 2탭으로 정렬한다.
+- SP-08-4-2: 거래처 주문 direct PUT 수정 endpoint 진행. `partner-order-service`에 `PUT /api/v1/partner-orders/{id}`를 추가해 본사 `SALES / MANAGER / MASTER`가 낙관적 잠금(`updatedAt`)으로 주문 헤더/라인을 즉시 수정하고, 기존 `EditRequest` 거래처 승인 흐름과 공존하도록 정책을 분리한다.
 - 다음 후보: SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
 
 ## 시스템 구조 (Mermaid)

@@ -1959,3 +1959,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-3-4-09 | desktop 배차문자 화면은 `실행 / 저장내역` 2탭을 제공한다. latest active row는 `AUTO_LATEST`만 자동 복원하고, row click은 미리보기 또는 발송 감사 payload를 실행 탭에 복원한다. |
 | SP-08-3-4-10 | 화면 row testid는 `dispatch-sms-history-row-{i}` 기반이며 내부 UUID를 포함하지 않는다. createdBy는 공통 `maskCreatedBy`로 `사용자` 마스킹한다. |
 | SP-08-3-4-11 | Notion runtime call은 재도입하지 않는다. 신규 backend/frontend 저장내역 산출물은 `api.notion.com`, `Notion-Version`, `@notionhq` 0건이어야 한다. |
+
+### SP-08-4-2. 거래처 주문 direct PUT 수정 endpoint (2026-05-17)
+
+**배경**: SP-08-4 주문 CRUD parity 중 U1 주문 수정은 legacy GAS 운영자가 주문 row를 즉시 수정하던 사용감을 보존해야 한다. 동시에 기존 `PartnerOrderEditRequestController`의 거래처 수정 요청 → 본사 승인 흐름은 신규 권한 분리 정책으로 유지한다.
+
+| 결정 ID | 결정 |
+|---|---|
+| SP-08-4-2-01 | 본사 direct 수정 endpoint는 `PUT /api/v1/partner-orders/{id}`로 둔다. path `{id}`는 주문번호(`YYYY/MM/DD-N` 또는 안전 path `YYYY-MM-DD-N`)와 내부 UUID를 모두 허용하되 화면에는 주문번호만 표시한다. |
+| SP-08-4-2-02 | direct PUT 권한은 `SALES / MANAGER / MASTER`로 제한한다. `PARTNER` role은 direct PUT 접근 시 403이며, 기존 EditRequest 요청 flow를 사용한다. |
+| SP-08-4-2-03 | 낙관적 잠금은 상세 조회 응답의 `updatedAt`(BaseEntity `modifiedAt`)과 요청 본문 `updatedAt`을 비교한다. 불일치 시 `PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT` 409를 반환한다. |
+| SP-08-4-2-04 | 라인 수정은 전체 교체 방식(`replaceLines`)으로 구현하되 server-side에서 수량/납품가를 검증한다. 잘못된 라인은 `PARTNER_ORDER_UPDATE_INVALID_LINE` 422로 거절한다. |
+| SP-08-4-2-05 | direct PUT 성공 시 `partner_order_audit_logs`에 같은 revision의 audit row를 기록하고 기존 SSE `partner-order:edit` payload를 재사용한다. |
+| SP-08-4-2-06 | `PartnerOrder`에는 direct PUT 전용 `due_date`, `memo` nullable 컬럼을 추가한다. 기존 row backfill은 하지 않는다. |
+| SP-08-4-2-07 | `partnerName`처럼 현재 entity 컬럼이 없는 필드는 기존 SP-08-4-1 정책대로 null 유지 + `@JsonInclude(NON_NULL)` 직렬화 제외를 유지한다. |
+| SP-08-4-2-08 | desktop 수정 form은 design-system `Input / Select / Modal / Button`으로 구성하며, 운영자 화면 라벨은 한국어만 사용한다. |

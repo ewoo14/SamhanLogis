@@ -7,7 +7,9 @@ metadata:
 
 # Codex Plugin 셋업 (2026-05-17 신규)
 
-`openai/codex-plugin-cc` 정식 plugin 설치 후 **PowerShell + codex CLI 우회 영구 폐기**.
+> **2026-05-17 정정 (PR #216 + SP-08-4-2 회고)** — Plugin **write task 4건 연속 hang 입증** (사이클 3 SP-08-3-4, Phase 7 verification SP-08-4-1, 사이클 1.6 fix SP-08-4-1, Phase 2-3 SP-08-4-2). gpt-5.5 + medium 영구 변경 후에도 hang 재발. **Plugin 은 read-only review 만 사용** (사이클 4/5 SP-08-3-4 + 사이클 1/2/3 PR #216 review 모두 성공, 2~3분 정확). **Write 작업은 PowerShell + codex CLI 복귀** (사용자 `!` 호출 trade-off 인정).
+
+`openai/codex-plugin-cc` 정식 plugin 설치 — **read-only review 만 사용**. write 는 PowerShell + codex CLI.
 
 ## 핵심 규칙
 
@@ -48,14 +50,14 @@ Claude Code 세션 안에서:
 
 ## Plugin 사용법 (PowerShell 우회 영구 폐기)
 
-| 작업 | OLD (~2026-05-16) | NEW (2026-05-17~) |
+| 작업 | OLD (~2026-05-16) | NEW (2026-05-17 정정) |
 |---|---|---|
-| 자율 fix 위임 | `PowerShell + codex exec --dangerously-bypass-approvals-and-sandbox + Tee-Object` | `Agent tool: codex:codex-rescue` subagent |
-| Code review | 수동 호출 | `/codex:review` 슬래시 |
-| Adversarial review | N/A | `/codex:adversarial-review` |
-| 진행 상태 / 취소 | `Monitor` 도구 5분 stream | `/codex:status` / `/codex:cancel` |
-| 한국어 prompt | `.tmp/*-prompt.txt` 영어 작성 (cp949 회피) | 직접 한국어 전달 가능 |
-| classifier 차단 | 매번 사용자 `!` 우회 호출 | 정식 plugin 인지 → 차단 X |
+| **자율 fix 위임 (write)** | PowerShell + codex CLI `--dangerously-bypass` | **PowerShell + codex CLI 복귀** (plugin write hang 4건 입증) |
+| **Code review (read-only)** | 수동 호출 | **Plugin Agent tool `codex:codex-rescue` `--model gpt-5.5 --effort medium` short prompt** (성공 패턴) |
+| Adversarial review (read-only) | N/A | `/codex:adversarial-review` (plugin) |
+| 진행 상태 / 취소 | `Monitor` 도구 stream | `/codex:status` / `/codex:cancel` (plugin) |
+| 한국어 prompt | `.tmp/*-prompt.txt` 영어 작성 (cp949 회피) | PowerShell 호출 시 동일 (영어 prompt 파일) |
+| classifier 차단 | 매번 사용자 `!` 우회 호출 | 사용자 `!` 호출 (write 시) — 사용자 명시 trade-off 인정 |
 
 ## 트러블슈팅
 
