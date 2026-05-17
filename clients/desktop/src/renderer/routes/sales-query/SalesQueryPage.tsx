@@ -78,8 +78,19 @@ function statusBadgeVariant(status: string): 'brand' | 'neutral' | 'success' | '
 /** 출고 전환 가능 상태 — SAVED / CONFIRMED */
 const SHIPPABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
 
+/** SP-08-6-2: 매출 직접 수정 가능 상태 — SAVED / DRAFT */
+const SALES_EDITABLE_STATUSES = ['SAVED', 'DRAFT'] as const
+
+/** SP-08-6-2: 매출 직접 수정 권한 역할 */
+const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+
 function isShippable(row: SlipQueryRow): boolean {
   return SHIPPABLE_STATUSES.includes(row.status as (typeof SHIPPABLE_STATUSES)[number])
+}
+
+/** SP-08-6-2: 매출 직접 수정 가능 여부 (SAVED / DRAFT) */
+function isSalesEditable(row: SlipQueryRow): boolean {
+  return SALES_EDITABLE_STATUSES.includes(row.status as (typeof SALES_EDITABLE_STATUSES)[number])
 }
 
 /** YYYY-MM-DD 포맷 (Asia/Seoul 로케일 Date API) */
@@ -155,6 +166,8 @@ export function SalesQueryPage() {
   const canCreate = canCreateSlip(role)
   const canExport = canExportSlips(role)
   const canQuery  = canQuerySales(role)
+  /** SP-08-6-2: 매출 직접 수정 권한 (SALES / MANAGER / MASTER) */
+  const canEditSales = !!role && (SALES_EDIT_ROLES as readonly string[]).includes(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -391,10 +404,28 @@ export function SalesQueryPage() {
           </Button>
         ) : null}
 
-        {/* ─ 단일 행 선택 시 CTA 자리 표시 (SP-08-6-4 에서 실 핸들러 연결 예정) ─ */}
+        {/* ─ 단일 행 선택 시 CTA ─ */}
         {selectedIds.size === 1 ? (
           <>
-            {/* 출고 전환 — SAVED / CONFIRMED 상태 전표만 활성 (SP-08-6-1 R1) */}
+            {/* SP-08-6-2: 수정 — SAVED/DRAFT 상태 + SALES/MANAGER/MASTER 권한 활성 */}
+            {(() => {
+              const selectedRow = rows.find((r) => selectedIds.has(r.id))
+              return selectedRow && canEditSales && isSalesEditable(selectedRow) ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/sales/${selectedRow.id}`)
+                  }}
+                  data-testid="sales-slip-edit-button"
+                  aria-label={`${selectedRow.slipNo} 수정`}
+                >
+                  수정
+                </Button>
+              ) : null
+            })()}
+            {/* 출고 전환 — SAVED / CONFIRMED 상태 전표만 활성 (SP-08-6-4 에서 연결 예정) */}
             {(() => {
               const selectedRow = rows.find((r) => selectedIds.has(r.id))
               return selectedRow && isShippable(selectedRow) ? (

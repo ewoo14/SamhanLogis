@@ -699,6 +699,77 @@ public class Slip extends BaseEntity {
     }
 
     /**
+     * 매출 direct PUT 전용 헤더 수정 (SP-08-6-2).
+     *
+     * <p>기존 승인 요청 흐름과 별개로 OUTBOUND 전표의 판매관리 필드를 즉시 갱신한다.
+     * null 값은 기존 값을 보존한다. DRAFT/SAVED 단계에서만 허용.
+     *
+     * @param partnerName 거래처명 (null 이면 보존)
+     * @param partnerCode 거래처코드 (null 이면 보존)
+     * @param memo 메모 (null 이면 보존)
+     * @param businessNumber 사업자등록번호 (null 이면 보존)
+     * @param deliveryAddress 납품지 주소 (null 이면 보존)
+     * @param supervisionAddress 감리지 주소 (null 이면 보존)
+     * @param projectName 프로젝트명 (null 이면 보존)
+     * @param recipientPhone 인수자 번호 (null 이면 보존)
+     * @param paymentDueDate 입금예정일 (null 이면 보존)
+     * @throws BusinessException(SLIP_UPDATE_NON_SALES) slipType 이 OUTBOUND 가 아닐 때
+     * @throws BusinessException(CONFLICT) DRAFT/SAVED 가 아닌 단계일 때
+     */
+    public void updateSalesHeader(String partnerName, String partnerCode, String memo,
+                                  String businessNumber, String deliveryAddress,
+                                  String supervisionAddress, String projectName,
+                                  String recipientPhone, LocalDate paymentDueDate) {
+        if (this.slipType != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.SLIP_UPDATE_NON_SALES,
+                    ErrorCode.SLIP_UPDATE_NON_SALES.getDefaultMessage());
+        }
+        requireEditable();
+        if (partnerName != null) {
+            this.partnerName = partnerName;
+        }
+        if (partnerCode != null) {
+            this.partnerCode = partnerCode;
+        }
+        if (memo != null) {
+            this.memo = memo;
+        }
+        if (businessNumber != null) {
+            this.businessNumber = businessNumber;
+        }
+        withProjectInfo(null, deliveryAddress, supervisionAddress, projectName,
+                recipientPhone, paymentDueDate);
+    }
+
+    /**
+     * 매출 direct PUT 라인 전체 교체 (SP-08-6-2).
+     *
+     * <p>{@code orphanRemoval=false} 정책을 지키기 위해 기존 라인은 hard delete 하지 않고
+     * {@link com.samhanair.logis.common.entity.BaseEntity#markDeleted(String)} 로 비활성화한 뒤
+     * 컬렉션에서만 제거한다.
+     *
+     * @param newLines 교체할 신규 라인 목록 (null 또는 empty 는 서비스 레이어에서 사전 차단)
+     * @param actorId 수정자 ID (audit 기록용, null 허용 → "system" 폴백)
+     * @throws BusinessException(SLIP_UPDATE_NON_SALES) slipType 이 OUTBOUND 가 아닐 때
+     * @throws BusinessException(CONFLICT) DRAFT/SAVED 가 아닌 단계일 때
+     */
+    public void replaceSalesLines(List<SlipLine> newLines, String actorId) {
+        if (this.slipType != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.SLIP_UPDATE_NON_SALES,
+                    ErrorCode.SLIP_UPDATE_NON_SALES.getDefaultMessage());
+        }
+        requireEditable();
+        String deleter = actorId == null || actorId.isBlank() ? "system" : actorId;
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+        if (newLines != null) {
+            this.lines.addAll(newLines);
+        }
+    }
+
+    /**
      * 헤더 부분 수정 — DRAFT 또는 SAVED 단계에서만 허용. null 이 아닌 인자만 적용.
      *
      * <p>Slice B (notification-slice-B): {@code driverName}, {@code driverPhone} 2 인자 신규

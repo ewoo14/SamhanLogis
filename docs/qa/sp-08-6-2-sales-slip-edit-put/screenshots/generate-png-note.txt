@@ -1,0 +1,9 @@
+PNG 생성 방법:
+4개 HTML mock 을 Edge/Chrome 에서 열어 DevTools > Capture screenshot (전체 페이지) 저장.
+
+01-sales-edit-form.png       <- mock-01-sales-edit-form.html
+02-sales-edit-conflict-banner.png <- mock-02-sales-edit-conflict-banner.html
+03-sales-edit-audit-timeline.png  <- mock-03-sales-edit-audit-timeline.html
+04-sales-edit-role-guard.png      <- mock-04-sales-edit-role-guard.html
+
+viewport: 1280px, deviceScaleFactor: 1

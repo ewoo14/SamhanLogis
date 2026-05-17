@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-2 PNG 02 — 409 conflict banner (최신 내용 불러오기 + danger 시각)</title>
+<style>
+  :root {
+    --color-brand-500: #2D77A8;
+    --color-brand-600: #235F88;
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-400: #8E97A4;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-700: #363D49;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-border-strong:#B8C0CB;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    /* danger tokens (SP-08-5-3 토큰 재사용) */
+    --color-danger-50:  #FFF5F5;
+    --color-danger-200: #FED7D7;
+    --color-danger-300: #FCA5A5;
+    --color-danger-500: #EF4444;
+    --color-danger-700: #B91C1C;
+    --color-danger-800: #991B1B;
+    --color-danger:     #EF4444;
+    --color-danger-bg:  #FEE2E2;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: rgba(0,0,0,0.28);
+    color: var(--color-text);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 900px; padding: 32px;
+  }
+
+  .modal {
+    background: var(--color-bg);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+    width: min(860px, calc(100vw - 64px));
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-subtle);
+  }
+  .modal-title { font-size: 18px; font-weight: 600; }
+
+  .modal-body { padding: 20px; }
+
+  /* 409 danger banner — tokens.css --color-danger-bg / --color-danger */
+  .danger-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-danger-300);
+    border-radius: 8px;
+    background: var(--color-danger-bg);
+    margin-bottom: 20px;
+  }
+  .danger-banner-left { display: flex; align-items: flex-start; gap: 12px; }
+  .danger-icon {
+    font-size: 18px; color: var(--color-danger-700); flex-shrink: 0; margin-top: 1px;
+  }
+  .danger-title {
+    font-size: var(--font-size-sm); font-weight: 700;
+    color: var(--color-danger-800); margin-bottom: 3px;
+  }
+  .danger-desc {
+    font-size: var(--font-size-xs); color: var(--color-danger-700);
+    line-height: 1.5;
+  }
+  .btn-reload {
+    appearance: none; flex-shrink: 0;
+    border: 1px solid var(--color-danger-300);
+    background: var(--color-bg); border-radius: 6px;
+    padding: 8px 16px; font-size: var(--font-size-sm);
+    font-weight: 700; color: var(--color-danger-700);
+    cursor: pointer; font-family: inherit;
+    white-space: nowrap;
+  }
+  .btn-reload:hover { background: var(--color-danger-50); }
+
+  /* 409 status chip */
+  .status-chip-danger {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--color-danger-200);
+    color: var(--color-danger-800);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+  }
+
+  /* field section below banner */
+  .conflict-meta {
+    display: grid; grid-template-columns: 1fr 1fr 140px;
+    gap: 14px; margin-bottom: 8px;
+  }
+  .field-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .field-label { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-muted); }
+  .field-input {
+    border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 7px 10px; font-size: var(--font-size-sm);
+    font-family: inherit; color: var(--color-text);
+    background: var(--color-bg);
+  }
+  .field-input-danger {
+    border: 1px solid var(--color-danger-300);
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font-weight: 700;
+  }
+
+  /* modal footer */
+  .modal-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--color-border);
+  }
+  .btn-secondary {
+    appearance: none; border: 1px solid var(--color-border);
+    background: var(--color-bg); border-radius: 6px;
+    padding: 9px 20px; font-size: var(--font-size-sm);
+    font-weight: 600; color: var(--color-text); cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary-disabled {
+    appearance: none; border: none;
+    background: #93C5FD; border-radius: 6px;
+    padding: 9px 20px; font-size: var(--font-size-sm);
+    font-weight: 700; color: #fff; cursor: not-allowed;
+    font-family: inherit; opacity: 0.6;
+  }
+
+  /* footnote */
+  .footnote {
+    font-size: 11px; color: var(--color-neutral-400);
+    padding: 6px 20px 10px; text-align: right;
+  }
+</style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-head">
+    <span class="modal-title">매출 전표 수정</span>
+  </div>
+
+  <div class="modal-body">
+    <!-- 409 danger banner -->
+    <div class="danger-banner" role="alert" data-testid="sales-slip-edit-conflict-banner">
+      <div class="danger-banner-left">
+        <span class="danger-icon">&#9888;</span>
+        <div>
+          <div class="danger-title">다른 사용자가 먼저 수정했습니다.</div>
+          <div class="danger-desc">
+            최신 내용 불러오기 후 다시 저장해 주세요.
+          </div>
+        </div>
+      </div>
+      <button class="btn-reload" data-testid="sales-slip-edit-reload">
+        최신 내용 불러오기
+      </button>
+    </div>
+
+    <!-- 충돌 발생 시 메타 영역 (저장 버튼 비활성, 조회 시각 표시) -->
+    <div class="conflict-meta">
+      <div class="field-wrap">
+        <span class="field-label">거래처</span>
+        <div class="field-input">삼한공조</div>
+      </div>
+      <div class="field-wrap">
+        <span class="field-label">수정 요청 시각</span>
+        <div class="field-input">2026-05-18 14:22</div>
+      </div>
+      <div class="field-wrap">
+        <span class="field-label">HTTP 상태</span>
+        <div class="field-input field-input-danger">409</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-foot">
+    <button class="btn-secondary">취소</button>
+    <button class="btn-primary-disabled" disabled>저장 불가</button>
+  </div>
+  <div class="footnote">
+    사용자 화면에는 내부 UUID 를 노출하지 않음 — QA 검증 주석
+  </div>
+</div>
+</body>
+</html>

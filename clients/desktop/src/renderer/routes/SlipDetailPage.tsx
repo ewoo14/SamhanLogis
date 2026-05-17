@@ -56,6 +56,7 @@ import {
   removeLine,
   transitionSlip,
   updatePurchaseSlip,
+  updateSalesSlip,
   updateSlipDriver,
   type SlipDetail,
   type SlipLineInput,
@@ -163,6 +164,9 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 const PURCHASE_EDIT_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
 const PURCHASE_DELETE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
 
+/** SP-08-6-2: 매출 전표 직접 수정 권한 — SALES / MANAGER / MASTER. */
+const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
+
 type PurchaseEditLine = SlipLineInput & { key: string }
 
 function createEditLineKey() {
@@ -228,6 +232,23 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [purchaseDeleteOpen, setPurchaseDeleteOpen] = useState(false)
   const [purchaseDeleteConflict, setPurchaseDeleteConflict] = useState(false)
   const [purchaseDeleteInspectionAlert, setPurchaseDeleteInspectionAlert] = useState<string | null>(null)
+
+  // SP-08-6-2: 매출 direct PUT 수정 modal state.
+  const [salesEditOpen, setSalesEditOpen] = useState(false)
+  const [salesConflictMessage, setSalesConflictMessage] = useState<string | null>(null)
+  const [salesIsConflict, setSalesIsConflict] = useState(false)
+  const [salesReloadSuccessMessage, setSalesReloadSuccessMessage] = useState<string | null>(null)
+  const [salesUpdatedAt, setSalesUpdatedAt] = useState<string | null>(null)
+  const [salesPartnerName, setSalesPartnerName] = useState('')
+  const [salesPartnerCode, setSalesPartnerCode] = useState('')
+  const [salesBusinessNumber, setSalesBusinessNumber] = useState('')
+  const [salesMemo, setSalesMemo] = useState('')
+  const [salesDeliveryAddress, setSalesDeliveryAddress] = useState('')
+  const [salesProjectName, setSalesProjectName] = useState('')
+  const [salesRecipientPhone, setSalesRecipientPhone] = useState('')
+  const [salesPaymentDueDate, setSalesPaymentDueDate] = useState('')
+  const [salesEditLines, setSalesEditLines] = useState<PurchaseEditLine[]>([])
+  const salesReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // SP-08-5-2: 매입 direct PUT 수정 modal state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
@@ -385,6 +406,40 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
       setRejectReason('')
+    },
+  })
+
+  /**
+   * SP-08-6-2: 매출 전표 direct PUT 수정 mutation.
+   * 성공 → modal 닫기 + cache invalidate (OUTBOUND query 포함).
+   * 409  → 낙관적 잠금 충돌 배너 (salesIsConflict).
+   * 422  → 라인 입력값 오류 배너.
+   */
+  const salesUpdateMutation = useMutation({
+    mutationFn: (body: Parameters<typeof updateSalesSlip>[1]) => updateSalesSlip(id, body),
+    onSuccess: async (updated) => {
+      setSalesConflictMessage(null)
+      setSalesIsConflict(false)
+      setSalesReloadSuccessMessage(null)
+      setSalesEditOpen(false)
+      queryClient.setQueryData(['slip', id], updated)
+      await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+      await queryClient.invalidateQueries({ queryKey: ['slips'] })
+      await queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setSalesIsConflict(true)
+        setSalesConflictMessage('다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 저장해 주세요.')
+        return
+      }
+      if (axios.isAxiosError(error) && error.response?.status === 422) {
+        setSalesIsConflict(false)
+        setSalesConflictMessage('매출 라인 입력값이 올바르지 않습니다. 수량과 단가를 확인해 주세요.')
+        return
+      }
+      setSalesIsConflict(false)
+      setSalesConflictMessage('매출 전표 수정에 실패했습니다. 입력값을 확인해 주세요.')
     },
   })
 
@@ -564,6 +619,50 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     }
   }, [])
 
+  // SP-08-6-2: 매출 수정 폼 동기화 + 충돌 reload 핸들러
+  const syncSalesFormFromData = useCallback((data: SlipDetail) => {
+    setSalesPartnerName(data.partnerName ?? '')
+    setSalesPartnerCode(data.partnerCode ?? '')
+    setSalesBusinessNumber(data.businessNumber ?? '')
+    setSalesMemo(data.memo ?? '')
+    setSalesDeliveryAddress(data.deliveryAddress ?? '')
+    setSalesProjectName(data.projectName ?? '')
+    setSalesRecipientPhone(data.recipientPhone ?? '')
+    setSalesPaymentDueDate(data.paymentDueDate ?? '')
+    setSalesEditLines(toPurchaseEditLines(data))
+    setSalesUpdatedAt(data.updatedAt)
+  }, [setSalesUpdatedAt])
+
+  const handleSalesConflictReload = useCallback(async () => {
+    const result = await refetchDetail()
+    if (result.data) {
+      syncSalesFormFromData(result.data)
+      setSalesConflictMessage(null)
+      setSalesIsConflict(false)
+      setSalesReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
+      if (salesReloadSuccessTimerRef.current) {
+        clearTimeout(salesReloadSuccessTimerRef.current)
+      }
+      salesReloadSuccessTimerRef.current = setTimeout(() => {
+        setSalesReloadSuccessMessage(null)
+        salesReloadSuccessTimerRef.current = null
+      }, 3000)
+    }
+  }, [refetchDetail, syncSalesFormFromData])
+
+  useEffect(() => {
+    if (!detailQuery.data || salesEditOpen) return
+    syncSalesFormFromData(detailQuery.data)
+  }, [detailQuery.data, salesEditOpen, syncSalesFormFromData])
+
+  useEffect(() => {
+    return () => {
+      if (salesReloadSuccessTimerRef.current) {
+        clearTimeout(salesReloadSuccessTimerRef.current)
+      }
+    }
+  }, [])
+
   if (!id) return null
 
   if (detailQuery.isLoading) {
@@ -592,6 +691,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canDirectDeletePurchase = mode === 'INBOUND'
     && !!role
     && PURCHASE_DELETE_ROLES.includes(role)
+    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
+
+  /**
+   * SP-08-6-2: 매출 전표 직접 수정 권한 판단.
+   * - mode = OUTBOUND (출고전표)
+   * - role = SALES / MANAGER / MASTER
+   * - status = SAVED 또는 DRAFT
+   */
+  const canDirectEditSales = mode === 'OUTBOUND'
+    && !!role
+    && SALES_EDIT_ROLES.includes(role)
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
@@ -868,6 +978,22 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               매입 전표 인쇄
             </Button>
           )}
+          {canDirectEditSales ? (
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="sales-slip-edit-button"
+              onClick={() => {
+                syncSalesFormFromData(slip)
+                setSalesConflictMessage(null)
+                setSalesIsConflict(false)
+                setSalesReloadSuccessMessage(null)
+                setSalesEditOpen(true)
+              }}
+            >
+              수정
+            </Button>
+          ) : null}
           {canDirectEditPurchase ? (
             <Button
               variant="primary"
@@ -1971,6 +2097,250 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       </Modal>
 
       {/*
+        SP-08-6-2: 매출 전표 direct PUT 수정 modal.
+        - OUTBOUND + SALES/MANAGER/MASTER + DRAFT/SAVED 상태에서만 버튼 노출.
+        - 409 충돌 시 "최신 내용 불러오기" 배너.
+        - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
+      */}
+      <Modal
+        open={salesEditOpen}
+        onClose={() => {
+          if (salesUpdateMutation.isPending) return
+          setSalesEditOpen(false)
+        }}
+        title="매출 전표 수정"
+        size="xl"
+        data-testid="sales-slip-edit-modal"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setSalesEditOpen(false)}
+              disabled={salesUpdateMutation.isPending}
+              data-testid="sales-slip-edit-cancel"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={salesUpdateMutation.isPending}
+              disabled={salesUpdateMutation.isPending || salesEditLines.length === 0}
+              data-testid="sales-slip-edit-save"
+              onClick={() => {
+                salesUpdateMutation.mutate({
+                  updatedAt: salesUpdatedAt ?? slip.updatedAt,
+                  partnerName: salesPartnerName.trim() || null,
+                  partnerCode: salesPartnerCode.trim() || null,
+                  businessNumber: salesBusinessNumber.trim() || null,
+                  memo: salesMemo.trim() || null,
+                  deliveryAddress: salesDeliveryAddress.trim() || null,
+                  projectName: salesProjectName.trim() || null,
+                  recipientPhone: salesRecipientPhone.trim() || null,
+                  paymentDueDate: salesPaymentDueDate || null,
+                  lines: salesEditLines.map((line) => ({
+                    productId: line.productId,
+                    productName: line.productName?.trim() || undefined,
+                    modelName: line.modelName?.trim() || undefined,
+                    specification: line.specification?.trim() || undefined,
+                    quantity: Number(line.quantity),
+                    unitPrice: String(line.unitPrice || '0'),
+                    note: line.note?.trim() || undefined,
+                  })),
+                })
+              }}
+            >
+              저장
+            </Button>
+          </>
+        )}
+      >
+        {salesConflictMessage ? (
+          <div className="error-banner" role="alert" data-testid="sales-slip-edit-conflict-banner">
+            <strong>{salesConflictMessage}</strong>
+            {salesIsConflict ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="sales-slip-edit-reload"
+                onClick={() => void handleSalesConflictReload()}
+              >
+                최신 내용 불러오기
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {salesReloadSuccessMessage ? (
+          <div role="status" data-testid="sales-slip-edit-reload-success" className="success-banner">
+            {salesReloadSuccessMessage}
+          </div>
+        ) : null}
+
+        <div className="detail-grid" data-testid="sales-slip-edit-form">
+          <label className="purchase-edit-field">
+            <span className="detail-label">판매번호</span>
+            <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="판매번호" />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">거래처</span>
+            <Input
+              inputSize="sm"
+              value={salesPartnerName}
+              onChange={(e) => setSalesPartnerName(e.target.value)}
+              aria-label="거래처"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">거래처코드</span>
+            <Input
+              inputSize="sm"
+              value={salesPartnerCode}
+              onChange={(e) => setSalesPartnerCode(e.target.value)}
+              aria-label="거래처코드"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">사업자번호</span>
+            <Input
+              inputSize="sm"
+              value={salesBusinessNumber}
+              onChange={(e) => setSalesBusinessNumber(e.target.value)}
+              aria-label="사업자번호"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">배송주소</span>
+            <Input
+              inputSize="sm"
+              value={salesDeliveryAddress}
+              onChange={(e) => setSalesDeliveryAddress(e.target.value)}
+              aria-label="배송주소"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">프로젝트명</span>
+            <Input
+              inputSize="sm"
+              value={salesProjectName}
+              onChange={(e) => setSalesProjectName(e.target.value)}
+              aria-label="프로젝트명"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">인수자 번호</span>
+            <Input
+              inputSize="sm"
+              value={salesRecipientPhone}
+              onChange={(e) => setSalesRecipientPhone(e.target.value)}
+              aria-label="인수자 번호"
+            />
+          </label>
+          <label className="purchase-edit-field">
+            <span className="detail-label">입금예정일</span>
+            <Input
+              inputSize="sm"
+              type="date"
+              value={salesPaymentDueDate}
+              onChange={(e) => setSalesPaymentDueDate(e.target.value)}
+              aria-label="입금예정일"
+            />
+          </label>
+        </div>
+
+        <label className="purchase-edit-field purchase-edit-memo">
+          <span className="detail-label">적요</span>
+          <Input
+            inputSize="sm"
+            value={salesMemo}
+            onChange={(e) => setSalesMemo(e.target.value)}
+            aria-label="적요"
+          />
+        </label>
+
+        <div className="purchase-edit-lines" data-testid="sales-slip-edit-lines">
+          <table className="slip-line-table">
+            <thead>
+              <tr>
+                <th>품목</th>
+                <th>모델명</th>
+                <th>규격</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>합계</th>
+                <th aria-label="행 삭제" />
+              </tr>
+            </thead>
+            <tbody>
+              {salesEditLines.map((line, index) => (
+                <tr key={line.key}>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.productName ?? ''}
+                      onChange={(e) => updateSalesLine(index, { productName: e.target.value })}
+                      aria-label={`품목 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.modelName ?? ''}
+                      onChange={(e) => updateSalesLine(index, { modelName: e.target.value })}
+                      aria-label={`모델명 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.specification ?? ''}
+                      onChange={(e) => updateSalesLine(index, { specification: e.target.value })}
+                      aria-label={`규격 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      type="number"
+                      min={1}
+                      value={String(line.quantity)}
+                      onChange={(e) => updateSalesLine(index, { quantity: Number(e.target.value) })}
+                      aria-label={`수량 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      type="number"
+                      min={0}
+                      value={String(line.unitPrice)}
+                      onChange={(e) => updateSalesLine(index, { unitPrice: e.target.value })}
+                      aria-label={`단가 ${index + 1}`}
+                    />
+                  </td>
+                  <td className="td-right">
+                    {(Number(line.quantity) * Number(line.unitPrice || 0)).toLocaleString('ko-KR')}원
+                  </td>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`${index + 1}번 행 삭제`}
+                      onClick={() => removeSalesLine(index)}
+                    >
+                      ×
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
+
+      {/*
         SP-08-5-3: 매입 전표 삭제 확인 modal.
         - UUID 비공개 가드: slipNo 만 표시 (id 미노출).
         - 409 충돌 시 "최신 내용 불러오기" 배너 표시 + refetch 후 재시도.
@@ -2084,5 +2454,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   function removePurchaseLine(index: number) {
     setPurchaseEditLines((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // SP-08-6-2: 매출 수정 라인 헬퍼
+  function updateSalesLine(index: number, patch: Partial<PurchaseEditLine>) {
+    setSalesEditLines((prev) => prev.map((line, i) => (
+      i === index ? { ...line, ...patch } : line
+    )))
+  }
+
+  function removeSalesLine(index: number) {
+    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
   }
 }

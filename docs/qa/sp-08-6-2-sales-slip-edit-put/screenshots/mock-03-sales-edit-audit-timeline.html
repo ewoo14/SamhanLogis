@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-2 PNG 03 — audit timeline (SLIP_EDIT revision + actorName)</title>
+<style>
+  :root {
+    --color-brand-500: #2D77A8;
+    --color-brand-600: #235F88;
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-400: #8E97A4;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-700: #363D49;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+    padding: 32px 40px;
+    min-height: 800px;
+  }
+  .page-title { font-size: 24px; font-weight: 600; }
+  .page-subtitle { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: 4px; margin-bottom: 24px; }
+
+  /* card */
+  .card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    max-width: 720px;
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-subtle);
+  }
+  .card-title { font-size: 15px; font-weight: 700; }
+
+  /* action type chip */
+  .chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs); font-weight: 700;
+  }
+  .chip-slip-edit {
+    background: #DBEAFE; color: #1E40AF;
+  }
+
+  /* timeline entries */
+  .timeline { padding: 16px 20px; }
+  .timeline-entry {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 0 12px;
+    margin-bottom: 0;
+  }
+  .timeline-entry + .timeline-entry .tl-dot-col::before {
+    /* connector line */
+    content: '';
+    display: block;
+    width: 2px;
+    background: var(--color-neutral-200);
+    height: 100%;
+    margin: 0 auto;
+  }
+
+  /* dot column */
+  .tl-dot-col {
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .tl-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--color-brand-500);
+    flex-shrink: 0; margin-top: 4px;
+  }
+  .tl-line {
+    flex: 1; width: 2px; background: var(--color-neutral-200);
+    margin-top: 4px; margin-bottom: 0;
+  }
+
+  /* content column */
+  .tl-content {
+    padding-bottom: 20px;
+  }
+  .tl-action-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .tl-actor { font-size: var(--font-size-sm); font-weight: 700; }
+  .tl-at { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+
+  /* changed fields block */
+  .tl-fields-label { font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: 4px; font-weight: 600; }
+  .tl-fields-val { font-size: var(--font-size-sm); color: var(--color-text); }
+
+  .revision-badge {
+    font-size: var(--font-size-xs); color: var(--color-text-muted);
+    background: var(--color-neutral-100); border-radius: 4px;
+    padding: 2px 7px; font-weight: 600;
+  }
+
+  /* footnote */
+  .footnote {
+    font-size: 11px; color: var(--color-neutral-400);
+    padding: 10px 20px 14px;
+    border-top: 1px solid var(--color-border);
+  }
+</style>
+</head>
+<body>
+<h1 class="page-title">변경 이력</h1>
+<p class="page-subtitle">SLIP_EDIT revision 기록 — 매출번호 2026/05/18-1</p>
+
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">수정 이력</span>
+    <span class="chip chip-slip-edit">SLIP_EDIT</span>
+  </div>
+
+  <div class="timeline">
+    <!-- revision 2 (최신) -->
+    <div class="timeline-entry">
+      <div class="tl-dot-col">
+        <div class="tl-dot"></div>
+        <div class="tl-line"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-action-row">
+          <span class="tl-actor">김운영 매니저</span>
+          <span class="revision-badge">rev 2</span>
+          <span class="chip chip-slip-edit" style="font-size:11px;padding:2px 7px;">SLIP_EDIT</span>
+        </div>
+        <div class="tl-at">2026-05-18 14:24</div>
+        <div style="height:8px;"></div>
+        <div class="tl-fields-label">변경 필드</div>
+        <div class="tl-fields-val">거래처, 단가, 비고, 합계</div>
+      </div>
+    </div>
+
+    <!-- revision 1 (초기 수정) -->
+    <div class="timeline-entry">
+      <div class="tl-dot-col">
+        <div class="tl-dot" style="background: var(--color-neutral-300);"></div>
+        <div class="tl-line"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-action-row">
+          <span class="tl-actor">홍길동 SALES</span>
+          <span class="revision-badge">rev 1</span>
+          <span class="chip chip-slip-edit" style="font-size:11px;padding:2px 7px;">SLIP_EDIT</span>
+        </div>
+        <div class="tl-at">2026-05-18 09:12</div>
+        <div style="height:8px;"></div>
+        <div class="tl-fields-label">변경 필드</div>
+        <div class="tl-fields-val">배송주소, 비고</div>
+      </div>
+    </div>
+
+    <!-- revision 0 (생성) -->
+    <div class="timeline-entry">
+      <div class="tl-dot-col">
+        <div class="tl-dot" style="background: var(--color-neutral-300);"></div>
+      </div>
+      <div class="tl-content">
+        <div class="tl-action-row">
+          <span class="tl-actor">홍길동 SALES</span>
+          <span class="revision-badge">최초 저장</span>
+        </div>
+        <div class="tl-at">2026-05-18 08:55</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    내부 actorId 는 표시하지 않고 actorName (변경자) 만 사용 — UUID 비공개 가드
+  </div>
+</div>
+</body>
+</html>

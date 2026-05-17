@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-2 PNG 04 — INVENTORY 권한 가드 (수정 버튼 미렌더)</title>
+<style>
+  :root {
+    --color-brand-500: #2D77A8;
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-400: #8E97A4;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-700: #363D49;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    /* danger tokens */
+    --color-danger-200: #FED7D7;
+    --color-danger-50:  #FFF5F5;
+    --color-danger-800: #991B1B;
+    --color-danger-bg:  #FEE2E2;
+    --color-danger:     #EF4444;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+    padding: 32px 40px;
+    min-height: 800px;
+  }
+  .page-title { font-size: 24px; font-weight: 600; }
+  .page-subtitle { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: 4px; margin-bottom: 24px; }
+
+  /* card */
+  .card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    max-width: 760px;
+    overflow: hidden;
+  }
+
+  .card-body { padding: 28px 24px; }
+
+  /* 403 chip */
+  .chip-403 {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--color-danger-bg);
+    color: var(--color-danger-800);
+    font-size: var(--font-size-xs); font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .guard-title {
+    font-size: 17px; font-weight: 700; margin-bottom: 10px;
+  }
+
+  .guard-desc {
+    font-size: var(--font-size-sm); color: var(--color-text-muted);
+    line-height: 1.6; margin-bottom: 18px;
+  }
+
+  /* allowed roles block */
+  .roles-label {
+    font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-muted);
+    margin-bottom: 8px;
+  }
+  .roles-list { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+  .role-chip {
+    display: inline-block; padding: 4px 12px;
+    border-radius: 4px; font-size: var(--font-size-xs); font-weight: 700;
+  }
+  .role-allowed { background: #D1FAE5; color: #065F46; }
+  .role-denied  { background: var(--color-neutral-100); color: var(--color-neutral-500); text-decoration: line-through; }
+
+  /* detail section — 매출 상세는 읽기전용으로 정상 노출 */
+  .readonly-note {
+    padding: 14px 16px;
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    background: var(--color-neutral-50);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .readonly-icon { font-size: 18px; }
+
+  /* mock detail (read-only no edit button) */
+  .detail-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-muted); }
+  .detail-val { font-size: var(--font-size-sm); color: var(--color-text); }
+  .no-edit-badge {
+    display: inline-block; padding: 3px 9px;
+    border-radius: 4px; font-size: var(--font-size-xs); font-weight: 700;
+    background: var(--color-neutral-100); color: var(--color-neutral-500);
+  }
+
+  /* footnote */
+  .footnote {
+    font-size: 11px; color: var(--color-neutral-400);
+    padding: 10px 24px 14px;
+    border-top: 1px solid var(--color-border);
+  }
+</style>
+</head>
+<body>
+<h1 class="page-title">권한 가드</h1>
+<p class="page-subtitle">INVENTORY 역할은 매출 전표 수정 버튼 미렌더</p>
+
+<div class="card">
+  <div class="card-body">
+    <div class="chip-403">403</div>
+    <div class="guard-title">매출 전표 수정 권한이 없습니다</div>
+    <div class="guard-desc">
+      매출 전표 수정(direct PUT)은 SALES / MANAGER / MASTER 역할만 가능합니다.<br/>
+      INVENTORY / ACCOUNTANT 역할은 전표 조회(읽기 전용)만 허용됩니다.
+    </div>
+
+    <div class="roles-label">역할별 접근 권한</div>
+    <div class="roles-list">
+      <span class="role-chip role-allowed">SALES</span>
+      <span class="role-chip role-allowed">MANAGER</span>
+      <span class="role-chip role-allowed">MASTER</span>
+      <span class="role-chip role-denied">INVENTORY</span>
+      <span class="role-chip role-denied">ACCOUNTANT</span>
+    </div>
+
+    <div class="readonly-note">
+      <span class="readonly-icon">&#128274;</span>
+      <span>현재 로그인 역할: <strong>INVENTORY</strong> — 아래 매출 상세는 읽기 전용으로 조회 가능합니다. 수정 버튼은 렌더하지 않습니다.</span>
+    </div>
+
+    <!-- 상세 카드 (수정 버튼 없음) -->
+    <div class="detail-row">
+      <span class="detail-key">판매번호</span>
+      <span class="detail-val">2026/05/18-1</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">거래처</span>
+      <span class="detail-val">삼성물산</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">전표일자</span>
+      <span class="detail-val">2026-05-18</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">합계</span>
+      <span class="detail-val">1,200,000원</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-key">수정 버튼</span>
+      <span class="no-edit-badge">미렌더 (INVENTORY 역할)</span>
+    </div>
+  </div>
+
+  <div class="footnote">
+    화면에서는 수정 버튼을 렌더하지 않습니다 — canEdit = SALES_EDIT_ROLES.includes(role)
+  </div>
+</div>
+</body>
+</html>

@@ -46,6 +46,11 @@ public enum ErrorCode {
      */
     SLIP_DELETE_NON_INBOUND(HttpStatus.FORBIDDEN,
             "매입 전표만 삭제할 수 있습니다."),
+    /**
+     * 매출 전표 수정 불가 — slipType 이 OUTBOUND 가 아닌 전표에 매출 수정 endpoint 호출.
+     */
+    SLIP_UPDATE_NON_SALES(HttpStatus.FORBIDDEN,
+            "매출 전표만 직접 수정할 수 있습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND(HttpStatus.NOT_FOUND,
             "변환할 견적을 찾을 수 없습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,

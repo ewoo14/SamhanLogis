@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-2 PNG 01 — 매출 전표 수정 modal (거래처/라인테이블/합계 + 저장/취소)</title>
+<style>
+  :root {
+    --color-brand-500: #2D77A8;
+    --color-brand-600: #235F88;
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-400: #8E97A4;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-700: #363D49;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-border-strong:#B8C0CB;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    --color-primary:      #2D77A8;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: rgba(0,0,0,0.28);
+    color: var(--color-text);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 900px; padding: 32px;
+  }
+
+  /* Modal shell */
+  .modal {
+    background: var(--color-bg);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+    width: min(900px, calc(100vw - 64px));
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-subtle);
+  }
+  .modal-title { font-size: 18px; font-weight: 600; }
+  .modal-close {
+    appearance: none; background: transparent; border: none;
+    color: var(--color-neutral-500); font-size: 20px; cursor: pointer;
+    line-height: 1; padding: 2px 6px;
+  }
+
+  .modal-body { padding: 20px 20px 8px; }
+
+  /* form grid (SP-08-5-2 sales-edit-field 패턴 — purchase-edit-field 에서 분리) */
+  .sales-edit-field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .sales-edit-field { display: flex; flex-direction: column; gap: 4px; }
+  .sales-edit-field label {
+    font-size: var(--font-size-xs); font-weight: 600;
+    color: var(--color-text-muted);
+  }
+  .sales-edit-field input,
+  .sales-edit-field select {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    color: var(--color-text);
+    outline: none;
+    background: var(--color-bg);
+  }
+  .sales-edit-field input:focus,
+  .sales-edit-field select:focus {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 2px rgba(45,119,168,0.18);
+  }
+  .sales-edit-field-span2 { grid-column: span 2; }
+
+  /* lines table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+  thead th {
+    padding: 9px 10px;
+    background: var(--color-bg-subtle);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-xs); font-weight: 700;
+    color: var(--color-text-muted); text-align: center;
+  }
+  tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle; text-align: center;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td input {
+    width: 100%; border: 1px solid var(--color-border);
+    border-radius: 5px; padding: 5px 8px;
+    font-size: var(--font-size-sm); font-family: inherit;
+    background: var(--color-bg); outline: none;
+  }
+  td input:focus {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 2px rgba(45,119,168,0.15);
+  }
+  .model-col { color: var(--color-brand-500); font-weight: 500; }
+  .num-col { font-feature-settings: "tnum" 1; text-align: right; }
+
+  /* line add/remove row */
+  .line-actions {
+    display: flex; gap: 8px; margin-top: 10px; margin-bottom: 4px;
+  }
+  .btn-ghost-sm {
+    appearance: none; border: 1px solid var(--color-border);
+    background: var(--color-bg); border-radius: 6px;
+    padding: 5px 12px; font-size: var(--font-size-xs);
+    font-weight: 600; color: var(--color-text-muted); cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-ghost-sm:hover { background: var(--color-bg-subtle); }
+
+  /* total row */
+  .total-area {
+    display: flex; justify-content: flex-end;
+    padding: 14px 0 4px;
+    border-top: 2px solid var(--color-border-strong);
+    margin-top: 8px;
+  }
+  .total-label { font-size: 15px; font-weight: 600; color: var(--color-text-muted); margin-right: 12px; }
+  .total-amount { font-size: 20px; font-weight: 700; color: var(--color-brand-500); font-feature-settings: "tnum" 1; }
+
+  /* modal footer */
+  .modal-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
+  .btn-secondary {
+    appearance: none; border: 1px solid var(--color-border);
+    background: var(--color-bg); border-radius: 6px;
+    padding: 9px 20px; font-size: var(--font-size-sm);
+    font-weight: 600; color: var(--color-text); cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary {
+    appearance: none; border: none;
+    background: var(--color-brand-500); border-radius: 6px;
+    padding: 9px 20px; font-size: var(--font-size-sm);
+    font-weight: 700; color: #fff; cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary:hover { background: var(--color-brand-600); }
+
+  /* footnote */
+  .footnote {
+    font-size: 11px; color: var(--color-neutral-400);
+    padding: 6px 20px 10px; text-align: right;
+  }
+</style>
+</head>
+<body>
+<div class="modal">
+  <div class="modal-head">
+    <span class="modal-title">매출 전표 수정</span>
+    <button class="modal-close" aria-label="닫기">&#x2715;</button>
+  </div>
+
+  <div class="modal-body">
+    <!-- SP-08-6-2: sales-edit-field (purchase-edit-field 분리) -->
+    <div class="sales-edit-field-grid">
+      <div class="sales-edit-field">
+        <label>거래처</label>
+        <input type="text" value="삼한공조"/>
+      </div>
+      <div class="sales-edit-field">
+        <label>거래처코드</label>
+        <input type="text" value="123-45-67890" readonly style="background:#F7F8FA;color:#6B7280;"/>
+      </div>
+      <div class="sales-edit-field">
+        <label>전표일자</label>
+        <input type="date" value="2026-05-18"/>
+      </div>
+      <div class="sales-edit-field">
+        <label>출고창고</label>
+        <input type="text" value="본사창고" readonly style="background:#F7F8FA;color:#6B7280;"/>
+      </div>
+      <div class="sales-edit-field">
+        <label>담당자</label>
+        <input type="text" value="홍길동" readonly style="background:#F7F8FA;color:#6B7280;"/>
+      </div>
+      <div class="sales-edit-field">
+        <label>배송주소</label>
+        <input type="text" value="서울 강남구"/>
+      </div>
+      <div class="sales-edit-field sales-edit-field-span2">
+        <label>비고</label>
+        <input type="text" value="에어컨 설치 후 단가 조정"/>
+      </div>
+    </div>
+
+    <!-- 라인 테이블 -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>품목명</th>
+            <th>모델번호</th>
+            <th>수량</th>
+            <th>단가 (원)</th>
+            <th>소계</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="text" value="실외기"/></td>
+            <td class="model-col">SAL-001</td>
+            <td><input type="number" value="2" style="width:60px;text-align:center;"/></td>
+            <td><input type="number" value="120000" class="num-col"/></td>
+            <td class="num-col">240,000원</td>
+          </tr>
+          <tr>
+            <td><input type="text" value="실내기"/></td>
+            <td class="model-col">SAL-002</td>
+            <td><input type="number" value="3" style="width:60px;text-align:center;"/></td>
+            <td><input type="number" value="100000" class="num-col"/></td>
+            <td class="num-col">300,000원</td>
+          </tr>
+          <tr>
+            <td><input type="text" value="한시에어컨 필터"/></td>
+            <td class="model-col">SAL-003</td>
+            <td><input type="number" value="5" style="width:60px;text-align:center;"/></td>
+            <td><input type="number" value="20000" class="num-col"/></td>
+            <td class="num-col">100,000원</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="line-actions">
+      <button class="btn-ghost-sm">+ 라인 추가</button>
+      <button class="btn-ghost-sm" style="color:#b91c1c;border-color:#fca5a5;">- 라인 삭제</button>
+    </div>
+
+    <div class="total-area">
+      <span class="total-label">합 계</span>
+      <span class="total-amount">640,000원</span>
+    </div>
+  </div>
+
+  <div class="modal-foot">
+    <button class="btn-secondary">취소</button>
+    <button class="btn-primary">저장</button>
+  </div>
+  <div class="footnote">
+    내부 UUID 는 표시하지 않음 — 거래처코드(사업자번호)/전표번호만 노출 (UUID 비공개 가드)
+  </div>
+</div>
+</body>
+</html>

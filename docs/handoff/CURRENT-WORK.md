@@ -2,6 +2,45 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-2 진입 — U1 매출 수정 direct PUT
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-2-sales-slip-edit-put
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `c380644e` (PR #226 SP-08-6-1 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.2
+- 사용자 6/7회차 정책
+
+### SP-08-6-2 범위 (U1)
+
+매출 (Slip slipType=OUTBOUND) 수정 direct PUT endpoint. SP-08-5-2 매입 수정 패턴 재사용:
+- `PUT /api/v1/slips/{id}` slipType=OUTBOUND 분기
+- 권한 SALES/MANAGER/MASTER (SP-08-6-1 정합)
+- 낙관적 잠금 `ChronoUnit.MICROS` truncation (SP-08-5-2 회고)
+- `Slip.updateHeader/replaceLines` 도메인 메서드 INBOUND/OUTBOUND 양쪽 처리 가능 확인
+- 422 SLIP_UPDATE_INVALID_LINE 계약 보존 (Bean Validation 금지)
+- audit `SLIP_EDIT` revision 1건
+- FE: SalesQueryPage + SalesDetail 수정 modal (SP-08-5-2 패턴)
+- Playwright + IT + PNG 4장
+
+### 직전 머지 (PR #226)
+
+- branch: `feat/sp-08-6-1-sales-slip-list-detail` (deleted)
+- mergeCommit: `c380644e`
+- 사이클 통계: N=1 (양쪽 Claude+Codex 결함 통합 fix)
+- 신규: SlipSalesAccessGuard + SlipQuerySalesIT 14 case + SalesQueryPage (canQuerySales + statusBadgeVariant + design-system Input)
+- SP-08-5-1 IT 회귀 정합 (SP-03 §4.2 INVENTORY/ACCOUNTANT + null → 403)
+
+## 2026-05-18 SP-08-6-1 머지 완료 — 매출 R1/R2 (참고 이력)
+
 ## 2026-05-18 SP-08-6-1 진입 — R1/R2 매출 목록·상세 endpoint 잠금
 
 ### 즉시 시작

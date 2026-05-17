@@ -348,6 +348,29 @@ export async function updatePurchaseSlip(
 }
 
 /**
+ * 매출 전표 direct PUT 수정 — SP-08-6-2 신규.
+ *
+ * OUTBOUND 전표의 헤더 및 라인을 전체 교체 (optimistic lock).
+ * 에러 코드:
+ * - 409 Conflict      — 낙관적 잠금 충돌 (다른 사용자가 먼저 수정)
+ * - 422 Unprocessable — 라인 입력값 검증 오류
+ * - 403 Forbidden     — 권한 부족 (SALES/MANAGER/MASTER 이외)
+ *
+ * @param id   전표 UUID (path param 전용, 화면 표시 금지)
+ * @param body updatedAt 낙관적 잠금 + 헤더/라인 전체 교체 요청
+ */
+export async function updateSalesSlip(
+  id: string,
+  body: SlipUpdateRequest,
+): Promise<SlipDetail> {
+  const res = await apiClient.put<ApiEnvelope<SlipDetail>>(
+    `/slips/${encodeURIComponent(id)}/sales`,
+    body,
+  )
+  return res.data.data
+}
+
+/**
  * 기사 정보 부분 갱신 요청 — link-dispatch-slice 신규.
  *
  * BE `UpdateSlipDriverRequest` (PATCH /slips/{id}/driver).
