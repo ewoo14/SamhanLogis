@@ -16,6 +16,11 @@ import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
+const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
+  if (mode === 'EXPAND') return '구성품 펼침'
+  if (mode === 'KEEP') return '묶음 유지'
+  return null
+}
 
 export function SalesPartnerOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -23,17 +28,17 @@ export function SalesPartnerOrderDetailPage() {
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
 
-  useEffect(() => {
-    setPageTitle({ title: `주문서 ${isValidId ? id : ''}`, meta: '영업' })
-    return () => setPageTitle({ title: '' })
-  }, [setPageTitle, id, isValidId])
-
   const query = useQuery({
     queryKey: ['partner-order', id],
     queryFn: () => getPartnerOrder(id!),
     enabled: isValidId,
     retry: 1,
   })
+
+  useEffect(() => {
+    setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? (isValidId ? id : '')}`, meta: '영업' })
+    return () => setPageTitle({ title: '' })
+  }, [setPageTitle, id, isValidId, query.data?.orderNumber])
 
   if (!isValidId) {
     return (
@@ -59,7 +64,7 @@ export function SalesPartnerOrderDetailPage() {
         <div className={styles['top']}>
           <div className={styles['title']}>
             주문서 상세
-            <span className={styles['badge']}>{id}</span>
+            <span className={styles['badge']}>{query.data?.orderNumber ?? id}</span>
           </div>
           <div className={styles['topActions']}>
             <Link to="/sales/partner-orders" className={styles['btnGhost']}>
@@ -73,8 +78,7 @@ export function SalesPartnerOrderDetailPage() {
         ) : query.isError ? (
           <div className={styles['emptyState']}>
             <h3>주문 조회에 실패했습니다</h3>
-            <p>주문번호: {id}</p>
-            <p style={{ fontSize: 11 }}>endpoint: GET /api/v1/partner-orders/{'{id}'}</p>
+            <p>주문번호를 확인한 뒤 다시 시도해 주세요.</p>
           </div>
         ) : query.data ? (
           <>
@@ -140,21 +144,21 @@ export function SalesPartnerOrderDetailPage() {
                       <th>수량</th>
                       <th>납품가</th>
                       <th>소계</th>
-                      <th>Bundle 모드</th>
+                      <th>묶음 처리</th>
                       <th>구성품 펼침</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(query.data.lines ?? []).map((line) => (
-                      <tr key={line.id}>
+                    {(query.data.lines ?? []).map((line, index) => (
+                      <tr key={`${line.modelCode}-${index}`}>
                         <td style={{ textAlign: 'left' }}>{line.productName}</td>
                         <td>{line.modelCode}</td>
                         <td>{line.quantity}</td>
                         <td className="numeric">{krw(line.deliveryPrice)}</td>
                         <td className="numeric">{krw(line.subtotal)}</td>
                         <td>
-                          {line.bundleMode ? (
-                            <span className={styles['badge']}>{line.bundleMode}</span>
+                          {bundleModeLabel(line.bundleMode) ? (
+                            <span className={styles['badge']}>{bundleModeLabel(line.bundleMode)}</span>
                           ) : (
                             '-'
                           )}

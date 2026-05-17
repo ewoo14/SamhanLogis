@@ -27,9 +27,9 @@
  *       LongPendingScheduler).</li>
  * </ul>
  *
- * <p>UUID 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}): 모든 응답에서 사용자
+ * <p>내부 식별자 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}): 모든 응답에서 화면
  * 노출 식별자는 {@code modelCode}, {@code estimateNumber}, {@code partnerCode} 만 사용한다.
- * UUID 는 React key 또는 PATCH/DELETE path param 으로만 사용.
+ * 내부 식별자는 React key 또는 PATCH/DELETE path param 으로만 사용.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 
@@ -273,17 +273,15 @@ export async function getEstimate(estimateNumber: string): Promise<EstimateDetai
 /** PartnerOrderStatus — partner-order-service 가정. */
 export type PartnerOrderStatus =
   | 'DRAFT'
-  | 'SUBMITTED'
+  | 'CONFIRMING'
   | 'CONFIRMED'
-  | 'CONVERTED'
   | 'CANCELED'
 
 /** PartnerOrderStatus → 한국어. */
 export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
   DRAFT: '작성중',
-  SUBMITTED: '발송',
+  CONFIRMING: '확정 처리중',
   CONFIRMED: '확정',
-  CONVERTED: '전표전환',
   CANCELED: '취소',
 }
 
@@ -301,7 +299,6 @@ export interface PartnerOrderSummary {
 
 /** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. */
 export interface PartnerOrderLine {
-  id: string
   modelCode: string
   productName: string
   quantity: number
@@ -332,10 +329,20 @@ export interface PartnerOrderDetail extends PartnerOrderSummary {
 export async function listPartnerOrders(
   page = 0,
   size = 20,
-  status?: PartnerOrderStatus,
+  filters: {
+    dateFrom?: string
+    dateTo?: string
+    partnerId?: string
+    status?: PartnerOrderStatus
+    searchKeyword?: string
+  } = {},
 ): Promise<PageResponse<PartnerOrderSummary>> {
   const params: Record<string, string | number> = { page, size }
-  if (status) params['status'] = status
+  if (filters.dateFrom) params['dateFrom'] = filters.dateFrom
+  if (filters.dateTo) params['dateTo'] = filters.dateTo
+  if (filters.partnerId) params['partnerId'] = filters.partnerId
+  if (filters.status) params['status'] = filters.status
+  if (filters.searchKeyword) params['searchKeyword'] = filters.searchKeyword
   const res = await apiClient.get<ApiEnvelope<PageResponse<PartnerOrderSummary>>>(
     '/api/v1/partner-orders',
     { params },
