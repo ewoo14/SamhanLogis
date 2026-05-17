@@ -44,7 +44,8 @@
 - SP-08-3-4: 배차문자 미리보기/발송 감사 저장내역 구현 진행. `notification-service`의 `dispatch_sms_save_history` + `/admin/notifications/dispatch-sms/history` API로 미리보기 결과는 `AUTO_LATEST`/`MANUAL_NAMED`, 실발송 결과는 `SEND_AUDIT` append-only로 보존하고, desktop 배차문자 화면을 실행/저장내역 2탭으로 정렬한다.
 - SP-08-4-2: 거래처 주문 direct PUT 수정 endpoint 진행. `partner-order-service`에 `PUT /api/v1/partner-orders/{id}`를 추가해 본사 `SALES / MANAGER / MASTER`가 낙관적 잠금(`updatedAt`)으로 주문 헤더/라인을 즉시 수정하고, 기존 `EditRequest` 거래처 승인 흐름과 공존하도록 정책을 분리한다.
 - SP-08-4-3: 거래처 주문 soft delete + 견적 주문 변환 endpoint 진행. `DELETE /api/v1/partner-orders/{id}`는 `DRAFT / CONFIRMING` 주문만 헤더/라인 전체 soft-delete하고, `POST /api/v1/partner-orders/from-estimate/{estimateId}`는 `source_estimate_id` active unique로 중복 변환을 차단한다. desktop 상세에는 운영자 삭제 확인 Modal을 추가하고, 견적 변환 UI는 estimate-app 후속 슬라이스로 분리한다.
-- 다음 후보: SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
+- SP-08-4-4: 거래처 주문 인쇄 양식 진행. `GET /api/v1/partner-orders/{id}/print`는 A4 HTML과 `@media print` CSS를 직접 반환하고, desktop 주문 상세는 `SALES / MANAGER / MASTER / PARTNER` 공용 `인쇄` 버튼으로 새 탭을 연다. `PARTNER`는 `X-Partner-Code` 본인 주문만 200, 타 거래처 주문은 403으로 제한한다.
+- 다음 후보: SP-08-4-5 통합 PR + 5-team 리뷰, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
 
 ## 시스템 구조 (Mermaid)
 

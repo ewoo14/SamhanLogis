@@ -1,6 +1,100 @@
 # 현재 작업 핸드오프 노트
 
-## 2026-05-17 Codex 진행 — SP-08-4-3 주문 soft delete + 견적 주문 변환
+> 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
+
+## 2026-05-17 SP-08-4-3 머지 완료 (PR #218) + SP-08-4-4 자동 진입
+
+### 즉시 시작 (회사 PC 첫 명령)
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout main; git pull origin main
+git checkout feat/sp-08-4-4-order-print-form 2>$null
+# 또는 main 에서 다시 시작 시:
+# git checkout -b feat/sp-08-4-4-order-print-form
+```
+
+**PM 자동 진입 정책** (사용자 명시 2026-05-17): 명령 없이 다음 슬라이스 SP-08-4-4 자동 시작. blocker/UNSTABLE 시만 사용자 대기.
+
+### 현재 main HEAD (2026-05-17 누적)
+
+```
+e065ed43 [FEAT] SP-08-4-3 주문 soft delete + 견적→주문 변환 endpoint (#218)
+0ead89bd [FEAT] SP-08-4-2 주문 수정 direct PUT endpoint + optimistic lock (#217)
+f8f2c447 [FEAT] SP-08-4-1 주문 목록·상세 endpoint 잠금 (#216)
+601f1891 [FEAT] SP-08-3-4 배차문자 preview+send+audit 저장내역 (#215)
+e165ce24 [FEAT] SP-08-3-3 전표정리 저장내역 2-Tab (#214)
+ca5668fd [FEAT] SP-08-3-2 arologis 배차 저장내역 4 화면 일관 (#213)
+fa5c7648 [FEAT] SP-08-3-1 배차 GAS parity 기반 잠금 (#212)
+```
+
+### SP-08-4 마스터 plan 진행 (docs/planning/2026-05-17_sp-08-4-order-crud-parity.md)
+
+| 슬라이스 | 상태 | PR | 머지 commit |
+|---|---|---|---|
+| SP-08-4-1 주문 목록·상세 | ✅ 완료 | #216 | `f8f2c447` |
+| SP-08-4-2 주문 수정 direct PUT | ✅ 완료 | #217 | `0ead89bd` |
+| SP-08-4-3 주문 soft delete + 견적→주문 변환 | ✅ 완료 | #218 | `e065ed43` |
+| **SP-08-4-4 주문 인쇄 양식 (legacy GAS 100% 매칭)** | **▶ 진입 중** | TBD | TBD |
+| SP-08-4-5 통합 PR + 5-team 리뷰 + 머지 | 대기 | TBD | TBD |
+
+### 사용자 정책 누적 (1~5회차 + α)
+
+| 회차 | 정정 내용 | 메모리 위치 |
+|---|---|---|
+| 1회차 | Claude 5 + Codex 5 양쪽 reviewer | `feedback_dual_5agent_review.md` |
+| 2회차 | Codex CLI MCP (`mcp__codex__codex`) 사용 (Plugin 폐기) | `feedback_codex_plugin_setup.md` |
+| 3회차 | TM 통합 2 PR comment / 사이클 (5+5=10 별도 등록 폐기) | `feedback_dual_5agent_review.md` |
+| 4회차 | **사이클 N=3 안 완료 의무** (사이클 4+ 진입 금지) | `feedback_dual_5agent_review.md` |
+| 5회차 | **사이클 1회 = Claude review → Claude fix → Codex review → Codex fix** (양쪽 각자 fix, 사이클 N.5 통합 fix 폐기) | `feedback_dual_5agent_review.md` |
+| α | **PM 자동 머지 + 자동 슬라이스 진입** (blocker/UNSTABLE 시만 대기) | `feedback_user_merge_authority.md` (원본 유지, 본 핸드오프에 정책 명시) |
+
+### 환경 트랩 (반복 발생, 대응 패턴 확립)
+
+| 트랩 | 원인 | 대응 |
+|---|---|---|
+| Codex sandbox `.git` ACL 차단 | `mcp__codex__codex` workspace-write 가 `.git/index.lock` 생성 거부 | Codex fix 적용만 → Claude 가 직접 `git add/commit/push` |
+| Codex sandbox `spawn EPERM` | Playwright `npx`, `electron-vite` build, Node `spawnSync` 차단 | Codex spec 수정만 → CI Linux 검증 위임 |
+| PNG 한글 깨짐 (System.Drawing) | PowerShell `Malgun Gothic` GDI+ fallback 실패 | PowerShell unicode escape 방식 + System.Drawing |
+| Korean path JDK gradle test | JDK 17 한글 path 실행 trap | Codex sandbox: `GRADLE_USER_HOME=C:\dev\SamhanLogis\.gradle-codex` 대체 |
+| `main` 직접 push 차단 | auto mode classifier | 항상 PR 워크플로우 — chore/memory 도 별도 branch + PR |
+
+### 양쪽 review 워크플로우 (사이클 1회 표준 — 5회차 정정 후)
+
+```
+1a. Claude 5 subagent 병렬 review (BE/FE/Designer/QA/DevOps)
+1b. tech-manager agent 통합 → 1 PR comment (gh pr comment <num> --body-file tm-claude-cycle-N.md)
+1c. Claude fix (자체 review + Codex 예상 valid 결함 선제) → commit + push
+2a. Codex 5-agent 병렬 (mcp__codex__codex × 5, sandbox=read-only)
+2b. tech-manager agent 통합 → 1 PR comment (tm-codex-cycle-N.md)
+2c. Codex fix (자체 review + Claude valid 미처리 보완, mcp__codex__codex sandbox=workspace-write)
+   → Claude 가 git add + commit + push (.git 차단 대응)
+[사이클 N 종료 — 양쪽 0 P0/P1 + CI 24/24 SUCCESS 시 머지]
+```
+
+### 다음 슬라이스: SP-08-4-4 P1 주문 인쇄 양식
+
+**범위** (master plan §3.4):
+- `GET /api/v1/partner-orders/{id}/print` HTML 양식 (`@media print` CSS)
+- legacy GAS `종합견적서` 출력 tab print layout 캡처 → mockup → Edge 캡처 → 3~5회 iteration (`feedback_print_design_iteration.md`)
+- A4 한 장 fit, 거래처/품목/단가/합계/날인란
+- Playwright + QA PNG (legacy raw vs 우리 양식 side-by-side) + dev-report
+
+**진입 패턴**: codex CLI MCP `mcp__codex__codex` `sandbox: workspace-write` 위임 → 구현 → Claude 직접 `git add + commit + push` → PR 발행 → 사이클 1 review (Claude → Claude fix → Codex → Codex fix) N=3 안 머지.
+
+### 후속 슬라이스 백로그 (SP-08-4 시리즈 누적)
+
+- FE-C2-01 (BE `partnerCode` editability 정책)
+- FE-C2-03 (수정 후 목록 queryKey invalidate)
+- Codex FE mock coverage
+- DevOps D-1 (`FixtureEstimateClient` `@Profile` Phase 11)
+- DevOps D-2 (`nextOrderNo` soft-delete row 제외 식별자 정책)
+- QA-Nit-02 (`resolveActorName` Javadoc)
+- BE P3-2 (IT coverage 43 명시)
+
+---
+
+## 2026-05-17 Codex 진행 (이전 기록) — SP-08-4-3 주문 soft delete + 견적 주문 변환
 
 - 현재 branch: `feat/sp-08-4-3-order-delete-and-estimate-convert`
 - 기준 main HEAD: `0ead89bd [FEAT] SP-08-4-2 주문 수정 direct PUT endpoint + optimistic lock (#217)`

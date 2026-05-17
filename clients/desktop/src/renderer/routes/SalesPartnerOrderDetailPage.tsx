@@ -30,6 +30,7 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   return null
 }
 const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
+const PRINT_ROLES = ['SALES', 'MANAGER', 'MASTER', 'PARTNER']
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -62,6 +63,7 @@ export function SalesPartnerOrderDetailPage() {
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const orderId = id!
   const canEdit = !!auth?.role && EDIT_ROLES.includes(auth.role)
+  const canPrint = !!auth?.role && PRINT_ROLES.includes(auth.role)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
@@ -151,6 +153,12 @@ export function SalesPartnerOrderDetailPage() {
     }
   }, [refetch, syncFormFromData])
 
+  const handlePrint = useCallback(() => {
+    if (!orderId) return
+    const url = `/api/v1/partner-orders/${encodeURIComponent(orderId)}/print`
+    window.open(url, '_blank', 'width=900,height=1200')
+  }, [orderId])
+
   useEffect(() => {
     setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })
     return () => setPageTitle({ title: '' })
@@ -191,6 +199,16 @@ export function SalesPartnerOrderDetailPage() {
             <span className={styles['badge']}>{query.data?.orderNumber ?? '조회 중'}</span>
           </div>
           <div className={styles['topActions']}>
+            {query.data && canPrint ? (
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="partner-order-print-open"
+                onClick={handlePrint}
+              >
+                인쇄
+              </Button>
+            ) : null}
             {query.data && canEdit ? (
               <Button
                 type="button"

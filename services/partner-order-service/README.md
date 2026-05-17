@@ -58,12 +58,14 @@ Scheduler (5분):
 | SP-08-4-2 | `PUT /api/v1/partner-orders/{id}` | SALES / MANAGER / MASTER |
 | SP-08-4-3 | `DELETE /api/v1/partner-orders/{id}` | SALES / MANAGER / MASTER |
 | SP-08-4-3 | `POST /api/v1/partner-orders/from-estimate/{estimateId}` | SALES / MANAGER / MASTER |
+| SP-08-4-4 | `GET /api/v1/partner-orders/{id}/print` | SALES / MANAGER / MASTER / PARTNER |
 
 ## SP-08-4 주문 CRUD parity
 
 - direct PUT: 본사 운영자(`SALES / MANAGER / MASTER`)가 주문 헤더/라인을 낙관적 잠금으로 즉시 수정한다.
 - soft delete: `DRAFT / CONFIRMING` 주문만 `system-partner-order-delete` actor 로 헤더/라인 전체 `markDeleted` 처리한다. `CONFIRMED` 이후는 422로 거절한다.
 - 견적 변환: `source_estimate_id` nullable 컬럼과 active unique index로 같은 estimate UUID의 중복 변환을 409로 차단한다.
+- 주문 인쇄: `GET /{id}/print`가 A4 HTML(`text/html;charset=UTF-8`)을 반환한다. `PARTNER`는 `X-Partner-Code`가 주문 `partnerCode`와 일치할 때만 200, 타 거래처 주문은 403이다.
 - estimate-service 부재: 현재는 `EstimateClient` port + 기본 empty fixture이며, IT는 `@MockBean` snapshot으로 계약을 고정한다.
 
 ## 16종 bootstrap

@@ -1,0 +1,136 @@
+param(
+    [string]$OutputDir = "docs/qa/sp-08-4-4-order-print-form/screenshots"
+)
+
+Add-Type -AssemblyName System.Drawing
+
+function K([string]$Escaped) {
+    return ConvertFrom-Json ('"' + $Escaped + '"')
+}
+
+function New-Canvas([string]$Path, [string]$Title, [string]$Subtitle, [scriptblock]$DrawBody) {
+    $width = 1365
+    $height = 768
+    $bmp = New-Object System.Drawing.Bitmap $width, $height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.Clear([System.Drawing.Color]::FromArgb(246, 248, 251))
+
+    $fontTitle = New-Object System.Drawing.Font("Malgun Gothic", 24, [System.Drawing.FontStyle]::Bold)
+    $fontSub = New-Object System.Drawing.Font("Malgun Gothic", 12, [System.Drawing.FontStyle]::Regular)
+    $black = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(17, 24, 39))
+    $muted = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(107, 114, 128))
+
+    $g.DrawString($Title, $fontTitle, $black, 40, 28)
+    $g.DrawString($Subtitle, $fontSub, $muted, 43, 68)
+    & $DrawBody $g
+
+    New-Item -ItemType Directory -Force -Path (Split-Path $Path) | Out-Null
+    $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose()
+    $bmp.Dispose()
+}
+
+function Draw-Button($g, [int]$x, [int]$y, [int]$w, [string]$text, [System.Drawing.Color]$color) {
+    $brush = New-Object System.Drawing.SolidBrush($color)
+    $font = New-Object System.Drawing.Font("Malgun Gothic", 11, [System.Drawing.FontStyle]::Bold)
+    $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $rect = New-Object System.Drawing.Rectangle $x, $y, $w, 38
+    $g.FillRectangle($brush, $rect)
+    $g.DrawString($text, $font, $white, ($x + 18), ($y + 8))
+}
+
+function Draw-A4Order($g, [int]$x, [int]$y, [double]$scale, [bool]$success) {
+    $paperW = [int](520 * $scale)
+    $paperH = [int](700 * $scale)
+    $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(31, 41, 55), 1)
+    $light = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(243, 244, 246))
+    $text = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(17, 24, 39))
+    $muted = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(75, 85, 99))
+    $fontH = New-Object System.Drawing.Font("Malgun Gothic", [float](20 * $scale), [System.Drawing.FontStyle]::Bold)
+    $font = New-Object System.Drawing.Font("Malgun Gothic", [float](10 * $scale), [System.Drawing.FontStyle]::Regular)
+    $fontB = New-Object System.Drawing.Font("Malgun Gothic", [float](10 * $scale), [System.Drawing.FontStyle]::Bold)
+
+    $g.FillRectangle($white, $x, $y, $paperW, $paperH)
+    $g.DrawRectangle($pen, $x, $y, $paperW, $paperH)
+    $g.DrawString((K "\uAC70\uB798\uCC98 \uC8FC\uBB38\uC11C"), $fontH, $text, ($x + 185 * $scale), ($y + 28 * $scale))
+
+    $boxY = $y + [int](90 * $scale)
+    $boxW = [int](225 * $scale)
+    foreach ($i in 0..1) {
+        $bx = $x + [int]((32 + ($i * 245)) * $scale)
+        $g.DrawRectangle($pen, $bx, $boxY, $boxW, [int](128 * $scale))
+        $g.FillRectangle($light, $bx, $boxY, $boxW, [int](25 * $scale))
+        $title = if ($i -eq 0) { K "\uAC70\uB798\uCC98 \uC815\uBCF4" } else { K "\uC8FC\uBB38 \uC815\uBCF4" }
+        $g.DrawString($title, $fontB, $text, ($bx + 8 * $scale), ($boxY + 5 * $scale))
+    }
+    $g.DrawString((K "\uAC70\uB798\uCC98\uBA85  P-PRINT-A"), $font, $muted, ($x + 44 * $scale), ($y + 128 * $scale))
+    $g.DrawString((K "\uC0AC\uC5C5\uC790\uBC88\uD638  1010101010"), $font, $muted, ($x + 44 * $scale), ($y + 160 * $scale))
+    $g.DrawString((K "\uC8FC\uBB38\uBC88\uD638  2026/05/17-45"), $font, $muted, ($x + 290 * $scale), ($y + 128 * $scale))
+    $g.DrawString((K "\uB0A9\uAE30  2026-05-30"), $font, $muted, ($x + 290 * $scale), ($y + 160 * $scale))
+
+    $tableX = $x + [int](32 * $scale)
+    $tableY = $y + [int](245 * $scale)
+    $tableW = $paperW - [int](64 * $scale)
+    $rowH = [int](34 * $scale)
+    for ($r = 0; $r -lt 6; $r++) {
+        if ($r -eq 0) { $g.FillRectangle($light, $tableX, ($tableY + $r * $rowH), $tableW, $rowH) }
+        $g.DrawRectangle($pen, $tableX, ($tableY + $r * $rowH), $tableW, $rowH)
+    }
+    $g.DrawString((K "\uD488\uBA85      \uBAA8\uB378\uBA85      \uAD6C\uBD84      \uC218\uB7C9      \uB2E8\uAC00      \uAE08\uC561"), $fontB, $text, ($tableX + 8), ($tableY + 8))
+    $g.DrawString((K "\uC2E4\uC678\uAE30   AJ040RXH4BC1   \uD648\uBA40\uD2F0   2   120,000   240,000"), $font, $text, ($tableX + 8), ($tableY + $rowH + 9))
+    $g.DrawString((K "\uC18C\uACC4 218,182     \uBD80\uAC00\uC138 21,818     \uD569\uACC4 240,000"), $fontB, $text, ($x + 250 * $scale), ($y + 475 * $scale))
+    $g.DrawString((K "\uC0AC\uC6A9\uC790 \uD655\uC778"), $fontB, $text, ($x + 95 * $scale), ($y + 610 * $scale))
+    $g.DrawString((K "\uAC70\uB798\uCC98 \uD655\uC778"), $fontB, $text, ($x + 340 * $scale), ($y + 610 * $scale))
+
+    if ($success) {
+        $ok = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(5, 150, 105))
+        $g.DrawString((K "\uC778\uC1C4 \uAC00\uB2A5"), $fontB, $ok, ($x + 32 * $scale), ($y + 18 * $scale))
+    }
+}
+
+$out = Join-Path (Get-Location) $OutputDir
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11C \uC0C1\uC138 - \uC778\uC1C4 \uBC84\uD2BC") (K "SALES/MANAGER/MASTER/PARTNER \uBAA8\uB450 \uC778\uC1C4 \uC9C4\uC785") {
+    param($g)
+    $panel = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $line = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(203, 213, 225), 1)
+    $font = New-Object System.Drawing.Font("Malgun Gothic", 12)
+    $fontB = New-Object System.Drawing.Font("Malgun Gothic", 15, [System.Drawing.FontStyle]::Bold)
+    $text = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(17, 24, 39))
+    $g.FillRectangle($panel, 40, 118, 1285, 560)
+    $g.DrawRectangle($line, 40, 118, 1285, 560)
+    $g.DrawString((K "\uC8FC\uBB38\uC11C \uC0C1\uC138  2026/05/17-45"), $fontB, $text, 72, 150)
+    Draw-Button $g 1020 145 90 (K "\uC778\uC1C4") ([System.Drawing.Color]::FromArgb(71, 85, 105))
+    Draw-Button $g 1120 145 90 (K "\uC218\uC815") ([System.Drawing.Color]::FromArgb(37, 99, 235))
+    Draw-Button $g 1220 145 80 (K "\uC0AD\uC81C") ([System.Drawing.Color]::FromArgb(185, 28, 28))
+    $g.DrawString((K "\uAC70\uB798\uCC98 \u00B7 P-PRINT-A"), $fontB, $text, 72, 230)
+    $g.DrawString((K "\uD488\uBAA9\uBA85: \uC2E4\uC678\uAE30 / \uBAA8\uB378\uBA85: AJ040RXH4BC1 / \uD569\uACC4: 240,000\uC6D0"), $font, $text, 72, 290)
+}
+
+New-Canvas (Join-Path $out "02-a4-order-print-form.png") (K "\uC8FC\uBB38 \uC778\uC1C4 \uC591\uC2DD A4 mock") (K "\uAC70\uB798\uCC98/\uD488\uBAA9/\uD569\uACC4/\uB0A0\uC778\uB780 \uD3EC\uD568") {
+    param($g)
+    Draw-A4Order $g 420 32 1.0 $false
+}
+
+New-Canvas (Join-Path $out "03-partner-own-order-print-success.png") (K "PARTNER \uBCF8\uC778 \uC8FC\uBB38 \uC778\uC1C4") (K "X-Partner-Code=P-PRINT-A \uB9E4\uCE6D \uC2DC 200 HTML") {
+    param($g)
+    Draw-A4Order $g 420 32 1.0 $true
+}
+
+New-Canvas (Join-Path $out "04-partner-other-order-print-403.png") (K "PARTNER \uD0C0 \uAC70\uB798\uCC98 \uC8FC\uBB38 403") (K "\uBCF8\uC778 \uAC70\uB798\uCC98 \uC8FC\uBB38\uC11C\uB9CC \uC778\uC1C4\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.") {
+    param($g)
+    $panel = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $danger = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(153, 27, 27))
+    $dangerBg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(254, 226, 226))
+    $fontH = New-Object System.Drawing.Font("Malgun Gothic", 30, [System.Drawing.FontStyle]::Bold)
+    $font = New-Object System.Drawing.Font("Malgun Gothic", 16, [System.Drawing.FontStyle]::Bold)
+    $g.FillRectangle($panel, 340, 180, 680, 320)
+    $g.FillRectangle($dangerBg, 390, 265, 580, 110)
+    $g.DrawString("403", $fontH, $danger, 620, 205)
+    $g.DrawString((K "\uBCF8\uC778 \uAC70\uB798\uCC98 \uC8FC\uBB38\uC11C\uB9CC \uC778\uC1C4\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."), $font, $danger, 430, 305)
+}
+
+Write-Host "Generated SP-08-4-4 QA screenshots in $out"

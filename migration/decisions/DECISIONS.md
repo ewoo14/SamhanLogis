@@ -4,6 +4,21 @@
 
 ---
 
+## SP-08-4 주문 CRUD parity 결정 (2026-05-17)
+
+### D-SP084-04. 주문 인쇄 양식은 BE HTML 직접 응답으로 고정
+
+- `GET /api/v1/partner-orders/{id}/print`는 `text/html;charset=UTF-8`을 직접 반환한다.
+- HTML은 A4(`210mm x 297mm`)와 `@media print`, Pretendard 우선 폰트, 거래처/주문/품목/합계/날인란을 포함한다.
+- desktop 상세 화면은 별도 렌더 route 대신 새 탭으로 BE HTML을 연다.
+- `PARTNER`는 `X-Partner-Code`와 주문 `partnerCode`가 일치할 때만 인쇄 가능하며, 타 거래처 주문은 403이다.
+
+근거: P1 주문 인쇄는 FE snapshot route보다 BE template을 두는 편이 legacy GAS 출력 tab 대체와 브라우저 인쇄 진입이 단순하다.
+
+영향: 후속 SP-08-4-5 통합 PR에서는 Edge/사용자 캡처 기반 print 디자인 iteration만 이어가면 된다.
+
+---
+
 ## Phase 6 마무리 결정 (2026-05-05)
 
 ### D-P6-01. Phase 6 backend 4 슬라이스 + product-service google sheets sync 완료
