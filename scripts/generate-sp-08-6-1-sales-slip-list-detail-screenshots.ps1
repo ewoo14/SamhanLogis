@@ -104,10 +104,10 @@ function Shot1 {
     $xs = @(70, 220, 360, 478, 660, 838, 976, 1112)
     for ($i = 0; $i -lt $headers.Length; $i++) { Text $g $headers[$i] $fontSmall $brushMuted $xs[$i] 254 }
     $rows = @(
-        @("2026/05/18-1", "\uC0BC\uC131\uBB3C\uC0B0", "123-45-67890", "\uC11C\uC6B8 \uAC15\uB0A8\uAD6C", "1,200,000\uC6D0", "\uD64D\uAE38\uB3D9", "\uC800\uC7A5"),
+        @("2026/05/18-1", "\uC0BC\uC131\uBB3C\uC0B0", "123-45-67890", "\uC11C\uC6B8 \uAC15\uB0A8\uAD6C", "1,200,000\uC6D0", "\uD64D\uAE38\uB3D9", "\uC800\uC7A5\uC644\uB8CC"),
         @("2026/05/18-2", "\uD604\uB300\uAC74\uC124", "234-56-78901", "\uBD80\uC0B0 \uD574\uC6B4\uAD6C", "850,000\uC6D0", "\uAE40\uCCA0\uC218", "\uD655\uC815"),
-        @("2026/05/17-3", "\uD55C\uD654\uADF8\uB8F9", "345-67-89012", "\uC778\uCC9C \uC0AC\uC6B0\uAD6C", "3,600,000\uC6D0", "\uD64D\uAE38\uB3D9", "\uC800\uC7A5"),
-        @("2026/05/17-2", "\uB300\uC6B0\uAC74\uC124", "456-78-90123", "\uB300\uC804 \uC720\uC131\uAD6C", "720,000\uC6D0", "\uC774\uBBFC\uC900", "\uC800\uC7A5"),
+        @("2026/05/17-3", "\uD55C\uD654\uADF8\uB8F9", "345-67-89012", "\uC778\uCC9C \uC0AC\uC6B0\uAD6C", "3,600,000\uC6D0", "\uD64D\uAE38\uB3D9", "\uC800\uC7A5\uC644\uB8CC"),
+        @("2026/05/17-2", "\uB300\uC6B0\uAC74\uC124", "456-78-90123", "\uB300\uC804 \uC720\uC131\uAD6C", "720,000\uC6D0", "\uC774\uBBFC\uC900", "\uC800\uC7A5\uC644\uB8CC"),
         @("2026/05/16-1", "\uD3EC\uC2A4\uCF54", "567-89-01234", "\uAD11\uC8FC \uC11C\uAD6C", "480,000\uC6D0", "\uD64D\uAE38\uB3D9", "\uD655\uC815")
     )
     $y = 306
@@ -129,7 +129,7 @@ function Shot2 {
     $g.FillRectangle([System.Drawing.Brushes]::White, $panel)
     $g.DrawRectangle($penBorder, $panel)
     Text $g "\uD310\uB9E4\uBC88\uD638 2026/05/18-1" $fontHead $brushText 140 170
-    Badge $g 960 168 "\uC800\uC7A5" "info"
+    Badge $g 960 168 "\uC800\uC7A5\uC644\uB8CC" "info"
     Text $g "\uAC70\uB798\uCC98"       $fontSmall $brushMuted 140 230
     Text $g "\uC0BC\uC131\uBB3C\uC0B0" $fontBody  $brushText  140 256
     Text $g "\uAC70\uB798\uCC98\uCF54\uB4DC" $fontSmall $brushMuted 360 230
@@ -176,7 +176,7 @@ function Shot3 {
     Text $g "\uC0BC\uC131\uBB3C\uC0B0" $fontBody $brushText 244 226
     Text $g "1,200,000\uC6D0" $fontBody $brushText 480 226
     Text $g "\uD64D\uAE38\uB3D9"       $fontBody $brushText 640 226
-    Badge $g 788 218 "\uC800\uC7A5" "info"
+    Badge $g 788 218 "\uC800\uC7A5\uC644\uB8CC" "info"
     $ctaBtn1 = New-Object System.Drawing.Rectangle(938, 216, 108, 30)
     $g.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(239, 246, 255))), $ctaBtn1)
     $g.DrawRectangle($penBorder, $ctaBtn1)
