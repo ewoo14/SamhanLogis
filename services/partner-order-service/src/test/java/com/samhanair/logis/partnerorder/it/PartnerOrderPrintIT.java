@@ -135,6 +135,11 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    /**
+     * PARTNER 인증된 사용자가 {@code X-User-Role: SALES} 헤더를 위조해도 BE는 SecurityContext authority만
+     * 신뢰하여 PARTNER 분기를 유지한다. 타 거래처 partnerCode 전달 시 403을 반환하며, 헤더 위조 자체는 무시되고
+     * 거부 원인은 partnerCode 불일치이다.
+     */
     @Test
     @WithMockUser(username = "partner-user", roles = {"PARTNER"})
     void testPrintPartnerSpoofedRoleHeaderRejected() throws Exception {

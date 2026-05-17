@@ -35,11 +35,12 @@ legacy GAS 주문 흐름에는 `종합견적서` 계열 출력 tab 이 있었지
 
 ## 5. QA
 
-- IT 5 case:
+- IT 6 case (D1~D6):
   - `testPrintSuccessHtmlReturns200`
   - `testPrintNotFoundReturns404`
   - `testPrintSoftDeletedReturns404`
   - `testPrintPartnerRoleSeesOwnOrderOnly`
+  - `testPrintPartnerSpoofedRoleHeaderRejected`: PARTNER 인증 + `X-User-Role` 헤더 위조 + 타 거래처 `partnerCode` → 403
   - `testPrintHtmlContentContainsOrderNumber`
 - Playwright static contract 5 case:
   - BE GET `/print` contract
