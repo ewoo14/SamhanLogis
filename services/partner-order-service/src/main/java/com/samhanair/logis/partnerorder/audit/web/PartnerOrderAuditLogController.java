@@ -6,7 +6,6 @@ import com.samhanair.logis.partnerorder.audit.web.dto.PartnerOrderAuditLogRespon
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,8 +44,8 @@ public class PartnerOrderAuditLogController {
     @GetMapping("/audit-logs")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<PartnerOrderAuditLogResponse>> listAuditLogs(
-            @PathVariable UUID partnerOrderId) {
-        List<PartnerOrderAuditLogResponse> items = auditLogService.listByOrder(partnerOrderId)
+            @PathVariable String partnerOrderId) {
+        List<PartnerOrderAuditLogResponse> items = auditLogService.listByOrderIdentifier(partnerOrderId)
                 .stream()
                 .map(PartnerOrderAuditLogResponse::from)
                 .toList();

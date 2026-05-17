@@ -141,4 +141,39 @@ public class PartnerOrderAuditLogService implements AuditLogRecorder {
         Objects.requireNonNull(partnerOrderId, "partnerOrderId 는 필수입니다");
         return auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(partnerOrderId);
     }
+
+    /**
+     * 주문번호 또는 UUID 문자열로 audit log 를 조회한다. FE 는 사용자 표시용 주문번호만 보유하므로
+     * 내부 UUID 를 화면 상태에 보관하지 않는다.
+     *
+     * @param id 주문번호 또는 내부 UUID 문자열
+     * @return 최신순 audit log
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerOrderAuditLog> listByOrderIdentifier(String id) {
+        PartnerOrder order = partnerOrderRepository.findByOrderNo(id)
+                .or(() -> partnerOrderRepository.findByOrderNo(toSlashOrderNo(id)))
+                .or(() -> findByUuid(id))
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARTNER_ORDER_NOT_FOUND,
+                        ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
+        return listByOrder(order.getId());
+    }
+
+    private java.util.Optional<PartnerOrder> findByUuid(String value) {
+        try {
+            return partnerOrderRepository.findById(UUID.fromString(value));
+        } catch (RuntimeException ignored) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    private String toSlashOrderNo(String value) {
+        if (value == null || value.length() < 11) {
+            return value;
+        }
+        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
+            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
+        }
+        return value;
+    }
 }
