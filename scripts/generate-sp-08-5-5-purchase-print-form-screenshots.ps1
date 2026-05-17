@@ -68,6 +68,11 @@ $K_QTY = U "\uC218\uB7C9"
 $K_UNIT_PRICE = U "\uB2E8\uAC00"
 $K_AMOUNT = U "\uAE08\uC969"
 $K_MEMO = U "\uBE44\uACE0"
+$K_PRODUCT_COL = U "\uD488\uBAA9\uBA85"
+$K_SPEC_COL = U "\uADDC\uACA9"
+$K_SUPPLY_COL = U "\uACF5\uAE09\uAC00\uC561"
+$K_VAT_COL = U "\uBD80\uAC00\uC138"
+$K_MEMO_COL = U "\uC801\uC694"
 $K_SUPPLY = U "\uACF5\uAE09\uAC00\uCCF5:"
 $K_VAT = U "\uBD80\uAC00\uC138 (10%):"
 $K_TOTAL = U "\uD569\uACC4:"
@@ -155,56 +160,66 @@ function Save {
 }
 
 function DrawDocHeader {
-    param($G, [string]$SlipNo, [string]$SlipDate)
-    DStr $G $K_COMPANY $fontSmall $brushMuted 56 52
-    DStr $G $K_PURCHASE_TITLE $fontTitle $brushText 200 48
-    DStr $G $K_SLIP_NO_LABEL $fontSmall $brushMuted 530 52
-    DStr $G $SlipNo $fontBody $brushBlue 614 51
-    DStr $G "$K_ISSUE_DATE_LABEL $SlipDate" $fontSmall $brushMuted 530 70
-    $G.DrawLine($penBorder, 50, 96, 760, 96)
+    param($G, [string]$SlipNo, [string]$SlipDate, [string]$Handler = "")
+    # 3열: 좌(회사명) / 중앙(양식 제목) / 우(전표번호/일자/담당자)
+    DStr $G $K_COMPANY $fontSmall $brushMuted 56 50       # 좌 — 회사명
+    DStr $G $K_PURCHASE_TITLE $fontTitle $brushText 255 44  # 중앙 — 양식 제목 (20pt 700)
+    DStr $G $K_SLIP_NO_LABEL $fontTiny $brushMuted 560 48
+    DStr $G $SlipNo $fontSmall $brushBlue 624 48
+    DStr $G "$K_ISSUE_DATE_LABEL $SlipDate" $fontTiny $brushMuted 560 64
+    if ($Handler -ne "") { DStr $G "담당자: $Handler" $fontTiny $brushMuted 560 80 }
+    $G.DrawLine($penBorder, 50, 98, 760, 98)
 }
 
 function DrawPartnerSection {
     param($G, [string]$BizNo, [int]$Y)
-    SectionLabel $G $K_PARTNER_INFO $Y
-    $Y += 26
-    DStr $G $K_PARTNER_LABEL $fontSmall $brushMuted 60 $Y
-    DStr $G $K_PARTNER_NAME $fontBody $brushText 128 ($Y - 1)
-    DStr $G $K_BIZ_NO_LABEL $fontSmall $brushMuted 360 $Y
-    DStr $G $BizNo $fontBody $brushText 452 ($Y - 1)
-    $Y += 22
-    DStr $G $K_WAREHOUSE_LABEL $fontSmall $brushMuted 60 $Y
-    DStr $G $K_WAREHOUSE_NAME $fontBody $brushText 128 ($Y - 1)
-    $Y += 18
-    HLine $G $Y
-    return $Y + 6
+    # 거래처 정보 — 2열 그리드 (좌: 거래처/사업자번호, 우: 입고창고/담당자)
+    $G.DrawRectangle($penBorder, (New-Object System.Drawing.Rectangle(50, $Y, 710, 54)))
+    $G.DrawLine($penSoft, 405, $Y, 405, ($Y + 54))   # 가운데 구분선
+    # 좌열
+    DStr $G $K_PARTNER_LABEL $fontTiny $brushMuted 58 ($Y + 5)
+    DStr $G $K_PARTNER_NAME $fontSmall $brushText 126 ($Y + 4)
+    DStr $G $K_BIZ_NO_LABEL $fontTiny $brushMuted 58 ($Y + 24)
+    DStr $G $BizNo $fontSmall $brushText 126 ($Y + 23)
+    # 우열
+    DStr $G $K_WAREHOUSE_LABEL $fontTiny $brushMuted 412 ($Y + 5)
+    DStr $G $K_WAREHOUSE_NAME $fontSmall $brushText 478 ($Y + 4)
+    DStr $G "담당자:" $fontTiny $brushMuted 412 ($Y + 24)
+    DStr $G "홍길동" $fontSmall $brushText 478 ($Y + 23)
+    return $Y + 60
 }
 
 function DrawTableHeader {
     param($G, [int]$Y)
     $G.FillRectangle(
-        (New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(243, 244, 246))),
+        (New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(240, 240, 240))),
         (New-Object System.Drawing.Rectangle(50, $Y, 710, 22)))
-    DStr $G "No." $fontTiny $brushMuted 56 ($Y + 5)
-    DStr $G $K_ITEM_SPEC $fontTiny $brushMuted 88 ($Y + 5)
-    DStr $G $K_QTY $fontTiny $brushMuted 370 ($Y + 5)
-    DStr $G $K_UNIT_PRICE $fontTiny $brushMuted 448 ($Y + 5)
-    DStr $G $K_AMOUNT $fontTiny $brushMuted 556 ($Y + 5)
-    DStr $G $K_MEMO $fontTiny $brushMuted 658 ($Y + 5)
+    # 8 columns: No.(8mm) / 품목명(36) / 규격(28) / 수량(16) / 단가(26) / 공급가액(28) / 부가세(22) / 적요(가변)
+    # pixel mapping (810px = 210mm → ~3.86px/mm)
+    DStr $G "No."           $fontTiny $brushMuted  54 ($Y + 5)   # col-no
+    DStr $G $K_PRODUCT_COL  $fontTiny $brushMuted  88 ($Y + 5)   # col-product
+    DStr $G $K_SPEC_COL     $fontTiny $brushMuted 232 ($Y + 5)   # col-spec
+    DStr $G $K_QTY          $fontTiny $brushMuted 344 ($Y + 5)   # col-qty
+    DStr $G $K_UNIT_PRICE   $fontTiny $brushMuted 408 ($Y + 5)   # col-price
+    DStr $G $K_SUPPLY_COL   $fontTiny $brushMuted 510 ($Y + 5)   # col-supply
+    DStr $G $K_VAT_COL      $fontTiny $brushMuted 620 ($Y + 5)   # col-vat
+    DStr $G $K_MEMO_COL     $fontTiny $brushMuted 706 ($Y + 5)   # col-memo
     $G.DrawLine($penBorder, 50, $Y, 760, $Y)
     $G.DrawLine($penBorder, 50, $Y + 22, 760, $Y + 22)
     return $Y + 22
 }
 
 function DrawTableRow {
-    param($G, [int]$Y, [int]$No, [string]$Item, [string]$Spec, [int]$Qty, [string]$Price, [string]$Amount, [string]$Memo = "")
-    DStr $G "$No" $fontTiny $brushText 58 ($Y + 4)
-    DStr $G $Item $fontTiny $brushText 88 ($Y + 4)
-    if ($Spec -ne "") { DStr $G "[$Spec]" $fontTiny $brushGray 88 ($Y + 15) }
-    DStr $G "$Qty" $fontTiny $brushText 372 ($Y + 4)
-    DStr $G $Price $fontTiny $brushText 440 ($Y + 4)
-    DStr $G $Amount $fontTiny $brushText 546 ($Y + 4)
-    if ($Memo -ne "") { DStr $G $Memo $fontTiny $brushMuted 648 ($Y + 4) }
+    param($G, [int]$Y, [int]$No, [string]$Item, [string]$Spec, [int]$Qty, [string]$Price, [string]$Supply, [string]$Vat, [string]$Memo = "")
+    # 8 columns aligned to DrawTableHeader positions
+    DStr $G "$No"     $fontTiny $brushText  54 ($Y + 4)    # col-no
+    DStr $G $Item     $fontTiny $brushText  88 ($Y + 4)    # col-product
+    DStr $G $Spec     $fontTiny $brushGray 232 ($Y + 4)    # col-spec
+    DStr $G "$Qty"    $fontTiny $brushText 344 ($Y + 4)    # col-qty
+    DStr $G $Price    $fontTiny $brushText 400 ($Y + 4)    # col-price
+    DStr $G $Supply   $fontTiny $brushText 502 ($Y + 4)    # col-supply
+    DStr $G $Vat      $fontTiny $brushText 612 ($Y + 4)    # col-vat
+    if ($Memo -ne "") { DStr $G $Memo $fontTiny $brushMuted 706 ($Y + 4) }  # col-memo
     $G.DrawLine($penSoft, 50, $Y + 26, 760, $Y + 26)
     return $Y + 26
 }
@@ -280,23 +295,24 @@ function DrawNote {
 function Shot1 {
     $c = Canvas "01-purchase-print-form-full.png"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
-    DrawDocHeader $g "2026/05/18-1" "2026-05-18"
+    DrawDocHeader $g "2026/05/18-1" "2026-05-18" "홍길동"
     $y = DrawPartnerSection $g "214-87-20659" 104
     $y = DrawTableHeader $g $y
+    # 8컬럼: 품목명 / 규격 / 수량 / 단가 / 공급가액 / 부가세 / 적요
     $rows = @(
-        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000",""),
-        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000",""),
-        @("SP-C300","220V/2HP",10,"680,000","6,800,000",""),
-        @("SP-D400","380V/8HP",2,"2,500,000","5,000,000",""),
-        @("SP-E500","220V/3HP",8,"920,000","7,360,000",""),
-        @("FA-1001","1/2HP",4,"450,000","1,800,000",""),
-        @("FA-2002","1HP",6,"550,000","3,300,000",""),
-        @("FA-3003","2HP",2,"750,000","1,500,000",""),
-        @("VD-001","",12,"380,000","4,560,000",$K_A_GRADE),
-        @("VD-002","",7,"420,000","2,940,000",$K_B_GRADE)
+        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000","600,000",""),
+        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000","540,000",""),
+        @("SP-C300","220V/2HP",10,"680,000","6,800,000","680,000",""),
+        @("SP-D400","380V/8HP",2,"2,500,000","5,000,000","500,000",""),
+        @("SP-E500","220V/3HP",8,"920,000","7,360,000","736,000",""),
+        @("FA-1001","1/2HP",4,"450,000","1,800,000","180,000",""),
+        @("FA-2002","1HP",6,"550,000","3,300,000","330,000",""),
+        @("FA-3003","2HP",2,"750,000","1,500,000","150,000",""),
+        @("VD-001","",12,"380,000","4,560,000","456,000",$K_A_GRADE),
+        @("VD-002","",7,"420,000","2,940,000","294,000",$K_B_GRADE)
     )
     $no = 1
-    foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5]; $no++ }
+    foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5] $row[6]; $no++ }
     $y = DrawTotals $g $y "40,600,000" "4,060,000" "44,660,000"
     $y = DrawInspectionSection $g $y $K_INSPECTOR_NAME "2026-05-18"
     DrawFooter $g $y
@@ -353,17 +369,25 @@ function Shot2 {
     DStr $g $K_SP_PARTNER_ROW $fontSmall $brushText 684 150
     DStr $g $K_SP_BIZ $fontSmall $brushText 684 166
     DStr $g $K_SP_WAREHOUSE $fontSmall $brushText 916 150
-    $g.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(243,244,246))),(New-Object System.Drawing.Rectangle(676,190,548,20)))
-    DStr $g $K_ITEM_SPEC_HEADER $fontTiny $brushMuted 692 194
-    DStr $g $K_QTY $fontTiny $brushMuted 872 194
-    DStr $g $K_UNIT_PRICE $fontTiny $brushMuted 946 194
-    DStr $g $K_AMOUNT $fontTiny $brushMuted 1044 194
+    $g.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(240,240,240))),(New-Object System.Drawing.Rectangle(676,190,548,20)))
+    # SP 측 8컬럼 헤더
+    DStr $g "No." $fontTiny $brushMuted 680 194
+    DStr $g $K_PRODUCT_COL $fontTiny $brushMuted 706 194
+    DStr $g $K_SPEC_COL $fontTiny $brushMuted 826 194
+    DStr $g $K_QTY $fontTiny $brushMuted 908 194
+    DStr $g $K_UNIT_PRICE $fontTiny $brushMuted 950 194
+    DStr $g $K_SUPPLY_COL $fontTiny $brushMuted 1040 194
+    DStr $g $K_VAT_COL $fontTiny $brushMuted 1126 194
+    DStr $g $K_MEMO_COL $fontTiny $brushMuted 1182 194
     for ($i=0;$i-lt5;$i++) {
         $ry=212+$i*22; $g.DrawLine($penSoft,676,$ry,1224,$ry)
-        $g.DrawString("SP-A$($i+1)00  [220V/4HP]",$fontTiny,$brushText,682,($ry+4))
-        $g.DrawString("$(5+$i)",$fontTiny,$brushText,880,($ry+4))
-        $g.DrawString("1,200,000",$fontTiny,$brushText,936,($ry+4))
-        $g.DrawString("$(6000000+$i*600000)",$fontTiny,$brushText,1028,($ry+4))
+        $g.DrawString("$($i+1)",$fontTiny,$brushText,682,($ry+4))
+        $g.DrawString("SP-A$($i+1)00",$fontTiny,$brushText,702,($ry+4))
+        $g.DrawString("220V/4HP",$fontTiny,$brushGray,822,($ry+4))
+        $g.DrawString("$(5+$i)",$fontTiny,$brushText,914,($ry+4))
+        $g.DrawString("1,200,000",$fontTiny,$brushText,940,($ry+4))
+        $g.DrawString("$(6000000+$i*600000)",$fontTiny,$brushText,1026,($ry+4))
+        $g.DrawString("$(600000+$i*60000)",$fontTiny,$brushText,1118,($ry+4))
     }
     $g.DrawLine($penBorder,676,324,1224,324); DStr $g $K_SP_TOTAL $fontBody $brushText 876 329
     $g.DrawRectangle($penDash,(New-Object System.Drawing.Rectangle(676,358,548,44)))
@@ -377,27 +401,28 @@ function Shot2 {
 function Shot3 {
     $c = Canvas "03-purchase-print-form-multiline.png"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
-    DrawDocHeader $g "2026/05/18-3" "2026-05-18"
+    DrawDocHeader $g "2026/05/18-3" "2026-05-18" "홍길동"
     $y = DrawPartnerSection $g "214-87-20659" 104
     $y = DrawTableHeader $g $y
+    # 8컬럼: 품목명 / 규격 / 수량 / 단가 / 공급가액 / 부가세 / 적요
     $rows = @(
-        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000",""),
-        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000",""),
-        @("SP-C300","220V/2HP",10,"680,000","6,800,000",""),
-        @("SP-D400","380V/8HP",2,"2,500,000","5,000,000",""),
-        @("SP-E500","220V/3HP",8,"920,000","7,360,000",""),
-        @("FA-1001","1/2HP",4,"450,000","1,800,000",""),
-        @("FA-2002","1HP",6,"550,000","3,300,000",""),
-        @("FA-3003","2HP",2,"750,000","1,500,000",""),
-        @("VD-001","",12,"380,000","4,560,000",$K_A_GRADE),
-        @("VD-002","",7,"420,000","2,940,000",$K_B_GRADE),
-        @("VD-003","",3,"500,000","1,500,000",""),
-        @("AC-501",$K_TON1,1,"3,200,000","3,200,000",$K_NEW_STR),
-        @("AC-502",$K_TON1_5,1,"4,100,000","4,100,000",$K_NEW_STR),
-        @("AC-601",$K_INV,2,"2,800,000","5,600,000",""),
-        @("AC-701",$K_HEATPUMP,1,"5,600,000","5,600,000","")
+        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000","600,000",""),
+        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000","540,000",""),
+        @("SP-C300","220V/2HP",10,"680,000","6,800,000","680,000",""),
+        @("SP-D400","380V/8HP",2,"2,500,000","5,000,000","500,000",""),
+        @("SP-E500","220V/3HP",8,"920,000","7,360,000","736,000",""),
+        @("FA-1001","1/2HP",4,"450,000","1,800,000","180,000",""),
+        @("FA-2002","1HP",6,"550,000","3,300,000","330,000",""),
+        @("FA-3003","2HP",2,"750,000","1,500,000","150,000",""),
+        @("VD-001","",12,"380,000","4,560,000","456,000",$K_A_GRADE),
+        @("VD-002","",7,"420,000","2,940,000","294,000",$K_B_GRADE),
+        @("VD-003","",3,"500,000","1,500,000","150,000",""),
+        @("AC-501",$K_TON1,1,"3,200,000","3,200,000","320,000",$K_NEW_STR),
+        @("AC-502",$K_TON1_5,1,"4,100,000","4,100,000","410,000",$K_NEW_STR),
+        @("AC-601",$K_INV,2,"2,800,000","5,600,000","560,000",""),
+        @("AC-701",$K_HEATPUMP,1,"5,600,000","5,600,000","560,000","")
     )
-    $no=1; foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5]; $no++ }
+    $no=1; foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5] $row[6]; $no++ }
     $y = DrawTotals $g $y "64,660,000" "6,466,000" "71,126,000"
     $y = DrawInspectionSection $g $y $K_INSPECTOR2_NAME "2026-05-18"
     DrawFooter $g $y
@@ -408,15 +433,16 @@ function Shot3 {
 function Shot4 {
     $c = Canvas "04-purchase-print-form-blank-inspection.png"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
-    DrawDocHeader $g "2026/05/18-4" "2026-05-18"
+    DrawDocHeader $g "2026/05/18-4" "2026-05-18" "홍길동"
     $y = DrawPartnerSection $g "214-87-20659" 104
     $y = DrawTableHeader $g $y
+    # 8컬럼: 품목명 / 규격 / 수량 / 단가 / 공급가액 / 부가세 / 적요
     $rows = @(
-        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000",""),
-        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000",""),
-        @("SP-C300","220V/2HP",10,"680,000","6,800,000","")
+        @("SP-A100","220V/4HP",5,"1,200,000","6,000,000","600,000",""),
+        @("SP-B200","380V/6HP",3,"1,800,000","5,400,000","540,000",""),
+        @("SP-C300","220V/2HP",10,"680,000","6,800,000","680,000","")
     )
-    $no=1; foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5]; $no++ }
+    $no=1; foreach ($row in $rows) { $y = DrawTableRow $g $y $no $row[0] $row[1] $row[2] $row[3] $row[4] $row[5] $row[6]; $no++ }
     $y = DrawTotals $g $y "16,527,272" "1,652,728" "18,180,000"
     $G=$g; $G.DrawLine($penBorder,50,$y,760,$y); $y+=6
     SectionLabel $G $K_INSPECT_BLANK $y; $y+=26

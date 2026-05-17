@@ -31,6 +31,13 @@ import java.util.UUID;
  *   <li>{@code paymentDueDate} — 입금예정일</li>
  *   <li>{@code printed} — 인쇄여부 (printedAt != null)</li>
  * </ul>
+ *
+ * <p>SP-08-5-5 신규 필드:
+ * <ul>
+ *   <li>{@code ownerFullName} — 담당자 성명. user-service {@code GET /internal/users/{createdBy}} 로
+ *       단건 조회 resolve. null 이면 FE 는 {@code '-'} 표시. 인쇄 양식 담당자 영역 자동 표시 목적.
+ *       단건 GET 전용 — mutation 응답은 null 반환 (graceful fallback).</li>
+ * </ul>
  */
 public record SlipDetailResponse(
         UUID id,
@@ -80,9 +87,32 @@ public record SlipDetailResponse(
          * INBOUND 전표의 SAVED/CONFIRMED 는 구매관리 화면에서 검수 Dialog 진입 가능 상태다.
          */
         InspectionReadyStatus inspectionStatus,
+        /**
+         * 담당자 성명 — user-service internal lookup 결과 (SP-08-5-5 신규).
+         * 단건 GET 전용. mutation 응답 / user-service 호출 실패 시 null.
+         * FE 는 null 이면 {@code '-'} 대체 표시.
+         */
+        String ownerFullName,
         List<SlipLineResponse> lines) {
 
+    /**
+     * 담당자 성명 없이 변환 — 하위 호환용. mutation 응답에서 사용.
+     *
+     * @param slip 전표 도메인 객체
+     * @return 담당자 성명 null 인 SlipDetailResponse
+     */
     public static SlipDetailResponse from(Slip slip) {
+        return from(slip, null);
+    }
+
+    /**
+     * 담당자 성명 포함 변환 — 단건 GET 에서 user-service lookup 결과를 전달할 때 사용.
+     *
+     * @param slip 전표 도메인 객체
+     * @param ownerFullName user-service 로 조회한 담당자 성명. null 허용.
+     * @return ownerFullName 이 채워진 SlipDetailResponse
+     */
+    public static SlipDetailResponse from(Slip slip, String ownerFullName) {
         return new SlipDetailResponse(
                 slip.getId(),
                 slip.getSlipType(),
@@ -120,6 +150,7 @@ public record SlipDetailResponse(
                 slip.getPaymentDueDate(),
                 slip.getPrintedAt() != null,
                 inspectionStatusOf(slip),
+                ownerFullName,
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
     }
 

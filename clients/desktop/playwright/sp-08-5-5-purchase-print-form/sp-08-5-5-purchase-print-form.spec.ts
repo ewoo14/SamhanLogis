@@ -36,6 +36,7 @@ function fileExists(relPath: string): boolean {
  * FE agent 가 실제 생성한 파일명에 따라 첫 번째로 존재하는 경로를 사용한다.
  */
 const PRINT_COMPONENT_CANDIDATES = [
+  'clients/desktop/src/renderer/print/PurchaseSlipPrintPage.tsx',
   'clients/desktop/src/renderer/routes/purchase-query/PurchaseSlipPrintPage.tsx',
   'clients/desktop/src/renderer/print/PurchaseSlipPrintView.tsx',
   'clients/desktop/src/renderer/print/PurchasePrintView.tsx',

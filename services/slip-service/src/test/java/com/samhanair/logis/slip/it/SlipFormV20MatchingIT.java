@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -133,6 +134,10 @@ class SlipFormV20MatchingIT extends AbstractPostgresIT {
     /** 외부 client 격리 — SMS Gateway 실제 발송 차단. */
     @MockBean
     private SmsGateway smsGateway;
+
+    /** 외부 client 격리 — SP-08-5-5 신규. user-service ownerFullName lookup 차단. */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     // -----------------------------------------------------------------------
     // @BeforeEach — lenient stub 설정

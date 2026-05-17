@@ -2,22 +2,22 @@
  * 매입 전표 인쇄 양식 — `/purchases/:id/print/purchase`.
  *
  * SP-08-5-5 P1 신규: legacy GAS 매입 전표 양식 100% 매칭 목표.
- * 1차 mock — Edge 캡처 → CSS-only 미세 조정 2~5회 iteration 예정
+ * 2차 iteration — 8컬럼 라인테이블 + 헤더 3열 그리드 + 거래처 2열 그리드 반영
  * (memory `feedback_print_design_iteration.md`).
  *
  * 구성 (A4 portrait 210mm × 297mm, padding 12mm):
- * - 상단 헤더: 회사명/로고 (좌) + "매입 전표" + 출력일시 (우)
+ * - 상단 헤더: 좌(회사명/로고) / 중앙("매 입 전 표" 20pt 700) / 우(전표번호/일자/담당자) — 3열
  * - 슬립 정보 행: 슬립번호 / 슬립일자 / 입고창고명 / 담당자
- * - 거래처 정보 영역: 거래처명 / 사업자번호 / 주소
- * - 라인 테이블: 번호 / 모델명 / 품목설명 / 수량 / 단가 / 합계
- * - 합계 영역: 총 수량 / 공급가 / 부가세 / 합계
+ * - 거래처 정보 영역: 좌(거래처명/사업자번호/대표자) + 우(입고창고/담당자/주소) — 2열 그리드
+ * - 라인 테이블: No./품목명/규격/수량/단가/공급가액/부가세/적요 (8컬럼)
+ * - 합계 영역: 공급가액 / 부가세 / 합계
  * - 검수란 (수기 작성 공란): 검수일자 / 검수자 / 검수결과 / 비고
- * - 푸터: 비고 / audit 4 필드 (createdAt/By, modifiedAt/By)
+ * - 푸터: 비고 / audit (createdBy + modifiedBy + updatedAt)
  *
  * UUID 비공개 가드: `id` 는 path param / QueryKey 전용. 화면 노출 X.
  * 슬립번호(slipNo) 만 사용자 노출.
  *
- * Iteration 가드: 본 1차 mock — 사용자 Edge 캡처 검토 후 2~5차 갱신 예정.
+ * Iteration 가드: 본 2차 mock — 사용자 Edge 캡처 검토 후 추가 갱신 예정.
  */
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -92,8 +92,8 @@ export function PurchaseSlipPrintPage() {
     <PrintLayout paper="a4-portrait" backTo={`/purchases/${id}`}>
       <div className="purchase-print-page" data-testid="purchase-print-area">
 
-        {/* 상단 헤더 */}
-        <header className="purchase-print-header">
+        {/* 상단 헤더 — 3열 그리드: 좌(로고+회사명) / 중앙(양식 제목) / 우(전표번호/일자/담당자) */}
+        <header className="purchase-print-header purchase-print-header-3col">
           <div className="purchase-print-header-left">
             <img
               className="purchase-print-logo"
@@ -102,93 +102,119 @@ export function PurchaseSlipPrintPage() {
             />
             <span className="purchase-print-company-name">{COMPANY.legalName}</span>
           </div>
-          <div className="purchase-print-header-right">
+          <div className="purchase-print-header-center">
             <h1 className="purchase-print-title">매 입 전 표</h1>
+          </div>
+          <div className="purchase-print-header-right">
+            <div className="purchase-print-header-meta-row">
+              <span className="purchase-print-meta-label">전표번호</span>
+              <span className="purchase-print-meta-value strong">{slip.slipNo}</span>
+            </div>
+            <div className="purchase-print-header-meta-row">
+              <span className="purchase-print-meta-label">전표일자</span>
+              <span className="purchase-print-meta-value">{krDate(slip.slipDate)}</span>
+            </div>
+            <div className="purchase-print-header-meta-row">
+              <span className="purchase-print-meta-label">담당자</span>
+              <span className="purchase-print-meta-value">{slip.ownerFullName ?? '-'}</span>
+            </div>
             <div className="purchase-print-printed-at">출력일시: {printedAt}</div>
           </div>
         </header>
 
-        {/* 슬립 정보 행 */}
-        <section className="purchase-print-slip-info">
-          <div className="purchase-print-info-cell">
-            <span className="purchase-print-info-label">전표번호</span>
-            <span className="purchase-print-info-value strong">{slip.slipNo}</span>
+        {/* 거래처 정보 영역 — 2열 그리드: 좌(거래처명/사업자번호/대표자/전화) + 우(입고창고/담당자/주소) */}
+        <section className="purchase-print-partner purchase-print-partner-2col">
+          <div className="purchase-print-partner-col">
+            <dl className="purchase-print-partner-dl">
+              <div className="purchase-print-partner-row">
+                <dt className="purchase-print-partner-label">거래처</dt>
+                <dd className="purchase-print-partner-value strong">{slip.partnerName ?? '-'}</dd>
+              </div>
+              {slip.businessNumber ? (
+                <div className="purchase-print-partner-row">
+                  <dt className="purchase-print-partner-label">사업자번호</dt>
+                  <dd className="purchase-print-partner-value">{slip.businessNumber}</dd>
+                </div>
+              ) : null}
+              {slip.contactPhone ? (
+                <div className="purchase-print-partner-row">
+                  <dt className="purchase-print-partner-label">전화번호</dt>
+                  <dd className="purchase-print-partner-value">{slip.contactPhone}</dd>
+                </div>
+              ) : null}
+            </dl>
           </div>
-          <div className="purchase-print-info-cell">
-            <span className="purchase-print-info-label">전표일자</span>
-            <span className="purchase-print-info-value">{krDate(slip.slipDate)}</span>
-          </div>
-          <div className="purchase-print-info-cell">
-            <span className="purchase-print-info-label">입고창고</span>
-            <span className="purchase-print-info-value emphasis">{destWarehouseName}</span>
-          </div>
-          <div className="purchase-print-info-cell">
-            <span className="purchase-print-info-label">담당자</span>
-            <span className="purchase-print-info-value">{slip.ownerFullName ?? '-'}</span>
+          <div className="purchase-print-partner-col">
+            <dl className="purchase-print-partner-dl">
+              <div className="purchase-print-partner-row">
+                <dt className="purchase-print-partner-label">입고창고</dt>
+                <dd className="purchase-print-partner-value emphasis">{destWarehouseName}</dd>
+              </div>
+              <div className="purchase-print-partner-row">
+                <dt className="purchase-print-partner-label">담당자</dt>
+                <dd className="purchase-print-partner-value">{slip.ownerFullName ?? '-'}</dd>
+              </div>
+              {slip.deliveryAddress ? (
+                <div className="purchase-print-partner-row">
+                  <dt className="purchase-print-partner-label">주소</dt>
+                  <dd className="purchase-print-partner-value">{slip.deliveryAddress}</dd>
+                </div>
+              ) : null}
+            </dl>
           </div>
         </section>
 
-        {/* 거래처 정보 영역 */}
-        <section className="purchase-print-partner">
-          <div className="purchase-print-partner-row">
-            <span className="purchase-print-partner-label">거래처</span>
-            <span className="purchase-print-partner-value strong">{slip.partnerName ?? '-'}</span>
-          </div>
-          {slip.businessNumber ? (
-            <div className="purchase-print-partner-row">
-              <span className="purchase-print-partner-label">사업자번호</span>
-              <span className="purchase-print-partner-value">{slip.businessNumber}</span>
-            </div>
-          ) : null}
-          {slip.deliveryAddress ? (
-            <div className="purchase-print-partner-row">
-              <span className="purchase-print-partner-label">주소</span>
-              <span className="purchase-print-partner-value">{slip.deliveryAddress}</span>
-            </div>
-          ) : null}
-        </section>
-
-        {/* 라인 테이블 (메인 영역) */}
+        {/* 라인 테이블 (메인 영역) — 8컬럼: No./품목명/규격/수량/단가/공급가액/부가세/적요 */}
         <table className="purchase-print-table">
           <thead>
             <tr>
-              <th className="col-no">번호</th>
-              <th className="col-model">모델명</th>
-              <th className="col-desc">품목설명</th>
+              <th className="col-no">No.</th>
+              <th className="col-product">품목명</th>
+              <th className="col-spec">규격</th>
               <th className="col-qty">수량</th>
               <th className="col-price">단가</th>
-              <th className="col-amount">합계</th>
+              <th className="col-supply">공급가액</th>
+              <th className="col-vat">부가세</th>
+              <th className="col-memo">적요</th>
             </tr>
           </thead>
           <tbody>
-            {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => (
-              <tr key={l.id}>
-                <td className="col-no">{idx + 1}</td>
-                <td className="col-model">{l.modelName ?? '-'}</td>
-                <td className="col-desc">{l.productName ?? (l.specification ?? '-')}</td>
-                <td className="col-qty num">{l.quantity.toLocaleString('ko-KR')}</td>
-                <td className="col-price num">{krw(l.unitPrice)}</td>
-                <td className="col-amount num">{krw(l.lineTotal)}</td>
-              </tr>
-            ))}
+            {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
+              const lineSupply = Number(l.lineTotal)
+              const lineVat = Math.round(lineSupply * 0.1)
+              return (
+                <tr key={l.id}>
+                  <td className="col-no">{idx + 1}</td>
+                  <td className="col-product">{l.modelName ?? l.productName ?? '-'}</td>
+                  <td className="col-spec">{l.specification ?? '-'}</td>
+                  <td className="col-qty num">{l.quantity.toLocaleString('ko-KR')}</td>
+                  <td className="col-price num">{krw(l.unitPrice)}</td>
+                  <td className="col-supply num">{krw(lineSupply)}</td>
+                  <td className="col-vat num">{krw(lineVat)}</td>
+                  <td className="col-memo">{l.note ?? ''}</td>
+                </tr>
+              )
+            })}
             {/* 최소 5행 유지 — 여백 행 */}
             {Array.from({ length: Math.max(0, 5 - lines.length) }).map((_, i) => (
               <tr key={`pad-${i}`} className="purchase-print-pad-row">
                 <td className="col-no">&nbsp;</td>
-                <td className="col-model">&nbsp;</td>
-                <td className="col-desc">&nbsp;</td>
+                <td className="col-product">&nbsp;</td>
+                <td className="col-spec">&nbsp;</td>
                 <td className="col-qty">&nbsp;</td>
                 <td className="col-price">&nbsp;</td>
-                <td className="col-amount">&nbsp;</td>
+                <td className="col-supply">&nbsp;</td>
+                <td className="col-vat">&nbsp;</td>
+                <td className="col-memo">&nbsp;</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3} className="purchase-print-table-totals-label">합계</td>
-              <td className="col-qty num strong">{totalQty.toLocaleString('ko-KR')}</td>
-              <td className="col-price">&nbsp;</td>
-              <td className="col-amount num strong">{krw(total)}</td>
+              <td colSpan={5} className="purchase-print-table-totals-label">합계</td>
+              <td className="col-supply num strong">{krw(supply)}</td>
+              <td className="col-vat num strong">{krw(vat)}</td>
+              <td className="col-memo">&nbsp;</td>
             </tr>
           </tfoot>
         </table>

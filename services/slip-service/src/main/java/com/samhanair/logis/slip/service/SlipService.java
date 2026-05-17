@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
@@ -72,6 +73,11 @@ public class SlipService {
      * Feign fail 시 graceful fallback (businessNumber=NULL 유지).
      */
     private final PartnerInternalClient partnerInternalClient;
+    /**
+     * SP-08-5-5 — user-service internal client. 단건 GET ownerFullName resolve.
+     * 호출 실패 시 graceful fallback (ownerFullName=NULL 유지).
+     */
+    private final UserInternalClient userInternalClient;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -557,13 +563,19 @@ public class SlipService {
     /**
      * 단건 조회 — 라인 포함 상세.
      *
+     * <p>SP-08-5-5: user-service internal lookup 으로 {@code ownerFullName} 을 채운다.
+     * user-service 호출 실패 시 graceful fallback — ownerFullName null 로 응답 정상 반환.
+     * {@code createdBy} 파싱 실패(UUID 형식 오류) 시에도 fallback.
+     *
      * @param id 전표 ID
-     * @return 상세 응답
+     * @return 상세 응답 (ownerFullName 포함)
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      */
     @Transactional(readOnly = true)
     public SlipDetailResponse getOne(UUID id) {
-        return SlipDetailResponse.from(loadOrThrow(id));
+        Slip slip = loadOrThrow(id);
+        String ownerFullName = resolveOwnerFullName(slip.getCreatedBy());
+        return SlipDetailResponse.from(slip, ownerFullName);
     }
 
     /**
@@ -743,6 +755,28 @@ public class SlipService {
             return null;
         }
         return partnerInternalClient.resolveBusinessNumber(partnerId).orElse(null);
+    }
+
+    /**
+     * createdBy (UUID 문자열) → 담당자 성명 resolve — user-service internal lookup.
+     *
+     * <p>SP-08-5-5 신규. {@code createdBy} 가 UUID 형식이 아니거나 null 이면 null 반환.
+     * user-service 호출 실패 시 null 반환 (graceful fallback).
+     *
+     * @param createdBy BaseEntity.createdBy (UUID 문자열 또는 null)
+     * @return 담당자 성명, 실패 시 null
+     */
+    private String resolveOwnerFullName(String createdBy) {
+        if (createdBy == null || createdBy.isBlank()) {
+            return null;
+        }
+        try {
+            UUID userId = UUID.fromString(createdBy);
+            return userInternalClient.resolveFullName(userId).orElse(null);
+        } catch (IllegalArgumentException ex) {
+            // createdBy 가 UUID 형식이 아닌 경우 (예: "system") — fallback
+            return null;
+        }
     }
 
     private Slip loadOrThrow(UUID id) {
