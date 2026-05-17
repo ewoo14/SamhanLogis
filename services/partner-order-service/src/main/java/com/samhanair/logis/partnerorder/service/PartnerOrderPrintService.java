@@ -4,8 +4,11 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
@@ -31,6 +34,7 @@ public class PartnerOrderPrintService {
     private static final BigDecimal VAT_DIVISOR = new BigDecimal("11");
 
     private final PartnerOrderRepository partnerOrderRepository;
+    private final PartnerLookupClient partnerLookupClient;
 
     /**
      * 주문번호 또는 내부 UUID 문자열로 인쇄 HTML 을 생성한다.
@@ -76,8 +80,13 @@ public class PartnerOrderPrintService {
 
     private String render(PartnerOrder order) {
         BigDecimal total = order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount();
+        // totalAmount 는 VAT 포함 합계라는 주문 도메인 계약을 기준으로 공급가/부가세를 역산한다.
         BigDecimal vat = total.divide(VAT_DIVISOR, 0, RoundingMode.HALF_UP);
         BigDecimal supply = total.subtract(vat);
+        String partnerName = partnerLookupClient.findByPartnerCode(order.getPartnerCode())
+                .map(PartnerSummary::name)
+                .filter(name -> !name.isBlank())
+                .orElse(order.getPartnerCode());
 
         StringBuilder rows = new StringBuilder();
         int index = 1;
@@ -121,7 +130,7 @@ public class PartnerOrderPrintService {
                       margin: 0;
                       background: #eef1f5;
                       color: #111827;
-                      font-family: 'Pretendard', 'Malgun Gothic', Arial, sans-serif;
+                      font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif;
                       font-size: 12px;
                     }
                     .page {
@@ -172,6 +181,7 @@ public class PartnerOrderPrintService {
                       width: 100%%;
                       border-collapse: collapse;
                     }
+                    tr { page-break-inside: avoid; }
                     th, td {
                       border: 1px solid #1f2937;
                       padding: 2mm;
@@ -282,14 +292,14 @@ public class PartnerOrderPrintService {
                 </html>
                 """.formatted(
                 escape(order.getOrderNo()),
-                escape(order.getPartnerCode()),
+                escape(partnerName),
                 escape(order.getPartnerCode()),
                 escape(order.getBizCode()),
                 escape(order.getOrderNo()),
-                order.getConfirmedAt() == null ? "-" : escape(order.getConfirmedAt().format(DATE_TIME)),
+                escape((order.getConfirmedAt() == null ? order.getCreatedAt() : order.getConfirmedAt()).format(DATE_TIME)),
                 order.getDueDate() == null ? "-" : escape(order.getDueDate().toString()),
                 order.getSlipNo() == null ? "-" : escape(order.getSlipNo()),
-                escape(order.getStatus().name()),
+                escape(statusLabel(order.getStatus())),
                 rows,
                 money(supply),
                 money(vat),
@@ -303,7 +313,16 @@ public class PartnerOrderPrintService {
             case "singleSets" -> "싱글 세트";
             case "commercialMulti" -> "상업멀티";
             case "oldProducts" -> "구형";
-            default -> categoryKey;
+            default -> "기타";
+        };
+    }
+
+    private static String statusLabel(PartnerOrderStatus status) {
+        return switch (status) {
+            case DRAFT -> "초안";
+            case CONFIRMING -> "확인 중";
+            case CONFIRMED -> "확정";
+            case CANCELED -> "취소";
         };
     }
 

@@ -165,6 +165,7 @@ export const MOCK_AUTH = {
   userId: '00000000-0000-0000-0000-000000010001',
   role: _resolveMockRole(),
   fullName: '오병승',
+  partnerCode: 'P-MOCK-001',
 }
 
 /** 시드 4 창고 (V2 시드와 동일) */
@@ -693,6 +694,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       userId: MOCK_AUTH.userId,
       role: MOCK_AUTH.role,
       fullName: MOCK_AUTH.fullName,
+      partnerCode: MOCK_AUTH.partnerCode,
     })
   }
 

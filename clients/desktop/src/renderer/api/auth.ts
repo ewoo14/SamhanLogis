@@ -26,6 +26,7 @@ export interface LoginResponse {
   userId: string
   role: string
   displayName: string
+  partnerCode?: string
 }
 
 /**

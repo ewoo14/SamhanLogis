@@ -17,6 +17,7 @@ import {
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
 } from '../api/sales'
+import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { useSessionStore } from '../stores/session'
@@ -30,7 +31,7 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   return null
 }
 const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
-const PRINT_ROLES = ['SALES', 'MANAGER', 'MASTER', 'PARTNER']
+const PRINT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -67,6 +68,7 @@ export function SalesPartnerOrderDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
+  const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
   const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
@@ -153,11 +155,44 @@ export function SalesPartnerOrderDetailPage() {
     }
   }, [refetch, syncFormFromData])
 
-  const handlePrint = useCallback(() => {
-    if (!orderId) return
-    const url = `/api/v1/partner-orders/${encodeURIComponent(orderId)}/print`
-    window.open(url, '_blank', 'width=900,height=1200')
-  }, [orderId])
+  const handlePrint = useCallback(async () => {
+    setPrintErrorMessage(null)
+    try {
+      const response = await apiClient.get(
+        `/api/v1/partner-orders/${encodeURIComponent(orderId)}/print`,
+        {
+          responseType: 'blob',
+          headers: auth?.partnerCode ? { 'X-Partner-Code': auth.partnerCode } : undefined,
+        },
+      )
+      const blob = new Blob([response.data], { type: 'text/html;charset=UTF-8' })
+      const url = URL.createObjectURL(blob)
+      const opened = window.open(url, '_blank', 'noopener,noreferrer')
+      if (!opened) {
+        URL.revokeObjectURL(url)
+        setPrintErrorMessage('인쇄 창을 열 수 없습니다. 팝업 차단 설정을 확인해 주세요.')
+        return
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (error) {
+      console.error('partner order print failed', error)
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          setPrintErrorMessage('로그인이 만료되었습니다. 다시 로그인해 주세요.')
+          return
+        }
+        if (error.response?.status === 403) {
+          setPrintErrorMessage('이 주문서를 인쇄할 권한이 없습니다.')
+          return
+        }
+        if (error.response?.status === 404) {
+          setPrintErrorMessage('주문서를 찾을 수 없습니다. 목록에서 다시 선택해 주세요.')
+          return
+        }
+      }
+      setPrintErrorMessage('주문서 인쇄 파일을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
+  }, [auth?.partnerCode, orderId])
 
   useEffect(() => {
     setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })
@@ -240,6 +275,11 @@ export function SalesPartnerOrderDetailPage() {
             </Link>
           </div>
         </div>
+        {printErrorMessage ? (
+          <div className={styles['errorBanner']} role="alert" data-testid="partner-order-print-error">
+            {printErrorMessage}
+          </div>
+        ) : null}
 
         {query.isLoading ? (
           <div className={styles['emptyState']}>주문 상세를 불러오는 중…</div>

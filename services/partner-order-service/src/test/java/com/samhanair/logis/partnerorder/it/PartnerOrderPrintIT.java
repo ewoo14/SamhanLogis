@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.it;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,9 +20,11 @@ import com.samhanair.logis.partnerorder.audit.repository.PartnerOrderAuditLogRep
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.Mockito;
 
 /**
  * 주문 인쇄 HTML endpoint 계약을 검증한다.
@@ -41,8 +45,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderPrintIT extends AbstractPostgresIT {
-
-    private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
     @Autowired
     private MockMvc mockMvc;
@@ -76,6 +78,12 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         auditLogRepository.deleteAll();
         outboxRepository.deleteAll();
         orderRepository.deleteAll();
+        Mockito.lenient().when(partnerLookupClient.findByPartnerCode("P-PRINT-A"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        UUID.randomUUID(), "P-PRINT-A", "삼한테스트공조", "1010101010")));
+        Mockito.lenient().when(partnerLookupClient.findByPartnerCode("P-PRINT-C"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        UUID.randomUUID(), "P-PRINT-C", "확정테스트상사", "5050505050")));
     }
 
     @Test
@@ -85,8 +93,8 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-41"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("charset=UTF-8")));
+                .andExpect(header().string("Content-Type", containsString("charset=UTF-8")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML));
     }
 
     @Test
@@ -116,13 +124,13 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-43")
                         .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
-                        .header(PARTNER_CODE_HEADER, "P-PRINT-OWN"))
+                        .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-44")
                         .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
-                        .header(PARTNER_CODE_HEADER, "P-PRINT-OWN"))
+                        .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -136,7 +144,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2026/05/17-45")))
                 .andExpect(content().string(containsString("P-PRINT-C")))
+                .andExpect(content().string(containsString("확정테스트상사")))
                 .andExpect(content().string(containsString("실외기")))
+                .andExpect(content().string(containsString("확정")))
                 .andExpect(content().string(containsString("240,000")))
                 .andExpect(content().string(containsString("합계")));
     }

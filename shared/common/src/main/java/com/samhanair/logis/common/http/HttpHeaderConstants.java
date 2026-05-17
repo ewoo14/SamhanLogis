@@ -14,6 +14,9 @@ public final class HttpHeaderConstants {
     /** 호출자 역할 header. */
     public static final String CALLER_ROLE_HEADER = "X-User-Role";
 
+    /** 거래처 사용자 본인 주문 검증용 거래처 코드 header. */
+    public static final String PARTNER_CODE_HEADER = "X-Partner-Code";
+
     private HttpHeaderConstants() {
     }
 }

@@ -69,6 +69,9 @@ apiClient.interceptors.request.use(
       if (auth?.token) {
         config.headers.set('Authorization', `Bearer ${auth.token}`)
       }
+      if (auth?.role === 'PARTNER' && auth.partnerCode) {
+        config.headers.set('X-Partner-Code', auth.partnerCode)
+      }
     } catch (err) {
       // IPC 실패는 치명적 — 다음 단계 axios 가 401/네트워크 오류로 핸들.
       console.error('[apiClient] 토큰 조회 IPC 실패', err)

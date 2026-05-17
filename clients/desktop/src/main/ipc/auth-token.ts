@@ -29,7 +29,7 @@ export function registerAuthIpcHandlers(): void {
   ipcMain.handle(
     'auth:set-token',
     (_event, payload: AuthSnapshot): void => {
-      saveToken(payload.token, payload.userId, payload.role, payload.fullName)
+      saveToken(payload.token, payload.userId, payload.role, payload.fullName, payload.partnerCode)
     },
   )
 

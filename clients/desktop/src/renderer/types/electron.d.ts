@@ -10,6 +10,7 @@ export interface AuthSnapshot {
   userId: string
   role: string
   fullName: string
+  partnerCode?: string
 }
 
 declare global {

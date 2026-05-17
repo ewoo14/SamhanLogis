@@ -20,6 +20,7 @@ interface AuthSchema {
   userId?: string
   role?: string
   fullName?: string
+  partnerCode?: string
 }
 
 const store = new Store<AuthSchema>({ name: 'samhan-auth' })
@@ -33,6 +34,7 @@ export interface AuthSnapshot {
   userId: string
   role: string
   fullName: string
+  partnerCode?: string
 }
 
 /**
@@ -51,6 +53,7 @@ export function saveToken(
   userId: string,
   role: string,
   fullName: string,
+  partnerCode?: string,
 ): void {
   if (safeStorage.isEncryptionAvailable()) {
     const encrypted = safeStorage.encryptString(token).toString('base64')
@@ -63,6 +66,11 @@ export function saveToken(
   store.set('userId', userId)
   store.set('role', role)
   store.set('fullName', fullName)
+  if (partnerCode && partnerCode.trim()) {
+    store.set('partnerCode', partnerCode.trim())
+  } else {
+    store.delete('partnerCode')
+  }
 }
 
 /**
@@ -93,6 +101,7 @@ export function loadToken(): AuthSnapshot | null {
     userId: store.get('userId') ?? '',
     role: store.get('role') ?? '',
     fullName: store.get('fullName') ?? '',
+    partnerCode: store.get('partnerCode'),
   }
 }
 

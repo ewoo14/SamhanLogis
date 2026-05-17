@@ -474,7 +474,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         .map(([code, qty]) => `${code}: ${qty == null ? '가상' : qty.toLocaleString()}`)
         .join('\n')
       alert(`[재고 조회] ${row.modelName}\n총합: ${row.total.toLocaleString()}\n\n${perWh}`)
-    } catch (err) {
+    } catch {
       alert('재고 조회 실패')
     }
   }

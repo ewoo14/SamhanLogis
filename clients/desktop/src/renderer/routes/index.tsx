@@ -287,6 +287,9 @@ const INBOUND_INSPECTION_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
 /** 전표 신규 작성 권한 — slip-service SlipController#create 와 1:1. */
 const SLIP_CREATE_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
+/** 거래처 주문 운영 화면 권한 — PARTNER 데스크톱 직접 진입은 차단한다. */
+const SALES_PARTNER_ORDER_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
+
 /** 재고이동 신규 작성 권한 — inventory-service StockTransferController#create 와 1:1. */
 const TRANSFER_CREATE_ROLES = ['MASTER', 'MANAGER', 'WAREHOUSE', 'INVENTORY'] as const
 
@@ -369,8 +372,22 @@ const router = createHashRouter([
       // legacy webview (EstimateLegacyWebviewPage) 폐기. 정적 path 우선 매칭 의무.
       { path: '/sales/estimates', element: <EstimateListPage /> },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },
-      { path: '/sales/partner-orders', element: <SalesPartnerOrderListPage /> },
-      { path: '/sales/partner-orders/:id', element: <SalesPartnerOrderDetailPage /> },
+      {
+        path: '/sales/partner-orders',
+        element: (
+          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
+            <SalesPartnerOrderListPage />
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/sales/partner-orders/:id',
+        element: (
+          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
+            <SalesPartnerOrderDetailPage />
+          </RoleGuard>
+        ),
+      },
       { path: '/sales/order-approvals', element: <SalesOrderApprovalsPage /> },
       {
         path: '/sales/partner-dc-config',

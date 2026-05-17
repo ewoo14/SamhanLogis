@@ -25,35 +25,32 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
 
   test('T2: FE 주문 상세 인쇄 버튼', () => {
     const page = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
+    const routes = read('clients/desktop/src/renderer/routes/index.tsx')
 
     expect(page).toContain('PRINT_ROLES')
-    expect(page).toContain("'PARTNER'")
     expect(page).toContain('partner-order-print-open')
     expect(page).toContain('variant="secondary"')
     expect(page).toContain('/api/v1/partner-orders/${encodeURIComponent(orderId)}/print')
-    expect(page).toContain("window.open(url, '_blank', 'width=900,height=1200')")
+    expect(page).toContain("apiClient.get")
+    expect(page).toContain('URL.createObjectURL')
+    expect(page).toContain("window.open(url, '_blank', 'noopener,noreferrer')")
+    expect(routes).toContain("const SALES_PARTNER_ORDER_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const")
   })
 
-  test('T3: print stylesheet @media print 정의', () => {
-    const css = read('clients/desktop/src/renderer/components/sales/print.module.css')
+  test('T3: BE inline print stylesheet @media print 정의', () => {
     const service = read('services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderPrintService.java')
 
-    expect(css).toContain('@media print')
-    expect(css).toContain('@page')
-    expect(css).toContain('Pretendard')
     expect(service).toContain('@font-face')
-    expect(service).toContain("'Pretendard'")
+    expect(service).toContain("'Pretendard Variable', Pretendard")
+    expect(service).toContain('tr { page-break-inside: avoid; }')
   })
 
   test('T4: A4 layout 정합', () => {
-    const css = read('clients/desktop/src/renderer/components/sales/print.module.css')
     const service = read('services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderPrintService.java')
 
-    expect(css).toContain('width: 210mm')
-    expect(css).toContain('min-height: 297mm')
-    expect(css).toContain('page-break-after: avoid')
     expect(service).toContain('width: 210mm;')
     expect(service).toContain('min-height: 297mm;')
+    expect(service).toContain('page-break-after: avoid;')
     expect(service).toContain('거래처 정보')
     expect(service).toContain('날인란')
   })
@@ -64,7 +61,7 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
     const it = read('services/partner-order-service/src/test/java/com/samhanair/logis/partnerorder/it/PartnerOrderPrintIT.java')
 
     expect(controller).toContain('HttpHeaderConstants.CALLER_ROLE_HEADER')
-    expect(controller).toContain('X-Partner-Code')
+    expect(controller).toContain('HttpHeaderConstants.PARTNER_CODE_HEADER')
     expect(service).toContain('"PARTNER".equalsIgnoreCase')
     expect(service).toContain('본인 거래처 주문서만 인쇄할 수 있습니다.')
     expect(it).toContain('testPrintPartnerRoleSeesOwnOrderOnly')

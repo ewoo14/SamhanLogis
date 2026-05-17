@@ -65,10 +65,11 @@ function Draw-A4Order($g, [int]$x, [int]$y, [double]$scale, [bool]$success) {
         $title = if ($i -eq 0) { K "\uAC70\uB798\uCC98 \uC815\uBCF4" } else { K "\uC8FC\uBB38 \uC815\uBCF4" }
         $g.DrawString($title, $fontB, $text, ($bx + 8 * $scale), ($boxY + 5 * $scale))
     }
-    $g.DrawString((K "\uAC70\uB798\uCC98\uBA85  P-PRINT-A"), $font, $muted, ($x + 44 * $scale), ($y + 128 * $scale))
+    $g.DrawString((K "\uAC70\uB798\uCC98\uBA85  \uC0BC\uD55C\uD14C\uC2A4\uD2B8\uACF5\uC870"), $font, $muted, ($x + 44 * $scale), ($y + 128 * $scale))
     $g.DrawString((K "\uC0AC\uC5C5\uC790\uBC88\uD638  1010101010"), $font, $muted, ($x + 44 * $scale), ($y + 160 * $scale))
     $g.DrawString((K "\uC8FC\uBB38\uBC88\uD638  2026/05/17-45"), $font, $muted, ($x + 290 * $scale), ($y + 128 * $scale))
     $g.DrawString((K "\uB0A9\uAE30  2026-05-30"), $font, $muted, ($x + 290 * $scale), ($y + 160 * $scale))
+    $g.DrawString((K "\uC0C1\uD0DC  \uD655\uC815"), $font, $muted, ($x + 290 * $scale), ($y + 192 * $scale))
 
     $tableX = $x + [int](32 * $scale)
     $tableY = $y + [int](245 * $scale)
@@ -93,7 +94,7 @@ function Draw-A4Order($g, [int]$x, [int]$y, [double]$scale, [bool]$success) {
 $out = Join-Path (Get-Location) $OutputDir
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11C \uC0C1\uC138 - \uC778\uC1C4 \uBC84\uD2BC") (K "SALES/MANAGER/MASTER/PARTNER \uBAA8\uB450 \uC778\uC1C4 \uC9C4\uC785") {
+New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11C \uC0C1\uC138 - \uC778\uC1C4 \uBC84\uD2BC") (K "SALES/MANAGER/MASTER Desktop \uC778\uC1C4 \uC9C4\uC785, PARTNER Desktop route \uCC28\uB2E8") {
     param($g)
     $panel = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
     $line = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(203, 213, 225), 1)
@@ -106,11 +107,11 @@ New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11
     Draw-Button $g 1020 145 90 (K "\uC778\uC1C4") ([System.Drawing.Color]::FromArgb(71, 85, 105))
     Draw-Button $g 1120 145 90 (K "\uC218\uC815") ([System.Drawing.Color]::FromArgb(37, 99, 235))
     Draw-Button $g 1220 145 80 (K "\uC0AD\uC81C") ([System.Drawing.Color]::FromArgb(185, 28, 28))
-    $g.DrawString((K "\uAC70\uB798\uCC98 \u00B7 P-PRINT-A"), $fontB, $text, 72, 230)
+    $g.DrawString((K "\uAC70\uB798\uCC98 \u00B7 \uC0BC\uD55C\uD14C\uC2A4\uD2B8\uACF5\uC870 (P-PRINT-A)"), $fontB, $text, 72, 230)
     $g.DrawString((K "\uD488\uBAA9\uBA85: \uC2E4\uC678\uAE30 / \uBAA8\uB378\uBA85: AJ040RXH4BC1 / \uD569\uACC4: 240,000\uC6D0"), $font, $text, 72, 290)
 }
 
-New-Canvas (Join-Path $out "02-a4-order-print-form.png") (K "\uC8FC\uBB38 \uC778\uC1C4 \uC591\uC2DD A4 mock") (K "\uAC70\uB798\uCC98/\uD488\uBAA9/\uD569\uACC4/\uB0A0\uC778\uB780 \uD3EC\uD568") {
+New-Canvas (Join-Path $out "02-a4-order-print-form.png") (K "\uC8FC\uBB38 \uC778\uC1C4 \uC591\uC2DD A4 mock") (K "Pretendard Variable \uC6B0\uC120, \uAC70\uB798\uCC98\uBA85/\uD55C\uAD6D\uC5B4 \uC0C1\uD0DC/\uB0A0\uC778\uB780 \uD3EC\uD568") {
     param($g)
     Draw-A4Order $g 420 32 1.0 $false
 }

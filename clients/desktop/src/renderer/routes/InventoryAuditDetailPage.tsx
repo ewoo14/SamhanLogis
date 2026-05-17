@@ -40,6 +40,7 @@ import {
   Card,
   DataTable,
   FormField,
+  type AuditLogEntry,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -310,7 +311,7 @@ export function InventoryAuditDetailPage() {
 interface DetailGridProps {
   audit: AuditDetail
   /** PR-H4c FE-B: field 별 audit log group — totalDiffAmount overlay 표시. */
-  auditByField: Record<string, import('@samhan/design-system').AuditLogEntry[]>
+  auditByField: Record<string, AuditLogEntry[]>
 }
 
 function DetailGrid({ audit, auditByField }: DetailGridProps) {

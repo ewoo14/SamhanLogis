@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PartnerOrderPrintController {
 
-    private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
-
     private final PartnerOrderPrintService printService;
 
     /**
@@ -34,7 +32,7 @@ public class PartnerOrderPrintController {
     public String print(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String callerRole,
-            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
+            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
         return printService.renderPrintHtml(id, callerRole, partnerCode);
     }
 }

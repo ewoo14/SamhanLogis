@@ -72,6 +72,7 @@ export function LoginPage() {
         userId: res.userId,
         role: res.role,
         fullName: res.displayName,
+        partnerCode: res.partnerCode,
       })
       navigate('/', { replace: true })
     },
