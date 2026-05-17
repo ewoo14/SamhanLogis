@@ -2,6 +2,57 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-5-6 진입 — 통합 검증 + SP-08-5 시리즈 종료
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-6-purchase-crud-parity-integration
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `dafee351` (PR #224 SP-08-5-5 squash merge)
+- master plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md` §3.6
+- 사용자 6/7회차 정책 — PR 내 모든 결함 해결 + PM 자동 머지 + 자동 진입
+
+### SP-08-5-6 범위 (통합 검증)
+
+SP-08-5 시리즈 5 PR 누적 완료. 통합 검증 + ROADMAP/DECISIONS 동기화 + SP-08-5 종료 dev-report.
+
+- **R1/R2 잠금** (SP-08-5-1 PR #220 `0d621b36`): 매입 목록·상세 endpoint
+- **U1 direct PUT** (SP-08-5-2 PR #221 `61925942`): 매입 수정 + optimistic lock + audit
+- **D1 soft delete** (SP-08-5-3 PR #222 `211711a1`): InboundInspection 정책 + ErrorCode
+- **C1 회귀 가드** (SP-08-5-4 PR #223 `1486e610`): 검수 CTA + InboundInspection 흐름
+- **P1 인쇄 양식** (SP-08-5-5 PR #224 `dafee351`): A4 portrait + 검수란 + 8컬럼
+
+### 작업 항목
+
+1. `docs/dev-reports/sp-08-5-summary.md` 신규 — 시리즈 종료 dev-report
+2. `docs/ROADMAP.md` 갱신 — SP-08-5 시리즈 완료 표시
+3. `docs/DECISIONS.md` 갱신 — InboundInspection 정책 + UserInternalClient + 라인테이블 8컬럼 + .gitattributes EOL 결정 누적
+4. `README.md` 갱신 (필요 시) — SP-08 series 진행도 + 인쇄 양식 안내
+5. 5-team 종합 검증 (BE: IT 카운트 / FE: typecheck 누적 / Designer: 토큰 누적 / QA: PNG 누적 / DevOps: CI matrix 누적)
+6. 후속 follow-up 정리 (BE 35 IT MockBean + warehouse name snapshot + Pretendard self-host + 다중 페이지 분할)
+
+### 직전 머지 (PR #224)
+
+- branch: `feat/sp-08-5-5-purchase-print-form` (deleted)
+- mergeCommit: `dafee351`
+- 사이클 통계: N=1 종료 (Claude+Codex 양쪽 APPROVE)
+- 신규: PurchaseSlipPrintPage + UserInternalClient + SlipDetailResponse.ownerFullName + 8컬럼 라인테이블 + @media print + @page + design docs 3개
+
+### 다음 후보 (SP-08-5-6 머지 후)
+
+- SP-08-6 매출/회계 CRUD parity (master plan SP-08 시리즈)
+- SP-08-7 Notion runtime zero
+- SP-08-8 자격 평문 비공개 가드
+
+## 2026-05-18 SP-08-5-5 머지 완료 — 매입 인쇄 양식 (참고 이력)
+
 ## 2026-05-18 SP-08-5-5 진입 — P1 매입 인쇄 양식
 
 ### 즉시 시작
