@@ -229,6 +229,39 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("U1: 감리주소만 변경해도 SLIP_EDIT audit revision 1건을 기록한다")
+    void testUpdateSalesSupervisionAddressOnlyAuditLogRecorded() throws Exception {
+        String id = createSlip("OUTBOUND", "SP0862-supervision-audit");
+        String updatedAt = updatedAt(id);
+        Map<String, Object> body = updateBody(updatedAt, "SP0862-supervision-audit", 3, "200000");
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+
+        auditLogRepository.deleteAll();
+        body.put("updatedAt", updatedAt(id));
+        body.put("supervisionAddress", "서울 강남구 감리지 변경");
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+
+        var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getRevisionNo()).isEqualTo(1);
+        assertThat(logs.get(0).getFieldName()).isEqualTo("SLIP_EDIT");
+    }
+
+    @Test
     @DisplayName("U1: soft-deleted 매출 전표 수정은 404를 반환한다")
     void testUpdateSalesSoftDeletedReturns404() throws Exception {
         String id = createSlip("OUTBOUND", "SP0862-삭제됨");

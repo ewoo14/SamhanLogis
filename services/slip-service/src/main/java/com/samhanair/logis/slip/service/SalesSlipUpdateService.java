@@ -155,13 +155,14 @@ public class SalesSlipUpdateService {
     }
 
     private String summarize(Slip slip) {
-        return "partnerName=%s|partnerCode=%s|memo=%s|businessNumber=%s|deliveryAddress=%s|projectName=%s|recipientPhone=%s|paymentDueDate=%s|lines=%s"
+        return "partnerName=%s|partnerCode=%s|memo=%s|businessNumber=%s|deliveryAddress=%s|supervisionAddress=%s|projectName=%s|recipientPhone=%s|paymentDueDate=%s|lines=%s"
                 .formatted(
                         nullToEmpty(slip.getPartnerName()),
                         nullToEmpty(slip.getPartnerCode()),
                         nullToEmpty(slip.getMemo()),
                         nullToEmpty(slip.getBusinessNumber()),
                         nullToEmpty(slip.getDeliveryAddress()),
+                        nullToEmpty(slip.getSupervisionAddress()),
                         nullToEmpty(slip.getProjectName()),
                         nullToEmpty(slip.getRecipientPhone()),
                         toText(slip.getPaymentDueDate()),
