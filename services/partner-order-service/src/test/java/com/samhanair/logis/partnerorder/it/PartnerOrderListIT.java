@@ -142,13 +142,14 @@ class PartnerOrderListIT extends AbstractPostgresIT {
                 orderNo,
                 "IT-SP0841-" + orderNo,
                 BigDecimal.ZERO);
-        if ("DRAFT".equals(status)) {
-            setStatus(order, com.samhanair.logis.partnerorder.domain.PartnerOrderStatus.DRAFT);
-        } else if ("CANCELED".equals(status)) {
+        // 도메인 메서드 사용 (reflection 회피). DRAFT 진입 도메인 메서드 부재 →
+        // CONFIRMING (create() 직후 상태) 으로 대체. 의미상 "초기 상태" 동등.
+        if ("CANCELED".equals(status)) {
             order.cancel();
-        } else {
+        } else if ("CONFIRMED".equals(status)) {
             order.markSlipPendingRetry();
         }
+        // "CONFIRMING" 또는 "DRAFT" 입력 시 create() 직후 status 그대로 (CONFIRMING)
         order.addLine(PartnerOrderLine.create(
                 UUID.randomUUID(),
                 modelName,
@@ -161,20 +162,15 @@ class PartnerOrderListIT extends AbstractPostgresIT {
         orderRepository.saveAndFlush(order);
     }
 
-    private void setStatus(PartnerOrder order,
-                           com.samhanair.logis.partnerorder.domain.PartnerOrderStatus status) {
-        setField(order, "status", status);
-    }
-
+    /**
+     * IT fixture 한계 — confirmedAt 은 production 도메인 메서드로 직접 set 할 수 없어 reflection 사용.
+     * production code 영향 없음 (test scope only). setStatus reflection 은 도메인 메서드 사용으로 대체.
+     */
     private void setConfirmedAt(PartnerOrder order, java.time.LocalDateTime confirmedAt) {
-        setField(order, "confirmedAt", confirmedAt);
-    }
-
-    private void setField(PartnerOrder order, String fieldName, Object value) {
         try {
-            java.lang.reflect.Field field = PartnerOrder.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = PartnerOrder.class.getDeclaredField("confirmedAt");
             field.setAccessible(true);
-            field.set(order, value);
+            field.set(order, confirmedAt);
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException(ex);
         }

@@ -442,24 +442,24 @@
 }
 
 .statusDraft {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--state-neutral-bg, #f3f4f6);
+  color: var(--state-neutral, #4b5563);
 }
 .statusConfirmed {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--state-info-bg, #dbeafe);
+  color: var(--state-info, #1e40af);
 }
 .statusSent {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--state-success-bg, #d1fae5);
+  color: var(--state-success, #065f46);
 }
 .statusConverted {
-  background: #ede9fe;
-  color: #5b21b6;
+  background: var(--state-info-bg, #ede9fe);
+  color: var(--state-info, #5b21b6);
 }
 .statusCanceled {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--state-danger-bg, #fee2e2);
+  color: var(--state-danger, #991b1b);
 }
 .statusLongPending {
   background: #fef3c7;
