@@ -2,6 +2,49 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-5-5 진입 — P1 매입 인쇄 양식
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-5-purchase-print-form
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `1486e610` (PR #223 SP-08-5-4 squash merge)
+- master plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md` §3.5
+- 사용자 6/7회차 정책 — PR 내 모든 결함 해결 + PM 자동 머지 + 자동 진입
+
+### SP-08-5-5 범위 (P1)
+
+- 매입 전표 인쇄 HTML 또는 print view
+- A4 한 장 fit (210mm × 297mm portrait)
+- 포함 항목: 거래처명/사업자번호/품목/모델명/단가/수량/합계/입고창고/검수란/슬립번호/날짜/담당자
+- legacy GAS 양식 캡처와 side-by-side QA PNG (기존 GAS 양식 가능한 한 100% 매칭)
+- print CSS: `@media print` + design-system `paper-a4-portrait` 클래스 재사용 (이미 global.css 에 정의)
+- design-system `<PrintLayout>` 또는 동등 컴포넌트 가능 시 재사용
+- FE 라우트: `clients/desktop/src/renderer/routes/SlipPrintPage.tsx` 또는 `SlipDetailPage` 의 `?print=1` 모드 추가
+- BE: 신규 endpoint 불필요 (기존 GET `/slips/{id}` 응답 재사용)
+- QA: legacy GAS PNG vs 우리 print PNG side-by-side 캡처
+
+### 직전 머지 (PR #223)
+
+- branch: `feat/sp-08-5-4-purchase-inspection-cta-regression` (deleted)
+- mergeCommit: `1486e610`
+- 사이클 통계: N=1 종료 (양쪽 Claude + Codex APPROVE 신규 0)
+- TM PR comment 2건 (Claude 사이클 1 + Codex 사이클 1)
+- 신규: SlipInspectionCtaRegressionIT 6 case 회귀 가드, .gitattributes (SP-08-5-3 EOL follow-up), InboundInspectionDialog saveMutation invalidate fix
+
+### 다음 후보
+
+- SP-08-5-6 통합 검증 또는 누적 5 PR 대체
+
+## 2026-05-18 SP-08-5-4 머지 완료 — 검수 CTA 회귀 가드 (참고 이력)
+
 ## 2026-05-18 SP-08-5-4 진입 — C1 검수 CTA 회귀 + InboundInspection 흐름 검증
 
 ### 즉시 시작

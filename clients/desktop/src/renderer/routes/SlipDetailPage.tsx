@@ -857,7 +857,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 작업지시서
               </Button>
             </>
-          ) : null}
+          ) : (
+            // SP-08-5-5: 매입 전표 인쇄 버튼 (INBOUND — 모든 조회 가능 권한)
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="purchase-slip-print-button"
+              onClick={() => navigate(`/purchases/${id}/print/purchase`)}
+            >
+              매입 전표 인쇄
+            </Button>
+          )}
           {canDirectEditPurchase ? (
             <Button
               variant="primary"

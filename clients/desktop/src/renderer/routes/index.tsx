@@ -77,6 +77,8 @@ import { OutboundView } from '../print/OutboundView'
 import { InboundView } from '../print/InboundView'
 import { QuoteView } from '../print/QuoteView'
 import { TaxInvoiceView } from '../print/TaxInvoiceView'
+// SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, legacy GAS 동등)
+import { PurchaseSlipPrintPage } from '../print/PurchaseSlipPrintPage'
 // signature-slice-C 모바일 mock 라우트 (Phase 5 nginx 분리 전 시뮬레이션 — AuthGuard 외부)
 import { MobileSignaturePage } from './MobileSignaturePage'
 import { MobileRecipientPage } from './MobileRecipientPage'
@@ -450,6 +452,8 @@ const router = createHashRouter([
       { path: '/purchases/:id', element: <SlipDetailPage mode="INBOUND" /> },
       // P0-4 신규 — 입고전표 (A4/88mm 분기)
       { path: '/purchases/:id/print/inbound', element: <InboundView /> },
+      // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
+      { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
 
       // 재고이동
       { path: '/transfers', element: <TransferListPage /> },
