@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-1 PNG 04 — INVENTORY 권한 가드 (매출 메뉴 미노출 / 403)</title>
+<style>
+  :root {
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    --color-danger-50:  #FFF1F1;
+    --color-danger-200: #FECACA;
+    --color-danger-500: #D6504A;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --radius-md: 4px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+    padding: 32px 40px;
+    min-height: 900px;
+  }
+  .page-title { font-size: 24px; font-weight: 600; }
+
+  /* error card — SP-08-5-1 PNG 04 패턴 1:1 */
+  .error-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 32px;
+    margin-top: 40px;
+    max-width: 640px;
+  }
+  .error-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border: 1px solid var(--color-danger-200);
+    border-radius: var(--radius-md);
+    background: var(--color-danger-50);
+    color: var(--color-danger-500);
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .error-title {
+    font-size: 18px; font-weight: 600;
+    color: var(--color-neutral-900);
+    margin-bottom: 12px;
+  }
+  .error-meta {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.6;
+  }
+  .role-list {
+    color: #2D77A8; font-weight: 600;
+  }
+  .guard-note {
+    margin-top: 12px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  /* sidebar nav simulation — shows INVENTORY role missing sales menu */
+  .layout {
+    display: flex; gap: 32px; margin-top: 24px;
+  }
+  .sidebar {
+    width: 200px; flex-shrink: 0;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 16px 0;
+  }
+  .nav-section { padding: 4px 16px; }
+  .nav-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    color: var(--color-neutral-400); text-transform: uppercase;
+    margin-bottom: 6px; margin-top: 12px;
+  }
+  .nav-item {
+    display: flex; align-items: center;
+    padding: 6px 8px; border-radius: 4px;
+    font-size: 13px; color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .nav-item:hover { background: var(--color-bg-subtle); }
+  .nav-item.active { background: #DBEAFE; color: #1E40AF; font-weight: 600; }
+  .nav-item.hidden { display: none; } /* 매출관리 — INVENTORY 역할 미노출 */
+
+  .main-content { flex: 1; }
+</style>
+</head>
+<body>
+<h1 class="page-title">권한 가드</h1>
+
+<div class="layout">
+  <!-- 사이드바: INVENTORY 역할 — 매출관리 메뉴 미노출 -->
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">관리</div>
+      <div class="nav-item active">대시보드</div>
+      <div class="nav-item">구매관리</div>
+      <!-- 매출관리 = INVENTORY 역할에서 미노출 (사이드 내비 숨김) -->
+      <!-- <div class="nav-item hidden">매출관리</div> -->
+      <div class="nav-item">재고관리</div>
+    </div>
+  </nav>
+
+  <!-- 메인: 직접 URL 진입 시 403 응답 표시 -->
+  <div class="main-content">
+    <div class="error-card">
+      <div class="error-status">403</div>
+      <div class="error-title">매출 전표 조회 권한이 없습니다</div>
+      <div class="error-meta">
+        <div>허용 역할: <span class="role-list">WAREHOUSE / MANAGER / MASTER</span></div>
+        <div class="guard-note">INVENTORY 역할은 매출 메뉴를 사이드 내비에서 표시하지 않습니다.</div>
+        <div class="guard-note">직접 URL 접근 시에도 API 서버에서 403 을 반환합니다.</div>
+        <div class="guard-note" style="margin-top:8px; color: #92400E; font-size: 12px;">
+          SP-08-5-1 구매관리 INVENTORY 가드 정책과 동일 패턴 적용
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

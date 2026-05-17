@@ -80,6 +80,15 @@ export function canInspectInbound(role: string | undefined | null): boolean {
 }
 
 /**
+ * 매출 전표 조회 권한 — BE `SlipController#query` 매핑.
+ * SALES / MANAGER / MASTER (영업 그룹 + 관리자).
+ */
+export function canQuerySales(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'SALES' || role === 'MANAGER' || role === 'MASTER'
+}
+
+/**
  * 이동전표 작성 권한 — BE `StockTransferController#create` 와 동일 매핑.
  * MASTER / MANAGER / WAREHOUSE / INVENTORY.
  */

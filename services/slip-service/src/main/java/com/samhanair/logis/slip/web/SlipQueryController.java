@@ -138,8 +138,14 @@ public class SlipQueryController {
 
             @RequestHeader(value = "X-User-Role", required = false) String role) {
 
+        // 1단계: 명시적 타입 지정 시 권한 가드
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(slipType, role);
+        SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role);
+        // 2단계: 타입 미지정 시 역할에 따라 가시 범위 축소
         SlipType effectiveSlipType = SlipPurchaseAccessGuard.restrictInboundWhenTypeOmitted(slipType, role);
+        effectiveSlipType = SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role);
+        // 3단계: restrict 결과에 대해 재가드 (null→OUTBOUND 후 OUTBOUND 차단 역할 검증)
+        SlipSalesAccessGuard.guardOutboundSalesRead(effectiveSlipType, role);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipQueryService.listForQuery(

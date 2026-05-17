@@ -2,6 +2,54 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-1 진입 — R1/R2 매출 목록·상세 endpoint 잠금
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-1-sales-slip-list-detail
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `d9b2af43` (PR #225 SP-08-5-6 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.1
+- SP-08-5 시리즈 종료 — `docs/dev-reports/sp-08-5-summary.md` 참조
+- 사용자 6/7회차 정책 — PR 내 모든 결함 해결 + PM 자동 머지 + 자동 진입
+
+### SP-08-6 시리즈 범위
+
+legacy GAS B 회계 4건 (거래명세서 / 계산서 / 일마감 / 원장) + 매출 전표 CRUD parity.
+
+| Sub-task | Scope |
+|---|---|
+| SP-08-6-1 | R1/R2 매출 목록·상세 endpoint 잠금 (본 슬라이스) |
+| SP-08-6-2 | U1 매출 수정 direct PUT |
+| SP-08-6-3 | D1 매출 soft delete + 출고 정책 |
+| SP-08-6-4 | P1 거래명세서 + 계산서 인쇄 양식 |
+| SP-08-6-5 | P2 일마감 + 원장 endpoint (accounting-service) |
+| SP-08-6-6 | 세금계산서 발행 + 외부 연동 (옵션) |
+| SP-08-6-7 | 통합 검증 + 시리즈 종료 |
+
+### SP-08-6-1 범위 (R1/R2)
+
+- BE: `GET /api/v1/slips?slipType=SALE` (또는 OUTBOUND) + `GET /api/v1/slips/{id}` 매출 응답 정합
+- 권한: SALES/MANAGER/MASTER (또는 ACCOUNTANT 추가)
+- FE: `SalesQueryPage.tsx` (기존 검증) + CTA (출고/거래명세서/계산서)
+- Playwright + IT + PNG 4장
+- SP-08-5-1 `Slip.findBySlipTypeAndSlipNoAndIsDeletedFalse` 헬퍼 재사용
+
+### 직전 머지 (PR #225 SP-08-5-6)
+
+- branch: `feat/sp-08-5-6-purchase-crud-parity-integration` (deleted)
+- mergeCommit: `d9b2af43`
+- SP-08-5 시리즈 종료 — 6 슬라이스 5 PR 누적 + 종료 보고서
+
+## 2026-05-18 SP-08-5-6 머지 완료 — 매입 시리즈 종료 (참고 이력)
+
 ## 2026-05-18 SP-08-5-6 진입 — 통합 검증 + SP-08-5 시리즈 종료
 
 ### 즉시 시작

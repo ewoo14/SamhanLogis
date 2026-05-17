@@ -1,7 +1,12 @@
 /**
- * 판매관리 — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
+ * 판매관리 (매출 전표) — 출고전표 다중 선택 + 날짜 범위 + 검색 모달 + 50/page pagination.
  *
- * 컬럼 18개 (슬립 #17 판매관리 명세 + SP-05 상세 진입):
+ * SP-08-6-1 R1/R2 매출 목록·상세 슬라이스.
+ * - slipType: 'OUTBOUND' (BE OUTBOUND = 출고 = 매출)
+ * - 권한 가드: canQuerySales (SALES / MANAGER / MASTER)
+ * - CTA 자리 표시: 출고 전환 / 거래명세서 출력 / 계산서 출력 (실 핸들러는 SP-08-6-4)
+ *
+ * 컬럼 19개 (슬립 #17 판매관리 명세 + SP-05 상세 진입 + 상태):
  *  1. 체크박스 (다중 선택 + 전체 선택)
  *  2. 순번 (slipDate desc 기준 row index)
  *  3. 판매번호 (slipNo)
@@ -12,14 +17,15 @@
  *  8. 특이사항 (memo)
  *  9. 금액 (totalAmount — 우측, 천 단위 콤마)
  * 10. 출고창고 (sourceWarehouseId → warehousesQuery cache resolve)
- * 11. 인수자 번호 (recipientPhone)
- * 12. 전표수정내역 (editHistoryCount — "0" 또는 "N건")
- * 13. 감리주소 (supervisionAddress)
- * 14. 프로젝트명 (projectName)
- * 15. 담당자명 (salesPersonName)
- * 16. 인쇄 (printed → Badge)
- * 17. 입금예정일 (paymentDueDate)
- * 18. 상세 (전표 상세/수정 진입)
+ * 11. 출고일자 (slipDate)
+ * 12. 인수자 번호 (recipientPhone)
+ * 13. 전표수정내역 (editHistoryCount — "0" 또는 "N건")
+ * 14. 감리주소 (supervisionAddress)
+ * 15. 프로젝트명 (projectName)
+ * 16. 담당자명 (salesPersonName)
+ * 17. 인쇄 (printed → Badge)
+ * 18. 입금예정일 (paymentDueDate)
+ * 19. 상태 (status → Badge) + CTA (상세 / 출고전환 / 거래명세서 / 계산서)
  *
  * UUID 비공개 가드: slipNo / businessNumber / partnerCode 만 사용자 노출.
  * id / sourceWarehouseId 는 내부 처리 전용.
@@ -30,12 +36,35 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
-import { useSessionStore, canCreateSlip } from '../../stores/session'
+import { useSessionStore, canCreateSlip, canQuerySales } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { canExportSlips, exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 
 const PAGE_SIZE = 50
+
+/** 전표 상태 한국어 라벨 — PurchaseQueryPage 와 동일 맵 */
+const SLIP_STATUS_LABEL: Record<string, string> = {
+  DRAFT: '임시저장',
+  SAVED: '저장',
+  SENT: '전송',
+  ACCEPTED: '수락',
+  PROCESSING: '처리중',
+  INSPECTING: '검수중',
+  COMPLETED: '완료',
+  SHIPPING: '배송중',
+  DELIVERED: '배송완료',
+  CONFIRMED: '확정',
+  REJECTED: '반려',
+  CANCELED: '취소',
+}
+
+/** 출고 전환 가능 상태 — SAVED / CONFIRMED */
+const SHIPPABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
+
+function isShippable(row: SlipQueryRow): boolean {
+  return SHIPPABLE_STATUSES.includes(row.status as (typeof SHIPPABLE_STATUSES)[number])
+}
 
 /** YYYY-MM-DD 포맷 (Asia/Seoul 로케일 Date API) */
 function toSeoulDateStr(d: Date): string {
@@ -104,11 +133,12 @@ const EMPTY_SEARCH: SearchForm = {
 }
 
 export function SalesQueryPage() {
-  usePageTitle('판매관리')
+  usePageTitle('매출 전표')
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
   const canCreate = canCreateSlip(role)
   const canExport = canExportSlips(role)
+  const canQuery  = canQuerySales(role)
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {
@@ -192,6 +222,9 @@ export function SalesQueryPage() {
       { key: 'printed',           label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
       { key: 'paymentDueDate',    label: '입금예정일',  filter: 'text' },
+      { key: 'slipDate',          label: '출고일자',    filter: 'text' },
+      { key: 'status',            label: '상태',        filter: 'select' as const,
+        format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       {
         key: 'detailAction',
         label: '상세',
@@ -213,11 +246,13 @@ export function SalesQueryPage() {
           </Button>
         ),
       },
-      { key: 'slipDate',          label: '전표일자',    filter: 'text' },
     ],
     [navigate, warehouses],
   )
-  const tableColumnCount = 18
+  // 체크박스(1)+순번(2)+판매번호(3)+거래처(4)+거래처코드(5)+배송주소(6)+품목(7)
+  // +특이사항(8)+금액(9)+출고창고(10)+출고일자(11)+인수자번호(12)+전표수정내역(13)
+  // +감리주소(14)+프로젝트명(15)+담당자명(16)+인쇄(17)+입금예정일(18)+상태(19)+상세(20)
+  const tableColumnCount = 20
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -275,26 +310,37 @@ export function SalesQueryPage() {
     setSelectedIds(new Set())
   }
 
+  // ── 권한 없는 역할 접근 차단 ──
+  if (!canQuery) {
+    return (
+      <div role="alert" style={{ padding: 32, fontSize: 14, color: 'var(--color-danger-600)' }}>
+        매출 전표 조회 권한이 없습니다. (SALES / MANAGER / MASTER 역할 필요)
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* ── 툴바 ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {/* 날짜 범위 */}
         <label style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>기간</label>
-        <input
+        <Input
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(0) }}
-          style={inputStyle}
           aria-label="시작 날짜"
+          inputSize="sm"
+          fullWidth={false}
         />
         <span style={{ fontSize: 13 }}>~</span>
-        <input
+        <Input
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(0) }}
-          style={inputStyle}
           aria-label="종료 날짜"
+          inputSize="sm"
+          fullWidth={false}
         />
 
         {/* preset 버튼 */}
@@ -327,6 +373,47 @@ export function SalesQueryPage() {
           >
             인쇄
           </Button>
+        ) : null}
+
+        {/* ─ 단일 행 선택 시 CTA 자리 표시 (SP-08-6-4 에서 실 핸들러 연결 예정) ─ */}
+        {selectedIds.size === 1 ? (
+          <>
+            {/* 출고 전환 — SAVED / CONFIRMED 상태 전표만 활성 (SP-08-6-1 R1) */}
+            {(() => {
+              const selectedRow = rows.find((r) => selectedIds.has(r.id))
+              return selectedRow && isShippable(selectedRow) ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled
+                  title="출고 전환 기능은 SP-08-6-4 에서 연결 예정"
+                  data-testid="sales-query-ship-btn"
+                >
+                  출고 전환
+                </Button>
+              ) : null
+            })()}
+            {/* 거래명세서 출력 — /sales/:id/print/statement (SP-08-6-4 후속) */}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled
+              title="거래명세서 출력 기능은 SP-08-6-4 에서 연결 예정"
+              data-testid="sales-query-statement-print-btn"
+            >
+              거래명세서 출력
+            </Button>
+            {/* 계산서 출력 — /sales/:id/print/invoice (SP-08-6-4 후속) */}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled
+              title="계산서 출력 기능은 SP-08-6-4 에서 연결 예정"
+              data-testid="sales-query-invoice-print-btn"
+            >
+              계산서 출력
+            </Button>
+          </>
         ) : null}
 
         {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용. */}
@@ -438,6 +525,7 @@ export function SalesQueryPage() {
               <Th width="160px">특이사항</Th>
               <Th width="100px" align="right">금액</Th>
               <Th width="100px">출고창고</Th>
+              <Th width="100px">출고일자</Th>
               <Th width="120px">인수자번호</Th>
               <Th width="90px">전표수정내역</Th>
               <Th width="160px">감리주소</Th>
@@ -445,6 +533,7 @@ export function SalesQueryPage() {
               <Th width="90px">담당자명</Th>
               <Th width="70px">인쇄</Th>
               <Th width="100px">입금예정일</Th>
+              <Th width="86px">상태</Th>
               <Th width="72px" align="center">상세</Th>
             </tr>
           </thead>
@@ -507,6 +596,8 @@ export function SalesQueryPage() {
                     <Td align="right">{fmtAmount(row.totalAmount)}</Td>
                     {/* 출고창고 — sourceWarehouseId resolve */}
                     <Td>{resolveWarehouseName(row.sourceWarehouseId, warehouses)}</Td>
+                    {/* 출고일자 */}
+                    <Td>{row.slipDate ?? '—'}</Td>
                     {/* 인수자 번호 */}
                     <Td>{row.recipientPhone ?? '—'}</Td>
                     {/* 전표수정내역 */}
@@ -530,19 +621,31 @@ export function SalesQueryPage() {
                     </Td>
                     {/* 입금예정일 */}
                     <Td>{row.paymentDueDate ?? '—'}</Td>
+                    {/* 상태 Badge */}
                     <Td align="center">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/sales/${row.id}`)
-                        }}
-                        aria-label={`${row.slipNo} 상세 보기`}
-                        data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
+                      <Badge
+                        variant="neutral"
+                        data-testid={`sales-query-status-badge-${toPublicTestId(row.slipNo)}`}
                       >
-                        상세
-                      </Button>
+                        {SLIP_STATUS_LABEL[row.status] ?? row.status}
+                      </Badge>
+                    </Td>
+                    {/* 상세 + CTA (SP-08-6-4 핸들러 연결 예정) */}
+                    <Td align="center">
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/sales/${row.id}`)
+                          }}
+                          aria-label={`${row.slipNo} 상세 보기`}
+                          data-testid={`sales-query-detail-${toPublicTestId(row.slipNo)}`}
+                        >
+                          상세
+                        </Button>
+                      </div>
                     </Td>
                   </tr>
                 )
@@ -795,11 +898,3 @@ function PageBtn({
   )
 }
 
-/** date input 공통 스타일 */
-const inputStyle: React.CSSProperties = {
-  fontSize: 13,
-  padding: '4px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--color-neutral-300)',
-  background: 'var(--color-white)',
-}

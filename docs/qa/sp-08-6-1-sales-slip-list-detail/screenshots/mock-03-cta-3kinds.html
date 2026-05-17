@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>SP-08-6-1 PNG 03 — CTA 3종 자리 (출고 / 거래명세서 / 계산서)</title>
+<style>
+  :root {
+    --color-brand-500: #2D77A8;
+    --color-brand-600: #235F88;
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F7F8FA;
+    --color-neutral-100: #EDF0F4;
+    --color-neutral-200: #D6DCE3;
+    --color-neutral-300: #B8C0CB;
+    --color-neutral-400: #8E97A4;
+    --color-neutral-500: #6B7280;
+    --color-neutral-600: #4D5562;
+    --color-neutral-700: #363D49;
+    --color-neutral-900: #0F1216;
+    --color-bg:           #FFFFFF;
+    --color-bg-subtle:    #F7F8FA;
+    --color-border:       #D6DCE3;
+    --color-border-strong:#B8C0CB;
+    --color-text:         #0F1216;
+    --color-text-muted:   #4D5562;
+    --font-family-sans: "Pretendard Variable", Pretendard, -apple-system, "Noto Sans KR", sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --badge-radius: 4px;
+    --radius-md: 4px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+    padding: 32px 40px;
+    min-height: 900px;
+  }
+  .page-title { font-size: 24px; font-weight: 600; }
+  .page-subtitle { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: 4px; }
+
+  .detail-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 24px;
+    max-width: 900px;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .card-slip-no { font-size: 18px; font-weight: 600; }
+
+  /* CTA action bar */
+  .cta-bar {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+  }
+  /* secondary button — DS Button secondary 패턴 그대로 */
+  .btn-secondary {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 36px; padding: 0 16px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    font-family: inherit; font-size: var(--font-size-sm);
+    font-weight: 600; color: var(--color-neutral-700);
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-secondary:hover { background: var(--color-bg-subtle); border-color: var(--color-neutral-400); }
+
+  /* disabled / pending state — SP-08-6-4 이후 활성화 예정 */
+  .btn-secondary.pending {
+    opacity: 0.55; cursor: not-allowed; background: var(--color-bg-subtle);
+  }
+
+  /* badge */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 4px 12px;
+    border-radius: var(--badge-radius);
+    font-size: 13px; font-weight: 600;
+  }
+  .badge-saved { background: #DBEAFE; color: #1E40AF; }
+
+  /* meta grid compact */
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin: 16px 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .meta-label { font-size: 12px; color: var(--color-text-muted); margin-bottom: 4px; }
+  .meta-value { font-size: var(--font-size-base); font-weight: 500; }
+
+  /* lines table compact */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-sm); font-weight: 600;
+    color: var(--color-text-muted); text-align: left;
+    background: var(--color-bg-subtle);
+  }
+  tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-base);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .model-no { color: var(--color-brand-500); font-weight: 500; }
+  .amount { font-feature-settings: "tnum" 1; }
+  .total-row {
+    display: flex; justify-content: flex-end;
+    margin-top: 16px;
+  }
+  .total-amount { font-size: 18px; font-weight: 700; color: var(--color-brand-500); font-feature-settings: "tnum" 1; }
+
+  /* CTA legend note */
+  .cta-note {
+    margin-top: 12px; font-size: 11px; color: var(--color-text-muted);
+  }
+  .pending-note { color: #92400E; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1 class="page-title">매출 상세</h1>
+<p class="page-subtitle">매출번호 2026/05/18-1 상세</p>
+
+<div class="detail-card">
+  <div class="card-header">
+    <span class="card-slip-no">매출번호 2026/05/18-1</span>
+    <span class="badge badge-saved">저장완료</span>
+  </div>
+
+  <div class="meta-grid">
+    <div>
+      <div class="meta-label">거래처</div>
+      <div class="meta-value">삼한공조</div>
+    </div>
+    <div>
+      <div class="meta-label">출고창고</div>
+      <div class="meta-value">본사창고</div>
+    </div>
+    <div>
+      <div class="meta-label">전표일자</div>
+      <div class="meta-value">2026-05-18</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>품목명</th><th>모델번호</th><th>수량</th><th>단가</th><th>소계</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>실외기</td><td class="model-no">SAL-001</td><td>2</td>
+        <td class="amount">120,000원</td><td class="amount">240,000원</td>
+      </tr>
+      <tr>
+        <td>실내기</td><td class="model-no">SAL-002</td><td>2</td>
+        <td class="amount">120,000원</td><td class="amount">240,000원</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="total-row">
+    <span class="total-amount">합 계 480,000원</span>
+  </div>
+
+  <!-- CTA 3종 action bar — SP-08-6-1 스펙 자리 표시 -->
+  <div class="cta-bar">
+    <!-- CTA 1: 출고 — SAVED 상태에서 활성. SP-08-6-1 범위 -->
+    <button class="btn-secondary">출고</button>
+
+    <!-- CTA 2: 거래명세서 — SP-08-6-4 후속 구현 예정 (현재 disabled placeholder) -->
+    <button class="btn-secondary pending" disabled title="SP-08-6-4 후속">거래명세서</button>
+
+    <!-- CTA 3: 계산서 — SP-08-6-4 후속 구현 예정 (현재 disabled placeholder) -->
+    <button class="btn-secondary pending" disabled title="SP-08-6-4 후속">계산서</button>
+  </div>
+
+  <p class="cta-note">
+    출고: SAVED 상태에서 활성 (<code>variant="secondary"</code> DS Button 사용) &nbsp;|&nbsp;
+    <span class="pending-note">거래명세서 · 계산서: SP-08-6-4 후속 슬라이스 구현 예정 — 현 슬라이스 disabled 자리만 확보</span>
+  </p>
+</div>
+</body>
+</html>
