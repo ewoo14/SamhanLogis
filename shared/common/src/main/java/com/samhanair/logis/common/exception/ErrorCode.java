@@ -23,6 +23,8 @@ public enum ErrorCode {
             "배차문자 저장내역을 찾을 수 없습니다."),
     DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY,
             "배차문자 저장내역 payload 가 너무 큽니다."),
+    PARTNER_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND,
+            "주문서를 찾을 수 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.
