@@ -78,6 +78,8 @@ export interface SlipApprovalActor {
 export interface SlipDetail extends SlipSummary {
   memo: string | null
   lines: SlipLineDetail[]
+  partnerCode?: string | null
+  inspectionStatus?: 'READY' | 'NOT_READY' | null
   /**
    * 기사명 — link-dispatch-slice 신규 (Designer plan §7).
    * DRAFT/SAVED 단계만 편집 가능 (BE 가드와 동일).

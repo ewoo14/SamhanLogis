@@ -113,7 +113,7 @@ function DiffBadge({ inspected, expected }: { inspected: number; expected: numbe
         borderRadius: 4,
         fontSize: 11,
         fontWeight: 600,
-        background: positive ? 'var(--color-warning-100)' : 'var(--color-danger-100)',
+        background: positive ? 'var(--state-warning-bg)' : 'var(--state-danger-bg)',
         color: positive ? 'var(--color-warning-700)' : 'var(--color-danger-700)',
       }}
     >
@@ -207,7 +207,7 @@ export function InboundInspectionDialog({
       setConfirmOpen(false)
       void qc.invalidateQueries({ queryKey: ['inbound-inspection', slipId] })
       void qc.invalidateQueries({ queryKey: ['inbound-inspections'] })
-      void qc.invalidateQueries({ queryKey: ['slips', 'list', 'INBOUND'] })
+      void qc.invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })
       onSuccess?.()
     },
     onError: () => {

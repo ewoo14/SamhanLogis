@@ -1,13 +1,13 @@
 package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.slip.domain.DeliveryTag;
+import com.samhanair.logis.slip.domain.InspectionReadyStatus;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 전표 상세 응답 — 라인 포함. 단건 GET 및 mutation 응답에 사용.
@@ -32,16 +32,13 @@ import java.util.UUID;
  * </ul>
  */
 public record SlipDetailResponse(
-        UUID id,
         SlipType slipType,
         String slipNo,
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
-        UUID partnerId,
         String partnerName,
-        UUID sourceWarehouseId,
-        UUID destinationWarehouseId,
+        String partnerCode,
         DeliveryTag deliveryTag,
         String memo,
         String requesterId,
@@ -55,7 +52,6 @@ public record SlipDetailResponse(
         LocalDateTime inspectorSignedAt,
         String driverName,
         String driverPhone,
-        UUID deliveryBatchId,
         Long version,
         // V20 신규 7 필드 — 판매/구매조회 화면 매칭
         /** 사업자등록번호 snapshot (partner-service Feign 자동 resolve, 사용자 직접 입력 X). */
@@ -76,21 +72,18 @@ public record SlipDetailResponse(
          * 입고 검수 CTA 기준 상태.
          * INBOUND 전표의 SAVED/CONFIRMED 는 구매관리 화면에서 검수 Dialog 진입 가능 상태다.
          */
-        String inspectionStatus,
+        InspectionReadyStatus inspectionStatus,
         List<SlipLineResponse> lines) {
 
     public static SlipDetailResponse from(Slip slip) {
         return new SlipDetailResponse(
-                slip.getId(),
                 slip.getSlipType(),
                 slip.getSlipNo(),
                 slip.getSlipDate(),
                 slip.getSeqNo(),
                 slip.getStatus(),
-                slip.getPartnerId(),
                 slip.getPartnerName(),
-                slip.getSourceWarehouseId(),
-                slip.getDestinationWarehouseId(),
+                slip.getPartnerCode(),
                 slip.getDeliveryTag(),
                 slip.getMemo(),
                 slip.getRequesterId(),
@@ -104,7 +97,6 @@ public record SlipDetailResponse(
                 slip.getInspectorSignedAt(),
                 slip.getDriverName(),
                 slip.getDriverPhone(),
-                slip.getDeliveryBatchId(),
                 slip.getVersion(),
                 // V20 필드
                 slip.getBusinessNumber(),
@@ -118,13 +110,13 @@ public record SlipDetailResponse(
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
     }
 
-    private static String inspectionStatusOf(Slip slip) {
+    private static InspectionReadyStatus inspectionStatusOf(Slip slip) {
         if (slip.getSlipType() != SlipType.INBOUND) {
             return null;
         }
         return switch (slip.getStatus()) {
-            case SAVED, CONFIRMED -> "READY";
-            default -> "NOT_READY";
+            case SAVED, CONFIRMED -> InspectionReadyStatus.READY;
+            default -> InspectionReadyStatus.NOT_READY;
         };
     }
 }

@@ -134,8 +134,7 @@ class SlipServiceTest {
         SlipDetailResponse res = service.create(req, "user-1");
 
         assertThat(res.slipType()).isEqualTo(SlipType.INBOUND);
-        assertThat(res.sourceWarehouseId()).isNull();
-        assertThat(res.destinationWarehouseId()).isEqualTo(destWh);
+        assertThat(res.partnerName()).isEqualTo("삼한");
     }
 
     // ---------- accept (OUTBOUND inventory reserve) ----------

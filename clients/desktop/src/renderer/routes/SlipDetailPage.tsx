@@ -131,6 +131,11 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   cancel: '취소',
 }
 
+const INSPECTION_STATUS_LABEL: Record<string, string> = {
+  READY: '검수 가능',
+  NOT_READY: '검수 대기',
+}
+
 /**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
@@ -910,6 +915,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               {slip.printed == null ? '—' : slip.printed ? '인쇄됨' : '미인쇄'}
             </span>
           </div>
+          {mode === 'INBOUND' ? (
+            <div data-testid="slip-detail-inspection-status">
+              <span className="detail-label">검수 상태</span>
+              <span className="detail-value">
+                <Badge variant={slip.inspectionStatus === 'READY' ? 'success' : 'warning'}>
+                  {slip.inspectionStatus ? (INSPECTION_STATUS_LABEL[slip.inspectionStatus] ?? slip.inspectionStatus) : '—'}
+                </Badge>
+              </span>
+            </div>
+          ) : null}
         </div>
       </Card>
 

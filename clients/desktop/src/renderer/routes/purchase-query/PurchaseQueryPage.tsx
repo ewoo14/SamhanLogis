@@ -21,7 +21,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
+import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canCreateSlip, canInspectInbound } from '../../stores/session'
@@ -32,6 +32,20 @@ import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
 
 const PAGE_SIZE = 50
 const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
+const SLIP_STATUS_LABEL: Record<string, string> = {
+  DRAFT: '임시저장',
+  SAVED: '저장',
+  SENT: '전송',
+  ACCEPTED: '수락',
+  PROCESSING: '처리중',
+  INSPECTING: '검수중',
+  COMPLETED: '완료',
+  SHIPPING: '배송중',
+  DELIVERED: '배송완료',
+  CONFIRMED: '확인',
+  REJECTED: '반려',
+  CANCELED: '취소',
+}
 
 /** YYYY-MM-DD 포맷 (Asia/Seoul 로케일 Date API) */
 function toSeoulDateStr(d: Date): string {
@@ -177,6 +191,8 @@ export function PurchaseQueryPage() {
       { key: 'salesPersonName',        label: '담당자명',    filter: 'text' },
       { key: 'paymentDueDate',         label: '지급예정일',  filter: 'text' },
       { key: 'slipDate',               label: '전표일자',    filter: 'text' },
+      { key: 'status',                 label: '상태',        filter: 'select' as const,
+        format: (v: unknown) => typeof v === 'string' ? (SLIP_STATUS_LABEL[v] ?? v) : '—' },
       { key: 'printed',                label: '인쇄',        filter: 'select' as const,
         format: (v: unknown) => v ? '완료' : '미완' },
       {
@@ -227,7 +243,7 @@ export function PurchaseQueryPage() {
     ],
     [canInspect, navigate, warehouses],
   )
-  const tableColumnCount = canInspect ? 13 : 12
+  const tableColumnCount = canInspect ? 14 : 13
 
   // ── 전체선택 (현재 페이지) ──
   const allPageIds   = useMemo(() => rows.map((r) => r.id), [rows])
@@ -446,6 +462,7 @@ export function PurchaseQueryPage() {
               <Th width="100px">입고창고</Th>
               <Th width="160px">적요</Th>
               <Th width="160px">비고</Th>
+              <Th width="86px">상태</Th>
               <Th width="72px" align="center">상세</Th>
               {canInspect ? <Th width="86px" align="center">검수</Th> : null}
             </tr>
@@ -510,6 +527,9 @@ export function PurchaseQueryPage() {
                     {/* 비고 — 현재 memo 와 동일 (BE 분리 컬럼 추가 시 후속 갱신) */}
                     <Td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {row.memo ?? '—'}
+                    </Td>
+                    <Td>
+                      <Badge variant="neutral">{SLIP_STATUS_LABEL[row.status] ?? row.status}</Badge>
                     </Td>
                     <Td align="center">
                       <Button

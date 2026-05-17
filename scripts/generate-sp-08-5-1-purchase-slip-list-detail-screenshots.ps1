@@ -81,7 +81,7 @@ function Save {
 }
 
 function Shot1 {
-    $c = Canvas "01-purchase-list.png" "\uAD6C\uB9E4\uAD00\uB9AC" "\uB9E4\uC785 \uBAA9\uB85D R1: type=INBOUND, \uCD5C\uC2E0 \uC804\uD45C\uC77C\uC790 \uC6B0\uC120"
+    $c = Canvas "01-purchase-list.png" "\uAD6C\uB9E4\uAD00\uB9AC" "\uC785\uACE0 \uC804\uD45C \uBAA9\uB85D"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
     InputBox $g 46 124 170 "\uC2DC\uC791\uC77C" "2026-05-01"
     InputBox $g 232 124 170 "\uC885\uB8CC\uC77C" "2026-05-17"
@@ -96,9 +96,9 @@ function Shot1 {
     $xs = @(70, 244, 430, 560, 680, 860, 1010)
     for ($i = 0; $i -lt $headers.Length; $i++) { Text $g $headers[$i] $fontSmall $brushMuted $xs[$i] 254 }
     $rows = @(
-        @("2026/05/17-1", "\uC0BC\uD55C\uACF5\uC870", "360,000\uC6D0", "3", "\uBCF8\uC0AC\uCC3D\uACE0", "SAVED", "\uAC80\uC218"),
-        @("2026/05/16-2", "\uC11C\uC6B8\uB0C9\uC5F4", "120,000\uC6D0", "1", "\uBCF8\uC0AC\uCC3D\uACE0", "CONFIRMED", "\uAC80\uC218"),
-        @("2026/05/15-1", "\uB3D9\uBD80\uC124\uBE44", "240,000\uC6D0", "2", "2\uCC3D\uACE0", "DRAFT", "-")
+        @("2026/05/17-1", "\uC0BC\uD55C\uACF5\uC870", "360,000\uC6D0", "3", "\uBCF8\uC0AC\uCC3D\uACE0", "\uC800\uC7A5", "\uAC80\uC218"),
+        @("2026/05/16-2", "\uC11C\uC6B8\uB0C9\uC5F4", "120,000\uC6D0", "1", "\uBCF8\uC0AC\uCC3D\uACE0", "\uD655\uC778", "\uAC80\uC218"),
+        @("2026/05/15-1", "\uB3D9\uBD80\uC124\uBE44", "240,000\uC6D0", "2", "2\uCC3D\uACE0", "\uC784\uC2DC\uC800\uC7A5", "-")
     )
     $y = 306
     foreach ($row in $rows) {
@@ -111,13 +111,13 @@ function Shot1 {
 }
 
 function Shot2 {
-    $c = Canvas "02-purchase-detail.png" "\uB9E4\uC785 \uC0C1\uC138" "R2: lines + \uAC70\uB798\uCC98 + \uAC80\uC218 \uC0C1\uD0DC"
+    $c = Canvas "02-purchase-detail.png" "\uB9E4\uC785 \uC0C1\uC138" "\uAD6C\uB9E4\uBC88\uD638 2026/05/17-1 \uC0C1\uC138"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
     $panel = New-Object System.Drawing.Rectangle(160, 150, 960, 610)
     $g.FillRectangle([System.Drawing.Brushes]::White, $panel)
     $g.DrawRectangle($penBorder, $panel)
     Text $g "\uAD6C\uB9E4\uBC88\uD638 2026/05/17-1" $fontHead $brushText 200 190
-    Badge $g 910 190 "READY" "good"
+    Badge $g 910 190 "\uAC80\uC218 \uAC00\uB2A5" "good"
     Text $g "\uAC70\uB798\uCC98" $fontSmall $brushMuted 200 252
     Text $g "\uC0BC\uD55C\uACF5\uC870" $fontBody $brushText 200 278
     Text $g "\uC785\uACE0\uCC3D\uACE0" $fontSmall $brushMuted 420 252
@@ -140,10 +140,10 @@ function Shot2 {
 }
 
 function Shot3 {
-    $c = Canvas "03-inspection-cta.png" "SP-03 \uAC80\uC218 CTA" "SAVED / CONFIRMED \uD589\uC5D0\uC11C InboundInspectionDialog \uC9C4\uC785"
+    $c = Canvas "03-inspection-cta.png" "SP-03 \uAC80\uC218 CTA" ""
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
     Text $g "\uAD6C\uB9E4\uBC88\uD638 2026/05/17-1" $fontHead $brushText 92 156
-    Badge $g 332 154 "SAVED" "info"
+    Badge $g 332 154 "\uC800\uC7A5" "info"
     Badge $g 470 154 "\uAC80\uC218" "good"
     $dialog = New-Object System.Drawing.Rectangle(310, 250, 660, 420)
     $g.FillRectangle([System.Drawing.Brushes]::White, $dialog)
@@ -159,7 +159,7 @@ function Shot3 {
 }
 
 function Shot4 {
-    $c = Canvas "04-inventory-guard.png" "\uAD8C\uD55C \uAC00\uB4DC" "INVENTORY\uB294 \uAD6C\uB9E4\uAD00\uB9AC R1/R2 \uD45C\uBA74\uC5D0\uC11C \uC81C\uC678"
+    $c = Canvas "04-inventory-guard.png" "\uAD8C\uD55C \uAC00\uB4DC" ""
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
     $card = New-Object System.Drawing.Rectangle(250, 220, 780, 360)
     $g.FillRectangle([System.Drawing.Brushes]::White, $card)

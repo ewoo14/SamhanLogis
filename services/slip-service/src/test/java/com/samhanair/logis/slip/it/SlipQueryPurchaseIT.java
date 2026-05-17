@@ -18,6 +18,8 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -62,6 +64,9 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private SlipRepository slipRepository;
 
     @MockBean
     private InventoryClient inventoryClient;
@@ -169,6 +174,36 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("R1-query: INVENTORY 는 /slips/query 매입 목록 조회 권한에서 제외된다")
+    void testListPurchaseQueryForbiddenForInventory() throws Exception {
+        mockMvc.perform(get("/slips/query")
+                        .param("slipType", "INBOUND")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "INVENTORY"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("R1: SALES 는 매입 목록 조회 권한에서 제외된다")
+    void testListInboundForbiddenForSales() throws Exception {
+        mockMvc.perform(get(SLIPS_PATH)
+                        .param("type", "INBOUND")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("R1: ACCOUNTANT 는 매입 목록 조회 권한에서 제외된다")
+    void testListInboundForbiddenForAccountant() throws Exception {
+        mockMvc.perform(get(SLIPS_PATH)
+                        .param("type", "INBOUND")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "ACCOUNTANT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("R2: 매입 상세는 라인, 거래처, 검수 CTA 기준 상태를 포함한다")
     void testGetDetailWithLines() throws Exception {
         String id = createSlip("INBOUND", TODAY, "SP0851-상세거래처");
@@ -181,7 +216,49 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.slipNo", notNullValue()))
                 .andExpect(jsonPath("$.data.partnerName", is("SP0851-상세거래처")))
                 .andExpect(jsonPath("$.data.lines[0].productName", is("매입 IT 제품")))
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerId").doesNotExist())
+                .andExpect(jsonPath("$.data.sourceWarehouseId").doesNotExist())
+                .andExpect(jsonPath("$.data.destinationWarehouseId").doesNotExist())
+                .andExpect(jsonPath("$.data.deliveryBatchId").doesNotExist())
                 .andExpect(jsonPath("$.data.inspectionStatus", is("NOT_READY")));
+    }
+
+    @Test
+    @DisplayName("R2: SAVED 매입 상세는 검수 가능 READY 상태를 반환한다")
+    void testGetDetailReadyWhenSaved() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "SP0851-READY");
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/save")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inspectionStatus", is("READY")));
+    }
+
+    @Test
+    @DisplayName("R1: 같은 전표일자는 seqNo DESC 순으로 반환한다")
+    void testListInboundOrderBySeqNo() throws Exception {
+        String firstId = createSlip("INBOUND", TODAY, "SP0851-SEQ-1");
+        String secondId = createSlip("INBOUND", TODAY, "SP0851-SEQ-2");
+        String firstSlipNo = slipNo(firstId);
+        String secondSlipNo = slipNo(secondId);
+
+        mockMvc.perform(get(SLIPS_PATH)
+                        .param("type", "INBOUND")
+                        .param("from", TODAY.toString())
+                        .param("to", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "10")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].slipNo", is(secondSlipNo)))
+                .andExpect(jsonPath("$.data.content[1].slipNo", is(firstSlipNo)));
     }
 
     @Test
@@ -219,8 +296,13 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        return objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("id").asText();
+        String slipNo = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("slipNo").asText();
+        return slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(
+                        SlipType.valueOf(slipType), slipNo)
+                .orElseThrow()
+                .getId()
+                .toString();
     }
 
     private String slipNo(String slipId) throws Exception {
