@@ -688,6 +688,13 @@ button {
   flex-direction: column;
   gap: var(--space-1);
 }
+.purchase-edit-memo {
+  margin-top: 12px;
+}
+.purchase-edit-lines {
+  overflow-x: auto;
+  margin-top: 16px;
+}
 .driver-edit-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -697,7 +704,7 @@ button {
 }
 
 /* slip-line-table 합계 셀 정렬 유틸 */
-.td-right {
+.slip-line-table .td-right {
   text-align: right;
   white-space: nowrap;
 }

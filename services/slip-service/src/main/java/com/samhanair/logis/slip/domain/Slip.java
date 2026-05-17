@@ -655,11 +655,11 @@ public class Slip extends BaseEntity {
                              String businessNumber, String deliveryAddress,
                              String supervisionAddress, String projectName,
                              String recipientPhone, LocalDate paymentDueDate) {
-        requireEditable();
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "매입 전표만 직접 수정할 수 있습니다.");
         }
+        requireEditable();
         if (partnerName != null) {
             this.partnerName = partnerName;
         }
@@ -683,11 +683,11 @@ public class Slip extends BaseEntity {
      * {@link BaseEntity#markDeleted(String)} 로 비활성화한 뒤 컬렉션에서만 제거한다.
      */
     public void replaceLines(List<SlipLine> newLines, String actorId) {
-        requireEditable();
         if (this.slipType != SlipType.INBOUND) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "매입 전표만 직접 수정할 수 있습니다.");
         }
+        requireEditable();
         String deleter = actorId == null || actorId.isBlank() ? "system" : actorId;
         for (SlipLine line : new ArrayList<>(this.lines)) {
             line.markDeleted(deleter);

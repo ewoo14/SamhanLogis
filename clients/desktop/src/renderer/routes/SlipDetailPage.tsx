@@ -385,6 +385,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     mutationFn: (body: Parameters<typeof updatePurchaseSlip>[1]) => updatePurchaseSlip(id, body),
     onSuccess: async (updated) => {
       setPurchaseConflictMessage(null)
+      setPurchaseIsConflict(false)
       setPurchaseReloadSuccessMessage(null)
       setPurchaseEditOpen(false)
       queryClient.setQueryData(['slip', id], updated)
@@ -813,6 +814,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               onClick={() => {
                 syncPurchaseFormFromData(slip)
                 setPurchaseConflictMessage(null)
+                setPurchaseIsConflict(false)
                 setPurchaseReloadSuccessMessage(null)
                 setPurchaseEditOpen(true)
               }}
@@ -1801,7 +1803,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </label>
         </div>
 
-        <label className="purchase-edit-field" style={{ marginTop: 12 }}>
+        <label className="purchase-edit-field purchase-edit-memo">
           <span className="detail-label">적요</span>
           <Input
             inputSize="sm"
@@ -1811,7 +1813,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           />
         </label>
 
-        <div style={{ overflowX: 'auto', marginTop: 16 }} data-testid="purchase-slip-edit-lines">
+        <div className="purchase-edit-lines" data-testid="purchase-slip-edit-lines">
           <table className="slip-line-table">
             <thead>
               <tr>
@@ -1889,17 +1891,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               ))}
             </tbody>
           </table>
-          <div style={{ marginTop: 8 }}>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              data-testid="purchase-slip-edit-add-line"
-              onClick={addPurchaseLine}
-            >
-              + 행 추가
-            </Button>
-          </div>
         </div>
       </Modal>
     </>
@@ -1909,22 +1900,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setPurchaseEditLines((prev) => prev.map((line, i) => (
       i === index ? { ...line, ...patch } : line
     )))
-  }
-
-  function addPurchaseLine() {
-    setPurchaseEditLines((prev) => [
-      ...prev,
-      {
-        key: createEditLineKey(),
-        productId: '',
-        productName: '',
-        modelName: '',
-        specification: '',
-        quantity: 1,
-        unitPrice: '0',
-        note: '',
-      },
-    ])
   }
 
   function removePurchaseLine(index: number) {
