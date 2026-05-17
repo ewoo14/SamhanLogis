@@ -10,6 +10,7 @@ import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
+import jakarta.persistence.OptimisticLockException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,13 +57,17 @@ public class PartnerOrderUpdateService {
         if (changes.isEmpty()) {
             return PartnerOrderDetailResponse.from(order);
         }
-        order.updateHeader(request.partnerCode(), request.bizCode(), request.dueDate(), request.memo());
-        order.replaceLines(request.lines().stream().map(this::toLine).toList());
-        PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
+        try {
+            order.updateHeader(request.partnerCode(), request.bizCode(), request.dueDate(), request.memo());
+            order.replaceLines(request.lines().stream().map(this::toLine).toList());
+            PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
-        auditLogService.recordBatch(saved, actorId, actorName, null, changes);
-        partnerOrderRepository.flush();
-        return PartnerOrderDetailResponse.from(saved);
+            auditLogService.recordBatch(saved, actorId, actorName, null, changes);
+            partnerOrderRepository.flush();
+            return PartnerOrderDetailResponse.from(saved);
+        } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
+            throw optimisticLockConflict();
+        }
     }
 
     private PartnerOrder load(String id) {
@@ -74,10 +80,14 @@ public class PartnerOrderUpdateService {
     private void verifyVersion(PartnerOrder order, LocalDateTime requestUpdatedAt) {
         LocalDateTime current = order.getModifiedAt();
         if (current == null || requestUpdatedAt == null || !current.isEqual(requestUpdatedAt)) {
-            throw new BusinessException(
-                    ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT,
-                    ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT.getDefaultMessage());
+            throw optimisticLockConflict();
         }
+    }
+
+    private BusinessException optimisticLockConflict() {
+        return new BusinessException(
+                ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT,
+                ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT.getDefaultMessage());
     }
 
     private void validateLines(List<PartnerOrderUpdateRequest.LineRequest> lines) {

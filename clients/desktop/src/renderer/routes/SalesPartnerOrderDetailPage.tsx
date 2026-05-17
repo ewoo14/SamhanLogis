@@ -4,7 +4,7 @@
  * <p>거래처가 입력한 그대로 표시 (수정 X). Bundle EXPAND/KEEP 결과 + expanded
  * components + 자동 생성 슬립 번호 표시.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
@@ -53,10 +53,12 @@ export function SalesPartnerOrderDetailPage() {
   const canEdit = !!auth?.role && EDIT_ROLES.includes(auth.role)
   const [editOpen, setEditOpen] = useState(false)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
+  const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
   const [lines, setLines] = useState<EditLine[]>([])
+  const reloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const query = useQuery({
     queryKey: ['partner-order', id],
@@ -76,6 +78,7 @@ export function SalesPartnerOrderDetailPage() {
     mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(query.data!.orderNumber, request),
     onSuccess: async (updated) => {
       setConflictMessage(null)
+      setReloadSuccessMessage(null)
       setEditOpen(false)
       queryClient.setQueryData(['partner-order', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
@@ -89,18 +92,46 @@ export function SalesPartnerOrderDetailPage() {
     },
   })
 
-  useEffect(() => {
-    if (!query.data || editOpen) return
-    setPartnerCode(query.data.partnerCode)
-    setDueDate(query.data.dueDate ?? '')
-    setMemo(query.data.memo ?? '')
-    setLines(toEditLines(query.data))
-  }, [query.data, editOpen])
+  const syncFormFromData = useCallback((data: PartnerOrderDetail) => {
+    setPartnerCode(data.partnerCode)
+    setDueDate(data.dueDate ?? '')
+    setMemo(data.memo ?? '')
+    setLines(toEditLines(data))
+  }, [])
 
   useEffect(() => {
-    setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? (isValidId ? id : '')}`, meta: '영업' })
+    if (!query.data || editOpen) return
+    syncFormFromData(query.data)
+  }, [query.data, editOpen, syncFormFromData])
+
+  const handleConflictReload = useCallback(async () => {
+    const result = await query.refetch()
+    if (result.data) {
+      syncFormFromData(result.data)
+      setConflictMessage(null)
+      setReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
+      if (reloadSuccessTimerRef.current) {
+        clearTimeout(reloadSuccessTimerRef.current)
+      }
+      reloadSuccessTimerRef.current = setTimeout(() => {
+        setReloadSuccessMessage(null)
+        reloadSuccessTimerRef.current = null
+      }, 3000)
+    }
+  }, [query, syncFormFromData])
+
+  useEffect(() => {
+    setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })
     return () => setPageTitle({ title: '' })
-  }, [setPageTitle, id, isValidId, query.data?.orderNumber])
+  }, [setPageTitle, query.data?.orderNumber])
+
+  useEffect(() => {
+    return () => {
+      if (reloadSuccessTimerRef.current) {
+        clearTimeout(reloadSuccessTimerRef.current)
+      }
+    }
+  }, [])
 
   if (!isValidId) {
     return (
@@ -126,7 +157,7 @@ export function SalesPartnerOrderDetailPage() {
         <div className={styles['top']}>
           <div className={styles['title']}>
             주문서 상세
-            <span className={styles['badge']}>{query.data?.orderNumber ?? id}</span>
+            <span className={styles['badge']}>{query.data?.orderNumber ?? '조회 중'}</span>
           </div>
           <div className={styles['topActions']}>
             {query.data && canEdit ? (
@@ -135,10 +166,7 @@ export function SalesPartnerOrderDetailPage() {
                 variant="primary"
                 data-testid="partner-order-edit-open"
                 onClick={() => {
-                  setPartnerCode(query.data!.partnerCode)
-                  setDueDate(query.data!.dueDate ?? '')
-                  setMemo(query.data!.memo ?? '')
-                  setLines(toEditLines(query.data!))
+                  syncFormFromData(query.data!)
                   setEditOpen(true)
                 }}
               >
@@ -328,10 +356,19 @@ export function SalesPartnerOrderDetailPage() {
               type="button"
               variant="secondary"
               data-testid="partner-order-edit-reload"
-              onClick={() => query.refetch()}
+              onClick={handleConflictReload}
             >
               최신 내용 불러오기
             </Button>
+          </div>
+        ) : null}
+        {reloadSuccessMessage ? (
+          <div
+            className={styles['successBanner']}
+            role="status"
+            data-testid="partner-order-edit-reload-success"
+          >
+            {reloadSuccessMessage}
           </div>
         ) : null}
         <div className={styles['formGrid']} data-testid="partner-order-edit-form">

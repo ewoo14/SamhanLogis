@@ -1,5 +1,7 @@
 package com.samhanair.logis.partnerorder.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,10 +16,13 @@ import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -29,6 +34,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -49,10 +56,19 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
     private PartnerOrderRepository orderRepository;
 
     @Autowired
+    private PartnerOrderLineRepository lineRepository;
+
+    @Autowired
     private PartnerOrderAuditLogRepository auditLogRepository;
 
     @Autowired
     private SlipPublishOutboxRepository outboxRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @MockBean
     private DcConfigClient dcConfigClient;
@@ -74,6 +90,7 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
         outboxRepository.deleteAll();
         auditLogRepository.deleteAll();
+        jdbcTemplate.update("DELETE FROM partner_order_lines");
         orderRepository.deleteAll();
     }
 
@@ -185,6 +202,59 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                         .content(updateJson(currentModifiedAt(order.getId()), 1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lines.length()", greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    void testConcurrentUpdateRejectsStaleVersion() {
+        PartnerOrder order = saveOrder("2026/05/17-7", false);
+        UUID orderId = order.getId();
+        entityManager.clear();
+
+        PartnerOrder copyA = orderRepository.findById(orderId).orElseThrow();
+        entityManager.detach(copyA);
+        PartnerOrder copyB = orderRepository.findById(orderId).orElseThrow();
+        entityManager.detach(copyB);
+
+        copyA.updateHeader("P-SP0842-A", "1010101010", null, "first");
+        orderRepository.saveAndFlush(copyA);
+        entityManager.clear();
+
+        copyB.updateHeader("P-SP0842-B", "1010101010", null, "second");
+
+        assertThatThrownBy(() -> orderRepository.saveAndFlush(copyB))
+                .isInstanceOfAny(
+                        ObjectOptimisticLockingFailureException.class,
+                        org.hibernate.StaleObjectStateException.class);
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void testReplaceLinesSoftDeletesOldLines() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-8", false);
+        UUID orderId = order.getId();
+
+        mockMvc.perform(put("/api/v1/partner-orders/{id}", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson(currentModifiedAt(orderId), 2)))
+                .andExpect(status().isOk());
+
+        Integer deletedCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_order_lines
+                 WHERE partner_order_id = ?
+                   AND is_deleted = TRUE
+                   AND deleted_at IS NOT NULL
+                """, Integer.class, orderId);
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_order_lines
+                 WHERE partner_order_id = ?
+                   AND is_deleted = FALSE
+                """, Integer.class, orderId);
+
+        assertThat(deletedCount).isEqualTo(1);
+        assertThat(activeCount).isEqualTo(2);
+        assertThat(lineRepository.findAllByPartnerOrder_Id(orderId)).hasSize(2);
     }
 
     private PartnerOrder saveOrder(String orderNo, boolean deleted) {

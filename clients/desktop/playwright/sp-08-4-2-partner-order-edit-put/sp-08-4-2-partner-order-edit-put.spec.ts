@@ -73,4 +73,12 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     expect(mock).toContain('fieldName: \'요청사항\'')
     expect(mock).not.toContain('internal id')
   })
+  test('T5: 409 reload 후 success 피드백 + UUID fallback 가드', async () => {
+    const tsx = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
+
+    expect(tsx).toContain('reloadSuccessMessage')
+    expect(tsx).toContain('partner-order-edit-reload-success')
+    expect(tsx).toContain("'조회 중'")
+    expect(tsx).not.toMatch(/orderNumber \?\? id/)
+  })
 })

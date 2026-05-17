@@ -28,13 +28,11 @@ $T = @{
     Audit1 = K "7JiB7JeF64u064u57J6QICAgIDIwMjYuIDUuIDE3LiDsmKTsoIQgMTA6MDUgICAg7KO866y4IOyImOyglQ=="
     Audit2 = K "6rSA66as7J6QICAgICAgICAyMDI2LiA1LiAxNi4g7Jik7ZuEIDAzOjIwICAgIOyalOyyreyCrO2VrQ=="
     Audit3 = K "7Jik67OR7Iq5ICAgICAgICAyMDI2LiA1LiAxNS4g7Jik7ZuEIDAxOjEwICAgIOuCqeq4sA=="
-    AuditGuide = K "67OA6rK97J6QIC8g7J287IucIC8g67OA6rK9IO2VhOuTnCDsiJzshJzroZwg7ZGc7Iuc"
     GuardTitle = K "6rGw656Y7LKYIOq2jO2VnCDtmZTrqbQ="
     Detail = K "7KO866y47IScIOyDgeyEuA=="
     PartnerTitle = K "6rGw656Y7LKYIMK3IOyXmOyXkOydtOyLnOyKpO2FnOyXkOyWtCAgICDtmZXsoJU="
     Total = K "7ZWp6rOEIDMsNzAwLDAwMOybkA=="
     OneLine = K "65287J24IDHqsbQ="
-    GuardGuide = K "6rGw656Y7LKYIOyCrOyaqeyekOuKlCDsiJjsoJUg67KE7Yq87J20IO2RnOyLnOuQmOyngCDslYrsirXri4jri6Qu"
 }
 
 function New-Canvas {
@@ -104,7 +102,6 @@ New-Canvas -Title $T.AuditTitle -FileName "03-audit-timeline.png" -DrawBody {
     Draw-Box $g $T.Audit1 88 150 1078 58
     Draw-Box $g $T.Audit2 88 222 1078 58
     Draw-Box $g $T.Audit3 88 294 1078 58
-    Draw-Label $g $font $T.AuditGuide 88 390
 }
 
 New-Canvas -Title $T.GuardTitle -FileName "04-role-guard-partner.png" -DrawBody {
@@ -113,7 +110,6 @@ New-Canvas -Title $T.GuardTitle -FileName "04-role-guard-partner.png" -DrawBody 
     Draw-Box $g $T.PartnerTitle 88 182 1078 58
     Draw-Box $g $T.Total 88 254 260 48
     Draw-Box $g $T.OneLine 88 330 260 48
-    Draw-Label $g $font $T.GuardGuide 88 420
 }
 
 Get-ChildItem $OutputDir -Filter *.png | Select-Object Name, Length

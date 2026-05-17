@@ -10,11 +10,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -90,6 +90,11 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "memo", length = 1000)
     private String memo;
 
+    /** JPA optimistic lock version. modifiedAt 비교는 사용자 메시지용으로 별도 유지한다. */
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
+
     /** Idempotency-Key 원본 (PO-CONF-{draftSeq} — 설계서 §3.6). 재시도 시 동일 키 재사용. */
     @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
     private String idempotencyKey;
@@ -155,6 +160,9 @@ public class PartnerOrder extends BaseEntity {
     public void recomputeTotal() {
         BigDecimal sum = BigDecimal.ZERO;
         for (PartnerOrderLine l : this.lines) {
+            if (l.getDeletedAt() != null) {
+                continue;
+            }
             sum = sum.add(l.getSubtotal());
         }
         this.totalAmount = sum;
@@ -191,7 +199,11 @@ public class PartnerOrder extends BaseEntity {
         if (replacementLines == null || replacementLines.isEmpty()) {
             throw new IllegalArgumentException("lines 필수");
         }
-        this.lines.clear();
+        for (PartnerOrderLine line : this.lines) {
+            if (line.getDeletedAt() == null) {
+                line.markDeleted("system-partner-order-update");
+            }
+        }
         this.totalAmount = BigDecimal.ZERO;
         for (PartnerOrderLine line : replacementLines) {
             addLine(line);
@@ -232,7 +244,9 @@ public class PartnerOrder extends BaseEntity {
 
     /** unmodifiable view — 외부 변경 차단. */
     public List<PartnerOrderLine> getLines() {
-        return Collections.unmodifiableList(this.lines);
+        return this.lines.stream()
+                .filter(line -> line.getDeletedAt() == null)
+                .toList();
     }
 
     /**
