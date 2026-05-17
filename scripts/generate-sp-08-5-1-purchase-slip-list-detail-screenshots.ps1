@@ -171,9 +171,34 @@ function Shot4 {
     Save $bmp $g $path
 }
 
+function Shot5 {
+    $c = Canvas "05-confirmed-inspection-cta.png" "SP-03 \uAC80\uC218 CTA" "\uD655\uC815 \uC0C1\uD0DC \uD589\uC758 \uAC80\uC218 CTA"
+    $bmp = $c[0]; $g = $c[1]; $path = $c[2]
+    $rect = New-Object System.Drawing.Rectangle(46, 170, 1188, 360)
+    $g.FillRectangle([System.Drawing.Brushes]::White, $rect)
+    $g.DrawRectangle($penBorder, $rect)
+    $headers = @("\uAD6C\uB9E4\uBC88\uD638", "\uAC70\uB798\uCC98", "\uAE08\uC561", "\uC218\uB7C9", "\uC785\uACE0\uCC3D\uACE0", "\uC0C1\uD0DC", "\uAC80\uC218")
+    $xs = @(70, 244, 430, 560, 680, 860, 1010)
+    for ($i = 0; $i -lt $headers.Length; $i++) { Text $g $headers[$i] $fontSmall $brushMuted $xs[$i] 204 }
+    $rows = @(
+        @("2026/05/17-1", "\uC0BC\uD55C\uACF5\uC870", "360,000\uC6D0", "3", "\uBCF8\uC0AC\uCC3D\uACE0", "\uC800\uC7A5", "\uAC80\uC218"),
+        @("2026/05/16-2", "\uC11C\uC6B8\uB0C9\uC5F4", "120,000\uC6D0", "1", "\uBCF8\uC0AC\uCC3D\uACE0", "\uD655\uC815", "\uAC80\uC218")
+    )
+    $y = 260
+    foreach ($row in $rows) {
+        for ($i = 0; $i -lt $row.Length; $i++) { Text $g $row[$i] $fontBody $brushText $xs[$i] $y }
+        $g.DrawLine($penSoft, 64, $y + 42, 1216, $y + 42)
+        $y += 66
+    }
+    Badge $g 996 315 "\uAC80\uC218" "good"
+    Text $g "SAVED / CONFIRMED \uB450 \uC0C1\uD0DC \uBAA8\uB450 \uAC80\uC218 CTA\uAC00 \uD65C\uC131\uD654\uB429\uB2C8\uB2E4." $fontBody $brushBlue 46 620
+    Save $bmp $g $path
+}
+
 Shot1
 Shot2
 Shot3
 Shot4
+Shot5
 
 Write-Host "SP-08-5-1 QA mock screenshots generated in $OutputDir"

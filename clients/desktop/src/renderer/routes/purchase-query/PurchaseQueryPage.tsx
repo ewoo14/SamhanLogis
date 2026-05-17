@@ -150,7 +150,10 @@ export function PurchaseQueryPage() {
     queryFn: () => listWarehouses(),
     staleTime: 5 * 60 * 1000,
   })
-  const warehouses: Warehouse[] = warehousesQuery.data ?? []
+  const warehouses = useMemo<Warehouse[]>(
+    () => warehousesQuery.data ?? [],
+    [warehousesQuery.data],
+  )
 
   // ── 구매관리 데이터 ──
   const slipsQuery = useQuery({
@@ -307,20 +310,22 @@ export function PurchaseQueryPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {/* 날짜 범위 */}
         <label style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>기간</label>
-        <input
+        <Input
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(0) }}
-          style={inputStyle}
           aria-label="시작 날짜"
+          inputSize="sm"
+          fullWidth={false}
         />
         <span style={{ fontSize: 13 }}>~</span>
-        <input
+        <Input
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(0) }}
-          style={inputStyle}
           aria-label="종료 날짜"
+          inputSize="sm"
+          fullWidth={false}
         />
 
         {/* preset 버튼 */}
@@ -334,7 +339,7 @@ export function PurchaseQueryPage() {
         {selectedIds.size > 0 ? (
           <span
             data-testid="purchase-query-selected-count"
-            style={{ fontSize: 13, color: 'var(--color-primary-600)' }}
+            style={{ fontSize: 13, color: 'var(--color-brand-600)' }}
           >
             {selectedIds.size}행 선택됨
           </span>
@@ -489,7 +494,7 @@ export function PurchaseQueryPage() {
                     key={row.id}
                     onClick={() => toggleRow(row.id)}
                     style={{
-                      background: isSelected ? 'var(--color-primary-50, #EFF6FF)' : undefined,
+                      background: isSelected ? 'var(--color-brand-50, #EFF6FF)' : undefined,
                       borderBottom: '1px solid var(--color-neutral-100)',
                       cursor: 'pointer',
                     }}
@@ -787,10 +792,10 @@ function PageBtn({
         height: 32,
         padding: '0 8px',
         border: active
-          ? '1px solid var(--color-primary-500)'
+          ? '1px solid var(--color-brand-500)'
           : '1px solid var(--color-neutral-200)',
         borderRadius: 4,
-        background: active ? 'var(--color-primary-500)' : 'var(--color-neutral-0)',
+        background: active ? 'var(--color-brand-500)' : 'var(--color-neutral-0)',
         color: active ? 'var(--color-neutral-0)' : 'var(--color-neutral-700)',
         fontSize: 13,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -800,13 +805,4 @@ function PageBtn({
       {children}
     </button>
   )
-}
-
-/** date input 공통 스타일 */
-const inputStyle: React.CSSProperties = {
-  fontSize: 13,
-  padding: '4px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--color-neutral-300)',
-  background: 'var(--color-white)',
 }

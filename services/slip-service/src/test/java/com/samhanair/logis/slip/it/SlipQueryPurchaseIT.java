@@ -58,6 +58,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String SLIPS_PATH = "/slips";
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Autowired
     private MockMvc mockMvc;
@@ -110,6 +111,10 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         Mockito.lenient().doNothing()
                 .when(notificationClient).sendUserPush(
                         ArgumentMatchers.any(), ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.lenient().doNothing()
+                .when(inventoryClient).inbound(
+                        ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyInt(),
+                        ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
     @Test
@@ -126,7 +131,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("to", TODAY.plusDays(1).toString())
                         .param("page", "0")
                         .param("size", "10")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].slipType", is("INBOUND")))
@@ -153,7 +158,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("type", "INBOUND")
                         .param("from", TODAY.minusDays(1).toString())
                         .param("to", TODAY.plusDays(1).toString())
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -168,7 +173,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     void testListInboundForbiddenForInventory() throws Exception {
         mockMvc.perform(get(SLIPS_PATH)
                         .param("type", "INBOUND")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isForbidden());
     }
@@ -178,8 +183,18 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     void testListPurchaseQueryForbiddenForInventory() throws Exception {
         mockMvc.perform(get("/slips/query")
                         .param("slipType", "INBOUND")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("R1-query: ACCOUNTANT 는 /slips/query 매입 목록 조회 권한에서 제외된다")
+    void testListPurchaseQueryForbiddenForAccountant() throws Exception {
+        mockMvc.perform(get("/slips/query")
+                        .param("slipType", "INBOUND")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "ACCOUNTANT"))
                 .andExpect(status().isForbidden());
     }
 
@@ -188,7 +203,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     void testListInboundForbiddenForSales() throws Exception {
         mockMvc.perform(get(SLIPS_PATH)
                         .param("type", "INBOUND")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -198,7 +213,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     void testListInboundForbiddenForAccountant() throws Exception {
         mockMvc.perform(get(SLIPS_PATH)
                         .param("type", "INBOUND")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "ACCOUNTANT"))
                 .andExpect(status().isForbidden());
     }
@@ -209,7 +224,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         String id = createSlip("INBOUND", TODAY, "SP0851-상세거래처");
 
         mockMvc.perform(get(SLIPS_PATH + "/" + id)
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.slipType", is("INBOUND")))
@@ -227,12 +242,52 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     void testGetDetailReadyWhenSaved() throws Exception {
         String id = createSlip("INBOUND", TODAY, "SP0851-READY");
         mockMvc.perform(post(SLIPS_PATH + "/" + id + "/save")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(SLIPS_PATH + "/" + id)
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.inspectionStatus", is("READY")));
+    }
+
+    @Test
+    @DisplayName("R2: CONFIRMED 매입 상세는 검수 가능 READY 상태를 반환한다")
+    void testGetDetailReadyWhenConfirmed() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "SP0851-CONFIRMED-READY");
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/save")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/send")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/accept")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/process")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/complete")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/inspect")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(SLIPS_PATH + "/" + id + "/confirm")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "ACCOUNTANT"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.inspectionStatus", is("READY")));
@@ -252,7 +307,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("to", TODAY.toString())
                         .param("page", "0")
                         .param("size", "10")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].slipNo", is(secondSlipNo)))
@@ -270,7 +325,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("to", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -294,7 +349,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("to", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -318,7 +373,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -342,7 +397,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -350,6 +405,30 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("content");
         assertThat(content.toString()).doesNotContain("SP0851-QUERY-SALES-IN");
+        for (JsonNode item : content) {
+            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
+        }
+    }
+
+    @Test
+    @DisplayName("R1-query: ACCOUNTANT slipType omitted excludes INBOUND rows")
+    void testListAccountantSeesNoInboundWithoutSlipTypeFilter() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0851-QUERY-ACCOUNTANT-OUT");
+        createSlip("INBOUND", TODAY, "SP0851-QUERY-ACCOUNTANT-IN");
+
+        MvcResult result = mockMvc.perform(get("/slips/query")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("content");
+        assertThat(content.toString()).doesNotContain("SP0851-QUERY-ACCOUNTANT-IN");
         for (JsonNode item : content) {
             assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
         }
@@ -369,7 +448,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                         .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "10")
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].slipNo", is(secondSlipNo)))
@@ -380,7 +459,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     @DisplayName("R2: 없는 매입 상세는 404를 반환한다")
     void testGetDetailNotFound() throws Exception {
         mockMvc.perform(get(SLIPS_PATH + "/" + UUID.randomUUID())
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isNotFound());
     }
@@ -404,7 +483,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         body.put("lines", List.of(line));
 
         MvcResult result = mockMvc.perform(post(SLIPS_PATH)
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -422,7 +501,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
 
     private String slipNo(String slipId) throws Exception {
         MvcResult result = mockMvc.perform(get(SLIPS_PATH + "/" + slipId)
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andReturn();

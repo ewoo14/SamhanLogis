@@ -16,11 +16,11 @@
  *
  * data-testid (Designer spec):
  * - inbound-inspection-dialog
- * - inbound-inspection-line-{lineId}
- * - inbound-inspection-line-{lineId}-inspected-qty
- * - inbound-inspection-line-{lineId}-defect-qty
- * - inbound-inspection-line-{lineId}-defect-reason-row
- * - inbound-inspection-line-{lineId}-defect-reason
+ * - inbound-inspection-line-{modelCode|index}
+ * - inbound-inspection-line-{modelCode|index}-inspected-qty
+ * - inbound-inspection-line-{modelCode|index}-defect-qty
+ * - inbound-inspection-line-{modelCode|index}-defect-reason-row
+ * - inbound-inspection-line-{modelCode|index}-defect-reason
  * - inbound-inspection-save-button
  * - inbound-inspection-complete-button
  * - inbound-inspection-photo-viewer
@@ -32,6 +32,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
   Button,
+  Input,
   Modal,
   Spinner,
 } from '@samhan/design-system'
@@ -97,6 +98,13 @@ const STATUS_VARIANT: Record<InboundInspectionStatus, 'neutral' | 'warning' | 's
   PENDING: 'warning',
   COMPLETED: 'success',
   CANCELED: 'danger',
+}
+
+function toPublicTestId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 function DiffBadge({ inspected, expected }: { inspected: number; expected: number }) {
@@ -352,6 +360,7 @@ export function InboundInspectionDialog({
                     const defectError = line.defectQty > line.inspectedQty
                     const hasDefect = line.defectQty > 0
                     const hasDiff = line.inspectedQty !== line.expectedQty
+                    const lineTestId = toPublicTestId(line.modelCode) || String(idx)
                     const rowBg = hasDefect
                       ? 'var(--color-danger-50)'
                       : hasDiff
@@ -360,7 +369,7 @@ export function InboundInspectionDialog({
                     return (
                       <tr
                         key={line.lineId}
-                        data-testid={`inbound-inspection-line-${line.lineId}`}
+                        data-testid={`inbound-inspection-line-${lineTestId}`}
                         style={{ borderBottom: '1px solid var(--color-neutral-100)', background: rowBg }}
                       >
                         <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
@@ -374,15 +383,17 @@ export function InboundInspectionDialog({
                         </td>
                         <td style={{ padding: '8px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <input
+                            <Input
                               ref={idx === 0 ? firstInputRef : undefined}
                               type="number"
                               min={0}
                               value={line.inspectedQty}
                               disabled={isCompleted || isBusy}
                               aria-label={`${line.modelCode} 검수 수량`}
-                              data-testid={`inbound-inspection-line-${line.lineId}-inspected-qty`}
-                              style={numInputStyle(defectError)}
+                              data-testid={`inbound-inspection-line-${lineTestId}-inspected-qty`}
+                              inputSize="sm"
+                              fullWidth={false}
+                              error={defectError ? ' ' : undefined}
                               onChange={(e) =>
                                 dispatch({ type: 'SET_INSPECTED', lineId: line.lineId, value: Math.max(0, Number(e.target.value)) })
                               }
@@ -391,14 +402,16 @@ export function InboundInspectionDialog({
                           </div>
                         </td>
                         <td style={{ padding: '8px 10px' }}>
-                          <input
+                          <Input
                             type="number"
                             min={0}
                             value={line.defectQty}
                             disabled={isCompleted || isBusy}
                             aria-label={`${line.modelCode} 불량 수량`}
-                            data-testid={`inbound-inspection-line-${line.lineId}-defect-qty`}
-                            style={numInputStyle(defectError)}
+                            data-testid={`inbound-inspection-line-${lineTestId}-defect-qty`}
+                            inputSize="sm"
+                            fullWidth={false}
+                            error={defectError ? ' ' : undefined}
                             onChange={(e) =>
                               dispatch({ type: 'SET_DEFECT', lineId: line.lineId, value: Math.max(0, Number(e.target.value)) })
                             }
@@ -421,7 +434,7 @@ export function InboundInspectionDialog({
                         </td>
                         <td
                           style={{ padding: '8px 10px', minWidth: 160 }}
-                          data-testid={`inbound-inspection-line-${line.lineId}-defect-reason-row`}
+                          data-testid={`inbound-inspection-line-${lineTestId}-defect-reason-row`}
                         >
                           <input
                             type="text"
@@ -429,7 +442,7 @@ export function InboundInspectionDialog({
                             placeholder={line.defectQty > 0 ? '불량 사유 입력 (필수)' : '—'}
                             disabled={isCompleted || isBusy || line.defectQty === 0}
                             aria-label={`${line.modelCode} 불량 사유`}
-                            data-testid={`inbound-inspection-line-${line.lineId}-defect-reason`}
+                            data-testid={`inbound-inspection-line-${lineTestId}-defect-reason`}
                             style={{
                               ...reasonInputStyle,
                               borderColor: line.defectQty > 0 && !line.defectReason.trim() ? 'var(--color-danger-400)' : undefined,
@@ -544,18 +557,6 @@ export function InboundInspectionDialog({
       ) : null}
     </>
   )
-}
-
-function numInputStyle(error: boolean): React.CSSProperties {
-  return {
-    width: 72,
-    height: 32,
-    padding: '0 8px',
-    border: `1px solid ${error ? 'var(--color-danger-500)' : 'var(--color-neutral-300)'}`,
-    borderRadius: 4,
-    fontSize: 13,
-    textAlign: 'right',
-  }
 }
 
 const reasonInputStyle: React.CSSProperties = {

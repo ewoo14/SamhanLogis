@@ -454,6 +454,7 @@ export interface SlipQueryRow {
   editHistoryCount: number
   deliveryTag: DeliveryTagCode | null
   deliveryTagLabel: string | null
+  inspectionStatus?: 'READY' | 'NOT_READY' | null
   sourceWarehouseId: string | null
   destinationWarehouseId: string | null
 }

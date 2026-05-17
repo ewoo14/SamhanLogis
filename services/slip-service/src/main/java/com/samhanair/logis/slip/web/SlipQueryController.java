@@ -1,8 +1,6 @@
 package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
-import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -140,8 +138,8 @@ public class SlipQueryController {
 
             @RequestHeader(value = "X-User-Role", required = false) String role) {
 
-        guardInboundPurchaseRead(slipType, role);
-        SlipType effectiveSlipType = restrictInboundWhenTypeOmitted(slipType, role);
+        SlipPurchaseAccessGuard.guardInboundPurchaseRead(slipType, role);
+        SlipType effectiveSlipType = SlipPurchaseAccessGuard.restrictInboundWhenTypeOmitted(slipType, role);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipQueryService.listForQuery(
@@ -151,25 +149,4 @@ public class SlipQueryController {
                 pageable));
     }
 
-    private void guardInboundPurchaseRead(SlipType slipType, String role) {
-        if (slipType != SlipType.INBOUND) {
-            return;
-        }
-        if (canReadInboundPurchase(role)) {
-            return;
-        }
-        throw new BusinessException(ErrorCode.FORBIDDEN,
-                "매입 전표 조회는 WAREHOUSE / MANAGER / MASTER 권한만 허용됩니다");
-    }
-
-    private SlipType restrictInboundWhenTypeOmitted(SlipType slipType, String role) {
-        if (slipType != null || canReadInboundPurchase(role)) {
-            return slipType;
-        }
-        return SlipType.OUTBOUND;
-    }
-
-    private boolean canReadInboundPurchase(String role) {
-        return "WAREHOUSE".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role);
-    }
 }
