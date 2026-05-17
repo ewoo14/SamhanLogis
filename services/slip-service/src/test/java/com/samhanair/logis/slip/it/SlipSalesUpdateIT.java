@@ -257,7 +257,9 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
 
         var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
         assertThat(logs).hasSize(1);
-        assertThat(logs.get(0).getRevisionNo()).isEqualTo(1);
+        // 첫 PUT 에서 slip.revisionCount=1 진입, 두 번째 PUT 시 incrementRevision → revisionNo=2
+        // 핵심은 SLIP_EDIT audit 기록 여부 (supervisionAddress 단독 변경도 summarize 비교 통과)
+        assertThat(logs.get(0).getRevisionNo()).isEqualTo(2);
         assertThat(logs.get(0).getFieldName()).isEqualTo("SLIP_EDIT");
     }
 
