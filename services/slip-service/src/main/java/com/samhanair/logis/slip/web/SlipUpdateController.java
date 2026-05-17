@@ -46,6 +46,13 @@ public class SlipUpdateController {
                 resolveName(callerId, callerName)));
     }
 
+    /**
+     * 헤더에서 actorId 를 파싱한다.
+     *
+     * @apiNote actorId 헤더 미수신 또는 UUID 파싱 실패 시 zero UUID 폴백 (audit 로그 시스템 대리)
+     * @param callerId X-Caller-Id 헤더 값 (nullable)
+     * @return 파싱된 UUID, 또는 {@code 00000000-0000-0000-0000-000000000000}
+     */
     private UUID parseActorId(String callerId) {
         if (callerId == null || callerId.isBlank()) {
             return new UUID(0L, 0L);

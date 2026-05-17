@@ -141,7 +141,9 @@ class SlipUpdateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.memo", is("SP-08-5-2 수정 메모")))
                 .andExpect(jsonPath("$.data.lines[0].quantity", is(7)))
                 .andExpect(jsonPath("$.data.lines[0].unitPrice", is(135000)))
-                .andExpect(jsonPath("$.data.updatedAt", notNullValue()));
+                .andExpect(jsonPath("$.data.updatedAt", notNullValue()))
+                // @Version 낙관적 잠금: saveAndFlush 후 version +1 보장 (초기 0 → 1)
+                .andExpect(jsonPath("$.data.version").value(1));
     }
 
     @Test
@@ -149,6 +151,7 @@ class SlipUpdateIT extends AbstractPostgresIT {
     void testUpdateOptimisticLockConflict() throws Exception {
         String id = createSlip("INBOUND", "SP0852-락충돌");
 
+        // "2026-01-01T00:00:00" = 실제 createdAt 보다 과거 일자 강제 stale verification
         mockMvc.perform(put(SLIPS_PATH + "/" + id)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_NAME_HEADER, "창고담당자")
@@ -228,7 +231,8 @@ class SlipUpdateIT extends AbstractPostgresIT {
 
         var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
         assertThat(logs).isNotEmpty();
-        assertThat(logs).allMatch(log -> log.getRevisionNo() == 1);
+        // Integer 박싱 동등성 오탐 방지 — extracting + containsOnly 패턴 사용
+        assertThat(logs).extracting(log -> log.getRevisionNo()).containsOnly(1);
         assertThat(logs).anyMatch(log -> "SLIP_EDIT".equals(log.getFieldName()));
         assertThat(logs).anyMatch(log -> "창고담당자".equals(log.getActorName()));
     }

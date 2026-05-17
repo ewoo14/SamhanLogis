@@ -1,6 +1,6 @@
 # SP-08-5-2 매입 수정 direct PUT endpoint
 
-작성일: 2026-05-18  
+작성일: 2026-05-18
 브랜치: `feat/sp-08-5-2-purchase-slip-edit-put`
 
 ## 1. Gap 분석
@@ -59,8 +59,8 @@
 
 | 검증 | 명령 | 실제 결과 |
 |---|---|---|
-| Spring RED | `.\gradlew.bat :services:slip-service:test --tests "*SlipUpdate*" --no-daemon --rerun-tasks` | RED 확인: 9 tests / 9 failed (endpoint 미구현) |
-| Spring targeted | `.\gradlew.bat :services:slip-service:test --tests "*SlipUpdate*" --no-daemon --rerun-tasks` | PASS: 9 tests / 0 failed |
+| Spring RED | `.\gradlew.bat :services:slip-service:test --tests "*SlipUpdate*" --no-daemon --rerun-tasks` | RED 확인: 8 tests / 8 failed (endpoint 미구현) |
+| Spring targeted | `.\gradlew.bat :services:slip-service:test --tests "*SlipUpdate*" --no-daemon --rerun-tasks` | PASS: 8 tests / 0 failed |
 | Desktop typecheck | `cd clients\desktop ; npm run typecheck` | PASS |
 | Desktop lint | `cd clients\desktop ; npm run lint` | PASS |
 | QA PNG | `.\scripts\generate-sp-08-5-2-purchase-slip-edit-put-screenshots.ps1` | PASS: 4 PNG 생성 |

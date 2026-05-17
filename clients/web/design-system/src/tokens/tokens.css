@@ -39,8 +39,23 @@
   --color-success-200: #a7f3d0;
   --color-success-500: #10b981;
   --color-success-700: #047857;
-  --color-warning: #E9A53D;
-  --color-danger:  #D6504A;
+  --color-warning-50:  #FEF6E7;
+  --color-warning-200: #F8DA9A;
+  --color-warning-300: #F1C268;
+  --color-warning-500: #E9A53D;
+  --color-warning-700: #B47A1F;
+  --color-warning-800: #8C5C13;
+  --color-warning: var(--color-warning-500); /* alias — 기존 참조 호환 */
+
+  /* danger scale — success/warning 패턴 동일 */
+  --color-danger-50:  #FFF1F1;
+  --color-danger-200: #FECACA;
+  --color-danger-300: #FCA5A5;
+  --color-danger-500: #D6504A;
+  --color-danger-700: #991B1B;
+  --color-danger-800: #7F1D1D;
+  --color-danger: var(--color-danger-500);   /* alias — 기존 참조 호환 */
+
   --color-info:    #3F7DB8;
 
   /* ---------- surfaces (semantic aliases) ---------- */

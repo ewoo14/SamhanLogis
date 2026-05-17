@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.web.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -34,14 +36,17 @@ public record SlipUpdateRequest(
 
     /**
      * 교체할 매입 라인. 기존 라인은 soft-delete 되고 본 요청 라인으로 전체 교체된다.
+     *
+     * <p>{@code lineId} 는 nullable 로 유지한다 (신규 라인 식별).
+     * {@code quantity} 는 1 이상, {@code unitPrice} 는 0 이상 필수.
      */
     public record LineRequest(
             @NotNull UUID productId,
             @Size(max = 200) String productName,
             @Size(max = 100) String modelName,
             @Size(max = 50) String specification,
-            Integer quantity,
-            BigDecimal unitPrice,
+            @NotNull @Min(1) Integer quantity,
+            @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal unitPrice,
             @Size(max = 200) String note
     ) {
     }

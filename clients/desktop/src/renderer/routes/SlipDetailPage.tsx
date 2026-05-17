@@ -44,6 +44,7 @@ import {
   SignatureViewer,
   SlipEditRequestDialog,
   SlipNumberDisplay,
+  Spinner,
   type AuditLogEntry,
   type SlipEditRequestType as SlipEditRequestUiType,
 } from '@samhan/design-system'
@@ -224,7 +225,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // SP-08-5-2: 매입 direct PUT 수정 modal state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
   const [purchaseConflictMessage, setPurchaseConflictMessage] = useState<string | null>(null)
+  const [purchaseIsConflict, setPurchaseIsConflict] = useState(false)
   const [purchaseReloadSuccessMessage, setPurchaseReloadSuccessMessage] = useState<string | null>(null)
+  const [purchaseUpdatedAt, setPurchaseUpdatedAt] = useState<string | null>(null)
   const [purchasePartnerName, setPurchasePartnerName] = useState('')
   const [purchasePartnerCode, setPurchasePartnerCode] = useState('')
   const [purchaseBusinessNumber, setPurchaseBusinessNumber] = useState('')
@@ -391,13 +394,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setPurchaseIsConflict(true)
         setPurchaseConflictMessage('다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 저장해 주세요.')
         return
       }
       if (axios.isAxiosError(error) && error.response?.status === 422) {
+        setPurchaseIsConflict(false)
         setPurchaseConflictMessage('매입 라인 입력값이 올바르지 않습니다. 수량과 단가를 확인해 주세요.')
         return
       }
+      setPurchaseIsConflict(false)
       setPurchaseConflictMessage('매입 전표 수정에 실패했습니다. 입력값을 확인해 주세요.')
     },
   })
@@ -477,13 +483,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setPurchaseRecipientPhone(data.recipientPhone ?? '')
     setPurchasePaymentDueDate(data.paymentDueDate ?? '')
     setPurchaseEditLines(toPurchaseEditLines(data))
-  }, [])
+    setPurchaseUpdatedAt(data.updatedAt)
+  }, [setPurchaseUpdatedAt])
 
   const handlePurchaseConflictReload = useCallback(async () => {
     const result = await refetchDetail()
     if (result.data) {
       syncPurchaseFormFromData(result.data)
       setPurchaseConflictMessage(null)
+      setPurchaseIsConflict(false)
       setPurchaseReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
       if (purchaseReloadSuccessTimerRef.current) {
         clearTimeout(purchaseReloadSuccessTimerRef.current)
@@ -511,7 +519,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   if (!id) return null
 
   if (detailQuery.isLoading) {
-    return <p>불러오는 중...</p>
+    return (
+      <div className="loading-fallback" role="status" aria-label="불러오는 중">
+        <Spinner size="md" label="불러오는 중" />
+      </div>
+    )
   }
 
   if (detailQuery.isError || !detailQuery.data) {
@@ -527,6 +539,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const canDirectEditPurchase = mode === 'INBOUND'
     && !!role
     && PURCHASE_EDIT_ROLES.includes(role)
+    && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
    * PR-H3: 창고/관리자 수락이 필요한 단계 (LOCKED_REQUIRES_APPROVAL).
@@ -967,15 +980,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <div
           role="alert"
           data-testid="slip-detail-locked-banner"
-          style={{
-            padding: '10px 12px',
-            marginBottom: 12,
-            borderRadius: 6,
-            border: '1px solid var(--color-warning-300, #FCD34D)',
-            background: 'var(--color-warning-50, #FFFBEB)',
-            color: 'var(--color-warning-800, #92400E)',
-            fontSize: 13,
-          }}
+          className="warning-banner"
         >
           현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 처리가 끝나면 확정 후 수정/삭제 요청이 가능합니다.
         </div>
@@ -1653,7 +1658,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
       <Modal
         open={purchaseEditOpen}
-        onClose={() => setPurchaseEditOpen(false)}
+        onClose={() => {
+          if (purchaseUpdateMutation.isPending) return
+          setPurchaseEditOpen(false)
+        }}
         title="매입 전표 수정"
         size="xl"
         footer={(
@@ -1674,7 +1682,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               data-testid="purchase-slip-edit-submit"
               onClick={() => {
                 purchaseUpdateMutation.mutate({
-                  updatedAt: slip.updatedAt,
+                  updatedAt: purchaseUpdatedAt ?? slip.updatedAt,
                   partnerName: purchasePartnerName.trim() || null,
                   partnerCode: purchasePartnerCode.trim() || null,
                   businessNumber: purchaseBusinessNumber.trim() || null,
@@ -1703,7 +1711,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         {purchaseConflictMessage ? (
           <div className="error-banner" role="alert" data-testid="purchase-slip-edit-conflict-banner">
             <strong>{purchaseConflictMessage}</strong>
-            {purchaseConflictMessage.includes('최신 내용') ? (
+            {purchaseIsConflict ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -1723,11 +1731,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         ) : null}
 
         <div className="detail-grid" data-testid="purchase-slip-edit-form">
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">구매번호</span>
             <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="구매번호" />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">거래처</span>
             <Input
               inputSize="sm"
@@ -1736,7 +1744,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="거래처"
             />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">거래처코드</span>
             <Input
               inputSize="sm"
@@ -1745,7 +1753,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="거래처코드"
             />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">사업자번호</span>
             <Input
               inputSize="sm"
@@ -1754,7 +1762,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="사업자번호"
             />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">배송주소</span>
             <Input
               inputSize="sm"
@@ -1763,7 +1771,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="배송주소"
             />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">프로젝트명</span>
             <Input
               inputSize="sm"
@@ -1772,7 +1780,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="프로젝트명"
             />
           </label>
-          <label className="driver-edit-field">
+          <label className="purchase-edit-field">
             <span className="detail-label">인수자 번호</span>
             <Input
               inputSize="sm"
@@ -1781,19 +1789,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="인수자 번호"
             />
           </label>
-          <label className="driver-edit-field">
-            <span className="detail-label">지급예정일</span>
+          <label className="purchase-edit-field">
+            <span className="detail-label">입금예정일</span>
             <Input
               inputSize="sm"
               type="date"
               value={purchasePaymentDueDate}
               onChange={(e) => setPurchasePaymentDueDate(e.target.value)}
-              aria-label="지급예정일"
+              aria-label="입금예정일"
             />
           </label>
         </div>
 
-        <label className="driver-edit-field" style={{ marginTop: 12 }}>
+        <label className="purchase-edit-field" style={{ marginTop: 12 }}>
           <span className="detail-label">적요</span>
           <Input
             inputSize="sm"
@@ -1813,6 +1821,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <th>수량</th>
                 <th>단가</th>
                 <th>합계</th>
+                <th aria-label="행 삭제" />
               </tr>
             </thead>
             <tbody>
@@ -1862,13 +1871,35 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       aria-label={`단가 ${index + 1}`}
                     />
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="td-right">
                     {(Number(line.quantity) * Number(line.unitPrice || 0)).toLocaleString('ko-KR')}원
+                  </td>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`${index + 1}번 행 삭제`}
+                      onClick={() => removePurchaseLine(index)}
+                    >
+                      ×
+                    </Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div style={{ marginTop: 8 }}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="purchase-slip-edit-add-line"
+              onClick={addPurchaseLine}
+            >
+              + 행 추가
+            </Button>
+          </div>
         </div>
       </Modal>
     </>
@@ -1878,5 +1909,25 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setPurchaseEditLines((prev) => prev.map((line, i) => (
       i === index ? { ...line, ...patch } : line
     )))
+  }
+
+  function addPurchaseLine() {
+    setPurchaseEditLines((prev) => [
+      ...prev,
+      {
+        key: createEditLineKey(),
+        productId: '',
+        productName: '',
+        modelName: '',
+        specification: '',
+        quantity: 1,
+        unitPrice: '0',
+        note: '',
+      },
+    ])
+  }
+
+  function removePurchaseLine(index: number) {
+    setPurchaseEditLines((prev) => prev.filter((_, i) => i !== index))
   }
 }

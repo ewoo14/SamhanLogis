@@ -683,12 +683,43 @@ button {
   flex-direction: column;
   gap: var(--space-1);
 }
+.purchase-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 .driver-edit-actions {
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* slip-line-table 합계 셀 정렬 유틸 */
+.td-right {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 로딩 fallback 공통 래퍼 */
+.loading-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8, 32px);
+  color: var(--color-text-muted);
+}
+
+/* 경고(잠금) 배너 */
+.warning-banner {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning-300);
+  background: var(--color-warning-50);
+  color: var(--color-warning-800);
+  font-size: var(--font-size-sm);
 }
 
 /* ==========================================================================
