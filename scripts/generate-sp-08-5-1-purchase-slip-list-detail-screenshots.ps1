@@ -52,6 +52,14 @@ function Badge {
     Text $Graphics $Value $fontSmall $fg ($X + 14) ($Y + 8)
 }
 
+function SecondaryButton {
+    param($Graphics, [int]$X, [int]$Y, [string]$Value)
+    $rect = New-Object System.Drawing.Rectangle($X, $Y, 92, 34)
+    $Graphics.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(248, 250, 252))), $rect)
+    $Graphics.DrawRectangle($penBorder, $rect)
+    Text $Graphics $Value $fontSmall $brushText ($X + 22) ($Y + 9)
+}
+
 function InputBox {
     param($Graphics, [int]$X, [int]$Y, [int]$W, [string]$Label, [string]$Value)
     Text $Graphics $Label $fontSmall $brushMuted $X $Y
@@ -186,12 +194,12 @@ function Shot5 {
     )
     $y = 260
     foreach ($row in $rows) {
-        for ($i = 0; $i -lt $row.Length; $i++) { Text $g $row[$i] $fontBody $brushText $xs[$i] $y }
+        for ($i = 0; $i -lt ($row.Length - 1); $i++) { Text $g $row[$i] $fontBody $brushText $xs[$i] $y }
+        SecondaryButton $g 996 ($y - 7) $row[6]
         $g.DrawLine($penSoft, 64, $y + 42, 1216, $y + 42)
         $y += 66
     }
-    Badge $g 996 315 "\uAC80\uC218" "good"
-    Text $g "SAVED / CONFIRMED \uB450 \uC0C1\uD0DC \uBAA8\uB450 \uAC80\uC218 CTA\uAC00 \uD65C\uC131\uD654\uB429\uB2C8\uB2E4." $fontBody $brushBlue 46 620
+    Text $g "SAVED / CONFIRMED \uB450 \uC0C1\uD0DC \uBAA8\uB450 DS Button secondary CTA\uB85C \uB3D9\uC77C\uD558\uAC8C \uB80C\uB354\uB429\uB2C8\uB2E4." $fontBody $brushBlue 46 620
     Save $bmp $g $path
 }
 

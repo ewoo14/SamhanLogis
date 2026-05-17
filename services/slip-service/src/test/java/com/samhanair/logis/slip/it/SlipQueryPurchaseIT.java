@@ -294,6 +294,39 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("R2: INVENTORY는 INBOUND 매입 상세 조회 권한에서 제외된다")
+    void testGetDetailForbiddenForInventory() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "SP0851-DETAIL-INVENTORY-FORBIDDEN");
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "INVENTORY"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("R2: SALES는 INBOUND 매입 상세 조회 권한에서 제외된다")
+    void testGetDetailForbiddenForSales() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "SP0851-DETAIL-SALES-FORBIDDEN");
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("R2: ACCOUNTANT는 INBOUND 매입 상세 조회 권한에서 제외된다")
+    void testGetDetailForbiddenForAccountant() throws Exception {
+        String id = createSlip("INBOUND", TODAY, "SP0851-DETAIL-ACCOUNTANT-FORBIDDEN");
+
+        mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "ACCOUNTANT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("R1: 같은 전표일자는 seqNo DESC 순으로 반환한다")
     void testListInboundOrderBySeqNo() throws Exception {
         String firstId = createSlip("INBOUND", TODAY, "SP0851-SEQ-1");

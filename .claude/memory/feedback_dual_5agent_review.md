@@ -69,10 +69,12 @@ metadata:
 - 사이클 N=3 안 완료 의무 (2026-05-17 4회차 정정)
 - 종료 시 사용자/PM 머지 결정 (`feedback_user_merge_authority.md` PM 자동 머지 가능)
 
-## 결함 fix 정책 (2026-05-17 사용자 정정 5회차 — 최종)
+## 결함 fix 정책 (2026-05-17 사용자 정정 6회차 — 최종)
 
-- **사이클 N=3 안 완료 의무** — PR 1건당 사이클 1, 2, 3 안에서 모든 결함 (P0/P1/P2/Nit/non-blocker) fix + 머지. 사이클 4 이상 진행 금지.
-- **사이클 1회 = Claude review → Claude fix → Codex review → Codex fix** (사용자 5회차 정정). 사이클 N.5 통합 fix 단계 폐기.
+- **PR 내 모든 문제 PR 안에서 해결** (2026-05-17 6회차) — P0/P1/P2/Nit/non-blocker 전부 본 PR 사이클 안에서 fix. **후속 슬라이스 백로그로 미루지 않음**. "후속 슬라이스 처리 가능", "non-blocker 백로그", "후속 cleanup" 등 표현 금지.
+- **사이클 N=3 안 완료 의무** — 사이클 1, 2, 3 안 모든 결함 fix + **PM 자동 머지** (사용자 확인 대기 X). 사이클 4 이상 진행 금지.
+- **PM 자동 머지 + 다음 슬라이스 자동 진입** — 결함 모두 해결 + CI green 시 사용자 확인 없이 squash 머지 + 다음 슬라이스 자동 시작.
+- **사이클 1회 = Claude review → Claude fix → Codex review → Codex fix** (5회차 정정). 사이클 N.5 통합 fix 단계 폐기.
 - **양쪽 fix 책임 분담**: Claude 는 자체 review 결함 + Codex valid 예상 결함 (선제적), Codex 는 자체 review 결함 + Claude valid 항목 중 미처리 보완.
 - **한 사이클당 가능한 한 모든 결함 묶어 fix** — Codex fix 직후 본 사이클 결함 0 도달이 목표.
 - **사이클 3 review 까지 잔존 결함 0 도달 못 한 경우**: blocker 만 fix 후 머지, Nit/non-blocker 는 후속 슬라이스 백로그.
@@ -83,6 +85,7 @@ metadata:
 ## 운영 규칙
 
 - **PR 코멘트는 TM 통합 2건** — Claude TM 통합 1 + Codex TM 통합 1 = **사이클 1회당 2 PR comment**. 가독성 우선, 각자 5+5=10 별도 등록 폐기 (2026-05-17 사용자 정정).
+- **양쪽 TM 통합 등록 의무** (2026-05-17 PR #220 사이클 1 회고): 5회차 워크플로우는 1b TM Claude 등록 → 1c Claude fix → **2a Codex review → 2b TM Codex 등록 필수** → 2c Codex fix. 2b 등록 누락하면 사용자가 양쪽 review 비교 불가. Codex fix 진행 전 반드시 2b PR comment 등록 검증.
 - **각 agent 5건 raw markdown** — 작업 산출물은 `docs/qa/<slug>/claude-{role}-cycle-N.md` / `codex-{role}-cycle-N.md` 로 저장만 (PR comment 등록 X, repo commit X). TM 통합 markdown 작성 시 source 자료.
 - **head SHA 명시** — TM 통합 코멘트 첫 줄에 "head `<sha>` 기준" 명시 (사이클별 추적).
 - **Codex CLI MCP 호출 규칙**:
