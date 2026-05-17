@@ -1,5 +1,6 @@
 package com.samhanair.logis.partnerorder.web.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import java.math.BigDecimal;
@@ -11,7 +12,11 @@ import java.util.List;
  *
  * <p>헤더와 라인 모두 화면 표시값만 포함한다. 라인 내부 식별자 / product 내부 식별자는 노출 금지 원칙에 따라
  * 응답하지 않는다.
+ *
+ * <p>{@code partnerName} 같은 entity 컬럼 부재 필드는 {@code null} 반환되며, {@link JsonInclude#NON_NULL}
+ * 정책으로 JSON 직렬화 시 제외된다. IT 의 {@code doesNotExist()} 단언 정합 + FE 의 fallback 처리 일관.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record PartnerOrderDetailResponse(
         String orderNumber,
         String partnerCode,
