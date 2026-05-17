@@ -1,0 +1,176 @@
+package com.samhanair.logis.partnerorder.it;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
+import com.samhanair.logis.partnerorder.client.DcConfigClient;
+import com.samhanair.logis.partnerorder.client.InventoryClient;
+import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
+import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.SlipServiceClient;
+import com.samhanair.logis.partnerorder.domain.PartnerOrder;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * 주문 목록 endpoint 의 legacy GAS 동등 필터를 검증한다.
+ *
+ * <p>외부 client 는 전부 {@code @MockBean} 으로 격리한다. 본 IT 는 목록 조회 전용이라 외부 호출이
+ * 없어도 Eureka 비활성 환경에서 실제 RestClient 로 빠지지 않아야 한다.
+ */
+@SpringBootTest(classes = PartnerOrderServiceApplication.class)
+@AutoConfigureMockMvc
+class PartnerOrderListIT extends AbstractPostgresIT {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private PartnerOrderRepository orderRepository;
+
+    @MockBean
+    private DcConfigClient dcConfigClient;
+    @MockBean
+    private ProductClient productClient;
+    @MockBean
+    private InventoryClient inventoryClient;
+    @MockBean
+    private SlipServiceClient slipServiceClient;
+    @MockBean
+    private PartnerAuthClient partnerAuthClient;
+    @MockBean
+    private PartnerLookupClient partnerLookupClient;
+    @MockBean
+    private ProductCatalogLookupClient catalogLookupClient;
+
+    @BeforeEach
+    void setUp() {
+        orderRepository.deleteAll();
+        saveOrder("2026/05/01-1", "P-SP0841-A", "1010101010", "실외기", "AJ040RXH4BC1", "CONFIRMED");
+        saveOrder("2026/05/03-1", "P-SP0841-B", "2020202020", "천장형 실내기", "AC060TN4PBH1", "DRAFT");
+        saveOrder("2026/05/05-1", "P-SP0841-C", "3030303030", "벽걸이 실내기", "AR09B9150HZ", "CANCELED");
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_filters_by_date_range() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("dateFrom", "2026-05-02")
+                        .param("dateTo", "2026-05-04"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/03-1"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_filters_by_partner_code() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("partnerId", "P-SP0841-B"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-SP0841-B"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_filters_by_status() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("status", "DRAFT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_filters_by_search_keyword() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("searchKeyword", "천장형"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/03-1"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_swaps_reversed_date_range() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("dateFrom", "2026-05-04")
+                        .param("dateTo", "2026-05-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/03-1"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_returns_empty_page_when_filter_has_no_match() throws Exception {
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("searchKeyword", "없는품목"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0))
+                .andExpect(jsonPath("$.data.content.length()").value(0));
+    }
+
+    private void saveOrder(String orderNo, String partnerCode, String bizCode,
+                           String productName, String modelName, String status) {
+        PartnerOrder order = PartnerOrder.create(
+                partnerCode,
+                bizCode,
+                orderNo,
+                "IT-SP0841-" + orderNo,
+                BigDecimal.ZERO);
+        if ("DRAFT".equals(status)) {
+            setStatus(order, com.samhanair.logis.partnerorder.domain.PartnerOrderStatus.DRAFT);
+        } else if ("CANCELED".equals(status)) {
+            order.cancel();
+        } else {
+            order.markSlipPendingRetry();
+        }
+        order.addLine(PartnerOrderLine.create(
+                UUID.randomUUID(),
+                modelName,
+                productName,
+                "homemulti",
+                1,
+                new BigDecimal("100000"),
+                "비고"));
+        setConfirmedAt(order, LocalDate.parse(orderNo.substring(0, 10).replace("/", "-")).atTime(10, 0));
+        orderRepository.saveAndFlush(order);
+    }
+
+    private void setStatus(PartnerOrder order,
+                           com.samhanair.logis.partnerorder.domain.PartnerOrderStatus status) {
+        setField(order, "status", status);
+    }
+
+    private void setConfirmedAt(PartnerOrder order, java.time.LocalDateTime confirmedAt) {
+        setField(order, "confirmedAt", confirmedAt);
+    }
+
+    private void setField(PartnerOrder order, String fieldName, Object value) {
+        try {
+            java.lang.reflect.Field field = PartnerOrder.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(order, value);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}

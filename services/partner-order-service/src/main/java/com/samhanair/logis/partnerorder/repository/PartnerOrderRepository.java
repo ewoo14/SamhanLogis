@@ -9,11 +9,13 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 /** 거래처 확정 주문 조회 + history. */
 @Repository
-public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID> {
+public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID>,
+        JpaSpecificationExecutor<PartnerOrder> {
 
     /** 거래처 history 페이지 조회 (UUID 미노출 — bizCode 만 사용자 노출). */
     Page<PartnerOrder> findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
