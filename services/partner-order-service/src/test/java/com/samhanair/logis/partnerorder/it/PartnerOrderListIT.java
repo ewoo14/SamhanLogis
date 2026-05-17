@@ -13,6 +13,7 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import java.math.BigDecimal;
@@ -43,6 +44,9 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @Autowired
     private PartnerOrderRepository orderRepository;
 
+    @Autowired
+    private SlipPublishOutboxRepository outboxRepository;
+
     @MockBean
     private DcConfigClient dcConfigClient;
     @MockBean
@@ -60,6 +64,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
+        outboxRepository.deleteAll();
         orderRepository.deleteAll();
         saveOrder("2026/05/01-1", "P-SP0841-A", "1010101010", "실외기", "AJ040RXH4BC1", "CONFIRMED");
         saveOrder("2026/05/03-1", "P-SP0841-B", "2020202020", "천장형 실내기", "AC060TN4PBH1", "DRAFT");

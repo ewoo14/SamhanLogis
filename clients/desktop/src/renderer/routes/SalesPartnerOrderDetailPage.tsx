@@ -85,7 +85,7 @@ export function SalesPartnerOrderDetailPage() {
             <div className={styles['card']}>
               <div className={styles['cardHead']}>
                 <div className={styles['cardTitle']}>
-                  거래처 · {query.data.partnerName}
+                  거래처 · {query.data.partnerName ?? query.data.partnerCode}
                   <span className={styles['badge']}>
                     {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
                   </span>

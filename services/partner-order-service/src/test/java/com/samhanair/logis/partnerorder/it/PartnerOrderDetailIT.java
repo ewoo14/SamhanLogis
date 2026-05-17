@@ -13,6 +13,7 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import java.math.BigDecimal;
@@ -41,6 +42,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     @Autowired
     private PartnerOrderRepository orderRepository;
 
+    @Autowired
+    private SlipPublishOutboxRepository outboxRepository;
+
     @MockBean
     private DcConfigClient dcConfigClient;
     @MockBean
@@ -58,6 +62,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
+        outboxRepository.deleteAll();
         orderRepository.deleteAll();
     }
 
@@ -70,7 +76,7 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-1"))
                 .andExpect(jsonPath("$.data.partnerCode").value("P-DETAIL-A"))
-                .andExpect(jsonPath("$.data.partnerName").value("P-DETAIL-A"))
+                .andExpect(jsonPath("$.data.partnerName").doesNotExist())
                 .andExpect(jsonPath("$.data.lines.length()").value(1))
                 .andExpect(jsonPath("$.data.lines[0].productName").value("실외기"))
                 .andExpect(jsonPath("$.data.lines[0].id").doesNotExist());

@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Input, Select } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   listPartnerOrders,
@@ -94,32 +95,36 @@ export function SalesPartnerOrderListPage() {
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
           </div>
           <div className={styles['topActions']}>
-            <input
+            <Input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               aria-label="시작일"
               data-testid="partner-order-list-date-from"
+              inputSize="sm"
             />
-            <input
+            <Input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               aria-label="종료일"
               data-testid="partner-order-list-date-to"
+              inputSize="sm"
             />
-            <input
+            <Input
               value={partnerId}
               onChange={(e) => setPartnerId(e.target.value)}
               placeholder="거래처 코드 또는 사업자번호"
               aria-label="거래처 필터"
               data-testid="partner-order-list-partner-filter"
+              inputSize="sm"
             />
-            <select
+            <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as PartnerOrderStatus | '')}
               aria-label="상태 필터"
               data-testid="partner-order-list-status-filter"
+              selectSize="sm"
             >
               <option value="">전체 상태</option>
               {(Object.keys(PARTNER_ORDER_STATUS_LABEL) as PartnerOrderStatus[]).map((s) => (
@@ -127,13 +132,14 @@ export function SalesPartnerOrderListPage() {
                   {PARTNER_ORDER_STATUS_LABEL[s]}
                 </option>
               ))}
-            </select>
-            <input
+            </Select>
+            <Input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               placeholder="주문번호·품목명·모델명"
               aria-label="검색어"
               data-testid="partner-order-list-keyword-filter"
+              inputSize="sm"
             />
           </div>
         </div>
@@ -178,7 +184,7 @@ export function SalesPartnerOrderListPage() {
                 >
                   <td>{o.orderNumber}</td>
                   <td>{o.partnerCode}</td>
-                  <td>{o.partnerName}</td>
+                  <td>{o.partnerName ?? o.partnerCode}</td>
                   <td>{ymd(o.submittedAt)}</td>
                   <td className="numeric">{krw(o.totalAmount)}원</td>
                   <td>

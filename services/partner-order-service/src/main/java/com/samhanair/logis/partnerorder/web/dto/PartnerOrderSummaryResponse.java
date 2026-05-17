@@ -19,12 +19,17 @@ public record PartnerOrderSummaryResponse(
         String linkedSlipNo
 ) {
 
-    /** Entity 를 목록 행 DTO 로 변환한다. */
+    /**
+     * Entity 를 목록 행 DTO 로 변환한다.
+     *
+     * <p>{@code partnerName} 은 현재 entity 컬럼 부재로 {@code null}. SP-08-4-2 이후 partner-service
+     * lookup 으로 채운다.
+     */
     public static PartnerOrderSummaryResponse from(PartnerOrder order) {
         return new PartnerOrderSummaryResponse(
                 order.getOrderNo(),
                 order.getPartnerCode(),
-                order.getPartnerCode(),
+                null,
                 order.getConfirmedAt(),
                 order.getStatus().name(),
                 order.getTotalAmount(),

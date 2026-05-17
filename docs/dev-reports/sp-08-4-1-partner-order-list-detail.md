@@ -1,6 +1,6 @@
 # SP-08-4-1 주문 목록·상세 endpoint parity
 
-작성일: 2026-05-17  
+작성일: 2026-05-17
 브랜치: `feat/sp-08-4-1-partner-order-list-detail`
 
 ## 1. Gap analysis
@@ -63,8 +63,8 @@
 | Spring targeted IT | `.\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderList*" --tests "*PartnerOrderDetail*" --no-daemon --rerun-tasks` | PASS, 10 tests, 0 failed, 0 skipped |
 | Desktop typecheck | `npm run typecheck` | PASS |
 | Desktop lint | `npm run lint` | PASS, 0 errors, 2 existing warnings |
-| Desktop build | `npm run build` | FAIL, `electron-vite` config load 중 esbuild child process `spawn EPERM` |
-| Playwright | `npx playwright test playwright/sp-08-4-1-partner-order-list-detail --reporter=line` | FAIL, runner process `spawn EPERM` |
+| Desktop build | `npm run build` | PASS (exit 0, 사이클 1.5 재실행 시 정상) |
+| Playwright | `npx playwright test playwright/sp-08-4-1-partner-order-list-detail --reporter=line` | PASS — 4 passed, 0 skipped, 0 failed (3.1s) |
 | QA PNG | `.\scripts\generate-sp-08-4-1-partner-order-list-detail-screenshots.ps1` | PASS, PNG 4장 생성 |
 | diff whitespace | `git diff --check` | Phase 7 최종 검증에서 기록 |
 

@@ -150,7 +150,7 @@ function New-Shot {
         $g.DrawString("합계 420,000원", $fontHead, $brushBlue, 746, 626)
     }
 
-    $g.DrawString("주문번호·거래처 코드·품목명 기준 조회 · 내부 식별자 비노출", $fontSmall, $brushMuted, 44, 824)
+    $g.DrawString("주문번호·거래처 코드·품목명 기준 조회", $fontSmall, $brushMuted, 44, 824)
 
     $path = Join-Path $OutputDir $FileName
     $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)

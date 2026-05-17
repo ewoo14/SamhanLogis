@@ -28,12 +28,17 @@ public record PartnerOrderDetailResponse(
         List<LineResponse> lines
 ) {
 
-    /** Entity 를 상세 DTO 로 변환한다. */
+    /**
+     * Entity 를 상세 DTO 로 변환한다.
+     *
+     * <p>{@code partnerName} 은 현재 partner-order-service entity 에 컬럼이 없어 {@code null} 로
+     * 반환한다. 후속 sub-task (SP-08-4-2 이후) 에서 partner-service lookup 으로 채운다.
+     */
     public static PartnerOrderDetailResponse from(PartnerOrder order) {
         return new PartnerOrderDetailResponse(
                 order.getOrderNo(),
                 order.getPartnerCode(),
-                order.getPartnerCode(),
+                null,
                 order.getConfirmedAt(),
                 order.getStatus().name(),
                 order.getTotalAmount(),
