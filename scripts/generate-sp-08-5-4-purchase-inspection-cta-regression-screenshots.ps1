@@ -76,6 +76,17 @@ function PrimaryBtn {
     DText $G $LabelEsc $fontBody ([System.Drawing.Brushes]::White) ($X + 10) ($Y + 9)
 }
 
+# variant="secondary" — 흰 배경 + brand-700 border/text (#0B3A85)
+function SecondaryBtn {
+    param($G, [int]$X, [int]$Y, [int]$W, [string]$LabelEsc)
+    $brand700 = [System.Drawing.Color]::FromArgb(11, 58, 133)
+    $pen  = New-Object System.Drawing.Pen($brand700, 1)
+    $rect = New-Object System.Drawing.Rectangle($X, $Y, $W, 28)
+    $G.FillRectangle([System.Drawing.Brushes]::White, $rect)
+    $G.DrawRectangle($pen, $rect)
+    DText $G $LabelEsc $fontSmall (New-Object System.Drawing.SolidBrush($brand700)) ($X + 10) ($Y + 7)
+}
+
 function TableHeader {
     param($G)
     $G.FillRectangle(
@@ -95,7 +106,7 @@ function TableRow {
     DText $G $PartnerEsc $fontBody $brushText 340 $Y
     Badge $G 580 ($Y - 4) $StatusEsc $Tone
     if ($ShowBtn) {
-        PrimaryBtn $G 780 ($Y - 6) 74 "검수"
+        SecondaryBtn $G 780 ($Y - 6) 74 "검수"
     } else {
         DText $G "-" $fontBody $brushMuted 806 $Y
     }

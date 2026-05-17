@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
@@ -23,6 +24,8 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -82,6 +85,12 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
     @Autowired
     private SlipRepository slipRepository;
 
+    @Autowired
+    private SlipAuditLogRepository auditLogRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @MockBean
     private InventoryClient inventoryClient;
 
@@ -105,6 +114,12 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setupLenientMocks() {
+        auditLogRepository.deleteAll();
+        Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Collections.emptyList());
+        Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Collections.emptyList());
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);
@@ -167,9 +182,10 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
 
         JsonNode content = objectMapper.readTree(body).path("data").path("content");
         assertThat(content.toString()).contains("SAVED");
-        // SAVED 전표만 반환 확인
+        // SAVED 전표만 반환 확인 — slipType + status 개별 단언
         for (JsonNode item : content) {
             assertThat(item.path("slipType").asText()).isEqualTo("INBOUND");
+            assertThat(item.path("status").asText()).isEqualTo("SAVED");
         }
     }
 
@@ -234,8 +250,9 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
         slip.process();
         slip.complete(); // PROCESSING → INSPECTING
         slipRepository.flush();
+        entityManager.clear(); // 1차 캐시 소거 — flush 후 스테일 updatedAt 방지 (SlipDeleteIT D8 패턴)
 
-        String updatedAt = updatedAt(slipId);
+        String freshUpdatedAt = updatedAt(slipId);
 
         mockMvc.perform(put(SLIPS_PATH + "/" + slipId)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
@@ -243,7 +260,7 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
                         .header(USER_ROLE_HEADER, "WAREHOUSE")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                updateBody(updatedAt, "SP0854-EDITING-INSPECTING-수정시도", 5, "100000"))))
+                                updateBody(freshUpdatedAt, "SP0854-EDITING-INSPECTING-수정시도", 5, "100000"))))
                 .andExpect(status().isConflict());
     }
 
@@ -266,8 +283,9 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
         slip.complete();       // INSPECTING
         slip.inspect("시스템"); // COMPLETED
         slipRepository.flush();
+        entityManager.clear(); // 1차 캐시 소거 — flush 후 스테일 updatedAt 방지 (SlipDeleteIT D8 패턴)
 
-        String updatedAt = updatedAt(slipId);
+        String freshUpdatedAt = updatedAt(slipId);
 
         mockMvc.perform(put(SLIPS_PATH + "/" + slipId)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
@@ -275,7 +293,7 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
                         .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                updateBody(updatedAt, "SP0854-EDITING-COMPLETED-수정시도", 3, "100000"))))
+                                updateBody(freshUpdatedAt, "SP0854-EDITING-COMPLETED-수정시도", 3, "100000"))))
                 .andExpect(status().isConflict());
     }
 

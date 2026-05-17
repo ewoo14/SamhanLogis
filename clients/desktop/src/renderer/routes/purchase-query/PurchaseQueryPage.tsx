@@ -660,7 +660,6 @@ export function PurchaseQueryPage() {
           onClose={() => setInspectionSlipId(null)}
           onSuccess={() => {
             setInspectionSlipId(null)
-            void slipsQuery.refetch()
           }}
         />
       ) : null}
