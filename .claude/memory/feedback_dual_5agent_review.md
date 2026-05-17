@@ -46,9 +46,15 @@ metadata:
 
 ## 종료 조건
 
-- 양쪽 TM 통합 모두 신규 P0/P1 결함 0 + 이전 사이클 발견 모두 해소
+- 양쪽 TM 통합 모두 신규 **P0/P1/P2/Nit/non-blocker 전부 0** + 이전 사이클 발견 모두 해소
 - CI 100% PASS
 - 종료 시 사용자/PM 머지 결정 (`feedback_user_merge_authority.md` PM 자동 머지 가능)
+
+## 결함 fix 정책 (2026-05-17 사용자 정정 3회차)
+
+- **완전 fix 까지 사이클 무제한** — Nit / non-blocker 도 fix 대상. "후속 슬라이스 백로그" 로 미루지 않음
+- **한 사이클당 가급적 모든 결함 묶어 fix** — 다음 사이클 review 가 새로운 결함 0 만 확인하도록 일괄 처리
+- **예외**: Codex sandbox EPERM 등 환경 한계로 사이클 fix 불가능한 항목만 후속 (예: Playwright browser 미실행)
 
 ## 운영 규칙
 
@@ -142,7 +148,7 @@ metadata:
 - PR 발행 직후 → CI watch background + 사이클 1 시작
 - **Claude 5 subagent 병렬 (single message multiple Agent tool calls)** → markdown body 5건 수집 → **tech-manager agent 통합** → 1 PR comment 등록
 - **Codex 5-agent 병렬 (single message multiple `mcp__codex__codex` tool calls)** → markdown body 5건 수집 → **tech-manager agent 통합** → 1 PR comment 등록
-- 사이클 N=3 까지 (그 이상이면 사용자 직접 결정 — 무한 반복 방지)
+- 사이클 N 무제한 (완전 fix 까지 — 2026-05-17 사용자 명시. N=3 제한 폐기)
 - 머지 trigger 는 사용자 또는 PM 자동 머지 (조건 충족 시)
 
 [[pr-title-caps-bracket]] [[multi-agent-team-pattern]] [[integrated-pr-pattern]] [[pr-review-workflow]] [[user-merge-authority]] [[codex-cli-mcp]]
