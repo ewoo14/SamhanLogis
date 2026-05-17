@@ -228,6 +228,40 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
         assertThat(logs).anyMatch(log -> "영업담당자".equals(log.getActorName()));
     }
 
+    @Test
+    @DisplayName("U1: soft-deleted 매출 전표 수정은 404를 반환한다")
+    void testUpdateSalesSoftDeletedReturns404() throws Exception {
+        String id = createSlip("OUTBOUND", "SP0862-삭제됨");
+        String updatedAt = updatedAt(id);
+        Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        slip.markDeleted("test");
+        slipRepository.flush();
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(updatedAt, "SP0862-삭제됨", 2, "200000"))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("U1: 수량 0 라인은 422 + SLIP_UPDATE_INVALID_LINE을 반환한다")
+    void testUpdateSalesInvalidLineReturns422() throws Exception {
+        String id = createSlip("OUTBOUND", "SP0862-라인검증");
+        String updatedAt = updatedAt(id);
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(updatedAt, "SP0862-라인검증", 0, "200000"))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is("SLIP_UPDATE_INVALID_LINE")));
+    }
+
     private void assertForbiddenForRole(String role) throws Exception {
         String id = createSlip("OUTBOUND", "SP0862-" + role);
         String updatedAt = updatedAt(id);

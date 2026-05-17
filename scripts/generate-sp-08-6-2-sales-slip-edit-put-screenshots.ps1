@@ -50,12 +50,12 @@ function Save { param($Bitmap, $Graphics, [string]$Path)
     $Graphics.Dispose(); $Bitmap.Dispose()
     Write-Host "generated $Path" }
 # Shot1
-$c = Canvas "01-sales-edit-form.png" "매입 전표 수정" "주문번호·거래처·품목·단가·합계"
+$c = Canvas "01-sales-edit-form.png" "매출 전표 수정" "주문번호·거래처·품목·단가·합계"
 $bmp = $c[0]; $g = $c[1]; $path = $c[2]
 $panel = New-Object System.Drawing.Rectangle(140, 126, 1000, 660)
 $g.FillRectangle([System.Drawing.Brushes]::White, $panel)
 $g.DrawRectangle($penBorder, $panel)
-Text $g "매입 전표 수정" $fontHead $brushText 180 166
+Text $g "매출 전표 수정" $fontHead $brushText 180 166
 Badge $g 898 162 "저장완료" "good"
 InputBox $g 180 230 210 "주문번호" "2026/05/18-2"
 InputBox $g 420 230 260 "거래처" "삼한항공"
@@ -116,7 +116,7 @@ $card = New-Object System.Drawing.Rectangle(250, 220, 780, 360)
 $g.FillRectangle([System.Drawing.Brushes]::White, $card)
 $g.DrawRectangle($penBorder, $card)
 Badge $g 300 270 "403" "danger"
-Text $g "매입 전표 수정 권한이 없습니다" $fontHead $brushText 300 326
+Text $g "매출 전표 수정 권한이 없습니다" $fontHead $brushText 300 326
 Text $g "허용 역할: SALES / MANAGER / MASTER" $fontBody $brushMuted 300 376
 Text $g "INVENTORY / WAREHOUSE / ACCOUNTANT는 direct PUT 접근 시 403으로 차단합니다." $fontBody $brushMuted 300 416
 Text $g "화면에서는 수정 버튼을 렌더하지 않습니다." $fontBody $brushBlue 300 486

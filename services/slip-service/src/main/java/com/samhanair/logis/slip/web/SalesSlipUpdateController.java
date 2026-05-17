@@ -52,7 +52,7 @@ public class SalesSlipUpdateController {
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(updateService.update(id, request, parseActorId(callerId),
-                resolveName(callerId, callerName)));
+                resolveName(callerName)));
     }
 
     /**
@@ -73,12 +73,18 @@ public class SalesSlipUpdateController {
         }
     }
 
-    private String resolveName(String callerId, String callerName) {
+    /**
+     * X-User-Name 헤더에서 actorName 을 결정한다.
+     *
+     * <p>UUID 비공개 정책: UUID 문자열은 사용자 노출 금지 대상이므로
+     * callerName 헤더 미수신 시 "system" 으로 폴백한다.
+     *
+     * @param callerName X-User-Name 헤더 (nullable)
+     * @return actorName (사용자 이름 또는 "system")
+     */
+    private String resolveName(String callerName) {
         if (callerName != null && !callerName.isBlank()) {
             return callerName;
-        }
-        if (callerId != null && !callerId.isBlank()) {
-            return callerId;
         }
         return "system";
     }

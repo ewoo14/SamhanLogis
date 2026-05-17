@@ -247,6 +247,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [salesProjectName, setSalesProjectName] = useState('')
   const [salesRecipientPhone, setSalesRecipientPhone] = useState('')
   const [salesPaymentDueDate, setSalesPaymentDueDate] = useState('')
+  const [salesSupervisionAddress, setSalesSupervisionAddress] = useState('')
   const [salesEditLines, setSalesEditLines] = useState<PurchaseEditLine[]>([])
   const salesReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -626,6 +627,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setSalesBusinessNumber(data.businessNumber ?? '')
     setSalesMemo(data.memo ?? '')
     setSalesDeliveryAddress(data.deliveryAddress ?? '')
+    setSalesSupervisionAddress(data.supervisionAddress ?? '')
     setSalesProjectName(data.projectName ?? '')
     setSalesRecipientPhone(data.recipientPhone ?? '')
     setSalesPaymentDueDate(data.paymentDueDate ?? '')
@@ -2136,6 +2138,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   businessNumber: salesBusinessNumber.trim() || null,
                   memo: salesMemo.trim() || null,
                   deliveryAddress: salesDeliveryAddress.trim() || null,
+                  supervisionAddress: salesSupervisionAddress.trim() || null,
                   projectName: salesProjectName.trim() || null,
                   recipientPhone: salesRecipientPhone.trim() || null,
                   paymentDueDate: salesPaymentDueDate || null,
@@ -2179,11 +2182,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         ) : null}
 
         <div className="detail-grid" data-testid="sales-slip-edit-form">
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">판매번호</span>
             <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="판매번호" />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">거래처</span>
             <Input
               inputSize="sm"
@@ -2192,7 +2195,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="거래처"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">거래처코드</span>
             <Input
               inputSize="sm"
@@ -2201,7 +2204,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="거래처코드"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">사업자번호</span>
             <Input
               inputSize="sm"
@@ -2210,7 +2213,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="사업자번호"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">배송주소</span>
             <Input
               inputSize="sm"
@@ -2219,7 +2222,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="배송주소"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
+            <span className="detail-label">감리주소</span>
+            <Input
+              inputSize="sm"
+              value={salesSupervisionAddress}
+              onChange={(e) => setSalesSupervisionAddress(e.target.value)}
+              aria-label="감리주소"
+            />
+          </label>
+          <label className="sales-edit-field">
             <span className="detail-label">프로젝트명</span>
             <Input
               inputSize="sm"
@@ -2228,7 +2240,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="프로젝트명"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">인수자 번호</span>
             <Input
               inputSize="sm"
@@ -2237,7 +2249,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               aria-label="인수자 번호"
             />
           </label>
-          <label className="purchase-edit-field">
+          <label className="sales-edit-field">
             <span className="detail-label">입금예정일</span>
             <Input
               inputSize="sm"
@@ -2249,7 +2261,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </label>
         </div>
 
-        <label className="purchase-edit-field purchase-edit-memo">
+        <label className="sales-edit-field sales-edit-memo">
           <span className="detail-label">적요</span>
           <Input
             inputSize="sm"
@@ -2259,7 +2271,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           />
         </label>
 
-        <div className="purchase-edit-lines" data-testid="sales-slip-edit-lines">
+        <div className="sales-edit-lines" data-testid="sales-slip-edit-lines">
           <table className="slip-line-table">
             <thead>
               <tr>
