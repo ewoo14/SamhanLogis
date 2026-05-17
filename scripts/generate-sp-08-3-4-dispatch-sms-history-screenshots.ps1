@@ -153,7 +153,7 @@ function New-Shot {
     }
 
     if ($ShowAudit) {
-        Draw-Card $g 780 614 360 100 "발송 결과" @("성공 2 / 실패 0 / 제외 1", "발송 감사 row append-only")
+        Draw-Card $g 780 614 360 100 "발송 결과" @("성공 2 / 실패 0 / 제외 1", "발송 감사 이력 추가 전용")
     }
 
     $g.DrawString("내부 식별자 비노출 · 외부 문서 도구 호출 없음 · 미리보기/발송 감사 저장", $fontSmall, $brushMuted, 44, 812)
@@ -167,11 +167,10 @@ function New-Shot {
 
 New-Shot "01-dispatch-sms-run-restored.png" "배차문자 저장내역 2-Tab" "실행 탭 · 자동 저장 최신 미리보기 복원" "자동 복원" @("자동저장", "오전 발송 전 점검")
 New-Shot "02-dispatch-sms-preview-auto.png" "배차문자 미리보기 자동 저장" "미리보기 결과 자동 저장" "미리보기" @("자동저장", "오전 발송 전 점검")
-New-Shot "03-dispatch-sms-manual-save-dialog.png" "배차문자 명시 저장 창" "MANUAL_NAMED 주제 필수" "명시 저장" @("오전 발송 전 점검", "자동저장") $true
-New-Shot "04-dispatch-sms-send-confirm.png" "배차문자 SMS 발송" "var(--color-warning) 버튼 + 이중 확인" "발송" @("오전 발송 전 점검", "자동저장") $false $true
-New-Shot "05-dispatch-sms-send-audit.png" "배차문자 발송 감사" "발송 후 silent append + latest 제외" "발송 감사" @("발송 감사 2026-05-17", "자동저장") $false $true $true
+New-Shot "03-dispatch-sms-manual-save-dialog.png" "배차문자 명시 저장 창" "명시 저장 주제 필수" "명시 저장" @("오전 발송 전 점검", "자동저장") $true
+New-Shot "04-dispatch-sms-send-confirm.png" "배차문자 SMS 발송" "주의색 버튼 + 이중 확인" "발송" @("오전 발송 전 점검", "자동저장") $false $true
+New-Shot "05-dispatch-sms-send-audit.png" "배차문자 발송 감사" "발송 후 자동 추가 · 최신 미리보기 제외" "발송 감사" @("발송 감사 2026-05-17", "자동저장") $false $true $true
 New-Shot "06-dispatch-sms-history-filter.png" "배차문자 저장내역 탭" "저장 모드 선택 기본값: 명시 저장만" "명시 저장만" @("오전 발송 전 점검", "추가 수동 저장", "자동저장")
-New-Shot "07-dispatch-sms-restore-mask.png" "배차문자 복원 UX" "createdBy 마스킹 · 내부 ID 비노출" "복원" @("사용자 복원", "발송 감사 확인")
+New-Shot "07-dispatch-sms-restore-mask.png" "배차문자 복원 UX" "작성자 마스킹 · 내부 ID 비노출" "복원" @("사용자 복원", "발송 감사 확인")
 
 Write-Host "SP-08-3-4 QA mock screenshots generated in $OutputDir"
-
