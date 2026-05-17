@@ -8,12 +8,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.audit.repository.PartnerOrderAuditLogRepository;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
+import com.samhanair.logis.partnerorder.client.EstimateClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
@@ -56,6 +58,8 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     @MockBean
     private DcConfigClient dcConfigClient;
     @MockBean
+    private EstimateClient estimateClient;
+    @MockBean
     private ProductClient productClient;
     @MockBean
     private InventoryClient inventoryClient;
@@ -81,17 +85,18 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     void testDeleteSuccess() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-31", false, false);
 
-        mockMvc.perform(delete("/api/v1/partner-orders/{id}", "2026-05-17-31"))
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", "2026-05-17-31")
+                        .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isNoContent());
 
-        assertThat(orderRepository.findById(order.getId())).isEmpty();
+        // @SQLRestriction 이 active 조회에서 soft-deleted row 를 제외한다. 실제 삭제 여부는 raw SQL 로 검증한다.
         Integer deletedOrders = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                   FROM partner_orders
                  WHERE id = ?
                    AND is_deleted = TRUE
                    AND deleted_at IS NOT NULL
-                   AND deleted_by = 'system-partner-order-delete'
+                   AND deleted_by = '영업담당자'
                 """, Integer.class, order.getId());
         Integer deletedLines = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -99,7 +104,7 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
                  WHERE partner_order_id = ?
                    AND is_deleted = TRUE
                    AND deleted_at IS NOT NULL
-                   AND deleted_by = 'system-partner-order-delete'
+                   AND deleted_by = '영업담당자'
                 """, Integer.class, order.getId());
 
         assertThat(deletedOrders).isEqualTo(1);
@@ -133,6 +138,27 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_DELETE_FORBIDDEN_STATUS"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void testDeleteCanceledOrderReturns422() throws Exception {
+        PartnerOrder order = saveOrder("2026/05/17-36", false, false);
+        order.cancel();
+        orderRepository.saveAndFlush(order);
+
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("PARTNER_ORDER_DELETE_FORBIDDEN_STATUS"));
+
+        Integer activeOrders = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_orders
+                 WHERE id = ?
+                   AND status = ?
+                   AND is_deleted = FALSE
+                """, Integer.class, order.getId(), PartnerOrderStatus.CANCELED.name());
+        assertThat(activeOrders).isEqualTo(1);
     }
 
     @Test

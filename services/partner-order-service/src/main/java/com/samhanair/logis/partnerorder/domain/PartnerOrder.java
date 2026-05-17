@@ -157,6 +157,7 @@ public class PartnerOrder extends BaseEntity {
      * 견적 snapshot 을 거래처 주문으로 변환한다.
      *
      * <p>source estimate 는 외부 estimate-service UUID 이며, 본 service 는 logical reference 로만 보존한다.
+     * confirm/outbox 흐름은 별도 사용자 확정 이후 진행하므로 전표 발행 상태는 {@link SlipPublishStatus#NOT_REQUIRED} 로 시작한다.
      */
     public static PartnerOrder createFromEstimate(String partnerCode, String bizCode, String orderNo,
                                                   String idempotencyKey, BigDecimal totalAmount,
@@ -165,6 +166,7 @@ public class PartnerOrder extends BaseEntity {
             throw new IllegalArgumentException("sourceEstimateId 필수");
         }
         PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
         order.sourceEstimateId = sourceEstimateId;
         order.dueDate = dueDate;
         order.memo = memo == null || memo.isBlank() ? null : memo.trim();
@@ -178,7 +180,12 @@ public class PartnerOrder extends BaseEntity {
         this.totalAmount = this.totalAmount.add(line.getSubtotal());
     }
 
-    /** 라인 합계 재계산 — 도메인 일관성 보존 (모든 라인 추가 후 호출). */
+    /**
+     * 라인 합계 재계산 — active line snapshot 기준 최종 합계를 다시 만든다.
+     *
+     * <p>{@link #addLine(PartnerOrderLine)} 이 추가 시점에 누적 합계를 유지하고, 본 메서드는 저장 직전/라인 교체 후
+     * 방어적으로 재합산한다. 둘을 연속 호출해도 결과는 active line subtotal 합계와 동일하다.
+     */
     public void recomputeTotal() {
         BigDecimal sum = BigDecimal.ZERO;
         for (PartnerOrderLine l : this.lines) {

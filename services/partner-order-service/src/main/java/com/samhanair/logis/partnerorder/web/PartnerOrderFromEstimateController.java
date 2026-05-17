@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,9 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PartnerOrderFromEstimateController {
 
-    private static final String CALLER_ID_HEADER = "X-User-Id";
-    private static final String CALLER_NAME_HEADER = "X-User-Name";
-
     private final PartnerOrderFromEstimateService fromEstimateService;
 
     /**
@@ -38,8 +36,8 @@ public class PartnerOrderFromEstimateController {
     @PreAuthorize("hasAnyRole('SALES','MASTER','MANAGER')")
     public ApiResponse<PartnerOrderDetailResponse> createFromEstimate(
             @PathVariable UUID estimateId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(fromEstimateService.createFromEstimate(
                 estimateId, parseActorId(callerId), resolveName(callerId, callerName)));
     }

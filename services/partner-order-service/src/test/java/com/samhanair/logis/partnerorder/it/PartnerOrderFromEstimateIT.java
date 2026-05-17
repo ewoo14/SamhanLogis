@@ -4,6 +4,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.audit.repository.PartnerOrderAuditLogRepository;
@@ -13,6 +14,7 @@ import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
+import com.samhanair.logis.partnerorder.domain.SlipPublishStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
@@ -94,6 +96,16 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.memo").value("견적 메모"))
                 .andExpect(jsonPath("$.data.lines.length()").value(2))
                 .andExpect(jsonPath("$.data.lines[0].modelCode").value("AJ040RXH4BC1"));
+
+        Integer convertedRows = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_orders
+                 WHERE source_estimate_id = ?
+                   AND due_date = DATE '2026-05-30'
+                   AND slip_publish_status = ?
+                   AND is_deleted = FALSE
+                """, Integer.class, estimateId, SlipPublishStatus.NOT_REQUIRED.name());
+        assertThat(convertedRows).isEqualTo(1);
     }
 
     @Test
@@ -128,6 +140,26 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = {"MANAGER"})
+    void testFromEstimateSuccessRecordsAuditLog() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(snapshot(estimateId)));
+
+        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated());
+
+        Integer auditRows = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_order_audit_logs
+                 WHERE field_name = 'FROM_ESTIMATE'
+                   AND new_value = '견적-2026-0001'
+                   AND actor_name = '영업담당자'
+                """, Integer.class);
+        assertThat(auditRows).isEqualTo(1);
     }
 
     private EstimateClient.EstimateSnapshot snapshot(UUID estimateId) {

@@ -9,10 +9,11 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class PartnerOrderFromEstimateService {
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
     private final EstimateClient estimateClient;
+    private final EntityManager entityManager;
 
     /**
      * 견적 UUID 를 주문으로 변환한다. 동일 estimateId 는 active 주문 1건만 허용한다.
@@ -44,9 +46,6 @@ public class PartnerOrderFromEstimateService {
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND.getDefaultMessage()));
-        if (partnerOrderRepository.findBySourceEstimateId(snapshot.estimateId()).isPresent()) {
-            throw alreadyConverted();
-        }
 
         PartnerOrder order = PartnerOrder.createFromEstimate(
                 snapshot.partnerCode(),
@@ -82,6 +81,9 @@ public class PartnerOrderFromEstimateService {
 
     private String nextOrderNo() {
         String datePrefix = LocalDate.now().format(ORDER_NO_DATE);
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, "partner_order_seq_" + datePrefix)
+                .getSingleResult();
         int maxSeq = 0;
         for (PartnerOrder order : partnerOrderRepository.findAllByOrderNoStartingWith(datePrefix)) {
             maxSeq = Math.max(maxSeq, extractOrderSeq(datePrefix, order.getOrderNo()));

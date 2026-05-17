@@ -23,6 +23,7 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -80,6 +81,7 @@ public class PartnerOrderConfirmService {
     private final SlipServiceClient slipServiceClient;
 
     private final ObjectMapper objectMapper;
+    private final EntityManager entityManager;
 
     /**
      * 임시저장 → 확정 흐름. draftId 가 있으면 draft 의 draftSeq 를 idempotencyKey 시드로 사용.
@@ -205,6 +207,9 @@ public class PartnerOrderConfirmService {
     /** 사용자 표시 주문번호 — 날짜별 마지막 순번 + 1, 공개 업무번호 표준({@code yyyy/MM/dd-N}). */
     private String nextOrderNo() {
         String datePrefix = LocalDate.now().format(ORDER_NO_DATE);
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, "partner_order_seq_" + datePrefix)
+                .getSingleResult();
         int maxSeq = 0;
         for (PartnerOrder order : orderRepository.findAllByOrderNoStartingWith(datePrefix)) {
             maxSeq = Math.max(maxSeq, extractOrderSeq(datePrefix, order.getOrderNo()));

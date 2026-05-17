@@ -60,6 +60,7 @@ export function SalesPartnerOrderDetailPage() {
   const navigate = useNavigate()
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
+  const orderId = id!
   const canEdit = !!auth?.role && EDIT_ROLES.includes(auth.role)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -82,13 +83,13 @@ export function SalesPartnerOrderDetailPage() {
 
   const auditQuery = useQuery({
     queryKey: ['partner-order', id, 'audit-logs'],
-    queryFn: () => partnerOrderAuditApi.listAuditLogs(query.data!.orderNumber),
+    queryFn: () => partnerOrderAuditApi.listAuditLogs(orderId),
     enabled: !!query.data?.orderNumber,
     retry: 1,
   })
 
   const updateMutation = useMutation({
-    mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(query.data!.orderNumber, request),
+    mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(orderId, request),
     onSuccess: async (updated) => {
       setConflictMessage(null)
       setReloadSuccessMessage(null)
@@ -106,7 +107,7 @@ export function SalesPartnerOrderDetailPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () => deletePartnerOrder(query.data!.orderNumber),
+    mutationFn: () => deletePartnerOrder(orderId),
     onSuccess: async () => {
       setDeleteErrorMessage(null)
       setDeleteOpen(false)
@@ -206,7 +207,7 @@ export function SalesPartnerOrderDetailPage() {
             {query.data && canEdit ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="danger"
                 data-testid="partner-order-delete-open"
                 onClick={() => {
                   setDeleteErrorMessage(null)
@@ -216,7 +217,7 @@ export function SalesPartnerOrderDetailPage() {
                 삭제
               </Button>
             ) : null}
-            <Link to="/sales/partner-orders" className={styles['btnGhost']}>
+            <Link to="/sales/partner-orders" className={`${styles['btnGhost']} ${styles['listBackLink']}`}>
               ← 목록
             </Link>
           </div>
@@ -340,9 +341,9 @@ export function SalesPartnerOrderDetailPage() {
                 </div>
               ) : (
                 <div data-testid="partner-order-edit-audit-timeline">
-                  {auditQuery.data!.map((entry) => (
+                  {auditQuery.data!.map((entry, index) => (
                     <div
-                      key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}`}
+                      key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
                       className={styles['historyRow']}
                     >
                       <strong>{entry.actorName}</strong>
@@ -523,7 +524,7 @@ export function SalesPartnerOrderDetailPage() {
             </Button>
             <Button
               type="button"
-              variant="primary"
+              variant="danger"
               data-testid="partner-order-delete-confirm"
               disabled={deleteMutation.isPending || !query.data}
               onClick={() => {
@@ -538,7 +539,7 @@ export function SalesPartnerOrderDetailPage() {
       >
         <div data-testid="partner-order-delete-confirm-dialog">
           <p>
-            주문서 {query.data?.orderNumber ?? ''}를 삭제하시겠습니까?
+            주문서 <strong>{query.data?.orderNumber ?? '조회 중'}</strong>을(를) 삭제하시겠습니까?
           </p>
           <p>삭제 후 목록과 상세 조회에서 제외됩니다.</p>
           {deleteErrorMessage ? (

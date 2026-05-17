@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PartnerOrderDeleteService {
 
-    private static final String DELETE_ACTOR = "system-partner-order-delete";
     private static final Set<PartnerOrderStatus> DELETABLE_STATUSES =
             EnumSet.of(PartnerOrderStatus.DRAFT, PartnerOrderStatus.CONFIRMING);
 
@@ -44,9 +43,16 @@ public class PartnerOrderDeleteService {
                     ErrorCode.PARTNER_ORDER_DELETE_FORBIDDEN_STATUS,
                     ErrorCode.PARTNER_ORDER_DELETE_FORBIDDEN_STATUS.getDefaultMessage());
         }
-        order.softDeleteCascade(DELETE_ACTOR);
+        order.softDeleteCascade(resolveActorName(actorName));
         partnerOrderRepository.saveAndFlush(order);
         auditLogService.recordBatch(order, actorId, actorName, null,
                 List.of(new ChangeEntry("DELETE", null, "soft-deleted")));
+    }
+
+    private String resolveActorName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return "system";
+        }
+        return actorName;
     }
 }

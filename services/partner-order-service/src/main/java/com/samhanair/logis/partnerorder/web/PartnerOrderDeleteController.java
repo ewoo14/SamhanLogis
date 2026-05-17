@@ -1,5 +1,6 @@
 package com.samhanair.logis.partnerorder.web;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDeleteService;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
@@ -21,9 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PartnerOrderDeleteController {
 
-    private static final String CALLER_ID_HEADER = "X-User-Id";
-    private static final String CALLER_NAME_HEADER = "X-User-Name";
-
     private final PartnerOrderDeleteService deleteService;
 
     /**
@@ -36,8 +34,8 @@ public class PartnerOrderDeleteController {
     @PreAuthorize("hasAnyRole('SALES','MASTER','MANAGER')")
     public void delete(
             @PathVariable String id,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName) {
         deleteService.delete(id, parseActorId(callerId), resolveName(callerId, callerName));
     }
 

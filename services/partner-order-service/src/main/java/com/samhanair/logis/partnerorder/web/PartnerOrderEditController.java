@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
@@ -28,9 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PartnerOrderEditController {
 
-    private static final String CALLER_ID_HEADER = "X-User-Id";
-    private static final String CALLER_NAME_HEADER = "X-User-Name";
-
     private final PartnerOrderUpdateService updateService;
 
     /**
@@ -43,8 +41,8 @@ public class PartnerOrderEditController {
     public ApiResponse<PartnerOrderDetailResponse> update(
             @PathVariable String id,
             @Valid @RequestBody PartnerOrderUpdateRequest request,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(updateService.update(id, request, parseActorId(callerId),
                 resolveName(callerId, callerName)));
     }
