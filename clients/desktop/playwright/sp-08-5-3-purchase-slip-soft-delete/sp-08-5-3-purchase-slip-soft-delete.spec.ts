@@ -93,6 +93,11 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
     expect(page).toContain('Modal')
     expect(page).toContain('variant="danger"')
 
+    // 422 inspection banner — alert() 제거 확인 + banner testid 확인
+    expect(page).toContain('purchase-slip-delete-inspection-banner')
+    expect(page).toContain('danger-banner')
+    expect(page).not.toContain("alert('검수 완료된 매입 전표")
+
     // API
     expect(api).toContain('deletePurchaseSlip')
     expect(api).toContain('apiClient.delete')
@@ -159,11 +164,13 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
 
     expect(controller).toContain("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
 
-    // SlipDeleteIT 가 INVENTORY/SALES/ACCOUNTANT/NonInbound 패턴 포함 확인
+    // SlipDeleteIT 가 INVENTORY/SALES/ACCOUNTANT/NonInbound/D8b 패턴 포함 확인
     expect(deleteIt).toContain('testDeleteForbiddenForInventory')
     expect(deleteIt).toContain('testDeleteForbiddenForSales')
     expect(deleteIt).toContain('testDeleteForbiddenForAccountant')
     expect(deleteIt).toContain('testDeleteNonInboundForbidden')
+    // D8b: CONFIRMED 단계 전표 422 케이스 추가
+    expect(deleteIt).toContain('testDeleteConfirmedReturns422')
 
     // controller 에 INVENTORY/SALES/ACCOUNTANT 허용 역할 미포함 확인 (명시적 방어)
     expect(controller).not.toContain("'INVENTORY'")

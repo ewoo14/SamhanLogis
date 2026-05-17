@@ -23,6 +23,8 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -49,7 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>WAREHOUSE / MANAGER / MASTER 가 INBOUND 전표를 {@code updatedAt} 낙관적 잠금으로
  * 삭제하는 경로를 잠근다. 비-INBOUND, 이미 삭제됨, 권한 없음, stale 잠금, 검수 진행 단계
- * 등 8 케이스를 검증한다.
+ * 등 10 케이스를 검증한다.
  *
  * <p>정책 결정 (InboundInspection):
  * slip-service 에 별도 InboundInspection 도메인이 없으므로,
@@ -79,6 +81,9 @@ class SlipDeleteIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipAuditLogRepository auditLogRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @MockBean
     private InventoryClient inventoryClient;
@@ -146,8 +151,12 @@ class SlipDeleteIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(deleteBody(updatedAt))))
                 .andExpect(status().isOk());
 
-        // DB 에서 soft-delete 확인 (SQLRestriction 우회 — native findById 는 isDeleted=true 도 로드 가능)
-        // @SQLRestriction 이 있으므로 is_deleted=true 행은 findById 로 조회 불가 → 404 확인으로 대체
+        // @Transactional 환경: DELETE 후 1차 캐시에 isDeleted=true 엔티티가 남아
+        // @SQLRestriction 이 우회될 수 있으므로 flush() + clear() 로 캐시 완전 소거
+        slipRepository.flush();
+        entityManager.clear();
+
+        // @SQLRestriction(is_deleted=false) 로 인해 삭제된 행은 새 SELECT 에서 필터링 → 404
         mockMvc.perform(get(SLIPS_PATH + "/" + id)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "MASTER"))
@@ -177,6 +186,8 @@ class SlipDeleteIT extends AbstractPostgresIT {
         Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
         slip.markDeleted("test");
         slipRepository.flush();
+        // markDeleted() 후 1차 캐시 소거 — @SQLRestriction 이 후속 findById 에 정상 적용되도록
+        entityManager.clear();
 
         mockMvc.perform(delete(SLIPS_PATH + "/" + id)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
@@ -237,6 +248,35 @@ class SlipDeleteIT extends AbstractPostgresIT {
         slipRepository.flush();
 
         // updatedAt 갱신 후 다시 가져옴
+        String freshUpdatedAt = updatedAt(id);
+
+        mockMvc.perform(delete(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteBody(freshUpdatedAt))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is("SLIP_DELETE_INSPECTION_COMPLETED")));
+    }
+
+    @Test
+    @DisplayName("D8b: CONFIRMED 단계 전표도 422 SLIP_DELETE_INSPECTION_COMPLETED 를 반환한다")
+    void testDeleteConfirmedReturns422() throws Exception {
+        String id = createSlip("INBOUND", "SP0853-확정전표");
+
+        // DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING → COMPLETED → CONFIRMED
+        Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        slip.save();
+        slip.send();
+        slip.accept("시스템");
+        slip.process();
+        slip.complete();    // PROCESSING → INSPECTING
+        slip.inspect("시스템"); // INSPECTING → COMPLETED
+        slip.confirm();     // COMPLETED → CONFIRMED (입고전표)
+        slipRepository.flush();
+        entityManager.clear();
+
         String freshUpdatedAt = updatedAt(id);
 
         mockMvc.perform(delete(SLIPS_PATH + "/" + id)

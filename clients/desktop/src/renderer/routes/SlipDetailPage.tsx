@@ -227,6 +227,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // SP-08-5-3: 매입 soft delete confirm modal state.
   const [purchaseDeleteOpen, setPurchaseDeleteOpen] = useState(false)
   const [purchaseDeleteConflict, setPurchaseDeleteConflict] = useState(false)
+  const [purchaseDeleteInspectionAlert, setPurchaseDeleteInspectionAlert] = useState<string | null>(null)
 
   // SP-08-5-2: 매입 direct PUT 수정 modal state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
@@ -442,8 +443,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           return
         }
         if (status === 422) {
-          alert('검수 완료된 매입 전표는 삭제할 수 없습니다')
-          setPurchaseDeleteOpen(false)
+          setPurchaseDeleteInspectionAlert('검수 완료된 매입 전표는 삭제할 수 없습니다')
           return
         }
         if (status === 403) {
@@ -881,6 +881,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               data-testid="purchase-slip-delete-button"
               onClick={() => {
                 setPurchaseDeleteConflict(false)
+                setPurchaseDeleteInspectionAlert(null)
                 setPurchaseDeleteOpen(true)
               }}
             >
@@ -1970,6 +1971,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           if (!deletePurchaseSlipMutation.isPending) {
             setPurchaseDeleteOpen(false)
             setPurchaseDeleteConflict(false)
+            setPurchaseDeleteInspectionAlert(null)
           }
         }}
         title="매입 전표 삭제"
@@ -1983,6 +1985,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               onClick={() => {
                 setPurchaseDeleteOpen(false)
                 setPurchaseDeleteConflict(false)
+                setPurchaseDeleteInspectionAlert(null)
               }}
               disabled={deletePurchaseSlipMutation.isPending}
               data-testid="purchase-slip-delete-confirm-no"
@@ -1994,7 +1997,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               variant="danger"
               loading={deletePurchaseSlipMutation.isPending}
               disabled={deletePurchaseSlipMutation.isPending}
-              onClick={() => deletePurchaseSlipMutation.mutate()}
+              onClick={() => {
+                if (deletePurchaseSlipMutation.isPending) return
+                deletePurchaseSlipMutation.mutate()
+              }}
               data-testid="purchase-slip-delete-confirm-yes"
             >
               삭제
@@ -2016,12 +2022,22 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           >
             전표번호: <strong>{slip.slipNo}</strong>
           </p>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger-700, #B91C1C)' }}>
+          <p style={{ margin: 0, fontSize: 13 }} className="danger-text">
             삭제된 전표는 복구할 수 없습니다.
           </p>
+          {purchaseDeleteInspectionAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="purchase-slip-delete-inspection-banner"
+              style={{ marginTop: 12 }}
+            >
+              {purchaseDeleteInspectionAlert}
+            </div>
+          )}
           {purchaseDeleteConflict ? (
             <div
-              className="error-banner"
+              className="danger-banner"
               role="alert"
               data-testid="purchase-slip-delete-conflict-banner"
               style={{ marginTop: 12 }}

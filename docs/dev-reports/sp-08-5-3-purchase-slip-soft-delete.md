@@ -58,9 +58,9 @@ WAREHOUSE / MANAGER / MASTER 가 DRAFT 또는 SAVED 상태의 INBOUND 전표를
 |---|---|
 | Playwright 정적 5 case | PASS: 5 / 0 failed |
 | PNG 4장 생성 | PASS: 4 PNG, 19~27 KB (한국어 정상 렌더) |
-| BE IT 9 case (BE agent 작성 예정) | 미수신 — 아래 §8 참조 |
+| Spring targeted IT 10 case | PASS: 10 tests / 0 failed |
 
-### BE IT 9 case 명세 (BE agent 참조용)
+### BE IT 10 case 명세
 
 | case | 검증 내용 |
 |---|---|
@@ -71,7 +71,8 @@ WAREHOUSE / MANAGER / MASTER 가 DRAFT 또는 SAVED 상태의 INBOUND 전표를
 | `testDeleteForbiddenForSales` | SALES role → 403 |
 | `testDeleteForbiddenForAccountant` | ACCOUNTANT role → 403 |
 | `testDeleteNonInboundForbidden` | OUTBOUND 전표 삭제 시도 → 403 `SLIP_DELETE_NON_INBOUND` |
-| `testDeleteInspectionCompletedReturns422` | INSPECTING/PROCESSING 전표 → 422 `SLIP_DELETE_INSPECTION_COMPLETED` |
+| `testDeleteInspectionCompletedReturns422` | INSPECTING 단계 전표 → 422 `SLIP_DELETE_INSPECTION_COMPLETED` |
+| `testDeleteConfirmedReturns422` (D8b) | CONFIRMED 단계 전표 → 422 `SLIP_DELETE_INSPECTION_COMPLETED` |
 | `testDeleteAuditLogRecorded` | 삭제 성공 후 `SLIP_DELETE` audit log 1건 조회 확인 |
 
 ## 7. Internal API UUID 정책 (SP-08-5-1 정합)

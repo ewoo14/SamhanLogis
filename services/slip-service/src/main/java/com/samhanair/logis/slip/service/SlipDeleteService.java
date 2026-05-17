@@ -66,7 +66,7 @@ public class SlipDeleteService {
 
         String before = summarize(slip);
         try {
-            slip.deleteForPurchase(actorId == null ? null : actorId.toString());
+            slip.deleteForPurchase(actorId.toString());
             Slip saved = slipRepository.saveAndFlush(slip);
             String after = "deleted=true|deletedAt=" + saved.getDeletedAt();
             auditLogService.recordBatch(saved.getId(), actorId, actorName, null,
