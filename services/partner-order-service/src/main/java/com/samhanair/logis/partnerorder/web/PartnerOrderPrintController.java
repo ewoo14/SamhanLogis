@@ -31,8 +31,7 @@ public class PartnerOrderPrintController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER','PARTNER')")
     public String print(
             @PathVariable String id,
-            @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String callerRole,
             @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
-        return printService.renderPrintHtml(id, callerRole, partnerCode);
+        return printService.renderPrintHtml(id, partnerCode);
     }
 }

@@ -40,21 +40,20 @@ public class PartnerOrderPrintService {
      * 주문번호 또는 내부 UUID 문자열로 인쇄 HTML 을 생성한다.
      *
      * @param id 주문번호 또는 내부 UUID 문자열
-     * @param callerRole 호출자 역할
      * @param callerPartnerCode PARTNER 본인 거래처 코드
      * @return 인쇄 전용 HTML
      */
-    public String renderPrintHtml(String id, String callerRole, String callerPartnerCode) {
+    public String renderPrintHtml(String id, String callerPartnerCode) {
         PartnerOrder order = PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
-        assertPartnerOwnOrder(order, effectiveRole(callerRole), callerPartnerCode);
+        assertPartnerOwnOrder(order, callerPartnerCode);
         return render(order);
     }
 
-    private void assertPartnerOwnOrder(PartnerOrder order, String callerRole, String callerPartnerCode) {
-        if (!"PARTNER".equalsIgnoreCase(nullToEmpty(callerRole))) {
+    private void assertPartnerOwnOrder(PartnerOrder order, String callerPartnerCode) {
+        if (!isPartnerAuthority()) {
             return;
         }
         if (callerPartnerCode == null || callerPartnerCode.isBlank()
@@ -63,19 +62,13 @@ public class PartnerOrderPrintService {
         }
     }
 
-    private String effectiveRole(String callerRole) {
-        if (callerRole != null && !callerRole.isBlank()) {
-            return callerRole.trim();
-        }
+    private boolean isPartnerAuthority() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            return "";
+            return false;
         }
         return authentication.getAuthorities().stream()
-                .map(authority -> authority.getAuthority().replaceFirst("^ROLE_", ""))
-                .filter(role -> "PARTNER".equalsIgnoreCase(role))
-                .findFirst()
-                .orElse("");
+                .anyMatch(authority -> "ROLE_PARTNER".equals(authority.getAuthority()));
     }
 
     private String render(PartnerOrder order) {
@@ -228,6 +221,10 @@ public class PartnerOrderPrintService {
                     @media print {
                       @page { size: A4; margin: 0; }
                       body { background: #fff; }
+                      thead { display: table-header-group; }
+                      tfoot { display: table-footer-group; }
+                      tr { page-break-inside: avoid; }
+                      .summary, .memo, .sign-grid { break-inside: avoid; }
                       .page {
                         width: 210mm;
                         min-height: 297mm;

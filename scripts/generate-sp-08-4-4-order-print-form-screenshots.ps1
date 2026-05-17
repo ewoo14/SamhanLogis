@@ -113,12 +113,12 @@ New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11
 
 New-Canvas (Join-Path $out "02-a4-order-print-form.png") (K "\uC8FC\uBB38 \uC778\uC1C4 \uC591\uC2DD A4 mock") (K "Pretendard Variable \uC6B0\uC120, \uAC70\uB798\uCC98\uBA85/\uD55C\uAD6D\uC5B4 \uC0C1\uD0DC/\uB0A0\uC778\uB780 \uD3EC\uD568") {
     param($g)
-    Draw-A4Order $g 420 32 1.0 $false
+    Draw-A4Order $g 510 32 1.0 $false
 }
 
 New-Canvas (Join-Path $out "03-partner-own-order-print-success.png") (K "PARTNER \uBCF8\uC778 \uC8FC\uBB38 \uC778\uC1C4") (K "X-Partner-Code=P-PRINT-A \uB9E4\uCE6D \uC2DC 200 HTML") {
     param($g)
-    Draw-A4Order $g 420 32 1.0 $true
+    Draw-A4Order $g 510 32 1.0 $true
 }
 
 New-Canvas (Join-Path $out "04-partner-other-order-print-403.png") (K "PARTNER \uD0C0 \uAC70\uB798\uCC98 \uC8FC\uBB38 403") (K "\uBCF8\uC778 \uAC70\uB798\uCC98 \uC8FC\uBB38\uC11C\uB9CC \uC778\uC1C4\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.") {

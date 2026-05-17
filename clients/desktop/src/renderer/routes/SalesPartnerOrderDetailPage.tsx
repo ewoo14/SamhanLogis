@@ -167,11 +167,16 @@ export function SalesPartnerOrderDetailPage() {
       )
       const blob = new Blob([response.data], { type: 'text/html;charset=UTF-8' })
       const url = URL.createObjectURL(blob)
-      const opened = window.open(url, '_blank', 'noopener,noreferrer')
+      const opened = window.open(url, '_blank')
       if (!opened) {
         URL.revokeObjectURL(url)
-        setPrintErrorMessage('인쇄 창을 열 수 없습니다. 팝업 차단 설정을 확인해 주세요.')
+        setPrintErrorMessage('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.')
         return
+      }
+      try {
+        opened.opener = null
+      } catch {
+        // Browser engines can reject opener mutation for special windows.
       }
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (error) {

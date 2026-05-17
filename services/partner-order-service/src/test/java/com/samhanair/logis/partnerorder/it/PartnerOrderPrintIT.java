@@ -136,6 +136,19 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     }
 
     @Test
+    @WithMockUser(username = "partner-user", roles = {"PARTNER"})
+    void testPrintPartnerSpoofedRoleHeaderRejected() throws Exception {
+        saveOrder("2026/05/17-46", "P-PRINT-OWN", "3030303030", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-46")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                        .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-OTHER"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     @WithMockUser(username = "manager", roles = {"MANAGER"})
     void testPrintHtmlContentContainsOrderNumber() throws Exception {
         saveOrder("2026/05/17-45", "P-PRINT-C", "5050505050", false);
