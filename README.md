@@ -46,7 +46,8 @@
 - SP-08-4-3: 거래처 주문 soft delete + 견적 주문 변환 endpoint 진행. `DELETE /api/v1/partner-orders/{id}`는 `DRAFT / CONFIRMING` 주문만 헤더/라인 전체 soft-delete하고, `POST /api/v1/partner-orders/from-estimate/{estimateId}`는 `source_estimate_id` active unique로 중복 변환을 차단한다. desktop 상세에는 운영자 삭제 확인 Modal을 추가하고, 견적 변환 UI는 estimate-app 후속 슬라이스로 분리한다.
 - SP-08-4 시리즈: 주문 CRUD parity 4개 PR 완료. 목록·상세(#216), direct PUT(#217), soft delete+견적 변환(#218), 인쇄 양식(#219)이 main `d5c3d573`까지 머지됐다.
 - SP-08-5-1: 매입 목록·상세 endpoint 잠금 진행. 매입은 `slip-service` `Slip(type=INBOUND)`로 유지하고, `GET /api/v1/slips?type=INBOUND&from=&to=` alias와 `GET /api/v1/slips/{id}` 상세를 `WAREHOUSE / MANAGER / MASTER` 권한으로 잠근다. `INVENTORY`는 SP-03 검수 CTA 정책과 동일하게 제외한다.
-- 다음 후보: SP-08-5-2 매입 수정 direct PUT, SP-08-5-3 매입 soft delete + 검수 연계, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
+- SP-08-5-2: 매입 수정 direct PUT 진행. `PUT /api/v1/slips/{id}`는 INBOUND 전표만 `WAREHOUSE / MANAGER / MASTER`가 `updatedAt` 낙관적 잠금으로 헤더/라인을 즉시 수정하며, 기존 `SlipEditRequestController` 요청·승인 흐름은 별도로 유지한다. `SLIP_EDIT` audit revision을 기록하고, 화면에는 구매번호/변경자명만 표시한다.
+- 다음 후보: SP-08-5-3 매입 soft delete + 검수 연계, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
 
 ## 시스템 구조 (Mermaid)
 

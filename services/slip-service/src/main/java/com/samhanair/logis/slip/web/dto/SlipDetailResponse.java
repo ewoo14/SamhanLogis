@@ -51,6 +51,7 @@ public record SlipDetailResponse(
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime confirmedAt,
+        LocalDateTime updatedAt,
         String dispatcherUserId,
         LocalDateTime dispatcherSignedAt,
         String inspectorUserId,
@@ -101,6 +102,7 @@ public record SlipDetailResponse(
                 slip.getAcceptedAt(),
                 slip.getCompletedAt(),
                 slip.getConfirmedAt(),
+                updatedAtOf(slip),
                 slip.getDispatcherUserId(),
                 slip.getDispatcherSignedAt(),
                 slip.getInspectorUserId(),
@@ -129,5 +131,9 @@ public record SlipDetailResponse(
             case SAVED, CONFIRMED -> InspectionReadyStatus.READY;
             default -> InspectionReadyStatus.NOT_READY;
         };
+    }
+
+    private static LocalDateTime updatedAtOf(Slip slip) {
+        return slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt();
     }
 }

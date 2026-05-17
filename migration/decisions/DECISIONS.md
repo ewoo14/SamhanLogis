@@ -2018,3 +2018,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-4-3-07 | `partner_orders.source_estimate_id` nullable 컬럼과 active unique index로 이미 변환된 estimate 재시도를 `PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED` 409로 차단한다. |
 | SP-08-4-3-08 | 현재 partner-order-service에서 호출 가능한 estimate-service client가 없어 `EstimateClient` port + 기본 empty fixture로 계약을 먼저 둔다. IT는 `@MockBean` snapshot으로 실제 변환 계약을 검증하고, 실제 HTTP client는 후속 estimate-service 분리 시 교체한다. |
 | SP-08-4-3-09 | desktop 본 PR 범위는 주문 상세 삭제 버튼/확인 Modal만 포함한다. 견적 변환 UI는 외부 `estimate-app` 흐름과 분리되어 후속 슬라이스에서 다룬다. |
+
+### SP-08-5-2. 매입 수정 direct PUT endpoint (2026-05-18)
+
+**배경**: SP-08-5 매입 CRUD parity 중 U1 매입 수정은 legacy GAS 운영자가 구매/매입 전표 row를 즉시 수정하던 사용감을 보존해야 한다. 매입은 별도 `PurchaseSlip` 없이 `slip-service`의 `Slip(type=INBOUND)`로 유지한다.
+
+| 결정 ID | 결정 |
+|---|---|
+| SP-08-5-2-01 | 매입 direct 수정 endpoint는 `PUT /api/v1/slips/{id}`로 둔다. gateway strip 이후 service controller path는 `/slips/{id}`이며 path `{id}`는 내부 UUID를 받지만 화면에는 구매번호만 표시한다. |
+| SP-08-5-2-02 | direct PUT 권한은 `WAREHOUSE / MANAGER / MASTER`로 제한한다. `INVENTORY / SALES / ACCOUNTANT`는 403이며, desktop에서는 수정 버튼을 렌더링하지 않는다. |
+| SP-08-5-2-03 | 수정 대상은 `SlipType.INBOUND`만 허용한다. OUTBOUND 전표 direct 수정은 403으로 차단하고 별도 판매/출고 수정 흐름과 혼용하지 않는다. |
+| SP-08-5-2-04 | 낙관적 잠금은 request `updatedAt`과 현재 `modifiedAt`을 비교한다. legacy row처럼 `modifiedAt`이 없으면 `createdAt`으로 fallback한다. 불일치 시 `SLIP_OPTIMISTIC_LOCK_CONFLICT` 409를 반환한다. |
+| SP-08-5-2-05 | JPA optimistic lock 컬럼은 V1부터 존재하는 `slips.version`을 재사용한다. 신규 `lock_version` 컬럼은 만들지 않는다. |
+| SP-08-5-2-06 | 라인 수정은 전체 교체 방식(`replaceLines`)으로 구현하되 기존 라인은 hard delete 하지 않고 `markDeleted` 처리한다. 잘못된 라인은 `SLIP_UPDATE_INVALID_LINE` 422로 거절한다. |
+| SP-08-5-2-07 | direct PUT 성공 시 `slip_audit_logs`에 `SLIP_EDIT` action을 같은 revision 1건으로 기록한다. 화면과 QA PNG에는 내부 UUID/actorId 대신 구매번호/변경자명만 표시한다. |
+| SP-08-5-2-08 | 기존 `SlipEditRequestController` 요청·승인 flow는 유지한다. direct PUT은 본사 운영자 즉시 수정 전용 별도 controller/service로 둔다. |

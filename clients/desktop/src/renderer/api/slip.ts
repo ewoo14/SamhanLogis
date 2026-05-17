@@ -41,6 +41,7 @@ export interface SlipSummary {
   acceptedAt: string | null
   completedAt: string | null
   confirmedAt: string | null
+  updatedAt: string
   version: number
 }
 
@@ -174,6 +175,21 @@ export interface SlipLineInput {
   note?: string
 }
 
+/** 매입 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
+export interface SlipUpdateRequest {
+  updatedAt: string
+  partnerName?: string | null
+  partnerCode?: string | null
+  memo?: string | null
+  businessNumber?: string | null
+  deliveryAddress?: string | null
+  supervisionAddress?: string | null
+  projectName?: string | null
+  recipientPhone?: string | null
+  paymentDueDate?: string | null
+  lines: SlipLineInput[]
+}
+
 /** 신규 전표 생성 요청 body — BE `CreateSlipRequest`. */
 export interface CreateSlipRequest {
   slipType: SlipType
@@ -287,6 +303,23 @@ export async function createSlip(
   body: CreateSlipRequest,
 ): Promise<SlipDetail> {
   const res = await apiClient.post<ApiEnvelope<SlipDetail>>('/slips', body)
+  return res.data.data
+}
+
+/**
+ * 매입 전표 direct PUT 수정.
+ *
+ * @param id 전표 UUID (path param 전용, 화면 표시 금지)
+ * @param body updatedAt 낙관적 잠금 + 헤더/라인 전체 교체 요청
+ */
+export async function updatePurchaseSlip(
+  id: string,
+  body: SlipUpdateRequest,
+): Promise<SlipDetail> {
+  const res = await apiClient.put<ApiEnvelope<SlipDetail>>(
+    `/slips/${encodeURIComponent(id)}`,
+    body,
+  )
   return res.data.data
 }
 

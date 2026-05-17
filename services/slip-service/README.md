@@ -96,6 +96,21 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 - 목록 기본 정렬은 `slipDate DESC, seqNo DESC`.
 - 상세 `inspectionStatus`: INBOUND `SAVED / CONFIRMED`는 `READY`, 그 외는 `NOT_READY`.
 
+### SP-08-5-2 매입 수정 direct PUT (2026-05-18 구현)
+
+legacy GAS의 매입 row 즉시 수정 사용감을 `Slip(type=INBOUND)` direct PUT으로 고정한다.
+
+| Method | Path | 권한 | 비고 |
+|---|---|---|---|
+| PUT | `/api/v1/slips/{id}` | WAREHOUSE / MANAGER / MASTER | gateway strip 후 `/slips/{id}`; INBOUND 전용 |
+
+정책:
+- `updatedAt` 낙관적 잠금으로 stale edit을 409 `SLIP_OPTIMISTIC_LOCK_CONFLICT`로 차단한다.
+- 라인 누락/수량·단가 0 이하/상품 ID 누락은 422 `SLIP_UPDATE_INVALID_LINE`으로 차단한다.
+- 성공 시 `slip_audit_logs`에 `SLIP_EDIT` action을 revision 1건으로 기록한다.
+- V1부터 존재하는 `slips.version` JPA `@Version` 컬럼을 재사용하므로 별도 `lock_version` Flyway는 추가하지 않는다.
+- 기존 `SlipEditRequestController`의 요청→승인 flow는 유지하고, direct PUT은 본사 운영자 즉시 수정 전용으로 분리한다.
+
 ### SP-08-3-3 전표정리 history API (2026-05-17 구현)
 
 legacy GAS `전표정리리스트`의 저장/복원 흐름을 `slip_cleanup_save_history`로 추가했다.

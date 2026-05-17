@@ -54,7 +54,8 @@
 - SP-08-4-3: partner-order 주문 soft delete + 견적 주문 변환 구현 진행. 본사 운영자(`SALES / MANAGER / MASTER`)는 `DELETE /api/v1/partner-orders/{id}`로 `DRAFT / CONFIRMING` 주문을 soft-delete하고, `POST /api/v1/partner-orders/from-estimate/{estimateId}`는 외부 estimate snapshot을 주문 row로 변환하며 `source_estimate_id` 중복을 409로 차단한다.
 - SP-08-4 시리즈 완료: partner-order 주문 목록·상세, 수정, 삭제+견적 변환, 인쇄 양식 4개 PR이 main `d5c3d573`까지 머지됐다.
 - SP-08-5-1 진행: 구매/매입 R1/R2를 `Slip(type=INBOUND)` 기준으로 잠근다. `type=INBOUND` alias, 최신 전표일자 정렬, `WAREHOUSE / MANAGER / MASTER` 권한, `INVENTORY` 제외, 상세 `inspectionStatus`를 IT/Playwright/QA PNG로 고정한다.
-- 다음 후보: SP-08-5-2 매입 수정 direct PUT, SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity.
+- SP-08-5-2 진행: 구매/매입 수정 direct PUT을 `slip-service` `PUT /api/v1/slips/{id}`로 잠근다. INBOUND 전용, `WAREHOUSE / MANAGER / MASTER` 권한, `updatedAt` 낙관적 잠금, 라인 422 검증, `SLIP_EDIT` audit revision, desktop 상세 수정 Modal과 409 최신 내용 불러오기 배너를 정적 계약/QA PNG로 고정한다.
+- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity.
 
 ## Phase 0 — 저장소·가드 정립
 

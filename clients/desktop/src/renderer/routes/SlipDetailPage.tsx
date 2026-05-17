@@ -23,7 +23,7 @@
  * UUID 비공개 가드: id 는 path param 으로만 사용. 화면 표시 영역에는 노출 X.
  * dispatcher.userId / inspector.userId 도 화면 미노출 (이름만 표시).
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   useMutation,
@@ -36,6 +36,7 @@ import {
   Button,
   Card,
   CopyButton,
+  Input,
   KOREAN_MOBILE_PHONE_PATTERN,
   Modal,
   PhoneInput,
@@ -52,8 +53,10 @@ import {
   getSlip,
   removeLine,
   transitionSlip,
+  updatePurchaseSlip,
   updateSlipDriver,
   type SlipDetail,
+  type SlipLineInput,
   type SlipTransitionAction,
   type SlipType,
 } from '../api/slip'
@@ -155,6 +158,30 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
   NOT_READY: '검수 대기',
 }
 
+const PURCHASE_EDIT_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
+
+type PurchaseEditLine = SlipLineInput & { key: string }
+
+function createEditLineKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return Math.random().toString(36).slice(2)
+}
+
+function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
+  return slip.lines.map((line) => ({
+    key: createEditLineKey(),
+    productId: line.productId,
+    productName: line.productName ?? '',
+    modelName: line.modelName ?? '',
+    specification: line.specification ?? '',
+    quantity: line.quantity,
+    unitPrice: String(line.unitPrice),
+    note: line.note ?? '',
+  }))
+}
+
 /**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
@@ -194,12 +221,27 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // PR-H3: 수락/거절 결과 toast (SSE slip:edit-request:decided 수신 시 표시).
   const [decisionToast, setDecisionToast]
     = useState<{ kind: 'success' | 'danger'; text: string } | null>(null)
+  // SP-08-5-2: 매입 direct PUT 수정 modal state.
+  const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
+  const [purchaseConflictMessage, setPurchaseConflictMessage] = useState<string | null>(null)
+  const [purchaseReloadSuccessMessage, setPurchaseReloadSuccessMessage] = useState<string | null>(null)
+  const [purchasePartnerName, setPurchasePartnerName] = useState('')
+  const [purchasePartnerCode, setPurchasePartnerCode] = useState('')
+  const [purchaseBusinessNumber, setPurchaseBusinessNumber] = useState('')
+  const [purchaseMemo, setPurchaseMemo] = useState('')
+  const [purchaseDeliveryAddress, setPurchaseDeliveryAddress] = useState('')
+  const [purchaseProjectName, setPurchaseProjectName] = useState('')
+  const [purchaseRecipientPhone, setPurchaseRecipientPhone] = useState('')
+  const [purchasePaymentDueDate, setPurchasePaymentDueDate] = useState('')
+  const [purchaseEditLines, setPurchaseEditLines] = useState<PurchaseEditLine[]>([])
+  const purchaseReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
     queryFn: () => getSlip(id),
     enabled: !!id,
   })
+  const { refetch: refetchDetail } = detailQuery
 
   // PR-H1: 코멘트 목록 백필 (최근 20건) — useQuery cache 키는 ['slipComments', id]
   const commentsQuery = useQuery({
@@ -336,6 +378,30 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
   })
 
+  const purchaseUpdateMutation = useMutation({
+    mutationFn: (body: Parameters<typeof updatePurchaseSlip>[1]) => updatePurchaseSlip(id, body),
+    onSuccess: async (updated) => {
+      setPurchaseConflictMessage(null)
+      setPurchaseReloadSuccessMessage(null)
+      setPurchaseEditOpen(false)
+      queryClient.setQueryData(['slip', id], updated)
+      await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+      await queryClient.invalidateQueries({ queryKey: ['slips'] })
+      await queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setPurchaseConflictMessage('다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 저장해 주세요.')
+        return
+      }
+      if (axios.isAxiosError(error) && error.response?.status === 422) {
+        setPurchaseConflictMessage('매입 라인 입력값이 올바르지 않습니다. 수량과 단가를 확인해 주세요.')
+        return
+      }
+      setPurchaseConflictMessage('매입 전표 수정에 실패했습니다. 입력값을 확인해 주세요.')
+    },
+  })
+
   /** 라인 제거 (BE: DELETE /slips/{id}/lines/{lineId}). DRAFT/SAVED 만 허용. */
   const removeLineMutation = useMutation({
     mutationFn: (lineId: string) => removeLine(id, lineId),
@@ -401,6 +467,47 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
   })
 
+  const syncPurchaseFormFromData = useCallback((data: SlipDetail) => {
+    setPurchasePartnerName(data.partnerName ?? '')
+    setPurchasePartnerCode(data.partnerCode ?? '')
+    setPurchaseBusinessNumber(data.businessNumber ?? '')
+    setPurchaseMemo(data.memo ?? '')
+    setPurchaseDeliveryAddress(data.deliveryAddress ?? '')
+    setPurchaseProjectName(data.projectName ?? '')
+    setPurchaseRecipientPhone(data.recipientPhone ?? '')
+    setPurchasePaymentDueDate(data.paymentDueDate ?? '')
+    setPurchaseEditLines(toPurchaseEditLines(data))
+  }, [])
+
+  const handlePurchaseConflictReload = useCallback(async () => {
+    const result = await refetchDetail()
+    if (result.data) {
+      syncPurchaseFormFromData(result.data)
+      setPurchaseConflictMessage(null)
+      setPurchaseReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
+      if (purchaseReloadSuccessTimerRef.current) {
+        clearTimeout(purchaseReloadSuccessTimerRef.current)
+      }
+      purchaseReloadSuccessTimerRef.current = setTimeout(() => {
+        setPurchaseReloadSuccessMessage(null)
+        purchaseReloadSuccessTimerRef.current = null
+      }, 3000)
+    }
+  }, [refetchDetail, syncPurchaseFormFromData])
+
+  useEffect(() => {
+    if (!detailQuery.data || purchaseEditOpen) return
+    syncPurchaseFormFromData(detailQuery.data)
+  }, [detailQuery.data, purchaseEditOpen, syncPurchaseFormFromData])
+
+  useEffect(() => {
+    return () => {
+      if (purchaseReloadSuccessTimerRef.current) {
+        clearTimeout(purchaseReloadSuccessTimerRef.current)
+      }
+    }
+  }, [])
+
   if (!id) return null
 
   if (detailQuery.isLoading) {
@@ -417,6 +524,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   const slip = detailQuery.data
   const possibleActions = actionsForStatus(slip.status, mode)
+  const canDirectEditPurchase = mode === 'INBOUND'
+    && !!role
+    && PURCHASE_EDIT_ROLES.includes(role)
 
   /**
    * PR-H3: 창고/관리자 수락이 필요한 단계 (LOCKED_REQUIRES_APPROVAL).
@@ -681,6 +791,21 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 작업지시서
               </Button>
             </>
+          ) : null}
+          {canDirectEditPurchase ? (
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="purchase-slip-edit-open"
+              onClick={() => {
+                syncPurchaseFormFromData(slip)
+                setPurchaseConflictMessage(null)
+                setPurchaseReloadSuccessMessage(null)
+                setPurchaseEditOpen(true)
+              }}
+            >
+              수정
+            </Button>
           ) : null}
           <Button variant="ghost" onClick={() => navigate(listPath)}>
             목록으로
@@ -1525,6 +1650,233 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           })
         }}
       />
+
+      <Modal
+        open={purchaseEditOpen}
+        onClose={() => setPurchaseEditOpen(false)}
+        title="매입 전표 수정"
+        size="xl"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPurchaseEditOpen(false)}
+              disabled={purchaseUpdateMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={purchaseUpdateMutation.isPending}
+              disabled={purchaseUpdateMutation.isPending || purchaseEditLines.length === 0}
+              data-testid="purchase-slip-edit-submit"
+              onClick={() => {
+                purchaseUpdateMutation.mutate({
+                  updatedAt: slip.updatedAt,
+                  partnerName: purchasePartnerName.trim() || null,
+                  partnerCode: purchasePartnerCode.trim() || null,
+                  businessNumber: purchaseBusinessNumber.trim() || null,
+                  memo: purchaseMemo.trim() || null,
+                  deliveryAddress: purchaseDeliveryAddress.trim() || null,
+                  projectName: purchaseProjectName.trim() || null,
+                  recipientPhone: purchaseRecipientPhone.trim() || null,
+                  paymentDueDate: purchasePaymentDueDate || null,
+                  lines: purchaseEditLines.map((line) => ({
+                    productId: line.productId,
+                    productName: line.productName?.trim() || undefined,
+                    modelName: line.modelName?.trim() || undefined,
+                    specification: line.specification?.trim() || undefined,
+                    quantity: Number(line.quantity),
+                    unitPrice: String(line.unitPrice || '0'),
+                    note: line.note?.trim() || undefined,
+                  })),
+                })
+              }}
+            >
+              저장
+            </Button>
+          </>
+        )}
+      >
+        {purchaseConflictMessage ? (
+          <div className="error-banner" role="alert" data-testid="purchase-slip-edit-conflict-banner">
+            <strong>{purchaseConflictMessage}</strong>
+            {purchaseConflictMessage.includes('최신 내용') ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-testid="purchase-slip-edit-reload"
+                onClick={() => void handlePurchaseConflictReload()}
+              >
+                최신 내용 불러오기
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {purchaseReloadSuccessMessage ? (
+          <div role="status" data-testid="purchase-slip-edit-reload-success" className="success-banner">
+            {purchaseReloadSuccessMessage}
+          </div>
+        ) : null}
+
+        <div className="detail-grid" data-testid="purchase-slip-edit-form">
+          <label className="driver-edit-field">
+            <span className="detail-label">구매번호</span>
+            <Input inputSize="sm" readOnly value={slip.slipNo} aria-label="구매번호" />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">거래처</span>
+            <Input
+              inputSize="sm"
+              value={purchasePartnerName}
+              onChange={(e) => setPurchasePartnerName(e.target.value)}
+              aria-label="거래처"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">거래처코드</span>
+            <Input
+              inputSize="sm"
+              value={purchasePartnerCode}
+              onChange={(e) => setPurchasePartnerCode(e.target.value)}
+              aria-label="거래처코드"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">사업자번호</span>
+            <Input
+              inputSize="sm"
+              value={purchaseBusinessNumber}
+              onChange={(e) => setPurchaseBusinessNumber(e.target.value)}
+              aria-label="사업자번호"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">배송주소</span>
+            <Input
+              inputSize="sm"
+              value={purchaseDeliveryAddress}
+              onChange={(e) => setPurchaseDeliveryAddress(e.target.value)}
+              aria-label="배송주소"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">프로젝트명</span>
+            <Input
+              inputSize="sm"
+              value={purchaseProjectName}
+              onChange={(e) => setPurchaseProjectName(e.target.value)}
+              aria-label="프로젝트명"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">인수자 번호</span>
+            <Input
+              inputSize="sm"
+              value={purchaseRecipientPhone}
+              onChange={(e) => setPurchaseRecipientPhone(e.target.value)}
+              aria-label="인수자 번호"
+            />
+          </label>
+          <label className="driver-edit-field">
+            <span className="detail-label">지급예정일</span>
+            <Input
+              inputSize="sm"
+              type="date"
+              value={purchasePaymentDueDate}
+              onChange={(e) => setPurchasePaymentDueDate(e.target.value)}
+              aria-label="지급예정일"
+            />
+          </label>
+        </div>
+
+        <label className="driver-edit-field" style={{ marginTop: 12 }}>
+          <span className="detail-label">적요</span>
+          <Input
+            inputSize="sm"
+            value={purchaseMemo}
+            onChange={(e) => setPurchaseMemo(e.target.value)}
+            aria-label="적요"
+          />
+        </label>
+
+        <div style={{ overflowX: 'auto', marginTop: 16 }} data-testid="purchase-slip-edit-lines">
+          <table className="slip-line-table">
+            <thead>
+              <tr>
+                <th>품목</th>
+                <th>모델명</th>
+                <th>규격</th>
+                <th>수량</th>
+                <th>단가</th>
+                <th>합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {purchaseEditLines.map((line, index) => (
+                <tr key={line.key}>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.productName ?? ''}
+                      onChange={(e) => updatePurchaseLine(index, { productName: e.target.value })}
+                      aria-label={`품목 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.modelName ?? ''}
+                      onChange={(e) => updatePurchaseLine(index, { modelName: e.target.value })}
+                      aria-label={`모델명 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      value={line.specification ?? ''}
+                      onChange={(e) => updatePurchaseLine(index, { specification: e.target.value })}
+                      aria-label={`규격 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      type="number"
+                      min={1}
+                      value={String(line.quantity)}
+                      onChange={(e) => updatePurchaseLine(index, { quantity: Number(e.target.value) })}
+                      aria-label={`수량 ${index + 1}`}
+                    />
+                  </td>
+                  <td>
+                    <Input
+                      inputSize="sm"
+                      type="number"
+                      min={0}
+                      value={String(line.unitPrice)}
+                      onChange={(e) => updatePurchaseLine(index, { unitPrice: e.target.value })}
+                      aria-label={`단가 ${index + 1}`}
+                    />
+                  </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {(Number(line.quantity) * Number(line.unitPrice || 0)).toLocaleString('ko-KR')}원
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
     </>
   )
+
+  function updatePurchaseLine(index: number, patch: Partial<PurchaseEditLine>) {
+    setPurchaseEditLines((prev) => prev.map((line, i) => (
+      i === index ? { ...line, ...patch } : line
+    )))
+  }
 }

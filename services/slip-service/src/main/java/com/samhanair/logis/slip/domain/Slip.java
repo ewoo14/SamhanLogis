@@ -531,7 +531,7 @@ public class Slip extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = true,
+    @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = false,
             fetch = FetchType.LAZY)
     private List<SlipLine> lines = new ArrayList<>();
 
@@ -638,7 +638,64 @@ public class Slip extends BaseEntity {
      * @return 제거 성공 여부
      */
     public boolean removeLine(SlipLine line) {
+        if (line == null) {
+            return false;
+        }
+        line.markDeleted("system");
         return this.lines.remove(line);
+    }
+
+    /**
+     * 매입 direct PUT 전용 헤더 수정.
+     *
+     * <p>기존 승인 요청 흐름과 별개로 INBOUND 전표의 구매관리 필드를 즉시 갱신한다. null 값은
+     * 기존 값을 보존한다.
+     */
+    public void updateHeader(String partnerName, String partnerCode, String memo,
+                             String businessNumber, String deliveryAddress,
+                             String supervisionAddress, String projectName,
+                             String recipientPhone, LocalDate paymentDueDate) {
+        requireEditable();
+        if (this.slipType != SlipType.INBOUND) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "매입 전표만 직접 수정할 수 있습니다.");
+        }
+        if (partnerName != null) {
+            this.partnerName = partnerName;
+        }
+        if (partnerCode != null) {
+            this.partnerCode = partnerCode;
+        }
+        if (memo != null) {
+            this.memo = memo;
+        }
+        if (businessNumber != null) {
+            this.businessNumber = businessNumber;
+        }
+        withProjectInfo(null, deliveryAddress, supervisionAddress, projectName,
+                recipientPhone, paymentDueDate);
+    }
+
+    /**
+     * 매입 direct PUT 라인 전체 교체.
+     *
+     * <p>{@code orphanRemoval=false} 정책을 지키기 위해 기존 라인은 hard delete 하지 않고
+     * {@link BaseEntity#markDeleted(String)} 로 비활성화한 뒤 컬렉션에서만 제거한다.
+     */
+    public void replaceLines(List<SlipLine> newLines, String actorId) {
+        requireEditable();
+        if (this.slipType != SlipType.INBOUND) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "매입 전표만 직접 수정할 수 있습니다.");
+        }
+        String deleter = actorId == null || actorId.isBlank() ? "system" : actorId;
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+        if (newLines != null) {
+            this.lines.addAll(newLines);
+        }
     }
 
     /**

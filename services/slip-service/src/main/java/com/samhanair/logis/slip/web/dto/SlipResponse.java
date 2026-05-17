@@ -57,6 +57,7 @@ public record SlipResponse(
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime confirmedAt,
+        LocalDateTime updatedAt,
         Long version,
         // V20 신규 — 판매/구매조회 확장 필드
         /** 사업자등록번호 snapshot (판매/구매조회 화면 표시). */
@@ -132,6 +133,7 @@ public record SlipResponse(
                 slip.getAcceptedAt(),
                 slip.getCompletedAt(),
                 slip.getConfirmedAt(),
+                updatedAtOf(slip),
                 slip.getVersion(),
                 // V20 신규 필드
                 slip.getBusinessNumber(),
@@ -148,5 +150,9 @@ public record SlipResponse(
                 slip.getRequesterId(),
                 // 수정 이력 건수: revisionCount 기반 임시 (후속 SlipEditRequest count 예정)
                 slip.getRevisionCount() != null ? slip.getRevisionCount() : 0);
+    }
+
+    private static LocalDateTime updatedAtOf(Slip slip) {
+        return slip.getModifiedAt() == null ? slip.getCreatedAt() : slip.getModifiedAt();
     }
 }

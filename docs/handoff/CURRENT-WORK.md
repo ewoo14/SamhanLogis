@@ -2,6 +2,39 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-5-2 Codex 진입 — 매입 수정 direct PUT
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-5-2-purchase-slip-edit-put
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `0d621b36`
+- master plan: `docs/planning/2026-05-17_sp-08-5-purchase-slip-crud-parity.md` §3.2
+- 사용자 6/7회차 정책: PR 내 모든 문제 해결, PM 자동 머지 후 다음 슬라이스 자동 진입. 단 현 세션은 사용자 지시에 따라 commit까지만 수행하고 push는 Claude가 처리한다.
+
+### SP-08-5-2 범위
+
+- BE: `PUT /api/v1/slips/{id}` direct edit endpoint. gateway strip 기준 controller path는 `/slips/{id}`.
+- 대상: `Slip(type=INBOUND)` 매입 전표만 수정 가능.
+- 권한: `WAREHOUSE / MANAGER / MASTER`; `INVENTORY / SALES / ACCOUNTANT`는 403.
+- 낙관적 잠금: request `updatedAt`과 현재 `modifiedAt` 또는 `createdAt` fallback 비교. JPA `@Version`은 기존 `slips.version` 컬럼을 재사용한다.
+- 라인 검증: 잘못된 라인은 422 `SLIP_UPDATE_INVALID_LINE`.
+- 감사: direct PUT 성공 시 `SLIP_EDIT` audit revision 1건 기록.
+- FE: 매입 상세 화면 수정 Modal, 409 “최신 내용 불러오기” 배너, audit timeline 확인.
+- QA: `docs/qa/sp-08-5-2-purchase-slip-edit-put/screenshots/` 4장.
+
+### 다음 후보
+
+- SP-08-5-3 매입 soft delete + InboundInspection 정합.
+- SP-08 회계/vendor OCR/Aligo 후속 parity.
+
 ## 2026-05-17 SP-08-5-1 Codex 진입 — 매입 목록·상세 endpoint 잠금
 
 ### 즉시 시작
