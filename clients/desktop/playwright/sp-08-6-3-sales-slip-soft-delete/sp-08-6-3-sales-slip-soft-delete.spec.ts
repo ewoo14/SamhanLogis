@@ -97,6 +97,12 @@ test.describe('SP-08-6-3 매출 전표 soft delete 계약', () => {
     expect(page).toContain('danger-banner')
     expect(page).not.toContain("alert('출고 완료된 매출 전표")
 
+    // 403 / fallback — alert() 제거 + 배너 testid 확인
+    expect(page).not.toContain("alert('매출 전표 삭제 권한이 없습니다')")
+    expect(page).not.toContain("alert('매출 전표 삭제에 실패했습니다')")
+    expect(page).toContain('sales-slip-delete-forbidden-banner')
+    expect(page).toContain('sales-slip-delete-error-banner')
+
     // API
     expect(api).toContain('deleteSalesSlip')
     expect(api).toContain('apiClient.delete')

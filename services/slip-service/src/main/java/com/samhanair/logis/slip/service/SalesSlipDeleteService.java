@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 삭제는 {@link Slip#deleteForSales(String)} 도메인 메서드를 통해 수행되며
  * 물리 삭제(hard delete)는 절대 허용하지 않는다.
  *
- * <p>낙관적 잠금은 {@link SalesSlipUpdateService#verifyVersion} 과 동일하게 {@code updatedAt}
+ * <p>낙관적 잠금은 {@link SalesSlipDeleteService#verifyVersion} 과 동일하게 {@code updatedAt}
  * 마이크로초 truncation 비교 방식을 사용한다. stale {@code updatedAt} 이 전달되면
  * 409 {@link ErrorCode#SLIP_OPTIMISTIC_LOCK_CONFLICT} 를 반환한다.
  *

@@ -241,6 +241,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [salesDeleteOpen, setSalesDeleteOpen] = useState(false)
   const [salesDeleteConflict, setSalesDeleteConflict] = useState(false)
   const [salesDeleteShippedAlert, setSalesDeleteShippedAlert] = useState<string | null>(null)
+  const [salesDeleteForbiddenAlert, setSalesDeleteForbiddenAlert] = useState<string | null>(null)
+  const [salesDeleteErrorAlert, setSalesDeleteErrorAlert] = useState<string | null>(null)
 
   // SP-08-6-2: 매출 direct PUT 수정 modal state.
   const [salesEditOpen, setSalesEditOpen] = useState(false)
@@ -533,11 +535,14 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     onSuccess: () => {
       setSalesDeleteOpen(false)
       setSalesDeleteConflict(false)
+      setSalesDeleteShippedAlert(null)
+      setSalesDeleteForbiddenAlert(null)
+      setSalesDeleteErrorAlert(null)
       queryClient.setQueryData(['slip', id], undefined)
       void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
       navigate('/sales', {
-        state: { toast: '전표가 삭제되었습니다' },
+        state: { toast: `전표가 삭제되었습니다. (${slip.slipNo})` },
       })
     },
     onError: (error) => {
@@ -552,12 +557,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           return
         }
         if (status === 403) {
-          alert('매출 전표 삭제 권한이 없습니다')
-          setSalesDeleteOpen(false)
+          setSalesDeleteForbiddenAlert('매출 전표 삭제 권한이 없습니다.')
           return
         }
       }
-      alert('매출 전표 삭제에 실패했습니다.')
+      setSalesDeleteErrorAlert('매출 전표 삭제에 실패했습니다.')
     },
   })
 
@@ -2543,6 +2547,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             setSalesDeleteOpen(false)
             setSalesDeleteConflict(false)
             setSalesDeleteShippedAlert(null)
+            setSalesDeleteForbiddenAlert(null)
+            setSalesDeleteErrorAlert(null)
           }
         }}
         title="매출 전표 삭제"
@@ -2557,6 +2563,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setSalesDeleteOpen(false)
                 setSalesDeleteConflict(false)
                 setSalesDeleteShippedAlert(null)
+                setSalesDeleteForbiddenAlert(null)
+                setSalesDeleteErrorAlert(null)
               }}
               disabled={deleteSalesSlipMutation.isPending}
               data-testid="sales-slip-delete-confirm-no"
@@ -2567,11 +2575,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               type="button"
               variant="danger"
               loading={deleteSalesSlipMutation.isPending}
-              disabled={deleteSalesSlipMutation.isPending}
+              disabled={
+                deleteSalesSlipMutation.isPending ||
+                salesDeleteShippedAlert !== null ||
+                salesDeleteForbiddenAlert !== null
+              }
               onClick={() => {
                 if (deleteSalesSlipMutation.isPending) return
                 setSalesDeleteShippedAlert(null)
                 setSalesDeleteConflict(false)
+                setSalesDeleteForbiddenAlert(null)
+                setSalesDeleteErrorAlert(null)
                 deleteSalesSlipMutation.mutate()
               }}
               data-testid="sales-slip-delete-confirm-yes"
@@ -2594,6 +2608,17 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             }}
           >
             전표번호: <strong>{slip.slipNo}</strong>
+            {slip.partnerName ? (
+              <>
+                <br />
+                거래처: <strong>{slip.partnerName}</strong>
+              </>
+            ) : (
+              <>
+                <br />
+                거래처: <strong>-</strong>
+              </>
+            )}
           </p>
           <p style={{ margin: 0, fontSize: 13 }} className="danger-text">
             삭제된 전표는 복구할 수 없습니다.
@@ -2605,7 +2630,28 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               data-testid="sales-slip-delete-shipped-banner"
               style={{ marginTop: 12 }}
             >
-              {salesDeleteShippedAlert}
+              <strong>삭제 불가</strong>
+              <p style={{ margin: '4px 0 0 0' }}>출고 진행 중이거나 완료된 매출 전표는 삭제할 수 없습니다.</p>
+            </div>
+          )}
+          {salesDeleteForbiddenAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-forbidden-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteForbiddenAlert}
+            </div>
+          )}
+          {salesDeleteErrorAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-error-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteErrorAlert}
             </div>
           )}
           {salesDeleteConflict ? (

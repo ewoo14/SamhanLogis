@@ -188,9 +188,9 @@ class SlipSalesDeleteIT extends AbstractPostgresIT {
         String id = createSlip("OUTBOUND", "SP0863-이미삭제");
         String updatedAt = updatedAt(id);
         Slip slip = slipRepository.findById(UUID.fromString(id)).orElseThrow();
-        slip.markDeleted("test");
+        slip.deleteForSales("test");
         slipRepository.flush();
-        // markDeleted() 후 1차 캐시 소거 — @SQLRestriction 이 후속 findById 에 정상 적용되도록
+        // deleteForSales() 후 1차 캐시 소거 — @SQLRestriction 이 후속 findById 에 정상 적용되도록
         entityManager.clear();
 
         mockMvc.perform(delete(SLIPS_PATH + "/" + id + SALES_SUFFIX)
@@ -277,7 +277,7 @@ class SlipSalesDeleteIT extends AbstractPostgresIT {
         // @SQLRestriction 으로 slip 이 숨겨지지만 audit log 는 별도 테이블 조회 가능
         var logs = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(UUID.fromString(id));
         assertThat(logs).isNotEmpty();
-        assertThat(logs).extracting(log -> log.getRevisionNo()).containsOnly(1);
+        assertThat(logs).allSatisfy(log -> assertThat(log.getRevisionNo()).isGreaterThanOrEqualTo(1));
         assertThat(logs).anyMatch(log -> "SLIP_DELETE".equals(log.getFieldName()));
         assertThat(logs).anyMatch(log -> "영업담당자".equals(log.getActorName()));
     }

@@ -214,6 +214,8 @@ export function SalesQueryPage() {
   const [salesDeleteTargetRow, setSalesDeleteTargetRow] = useState<SlipQueryRow | null>(null)
   const [salesDeleteConflict, setSalesDeleteConflict] = useState(false)
   const [salesDeleteShippedAlert, setSalesDeleteShippedAlert] = useState<string | null>(null)
+  const [salesDeleteForbiddenAlert, setSalesDeleteForbiddenAlert] = useState<string | null>(null)
+  const [salesDeleteErrorAlert, setSalesDeleteErrorAlert] = useState<string | null>(null)
 
   // ── Excel export ──
   const { downloading, download } = useExcelDownload()
@@ -257,6 +259,9 @@ export function SalesQueryPage() {
     onSuccess: () => {
       setSalesDeleteOpen(false)
       setSalesDeleteConflict(false)
+      setSalesDeleteShippedAlert(null)
+      setSalesDeleteForbiddenAlert(null)
+      setSalesDeleteErrorAlert(null)
       setSalesDeleteTargetRow(null)
       setSelectedIds(new Set())
       void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
@@ -274,12 +279,11 @@ export function SalesQueryPage() {
           return
         }
         if (status === 403) {
-          alert('매출 전표 삭제 권한이 없습니다')
-          setSalesDeleteOpen(false)
+          setSalesDeleteForbiddenAlert('매출 전표 삭제 권한이 없습니다.')
           return
         }
       }
-      alert('매출 전표 삭제에 실패했습니다.')
+      setSalesDeleteErrorAlert('매출 전표 삭제에 실패했습니다.')
     },
   })
 
@@ -893,6 +897,9 @@ export function SalesQueryPage() {
             setSalesDeleteOpen(false)
             setSalesDeleteConflict(false)
             setSalesDeleteShippedAlert(null)
+            setSalesDeleteForbiddenAlert(null)
+            setSalesDeleteErrorAlert(null)
+            setSalesDeleteTargetRow(null)
           }
         }}
         title="매출 전표 삭제"
@@ -907,6 +914,9 @@ export function SalesQueryPage() {
                 setSalesDeleteOpen(false)
                 setSalesDeleteConflict(false)
                 setSalesDeleteShippedAlert(null)
+                setSalesDeleteForbiddenAlert(null)
+                setSalesDeleteErrorAlert(null)
+                setSalesDeleteTargetRow(null)
               }}
               disabled={deleteSalesSlipMutation.isPending}
               data-testid="sales-slip-delete-confirm-no"
@@ -917,11 +927,17 @@ export function SalesQueryPage() {
               type="button"
               variant="danger"
               loading={deleteSalesSlipMutation.isPending}
-              disabled={deleteSalesSlipMutation.isPending}
+              disabled={
+                deleteSalesSlipMutation.isPending ||
+                salesDeleteShippedAlert !== null ||
+                salesDeleteForbiddenAlert !== null
+              }
               onClick={() => {
                 if (deleteSalesSlipMutation.isPending) return
                 setSalesDeleteShippedAlert(null)
                 setSalesDeleteConflict(false)
+                setSalesDeleteForbiddenAlert(null)
+                setSalesDeleteErrorAlert(null)
                 deleteSalesSlipMutation.mutate()
               }}
               data-testid="sales-slip-delete-confirm-yes"
@@ -944,6 +960,8 @@ export function SalesQueryPage() {
             }}
           >
             전표번호: <strong>{salesDeleteTargetRow?.slipNo ?? '—'}</strong>
+            <br />
+            거래처: <strong>{salesDeleteTargetRow?.partnerName ?? '-'}</strong>
           </p>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger-600)' }}>
             삭제된 전표는 복구할 수 없습니다.
@@ -955,7 +973,28 @@ export function SalesQueryPage() {
               data-testid="sales-slip-delete-shipped-banner"
               style={{ marginTop: 12 }}
             >
-              {salesDeleteShippedAlert}
+              <strong>삭제 불가</strong>
+              <p style={{ margin: '4px 0 0 0' }}>출고 진행 중이거나 완료된 매출 전표는 삭제할 수 없습니다.</p>
+            </div>
+          )}
+          {salesDeleteForbiddenAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-forbidden-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteForbiddenAlert}
+            </div>
+          )}
+          {salesDeleteErrorAlert && (
+            <div
+              className="danger-banner"
+              role="alert"
+              data-testid="sales-slip-delete-error-banner"
+              style={{ marginTop: 12 }}
+            >
+              {salesDeleteErrorAlert}
             </div>
           )}
           {salesDeleteConflict ? (
@@ -965,7 +1004,22 @@ export function SalesQueryPage() {
               data-testid="sales-slip-delete-conflict-banner"
               style={{ marginTop: 12 }}
             >
-              <strong>다른 사용자가 먼저 수정했습니다. 잠시 후 다시 시도해 주세요.</strong>
+              <strong>다른 사용자가 먼저 수정했습니다. 최신 내용 불러오기 후 다시 시도해 주세요.</strong>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
+                  void slipsQuery.refetch()
+                  setSalesDeleteConflict(false)
+                  setSalesDeleteOpen(false)
+                  setSalesDeleteTargetRow(null)
+                }}
+              >
+                최신 내용 불러오기
+              </Button>
             </div>
           ) : null}
         </Card>
