@@ -14,6 +14,8 @@ import com.samhanair.logis.slip.domain.SlipType;
  * <br>금지 역할: {@code INVENTORY} / {@code WAREHOUSE} — 매출 전표 조회 미허용 (403)
  * <br>정책 근거: SP-03 권한 매트릭스 §4.2 — 출고(OUTBOUND) 전표는 영업/관리 직군 전용.
  * 창고/재고 직군은 배송/검수 단계(ACCEPT~COMPLETE)만 처리권한, 목록 조회권 없음.
+ *
+ * @see <a href="https://docs.samhanair.com/sp-03#section-4-2">SP-03 권한 매트릭스 §4.2</a>
  */
 final class SlipSalesAccessGuard {
 
@@ -64,6 +66,8 @@ final class SlipSalesAccessGuard {
      * @return SALES / MANAGER / MASTER 이면 true, 그 외 false
      */
     static boolean canReadOutboundSales(String role) {
+        // ACCOUNTANT 제외 — SP-03 권한 매트릭스 §4.2 (ACCOUNTANT 는 INBOUND 확정 권한만 보유)
+        // INVENTORY / WAREHOUSE 제외 — 배송/검수 단계 처리 권한만 있고 매출 전표 열람 불가
         return "SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role);
     }
 }

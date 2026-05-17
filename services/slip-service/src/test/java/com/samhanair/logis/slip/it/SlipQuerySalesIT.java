@@ -136,6 +136,14 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                         ArgumentMatchers.anyString(), ArgumentMatchers.any());
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(Optional.of("SP0861 담당자"));
+        // notificationChatRoomClient / partnerBlockClient lenient stub — 의존 흐름 변경 시 NPE 방지
+        Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Collections.emptyList());
+        Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(java.util.Collections.emptyList());
+        Mockito.lenient().when(partnerBlockClient.findAllBlockedPartnerCodes())
+                .thenReturn(java.util.Collections.emptySet());
     }
 
     // ─── R1 목록 권한 가드 ───────────────────────────────────────────────────

@@ -6,7 +6,7 @@
  * - 권한 가드: canQuerySales (SALES / MANAGER / MASTER)
  * - CTA 자리 표시: 출고 전환 / 거래명세서 출력 / 계산서 출력 (실 핸들러는 SP-08-6-4)
  *
- * 컬럼 19개 (슬립 #17 판매관리 명세 + SP-05 상세 진입 + 상태):
+ * 컬럼 20개 (슬립 #17 판매관리 명세 + SP-05 상세 진입 + 상태):
  *  1. 체크박스 (다중 선택 + 전체 선택)
  *  2. 순번 (slipDate desc 기준 row index)
  *  3. 판매번호 (slipNo)
@@ -25,7 +25,8 @@
  * 16. 담당자명 (salesPersonName)
  * 17. 인쇄 (printed → Badge)
  * 18. 입금예정일 (paymentDueDate)
- * 19. 상태 (status → Badge) + CTA (상세 / 출고전환 / 거래명세서 / 계산서)
+ * 19. 상태 (status → Badge)
+ * 20. 상세 (상세보기 버튼)
  *
  * UUID 비공개 가드: slipNo / businessNumber / partnerCode 만 사용자 노출.
  * id / sourceWarehouseId 는 내부 처리 전용.
@@ -46,7 +47,7 @@ const PAGE_SIZE = 50
 /** 전표 상태 한국어 라벨 — PurchaseQueryPage 와 동일 맵 */
 const SLIP_STATUS_LABEL: Record<string, string> = {
   DRAFT: '임시저장',
-  SAVED: '저장',
+  SAVED: '저장완료',
   SENT: '전송',
   ACCEPTED: '수락',
   PROCESSING: '처리중',
@@ -57,6 +58,21 @@ const SLIP_STATUS_LABEL: Record<string, string> = {
   CONFIRMED: '확정',
   REJECTED: '반려',
   CANCELED: '취소',
+}
+
+/** 전표 상태별 Badge variant 분기 — design-system BadgeVariant: brand | neutral | success | warning | danger */
+function statusBadgeVariant(status: string): 'brand' | 'neutral' | 'success' | 'warning' | 'danger' {
+  switch (status) {
+    case 'SAVED':      return 'brand'
+    case 'SHIPPING':   return 'brand'
+    case 'SENT':       return 'warning'
+    case 'ACCEPTED':   return 'success'
+    case 'COMPLETED':  return 'success'
+    case 'CONFIRMED':  return 'success'
+    case 'CANCELED':   return 'danger'
+    case 'REJECTED':   return 'danger'
+    default:           return 'neutral'
+  }
 }
 
 /** 출고 전환 가능 상태 — SAVED / CONFIRMED */
@@ -354,7 +370,7 @@ export function SalesQueryPage() {
         {selectedIds.size > 0 ? (
           <span
             data-testid="sales-query-selected-count"
-            style={{ fontSize: 13, color: 'var(--color-primary-600)' }}
+            style={{ fontSize: 13, color: 'var(--color-brand-600)' }}
           >
             {selectedIds.size}행 선택됨
           </span>
@@ -559,7 +575,7 @@ export function SalesQueryPage() {
                     key={row.id}
                     onClick={() => toggleRow(row.id)}
                     style={{
-                      background: isSelected ? 'var(--color-primary-50, #EFF6FF)' : undefined,
+                      background: isSelected ? 'var(--color-brand-50, #EFF6FB)' : undefined,
                       borderBottom: '1px solid var(--color-neutral-100)',
                       cursor: 'pointer',
                     }}
@@ -621,10 +637,10 @@ export function SalesQueryPage() {
                     </Td>
                     {/* 입금예정일 */}
                     <Td>{row.paymentDueDate ?? '—'}</Td>
-                    {/* 상태 Badge */}
+                    {/* 상태 Badge — 상태별 variant 분기 */}
                     <Td align="center">
                       <Badge
-                        variant="neutral"
+                        variant={statusBadgeVariant(row.status)}
                         data-testid={`sales-query-status-badge-${toPublicTestId(row.slipNo)}`}
                       >
                         {SLIP_STATUS_LABEL[row.status] ?? row.status}
@@ -883,10 +899,10 @@ function PageBtn({
         height: 32,
         padding: '0 8px',
         border: active
-          ? '1px solid var(--color-primary-500)'
+          ? '1px solid var(--color-brand-500)'
           : '1px solid var(--color-neutral-200)',
         borderRadius: 4,
-        background: active ? 'var(--color-primary-500)' : 'var(--color-neutral-0)',
+        background: active ? 'var(--color-brand-500)' : 'var(--color-neutral-0)',
         color: active ? 'var(--color-neutral-0)' : 'var(--color-neutral-700)',
         fontSize: 13,
         cursor: disabled ? 'not-allowed' : 'pointer',

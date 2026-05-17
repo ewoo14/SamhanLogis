@@ -347,28 +347,25 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[1].slipNo", is(firstSlipNo)));
     }
 
+    /**
+     * SP-03 권한 매트릭스 §4.2 정합 — SP-08-6-1 신규 SlipSalesAccessGuard 적용 이후,
+     * INVENTORY + slipType 미지정 전체 조회 시 내부적으로 OUTBOUND 로 제한되어 403 이 반환된다.
+     *
+     * <p>흐름: restrictInboundWhenTypeOmitted(null, INVENTORY) → OUTBOUND →
+     * guardOutboundSalesRead(OUTBOUND, INVENTORY) → 403.
+     * INVENTORY 는 매출(OUTBOUND) 전표 조회 불가이므로 SP-08-6-1 신규 정책과 정합.
+     */
     @Test
-    @DisplayName("R1: INVENTORY type omitted excludes INBOUND rows")
-    void testListInventoryRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
-        createSlip("OUTBOUND", TODAY, "SP0851-NULLTYPE-OUT");
-        createSlip("INBOUND", TODAY, "SP0851-NULLTYPE-IN");
-
-        MvcResult result = mockMvc.perform(get(SLIPS_PATH)
+    @DisplayName("R1: INVENTORY slipType 미지정 전체 조회 시 403 (SP-08-6-1 정책 정합)")
+    void testListInventoryRoleForbiddenWithoutSlipTypeFilter() throws Exception {
+        mockMvc.perform(get(SLIPS_PATH)
                         .param("from", TODAY.toString())
                         .param("to", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("content");
-        assertThat(content.toString()).doesNotContain("SP0851-NULLTYPE-IN");
-        for (JsonNode item : content) {
-            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
-        }
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -395,28 +392,24 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         }
     }
 
+    /**
+     * SP-03 권한 매트릭스 §4.2 정합 — SP-08-6-1 SlipSalesAccessGuard 적용 이후,
+     * INVENTORY + slipType 미지정 /slips/query 조회 시 403 이 반환된다.
+     *
+     * <p>흐름: restrictInboundWhenTypeOmitted(null, INVENTORY) → OUTBOUND →
+     * guardOutboundSalesRead(OUTBOUND, INVENTORY) → 403.
+     */
     @Test
-    @DisplayName("R1-query: INVENTORY slipType omitted excludes INBOUND rows")
-    void testListPurchaseQueryInventoryRoleSeesNoInboundWithoutSlipTypeFilter() throws Exception {
-        createSlip("OUTBOUND", TODAY, "SP0851-QUERY-NULLTYPE-OUT");
-        createSlip("INBOUND", TODAY, "SP0851-QUERY-NULLTYPE-IN");
-
-        MvcResult result = mockMvc.perform(get("/slips/query")
+    @DisplayName("R1-query: INVENTORY slipType 미지정 /slips/query 조회 시 403 (SP-08-6-1 정책 정합)")
+    void testListPurchaseQueryInventoryRoleForbiddenWithoutSlipTypeFilter() throws Exception {
+        mockMvc.perform(get("/slips/query")
                         .param("dateFrom", TODAY.toString())
                         .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "INVENTORY"))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("content");
-        assertThat(content.toString()).doesNotContain("SP0851-QUERY-NULLTYPE-IN");
-        for (JsonNode item : content) {
-            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
-        }
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -443,28 +436,25 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         }
     }
 
+    /**
+     * SP-03 권한 매트릭스 §4.2 정합 — SP-08-6-1 SlipSalesAccessGuard 적용 이후,
+     * ACCOUNTANT + slipType 미지정 /slips/query 조회 시 403 이 반환된다.
+     *
+     * <p>흐름: restrictInboundWhenTypeOmitted(null, ACCOUNTANT) → OUTBOUND →
+     * guardOutboundSalesRead(OUTBOUND, ACCOUNTANT) → 403.
+     * ACCOUNTANT 는 INBOUND 확정 권한만 있으며 OUTBOUND 매출 조회 불가.
+     */
     @Test
-    @DisplayName("R1-query: ACCOUNTANT slipType omitted excludes INBOUND rows")
-    void testListAccountantSeesNoInboundWithoutSlipTypeFilter() throws Exception {
-        createSlip("OUTBOUND", TODAY, "SP0851-QUERY-ACCOUNTANT-OUT");
-        createSlip("INBOUND", TODAY, "SP0851-QUERY-ACCOUNTANT-IN");
-
-        MvcResult result = mockMvc.perform(get("/slips/query")
+    @DisplayName("R1-query: ACCOUNTANT slipType 미지정 /slips/query 조회 시 403 (SP-08-6-1 정책 정합)")
+    void testListAccountantForbiddenWithoutSlipTypeFilter() throws Exception {
+        mockMvc.perform(get("/slips/query")
                         .param("dateFrom", TODAY.toString())
                         .param("dateTo", TODAY.toString())
                         .param("page", "0")
                         .param("size", "20")
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "ACCOUNTANT"))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString())
-                .path("data").path("content");
-        assertThat(content.toString()).doesNotContain("SP0851-QUERY-ACCOUNTANT-IN");
-        for (JsonNode item : content) {
-            assertThat(item.path("slipType").asText()).isNotEqualTo("INBOUND");
-        }
+                .andExpect(status().isForbidden());
     }
 
     @Test

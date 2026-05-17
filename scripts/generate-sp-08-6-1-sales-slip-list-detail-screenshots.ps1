@@ -90,7 +90,7 @@ function Save {
 }
 
 function Shot1 {
-    $c   = Canvas "01-sales-query-list.png" "\uD310\uB9E4\uAD00\uB9AC" "\uB9E4\uCD9C \uC804\uD45C \uBAA9\uB85D (SALES \uAD8C\uD55C, 10\uAC74)"
+    $c   = Canvas "01-sales-query-list.png" "\uD310\uB9E4\uAD00\uB9AC" "\uB9E4\uCD9C \uC804\uD45C \uBAA9\uB85D"
     $bmp = $c[0]; $g = $c[1]; $path = $c[2]
     InputBox $g  46 124 170 "\uC2DC\uC791\uC77C" "2026-05-01"
     InputBox $g 232 124 170 "\uC885\uB8CC\uC77C" "2026-05-18"
