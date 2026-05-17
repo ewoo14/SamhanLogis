@@ -13,7 +13,8 @@
  * - `/sales/new`    출고전표 작성
  * - `/sales/link-dispatch`  링크발송 (배송 묶음 + e-sign URL SMS) — link-dispatch-slice
  * - `/sales/:id`    출고전표 상세 + lifecycle
- * - `/sales/:id/print/invoice`   거래명세서 인쇄 미리보기
+ * - `/sales/:id/print/statement` 거래명세서 인쇄 미리보기 (SP-08-6-4)
+ * - `/sales/:id/print/invoice`   세금계산서 인쇄 미리보기 (SP-08-6-4, InvoiceView 대체)
  * - `/sales/:id/print/dispatch`  출고전표 작업지시서 인쇄
  * - `/purchases`        구매관리 (PurchaseQueryPage — 풍성한 컬럼 + 다중 선택) [2a 통합]
  * - `/purchases/slips`  legacy 입고전표 list (SlipListPage) — 2c 작성 plumbing 합류 시 진입점
@@ -70,7 +71,7 @@ import { TransferFormPage } from './TransferFormPage'
 import { TransferDetailPage } from './TransferDetailPage'
 import { LinkDispatchListPage } from './LinkDispatchListPage'
 import { DELIVERY_BATCH_ROLES } from '../api/delivery'
-import { InvoiceView } from '../print/InvoiceView'
+// InvoiceView (P0-4 거래명세서 1차 mock) 은 SP-08-6-4 SalesInvoicePrintPage 로 대체됨.
 import { DispatchView } from '../print/DispatchView'
 // P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규 (출고/입고/견적/세금계산서)
 import { OutboundView } from '../print/OutboundView'
@@ -79,6 +80,9 @@ import { QuoteView } from '../print/QuoteView'
 import { TaxInvoiceView } from '../print/TaxInvoiceView'
 // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, legacy GAS 동등)
 import { PurchaseSlipPrintPage } from '../print/PurchaseSlipPrintPage'
+// SP-08-6-4 — 매출 인쇄 양식 2종 (거래명세서 / 세금계산서, A4 portrait)
+import { SalesTransactionStatementPrintPage } from '../print/SalesTransactionStatementPrintPage'
+import { SalesInvoicePrintPage } from '../print/SalesInvoicePrintPage'
 // signature-slice-C 모바일 mock 라우트 (Phase 5 nginx 분리 전 시뮬레이션 — AuthGuard 외부)
 import { MobileSignaturePage } from './MobileSignaturePage'
 import { MobileRecipientPage } from './MobileRecipientPage'
@@ -431,7 +435,10 @@ const router = createHashRouter([
       },
 
       { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
-      { path: '/sales/:id/print/invoice', element: <InvoiceView /> },
+      // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
+      { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },
+      // SP-08-6-4 — 세금계산서 (A4 portrait, 공급자/공급받는자 박스 포함). InvoiceView 대체.
+      { path: '/sales/:id/print/invoice', element: <SalesInvoicePrintPage /> },
       { path: '/sales/:id/print/dispatch', element: <DispatchView /> },
       // P0-4 신규 — 출고전표 (88mm/A4 분기). 세금계산서는 별도 accounting-service id 라우트로 이전.
       { path: '/sales/:id/print/outbound', element: <OutboundView /> },

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>mock-02 — 계산서 전체 (SP-08-6-4)</title>
+<style>
+/* =====================================================
+   SP-08-6-4 계산서 (세금계산서) 인쇄 mock — A4 portrait
+   print-spec.md §8~§12 구현
+   ===================================================== */
+
+body {
+  background: #E5E7EB;
+  padding: 24px;
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.invoice-page {
+  width: 210mm;
+  min-height: 297mm;
+  background: #FFF;
+  margin: 0 auto;
+  padding: 12mm;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  color: #000;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+
+/* ── 최상단 제목 14mm ── */
+.invoice-title-area {
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 2.5px solid #000;
+  padding-bottom: 3mm;
+  margin-bottom: 4mm;
+  min-height: 10mm;
+  gap: 6mm;
+}
+
+.invoice-main-title {
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 4px;
+}
+
+.invoice-sub-title {
+  font-size: 10.5pt;
+  font-weight: 400;
+  color: #333;
+  letter-spacing: 1px;
+  border: 1px solid #666;
+  padding: 0.5mm 3mm;
+  border-radius: 2px;
+}
+
+/* ── 2-panel 공급자/수신자 44mm ── */
+.invoice-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 6mm;
+  margin-bottom: 4mm;
+}
+
+.invoice-panel {
+  border: 1px solid #000;
+}
+
+.invoice-panel-header {
+  background: #F0F0F0;
+  font-weight: 700;
+  font-size: 10.5pt;
+  text-align: center;
+  padding: 2mm 0;
+  border-bottom: 1px solid #000;
+  letter-spacing: 4px;
+}
+
+.invoice-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.invoice-panel-table td {
+  border-bottom: 1px solid #000;
+  padding: 1.5mm 2.5mm;
+  vertical-align: middle;
+}
+
+.invoice-panel-table tr:last-child td {
+  border-bottom: none;
+}
+
+.invoice-panel-table .field-label {
+  background: #F8F8F8;
+  font-weight: 700;
+  width: 20mm;
+  text-align: center;
+  border-right: 1px solid #000;
+  font-size: 8.5pt;
+}
+
+.invoice-panel-table .field-value {
+  font-size: 9pt;
+}
+
+.invoice-seal {
+  display: inline-block;
+  margin-left: 4mm;
+  border: 1.5pt solid #C00;
+  border-radius: 50%;
+  padding: 0.5mm 2mm;
+  color: #C00;
+  font-size: 8pt;
+  font-weight: 700;
+  transform: rotate(-8deg);
+}
+
+/* ── 작성일/공급가/세액/합계 요약 20mm ── */
+.invoice-summary {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  margin-bottom: 0;
+}
+
+.invoice-summary td {
+  border: 1px solid #000;
+  padding: 1.5mm 3mm;
+  vertical-align: middle;
+  font-size: 9.5pt;
+}
+
+.invoice-summary .sum-label {
+  background: #F0F0F0;
+  font-weight: 700;
+  text-align: center;
+  width: 22mm;
+  font-size: 9pt;
+}
+
+.invoice-summary .sum-value {
+  font-weight: 700;
+  font-size: 10pt;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-summary .sum-value.grand {
+  font-size: 11pt;
+  color: #000;
+}
+
+/* ── 라인 테이블 (7컬럼) ── */
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  line-height: 1.4;
+  border-top: none;
+}
+
+.invoice-table th,
+.invoice-table td {
+  border: 1px solid #000;
+  padding: 1.5mm 2mm;
+  vertical-align: middle;
+}
+
+.invoice-table th {
+  background: #F0F0F0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.invoice-table .col-date    { width: 14mm; text-align: center; }
+.invoice-table .col-product { text-align: left; font-weight: 600; }
+.invoice-table .col-spec    { width: 18mm; text-align: center; }
+.invoice-table .col-qty     { width: 14mm; text-align: right; font-variant-numeric: tabular-nums; }
+.invoice-table .col-price   { width: 26mm; text-align: right; font-variant-numeric: tabular-nums; }
+.invoice-table .col-supply  { width: 28mm; text-align: right; font-variant-numeric: tabular-nums; }
+.invoice-table .col-vat     { width: 18mm; text-align: right; font-variant-numeric: tabular-nums; }
+
+.invoice-table tbody tr.pad-row td { height: 8mm; }
+
+.invoice-table tfoot td {
+  font-weight: 700;
+  background: #FAFAFA;
+}
+
+/* ── 계좌/서명 14mm ── */
+.invoice-bank-sig {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 6mm;
+  margin-top: 4mm;
+  align-items: center;
+}
+
+.invoice-bank {
+  background: #FFF3CD;
+  border: 1px solid #000;
+  padding: 2.5mm 4mm;
+  font-size: 10pt;
+  font-weight: 600;
+  min-height: 14mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.invoice-bank-amount {
+  font-size: 12pt;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-sig-box {
+  width: 50mm;
+  min-height: 14mm;
+  border: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 9pt;
+  color: #999;
+  font-style: italic;
+  padding: 2mm;
+}
+
+.invoice-sig-box .sig-label {
+  font-size: 9pt;
+  font-weight: 700;
+  color: #000;
+  font-style: normal;
+  margin-bottom: 2mm;
+}
+
+/* ── 푸터 10mm ── */
+.invoice-footer {
+  margin-top: 4mm;
+  padding-top: 2mm;
+  border-top: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 8pt;
+  color: #555;
+  min-height: 8mm;
+}
+
+/* 부가세 10% 뱃지 */
+.vat-badge {
+  display: inline-block;
+  background: #EEF2FF;
+  border: 1px solid #93C5FD;
+  color: #1E40AF;
+  font-size: 8pt;
+  font-weight: 600;
+  padding: 0.3mm 2mm;
+  border-radius: 2px;
+  margin-left: 2mm;
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { background: none; padding: 0; }
+  .invoice-page { box-shadow: none; margin: 0; width: 186mm; min-height: auto; padding: 0; }
+  .invoice-table th, .invoice-panel-header, .invoice-summary .sum-label {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  .invoice-panels, .invoice-summary, .invoice-bank-sig {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+</style>
+</head>
+<body>
+<div class="invoice-page">
+
+  <!-- 최상단 제목 -->
+  <div class="invoice-title-area">
+    <span class="invoice-main-title">거 래 명 세 서</span>
+    <span class="invoice-sub-title">세금계산서</span>
+  </div>
+
+  <!-- 2-panel: 공급자 / 공급받는자 -->
+  <div class="invoice-panels">
+
+    <!-- 공급자 -->
+    <div class="invoice-panel">
+      <div class="invoice-panel-header">공 &nbsp; 급 &nbsp; 자</div>
+      <table class="invoice-panel-table">
+        <tbody>
+          <tr>
+            <td class="field-label">등록번호</td>
+            <td class="field-value">214-87-20659</td>
+          </tr>
+          <tr>
+            <td class="field-label">상호</td>
+            <td class="field-value">(주)삼한공조시스템</td>
+          </tr>
+          <tr>
+            <td class="field-label">성명</td>
+            <td class="field-value">김미선<span class="invoice-seal">[인]</span></td>
+          </tr>
+          <tr>
+            <td class="field-label">주소</td>
+            <td class="field-value">서울특별시 서초구 마방로2길 9 삼한빌딩 4층</td>
+          </tr>
+          <tr>
+            <td class="field-label">업태/종목</td>
+            <td class="field-value">도매 / 에어컨 및 냉방기기</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 공급받는자 -->
+    <div class="invoice-panel">
+      <div class="invoice-panel-header">공 급 받 는 자</div>
+      <table class="invoice-panel-table">
+        <tbody>
+          <tr>
+            <td class="field-label">등록번호</td>
+            <td class="field-value">123-45-67890</td>
+          </tr>
+          <tr>
+            <td class="field-label">상호</td>
+            <td class="field-value">(주)ABC냉방기술</td>
+          </tr>
+          <tr>
+            <td class="field-label">성명</td>
+            <td class="field-value">홍길동</td>
+          </tr>
+          <tr>
+            <td class="field-label">주소</td>
+            <td class="field-value">경기도 수원시 영통구 광교로 107</td>
+          </tr>
+          <tr>
+            <td class="field-label">업태/종목</td>
+            <td class="field-value">서비스업 / 냉방기기 설치</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- 작성일/공급가/세액/합계 요약 -->
+  <table class="invoice-summary">
+    <tbody>
+      <tr>
+        <td class="sum-label">작성일</td>
+        <td class="sum-value">2026년 05월 18일</td>
+        <td class="sum-label">일련번호</td>
+        <td class="sum-value">SS-2026-05-018</td>
+      </tr>
+      <tr>
+        <td class="sum-label">공급가액</td>
+        <td class="sum-value">3,750,000원</td>
+        <td class="sum-label">세액 <span class="vat-badge">10%</span></td>
+        <td class="sum-value">375,000원</td>
+      </tr>
+      <tr>
+        <td class="sum-label">합계금액</td>
+        <td class="sum-value grand" colspan="3">
+          사백일십이만오천원 정 &nbsp;&nbsp;&nbsp; ₩ 4,125,000
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 라인 테이블 (7컬럼) -->
+  <table class="invoice-table">
+    <thead>
+      <tr>
+        <th class="col-date">월/일</th>
+        <th class="col-product">품목명</th>
+        <th class="col-spec">규격</th>
+        <th class="col-qty">수량</th>
+        <th class="col-price">단가</th>
+        <th class="col-supply">공급가액</th>
+        <th class="col-vat">세액</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">AJ040RXH4BC1 (에어컨 실내기 4way)</td>
+        <td class="col-spec">40형</td>
+        <td class="col-qty">2</td>
+        <td class="col-price">850,000</td>
+        <td class="col-supply">1,700,000</td>
+        <td class="col-vat">170,000</td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">AJ080RXH4BC1 (에어컨 실외기)</td>
+        <td class="col-spec">80형</td>
+        <td class="col-qty">1</td>
+        <td class="col-price">1,200,000</td>
+        <td class="col-supply">1,200,000</td>
+        <td class="col-vat">120,000</td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">PC1NWSK3NW (WIFI 컨트롤러 판넬)</td>
+        <td class="col-spec">표준</td>
+        <td class="col-qty">3</td>
+        <td class="col-price">80,000</td>
+        <td class="col-supply">240,000</td>
+        <td class="col-vat">24,000</td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">R410A (냉매)</td>
+        <td class="col-spec">10kg</td>
+        <td class="col-qty">2</td>
+        <td class="col-price">180,000</td>
+        <td class="col-supply">360,000</td>
+        <td class="col-vat">36,000</td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">배관키트 SET (동파이프+보온재)</td>
+        <td class="col-spec">5m</td>
+        <td class="col-qty">5</td>
+        <td class="col-price">50,000</td>
+        <td class="col-supply">250,000</td>
+        <td class="col-vat">25,000</td>
+      </tr>
+      <!-- 패딩 행 -->
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="col-date" colspan="3" style="text-align:right; padding-right:3mm;">합 &nbsp; 계</td>
+        <td class="col-qty" style="text-align:right;">13</td>
+        <td class="col-price"></td>
+        <td class="col-supply" style="text-align:right;">3,750,000</td>
+        <td class="col-vat" style="text-align:right;">375,000</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- 계좌/서명 -->
+  <div class="invoice-bank-sig">
+    <div class="invoice-bank">
+      <span>예금주: (주)삼한공조시스템 &nbsp;/&nbsp; 국민은행 750627-01-002557 &nbsp;·&nbsp; 기업은행 010-3748-9937</span>
+      <span class="invoice-bank-amount">4,125,000원</span>
+    </div>
+    <div class="invoice-sig-box">
+      <span class="sig-label">인수자 서명</span>
+      <span>(수령 시 서명)</span>
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <div class="invoice-footer">
+    <span>* 본 계산서는 부가가치세법에 따른 세금계산서를 겸합니다.</span>
+    <span>출력일시: 2026-05-18 09:30</span>
+  </div>
+
+</div>
+</body>
+</html>

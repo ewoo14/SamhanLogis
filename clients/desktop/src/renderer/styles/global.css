@@ -2920,6 +2920,355 @@ button {
   }
 }
 
+/* ===========================================================
+ * SP-08-6-4 — 매출 인쇄 양식 2종 (거래명세서 / 세금계산서)
+ * purchase-print-* 패턴 1:1 이식, sales-print-* prefix 분리.
+ * A4 portrait 210mm × 297mm, padding 12mm.
+ * =========================================================== */
+
+/* 페이지 wrapper */
+.sales-print-page {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  font-family: 'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  font-size: 9pt;
+  color: #000;
+}
+
+/* 상단 헤더 — 3열 그리드: 좌(로고+회사명) / 중앙(양식 제목) / 우(전표번호/일자/담당자) */
+.sales-print-header {
+  border-bottom: 2px solid #000;
+  padding-bottom: 2mm;
+  margin-bottom: 1mm;
+}
+
+.sales-print-header-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  gap: 2mm;
+}
+
+.sales-print-header-left {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+}
+
+.sales-print-logo {
+  height: 12mm;
+  width: auto;
+  object-fit: contain;
+}
+
+.sales-print-company-name {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.sales-print-header-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sales-print-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5mm;
+}
+
+.sales-print-header-meta-row {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+}
+
+.sales-print-meta-label {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #555;
+  min-width: 16mm;
+  text-align: right;
+}
+
+.sales-print-meta-value {
+  font-size: 9pt;
+}
+
+.sales-print-meta-value.strong {
+  font-weight: 700;
+}
+
+.sales-print-title {
+  font-size: 20pt;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  margin: 0;
+}
+
+.sales-print-printed-at {
+  font-size: 8pt;
+  color: #555;
+  margin-top: 1mm;
+}
+
+/* 거래처 정보 영역 — 2열 그리드: 좌(거래처명/사업자번호) + 우(출고창고/담당자/주소) */
+.sales-print-partner {
+  border: 1px solid #000;
+  margin-bottom: 1mm;
+}
+
+.sales-print-partner-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.sales-print-partner-col {
+  padding: 2mm 3mm;
+}
+
+.sales-print-partner-col:first-child {
+  border-right: 1px solid #000;
+}
+
+.sales-print-partner-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8mm;
+  margin: 0;
+  padding: 0;
+}
+
+.sales-print-partner-row {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+}
+
+.sales-print-partner-label {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #555;
+  min-width: 18mm;
+  flex-shrink: 0;
+}
+
+.sales-print-partner-value {
+  font-size: 9pt;
+}
+
+.sales-print-partner-value.strong {
+  font-weight: 700;
+  font-size: 10pt;
+}
+
+.sales-print-partner-value.emphasis {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* 라인 테이블 — 8컬럼 (No./품목명/규격/수량/단가/공급가액/부가세/적요) */
+.sales-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 2mm;
+}
+
+.sales-print-table th,
+.sales-print-table td {
+  border: 1px solid #aaa;
+  padding: 1mm 1.5mm;
+  font-size: 8.5pt;
+  vertical-align: middle;
+}
+
+.sales-print-table thead th {
+  background: #F0F0F0;
+  font-weight: 700;
+  text-align: center;
+  font-size: 8pt;
+}
+
+.sales-print-table .col-no      { width: 8mm;  text-align: center; }
+.sales-print-table .col-product { width: 36mm; }
+.sales-print-table .col-spec    { width: 28mm; }
+.sales-print-table .col-qty     { width: 16mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sales-print-table .col-price   { width: 26mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sales-print-table .col-supply  { width: 28mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sales-print-table .col-vat     { width: 22mm; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sales-print-table .col-memo    { /* 가변폭 — 나머지 공간 채움 */ }
+.sales-print-table .num         { text-align: right; font-variant-numeric: tabular-nums; }
+.sales-print-table .strong      { font-weight: 700; }
+
+.sales-print-pad-row td {
+  height: 6mm;
+  background: #fafafa;
+}
+
+.sales-print-table-totals-label {
+  text-align: right;
+  font-weight: 700;
+  background: #F5F5F5;
+}
+
+.sales-print-table tfoot td {
+  background: #F5F5F5;
+  font-size: 9pt;
+}
+
+/* 합계 영역 */
+.sales-print-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1mm;
+  border: 1px solid #000;
+  padding: 2mm 4mm;
+  width: 72mm;
+  margin-left: auto;
+  margin-bottom: 2mm;
+}
+
+.sales-print-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  font-size: 9pt;
+  width: 100%;
+}
+
+.sales-print-totals-row.strong {
+  font-weight: 700;
+  font-size: 10pt;
+  border-top: 1px solid #aaa;
+  padding-top: 1mm;
+  margin-top: 1mm;
+}
+
+.sales-print-totals-label {
+  font-weight: 700;
+  color: #444;
+}
+
+.sales-print-totals-value.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 세금계산서 전용 — 공급자/공급받는자 박스 */
+.sales-invoice-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm;
+  margin-bottom: 2mm;
+}
+
+.sales-invoice-party-box {
+  border: 1px solid #000;
+  padding: 2mm 3mm;
+}
+
+.sales-invoice-party-title {
+  font-size: 8pt;
+  font-weight: 700;
+  background: #F0F0F0;
+  margin: -2mm -3mm 1.5mm -3mm;
+  padding: 1mm 3mm;
+  border-bottom: 1px solid #ccc;
+}
+
+.sales-invoice-party-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  margin: 0;
+  padding: 0;
+}
+
+.sales-invoice-party-row {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+}
+
+.sales-invoice-party-label {
+  font-size: 8pt;
+  font-weight: 700;
+  color: #555;
+  min-width: 18mm;
+  flex-shrink: 0;
+}
+
+.sales-invoice-party-value {
+  font-size: 8.5pt;
+}
+
+.sales-invoice-party-value.strong {
+  font-weight: 700;
+}
+
+/* 인쇄 비고 + audit 푸터 */
+.sales-print-footer {
+  margin-top: auto;
+  border-top: 1px solid #ddd;
+  padding-top: 2mm;
+}
+
+.sales-print-memo {
+  display: flex;
+  gap: 2mm;
+  margin-bottom: 2mm;
+  font-size: 9pt;
+}
+
+.sales-print-memo-label {
+  font-weight: 700;
+  min-width: 8mm;
+  color: #555;
+}
+
+.sales-print-memo-value {
+  color: #333;
+}
+
+.sales-print-audit-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9pt;
+  color: #555;
+  gap: 4mm;
+}
+
+.sales-print-audit-printed {
+  font-weight: 600;
+  color: #333;
+}
+
+/* @media print — 인쇄 시 합계 영역 align 보정 + 색상 보존 + tr 분할 방지 */
+@media print {
+  .sales-print-page {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sales-print-totals {
+    align-self: flex-end;
+    margin-left: auto;
+  }
+  .sales-print-table tr {
+    page-break-inside: avoid;
+  }
+  .sales-print-table thead {
+    display: table-header-group;
+  }
+  .sales-print-table tfoot {
+    display: table-footer-group;
+  }
+}
+
 /* --- QuoteView (견적서) — A4 세로 --- */
 .quote-page {
   display: flex;

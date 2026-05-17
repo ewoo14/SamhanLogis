@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>mock-03 — 다중 라인 15행 (SP-08-6-4)</title>
+<style>
+/* =====================================================
+   SP-08-6-4 거래명세서 — 다중 라인 15행 시뮬레이션
+   page-break-inside: avoid 동작 시각화
+   SP-08-5-5 D-1 회고: 라인 테이블 가변 처리 검증
+   ===================================================== */
+
+body {
+  background: #E5E7EB;
+  padding: 24px;
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.statement-page {
+  width: 210mm;
+  min-height: 297mm;
+  background: #FFF;
+  margin: 0 auto;
+  padding: 12mm;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  color: #000;
+  font-size: 9pt;
+  line-height: 1.4;
+  position: relative;
+}
+
+/* 페이지 경계 시각화 (297mm 위치에 빨간 점선) */
+.page-break-guide {
+  position: absolute;
+  top: 297mm;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed #E53E3E;
+  pointer-events: none;
+}
+
+.page-break-label {
+  position: absolute;
+  top: 297mm;
+  right: 12mm;
+  transform: translateY(-50%);
+  background: #E53E3E;
+  color: #FFF;
+  font-size: 7.5pt;
+  padding: 0.5mm 2mm;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.statement-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 10mm;
+  border-bottom: 2.5px solid #000;
+  padding-bottom: 2mm;
+  margin-bottom: 3mm;
+}
+
+.statement-company-name { font-size: 11pt; font-weight: 700; }
+
+.statement-form-title {
+  font-size: 22pt;
+  font-weight: 700;
+  letter-spacing: 8px;
+  flex: 1;
+  text-align: center;
+}
+
+.statement-date-top { font-size: 9.5pt; text-align: right; }
+
+.statement-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 6mm;
+  margin-bottom: 3mm;
+}
+
+.statement-receiver-box {
+  border: 1px solid #000;
+  padding: 3mm 4mm;
+  min-height: 22mm;
+}
+
+.statement-receiver-name { font-size: 13pt; font-weight: 700; margin-bottom: 1mm; }
+.statement-receiver-sub { font-size: 10pt; margin-bottom: 0.5mm; }
+
+.statement-supplier-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.statement-supplier-table td { border: 1px solid #000; padding: 1.5mm 2.5mm; vertical-align: middle; }
+.statement-supplier-side {
+  background: #F0F0F0; font-weight: 700; text-align: center;
+  width: 6mm; font-size: 9.5pt; writing-mode: vertical-rl; letter-spacing: 2px;
+}
+.statement-supplier-label { background: #F5F5F5; font-weight: 700; text-align: center; width: 20mm; }
+.statement-seal {
+  display: inline-block; margin-left: 5mm; border: 1.5pt solid #C00;
+  border-radius: 50%; padding: 0.5mm 2.5mm; color: #C00;
+  font-size: 8.5pt; font-weight: 700; transform: rotate(-8deg);
+}
+
+/* 금액 메타 */
+.statement-meta { border: 1px solid #000; border-bottom: none; margin-bottom: 0; }
+.statement-shipping-row, .statement-amount-row {
+  padding: 2mm 4mm; font-size: 10pt; display: flex; align-items: center; gap: 4mm; min-height: 8mm;
+}
+.statement-shipping-row { border-bottom: 1px solid #000; }
+.meta-label { font-weight: 700; background: #FFF3CD; padding: 0 2mm; flex-shrink: 0; }
+.statement-amount-korean { font-weight: 600; flex: 1; }
+.statement-amount-number { margin-left: auto; font-weight: 700; font-size: 12pt; font-variant-numeric: tabular-nums; }
+
+/* 라인 테이블 */
+.statement-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.statement-table th, .statement-table td { border: 1px solid #000; padding: 1.5mm 2mm; vertical-align: middle; }
+.statement-table th { background: #F0F0F0; font-weight: 700; text-align: center; }
+.statement-table .col-date   { width: 14mm; text-align: center; }
+.statement-table .col-spec   { width: 18mm; text-align: center; }
+.statement-table .col-qty    { width: 12mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-price  { width: 24mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-supply { width: 28mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-vat    { width: 20mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-memo   { width: 12mm; }
+.statement-table .col-product { text-align: left; }
+.statement-table tfoot td { font-weight: 700; background: #FAFAFA; }
+
+/* 합계 */
+.statement-totals {
+  display: grid; grid-template-columns: 1fr 2fr 2fr 2fr 1fr;
+  border: 1px solid #000; border-top: none;
+}
+.statement-total-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-right: 1px solid #000; padding: 1.5mm 2.5mm; min-height: 14mm;
+}
+.statement-total-cell:last-child { border-right: none; }
+.t-label { background: #F0F0F0; font-weight: 700; font-size: 8.5pt; padding: 0.5mm 2mm; width: 100%; text-align: center; }
+.t-value { text-align: right; font-weight: 600; font-size: 9.5pt; font-variant-numeric: tabular-nums; width: 100%; }
+.statement-total-cell.grand .t-value { font-weight: 700; font-size: 11pt; }
+
+.statement-bank {
+  background: #FFF3CD; border: 1px solid #000; border-top: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 2mm 4mm; font-size: 10pt; font-weight: 600; min-height: 10mm;
+}
+.statement-bank-amount { font-size: 12pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.statement-footer {
+  margin-top: 4mm; padding-top: 2mm; border-top: 1px solid #000;
+  display: flex; justify-content: space-between; font-size: 8pt; color: #555; min-height: 8mm;
+}
+
+/* 15행 초과 경고 표시 */
+.overflow-notice {
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 3px;
+  padding: 2mm 4mm;
+  font-size: 8.5pt;
+  font-weight: 600;
+  color: #92400E;
+  margin-bottom: 3mm;
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { background: none; padding: 0; }
+  .statement-page { box-shadow: none; margin: 0; width: 186mm; min-height: auto; padding: 0; }
+  .overflow-notice { display: none; }
+  .page-break-guide, .page-break-label { display: none; }
+  .statement-table th, .statement-supplier-side { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  .statement-totals, .statement-bank { page-break-inside: avoid; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="statement-page">
+
+  <!-- 페이지 경계 시각화 -->
+  <div class="page-break-guide"></div>
+  <div class="page-break-label">A4 경계 (297mm)</div>
+
+  <!-- 오버플로 안내 -->
+  <div class="overflow-notice">
+    디자인 검증: 15행 데이터 — 합계/계좌란이 2페이지로 이동하는지 확인.
+    page-break-inside: avoid 적용 시 합계 블록은 분리되지 않아야 함.
+  </div>
+
+  <!-- 헤더 -->
+  <div class="statement-title-row">
+    <span class="statement-company-name">(주)삼한공조시스템</span>
+    <span class="statement-form-title">거 래 명 세 서</span>
+    <span class="statement-date-top">2026년 05월 18일</span>
+  </div>
+
+  <div class="statement-panels">
+    <div class="statement-receiver-box">
+      <div class="statement-receiver-name">(주)멀티에어시스템 귀중</div>
+      <div class="statement-receiver-sub">서울특별시 강서구 마곡중앙로 161</div>
+      <div class="statement-receiver-sub">TEL: 02-XXX-XXXX / 사업자번호: 987-65-43210</div>
+    </div>
+    <table class="statement-supplier-table">
+      <tbody>
+        <tr>
+          <td class="statement-supplier-side" rowspan="4">공<br/>급<br/>자</td>
+          <td class="statement-supplier-label">일련번호</td>
+          <td colspan="3">SS-2026-05-019</td>
+        </tr>
+        <tr>
+          <td class="statement-supplier-label">사업자등록번호</td>
+          <td>214-87-20659</td>
+          <td class="statement-supplier-label">TEL</td>
+          <td>02-3461-XXXX</td>
+        </tr>
+        <tr>
+          <td class="statement-supplier-label">상호</td>
+          <td>(주)삼한공조시스템</td>
+          <td class="statement-supplier-label">성명</td>
+          <td>김미선<span class="statement-seal">[인]</span></td>
+        </tr>
+        <tr>
+          <td class="statement-supplier-label">주소</td>
+          <td colspan="3">서울특별시 서초구 마방로2길 9 삼한빌딩 4층</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="statement-meta">
+    <div class="statement-shipping-row">
+      <span class="meta-label">배송지:</span>
+      <span>이석중 팀장 010-XXXX-XXXX / 서울 강서구 마곡중앙로 161 멀티에어 현장</span>
+    </div>
+    <div class="statement-amount-row">
+      <span class="meta-label">금액:</span>
+      <span class="statement-amount-korean">천이백삼십사만오천육백원 정</span>
+      <span class="statement-amount-number">(₩ 12,345,600)</span>
+    </div>
+  </div>
+
+  <!-- 15행 라인 테이블 -->
+  <table class="statement-table">
+    <thead>
+      <tr>
+        <th class="col-date">월/일</th>
+        <th class="col-product">품목명</th>
+        <th class="col-spec">규격</th>
+        <th class="col-qty">수량</th>
+        <th class="col-price">단가</th>
+        <th class="col-supply">공급가액</th>
+        <th class="col-vat">부가세</th>
+        <th class="col-memo">적요</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-date">05/18</td><td class="col-product">AJ040RXH4BC1 (실내기 4way)</td><td class="col-spec">40형</td><td class="col-qty">3</td><td class="col-price">850,000</td><td class="col-supply">2,550,000</td><td class="col-vat">255,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">AJ080RXH4BC1 (실외기)</td><td class="col-spec">80형</td><td class="col-qty">2</td><td class="col-price">1,200,000</td><td class="col-supply">2,400,000</td><td class="col-vat">240,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">AJ023BN1PBC1 (1way 실내기)</td><td class="col-spec">23형</td><td class="col-qty">4</td><td class="col-price">268,000</td><td class="col-supply">1,072,000</td><td class="col-vat">107,200</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">AJ072BN1PBC1 (1way 실내기)</td><td class="col-spec">72형</td><td class="col-qty">2</td><td class="col-price">415,000</td><td class="col-supply">830,000</td><td class="col-vat">83,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">PC1NWSK3NW (WIFI 컨트롤러)</td><td class="col-spec">표준</td><td class="col-qty">5</td><td class="col-price">80,000</td><td class="col-supply">400,000</td><td class="col-vat">40,000</td><td class="col-memo">설치용</td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">PC1BWSK3NW (WIFI판넬 B형)</td><td class="col-spec">B형</td><td class="col-qty">3</td><td class="col-price">112,000</td><td class="col-supply">336,000</td><td class="col-vat">33,600</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">R410A (냉매)</td><td class="col-spec">10kg</td><td class="col-qty">4</td><td class="col-price">180,000</td><td class="col-supply">720,000</td><td class="col-vat">72,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">배관키트 SET (동파이프+보온재)</td><td class="col-spec">5m</td><td class="col-qty">8</td><td class="col-price">50,000</td><td class="col-supply">400,000</td><td class="col-vat">40,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">FH-LFHIF (유연호스 I형)</td><td class="col-spec">I형</td><td class="col-qty">10</td><td class="col-price">0</td><td class="col-supply">0</td><td class="col-vat">0</td><td class="col-memo">무상</td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">AR-EC05 (배관 피팅)</td><td class="col-spec">표준</td><td class="col-qty">6</td><td class="col-price">13,000</td><td class="col-supply">78,000</td><td class="col-vat">7,800</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">드레인펌프 (자동 배수)</td><td class="col-spec">범용</td><td class="col-qty">4</td><td class="col-price">45,000</td><td class="col-supply">180,000</td><td class="col-vat">18,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">절연테이프 (전기용)</td><td class="col-spec">10m</td><td class="col-qty">20</td><td class="col-price">1,500</td><td class="col-supply">30,000</td><td class="col-vat">3,000</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">리모컨 (표준)</td><td class="col-spec">표준</td><td class="col-qty">7</td><td class="col-price">25,000</td><td class="col-supply">175,000</td><td class="col-vat">17,500</td><td class="col-memo"></td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">브래킷 SET (천장 고정용)</td><td class="col-spec">4way</td><td class="col-qty">3</td><td class="col-price">55,000</td><td class="col-supply">165,000</td><td class="col-vat">16,500</td><td class="col-memo">설치용</td></tr>
+      <tr><td class="col-date">05/18</td><td class="col-product">가스 충전 서비스 (현장)</td><td class="col-spec">-</td><td class="col-qty">1</td><td class="col-price">120,000</td><td class="col-supply">120,000</td><td class="col-vat">12,000</td><td class="col-memo">출장비</td></tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" style="text-align:right; padding-right:3mm;">합 계</td>
+        <td class="col-qty" style="text-align:right;">82</td>
+        <td></td>
+        <td class="col-supply" style="text-align:right;">9,256,000</td>
+        <td class="col-vat" style="text-align:right;">925,600</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- 합계/인수란 (page-break-inside: avoid 대상) -->
+  <div class="statement-totals" style="page-break-inside:avoid; break-inside:avoid;">
+    <div class="statement-total-cell">
+      <div class="t-label">수량</div>
+      <div class="t-value">82</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">공급가액</div>
+      <div class="t-value">9,256,000</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">VAT</div>
+      <div class="t-value">925,600</div>
+    </div>
+    <div class="statement-total-cell grand">
+      <div class="t-label">합계</div>
+      <div class="t-value">10,181,600</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">인수</div>
+      <div class="t-value">인</div>
+    </div>
+  </div>
+
+  <div class="statement-bank" style="page-break-inside:avoid; break-inside:avoid;">
+    <span>예금주: (주)삼한공조시스템 / 국민은행 750627-01-002557 · 기업은행 010-3748-9937</span>
+    <span class="statement-bank-amount">10,181,600원</span>
+  </div>
+
+  <div class="statement-footer">
+    <span>비고: 대형 현장 설치 건 — 2026-05-18 1차 출고</span>
+    <span>출력일시: 2026-05-18 09:30</span>
+  </div>
+
+</div>
+</body>
+</html>

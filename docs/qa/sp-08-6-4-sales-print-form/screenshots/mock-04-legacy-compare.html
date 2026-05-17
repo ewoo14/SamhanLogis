@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>mock-04 — legacy GAS vs Samhan Public 비교 (SP-08-6-4)</title>
+<style>
+/* =====================================================
+   SP-08-6-4 legacy GAS vs Samhan Public 비교 뷰
+   좌: 이카운트 판매입력 화면 필드 맵핑 다이어그램
+   우: Samhan Public 거래명세서 인쇄 양식
+   ===================================================== */
+
+body {
+  background: #E5E7EB;
+  padding: 24px;
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1A1F2E;
+  margin: 0 0 16px 0;
+}
+
+.compare-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── 좌: 이카운트 참조 패널 ── */
+.ecount-panel {
+  background: #FFF;
+  border: 1px solid #E1E5EB;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.ecount-panel-header {
+  background: #1E40AF;
+  color: #FFF;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ecount-panel-header .badge {
+  background: rgba(255,255,255,0.2);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.ecount-body {
+  padding: 16px;
+}
+
+/* 이카운트 화면 재현 (20260509_091636.png 구조) */
+.ecount-screen {
+  border: 1px solid #CCC;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.ecount-screen-title {
+  background: #F0F4FF;
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 1px solid #CCC;
+  color: #1E40AF;
+}
+
+.ecount-form {
+  padding: 12px;
+}
+
+.ecount-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px 1fr;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.ecount-label {
+  font-size: 11px;
+  color: #555;
+  font-weight: 600;
+  text-align: right;
+  padding-right: 4px;
+}
+
+.ecount-input {
+  border: 1px solid #CCC;
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: #FFF;
+  color: #333;
+  height: 22px;
+}
+
+.ecount-input.placeholder { color: #AAA; }
+
+.ecount-divider { border: none; border-top: 1px solid #E5E7EB; margin: 10px 0; }
+
+.ecount-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.ecount-table th, .ecount-table td {
+  border: 1px solid #CCC;
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.ecount-table th {
+  background: #F5F7FA;
+  font-weight: 700;
+  text-align: center;
+  font-size: 11px;
+  color: #333;
+}
+
+.ecount-table td { color: #555; font-size: 11px; }
+
+/* 필드 맵핑 화살표 영역 */
+.mapping-area {
+  margin-top: 16px;
+}
+
+.mapping-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.mapping-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+}
+
+.mapping-item .from {
+  background: #DBEAFE;
+  color: #1E40AF;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  min-width: 90px;
+  text-align: center;
+}
+
+.mapping-item .arrow {
+  color: #6B7280;
+  font-size: 14px;
+}
+
+.mapping-item .to {
+  background: #D1FAE5;
+  color: #065F46;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  min-width: 100px;
+  text-align: center;
+}
+
+.mapping-item .note {
+  font-size: 10.5px;
+  color: #6B7280;
+}
+
+/* ── 우: Samhan Public 인쇄 양식 ── */
+.samhan-panel {
+  background: #FFF;
+  border: 1px solid #E1E5EB;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.samhan-panel-header {
+  background: #065F46;
+  color: #FFF;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.samhan-panel-header .badge {
+  background: rgba(255,255,255,0.2);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.samhan-body {
+  padding: 12px;
+}
+
+/* 인쇄 양식 미니 버전 */
+.print-mini {
+  width: 100%;
+  background: #FFF;
+  border: 1px solid #999;
+  font-size: 7.5pt;
+  padding: 6mm;
+  box-sizing: border-box;
+  color: #000;
+  line-height: 1.3;
+}
+
+.pm-title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2mm;
+}
+
+.pm-company { font-size: 8pt; font-weight: 700; }
+.pm-title { font-size: 14pt; font-weight: 700; letter-spacing: 5px; flex: 1; text-align: center; }
+.pm-date { font-size: 7.5pt; }
+
+.pm-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4mm; margin-bottom: 2mm; }
+
+.pm-receiver { border: 1px solid #000; padding: 2mm; font-size: 7.5pt; }
+.pm-receiver-name { font-size: 10pt; font-weight: 700; margin-bottom: 1mm; }
+
+.pm-supplier-table { width: 100%; border-collapse: collapse; font-size: 7pt; }
+.pm-supplier-table td { border: 1px solid #000; padding: 1mm 2mm; vertical-align: middle; }
+.pm-supplier-side {
+  background: #F0F0F0; font-weight: 700; text-align: center;
+  width: 5mm; writing-mode: vertical-rl; letter-spacing: 2px; font-size: 7pt;
+}
+.pm-supplier-label { background: #F5F5F5; font-weight: 700; text-align: center; width: 15mm; font-size: 7pt; }
+.pm-seal {
+  display: inline-block; margin-left: 2mm; border: 1pt solid #C00;
+  border-radius: 50%; padding: 0mm 1.5mm; color: #C00; font-size: 7pt; font-weight: 700; transform: rotate(-8deg);
+}
+
+.pm-meta { border: 1px solid #000; border-bottom: none; font-size: 7pt; }
+.pm-meta-row { padding: 1mm 3mm; display: flex; align-items: center; gap: 3mm; min-height: 6mm; }
+.pm-meta-row:first-child { border-bottom: 1px solid #000; }
+.pm-meta-label { font-weight: 700; background: #FFF3CD; padding: 0 1.5mm; flex-shrink: 0; }
+.pm-meta-num { margin-left: auto; font-weight: 700; font-size: 8pt; font-variant-numeric: tabular-nums; }
+
+.pm-table { width: 100%; border-collapse: collapse; font-size: 7pt; }
+.pm-table th, .pm-table td { border: 1px solid #000; padding: 1mm 1.5mm; vertical-align: middle; }
+.pm-table th { background: #F0F0F0; font-weight: 700; text-align: center; }
+.pm-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.pm-table .c { text-align: center; }
+.pm-table tfoot td { font-weight: 700; background: #FAFAFA; }
+
+.pm-totals {
+  display: grid; grid-template-columns: 1fr 2fr 2fr 2fr 1fr;
+  border: 1px solid #000; border-top: none; font-size: 7pt;
+}
+.pm-total-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-right: 1px solid #000; padding: 1mm 1.5mm; min-height: 9mm;
+}
+.pm-total-cell:last-child { border-right: none; }
+.pm-t-label { background: #F0F0F0; font-weight: 700; font-size: 6.5pt; padding: 0.3mm 1.5mm; width: 100%; text-align: center; }
+.pm-t-value { text-align: right; font-weight: 600; font-size: 7.5pt; font-variant-numeric: tabular-nums; width: 100%; }
+.pm-total-cell.grand .pm-t-value { font-weight: 700; font-size: 8.5pt; }
+
+.pm-bank {
+  background: #FFF3CD; border: 1px solid #000; border-top: none;
+  padding: 1mm 3mm; font-size: 7pt; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between; min-height: 7mm;
+}
+.pm-bank-amount { font-size: 8pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* 비교 체크리스트 */
+.check-list {
+  margin-top: 16px;
+}
+
+.check-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+
+.check-ok { color: #065F46; font-weight: 700; }
+.check-note { color: #92400E; font-weight: 700; }
+.check-text { color: #374151; }
+
+/* GAS 미존재 안내 */
+.gas-notice {
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 11.5px;
+  color: #92400E;
+}
+
+.gas-notice strong { font-weight: 700; }
+
+@media print {
+  @page { size: A3 landscape; margin: 10mm; }
+  body { background: none; padding: 0; }
+  .compare-wrapper { gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<h1>SP-08-6-4 — legacy GAS 비교 / Samhan Public 거래명세서 필드 맵핑</h1>
+
+<div class="compare-wrapper">
+
+  <!-- 좌: 이카운트 참조 -->
+  <div class="ecount-panel">
+    <div class="ecount-panel-header">
+      이카운트 판매입력 화면 (참조 기준)
+      <span class="badge">20260509_091636.png</span>
+    </div>
+    <div class="ecount-body">
+
+      <div class="gas-notice">
+        <strong>GAS legacy 인쇄 양식 캡처 없음</strong> — docs/migration/legacy-print-forms/ 미존재.
+        이카운트 판매입력 화면 (ecount-reference) 을 필드 맵핑 참조 기준으로 사용.
+      </div>
+
+      <div class="ecount-screen">
+        <div class="ecount-screen-title">판매입력 — 이카운트 ERP (참조용)</div>
+        <div class="ecount-form">
+          <div class="ecount-row">
+            <span class="ecount-label">일자</span>
+            <span class="ecount-input">2026 / 5 / 18</span>
+            <span class="ecount-label">거래처</span>
+            <span class="ecount-input placeholder">거래처</span>
+          </div>
+          <div class="ecount-row">
+            <span class="ecount-label">담당자</span>
+            <span class="ecount-input placeholder">담당자</span>
+            <span class="ecount-label">출하창고</span>
+            <span class="ecount-input placeholder">출하창고</span>
+          </div>
+          <div class="ecount-row">
+            <span class="ecount-label">프로젝트</span>
+            <span class="ecount-input placeholder">프로젝트</span>
+            <span class="ecount-label">전화번호</span>
+            <span class="ecount-input placeholder">전화번호</span>
+          </div>
+          <div class="ecount-row">
+            <span class="ecount-label">주소</span>
+            <span class="ecount-input placeholder" style="grid-column: span 3;">주소</span>
+          </div>
+          <div class="ecount-row">
+            <span class="ecount-label">배송주소</span>
+            <span class="ecount-input placeholder" style="grid-column: span 3;">배송주소</span>
+          </div>
+          <div class="ecount-row">
+            <span class="ecount-label">거래처특이</span>
+            <span class="ecount-input placeholder" style="grid-column: span 3;">거래처 특이사항</span>
+          </div>
+          <hr class="ecount-divider">
+          <table class="ecount-table">
+            <thead>
+              <tr>
+                <th>품목코드</th>
+                <th>품목명</th>
+                <th>규격</th>
+                <th>수량</th>
+                <th>단가(VAT포함)</th>
+                <th>공급가액</th>
+                <th>부가세</th>
+                <th>적요</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>01026</td><td>AJ040RXH4BC1</td><td>40형</td><td style="text-align:right;">2</td><td style="text-align:right;">935,000</td><td style="text-align:right;">1,700,000</td><td style="text-align:right;">170,000</td><td></td></tr>
+              <tr><td colspan="8" style="color:#AAA; font-style:italic; text-align:center; height:18px;">— 라인 2~N —</td></tr>
+            </tbody>
+          </table>
+          <div style="display:flex; justify-content:flex-end; gap:16px; margin-top:6px; font-size:11px;">
+            <span>공급가액 합계: <strong>0</strong></span>
+            <span>부가세: <strong>0</strong></span>
+            <span>합계: <strong>0</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 필드 맵핑 -->
+      <div class="mapping-area">
+        <div class="mapping-title">이카운트 필드 → Samhan Public 인쇄 양식 1:1 맵핑</div>
+
+        <div class="mapping-item">
+          <span class="from">거래처</span>
+          <span class="arrow">→</span>
+          <span class="to">수신처 상호</span>
+          <span class="note">13pt 700 receiver-name</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">일자</span>
+          <span class="arrow">→</span>
+          <span class="to">작성일 + 월/일 컬럼</span>
+          <span class="note">헤더 + 라인 행</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">출하창고</span>
+          <span class="arrow">→</span>
+          <span class="to">공급자 출하창고</span>
+          <span class="note">supplier panel</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">전화번호</span>
+          <span class="arrow">→</span>
+          <span class="to">수신처 TEL</span>
+          <span class="note">receiver-sub</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">배송주소</span>
+          <span class="arrow">→</span>
+          <span class="to">배송지: 메타 행</span>
+          <span class="note">statement-meta 상단</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">품목명</span>
+          <span class="arrow">→</span>
+          <span class="to">품목명 컬럼</span>
+          <span class="note">modelName (+ productName)</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">규격</span>
+          <span class="arrow">→</span>
+          <span class="to">규격 컬럼</span>
+          <span class="note">specification 18mm</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">수량</span>
+          <span class="arrow">→</span>
+          <span class="to">수량 컬럼 + 합계</span>
+          <span class="note">tabular-nums</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">단가(VAT포함)</span>
+          <span class="arrow">→</span>
+          <span class="to">단가 컬럼</span>
+          <span class="note">VAT 제외 공급가 기준</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">공급가액</span>
+          <span class="arrow">→</span>
+          <span class="to">공급가액 컬럼</span>
+          <span class="note">28mm right</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">부가세</span>
+          <span class="arrow">→</span>
+          <span class="to">부가세 컬럼</span>
+          <span class="note">20mm right 10%</span>
+        </div>
+        <div class="mapping-item">
+          <span class="from">적요</span>
+          <span class="arrow">→</span>
+          <span class="to">적요 컬럼</span>
+          <span class="note">12mm memo</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 우: Samhan Public 인쇄 양식 -->
+  <div class="samhan-panel">
+    <div class="samhan-panel-header">
+      Samhan Public 거래명세서 인쇄 양식
+      <span class="badge">mock-01 축소판</span>
+    </div>
+    <div class="samhan-body">
+
+      <div class="print-mini">
+        <!-- 제목 -->
+        <div class="pm-title-row">
+          <span class="pm-company">(주)삼한공조시스템</span>
+          <span class="pm-title">거 래 명 세 서</span>
+          <span class="pm-date">2026년 05월 18일</span>
+        </div>
+
+        <!-- 패널 -->
+        <div class="pm-panels">
+          <div class="pm-receiver">
+            <div class="pm-receiver-name">(주)ABC냉방기술 귀중</div>
+            <div style="font-size:7pt;">경기도 수원시 영통구 광교로 107</div>
+            <div style="font-size:7pt;">TEL: 031-XXX-XXXX / 123-45-67890</div>
+          </div>
+          <table class="pm-supplier-table">
+            <tbody>
+              <tr>
+                <td class="pm-supplier-side" rowspan="4">공<br/>급<br/>자</td>
+                <td class="pm-supplier-label">일련번호</td>
+                <td colspan="3">SS-2026-05-018</td>
+              </tr>
+              <tr>
+                <td class="pm-supplier-label">사업자등록번호</td>
+                <td>214-87-20659</td>
+                <td class="pm-supplier-label">TEL</td>
+                <td>02-3461-XXXX</td>
+              </tr>
+              <tr>
+                <td class="pm-supplier-label">상호</td>
+                <td>(주)삼한공조시스템</td>
+                <td class="pm-supplier-label">성명</td>
+                <td>김미선<span class="pm-seal">[인]</span></td>
+              </tr>
+              <tr>
+                <td class="pm-supplier-label">주소</td>
+                <td colspan="3">서울 서초구 마방로2길 9 삼한빌딩 4층</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 메타 -->
+        <div class="pm-meta">
+          <div class="pm-meta-row">
+            <span class="pm-meta-label">배송지:</span>
+            <span style="font-size:7pt;">홍길동 010-1234-5678 / 수원시 영통구 광교로 107</span>
+          </div>
+          <div class="pm-meta-row">
+            <span class="pm-meta-label">금액:</span>
+            <span style="font-size:7pt; flex:1;">사백십이만오천원 정</span>
+            <span class="pm-meta-num">(₩ 4,125,000)</span>
+          </div>
+        </div>
+
+        <!-- 라인 테이블 -->
+        <table class="pm-table">
+          <thead>
+            <tr>
+              <th style="width:11mm;">월/일</th>
+              <th>품목명</th>
+              <th style="width:14mm;">규격</th>
+              <th style="width:9mm;">수량</th>
+              <th style="width:19mm;">단가</th>
+              <th style="width:22mm;">공급가액</th>
+              <th style="width:16mm;">부가세</th>
+              <th style="width:10mm;">적요</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="c">05/18</td><td>AJ040RXH4BC1 (실내기 4way)</td><td class="c">40형</td><td class="r">2</td><td class="r">850,000</td><td class="r">1,700,000</td><td class="r">170,000</td><td></td></tr>
+            <tr><td class="c">05/18</td><td>AJ080RXH4BC1 (실외기)</td><td class="c">80형</td><td class="r">1</td><td class="r">1,200,000</td><td class="r">1,200,000</td><td class="r">120,000</td><td></td></tr>
+            <tr><td class="c">05/18</td><td>PC1NWSK3NW (WIFI 컨트롤러)</td><td class="c">표준</td><td class="r">3</td><td class="r">80,000</td><td class="r">240,000</td><td class="r">24,000</td><td style="font-size:6pt;">설치용</td></tr>
+            <tr><td class="c">05/18</td><td>R410A (냉매)</td><td class="c">10kg</td><td class="r">2</td><td class="r">180,000</td><td class="r">360,000</td><td class="r">36,000</td><td></td></tr>
+            <tr><td class="c">05/18</td><td>배관키트 SET</td><td class="c">5m</td><td class="r">5</td><td class="r">50,000</td><td class="r">250,000</td><td class="r">25,000</td><td></td></tr>
+            <tr style="height:6mm;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            <tr style="height:6mm;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+
+        <!-- 합계 -->
+        <div class="pm-totals">
+          <div class="pm-total-cell"><div class="pm-t-label">수량</div><div class="pm-t-value">13</div></div>
+          <div class="pm-total-cell"><div class="pm-t-label">공급가액</div><div class="pm-t-value">3,750,000</div></div>
+          <div class="pm-total-cell"><div class="pm-t-label">VAT</div><div class="pm-t-value">375,000</div></div>
+          <div class="pm-total-cell grand"><div class="pm-t-label">합계</div><div class="pm-t-value">4,125,000</div></div>
+          <div class="pm-total-cell"><div class="pm-t-label">인수</div><div class="pm-t-value">인</div></div>
+        </div>
+
+        <!-- 계좌 -->
+        <div class="pm-bank">
+          <span>국민은행 750627-01-002557 (주)삼한공조시스템</span>
+          <span class="pm-bank-amount">4,125,000원</span>
+        </div>
+      </div>
+
+      <!-- 체크리스트 -->
+      <div class="check-list">
+        <div class="check-title">필드 1:1 매칭 체크리스트</div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">거래처 → 수신처명 (13pt 700)</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">일자 → 작성일 + 월/일 컬럼</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">사업자번호 → 수신처/공급자 모두 표시</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">배송주소 → 배송지 메타 행</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">품목명/규격/수량/단가/공급가액/부가세/적요 8컬럼</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">합계 행: 수량/공급가액/VAT/합계/인수 5셀</span></div>
+        <div class="check-item"><span class="check-ok">O</span><span class="check-text">계좌 정보 (노랑 배경) 하단 고정</span></div>
+        <div class="check-item"><span class="check-note">확인</span><span class="check-text">UUID 비공개 — 전표번호(SS-2026-05-018)만 노출, 내부 ID 미노출</span></div>
+        <div class="check-item"><span class="check-note">확인</span><span class="check-text">담당자 = fullName만 표시 (UUID 없음)</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

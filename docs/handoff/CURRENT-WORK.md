@@ -2,6 +2,45 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-4 진입 — P1 거래명세서 + 계산서 인쇄 양식
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-4-sales-print-form
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `5be1fa99` (PR #228 SP-08-6-3 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.4
+- 사용자 6/7회차 정책
+
+### SP-08-6-4 범위 (P1)
+
+매출 (Slip slipType=OUTBOUND) 인쇄 양식 추가:
+- `SalesTransactionStatementPrintPage.tsx` (거래명세서) — 신규 라우트 `/sales/:id/print/statement`
+- `SalesInvoicePrintPage.tsx` (계산서) — 신규 라우트 `/sales/:id/print/invoice`
+- SP-08-5-5 매입 인쇄 양식 패턴 재사용 (`PrintLayout paper="a4-portrait"`)
+- A4 portrait 한 장 fit + 부가세 (10%) + 합계
+- legacy GAS 양식 100% 매칭 (사용자 Edge 캡처 iteration 3~5회 의무)
+- BE 변경 없음 (기존 GET `/slips/{id}` 재사용 — SP-08-5-5 패턴)
+- FE only 슬라이스
+- Playwright + PNG 4~8장 (양식별 2장씩)
+
+### 직전 머지 (PR #228)
+
+- branch: `feat/sp-08-6-3-sales-slip-soft-delete` (deleted)
+- mergeCommit: `5be1fa99`
+- 사이클 통계: N=1 (1c MAJOR 4 + MEDIUM 1 + MINOR/INFO 5 일괄 fix)
+- TM PR comment 2건 (Claude 1c 4472783467 + Codex 1c 4472799953)
+- 신규: SalesSlipDeleteController/Service + Slip.deleteForSales + SLIP_DELETE_SALES_SHIPPED + SlipSalesDeleteIT 9 case + .danger-banner 기반 alert() 제거 + 409 reload + requireNotLocked
+
+## 2026-05-18 SP-08-6-3 머지 완료 — 매출 soft delete (참고 이력)
+
 ## 2026-05-18 SP-08-6-3 진입 — D1 매출 soft delete + 출고 정책
 
 ### 즉시 시작

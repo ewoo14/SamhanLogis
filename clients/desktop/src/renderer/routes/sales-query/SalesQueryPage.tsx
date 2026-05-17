@@ -521,26 +521,44 @@ export function SalesQueryPage() {
                 </Button>
               ) : null
             })()}
-            {/* 거래명세서 출력 — /sales/:id/print/statement (SP-08-6-4 후속) */}
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled
-              title="거래명세서 출력 기능은 SP-08-6-4 에서 연결 예정"
-              data-testid="sales-query-statement-print-btn"
-            >
-              거래명세서 출력
-            </Button>
-            {/* 계산서 출력 — /sales/:id/print/invoice (SP-08-6-4 후속) */}
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled
-              title="계산서 출력 기능은 SP-08-6-4 에서 연결 예정"
-              data-testid="sales-query-invoice-print-btn"
-            >
-              계산서 출력
-            </Button>
+            {/* SP-08-6-4: 거래명세서 출력 — /sales/:id/print/statement */}
+            {(() => {
+              const selectedRow = rows.find((r) => selectedIds.has(r.id))
+              const singleSelected = selectedIds.size === 1 && !!selectedRow
+              return (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!singleSelected}
+                  title={singleSelected ? undefined : '단일 전표를 선택해주세요'}
+                  data-testid="sales-query-statement-print-btn"
+                  onClick={() => {
+                    if (selectedRow) navigate(`/sales/${selectedRow.id}/print/statement`)
+                  }}
+                >
+                  거래명세서 출력
+                </Button>
+              )
+            })()}
+            {/* SP-08-6-4: 계산서 출력 — /sales/:id/print/invoice */}
+            {(() => {
+              const selectedRow = rows.find((r) => selectedIds.has(r.id))
+              const singleSelected = selectedIds.size === 1 && !!selectedRow
+              return (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!singleSelected}
+                  title={singleSelected ? undefined : '단일 전표를 선택해주세요'}
+                  data-testid="sales-query-invoice-print-btn"
+                  onClick={() => {
+                    if (selectedRow) navigate(`/sales/${selectedRow.id}/print/invoice`)
+                  }}
+                >
+                  계산서 출력
+                </Button>
+              )
+            })()}
           </>
         ) : null}
 

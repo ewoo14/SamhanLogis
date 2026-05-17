@@ -1018,12 +1018,23 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           ) : null}
           {isOutbound ? (
             <>
+              {/* SP-08-6-4: 거래명세서 출력 — /sales/:id/print/statement */}
               <Button
                 variant="secondary"
                 size="sm"
+                data-testid="sales-statement-print-button"
+                onClick={() => navigate(`/sales/${id}/print/statement`)}
+              >
+                거래명세서 출력
+              </Button>
+              {/* SP-08-6-4: 계산서(세금계산서) 출력 — /sales/:id/print/invoice */}
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="sales-invoice-print-button"
                 onClick={() => navigate(`/sales/${id}/print/invoice`)}
               >
-                거래명세서
+                계산서 출력
               </Button>
               <Button
                 variant="secondary"

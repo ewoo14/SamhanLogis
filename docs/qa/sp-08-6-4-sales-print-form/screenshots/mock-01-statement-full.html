@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>mock-01 — 거래명세서 전체 (SP-08-6-4)</title>
+<style>
+/* =====================================================
+   SP-08-6-4 거래명세서 인쇄 mock — A4 portrait 전체
+   print-spec.md §2~§7 구현
+   ===================================================== */
+
+/* ── 브라우저 미리보기 배경 ── */
+body {
+  background: #E5E7EB;
+  padding: 24px;
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── A4 용지 시뮬레이션 ── */
+.statement-page {
+  width: 210mm;
+  min-height: 297mm;
+  background: #FFF;
+  margin: 0 auto;
+  padding: 12mm;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  color: #000;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+
+/* ── 헤더 40mm ── */
+.statement-header {
+  margin-bottom: 4mm;
+}
+
+.statement-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 10mm;
+  border-bottom: 2.5px solid #000;
+  padding-bottom: 2mm;
+  margin-bottom: 3mm;
+}
+
+.statement-company-name {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.statement-form-title {
+  font-size: 22pt;
+  font-weight: 700;
+  letter-spacing: 8px;
+  flex: 1;
+  text-align: center;
+}
+
+.statement-date-top {
+  font-size: 9.5pt;
+  text-align: right;
+}
+
+.statement-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 6mm;
+}
+
+/* 수신처 박스 */
+.statement-receiver-box {
+  border: 1px solid #000;
+  padding: 3mm 4mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 27mm;
+}
+
+.statement-receiver-name {
+  font-size: 13pt;
+  font-weight: 700;
+  margin-bottom: 1.5mm;
+}
+
+.statement-receiver-sub {
+  font-size: 10pt;
+  margin-bottom: 0.5mm;
+}
+
+/* 공급자 테이블 */
+.statement-supplier-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  min-height: 27mm;
+}
+
+.statement-supplier-table td {
+  border: 1px solid #000;
+  padding: 1.5mm 2.5mm;
+  vertical-align: middle;
+}
+
+.statement-supplier-side {
+  background: #F0F0F0;
+  font-weight: 700;
+  text-align: center;
+  width: 6mm;
+  font-size: 9.5pt;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+
+.statement-supplier-label {
+  background: #F5F5F5;
+  font-weight: 700;
+  text-align: center;
+  width: 20mm;
+}
+
+.statement-seal {
+  display: inline-block;
+  margin-left: 5mm;
+  border: 1.5pt solid #C00;
+  border-radius: 50%;
+  padding: 0.5mm 2.5mm;
+  color: #C00;
+  font-size: 8.5pt;
+  font-weight: 700;
+  transform: rotate(-8deg);
+}
+
+/* ── 금액/배송 16mm ── */
+.statement-meta {
+  border: 1px solid #000;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.statement-shipping-row,
+.statement-amount-row {
+  padding: 2mm 4mm;
+  font-size: 10pt;
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  min-height: 8mm;
+}
+
+.statement-shipping-row {
+  border-bottom: 1px solid #000;
+}
+
+.meta-label {
+  font-weight: 700;
+  background: #FFF3CD;
+  padding: 0 2mm;
+  flex-shrink: 0;
+}
+
+.statement-amount-korean {
+  font-weight: 600;
+  flex: 1;
+}
+
+.statement-amount-number {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 12pt;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 라인 테이블 (8컬럼) ── */
+.statement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  line-height: 1.4;
+}
+
+.statement-table th,
+.statement-table td {
+  border: 1px solid #000;
+  padding: 1.5mm 2mm;
+  vertical-align: middle;
+}
+
+.statement-table th {
+  background: #F0F0F0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.statement-table .col-date   { width: 14mm; text-align: center; }
+.statement-table .col-spec   { width: 18mm; text-align: center; }
+.statement-table .col-qty    { width: 12mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-price  { width: 24mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-supply { width: 28mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-vat    { width: 20mm; text-align: right; font-variant-numeric: tabular-nums; }
+.statement-table .col-memo   { width: 12mm; text-align: left; }
+.statement-table .col-product { text-align: left; }
+
+.statement-table tbody tr.pad-row td { height: 8mm; }
+
+.statement-table tfoot td {
+  font-weight: 700;
+  background: #FAFAFA;
+}
+
+/* ── 합계/인수란 14mm ── */
+.statement-totals {
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr 2fr 1fr;
+  border: 1px solid #000;
+  border-top: none;
+}
+
+.statement-total-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 1px solid #000;
+  padding: 1.5mm 2.5mm;
+  gap: 2mm;
+  min-height: 14mm;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.statement-total-cell:last-child { border-right: none; }
+
+.statement-total-cell .t-label {
+  background: #F0F0F0;
+  font-weight: 700;
+  font-size: 8.5pt;
+  padding: 0.5mm 2mm;
+  text-align: center;
+  width: 100%;
+}
+
+.statement-total-cell .t-value {
+  text-align: right;
+  font-weight: 600;
+  font-size: 9.5pt;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.statement-total-cell.grand .t-value {
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+/* ── 계좌 정보 10mm ── */
+.statement-bank {
+  background: #FFF3CD;
+  border: 1px solid #000;
+  border-top: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2mm 4mm;
+  font-size: 10pt;
+  font-weight: 600;
+  min-height: 10mm;
+}
+
+.statement-bank-amount {
+  font-size: 12pt;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 푸터 12mm ── */
+.statement-footer {
+  margin-top: 4mm;
+  padding-top: 2mm;
+  border-top: 1px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 8pt;
+  color: #555;
+  min-height: 10mm;
+}
+
+/* ── @media print ── */
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { background: none; padding: 0; }
+  .statement-page {
+    box-shadow: none;
+    margin: 0;
+    width: 186mm;
+    min-height: auto;
+    padding: 0;
+  }
+  .statement-table th,
+  .statement-supplier-side {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  .statement-totals,
+  .statement-bank { page-break-inside: avoid; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="statement-page">
+
+  <!-- 헤더 -->
+  <div class="statement-header">
+    <div class="statement-title-row">
+      <span class="statement-company-name">(주)삼한공조시스템</span>
+      <span class="statement-form-title">거 래 명 세 서</span>
+      <span class="statement-date-top">2026년 05월 18일</span>
+    </div>
+
+    <div class="statement-panels">
+      <!-- 수신처 -->
+      <div class="statement-receiver-box">
+        <div class="statement-receiver-name">주식회사 ABC냉방기술 귀중</div>
+        <div class="statement-receiver-sub">경기도 수원시 영통구 광교로 107</div>
+        <div class="statement-receiver-sub">TEL: 031-XXX-XXXX</div>
+        <div class="statement-receiver-sub">사업자번호: 123-45-67890</div>
+      </div>
+
+      <!-- 공급자 -->
+      <table class="statement-supplier-table">
+        <tbody>
+          <tr>
+            <td class="statement-supplier-side" rowspan="4">공<br/>급<br/>자</td>
+            <td class="statement-supplier-label">일련번호</td>
+            <td colspan="3">SS-2026-05-018</td>
+          </tr>
+          <tr>
+            <td class="statement-supplier-label">사업자등록번호</td>
+            <td>214-87-20659</td>
+            <td class="statement-supplier-label">TEL</td>
+            <td>02-3461-XXXX</td>
+          </tr>
+          <tr>
+            <td class="statement-supplier-label">상호</td>
+            <td>(주)삼한공조시스템</td>
+            <td class="statement-supplier-label">성명</td>
+            <td>김미선<span class="statement-seal">[인]</span></td>
+          </tr>
+          <tr>
+            <td class="statement-supplier-label">주소</td>
+            <td colspan="3">서울특별시 서초구 마방로2길 9 삼한빌딩 4층</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 금액/배송 -->
+  <div class="statement-meta">
+    <div class="statement-shipping-row">
+      <span class="meta-label">배송지:</span>
+      <span>홍길동 팀장 010-1234-5678 / 경기도 수원시 영통구 광교로 107 ABC냉방기술 수원사업소</span>
+    </div>
+    <div class="statement-amount-row">
+      <span class="meta-label">금액:</span>
+      <span class="statement-amount-korean">사백삼십오만원 정</span>
+      <span class="statement-amount-number">(₩ 4,350,000)</span>
+    </div>
+  </div>
+
+  <!-- 라인 테이블 -->
+  <table class="statement-table">
+    <thead>
+      <tr>
+        <th class="col-date">월/일</th>
+        <th class="col-product">품목명</th>
+        <th class="col-spec">규격</th>
+        <th class="col-qty">수량</th>
+        <th class="col-price">단가</th>
+        <th class="col-supply">공급가액</th>
+        <th class="col-vat">부가세</th>
+        <th class="col-memo">적요</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">AJ040RXH4BC1 (에어컨 실내기 4way)</td>
+        <td class="col-spec">40형</td>
+        <td class="col-qty">2</td>
+        <td class="col-price">850,000</td>
+        <td class="col-supply">1,700,000</td>
+        <td class="col-vat">170,000</td>
+        <td class="col-memo"></td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">AJ080RXH4BC1 (에어컨 실외기)</td>
+        <td class="col-spec">80형</td>
+        <td class="col-qty">1</td>
+        <td class="col-price">1,200,000</td>
+        <td class="col-supply">1,200,000</td>
+        <td class="col-vat">120,000</td>
+        <td class="col-memo"></td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">PC1NWSK3NW (WIFI 컨트롤러 판넬)</td>
+        <td class="col-spec">표준</td>
+        <td class="col-qty">3</td>
+        <td class="col-price">80,000</td>
+        <td class="col-supply">240,000</td>
+        <td class="col-vat">24,000</td>
+        <td class="col-memo">설치용</td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">R410A (냉매)</td>
+        <td class="col-spec">10kg</td>
+        <td class="col-qty">2</td>
+        <td class="col-price">180,000</td>
+        <td class="col-supply">360,000</td>
+        <td class="col-vat">36,000</td>
+        <td class="col-memo"></td>
+      </tr>
+      <tr>
+        <td class="col-date">05/18</td>
+        <td class="col-product">배관키트 SET (동파이프+보온재)</td>
+        <td class="col-spec">5m</td>
+        <td class="col-qty">5</td>
+        <td class="col-price">50,000</td>
+        <td class="col-supply">250,000</td>
+        <td class="col-vat">25,000</td>
+        <td class="col-memo"></td>
+      </tr>
+      <!-- 패딩 행 (수기 가능 영역) -->
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="pad-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <!-- 합계/인수란 -->
+  <div class="statement-totals">
+    <div class="statement-total-cell">
+      <div class="t-label">수량</div>
+      <div class="t-value">13</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">공급가액</div>
+      <div class="t-value">3,750,000</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">VAT</div>
+      <div class="t-value">375,000</div>
+    </div>
+    <div class="statement-total-cell grand">
+      <div class="t-label">합계</div>
+      <div class="t-value">4,125,000</div>
+    </div>
+    <div class="statement-total-cell">
+      <div class="t-label">인수</div>
+      <div class="t-value">인</div>
+    </div>
+  </div>
+
+  <!-- 계좌 정보 -->
+  <div class="statement-bank">
+    <span>예금주: (주)삼한공조시스템 &nbsp;/&nbsp; 국민은행 750627-01-002557 &nbsp;·&nbsp; 기업은행 010-3748-9937</span>
+    <span class="statement-bank-amount">4,125,000원</span>
+  </div>
+
+  <!-- 푸터 -->
+  <div class="statement-footer">
+    <span>비고: 설치 포함 견적 — 현장 확인 후 최종 정산</span>
+    <span>출력일시: 2026-05-18 09:30</span>
+  </div>
+
+</div>
+</body>
+</html>
