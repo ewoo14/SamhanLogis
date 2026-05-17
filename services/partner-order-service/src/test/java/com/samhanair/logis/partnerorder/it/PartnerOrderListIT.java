@@ -68,7 +68,7 @@ class PartnerOrderListIT extends AbstractPostgresIT {
         outboxRepository.deleteAll();
         orderRepository.deleteAll();
         saveOrder("2026/05/01-1", "P-SP0841-A", "1010101010", "실외기", "AJ040RXH4BC1", "CONFIRMED");
-        saveOrder("2026/05/03-1", "P-SP0841-B", "2020202020", "천장형 실내기", "AC060TN4PBH1", "DRAFT");
+        saveOrder("2026/05/03-1", "P-SP0841-B", "2020202020", "천장형 실내기", "AC060TN4PBH1", "CONFIRMING");
         saveOrder("2026/05/05-1", "P-SP0841-C", "3030303030", "벽걸이 실내기", "AR09B9150HZ", "CANCELED");
     }
 
@@ -97,10 +97,10 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_filters_by_status() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
-                        .param("status", "DRAFT"))
+                        .param("status", "CONFIRMING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
-                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+                .andExpect(jsonPath("$.data.content[0].status").value("CONFIRMING"));
     }
 
     @Test

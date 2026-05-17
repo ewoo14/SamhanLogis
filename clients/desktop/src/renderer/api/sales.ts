@@ -289,7 +289,8 @@ export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
 export interface PartnerOrderSummary {
   orderNumber: string
   partnerCode: string
-  partnerName: string
+  /** 거래처명. BE entity 컬럼 부재로 현재 null. SP-08-4-2 lookup 후 채움. */
+  partnerName: string | null
   submittedAt: string | null
   status: PartnerOrderStatus
   totalAmount: number
