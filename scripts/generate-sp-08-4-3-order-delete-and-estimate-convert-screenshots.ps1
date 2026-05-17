@@ -134,7 +134,7 @@ New-Canvas -Title "\uC8FC\uBB38\uC11C \uC0AD\uC81C \uD655\uC778" -FileName "01-d
 New-Canvas -Title "\uC8FC\uBB38\uC11C \uC0AD\uC81C \uC644\uB8CC \uD6C4 \uBAA9\uB85D" -FileName "02-delete-success.png" -DrawBody {
     param($g)
     Draw-Text $g "\uC8FC\uBB38\uC11C \uBAA9\uB85D" 92 136 19 15 23 42 -Bold
-    Draw-Box $g "\uC0AD\uC81C \uC644\uB8CC" 92 184 1030 62 "\uC120\uD0DD\uD55C \uC8FC\uBB38\uC11C\uB294 active \uBAA9\uB85D\uC5D0\uC11C \uC81C\uC678\uB418\uC5C8\uC2B5\uB2C8\uB2E4."
+    Draw-Box $g "\uC0AD\uC81C \uC644\uB8CC" 92 184 1030 62 "\uC120\uD0DD\uD55C \uC8FC\uBB38\uC11C\uB294 \uC8FC\uBB38\uC11C \uBAA9\uB85D\uC5D0\uC11C \uC81C\uC678\uB418\uC5C8\uC2B5\uB2C8\uB2E4."
     Draw-Box $g "2026/05/17-2    P-EST-001    550,000\uC6D0" 92 284 1030 54 "\uD655\uC815 \uCC98\uB9AC\uC911 \u00B7 \uC0AD\uC81C\uB41C 2026/05/17-1 \uBBF8\uB178\uCD9C"
     Draw-Box $g "2026/05/16-4    P-AC-120    1,240,000\uC6D0" 92 346 1030 54 "\uD655\uC815 \u00B7 SL-20260516-004"
     Draw-Box $g "2026/05/15-9    P-HQ-009    310,000\uC6D0" 92 408 1030 54 "\uC791\uC131\uC911"
@@ -142,7 +142,7 @@ New-Canvas -Title "\uC8FC\uBB38\uC11C \uC0AD\uC81C \uC644\uB8CC \uD6C4 \uBAA9\uB
 
 New-Canvas -Title "\uACAC\uC801\uC5D0\uC11C \uC8FC\uBB38 \uC0DD\uC131" -FileName "03-from-estimate-success.png" -DrawBody {
     param($g)
-    Draw-Badge $g "201 Created" 92 138 112 "success"
+    Draw-Button $g "\uC8FC\uBB38\uC11C \uC0DD\uC131 \uC644\uB8CC" 92 138 184 36 "success"
     Draw-Box $g "\uC0DD\uC131\uB41C \uC8FC\uBB38\uBC88\uD638" 92 184 1030 62 "2026/05/17-3    \uC8FC\uBB38 \uC0C1\uD0DC: \uCD08\uC548    \uC804\uD45C \uBC1C\uD589: \uBD88\uD544\uC694"
     Draw-Box $g "\uAC70\uB798\uCC98 / \uC0AC\uC5C5\uC790" 92 272 496 62 "P-EST-001 / 1010101010"
     Draw-Box $g "\uB0A9\uAE30 / \uC694\uCCAD\uC0AC\uD56D" 626 272 496 62 "2026-05-30 / \uACAC\uC801 \uBA54\uBAA8"
@@ -159,10 +159,10 @@ New-Canvas -Title "\uACAC\uC801 \uC911\uBCF5 \uBCC0\uD658 \uCC28\uB2E8" -FileNam
     Draw-Button $g "\uC0C1\uC138 \uD655\uC778" 970 410 132 48 "primary"
 }
 
-New-Canvas -Title "PARTNER \uAD8C\uD55C \uAC00\uB4DC" -FileName "05-role-guard-partner.png" -DrawBody {
+New-Canvas -Title "\uC8FC\uBB38\uC11C \uC0C1\uC138" -FileName "05-role-guard-partner.png" -DrawBody {
     param($g)
     Draw-Box $g "\uC8FC\uBB38\uC11C \uC0C1\uC138" 92 138 1030 96 "\uAC70\uB798\uCC98 \uACC4\uC815\uC740 \uC8FC\uBB38 \uC870\uD68C\uB9CC \uAC00\uB2A5\uD569\uB2C8\uB2E4."
-    Draw-Badge $g "PARTNER" 950 154 92 "info"
+    Draw-Badge $g "\uAC70\uB798\uCC98 \uACC4\uC815" 930 154 132 "info"
     Draw-Box $g "\uC218\uC815 / \uC0AD\uC81C \uBC84\uD2BC \uBBF8\uB178\uCD9C" 92 274 1030 62 "MASTER / MANAGER / SALES \uAD8C\uD55C\uC5D0\uC11C\uB9CC \uC989\uC2DC \uC218\uC815\uACFC soft delete \uD45C\uC2DC"
     Draw-Box $g "\uB77C\uC778 (2\uAC74)" 92 382 1030 62 "\uC0C1\uC138 \uC870\uD68C\uC640 \uD569\uACC4\uB294 \uADF8\uB300\uB85C \uD45C\uC2DC"
     Draw-Button $g "\u2190 \uBAA9\uB85D" 996 482 126 48 "secondary"

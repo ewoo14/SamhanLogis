@@ -22,13 +22,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_ROLE_HEADER = HttpHeaderConstants.CALLER_ROLE_HEADER;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String userId = request.getHeader(USER_ID_HEADER);
+        String userId = request.getHeader(HttpHeaderConstants.CALLER_ID_HEADER);
         String role = request.getHeader(USER_ROLE_HEADER);
 
         if (userId != null && !userId.isBlank() && role != null && !role.isBlank()

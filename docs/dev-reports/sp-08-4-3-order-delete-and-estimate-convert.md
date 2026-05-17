@@ -41,7 +41,7 @@
 | IT D1 | success 204, soft-deleted 404, PARTNER 403, CONFIRMED 422, CANCELED 422, DELETE audit |
 | IT C1 | success 201, not found 404, already converted 409, PARTNER 403, FROM_ESTIMATE audit |
 | Playwright | endpoint contract 2건, ErrorCode 3건, desktop 삭제 dialog, DELETE audit mock |
-| QA PNG | delete confirm, delete success, from-estimate success, already converted |
+| QA PNG | delete confirm, delete success, from-estimate success, already converted, PARTNER role guard |
 
 추가 IT 메서드:
 - `testDeleteCanceledOrderReturns422` (D6): 취소 주문 삭제 422 + active 유지 검증
