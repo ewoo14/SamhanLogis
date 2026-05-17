@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,6 +82,14 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "slip_published_at")
     private LocalDateTime slipPublishedAt;
 
+    /** 영업자가 본사 direct PUT 으로 관리하는 납기일. 기존 row 는 null 허용. */
+    @Column(name = "due_date")
+    private LocalDate dueDate;
+
+    /** 영업자가 본사 direct PUT 으로 관리하는 요청사항/메모. 기존 row 는 null 허용. */
+    @Column(name = "memo", length = 1000)
+    private String memo;
+
     /** Idempotency-Key 원본 (PO-CONF-{draftSeq} — 설계서 §3.6). 재시도 시 동일 키 재사용. */
     @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
     private String idempotencyKey;
@@ -149,6 +158,45 @@ public class PartnerOrder extends BaseEntity {
             sum = sum.add(l.getSubtotal());
         }
         this.totalAmount = sum;
+    }
+
+    /**
+     * 본사 direct PUT 헤더 수정.
+     *
+     * @param partnerCode 거래처 코드
+     * @param bizCode 사업자번호
+     * @param dueDate 납기일
+     * @param memo 요청사항/메모
+     */
+    public void updateHeader(String partnerCode, String bizCode, LocalDate dueDate, String memo) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new IllegalArgumentException("partnerCode 필수");
+        }
+        if (bizCode == null || bizCode.isBlank()) {
+            throw new IllegalArgumentException("bizCode 필수");
+        }
+        this.partnerCode = partnerCode;
+        this.bizCode = bizCode;
+        this.dueDate = dueDate;
+        this.memo = memo == null || memo.isBlank() ? null : memo.trim();
+    }
+
+    /**
+     * 본사 direct PUT 라인 전체 교체. orphanRemoval 로 기존 active line 을 제거하고 새 snapshot 으로
+     * 재구성한다.
+     *
+     * @param replacementLines 새 주문 라인 snapshot
+     */
+    public void replaceLines(List<PartnerOrderLine> replacementLines) {
+        if (replacementLines == null || replacementLines.isEmpty()) {
+            throw new IllegalArgumentException("lines 필수");
+        }
+        this.lines.clear();
+        this.totalAmount = BigDecimal.ZERO;
+        for (PartnerOrderLine line : replacementLines) {
+            addLine(line);
+        }
+        recomputeTotal();
     }
 
     /**

@@ -25,6 +25,10 @@ public enum ErrorCode {
             "배차문자 저장내역 payload 가 너무 큽니다."),
     PARTNER_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND,
             "주문서를 찾을 수 없습니다."),
+    PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT(HttpStatus.CONFLICT,
+            "주문서가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요."),
+    PARTNER_ORDER_UPDATE_INVALID_LINE(HttpStatus.UNPROCESSABLE_ENTITY,
+            "주문 라인 입력값이 올바르지 않습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.
