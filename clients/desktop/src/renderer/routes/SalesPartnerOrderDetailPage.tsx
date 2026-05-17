@@ -269,8 +269,8 @@ export function SalesPartnerOrderDetailPage() {
                         <td className={styles['tdLeft']}>{line.productName}</td>
                         <td>{line.modelCode}</td>
                         <td>{line.quantity}</td>
-                        <td className="numeric">{krw(line.deliveryPrice)}</td>
-                        <td className="numeric">{krw(line.subtotal)}</td>
+                        <td className={styles['numericCol']}>{krw(line.deliveryPrice)}</td>
+                        <td className={styles['numericCol']}>{krw(line.subtotal)}</td>
                         <td>
                           {bundleModeLabel(line.bundleMode) ? (
                             <span className={styles['badge']}>{bundleModeLabel(line.bundleMode)}</span>
