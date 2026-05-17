@@ -996,7 +996,7 @@
   border: 1px solid var(--state-success, #10b981);
   border-radius: 8px;
   background: var(--state-success-bg, #d1fae5);
-  color: var(--state-success, #10b981);
+  color: var(--state-success-text, #065f46);
   font-size: 13px;
   font-weight: 600;
 }

@@ -166,7 +166,9 @@ public class PartnerOrder extends BaseEntity {
             throw new IllegalArgumentException("sourceEstimateId 필수");
         }
         PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        order.status = PartnerOrderStatus.DRAFT;
         order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
+        order.confirmedAt = null;
         order.sourceEstimateId = sourceEstimateId;
         order.dueDate = dueDate;
         order.memo = memo == null || memo.isBlank() ? null : memo.trim();

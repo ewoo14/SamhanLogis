@@ -20,7 +20,7 @@
 | DELETE | `DELETE /api/v1/partner-orders/{id}`. 주문번호(`YYYY/MM/DD-N`, `YYYY-MM-DD-N`) 또는 UUID path 허용 |
 | 권한 | `SALES / MANAGER / MASTER`, `PARTNER`는 403 |
 | 상태 정책 | `DRAFT / CONFIRMING`만 삭제 허용. `CONFIRMED` 이상은 `PARTNER_ORDER_DELETE_FORBIDDEN_STATUS` 422 |
-| Soft delete | `PartnerOrder.softDeleteCascade("system-partner-order-delete")`로 헤더와 전체 라인 markDeleted |
+| Soft delete | `X-User-Name` 헤더의 `actorName`을 `PartnerOrder.softDeleteCascade(actorName)`에 전달. 없거나 blank이면 `"system"` fallback |
 | from-estimate | `POST /api/v1/partner-orders/from-estimate/{estimateId}`. `EstimateClient` snapshot을 `PartnerOrder.createFromEstimate`로 변환 |
 | 중복 정책 | active `source_estimate_id` 주문이 있으면 409 명시 거부 |
 
@@ -38,10 +38,14 @@
 
 | 구분 | 케이스 |
 |---|---|
-| IT D1 | success 204, soft-deleted 404, PARTNER 403, CONFIRMED 422, DELETE audit |
-| IT C1 | success 201, not found 404, already converted 409, PARTNER 403 |
+| IT D1 | success 204, soft-deleted 404, PARTNER 403, CONFIRMED 422, CANCELED 422, DELETE audit |
+| IT C1 | success 201, not found 404, already converted 409, PARTNER 403, FROM_ESTIMATE audit |
 | Playwright | endpoint contract 2건, ErrorCode 3건, desktop 삭제 dialog, DELETE audit mock |
 | QA PNG | delete confirm, delete success, from-estimate success, already converted |
+
+추가 IT 메서드:
+- `testDeleteCanceledOrderReturns422` (D6): 취소 주문 삭제 422 + active 유지 검증
+- `testFromEstimateSuccessRecordsAuditLog` (C5): 견적 변환 audit log `actor_name='영업담당자'` 기록 검증
 
 ## 5. SP-08-4-2 회고 회피
 
@@ -58,11 +62,11 @@
 | 검증 | 명령 | 실제 결과 |
 |---|---|---|
 | Spring RED | `GRADLE_USER_HOME=.gradle-codex .\gradlew.bat :services:partner-order-service:test --tests "*PartnerOrderDelete*" --tests "*PartnerOrderFromEstimate*" --no-daemon --rerun-tasks` | RED 확인: `EstimateClient` 미구현 compile fail |
-| Spring targeted | 동일 | PASS: BUILD SUCCESSFUL, 신규 IT 9건 실행 |
+| Spring targeted | 동일 | PASS: BUILD SUCCESSFUL, 신규 IT 11건 실행 (Delete 6 + FromEstimate 5) |
 | Desktop typecheck | `cd clients\desktop ; npm run typecheck` | PASS |
 | Desktop lint | `cd clients\desktop ; npm run lint` | PASS: 0 errors / 기존 warning 2건 |
 | Playwright | `cd clients\desktop ; npx playwright test playwright/sp-08-4-3-order-delete-and-estimate-convert --reporter=line` | Windows Codex sandbox `spawn EPERM`으로 실행 차단. spec 작성 완료, CI/Linux 검증 대상 |
-| QA PNG | `.\scripts\generate-sp-08-4-3-order-delete-and-estimate-convert-screenshots.ps1` | PASS: 4 PNG / non-zero |
+| QA PNG | `.\scripts\generate-sp-08-4-3-order-delete-and-estimate-convert-screenshots.ps1` | PASS: 5 PNG (01~05) / non-zero |
 | diff whitespace | `git diff --check` | PASS: whitespace error 0, CRLF warnings only |
 
 ## 7. ErrorCode catalog
@@ -79,6 +83,6 @@
 |---|---|
 | 삭제 가능 status | `DRAFT / CONFIRMING`만 허용 |
 | 삭제 불가 status | `CONFIRMED / CANCELED` 및 전표 발행 주문 |
-| soft delete actor | `system-partner-order-delete` 고정 |
+| soft delete actor | `X-User-Name` 헤더의 `actorName`을 header/line `deleted_by`에 기록. 헤더가 없으면 `"system"` fallback. IT는 `deleted_by='영업담당자'`로 검증 |
 | 견적 변환 source | `source_estimate_id` nullable 보존, active unique |
 | estimate-service 부재 | 임시 `EstimateClient` fixture는 기본 empty. 실제 snapshot은 후속 estimate-service HTTP client로 교체 |

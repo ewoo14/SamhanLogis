@@ -143,7 +143,7 @@ New-Canvas -Title "\uC8FC\uBB38\uC11C \uC0AD\uC81C \uC644\uB8CC \uD6C4 \uBAA9\uB
 New-Canvas -Title "\uACAC\uC801\uC5D0\uC11C \uC8FC\uBB38 \uC0DD\uC131" -FileName "03-from-estimate-success.png" -DrawBody {
     param($g)
     Draw-Badge $g "201 Created" 92 138 112 "success"
-    Draw-Box $g "\uC0DD\uC131\uB41C \uC8FC\uBB38\uBC88\uD638" 92 184 1030 62 "2026/05/17-3    status CONFIRMING    slipPublishStatus NOT_REQUIRED"
+    Draw-Box $g "\uC0DD\uC131\uB41C \uC8FC\uBB38\uBC88\uD638" 92 184 1030 62 "2026/05/17-3    \uC8FC\uBB38 \uC0C1\uD0DC: \uCD08\uC548    \uC804\uD45C \uBC1C\uD589: \uBD88\uD544\uC694"
     Draw-Box $g "\uAC70\uB798\uCC98 / \uC0AC\uC5C5\uC790" 92 272 496 62 "P-EST-001 / 1010101010"
     Draw-Box $g "\uB0A9\uAE30 / \uC694\uCCAD\uC0AC\uD56D" 626 272 496 62 "2026-05-30 / \uACAC\uC801 \uBA54\uBAA8"
     Draw-Box $g "AJ040RXH4BC1    \uC2E4\uC678\uAE30    2\uAC1C    120,000\uC6D0" 92 382 1030 54 "\uC18C\uACC4 240,000\uC6D0"
@@ -153,7 +153,7 @@ New-Canvas -Title "\uACAC\uC801\uC5D0\uC11C \uC8FC\uBB38 \uC0DD\uC131" -FileName
 New-Canvas -Title "\uACAC\uC801 \uC911\uBCF5 \uBCC0\uD658 \uCC28\uB2E8" -FileName "04-from-estimate-already-converted.png" -DrawBody {
     param($g)
     Draw-Badge $g "409 Conflict" 92 138 120 "danger"
-    Draw-Box $g "\uC774\uBBF8 \uC8FC\uBB38\uC73C\uB85C \uBCC0\uD658\uB41C \uACAC\uC801\uC785\uB2C8\uB2E4." 92 190 1030 76 "PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED"
+    Draw-Box $g "\uC774\uBBF8 \uC8FC\uBB38\uC73C\uB85C \uBCC0\uD658\uB41C \uACAC\uC801\uC785\uB2C8\uB2E4." 92 190 1030 76 "\uB3D9\uC77C \uACAC\uC801\uC73C\uB85C \uC0DD\uC131\uB41C \uC8FC\uBB38\uC774 \uC774\uBBF8 \uC874\uC7AC\uD569\uB2C8\uB2E4."
     Draw-Box $g "\uC548\uB0B4" 92 304 1030 62 "\uAE30\uC874 \uC8FC\uBB38 \uC0C1\uC138\uC5D0\uC11C \uC8FC\uBB38\uBC88\uD638\uC640 \uB77C\uC778\uC744 \uD655\uC778\uD558\uC138\uC694."
     Draw-Button $g "\uBAA9\uB85D\uC73C\uB85C" 820 410 132 48 "secondary"
     Draw-Button $g "\uC0C1\uC138 \uD655\uC778" 970 410 132 48 "primary"

@@ -92,7 +92,7 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.orderNumber").exists())
                 .andExpect(jsonPath("$.data.partnerCode").value("P-EST-001"))
                 .andExpect(jsonPath("$.data.bizCode").value("1010101010"))
-                .andExpect(jsonPath("$.data.status").value("CONFIRMING"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.memo").value("견적 메모"))
                 .andExpect(jsonPath("$.data.lines.length()").value(2))
                 .andExpect(jsonPath("$.data.lines[0].modelCode").value("AJ040RXH4BC1"));
@@ -126,7 +126,11 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         when(estimateClient.findById(estimateId)).thenReturn(Optional.of(snapshot(estimateId)));
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.orderNumber").exists())
+                .andExpect(jsonPath("$.data.lines").isArray())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
                 .andExpect(status().isConflict())
