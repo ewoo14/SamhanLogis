@@ -194,9 +194,9 @@
   .cat-admin      { border-left: 3px solid #7C3AED; }
   th.th-page { font-size: 11px; padding: 8px 10px; min-width: 88px; }
 
-  tr.role-row td { border-bottom: 1px solid var(--color-neutral-100); vertical-align: middle; }
-  tr.role-row:hover td { background: var(--color-neutral-50); }
-  tr.role-row:hover td.td-role { background: var(--color-neutral-50); }
+  tr.role-row td, tr.role-row th { border-bottom: 1px solid var(--color-neutral-100); vertical-align: middle; }
+  tr.role-row:hover td, tr.role-row:hover th { background: var(--color-neutral-50); }
+  tr.role-row:hover td.td-role, tr.role-row:hover th.td-role { background: var(--color-neutral-50); }
 
   /* SALES 행 강조 */
   tr.role-sales-dirty td.td-role {
@@ -206,7 +206,8 @@
   tr.role-sales-dirty:hover td { background: #FFFDF0; }
   tr.role-sales-dirty:hover td.td-role { background: #FFFDF0; }
 
-  td.td-role {
+  /* D-3: z-index:20 — thead:30 헤더 아래 레이어 (D-4: th[scope="row"]) */
+  td.td-role, th.td-role {
     position: sticky; left: 0; z-index: 20;
     background: var(--surface-card);
     border-right: 2px solid var(--color-neutral-200);
@@ -237,9 +238,9 @@
     padding: 10px 8px;
     border-right: 1px solid var(--color-neutral-100);
   }
-  /* dirty 셀 */
+  /* D-1: dirty 셀 amber 3px 좌측 마커 명확 적용 (cycle 2 fix) */
   td.td-perm.dirty {
-    background: var(--color-warning-50) !important;
+    background: #FFFBEB !important;
     position: relative;
   }
   td.td-perm.dirty::before {
@@ -247,7 +248,7 @@
     position: absolute;
     left: 0; top: 0; bottom: 0;
     width: 3px;
-    background: var(--color-warning-400);
+    background: #F59E0B;
     border-radius: 0;
   }
 
@@ -426,12 +427,12 @@
 
             <!-- MASTER -->
             <tr class="role-row role-master">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">MASTER</span>
                   <span class="role-desc">최고 관리자</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
@@ -460,12 +461,12 @@
 
             <!-- MANAGER -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">MANAGER</span>
                   <span class="role-desc">매니저</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
@@ -494,12 +495,12 @@
 
             <!-- ACCOUNTANT -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">ACCOUNTANT</span>
                   <span class="role-desc">경리</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
@@ -528,7 +529,7 @@
 
             <!-- ★ SALES — dirty 셀 3개 (세금계산서 조회+편집 새로 추가, 매출슬립 조회 추가) -->
             <tr class="role-row role-sales-dirty">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name changed">SALES</span>
                   <span class="role-desc">영업</span>
@@ -541,7 +542,7 @@
                     3개 변경
                   </span>
                 </div>
-              </td>
+              </th>
               <!-- 회계: 없음 -->
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -590,12 +591,12 @@
 
             <!-- WAREHOUSE -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">WAREHOUSE</span>
                   <span class="role-desc">창고</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -624,12 +625,12 @@
 
             <!-- DISPATCH -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">DISPATCH</span>
                   <span class="role-desc">배차</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -658,12 +659,12 @@
 
             <!-- DRIVER -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">DRIVER</span>
                   <span class="role-desc">기사 (모바일 전용)</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>

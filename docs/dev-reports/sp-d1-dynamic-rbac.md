@@ -186,6 +186,23 @@ spec 경로: `clients/desktop/playwright/sp-d1-dynamic-rbac/sp-d1-dynamic-rbac.s
 
 ---
 
+## 11. Designer Cycle 2 Fix (2026-05-18)
+
+| ID | 결함 | 상태 | Fix 내용 |
+|---|------|------|---------|
+| D-1 | dirty 셀 3px amber 마커 미구현 | FIXED | mock 02 CSS `::before` 색상 `#F59E0B` 명시, TSX `borderLeft: 3px solid` 추가 |
+| D-3 | sticky z-index 충돌 | FIXED | TSX `thead` z-index:30, `th.th-role` z-index:40, `td.td-role` z-index:20 정렬 |
+| D-4 | 접근성 미적용 | FIXED | TSX `<th scope="col">` + `<td scope="row">` + `role="alert"` + `role="status" aria-live="polite"` |
+| D-6 | AROLOGIS 표기 | FIXED | Cycle 2 linter fix — `PAGE_LABEL` 이 BE dot-separated 체계로 전면 교체되어 `AROLOGIS` 키 해소. 향후 신규 아로로지스 PageCode 시 `'아로로지스'` 라벨 의무 |
+
+수정 파일:
+- `clients/desktop/src/renderer/routes/PermissionMatrixPage.tsx`
+- `docs/qa/sp-d1-dynamic-rbac/screenshots/01-permission-matrix-default.html`
+- `docs/qa/sp-d1-dynamic-rbac/screenshots/02-permission-matrix-edited.html`
+- `docs/design/sp-d1-dynamic-rbac/decisions.md` (cycle 2 결정 + API contract 동기화)
+
+---
+
 ## 10. 후속 슬라이스 (SP-D2 / SP-D3)
 
 ### SP-D2: 121 @PreAuthorize 점진 마이그레이션 (Phase 1 — 40개)

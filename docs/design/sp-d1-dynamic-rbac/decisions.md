@@ -134,6 +134,58 @@
 
 ---
 
+---
+
+## 9. Cycle 2 Designer Fix 결정 (2026-05-18)
+
+### D-1 — dirty 셀 3px amber 마커 명확 적용
+
+| 항목 | Cycle 1 상태 | Cycle 2 결정 |
+|-----|-------------|-------------|
+| HTML mock 01 `::before` border-radius | `2px 0 0 2px` | `0` 으로 통일 |
+| HTML mock 01 `::before` 색상 | `var(--color-warning-400)` | `#F59E0B` (amber-400 hex 명시) |
+| HTML mock 02 `::before` 색상 | `var(--color-warning-400)` | `#F59E0B` 동일 |
+| HTML mock 02 배경 | `var(--color-warning-50)` | `#FFFBEB` (warning-50 hex 명시) |
+| TSX dirty 셀 `borderLeft` | 미구현 | `3px solid var(--color-warning-400)` position:relative 추가 |
+
+CSS-in-JS (`::before` 가상요소 불가) 환경에서는 `borderLeft: '3px solid var(--color-warning-400)'` 직접 적용.
+
+### D-3 — sticky 헤더/열 z-index 충돌 정렬
+
+z-index 계층 확정:
+
+| 레이어 | 요소 | z-index |
+|-------|------|--------|
+| 교차 (thead × sticky-left) | `th.th-role` | 40 |
+| thead 헤더 | `thead` | 30 |
+| tbody sticky 역할 열 | `td.td-role / th.td-role` | 20 |
+
+HTML mock 01/02 CSS에 해당 z-index 값 주석 추가.
+TSX `PermissionMatrixPage` 헤더 `<thead>` 에 `position:sticky; top:0; z-index:30` 명시,
+역할 열 `<td>` z-index 1 → 20 으로 갱신.
+
+### D-4 — 접근성 보강
+
+| 항목 | 결정 |
+|-----|------|
+| 테이블 열 헤더 `<th>` | `scope="col"` 추가 (HTML mock + TSX) |
+| 테이블 역할 행 헤더 | `<td>` → `<th scope="row">` 로 변경 (HTML mock 01/02) |
+| dirty 배너 | `role="alert" aria-live="assertive"` 추가 (TSX) |
+| 변경 카운트 | 숨김 `<div role="status" aria-live="polite">` live region 삽입 (TSX) |
+| toast | `role="alert" aria-live="assertive"` 추가 (TSX) |
+
+### D-6 — AROLOGIS 브랜드 표기 정정
+
+Cycle 2 linter 자동 fix 시 `PAGE_LABEL` 이 BE dot-separated PageCode 체계로 전면 교체되어
+`AROLOGIS` 키가 삭제되고 `admin.permissions`, `dispatch.board` 등 BE contract 코드와 1:1 대응으로 변경됨.
+결과적으로 브랜드 표기 문제가 해소됨.
+
+만약 향후 아로로지스 전용 PageCode 가 추가되는 경우, 라벨은 반드시 `'아로로지스'` 로 지정.
+
+근거: `feedback_arologis_name.md` — 한국어 표기 "아로로지스" 정식.
+
+---
+
 ## 7. 산출물 목록
 
 | 파일 | 설명 |
@@ -149,10 +201,12 @@
 
 ## 8. Frontend agent 전달 스펙 요약
 
-1. **매트릭스 API**: `GET /api/v1/rbac/matrix` (7 역할 × N 페이지 권한 맵 응답)
-2. **저장 API**: `PUT /api/v1/rbac/matrix` (변경된 셀만 diff 전송)
-3. **내 권한 API**: `GET /api/v1/rbac/me/pages` (사이드바 렌더링용)
-4. **사이드바**: 권한 없는 항목 `display:none` (조건부 렌더링, CSS 비활성화 X)
-5. **dirty state**: 저장 전 로컬 상태 — 서버 데이터 비교로 감지, warning-50 배경
+> **Cycle 2 갱신 (2026-05-18)**: API 경로를 실제 구현 contract 기준으로 수정 (Codex MAJOR 1 반영)
+
+1. **매트릭스 API**: `GET /admin/permissions` (실제 FE 구현 기준; BE: `GET /auth/admin/permissions`)
+2. **저장 API**: `PATCH /admin/permissions` — 변경된 셀 배치 전송
+3. **내 권한 API**: `GET /permissions/my` — 사이드바 렌더링용 (FE `permissionsApi.ts` 기준)
+4. **사이드바**: 권한 없는 항목 `return null` (조건부 렌더링, CSS 비활성화 X)
+5. **dirty state**: 저장 전 로컬 상태 — 서버 데이터 비교로 감지, `#FFFBEB` 배경 + `3px solid #F59E0B` 좌측 마커
 6. **저장 버튼**: dirty 0개 → disabled, 1개 이상 → brand-500 활성
-7. **접근성**: sticky `<th scope>` + `role="checkbox"` + `role="status"` 변경 카운트
+7. **접근성**: sticky `<th scope="col/row">` + native checkbox + `role="status"` 변경 카운트 live region + `role="alert"` 저장 결과 토스트

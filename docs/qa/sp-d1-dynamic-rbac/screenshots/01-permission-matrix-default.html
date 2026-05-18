@@ -194,6 +194,7 @@
     font-size: 13px;
     min-width: 900px;
   }
+  /* D-3: sticky 헤더 — thead z-index:30, 좌측 역할열 z-index:40, 교차 z-index:40 (cycle 2 fix) */
   thead {
     position: sticky;
     top: 0;
@@ -214,6 +215,7 @@
     letter-spacing: 0.03em;
     background: var(--color-neutral-50);
   }
+  /* D-3: 교차 셀 (thead × sticky-left) = z-index:40 */
   th.th-role {
     text-align: left;
     position: sticky;
@@ -245,15 +247,15 @@
   }
 
   /* 역할 행 */
-  tr.role-row td {
+  tr.role-row td, tr.role-row th {
     border-bottom: 1px solid var(--color-neutral-100);
     vertical-align: middle;
   }
-  tr.role-row:hover td { background: var(--color-neutral-50); }
-  tr.role-row:hover td.td-role { background: var(--color-neutral-50); }
+  tr.role-row:hover td, tr.role-row:hover th { background: var(--color-neutral-50); }
+  tr.role-row:hover td.td-role, tr.role-row:hover th.td-role { background: var(--color-neutral-50); }
 
-  /* sticky 역할 셀 */
-  td.td-role {
+  /* D-3: 역할 셀 sticky left:0, z-index:20 (D-4: th[scope="row"] 로 변경) */
+  td.td-role, th.td-role {
     position: sticky;
     left: 0;
     z-index: 20;
@@ -275,7 +277,7 @@
     padding: 10px 8px;
     border-right: 1px solid var(--color-neutral-100);
   }
-  /* dirty 셀 */
+  /* dirty 셀 — D-1 amber 3px 좌측 마커 (cycle 2 fix) */
   td.td-perm.dirty {
     background: var(--color-warning-50);
     position: relative;
@@ -285,8 +287,8 @@
     position: absolute;
     left: 0; top: 0; bottom: 0;
     width: 3px;
-    background: var(--color-warning-400);
-    border-radius: 2px 0 0 2px;
+    background: #F59E0B;
+    border-radius: 0;
   }
 
   /* 체크박스 2개 묶음 */
@@ -520,12 +522,12 @@
 
             <!-- MASTER — 전체 허용 -->
             <tr class="role-row role-master">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">MASTER</span>
                   <span class="role-desc">최고 관리자</span>
                 </div>
-              </td>
+              </th>
               <!-- 회계: 전표입력 V+E -->
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" aria-checked="true" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" aria-checked="true" role="checkbox"></span></label></td>
@@ -566,12 +568,12 @@
 
             <!-- MANAGER — 전체 허용 (관리 편집 제외) -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">MANAGER</span>
                   <span class="role-desc">매니저</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
@@ -602,12 +604,12 @@
 
             <!-- ACCOUNTANT — 회계 전체 / 매입 조회 / 매출 조회 / 나머지 없음 -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">ACCOUNTANT</span>
                   <span class="role-desc">경리</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
@@ -640,12 +642,12 @@
 
             <!-- SALES — 매출 전체 / 나머지 없음 -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">SALES</span>
                   <span class="role-desc">영업</span>
                 </div>
-              </td>
+              </th>
               <!-- 회계: 없음 -->
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -679,12 +681,12 @@
 
             <!-- WAREHOUSE — 매입 전체 / 재고 전체 -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">WAREHOUSE</span>
                   <span class="role-desc">창고</span>
                 </div>
-              </td>
+              </th>
               <!-- 회계: 없음 -->
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -718,12 +720,12 @@
 
             <!-- DISPATCH — 배차 전체 -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">DISPATCH</span>
                   <span class="role-desc">배차</span>
                 </div>
-              </td>
+              </th>
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
@@ -754,12 +756,12 @@
 
             <!-- DRIVER — 없음 (모바일 전용) -->
             <tr class="role-row">
-              <td class="td-role" scope="row">
+              <th class="td-role" scope="row">
                 <div class="role-cell-inner">
                   <span class="role-name">DRIVER</span>
                   <span class="role-desc">기사 (모바일 전용)</span>
                 </div>
-              </td>
+              </th>
               <!-- 전체 없음 -->
               <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
               <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
