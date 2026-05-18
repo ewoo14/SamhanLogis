@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -108,6 +109,13 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
 
+    /**
+     * SP-D3 동적 권한 client 격리.
+     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
+     */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     // ---- 테스트 픽스처 ----
 
     private static final String ACTOR_ID = UUID.randomUUID().toString();
@@ -126,6 +134,10 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
         // DB 격리 — REQUIRES_NEW audit 잔류 row 포함 전체 클린업
         auditLogRepository.deleteAll();
         slipRepository.deleteAll();
+
+        // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
+        Mockito.lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
 
         // ReceiptOcrClient DRY_RUN mock 응답 — lenient (모든 케이스 공통 셋업)
         Mockito.lenient().when(receiptOcrClient.submit(any(), anyString(), eq("DRY_RUN")))

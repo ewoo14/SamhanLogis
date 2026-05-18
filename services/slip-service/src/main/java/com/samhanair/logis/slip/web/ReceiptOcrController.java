@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.service.ReceiptOcrParseService;
 import com.samhanair.logis.slip.web.dto.ReceiptParseResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,12 +42,19 @@ import org.springframework.web.multipart.MultipartFile;
  * </ul>
  *
  * <p>OCR 오류 → 502 (OCR_SUBMIT_FAILED).
+ *
+ * <p>SP-D3 동적 권한: {@code purchases.receipt-ocr} 페이지 코드 EDIT 가드 적용.
+ * canEdit=false + canView=true → 403 (view-only override). canEdit=false + canView=false → fallback 통과.
  */
+@Slf4j
 @RestController
 @RequestMapping("/slips")
 @RequiredArgsConstructor
 @Tag(name = "영수증 OCR", description = "영수증 이미지 업로드 → OCR 파싱 → 매입 전표 자동 생성 (SP-09-3)")
 public class ReceiptOcrController {
+
+    /** SP-D3 — 매입 OCR 페이지 코드. */
+    private static final String RECEIPT_OCR_PAGE_CODE = "purchases.receipt-ocr";
 
     /** 최대 허용 파일 크기: 10MB. */
     private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
@@ -58,6 +67,7 @@ public class ReceiptOcrController {
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png");
 
     private final ReceiptOcrParseService receiptOcrParseService;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 영수증 이미지를 OCR 로 파싱하고 매입 전표 DRAFT 를 자동 생성한다.
@@ -102,7 +112,12 @@ public class ReceiptOcrController {
                     example = "DRY_RUN")
             @RequestParam(value = "submitMethod", required = false) String submitMethod,
 
-            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+
+        // SP-D3 동적 권한 EDIT 가드 — purchases.receipt-ocr
+        checkEditPermission(roleHeader);
 
         // 파일 유효성 검사 — Controller 레이어 가드 (422)
         validateFile(file);
@@ -186,6 +201,37 @@ public class ReceiptOcrController {
             return UUID.fromString(userIdHeader);
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    // =========================================================================
+    // SP-D3 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D3 동적 EDIT 권한 검증 — purchases.receipt-ocr 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canEdit=false + canView=true 이면 명시적 deny → 403 (view-only override).
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, RECEIPT_OCR_PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, RECEIPT_OCR_PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}",
+                        actorRole, RECEIPT_OCR_PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 영수증 OCR 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D3] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}",
+                    actorRole, RECEIPT_OCR_PAGE_CODE);
         }
     }
 }

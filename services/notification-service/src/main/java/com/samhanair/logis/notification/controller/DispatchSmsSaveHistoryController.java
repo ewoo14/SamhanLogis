@@ -3,6 +3,7 @@ package com.samhanair.logis.notification.controller;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.notification.client.DynamicPermissionClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.service.DispatchSmsSaveHistoryService;
@@ -15,6 +16,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -35,17 +37,29 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>legacy GAS 배차안내문자의 미리보기 저장, 명시 저장, 발송 감사 탭을
  * notification-service DB/API 로 대체한다.
+ *
+ * <p>SP-D3 동적 권한 이중 가드:
+ * <ul>
+ *   <li>{@code notification.dispatch-sms.send-audit} 페이지 코드 — 목록/상세 GET 에 VIEW 가드,
+ *       저장 POST 에 EDIT 가드 적용</li>
+ *   <li>canEdit=false + canView=true → 403, canEdit=false + canView=false → fallback 통과</li>
+ * </ul>
  */
+@Slf4j
 @RestController
 @RequestMapping("/admin/notifications/dispatch-sms/history")
 @RequiredArgsConstructor
 public class DispatchSmsSaveHistoryController {
+
+    /** SP-D3 — Aligo SMS 이력 페이지 코드. */
+    private static final String DISPATCH_SMS_AUDIT_PAGE_CODE = "notification.dispatch-sms.send-audit";
 
     private static final String CALLER_HEADER = "X-User-Id";
     private static final String DISPATCH_SMS_HISTORY_ROLES =
             "hasAnyRole('DISPATCH','MANAGER','MASTER')";
 
     private final DispatchSmsSaveHistoryService service;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 배차문자 미리보기/발송 결과 저장.
@@ -62,7 +76,10 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistorySaveResponse> save(
             @Valid @RequestBody DispatchSmsSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             Authentication authentication) {
+        // SP-D3 동적 권한 EDIT 가드 — notification.dispatch-sms.send-audit
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(
                 service.save(request, currentUser(callerHeader, authentication)),
                 "배차문자 저장내역 저장 완료");
@@ -95,7 +112,10 @@ public class DispatchSmsSaveHistoryController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             Authentication authentication) {
+        // SP-D3 동적 권한 VIEW 가드 — notification.dispatch-sms.send-audit
+        checkViewPermission(roleHeader);
         int safeSize = Math.max(1, Math.min(size, 200));
         PageRequest pageable = PageRequest.of(
                 Math.max(page, 0),
@@ -126,7 +146,10 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             Authentication authentication) {
+        // SP-D3 동적 권한 VIEW 가드 — notification.dispatch-sms.send-audit
+        checkViewPermission(roleHeader);
         return ApiResponse.ok(
                 service.findDetail(id, currentUser(callerHeader, authentication)),
                 "배차문자 저장내역 상세 조회 완료");
@@ -147,7 +170,10 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DispatchSmsProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
             Authentication authentication) {
+        // SP-D3 동적 권한 VIEW 가드 — notification.dispatch-sms.send-audit
+        checkViewPermission(roleHeader);
         return ApiResponse.ok(
                 service.findLatestAutoLatest(programType, currentUser(callerHeader, authentication)),
                 "배차문자 최신 자동저장 조회 완료");
@@ -186,5 +212,56 @@ public class DispatchSmsSaveHistoryController {
             return authentication.getName();
         }
         return "system";
+    }
+
+    // =========================================================================
+    // SP-D3 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D3 동적 VIEW 권한 검증 — notification.dispatch-sms.send-audit 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canView=false 이면 명시적 deny → 403.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+        if (!canView) {
+            log.warn("[SP-D3] 동적 VIEW 권한 차단 — roleCode={} pageCode={}", actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "동적 권한 설정에 의해 배차문자 이력 조회 권한이 차단되었습니다.");
+        }
+    }
+
+    /**
+     * SP-D3 동적 EDIT 권한 검증 — notification.dispatch-sms.send-audit 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canEdit=false + canView=true 이면 명시적 deny → 403 (view-only override).
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}",
+                        actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 배차문자 저장 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D3] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}",
+                    actorRole, DISPATCH_SMS_AUDIT_PAGE_CODE);
+        }
     }
 }

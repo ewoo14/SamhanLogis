@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -77,6 +78,13 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
     @MockBean
     private UserInternalClient userInternalClient;
 
+    /**
+     * SP-D3 동적 권한 client 격리.
+     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
+     */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @BeforeEach
     void mockProductClient() {
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
@@ -91,6 +99,13 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                 .thenAnswer(inv -> new ProductSummary(
                         inv.getArgument(0), "테스트 제품", "MOD-001",
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
+        // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
     }
 
     private Map<String, Object> outboundBody() {

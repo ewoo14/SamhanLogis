@@ -12,6 +12,7 @@ import com.samhanair.logis.notification.NotificationServiceApplication;
 import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
+import com.samhanair.logis.notification.client.DynamicPermissionClient;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
 import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
@@ -62,11 +63,23 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
     @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
     @MockBean private AligoAddressBookClient aligoAddressBookClient;
+    /**
+     * SP-D3 동적 권한 client 격리.
+     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
+     */
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     @AfterEach
     void cleanHistory() {
         jdbcTemplate.update("DELETE FROM dispatch_sms_save_history");
+        // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
+        org.mockito.Mockito.lenient()
+                .when(dynamicPermissionClient.canView(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        org.mockito.Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
     }
 
     @Test

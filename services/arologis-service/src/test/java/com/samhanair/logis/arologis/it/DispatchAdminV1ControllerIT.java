@@ -1,10 +1,12 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
+import com.samhanair.logis.arologis.client.DynamicPermissionClient;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -75,6 +77,12 @@ class DispatchAdminV1ControllerIT extends AbstractPostgresIT {
     private NotificationClient notificationClient;
     @MockBean
     private SlipServiceClient slipServiceClient;
+    /**
+     * SP-D3 동적 권한 client 격리.
+     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
+     */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     private static final String SAMPLE_KAKAO = """
             8일착 야상입니다
@@ -97,6 +105,9 @@ class DispatchAdminV1ControllerIT extends AbstractPostgresIT {
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
+        // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
 
         // FK 순서로 정리
         signatureRepository.deleteAll();
