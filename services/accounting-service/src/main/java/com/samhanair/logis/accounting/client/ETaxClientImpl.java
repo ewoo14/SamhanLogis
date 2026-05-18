@@ -52,12 +52,11 @@ public class ETaxClientImpl implements ETaxClient {
     /**
      * 세금계산서를 e-Tax 전송한다.
      *
-     * <p>전송 방식 결정 순서: {@code submitMethod} 파라미터 우선, null 이면 서버 property fallback.
-     * Phase 11 이전 방어 정책 — 파라미터가 {@code NTS} 이더라도 서버 property 가 {@code DRY_RUN} 이면
-     * DRY_RUN 실행. 응답의 {@code submitMethod} 는 실제 수행된 방식을 반환하므로 클라이언트가 결과 확인 가능.
+     * <p>전송 방식 결정 순서: {@code submitMethod} 파라미터 우선, null/blank 이면 서버 property fallback.
+     * 응답의 {@code submitMethod} 는 실제 수행된 방식을 반환하므로 클라이언트가 결과 확인 가능.
      *
      * @param invoice      ISSUED 상태의 세금계산서
-     * @param submitMethod 요청 전송 방식 ("DRY_RUN" | "NTS"). null 이면 서버 property 사용.
+     * @param submitMethod 요청 전송 방식 ("DRY_RUN" | "NTS"). null/blank 이면 서버 property 사용.
      * @return 제출 결과 (실제 수행된 submitMethod 포함)
      * @throws BusinessException(ETAX_SUBMIT_FAILED) NTS 실 API 오류 시
      */
@@ -100,12 +99,24 @@ public class ETaxClientImpl implements ETaxClient {
      * NTS 실 API 전송 — Phase 11 sandbox + 운영 PC .env 에서 활성화.
      * 현 슬라이스는 RestClient 구조만 준비, 실 호출 로직은 Phase 11 구현 예정.
      *
-     * @throws BusinessException(ETAX_SUBMIT_FAILED) API 호출 실패 시
+     * <p>런타임 guard:
+     * <ul>
+     *   <li>{@code ntsApiKey} 가 blank 이면 즉시 ETAX_SUBMIT_FAILED</li>
+     *   <li>{@code ntsApiKey} 가 알려진 placeholder 값 ("PLACEHOLDER_DEV_ONLY", "changeme", "dummy")
+     *       이면 즉시 ETAX_SUBMIT_FAILED — 실수로 placeholder 를 그대로 사용하는 경우 차단</li>
+     * </ul>
+     *
+     * @throws BusinessException(ETAX_SUBMIT_FAILED) API 키 미설정·placeholder·API 호출 실패 시
      */
     private ETaxSubmitResult submitNts(TaxInvoice invoice) {
         if (ntsApiKey == null || ntsApiKey.isBlank()) {
             throw new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
                     "NTS_API_KEY 미설정 — etax.nts-api-key 환경변수를 확인하세요");
+        }
+        // placeholder 런타임 차단 — 실수로 개발용 placeholder 를 운영·sandbox 에서 사용하는 경우 방지.
+        if (isPlaceholderApiKey(ntsApiKey)) {
+            throw new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
+                    "NTS_API_KEY 가 placeholder 입니다. 실 sandbox 키 설정 필요.");
         }
         if (ntsBaseUrl == null || ntsBaseUrl.isBlank()) {
             throw new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
@@ -117,5 +128,20 @@ public class ETaxClientImpl implements ETaxClient {
                 invoice.getTaxInvoiceNo());
         throw new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
                 "NTS 실 API 호출은 Phase 11 에서 구현 예정입니다.");
+    }
+
+    /**
+     * 알려진 placeholder API 키 판별.
+     *
+     * <p>대소문자 무시 비교. 신규 placeholder 추가 시 이 메서드만 수정.
+     *
+     * @param apiKey 검사할 API 키
+     * @return placeholder 이면 true
+     */
+    private boolean isPlaceholderApiKey(String apiKey) {
+        String lower = apiKey.toLowerCase(java.util.Locale.ROOT);
+        return lower.equals("placeholder_dev_only")
+                || lower.equals("changeme")
+                || lower.equals("dummy");
     }
 }

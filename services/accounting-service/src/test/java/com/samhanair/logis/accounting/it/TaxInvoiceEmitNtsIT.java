@@ -53,8 +53,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>@MockBean 격리: {@link ETaxClient} (SP-09-1 신규) + {@link SlipServiceClient} (기존)
  * (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
  *
- * <p>Case 7 audit 직접 검증: {@code recordEmitAudit} 가 REQUIRES_NEW 독립 트랜잭션으로
- * 커밋되므로, @Transactional 테스트 롤백에도 audit row 가 DB 에 남아 repository 직접 검증 가능.
+ * <p>Case 7 audit 직접 검증: {@code recordEmitAudit} 는 현재 동일 트랜잭션 내에서 실행된다
+ * (self-invocation 으로 REQUIRES_NEW 미적용). @Transactional 테스트가 롤백되면 audit row 도
+ * 함께 롤백된다 — audit 트랜잭션 독립성 검증은 {@code TaxInvoiceEmitAuditRecorder} bean 분리
+ * 후 별도 케이스로 추가 예정 (SP-09-1 BE 후속 fix 트래킹).
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
@@ -238,8 +240,9 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.submitMethod").value("DRY_RUN"));
 
         // audit log repository 직접 검증 — TAX_INVOICE_EMIT_NTS action 확인.
-        // recordEmitAudit 가 REQUIRES_NEW 독립 트랜잭션으로 커밋되므로
-        // @Transactional 테스트 롤백과 무관하게 DB 에서 조회 가능.
+        // 현재 recordEmitAudit 는 self-invocation 으로 동일 트랜잭션에서 실행되므로
+        // @Transactional 테스트 내에서 flush 후 조회 가능 (롤백 시 함께 롤백됨).
+        // 트랜잭션 독립성(audit 실패가 markEmitted 에 영향 없음)은 bean 분리 후 검증 예정.
         UUID entityId = UUID.fromString(id);
         List<AccountingAuditLog> auditLogs =
                 auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId);

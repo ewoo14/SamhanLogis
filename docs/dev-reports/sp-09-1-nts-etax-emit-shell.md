@@ -203,6 +203,20 @@ SELECT id, status, e_tax_external_id
 5. 감사 로그 `TAX_INVOICE_EMIT_NTS` action — audit-service 연동 시 체계화
 6. [완료] IT case 7 audit 직접 검증 — `AccountingAuditLogRepository` 직접 조회로 H2 결함 해소
 
+### 8-A. DevOps carry-over: Playwright CI hard gate (long-term)
+
+Codex DevOps cycle 1 후반 리뷰(codex-devops-cycle1.md) LOW 결함에서 이관.
+
+- **현상**: 이번 PR 에 추가된 `sp-09-1-nts-etax-emit-shell.spec.ts` Playwright spec 은 CI matrix 에 포함되지 않아 merge blocker 로 작동하지 않는다.
+- **영향**: T5/T1/T3 같은 QA spec 결함이 CI 에서 자동 차단되지 않을 수 있다. 현재는 PR 본문 QA 스크린샷 + 수동 실행으로 보완하는 패턴을 유지한다.
+- **장기 권고**: `.github/workflows/ci.yml` 의 Playwright matrix 에 slice-specific spec discovery (`playwright/sp-*/`) 를 포함하는 CI hard gate 를 별도 PR 로 추가할 것. 이번 PR 범위 외, 독립 CHORE PR 로 처리.
+- **실행 명령 (수동 검증)**:
+  ```bash
+  cd clients/desktop
+  VITE_MOCK_MODE=1 npx vite --port 5173 &
+  npx playwright test playwright/sp-09-1-nts-etax-emit-shell/sp-09-1-nts-etax-emit-shell.spec.ts --reporter=line
+  ```
+
 ---
 
 ## 9. 회귀 영향 평가

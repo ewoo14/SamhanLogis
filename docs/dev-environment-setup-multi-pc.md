@@ -38,7 +38,7 @@ notepad .env
 
 accounting-service 전용 (`infrastructure/env-templates/accounting-service.env` 복사 후):
 - `ETAX_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `NTS` 로 변경)
-- `NTS_API_KEY` — Phase 11 이전 `PLACEHOLDER_DEV_ONLY` 유지 (실값은 운영 PC .env 에만)
+- `NTS_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `ETaxClientImpl` 이 NTS 모드에서 blank/placeholder 값을 명시 거부함)
 - `NTS_BASE_URL` — `https://teht.hometax.go.kr` (NTS 홈택스 테스트 서버)
 
 > 1Password / Bitwarden 같은 비밀번호 관리자에 `.env` 통째로 저장해두면 양 PC sync 편함.

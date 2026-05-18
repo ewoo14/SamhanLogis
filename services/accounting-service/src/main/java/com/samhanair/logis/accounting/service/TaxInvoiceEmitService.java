@@ -1,6 +1,5 @@
 package com.samhanair.logis.accounting.service;
 
-import com.samhanair.logis.accounting.audit.service.AccountingAuditLogService;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
@@ -9,13 +8,11 @@ import com.samhanair.logis.accounting.web.dto.EmitNtsRequest;
 import com.samhanair.logis.accounting.web.dto.EmitNtsResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -29,14 +26,17 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@link ETaxClient#submit(TaxInvoice, String)} 호출 — request.submitMethod 전달</li>
  *   <li>ETaxClient 실패 시 ETAX_SUBMIT_FAILED (502) surface</li>
  *   <li>{@link TaxInvoice#markEmitted} 도메인 메서드로 eTaxExternalId 저장</li>
+ *   <li>JPA flush 경계 DB UNIQUE 위반 시 TAX_INVOICE_ALREADY_EMITTED (409) 변환</li>
  *   <li>audit log 기록 — TAX_INVOICE_EMIT_NTS revision (REQUIRES_NEW 격리 트랜잭션)</li>
  * </ol>
  *
  * <p>submitMethod 우선순위: request 파라미터 우선, 서버 property ({@code etax.submit-method}) 는 fallback.
  * 응답의 {@code submitMethod} 는 실제 수행된 방식을 반환하므로 클라이언트가 결과를 명확히 인식 가능.
  *
- * <p>audit 트랜잭션 격리: {@code recordEmitAudit()} 은 {@code REQUIRES_NEW} 전파로
- * 비즈니스 트랜잭션과 독립 커밋된다. audit 예외가 비즈니스 롤백을 유발하지 않음.
+ * <p>audit 트랜잭션 격리: {@link TaxInvoiceEmitAuditRecorder#recordEmit} 는 {@code REQUIRES_NEW}
+ * 전파로 비즈니스 트랜잭션과 독립 커밋된다. audit 예외가 비즈니스 롤백을 유발하지 않음.
+ * 별도 bean 을 통해 호출하므로 Spring AOP proxy 가 올바르게 적용된다
+ * (self-invocation 우회 문제 해소 — SP-09-1 cycle-1 Codex BE fix).
  *
  * <p>UUID 비공개: eTaxExternalId 는 외부 기관 발급 식별자로 내부 관리용 노출 허용.
  * 사용자 화면에서 UUID raw 형태 표시는 taxInvoiceNo 로 대체.
@@ -48,13 +48,13 @@ public class TaxInvoiceEmitService {
 
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final ETaxClient eTaxClient;
-    private final AccountingAuditLogService auditLogService;
+    private final TaxInvoiceEmitAuditRecorder auditRecorder;
 
     /**
      * e-Tax 실 발행 실행.
      *
      * <p>ISSUED 상태 + eTaxExternalId = null 검증 → ETaxClient 호출 (request.submitMethod 전달)
-     * → markEmitted → audit (REQUIRES_NEW 독립 트랜잭션).
+     * → markEmitted → DB flush UNIQUE 위반 catch (409 변환) → audit (REQUIRES_NEW 독립 트랜잭션).
      *
      * @param id          세금계산서 UUID (path variable)
      * @param request     전송 방식 요청 (DRY_RUN | NTS)
@@ -107,10 +107,31 @@ public class TaxInvoiceEmitService {
         }
 
         // 도메인 메서드로 eTaxExternalId 저장.
-        ti.markEmitted(result.eTaxExternalId());
+        // DB UNIQUE 제약 위반(e_tax_external_id UNIQUE INDEX) 발생 시 409 로 변환.
+        // — race condition: 두 요청이 동시에 도달하여 앱 레벨 검증을 통과했더라도
+        //   DB flush 시 UNIQUE 위반으로 중복 발행을 방지.
+        try {
+            ti.markEmitted(result.eTaxExternalId());
+            taxInvoiceRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("[SP-09-1] DB UNIQUE 위반 — e_tax_external_id 중복 감지. taxInvoiceNo={}",
+                    ti.getTaxInvoiceNo());
+            throw new BusinessException(ErrorCode.TAX_INVOICE_ALREADY_EMITTED,
+                    "이미 e-Tax 전송된 세금계산서입니다 (DB UNIQUE 위반).");
+        }
+
+        // actorUserId 파싱 — UUID 형식이 아닌 경우 (e.g. "accountant-1") UUID(0,0) 대체.
+        UUID actorId;
+        try {
+            actorId = UUID.fromString(actorUserId);
+        } catch (IllegalArgumentException ignored) {
+            actorId = new UUID(0L, 0L);
+        }
 
         // audit 기록 — TAX_INVOICE_EMIT_NTS revision.
-        recordEmitAudit(ti, actorUserId, result);
+        // TaxInvoiceEmitAuditRecorder 별도 bean 을 통해 호출 → Spring AOP proxy 경유
+        // → REQUIRES_NEW 전파 속성이 실제로 적용됨 (self-invocation 문제 해소).
+        auditRecorder.recordEmit(ti, result, actorId);
 
         log.info("[SP-09-1] e-Tax 전송 완료 — taxInvoiceNo={} method={} externalId={}",
                 ti.getTaxInvoiceNo(), result.submitMethod(), result.eTaxExternalId());
@@ -122,39 +143,5 @@ public class TaxInvoiceEmitService {
                 result.submittedAt(),
                 result.submitMethod()
         );
-    }
-
-    /**
-     * e-Tax 전송 완료 audit 기록.
-     *
-     * <p>REQUIRES_NEW 전파: 비즈니스 트랜잭션과 독립된 별도 트랜잭션으로 커밋.
-     * audit 예외 발생 시 비즈니스 트랜잭션(markEmitted commit)에 영향 없음 (graceful).
-     *
-     * <p>fieldName = "eTaxExternalId" / "submitMethod" / "action", oldValue = null.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    void recordEmitAudit(TaxInvoice ti, String actorUserId, ETaxSubmitResult result) {
-        try {
-            UUID actorId;
-            try {
-                actorId = UUID.fromString(actorUserId);
-            } catch (IllegalArgumentException ignored) {
-                actorId = new UUID(0L, 0L);
-            }
-            auditLogService.recordBatch(
-                    ti.getId(),
-                    actorId,
-                    actorUserId,
-                    null,
-                    List.of(
-                            new ChangeEntry("eTaxExternalId", null, result.eTaxExternalId()),
-                            new ChangeEntry("submitMethod", null, result.submitMethod()),
-                            new ChangeEntry("action", null, "TAX_INVOICE_EMIT_NTS")
-                    )
-            );
-        } catch (RuntimeException ex) {
-            log.warn("[SP-09-1] audit 기록 실패 (graceful) — taxInvoiceNo={} error={}",
-                    ti.getTaxInvoiceNo(), ex.getMessage());
-        }
     }
 }
