@@ -472,22 +472,56 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
 // ---------------------------------------------------------------------------
 
 interface DispatchDetailPageProps {
-  /** 배차 상세 데이터. null 이면 로딩 상태 표시. */
+  /** 배차 상세 데이터. null + loadError=false 이면 로딩 상태 표시. */
   dispatch: DispatchDetail | null
+  /**
+   * 상세 조회 실패 여부 (SP-10-2 cycle 3 fix — FE-C2-1 P1).
+   * true 시 에러 UI (재시도 가이드 + 사용자 메시지) 렌더, false/undefined 시 로딩 표시.
+   */
+  loadError?: boolean
 }
 
 /**
  * 배차 상세 페이지.
  *
  * SP-10-2 FE-3/FE-4: vehicle row 알림톡 발송 결과 + vendorOrderId hover tooltip 추가.
+ * SP-10-2 cycle 3 FE-C2-1 fix: loadError 분기 → 영구 로딩 갇힘 회귀 방지.
  * 실제 데이터 로딩은 상위 라우트에서 React Query 로 처리, props 로 전달.
  */
-export function DispatchDetailPage({ dispatch }: DispatchDetailPageProps): JSX.Element {
+export function DispatchDetailPage({ dispatch, loadError = false }: DispatchDetailPageProps): JSX.Element {
   usePageTitle(dispatch ? `배차 상세 — ${dispatch.dispatchDate}` : '배차 상세')
+
+  if (!dispatch && loadError) {
+    return (
+      <div
+        data-testid="dispatch-detail-load-error"
+        role="alert"
+        style={{
+          padding: 24,
+          color:   'var(--color-danger-700, #B91C1C)',
+          background: 'var(--color-danger-50, #FEF2F2)',
+          border: '1px solid var(--color-danger-200, #FECACA)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: 'var(--font-size-base)',
+          maxWidth: 520,
+          margin: '24px auto',
+        }}
+      >
+        <strong style={{ display: 'block', marginBottom: 8 }}>
+          배차 정보를 불러오지 못했습니다
+        </strong>
+        <span style={{ color: 'var(--color-neutral-600)', fontSize: 'var(--font-size-sm)' }}>
+          네트워크 상태를 확인한 뒤 페이지를 새로고침해주세요. 문제가 지속되면 관리자에게
+          문의해주세요.
+        </span>
+      </div>
+    )
+  }
 
   if (!dispatch) {
     return (
       <div
+        data-testid="dispatch-detail-loading"
         style={{
           padding: 24,
           color:   'var(--color-neutral-500)',

@@ -100,7 +100,7 @@
 
   /* ---------- color: INSUNG (인성데이타 퀵프로그램 전용) ---------- */
   /* 주황-갈색 계열 — NTS(dark green)/Aligo(teal)/Clova(bright green)/KFTC(blue) 와 5색 시각 구분. SP-10-2 */
-  /* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 10.2:1 (AAA 충족) */
+  /* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 14.7:1 (AAA 충족) */
   --color-insung-primary: #B45309;
   --color-insung-50:      #FFF7ED;
   --color-insung-100:     #FFEDD5;

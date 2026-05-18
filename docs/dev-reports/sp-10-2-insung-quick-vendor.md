@@ -127,3 +127,23 @@ BUILD SUCCESSFUL
 - placeholder 6 키워드 (PLACEHOLDER_DEV_ONLY / CHANGE_ME_LOCAL_ONLY / changeme / dummy / placeholder) + blank → `INSUNG_QUICK_NOT_CONFIGURED` (502)
 - sandbox-mode=true (default) → 실 API 미호출, SANDBOX-* mock 응답
 - webhookSecret 미설정 + sandbox-mode=true → HMAC 검증 우회 (운영 전 반드시 주입)
+- sandbox-mode=false + webhookSecret blank → `BusinessException(INSUNG_QUICK_NOT_CONFIGURED)` hard fail (cycle 2 BE P1-2 fix)
+
+---
+
+## §7 Phase 11 backlog — vendor secret KMS migration
+
+본 슬라이스에서는 `SAMHAN_INSUNG_QUICK_API_KEY` / `SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET` / `SAMHAN_INSUNG_QUICK_PARTNER_ID` 를 `infrastructure/env-templates/arologis-service.env` 평문 env 로 관리.
+
+Phase 11 AWS cutover (Seoul, m5.xlarge + RDS db.t3.medium) 진입 시 의무 마이그레이션:
+
+| 항목 | 현재 (Phase 10) | Phase 11 cutover 후 |
+|---|---|---|
+| API_KEY | env-template 평문 (`.env`) | AWS Secrets Manager (KMS CMK 암호화) → SSM Parameter Store reference |
+| WEBHOOK_SECRET | 동일 | 동일. EC2 IAM Role 로 read-only 접근 |
+| PARTNER_ID | 동일 | Parameter Store SecureString |
+| 회전 주기 | 수동 (운영 PC `.env`) | 90 일 자동 회전 (Secrets Manager rotation Lambda) |
+
+- 관련 backlog: `docs/migration/phase11/M-PHASE-11-vendor-secrets-kms.md` (Phase 11 진입 시 신규 작성 의무)
+- 운영 가이드: `docs/operational-validation/sp-10-2-insung-key-rotation.md` (Phase 10 수동 회전 절차)
+- cutover 게이트: Phase 11 진입 PR 본문에 본 §7 링크 + KMS migration spec 첨부 의무

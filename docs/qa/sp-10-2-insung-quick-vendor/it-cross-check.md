@@ -88,11 +88,15 @@ mockMvc.perform(post("/internal/arologis/insung/match-result")
 
 ```
 시나리오: samhan.arologis.matcher.provider=insung-quick, sandboxMode=true
-         InsungQuickClient.requestOrder() → SANDBOX 응답 mock
-         Vehicle 생성 → /internal/arologis/insung/match-result (PENDING 응답)
-기대:   200 OK + vehicle.vendor_order_id 설정됨 + vehicle.status = PENDING (sandbox)
-@MockBean: InsungQuickClient.requestOrder() → InsungQuickOrderResponse.of("INSUNG-ORDER-SANDBOX-001")
-           DynamicPermissionClient.checkPermission() → allowed()
+         InsungQuickClient.requestOrder() → "SANDBOX-IT-001" mock
+         InsungQuickClient.requestMatch() → matched=true ("DRV-IT-001", "1톤") mock
+         POST /internal/arologis/dispatches (배차 1대 1슬립)
+기대:   200 OK + vehicle.vendor_order_id = "SANDBOX-IT-001" 저장됨
+        vehicle.status = ASSIGNED (sandbox matched=true 경로 — cycle 2 BE P0-1 fix 후)
+        vehicle.matchSource = EXTERNAL_INSUNG_QUICK
+@MockBean: InsungQuickClient.requestOrder() → "SANDBOX-IT-001"
+           InsungQuickClient.requestMatch() → InsungDriverMatchResponse.matched("DRV-IT-001", "IT기사", "010-1111-2222", "1톤")
+           DynamicPermissionClient.canEdit/canView() → true
 ```
 
 cross-check 항목:

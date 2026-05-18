@@ -21,6 +21,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -253,10 +255,22 @@ public class InsungWebhookService {
 
     /**
      * ISO-8601 문자열 → {@link LocalDateTime} 파싱 (fail-soft: 예외 시 {@code now()} 반환).
+     *
+     * <p>SP-10-2 cycle 3 fix (BE P2-1):
+     * <ol>
+     *   <li>1단계: {@link OffsetDateTime#parse(CharSequence)} — {@code +09:00} / {@code Z} offset 포함</li>
+     *   <li>2단계: {@link LocalDateTime#parse(CharSequence)} — naive ISO-8601</li>
+     *   <li>3단계: {@code now()} 대체 + WARN</li>
+     * </ol>
      */
     private LocalDateTime parseCapturedAt(String iso) {
         try {
-            return LocalDateTime.parse(iso.replace("Z", ""));
+            return OffsetDateTime.parse(iso).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            // offset 없으면 naive 시도
+        }
+        try {
+            return LocalDateTime.parse(iso);
         } catch (Exception e) {
             log.warn("[InsungWebhook] capturedAt 파싱 실패='{}' — now() 대체", iso);
             return LocalDateTime.now();

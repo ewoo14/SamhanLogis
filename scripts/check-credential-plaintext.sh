@@ -118,6 +118,7 @@ WHITELIST_PATTERNS=(
   'docs/qa/sp-09-5-phase9-integration/'
   'docs/dev-reports/sp-09-summary\.md'
   'docs/dev-reports/sp-09-5-vendor-integration-summary\.md'
+  'docs/qa/sp-10-2-insung-quick-vendor/'
   'docs/operational-validation/sp-10-2-insung-key-rotation\.md'
 )
 # tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
