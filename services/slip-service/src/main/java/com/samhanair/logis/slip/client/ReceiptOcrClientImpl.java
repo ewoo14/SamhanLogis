@@ -111,10 +111,10 @@ public class ReceiptOcrClientImpl implements ReceiptOcrClient {
      *
      * <p>런타임 guard (자격증명 검사):
      * <ul>
-     *   <li>{@code clovaApiKey} 또는 {@code clovaSecretKey} 가 blank 이면 OCR_SUBMIT_FAILED</li>
-     *   <li>알려진 placeholder 값이면 OCR_SUBMIT_FAILED
+     *   <li>{@code clovaApiKey}, {@code clovaSecretKey}, {@code clovaInvokeUrl} 중 하나라도
+     *       blank 이면 OCR_SUBMIT_FAILED</li>
+     *   <li>알려진 placeholder 값이면 OCR_SUBMIT_FAILED — 3개 키 모두 동일 적용
      *       (대상: PLACEHOLDER_DEV_ONLY, CHANGE_ME_LOCAL_ONLY, changeme, dummy)</li>
-     *   <li>{@code clovaInvokeUrl} 이 blank 이면 OCR_SUBMIT_FAILED</li>
      * </ul>
      *
      * <p>현 슬라이스는 구조만 준비 — 실 Clova API 호출은 Phase 11 구현.
@@ -142,7 +142,11 @@ public class ReceiptOcrClientImpl implements ReceiptOcrClient {
         }
         if (clovaInvokeUrl == null || clovaInvokeUrl.isBlank()) {
             throw new BusinessException(ErrorCode.OCR_SUBMIT_FAILED,
-                    "CLOVA_OCR_INVOKE_URL 미설정 — ocr.clova-invoke-url 환경변수를 확인하세요");
+                    "CLOVA_OCR_INVOKE_URL 이 placeholder/빈 값 입니다. 실 sandbox URL 설정 필요.");
+        }
+        if (isPlaceholderKey(clovaInvokeUrl)) {
+            throw new BusinessException(ErrorCode.OCR_SUBMIT_FAILED,
+                    "CLOVA_OCR_INVOKE_URL 이 placeholder/빈 값 입니다. 실 sandbox URL 설정 필요.");
         }
         // TODO(Phase 11): RestClient 를 이용한 Naver Clova OCR 실 API 호출 구현.
         log.warn("[SP-09-3] CLOVA 실 API 호출 미구현 — Phase 11 sandbox 연동 예정. filename={}", filename);

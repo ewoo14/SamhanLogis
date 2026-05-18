@@ -39,12 +39,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SP-09-3 영수증 OCR 파싱 shell 통합 테스트 (8 case).
+ * SP-09-3 영수증 OCR 파싱 shell 통합 테스트 (12 case).
  *
  * <p>케이스 목록:
  * <ol>
@@ -56,15 +56,21 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>CLOVA mode + placeholder 차단 → 502 (OCR_SUBMIT_FAILED)</li>
  *   <li>DRY_RUN 시 자동 생성된 slip DRAFT 상태 확인</li>
  *   <li>audit log 기록 확인 (REQUIRES_NEW)</li>
+ *   <li>ACCOUNTANT 권한 허용 — 201 성공 (사용자 정정 cycle 2)</li>
+ *   <li>contentType null 파일 422 (BE-H1 null 우회 차단)</li>
+ *   <li>originalFilename null 파일 422 (BE-H1 null 우회 차단)</li>
+ *   <li>CLOVA INVOKE_URL placeholder 차단 → 502 (Codex blocker 3)</li>
  * </ol>
+ *
+ * <p>격리 전략: 클래스 레벨 {@code @Transactional} 제거.
+ * {@code @BeforeEach} 에서 slip 및 audit_log 테이블을 cleanup 하여 케이스 간 독립성 보장.
+ * REQUIRES_NEW audit 잔류 row 가 다음 케이스에 영향주지 않도록 명시 삭제.
  *
  * <p>외부 client {@link ReceiptOcrClient} 는 {@code @MockBean} 으로 격리
  * (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
- * 다른 slip-service IT 와 호환성 유지: 모든 외부 client {@code @MockBean} + lenient stub.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
-@Transactional
 class ReceiptOcrShellIT extends AbstractPostgresIT {
 
     @Autowired
@@ -109,8 +115,18 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
             (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A // PNG 매직 바이트 (8바이트)
     };
 
+    /**
+     * 케이스 간 DB 격리: slip + audit_log 전체 삭제.
+     *
+     * <p>REQUIRES_NEW 로 이미 커밋된 audit row 는 @Transactional rollback 대상이 아니므로
+     * 명시적으로 deleteAll() 을 호출하여 다음 케이스에 잔류하지 않도록 보장.
+     */
     @BeforeEach
     void setUp() {
+        // DB 격리 — REQUIRES_NEW audit 잔류 row 포함 전체 클린업
+        auditLogRepository.deleteAll();
+        slipRepository.deleteAll();
+
         // ReceiptOcrClient DRY_RUN mock 응답 — lenient (모든 케이스 공통 셋업)
         Mockito.lenient().when(receiptOcrClient.submit(any(), anyString(), eq("DRY_RUN")))
                 .thenReturn(ReceiptOcrResult.success(
@@ -192,14 +208,11 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
 
     /**
      * Case 4: 10MB 초과 파일 → 422 RECEIPT_FILE_INVALID.
-     *
-     * <p>실제 10MB+1 파일 생성 대신 MockMultipartFile 의 크기 조작으로 검증.
      */
     @Test
     void case4_fileSizeExceeded_422() throws Exception {
-        // 10MB + 1 byte 파일 생성 (테스트용 — 실제 내용 무관)
         byte[] oversized = new byte[10 * 1024 * 1024 + 1];
-        oversized[0] = (byte) 0x89; // PNG 매직 바이트 prefix (Content-Type 통과를 위해)
+        oversized[0] = (byte) 0x89; // PNG 매직 바이트 prefix
         MockMultipartFile bigFile = new MockMultipartFile(
                 "file", "big.png", MediaType.IMAGE_PNG_VALUE, oversized);
 
@@ -294,8 +307,8 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
     /**
      * Case 8: DRY_RUN 성공 후 audit log 1건 기록 확인 (REQUIRES_NEW 패턴).
      *
-     * <p>audit recorder 는 REQUIRES_NEW 별도 트랜잭션이나, @Transactional IT 환경에서는
-     * 동일 SessionFactory 컨텍스트 내 가시성 확인 가능 (slip 저장과 같은 EntityManager scope).
+     * <p>@BeforeEach 에서 auditLogRepository.deleteAll() 로 격리하므로
+     * REQUIRES_NEW 잔류 row 오염 없이 slipId 기반 필터로 안전하게 확인 가능.
      */
     @Test
     void case8_dryRun_auditLogRecorded() throws Exception {
@@ -322,12 +335,104 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
 
         UUID slipId = slips.get(0).getId();
 
-        // audit log 기록 확인 (REQUIRES_NEW 트랜잭션 독립 커밋 — IT 환경 가시성 허용)
-        // @Transactional IT 는 테스트 후 롤백이므로, REQUIRES_NEW 가 이미 커밋한 audit row 는
-        // 동일 IT 내에서 auditLogRepository 로 조회 가능
+        // audit log 기록 확인 (REQUIRES_NEW 트랜잭션 독립 커밋)
         var auditLogs = auditLogRepository.findAll().stream()
                 .filter(a -> slipId.equals(a.getSlipId()))
                 .toList();
         assertThat(auditLogs).isNotEmpty();
+    }
+
+    // ── Case 9: ACCOUNTANT 권한 허용 (사용자 정정 cycle 2) ───────────────────
+
+    /**
+     * Case 9: ACCOUNTANT 역할 — 매입 영수증 OCR 입력 허용 → 201 성공.
+     *
+     * <p>근거: 회계담당자가 매입 영수증 입력 후 매입 분개 통합 처리 실무 흐름.
+     * SP-09-1 NTS 세금계산서 발행 ACCOUNTANT 허용 정책과 일관.
+     */
+    @Test
+    void case9_accountant_role_allowed_201() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt.png", MediaType.IMAGE_PNG_VALUE, TINY_PNG);
+
+        mockMvc.perform(multipart("/slips/receipt-ocr")
+                        .file(file)
+                        .param("submitMethod", "DRY_RUN")
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.slipNo", notNullValue()))
+                .andExpect(jsonPath("$.data.submitMethod", is("DRY_RUN")));
+    }
+
+    // ── Case 10: contentType null → 422 (BE-H1 fix) ──────────────────────────
+
+    /**
+     * Case 10: Content-Type 헤더가 null 인 파일 업로드 → 422 RECEIPT_FILE_INVALID.
+     *
+     * <p>BE-H1 fix: contentType == null 이면 허용하지 않는 것으로 처리.
+     * Content-Type 헤더 미설정 테스트 클라이언트에 의한 비지원 포맷 우회 차단.
+     */
+    @Test
+    void case10_contentTypeNull_422() throws Exception {
+        // contentType 을 null 로 명시 (MockMultipartFile 생성자에 null 전달)
+        MockMultipartFile fileNullContentType = new MockMultipartFile(
+                "file", "receipt.png", null, TINY_PNG);
+
+        mockMvc.perform(multipart("/slips/receipt-ocr")
+                        .file(fileNullContentType)
+                        .param("submitMethod", "DRY_RUN")
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    // ── Case 11: originalFilename null → 422 (BE-H1 fix) ────────────────────
+
+    /**
+     * Case 11: originalFilename 이 null 인 파일 업로드 → 422 RECEIPT_FILE_INVALID.
+     *
+     * <p>BE-H1 fix: originalFilename == null 이면 확장자 검사 skip 방지.
+     * 파일명 없는 요청 즉시 거부.
+     */
+    @Test
+    void case11_originalFilenameNull_422() throws Exception {
+        // originalFilename 을 null 로 명시
+        MockMultipartFile fileNullFilename = new MockMultipartFile(
+                "file", null, MediaType.IMAGE_PNG_VALUE, TINY_PNG);
+
+        mockMvc.perform(multipart("/slips/receipt-ocr")
+                        .file(fileNullFilename)
+                        .param("submitMethod", "DRY_RUN")
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    // ── Case 12: CLOVA INVOKE_URL placeholder 차단 → 502 (Codex blocker 3) ──
+
+    /**
+     * Case 12: CLOVA 모드 + INVOKE_URL placeholder 차단 → 502.
+     *
+     * <p>Codex blocker 3 fix: clovaInvokeUrl 에도 동일 placeholder 판정 적용.
+     * stub 에서 INVOKE_URL placeholder 메시지 포함 OCR_SUBMIT_FAILED 예외를 발생시킴.
+     */
+    @Test
+    void case12_clovaMode_invokeUrlPlaceholderBlocked_502() throws Exception {
+        // CLOVA mode INVOKE_URL placeholder 차단 stub
+        Mockito.when(receiptOcrClient.submit(any(), anyString(), eq("CLOVA")))
+                .thenThrow(new com.samhanair.logis.common.exception.BusinessException(
+                        com.samhanair.logis.common.exception.ErrorCode.OCR_SUBMIT_FAILED,
+                        "CLOVA_OCR_INVOKE_URL 이 placeholder/빈 값 입니다. 실 sandbox URL 설정 필요."));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "receipt.jpg", MediaType.IMAGE_JPEG_VALUE, TINY_PNG);
+
+        mockMvc.perform(multipart("/slips/receipt-ocr")
+                        .file(file)
+                        .param("submitMethod", "CLOVA")
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "WAREHOUSE"))
+                .andExpect(status().isBadGateway());
     }
 }

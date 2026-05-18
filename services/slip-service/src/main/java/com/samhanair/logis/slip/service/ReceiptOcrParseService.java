@@ -73,8 +73,11 @@ public class ReceiptOcrParseService {
         byte[] imageBytes = extractBytes(file);
         String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "receipt";
 
+        // effectiveMethod: 파라미터 우선, null/blank 이면 DRY_RUN (client 와 동일 fallback 논리 반영)
+        String effectiveMethod = (submitMethod != null && !submitMethod.isBlank()) ? submitMethod : "DRY_RUN";
+
         // OCR 호출 (DRY_RUN / CLOVA 분기)
-        ReceiptOcrResult ocrResult = receiptOcrClient.submit(imageBytes, filename, submitMethod);
+        ReceiptOcrResult ocrResult = receiptOcrClient.submit(imageBytes, filename, effectiveMethod);
 
         // 전표번호 채번 (입고전표 기준)
         LocalDate slipDate = ocrResult.issuedAt() != null ? ocrResult.issuedAt() : LocalDate.now();
@@ -103,10 +106,10 @@ public class ReceiptOcrParseService {
 
         // audit log 기록 (REQUIRES_NEW — 메인 트랜잭션 롤백과 무관하게 보존)
         auditRecorder.record(saved.getId(), saved.getSlipNo(),
-                submitMethod, actorId, ocrResult.rawJson());
+                effectiveMethod, actorId, ocrResult.rawJson());
 
         log.info("[SP-09-3] OCR 파싱 완료 + DRAFT 전표 생성 — slipNo={} vendor={} submitMethod={}",
-                saved.getSlipNo(), ocrResult.vendorName(), submitMethod);
+                saved.getSlipNo(), ocrResult.vendorName(), effectiveMethod);
 
         return new ReceiptParseResponse(
                 saved.getSlipNo(),
@@ -114,7 +117,7 @@ public class ReceiptOcrParseService {
                 ocrResult.totalAmount(),
                 ocrResult.vatAmount(),
                 ocrResult.issuedAt(),
-                submitMethod != null && !submitMethod.isBlank() ? submitMethod : "DRY_RUN",
+                effectiveMethod,
                 ocrResult.rawJson()
         );
     }
@@ -143,16 +146,21 @@ public class ReceiptOcrParseService {
     /**
      * MultipartFile 에서 바이트 배열을 추출한다.
      *
-     * <p>IOException 은 RuntimeException 으로 래핑 — 컨트롤러 레벨 422 가드에서 이미 유효성 검사 완료.
+     * <p>IOException 은 {@link com.samhanair.logis.common.exception.BusinessException}(RECEIPT_FILE_INVALID)
+     * 으로 래핑하여 422 반환 — RuntimeException 500 노출 방지.
      *
      * @param file 업로드된 파일
      * @return 이미지 바이트 배열
+     * @throws com.samhanair.logis.common.exception.BusinessException(RECEIPT_FILE_INVALID)
+     *         파일 읽기 실패 시 422
      */
     private byte[] extractBytes(MultipartFile file) {
         try {
             return file.getBytes();
         } catch (java.io.IOException e) {
-            throw new RuntimeException("파일 바이트 추출 실패: " + e.getMessage(), e);
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.RECEIPT_FILE_INVALID,
+                    "파일 바이트 추출 실패: " + e.getMessage());
         }
     }
 }
