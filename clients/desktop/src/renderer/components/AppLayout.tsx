@@ -270,6 +270,11 @@ export function AppLayout() {
   // [PR-F2 Designer mock] vendor 발주서 OCR 업로드 entry — SALES / MANAGER / MASTER (영업 그룹).
   const showVendorOrderOcr = !!auth?.role
     && (VENDOR_ORDER_OCR_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
+  // [SP-09-3] 영수증 OCR 업로드 entry — WAREHOUSE / ACCOUNTANT / MANAGER / MASTER (구매 그룹).
+  // 사용자 정정 2026-05-18: ACCOUNTANT 추가.
+  const RECEIPT_OCR_SIDEBAR_ROLES = ['WAREHOUSE', 'ACCOUNTANT', 'MANAGER', 'MASTER'] as const
+  const showReceiptOcr = !!auth?.role
+    && (RECEIPT_OCR_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
   const showChatRoomAdmin = canAccessChatRoomAdmin(auth?.role)
 
   // [Slice 2] admin GAS 이식 — 일반 카테고리 병행 노출
@@ -301,6 +306,16 @@ export function AppLayout() {
               /purchases/slips 로 이전. 메뉴명은 조회 전용 오해를 줄이기 위해 관리형 라벨을 사용. */}
           <NavLink to="/sales" data-testid="sidebar-sales">판매관리</NavLink>
           <NavLink to="/purchases" data-testid="sidebar-purchases">구매관리</NavLink>
+          {/* [SP-09-3] 영수증 OCR 업로드 — WAREHOUSE / ACCOUNTANT / MANAGER / MASTER.
+              구매관리 하위 진입점. ACCOUNTANT 추가 (2026-05-18 사용자 정정). */}
+          <SidebarLink
+            to="/purchases/receipt-ocr"
+            show={showReceiptOcr}
+            requiredRole="WAREHOUSE / ACCOUNTANT / MANAGER / MASTER"
+            data-testid="sidebar-purchases-receipt-ocr"
+          >
+            영수증 OCR
+          </SidebarLink>
           <NavLink to="/transfers" data-testid="sidebar-transfers">재고이동 관리</NavLink>
           <SidebarLink
             to="/sales/link-dispatch"

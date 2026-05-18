@@ -8,8 +8,8 @@
  *
  * <h2>권한 가드</h2>
  * <ul>
- *   <li>WAREHOUSE / MANAGER / MASTER 만 접근 가능.</li>
- *   <li>SALES / ACCOUNTANT 진입 시 RoleGuard 가 403 화면을 표시.</li>
+ *   <li>WAREHOUSE / ACCOUNTANT / MANAGER / MASTER 만 접근 가능 (2026-05-18 사용자 정정).</li>
+ *   <li>SALES / DISPATCH 진입 시 RoleGuard 가 403 화면을 표시.</li>
  * </ul>
  *
  * <h2>4개 영역</h2>
@@ -21,8 +21,8 @@
  * </ol>
  *
  * <h2>UUID 비공개</h2>
- * <p>응답의 slipNo 만 노출. slipId (UUID) 는 hash link 의 path param 으로만 전달하며
- * 화면에 직접 렌더하지 않는다 (feedback_uuid_no_user_visibility).
+ * <p>응답의 slipNo 만 노출. BE DTO 에 slipId (UUID) 미포함 — slipNo 텍스트만 표시
+ * (feedback_uuid_no_user_visibility). Phase 11 slipNo 기반 상세 라우트 추가 시 링크 활성화 검토.
  *
  * <h2>data-testid</h2>
  * <ul>
@@ -121,9 +121,11 @@ function ResultCard({ result }: ResultCardProps) {
   return (
     <div
       data-testid="receipt-ocr-result"
+      role="status"
+      aria-live="polite"
       style={{
-        border: '1px solid var(--color-success-200, #a7f3d0)',
-        background: 'var(--color-success-50, #ecfdf5)',
+        border: '1px solid var(--color-clova-200, #BBF7D0)',
+        background: 'var(--color-clova-50, #F0FDF6)',
         borderRadius: 8,
         padding: '20px',
         display: 'flex',
@@ -132,7 +134,7 @@ function ResultCard({ result }: ResultCardProps) {
       }}
     >
       {/* 타이틀 */}
-      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-success-800, #065f46)' }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-clova-text, #014A22)' }}>
         영수증 인식 완료
       </div>
 
@@ -161,7 +163,7 @@ function ResultCard({ result }: ResultCardProps) {
         </span>
 
         <span style={{ color: 'var(--color-neutral-600, #4b5563)', fontWeight: 500 }}>날짜</span>
-        <span>{formatDate(result.receiptDate)}</span>
+        <span>{formatDate(result.issuedAt)}</span>
       </div>
 
       {/* 매입 슬립 자동 생성 Badge + 링크 */}
@@ -182,20 +184,17 @@ function ResultCard({ result }: ResultCardProps) {
         >
           매입 슬립 자동 생성됨
         </span>
-        {/* slipNo 만 노출 — UUID 비공개 원칙 준수 */}
-        <a
-          href={`#/purchases/${result.slipId}`}
+        {/* slipNo 만 노출 — UUID 비공개 원칙 준수 (slipId BE 응답 미포함) */}
+        <span
           data-testid="receipt-ocr-slip-link"
           style={{
             fontSize: 13,
             fontWeight: 600,
             color: 'var(--color-brand-700, #1d4ed8)',
-            textDecoration: 'underline',
-            textUnderlineOffset: 2,
           }}
         >
           전표 보기 — {result.slipNo}
-        </a>
+        </span>
       </div>
 
       {/* 처리 방식 안내 */}

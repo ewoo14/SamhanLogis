@@ -324,11 +324,12 @@ const VENDOR_ORDER_OCR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 const SHEET_SYNC_ROLES = ['MANAGER', 'MASTER'] as const
 
 /**
- * SP-09-3 영수증 OCR 업로드 권한 — WAREHOUSE / MANAGER / MASTER.
- * SALES / ACCOUNTANT 진입 시 RoleGuard 403 화면 표시.
- * BE: slip-service POST /slips/receipt-ocr @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+ * SP-09-3 영수증 OCR 업로드 권한 — WAREHOUSE / ACCOUNTANT / MANAGER / MASTER.
+ * 사용자 정정 (2026-05-18): ACCOUNTANT 추가 — 회계원도 영수증 업로드 + 매입 슬립 자동 생성 접근 허용.
+ * SALES / DISPATCH 진입 시 RoleGuard 403 화면 표시.
+ * BE: slip-service POST /slips/receipt-ocr @PreAuthorize("hasAnyRole('WAREHOUSE','ACCOUNTANT','MANAGER','MASTER')")
  */
-const RECEIPT_OCR_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
+const RECEIPT_OCR_ROLES = ['WAREHOUSE', 'ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
 /** 발송금지 거래처 — MANAGER / MASTER. CSV import / 해제는 페이지 내부에서 MASTER 만 노출한다. */
 const BLOCKED_PARTNER_ROLES = ['MANAGER', 'MASTER'] as const

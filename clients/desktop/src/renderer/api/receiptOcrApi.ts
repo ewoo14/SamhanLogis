@@ -15,8 +15,8 @@
  * </ul>
  *
  * <h2>UUID 비공개</h2>
- * <p>응답의 slipNo 만 사용자에게 노출. slipId (UUID) 는 link 의 path param
- * 으로만 전달하며 화면에 직접 렌더하지 않는다 (feedback_uuid_no_user_visibility).
+ * <p>응답의 slipNo 만 사용자에게 노출. BE DTO 에 slipId (UUID) 미포함
+ * (feedback_uuid_no_user_visibility). Phase 11 slipNo 기반 라우트 추가 시 링크 활성화 검토.
  *
  * <h2>에러 분류</h2>
  * <ul>
@@ -46,10 +46,13 @@ export type ReceiptSubmitMethod = 'DRY_RUN' | 'CLOVA'
 // ---------------------------------------------------------------------------
 
 /**
- * BE {@code ReceiptParseResponse} 와 1:1.
+ * BE {@code ReceiptParseResponse} 와 1:1 (SP-09-3 cycle 2 정합).
  *
- * <p>UUID 비공개: slipId 는 내부 링크 path param 전용 — 사용자에게 직접 노출 X.
- * 사용자 표시 식별자는 slipNo 만.
+ * <p>BE record 필드:
+ * slipNo / vendorName / totalAmount / vatAmount / issuedAt / submitMethod / parseRawJson
+ *
+ * <p>UUID 비공개: slipId 는 BE 응답에 포함되지 않음.
+ * 사용자 표시 식별자는 slipNo 만 노출.
  */
 export interface ReceiptParseResponse {
   /** 가게명 (OCR 인식 또는 DRY_RUN 가짜). */
@@ -58,21 +61,19 @@ export interface ReceiptParseResponse {
   totalAmount: number
   /** 부가세 (원, null 가능 — OCR 미인식 시). */
   vatAmount: number | null
-  /** 영수증 날짜 (ISO 8601 date, 예: "2026-05-18"). */
-  receiptDate: string
+  /**
+   * 영수증 발행일 (ISO 8601 date, 예: "2026-05-18").
+   * BE DTO 필드명 {@code issuedAt} 과 동일.
+   */
+  issuedAt: string
   /**
    * 자동 생성된 매입 슬립의 사용자 식별 번호 (예: "2026/05/18-1").
    * UUID 비공개 원칙 — 이 값만 사용자 노출.
    */
   slipNo: string
-  /**
-   * 자동 생성된 매입 슬립의 내부 UUID — 링크 path param 전용.
-   * 화면에 직접 렌더 금지.
-   */
-  slipId: string
-  /** OCR raw 텍스트 (admin 검증용, 길면 잘림). */
-  ocrText: string | null
-  /** 처리 방식 (echo). */
+  /** OCR 원본 응답 요약 JSON (감사 추적용). BE {@code parseRawJson} 필드. */
+  parseRawJson: string | null
+  /** 처리 방식 (echo). BE {@code submitMethod} 필드. */
   submitMethod: ReceiptSubmitMethod
 }
 
