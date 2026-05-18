@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
 import com.samhanair.logis.accounting.client.KftcClient;
@@ -75,6 +76,11 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
+    /**
+     * SP-D1 동적 권한 client 격리 — auth-service 호출 차단.
+     * 기본 lenient stub: canView/canEdit 모두 true (기존 테스트 8건 영향 없음).
+     */
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     // ─── 1. DRY_RUN 정상 발행 ───────────────────────────────────────────────
 
@@ -82,6 +88,9 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts DRY_RUN — ISSUED 세금계산서 200 + eTaxExternalId 저장")
     void testEmitNtsDryRunSuccess() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        // SP-D1 동적 권한 stub: ACCOUNTANT 역할로 emit-nts 허용 (canView=true, canEdit=true)
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-999", "DRY_RUN"));
 
@@ -108,6 +117,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts — SALES 역할 → 403 FORBIDDEN")
     void testEmitNtsForbiddenForSales() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
 
         String id = createAndIssueDraft();
 
@@ -127,6 +138,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts — MANAGER 역할 → 403 FORBIDDEN (ACCOUNTANT/MASTER 만 허용)")
     void testEmitNtsForbiddenForManager() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
 
         String id = createAndIssueDraft();
 
@@ -146,6 +159,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts DRAFT 시도 → 422 TAX_INVOICE_NOT_EMITTABLE")
     void testEmitDraftReturns422() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
 
         // DRAFT 상태 그대로 (issue 안 함)
         String id = createDraft();
@@ -167,6 +182,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts CANCELLED 시도 → 422 TAX_INVOICE_NOT_EMITTABLE")
     void testEmitCancelledReturns422() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
 
         String id = createAndIssueDraft();
 
@@ -196,6 +213,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts 중복 발행 시도 → 409 TAX_INVOICE_ALREADY_EMITTED")
     void testEmitAlreadyEmittedReturns409() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-111", "DRY_RUN"));
 
@@ -226,6 +245,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts 성공 후 audit revision 기록 확인 — TAX_INVOICE_EMIT_NTS (repository 직접 검증)")
     void testEmitAuditLogRecorded() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-AUDIT-20260518", "DRY_RUN"));
 
@@ -283,6 +304,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("ETaxClient 실패 시 → 502 BAD_GATEWAY")
     void testEmitNtsClientFailureReturns502() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
                         "NTS API 타임아웃"));

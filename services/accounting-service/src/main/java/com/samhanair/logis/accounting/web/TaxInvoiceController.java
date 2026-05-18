@@ -61,6 +61,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaxInvoiceController {
 
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final TaxInvoiceService taxInvoiceService;
     private final TaxInvoiceEmitService taxInvoiceEmitService;
@@ -259,8 +260,10 @@ public class TaxInvoiceController {
     public ApiResponse<EmitNtsResponse> emitNts(
             @PathVariable UUID id,
             @Valid @RequestBody EmitNtsRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(taxInvoiceEmitService.emitNts(id, request, callerOrSystem(callerHeader)));
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        return ApiResponse.ok(taxInvoiceEmitService.emitNts(id, request,
+                callerOrSystem(callerHeader), roleHeader));
     }
 
     private String callerOrSystem(String header) {

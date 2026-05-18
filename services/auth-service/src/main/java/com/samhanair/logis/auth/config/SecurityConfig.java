@@ -41,6 +41,8 @@ public class SecurityConfig {
                         .requestMatchers("/auth/password-reset/request").permitAll()
                         .requestMatchers("/auth/password-reset/confirm").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        // SP-D1 동적 RBAC — MASTER 전용 (method security 에서 추가 검증)
+                        .requestMatchers("/auth/admin/permissions/**").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
