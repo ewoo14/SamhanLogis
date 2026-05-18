@@ -32,6 +32,8 @@ public record DepositFetchRequest(
         @PastOrPresent(message = "to 날짜는 오늘 이전이어야 합니다")
         LocalDate to,
 
+        @Pattern(regexp = ".*\\S.*",
+                message = "accountFinNo 는 null 또는 비어있지 않은 문자열이어야 합니다")
         String accountFinNo,
 
         @Pattern(regexp = "DRY_RUN|KFTC",

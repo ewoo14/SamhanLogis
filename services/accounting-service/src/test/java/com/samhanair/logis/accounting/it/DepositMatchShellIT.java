@@ -218,8 +218,10 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     // ─── 7. accountFinNo blank 422 ────────────────────────────────────────
 
     @Test
-    @DisplayName("accountFinNo blank → 422 INVALID_INPUT")
-    void testAccountFinNoBlankReturns422() throws Exception {
+    @DisplayName("accountFinNo blank → 400 INVALID_INPUT (Bean Validation)")
+    void testAccountFinNoBlankReturns400() throws Exception {
+        // accountFinNo @Pattern(regexp=".*\\S.*") → blank 입력 시 Spring MethodArgumentNotValidException
+        // → GlobalExceptionHandler 가 INVALID_INPUT (HttpStatus.BAD_REQUEST = 400) 반환
         String body = objectMapper.writeValueAsString(Map.of(
                 "from", "2026-05-01",
                 "to", "2026-05-07",
@@ -232,7 +234,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
