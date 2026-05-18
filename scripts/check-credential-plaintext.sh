@@ -17,6 +17,7 @@
 #   4. JWT eyJ…(header.payload.sig)
 #   5. Google Sheet ID 평문  1[A-Za-z0-9_-]{43,}  (44자 이상 base62)
 #   6. Aligo API Key 직접 대입  ALIGO_KEY=<실값>
+#   6b. Aligo UserID 직접 대입  ALIGO_USERID=<실값> / ALIGO_USER_ID=<실값>
 #   7. 사업자등록번호 평문 — 픽스처/공개법인/시드 제외
 #   8. 한국 전화번호 평문 — 픽스처/placeholder 제외
 #
@@ -33,6 +34,7 @@
 #   - *.d.ts, node_modules/, build/, dist/, .gradle/, out/
 #   - docs/dev-reports/sp-08-8-*           (본 가드 보고서 자체 제외)
 #   - .claude/memory/                      (메모리 파일 — UUIDs 정상)
+#   - docs/qa/sp-09-2-aligo-sms-real-send/ (review 문서 — 예시 값 포함, 실 자격 아님)
 #   - line 단위 허용: PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC / ${ENV_VAR} / $ENV: / dummy- / example- prefix
 #
 # 종료 코드: 0=CLEAN, 1=VIOLATION
@@ -58,8 +60,11 @@ PATTERN_JWT='eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+'
 # (5) Google Sheet ID 평문 (44자 이상 base62 시작 1)
 PATTERN_SHEET_ID='1[A-Za-z0-9_-]{43,}'
 
-# (6) Aligo API Key 직접 대입
+# (6) Aligo 자격 직접 대입
+#   ALIGO_KEY  — API 키 (SAMHAN_ALIGO_KEY 포함: substring 탐지)
+#   ALIGO_USERID / ALIGO_USER_ID — Aligo 계정 ID (별도 패턴 필요: ALIGO_KEY 로 미포함)
 PATTERN_ALIGO='ALIGO_KEY\s*=\s*[^$\s{"\x27][^\s]*'
+PATTERN_ALIGO_USERID='ALIGO_USER(ID|_ID)\s*=\s*[^$\s{"\x27][^\s]*'
 
 # ─── 스캔 디렉토리 ────────────────────────────────────────────────────────────
 
@@ -92,6 +97,7 @@ WHITELIST_PATTERNS=(
   'db/migration/V[0-9]+__seed_'
   'docs/dev-reports/sp-08-8-'
   '\.claude/memory/'
+  'docs/qa/sp-09-2-aligo-sms-real-send/'
 )
 # tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
 # 대신 scan_pattern 내 line 단위 placeholder 필터로만 허용.
@@ -246,6 +252,10 @@ main() {
 
   # 5) Aligo API Key 직접 대입
   scan_pattern "$PATTERN_ALIGO" "ALIGO_KEY" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 5b) Aligo UserID 직접 대입 (ALIGO_KEY 패턴으로 미탐지되는 ALIGO_USERID / ALIGO_USER_ID)
+  scan_pattern "$PATTERN_ALIGO_USERID" "ALIGO_USERID" found \
     "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
 
   # 6) Sheet ID 환경변수 직접 대입 (docs 영역만)

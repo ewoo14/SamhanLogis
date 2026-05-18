@@ -42,10 +42,10 @@ accounting-service 전용 (`infrastructure/env-templates/accounting-service.env`
 - `NTS_BASE_URL` — `https://teht.hometax.go.kr` (NTS 홈택스 테스트 서버)
 
 notification-service 전용 (`infrastructure/env-templates/notification-service.env` 복사 후, SP-09-2 Aligo SMS 실 발송):
-- `SAMHAN_ALIGO_KEY` (`ALIGO_API_KEY`) — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `AligoSmsAdapter` 는 blank 시 stub 응답)
-- `SAMHAN_ALIGO_USERID` (`ALIGO_USER_ID`) — **빈 값 유지** (Aligo 계정 ID, Phase 11 cutover 시 설정)
-- `SAMHAN_ALIGO_SENDER` (`ALIGO_SENDER`) — **빈 값 유지** (사전 등록 발신번호, Phase 11 cutover 시 설정)
-- `SAMHAN_ALIGO_API_URL` (`ALIGO_API_URL`) — `https://apis.aligo.in` (기본값 사용, 변경 불필요)
+- `SAMHAN_ALIGO_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `AligoSmsAdapter` 는 blank 시 stub 응답)
+- `SAMHAN_ALIGO_USERID` — **빈 값 유지** (Aligo 계정 ID, Phase 11 cutover 시 설정)
+- `SAMHAN_ALIGO_SENDER` — **빈 값 유지** (사전 등록 발신번호, Phase 11 cutover 시 설정)
+- `SAMHAN_ALIGO_API_URL` — **빈 값 유지** (Phase 11 cutover 시 `https://apis.aligo.in` 설정. placeholder 사용 금지)
 
 > 1Password / Bitwarden 같은 비밀번호 관리자에 `.env` 통째로 저장해두면 양 PC sync 편함.
 
