@@ -74,44 +74,34 @@ import { canAccessDeliveryBatch } from '../api/delivery'
 import { canAccessPartnerDcConfig } from '../api/sales'
 
 /**
- * 사이드바 NavLink disabled 래퍼.
+ * 사이드바 NavLink — 권한 없으면 완전 미렌더 (hidden).
  *
- * <p>show=true 시 일반 NavLink, false 시 회색 disabled 처리 + tooltip.
- * pointer-events:none 은 CSS(.sidebar-disabled) 가 담당하고,
- * onClick preventDefault 를 이중 방어로 적용한다.
+ * SP-D1 정책: 권한 없는 메뉴는 회색 비활성화가 아닌 완전 미노출.
+ * show=false 시 null 반환 — DOM 에 렌더되지 않음.
  *
- * @param show - 권한 보유 여부 (false 시 disabled)
- * @param requiredRole - tooltip 에 표시할 필요 ROLE 설명 (선택)
+ * @param show - 권한 보유 여부 (false 시 미렌더)
  */
 function SidebarLink({
   to,
   show,
-  requiredRole,
   'data-testid': testId,
   style,
   children,
 }: {
   to: string
   show: boolean
+  /** @deprecated SP-D1 hidden 정책으로 tooltip 미사용. 하위호환 유지용. */
   requiredRole?: string
   'data-testid'?: string
   style?: React.CSSProperties
   children: React.ReactNode
 }) {
-  const disabledTitle = requiredRole
-    ? `권한이 없습니다 (필요 ROLE: ${requiredRole})`
-    : '권한이 없습니다'
+  if (!show) return null
 
   return (
     <NavLink
       to={to}
       data-testid={testId}
-      className={show ? undefined : 'sidebar-disabled'}
-      aria-disabled={show ? undefined : true}
-      title={show ? undefined : disabledTitle}
-      onClick={(e) => {
-        if (!show) e.preventDefault()
-      }}
       style={style}
     >
       {children}
@@ -933,33 +923,38 @@ export function AppLayout() {
             disabled 시 tooltip: "대표실 부서 권한자만 접근 가능".
             활성 시 AdminLayout (/admin/users) 로 진입.
           */}
-          <div
-            className="app-sidebar-group"
-            aria-hidden="true"
-            style={{
-              marginTop: 16,
-              padding: '4px 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--color-neutral-400)',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-            }}
-          >
-            인사
-          </div>
-          <NavLink
-            to="/admin/users"
-            data-testid="sidebar-hr-users"
-            className={showAdmin ? undefined : 'sidebar-disabled'}
-            aria-disabled={showAdmin ? undefined : true}
-            title={showAdmin ? undefined : '대표실 부서 권한자만 접근 가능'}
-            onClick={(e) => {
-              if (!showAdmin) e.preventDefault()
-            }}
-          >
-            인사 관리
-          </NavLink>
+          {/* SP-D1: 인사 카테고리 — MASTER 만 가시. 권한 없으면 완전 미노출. */}
+          {showAdmin ? (
+            <>
+              <div
+                className="app-sidebar-group"
+                aria-hidden="true"
+                style={{
+                  marginTop: 16,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-400)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                인사
+              </div>
+              <NavLink
+                to="/admin/users"
+                data-testid="sidebar-hr-users"
+              >
+                인사 관리
+              </NavLink>
+              <NavLink
+                to="/admin/permission-matrix"
+                data-testid="sidebar-hr-permission-matrix"
+              >
+                권한 매트릭스
+              </NavLink>
+            </>
+          ) : null}
         </nav>
         <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--color-neutral-500)' }}>
           v0.1.0 · 사내 전용

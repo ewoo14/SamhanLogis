@@ -4131,6 +4131,63 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ==========================================================================
+  // SP-D1: 동적 RBAC 권한 매트릭스 mock
+  // ==========================================================================
+
+  // GET /admin/permissions — 전체 역할 × 페이지 매트릭스 (MASTER 전용)
+  if (method === 'GET' && url.endsWith('/admin/permissions')) {
+    return envelope({
+      cells: _mockPermissionCells,
+      generatedAt: new Date().toISOString(),
+    })
+  }
+
+  // PUT /admin/permissions — 배치 업데이트 (MASTER 전용)
+  if (method === 'PUT' && url.endsWith('/admin/permissions')) {
+    const body = parseMockBody(config) as {
+      updates?: Array<{ roleCode: string; pageCode: string; action: string; allowed: boolean }>
+    }
+    if (Array.isArray(body.updates)) {
+      for (const u of body.updates) {
+        const cell = _mockPermissionCells.find(
+          (c) => c.roleCode === u.roleCode && c.pageCode === u.pageCode,
+        )
+        if (cell) {
+          if (u.action === 'view') cell.view = u.allowed
+          if (u.action === 'edit') cell.edit = u.allowed
+        }
+      }
+    }
+    return envelope(null)
+  }
+
+  // GET /admin/permissions/my — 현재 사용자 권한 목록
+  if (method === 'GET' && url.endsWith('/admin/permissions/my')) {
+    const mockRole = MOCK_AUTH.role
+    if (mockRole === 'MASTER') {
+      // MASTER 는 항상 모든 페이지 view+edit
+      return envelope(
+        SP_D1_PAGES.map((page) => ({
+          pageCode: page,
+          actions: ['view', 'edit'] as const,
+        })),
+      )
+    }
+    const myCells = _mockPermissionCells.filter((c) => c.roleCode === mockRole)
+    return envelope(
+      myCells
+        .filter((c) => c.view || c.edit)
+        .map((c) => ({
+          pageCode: c.pageCode,
+          actions: [
+            ...(c.view ? (['view'] as const) : []),
+            ...(c.edit ? (['edit'] as const) : []),
+          ],
+        })),
+    )
+  }
+
   return null
 }
 
@@ -5468,3 +5525,59 @@ function generateMockBatchRows(count: number) {
 }
 
 const MOCK_BATCH_ROWS = generateMockBatchRows(250)
+
+// ---------------------------------------------------------------------------
+// SP-D1: 동적 RBAC 권한 매트릭스 mock
+// ---------------------------------------------------------------------------
+
+/**
+ * 역할별 기본 권한 매트릭스 시드 (SP-03 §4.2 기준).
+ *
+ * UUID 비공개 가드: roleCode / pageCode 비즈니스 식별자만 사용.
+ */
+const SP_D1_ROLES = [
+  'DEVELOPER', 'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
+] as const
+
+const SP_D1_PAGES = [
+  'DASHBOARD', 'WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS',
+  'ACCOUNTING', 'AROLOGIS', 'WAREHOUSE_OPS', 'DISPATCH_BOARD',
+  'REPORTS', 'ADMIN', 'PERMISSION_MATRIX',
+] as const
+
+/** 역할 × 페이지 기본 view 권한 (SP-03 §4.2 매트릭스). */
+const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
+  DEVELOPER: SP_D1_PAGES as unknown as string[],
+  MANAGER: ['DASHBOARD', 'WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS', 'ACCOUNTING', 'AROLOGIS', 'WAREHOUSE_OPS', 'DISPATCH_BOARD', 'REPORTS'],
+  DISPATCH: ['DASHBOARD', 'AROLOGIS', 'DISPATCH_BOARD'],
+  SALES: ['DASHBOARD', 'SALES', 'PURCHASES'],
+  ACCOUNTANT: ['DASHBOARD', 'ACCOUNTING', 'REPORTS'],
+  WAREHOUSE: ['DASHBOARD', 'WAREHOUSES', 'TRANSFERS', 'WAREHOUSE_OPS'],
+  INVENTORY: ['DASHBOARD', 'WAREHOUSES', 'TRANSFERS'],
+}
+
+/** 역할 × 페이지 기본 edit 권한. */
+const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
+  DEVELOPER: SP_D1_PAGES as unknown as string[],
+  MANAGER: ['WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS', 'ACCOUNTING', 'WAREHOUSE_OPS'],
+  DISPATCH: [],
+  SALES: ['SALES'],
+  ACCOUNTANT: ['ACCOUNTING'],
+  WAREHOUSE: ['WAREHOUSES', 'TRANSFERS', 'WAREHOUSE_OPS'],
+  INVENTORY: ['TRANSFERS'],
+}
+
+/** in-memory 매트릭스 — PUT 으로 변경 반영. */
+let _mockPermissionCells: Array<{
+  roleCode: string
+  pageCode: string
+  view: boolean
+  edit: boolean
+}> = SP_D1_ROLES.flatMap((role) =>
+  SP_D1_PAGES.map((page) => ({
+    roleCode: role,
+    pageCode: page,
+    view: (SP_D1_DEFAULT_VIEW[role] ?? []).includes(page),
+    edit: (SP_D1_DEFAULT_EDIT[role] ?? []).includes(page),
+  })),
+)

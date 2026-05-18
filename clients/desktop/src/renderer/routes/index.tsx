@@ -289,6 +289,9 @@ import { ForbiddenPage } from './ForbiddenPage'
 // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*` (Phase A spec § 6).
 import DispatchBoardPage from './dispatch-board/DispatchBoardPage'
 const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
+// [SP-D1] 동적 RBAC 권한 매트릭스 관리 화면 — MASTER 전용.
+import { PermissionMatrixPage } from './PermissionMatrixPage'
+const PERMISSION_MATRIX_ROLES = ['MASTER'] as const
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -1098,6 +1101,18 @@ const router = createHashRouter([
           { path: 'warehouses', element: <AdminWarehousesPage /> },
           { path: 'departments', element: <AdminDepartmentsPage /> },
         ],
+      },
+
+      // [SP-D1] 권한 매트릭스 관리 — MASTER 전용.
+      // AdminLayout (대표실 부서 이중 가드) 외부에 단독 라우트로 배치.
+      // 접근 시도 시 MASTER 가 아니면 홈 redirect.
+      {
+        path: '/admin/permission-matrix',
+        element: (
+          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
+            <PermissionMatrixPage />
+          </RoleGuard>
+        ),
       },
 
       // [PR-D Phase B FE-B] arologis 지역 관리 — DISPATCH 조회 + MANAGER/MASTER 관리.
