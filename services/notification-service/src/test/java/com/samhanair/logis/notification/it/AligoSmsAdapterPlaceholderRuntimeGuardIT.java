@@ -217,7 +217,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
                         .header("X-User-Id", "test-manager-a")
                         .header("X-User-Role", MANAGER_ROLE))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").exists());
+                .andExpect(jsonPath("$.data.requestId").exists());
 
         mockMvc.perform(post(ADMIN_SEND_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -225,7 +225,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
                         .header("X-User-Id", "test-manager-a")
                         .header("X-User-Role", MANAGER_ROLE))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").exists());
+                .andExpect(jsonPath("$.data.requestId").exists());
 
         // ── 3) DB 직접 검증 — SMS 발송 완료 row
         long smsRequestCount = requestRepository.count();

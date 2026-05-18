@@ -10,11 +10,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.NotificationStatus;
 import com.samhanair.logis.notification.domain.RecipientType;
+import com.samhanair.logis.notification.service.NotificationService.SendResult;
 import com.samhanair.logis.notification.dto.DispatchBatchSendRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchSendRequest.SendEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
@@ -62,8 +64,8 @@ class DispatchBatchSendServiceTest {
     @Test
     @DisplayName("정상 — 2건 모두 SENT + SEND_AUDIT 자동 저장 호출")
     void send_allOk_returnsSentCount() {
-        when(notificationService.send(any(NotificationSendRequest.class)))
-                .thenAnswer(inv -> stubSentRequest());
+        when(notificationService.sendWithGatewayResult(any(NotificationSendRequest.class)))
+                .thenAnswer(inv -> stubSentResult());
 
         DispatchBatchSendRequest req = new DispatchBatchSendRequest(
                 LocalDate.of(2026, 5, 10),
@@ -82,7 +84,7 @@ class DispatchBatchSendServiceTest {
         // SmsAdapter 호출 검증 — channel=SMS, recipientType=EXTERNAL_PHONE, 메시지 본문 그대로 전달
         ArgumentCaptor<NotificationSendRequest> captor =
                 ArgumentCaptor.forClass(NotificationSendRequest.class);
-        verify(notificationService, org.mockito.Mockito.times(2)).send(captor.capture());
+        verify(notificationService, org.mockito.Mockito.times(2)).sendWithGatewayResult(captor.capture());
         NotificationSendRequest first = captor.getAllValues().get(0);
         assertThat(first.channel()).isEqualTo(NotificationChannel.SMS);
         assertThat(first.recipientType()).isEqualTo(RecipientType.EXTERNAL_PHONE);
@@ -120,7 +122,7 @@ class DispatchBatchSendServiceTest {
     @Test
     @DisplayName("게이트웨이 예외 — 1건 실패가 배치 중단 X, failed 카운트 누적")
     void send_gatewayException_continuesAndCountsFailed() {
-        when(notificationService.send(any(NotificationSendRequest.class)))
+        when(notificationService.sendWithGatewayResult(any(NotificationSendRequest.class)))
                 .thenThrow(new RuntimeException("Aligo timeout"));
 
         DispatchBatchSendRequest req = new DispatchBatchSendRequest(
@@ -144,13 +146,13 @@ class DispatchBatchSendServiceTest {
     void send_partial_mixedResults() {
         when(blockedPartnerLookupClient.isBlocked("P-BLK")).thenReturn(true);
         // P-001 → SENT, P-002 → FAILED
-        when(notificationService.send(any(NotificationSendRequest.class)))
+        when(notificationService.sendWithGatewayResult(any(NotificationSendRequest.class)))
                 .thenAnswer(inv -> {
                     NotificationSendRequest r = inv.getArgument(0);
                     if ("01033334444".equals(r.recipientAddress())) {
-                        return stubFailedRequest();
+                        return stubFailedResult();
                     }
-                    return stubSentRequest();
+                    return stubSentResult();
                 });
 
         DispatchBatchSendRequest req = new DispatchBatchSendRequest(
@@ -186,5 +188,19 @@ class DispatchBatchSendServiceTest {
         r.markFailed(false);
         assertThat(r.getStatus()).isEqualTo(NotificationStatus.FAILED);
         return r;
+    }
+
+    /** SP-09-2: SENT SendResult stub — msgId / gatewayRaw 포함. */
+    private SendResult stubSentResult() {
+        return new SendResult(
+                stubSentRequest(),
+                NotificationGatewayResult.success("aligo-stub-msgid-001", "{\"result_code\":1}"));
+    }
+
+    /** SP-09-2: FAILED SendResult stub. */
+    private SendResult stubFailedResult() {
+        return new SendResult(
+                stubFailedRequest(),
+                NotificationGatewayResult.failure("FAILURE_ALIGO_-101", "{\"result_code\":-101}"));
     }
 }
