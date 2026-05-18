@@ -2,6 +2,43 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-6 진입 — 세금계산서 발행 + 외부 연동 (옵션)
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-6-tax-invoice-emit
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `2ae5b0fe` (PR #230 SP-08-6-5 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.6
+- 사용자 6/7회차 정책
+
+### SP-08-6-6 범위 (옵션)
+
+- BE: 세금계산서 발행 endpoint 정합 (`POST /api/v1/accounting/tax-invoices/{id}/emit` 또는 동등)
+- 외부 vendor 연동 (e-tax 국세청): 본 시리즈에서는 endpoint shell + mock 발행 (실제 발행은 SP-09/SP-10 후속)
+- 기존 TaxInvoiceController + TaxInvoiceView 확장
+- FE: 매출 상세 화면 또는 SalesQueryPage 에서 "세금계산서 발행" CTA 활성화
+- Playwright + IT + PNG 4장
+
+본 슬라이스는 master plan 에서 "옵션" 으로 명시 — 사용자 결정에 따라 SP-08-6-7 통합으로 직접 이동 가능.
+
+### 직전 머지 (PR #230)
+
+- branch: `feat/sp-08-6-5-accounting-daily-ledger` (deleted)
+- mergeCommit: `2ae5b0fe`
+- 사이클 통계: N=1 (1c CRITICAL 1 + MAJOR 7 + MINOR 5 + 2c FE/BE 계약 정합)
+- TM PR comment 2건 (Claude 1c + Codex 1c)
+- 신규: V15 daily_closings + DailyClosingController/Service + LedgerController/Service + DailyClosingPage + GeneralLedgerPage + dateUtils/currencyUtils + 명조 폰트
+
+## 2026-05-18 SP-08-6-5 머지 완료 — 일마감/원장 (참고 이력)
+
 ## 2026-05-18 SP-08-6-5 진입 — P2 일마감 + 원장 endpoint
 
 ### 즉시 시작

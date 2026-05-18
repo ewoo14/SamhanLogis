@@ -136,6 +136,27 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("issue 중복 — ISSUED 상태에서 /{id}/issue 재호출 → 409 CONFLICT")
+    void issueAlreadyIssued_409() throws Exception {
+        Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
+
+        String id = createDraft();
+
+        // 최초 발행 성공
+        mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
+                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ISSUED"));
+
+        // 동일 세금계산서 재발행 → DRAFT 아니므로 CONFLICT
+        mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
+                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     @DisplayName("update — DRAFT 에서 라인 교체 가능, ISSUED 후 update → 409 CONFLICT")
     void updateDraftOnly() throws Exception {
         Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
