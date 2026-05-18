@@ -103,6 +103,7 @@ WHITELIST_PATTERNS=(
   'docs/dev-reports/sp-08-8-'
   '\.claude/memory/'
   'docs/qa/sp-09-2-aligo-sms-real-send/'
+  'docs/qa/sp-09-3-ocr-receipt-shell/'
 )
 # tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
 # 대신 scan_pattern 내 line 단위 placeholder 필터로만 허용.
@@ -182,13 +183,19 @@ scan_pattern() {
         echo "$file_path" | grep -q "src/main/" || continue
       fi
 
-      # placeholder 키워드 있는 줄 허용:
+      # placeholder 키워드 있는 줄 허용 — 단 CLOVA_OCR 레이블은 예외 없이 차단:
+      #   CLOVA_OCR 은 외부 vendor 자격이므로 placeholder 사용 자체가 정책 위반.
+      #   env-template 에는 반드시 빈 값(=) 유지. placeholder 사용 금지.
+      #
+      # 일반 패턴 허용:
       #   - PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC   (표준 placeholder 형식)
       #   - ${ENV_VAR:...} / $ENV:VAR              (환경변수 참조)
       #   - dummy- / example- prefix 값            (명백한 예시 값)
       #   - <MASK> 형식 마스킹                     (문서 마스킹 표기)
-      if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
-        continue
+      if [ "$label" != "CLOVA_OCR" ]; then
+        if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
+          continue
+        fi
       fi
 
       printf '%s\n' "  [${label}] ${line}"
@@ -278,7 +285,9 @@ main() {
     echo ""
     echo " 처리 지침:"
     echo "   - 실 API 키/토큰: 즉시 제거 + .env 분리 + .gitignore 추가"
-    echo "   - placeholder 형식 대체: PLACEHOLDER_DEV_ONLY 또는 SET_BY_OPS_PC"
+    echo "   - 일반 서비스 자격 (Aligo/Notion): PLACEHOLDER_DEV_ONLY 또는 SET_BY_OPS_PC 대체"
+    echo "   - 외부 vendor 자격 [CLOVA_OCR]: 빈 값(=) 또는 AWS SSM Parameter Store 참조로 대체"
+    echo "     (CLOVA_OCR 은 placeholder 자체도 금지 — env-template 은 반드시 빈 값 유지)"
     echo "   - 문서 mention: 값 제거 후 '<SHEET_ID>' 등 마스킹 처리"
     echo "   - 예외 승인 필요 시: DevOps 에게 화이트리스트 추가 요청"
     echo "============================================================"
