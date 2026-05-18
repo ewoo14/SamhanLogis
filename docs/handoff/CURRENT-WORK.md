@@ -2,7 +2,86 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
-## 2026-05-18 SP-D4 머지 완료 — SP-D 시리즈 종료 + Phase 10 W10-2 진입
+## 2026-05-19 SP-10-2 머지 완료 — Phase 10 W10-2 인성데이타 퀵프로그램 vendor 통합
+
+### 머지 결과
+
+- **PR #245 MERGED** (`fa68e189` on main, squash) — `[FEAT] SP-10-2 인성데이타 퀵프로그램 vendor 통합 (W10-2)`
+- 사이클 N=3 안 완료 의무 충족 (`feedback_dual_5agent_review.md`)
+- 양쪽 (Claude 5-agent + Codex 5-section) cycle 1/2/3 cross-check 모두 APPROVE
+- CI 27/27 PASS (자격 평문 비공개 가드 + Playwright + GitGuardian 포함)
+
+### 사이클 누적 fix
+
+| 사이클 | head | 결함 발견 | 처리 |
+|---|---|---|---|
+| Cycle 1 | `f82a5ad5` | P0 4 + P1 6 + Codex P1 2 + P2 12 = **24건** | cycle 2 통합 fix |
+| Cycle 2 | `36379838` | Critical 1 + P1 1 + P2 7 = **9건** | cycle 3 통합 fix |
+| Cycle 3 | `5c182b09` → `5f8dcdd1` | **0건** — 양쪽 APPROVE | 머지 |
+
+### 핵심 변경 (BE/FE/Designer/QA/DevOps 5-team)
+
+**BE (arologis-service)**
+- `InsungQuickClient` interface/Impl 4 method + 6 키워드 placeholder guard + `INSUNG_QUICK_NOT_CONFIGURED` (502) + cycle 2: `INSUNG_QUICK_SUBMIT_FAILED` 분리
+- `InsungQuickDriverMatcher` 실 구현 (fail-soft + `vehicle.updateVendorOrderId() + save()` — cycle 2 P0-1 fix)
+- `InsungWebhookService` 3 webhook 처리 (match-result/status-update/delivered) + 상태 가드 MATCHING/PENDING/DEPARTED (cycle 2 P1-1) + signature idempotency `findByStopIdAndSource` (cycle 2 C-P1-1) + cycle 3: `parseCapturedAt` 2-stage OffsetDateTime fallback
+- `ArologisInternalController` HMAC SHA-256 raw body 이중 검증 + sandbox=false + secret blank hard fail (cycle 2 P1-2) + nullable 방어 `safeVendorOrderId` (cycle 2 C-P1-2)
+- V13 Flyway `vehicle.vendor_order_id + vendor_status` + partial unique index
+- `InsungQuickIntegrationIT` 5 TC + IT_BASE_DATE + DispatchType 분리 (cycle 2 P0-2 unique constraint fix)
+- `Phase10VendorPlaceholderGuardConsistencyTest`
+
+**FE (arologis-desktop)**
+- `VehicleMatchStatusBadge` 4 상태 + INSUNG 뱃지 + aria-live 컨테이너 4 상태 (cycle 2 Designer D2)
+- `InsungLbsPanel` 4 GPS source + stale 60s + data-active
+- `DispatchDetailPage` NotifyResultSection + sandbox 배너 + cycle 3: `loadError` 분기 → role=alert 에러 UI ("배차 정보를 불러오지 못했습니다")
+- `DispatchDetailRouteWrapper` useEffect fetch + cycle 3: `loadError` state 분리
+- testid 19종 부여
+
+**Designer (5 markdown)**
+- 4단계 vendor 매칭 시각화 wireframe + tokens.md WCAG AAA 14.7:1 (실제 계산값, cycle 2 D3 정정) + cycle 3: tokens.css + index.ts 주석 동기화
+
+**QA (Playwright 14 test)**
+- `sp-10-2-insung-quick-vendor.spec.ts` 직접 testid 검증 19종 (cycle 2 정합)
+- 시나리오 + IT cross-check (cycle 3 C1 ASSIGNED 정정) + domain integrity + 사이드바 영향 0 docs
+- `screenshots/cycle3-mock.png` PowerShell System.Drawing mock (35KB)
+
+**DevOps**
+- env-template 10 환경변수 (sandboxMode/webhookSecret/TIMEOUT_MS + cycle 3: Phase 11 KMS 메모)
+- `arologis-ci.yml` paths + credential-guard job
+- `check-credential-plaintext.sh` PATTERN_INSUNG + SP-10-2 화이트리스트 (cycle 3 D3 fix)
+- `docs/dev-reports/sp-10-2-insung-quick-vendor.md` §7 Phase 11 KMS migration backlog (신규)
+
+### Phase 10 누적 진행
+
+- ✅ W10-1: arologis-service 신규 (Phase 10 진입)
+- ✅ W10-2: 인성데이타 퀵프로그램 vendor 통합 (본 PR #245)
+- ⏸ W10-3 이연:
+  - 모바일 어플 GPS 보강 정밀화
+  - 어플 설치 invite (Aligo deeplink)
+  - Counter.builder 실 구현 (SP-D5)
+  - 인성 vendor 알림톡 템플릿 등록
+  - QA Playwright dev server 실 캡처 11건 (axios `waitForResponse` 도입 검토)
+  - InsungQuickIntegrationIT 의 `DriverLocation` GPS 좌표 BE 영속 검증 (현재 IT 는 SignatureRepository 만 검증)
+
+### 다음 trigger 후보 (개발책임자 결정)
+
+1. **Phase 10 W10-3** — 모바일 어플 GPS 정밀화 + 어플 설치 invite + 알림톡 템플릿 등록
+2. **Phase 11 진입** — AWS Seoul 단일 환경 cutover (RDS auto backup + EC2 Auto Recovery + Health Check Lambda) + vendor secret KMS migration (`docs/migration/phase11/M-PHASE-11-vendor-secrets-kms.md` 작성 의무)
+3. **SP-D5 운영 안정화 후 단일 가드화** — RoleGuard `@PreAuthorize` 완전 제거 + AOP 통합 + Counter.builder 실 구현
+4. **SP-08 잔여 slice** — legacy GAS parity 잔여 메뉴 (사용자 확인 후)
+
+### 메모리 가드 일관성 ✅
+
+- `feedback_dual_5agent_review.md`: Claude + Codex 양쪽 × 3 cycle 완료
+- `feedback_multi_agent_team_pattern.md`: Designer 선행 + 5-team 병렬
+- `feedback_uuid_no_user_visibility.md`: driverCode `INSUNG-{vendorId}` / vendorOrderId vendor 문자열만 노출
+- `feedback_korean_commits.md`: 모든 commit/PR 한국어
+- `feedback_pr_ci_monitoring.md`: PR 발행 즉시 watch + auto merge 조건 발동
+- `feedback_user_merge_authority.md` (2026-05-10): 5-team 0결함 + CI green → PM 자동 머지
+
+---
+
+## 2026-05-18 SP-D4 머지 완료 — SP-D 시리즈 종료 + Phase 10 W10-2 진입 (이전 기록)
 
 ### SP-D 시리즈 종료 (D1/D2/D3/D4 4 PR)
 
