@@ -24,7 +24,7 @@
 #   - clients/desktop/playwright/           (테스트 단언 코드)
 #   - clients/web/estimate-app/lib/apps-script-shim.js
 #   - tools/legacy-gas/                    (레거시 스냅샷)
-#   - tools/operational-validation/        (placeholder 전용)
+#   - tools/operational-validation/        ※ 통째 제외 폐기 (Fix 2c) — line 단위 placeholder 예외만 적용
 #   - services/*/bin/                      (빌드 산출물)
 #   - services/*/src/test/                 (테스트 픽스처)
 #   - clients/*/src/renderer/api/mock.ts   (프론트 mock 픽스처)
@@ -33,7 +33,7 @@
 #   - *.d.ts, node_modules/, build/, dist/, .gradle/, out/
 #   - docs/dev-reports/sp-08-8-*           (본 가드 보고서 자체 제외)
 #   - .claude/memory/                      (메모리 파일 — UUIDs 정상)
-#   - *.md 내 PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC 패턴
+#   - line 단위 허용: PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC / ${ENV_VAR} / $ENV: / dummy- / example- prefix
 #
 # 종료 코드: 0=CLEAN, 1=VIOLATION
 
@@ -76,6 +76,7 @@ DOC_DIRS=(
   "docs/dev-reports"
   "docs/operational-validation"
   "clients/desktop/playwright"
+  "tools/operational-validation"
 )
 
 # ─── 화이트리스트 ─────────────────────────────────────────────────────────────
@@ -84,7 +85,6 @@ WHITELIST_PATTERNS=(
   'clients/desktop/playwright/'
   'clients/web/estimate-app/lib/apps-script-shim\.js'
   'tools/legacy-gas/'
-  'tools/operational-validation/'
   'services/.*/bin/'
   'services/.*/src/test/'
   'clients/.*/src/renderer/api/mock\.ts'
@@ -93,6 +93,8 @@ WHITELIST_PATTERNS=(
   'docs/dev-reports/sp-08-8-'
   '\.claude/memory/'
 )
+# tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
+# 대신 scan_pattern 내 line 단위 placeholder 필터로만 허용.
 
 # ─── 확장자 필터 ─────────────────────────────────────────────────────────────
 
@@ -169,8 +171,12 @@ scan_pattern() {
         echo "$file_path" | grep -q "src/main/" || continue
       fi
 
-      # placeholder 키워드 있는 줄 허용 (값이 PLACEHOLDER / SET_BY_OPS_PC)
-      if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:'; then
+      # placeholder 키워드 있는 줄 허용:
+      #   - PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC   (표준 placeholder 형식)
+      #   - ${ENV_VAR:...} / $ENV:VAR              (환경변수 참조)
+      #   - dummy- / example- prefix 값            (명백한 예시 값)
+      #   - <MASK> 형식 마스킹                     (문서 마스킹 표기)
+      if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
         continue
       fi
 
