@@ -2,6 +2,53 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-9 진입 — SP-08 전체 시리즈 통합 검증 + 종료
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-9-sp08-series-integration
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `36d6aca2` (PR #234 SP-08-8 squash merge)
+- master plan: `docs/planning/2026-05-16_legacy-gas-db-api-parity.md` §5.SP-08-9
+- 사용자 6/7회차 정책
+
+### SP-08-9 범위 (통합 검증)
+
+SP-08 legacy GAS DB/API parity 전체 시리즈 (SP-08-5/6/7/8) 14 PR 머지 완료. 시리즈 종료 통합 보고서.
+
+- `docs/dev-reports/sp-08-summary.md` 신규 — 전체 시리즈 종료 보고서 6 section
+- CURRENT-WORK.md 갱신
+- 다음 Phase 안내
+
+### 직전 머지 (PR #234)
+
+- branch: `feat/sp-08-8-credential-plaintext-guard` (deleted)
+- mergeCommit: `36d6aca2`
+- 사이클 통계: N=1 (head A → B 2c CI hard gate → C Playwright 제거)
+- GitGuardian false positive PM 자동 처리 (가드 패턴 self-detect)
+
+### SP-08 시리즈 누적 (15 PR + 본 PR)
+
+- SP-08-5 (#220~225) — 매입 CRUD 6 PR
+- SP-08-6 (#226~232) — 매출/회계 7 PR
+- SP-08-7 (#233) — Notion zero
+- SP-08-8 (#234) — 자격 가드
+- SP-08-9 (본 PR) — 통합 검증
+
+### 다음 Phase
+
+- **Phase 11 AWS migration** (project_phase11_aws.md): Seoul m5.xlarge + db.t3.medium + RDS auto backup + EC2 Auto Recovery + Health Check Lambda, 월 ₩405K
+- 또는 Phase 9/10 vendor 연동 (NTS e-tax, Aligo SMS, OCR)
+
+## 2026-05-18 SP-08-8 머지 완료 — 자격 평문 가드 (참고 이력)
+
 ## 2026-05-18 SP-08-8 진입 — 자격 평문 비공개 가드 강화
 
 ### 즉시 시작
