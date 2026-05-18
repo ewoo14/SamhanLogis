@@ -60,6 +60,8 @@ EXCLUDE_DIRS=(
 
 EXCLUDE_FILES=(
   --exclude="*.d.ts"
+  --exclude="*.md"
+  --exclude="*.mdx"
 )
 
 # 화이트리스트 파일 (shim / 테스트 단언) — grep 후 필터링
