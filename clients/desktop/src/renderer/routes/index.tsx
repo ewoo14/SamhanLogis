@@ -525,11 +525,14 @@ const router = createHashRouter([
       { path: '/password/change', element: <PasswordChangePage /> },
 
       // accounting-slice-A — 회계 라우트 5종 (ACCOUNTANT/MANAGER/MASTER)
+      // [SP-D2] PermissionGuard 추가 — 정적 RoleGuard 와 이중 가드 (기존 @PreAuthorize 보존).
       {
         path: '/accounting/accounts',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <AccountTreePage />
+            <PermissionGuard pageCode="accounting.accounts" action="view">
+              <AccountTreePage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -537,7 +540,9 @@ const router = createHashRouter([
         path: '/accounting/journals',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <JournalListPage />
+            <PermissionGuard pageCode="accounting.journals" action="view">
+              <JournalListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -545,7 +550,9 @@ const router = createHashRouter([
         path: '/accounting/journals/new',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <JournalFormPage />
+            <PermissionGuard pageCode="accounting.journals" action="view">
+              <JournalFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -553,7 +560,9 @@ const router = createHashRouter([
         path: '/accounting/journals/:id/edit',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <JournalFormPage />
+            <PermissionGuard pageCode="accounting.journals" action="view">
+              <JournalFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -561,7 +570,9 @@ const router = createHashRouter([
         path: '/accounting/journals/:id',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <JournalDetailPage />
+            <PermissionGuard pageCode="accounting.journals" action="view">
+              <JournalDetailPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -569,18 +580,23 @@ const router = createHashRouter([
         path: '/accounting/balances',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TrialBalancePage />
+            <PermissionGuard pageCode="accounting.balances" action="view">
+              <TrialBalancePage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [P0-1 Slice A] 재무 보고서 — 손익계산서 / 재무상태표 / 보고서 목록.
       // ACCOUNTANT / MASTER 만. 정적 path 우선 매칭 필수.
+      // [SP-D2] PermissionGuard 추가 — accounting.reports 동적 RBAC.
       {
         path: '/accounting/reports',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <ReportListPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <ReportListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -588,7 +604,9 @@ const router = createHashRouter([
         path: '/accounting/reports/income-statement',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <IncomeStatementPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <IncomeStatementPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -596,7 +614,9 @@ const router = createHashRouter([
         path: '/accounting/reports/balance-sheet',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <BalanceSheetPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <BalanceSheetPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -606,7 +626,9 @@ const router = createHashRouter([
         path: '/accounting/reports/income-statement/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <IncomeStatementPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <IncomeStatementPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -614,7 +636,9 @@ const router = createHashRouter([
         path: '/accounting/reports/balance-sheet/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <BalanceSheetPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <BalanceSheetPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -625,7 +649,9 @@ const router = createHashRouter([
         path: '/accounting/reports/vat',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <VatReportPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <VatReportPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -633,7 +659,9 @@ const router = createHashRouter([
         path: '/accounting/reports/vat/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <VatReportPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <VatReportPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -641,7 +669,9 @@ const router = createHashRouter([
         path: '/accounting/reports/corporate-tax',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <CorporateTaxReportPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <CorporateTaxReportPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -649,7 +679,9 @@ const router = createHashRouter([
         path: '/accounting/reports/corporate-tax/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <CorporateTaxReportPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <CorporateTaxReportPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -657,7 +689,9 @@ const router = createHashRouter([
         path: '/accounting/reports/partner-aging',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PartnerAgingPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <PartnerAgingPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -665,18 +699,24 @@ const router = createHashRouter([
         path: '/accounting/reports/partner-aging/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PartnerAgingPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <PartnerAgingPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [P0-1 Slice C] 분석 보고서 4개 — ACCOUNTANT/MANAGER/MASTER.
+      // [P0-1 Slice C] 분석 보고서 4종 — ACCOUNTANT/MANAGER/MASTER.
+      // [SP-D2] PermissionGuard 추가 — accounting.reports 동적 RBAC.
       // 정적 `/print` suffix 먼저 등록 (부모 라우트 매칭 우선).
       {
         path: '/accounting/reports/cash-flow',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <CashFlowStatementPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <CashFlowStatementPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -684,7 +724,9 @@ const router = createHashRouter([
         path: '/accounting/reports/cash-flow/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <CashFlowStatementPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <CashFlowStatementPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -692,7 +734,9 @@ const router = createHashRouter([
         path: '/accounting/reports/equity-changes',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <EquityChangesPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <EquityChangesPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -700,7 +744,9 @@ const router = createHashRouter([
         path: '/accounting/reports/equity-changes/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <EquityChangesPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <EquityChangesPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -708,7 +754,9 @@ const router = createHashRouter([
         path: '/accounting/reports/daily-summary',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <DailySummaryPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <DailySummaryPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -716,7 +764,9 @@ const router = createHashRouter([
         path: '/accounting/reports/daily-summary/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <DailySummaryPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <DailySummaryPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -724,7 +774,9 @@ const router = createHashRouter([
         path: '/accounting/reports/monthly-summary',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <MonthlySummaryPage />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <MonthlySummaryPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -732,18 +784,23 @@ const router = createHashRouter([
         path: '/accounting/reports/monthly-summary/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <MonthlySummaryPrintLayout />
+            <PermissionGuard pageCode="accounting.reports" action="view">
+              <MonthlySummaryPrintLayout />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [PR-E2 FE-9] 홈택스 일괄 등록 양식 — ACCOUNTANT / MANAGER / MASTER.
       // BE: accounting-service `GET /accounting/tax-invoice/hometax-export` (commit c48e156).
+      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 으로 묶음 (원장/양식 그룹).
       {
         path: '/accounting/hometax-export',
         element: (
           <RoleGuard allow={HOMETAX_EXPORT_ROLES}>
-            <HometaxExportPage />
+            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+              <HometaxExportPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -751,11 +808,14 @@ const router = createHashRouter([
       // [PR-E2 FE-8] 거래명세서 일괄 — ACCOUNTANT / MASTER.
       // BE: accounting-service `GET /accounting/statements/batch-data` (commit c48e156).
       // 다중 선택 → /print/statement-batch 진입 (page-break per partner).
+      // [SP-D2] PermissionGuard 추가 — accounting.statement-batch 동적 RBAC.
       {
         path: '/accounting/statement-batch',
         element: (
           <RoleGuard allow={STATEMENT_BATCH_ROLES}>
-            <StatementBatchPage />
+            <PermissionGuard pageCode="accounting.statement-batch" action="view">
+              <StatementBatchPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -765,7 +825,9 @@ const router = createHashRouter([
         path: '/print/statement-batch',
         element: (
           <RoleGuard allow={STATEMENT_BATCH_ROLES}>
-            <StatementBatchView />
+            <PermissionGuard pageCode="accounting.statement-batch" action="view">
+              <StatementBatchView />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -774,11 +836,14 @@ const router = createHashRouter([
       // BE: accounting-service `GET /accounting/sales/aggregate` (BE-A8) +
       //     `GET /accounting/journals/ledger-data` (BE-A9) (commit c48e156).
       // 집계 → 원장 detail → 인쇄 / 일괄 인쇄 / CSV 다운로드 통합.
+      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 동적 RBAC.
       {
         path: '/accounting/partner-ledger',
         element: (
           <RoleGuard allow={PARTNER_LEDGER_ROLES}>
-            <PartnerLedgerPage />
+            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+              <PartnerLedgerPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -788,7 +853,9 @@ const router = createHashRouter([
         path: '/print/partner-ledger',
         element: (
           <RoleGuard allow={PARTNER_LEDGER_ROLES}>
-            <PartnerLedgerView />
+            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+              <PartnerLedgerView />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -913,11 +980,14 @@ const router = createHashRouter([
       // [SP-08-6-5 P2] 일마감 — `/accounting/daily-closings` (ACCOUNTANT/MANAGER/MASTER 진입).
       // 날짜 range 필터 + 거래처 필터 + 마감 실행 + 역마감(MASTER 만).
       // BE: accounting-service `GET/POST /accounting/daily-closings` + `POST /{id}/reverse`.
+      // [SP-D2] PermissionGuard 추가 — accounting.daily-closing 동적 RBAC.
       {
         path: '/accounting/daily-closings',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <DailyClosingPage />
+            <PermissionGuard pageCode="accounting.daily-closing" action="view">
+              <DailyClosingPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -925,22 +995,28 @@ const router = createHashRouter([
       // [SP-08-6-5 P2] 원장 — `/accounting/ledgers` (ACCOUNTANT/MANAGER/MASTER 진입).
       // 기간 + 계정/거래처 필터 + 라인 테이블 + CSV 다운로드 + 출력.
       // BE: accounting-service `GET /accounting/ledgers`.
+      // [SP-D2] PermissionGuard 추가 — accounting.general-ledger 동적 RBAC.
       {
         path: '/accounting/ledgers',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <GeneralLedgerPage />
+            <PermissionGuard pageCode="accounting.general-ledger" action="view">
+              <GeneralLedgerPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입).
       // 매뉴얼 docs/manual/03-회계/04-월말-마감.md Stage 1 일치.
+      // [SP-D2] PermissionGuard 추가 — accounting.period-close 동적 RBAC.
       {
         path: '/accounting/period-close',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PeriodCloseListPage />
+            <PermissionGuard pageCode="accounting.period-close" action="view">
+              <PeriodCloseListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -948,11 +1024,14 @@ const router = createHashRouter([
       // [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT / MANAGER / MASTER.
       // BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
       // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
+      // [SP-D2] PermissionGuard 추가 — accounting.deposit-match 동적 RBAC.
       {
         path: '/accounting/deposit-match',
         element: (
           <RoleGuard allow={DEPOSIT_MATCH_ROLES}>
-            <DepositMatchPage />
+            <PermissionGuard pageCode="accounting.deposit-match" action="view">
+              <DepositMatchPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -981,11 +1060,14 @@ const router = createHashRouter([
       // [supplier-profile + datagrid] 사업자 양식 — ACCOUNTANT (read) / MANAGER / MASTER (write).
       // BE: accounting-service `/api/v1/accounting/supplier-profiles`
       // 정적 path 이므로 `/accounting/tax-invoices/:id` 등과 충돌 없음.
+      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 으로 묶음 (원장/양식 그룹).
       {
         path: '/accounting/supplier-profiles',
         element: (
           <RoleGuard allow={SUPPLIER_PROFILE_READ_ROLES}>
-            <SupplierProfilePage />
+            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+              <SupplierProfilePage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1010,11 +1092,14 @@ const router = createHashRouter([
       },
       // GAS 이식 — 세금계산서 일괄발행 4탭 (ACCOUNTANT / MANAGER / MASTER).
       // 정적 path (`/batch`) → `/accounting/tax-invoices/:id` 보다 먼저 매칭되어야 함.
+      // [SP-D2] PermissionGuard 추가 — accounting.tax-invoice.list 동적 RBAC.
       {
         path: '/accounting/tax-invoices/batch',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceBatchPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+              <TaxInvoiceBatchPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1022,7 +1107,9 @@ const router = createHashRouter([
         path: '/accounting/tax-invoices/new',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceFormPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+              <TaxInvoiceFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1030,7 +1117,9 @@ const router = createHashRouter([
         path: '/accounting/tax-invoices/:id/print',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceView />
+            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+              <TaxInvoiceView />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1038,7 +1127,9 @@ const router = createHashRouter([
         path: '/accounting/tax-invoices/:id/edit',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceFormPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+              <TaxInvoiceFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1046,7 +1137,9 @@ const router = createHashRouter([
         path: '/accounting/tax-invoices/:id',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceDetailPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+              <TaxInvoiceDetailPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },

@@ -5564,8 +5564,10 @@ const SP_D1_ROLES = [
 
 /**
  * SP-D1 cycle 2 fix: 페이지 코드를 BE PageCode enum dot-separated code 와 일치.
+ * SP-D2: 회계 카테고리 7개 신규 PageCode 추가 (V8 seed 기반).
  */
 const SP_D1_PAGES = [
+  // SP-D1 초기 12개
   'accounting.tax-invoice.emit-nts',
   'accounting.tax-invoice.list',
   'accounting.deposit-match',
@@ -5578,36 +5580,58 @@ const SP_D1_PAGES = [
   'inbound.inspection',
   'dispatch.board',
   'admin.permissions',
+  // SP-D2 회계 7개 신규
+  'accounting.accounts',
+  'accounting.journals',
+  'accounting.balances',
+  'accounting.reports',
+  'accounting.period-close',
+  'accounting.statement-batch',
+  'accounting.partner-ledger',
 ] as const
 
-/** 역할 × 페이지 기본 view 권한 (V7 seed 기반 — SP-D1 초기 매트릭스). */
+/** 역할 × 페이지 기본 view 권한 (V7+V8 seed 기반 — SP-D1/D2 통합 매트릭스). */
 const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
+    // SP-D1
     'accounting.tax-invoice.list', 'accounting.deposit-match', 'accounting.daily-closing',
     'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board',
+    // SP-D2 회계 7개 — MANAGER: view 허용
+    'accounting.accounts', 'accounting.journals', 'accounting.balances',
+    'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.partner-ledger',
   ],
   DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
   SALES: ['accounting.tax-invoice.list', 'sales.slip.list', 'dispatch.board'],
   ACCOUNTANT: [
+    // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.deposit-match', 'accounting.daily-closing', 'accounting.general-ledger',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
+    'accounting.accounts', 'accounting.journals', 'accounting.balances',
+    'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.partner-ledger',
   ],
   WAREHOUSE: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
   INVENTORY: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
 }
 
-/** 역할 × 페이지 기본 edit 권한 (V7 seed 기반). */
+/** 역할 × 페이지 기본 edit 권한 (V7+V8 seed 기반). */
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [],
   DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
   SALES: ['sales.slip.list'],
   ACCOUNTANT: [
+    // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.deposit-match', 'accounting.daily-closing',
     'purchases.receipt-ocr',
+    // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
+    'accounting.accounts', 'accounting.journals', 'accounting.period-close',
+    'accounting.statement-batch',
   ],
   WAREHOUSE: ['inbound.inspection'],
   INVENTORY: ['inbound.inspection'],

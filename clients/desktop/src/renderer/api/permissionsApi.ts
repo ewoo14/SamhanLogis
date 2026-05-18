@@ -39,13 +39,16 @@ export type RbacRole =
 export type PermissionAction = 'view' | 'edit'
 
 /**
- * 페이지 코드 12개 — BE PageCode enum dot-separated code 와 1:1 매핑.
+ * 페이지 코드 19개 — BE PageCode enum dot-separated code 와 1:1 매핑.
  *
  * SP-D1 cycle 2 fix: 대문자 상수(DASHBOARD 등)에서 dot-separated 소문자 코드로 교체.
+ * SP-D2: 회계 카테고리 7개 신규 추가 (accounts / journals / balances / reports /
+ *         period-close / statement-batch / partner-ledger).
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
 export type PageCode =
+  // SP-D1 초기 12개
   | 'accounting.tax-invoice.emit-nts'
   | 'accounting.tax-invoice.list'
   | 'accounting.deposit-match'
@@ -58,6 +61,14 @@ export type PageCode =
   | 'inbound.inspection'
   | 'dispatch.board'
   | 'admin.permissions'
+  // SP-D2 회계 7개 신규
+  | 'accounting.accounts'
+  | 'accounting.journals'
+  | 'accounting.balances'
+  | 'accounting.reports'
+  | 'accounting.period-close'
+  | 'accounting.statement-batch'
+  | 'accounting.partner-ledger'
 
 /**
  * 개별 역할-페이지 권한 셀.
@@ -72,7 +83,8 @@ export interface PermissionCell {
 
 /**
  * 전체 권한 매트릭스 — GET /admin/permissions 응답.
- * 7 역할 × 12 페이지 = 최대 84셀.
+ * SP-D1: 7 역할 × 12 페이지 = 최대 84셀.
+ * SP-D2: 7 역할 × 19 페이지 = 최대 133셀 (회계 7개 추가).
  */
 export interface PermissionMatrix {
   /** 전체 셀 목록. */

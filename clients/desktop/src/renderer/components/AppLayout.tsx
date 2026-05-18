@@ -53,10 +53,7 @@ import { canAccessDispatchSms } from '../api/dispatchSmsApi'
 import { canAccessDpsCompare } from '../api/dpsCompareApi'
 // [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER (BE @PreAuthorize 일치)
 import { canAccessDpsByProduct } from '../api/dpsByProductApi'
-// [PR-E2 FE-9] 홈택스 일괄 등록 양식 — ACCOUNTANT / MANAGER / MASTER (BE @PreAuthorize 일치)
-import { canAccessHometaxExport } from '../api/hometaxExportApi'
-// [PR-E2 FE-7] 거래처별 원장 생성 — ACCOUNTANT / MANAGER / MASTER (사용자 명세 — MANAGER read-only 허용)
-import { canAccessPartnerLedger } from '../api/partnerLedgerApi'
+// [PR-E2 FE-9/FE-7] SP-D2: 홈택스 일괄 양식 / 거래처 원장 — 동적 RBAC 연동으로 정적 함수 폐기.
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE / MANAGER / MASTER (BE @PreAuthorize 일치)
 import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
 // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE. 헤더 배지 + 창고 운영 메뉴.
@@ -201,14 +198,32 @@ export function AppLayout() {
   // race condition 호환 — 빈 title 시 "업무 화면" fallback (Designer § 2.7)
   const displayTitle = title || '업무 화면'
 
-  // accounting-slice-A — 회계 그룹은 ACCOUNTANT/MANAGER/MASTER 가시 (W-4: BE @PreAuthorize 일치)
-  const showAccounting = canAccessAccounting(auth?.role)
-  // [PR-E2 FE-9] 홈택스 일괄 양식 entry — ACCOUNTANT / MANAGER / MASTER 가시.
-  // showAccounting 이 false 인 MANAGER 도 entry 단독 노출 가능 (별도 분기).
-  const showHometaxExport = canAccessHometaxExport(auth?.role)
-  // [PR-E2 FE-7] 거래처 원장 entry — ACCOUNTANT / MANAGER / MASTER 가시.
-  // showAccounting 이 false 인 MANAGER 도 entry 단독 노출 가능 (별도 분기).
-  const showPartnerLedger = canAccessPartnerLedger(auth?.role)
+  // [SP-D2] 회계 그룹 사이드바 — 동적 RBAC 연동 (정적 role 체크 → dynamicCanAccess 전환).
+  // 기존 canAccessAccounting(정적) 는 fallback 으로 유지하되 동적 RBAC 가 우선 적용.
+  // SP-D1 정책: 권한 없는 메뉴는 회색 비활성 X — 완전 미노출(null) 의무.
+  //
+  // 회계 카테고리 헤더: 12개 PageCode 중 1개라도 canAccess=true 면 표시.
+  // 정적 role 체크는 RBAC 캐시 미로드 시 보수적 허용(true)으로 동작하므로 두 가지 OR.
+  const showAccountingAccounts    = dynamicCanAccess('accounting.accounts',        'view')
+  const showAccountingJournals    = dynamicCanAccess('accounting.journals',        'view')
+  const showAccountingBalances    = dynamicCanAccess('accounting.balances',        'view')
+  const showAccountingReports     = dynamicCanAccess('accounting.reports',         'view')
+  const showAccountingPeriodClose = dynamicCanAccess('accounting.period-close',    'view')
+  const showAccountingStatBatch   = dynamicCanAccess('accounting.statement-batch', 'view')
+  const showAccountingPartnerLedger = dynamicCanAccess('accounting.partner-ledger', 'view')
+  const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.emit-nts', 'view')
+    || dynamicCanAccess('accounting.tax-invoice.list', 'view')
+  const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
+  const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
+  const showAccountingDepositMatch = dynamicCanAccess('accounting.deposit-match',  'view')
+  // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
+  const showAccounting =
+    showAccountingAccounts || showAccountingJournals || showAccountingBalances
+    || showAccountingReports || showAccountingPeriodClose || showAccountingStatBatch
+    || showAccountingPartnerLedger || showAccountingTaxInvoice || showAccountingDailyClose
+    || showAccountingLedger || showAccountingDepositMatch
+    // 정적 role fallback — RBAC 캐시 초기화 전 깜박임 방지 (canAccessAccounting 유지)
+    || canAccessAccounting(auth?.role)
   const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
 
   // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH / MANAGER / MASTER 가드
@@ -429,189 +444,201 @@ export function AppLayout() {
               >
                 회계
               </div>
-              <NavLink to="/accounting/accounts" data-testid="sidebar-accounting-accounts">계정과목</NavLink>
-              <NavLink to="/accounting/journals" data-testid="sidebar-accounting-journals">분개장</NavLink>
-              <NavLink to="/accounting/tax-invoices" data-testid="sidebar-accounting-tax-invoices">세금계산서</NavLink>
-              <NavLink to="/accounting/balances" data-testid="sidebar-accounting-balances">시산표</NavLink>
-              {/* [P0-1 Slice A+B] 재무 보고서 서브메뉴 — 7개 보고서 진입점. */}
-              {/* F1: end prop — 자식 라우트 진입 시 부모 active 강조 회피 */}
-              <NavLink
-                to="/accounting/reports"
-                end
-                data-testid="sidebar-accounting-reports"
+              {/* [SP-D2] 회계 각 메뉴 — SidebarLink + dynamicCanAccess 로 전환.
+                  권한 없는 메뉴는 완전 미노출(null). 회색 비활성 X. */}
+              <SidebarLink
+                to="/accounting/accounts"
+                show={showAccountingAccounts}
+                data-testid="sidebar-accounting-accounts"
               >
-                재무 보고서
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/income-statement"
-                data-testid="sidebar-accounting-income-statement"
-                style={{ paddingLeft: 20, fontSize: 13 }}
+                계정과목
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/journals"
+                show={showAccountingJournals}
+                data-testid="sidebar-accounting-journals"
               >
-                손익계산서
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/balance-sheet"
-                data-testid="sidebar-accounting-balance-sheet"
-                style={{ paddingLeft: 20, fontSize: 13 }}
+                분개장
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/tax-invoices"
+                show={showAccountingTaxInvoice}
+                data-testid="sidebar-accounting-tax-invoices"
               >
-                재무상태표
-              </NavLink>
-              {/* [P0-1 Slice B] 세금/거래처 보고서 3종 */}
-              <NavLink
-                to="/accounting/reports/vat"
-                end
-                data-testid="sidebar-accounting-vat-report"
-                style={{ paddingLeft: 20, fontSize: 13 }}
+                세금계산서
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/balances"
+                show={showAccountingBalances}
+                data-testid="sidebar-accounting-balances"
               >
-                부가세 신고서
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/corporate-tax"
-                end
-                data-testid="sidebar-accounting-corporate-tax"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                법인세 신고서
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/partner-aging?type=RECEIVABLE"
-                end
-                data-testid="sidebar-accounting-partner-aging-receivable"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                미수금 (거래처별)
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/partner-aging?type=PAYABLE"
-                end
-                data-testid="sidebar-accounting-partner-aging-payable"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                미지급금 (거래처별)
-              </NavLink>
-              {/* [P0-1 Slice C] 분석 보고서 4종 */}
-              <NavLink
-                to="/accounting/reports/cash-flow"
-                end
-                data-testid="sidebar-accounting-cash-flow"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                현금흐름표
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/equity-changes"
-                end
-                data-testid="sidebar-accounting-equity-changes"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                자본변동표
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/daily-summary"
-                end
-                data-testid="sidebar-accounting-daily-summary"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                일계표
-              </NavLink>
-              <NavLink
-                to="/accounting/reports/monthly-summary"
-                end
-                data-testid="sidebar-accounting-monthly-summary"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                월계표
-              </NavLink>
-              <NavLink
+                시산표
+              </SidebarLink>
+              {/* [P0-1 Slice A+B+C] 재무 보고서 서브메뉴 — accounting.reports PageCode 로 통합. */}
+              {showAccountingReports ? (
+                <>
+                  <NavLink
+                    to="/accounting/reports"
+                    end
+                    data-testid="sidebar-accounting-reports"
+                  >
+                    재무 보고서
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/income-statement"
+                    data-testid="sidebar-accounting-income-statement"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    손익계산서
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/balance-sheet"
+                    data-testid="sidebar-accounting-balance-sheet"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    재무상태표
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/vat"
+                    end
+                    data-testid="sidebar-accounting-vat-report"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    부가세 신고서
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/corporate-tax"
+                    end
+                    data-testid="sidebar-accounting-corporate-tax"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    법인세 신고서
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/partner-aging?type=RECEIVABLE"
+                    end
+                    data-testid="sidebar-accounting-partner-aging-receivable"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    미수금 (거래처별)
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/partner-aging?type=PAYABLE"
+                    end
+                    data-testid="sidebar-accounting-partner-aging-payable"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    미지급금 (거래처별)
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/cash-flow"
+                    end
+                    data-testid="sidebar-accounting-cash-flow"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    현금흐름표
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/equity-changes"
+                    end
+                    data-testid="sidebar-accounting-equity-changes"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    자본변동표
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/daily-summary"
+                    end
+                    data-testid="sidebar-accounting-daily-summary"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    일계표
+                  </NavLink>
+                  <NavLink
+                    to="/accounting/reports/monthly-summary"
+                    end
+                    data-testid="sidebar-accounting-monthly-summary"
+                    style={{ paddingLeft: 20, fontSize: 13 }}
+                  >
+                    월계표
+                  </NavLink>
+                </>
+              ) : null}
+              <SidebarLink
                 to="/sales/closing"
+                show={showAccounting}
                 data-testid="sidebar-accounting-sales-closing"
               >
                 매출 마감
-              </NavLink>
-              <NavLink
+              </SidebarLink>
+              <SidebarLink
                 to="/accounting/period-close"
+                show={showAccountingPeriodClose}
                 data-testid="sidebar-accounting-period-close"
               >
                 월말 마감
-              </NavLink>
-              {/* [PR-E2 FE-8] 거래명세서 일괄 — ACCOUNTANT/MASTER (회계 그룹 안). */}
-              <NavLink
+              </SidebarLink>
+              {/* [PR-E2 FE-8] 거래명세서 일괄 — accounting.statement-batch 동적 RBAC. */}
+              <SidebarLink
                 to="/accounting/statement-batch"
+                show={showAccountingStatBatch}
                 data-testid="sidebar-accounting-statement-batch"
               >
                 거래명세서 일괄
-              </NavLink>
-              {/* [PR-E2 FE-7] 거래처 원장 — ACCOUNTANT/MASTER 시점 (회계 그룹 안). */}
-              <NavLink
+              </SidebarLink>
+              {/* [PR-E2 FE-7] 거래처 원장 — accounting.partner-ledger 동적 RBAC. */}
+              <SidebarLink
                 to="/accounting/partner-ledger"
+                show={showAccountingPartnerLedger}
                 data-testid="sidebar-accounting-partner-ledger"
               >
                 거래처 원장
-              </NavLink>
-              {/* [PR-E2 FE-9] 홈택스 일괄 양식 — ACCOUNTANT/MASTER 시점 (회계 그룹 안). */}
-              <NavLink
+              </SidebarLink>
+              {/* [PR-E2 FE-9] 홈택스 일괄 양식 — accounting.partner-ledger 동적 RBAC. */}
+              <SidebarLink
                 to="/accounting/hometax-export"
+                show={showAccountingPartnerLedger}
                 data-testid="sidebar-accounting-hometax-export"
               >
                 홈택스 일괄 양식
-              </NavLink>
-              {/* [supplier-profile + datagrid] 사업자 양식 — ACCOUNTANT 조회 / MANAGER/MASTER CRUD. */}
-              <NavLink
+              </SidebarLink>
+              {/* [supplier-profile + datagrid] 사업자 양식 — accounting.partner-ledger 동적 RBAC. */}
+              <SidebarLink
                 to="/accounting/supplier-profiles"
+                show={showAccountingPartnerLedger}
                 data-testid="sidebar-accounting-supplier-profile"
               >
                 사업자 양식
-              </NavLink>
-              {/* [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT/MANAGER/MASTER. */}
-              <NavLink
+              </SidebarLink>
+              {/* [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — accounting.deposit-match 동적 RBAC. */}
+              <SidebarLink
                 to="/accounting/deposit-match"
+                show={showAccountingDepositMatch}
                 data-testid="sidebar-accounting-deposit-match"
               >
                 입금 매칭
-              </NavLink>
+              </SidebarLink>
+              {/* [SP-08-6-5 P2] 일마감 — accounting.daily-closing 동적 RBAC. */}
+              <SidebarLink
+                to="/accounting/daily-closings"
+                show={showAccountingDailyClose}
+                data-testid="sidebar-accounting-daily-closings"
+              >
+                일마감
+              </SidebarLink>
+              {/* [SP-08-6-5 P2] 원장 — accounting.general-ledger 동적 RBAC. */}
+              <SidebarLink
+                to="/accounting/ledgers"
+                show={showAccountingLedger}
+                data-testid="sidebar-accounting-ledgers"
+              >
+                원장
+              </SidebarLink>
             </>
           ) : null}
 
-          {/*
-            [PR-E2 FE-7 / FE-9] MANAGER 전용 — MASTER/ACCOUNTANT 가 아닌 MANAGER 가
-            회계 그룹 전체를 못 보지만 홈택스 일괄 양식 / 거래처 원장은 BE 또는
-            FE 명세가 허용하므로 entry 만 단독 노출.
-          */}
-          {(showHometaxExport || showPartnerLedger) && !showAccounting ? (
-            <>
-              <div
-                className="app-sidebar-group"
-                aria-hidden="true"
-                style={{
-                  marginTop: 16,
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--color-neutral-400)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                회계
-              </div>
-              {showPartnerLedger ? (
-                <NavLink
-                  to="/accounting/partner-ledger"
-                  data-testid="sidebar-accounting-partner-ledger"
-                >
-                  거래처 원장
-                </NavLink>
-              ) : null}
-              {showHometaxExport ? (
-                <NavLink
-                  to="/accounting/hometax-export"
-                  data-testid="sidebar-accounting-hometax-export"
-                >
-                  홈택스 일괄 양식
-                </NavLink>
-              ) : null}
-            </>
-          ) : null}
+          {/* [SP-D2] MANAGER 전용 단독 노출 블록 폐기 — 동적 RBAC 통합으로 메인 회계 블록에서 처리.
+              showAccounting 이 dynamicCanAccess 기반으로 전환되어 MANAGER 도 포함됨. */}
 
           {showArologis ? (
             <>

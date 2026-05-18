@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
  * </ol>
  *
  * <p>SP-D1 초기 12개 페이지 등록 (Phase 9 vendor 4 + 회계 5 + 매입 2 + admin 1).
+ * <p>SP-D2 회계 카테고리 7개 추가 (accounts / journals / balances / reports / period-close / statement-batch / partner-ledger) — 총 19개.
  */
 @Getter
 @RequiredArgsConstructor
@@ -41,6 +42,27 @@ public enum PageCode {
 
     /** 원장(총계정원장) 조회 화면. */
     ACCOUNTING_GENERAL_LEDGER("accounting.general-ledger", "원장"),
+
+    /** 계정과목 트리 조회 화면 (SP-D2). */
+    ACCOUNTING_ACCOUNTS("accounting.accounts", "계정과목"),
+
+    /** 분개장 목록/작성/상세 화면 (SP-D2). */
+    ACCOUNTING_JOURNALS("accounting.journals", "분개장"),
+
+    /** 시산표 조회 화면 (SP-D2). */
+    ACCOUNTING_BALANCES("accounting.balances", "시산표"),
+
+    /** 재무 보고서 (손익/재무상태/부가세/법인세/거래처/현금/자본/일계/월계) (SP-D2). */
+    ACCOUNTING_REPORTS("accounting.reports", "재무 보고서"),
+
+    /** 월말 마감 화면 (SP-D2). */
+    ACCOUNTING_PERIOD_CLOSE("accounting.period-close", "월말 마감"),
+
+    /** 거래명세서 일괄 화면 (SP-D2). */
+    ACCOUNTING_STATEMENT_BATCH("accounting.statement-batch", "거래명세서 일괄"),
+
+    /** 거래처 원장 / 홈택스 일괄 양식 / 사업자 양식 화면 (SP-D2). */
+    ACCOUNTING_PARTNER_LEDGER("accounting.partner-ledger", "거래처 원장"),
 
     // ---- 알림 / SMS (notification) ----
 
