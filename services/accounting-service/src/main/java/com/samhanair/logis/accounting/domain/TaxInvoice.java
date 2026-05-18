@@ -414,6 +414,38 @@ public class TaxInvoice extends BaseEntity {
         this.eTaxExternalId = eTaxExternalId;
     }
 
+    /**
+     * e-Tax 실 발행 완료 마킹 (SP-09-1).
+     *
+     * <p>사전 조건:
+     *
+     * <ul>
+     *   <li>상태 = {@link TaxInvoiceStatus#ISSUED} — 아닐 시 {@link BusinessException}(TAX_INVOICE_NOT_EMITTABLE)</li>
+     *   <li>eTaxExternalId = null — 이미 발행된 경우 {@link BusinessException}(TAX_INVOICE_ALREADY_EMITTED)</li>
+     * </ul>
+     *
+     * @param eTaxExternalId 외부 e-Tax 발급 ID (필수, 1~100자)
+     * @throws BusinessException(TAX_INVOICE_NOT_EMITTABLE) ISSUED 상태가 아닐 때
+     * @throws BusinessException(TAX_INVOICE_ALREADY_EMITTED) 이미 eTaxExternalId 설정된 경우
+     */
+    public void markEmitted(String eTaxExternalId) {
+        if (this.status != TaxInvoiceStatus.ISSUED) {
+            throw new BusinessException(ErrorCode.TAX_INVOICE_NOT_EMITTABLE,
+                    "e-Tax 전송은 ISSUED 상태에서만 허용됩니다 (현재: " + this.status + ")");
+        }
+        if (this.eTaxExternalId != null && !this.eTaxExternalId.isBlank()) {
+            throw new BusinessException(ErrorCode.TAX_INVOICE_ALREADY_EMITTED,
+                    "이미 e-Tax 전송된 세금계산서입니다 (externalId: " + this.eTaxExternalId + ")");
+        }
+        if (eTaxExternalId == null || eTaxExternalId.isBlank()) {
+            throw new IllegalArgumentException("eTaxExternalId 는 필수입니다");
+        }
+        if (eTaxExternalId.length() > 100) {
+            throw new IllegalArgumentException("eTaxExternalId 는 최대 100자입니다");
+        }
+        this.eTaxExternalId = eTaxExternalId;
+    }
+
     /** 라인 합계 → 헤더 supply/vat/total 재계산. VAT_RATE * supply (HALF_UP). */
     public void recalcTotals() {
         BigDecimal supplySum = this.lines.stream()

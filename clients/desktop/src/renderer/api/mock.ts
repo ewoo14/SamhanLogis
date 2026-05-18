@@ -2604,6 +2604,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /accounting/tax-invoices/{id}/emit-nts — 국세청 전자세금계산서 발행 (SP-09-1)
+  const taxInvoiceEmitNtsMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/emit-nts$/)
+  if (method === 'POST' && taxInvoiceEmitNtsMatch) {
+    const id = taxInvoiceEmitNtsMatch[1]!
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
+    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    const submitMethod = typeof req['submitMethod'] === 'string' ? req['submitMethod'] : 'DRY_RUN'
+    const externalId = submitMethod === 'DRY_RUN'
+      ? `DRY_RUN_OK_${String(Date.now()).slice(-6)}`
+      : `NTS-${String(Date.now()).slice(-8)}`
+    return envelope({
+      ...found,
+      eTaxExternalId: externalId,
+    })
+  }
+
   // GET /accounting/tax-invoices/{id}/print — 인쇄용 데이터 (단건 상세와 동일 shape)
   const taxInvoicePrintMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/print$/)
   if (method === 'GET' && taxInvoicePrintMatch) {

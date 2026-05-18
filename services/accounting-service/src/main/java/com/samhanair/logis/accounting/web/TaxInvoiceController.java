@@ -2,8 +2,11 @@ package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
+import com.samhanair.logis.accounting.service.TaxInvoiceEmitService;
 import com.samhanair.logis.accounting.service.TaxInvoiceService;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceRequest;
+import com.samhanair.logis.accounting.web.dto.EmitNtsRequest;
+import com.samhanair.logis.accounting.web.dto.EmitNtsResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceCancelRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceDetailResponse;
@@ -60,6 +63,7 @@ public class TaxInvoiceController {
     private static final String CALLER_HEADER = "X-User-Id";
 
     private final TaxInvoiceService taxInvoiceService;
+    private final TaxInvoiceEmitService taxInvoiceEmitService;
 
     /** DRAFT 생성. */
     @Operation(summary = "세금계산서 신규 생성", description = "DRAFT 상태로 생성. 라인 1개 이상 필수")
@@ -222,6 +226,41 @@ public class TaxInvoiceController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<TaxInvoiceDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(taxInvoiceService.getOne(id));
+    }
+
+    /**
+     * e-Tax NTS 홈택스 실 발행 (SP-09-1).
+     *
+     * <p>ISSUED 상태 세금계산서를 NTS 홈택스에 전송한다.
+     * DRY_RUN 모드(기본): 실제 API 호출 없이 즉시 성공.
+     * NTS 모드: Phase 11 sandbox 연동 후 활성화.
+     *
+     * <p>상태 전이 없음 — ISSUED 유지. eTaxExternalId 만 저장됨.
+     *
+     * <p>권한: ACCOUNTANT / MASTER 만 (MANAGER 미허용 — 세금계산서 발행 권한 정책).
+     */
+    @Operation(summary = "e-Tax NTS 실 발행 (SP-09-1)",
+            description = "ISSUED 세금계산서를 NTS 홈택스에 전송. DRY_RUN(기본) 또는 NTS 실 발행. "
+                    + "DRAFT/CANCELLED → 422, 중복 발행 → 409, ETaxClient 오류 → 502")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "e-Tax 전송 성공 — eTaxExternalId 저장"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "세금계산서 미존재"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                    description = "이미 e-Tax 전송된 세금계산서"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422",
+                    description = "ISSUED 상태가 아닌 세금계산서 (DRAFT/CANCELLED)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502",
+                    description = "NTS API 오류")
+    })
+    @PostMapping("/{id}/emit-nts")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    public ApiResponse<EmitNtsResponse> emitNts(
+            @PathVariable UUID id,
+            @Valid @RequestBody EmitNtsRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(taxInvoiceEmitService.emitNts(id, request, callerOrSystem(callerHeader)));
     }
 
     private String callerOrSystem(String header) {

@@ -45,6 +45,15 @@ app:
     business-type: ${SAMHAN_COMPANY_BUSINESS_TYPE:도소매}
     business-item: ${SAMHAN_COMPANY_BUSINESS_ITEM:공조기기}
 
+# e-Tax NTS 홈택스 실 발행 설정 (SP-09-1)
+# submit-method: DRY_RUN (기본, Phase 11 이전) | NTS (실 발행, Phase 11 sandbox 연동 시 변경)
+# nts-api-key: 운영 PC .env 또는 AWS SSM 에서 주입 (코드 내 하드코딩 금지)
+# nts-base-url: NTS 홈택스 API endpoint (Phase 11 sandbox: https://sandbox.etax.nts.go.kr)
+etax:
+  submit-method: ${ETAX_SUBMIT_METHOD:DRY_RUN}
+  nts-api-key: ${NTS_API_KEY:}
+  nts-base-url: ${NTS_BASE_URL:}
+
 management:
   endpoints:
     web:

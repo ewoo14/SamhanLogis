@@ -77,7 +77,24 @@ public enum ErrorCode {
      * 요청 횟수 초과 — rate-limit 적용 endpoint 에서 허용 한도 초과 시 HTTP 429 반환.
      * P0-2 비밀번호 재설정 endpoint (request/confirm) 브루트포스 방지용.
      */
-    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
+    /**
+     * 세금계산서 e-Tax 실 발행 불가 — ISSUED 상태가 아닌 세금계산서에 emit-nts 호출.
+     * DRAFT 또는 CANCELLED 상태일 때 422 반환 (SP-09-1).
+     */
+    TAX_INVOICE_NOT_EMITTABLE(HttpStatus.UNPROCESSABLE_ENTITY,
+            "발행(ISSUED) 상태의 세금계산서만 e-Tax 전송할 수 있습니다."),
+    /**
+     * 세금계산서 e-Tax 중복 발행 — 이미 eTaxExternalId 가 설정된 세금계산서에 emit-nts 재호출.
+     * 409 반환 (SP-09-1).
+     */
+    TAX_INVOICE_ALREADY_EMITTED(HttpStatus.CONFLICT,
+            "이미 e-Tax 전송된 세금계산서입니다."),
+    /**
+     * e-Tax 외부 API 호출 실패 — NTS 홈택스 API 응답 오류 시 502 반환 (SP-09-1).
+     */
+    ETAX_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
+            "e-Tax 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

@@ -2,6 +2,57 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-09-1 진입 — NTS e-tax 세금계산서 실 발행 shell
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-09-1-nts-etax-emit-shell
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `054faa52` (PR #235 SP-08-9 squash merge)
+- master plan: `docs/planning/2026-05-18_phase-9-vendor-integration.md`
+- 사용자 6/7회차 정책
+
+### Phase 9 vendor 연동 시리즈 범위
+
+| Sub-task | Scope |
+|---|---|
+| SP-09-1 | NTS e-tax 실 발행 shell (본 슬라이스) |
+| SP-09-2 | Aligo SMS 실 발송 |
+| SP-09-3 | OCR 영수증 (Naver Clova 가능) |
+| SP-09-4 | 오픈뱅킹 KFTC (Phase 10) |
+| SP-09-5 | 통합 검증 |
+
+### SP-09-1 범위
+
+- BE: `ETaxClient` 신규 (mock 발행 + sandbox 운영 PC `.env` 분리) + `TaxInvoice.linkETaxExternalId()` 활성 + `POST /api/v1/accounting/tax-invoices/{id}/emit-nts` shell
+- 권한: ACCOUNTANT/MASTER
+- IT: mock 발행/실패/타임아웃/중복 + @MockBean ETaxClient
+- FE: TaxInvoiceDetailPage "NTS 발행" CTA 추가 (옵션 — issue endpoint 이후 emit-nts 진행)
+- audit `TAX_INVOICE_EMIT_NTS` revision 1건
+- Playwright 5 case + PNG 4장 + dev-report
+
+### 직전 머지 (PR #235)
+
+- branch: `feat/sp-08-9-sp08-series-integration` (deleted)
+- mergeCommit: `054faa52`
+- SP-08 시리즈 16 PR 완전 종료
+
+### 다음 후보
+
+- SP-09-2 Aligo SMS 실 발송
+- SP-09-3 OCR 영수증
+- SP-09-4 오픈뱅킹 KFTC
+- SP-09-5 통합 검증
+
+## 2026-05-18 SP-08-9 머지 완료 — SP-08 시리즈 종료 (참고 이력)
+
 ## 2026-05-18 SP-08-9 진입 — SP-08 전체 시리즈 통합 검증 + 종료
 
 ### 즉시 시작
