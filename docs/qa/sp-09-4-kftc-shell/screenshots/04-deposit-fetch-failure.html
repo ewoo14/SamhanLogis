@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-4 #04 KFTC 오픈뱅킹 — 조회 실패 에러</title>
+<!--
+  [KFTC 조회 실패 케이스]
+  케이스 A: from > to 날짜 — 422 Unprocessable Entity (클라이언트 유효성 오류)
+  케이스 B: KFTC 서버 응답 없음 — 502 Bad Gateway (placeholder — DRY_RUN 또는 실 연동 장애)
+  에러 배너: role="alert" aria-live="assertive"
+  두 케이스 동시 표시 (시뮬레이션)
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    /* KFTC */
+    --color-kftc-primary: #0061A8;
+    --color-kftc-50:      #EEF6FF;
+    --color-kftc-200:     #BFDBFE;
+    --color-kftc-text:    #003662;
+    /* Error */
+    --color-danger-50:  #FEF2F2;
+    --color-danger-200: #FECACA;
+    --color-danger-600: #DC2626;
+    --color-danger-700: #B91C1C;
+    --color-danger-800: #991B1B;
+    /* Warning (422 유효성) */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* 케이스 구분 레이블 */
+  .case-label {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    background: var(--color-neutral-200); color: var(--color-neutral-700);
+    margin-bottom: 6px;
+  }
+
+  /* === 에러 배너 공통 === */
+  .error-banner {
+    display: flex; gap: 14px; align-items: flex-start;
+    border-radius: 8px; padding: 16px 18px;
+  }
+  .error-banner.type-422 {
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-left: 4px solid var(--color-warning-700);
+  }
+  .error-banner.type-502 {
+    background: var(--color-danger-50);
+    border: 1px solid var(--color-danger-200);
+    border-left: 4px solid var(--color-danger-600);
+  }
+
+  .error-icon-wrap {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #fff; font-size: 15px; font-weight: 700;
+  }
+  .error-icon-422 { background: var(--color-warning-700); }
+  .error-icon-502 { background: var(--color-danger-600); }
+
+  .error-content { flex: 1; }
+  .error-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 5px;
+  }
+  .error-title-422 { color: var(--color-warning-800); }
+  .error-title-502 { color: var(--color-danger-800); }
+
+  .error-desc { font-size: 13px; line-height: 1.6; }
+  .error-desc-422 { color: var(--color-warning-700); }
+  .error-desc-502 { color: var(--color-danger-700); }
+
+  .error-desc code {
+    border-radius: 3px; padding: 1px 6px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; font-weight: 700;
+  }
+  .code-422 { background: #FEF3C7; border: 1px solid var(--color-warning-200); color: var(--color-warning-800); }
+  .code-502 { background: #FEE2E2; border: 1px solid var(--color-danger-200); color: var(--color-danger-800); }
+
+  .error-action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn-fix {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: none; font-family: inherit;
+  }
+  .btn-fix-422 { background: var(--color-warning-700); color: #fff; }
+  .btn-fix-422:hover { background: var(--color-warning-800); }
+  .btn-fix-502 { background: var(--color-danger-600); color: #fff; }
+  .btn-fix-502:hover { background: var(--color-danger-800); }
+  .btn-dismiss {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; background: #fff; border: 1px solid var(--color-neutral-300);
+    color: var(--color-neutral-700); font-family: inherit;
+  }
+  .error-close-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 2px;
+    flex-shrink: 0; border-radius: 3px;
+  }
+  .close-422 { color: var(--color-warning-700); }
+  .close-502 { color: var(--color-danger-600); }
+
+  /* 필드 에러 강조 (422 케이스) */
+  .field-error-highlight {
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-left: 3px solid var(--color-warning-700);
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 12px; color: var(--color-warning-800); line-height: 1.6;
+  }
+  .field-error-highlight .field-name {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px; font-weight: 700;
+    background: #FEF3C7; border: 1px solid var(--color-warning-200);
+    border-radius: 3px; padding: 1px 6px; color: var(--color-warning-800);
+  }
+
+  /* 조회 폼 카드 (비활성 상태) */
+  .form-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+    opacity: 0.72;
+  }
+  .form-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  .kftc-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-kftc-50);
+    border: 1px solid var(--color-kftc-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-kftc-text);
+  }
+  .kftc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-kftc-primary); flex-shrink: 0; }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--color-neutral-900); }
+
+  .form-card-body { padding: 20px 24px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  label { font-size: 13px; font-weight: 600; color: var(--color-neutral-700); display: block; margin-bottom: 5px; }
+
+  input[type="date"],
+  input[type="password"] {
+    height: 38px; padding: 0 12px;
+    border-radius: 6px; font-size: 14px; font-family: inherit;
+    width: 100%; outline: none;
+  }
+  /* 에러 상태 input — 422 from>to */
+  .input-error {
+    border: 2px solid var(--color-warning-700);
+    background: var(--color-warning-50);
+    color: var(--color-warning-800);
+  }
+  .input-normal { border: 1px solid var(--color-neutral-300); color: var(--color-neutral-900); }
+  .input-error-msg {
+    font-size: 11px; color: var(--color-warning-700); margin-top: 4px; font-weight: 600;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* 조치 안내 박스 */
+  .action-box {
+    background: var(--color-neutral-50); border: 1px solid var(--color-neutral-200);
+    border-radius: 6px; padding: 14px 16px;
+    font-size: 12px; color: var(--color-neutral-700); line-height: 1.7;
+    margin-top: 12px;
+  }
+  .action-box strong { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 700; color: var(--color-neutral-900); }
+
+  /* 재시도 버튼 영역 */
+  .retry-bar { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .btn-outline-sm {
+    padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: #fff; color: var(--color-neutral-700);
+    border: 1px solid var(--color-neutral-300); font-family: inherit;
+  }
+  .btn-kftc {
+    padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: var(--color-kftc-primary); color: #fff;
+    border: none; font-family: inherit; opacity: 0.6; cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">회계 / 입금 관리 / KFTC 오픈뱅킹</div>
+      <h1 class="page-title">KFTC 오픈뱅킹 입금 내역 조회</h1>
+    </div>
+  </div>
+
+  <!-- ===== 케이스 A: from > to — 422 Unprocessable Entity ===== -->
+  <div>
+    <div class="case-label">케이스 A — 날짜 범위 오류 (from &gt; to → 422)</div>
+    <div
+      class="error-banner type-422"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      data-testid="kftc-error-422-banner"
+    >
+      <div class="error-icon-wrap error-icon-422" aria-hidden="true">&#9888;</div>
+      <div class="error-content">
+        <div class="error-title error-title-422">날짜 범위 오류 — 422 Unprocessable Entity</div>
+        <div class="error-desc error-desc-422">
+          조회 시작일이 종료일보다 늦습니다.
+          <code class="code-422">dateFrom(2026-05-20)</code> &gt; <code class="code-422">dateTo(2026-05-15)</code><br>
+          시작일은 종료일 이전이어야 하며, 최대 조회 범위는 <code class="code-422">31일</code> 이내입니다.
+        </div>
+        <div class="error-action-row">
+          <button class="btn-fix btn-fix-422" aria-label="날짜 범위 수정">날짜 수정</button>
+          <button class="btn-dismiss" aria-label="에러 배너 닫기">닫기</button>
+        </div>
+      </div>
+      <button class="error-close-btn close-422" aria-label="닫기">&#10005;</button>
+    </div>
+  </div>
+
+  <!-- ===== 케이스 B: KFTC 서버 오류 — 502 Bad Gateway ===== -->
+  <div>
+    <div class="case-label">케이스 B — KFTC API 응답 없음 (502 — DRY_RUN placeholder)</div>
+    <div
+      class="error-banner type-502"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      data-testid="kftc-error-502-banner"
+    >
+      <div class="error-icon-wrap error-icon-502" aria-hidden="true">&#9888;</div>
+      <div class="error-content">
+        <div class="error-title error-title-502">KFTC API 오류 — 오픈뱅킹 서버 응답 없음</div>
+        <div class="error-desc error-desc-502">
+          한국금융결제원(KFTC) 오픈뱅킹 API 호출 중 오류가 발생했습니다. (<code class="code-502">HTTP 502 Bad Gateway</code>)<br>
+          현재 <strong>DRY_RUN 모드</strong>에서 placeholder 502 응답이 발생했습니다. Phase 11 실 연동 후에는 KFTC 오픈뱅킹 서비스 상태를 확인하세요.<br>
+          잠시 후 다시 시도하거나 관리자에게 문의하세요.
+        </div>
+        <div class="error-action-row">
+          <button class="btn-fix btn-fix-502" aria-label="조회 재시도">재시도</button>
+          <button class="btn-dismiss" aria-label="에러 배너 닫기">닫기</button>
+        </div>
+      </div>
+      <button class="error-close-btn close-502" aria-label="닫기">&#10005;</button>
+    </div>
+  </div>
+
+  <!-- 조회 폼 (에러 상태 — 비활성) -->
+  <div class="form-card" aria-disabled="true">
+    <div class="form-card-head">
+      <div class="kftc-badge">
+        <span class="kftc-dot" style="background:var(--color-neutral-400);"></span>
+        KFTC 오픈뱅킹
+      </div>
+      <span class="section-title" style="color:var(--color-neutral-500);">입금 내역 조회 조건 (오류 수정 후 재시도)</span>
+    </div>
+
+    <div class="form-card-body">
+      <div class="form-grid">
+        <!-- 시작일 — 에러 하이라이트 -->
+        <div>
+          <label for="err-date-from">
+            조회 시작일 <span style="color:#DC2626; font-size:12px;">*</span>
+          </label>
+          <input
+            type="date"
+            id="err-date-from"
+            value="2026-05-20"
+            class="input-error"
+            aria-invalid="true"
+            aria-describedby="err-date-from-msg"
+          />
+          <div class="input-error-msg" id="err-date-from-msg" role="alert">
+            <span>&#9888;</span> 시작일이 종료일(2026-05-15)보다 늦습니다
+          </div>
+        </div>
+        <!-- 종료일 -->
+        <div>
+          <label for="err-date-to">
+            조회 종료일 <span style="color:#DC2626; font-size:12px;">*</span>
+          </label>
+          <input
+            type="date"
+            id="err-date-to"
+            value="2026-05-15"
+            class="input-normal"
+          />
+        </div>
+        <!-- 핀번호 -->
+        <div>
+          <label for="err-pin">계좌 핀번호</label>
+          <input
+            type="password"
+            id="err-pin"
+            placeholder="****"
+            class="input-normal"
+            disabled
+          />
+        </div>
+      </div>
+
+      <!-- 필드 에러 상세 -->
+      <div class="field-error-highlight" style="margin-top:16px;" role="status">
+        <strong style="color:var(--color-warning-800); font-weight:700;">유효성 오류 상세</strong>
+        필드 <span class="field-name">dateFrom</span>: 시작일(2026-05-20)이 종료일(2026-05-15)보다 늦습니다.<br>
+        서버 응답: <code class="code-422">422 Unprocessable Entity</code> — 날짜 범위를 수정 후 다시 조회하세요.
+      </div>
+
+      <!-- 조치 안내 -->
+      <div class="action-box">
+        <strong>조치 방법</strong>
+        <ul style="margin:0; padding-left:18px;">
+          <li>날짜 오류 (422): 시작일이 종료일 이전이어야 합니다. 최대 31일 범위만 허용됩니다.</li>
+          <li>서버 오류 (502): KFTC DRY_RUN 모드 placeholder 응답입니다. Phase 11 실 연동 후 KFTC 서비스 상태를 확인하세요.</li>
+          <li>핀번호 오류: 계좌 핀번호가 일치하지 않으면 403 응답이 반환됩니다.</li>
+          <li>권한 오류: ACCOUNTANT / MANAGER / MASTER 권한이 필요합니다.</li>
+        </ul>
+      </div>
+
+      <!-- 재시도 버튼 -->
+      <div class="retry-bar">
+        <button class="btn-outline-sm">취소</button>
+        <button class="btn-kftc" disabled aria-disabled="true" aria-label="오류 수정 후 재시도 가능">오류 수정 후 조회 가능</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

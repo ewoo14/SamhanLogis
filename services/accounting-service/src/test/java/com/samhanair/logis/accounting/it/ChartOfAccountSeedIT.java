@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ETaxClient;
+import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
@@ -29,6 +30,9 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
     /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
     @MockBean
     private ETaxClient eTaxClient;
+    /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
+    @MockBean
+    private KftcClient kftcClient;
 
     @Test
     @DisplayName("V1 시드 — 50+ 계정 + 8 카테고리 (7-그룹 + INCOME_TAX) 모두 존재")

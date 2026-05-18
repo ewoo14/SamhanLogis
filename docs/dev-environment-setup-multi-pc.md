@@ -53,6 +53,13 @@ slip-service 전용 (`infrastructure/env-templates/slip-service.env` 복사 후,
 - `CLOVA_OCR_SECRET_KEY` — **빈 값 유지** (Clova OCR 도메인 Secret Key, Phase 11 cutover 시 설정)
 - `CLOVA_OCR_INVOKE_URL` — **빈 값 유지** (Clova OCR Invoke URL, Phase 11 cutover 시 설정. placeholder 사용 금지)
 
+accounting-service 전용 추가 항목 (SP-09-4 KFTC 오픈뱅킹):
+- `KFTC_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `KFTC` 로 변경)
+- `KFTC_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `KftcClientImpl` 이 KFTC 모드에서 blank/placeholder 값을 명시 거부함)
+- `KFTC_CLIENT_ID` — **빈 값 유지** (KFTC 오픈뱅킹 Client ID, Phase 11 cutover 시 설정)
+- `KFTC_CLIENT_SECRET` — **빈 값 유지** (KFTC 오픈뱅킹 Client Secret, Phase 11 cutover 시 설정)
+- `KFTC_BASE_URL` — `https://testapi.openbanking.or.kr` (KFTC sandbox 서버 기본값)
+
 arologis-service 전용 (`infrastructure/env-templates/arologis-service.env` 복사 후, 인성데이타 퀵프로그램 vendor):
 - `SAMHAN_INSUNG_QUICK_API_URL` — **빈 값 유지** (Phase 10 W10-2 인성데이타 vendor sandbox URL 발급 후 설정. placeholder 사용 금지)
 - `SAMHAN_INSUNG_QUICK_API_KEY` — **빈 값 유지** (sandbox 키 발급 후 설정)
@@ -74,7 +81,7 @@ arologis-service 전용 (`infrastructure/env-templates/arologis-service.env` 복
 | Aligo SMS | SP-09-2 | `AligoSmsAdapter` | `notification-service.env` | 빈 값 + stub |
 | Naver Clova OCR | SP-09-3 (진행) | `ReceiptOcrClient` | `slip-service.env` | 빈 값 + DRY_RUN |
 | 인성데이타 퀵프로그램 | Phase 10 W10-2 | `InsungQuickClient` | `arologis-service.env` | 빈 값 |
-| 오픈뱅킹 KFTC | SP-09-4 (Phase 10) | (TBD) | `accounting-service.env` (예정) | — |
+| 오픈뱅킹 KFTC | SP-09-4 | `KftcClientImpl` | `accounting-service.env` | 빈 값 + DRY_RUN |
 
 > 1Password / Bitwarden 같은 비밀번호 관리자에 `.env` 통째로 저장해두면 양 PC sync 편함.
 

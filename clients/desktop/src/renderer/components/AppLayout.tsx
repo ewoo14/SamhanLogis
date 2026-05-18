@@ -568,6 +568,13 @@ export function AppLayout() {
               >
                 사업자 양식
               </NavLink>
+              {/* [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT/MANAGER/MASTER. */}
+              <NavLink
+                to="/accounting/deposit-match"
+                data-testid="sidebar-accounting-deposit-match"
+              >
+                입금 매칭
+              </NavLink>
             </>
           ) : null}
 

@@ -75,6 +75,16 @@
   --color-clova-700:     #02A04B;
   --color-clova-text:    #014A22;
 
+  /* ---------- color: KFTC (한국금융결제원 오픈뱅킹 전용) ---------- */
+  /* KFTC 공식 파란 — NTS(#0F6523) / Aligo(#0F766E) / Clova(#03C75A) 와 4색 시각 구분. SP-09-4 */
+  /* WCAG AA: --color-kftc-text(#003662) on --color-kftc-50(#EEF6FF) ≈ 9.4:1 (AAA 충족) */
+  --color-kftc-primary: #0061A8;
+  --color-kftc-50:      #EEF6FF;
+  --color-kftc-100:     #DBEAFE;
+  --color-kftc-200:     #BFDBFE;
+  --color-kftc-700:     #004D85;
+  --color-kftc-text:    #003662;
+
   /* ---------- surfaces (semantic aliases) ---------- */
   --color-bg:           var(--color-neutral-0);
   --color-bg-subtle:    var(--color-neutral-50);

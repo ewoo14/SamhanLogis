@@ -54,6 +54,9 @@
  * - `/accounting/daily-closings`  일마감 — 날짜 range + 거래처 필터 + 마감 실행 + 역마감(MASTER 만)
  * - `/accounting/ledgers`         원장 — 기간/계정/거래처 필터 + 라인 DataTable + CSV 다운로드
  *
+ * SP-09-4 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard):
+ * - `/accounting/deposit-match`   KFTC 오픈뱅킹 입금 매칭 — 날짜 range + accountFinNo + DRY_RUN 고정
+ *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
 import {
@@ -275,6 +278,11 @@ import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
 // BE: slip-service POST /slips/receipt-ocr (multipart/form-data, submitMethod=DRY_RUN|CLOVA)
 // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 CLOVA 활성.
 import { PurchaseSlipOcrUploadPage } from './PurchaseSlipOcrUploadPage'
+// [SP-09-4] KFTC 오픈뱅킹 입금 매칭 (ACCOUNTANT / MANAGER / MASTER).
+// BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
+// shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
+import { DepositMatchPage } from './DepositMatchPage'
+import { DEPOSIT_MATCH_ROLES } from '../api/depositMatchApi'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
 // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
@@ -928,6 +936,18 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <PeriodCloseListPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT / MANAGER / MASTER.
+      // BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
+      // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
+      {
+        path: '/accounting/deposit-match',
+        element: (
+          <RoleGuard allow={DEPOSIT_MATCH_ROLES}>
+            <DepositMatchPage />
           </RoleGuard>
         ),
       },

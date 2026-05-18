@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-4 #02 KFTC 오픈뱅킹 — 조회 결과 요약 + 매칭 테이블</title>
+<!--
+  [KFTC 입금 매칭 결과]
+  - 요약 카드: 총 5건 / 매칭 3건 / 미매칭 2건 — role="status"
+  - 매칭 성공 Badge: success teal (#0F766E = Aligo teal → 재활용)
+  - 미매칭 Badge: warning amber
+  - 테이블 5행 (row 클릭 → 상세 modal)
+  - 금액: monospace + font-variant-numeric: tabular-nums + 우측 정렬
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    --color-brand-500: #2D77A8;
+    --color-brand-50:  #EFF6FF;
+    /* KFTC */
+    --color-kftc-primary: #0061A8;
+    --color-kftc-50:      #EEF6FF;
+    --color-kftc-100:     #DBEAFE;
+    --color-kftc-200:     #BFDBFE;
+    --color-kftc-700:     #004D85;
+    --color-kftc-text:    #003662;
+    /* 매칭 성공 — success teal */
+    --color-match-success: #0F766E;
+    --color-match-success-50: #F0FDFA;
+    --color-match-success-100: #CCFBF1;
+    --color-match-success-200: #99F6E4;
+    --color-match-success-text: #134E4A;
+    /* 미매칭 — warning amber */
+    --color-unmatched:     #D97706;
+    --color-unmatched-50:  #FFFBEB;
+    --color-unmatched-200: #FDE68A;
+    --color-unmatched-text: #78350F;
+    /* Warning */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* DRY_RUN 배너 (slim 버전 — 결과 화면에서는 축소) */
+  .dryrun-slim {
+    display: flex; gap: 10px; align-items: center;
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 6px; padding: 8px 14px;
+    font-size: 12px; color: var(--color-warning-800);
+  }
+  .dryrun-slim strong { font-weight: 700; color: var(--color-warning-700); }
+
+  /* ===== 요약 카드 3종 ===== */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 640px) { .summary-grid { grid-template-columns: 1fr; } }
+
+  .summary-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .summary-card.total { border-top: 3px solid var(--color-kftc-primary); }
+  .summary-card.matched { border-top: 3px solid var(--color-match-success); }
+  .summary-card.unmatched { border-top: 3px solid var(--color-unmatched); }
+
+  .summary-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 0.05em; }
+  .summary-value {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 32px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .summary-card.total .summary-value   { color: var(--color-kftc-primary); }
+  .summary-card.matched .summary-value { color: var(--color-match-success); }
+  .summary-card.unmatched .summary-value { color: var(--color-unmatched); }
+  .summary-sub { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* ===== 테이블 카드 ===== */
+  .table-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  .table-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+    flex-wrap: wrap; gap: 8px;
+  }
+  .table-head-left { display: flex; align-items: center; gap: 10px; }
+  .kftc-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-kftc-50);
+    border: 1px solid var(--color-kftc-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-kftc-text);
+  }
+  .kftc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-kftc-primary); flex-shrink: 0; }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--color-neutral-900); }
+  .table-head-right { display: flex; gap: 8px; align-items: center; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; border: 1px solid;
+    cursor: pointer;
+  }
+  .filter-chip.all    { background: var(--color-kftc-50);           border-color: var(--color-kftc-200);           color: var(--color-kftc-text);         }
+  .filter-chip.match  { background: var(--color-match-success-50);  border-color: var(--color-match-success-200);  color: var(--color-match-success-text); }
+  .filter-chip.unmatch{ background: var(--color-unmatched-50);      border-color: var(--color-unmatched-200);      color: var(--color-unmatched-text);     }
+
+  /* 테이블 */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .data-table thead tr {
+    background: var(--color-neutral-50);
+    border-bottom: 1px solid var(--color-neutral-200);
+  }
+  .data-table th {
+    padding: 10px 14px;
+    font-size: 11px; font-weight: 700;
+    color: var(--color-neutral-500);
+    text-align: left;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .data-table th.num { text-align: right; }
+
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--color-neutral-100);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .data-table tbody tr:last-child { border-bottom: none; }
+  .data-table tbody tr:hover { background: var(--color-kftc-50); }
+
+  .data-table td {
+    padding: 12px 14px;
+    color: var(--color-neutral-900);
+    vertical-align: middle;
+  }
+  .data-table td.num {
+    text-align: right;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* 상태 Badge */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-matched {
+    background: var(--color-match-success-50);
+    border-color: var(--color-match-success-200);
+    color: var(--color-match-success-text);
+  }
+  .badge-matched::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-match-success); flex-shrink: 0; }
+  .badge-unmatched {
+    background: var(--color-unmatched-50);
+    border-color: var(--color-unmatched-200);
+    color: var(--color-unmatched-text);
+  }
+  .badge-unmatched::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-unmatched); flex-shrink: 0; }
+
+  /* 거래처 셀 */
+  .vendor-cell { display: flex; flex-direction: column; gap: 2px; }
+  .vendor-name { font-weight: 600; color: var(--color-neutral-900); }
+  .vendor-sub  { font-size: 11px; color: var(--color-neutral-500); }
+
+  /* row 클릭 안내 */
+  .row-hint {
+    padding: 10px 16px;
+    font-size: 11px; color: var(--color-neutral-400);
+    text-align: center;
+    border-top: 1px solid var(--color-neutral-100);
+    background: var(--color-neutral-50);
+  }
+  .row-hint kbd {
+    background: var(--color-neutral-100);
+    border: 1px solid var(--color-neutral-300);
+    border-radius: 3px; padding: 1px 5px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10px; color: var(--color-neutral-600);
+  }
+
+  /* 금액 강조 */
+  .amount-positive { color: var(--color-neutral-900); }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">회계 / 입금 관리 / KFTC 오픈뱅킹</div>
+      <h1 class="page-title">KFTC 오픈뱅킹 입금 내역 조회</h1>
+    </div>
+  </div>
+
+  <!-- DRY_RUN 배너 (slim) -->
+  <div class="dryrun-slim" role="status" aria-live="polite">
+    <span>&#9888;</span>
+    <span><strong>DRY_RUN</strong> — mock 데이터 5건 반환됨 · 조회 범위: 2026-05-01 ~ 2026-05-18 · 계좌 ****5678</span>
+  </div>
+
+  <!-- 요약 카드 3종 -->
+  <div class="summary-grid" role="status" aria-label="입금 매칭 요약">
+    <div class="summary-card total">
+      <div class="summary-label">전체 입금 건수</div>
+      <div class="summary-value">5</div>
+      <div class="summary-sub">2026-05-01 ~ 2026-05-18</div>
+    </div>
+    <div class="summary-card matched">
+      <div class="summary-label">매칭 성공</div>
+      <div class="summary-value">3</div>
+      <div class="summary-sub">거래처 + 세금계산서 자동 연결</div>
+    </div>
+    <div class="summary-card unmatched">
+      <div class="summary-label">미매칭</div>
+      <div class="summary-value">2</div>
+      <div class="summary-sub">수동 매칭 필요</div>
+    </div>
+  </div>
+
+  <!-- 테이블 카드 -->
+  <div class="table-card">
+    <div class="table-card-head">
+      <div class="table-head-left">
+        <div class="kftc-badge">
+          <span class="kftc-dot"></span>
+          KFTC 오픈뱅킹
+        </div>
+        <span class="section-title">입금 내역 목록 (5건)</span>
+      </div>
+      <div class="table-head-right">
+        <span class="filter-chip all">전체 5</span>
+        <span class="filter-chip match">매칭 3</span>
+        <span class="filter-chip unmatch">미매칭 2</span>
+      </div>
+    </div>
+
+    <table class="data-table" aria-label="KFTC 입금 내역 목록">
+      <thead>
+        <tr>
+          <th scope="col" style="width:120px;">입금일시</th>
+          <th scope="col">거래처명</th>
+          <th scope="col" class="num" style="width:140px;">입금액 (원)</th>
+          <th scope="col" style="width:110px;">계좌번호</th>
+          <th scope="col" style="width:140px;">매칭 세금계산서</th>
+          <th scope="col" style="width:90px;">상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Row 1 — 매칭 성공 -->
+        <tr tabindex="0" aria-label="1번 입금 내역 상세 보기" role="row">
+          <td>2026-05-14<br><span style="font-size:11px;color:var(--color-neutral-500);">10:22:34</span></td>
+          <td>
+            <div class="vendor-cell">
+              <span class="vendor-name">삼한물류(주)</span>
+              <span class="vendor-sub">거래처코드: VND-0041</span>
+            </div>
+          </td>
+          <td class="num amount-positive">3,300,000</td>
+          <td style="font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; color:var(--color-neutral-600);">****5678</td>
+          <td style="font-size:12px;">
+            <a href="#" style="color:var(--color-kftc-primary); text-decoration:none; font-weight:600;">TAX-2026-0512&#8599;</a>
+          </td>
+          <td><span class="badge badge-matched">매칭</span></td>
+        </tr>
+        <!-- Row 2 — 매칭 성공 -->
+        <tr tabindex="0" aria-label="2번 입금 내역 상세 보기" role="row">
+          <td>2026-05-15<br><span style="font-size:11px;color:var(--color-neutral-500);">14:05:11</span></td>
+          <td>
+            <div class="vendor-cell">
+              <span class="vendor-name">한강운송(주)</span>
+              <span class="vendor-sub">거래처코드: VND-0087</span>
+            </div>
+          </td>
+          <td class="num amount-positive">1,650,000</td>
+          <td style="font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; color:var(--color-neutral-600);">****5678</td>
+          <td style="font-size:12px;">
+            <a href="#" style="color:var(--color-kftc-primary); text-decoration:none; font-weight:600;">TAX-2026-0515&#8599;</a>
+          </td>
+          <td><span class="badge badge-matched">매칭</span></td>
+        </tr>
+        <!-- Row 3 — 미매칭 -->
+        <tr tabindex="0" aria-label="3번 입금 내역 상세 보기 — 수동 매칭 필요" role="row" style="background:var(--color-unmatched-50);">
+          <td>2026-05-16<br><span style="font-size:11px;color:var(--color-neutral-500);">09:33:02</span></td>
+          <td>
+            <div class="vendor-cell">
+              <span class="vendor-name">미확인 입금</span>
+              <span class="vendor-sub" style="color:var(--color-unmatched);">거래처 미매칭</span>
+            </div>
+          </td>
+          <td class="num amount-positive" style="color:var(--color-unmatched);">880,000</td>
+          <td style="font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; color:var(--color-neutral-600);">****5678</td>
+          <td style="font-size:12px; color:var(--color-neutral-400);">— 수동 매칭 필요</td>
+          <td><span class="badge badge-unmatched">미매칭</span></td>
+        </tr>
+        <!-- Row 4 — 매칭 성공 -->
+        <tr tabindex="0" aria-label="4번 입금 내역 상세 보기" role="row">
+          <td>2026-05-17<br><span style="font-size:11px;color:var(--color-neutral-500);">11:47:55</span></td>
+          <td>
+            <div class="vendor-cell">
+              <span class="vendor-name">대성화물(주)</span>
+              <span class="vendor-sub">거래처코드: VND-0122</span>
+            </div>
+          </td>
+          <td class="num amount-positive">5,500,000</td>
+          <td style="font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; color:var(--color-neutral-600);">****5678</td>
+          <td style="font-size:12px;">
+            <a href="#" style="color:var(--color-kftc-primary); text-decoration:none; font-weight:600;">TAX-2026-0517&#8599;</a>
+          </td>
+          <td><span class="badge badge-matched">매칭</span></td>
+        </tr>
+        <!-- Row 5 — 미매칭 -->
+        <tr tabindex="0" aria-label="5번 입금 내역 상세 보기 — 수동 매칭 필요" role="row" style="background:var(--color-unmatched-50);">
+          <td>2026-05-18<br><span style="font-size:11px;color:var(--color-neutral-500);">08:12:40</span></td>
+          <td>
+            <div class="vendor-cell">
+              <span class="vendor-name">미확인 입금</span>
+              <span class="vendor-sub" style="color:var(--color-unmatched);">거래처 미매칭</span>
+            </div>
+          </td>
+          <td class="num amount-positive" style="color:var(--color-unmatched);">220,000</td>
+          <td style="font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; color:var(--color-neutral-600);">****5678</td>
+          <td style="font-size:12px; color:var(--color-neutral-400);">— 수동 매칭 필요</td>
+          <td><span class="badge badge-unmatched">미매칭</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="row-hint">
+      행을 클릭하거나 <kbd>Enter</kbd> 를 눌러 매칭 상세 및 자동 분개 미리보기를 확인하세요
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

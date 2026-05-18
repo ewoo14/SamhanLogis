@@ -85,6 +85,19 @@ export const colors = {
     700:     '#02A04B',
     text:    '#014A22',
   },
+  /**
+   * 한국금융결제원(KFTC) 오픈뱅킹 전용. SP-09-4
+   * NTS(#0F6523) / Aligo(#0F766E) / Clova(#03C75A) 와 4색 시각 구분.
+   * WCAG AA: text(#003662) on 50(#EEF6FF) ≈ 9.4:1 (AAA 충족)
+   */
+  kftc: {
+    primary: '#0061A8',
+    50:      '#EEF6FF',
+    100:     '#DBEAFE',
+    200:     '#BFDBFE',
+    700:     '#004D85',
+    text:    '#003662',
+  },
 } as const
 
 export const typography = {

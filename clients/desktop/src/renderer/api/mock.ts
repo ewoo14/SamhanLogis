@@ -4003,6 +4003,102 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ============================================================================
+  // SP-09-4 KFTC 오픈뱅킹 입금 매칭 mock (POST /accounting/deposits/fetch-and-match)
+  //
+  // submitMethod=DRY_RUN → 가짜 입금 매칭 결과 5건 반환.
+  // 응답 shape = BE DepositMatchResponse 와 1:1 정합.
+  //
+  // 시나리오:
+  //   - accountFinNo 가 빈 문자열 → 422 (code: DEPOSIT_VALIDATION_ERROR)
+  //   - from > to → 422 (code: DEPOSIT_DATE_RANGE_INVALID)
+  //   - accountFinNo 가 "502" 포함 → 502 KFTC 외부 서비스 오류 (code: KFTC_GATEWAY_ERROR)
+  //   - 그 외 → 정상 DRY_RUN 5건 응답
+  //
+  // UUID 비공개: journalDraftId 는 내부 전용 — 화면 미노출 (matchedPartnerCode / matchedTaxInvoiceNo 만 표시).
+  // ============================================================================
+  if (method === 'POST' && url.includes('/accounting/deposits/fetch-and-match')) {
+    const body = parseMockBody(config)
+    const reqFrom = typeof body['from'] === 'string' ? body['from'] : ''
+    const reqTo = typeof body['to'] === 'string' ? body['to'] : ''
+    const reqAccountFinNo = typeof body['accountFinNo'] === 'string' ? body['accountFinNo'] : ''
+
+    // 422 — accountFinNo 누락
+    if (!reqAccountFinNo.trim()) {
+      return mockError(422, 'DEPOSIT_VALIDATION_ERROR', '계좌 핀번호(accountFinNo)를 입력해주세요.')
+    }
+
+    // 422 — from > to
+    if (reqFrom && reqTo && reqFrom > reqTo) {
+      return mockError(422, 'DEPOSIT_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
+    }
+
+    // 502 — KFTC 외부 서비스 오류 시나리오
+    if (reqAccountFinNo.includes('502')) {
+      return mockError(502, 'KFTC_GATEWAY_ERROR', 'KFTC 오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+    }
+
+    // 정상 DRY_RUN 가짜 응답 — BE DepositMatchResponse 필드명 1:1 정합
+    // fields: totalCount / matchedCount / unmatchedCount / results
+    // results[].fields: depositorName / amount / transactionDate / matchedPartnerCode? / matchedTaxInvoiceNo? / journalDraftId? / status
+    const baseDate = reqTo || new Date().toISOString().slice(0, 10)
+    const [baseYear, baseMonth] = baseDate.split('-')
+    const ym = `${baseYear ?? '2026'}-${baseMonth ?? '05'}`
+
+    const dryRunResults = [
+      {
+        depositorName: '○○종합건설',
+        amount: 2750000,
+        transactionDate: `${ym}-02`,
+        matchedPartnerCode: 'P-001',
+        matchedTaxInvoiceNo: 'TI-20260502-001',
+        status: 'MATCHED',
+      },
+      {
+        depositorName: '△△인테리어',
+        amount: 1320000,
+        transactionDate: `${ym}-05`,
+        matchedPartnerCode: 'P-002',
+        matchedTaxInvoiceNo: null,
+        status: 'MATCHED',
+      },
+      {
+        depositorName: '□□설비공사',
+        amount: 880000,
+        transactionDate: `${ym}-08`,
+        matchedPartnerCode: null,
+        matchedTaxInvoiceNo: null,
+        status: 'UNMATCHED',
+      },
+      {
+        depositorName: '◇◇냉난방',
+        amount: 4180000,
+        transactionDate: `${ym}-12`,
+        matchedPartnerCode: 'P-004',
+        matchedTaxInvoiceNo: 'TI-20260512-003',
+        status: 'MATCHED',
+      },
+      {
+        depositorName: '홍길동',
+        amount: 550000,
+        transactionDate: `${ym}-15`,
+        matchedPartnerCode: null,
+        matchedTaxInvoiceNo: null,
+        status: 'UNMATCHED',
+      },
+    ] as const
+
+    const matchedCount = dryRunResults.filter((r) => r.status === 'MATCHED').length
+    const unmatchedCount = dryRunResults.filter((r) => r.status === 'UNMATCHED').length
+
+    return envelope({
+      totalCount: dryRunResults.length,
+      matchedCount,
+      unmatchedCount,
+      results: dryRunResults,
+    })
+  }
+
   // @deprecated — DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
   if (method === 'DELETE' && url.includes('/accounting/tax-invoices/batch/exclusions/')) {
     return envelope({ deleted: true })

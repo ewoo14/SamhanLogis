@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-4 #03 KFTC 오픈뱅킹 — 매칭 상세 modal</title>
+<!--
+  [매칭 상세 modal]
+  - row 클릭 시 modal 오픈 (role="dialog" + aria-labelledby + aria-modal)
+  - 거래처 정보 / 세금계산서 연결 / 자동 분개 미리보기
+  - 자동 분개: 차변 보통예금 / 대변 외상매출금
+  - 금액: monospace + tabular-nums + 우측 정렬
+  - modal footer: 분개 확정 / 닫기 버튼
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    --color-brand-500: #2D77A8;
+    /* KFTC */
+    --color-kftc-primary: #0061A8;
+    --color-kftc-50:      #EEF6FF;
+    --color-kftc-100:     #DBEAFE;
+    --color-kftc-200:     #BFDBFE;
+    --color-kftc-700:     #004D85;
+    --color-kftc-text:    #003662;
+    /* 매칭 성공 — success teal */
+    --color-match-success: #0F766E;
+    --color-match-success-50: #F0FDFA;
+    --color-match-success-100: #CCFBF1;
+    --color-match-success-200: #99F6E4;
+    --color-match-success-text: #134E4A;
+    /* 분개 — 차변/대변 */
+    --color-debit:  #1D4ED8;
+    --color-credit: #7C3AED;
+    --surface-card: #ffffff;
+    --surface-modal: #ffffff;
+  }
+
+  .frame { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* 배경 테이블 (흐리게 — modal 뒤) */
+  .bg-table-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px; overflow: hidden;
+    opacity: 0.35;
+    filter: blur(1px);
+    pointer-events: none;
+  }
+  .bg-table-card table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .bg-table-card th { padding: 10px 14px; background: var(--color-neutral-50); border-bottom: 1px solid var(--color-neutral-200); font-size: 11px; font-weight: 700; color: var(--color-neutral-500); text-align: left; }
+  .bg-table-card td { padding: 12px 14px; border-bottom: 1px solid var(--color-neutral-100); }
+
+  /* ===== Overlay ===== */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(17, 24, 39, 0.50);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+
+  /* ===== Modal ===== */
+  .modal {
+    background: var(--surface-modal);
+    border-radius: 10px;
+    box-shadow: 0 24px 48px rgba(15,18,22,0.20);
+    width: 680px;
+    max-width: 96vw;
+    max-height: 85vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Modal header */
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+    flex-shrink: 0;
+  }
+  .modal-title-row { display: flex; align-items: center; gap: 10px; }
+  .kftc-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-kftc-50);
+    border: 1px solid var(--color-kftc-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-kftc-text);
+  }
+  .kftc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-kftc-primary); flex-shrink: 0; }
+  .modal-title {
+    font-size: 16px; font-weight: 700; color: var(--color-neutral-900);
+    margin: 0;
+  }
+  .modal-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-neutral-500); font-size: 20px; line-height: 1;
+    padding: 4px; border-radius: 4px;
+    display: flex; align-items: center;
+  }
+  .modal-close:hover { background: var(--color-neutral-100); color: var(--color-neutral-700); }
+
+  /* Modal body — scrollable */
+  .modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 20px;
+    flex: 1;
+  }
+
+  /* 섹션 */
+  .modal-section {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .section-head {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; color: var(--color-neutral-500);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .section-head::after {
+    content: ''; flex: 1; height: 1px; background: var(--color-neutral-200);
+  }
+
+  /* 정보 그리드 */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .info-item { display: flex; flex-direction: column; gap: 3px; }
+  .info-label { font-size: 11px; font-weight: 600; color: var(--color-neutral-400); text-transform: uppercase; letter-spacing: 0.05em; }
+  .info-value { font-size: 14px; font-weight: 500; color: var(--color-neutral-900); }
+  .info-value.mono {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .info-value.amount {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 18px; font-weight: 700; color: var(--color-kftc-primary);
+  }
+
+  /* 세금계산서 연결 링크 박스 */
+  .tax-link-box {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--color-kftc-50);
+    border: 1px solid var(--color-kftc-200);
+    border-radius: 6px; padding: 12px 16px;
+  }
+  .tax-link-left { display: flex; flex-direction: column; gap: 3px; }
+  .tax-no {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 15px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-kftc-primary);
+  }
+  .tax-meta { font-size: 12px; color: var(--color-kftc-text); }
+  .btn-tax-link {
+    padding: 6px 14px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    background: var(--color-kftc-primary); color: #fff;
+    border: none; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  }
+
+  /* 자동 분개 미리보기 */
+  .journal-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 6px; overflow: hidden;
+  }
+  .journal-table thead tr {
+    background: var(--color-neutral-100);
+  }
+  .journal-table th {
+    padding: 8px 12px; font-size: 11px; font-weight: 700;
+    color: var(--color-neutral-500); text-align: left;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .journal-table th.num { text-align: right; }
+  .journal-table td { padding: 10px 12px; border-top: 1px solid var(--color-neutral-100); }
+  .journal-table td.num {
+    text-align: right;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* 차변/대변 뱃지 */
+  .debit-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 700;
+    background: #DBEAFE; color: var(--color-debit);
+    border: 1px solid #BFDBFE;
+  }
+  .credit-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 700;
+    background: #EDE9FE; color: var(--color-credit);
+    border: 1px solid #DDD6FE;
+  }
+
+  /* 분개 합계 행 */
+  .journal-total-row td {
+    background: var(--color-neutral-50);
+    border-top: 2px solid var(--color-neutral-200);
+    font-weight: 700;
+  }
+
+  /* 분개 안내 박스 */
+  .journal-info {
+    background: var(--color-match-success-50);
+    border: 1px solid var(--color-match-success-200);
+    border-radius: 6px; padding: 10px 14px;
+    font-size: 12px; color: var(--color-match-success-text); line-height: 1.6;
+  }
+  .journal-info strong { font-weight: 700; }
+
+  /* Modal footer */
+  .modal-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px;
+    border-top: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+  .modal-footer-left { font-size: 12px; color: var(--color-neutral-500); }
+  .modal-footer-right { display: flex; gap: 10px; }
+  .btn-outline {
+    padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: #fff; color: var(--color-neutral-700);
+    border: 1px solid var(--color-neutral-300); font-family: inherit;
+  }
+  .btn-confirm {
+    padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: var(--color-match-success); color: #fff;
+    border: none; font-family: inherit;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-confirm:hover { background: #0C5E57; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div>
+    <div class="crumb">회계 / 입금 관리 / KFTC 오픈뱅킹</div>
+    <h1 class="page-title">KFTC 오픈뱅킹 입금 내역 조회</h1>
+  </div>
+
+  <!-- 배경 테이블 (흐리게) -->
+  <div class="bg-table-card" aria-hidden="true">
+    <table>
+      <thead>
+        <tr>
+          <th>입금일시</th>
+          <th>거래처명</th>
+          <th>입금액 (원)</th>
+          <th>계좌번호</th>
+          <th>매칭 세금계산서</th>
+          <th>상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>2026-05-14</td><td>삼한물류(주)</td><td style="text-align:right;">3,300,000</td><td>****5678</td><td>TAX-2026-0512</td><td>매칭</td></tr>
+        <tr style="background:#EEF6FF;"><td>2026-05-15</td><td>한강운송(주)</td><td style="text-align:right;">1,650,000</td><td>****5678</td><td>TAX-2026-0515</td><td>매칭</td></tr>
+        <tr><td>2026-05-16</td><td>미확인 입금</td><td style="text-align:right;">880,000</td><td>****5678</td><td>—</td><td>미매칭</td></tr>
+        <tr><td>2026-05-17</td><td>대성화물(주)</td><td style="text-align:right;">5,500,000</td><td>****5678</td><td>TAX-2026-0517</td><td>매칭</td></tr>
+        <tr><td>2026-05-18</td><td>미확인 입금</td><td style="text-align:right;">220,000</td><td>****5678</td><td>—</td><td>미매칭</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== Overlay + Modal ===== -->
+  <div class="overlay" aria-hidden="false">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-desc"
+    >
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="kftc-badge">
+            <span class="kftc-dot"></span>
+            KFTC 오픈뱅킹
+          </div>
+          <h2 class="modal-title" id="modal-title">입금 매칭 상세</h2>
+        </div>
+        <button class="modal-close" aria-label="모달 닫기">&#10005;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body" id="modal-desc">
+
+        <!-- 1. 입금 정보 -->
+        <div class="modal-section">
+          <div class="section-head">입금 정보</div>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">입금 일시</div>
+              <div class="info-value">2026-05-15 14:05:11</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">입금액</div>
+              <div class="info-value amount">1,650,000 원</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">입금 계좌</div>
+              <div class="info-value mono" style="font-size:13px;">****-****-5678</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">KFTC 거래 ID</div>
+              <div class="info-value mono" style="font-size:12px; color:var(--color-neutral-600);">KFTC-TXN-20260515-8821</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 거래처 정보 -->
+        <div class="modal-section">
+          <div class="section-head">거래처 정보</div>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-label">거래처명</div>
+              <div class="info-value" style="font-weight:700;">한강운송(주)</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">거래처 코드</div>
+              <div class="info-value mono">VND-0087</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">매칭 근거</div>
+              <div class="info-value" style="font-size:13px; color:var(--color-match-success);">입금액 + 거래처명 일치</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">매칭 신뢰도</div>
+              <div class="info-value" style="font-size:13px; font-weight:700; color:var(--color-match-success);">98%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 세금계산서 연결 -->
+        <div class="modal-section">
+          <div class="section-head">세금계산서 연결</div>
+          <div class="tax-link-box">
+            <div class="tax-link-left">
+              <div class="tax-no">TAX-2026-0515</div>
+              <div class="tax-meta">공급가액 1,500,000원 · 부가세 150,000원 · 합계 1,650,000원 · 2026-05-15 발행</div>
+            </div>
+            <button class="btn-tax-link" aria-label="세금계산서 TAX-2026-0515 상세 보기">
+              세금계산서 상세 &#8599;
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. 자동 분개 미리보기 -->
+        <div class="modal-section">
+          <div class="section-head">자동 분개 미리보기</div>
+
+          <table class="journal-table" aria-label="자동 분개 미리보기 — 차변 보통예금 / 대변 외상매출금">
+            <thead>
+              <tr>
+                <th style="width:70px;">구분</th>
+                <th>계정과목</th>
+                <th>적요</th>
+                <th class="num" style="width:130px;">금액 (원)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 차변: 보통예금 -->
+              <tr>
+                <td><span class="debit-badge">차변</span></td>
+                <td style="font-weight:600;">보통예금</td>
+                <td style="font-size:12px; color:var(--color-neutral-500);">
+                  KFTC 입금 · 한강운송(주) · TAX-2026-0515
+                </td>
+                <td class="num" style="font-weight:700;">1,650,000</td>
+              </tr>
+              <!-- 대변: 외상매출금 -->
+              <tr>
+                <td><span class="credit-badge">대변</span></td>
+                <td style="font-weight:600;">외상매출금</td>
+                <td style="font-size:12px; color:var(--color-neutral-500);">
+                  한강운송(주) 매출채권 회수 · TAX-2026-0515
+                </td>
+                <td class="num" style="font-weight:700;">1,650,000</td>
+              </tr>
+              <!-- 합계 -->
+              <tr class="journal-total-row">
+                <td colspan="3" style="text-align:right; font-size:12px; color:var(--color-neutral-500);">합계</td>
+                <td class="num" style="color:var(--color-kftc-primary);">1,650,000</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="journal-info">
+            <strong>안내</strong> 위 분개는 자동 생성된 미리보기입니다. "분개 확정" 버튼을 클릭하면 회계 전표로 저장됩니다.
+            분개 내용이 다른 경우 슬립 수정 화면에서 직접 수정할 수 있습니다.
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <!-- Modal Footer -->
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          매칭 ID: MATCH-2026-0515-0087 &nbsp;·&nbsp; MANAGER 검토 필요
+        </div>
+        <div class="modal-footer-right">
+          <button class="btn-outline" aria-label="모달 닫기">닫기</button>
+          <button class="btn-confirm" aria-label="자동 분개를 확정하고 전표 저장">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+            </svg>
+            분개 확정
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /modal -->
+  </div><!-- /overlay -->
+
+</div>
+</body>
+</html>
