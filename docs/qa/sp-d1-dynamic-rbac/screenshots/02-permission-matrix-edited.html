@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-D1 #02 권한 매트릭스 — 편집 상태 (dirty)</title>
+<!--
+  SP-D1 동적 RBAC — 권한 매트릭스 편집 상태
+  - MASTER 가 SALES 에게 OCR(세금계산서 조회+편집) 권한 부여 → dirty 3개
+  - dirty 셀: 노란 배경 + 좌측 ▶ 마커
+  - 변경 카운트 badge: "3개 변경 사항 대기 중"
+  - 저장 버튼 활성화 (brand-500), 초기화 버튼 활성
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif;
+    margin: 0; padding: 0;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  :root {
+    --color-neutral-0:   #FFFFFF;
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-800: #1F2937;
+    --color-neutral-900: #111827;
+    --color-brand-50:   #EFF6FF;
+    --color-brand-500:  #2D77A8;
+    --color-brand-600:  #2563EB;
+    --color-brand-700:  #1D4ED8;
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-400: #FBBF24;
+    --color-warning-600: #D97706;
+    --surface-card: #FFFFFF;
+  }
+
+  .app-shell {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    background: var(--surface-card);
+    border-bottom: 1px solid var(--color-neutral-200);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-logo { font-size: 15px; font-weight: 700; color: var(--color-brand-700); letter-spacing: -0.02em; }
+  .topbar-sep { width: 1px; height: 18px; background: var(--color-neutral-200); }
+  .topbar-crumb { font-size: 12px; color: var(--color-neutral-500); }
+  .topbar-crumb span { color: var(--color-neutral-800); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-neutral-500); }
+  .topbar-role-badge { background: var(--color-brand-50); color: var(--color-brand-700); border: 1px solid #BFDBFE; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+
+  .content-wrap {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .page-header-left { display: flex; flex-direction: column; gap: 3px; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .page-desc { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+
+  /* ── 툴바 (dirty 상태) ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-card);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 8px;
+    padding: 10px 16px;
+    box-shadow: 0 0 0 3px rgba(251,191,36,0.12);
+  }
+  .change-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--color-warning-600);
+  }
+  .change-count-badge {
+    background: var(--color-warning-50);
+    color: var(--color-warning-600);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .btn-save {
+    margin-left: auto;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    background: var(--color-brand-500);
+    color: #FFFFFF;
+    box-shadow: 0 1px 4px rgba(45,119,168,0.25);
+    transition: background 0.15s;
+  }
+  .btn-save:hover { background: var(--color-brand-600); }
+  .btn-reset {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--color-neutral-200);
+    background: var(--surface-card);
+    color: var(--color-neutral-700);
+    cursor: pointer;
+  }
+  .btn-reset:hover { background: var(--color-neutral-50); }
+
+  /* ── 알림 배너 ── */
+  .dirty-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-left: 4px solid var(--color-warning-400);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--color-warning-600);
+  }
+  .dirty-banner strong { color: #92400E; }
+
+  /* ── 매트릭스 ── */
+  .matrix-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 10px;
+    overflow: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    max-height: calc(100vh - 260px);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 900px;
+  }
+  thead { position: sticky; top: 0; z-index: 30; }
+  thead tr { background: var(--color-neutral-50); }
+  th {
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    border-bottom: 2px solid var(--color-neutral-200);
+    border-right: 1px solid var(--color-neutral-100);
+    white-space: nowrap;
+    color: var(--color-neutral-700);
+    letter-spacing: 0.03em;
+    background: var(--color-neutral-50);
+  }
+  th.th-role {
+    text-align: left;
+    position: sticky; left: 0; z-index: 40;
+    background: var(--color-neutral-50);
+    min-width: 160px;
+    border-right: 2px solid var(--color-neutral-200);
+  }
+  th.th-category { background: var(--color-neutral-100); font-size: 10px; letter-spacing: 0.05em; color: var(--color-neutral-500); padding: 6px 12px; }
+  .cat-accounting { border-left: 3px solid #6366F1; }
+  .cat-purchase   { border-left: 3px solid #059669; }
+  .cat-sales      { border-left: 3px solid #2D77A8; }
+  .cat-dispatch   { border-left: 3px solid #D97706; }
+  .cat-admin      { border-left: 3px solid #7C3AED; }
+  th.th-page { font-size: 11px; padding: 8px 10px; min-width: 88px; }
+
+  tr.role-row td { border-bottom: 1px solid var(--color-neutral-100); vertical-align: middle; }
+  tr.role-row:hover td { background: var(--color-neutral-50); }
+  tr.role-row:hover td.td-role { background: var(--color-neutral-50); }
+
+  /* SALES 행 강조 */
+  tr.role-sales-dirty td.td-role {
+    background: #FFFDF0;
+    border-right: 2px solid var(--color-warning-200);
+  }
+  tr.role-sales-dirty:hover td { background: #FFFDF0; }
+  tr.role-sales-dirty:hover td.td-role { background: #FFFDF0; }
+
+  td.td-role {
+    position: sticky; left: 0; z-index: 20;
+    background: var(--surface-card);
+    border-right: 2px solid var(--color-neutral-200);
+    padding: 12px 16px;
+  }
+  .role-cell-inner { display: flex; flex-direction: column; gap: 1px; }
+  .role-name { font-weight: 700; font-size: 13px; color: var(--color-neutral-900); }
+  .role-name.changed { color: var(--color-warning-600); }
+  .role-desc { font-size: 11px; color: var(--color-neutral-400); }
+  .role-change-count {
+    margin-top: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--color-warning-600);
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+
+  tr.role-master td.td-role { border-left: 3px solid var(--color-brand-500); }
+  tr.role-master .role-name { color: var(--color-brand-700); }
+
+  td.td-perm {
+    text-align: center;
+    padding: 10px 8px;
+    border-right: 1px solid var(--color-neutral-100);
+  }
+  /* dirty 셀 */
+  td.td-perm.dirty {
+    background: var(--color-warning-50) !important;
+    position: relative;
+  }
+  td.td-perm.dirty::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--color-warning-400);
+    border-radius: 0;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chk {
+    width: 15px; height: 15px;
+    border-radius: 3px;
+    border: 1.5px solid var(--color-neutral-300);
+    background: var(--surface-card);
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .chk.checked {
+    background: var(--color-brand-500);
+    border-color: var(--color-brand-500);
+  }
+  .chk.checked::after {
+    content: '';
+    width: 8px; height: 5px;
+    border-left: 1.5px solid #FFF;
+    border-bottom: 1.5px solid #FFF;
+    transform: rotate(-45deg) translate(0.5px, -0.5px);
+    display: block;
+  }
+  /* dirty 셀의 새로 체크된 박스 */
+  .dirty .chk.checked-new {
+    background: var(--color-warning-400);
+    border-color: var(--color-warning-600);
+  }
+  .dirty .chk.checked-new::after {
+    content: '';
+    width: 8px; height: 5px;
+    border-left: 1.5px solid #FFF;
+    border-bottom: 1.5px solid #FFF;
+    transform: rotate(-45deg) translate(0.5px, -0.5px);
+    display: block;
+  }
+
+  td.cat-border-left, th.cat-border-left { border-left: 2px solid var(--color-neutral-200); }
+
+  .legend-bar {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--color-neutral-700);
+  }
+  .legend-bar strong { font-size: 12px; color: var(--color-neutral-700); margin-right: 4px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .chk-demo { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid var(--color-neutral-300); display: inline-block; }
+  .chk-demo.checked { background: var(--color-brand-500); border-color: var(--color-brand-500); }
+  .chk-demo.dirty-new { background: var(--color-warning-400); border-color: var(--color-warning-600); }
+  .dirty-demo { width: 24px; height: 13px; background: var(--color-warning-50); border: 1px solid var(--color-warning-200); border-left: 3px solid var(--color-warning-400); border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">Samhan Public</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-crumb">관리 &rsaquo; 시스템 설정 &rsaquo; <span>권한 매트릭스</span></div>
+    <div class="topbar-right">
+      <span>김미선 (대표)</span>
+      <span class="topbar-role-badge">MASTER</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="content-wrap">
+
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1 class="page-title">권한 매트릭스</h1>
+          <p class="page-desc">7 역할 &times; 12 페이지 &mdash; 역할별 화면 접근 권한을 직접 설정합니다</p>
+        </div>
+      </div>
+
+      <!-- 툴바 (dirty 활성) -->
+      <div class="toolbar">
+        <div class="change-status" role="status" aria-live="polite" aria-label="변경 사항 카운트">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" stroke="#FBBF24" stroke-width="1.5"/>
+            <path d="M8 5v3l1.5 1.5" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>3개 변경 사항 대기 중</span>
+          <span class="change-count-badge">3개</span>
+        </div>
+        <button type="button" class="btn-reset" aria-label="변경 사항 초기화">초기화</button>
+        <button type="button" class="btn-save" aria-label="변경 사항 저장">저장</button>
+      </div>
+
+      <!-- dirty 알림 배너 -->
+      <div class="dirty-banner" role="alert" aria-live="assertive">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 2L14.5 13.5H1.5L8 2Z" stroke="#FBBF24" stroke-width="1.5" stroke-linejoin="round"/>
+          <line x1="8" y1="6.5" x2="8" y2="9.5" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="8" cy="11.5" r="0.75" fill="#FBBF24"/>
+        </svg>
+        <span>
+          <strong>SALES</strong> 역할에 <strong>세금계산서 조회 + 편집</strong> 권한이 추가되었습니다.
+          저장하지 않으면 적용되지 않습니다. 변경 사항: <strong>3개</strong>
+        </span>
+      </div>
+
+      <!-- 매트릭스 -->
+      <div class="matrix-card" role="region" aria-label="권한 매트릭스 테이블">
+        <table>
+          <thead>
+            <tr>
+              <th class="th-role" rowspan="2" scope="col" style="vertical-align: bottom; padding-bottom: 12px;">역할</th>
+              <th class="th-category cat-accounting cat-border-left" colspan="6" scope="colgroup">회계</th>
+              <th class="th-category cat-purchase cat-border-left" colspan="4" scope="colgroup">매입</th>
+              <th class="th-category cat-sales cat-border-left" colspan="6" scope="colgroup">매출</th>
+              <th class="th-category cat-dispatch cat-border-left" colspan="4" scope="colgroup">배차</th>
+              <th class="th-category cat-admin cat-border-left" colspan="4" scope="colgroup">관리</th>
+            </tr>
+            <tr>
+              <th class="th-page cat-border-left" colspan="2" scope="col">전표 입력</th>
+              <th class="th-page" colspan="2" scope="col">계정 원장</th>
+              <th class="th-page" colspan="2" scope="col" style="color: var(--color-warning-600); font-weight: 800;">
+                세금계산서
+                <span style="font-size: 9px; background: var(--color-warning-50); border: 1px solid var(--color-warning-200); border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle;">변경</span>
+              </th>
+              <th class="th-page cat-border-left" colspan="2" scope="col">매입 슬립</th>
+              <th class="th-page" colspan="2" scope="col">재고 현황</th>
+              <th class="th-page cat-border-left" colspan="2" scope="col">매출 슬립</th>
+              <th class="th-page" colspan="2" scope="col">거래처 관리</th>
+              <th class="th-page" colspan="2" scope="col">견적서</th>
+              <th class="th-page cat-border-left" colspan="2" scope="col">배차 보드</th>
+              <th class="th-page" colspan="2" scope="col">기사 배정</th>
+              <th class="th-page cat-border-left" colspan="2" scope="col">사용자 관리</th>
+              <th class="th-page" colspan="2" scope="col">권한 매트릭스</th>
+            </tr>
+            <tr style="background: var(--color-neutral-50); border-bottom: 1px solid var(--color-neutral-200);">
+              <th class="th-role" scope="col" style="font-size: 10px; color: var(--color-neutral-400); font-weight: 500; padding: 6px 16px; border-bottom: none;">(역할)</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100); border-left: 2px solid var(--color-neutral-200);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <!-- 세금계산서 열 헤더 강조 -->
+              <th style="font-size: 9px; color: var(--color-warning-600); padding: 4px 6px; background: #FFFBEB; border-bottom: none; border-right: 1px solid var(--color-warning-200); font-weight: 700;">조회</th>
+              <th style="font-size: 9px; color: var(--color-warning-600); padding: 4px 6px; background: #FFFBEB; border-bottom: none; border-right: 1px solid var(--color-warning-200); font-weight: 700;">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100); border-left: 2px solid var(--color-neutral-200);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100); border-left: 2px solid var(--color-neutral-200);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100); border-left: 2px solid var(--color-neutral-200);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100); border-left: 2px solid var(--color-neutral-200);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">편집</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: 1px solid var(--color-neutral-100);">조회</th>
+              <th style="font-size: 9px; color: var(--color-neutral-400); padding: 4px 6px; background: var(--color-neutral-50); border-bottom: none; border-right: none;">편집</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <!-- MASTER -->
+            <tr class="role-row role-master">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">MASTER</span>
+                  <span class="role-desc">최고 관리자</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- MANAGER -->
+            <tr class="role-row">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">MANAGER</span>
+                  <span class="role-desc">매니저</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- ACCOUNTANT -->
+            <tr class="role-row">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">ACCOUNTANT</span>
+                  <span class="role-desc">경리</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- ★ SALES — dirty 셀 3개 (세금계산서 조회+편집 새로 추가, 매출슬립 조회 추가) -->
+            <tr class="role-row role-sales-dirty">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name changed">SALES</span>
+                  <span class="role-desc">영업</span>
+                  <span class="role-change-count">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <circle cx="6" cy="6" r="5" stroke="#D97706" stroke-width="1.2"/>
+                      <line x1="6" y1="3.5" x2="6" y2="6.5" stroke="#D97706" stroke-width="1.2" stroke-linecap="round"/>
+                      <circle cx="6" cy="8.5" r="0.6" fill="#D97706"/>
+                    </svg>
+                    3개 변경
+                  </span>
+                </div>
+              </td>
+              <!-- 회계: 없음 -->
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <!-- ★ 세금계산서 조회 — dirty 새로 체크 -->
+              <td class="td-perm dirty" aria-label="세금계산서 조회 — 변경됨" title="변경됨: 권한 추가">
+                <label class="check-item" tabindex="0">
+                  <span class="chk checked-new" role="checkbox" aria-checked="true"></span>
+                </label>
+              </td>
+              <!-- ★ 세금계산서 편집 — dirty 새로 체크 -->
+              <td class="td-perm dirty" aria-label="세금계산서 편집 — 변경됨" title="변경됨: 권한 추가">
+                <label class="check-item" tabindex="0">
+                  <span class="chk checked-new" role="checkbox" aria-checked="true"></span>
+                </label>
+              </td>
+              <!-- 매입: 없음 -->
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <!-- 매출: 슬립 V+E 체크 + ★ 거래처관리 조회 dirty -->
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <!-- ★ 거래처관리 조회 — dirty 새로 체크 -->
+              <td class="td-perm dirty" aria-label="거래처 관리 조회 — 변경됨" title="변경됨: 권한 추가">
+                <label class="check-item" tabindex="0">
+                  <span class="chk checked-new" role="checkbox" aria-checked="true"></span>
+                </label>
+              </td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <!-- 배차: 없음 -->
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <!-- 관리: 없음 -->
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- WAREHOUSE -->
+            <tr class="role-row">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">WAREHOUSE</span>
+                  <span class="role-desc">창고</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- DISPATCH -->
+            <tr class="role-row">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">DISPATCH</span>
+                  <span class="role-desc">배차</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk checked" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+            <!-- DRIVER -->
+            <tr class="role-row">
+              <td class="td-role" scope="row">
+                <div class="role-cell-inner">
+                  <span class="role-name">DRIVER</span>
+                  <span class="role-desc">기사 (모바일 전용)</span>
+                </div>
+              </td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm cat-border-left"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+              <td class="td-perm"><label class="check-item" tabindex="0"><span class="chk" role="checkbox"></span></label></td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 범례 -->
+      <div class="legend-bar" role="complementary" aria-label="체크박스 범례">
+        <strong>범례</strong>
+        <div class="legend-item"><span class="chk-demo checked"></span> 권한 부여</div>
+        <div class="legend-item"><span class="chk-demo"></span> 권한 없음</div>
+        <div class="legend-item"><span class="chk-demo dirty-new"></span> 새로 추가됨 (미저장)</div>
+        <div class="legend-item"><span class="dirty-demo"></span> dirty 셀 하이라이트</div>
+        <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-400);">
+          저장 후 즉시 적용 &mdash; 해당 사용자 다음 화면 진입 시 반영
+        </span>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

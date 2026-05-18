@@ -1,0 +1,48 @@
+// SP-D1 Dynamic RBAC — Playwright 헤드리스 PNG 캡처
+// 패턴: SP-09-5 _capture.cjs 재활용
+process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH ||
+  (process.env.LOCALAPPDATA
+    ? require('path').join(process.env.LOCALAPPDATA, 'ms-playwright')
+    : 'C:\\Users\\user\\AppData\\Local\\ms-playwright');
+
+const { chromium } = require('C:/dev/SamhanLogis/clients/desktop/node_modules/@playwright/test');
+const path = require('path');
+const fs = require('fs');
+
+const HERE = __dirname;
+const targets = [
+  '01-permission-matrix-default',
+  '02-permission-matrix-edited',
+  '03-sidebar-hidden-comparison',
+  '04-route-direct-access-blocked',
+];
+
+(async () => {
+  const browser = await chromium.launch();
+  // deviceScaleFactor:2 → 고해상도 PNG (Retina 수준)
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  const page = await ctx.newPage();
+
+  for (const slug of targets) {
+    const html = path.join(HERE, `${slug}.html`);
+    const png  = path.join(HERE, `${slug}.png`);
+
+    if (!fs.existsSync(html)) {
+      console.error('missing:', html);
+      continue;
+    }
+
+    const url = 'file:///' + html.replace(/\\/g, '/');
+    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: png, fullPage: true });
+
+    const sz = fs.statSync(png).size;
+    console.log(`${slug}.png · ${(sz / 1024).toFixed(1)} KB`);
+  }
+
+  await browser.close();
+})();
