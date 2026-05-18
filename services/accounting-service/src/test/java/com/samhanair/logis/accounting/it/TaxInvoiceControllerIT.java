@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
+import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -51,6 +52,9 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
     /** 외부 client 격리 — IT 가 slip-service 호출하지 않음. */
     @MockBean private SlipServiceClient slipServiceClient;
+
+    /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
+    @MockBean private ETaxClient eTaxClient;
 
     @Test
     @DisplayName("POST /accounting/tax-invoices — ACCOUNTANT 201 DRAFT, SALES 403")

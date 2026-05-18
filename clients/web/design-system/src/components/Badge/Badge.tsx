@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
 import styles from './Badge.module.css'
 
-export type BadgeVariant = 'brand' | 'neutral' | 'success' | 'warning' | 'danger'
+export type BadgeVariant = 'brand' | 'neutral' | 'success' | 'warning' | 'danger' | 'nts'
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   /** 시각적 톤. 기본 'neutral'. */
@@ -17,6 +17,7 @@ const variantClass: Record<BadgeVariant, string> = {
   success: styles['variant-success']!,
   warning: styles['variant-warning']!,
   danger:  styles['variant-danger']!,
+  nts:     styles['variant-nts']!,
 }
 
 /**

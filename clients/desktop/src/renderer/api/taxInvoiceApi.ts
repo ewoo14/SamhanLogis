@@ -289,42 +289,53 @@ export function canAccessTaxInvoice(role: string | undefined | null): boolean {
 /**
  * 국세청 전자세금계산서 제출 방법.
  *
- * <p>BE {@code NtsSubmitMethod} enum 과 1:1.
+ * <p>BE {@code NtsSubmitMethod} enum 과 1:1 — BE {@code @Pattern(regexp = "DRY_RUN|NTS")}.
  * <ul>
  *   <li>{@code DRY_RUN} — 실제 발행 없이 유효성 검증만 수행 (기본값). 개발/테스트 전용.</li>
- *   <li>{@code REAL}    — 국세청 API 실 호출. 운영 PC {@code .env.ops} 에서만 활성.</li>
+ *   <li>{@code NTS}     — 국세청 API 실 호출. 운영 PC {@code .env.ops} 에서만 활성.</li>
  * </ul>
  */
-export type NtsSubmitMethod = 'DRY_RUN' | 'REAL'
+export type NtsSubmitMethod = 'DRY_RUN' | 'NTS'
 
 /**
  * 국세청 전자세금계산서 발행 요청 — BE {@code EmitNtsRequest}.
  *
  * <p>SP-09-1 shell: BE ETaxClient 가 mock/sandbox 모드로 동작.
- * submitMethod 를 생략하면 BE 가 DRY_RUN 으로 처리.
+ * BE {@code @NotNull} — {@code submitMethod} 는 필수이며 생략 불가.
  */
 export interface EmitNtsRequest {
-  /** 제출 방법 — DRY_RUN (기본) / REAL. */
-  submitMethod?: NtsSubmitMethod
+  /** 제출 방법 — DRY_RUN (기본) / NTS (운영). BE @NotNull + @Pattern(DRY_RUN|NTS). */
+  submitMethod: NtsSubmitMethod
 }
 
 /**
- * 국세청 전자세금계산서 발행 응답 — BE {@code EmitNtsResponse}.
+ * 국세청 전자세금계산서 발행 응답 — BE {@code EmitNtsResponse} record 5 필드.
  *
- * <p>발행 성공 시 {@code eTaxExternalId} 가 채워진 {@link TaxInvoiceDetail} 을 반환.
- * DRY_RUN 모드는 {@code eTaxExternalId} 에 {@code "DRY_RUN_OK"} 를 채워 반환.
+ * <p>BE {@code TaxInvoiceEmitService} 반환값과 정확히 일치.
+ * DRY_RUN 모드: {@code eTaxExternalId = "DRY-{taxInvoiceNo}-{epochMilli}"}.
  */
-export type EmitNtsResponse = TaxInvoiceDetail
+export interface EmitNtsResponse {
+  /** 세금계산서 번호 (사용자 노출 가능). */
+  taxInvoiceNo: string
+  /** 발행 후 상태 — 정상 발행 시 ISSUED 유지. */
+  status: TaxInvoiceStatus
+  /** 국세청 수신 ID (비즈니스 식별자, DRY_RUN 시 "DRY-..." 형식). */
+  eTaxExternalId: string
+  /** 발행 시각 ISO-8601 (Instant → JSON). */
+  submittedAt: string
+  /** 제출 방법 — DRY_RUN 또는 NTS. */
+  submitMethod: NtsSubmitMethod
+}
 
 /**
  * ISSUED 상태 세금계산서를 국세청에 전자세금계산서로 발행한다.
  *
  * <p>POST {@code /accounting/tax-invoices/{id}/emit-nts}
  * <p>권한: ACCOUNTANT / MASTER 만 허용 (BE PreAuthorize 동일).
- * <p>SP-09-1 shell — BE ETaxClient mock 모드. 실 발행은 운영 `.env.ops` 키 활성 후 REAL.
+ * <p>SP-09-1 shell — BE ETaxClient mock 모드. 실 발행은 운영 `.env.ops` 키 활성 후 NTS.
  *
  * @param id           세금계산서 UUID (path param 전용 — 사용자 미노출).
- * @param submitMethod 제출 방법 (생략 시 DRY_RUN).
+ * @param submitMethod 제출 방법 (생략 시 DRY_RUN; 운영 실 발행 시 NTS).
  */
 export async function emitTaxInvoiceToNts(
   id: string,

@@ -36,6 +36,11 @@ notepad .env
 - `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` — 로컬 MinIO 자격 증명
 - (기타 외부 API 키는 dev 단계에서 mock 토글로 미설정 가능)
 
+accounting-service 전용 (`infrastructure/env-templates/accounting-service.env` 복사 후):
+- `ETAX_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `NTS` 로 변경)
+- `NTS_API_KEY` — Phase 11 이전 `PLACEHOLDER_DEV_ONLY` 유지 (실값은 운영 PC .env 에만)
+- `NTS_BASE_URL` — `https://teht.hometax.go.kr` (NTS 홈택스 테스트 서버)
+
 > 1Password / Bitwarden 같은 비밀번호 관리자에 `.env` 통째로 저장해두면 양 PC sync 편함.
 
 ### 1-C. 필수 런타임

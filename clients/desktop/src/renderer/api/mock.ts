@@ -2608,15 +2608,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const taxInvoiceEmitNtsMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)\/emit-nts$/)
   if (method === 'POST' && taxInvoiceEmitNtsMatch) {
     const id = taxInvoiceEmitNtsMatch[1]!
-    const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[0]!
-    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    const found = MOCK_TAX_INVOICES.find((t) => t.id === id)
+    // 세금계산서를 찾지 못한 경우 404
+    if (!found) {
+      return mockError(404, 'TAX_INVOICE_NOT_FOUND', '세금계산서를 찾을 수 없습니다.')
+    }
+    // ISSUED 가 아닌 경우 422 — BE TaxInvoiceEmitService 동작과 동일
+    if (found.status !== 'ISSUED') {
+      return mockError(
+        422,
+        'TAX_INVOICE_NOT_EMITTABLE',
+        `e-Tax 전송은 ISSUED 상태에서만 허용됩니다 (현재: ${found.status}).`,
+      )
+    }
+    // 이미 발행된 경우 409
+    if (found.eTaxExternalId) {
+      return mockError(
+        409,
+        'TAX_INVOICE_ALREADY_EMITTED',
+        '이미 국세청에 전송된 세금계산서입니다.',
+      )
+    }
+    const req = parseMockBody(config)
     const submitMethod = typeof req['submitMethod'] === 'string' ? req['submitMethod'] : 'DRY_RUN'
     const externalId = submitMethod === 'DRY_RUN'
-      ? `DRY_RUN_OK_${String(Date.now()).slice(-6)}`
+      ? `DRY-${found.taxInvoiceNo}-${String(Date.now()).slice(-6)}`
       : `NTS-${String(Date.now()).slice(-8)}`
+    const now = new Date().toISOString()
     return envelope({
-      ...found,
+      taxInvoiceNo: found.taxInvoiceNo,
+      status: found.status,
       eTaxExternalId: externalId,
+      submittedAt: now,
+      submitMethod,
     })
   }
 

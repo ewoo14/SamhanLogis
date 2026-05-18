@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
@@ -70,6 +71,8 @@ class HometaxExportPreviewIT extends AbstractPostgresIT {
     @MockBean private PartnerLookupClient partnerLookupClient;
     @MockBean private ProductClient productClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
+    /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
+    @MockBean private ETaxClient eTaxClient;
 
     private static final String USER_ID   = UUID.randomUUID().toString();
     private static final String USER_ROLE = "ACCOUNTANT";

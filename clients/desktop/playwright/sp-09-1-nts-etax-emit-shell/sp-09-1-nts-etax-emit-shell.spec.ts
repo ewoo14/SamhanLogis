@@ -201,8 +201,13 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       fullPage: true,
     })
 
+    // T1 목적: FE 에러 핸들링 렌더링 검증 (M1 fix: mock 자기 참조가 아닌 목적 명확화)
+    // - page.route 는 BE API 응답을 시뮬레이션 → FE 가 에러 응답을 받았을 때 화면 처리 검증
+    // - TAX_INVOICE_NOT_EMITTABLE (422) / TAX_INVOICE_ALREADY_EMITTED (409) ErrorCode 는
+    //   BE IT (TaxInvoiceEmitNtsIT case 4/5/6) 에서 실 BE 검증 완료 — T1 은 FE 렌더링만 담당
+    // - draftTest/duplicateTest URL 파라미터 분기는 FE 단독 시뮬레이션 경로이며 실 FE 코드와 무관
+    //   (L3 참조) — 422/409 FE 에러 렌더링 상세 검증은 향후 별도 TC 로 분리 예정
     // 정적 검증: ErrorCode 2건이 taxInvoiceApi.ts 에 명시됨
-    // TAX_INVOICE_NOT_EMITTABLE (422) + TAX_INVOICE_ALREADY_EMITTED (409)
     // ETaxClient interface + ETaxSubmitResult record 존재 검증은 정적 분석으로 완료
     // BE IT 에서 @MockBean ETaxClient lenient stub 필수 (feedback_it_mockbean_external_clients.md)
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -224,7 +229,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *   taxInvoiceApi.ts — emitTaxInvoiceToNts(id, submitMethod)
    *   POST /accounting/tax-invoices/{id}/emit-nts
    *   권한: ACCOUNTANT / MASTER 만
-   *   NtsSubmitMethod = 'DRY_RUN' | 'REAL'
+   *   NtsSubmitMethod = 'DRY_RUN' | 'NTS'  (BE @Pattern: DRY_RUN|NTS — C1/M3 fix)
    */
   test('T2: FE 계약 — "NTS 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한', async ({ page }) => {
     const errors: string[] = []
@@ -386,8 +391,8 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
     const bodyText = (await page.textContent('body')) ?? ''
 
-    // eTaxExternalId 표시 확인 — 발행 후 상세 화면에서 노출
-    // 현재 shell 단계: 화면에 eTaxExternalId 필드가 없으면 추후 구현 예정
+    // eTaxExternalId 표시 확인 — 발행 후 상세 화면에서 노출 (M2 fix: dead code → assertion 추가)
+    // shell 단계: route mock 으로 emit-nts 응답이 주입됐으므로 eTaxExternalId 형식 검증
     const etaxIdDisplayed =
       bodyText.includes('DRY-') ||
       bodyText.includes('eTaxExternalId') ||
@@ -407,6 +412,11 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
     expect(
       bodyText.includes('세금계산서') || bodyText.includes('발행') || bodyText.includes('접근'),
       '세금계산서 페이지 로드 실패',
+    ).toBeTruthy()
+    // M2 fix: etaxIdDisplayed 변수 assertion 추가 (이전에는 dead code 로 방치)
+    expect(
+      etaxIdDisplayed,
+      'eTaxExternalId 관련 텍스트 미노출 — DRY- 형식 또는 e-Tax / 전자세금계산서 문구 확인 필요',
     ).toBeTruthy()
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -536,18 +546,26 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       page.url().includes('/login') ||
       page.url().includes('/unauthorized')
 
-    // 권한 가드 검증:
-    // SALES → 차단 OR NTS 발행 버튼 미노출
-    // MANAGER → NTS 발행 버튼 미노출 (MANAGER 는 cancel 까지만 허용)
+    // 권한 가드 검증 (H1 fix: || true 제거 — 실제 권한 가드 검증):
+    // SALES → 차단(403/redirect/권한 키워드) OR NTS 발행 버튼 미노출 (FE canAccessTaxInvoice=false)
+    // MANAGER → NTS 발행 버튼 미노출 (MANAGER 는 cancel 까지만 허용 — canAccessTaxInvoice=false)
     // INVENTORY → 차단
+    //
+    // mock 모드에서 mockRole=SALES URL 파라미터로 접근 시:
+    //   FE canAccessTaxInvoice('SALES') = false → 403 배너 or redirect 렌더링
+    //   또는 NTS 발행 버튼이 DOM 에 없음 (둘 중 하나이면 가드 동작 확인)
+    const salesNtsBtnCount = await page.locator(
+      '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+    ).count()
+    // SALES 역할: 페이지 차단 OR NTS 버튼 미노출 — 둘 중 하나면 가드 동작
     expect(
-      salesBlocked || true, // shell 단계: mock 모드에서 role 차단 미구현 시 허용
-      'SALES 역할 권한 가드 — 목록 접근 차단 또는 NTS 버튼 미노출 필요',
+      salesBlocked || salesNtsBtnCount === 0,
+      'SALES 역할 권한 가드 실패 — 목록 접근 차단 또는 NTS 버튼 미노출 중 하나 필요 (BE IT case2 커버)',
     ).toBeTruthy()
 
     expect(
-      managerNtsBtnCount === 0 || true, // shell 단계: MANAGER NTS 버튼 미노출
-      'MANAGER 역할에서 NTS 발행 버튼이 노출됨 — PreAuthorize ACCOUNTANT/MASTER 만 허용',
+      managerNtsBtnCount === 0,
+      'MANAGER 역할에서 NTS 발행 버튼이 노출됨 — PreAuthorize ACCOUNTANT/MASTER 만 허용 (BE IT case3 커버)',
     ).toBeTruthy()
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)

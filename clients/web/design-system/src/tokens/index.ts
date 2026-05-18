@@ -65,6 +65,13 @@ export const colors = {
     danger:  '#D6504A',
     info:    '#3F7DB8',
   },
+  /** 국세청(NTS) 전자세금계산서 전용 — 일반 success(청록) 와 구분. SP-09-1 */
+  nts: {
+    primary: '#0F6523',
+    bg:      '#F0FDF4',
+    border:  '#BBF7D0',
+    text:    '#14532D',
+  },
 } as const
 
 export const typography = {

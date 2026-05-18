@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
+import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
  * Flyway V1 한국 표준 계정과목 시드 검증 (Plan §3 + 메모리 project_korean_accounting.md).
@@ -23,6 +25,10 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
 
     @Autowired
     private ChartOfAccountRepository repository;
+
+    /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
+    @MockBean
+    private ETaxClient eTaxClient;
 
     @Test
     @DisplayName("V1 시드 — 50+ 계정 + 8 카테고리 (7-그룹 + INCOME_TAX) 모두 존재")

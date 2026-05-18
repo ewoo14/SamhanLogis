@@ -23,6 +23,7 @@
  *
  * <p>UUID 비공개 가드 — id / eTaxExternalId 코드 표시 전용, taxInvoiceNo / partnerName 만 노출.
  */
+import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -182,9 +183,23 @@ export function TaxInvoiceDetailPage() {
         `(현재 DRY_RUN 모드 — 운영 발행은 관리자 설정 후 가능합니다)`,
       )
     },
-    onError: (err: Error) => {
+    onError: (err: unknown) => {
       setShowEmitNtsModal(false)
-      setTopError(`NTS 발행 실패: ${err.message}`)
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as { message?: string } | undefined
+        const status = err.response?.status
+        if (status === 409) {
+          setTopError(data?.message ?? '이미 국세청에 발행된 세금계산서입니다.')
+        } else if (status === 422) {
+          setTopError(data?.message ?? '발행(ISSUED) 상태의 세금계산서만 NTS 전송이 가능합니다.')
+        } else if (status === 502) {
+          setTopError('국세청(NTS) 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+        } else {
+          setTopError(data?.message ?? 'NTS 발행에 실패했습니다.')
+        }
+      } else {
+        setTopError('NTS 발행에 실패했습니다.')
+      }
     },
   })
 
@@ -343,6 +358,12 @@ export function TaxInvoiceDetailPage() {
               <Badge variant={STATUS_VARIANT[t.status]}>
                 {TAX_INVOICE_STATUS_LABEL[t.status]}
               </Badge>
+              {/* SP-09-1 D2: NTS 발행 완료 전용 Badge — eTaxExternalId 등록 후 병렬 표시 */}
+              {t.eTaxExternalId ? (
+                <Badge variant="nts" data-testid="tax-invoice-detail-nts-emitted-badge">
+                  NTS 발행 완료
+                </Badge>
+              ) : null}
               {/* PR-H4c: 수정 횟수 + 복원 dropdown (DRAFT 만 revert 활성) */}
               <AuditRevisionBadge
                 logs={auditLogs}
@@ -435,13 +456,19 @@ export function TaxInvoiceDetailPage() {
                 {issueMutation.isPending ? '발행 중...' : '발행'}
               </Button>
             ) : null}
-            {/* SP-09-1: NTS 발행 — ISSUED + ACCOUNTANT/MASTER + eTaxExternalId 미등록 시만 */}
+            {/* SP-09-1: NTS 발행 — ISSUED + ACCOUNTANT/MASTER + eTaxExternalId 미등록 시만.
+                D1/D5: NTS 녹색 토큰으로 일반 primary(브랜드 블루)와 시각 구분 */}
             {canEmitNts ? (
               <Button
                 variant="primary"
                 onClick={() => setShowEmitNtsModal(true)}
                 disabled={emitNtsMutation.isPending}
                 data-testid="tax-invoice-detail-emit-nts-button"
+                style={{
+                  background: 'var(--color-nts-primary)',
+                  borderColor: 'var(--color-nts-primary)',
+                  color: '#FFFFFF',
+                }}
               >
                 {emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행'}
               </Button>
@@ -468,14 +495,16 @@ export function TaxInvoiceDetailPage() {
           </div>
         </div>
 
-        {/* SP-09-1: NTS 발행 결과 — eTaxExternalId 등록 후 표시 */}
+        {/* SP-09-1: NTS 발행 결과 — eTaxExternalId 등록 후 표시.
+            D1: hardcoded #15803D/#166534 → NTS 토큰 참조.
+            D3: eTaxExternalId 값 monospace 처리. */}
         {t.eTaxExternalId ? (
           <div
             style={{
               marginBottom: 16,
               padding: '12px 16px',
-              background: '#F0FDF4',
-              border: '1px solid #BBF7D0',
+              background: 'var(--color-nts-bg)',
+              border: '1px solid var(--color-nts-border)',
               borderRadius: 6,
               fontSize: 13,
               display: 'flex',
@@ -485,9 +514,20 @@ export function TaxInvoiceDetailPage() {
             }}
             data-testid="tax-invoice-detail-etax-external-id"
           >
-            <strong style={{ color: '#15803D' }}>전자세금계산서 국세청 발행</strong>
-            <span style={{ color: '#166534', fontVariantNumeric: 'tabular-nums' }}>
-              NTS 수신 ID: {t.eTaxExternalId}
+            <strong style={{ color: 'var(--color-nts-primary)' }}>전자세금계산서 국세청 발행</strong>
+            <span style={{ color: 'var(--color-nts-text)' }}>
+              NTS 수신 ID:{' '}
+              {/* D3: 코드형 식별자 monospace — 이카운트 번호 필드 표준 */}
+              <span
+                style={{
+                  fontFamily: 'var(--font-family-mono)',
+                  fontSize: 'var(--font-size-sm)',
+                  letterSpacing: '0.02em',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {t.eTaxExternalId}
+              </span>
             </span>
           </div>
         ) : null}
@@ -682,14 +722,30 @@ export function TaxInvoiceDetailPage() {
         <p style={{ marginTop: 0, fontSize: 13, color: '#374151' }}>
           이 세금계산서를 국세청 전자세금계산서 시스템(NTS)에 발행하시겠습니까?
         </p>
+        {/* D4: 비가역성 강조 — danger 토큰. 이카운트 참조 "발행 후 수정/취소 불가" 패턴 */}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '8px 12px',
+            background: 'var(--color-danger-50)',
+            border: '1px solid var(--color-danger-200)',
+            borderRadius: 6,
+            fontSize: 12,
+            color: 'var(--color-danger-700)',
+            lineHeight: 1.6,
+          }}
+          role="alert"
+        >
+          <strong>주의</strong>: 발행 후에는 홈택스에서 직접 취소해야 하며, 본 시스템에서는 되돌릴 수 없습니다.
+        </div>
         <div
           style={{
             padding: '10px 14px',
-            background: '#FEF9C3',
-            border: '1px solid #FDE68A',
+            background: 'var(--color-warning-50)',
+            border: '1px solid var(--color-warning-200)',
             borderRadius: 6,
             fontSize: 12,
-            color: '#78350F',
+            color: 'var(--color-warning-800)',
             lineHeight: 1.6,
           }}
         >

@@ -58,6 +58,13 @@
 
   --color-info:    #3F7DB8;
 
+  /* ---------- color: NTS (국세청 전자세금계산서 전용) ---------- */
+  /* 국세청 공식 녹색 계열 — 일반 success(청록) 와 구분. SP-09-1 */
+  --color-nts-primary: #0F6523;
+  --color-nts-bg:      #F0FDF4;
+  --color-nts-border:  #BBF7D0;
+  --color-nts-text:    #14532D;
+
   /* ---------- surfaces (semantic aliases) ---------- */
   --color-bg:           var(--color-neutral-0);
   --color-bg-subtle:    var(--color-neutral-50);

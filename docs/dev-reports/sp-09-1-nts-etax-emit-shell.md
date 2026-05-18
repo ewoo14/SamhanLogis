@@ -61,14 +61,23 @@ NTS      // 운영 .env 활성 후 홈택스 실 API 호출
 ### 3-1. taxInvoiceApi.ts 신규 함수
 
 ```typescript
-// SP-09-1 신규
-export type NtsSubmitMethod = 'DRY_RUN' | 'REAL'
+// SP-09-1 신규 (C-01/C-02/L-01 cycle-1 fix 반영)
+// BE @Pattern(regexp = "DRY_RUN|NTS") 와 정확 일치
+export type NtsSubmitMethod = 'DRY_RUN' | 'NTS'
 
+// BE @NotNull — submitMethod 는 필수 (생략 시 400)
 export interface EmitNtsRequest {
-  submitMethod?: NtsSubmitMethod
+  submitMethod: NtsSubmitMethod
 }
 
-export type EmitNtsResponse = TaxInvoiceDetail
+// BE EmitNtsResponse record 5 필드 (TaxInvoiceDetail 전체가 아님)
+export interface EmitNtsResponse {
+  taxInvoiceNo: string
+  status: TaxInvoiceStatus
+  eTaxExternalId: string
+  submittedAt: string  // ISO-8601 (Instant → JSON)
+  submitMethod: NtsSubmitMethod
+}
 
 export async function emitTaxInvoiceToNts(
   id: string,
@@ -185,13 +194,14 @@ SELECT id, status, e_tax_external_id
 
 ---
 
-## 8. 권고 사항
+## 8. 권고 사항 (cycle 1 QA fix 반영)
 
 1. shell 단계: `ETaxClientImpl` DRY_RUN 구현 완료 — 운영 배포 전까지 기본값 유지
 2. `TaxInvoiceController.emitNts()` 메서드 추가 + `@PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")` 필수
-3. `TaxInvoice.eTaxExternalId` 필드에 DB UNIQUE 제약 추가 권고 (중복 발행 방지 이중 가드)
-4. Phase 11 NTS sandbox 활성 후 `submitMethod=REAL` end-to-end IT 추가
+3. [완료] `TaxInvoice.eTaxExternalId` DB UNIQUE INDEX 적용 — V16 Flyway `ux_tax_invoices_etax_external_id` (partial: is_deleted=false AND e_tax_external_id IS NOT NULL). H3 결함 해소.
+4. Phase 11 NTS sandbox 활성 후 `submitMethod=NTS` end-to-end IT 추가 (M3 fix: `REAL` → `NTS` 표기 통일)
 5. 감사 로그 `TAX_INVOICE_EMIT_NTS` action — audit-service 연동 시 체계화
+6. [완료] IT case 7 audit 직접 검증 — `AccountingAuditLogRepository` 직접 조회로 H2 결함 해소
 
 ---
 

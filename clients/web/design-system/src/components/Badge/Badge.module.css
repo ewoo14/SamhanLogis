@@ -60,3 +60,10 @@
   border-color: rgba(214, 80, 74, 0.32);
   color: var(--color-danger);
 }
+
+/* SP-09-1: 국세청(NTS) 전자세금계산서 발행 완료 전용 variant */
+.variant-nts {
+  background-color: var(--color-nts-bg);
+  border-color: var(--color-nts-border);
+  color: var(--color-nts-text);
+}
