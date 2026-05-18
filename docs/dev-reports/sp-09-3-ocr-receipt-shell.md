@@ -114,3 +114,172 @@ String message
 - Clova OCR 실 API RestClient 호출 구현
 - OCR 파싱 결과 → SlipLine 자동 생성 (상품 매핑 포함)
 - 영수증 이미지 MinIO/S3 저장 (slip_attachments bucket 연동)
+
+---
+
+## 8. QA 섹션 — Playwright 스펙 (5건)
+
+파일: `clients/desktop/playwright/sp-09-3-ocr-receipt-shell/sp-09-3-ocr-receipt-shell.spec.ts`
+
+### 8-1. TC 구조
+
+```
+test.describe('SP-09-3 OCR 영수증 발급 shell QA')
+  ├── T1: 드롭존 빈 상태 + DRY_RUN 안내 + Phase 11 CLOVA 안내
+  │     step 1: /#/purchases/receipt-ocr WAREHOUSE 권한 진입
+  │     step 2: receipt-ocr-drop-zone 드롭존 표시
+  │     step 3: DRY_RUN 처리 방식 안내 섹션 확인
+  │     step 4: Phase 11 Naver Clova OCR 안내 확인
+  │     step 5: submit 버튼 초기 disabled 확인
+  ├── T2: 파일 선택 → DRY_RUN 업로드 → OCR 결과 카드 + slipNo 링크
+  │     step 1: /slips/receipt-ocr DRY_RUN mock 등록
+  │     step 2: WAREHOUSE 권한 진입
+  │     step 3: PNG 파일 선택 → submit 버튼 활성화
+  │     step 4: 업로드 → receipt-ocr-result 카드 표시
+  │     step 5: 결과 카드 — 가게명/금액/부가세/날짜 검증
+  │     step 6: receipt-ocr-slip-badge + receipt-ocr-slip-link slipNo 링크
+  │     step 7: UUID 비공개 — slipId UUID 텍스트 미노출
+  ├── T3: 10MB+ 파일 거부 422 한국어 메시지 + role="alert"
+  │     step 1: /slips/receipt-ocr 422 mock 등록
+  │     step 2: WAREHOUSE 권한 진입
+  │     step 3: 10MB 초과 PNG → FE 즉시 에러 + role="alert"
+  │     step 4: 서버 422 → receipt-ocr-error 또는 role="alert"
+  ├── T4: PDF 비지원 포맷 선택 → 한국어 에러 메시지 + role="alert"
+  │     step 1: /slips/receipt-ocr 422 mock 등록
+  │     step 2: WAREHOUSE 권한 진입
+  │     step 3: .pdf 파일 선택 → FE 즉시 에러 배너
+  │     step 4: 비지원 포맷 에러 후 submit 버튼 비활성화
+  └── T5: 권한 가드
+        step 1: WAREHOUSE 허용 — receipt-ocr-drop-zone 표시
+        step 2: MANAGER 허용
+        step 3: MASTER 허용
+        step 4: SALES 차단 — 드롭존 미표시 또는 403
+        step 5: ACCOUNTANT 차단 — 드롭존 미표시 또는 403
+```
+
+### 8-2. URL 상수 (HashRouter)
+
+```
+BASE_URL/#/purchases/receipt-ocr?mockRole=WAREHOUSE
+BASE_URL/#/purchases/receipt-ocr?mockRole=MANAGER
+BASE_URL/#/purchases/receipt-ocr?mockRole=MASTER
+BASE_URL/#/purchases/receipt-ocr?mockRole=SALES
+BASE_URL/#/purchases/receipt-ocr?mockRole=ACCOUNTANT
+```
+
+### 8-3. 핵심 data-testid 매핑
+
+| data-testid | 컴포넌트 위치 | 검증 TC |
+|---|---|---|
+| `receipt-ocr-drop-zone` | 파일 드롭존 영역 | T1, T5 |
+| `receipt-ocr-file-input` | 숨김 file input | T2, T3, T4 |
+| `receipt-ocr-submit-btn` | 영수증 분석 시작 버튼 | T1(disabled), T2, T3 |
+| `receipt-ocr-result` | OCR 결과 카드 | T2 |
+| `receipt-ocr-slip-badge` | 매입 슬립 자동 생성 배지 | T2 |
+| `receipt-ocr-slip-link` | 슬립 링크 (slipNo 표시) | T2 |
+| `receipt-ocr-error` | API 에러 배너 (422/502) | T3 |
+
+### 8-4. false green 가드
+
+| 금지 패턴 | 대안 적용 |
+|---|---|
+| `test.skip(!ok)` | `expect(ok, '...').toBe(true)` — FAIL 처리 |
+| `page.setContent()` fallback | 실제 data-testid `toBeVisible()` 기반 assertion |
+| `|| true` shortcut | 명시적 boolean 변수 + 의미 있는 오류 메시지 |
+| bodyText OR fallback | 제목(`h3`) `toBeVisible()` 우선, bodyText 는 내용 검증에만 사용 |
+
+### 8-5. 스크린샷 저장 경로
+
+| TC | 파일 |
+|---|---|
+| T1 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T1-dropzone-dry-run-notice.png` |
+| T2 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T2-ocr-result-card.png` |
+| T3 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T3-10mb-oversize-alert.png` |
+| T4 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T4-unsupported-format-alert.png` |
+| T5 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T5-role-guard-warehouse-allowed.png` |
+| T5 | `docs/qa/sp-09-3-ocr-receipt-shell/screenshots/T5-role-guard-sales-403.png` |
+
+---
+
+## 9. 권한 매트릭스
+
+| 역할 | POST /slips/receipt-ocr | /#/purchases/receipt-ocr |
+|---|---|---|
+| MASTER | 허용 | 허용 |
+| MANAGER | 허용 | 허용 |
+| WAREHOUSE | 허용 | 허용 |
+| SALES | 403 | RoleGuard 차단 |
+| ACCOUNTANT | 403 | RoleGuard 차단 |
+| INVENTORY | 403 | RoleGuard 차단 |
+| DISPATCH | 403 | RoleGuard 차단 |
+
+---
+
+## 10. 보안 — vendor key 빈 값 가드
+
+| 항목 | 값 | 결과 |
+|---|---|---|
+| `ocr.clova-api-key` | blank | OCR_SUBMIT_FAILED (502) |
+| `ocr.clova-secret-key` | blank | OCR_SUBMIT_FAILED |
+| `ocr.clova-invoke-url` | blank | OCR_SUBMIT_FAILED |
+| `ocr.clova-api-key` = `placeholder_dev_only` | placeholder | OCR_SUBMIT_FAILED |
+| `ocr.clova-api-key` = `changeme` | placeholder | OCR_SUBMIT_FAILED |
+| 운영 설정 위치 | AWS SSM Parameter Store / `.env` | 코드 하드코딩 금지 |
+
+shell 단계 권장 설정: `ocr.clova-api-key=`, `ocr.clova-secret-key=`, `ocr.clova-invoke-url=` 모두 blank.
+
+---
+
+## 11. 회귀 영향
+
+### 11-1. slip-service 회귀
+
+| 컴포넌트 | 변경 | 영향 |
+|---|---|---|
+| `Slip.createInbound()` | 기존 도메인 메서드 활용 | 무영향 |
+| `SlipNumberService.next()` | 기존 채번 로직 활용 | 무영향 |
+| `SlipAuditLog.record()` | 기존 audit 패턴 활용 | 무영향 |
+| `/slips/receipt-ocr` | 신규 정적 경로 추가 | `/slips/{id}` 경로 무영향 |
+
+### 11-2. FE 회귀
+
+- `/purchases/receipt-ocr` 정적 경로가 `/purchases/:id` 보다 선등록 (routes/index.tsx 라인 488~494 확인)
+- 기존 `SlipListPage` (INBOUND mode), `PurchaseSlipEditPage` 경로 영향 없음
+
+### 11-3. SP-09-2 회귀
+
+T5 권한 가드 패턴 동일 적용 — SALES/ACCOUNTANT 차단 일관성 확인.
+
+---
+
+## 12. Phase 11 이관 체크리스트
+
+- [ ] CLOVA API 자격증명 AWS SSM Parameter Store 등록 (`ocr.clova-api-key` 등)
+- [ ] `ReceiptOcrClientImpl.submitClova()` RestClient 실 구현 (TODO 주석 → 구현)
+- [ ] FE `PurchaseSlipOcrUploadPage` submitMethod 선택 UI 활성화 (현재 DRY_RUN 고정)
+- [ ] CLOVA 실 호출 IT 케이스 추가 (Clova sandbox → 전표 자동 생성)
+- [ ] CI `grep placeholder` 가드 추가 (SP-08-8 패턴 일관)
+- [ ] OCR 파싱 결과 → SlipLine 자동 생성 (상품 UUID 매핑 포함)
+- [ ] 영수증 이미지 MinIO/S3 저장 (slip_attachments bucket)
+
+---
+
+## 검증 명령어
+
+```powershell
+# TypeScript 타입 체크
+cd clients/desktop
+npm run typecheck
+
+# Playwright 스펙 실행 (dev server 필요)
+# 별도 터미널: $env:VITE_MOCK_MODE=1; npx vite --port 5173
+npx playwright test playwright/sp-09-3-ocr-receipt-shell/sp-09-3-ocr-receipt-shell.spec.ts --reporter=line
+
+# IT 실행 (Docker 필요)
+cd ../..
+./gradlew :services:slip-service:test --tests "*ReceiptOcr*"
+
+# dev server 미가용 시 SKIP
+$env:PLAYWRIGHT_SKIP_UI = "1"
+npx playwright test playwright/sp-09-3-ocr-receipt-shell/sp-09-3-ocr-receipt-shell.spec.ts --reporter=line
+```

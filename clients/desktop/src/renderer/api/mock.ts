@@ -3943,6 +3943,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // ============================================================================
+  // SP-09-3 영수증 OCR 업로드 mock (POST /slips/receipt-ocr)
+  //
+  // submitMethod=DRY_RUN → 가짜 OCR 결과 + 매입 슬립 번호 반환.
+  // 시나리오:
+  //   - 파일명에 "empty" 포함 → 422 빈 파일 에러
+  //   - 파일 크기 > 10MB 또는 파일명에 "toolarge" 포함 → 422 크기 초과 에러
+  //   - 파일명에 "502" 포함 → 502 OCR 외부 서비스 오류
+  //   - 그 외 → 정상 DRY_RUN 가짜 응답 (테스트마트)
+  //
+  // UUID 비공개: slipId 는 링크 전용. slipNo 만 사용자 노출.
+  // ============================================================================
+  if (method === 'POST' && url.includes('/slips/receipt-ocr')) {
+    const formData = config.data instanceof FormData ? config.data : null
+    const fileName = formData?.get('file') instanceof File
+      ? (formData.get('file') as File).name.toLowerCase()
+      : ''
+    const fileSize = formData?.get('file') instanceof File
+      ? (formData.get('file') as File).size
+      : 0
+
+    // 빈 파일 시나리오
+    if (fileName.includes('empty') || fileSize === 0) {
+      return mockError(422, 'RECEIPT_EMPTY_FILE', '파일이 비어있습니다. 유효한 영수증 이미지를 업로드하세요.')
+    }
+
+    // 10MB 초과 시나리오
+    const MAX_BYTES = 10 * 1024 * 1024
+    if (fileSize > MAX_BYTES || fileName.includes('toolarge')) {
+      return mockError(422, 'RECEIPT_FILE_TOO_LARGE', '파일 크기가 10MB 를 초과합니다. 이미지를 압축하거나 다른 파일을 선택하세요.')
+    }
+
+    // 502 OCR 외부 서비스 오류 시나리오
+    if (fileName.includes('502')) {
+      return mockError(502, 'OCR_GATEWAY_ERROR', 'Naver Clova OCR 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+    }
+
+    // 정상 DRY_RUN 가짜 응답
+    const today = new Date().toISOString().slice(0, 10)
+    const slipSeq = Math.floor(Math.random() * 9) + 1
+    return envelope({
+      vendorName: '테스트마트',
+      totalAmount: 55000,
+      vatAmount: 5000,
+      receiptDate: today,
+      slipNo: `${today}-${slipSeq}`,
+      slipId: '00000000-0000-0000-0000-ocr000000001',
+      ocrText: '[DRY_RUN]\n가게명: 테스트마트\n금액: 55,000원\n부가세: 5,000원\n날짜: ' + today,
+      submitMethod: 'DRY_RUN',
+    })
+  }
+
   // @deprecated — DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
   if (method === 'DELETE' && url.includes('/accounting/tax-invoices/batch/exclusions/')) {
     return envelope({ deleted: true })

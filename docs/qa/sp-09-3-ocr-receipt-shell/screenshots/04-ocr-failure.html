@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-3 #04 OCR 영수증 — 실패 에러 배너 (10MB 초과 + 502)</title>
+<!--
+  [OCR 실패 케이스]
+  케이스 A: 10MB 초과 파일 선택 시 — 클라이언트 사이드 즉시 reject
+  케이스 B: Clova 서버 502 (placeholder) — 서버 사이드 에러 배너
+  에러 배너: role="alert" aria-live="assertive"
+  두 케이스 동시 표시 (화면에 쌓임 — 시뮬레이션)
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    /* Clova */
+    --color-clova-primary:  #03C75A;
+    --color-clova-50:       #F0FDF6;
+    --color-clova-200:      #BBF7D0;
+    --color-clova-text:     #014A22;
+    /* Error (에러 배너) */
+    --color-danger-50:  #FEF2F2;
+    --color-danger-200: #FECACA;
+    --color-danger-600: #DC2626;
+    --color-danger-700: #B91C1C;
+    --color-danger-800: #991B1B;
+    --color-danger-900: #7F1D1D;
+    /* Warning */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* === 에러 배너 공통 === */
+  .error-banner {
+    display: flex; gap: 14px; align-items: flex-start;
+    border-radius: 8px; padding: 16px 18px;
+    border-left: 4px solid var(--color-danger-600);
+  }
+  .error-banner.type-client {
+    background: var(--color-danger-50);
+    border-color: var(--color-danger-600);
+    border: 1px solid var(--color-danger-200);
+    border-left: 4px solid var(--color-danger-600);
+  }
+  .error-banner.type-server {
+    background: #FFF1F0;
+    border: 1px solid #FFCCC7;
+    border-left: 4px solid #CF1322;
+  }
+  .error-icon-wrap {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--color-danger-600);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #fff; font-size: 15px; font-weight: 700;
+  }
+  .error-content { flex: 1; }
+  .error-title { font-size: 14px; font-weight: 700; color: var(--color-danger-800); margin-bottom: 5px; }
+  .error-desc { font-size: 13px; color: var(--color-danger-700); line-height: 1.6; }
+  .error-desc code {
+    background: #FEE2E2; border: 1px solid var(--color-danger-200);
+    border-radius: 3px; padding: 1px 6px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; color: var(--color-danger-800);
+  }
+  .error-action-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn-error-retry {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; background: var(--color-danger-600); color: #fff; border: none;
+  }
+  .btn-error-retry:hover { background: var(--color-danger-800); }
+  .btn-error-close {
+    padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; background: #fff; color: var(--color-danger-700);
+    border: 1px solid var(--color-danger-200);
+  }
+  /* 닫기 버튼 (우상단) */
+  .error-close-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-danger-600); font-size: 18px; line-height: 1;
+    flex-shrink: 0; padding: 2px;
+  }
+
+  /* 업로드 카드 (비활성 상태) */
+  .upload-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+    opacity: 0.75;
+  }
+  .upload-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  .clova-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-clova-50);
+    border: 1px solid var(--color-clova-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-clova-text);
+  }
+  .clova-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-clova-primary); flex-shrink: 0; }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--color-neutral-900); }
+  .upload-card-body { padding: 28px 24px; }
+
+  /* 드롭존 (비활성 — 에러 후) */
+  .dropzone-error {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px;
+    border: 2px dashed var(--color-danger-200);
+    border-radius: 10px; padding: 36px 32px;
+    background: var(--color-danger-50);
+    min-height: 160px;
+  }
+  .dz-error-icon { font-size: 36px; color: var(--color-danger-600); line-height: 1; }
+  .dz-error-main { font-size: 14px; font-weight: 600; color: var(--color-danger-800); }
+  .dz-error-sub { font-size: 12px; color: var(--color-danger-700); }
+
+  /* 파일 정보 (실패 케이스 A — 10MB 초과 파일명) */
+  .rejected-file-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--color-danger-50);
+    border: 1px solid var(--color-danger-200);
+    border-radius: 6px; padding: 10px 14px;
+    margin-top: 14px;
+  }
+  .rejected-icon { color: var(--color-danger-600); font-size: 18px; flex-shrink: 0; }
+  .rejected-name { font-size: 13px; font-weight: 500; color: var(--color-danger-800); flex: 1; }
+  .rejected-size {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 12px; color: var(--color-danger-700);
+    font-variant-numeric: tabular-nums;
+  }
+  .rejected-reason {
+    font-size: 11px; font-weight: 700; color: #fff;
+    background: var(--color-danger-600); border-radius: 4px; padding: 2px 7px;
+    white-space: nowrap;
+  }
+
+  /* 조치 안내 박스 */
+  .action-box {
+    background: var(--color-warning-50); border: 1px solid var(--color-warning-200);
+    border-radius: 6px; padding: 12px 16px;
+    font-size: 12px; color: var(--color-warning-800); line-height: 1.7;
+    margin-top: 14px;
+  }
+  .action-box strong { font-size: 13px; font-weight: 700; color: var(--color-warning-700); display: block; margin-bottom: 4px; }
+
+  /* 재시도 버튼 영역 */
+  .retry-bar { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .btn-outline {
+    padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: #fff; color: var(--color-neutral-700);
+    border: 1px solid var(--color-neutral-300);
+  }
+  .btn-primary {
+    padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: var(--color-clova-primary); color: #fff; border: none;
+  }
+
+  /* 케이스 구분 레이블 */
+  .case-label {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    background: var(--color-neutral-200); color: var(--color-neutral-700);
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">구매 / 영수증 OCR</div>
+      <h1 class="page-title">영수증 OCR 업로드</h1>
+    </div>
+  </div>
+
+  <!-- ===== 케이스 A: 10MB 초과 파일 선택 에러 ===== -->
+  <!-- role="alert" aria-live="assertive" — 클라이언트 즉시 reject -->
+  <div>
+    <div class="case-label">케이스 A — 파일 크기 초과</div>
+    <div
+      class="error-banner type-client"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      data-testid="ocr-upload-error-size-banner"
+    >
+      <div class="error-icon-wrap" aria-hidden="true">&#9888;</div>
+      <div class="error-content">
+        <div class="error-title">파일 크기 초과 — 업로드 불가</div>
+        <div class="error-desc">
+          선택한 파일이 최대 허용 크기 <code>10 MB</code>를 초과합니다.
+          현재 파일 크기: <code>15.2 MB</code><br>
+          파일을 압축하거나 10 MB 이하의 이미지를 사용하세요. JPG 또는 PNG 형식을 권장합니다.
+        </div>
+        <div class="error-action-row">
+          <button class="btn-error-retry" aria-label="다른 파일 선택">다른 파일 선택</button>
+          <button class="btn-error-close" aria-label="에러 배너 닫기">닫기</button>
+        </div>
+      </div>
+      <button class="error-close-btn" aria-label="닫기">&#10005;</button>
+    </div>
+  </div>
+
+  <!-- ===== 케이스 B: Clova 서버 502 에러 ===== -->
+  <!-- role="alert" aria-live="assertive" — 서버 사이드 에러 -->
+  <div>
+    <div class="case-label">케이스 B — Clova OCR 서버 오류 (502)</div>
+    <div
+      class="error-banner type-server"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      data-testid="ocr-upload-error-server-banner"
+    >
+      <div class="error-icon-wrap" aria-hidden="true" style="background:#CF1322;">&#9888;</div>
+      <div class="error-content">
+        <div class="error-title">OCR 서버 오류 — Naver Clova OCR 응답 없음</div>
+        <div class="error-desc">
+          Naver Clova OCR API 호출 중 오류가 발생했습니다. (<code>HTTP 502 Bad Gateway</code>)<br>
+          현재 <strong>DRY_RUN 모드</strong>에서 placeholder 502 응답이 발생했습니다. Phase 11 실 연동 후에는 Clova API 상태를 확인하세요.<br>
+          잠시 후 다시 시도하거나 관리자에게 문의하세요.
+        </div>
+        <div class="error-action-row">
+          <button class="btn-error-retry" style="background:#CF1322;" aria-label="업로드 재시도">재시도</button>
+          <button class="btn-error-close" aria-label="에러 배너 닫기">닫기</button>
+        </div>
+      </div>
+      <button class="error-close-btn" style="color:#CF1322;" aria-label="닫기">&#10005;</button>
+    </div>
+  </div>
+
+  <!-- 업로드 카드 (에러 후 — 비활성) -->
+  <div class="upload-card" aria-disabled="true">
+    <div class="upload-card-head">
+      <div class="clova-badge">
+        <span class="clova-dot" style="background:#9CA3AF;"></span>
+        Naver Clova OCR
+      </div>
+      <span class="section-title" style="color:var(--color-neutral-500);">영수증 파일 선택 (재시도)</span>
+    </div>
+    <div class="upload-card-body">
+
+      <!-- 드롭존 에러 상태 -->
+      <div
+        class="dropzone-error"
+        tabindex="0"
+        role="button"
+        aria-label="에러 발생 — 다른 파일을 선택하거나 재시도하세요"
+      >
+        <div class="dz-error-icon" aria-hidden="true">&#10007;</div>
+        <div class="dz-error-main">업로드 실패</div>
+        <div class="dz-error-sub">다른 파일을 선택하거나 아래 재시도 버튼을 클릭하세요</div>
+      </div>
+
+      <!-- 거부된 파일 표시 (케이스 A용) -->
+      <div class="rejected-file-row" aria-label="거부된 파일 정보">
+        <div class="rejected-icon" aria-hidden="true">&#10006;</div>
+        <div class="rejected-name">영수증_대용량_2026-05-18.jpg</div>
+        <div class="rejected-size">15.2 MB</div>
+        <div class="rejected-reason">10MB 초과</div>
+      </div>
+
+      <!-- 조치 안내 -->
+      <div class="action-box">
+        <strong>조치 방법</strong>
+        <ul style="margin:0; padding-left:18px;">
+          <li>파일 크기 초과: 이미지 해상도를 낮추거나 PDF를 개별 페이지로 분리하세요 (최대 10 MB).</li>
+          <li>서버 오류 (5xx): 잠시 후 재시도하거나 관리자에게 문의하세요.</li>
+          <li>인식 실패: 영수증이 선명하게 촬영되었는지 확인하고 다시 업로드하세요.</li>
+          <li>지원 형식: JPG, PNG, PDF만 허용됩니다.</li>
+        </ul>
+      </div>
+
+      <!-- 재시도 버튼 -->
+      <div class="retry-bar">
+        <button class="btn-outline">취소</button>
+        <button class="btn-primary">다시 업로드</button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

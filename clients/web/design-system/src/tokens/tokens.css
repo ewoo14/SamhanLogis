@@ -65,6 +65,16 @@
   --color-nts-border:  #BBF7D0;
   --color-nts-text:    #14532D;
 
+  /* ---------- color: Clova (Naver Clova OCR 전용) ---------- */
+  /* Naver 공식 녹색 계열 — NTS(#0F6523) / Aligo teal(#0F766E) 와 시각 구분. SP-09-3 */
+  /* WCAG AA: --color-clova-text(#014A22) on --color-clova-50(#F0FDF6) ≈ 10.8:1 (AAA 충족) */
+  --color-clova-primary: #03C75A;
+  --color-clova-50:      #F0FDF6;
+  --color-clova-100:     #DCFCE8;
+  --color-clova-200:     #BBF7D0;
+  --color-clova-700:     #02A04B;
+  --color-clova-text:    #014A22;
+
   /* ---------- surfaces (semantic aliases) ---------- */
   --color-bg:           var(--color-neutral-0);
   --color-bg-subtle:    var(--color-neutral-50);

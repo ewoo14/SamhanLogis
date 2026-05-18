@@ -47,6 +47,35 @@ notification-service 전용 (`infrastructure/env-templates/notification-service.
 - `SAMHAN_ALIGO_SENDER` — **빈 값 유지** (사전 등록 발신번호, Phase 11 cutover 시 설정)
 - `SAMHAN_ALIGO_API_URL` — **빈 값 유지** (Phase 11 cutover 시 `https://apis.aligo.in` 설정. placeholder 사용 금지)
 
+slip-service 전용 (`infrastructure/env-templates/slip-service.env` 복사 후, SP-09-3 Naver Clova OCR):
+- `OCR_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `CLOVA` 로 변경)
+- `CLOVA_OCR_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `ReceiptOcrClientImpl` 이 CLOVA 모드에서 blank/placeholder 값을 명시 거부함)
+- `CLOVA_OCR_SECRET_KEY` — **빈 값 유지** (Clova OCR 도메인 Secret Key, Phase 11 cutover 시 설정)
+- `CLOVA_OCR_INVOKE_URL` — **빈 값 유지** (Clova OCR Invoke URL, Phase 11 cutover 시 설정. placeholder 사용 금지)
+
+arologis-service 전용 (`infrastructure/env-templates/arologis-service.env` 복사 후, 인성데이타 퀵프로그램 vendor):
+- `SAMHAN_INSUNG_QUICK_API_URL` — **빈 값 유지** (Phase 10 W10-2 인성데이타 vendor sandbox URL 발급 후 설정. placeholder 사용 금지)
+- `SAMHAN_INSUNG_QUICK_API_KEY` — **빈 값 유지** (sandbox 키 발급 후 설정)
+- `SAMHAN_INSUNG_QUICK_PARTNER_ID` — **빈 값 유지** (제휴 partner ID 발급 후 설정)
+
+### 외부 vendor 키 보안 정책 (사용자 결정 2026-05-18)
+
+**모든 외부 vendor API 키는 본 repo 에 평문 commit 금지.** SP-09 시리즈 통합 정책:
+
+1. **env 템플릿 빈 값 유지** — `infrastructure/env-templates/*.env` 의 외부 vendor 키는 빈 값 (`KEY=`) 으로 commit
+2. **placeholder 사용 금지** — `CHANGE_ME_LOCAL_ONLY`, `PLACEHOLDER_DEV_ONLY`, `changeme`, `dummy` 등 명시 차단 (각 Client 런타임 guard)
+3. **실 키 주입 위치** — 운영/sandbox PC 의 `.env` (gitignore 처리됨) 또는 secrets manager (Phase 11 AWS = Parameter Store + RDS auto backup)
+4. **CI guard** — `scripts/check-credential-plaintext.sh` (SP-08-8) + GitHub Actions `Credential Plaintext Guard` job 이 commit 전후 자동 검증
+5. **vendor 별 runtime guard** — `ETaxClientImpl.isPlaceholderApiKey()` / `AligoSmsAdapter.isPlaceholder()` / `InsungQuickClient` (Phase 10) 등 모두 동일 4 키워드 case-insensitive 차단
+
+| vendor | 슬라이스 | client | env template | 현재 상태 |
+|---|---|---|---|---|
+| 국세청 (홈택스) NTS | SP-09-1 | `ETaxClientImpl` | `accounting-service.env` | 빈 값 + DRY_RUN |
+| Aligo SMS | SP-09-2 | `AligoSmsAdapter` | `notification-service.env` | 빈 값 + stub |
+| Naver Clova OCR | SP-09-3 (진행) | `ReceiptOcrClient` | `slip-service.env` | 빈 값 + DRY_RUN |
+| 인성데이타 퀵프로그램 | Phase 10 W10-2 | `InsungQuickClient` | `arologis-service.env` | 빈 값 |
+| 오픈뱅킹 KFTC | SP-09-4 (Phase 10) | (TBD) | `accounting-service.env` (예정) | — |
+
 > 1Password / Bitwarden 같은 비밀번호 관리자에 `.env` 통째로 저장해두면 양 PC sync 편함.
 
 ### 1-C. 필수 런타임

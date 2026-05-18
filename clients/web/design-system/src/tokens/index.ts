@@ -72,6 +72,19 @@ export const colors = {
     border:  '#BBF7D0',
     text:    '#14532D',
   },
+  /**
+   * Naver Clova OCR 전용 — Naver 공식 녹색 계열. SP-09-3
+   * NTS(#0F6523) / Aligo teal(#0F766E) / success(#2A9D8F) 과 시각 구분.
+   * WCAG: text(#014A22) on 50(#F0FDF6) ≈ 10.8:1 (AAA)
+   */
+  clova: {
+    primary: '#03C75A',
+    50:      '#F0FDF6',
+    100:     '#DCFCE8',
+    200:     '#BBF7D0',
+    700:     '#02A04B',
+    text:    '#014A22',
+  },
 } as const
 
 export const typography = {

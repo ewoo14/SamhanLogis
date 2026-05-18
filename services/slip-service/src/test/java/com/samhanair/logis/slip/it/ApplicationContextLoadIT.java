@@ -9,6 +9,7 @@ import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ReceiptOcrClient;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ class ApplicationContextLoadIT extends AbstractPostgresIT {
     private PartnerBlockClient partnerBlockClient;
     @MockBean
     private PartnerInternalClient partnerInternalClient;
+    /** SP-09-3 — ReceiptOcrClient (@MockBean 격리, feedback_it_mockbean_external_clients). */
+    @MockBean
+    private ReceiptOcrClient receiptOcrClient;
 
     /**
      * Spring ApplicationContext 가 BeanDefinitionOverrideException / NoSuchBeanDefinitionException

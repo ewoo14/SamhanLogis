@@ -271,6 +271,10 @@ import { SalesClosingPage } from './SalesClosingPage'
 // `/sales/slips`, `/purchases/slips` 로 옮겨 2c 작성 plumbing 합류 전까지 보존.
 import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
+// [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
+// BE: slip-service POST /slips/receipt-ocr (multipart/form-data, submitMethod=DRY_RUN|CLOVA)
+// shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 CLOVA 활성.
+import { PurchaseSlipOcrUploadPage } from './PurchaseSlipOcrUploadPage'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
 // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
@@ -318,6 +322,13 @@ const VENDOR_ORDER_OCR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
 /** 설정 시트 동기화 — MANAGER / MASTER. product-service endpoint 는 인증 사용자만 강제하므로 FE에서 운영 권한을 좁힌다. */
 const SHEET_SYNC_ROLES = ['MANAGER', 'MASTER'] as const
+
+/**
+ * SP-09-3 영수증 OCR 업로드 권한 — WAREHOUSE / MANAGER / MASTER.
+ * SALES / ACCOUNTANT 진입 시 RoleGuard 403 화면 표시.
+ * BE: slip-service POST /slips/receipt-ocr @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+ */
+const RECEIPT_OCR_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
 
 /** 발송금지 거래처 — MANAGER / MASTER. CSV import / 해제는 페이지 내부에서 MASTER 만 노출한다. */
 const BLOCKED_PARTNER_ROLES = ['MANAGER', 'MASTER'] as const
@@ -471,6 +482,18 @@ const router = createHashRouter([
       { path: '/purchases/:id/print/inbound', element: <InboundView /> },
       // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
       { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
+
+      // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
+      // shell 단계: DRY_RUN 고정 표시. Phase 11 sandbox 연동 시 CLOVA 활성.
+      // 정적 path `/purchases/receipt-ocr` → `/purchases/:id` 보다 먼저 매칭되어야 함.
+      {
+        path: '/purchases/receipt-ocr',
+        element: (
+          <RoleGuard allow={RECEIPT_OCR_ROLES}>
+            <PurchaseSlipOcrUploadPage />
+          </RoleGuard>
+        ),
+      },
 
       // 재고이동
       { path: '/transfers', element: <TransferListPage /> },

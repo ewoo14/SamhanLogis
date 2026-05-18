@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-3 #03 OCR 영수증 — 분석 성공 결과 카드</title>
+<!--
+  [OCR 성공 결과 카드]
+  - 결과 카드: 가게명(heading) / 금액(monospace + tabular-nums + 강조) / 부가세 / 일자(muted small)
+  - "매입 슬립 자동 생성됨" 성공 Badge (slipNo 링크 포함)
+  - 단계 진행: 4단계 모두 완료
+  - 수정/재업로드 버튼 제공
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    --color-brand-500: #2D77A8;
+    --color-brand-50:  #EFF6FF;
+    /* Clova */
+    --color-clova-primary:  #03C75A;
+    --color-clova-50:       #F0FDF6;
+    --color-clova-100:      #DCFCE8;
+    --color-clova-200:      #BBF7D0;
+    --color-clova-700:      #02A04B;
+    --color-clova-text:     #014A22;
+    /* Success (완료 슬립 — teal 계열로 Clova와 구분) */
+    --color-success-50:  #F0FDFA;
+    --color-success-100: #CCFBF1;
+    --color-success-200: #99F6E4;
+    --color-success-700: #0F766E;
+    --color-success-900: #134E4A;
+    /* Warning */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* 성공 배너 */
+  .success-banner {
+    display: flex; gap: 12px; align-items: center;
+    background: var(--color-clova-50);
+    border: 1px solid var(--color-clova-200);
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .success-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--color-clova-primary);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #fff; font-size: 16px; font-weight: 700;
+  }
+  .success-text { font-size: 14px; font-weight: 600; color: var(--color-clova-text); }
+  .success-sub { font-size: 12px; color: var(--color-clova-700); margin-top: 2px; }
+
+  /* 결과 + 슬립 그리드 */
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
+
+  /* 결과 카드 */
+  .result-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  .result-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  .result-card-title { font-size: 13px; font-weight: 600; color: var(--color-neutral-700); }
+  .clova-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--color-clova-50);
+    border: 1px solid var(--color-clova-200);
+    border-radius: 999px; padding: 2px 8px;
+    font-size: 10px; font-weight: 700; color: var(--color-clova-text);
+  }
+  .clova-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-clova-primary); flex-shrink: 0; }
+  .result-card-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* 가게명 — heading */
+  .store-name-row { display: flex; flex-direction: column; gap: 3px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--color-neutral-400); text-transform: uppercase; letter-spacing: 0.06em; }
+  .store-name { font-size: 18px; font-weight: 700; color: var(--color-neutral-900); }
+
+  /* 구분선 */
+  .divider { height: 1px; background: var(--color-neutral-100); margin: 2px 0; }
+
+  /* 금액 — monospace + tabular-nums + 강조 */
+  .amount-row { display: flex; flex-direction: column; gap: 3px; }
+  .amount-value {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 28px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-neutral-900);
+    letter-spacing: -0.01em;
+  }
+  .amount-unit { font-size: 14px; font-weight: 500; color: var(--color-neutral-500); margin-left: 2px; }
+
+  /* 세부 필드 그리드 */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-item { display: flex; flex-direction: column; gap: 3px; }
+  .field-value { font-size: 14px; font-weight: 500; color: var(--color-neutral-900); }
+  .field-value.mono {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 일자 — 작은 muted */
+  .field-value.date-muted { font-size: 13px; color: var(--color-neutral-500); }
+
+  /* 신뢰도 표시 */
+  .confidence-row { display: flex; align-items: center; gap: 8px; }
+  .conf-label { font-size: 11px; color: var(--color-neutral-400); }
+  .conf-bar-wrap { flex: 1; height: 4px; border-radius: 999px; background: var(--color-neutral-200); overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 999px; background: var(--color-clova-primary); width: 94%; }
+  .conf-pct { font-size: 11px; font-weight: 600; color: var(--color-clova-700); }
+
+  /* 슬립 생성 카드 */
+  .slip-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  .slip-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  /* "매입 슬립 자동 생성됨" Badge */
+  .slip-auto-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-success-50);
+    border: 1px solid var(--color-success-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-success-700);
+  }
+  .slip-check { font-size: 12px; }
+  .slip-card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .slip-no-row { display: flex; flex-direction: column; gap: 4px; }
+  /* slipNo 링크 */
+  .slip-no-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 15px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-brand-500);
+    text-decoration: none;
+    border-bottom: 1px solid var(--color-brand-500);
+    padding-bottom: 1px;
+  }
+  .slip-no-link:hover { color: #1D5F8A; }
+  .link-icon { font-size: 11px; }
+
+  .slip-meta { display: flex; flex-direction: column; gap: 8px; }
+  .slip-meta-row { display: flex; justify-content: space-between; font-size: 13px; }
+  .slip-meta-k { color: var(--color-neutral-500); }
+  .slip-meta-v { font-weight: 500; color: var(--color-neutral-900); }
+
+  /* 결과 원본 JSON 박스 */
+  .raw-json-box {
+    background: #1E293B; border-radius: 6px; padding: 12px 14px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; line-height: 1.7; color: #94A3B8;
+    overflow-x: auto;
+  }
+  .json-key { color: #7DD3FC; }
+  .json-str { color: #86EFAC; }
+  .json-num { color: #FCA5A5; }
+
+  /* 단계 진행 */
+  .step-row { display: flex; gap: 0; margin-top: 4px; }
+  .step-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+  .step-item:not(:last-child)::after {
+    content: ''; position: absolute; top: 11px; left: 50%; right: -50%;
+    height: 2px; background: var(--color-clova-primary); z-index: 0;
+  }
+  .step-dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; z-index: 1; position: relative;
+    background: var(--color-clova-primary); color: #fff; border: 2px solid var(--color-clova-primary);
+  }
+  .step-label { font-size: 11px; color: var(--color-clova-700); font-weight: 600; white-space: nowrap; }
+
+  /* CTA 영역 */
+  .cta-bar {
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 16px 0 0; border-top: 1px solid var(--color-neutral-200); margin-top: 4px;
+  }
+  .btn-outline {
+    padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: #fff; color: var(--color-neutral-700);
+    border: 1px solid var(--color-neutral-300);
+  }
+  .btn-primary {
+    padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: var(--color-brand-500); color: #fff; border: none;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">구매 / 영수증 OCR</div>
+      <h1 class="page-title">영수증 OCR 업로드</h1>
+    </div>
+  </div>
+
+  <!-- 성공 배너 -->
+  <div class="success-banner" role="status">
+    <div class="success-icon" aria-hidden="true">&#10003;</div>
+    <div>
+      <div class="success-text">OCR 분석 완료 — 매입 슬립이 자동 생성되었습니다</div>
+      <div class="success-sub">영수증_2026-05-18_편의점.jpg · 분석 시간 1.3초</div>
+    </div>
+  </div>
+
+  <!-- 단계 진행 (모두 완료) -->
+  <div class="step-row" aria-label="처리 완료" aria-hidden="true">
+    <div class="step-item">
+      <div class="step-dot">&#10003;</div>
+      <div class="step-label">파일 선택</div>
+    </div>
+    <div class="step-item">
+      <div class="step-dot">&#10003;</div>
+      <div class="step-label">Clova 분석</div>
+    </div>
+    <div class="step-item">
+      <div class="step-dot">&#10003;</div>
+      <div class="step-label">결과 확인</div>
+    </div>
+    <div class="step-item">
+      <div class="step-dot">&#10003;</div>
+      <div class="step-label">슬립 생성</div>
+    </div>
+  </div>
+
+  <!-- 결과 + 슬립 그리드 -->
+  <div class="result-grid">
+
+    <!-- OCR 결과 카드 -->
+    <div class="result-card">
+      <div class="result-card-head">
+        <span class="result-card-title">OCR 분석 결과</span>
+        <span class="clova-badge">
+          <span class="clova-dot"></span>
+          Clova OCR (DRY_RUN)
+        </span>
+      </div>
+      <div class="result-card-body">
+
+        <!-- 가게명 — heading -->
+        <div class="store-name-row">
+          <div class="field-label">가게명</div>
+          <div class="store-name">GS25 서울강남점</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 금액 — monospace + tabular-nums + 강조 -->
+        <div class="amount-row">
+          <div class="field-label">합계금액</div>
+          <div>
+            <span class="amount-value">18,700</span>
+            <span class="amount-unit">원</span>
+          </div>
+        </div>
+
+        <!-- 세부 필드 그리드 -->
+        <div class="field-grid">
+          <div class="field-item">
+            <div class="field-label">공급가액</div>
+            <div class="field-value mono">17,000<span style="font-size:12px; color:#6B7280;"> 원</span></div>
+          </div>
+          <div class="field-item">
+            <div class="field-label">부가세</div>
+            <div class="field-value mono">1,700<span style="font-size:12px; color:#6B7280;"> 원</span></div>
+          </div>
+          <div class="field-item">
+            <div class="field-label">영수증 일자</div>
+            <!-- 일자 — 작은 muted -->
+            <div class="field-value date-muted">2026-05-18 14:22</div>
+          </div>
+          <div class="field-item">
+            <div class="field-label">사업자번호</div>
+            <div class="field-value mono" style="font-size:12px;">123-45-67890</div>
+          </div>
+        </div>
+
+        <!-- Clova 신뢰도 -->
+        <div class="confidence-row">
+          <span class="conf-label">OCR 신뢰도</span>
+          <div class="conf-bar-wrap">
+            <div class="conf-bar-fill"></div>
+          </div>
+          <span class="conf-pct">94%</span>
+        </div>
+
+        <!-- 원본 JSON 미리보기 -->
+        <div class="raw-json-box" aria-label="Clova OCR 원응답 요약">
+<span class="json-key">"storeName"</span>: <span class="json-str">"GS25 서울강남점"</span>,
+<span class="json-key">"totalAmount"</span>: <span class="json-num">18700</span>,
+<span class="json-key">"taxAmount"</span>: <span class="json-num">1700</span>,
+<span class="json-key">"receiptDate"</span>: <span class="json-str">"2026-05-18T14:22:00"</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 매입 슬립 자동 생성 카드 -->
+    <div class="slip-card">
+      <div class="slip-card-head">
+        <!-- "매입 슬립 자동 생성됨" Badge -->
+        <span class="slip-auto-badge">
+          <span class="slip-check">&#10003;</span>
+          매입 슬립 자동 생성됨
+        </span>
+      </div>
+      <div class="slip-card-body">
+
+        <div class="slip-no-row">
+          <div class="field-label">매입 슬립 번호</div>
+          <!-- slipNo 링크 -->
+          <a class="slip-no-link" href="#" aria-label="매입 슬립 PUR-2026-05-0042 상세 열기">
+            PUR-2026-05-0042
+            <span class="link-icon">&#8599;</span>
+          </a>
+        </div>
+
+        <div class="slip-meta">
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">슬립 유형</span>
+            <span class="slip-meta-v">매입 (영수증 OCR)</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">거래 일자</span>
+            <span class="slip-meta-v">2026-05-18</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">공급가액</span>
+            <span class="slip-meta-v" style="font-family:'JetBrains Mono',Consolas,monospace; font-variant-numeric:tabular-nums;">17,000 원</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">부가세</span>
+            <span class="slip-meta-v" style="font-family:'JetBrains Mono',Consolas,monospace; font-variant-numeric:tabular-nums;">1,700 원</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">합계</span>
+            <span class="slip-meta-v" style="font-family:'JetBrains Mono',Consolas,monospace; font-variant-numeric:tabular-nums; font-weight:700;">18,700 원</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">생성자</span>
+            <span class="slip-meta-v">김매니저 (MANAGER)</span>
+          </div>
+          <div class="slip-meta-row">
+            <span class="slip-meta-k">생성 방식</span>
+            <span class="slip-meta-v">OCR 자동 생성</span>
+          </div>
+        </div>
+
+        <div
+          style="background:var(--color-clova-50); border:1px solid var(--color-clova-200); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--color-clova-text); line-height:1.6;"
+        >
+          <strong>안내</strong> 자동 생성된 슬립의 내용을 검토 후 승인하세요. 가게명/금액이 다른 경우 슬립 수정 화면에서 직접 수정할 수 있습니다.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CTA 영역 -->
+  <div class="cta-bar">
+    <button class="btn-outline">다른 영수증 업로드</button>
+    <button class="btn-primary">슬립 상세 보기</button>
+  </div>
+
+</div>
+</body>
+</html>

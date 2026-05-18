@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-3 #02 OCR 영수증 업로드 — 업로드 진행 중</title>
+<!--
+  [파일 선택 후 업로드 진행 상태]
+  - 드롭존: 파일 미리보기 (영수증 썸네일 플레이스홀더 + 파일명/크기)
+  - 진행 스피너 + 진행바
+  - role="status" aria-live="polite" — 업로드 진행 상황 접근성
+  - Clova brand #03C75A progress bar
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    --color-brand-500: #2D77A8;
+    --color-clova-primary:  #03C75A;
+    --color-clova-50:       #F0FDF6;
+    --color-clova-100:      #DCFCE8;
+    --color-clova-200:      #BBF7D0;
+    --color-clova-700:      #02A04B;
+    --color-clova-text:     #014A22;
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* DRY_RUN 배너 (진행 중에도 유지) */
+  .dryrun-banner {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 8px; padding: 10px 16px;
+    font-size: 12px; color: var(--color-warning-800);
+  }
+  .dryrun-icon { font-size: 16px; flex-shrink: 0; line-height: 1.5; }
+
+  /* 업로드 카드 */
+  .upload-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  .upload-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  .clova-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-clova-50);
+    border: 1px solid var(--color-clova-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-clova-text);
+  }
+  .clova-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--color-clova-primary); flex-shrink: 0;
+  }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--color-neutral-900); }
+  .upload-card-body { padding: 24px; }
+
+  /* 파일 미리보기 영역 */
+  .preview-zone {
+    display: flex; gap: 20px; align-items: flex-start;
+    border: 2px solid var(--color-clova-200);
+    border-radius: 10px;
+    padding: 20px 24px;
+    background: var(--color-clova-50);
+  }
+
+  /* 영수증 썸네일 플레이스홀더 */
+  .thumb {
+    flex-shrink: 0;
+    width: 80px; height: 110px;
+    background: #fff;
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 6px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .thumb-label { font-size: 10px; color: var(--color-neutral-400); font-weight: 500; }
+  .thumb-lines { display: flex; flex-direction: column; gap: 4px; width: 52px; }
+  .thumb-line {
+    height: 5px; border-radius: 2px;
+    background: var(--color-neutral-200);
+  }
+  .thumb-line.short { width: 70%; }
+  .thumb-line.mid { width: 85%; }
+  .thumb-line.full { width: 100%; }
+
+  /* 파일 정보 + 진행 */
+  .file-info { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .file-name-row { display: flex; align-items: center; gap: 10px; }
+  .file-name {
+    font-size: 14px; font-weight: 600; color: var(--color-neutral-900);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;
+  }
+  .file-size { font-size: 12px; color: var(--color-neutral-500); flex-shrink: 0; }
+
+  /* role="status" 진행 상황 */
+  .upload-status {
+    display: flex; align-items: center; gap: 10px;
+  }
+  /* 스피너 */
+  .spinner {
+    width: 18px; height: 18px; flex-shrink: 0;
+    border: 2px solid var(--color-clova-200);
+    border-top-color: var(--color-clova-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-text { font-size: 13px; font-weight: 500; color: var(--color-clova-700); }
+
+  /* 진행바 */
+  .progress-bar-wrap {
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .progress-bar-bg {
+    height: 6px; border-radius: 999px;
+    background: var(--color-neutral-200);
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: var(--color-clova-primary);
+    width: 62%;
+    transition: width 0.3s ease;
+  }
+  .progress-pct {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--color-neutral-500);
+  }
+
+  /* 취소 버튼 */
+  .btn-cancel {
+    align-self: flex-start;
+    padding: 6px 14px; border-radius: 6px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    background: #fff; color: var(--color-neutral-700);
+    border: 1px solid var(--color-neutral-300);
+  }
+  .btn-cancel:hover { background: var(--color-neutral-50); }
+
+  /* 단계 안내 */
+  .step-row {
+    display: flex; gap: 0; margin-top: 20px;
+  }
+  .step-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    position: relative;
+  }
+  .step-item:not(:last-child)::after {
+    content: '';
+    position: absolute; top: 11px; left: 50%; right: -50%;
+    height: 2px; background: var(--color-neutral-200); z-index: 0;
+  }
+  .step-item.done::after { background: var(--color-clova-primary); }
+  .step-dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; z-index: 1; position: relative;
+    background: var(--color-neutral-200); color: var(--color-neutral-400);
+    border: 2px solid var(--color-neutral-200);
+  }
+  .step-item.done .step-dot {
+    background: var(--color-clova-primary); color: #fff; border-color: var(--color-clova-primary);
+  }
+  .step-item.active .step-dot {
+    background: #fff; color: var(--color-clova-primary); border-color: var(--color-clova-primary);
+    box-shadow: 0 0 0 3px rgba(3,199,90,0.15);
+  }
+  .step-label {
+    font-size: 11px; color: var(--color-neutral-400); font-weight: 500; white-space: nowrap;
+  }
+  .step-item.done .step-label { color: var(--color-clova-700); }
+  .step-item.active .step-label { color: var(--color-clova-primary); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">구매 / 영수증 OCR</div>
+      <h1 class="page-title">영수증 OCR 업로드</h1>
+    </div>
+  </div>
+
+  <!-- DRY_RUN 배너 (축약, 진행 중) -->
+  <div class="dryrun-banner">
+    <div class="dryrun-icon">&#9888;</div>
+    <span><strong>DRY_RUN 모드</strong> — 실제 Naver Clova OCR 연동 전 (Phase 11). mock 결과가 반환됩니다.</span>
+  </div>
+
+  <!-- 업로드 카드 -->
+  <div class="upload-card">
+    <div class="upload-card-head">
+      <div class="clova-badge">
+        <span class="clova-dot"></span>
+        Naver Clova OCR
+      </div>
+      <span class="section-title">영수증 분석 중</span>
+    </div>
+
+    <div class="upload-card-body">
+
+      <!-- 파일 미리보기 + 진행 영역 -->
+      <!-- role="status" 로 진행 상황을 스크린리더에 전달 -->
+      <div class="preview-zone" role="status" aria-live="polite" aria-label="파일 업로드 진행 중">
+
+        <!-- 영수증 썸네일 (미리보기 플레이스홀더) -->
+        <div class="thumb" aria-hidden="true">
+          <div class="thumb-label">영수증</div>
+          <div class="thumb-lines">
+            <div class="thumb-line mid"></div>
+            <div class="thumb-line full"></div>
+            <div class="thumb-line short"></div>
+            <div class="thumb-line full"></div>
+            <div class="thumb-line mid"></div>
+            <div class="thumb-line short"></div>
+            <div class="thumb-line full"></div>
+            <div class="thumb-line mid"></div>
+          </div>
+        </div>
+
+        <div class="file-info">
+          <!-- 파일명 + 크기 -->
+          <div class="file-name-row">
+            <span class="file-name">영수증_2026-05-18_편의점.jpg</span>
+            <span class="file-size">2.4 MB</span>
+          </div>
+
+          <!-- 진행 상태 텍스트 + 스피너 -->
+          <div class="upload-status">
+            <div class="spinner" aria-hidden="true"></div>
+            <span class="status-text">Clova OCR 서버로 전송 중...</span>
+          </div>
+
+          <!-- 진행바 -->
+          <div class="progress-bar-wrap">
+            <div
+              class="progress-bar-bg"
+              role="progressbar"
+              aria-valuenow="62"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-label="업로드 진행률"
+            >
+              <div class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-pct">
+              <span>업로드 중</span>
+              <span>62%</span>
+            </div>
+          </div>
+
+          <!-- 취소 버튼 -->
+          <button class="btn-cancel" aria-label="업로드 취소">취소</button>
+        </div>
+      </div>
+
+      <!-- 단계 진행 표시 -->
+      <div class="step-row" aria-label="처리 단계" aria-hidden="true">
+        <div class="step-item done">
+          <div class="step-dot">&#10003;</div>
+          <div class="step-label">파일 선택</div>
+        </div>
+        <div class="step-item active">
+          <div class="step-dot">2</div>
+          <div class="step-label">Clova 분석</div>
+        </div>
+        <div class="step-item">
+          <div class="step-dot">3</div>
+          <div class="step-label">결과 확인</div>
+        </div>
+        <div class="step-item">
+          <div class="step-dot">4</div>
+          <div class="step-label">슬립 생성</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-3 #01 OCR 영수증 업로드 — 드롭존 빈 상태</title>
+<!--
+  [OCR 업로드 빈 상태]
+  - 드롭존: dashed border + 아이콘 + 업로드 안내 텍스트
+  - DRY_RUN 안내 배너: Phase 11 CLOVA 연동 전 mock 응답 안내
+  - submitMethod 안내: POST /api/receipts/ocr (multipart/form-data)
+  - Clova 브랜드 토큰: --color-clova-primary #03C75A
+  - 드롭존 keyboard 접근성: tabindex="0" + Enter/Space 활성 안내
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    /* Neutral */
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    /* Brand */
+    --color-brand-500: #2D77A8;
+    --color-brand-50:  #EFF6FF;
+    /* Clova (신규 등록: Naver 공식 녹색) */
+    --color-clova-primary:  #03C75A;
+    --color-clova-50:       #F0FDF6;
+    --color-clova-100:      #DCFCE8;
+    --color-clova-200:      #BBF7D0;
+    --color-clova-700:      #02A04B;
+    --color-clova-text:     #014A22;
+    /* Warning */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --color-warning-800: #78350F;
+    /* Surfaces */
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* 헤더 */
+  .header-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .crumb { font-size: 12px; color: var(--color-neutral-500); }
+
+  /* DRY_RUN 안내 배너 */
+  .dryrun-banner {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-200);
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .dryrun-icon { font-size: 18px; flex-shrink: 0; line-height: 1.4; }
+  .dryrun-title { font-size: 13px; font-weight: 700; color: var(--color-warning-700); margin-bottom: 4px; }
+  .dryrun-desc { font-size: 12px; color: var(--color-warning-800); line-height: 1.6; }
+  .dryrun-code {
+    display: inline-block; margin-top: 6px;
+    background: #FEF3C7; border: 1px solid var(--color-warning-200);
+    border-radius: 4px; padding: 4px 10px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; color: var(--color-warning-800);
+    letter-spacing: 0.01em;
+  }
+
+  /* 업로드 카드 */
+  .upload-card {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  .upload-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+    background: var(--color-neutral-50);
+  }
+  .clova-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-clova-50);
+    border: 1px solid var(--color-clova-200);
+    border-radius: 999px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--color-clova-text);
+  }
+  .clova-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--color-clova-primary);
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 14px; font-weight: 600; color: var(--color-neutral-900); }
+  .upload-card-body { padding: 28px 24px; }
+
+  /* 드롭존 */
+  .dropzone {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px;
+    border: 2px dashed var(--color-neutral-300);
+    border-radius: 10px;
+    padding: 48px 32px;
+    background: var(--color-neutral-50);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    outline: none;
+    min-height: 220px;
+  }
+  .dropzone:hover, .dropzone:focus {
+    border-color: var(--color-clova-primary);
+    background: var(--color-clova-50);
+  }
+  .dropzone:focus {
+    box-shadow: 0 0 0 3px rgba(3,199,90,0.18);
+  }
+  .dz-icon {
+    width: 56px; height: 56px;
+    background: var(--color-clova-50);
+    border: 2px solid var(--color-clova-200);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dz-icon svg { width: 28px; height: 28px; }
+  .dz-main { font-size: 15px; font-weight: 600; color: var(--color-neutral-900); }
+  .dz-sub { font-size: 13px; color: var(--color-neutral-500); text-align: center; line-height: 1.5; }
+  .dz-hint {
+    display: flex; gap: 6px; align-items: center;
+    font-size: 12px; color: var(--color-neutral-400);
+    margin-top: 2px;
+  }
+  .dz-key {
+    background: var(--color-neutral-100);
+    border: 1px solid var(--color-neutral-300);
+    border-radius: 4px; padding: 1px 6px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; color: var(--color-neutral-500);
+  }
+  .btn-upload {
+    margin-top: 4px;
+    padding: 8px 22px; border-radius: 6px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    background: var(--color-clova-primary);
+    color: #fff; border: none;
+    transition: background 0.15s;
+  }
+  .btn-upload:hover { background: var(--color-clova-700); }
+
+  /* 제약 안내 */
+  .constraint-row {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-top: 16px; padding-top: 16px;
+    border-top: 1px solid var(--color-neutral-100);
+  }
+  .constraint-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--color-neutral-500);
+  }
+  .constraint-item svg { flex-shrink: 0; }
+
+  /* submitMethod 안내 */
+  .method-box {
+    margin-top: 20px;
+    background: var(--color-neutral-50);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 6px; padding: 14px 16px;
+    font-size: 12px; color: var(--color-neutral-700); line-height: 1.7;
+  }
+  .method-box strong { color: var(--color-neutral-900); }
+  .method-code {
+    display: inline-block;
+    background: #F1F5F9; border: 1px solid var(--color-neutral-200);
+    border-radius: 4px; padding: 3px 8px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; color: #1D4ED8; letter-spacing: 0.01em;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- 헤더 -->
+  <div class="header-row">
+    <div>
+      <div class="crumb">구매 / 영수증 OCR</div>
+      <h1 class="page-title">영수증 OCR 업로드</h1>
+    </div>
+  </div>
+
+  <!-- DRY_RUN 안내 배너 -->
+  <div class="dryrun-banner" role="status" aria-live="polite">
+    <div class="dryrun-icon">&#9888;</div>
+    <div>
+      <div class="dryrun-title">DRY_RUN 모드 — Naver Clova OCR Phase 11 연동 전</div>
+      <div class="dryrun-desc">
+        현재 OCR API 호출은 <strong>DRY_RUN</strong> 상태입니다. 실제 Naver Clova OCR 연동은 Phase 11 (AWS 이전) 이후 활성화됩니다.<br>
+        DRY_RUN 중 업로드된 영수증은 서버에 저장되지 않으며 <strong>mock 분석 결과</strong>가 반환됩니다.
+      </div>
+      <div><span class="dryrun-code">OCR_MODE=DRY_RUN · Phase 11 CLOVA 실 연동 예정</span></div>
+    </div>
+  </div>
+
+  <!-- 업로드 카드 -->
+  <div class="upload-card">
+    <div class="upload-card-head">
+      <div class="clova-badge">
+        <span class="clova-dot"></span>
+        Naver Clova OCR
+      </div>
+      <span class="section-title">영수증 파일 선택</span>
+    </div>
+
+    <div class="upload-card-body">
+      <!-- 드롭존 — keyboard 접근성: tabindex=0 + aria-label -->
+      <div
+        class="dropzone"
+        tabindex="0"
+        role="button"
+        aria-label="영수증 이미지를 드래그하거나 Enter 키를 눌러 파일을 선택하세요"
+        aria-describedby="dz-desc"
+      >
+        <div class="dz-icon">
+          <svg fill="none" stroke="#03C75A" stroke-width="1.8" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+        </div>
+        <div class="dz-main">영수증 이미지를 드래그하거나 클릭하여 선택</div>
+        <div class="dz-sub" id="dz-desc">
+          JPG · PNG · PDF 지원 · 최대 10 MB<br>
+          세금계산서 또는 간이영수증 이미지를 업로드하세요
+        </div>
+        <div class="dz-hint">
+          <span class="dz-key">Enter</span> 또는 <span class="dz-key">Space</span> 로 파일 선택 가능
+        </div>
+        <button class="btn-upload" tabindex="-1" aria-hidden="true">파일 선택</button>
+      </div>
+
+      <!-- 제약 안내 -->
+      <div class="constraint-row">
+        <div class="constraint-item">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          JPG, PNG, PDF
+        </div>
+        <div class="constraint-item">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          최대 10 MB
+        </div>
+        <div class="constraint-item">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          1회 1장
+        </div>
+        <div class="constraint-item">
+          <svg width="14" height="14" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          한국어 영수증 최적화
+        </div>
+      </div>
+
+      <!-- submitMethod 안내 -->
+      <div class="method-box">
+        <strong>업로드 엔드포인트</strong> — <span class="method-code">POST /api/receipts/ocr</span>
+        &nbsp;·&nbsp; <span class="method-code">multipart/form-data</span>
+        &nbsp;·&nbsp; 필드명 <span class="method-code">file</span><br>
+        응답: <span class="method-code">201 Created</span> · OCR 결과 JSON (가게명 / 금액 / 부가세 / 일자) + <span class="method-code">slipNo</span> (매입 슬립 자동 생성)
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

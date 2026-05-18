@@ -66,6 +66,11 @@ PATTERN_SHEET_ID='1[A-Za-z0-9_-]{43,}'
 PATTERN_ALIGO='ALIGO_KEY\s*=\s*[^$\s{"\x27][^\s]*'
 PATTERN_ALIGO_USERID='ALIGO_USER(ID|_ID)\s*=\s*[^$\s{"\x27][^\s]*'
 
+# (7) Naver Clova OCR 자격 직접 대입 (SP-09-3)
+#   CLOVA_OCR_API_KEY / CLOVA_OCR_SECRET_KEY / CLOVA_OCR_INVOKE_URL
+#   CLOVA_API_KEY / CLOVA_SECRET_KEY (prefix variant 대비)
+PATTERN_CLOVA='CLOVA_(OCR_)?(API_KEY|SECRET_KEY|INVOKE_URL)\s*=\s*[^$\s{"\x27][^\s]*'
+
 # ─── 스캔 디렉토리 ────────────────────────────────────────────────────────────
 
 CODE_DIRS=(
@@ -256,6 +261,10 @@ main() {
 
   # 5b) Aligo UserID 직접 대입 (ALIGO_KEY 패턴으로 미탐지되는 ALIGO_USERID / ALIGO_USER_ID)
   scan_pattern "$PATTERN_ALIGO_USERID" "ALIGO_USERID" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 5c) Naver Clova OCR 자격 직접 대입 (SP-09-3)
+  scan_pattern "$PATTERN_CLOVA" "CLOVA_OCR" found \
     "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
 
   # 6) Sheet ID 환경변수 직접 대입 (docs 영역만)
