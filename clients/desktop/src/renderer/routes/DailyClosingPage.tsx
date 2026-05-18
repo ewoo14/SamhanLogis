@@ -48,6 +48,7 @@ import {
   canReverseDailyClosing,
   createDailyClosing,
   DAILY_CLOSING_STATUS_LABEL,
+  deriveDailyClosingStatus,
   listDailyClosings,
   reverseDailyClosing,
   type DailyClosing,
@@ -104,12 +105,12 @@ export function DailyClosingPage() {
   const [filterPartner, setFilterPartner] = useState<string>('')
   // 검색 버튼 클릭 시점의 applied 값으로 query key 갱신
   const [applied, setApplied] = useState<{
-    fromDate: string
-    toDate: string
+    from: string
+    to: string
     partnerCode: string | undefined
   }>({
-    fromDate: sevenDaysAgo(),
-    toDate: today(),
+    from: sevenDaysAgo(),
+    to: today(),
     partnerCode: undefined,
   })
 
@@ -122,11 +123,11 @@ export function DailyClosingPage() {
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
 
   const listQuery = useQuery({
-    queryKey: ['daily-closings', applied.fromDate, applied.toDate, applied.partnerCode ?? ''],
+    queryKey: ['daily-closings', applied.from, applied.to, applied.partnerCode ?? ''],
     queryFn: () =>
       listDailyClosings({
-        fromDate: applied.fromDate,
-        toDate: applied.toDate,
+        from: applied.from,
+        to: applied.to,
         partnerCode: applied.partnerCode,
       }),
   })
@@ -145,7 +146,8 @@ export function DailyClosingPage() {
   })
 
   const reverseMutation = useMutation({
-    mutationFn: (id: string) => reverseDailyClosing(id),
+    mutationFn: ({ closingDate, partnerCode }: { closingDate: string; partnerCode: string | null }) =>
+      reverseDailyClosing(closingDate, partnerCode),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['daily-closings'] })
     },
@@ -154,8 +156,8 @@ export function DailyClosingPage() {
   const handleSearch = () => {
     if (!filterFrom || !filterTo || filterFrom > filterTo) return
     setApplied({
-      fromDate: filterFrom,
-      toDate: filterTo,
+      from: filterFrom,
+      to: filterTo,
       partnerCode: filterPartner.trim() || undefined,
     })
   }
@@ -172,29 +174,29 @@ export function DailyClosingPage() {
         render: (r) => r.closingDate,
       },
       {
-        key: 'partnerName',
+        key: 'partnerCode',
         header: '거래처',
-        render: (r) =>
-          r.partnerName
-            ? `${r.partnerName} (${r.partnerCode ?? ''})`
-            : '전체',
+        render: (r) => r.partnerCode ?? '전체',
       },
       {
-        key: 'status',
+        key: 'isLocked',
         header: '상태',
         width: '80px',
-        render: (r) => (
-          <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
-            {DAILY_CLOSING_STATUS_LABEL[r.status]}
-          </Badge>
-        ),
+        render: (r) => {
+          const st = deriveDailyClosingStatus(r.isLocked)
+          return (
+            <Badge variant={r.isLocked ? 'danger' : 'success'}>
+              {DAILY_CLOSING_STATUS_LABEL[st]}
+            </Badge>
+          )
+        },
       },
       {
-        key: 'totalSales',
-        header: '매출 합계',
+        key: 'totalAmount',
+        header: '합계금액',
         width: '140px',
         align: 'right',
-        render: (r) => fmtKrw(r.totalSales),
+        render: (r) => fmtKrw(r.totalAmount),
       },
       {
         key: 'slipCount',
@@ -204,27 +206,27 @@ export function DailyClosingPage() {
         render: (r) => r.slipCount.toLocaleString(),
       },
       {
-        key: 'closedAt',
+        key: 'lockedAt',
         header: '마감 시각',
         width: '140px',
-        render: (r) => fmtTimestamp(r.closedAt),
+        render: (r) => fmtTimestamp(r.lockedAt),
       },
       {
-        key: 'closedBy',
+        key: 'lockedBy',
         header: '실행자',
         width: '110px',
-        render: (r) => r.closedBy ?? '—',
+        render: (r) => r.lockedBy ?? '—',
       },
       {
         key: 'reverseAction',
         header: '',
         width: '110px',
         render: (r) =>
-          r.status === 'CLOSED' && canReverse ? (
+          r.isLocked && canReverse ? (
             <Button
               variant="ghost"
               size="sm"
-              data-testid={`daily-closing-reverse-button-${r.id}`}
+              data-testid={`daily-closing-reverse-button-${r.closingDate}`}
               onClick={() => setReverseConfirmRow(r)}
               disabled={reverseMutation.isPending}
             >
@@ -482,8 +484,8 @@ export function DailyClosingPage() {
           <div data-testid="daily-closing-list-table">
             <DataTable
               columns={columns}
-              rows={Array.isArray(listQuery.data) ? listQuery.data : []}
-              rowKey={(r) => r.id}
+              rows={listQuery.data?.content ?? []}
+              rowKey={(r) => `${r.closingDate}-${r.partnerCode ?? 'ALL'}`}
               emptyMessage="해당 기간의 일마감 이력이 없습니다."
             />
           </div>
@@ -513,7 +515,10 @@ export function DailyClosingPage() {
               disabled={reverseMutation.isPending}
               onClick={() => {
                 if (reverseConfirmRow) {
-                  reverseMutation.mutate(reverseConfirmRow.id)
+                  reverseMutation.mutate({
+                    closingDate: reverseConfirmRow.closingDate,
+                    partnerCode: reverseConfirmRow.partnerCode,
+                  })
                   setReverseConfirmRow(null)
                 }
               }}
@@ -526,8 +531,8 @@ export function DailyClosingPage() {
         {reverseConfirmRow ? (
           <p style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
             <strong>{reverseConfirmRow.closingDate}</strong>{' '}
-            {reverseConfirmRow.partnerName
-              ? `(${reverseConfirmRow.partnerName})`
+            {reverseConfirmRow.partnerCode
+              ? `(거래처: ${reverseConfirmRow.partnerCode})`
               : '(전체)'}
             {' '}일마감을 역마감 처리합니다.
             <br />

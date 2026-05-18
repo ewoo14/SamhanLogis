@@ -918,50 +918,50 @@ export async function getMonthlySummary(
  * 일마감 단건 응답 (BE `DailyClosingResponse`).
  *
  * UUID 비공개 가드:
- * - `id` 는 내부 path param 전용, 화면 미노출.
- * - 사용자 표시 식별자: `closingDate` (YYYY-MM-DD) + `status`.
+ * - BE DTO 에 UUID 없음. 비즈니스 식별자 `closingDate` + `partnerCode` 만 노출.
+ *
+ * BE 필드 정합 (1c fix):
+ * - `closingDate` / `partnerCode` / `totalSupply` / `totalVat` / `totalAmount`
+ * - `slipCount` / `isLocked` / `lockedAt` / `lockedBy`
+ * - `status` 는 BE 미제공 — `isLocked` boolean 에서 UI 파생.
  */
 export interface DailyClosing {
-  /** UUID — 화면 미노출. 내부 액션 path param 전용. */
-  id: string
   /** 마감 대상 일자 (YYYY-MM-DD). */
   closingDate: string
-  /** 마감 상태. */
-  status: 'OPEN' | 'CLOSED'
   /** 거래처 코드 필터 (단일 거래처 마감 시 채워짐, null = 전체). */
   partnerCode: string | null
-  /** 거래처명 (snapshot, null = 전체 마감). */
-  partnerName: string | null
-  /** 매출 합계 (KRW BigDecimal — string). */
-  totalSales: string
-  /** 매입 합계 (KRW BigDecimal — string). */
-  totalPurchase: string
+  /** 공급가액 합계 (KRW BigDecimal — string). */
+  totalSupply: string
+  /** 세액 합계 (KRW BigDecimal — string). */
+  totalVat: string
+  /** 합계금액 (KRW BigDecimal — string). */
+  totalAmount: string
   /** 마감 건수 (전표 건수). */
   slipCount: number
-  /** 마감 시각 ISO 8601. OPEN 시 null. */
-  closedAt: string | null
-  /** 마감 실행자. */
-  closedBy: string | null
-  /** 역마감 시각. CLOSED 시 null. */
-  reversedAt: string | null
-  /** 역마감 실행자. */
-  reversedBy: string | null
-  /** 메모 (선택, ≤500자). */
-  description: string | null
+  /** 잠금 여부 (true = 마감 완료). */
+  isLocked: boolean
+  /** 잠금 시각 ISO 8601. 잠금 전 null. */
+  lockedAt: string | null
+  /** 잠금 실행자 user-id. 잠금 전 null. */
+  lockedBy: string | null
 }
 
 /**
  * 일마감 조회 옵션.
+ *
+ * BE query param: `from` / `to` (YYYY-MM-DD, 필수). `partnerCode` 선택.
  */
 export interface ListDailyClosingsOptions {
-  /** 시작 일자 (YYYY-MM-DD). */
-  fromDate?: string
-  /** 종료 일자 (YYYY-MM-DD). */
-  toDate?: string
+  /** 시작 일자 (YYYY-MM-DD). BE param: `from`. */
+  from: string
+  /** 종료 일자 (YYYY-MM-DD). BE param: `to`. */
+  to: string
   /** 거래처 코드 필터. */
   partnerCode?: string
-  /** 상태 필터. */
-  status?: 'OPEN' | 'CLOSED'
+  /** 페이지 번호 (0-based, 기본 0). */
+  page?: number
+  /** 페이지 크기 (기본 20). */
+  size?: number
 }
 
 /**
@@ -977,19 +977,22 @@ export interface CreateDailyClosingRequest {
 }
 
 /**
- * 일마감 목록 조회.
+ * 일마감 목록 조회 — `Page<DailyClosingResponse>`.
  *
- * BE endpoint: `GET /api/v1/accounting/daily-closings`
+ * BE endpoint: `GET /api/v1/accounting/daily-closings?from=...&to=...`
+ * 응답: `ApiResponse<Page<DailyClosingResponse>>` — `data.content[]` 에 실제 행.
  */
 export async function listDailyClosings(
-  options: ListDailyClosingsOptions = {},
-): Promise<DailyClosing[]> {
-  const params: Record<string, string> = {}
-  if (options.fromDate) params['fromDate'] = options.fromDate
-  if (options.toDate) params['toDate'] = options.toDate
+  options: ListDailyClosingsOptions,
+): Promise<PageResponse<DailyClosing>> {
+  const params: Record<string, string | number> = {
+    from: options.from,
+    to: options.to,
+    page: options.page ?? 0,
+    size: options.size ?? 20,
+  }
   if (options.partnerCode) params['partnerCode'] = options.partnerCode
-  if (options.status) params['status'] = options.status
-  const res = await apiClient.get<ApiEnvelope<DailyClosing[]>>(
+  const res = await apiClient.get<ApiEnvelope<PageResponse<DailyClosing>>>(
     '/accounting/daily-closings',
     { params },
   )
@@ -1015,17 +1018,25 @@ export async function createDailyClosing(
 }
 
 /**
- * 일마감 역마감 — CLOSED → OPEN. MASTER 권한만 (BE 403 가드).
+ * 일마감 잠금 해제 — isLocked=true → false. MASTER 권한만 (BE 403 가드).
  *
- * BE endpoint: `POST /api/v1/accounting/daily-closings/{id}/reverse`
+ * BE endpoint: `PATCH /api/v1/accounting/daily-closings/{closingDate}/lock`
+ * body: `{ "locked": false }`
  *
- * @param id 마감 UUID (path param, 화면 미노출)
- * @returns 갱신된 DailyClosing (status=OPEN)
+ * @param closingDate 마감 날짜 (YYYY-MM-DD) — path variable
+ * @param partnerCode 거래처코드 (선택 — null 이면 전체 마감 행)
+ * @returns 갱신된 DailyClosing (isLocked=false)
  */
-export async function reverseDailyClosing(id: string): Promise<DailyClosing> {
-  const res = await apiClient.post<ApiEnvelope<DailyClosing>>(
-    `/accounting/daily-closings/${id}/reverse`,
-    {},
+export async function reverseDailyClosing(
+  closingDate: string,
+  partnerCode?: string | null,
+): Promise<DailyClosing> {
+  const params: Record<string, string> = {}
+  if (partnerCode) params['partnerCode'] = partnerCode
+  const res = await apiClient.patch<ApiEnvelope<DailyClosing>>(
+    `/accounting/daily-closings/${closingDate}/lock`,
+    { locked: false },
+    { params },
   )
   return res.data.data
 }
@@ -1048,10 +1059,19 @@ export function canReverseDailyClosing(role: string | undefined | null): boolean
   return role === 'MASTER'
 }
 
+/**
+ * `isLocked` → UI 상태 문자열 파생.
+ *
+ * BE `DailyClosingResponse` 에는 `status` 필드 없음 — `isLocked` boolean 에서 변환.
+ */
+export function deriveDailyClosingStatus(isLocked: boolean): 'LOCKED' | 'OPEN' {
+  return isLocked ? 'LOCKED' : 'OPEN'
+}
+
 /** 일마감 상태 한국어 라벨. */
-export const DAILY_CLOSING_STATUS_LABEL: Record<'OPEN' | 'CLOSED', string> = {
+export const DAILY_CLOSING_STATUS_LABEL: Record<'LOCKED' | 'OPEN', string> = {
+  LOCKED: '마감',
   OPEN: '열림',
-  CLOSED: '마감',
 }
 
 // --------------------------------------------------------------------------
@@ -1059,68 +1079,75 @@ export const DAILY_CLOSING_STATUS_LABEL: Record<'OPEN' | 'CLOSED', string> = {
 // --------------------------------------------------------------------------
 
 /**
- * 원장 라인 단건 (BE `GeneralLedgerLine`).
+ * 원장 라인 단건 (BE `LedgerResponse.LedgerLine`).
  *
  * UUID 비공개 가드: `journalNo` 만 표시. 분개 UUID 미노출.
+ *
+ * BE 필드 정합:
+ * - `date` (LocalDate → YYYY-MM-DD) — 분개 일자
+ * - `journalNo` / `accountCode` / `partnerCode` / `description`
+ * - `debit` / `credit` / `balance` (누적 잔액)
  */
 export interface GeneralLedgerLine {
-  /** 라인 순서 (0-based). */
-  lineNo: number
-  /** 거래 일자 (YYYY-MM-DD). */
-  transactionDate: string
+  /** 분개 일자 (YYYY-MM-DD) — BE 필드명 `date`. */
+  date: string
   /** 사용자 노출 분개번호 (예: JV-2026/05-001). */
   journalNo: string
-  /** 적요. */
-  description: string | null
-  /** 4자리 계정 코드. */
+  /** 계정 코드. */
   accountCode: string
-  /** 계정명. */
-  accountName: string
   /** 거래처 코드 (partnerCode, 화면 표시 OK). */
   partnerCode: string | null
-  /** 거래처명. */
-  partnerName: string | null
+  /** 적요. */
+  description: string | null
   /** 차변 금액 (KRW BigDecimal — string). */
   debit: string
   /** 대변 금액 (KRW BigDecimal — string). */
   credit: string
-  /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). */
-  runningBalance: string
+  /** 누적 잔액 (KRW BigDecimal — string, 음수 가능) — BE 필드명 `balance`. */
+  balance: string
 }
 
 /**
- * 원장 응답 (BE `GeneralLedgerResponse`).
+ * 원장 응답 (BE `LedgerResponse`).
  *
- * BE endpoint: `GET /api/v1/accounting/ledgers`
+ * BE endpoint: `GET /api/v1/accounting/ledgers?from=...&to=...`
+ *
+ * BE 필드 정합 (1c fix):
+ * - `periodFrom` / `periodTo` (LocalDate → YYYY-MM-DD)
+ * - `partnerCode` (거래처코드 필터 — 전체 시 null)
+ * - `totalDebit` / `totalCredit` (기간 합계)
+ * - `closingBalance` (기간 말 누적 잔액)
+ * - `lines[]` — `LedgerResponse.LedgerLine` 배열
+ * ※ `openingBalance` / `generatedAt` 는 BE DTO 미제공.
  */
 export interface GeneralLedgerResponse {
-  /** 계정 코드 필터 (미지정 시 전체 — BE 가 전체 반환). */
-  accountCode: string | null
-  /** 거래처 코드 필터 (미지정 시 전체). */
+  /** 거래처 코드 필터 (전체 조회이면 null). */
   partnerCode: string | null
-  /** 기간 시작 (YYYY-MM-DD). */
-  fromDate: string
-  /** 기간 종료 (YYYY-MM-DD). */
-  toDate: string
-  /** 기초 잔액 (KRW BigDecimal — string). */
-  openingBalance: string
-  /** 기말 잔액 (KRW BigDecimal — string). */
+  /** 기간 시작 (YYYY-MM-DD) — BE 필드명 `periodFrom`. */
+  periodFrom: string
+  /** 기간 종료 (YYYY-MM-DD) — BE 필드명 `periodTo`. */
+  periodTo: string
+  /** 기간 내 차변 합계 (KRW BigDecimal — string). */
+  totalDebit: string
+  /** 기간 내 대변 합계 (KRW BigDecimal — string). */
+  totalCredit: string
+  /** 기간 말 누적 잔액 (KRW BigDecimal — string). */
   closingBalance: string
-  /** 라인 목록 (transactionDate 오름차순 → lineNo 오름차순). */
+  /** 라인 목록 (date 오름차순). */
   lines: GeneralLedgerLine[]
-  /** 보고서 생성 시각 ISO 8601. */
-  generatedAt: string
 }
 
 /**
  * 원장 조회 옵션.
+ *
+ * BE query param: `from` / `to` (YYYY-MM-DD, 필수). `partnerCode` 선택.
  */
 export interface GetGeneralLedgerOptions {
-  /** 기간 시작 (YYYY-MM-DD, 필수). */
-  fromDate: string
-  /** 기간 종료 (YYYY-MM-DD, 필수). */
-  toDate: string
-  /** 계정 코드 필터 (선택 — 4자리). */
+  /** 기간 시작 (YYYY-MM-DD, 필수) — BE param: `from`. */
+  from: string
+  /** 기간 종료 (YYYY-MM-DD, 필수) — BE param: `to`. */
+  to: string
+  /** 계정 코드 필터 (선택 — BE 미지원, 현재 사용 불가). */
   accountCode?: string
   /** 거래처 코드 필터 (선택). */
   partnerCode?: string
@@ -1129,19 +1156,18 @@ export interface GetGeneralLedgerOptions {
 /**
  * 원장 조회.
  *
- * BE endpoint: `GET /api/v1/accounting/ledgers`
+ * BE endpoint: `GET /api/v1/accounting/ledgers?from=...&to=...`
  *
- * @param options 조회 옵션 (기간 필수, 계정/거래처 선택 필터)
- * @returns `GeneralLedgerResponse`
+ * @param options 조회 옵션 (기간 필수 `from`/`to`, 거래처 선택 필터)
+ * @returns `GeneralLedgerResponse` (BE `LedgerResponse`)
  */
 export async function getGeneralLedger(
   options: GetGeneralLedgerOptions,
 ): Promise<GeneralLedgerResponse> {
   const params: Record<string, string> = {
-    fromDate: options.fromDate,
-    toDate: options.toDate,
+    from: options.from,
+    to: options.to,
   }
-  if (options.accountCode) params['accountCode'] = options.accountCode
   if (options.partnerCode) params['partnerCode'] = options.partnerCode
   const res = await apiClient.get<ApiEnvelope<GeneralLedgerResponse>>(
     '/accounting/ledgers',

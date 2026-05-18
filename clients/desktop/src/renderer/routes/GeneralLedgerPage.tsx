@@ -65,9 +65,7 @@ function buildCsv(data: GeneralLedgerResponse): string {
     '일자',
     '분개번호',
     '계정코드',
-    '계정명',
     '거래처코드',
-    '거래처명',
     '적요',
     '차변',
     '대변',
@@ -78,16 +76,14 @@ function buildCsv(data: GeneralLedgerResponse): string {
 
   const dataRows = data.lines.map((ln) =>
     [
-      ln.transactionDate,
+      ln.date,
       ln.journalNo,
       ln.accountCode,
-      ln.accountName,
       ln.partnerCode ?? '',
-      ln.partnerName ?? '',
       ln.description ?? '',
       ln.debit,
       ln.credit,
-      ln.runningBalance,
+      ln.balance,
     ]
       .map(csvCell)
       .join(','),
@@ -95,10 +91,7 @@ function buildCsv(data: GeneralLedgerResponse): string {
 
   const summaryRows = [
     '',
-    ['기초잔액', '', '', '', '', '', '', '', '', data.openingBalance]
-      .map(csvCell)
-      .join(','),
-    ['기말잔액', '', '', '', '', '', '', '', '', data.closingBalance]
+    ['기말잔액', '', '', '', '', '', '', data.closingBalance]
       .map(csvCell)
       .join(','),
   ]
@@ -133,8 +126,8 @@ export function GeneralLedgerPage() {
 
   // 조회 버튼 클릭 시점의 값만 query key 에 반영 — 입력 중 fetch 방지
   const [applied, setApplied] = useState<{
-    fromDate: string
-    toDate: string
+    from: string
+    to: string
     accountCode: string | undefined
     partnerCode: string | undefined
   } | null>(null)
@@ -142,15 +135,15 @@ export function GeneralLedgerPage() {
   const ledgerQuery = useQuery<GeneralLedgerResponse>({
     queryKey: [
       'general-ledger',
-      applied?.fromDate ?? '',
-      applied?.toDate ?? '',
+      applied?.from ?? '',
+      applied?.to ?? '',
       applied?.accountCode ?? '',
       applied?.partnerCode ?? '',
     ],
     queryFn: () =>
       getGeneralLedger({
-        fromDate: applied!.fromDate,
-        toDate: applied!.toDate,
+        from: applied!.from,
+        to: applied!.to,
         accountCode: applied?.accountCode,
         partnerCode: applied?.partnerCode,
       }),
@@ -160,8 +153,8 @@ export function GeneralLedgerPage() {
   const handleSearch = () => {
     if (!filterFrom || !filterTo || filterFrom > filterTo) return
     setApplied({
-      fromDate: filterFrom,
-      toDate: filterTo,
+      from: filterFrom,
+      to: filterTo,
       accountCode: filterAccount.trim() || undefined,
       partnerCode: filterPartner.trim() || undefined,
     })
@@ -169,7 +162,7 @@ export function GeneralLedgerPage() {
 
   const handleCsv = () => {
     if (!ledgerQuery.data) return
-    const filename = `general-ledger_${applied?.fromDate ?? ''}_${applied?.toDate ?? ''}.csv`
+    const filename = `general-ledger_${applied?.from ?? ''}_${applied?.to ?? ''}.csv`
     downloadCsv(filename, buildCsv(ledgerQuery.data))
   }
 
@@ -185,10 +178,10 @@ export function GeneralLedgerPage() {
   const columns: DataTableColumn<GeneralLedgerLine>[] = useMemo(
     () => [
       {
-        key: 'transactionDate',
+        key: 'date',
         header: '일자',
         width: '110px',
-        render: (ln) => ln.transactionDate,
+        render: (ln) => ln.date,
       },
       {
         key: 'journalNo',
@@ -203,21 +196,10 @@ export function GeneralLedgerPage() {
         render: (ln) => ln.accountCode,
       },
       {
-        key: 'accountName',
-        header: '계정명',
-        width: '100px',
-        render: (ln) => ln.accountName,
-      },
-      {
         key: 'partnerCode',
         header: '거래처코드',
         width: '110px',
         render: (ln) => ln.partnerCode ?? '—',
-      },
-      {
-        key: 'partnerName',
-        header: '거래처명',
-        render: (ln) => ln.partnerName ?? '—',
       },
       {
         key: 'description',
@@ -247,7 +229,7 @@ export function GeneralLedgerPage() {
         ),
       },
       {
-        key: 'runningBalance',
+        key: 'balance',
         header: '잔액',
         width: '140px',
         align: 'right',
@@ -256,10 +238,10 @@ export function GeneralLedgerPage() {
             style={{
               fontVariantNumeric: 'tabular-nums',
               fontWeight: 'var(--font-weight-semibold)',
-              ...balanceStyle(ln.runningBalance),
+              ...balanceStyle(ln.balance),
             }}
           >
-            {fmtKrw(ln.runningBalance)}
+            {fmtKrw(ln.balance)}
           </span>
         ),
       },
@@ -442,9 +424,9 @@ export function GeneralLedgerPage() {
                   >
                     기간:
                   </span>{' '}
-                  {applied.fromDate} ~ {applied.toDate}
+                  {ledgerQuery.data.periodFrom} ~ {ledgerQuery.data.periodTo}
                 </span>
-                {applied.accountCode ? (
+                {applied?.accountCode ? (
                   <span>
                     <span
                       style={{
@@ -457,7 +439,7 @@ export function GeneralLedgerPage() {
                     {applied.accountCode}
                   </span>
                 ) : null}
-                {applied.partnerCode ? (
+                {ledgerQuery.data.partnerCode ? (
                   <span>
                     <span
                       style={{
@@ -467,20 +449,9 @@ export function GeneralLedgerPage() {
                     >
                       거래처:
                     </span>{' '}
-                    {applied.partnerCode}
+                    {ledgerQuery.data.partnerCode}
                   </span>
                 ) : null}
-                <span>
-                  <span
-                    style={{
-                      fontWeight: 'var(--font-weight-medium)',
-                      color: 'var(--ink-secondary)',
-                    }}
-                  >
-                    기초잔액:
-                  </span>{' '}
-                  {fmtKrw(ledgerQuery.data.openingBalance)}
-                </span>
                 <span>
                   <span
                     style={{
@@ -553,7 +524,7 @@ export function GeneralLedgerPage() {
                 columns={columns}
                 rows={ledgerQuery.data.lines}
                 rowKey={(ln) =>
-                  `${ln.transactionDate}-${ln.journalNo}-${ln.accountCode}-${ln.debit}-${ln.credit}`
+                  `${ln.date}-${ln.journalNo}-${ln.accountCode}-${ln.debit}-${ln.credit}`
                 }
                 emptyMessage="해당 기간 거래 내역이 없습니다."
               />
