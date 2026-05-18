@@ -2,6 +2,49 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-09-5 완료 — Phase 9 vendor 통합 검증 종료 / 다음 Phase 진입 안내
+
+### 현재 상태
+
+- **SP-09 시리즈 종료**: NTS / Aligo / Clova / KFTC 4 vendor 연동 shell 5 PR 완료
+- **본 브랜치**: `feat/sp-09-5-phase9-integration-summary` (base `dc2ec0e8` main)
+- **산출물**:
+  - `clients/desktop/playwright/sp-09-5-vendor-integration/sp-09-5-vendor-integration.spec.ts` (T1~T5)
+  - `services/accounting-service/src/test/java/.../it/Phase9VendorIntegrationIT.java` (case 1~8)
+  - `docs/dev-reports/sp-09-summary.md` (시리즈 종료 보고서)
+  - `docs/handoff/CURRENT-WORK.md` (본 파일 갱신)
+
+### 다음 Phase 후보 (개발책임자 판단 필요)
+
+| 후보 | 진입 기준 |
+|---|---|
+| **Phase 10 W10-2 인성데이타 퀵프로그램** | arologis-service 독립 운영 기능 확장 우선 시 |
+| **Phase 11 AWS migration** | 운영 안정성 + 비용 ₩405K/월 확정 + EC2 Auto Recovery 긴급 시 |
+
+### Phase 10 W10-2 진입 시 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout main && git pull
+git checkout -b feat/sp-10-2-insung-quick-program
+```
+
+- master plan: `docs/planning/` 신규 작성 필요
+- 메모리 참고: `project_arologis_independent.md` (인성데이타 퀵프로그램 = 외부 vendor)
+
+### Phase 11 AWS migration 진입 시 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout main && git pull
+git checkout -b feat/sp-11-aws-migration-infra
+```
+
+- master plan: `project_phase11_aws.md` (Seoul, m5.xlarge + db.t3.medium)
+- 첫 슬라이스: Terraform / CDK infra + ECS task definition
+
+---
+
 ## 2026-05-18 SP-09-1 진입 — NTS e-tax 세금계산서 실 발행 shell
 
 ### 즉시 시작

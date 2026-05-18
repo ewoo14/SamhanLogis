@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-5 #02 Vendor Placeholder 에러 모음</title>
+<!--
+  [4 vendor placeholder 에러 메시지 모음]
+  - 4 vendor 모두 placeholder 입력 시 한국어 에러 메시지
+  - role="alert" + aria-live="assertive" 일관 처리
+  - 각 vendor 전용 컬러 토큰으로 vendor 구분
+  - 에러 타입: API 키 placeholder 감지 / 미설정 / 형식 오류
+-->
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --color-neutral-50:  #F9FAFB;
+    --color-neutral-100: #F3F4F6;
+    --color-neutral-200: #E5E7EB;
+    --color-neutral-300: #D1D5DB;
+    --color-neutral-400: #9CA3AF;
+    --color-neutral-500: #6B7280;
+    --color-neutral-700: #374151;
+    --color-neutral-900: #111827;
+    --color-brand-500: #2D77A8;
+    /* vendor tokens */
+    --color-nts-primary: #0F6523;
+    --color-nts-50:      #F0FDF4;
+    --color-nts-200:     #BBF7D0;
+    --color-nts-text:    #052E10;
+    --color-aligo-primary: #0F766E;
+    --color-aligo-50:      #F0FDFA;
+    --color-aligo-200:     #99F6E4;
+    --color-aligo-text:    #0A3D3A;
+    --color-clova-primary: #03C75A;
+    --color-clova-50:      #F0FDF6;
+    --color-clova-200:     #BBF7D0;
+    --color-clova-text:    #014A22;
+    --color-kftc-primary: #0061A8;
+    --color-kftc-50:      #EEF6FF;
+    --color-kftc-200:     #BFDBFE;
+    --color-kftc-text:    #003662;
+    /* Error */
+    --color-error-50:  #FEF2F2;
+    --color-error-100: #FEE2E2;
+    --color-error-200: #FECACA;
+    --color-error-700: #B91C1C;
+    --color-error-800: #991B1B;
+    --color-error-900: #7F1D1D;
+    /* Warning */
+    --color-warning-50:  #FFFBEB;
+    --color-warning-200: #FDE68A;
+    --color-warning-700: #B45309;
+    --surface-card: #ffffff;
+  }
+
+  .frame { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .page-header { display: flex; flex-direction: column; gap: 4px; }
+  .page-crumb { font-size: 12px; color: var(--color-neutral-500); }
+  .page-title { font-size: 18px; font-weight: 600; color: var(--color-neutral-900); margin: 0; }
+  .page-desc   { font-size: 13px; color: var(--color-neutral-500); margin: 2px 0 0; }
+
+  /* vendor 섹션 */
+  .vendor-section {
+    background: var(--surface-card);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .vendor-section-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-neutral-200);
+  }
+  .vendor-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 999px; padding: 4px 12px;
+    font-size: 12px; font-weight: 700;
+  }
+  .section-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* 에러 배너 */
+  .err-banner {
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    border-left: 4px solid;
+  }
+  .err-icon { font-size: 16px; flex-shrink: 0; line-height: 1.5; }
+  .err-body { flex: 1; }
+  .err-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .err-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .err-desc { font-size: 12px; line-height: 1.6; }
+  .err-code {
+    display: inline-block; margin-top: 6px;
+    border-radius: 4px; padding: 3px 8px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px; border: 1px solid;
+    letter-spacing: 0.01em;
+  }
+  .err-action-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .err-btn {
+    padding: 5px 14px; border-radius: 5px;
+    font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid;
+    transition: opacity 0.15s;
+  }
+  .err-btn:hover { opacity: 0.8; }
+
+  /* 에러 레벨별 배경색 */
+  .err-placeholder {
+    background: var(--color-error-50);
+    border-left-color: var(--color-error-700);
+  }
+  .err-placeholder .err-type { color: var(--color-error-700); }
+  .err-placeholder .err-title { color: var(--color-error-800); }
+  .err-placeholder .err-desc { color: var(--color-error-800); }
+  .err-placeholder .err-code { background: var(--color-error-100); border-color: var(--color-error-200); color: var(--color-error-900); }
+  .err-placeholder .err-btn.primary { background: var(--color-error-700); color: #fff; border-color: var(--color-error-700); }
+  .err-placeholder .err-btn.ghost { background: transparent; color: var(--color-error-700); border-color: var(--color-error-200); }
+
+  .err-unset {
+    background: var(--color-warning-50);
+    border-left-color: var(--color-warning-700);
+  }
+  .err-unset .err-type { color: var(--color-warning-700); }
+  .err-unset .err-title { color: #92400E; }
+  .err-unset .err-desc { color: #78350F; }
+  .err-unset .err-code { background: #FEF3C7; border-color: var(--color-warning-200); color: #78350F; }
+  .err-unset .err-btn.primary { background: var(--color-warning-700); color: #fff; border-color: var(--color-warning-700); }
+  .err-unset .err-btn.ghost { background: transparent; color: var(--color-warning-700); border-color: var(--color-warning-200); }
+
+  .err-format {
+    background: #FFF7ED;
+    border-left-color: #C2410C;
+  }
+  .err-format .err-type { color: #C2410C; }
+  .err-format .err-title { color: #9A3412; }
+  .err-format .err-desc { color: #7C2D12; }
+  .err-format .err-code { background: #FFEDD5; border-color: #FED7AA; color: #7C2D12; }
+  .err-format .err-btn.primary { background: #C2410C; color: #fff; border-color: #C2410C; }
+  .err-format .err-btn.ghost { background: transparent; color: #C2410C; border-color: #FED7AA; }
+
+  /* vendor 배지 색상 */
+  .nts-pill   { background: var(--color-nts-50);   border: 1px solid var(--color-nts-200);   color: var(--color-nts-text); }
+  .aligo-pill { background: var(--color-aligo-50);  border: 1px solid var(--color-aligo-200);  color: var(--color-aligo-text); }
+  .clova-pill { background: var(--color-clova-50);  border: 1px solid var(--color-clova-200);  color: var(--color-clova-text); }
+  .kftc-pill  { background: var(--color-kftc-50);   border: 1px solid var(--color-kftc-200);   color: var(--color-kftc-text); }
+
+  .divider { border: none; border-top: 1px solid var(--color-neutral-100); margin: 0; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <div class="page-header">
+    <div class="page-crumb">관리 / 시스템 설정 / Vendor 에러</div>
+    <h1 class="page-title">Vendor API 키 에러 — 한국어 메시지 모음</h1>
+    <p class="page-desc">4 vendor placeholder 입력 또는 키 미설정 시 표시되는 에러 패턴 정리 (QA 참조)</p>
+  </div>
+
+  <!-- NTS -->
+  <div class="vendor-section">
+    <div class="vendor-section-head">
+      <div class="vendor-pill nts-pill">NTS 국세청</div>
+      <span style="font-size:13px;font-weight:600;color:var(--color-neutral-900);">전자세금계산서 API 에러</span>
+    </div>
+    <div class="section-body">
+
+      <!-- NTS-E1: placeholder -->
+      <div class="err-banner err-placeholder"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="NTS API 키 placeholder 감지 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">NTS-E1 · PLACEHOLDER_DETECTED</div>
+          <div class="err-title">국세청 API 키에 placeholder 값이 입력되었습니다</div>
+          <div class="err-desc">
+            <code class="err-code">NTS_API_KEY=placeholder</code> 값은 실제 국세청 전자세금계산서 API 키가 아닙니다.
+            Phase 11 (AWS 이전) 이후 실 API 키로 교체하기 전까지 세금계산서 발행은 <strong>DRY_RUN mock 응답</strong>만 반환됩니다.
+            실 운영 환경에서는 반드시 국세청 발급 API 키를 <code class="err-code">.env</code> 에 등록하십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">환경변수 설정 안내 보기</button>
+            <button class="err-btn ghost" type="button">DRY_RUN으로 계속</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- NTS-E2: 미설정 -->
+      <div class="err-banner err-unset"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="NTS API 키 미설정 경고">
+        <div class="err-icon">&#8505;</div>
+        <div class="err-body">
+          <div class="err-type">NTS-E2 · KEY_NOT_SET</div>
+          <div class="err-title">국세청 API 키가 설정되지 않았습니다</div>
+          <div class="err-desc">
+            <code class="err-code">NTS_API_KEY</code> 환경변수가 비어 있습니다.
+            세금계산서 발행을 위해 국세청 홈택스에서 발급된 API 키를 서버 환경변수에 등록해 주십시오.
+            Phase 11 이전에는 DRY_RUN 모드로 동작합니다.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">키 등록 안내</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Aligo -->
+  <div class="vendor-section">
+    <div class="vendor-section-head">
+      <div class="vendor-pill aligo-pill">Aligo SMS</div>
+      <span style="font-size:13px;font-weight:600;color:var(--color-neutral-900);">SMS 발송 API 에러</span>
+    </div>
+    <div class="section-body">
+
+      <!-- ALIGO-E1: placeholder -->
+      <div class="err-banner err-placeholder"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="Aligo API 키 placeholder 감지 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">ALIGO-E1 · PLACEHOLDER_DETECTED</div>
+          <div class="err-title">Aligo API 키에 placeholder 값이 입력되었습니다</div>
+          <div class="err-desc">
+            <code class="err-code">ALIGO_API_KEY=placeholder</code> 또는 <code class="err-code">ALIGO_USER_ID=placeholder</code>
+            로 설정되어 있어 실제 SMS 발송이 불가능합니다.
+            현재 모든 SMS 발송은 <strong>DRY_RUN</strong>으로 처리되며 수신자에게 문자가 발송되지 않습니다.
+            Aligo 관리자 콘솔에서 발급된 API 키와 발신번호를 등록해 주십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">Aligo 설정 안내</button>
+            <button class="err-btn ghost" type="button">DRY_RUN으로 계속</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- ALIGO-E2: 발신번호 미등록 -->
+      <div class="err-banner err-format"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="Aligo 발신번호 미등록 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">ALIGO-E2 · SENDER_NOT_REGISTERED</div>
+          <div class="err-title">등록되지 않은 발신번호입니다</div>
+          <div class="err-desc">
+            <code class="err-code">ALIGO_SENDER=010-XXXX-XXXX</code> 번호가 Aligo 플랫폼에 등록된 발신번호가 아닙니다.
+            SMS 발신번호는 Aligo 관리 콘솔에서 사전 등록(본인인증) 이 완료되어야 합니다.
+            통신사 스팸 필터 차단 방지를 위해 반드시 등록된 번호를 사용하십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">발신번호 등록 안내</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Clova OCR -->
+  <div class="vendor-section">
+    <div class="vendor-section-head">
+      <div class="vendor-pill clova-pill">Naver Clova OCR</div>
+      <span style="font-size:13px;font-weight:600;color:var(--color-neutral-900);">OCR API 에러</span>
+    </div>
+    <div class="section-body">
+
+      <!-- CLOVA-E1: placeholder -->
+      <div class="err-banner err-placeholder"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="Clova OCR secret placeholder 감지 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">CLOVA-E1 · PLACEHOLDER_DETECTED</div>
+          <div class="err-title">Clova OCR Secret에 placeholder 값이 입력되었습니다</div>
+          <div class="err-desc">
+            <code class="err-code">NAVER_CLOVA_OCR_SECRET=placeholder</code> 값은 실제 Naver Cloud 발급 OCR Secret이 아닙니다.
+            현재 영수증 업로드 시 <strong>DRY_RUN mock 분석 결과</strong>가 반환됩니다.
+            실 OCR 결과를 위해 Naver Cloud Platform 콘솔에서 APIGW URL 및 Secret Key를 발급받아 등록해 주십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">Naver Cloud 콘솔 안내</button>
+            <button class="err-btn ghost" type="button">DRY_RUN으로 계속</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- CLOVA-E2: URL 형식 오류 -->
+      <div class="err-banner err-format"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="Clova OCR APIGW URL 형식 오류">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">CLOVA-E2 · INVALID_APIGW_URL</div>
+          <div class="err-title">OCR APIGW URL 형식이 올바르지 않습니다</div>
+          <div class="err-desc">
+            <code class="err-code">NAVER_CLOVA_OCR_APIGW_URL</code> 값이 유효한 HTTPS URL이 아닙니다.
+            Naver Cloud Platform 에서 발급된 OCR APIGW 주소는
+            <code class="err-code">https://&#8203;*.apigw.ntruss.com/custom/v1/...</code> 형식이어야 합니다.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">URL 형식 확인</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- KFTC -->
+  <div class="vendor-section">
+    <div class="vendor-section-head">
+      <div class="vendor-pill kftc-pill">KFTC 오픈뱅킹</div>
+      <span style="font-size:13px;font-weight:600;color:var(--color-neutral-900);">오픈뱅킹 API 에러</span>
+    </div>
+    <div class="section-body">
+
+      <!-- KFTC-E1: placeholder -->
+      <div class="err-banner err-placeholder"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="KFTC Client ID placeholder 감지 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">KFTC-E1 · PLACEHOLDER_DETECTED</div>
+          <div class="err-title">KFTC Client ID에 placeholder 값이 입력되었습니다</div>
+          <div class="err-desc">
+            <code class="err-code">KFTC_CLIENT_ID=placeholder</code> 또는 <code class="err-code">KFTC_CLIENT_SECRET=placeholder</code>
+            가 설정되어 있어 오픈뱅킹 실 API 호출이 불가능합니다.
+            현재 입금 내역 조회는 <strong>Sandbox mock 응답</strong>으로 처리됩니다.
+            금융결제원 오픈뱅킹 포털에서 기관 등록 후 발급된 Client ID / Secret을 등록해 주십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">오픈뱅킹 포털 안내</button>
+            <button class="err-btn ghost" type="button">Sandbox로 계속</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- KFTC-E2: 토큰 만료 -->
+      <div class="err-banner err-format"
+           role="alert" aria-live="assertive" aria-atomic="true"
+           aria-label="KFTC 액세스 토큰 만료 에러">
+        <div class="err-icon">&#9888;</div>
+        <div class="err-body">
+          <div class="err-type">KFTC-E2 · TOKEN_EXPIRED</div>
+          <div class="err-title">오픈뱅킹 액세스 토큰이 만료되었습니다</div>
+          <div class="err-desc">
+            KFTC 오픈뱅킹 액세스 토큰 유효기간이 초과되었습니다. (유효기간: 90일)
+            자동 갱신에 실패했거나 최초 발급이 필요합니다.
+            금융결제원 오픈뱅킹 포털에서 토큰을 재발급하거나 자동 갱신 스케줄러 설정을 확인해 주십시오.
+          </div>
+          <div class="err-action-row">
+            <button class="err-btn primary" type="button">토큰 재발급</button>
+            <button class="err-btn ghost" type="button">자동 갱신 설정</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

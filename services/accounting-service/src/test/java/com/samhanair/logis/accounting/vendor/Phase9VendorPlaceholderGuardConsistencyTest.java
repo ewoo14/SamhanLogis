@@ -135,38 +135,25 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
         }
 
         /**
-         * ETaxClientImpl CHANGE_ME_LOCAL_ONLY 누락 회귀 가드.
+         * ETaxClientImpl CHANGE_ME_LOCAL_ONLY 차단 검증 (SP-09-5 cycle 1 fix 후 GREEN).
          *
-         * <p>현재 ETaxClientImpl.isPlaceholderApiKey() 는 {@code CHANGE_ME_LOCAL_ONLY} 를 포함하지 않아
-         * KftcClientImpl / ReceiptOcrClientImpl / AligoSmsAdapter 와 불일치한다.
-         * 이 테스트는 해당 불일치를 감지하는 회귀 테스트로 동작하며,
-         * ETaxClientImpl 수정 시 이 테스트가 GREEN 이 되어야 한다.
+         * <p>SP-09-5 회귀 가드 발견 → ETaxClientImpl.isPlaceholderApiKey() 에 CHANGE_ME_LOCAL_ONLY 추가됨.
+         * 4 vendor (NTS/Aligo/Clova/KFTC) 모두 동일 4 키워드 정책 일관 확인.
          */
         @Test
-        @DisplayName("[회귀 가드] ETaxClientImpl CHANGE_ME_LOCAL_ONLY 누락 감지 — 수정 후 GREEN 예상")
+        @DisplayName("[회귀 가드] ETaxClientImpl CHANGE_ME_LOCAL_ONLY 차단 — 4 vendor 일관성")
         void ntsApiKey_changeMeLocalOnly_regressionGuard() {
             ReflectionTestUtils.setField(client, "ntsApiKey", "CHANGE_ME_LOCAL_ONLY");
-            // 현재 ETaxClientImpl 이 CHANGE_ME_LOCAL_ONLY 를 차단 안 함 → 미구현 경로 도달 → mock 필요
             TaxInvoice stubInvoice = createStubTaxInvoice(true);
 
-            // 현재 ETaxClientImpl 은 CHANGE_ME_LOCAL_ONLY 를 차단하지 않으므로 "API 미구현" 예외 발생.
-            // 4 vendor 일관성 수정 후에는 "placeholder 입니다" 메시지로 변경되어야 함.
-            // 이 테스트는 현재 동작을 문서화하며 수정 후 아래 assertion 이 GREEN 이 되어야 한다:
-            //   assertThatThrownBy(() -> client.submit(stubInvoice, "NTS"))
-            //       .isInstanceOf(BusinessException.class)
-            //       .satisfies(ex -> assertThat(ex.getMessage()).contains("placeholder"));
-            //
-            // 현재는 CHANGE_ME_LOCAL_ONLY 가 차단되지 않으므로 미구현 예외임을 단순 확인.
             assertThatThrownBy(() -> client.submit(stubInvoice, "NTS"))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(ex -> {
                         BusinessException be = (BusinessException) ex;
                         assertThat(be.getErrorCode()).isEqualTo(ErrorCode.ETAX_SUBMIT_FAILED);
-                        // 현재 동작: CHANGE_ME_LOCAL_ONLY 는 차단 안 됨 → 미구현 예외 메시지
-                        // 수정 후에는 이 assertion 을 ".contains("placeholder")" 로 바꿔야 한다.
                         assertThat(be.getMessage())
-                                .as("ETaxClientImpl 이 CHANGE_ME_LOCAL_ONLY 를 아직 차단하지 않음을 확인")
-                                .doesNotContain("placeholder");
+                                .as("SP-09-5 cycle 1 fix 후 CHANGE_ME_LOCAL_ONLY 는 placeholder 차단 메시지 반환")
+                                .contains("placeholder");
                     });
         }
     }

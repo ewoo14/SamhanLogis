@@ -102,8 +102,9 @@ public class ETaxClientImpl implements ETaxClient {
      * <p>런타임 guard:
      * <ul>
      *   <li>{@code ntsApiKey} 가 blank 이면 즉시 ETAX_SUBMIT_FAILED</li>
-     *   <li>{@code ntsApiKey} 가 알려진 placeholder 값 ("PLACEHOLDER_DEV_ONLY", "changeme", "dummy")
-     *       이면 즉시 ETAX_SUBMIT_FAILED — 실수로 placeholder 를 그대로 사용하는 경우 차단</li>
+     *   <li>{@code ntsApiKey} 가 알려진 placeholder 값 ("PLACEHOLDER_DEV_ONLY", "CHANGE_ME_LOCAL_ONLY",
+     *       "changeme", "dummy") 이면 즉시 ETAX_SUBMIT_FAILED — 실수로 placeholder 를 그대로 사용하는 경우 차단.
+     *       SP-09 vendor 통합 정책 4 키워드 (NTS/Aligo/Clova/KFTC 일관).</li>
      * </ul>
      *
      * @throws BusinessException(ETAX_SUBMIT_FAILED) API 키 미설정·placeholder·API 호출 실패 시
@@ -141,6 +142,7 @@ public class ETaxClientImpl implements ETaxClient {
     private boolean isPlaceholderApiKey(String apiKey) {
         String lower = apiKey.toLowerCase(java.util.Locale.ROOT);
         return lower.equals("placeholder_dev_only")
+                || lower.equals("change_me_local_only")
                 || lower.equals("changeme")
                 || lower.equals("dummy");
     }
