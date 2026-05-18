@@ -15,6 +15,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -25,15 +26,17 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>ISSUED 상태 확인 — 아닐 시 TAX_INVOICE_NOT_EMITTABLE (422)</li>
  *   <li>중복 발행 확인 — eTaxExternalId != null 시 TAX_INVOICE_ALREADY_EMITTED (409)</li>
- *   <li>{@link ETaxClient#submit} 호출 — DRY_RUN 또는 NTS 실 전송</li>
+ *   <li>{@link ETaxClient#submit(TaxInvoice, String)} 호출 — request.submitMethod 전달</li>
  *   <li>ETaxClient 실패 시 ETAX_SUBMIT_FAILED (502) surface</li>
  *   <li>{@link TaxInvoice#markEmitted} 도메인 메서드로 eTaxExternalId 저장</li>
- *   <li>audit log 기록 — TAX_INVOICE_EMIT_NTS revision</li>
+ *   <li>audit log 기록 — TAX_INVOICE_EMIT_NTS revision (REQUIRES_NEW 격리 트랜잭션)</li>
  * </ol>
  *
- * <p>submitMethod 는 request 에서 받지만, ETaxClientImpl 의 {@code etax.submit-method} property 가
- * 실제 분기 제어. request.submitMethod = NTS 인데 impl 이 DRY_RUN 으로 설정되어 있으면
- * 오류 대신 DRY_RUN 결과를 반환 (Phase 11 이전 방어 정책).
+ * <p>submitMethod 우선순위: request 파라미터 우선, 서버 property ({@code etax.submit-method}) 는 fallback.
+ * 응답의 {@code submitMethod} 는 실제 수행된 방식을 반환하므로 클라이언트가 결과를 명확히 인식 가능.
+ *
+ * <p>audit 트랜잭션 격리: {@code recordEmitAudit()} 은 {@code REQUIRES_NEW} 전파로
+ * 비즈니스 트랜잭션과 독립 커밋된다. audit 예외가 비즈니스 롤백을 유발하지 않음.
  *
  * <p>UUID 비공개: eTaxExternalId 는 외부 기관 발급 식별자로 내부 관리용 노출 허용.
  * 사용자 화면에서 UUID raw 형태 표시는 taxInvoiceNo 로 대체.
@@ -41,7 +44,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class TaxInvoiceEmitService {
 
     private final TaxInvoiceRepository taxInvoiceRepository;
@@ -51,17 +53,19 @@ public class TaxInvoiceEmitService {
     /**
      * e-Tax 실 발행 실행.
      *
-     * <p>ISSUED 상태 + eTaxExternalId = null 검증 → ETaxClient 호출 → markEmitted → audit.
+     * <p>ISSUED 상태 + eTaxExternalId = null 검증 → ETaxClient 호출 (request.submitMethod 전달)
+     * → markEmitted → audit (REQUIRES_NEW 독립 트랜잭션).
      *
      * @param id          세금계산서 UUID (path variable)
      * @param request     전송 방식 요청 (DRY_RUN | NTS)
      * @param actorUserId 요청자 user-id (X-User-Id 헤더)
-     * @return e-Tax 전송 결과 응답
+     * @return e-Tax 전송 결과 응답 (실제 수행된 submitMethod 포함)
      * @throws BusinessException(TAX_INVOICE_NOT_EMITTABLE) ISSUED 아닐 때 (422)
      * @throws BusinessException(TAX_INVOICE_ALREADY_EMITTED) 이미 전송된 경우 (409)
      * @throws BusinessException(ETAX_SUBMIT_FAILED) ETaxClient 오류 (502)
      * @throws BusinessException(NOT_FOUND) 세금계산서 미존재 (404)
      */
+    @Transactional
     public EmitNtsResponse emitNts(UUID id, EmitNtsRequest request, String actorUserId) {
         TaxInvoice ti = taxInvoiceRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -79,10 +83,11 @@ public class TaxInvoiceEmitService {
                     "이미 e-Tax 전송된 세금계산서입니다 (externalId: " + ti.getETaxExternalId() + ")");
         }
 
-        // ETaxClient 호출 — 실패 시 BusinessException(ETAX_SUBMIT_FAILED) 로 surface.
+        // ETaxClient 호출 — request.submitMethod 우선, 서버 property fallback.
+        // 실패 시 BusinessException(ETAX_SUBMIT_FAILED) 로 surface.
         ETaxSubmitResult result;
         try {
-            result = eTaxClient.submit(ti);
+            result = eTaxClient.submit(ti, request.submitMethod());
         } catch (BusinessException bex) {
             log.error("[SP-09-1] ETaxClient 호출 실패 — taxInvoiceNo={} error={}",
                     ti.getTaxInvoiceNo(), bex.getMessage());
@@ -122,10 +127,13 @@ public class TaxInvoiceEmitService {
     /**
      * e-Tax 전송 완료 audit 기록.
      *
-     * <p>fieldName = "eTaxExternalId", oldValue = null, newValue = externalId.
-     * 실패해도 비즈니스 트랜잭션 차단하지 않음 (graceful).
+     * <p>REQUIRES_NEW 전파: 비즈니스 트랜잭션과 독립된 별도 트랜잭션으로 커밋.
+     * audit 예외 발생 시 비즈니스 트랜잭션(markEmitted commit)에 영향 없음 (graceful).
+     *
+     * <p>fieldName = "eTaxExternalId" / "submitMethod" / "action", oldValue = null.
      */
-    private void recordEmitAudit(TaxInvoice ti, String actorUserId, ETaxSubmitResult result) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    void recordEmitAudit(TaxInvoice ti, String actorUserId, ETaxSubmitResult result) {
         try {
             UUID actorId;
             try {

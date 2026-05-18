@@ -22,12 +22,16 @@ public interface ETaxClient {
     /**
      * 세금계산서를 NTS 홈택스에 제출한다.
      *
+     * <p>전송 방식 우선순위: {@code submitMethod} 파라미터 값이 null 이 아닌 경우 파라미터 우선.
+     * null 인 경우 {@code etax.submit-method} application property (기본값 {@code DRY_RUN}) 사용.
+     *
      * <p>DRY_RUN 모드: 즉시 {@link ETaxSubmitResult#success} 반환.
      * NTS 모드: 실 API 호출 — 실패 시 {@link ETaxSubmitResult#success}=false 또는 예외.
      *
-     * @param invoice ISSUED 상태의 세금계산서
-     * @return 제출 결과 (eTaxExternalId / submittedAt / success 포함)
+     * @param invoice      ISSUED 상태의 세금계산서
+     * @param submitMethod 전송 방식 ("DRY_RUN" | "NTS"). null 이면 서버 property fallback.
+     * @return 제출 결과 (eTaxExternalId / submittedAt / success / submitMethod 포함)
      * @throws com.samhanair.logis.common.exception.BusinessException(ETAX_SUBMIT_FAILED) NTS API 오류
      */
-    ETaxSubmitResult submit(TaxInvoice invoice);
+    ETaxSubmitResult submit(TaxInvoice invoice, String submitMethod);
 }

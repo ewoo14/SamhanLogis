@@ -409,7 +409,14 @@ public class TaxInvoice extends BaseEntity {
         this.reverseJournalId = reverseJournalId;
     }
 
-    /** 외부 e-Tax 발행 ID 기입 (P0-4 #4 향후 — 본 슬라이스에서는 setter 만 노출). */
+    /**
+     * 외부 e-Tax 발행 ID 직접 기입.
+     *
+     * @deprecated SP-09-1 이후 {@link #markEmitted(String)} 을 사용하세요.
+     *     {@code markEmitted} 는 ISSUED 상태 검증 + 중복 발행 방지 검증을 수행합니다.
+     *     본 메서드는 상태 검증 없이 eTaxExternalId 를 직접 설정하므로 우회 위험이 있습니다.
+     */
+    @Deprecated(since = "SP-09-1", forRemoval = true)
     public void linkETaxExternalId(String eTaxExternalId) {
         this.eTaxExternalId = eTaxExternalId;
     }

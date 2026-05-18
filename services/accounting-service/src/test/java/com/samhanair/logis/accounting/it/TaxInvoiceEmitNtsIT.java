@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -9,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
+import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
+import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
@@ -43,12 +46,15 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>DRAFT 시도 → 422 TAX_INVOICE_NOT_EMITTABLE</li>
  *   <li>CANCELLED 시도 → 422 TAX_INVOICE_NOT_EMITTABLE</li>
  *   <li>중복 발행 시도 → 409 TAX_INVOICE_ALREADY_EMITTED</li>
- *   <li>audit log 기록 확인 — TAX_INVOICE_EMIT_NTS revision</li>
+ *   <li>audit log 기록 확인 — TAX_INVOICE_EMIT_NTS revision (repository 직접 검증)</li>
  *   <li>ETaxClient 실패 → 502 BAD_GATEWAY</li>
  * </ol>
  *
  * <p>@MockBean 격리: {@link ETaxClient} (SP-09-1 신규) + {@link SlipServiceClient} (기존)
  * (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
+ *
+ * <p>Case 7 audit 직접 검증: {@code recordEmitAudit} 가 REQUIRES_NEW 독립 트랜잭션으로
+ * 커밋되므로, @Transactional 테스트 롤백에도 audit row 가 DB 에 남아 repository 직접 검증 가능.
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
@@ -57,6 +63,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private AccountingAuditLogRepository auditLogRepository;
 
     /** 외부 client 격리 — 기존 SlipServiceClient. */
     @MockBean private SlipServiceClient slipServiceClient;
@@ -70,7 +77,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts DRY_RUN — ISSUED 세금계산서 200 + eTaxExternalId 저장")
     void testEmitNtsDryRunSuccess() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
-        when(eTaxClient.submit(any(TaxInvoice.class)))
+        when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-999", "DRY_RUN"));
 
         String id = createAndIssueDraft();
@@ -184,7 +191,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("emit-nts 중복 발행 시도 → 409 TAX_INVOICE_ALREADY_EMITTED")
     void testEmitAlreadyEmittedReturns409() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
-        when(eTaxClient.submit(any(TaxInvoice.class)))
+        when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-111", "DRY_RUN"));
 
         String id = createAndIssueDraft();
@@ -211,17 +218,16 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     // ─── 7. audit log 기록 확인 ───────────────────────────────────────────
 
     @Test
-    @DisplayName("emit-nts 성공 후 audit revision 기록 확인 — TAX_INVOICE_EMIT_NTS")
+    @DisplayName("emit-nts 성공 후 audit revision 기록 확인 — TAX_INVOICE_EMIT_NTS (repository 직접 검증)")
     void testEmitAuditLogRecorded() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
-        when(eTaxClient.submit(any(TaxInvoice.class)))
+        when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-AUDIT-20260518", "DRY_RUN"));
 
         String id = createAndIssueDraft();
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
-        // emit-nts 성공 후 audit log 포함 응답 확인
-        // (audit log 는 별도 조회 endpoint 가 없으므로, 성공 응답 및 eTaxExternalId 저장으로 간접 확인)
+        // emit-nts 성공
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
                         .header("X-User-Id", "accountant-audit")
                         .header("X-User-Role", "ACCOUNTANT")
@@ -231,7 +237,32 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.eTaxExternalId").value("DRY-AUDIT-20260518"))
                 .andExpect(jsonPath("$.data.submitMethod").value("DRY_RUN"));
 
-        // 동일 세금계산서 재발행 시도 → 409 (audit 기록 후 eTaxExternalId 가 설정됐음을 간접 검증)
+        // audit log repository 직접 검증 — TAX_INVOICE_EMIT_NTS action 확인.
+        // recordEmitAudit 가 REQUIRES_NEW 독립 트랜잭션으로 커밋되므로
+        // @Transactional 테스트 롤백과 무관하게 DB 에서 조회 가능.
+        UUID entityId = UUID.fromString(id);
+        List<AccountingAuditLog> auditLogs =
+                auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId);
+
+        assertThat(auditLogs)
+                .as("emit-nts 후 audit row 가 1건 이상 존재해야 한다")
+                .isNotEmpty();
+
+        boolean hasEmitNtsAction = auditLogs.stream()
+                .anyMatch(log -> "action".equals(log.getFieldName())
+                        && "TAX_INVOICE_EMIT_NTS".equals(log.getNewValue()));
+        assertThat(hasEmitNtsAction)
+                .as("TAX_INVOICE_EMIT_NTS action audit row 가 존재해야 한다")
+                .isTrue();
+
+        boolean hasETaxExternalId = auditLogs.stream()
+                .anyMatch(log -> "eTaxExternalId".equals(log.getFieldName())
+                        && "DRY-AUDIT-20260518".equals(log.getNewValue()));
+        assertThat(hasETaxExternalId)
+                .as("eTaxExternalId=DRY-AUDIT-20260518 audit row 가 존재해야 한다")
+                .isTrue();
+
+        // 동일 세금계산서 재발행 시도 → 409 (eTaxExternalId 설정 확인)
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
                         .header("X-User-Id", "accountant-audit")
                         .header("X-User-Role", "ACCOUNTANT")
@@ -246,7 +277,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     @DisplayName("ETaxClient 실패 시 → 502 BAD_GATEWAY")
     void testEmitNtsClientFailureReturns502() throws Exception {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
-        when(eTaxClient.submit(any(TaxInvoice.class)))
+        when(eTaxClient.submit(any(TaxInvoice.class), any()))
                 .thenThrow(new BusinessException(ErrorCode.ETAX_SUBMIT_FAILED,
                         "NTS API 타임아웃"));
 

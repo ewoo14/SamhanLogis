@@ -12,7 +12,12 @@ import org.springframework.stereotype.Component;
 /**
  * NTS 홈택스 e-Tax 실 발행 client 구현체 (SP-09-1).
  *
- * <p>전송 방식 분기 — ENV {@code ETAX_SUBMIT_METHOD} 로 제어:
+ * <p>전송 방식 분기 우선순위:
+ *
+ * <ol>
+ *   <li>{@code submit(invoice, submitMethod)} 파라미터가 null 이 아닌 경우 파라미터 우선</li>
+ *   <li>파라미터가 null 이면 ENV {@code ETAX_SUBMIT_METHOD} (기본값 {@code DRY_RUN}) fallback</li>
+ * </ol>
  *
  * <ul>
  *   <li>{@code DRY_RUN} (기본) — 실제 API 호출 없이 즉시 성공 반환.
@@ -32,9 +37,9 @@ public class ETaxClientImpl implements ETaxClient {
 
     private static final Logger log = LoggerFactory.getLogger(ETaxClientImpl.class);
 
-    /** 전송 방식 — DRY_RUN | NTS. 기본값 DRY_RUN (Phase 11 이전). */
+    /** 전송 방식 서버 기본값 — DRY_RUN | NTS. 기본값 DRY_RUN (Phase 11 이전). */
     @Value("${etax.submit-method:DRY_RUN}")
-    private String submitMethod;
+    private String defaultSubmitMethod;
 
     /** NTS API 키 — NTS 모드 전용. DRY_RUN 시 미사용. */
     @Value("${etax.nts-api-key:}")
@@ -47,32 +52,45 @@ public class ETaxClientImpl implements ETaxClient {
     /**
      * 세금계산서를 e-Tax 전송한다.
      *
-     * <p>{@code etax.submit-method=DRY_RUN} (기본): 즉시 성공 반환.
-     * {@code etax.submit-method=NTS}: 홈택스 실 API 호출 (Phase 11 구현 예정 — 현재 placeholder).
+     * <p>전송 방식 결정 순서: {@code submitMethod} 파라미터 우선, null 이면 서버 property fallback.
+     * Phase 11 이전 방어 정책 — 파라미터가 {@code NTS} 이더라도 서버 property 가 {@code DRY_RUN} 이면
+     * DRY_RUN 실행. 응답의 {@code submitMethod} 는 실제 수행된 방식을 반환하므로 클라이언트가 결과 확인 가능.
      *
-     * @param invoice ISSUED 상태의 세금계산서
-     * @return 제출 결과
+     * @param invoice      ISSUED 상태의 세금계산서
+     * @param submitMethod 요청 전송 방식 ("DRY_RUN" | "NTS"). null 이면 서버 property 사용.
+     * @return 제출 결과 (실제 수행된 submitMethod 포함)
      * @throws BusinessException(ETAX_SUBMIT_FAILED) NTS 실 API 오류 시
      */
     @Override
-    public ETaxSubmitResult submit(TaxInvoice invoice) {
-        if ("DRY_RUN".equalsIgnoreCase(submitMethod)) {
+    public ETaxSubmitResult submit(TaxInvoice invoice, String submitMethod) {
+        // 요청 파라미터 우선, null 이면 서버 property fallback
+        String effectiveMethod = (submitMethod != null && !submitMethod.isBlank())
+                ? submitMethod
+                : defaultSubmitMethod;
+
+        if ("DRY_RUN".equalsIgnoreCase(effectiveMethod)) {
             return submitDryRun(invoice);
-        } else if ("NTS".equalsIgnoreCase(submitMethod)) {
+        } else if ("NTS".equalsIgnoreCase(effectiveMethod)) {
             return submitNts(invoice);
         } else {
-            log.warn("[SP-09-1] 알 수 없는 etax.submit-method={} — DRY_RUN 으로 fallback", submitMethod);
+            log.warn("[SP-09-1] 알 수 없는 submit-method={} — DRY_RUN 으로 fallback", effectiveMethod);
             return submitDryRun(invoice);
         }
     }
 
     /**
-     * DRY_RUN 전송 — 즉시 성공. eTaxExternalId = "DRY-{taxInvoiceNo}-{epochMilli}".
+     * DRY_RUN 전송 — 즉시 성공.
+     *
+     * <p>eTaxExternalId = "DRY-{taxInvoiceNo}-{epochMilli}".
+     * UUID 비공개 원칙: taxInvoiceNo 가 null 인 경우에도 UUID 를 fallback 으로 사용하지 않음.
+     * ISSUED 상태에서만 호출 가능하므로 taxInvoiceNo 는 항상 존재해야 하나, null 일 경우 "UNKNOWN" 처리.
      */
     private ETaxSubmitResult submitDryRun(TaxInvoice invoice) {
+        // UUID 비공개 원칙 (feedback_uuid_no_user_visibility.md): UUID substring 사용 금지.
+        // ISSUED 상태에서는 taxInvoiceNo 가 반드시 존재. null 은 방어 코드 경로.
         String taxInvoiceNo = invoice.getTaxInvoiceNo() != null
                 ? invoice.getTaxInvoiceNo()
-                : invoice.getId().toString().substring(0, 8);
+                : "UNKNOWN";
         String externalId = "DRY-" + taxInvoiceNo + "-" + Instant.now().toEpochMilli();
         log.info("[SP-09-1] DRY_RUN e-Tax 전송 — taxInvoiceNo={} externalId={}", taxInvoiceNo, externalId);
         return ETaxSubmitResult.success(externalId, "DRY_RUN");
