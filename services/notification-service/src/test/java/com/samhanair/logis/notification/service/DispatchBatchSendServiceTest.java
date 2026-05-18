@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.NotificationRequest;
@@ -18,6 +19,7 @@ import com.samhanair.logis.notification.dto.DispatchBatchSendRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchSendRequest.SendEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
 import com.samhanair.logis.notification.dto.NotificationSendRequest;
+import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryRequest;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * {@link DispatchBatchSendService} 단위 테스트 — PR-E1 BE-4 (4 case).
+ * {@link DispatchBatchSendService} 단위 테스트 — PR-E1 BE-4 (4 case) + SP-09-2 send_audit 검증.
  *
  * <ol>
  *   <li>send 정상 — 모든 entry SmsAdapter 호출 후 status=SENT 누적</li>
@@ -34,23 +36,31 @@ import org.mockito.ArgumentCaptor;
  *   <li>send 실패 (게이트웨이 예외) — 1건 실패가 전체 배치 중단하지 않음 + failed 카운트</li>
  *   <li>send 부분 성공 — sent + failed 혼합 결과 정확 카운트</li>
  * </ol>
+ *
+ * <p>SP-09-2: {@link DispatchSmsSaveHistoryService#save} 가 SEND_AUDIT mode 로 호출되는지 검증.
  */
 class DispatchBatchSendServiceTest {
 
     private BlockedPartnerLookupClient blockedPartnerLookupClient;
     private NotificationService notificationService;
+    private DispatchSmsSaveHistoryService dispatchSmsSaveHistoryService;
     private DispatchBatchSendService service;
 
     @BeforeEach
     void setUp() {
         blockedPartnerLookupClient = mock(BlockedPartnerLookupClient.class);
         notificationService = mock(NotificationService.class);
-        service = new DispatchBatchSendService(blockedPartnerLookupClient, notificationService);
+        dispatchSmsSaveHistoryService = mock(DispatchSmsSaveHistoryService.class);
+        service = new DispatchBatchSendService(
+                blockedPartnerLookupClient,
+                notificationService,
+                dispatchSmsSaveHistoryService,
+                new ObjectMapper());
         lenient().when(blockedPartnerLookupClient.isBlocked(anyString())).thenReturn(false);
     }
 
     @Test
-    @DisplayName("정상 — 2건 모두 SENT")
+    @DisplayName("정상 — 2건 모두 SENT + SEND_AUDIT 자동 저장 호출")
     void send_allOk_returnsSentCount() {
         when(notificationService.send(any(NotificationSendRequest.class)))
                 .thenAnswer(inv -> stubSentRequest());
@@ -61,7 +71,7 @@ class DispatchBatchSendServiceTest {
                         new SendEntry("P-001", "01011112222", "[배차안내] 본문 1", "방A"),
                         new SendEntry("P-002", "01033334444", "[배차안내] 본문 2", "방A")));
 
-        DispatchBatchSendResponse resp = service.send(req);
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
 
         assertThat(resp.sent()).isEqualTo(2);
         assertThat(resp.failed()).isZero();
@@ -79,6 +89,12 @@ class DispatchBatchSendServiceTest {
         assertThat(first.recipientAddress()).isEqualTo("01011112222");
         assertThat(first.body()).isEqualTo("[배차안내] 본문 1");
         assertThat(first.templateCode()).isEqualTo("DISPATCH_BATCH");
+
+        // SP-09-2 — SEND_AUDIT 저장 서비스 호출 검증
+        ArgumentCaptor<DispatchSmsSaveHistoryRequest> auditCaptor =
+                ArgumentCaptor.forClass(DispatchSmsSaveHistoryRequest.class);
+        verify(dispatchSmsSaveHistoryService).save(auditCaptor.capture(), anyString());
+        assertThat(auditCaptor.getValue().saveMode().name()).isEqualTo("SEND_AUDIT");
     }
 
     @Test
@@ -90,7 +106,7 @@ class DispatchBatchSendServiceTest {
                 LocalDate.of(2026, 5, 10),
                 List.of(new SendEntry("P-BLK", "01099998888", "본문", "방X")));
 
-        DispatchBatchSendResponse resp = service.send(req);
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
 
         assertThat(resp.sent()).isZero();
         assertThat(resp.failed()).isZero();
@@ -113,7 +129,7 @@ class DispatchBatchSendServiceTest {
                         new SendEntry("P-001", "01011112222", "본문", "방A"),
                         new SendEntry("P-002", "01033334444", "본문", "방A")));
 
-        DispatchBatchSendResponse resp = service.send(req);
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
 
         assertThat(resp.sent()).isZero();
         assertThat(resp.failed()).isEqualTo(2);
@@ -144,7 +160,7 @@ class DispatchBatchSendServiceTest {
                         new SendEntry("P-002", "01033334444", "본문 2", "방A"),
                         new SendEntry("P-BLK", "01099998888", "본문 3", "방B")));
 
-        DispatchBatchSendResponse resp = service.send(req);
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
 
         assertThat(resp.sent()).isEqualTo(1);
         assertThat(resp.failed()).isEqualTo(1);

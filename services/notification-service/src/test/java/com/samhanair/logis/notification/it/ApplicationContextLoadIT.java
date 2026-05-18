@@ -1,7 +1,11 @@
 package com.samhanair.logis.notification.it;
 
 import com.samhanair.logis.notification.NotificationServiceApplication;
+import com.samhanair.logis.notification.client.AligoAddressBookClient;
+import com.samhanair.logis.notification.client.AligoCsvSourceClient;
+import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
+import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +39,13 @@ class ApplicationContextLoadIT extends AbstractPostgresIT {
     @Autowired
     private ApplicationContext applicationContext;
 
-    @MockBean
-    private UserClient userClient;
-    @MockBean
-    private PartnerLookupClient partnerLookupClient;
+    /** 외부 client 전체 격리 — Eureka 비활성 Testcontainers 환경에서 500 방지. */
+    @MockBean private UserClient userClient;
+    @MockBean private PartnerLookupClient partnerLookupClient;
+    @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
+    @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
+    @MockBean private AligoAddressBookClient aligoAddressBookClient;
 
     /**
      * Spring ApplicationContext 가 BeanDefinitionOverrideException / NoSuchBeanDefinitionException

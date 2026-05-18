@@ -3,6 +3,8 @@
  *
  * preview 결과는 AUTO_LATEST/MANUAL_NAMED 로 저장하고, send 결과는 SEND_AUDIT 로 append-only 저장한다.
  * 화면에는 내부 UUID 를 표시하지 않고, 상세 복원 path param 전용으로만 사용한다.
+ *
+ * SP-09-2: SEND_AUDIT payload 타입 추가 — 실 발송 감사 이력 상세 화면 지원.
  */
 import axios from 'axios'
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
@@ -43,6 +45,44 @@ export interface DispatchSmsSaveHistoryListRow {
 /** 저장내역 상세 응답. */
 export interface DispatchSmsSaveHistoryDetailResponse extends DispatchSmsSaveHistoryListRow {
   responsePayload: unknown
+}
+
+// ---------------------------------------------------------------------------
+// SP-09-2: SEND_AUDIT responsePayload 타입 — 실 발송 감사 이력 상세 화면 지원.
+// ---------------------------------------------------------------------------
+
+/**
+ * SEND_AUDIT responsePayload 내 수신자 1건 — Aligo 실 발송 결과.
+ *
+ * @property partnerCode 거래처코드 (사용자 노출 식별자)
+ * @property recipientPhone 수신 전화번호 — UI 에서 가운데 4자리 **** 마스킹 후 표시
+ * @property status SENT | FAILED | BLOCKED
+ * @property reason 실패/차단 사유 (성공 시 null)
+ */
+export interface SendAuditDetailEntry {
+  partnerCode: string
+  recipientPhone: string
+  status: 'SENT' | 'FAILED' | 'BLOCKED'
+  reason: string | null
+}
+
+/**
+ * SEND_AUDIT responsePayload 전체 — dispatch-sms 발송 결과.
+ *
+ * @property date 배차일 (yyyy-MM-dd)
+ * @property sent 성공 건수
+ * @property failed 실패 건수
+ * @property blocked 발송금지 제외 건수
+ * @property details 수신자별 상세 (Aligo 결과)
+ * @property msgId Aligo 발급 msg_id (결과 추적용 — 사용자 노출 OK)
+ */
+export interface SendAuditResponsePayload {
+  date: string
+  sent: number
+  failed: number
+  blocked: number
+  details: SendAuditDetailEntry[]
+  msgId?: string | null
 }
 
 /** 목록 조회 옵션. */

@@ -1,6 +1,11 @@
 package com.samhanair.logis.notification.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
+import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
+import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.RecipientType;
@@ -9,6 +14,7 @@ import com.samhanair.logis.notification.dto.DispatchBatchSendRequest.SendEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse.SendResultDetail;
 import com.samhanair.logis.notification.dto.NotificationSendRequest;
+import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryRequest;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>blocked 미해당 → {@link NotificationService#send} 위임 (NotificationRequest entity 저장 +
  *       SmsAdapter 호출 + 결과 누적).</li>
  *   <li>blocked 해당 → 발송 skip + blocked 카운트 증가.</li>
+ *   <li>SP-09-2 — 발송 완료 후 {@code dispatch_sms_save_history} 에 {@code SEND_AUDIT} row 자동 저장
+ *       (성공/실패 건수 + 감사용 raw 결과 JSON 포함). 저장 실패는 발송 결과에 영향 없이 warn 로그만.</li>
  *   <li>응답 = sent / failed / blocked 카운트 + 상세 결과.</li>
  * </ol>
  *
@@ -44,15 +52,21 @@ public class DispatchBatchSendService {
 
     private final BlockedPartnerLookupClient blockedPartnerLookupClient;
     private final NotificationService notificationService;
+    private final DispatchSmsSaveHistoryService dispatchSmsSaveHistoryService;
+    private final ObjectMapper objectMapper;
 
     /**
      * 실 발송 — entry N건 일괄 처리.
      *
+     * <p>SP-09-2: 발송 완료 후 {@code dispatch_sms_save_history} 에 {@code SEND_AUDIT} row 를 자동 저장한다.
+     * 감사 저장 실패는 발송 결과에 영향 없이 warn 로그만 기록한다.
+     *
      * @param req 입력 (date + entries N건)
+     * @param requestedBy 요청 사용자 ID (감사 저장 audit 용)
      * @return 결과 카운트 (sent / failed / blocked) + 상세
      */
     @Transactional
-    public DispatchBatchSendResponse send(DispatchBatchSendRequest req) {
+    public DispatchBatchSendResponse send(DispatchBatchSendRequest req, String requestedBy) {
         if (req == null || req.date() == null || req.entries() == null) {
             throw new IllegalArgumentException("date / entries 필수");
         }
@@ -112,6 +126,65 @@ public class DispatchBatchSendService {
 
         log.info("DispatchBatchSendService — date={}, sent={}, failed={}, blocked={}",
                 req.date(), sent, failed, blocked);
-        return new DispatchBatchSendResponse(req.date(), sent, failed, blocked, details);
+
+        DispatchBatchSendResponse response =
+                new DispatchBatchSendResponse(req.date(), sent, failed, blocked, details);
+
+        // (3) SP-09-2 — 발송 결과를 SEND_AUDIT row 로 자동 저장 (fail-soft)
+        saveSendAudit(req, response, requestedBy);
+
+        return response;
+    }
+
+    /**
+     * SP-09-2 — 발송 완료 후 {@code dispatch_sms_save_history} 에 {@code SEND_AUDIT} row 자동 저장.
+     *
+     * <p>저장 실패는 발송 결과에 영향 없이 warn 로그만 기록한다 (fail-soft).
+     * topic 은 "{@code date} 배차안내 발송 감사" 형식으로 자동 생성.
+     *
+     * @param req 원본 발송 요청 (감사용 requestParams 구성)
+     * @param response 발송 결과 (감사용 responsePayload 구성)
+     * @param requestedBy 요청 사용자 ID
+     */
+    private void saveSendAudit(DispatchBatchSendRequest req,
+                                DispatchBatchSendResponse response,
+                                String requestedBy) {
+        try {
+            // requestParams: date + rowCount (entries 전체 건수)
+            ObjectNode requestParams = objectMapper.createObjectNode();
+            requestParams.put("date", req.date().toString());
+            requestParams.put("rowCount", req.entries().size());
+
+            // responsePayload: sent / failed / blocked + details 배열
+            ObjectNode responsePayload = objectMapper.createObjectNode();
+            responsePayload.put("sent", response.sent());
+            responsePayload.put("failed", response.failed());
+            responsePayload.put("blocked", response.blocked());
+            ArrayNode detailsNode = responsePayload.putArray("details");
+            for (SendResultDetail detail : response.details()) {
+                ObjectNode d = objectMapper.createObjectNode();
+                d.put("partnerCode", detail.partnerCode());
+                d.put("recipientPhone", detail.recipientPhone());
+                d.put("status", detail.status());
+                if (detail.reason() != null) {
+                    d.put("reason", detail.reason());
+                }
+                detailsNode.add(d);
+            }
+
+            String topic = req.date() + " 배차안내 발송 감사";
+            DispatchSmsSaveHistoryRequest auditRequest = new DispatchSmsSaveHistoryRequest(
+                    DispatchSmsProgramType.DISPATCH_SMS,
+                    DispatchSmsSaveMode.SEND_AUDIT,
+                    topic,
+                    requestParams,
+                    responsePayload);
+
+            dispatchSmsSaveHistoryService.save(auditRequest, requestedBy);
+            log.info("DispatchBatchSendService — SEND_AUDIT 저장 완료 date={} user={}", req.date(), requestedBy);
+        } catch (Exception ex) {
+            log.warn("DispatchBatchSendService — SEND_AUDIT 저장 실패 (발송 결과 영향 없음) date={} msg={}",
+                    req.date(), ex.getMessage());
+        }
     }
 }

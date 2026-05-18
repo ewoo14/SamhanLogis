@@ -648,6 +648,15 @@ export function AppLayout() {
               >
                 배차안내 SMS
               </SidebarLink>
+              {/* [SP-09-2 FE] SMS 발송 이력 — SEND_AUDIT 전용 조회화면. */}
+              <SidebarLink
+                to="/arologis/dispatch-sms/send-audit"
+                show={showDispatchSms}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-arologis-sms-send-audit"
+              >
+                SMS 발송 이력
+              </SidebarLink>
               {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
               <SidebarLink
                 to="/arologis/dispatch-reconcile"

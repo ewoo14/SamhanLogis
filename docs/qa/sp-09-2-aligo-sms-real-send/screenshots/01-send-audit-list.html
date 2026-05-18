@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-2 #01 Aligo SMS 발송 이력 리스트</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { max-width: 1160px; margin: 0 auto; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #E5E7EB; }
+  .crumb { font-size: 13px; color: #6B7280; margin-bottom: 4px; }
+  .title { font-size: 22px; font-weight: 700; }
+  .role-chip { font-size: 12px; padding: 4px 10px; background: #EEF2FF; color: #3730A3; border: 1px solid #C7D2FE; border-radius: 999px; font-weight: 600; }
+  .toolbar { display: flex; gap: 10px; align-items: center; padding: 16px 24px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
+  .search-box { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #D1D5DB; border-radius: 6px; padding: 7px 12px; font-size: 14px; color: #9CA3AF; flex: 1; max-width: 320px; }
+  .search-box svg { flex-shrink: 0; }
+  .filter-btn { padding: 7px 14px; border: 1px solid #D1D5DB; border-radius: 6px; background: #fff; font-size: 13px; font-weight: 500; color: #374151; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .count-chip { margin-left: auto; font-size: 13px; color: #6B7280; }
+  .count-chip strong { color: #111827; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #F9FAFB; padding: 10px 16px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #E5E7EB; white-space: nowrap; }
+  thead th.r { text-align: right; }
+  tbody tr { border-bottom: 1px solid #F3F4F6; cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #F0F9FF; }
+  tbody tr.selected { background: #EFF6FF; }
+  tbody td { padding: 11px 16px; color: #374151; vertical-align: middle; }
+  tbody td.r { text-align: right; }
+  .mono { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; color: #6B7280; letter-spacing: 0.01em; }
+  .mask { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; color: #374151; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .badge.success { background: #CCFBF1; color: #0F766E; border: 1px solid #99F6E4; }
+  .badge.fail    { background: #FEE2E2; color: #B91C1C; border: 1px solid #FECACA; }
+  .msg-summary { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #4B5563; }
+  .date-col { white-space: nowrap; color: #6B7280; font-size: 12px; }
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 16px; border-top: 1px solid #E5E7EB; }
+  .pag-btn { padding: 6px 11px; border: 1px solid #D1D5DB; border-radius: 4px; background: #fff; font-size: 13px; color: #374151; cursor: pointer; }
+  .pag-btn.active { background: #2D77A8; color: #fff; border-color: #2D77A8; font-weight: 700; }
+  .pag-btn.dim { color: #9CA3AF; cursor: default; }
+  .note-bar { padding: 10px 24px; background: #F0FDFA; border-top: 1px solid #99F6E4; font-size: 12px; color: #0F766E; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="topbar">
+    <div>
+      <div class="crumb">알림 / SMS / 발송 이력</div>
+      <div class="title">Aligo SMS 발송 이력</div>
+    </div>
+    <div class="role-chip">로그인: MASTER — 김마스터</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <svg width="15" height="15" fill="none" stroke="#9CA3AF" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      수신번호 / 메시지 검색
+    </div>
+    <button class="filter-btn">
+      <svg width="14" height="14" fill="none" stroke="#6B7280" stroke-width="2" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg>
+      기간 필터
+    </button>
+    <button class="filter-btn">상태 필터</button>
+    <div class="count-chip">전체 <strong>248</strong> 건</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:140px;">발송 일시</th>
+        <th style="width:160px;">수신자</th>
+        <th>메시지 요약</th>
+        <th style="width:90px;" class="r">결과</th>
+        <th style="width:200px;">msg_id</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="selected">
+        <td class="date-col">2026-05-18 14:32</td>
+        <td><span class="mask">010-****-1234</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 배송 완료 안내: 슬립 SL-2026-00341 운송이 완료되었습니다. 수령 확인 바랍니다.</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605181432-0001</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-18 14:15</td>
+        <td><span class="mask">010-****-5678</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 출고 처리 안내: SL-2026-00340 출고 완료. 기사 연락처: 010-****-8890</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605181415-0002</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-18 13:48</td>
+        <td><span class="mask">010-****-9012</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 견적 요청 접수 완료. 담당자가 영업일 기준 1일 이내 연락드립니다.</td>
+        <td class="r"><span class="badge fail">실패</span></td>
+        <td><span class="mono">202605181348-0003</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-18 11:20</td>
+        <td><span class="mask">010-****-3456</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 결제 완료 안내: 주문 OR-2026-00189 결제가 확인되었습니다.</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605181120-0004</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-18 10:05</td>
+        <td><span class="mask">010-****-7890</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 배송 예정 안내: 슬립 SL-2026-00338 내일 오전 중 배송 예정입니다.</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605181005-0005</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-17 17:55</td>
+        <td><span class="mask">010-****-2345</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 반품 접수 완료: OR-2026-00182 반품 신청이 접수되었습니다. 수거 기사 배정 중.</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605171755-0006</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-17 16:30</td>
+        <td><span class="mask">010-****-6789</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 출고 처리 안내: SL-2026-00336 출고 완료. 기사 연락처: 010-****-5512</td>
+        <td class="r"><span class="badge fail">실패</span></td>
+        <td><span class="mono">202605171630-0007</span></td>
+      </tr>
+      <tr>
+        <td class="date-col">2026-05-17 14:12</td>
+        <td><span class="mask">010-****-0123</span></td>
+        <td class="msg-summary">[삼한퍼블릭] 배송 완료 안내: 슬립 SL-2026-00334 운송이 완료되었습니다. 수령 확인 바랍니다.</td>
+        <td class="r"><span class="badge success">성공</span></td>
+        <td><span class="mono">202605171412-0008</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="pagination">
+    <button class="pag-btn dim">&laquo;</button>
+    <button class="pag-btn active">1</button>
+    <button class="pag-btn">2</button>
+    <button class="pag-btn">3</button>
+    <button class="pag-btn">4</button>
+    <button class="pag-btn">5</button>
+    <button class="pag-btn">&raquo;</button>
+  </div>
+
+  <div class="note-bar">
+    <svg width="14" height="14" fill="none" stroke="#0F766E" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    수신자 전화번호는 가운데 4자리 마스킹 처리됩니다 (010-****-XXXX). msg_id 는 Aligo 원본 식별자입니다.
+  </div>
+</div>
+</body>
+</html>

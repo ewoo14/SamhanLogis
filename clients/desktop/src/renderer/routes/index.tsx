@@ -182,6 +182,8 @@ import { DPS_BY_PRODUCT_ROLES } from '../api/dpsByProductApi'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
 import { DISPATCH_SMS_ROLES } from '../api/dispatchSmsApi'
+// [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회 화면 (DISPATCH / MANAGER / MASTER)
+import { DispatchSmsSendAuditPage } from './DispatchSmsSendAuditPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
 import { ArologisUnassignedPage } from './ArologisUnassignedPage'
 import { ARO_UNASSIGNED_ROLES } from '../api/arologisDispatchApi'
@@ -793,6 +795,17 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={DISPATCH_SMS_ROLES}>
             <DispatchSmsPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회화면.
+      // BE SEND_AUDIT append-only row 조회 + 수신번호 마스킹 + 상태 Badge + 날짜/결과 필터.
+      {
+        path: '/arologis/dispatch-sms/send-audit',
+        element: (
+          <RoleGuard allow={DISPATCH_SMS_ROLES}>
+            <DispatchSmsSendAuditPage />
           </RoleGuard>
         ),
       },

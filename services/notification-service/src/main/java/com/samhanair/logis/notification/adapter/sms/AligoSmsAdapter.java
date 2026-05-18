@@ -28,7 +28,10 @@ import org.springframework.web.client.RestClient;
  * <p>응답 (JSON): {@code {"result_code": 1, "message": "성공", "msg_id": "..."}}.
  * {@code result_code == 1} 만 success, 그 외 모두 failure.
  *
- * <p>API key 가 dev placeholder ({@code CHANGE_ME_LOCAL_ONLY}) 인 경우 외부 호출 skip + stub-success.
+ * <p>SP-09-2 placeholder runtime guard 강화 (SP-09-1 ETaxClientImpl {@code isPlaceholderApiKey()} 와 동일 패턴):
+ * 아래 값 중 하나라도 placeholder 로 판정되면 외부 호출 skip + stub-success.
+ * 판정 대상 키워드 (case-insensitive): {@code CHANGE_ME_LOCAL_ONLY}, {@code PLACEHOLDER_DEV_ONLY},
+ * {@code changeme}, {@code dummy}.
  * 운영 / staging 에서 실제 key 주입 시 본격 호출.
  */
 @Slf4j
@@ -102,8 +105,29 @@ public class AligoSmsAdapter implements SmsAdapter {
         return addr.replace("-", "");
     }
 
-    private boolean isPlaceholder(String value) {
-        return value == null || value.isBlank() || "CHANGE_ME_LOCAL_ONLY".equals(value);
+    /**
+     * SP-09-2 placeholder runtime guard — SP-09-1 {@code ETaxClientImpl.isPlaceholderApiKey()} 와 동일 패턴.
+     *
+     * <p>판정 대상 키워드 (case-insensitive):
+     * <ul>
+     *   <li>{@code CHANGE_ME_LOCAL_ONLY} — 기존 dev default</li>
+     *   <li>{@code PLACEHOLDER_DEV_ONLY} — SP-09-1 ETax 패턴 통일</li>
+     *   <li>{@code changeme} — 일반 placeholder 변형</li>
+     *   <li>{@code dummy} — 테스트 fixture placeholder</li>
+     * </ul>
+     *
+     * @param value 검사 대상 문자열 (key / userid / sender)
+     * @return placeholder 로 판정되면 true (외부 호출 skip 트리거)
+     */
+    boolean isPlaceholder(String value) {
+        if (value == null || value.isBlank()) {
+            return true;
+        }
+        String lower = value.toLowerCase(java.util.Locale.ROOT);
+        return lower.equals("change_me_local_only")
+                || lower.equals("placeholder_dev_only")
+                || lower.equals("changeme")
+                || lower.equals("dummy");
     }
 
     /** {@code api-url} 이 {@code https://host/send/} 형태든 {@code https://host} 형태든 base 까지만 사용. */

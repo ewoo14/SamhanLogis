@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -56,14 +57,20 @@ public class DispatchBatchAdminController {
     /**
      * 실 발송 — preview 결과 + 운영자 수정 메시지 entry 목록을 SmsAdapter 로 일괄 발송.
      *
+     * <p>SP-09-2: 발송 완료 후 {@code dispatch_sms_save_history} 에 {@code SEND_AUDIT} row 자동 저장.
+     * {@code X-User-Id} 헤더 값이 감사 저장의 {@code created_by} 로 사용된다.
+     *
+     * @param userId X-User-Id 헤더 (api-gateway 전파)
+     * @param req 발송 요청 본문
      * @return 200, sent / failed / blocked 카운트 + 상세
      */
     @Operation(summary = "배차안내 SMS 실 발송 (Admin)",
-            description = "DISPATCH / MANAGER / MASTER 권한. preview 결과 confirm 후 entry 별 SmsAdapter 호출.")
+            description = "DISPATCH / MANAGER / MASTER 권한. preview 결과 confirm 후 entry 별 SmsAdapter 호출. 발송 완료 후 SEND_AUDIT 자동 저장.")
     @PostMapping("/send")
     @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")
     public ApiResponse<DispatchBatchSendResponse> send(
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Valid @RequestBody DispatchBatchSendRequest req) {
-        return ApiResponse.ok(sendService.send(req));
+        return ApiResponse.ok(sendService.send(req, userId));
     }
 }

@@ -7,7 +7,11 @@ import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.notification.NotificationServiceApplication;
+import com.samhanair.logis.notification.client.AligoAddressBookClient;
+import com.samhanair.logis.notification.client.AligoCsvSourceClient;
+import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
+import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.RecipientType;
@@ -63,10 +67,13 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
     @Autowired
     private NotificationLogRepository logRepository;
 
-    @MockBean
-    private UserClient userClient;
-    @MockBean
-    private PartnerLookupClient partnerLookupClient;
+    /** 외부 client 전체 격리 — Eureka 비활성 Testcontainers 환경에서 500 방지. */
+    @MockBean private UserClient userClient;
+    @MockBean private PartnerLookupClient partnerLookupClient;
+    @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
+    @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
+    @MockBean private AligoAddressBookClient aligoAddressBookClient;
 
     @BeforeEach
     void cleanup() {
