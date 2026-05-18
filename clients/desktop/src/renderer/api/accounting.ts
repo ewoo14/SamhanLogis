@@ -909,3 +909,253 @@ export async function getMonthlySummary(
   )
   return res.data.data
 }
+
+// ==========================================================================
+// SP-08-6-5 P2: 일마감 (DailyClosing) + 원장 (GeneralLedger) API
+// ==========================================================================
+
+/**
+ * 일마감 단건 응답 (BE `DailyClosingResponse`).
+ *
+ * UUID 비공개 가드:
+ * - `id` 는 내부 path param 전용, 화면 미노출.
+ * - 사용자 표시 식별자: `closingDate` (YYYY-MM-DD) + `status`.
+ */
+export interface DailyClosing {
+  /** UUID — 화면 미노출. 내부 액션 path param 전용. */
+  id: string
+  /** 마감 대상 일자 (YYYY-MM-DD). */
+  closingDate: string
+  /** 마감 상태. */
+  status: 'OPEN' | 'CLOSED'
+  /** 거래처 코드 필터 (단일 거래처 마감 시 채워짐, null = 전체). */
+  partnerCode: string | null
+  /** 거래처명 (snapshot, null = 전체 마감). */
+  partnerName: string | null
+  /** 매출 합계 (KRW BigDecimal — string). */
+  totalSales: string
+  /** 매입 합계 (KRW BigDecimal — string). */
+  totalPurchase: string
+  /** 마감 건수 (전표 건수). */
+  slipCount: number
+  /** 마감 시각 ISO 8601. OPEN 시 null. */
+  closedAt: string | null
+  /** 마감 실행자. */
+  closedBy: string | null
+  /** 역마감 시각. CLOSED 시 null. */
+  reversedAt: string | null
+  /** 역마감 실행자. */
+  reversedBy: string | null
+  /** 메모 (선택, ≤500자). */
+  description: string | null
+}
+
+/**
+ * 일마감 조회 옵션.
+ */
+export interface ListDailyClosingsOptions {
+  /** 시작 일자 (YYYY-MM-DD). */
+  fromDate?: string
+  /** 종료 일자 (YYYY-MM-DD). */
+  toDate?: string
+  /** 거래처 코드 필터. */
+  partnerCode?: string
+  /** 상태 필터. */
+  status?: 'OPEN' | 'CLOSED'
+}
+
+/**
+ * 일마감 실행 요청 body (BE `CreateDailyClosingRequest`).
+ */
+export interface CreateDailyClosingRequest {
+  /** 마감 대상 일자 (YYYY-MM-DD). */
+  closingDate: string
+  /** 거래처 코드 (선택 — 미지정 시 해당일 전체 마감). */
+  partnerCode?: string
+  /** 메모 (선택, ≤500자). */
+  description?: string
+}
+
+/**
+ * 일마감 목록 조회.
+ *
+ * BE endpoint: `GET /api/v1/accounting/daily-closings`
+ */
+export async function listDailyClosings(
+  options: ListDailyClosingsOptions = {},
+): Promise<DailyClosing[]> {
+  const params: Record<string, string> = {}
+  if (options.fromDate) params['fromDate'] = options.fromDate
+  if (options.toDate) params['toDate'] = options.toDate
+  if (options.partnerCode) params['partnerCode'] = options.partnerCode
+  if (options.status) params['status'] = options.status
+  const res = await apiClient.get<ApiEnvelope<DailyClosing[]>>(
+    '/accounting/daily-closings',
+    { params },
+  )
+  return res.data.data
+}
+
+/**
+ * 일마감 실행.
+ *
+ * BE endpoint: `POST /api/v1/accounting/daily-closings`
+ *
+ * @param body 마감 실행 요청
+ * @returns 신규 생성된 DailyClosing (status=CLOSED)
+ */
+export async function createDailyClosing(
+  body: CreateDailyClosingRequest,
+): Promise<DailyClosing> {
+  const res = await apiClient.post<ApiEnvelope<DailyClosing>>(
+    '/accounting/daily-closings',
+    body,
+  )
+  return res.data.data
+}
+
+/**
+ * 일마감 역마감 — CLOSED → OPEN. MASTER 권한만 (BE 403 가드).
+ *
+ * BE endpoint: `POST /api/v1/accounting/daily-closings/{id}/reverse`
+ *
+ * @param id 마감 UUID (path param, 화면 미노출)
+ * @returns 갱신된 DailyClosing (status=OPEN)
+ */
+export async function reverseDailyClosing(id: string): Promise<DailyClosing> {
+  const res = await apiClient.post<ApiEnvelope<DailyClosing>>(
+    `/accounting/daily-closings/${id}/reverse`,
+    {},
+  )
+  return res.data.data
+}
+
+/**
+ * 일마감 실행 권한 — ACCOUNTANT / MASTER (BE `@PreAuthorize` 와 동일).
+ *
+ * `feedback_role_naming_full.md` — role 표기 풀네임 의무.
+ */
+export function canExecuteDailyClosing(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'ACCOUNTANT' || role === 'MASTER'
+}
+
+/**
+ * 일마감 역마감 권한 — MASTER 만.
+ */
+export function canReverseDailyClosing(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'MASTER'
+}
+
+/** 일마감 상태 한국어 라벨. */
+export const DAILY_CLOSING_STATUS_LABEL: Record<'OPEN' | 'CLOSED', string> = {
+  OPEN: '열림',
+  CLOSED: '마감',
+}
+
+// --------------------------------------------------------------------------
+// 원장 (GeneralLedger) API — SP-08-6-5 P2
+// --------------------------------------------------------------------------
+
+/**
+ * 원장 라인 단건 (BE `GeneralLedgerLine`).
+ *
+ * UUID 비공개 가드: `journalNo` 만 표시. 분개 UUID 미노출.
+ */
+export interface GeneralLedgerLine {
+  /** 라인 순서 (0-based). */
+  lineNo: number
+  /** 거래 일자 (YYYY-MM-DD). */
+  transactionDate: string
+  /** 사용자 노출 분개번호 (예: JV-2026/05-001). */
+  journalNo: string
+  /** 적요. */
+  description: string | null
+  /** 4자리 계정 코드. */
+  accountCode: string
+  /** 계정명. */
+  accountName: string
+  /** 거래처 코드 (partnerCode, 화면 표시 OK). */
+  partnerCode: string | null
+  /** 거래처명. */
+  partnerName: string | null
+  /** 차변 금액 (KRW BigDecimal — string). */
+  debit: string
+  /** 대변 금액 (KRW BigDecimal — string). */
+  credit: string
+  /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). */
+  runningBalance: string
+}
+
+/**
+ * 원장 응답 (BE `GeneralLedgerResponse`).
+ *
+ * BE endpoint: `GET /api/v1/accounting/ledgers`
+ */
+export interface GeneralLedgerResponse {
+  /** 계정 코드 필터 (미지정 시 전체 — BE 가 전체 반환). */
+  accountCode: string | null
+  /** 거래처 코드 필터 (미지정 시 전체). */
+  partnerCode: string | null
+  /** 기간 시작 (YYYY-MM-DD). */
+  fromDate: string
+  /** 기간 종료 (YYYY-MM-DD). */
+  toDate: string
+  /** 기초 잔액 (KRW BigDecimal — string). */
+  openingBalance: string
+  /** 기말 잔액 (KRW BigDecimal — string). */
+  closingBalance: string
+  /** 라인 목록 (transactionDate 오름차순 → lineNo 오름차순). */
+  lines: GeneralLedgerLine[]
+  /** 보고서 생성 시각 ISO 8601. */
+  generatedAt: string
+}
+
+/**
+ * 원장 조회 옵션.
+ */
+export interface GetGeneralLedgerOptions {
+  /** 기간 시작 (YYYY-MM-DD, 필수). */
+  fromDate: string
+  /** 기간 종료 (YYYY-MM-DD, 필수). */
+  toDate: string
+  /** 계정 코드 필터 (선택 — 4자리). */
+  accountCode?: string
+  /** 거래처 코드 필터 (선택). */
+  partnerCode?: string
+}
+
+/**
+ * 원장 조회.
+ *
+ * BE endpoint: `GET /api/v1/accounting/ledgers`
+ *
+ * @param options 조회 옵션 (기간 필수, 계정/거래처 선택 필터)
+ * @returns `GeneralLedgerResponse`
+ */
+export async function getGeneralLedger(
+  options: GetGeneralLedgerOptions,
+): Promise<GeneralLedgerResponse> {
+  const params: Record<string, string> = {
+    fromDate: options.fromDate,
+    toDate: options.toDate,
+  }
+  if (options.accountCode) params['accountCode'] = options.accountCode
+  if (options.partnerCode) params['partnerCode'] = options.partnerCode
+  const res = await apiClient.get<ApiEnvelope<GeneralLedgerResponse>>(
+    '/accounting/ledgers',
+    { params },
+  )
+  return res.data.data
+}
+
+/**
+ * 원장 접근 권한 — ACCOUNTANT / MANAGER / MASTER.
+ *
+ * `feedback_role_naming_full.md` — 풀네임 표기 의무.
+ */
+export function canAccessGeneralLedger(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
+}

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>거래처원장 인쇄 — (주)삼한공조시스템</title>
+<style>
+  /* ── 화면 미리보기 ── */
+  body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: #E0E0E0;
+    padding: 30px;
+    font-size: 14px;
+    color: #000;
+  }
+  .print-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 0 4px;
+  }
+  .preview-label {
+    font-size: 13px;
+    color: #444;
+    font-weight: 600;
+  }
+  .btn-print {
+    height: 34px;
+    background: #1E40AF;
+    color: #FFF;
+    border: none;
+    border-radius: 4px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-print:hover { background: #1D4ED8; }
+
+  /* ── A4 Page ── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    background: #FFF;
+    margin: 0 auto;
+    padding: 12mm;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    box-sizing: border-box;
+    position: relative;
+    color: #000;
+  }
+
+  /* ── 헤더 ── */
+  .print-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid #000;
+    padding-bottom: 3mm;
+    margin-bottom: 4mm;
+  }
+  .company-name { font-size: 10pt; font-weight: 700; }
+  .form-title {
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-align: center;
+    flex: 1;
+    margin: 0 8mm;
+  }
+  .print-date { font-size: 9pt; color: #444; text-align: right; }
+
+  /* ── 조회 조건 박스 ── */
+  .condition-box {
+    border: 1px solid #000;
+    margin-bottom: 4mm;
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr;
+    font-size: 9pt;
+  }
+  .condition-box .label-cell {
+    background: #F0F0F0;
+    font-weight: 700;
+    padding: 1.5mm 3mm;
+    border-right: 1px solid #000;
+    border-bottom: 1px solid #000;
+    white-space: nowrap;
+  }
+  .condition-box .label-cell:last-of-type { border-bottom: none; }
+  .condition-box .value-cell {
+    padding: 1.5mm 3mm;
+    border-right: 1px solid #000;
+    border-bottom: 1px solid #000;
+  }
+  .condition-box .value-cell:last-child { border-right: none; }
+  .condition-box .value-cell:nth-last-child(-n+2) { border-bottom: none; }
+
+  /* ── 거래처 요약 ── */
+  .summary-row {
+    display: flex;
+    border: 1px solid #000;
+    border-top: none;
+    margin-bottom: 4mm;
+    font-size: 9.5pt;
+  }
+  .summary-cell {
+    flex: 1;
+    padding: 2mm 3mm;
+    border-right: 1px solid #000;
+    text-align: center;
+  }
+  .summary-cell:last-child { border-right: none; }
+  .summary-cell .s-label {
+    font-size: 8pt;
+    font-weight: 700;
+    background: #F0F0F0;
+    display: block;
+    padding: 1mm 0;
+    margin-bottom: 1mm;
+    text-align: center;
+  }
+  .summary-cell .s-value {
+    font-size: 10pt;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    display: block;
+    text-align: right;
+  }
+  .summary-cell .s-value.credit { color: #1E40AF; }
+  .summary-cell .s-value.balance { color: #047857; }
+
+  /* ── 원장 테이블 ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+  thead th {
+    background: #F0F0F0;
+    font-weight: 700;
+    text-align: center;
+    padding: 1.5mm 2mm;
+    border: 1px solid #000;
+    font-size: 9pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  thead th.left-h { text-align: left; }
+  tbody td {
+    border: 1px solid #000;
+    padding: 1.5mm 2mm;
+    vertical-align: middle;
+    font-size: 9pt;
+  }
+  tbody td.center { text-align: center; }
+  tbody td.right  {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  tbody td.debit-col  { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td.credit-col { text-align: right; font-variant-numeric: tabular-nums; color: #1E40AF; }
+  tbody td.balance-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #047857;
+  }
+  tbody td.balance-col.neg { color: #B91C1C; }
+  tbody td.balance-col.zero { color: #555; }
+
+  /* 기초잔액 행 */
+  tr.opening-row td {
+    background: #F8F8F8;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  tr.opening-row td strong { font-weight: 700; }
+
+  /* 합계 행 */
+  tr.total-row td {
+    border-top: 2px solid #000;
+    font-weight: 700;
+    background: #F0F0F0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 유형 pill — 인쇄에서 단순 텍스트 */
+  .type-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+  }
+  .type-label.sales    { color: #C2410C; }
+  .type-label.receipt  { color: #047857; }
+
+  /* ── 컬럼 너비 ── */
+  .col-date    { width: 14mm; }
+  .col-slipno  { width: 28mm; }
+  .col-desc    { /* 1fr */ }
+  .col-type    { width: 12mm; }
+  .col-debit   { width: 26mm; }
+  .col-credit  { width: 26mm; }
+  .col-balance { width: 28mm; }
+  .col-memo    { width: 22mm; }
+
+  /* ── 서명란 ── */
+  .signature-row {
+    margin-top: 6mm;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8mm;
+  }
+  .sig-box {
+    border: 1px solid #000;
+    width: 50mm;
+    height: 14mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9pt;
+    color: #555;
+  }
+
+  /* ── 푸터 ── */
+  .print-footer {
+    margin-top: 4mm;
+    font-size: 8pt;
+    color: #555;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #ccc;
+    padding-top: 2mm;
+  }
+
+  /* ── @media print ── */
+  @media print {
+    body { background: none; padding: 0; }
+    .print-preview-header { display: none; }
+    .page {
+      width: 100%;
+      min-height: auto;
+      padding: 12mm;
+      box-shadow: none;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr.opening-row td,
+    tr.total-row td,
+    thead th,
+    .summary-cell .s-label {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .signature-row,
+    .summary-row { page-break-inside: avoid; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <!-- 화면 미리보기 헤더 -->
+  <div class="print-preview-header">
+    <span class="preview-label">거래처원장 인쇄 미리보기 — A4 Portrait (1차 mock)</span>
+    <button class="btn-print" onclick="window.print()">&#128438; 인쇄</button>
+  </div>
+
+  <!-- A4 Page -->
+  <div class="page">
+
+    <!-- 제목 헤더 -->
+    <div class="print-header">
+      <div class="company-name">(주)삼한공조시스템</div>
+      <div class="form-title">거 래 처 원 장</div>
+      <div class="print-date">출력일시: 2026-05-18 11:30</div>
+    </div>
+
+    <!-- 조회 조건 -->
+    <table class="condition-box" style="border-collapse:collapse; width:100%; font-size:9pt; margin-bottom:4mm;">
+      <tbody>
+        <tr>
+          <td style="background:#F0F0F0;font-weight:700;padding:1.5mm 3mm;border:1px solid #000;white-space:nowrap;width:20mm;">거래처</td>
+          <td style="padding:1.5mm 3mm;border:1px solid #000;">(주)에이스냉동</td>
+          <td style="background:#F0F0F0;font-weight:700;padding:1.5mm 3mm;border:1px solid #000;white-space:nowrap;width:20mm;">조회 기간</td>
+          <td style="padding:1.5mm 3mm;border:1px solid #000;">2026-05-01 ~ 2026-05-17</td>
+        </tr>
+        <tr>
+          <td style="background:#F0F0F0;font-weight:700;padding:1.5mm 3mm;border:1px solid #000;">담당자</td>
+          <td style="padding:1.5mm 3mm;border:1px solid #000;">박지혜</td>
+          <td style="background:#F0F0F0;font-weight:700;padding:1.5mm 3mm;border:1px solid #000;">전표 유형</td>
+          <td style="padding:1.5mm 3mm;border:1px solid #000;">전체</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 거래처 요약 -->
+    <div class="summary-row">
+      <div class="summary-cell">
+        <span class="s-label">기초 잔액</span>
+        <span class="s-value">1,200,000</span>
+      </div>
+      <div class="summary-cell">
+        <span class="s-label">기간 차변 합계</span>
+        <span class="s-value">5,080,000</span>
+      </div>
+      <div class="summary-cell">
+        <span class="s-label">기간 대변 합계</span>
+        <span class="s-value credit">2,600,000</span>
+      </div>
+      <div class="summary-cell">
+        <span class="s-label">기말 잔액</span>
+        <span class="s-value balance">3,680,000</span>
+      </div>
+    </div>
+
+    <!-- 원장 테이블 -->
+    <table>
+      <thead>
+        <tr>
+          <th class="col-date">일자</th>
+          <th class="col-slipno">전표번호</th>
+          <th class="col-desc left-h">적요</th>
+          <th class="col-type">유형</th>
+          <th class="col-debit">차변 (원)</th>
+          <th class="col-credit">대변 (원)</th>
+          <th class="col-balance">잔액 (원)</th>
+          <th class="col-memo left-h">비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 기초 잔액 -->
+        <tr class="opening-row">
+          <td class="center">—</td>
+          <td class="center">—</td>
+          <td><strong>기초 잔액 (2026-05-01 이전)</strong></td>
+          <td class="center">—</td>
+          <td class="debit-col">1,200,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">1,200,000</td>
+          <td>—</td>
+        </tr>
+        <!-- 거래 라인 -->
+        <tr>
+          <td class="center">05-03</td>
+          <td>SS-2026-05-003</td>
+          <td>에어컨 실외기 납품 (5EA)</td>
+          <td class="center"><span class="type-label sales">매출</span></td>
+          <td class="debit-col">850,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">2,050,000</td>
+          <td>5월 정기납품</td>
+        </tr>
+        <tr>
+          <td class="center">05-05</td>
+          <td>SS-2026-05-005</td>
+          <td>부품 추가 납품 (3EA)</td>
+          <td class="center"><span class="type-label sales">매출</span></td>
+          <td class="debit-col">420,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">2,470,000</td>
+          <td>긴급발주</td>
+        </tr>
+        <tr>
+          <td class="center">05-07</td>
+          <td>RC-2026-05-002</td>
+          <td>수금 처리 — 계좌이체</td>
+          <td class="center"><span class="type-label receipt">수금</span></td>
+          <td class="center">—</td>
+          <td class="credit-col">1,500,000</td>
+          <td class="balance-col">970,000</td>
+          <td>국민은행</td>
+        </tr>
+        <tr>
+          <td class="center">05-10</td>
+          <td>SS-2026-05-008</td>
+          <td>5월 정기 납품 2차 (7EA)</td>
+          <td class="center"><span class="type-label sales">매출</span></td>
+          <td class="debit-col">1,540,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">2,510,000</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="center">05-14</td>
+          <td>SS-2026-05-011</td>
+          <td>냉동 콤프레샤 납품 (2EA)</td>
+          <td class="center"><span class="type-label sales">매출</span></td>
+          <td class="debit-col">1,040,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">3,550,000</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="center">05-15</td>
+          <td>RC-2026-05-007</td>
+          <td>수금 처리 — 현금</td>
+          <td class="center"><span class="type-label receipt">수금</span></td>
+          <td class="center">—</td>
+          <td class="credit-col">1,100,000</td>
+          <td class="balance-col">2,450,000</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="center">05-17</td>
+          <td>SS-2026-05-012</td>
+          <td>에어컨 부품 출하 (3EA)</td>
+          <td class="center"><span class="type-label sales">매출</span></td>
+          <td class="debit-col">1,230,000</td>
+          <td class="center">—</td>
+          <td class="balance-col">3,680,000</td>
+          <td>일마감 완료</td>
+        </tr>
+        <!-- 합계 행 -->
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right;font-size:9.5pt;">합계</td>
+          <td class="debit-col">5,080,000</td>
+          <td class="credit-col" style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;">2,600,000</td>
+          <td class="balance-col">3,680,000</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 서명란 -->
+    <div class="signature-row">
+      <div class="sig-box">담당자 확인</div>
+      <div class="sig-box">승인</div>
+    </div>
+
+    <!-- 푸터 -->
+    <div class="print-footer">
+      <span>(주)삼한공조시스템 · 사업자번호: 214-87-20659 · 서울시 서초구</span>
+      <span>출력: 박지혜 · 2026-05-18 11:30</span>
+    </div>
+
+  </div>
+</body>
+</html>

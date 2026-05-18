@@ -2,6 +2,47 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-5 진입 — P2 일마감 + 원장 endpoint
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-5-accounting-daily-ledger
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `93d7c4c4` (PR #229 SP-08-6-4 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.5
+- 사용자 6/7회차 정책
+
+### SP-08-6-5 범위 (P2)
+
+- BE: accounting-service 신규/확장 endpoint
+  - `POST /api/v1/accounting/daily-closings` — 일마감 처리 (날짜 range)
+  - `GET /api/v1/accounting/ledgers` — 원장 조회 (거래처 필터 + 기간)
+- legacy GAS B 회계 4건 중 일마감/원장 옵션 GAS 정합:
+  - 날짜 range (시작/종료)
+  - 거래처 필터 (선택 — 전체 또는 특정)
+  - 인쇄 양식 옵션
+- Flyway migration 가능성: `accounting_db.daily_closings` 신규 테이블 + `accounting_db.ledger_entries` 또는 view
+- FE: `clients/desktop/src/renderer/routes/accounting/` 신규 라우트 (또는 SalesQueryPage 의 일마감/원장 CTA 활성화)
+- 인쇄 양식 (옵션): 일마감 보고서 PDF + 원장 출력
+- Playwright + IT + PNG 4장
+
+### 직전 머지 (PR #229)
+
+- branch: `feat/sp-08-6-4-sales-print-form` (deleted)
+- mergeCommit: `93d7c4c4`
+- 사이클 통계: N=1 (1c MAJOR/Must/Medium/Should 9건 + 2c Codex Must Fix 2건)
+- TM PR comment 4건 (Claude 1c 4472884502 + Codex 1c 4472906539 외)
+- 신규: SalesTransactionStatementPrintPage / SalesInvoicePrintPage + 라우트 2 + printUtils.ts + .sales-print-* 350줄 + design docs print-spec.md
+
+## 2026-05-18 SP-08-6-4 머지 완료 — 매출 인쇄 양식 (참고 이력)
+
 ## 2026-05-18 SP-08-6-4 진입 — P1 거래명세서 + 계산서 인쇄 양식
 
 ### 즉시 시작

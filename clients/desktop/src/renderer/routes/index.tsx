@@ -249,6 +249,10 @@ import { KakaoAutoDispatchPage } from './KakaoAutoDispatchPage'
 import { ManualDispatchAdminPage } from './ManualDispatchAdminPage'
 import { DriverAssignmentPage } from './DriverAssignmentPage'
 import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
+// [SP-08-6-5 P2] 일마감 + 원장 신규 화면 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
+// BE: accounting-service `/accounting/daily-closings` + `/accounting/ledgers`
+import { DailyClosingPage } from './DailyClosingPage'
+import { GeneralLedgerPage } from './GeneralLedgerPage'
 // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 // 매뉴얼 docs/manual/03-회계/04-월말-마감.md 와 Stage 1 일치.
 import { PeriodCloseListPage } from './PeriodCloseListPage'
@@ -848,6 +852,30 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <MonthEndClosingPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [SP-08-6-5 P2] 일마감 — `/accounting/daily-closings` (ACCOUNTANT/MANAGER/MASTER 진입).
+      // 날짜 range 필터 + 거래처 필터 + 마감 실행 + 역마감(MASTER 만).
+      // BE: accounting-service `GET/POST /accounting/daily-closings` + `POST /{id}/reverse`.
+      {
+        path: '/accounting/daily-closings',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <DailyClosingPage />
+          </RoleGuard>
+        ),
+      },
+
+      // [SP-08-6-5 P2] 원장 — `/accounting/ledgers` (ACCOUNTANT/MANAGER/MASTER 진입).
+      // 기간 + 계정/거래처 필터 + 라인 테이블 + CSV 다운로드 + 출력.
+      // BE: accounting-service `GET /accounting/ledgers`.
+      {
+        path: '/accounting/ledgers',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <GeneralLedgerPage />
           </RoleGuard>
         ),
       },

@@ -269,4 +269,25 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
         BigDecimal getCreditTotal();
         Long getJournalCount();
     }
+
+    // ─── SP-08-6-5: 원장 전체 조회 ──────────────────────────────────────────
+
+    /**
+     * 기간 내 전체 거래처 POSTED 분개 라인 조회 — 원장 전체 뷰 (SP-08-6-5).
+     *
+     * <p>partnerCode 필터 없는 원장 조회 시 사용. 일자 + 분개번호 + 라인번호 순 정렬.
+     *
+     * @param from 조회 시작 날짜
+     * @param to   조회 종료 날짜
+     * @return POSTED 분개 라인 목록
+     */
+    @Query("""
+            SELECT l FROM JournalLine l
+            WHERE l.journal.journalDate >= :from
+              AND l.journal.journalDate <= :to
+              AND l.journal.status = com.samhanair.logis.accounting.domain.JournalStatus.POSTED
+            ORDER BY l.journal.journalDate ASC, l.journal.journalNo ASC, l.lineNo ASC
+            """)
+    List<JournalLine> findAllPostedLinesInRange(@Param("from") LocalDate from,
+                                                @Param("to") LocalDate to);
 }

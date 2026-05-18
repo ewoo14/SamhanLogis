@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>일마감 확인 모달 — (주)삼한공조시스템</title>
+<style>
+  :root {
+    --surface-app:   #FAFBFC;
+    --surface-card:  #FFFFFF;
+    --surface-subtle:#F4F6F8;
+    --surface-hover: #F4F6F8;
+    --line-default:  #E1E5EA;
+    --ink-primary:   #1A1F2E;
+    --ink-secondary: #5C6773;
+    --ink-tertiary:  #8A95A4;
+    --action-brand:        #1E40AF;
+    --action-brand-hover:  #1D4ED8;
+    --action-brand-subtle: #DBEAFE;
+    --state-success:    #10B981;
+    --state-success-bg: #D1FAE5;
+    --state-warning:    #F59E0B;
+    --state-warning-bg: #FEF3C7;
+    --close-done:       #047857;
+    --close-done-bg:    #D1FAE5;
+    --close-done-border:#6EE7B7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: rgba(17,24,39,0.45);
+    color: var(--ink-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17,24,39,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal {
+    background: var(--surface-card);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+    width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line-default);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .modal-title { font-size: 18px; font-weight: 600; }
+  .modal-subtitle { font-size: 13px; color: var(--ink-tertiary); margin-top: 2px; }
+  .modal-close {
+    width: 28px; height: 28px;
+    border: none; background: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--ink-tertiary);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: var(--surface-hover); color: var(--ink-primary); }
+
+  .modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* 요약 박스 */
+  .summary-box {
+    background: var(--surface-subtle);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .summary-item { display: flex; flex-direction: column; gap: 4px; }
+  .summary-label { font-size: 12px; color: var(--ink-tertiary); font-weight: 500; }
+  .summary-value { font-size: 18px; font-weight: 700; color: var(--ink-primary); }
+  .summary-value.brand { color: var(--action-brand); font-feature-settings: "tnum" 1; }
+
+  /* 경고 메시지 */
+  .warn-box {
+    background: var(--state-warning-bg);
+    border: 1px solid #FDE68A;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #92400E;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .warn-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+  /* 거래처 목록 */
+  .partner-list-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    margin-bottom: 10px;
+  }
+  .partner-list {
+    border: 1px solid var(--line-default);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .partner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-default);
+    font-size: 14px;
+  }
+  .partner-row:last-child { border-bottom: none; }
+  .partner-row:hover { background: var(--surface-hover); }
+  .partner-name { font-weight: 500; }
+  .partner-meta { display: flex; gap: 16px; align-items: center; }
+  .partner-count { font-size: 13px; color: var(--ink-tertiary); }
+  .partner-amount {
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    font-weight: 600;
+    color: var(--ink-primary);
+    min-width: 100px;
+    text-align: right;
+  }
+  .badge {
+    display: inline-block; padding: 1px 8px; border-radius: 9999px;
+    font-size: 11px; font-weight: 600; border: 1px solid;
+  }
+  .badge.pending  { background: #FEF3C7; color: #F59E0B; border-color: #FDE68A; }
+
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--line-default);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .btn {
+    height: 38px;
+    border-radius: 4px;
+    padding: 0 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+  }
+  .btn-outline {
+    background: var(--surface-card);
+    color: var(--ink-primary);
+    border: 1px solid var(--line-default);
+  }
+  .btn-outline:hover { background: var(--surface-hover); }
+  .btn-success {
+    background: #047857;
+    color: #FFFFFF;
+  }
+  .btn-success:hover { background: #065F46; }
+</style>
+</head>
+<body>
+  <!-- 배경 흐림 효과 표현용 컨텍스트 레이어 -->
+  <div style="
+    background: var(--surface-app);
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    inset: 0;
+    opacity: 0.5;
+    pointer-events: none;
+  "></div>
+
+  <!-- Modal -->
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">일마감 처리 확인</div>
+        <div class="modal-subtitle">2026-05-17 · 3개 거래처 · 마감 처리 후 해당 일자 전표 수정 불가</div>
+      </div>
+      <button class="modal-close">&#215;</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- 요약 박스 -->
+      <div class="summary-box">
+        <div class="summary-item">
+          <span class="summary-label">마감 일자</span>
+          <span class="summary-value">2026-05-17</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">대상 거래처 수</span>
+          <span class="summary-value brand">3건</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">총 마감 금액</span>
+          <span class="summary-value brand">2,647,000원</span>
+        </div>
+      </div>
+
+      <!-- 경고 -->
+      <div class="warn-box">
+        <span class="warn-icon">&#9888;</span>
+        <div>
+          <strong>마감 후 되돌릴 수 없습니다.</strong><br />
+          해당 일자의 전표는 수정/삭제가 불가합니다. 내용을 다시 한번 확인하세요.
+        </div>
+      </div>
+
+      <!-- 거래처 상세 목록 -->
+      <div class="partner-list-title">대상 거래처 목록</div>
+      <div class="partner-list">
+        <div class="partner-row">
+          <span class="partner-name">(주)에이스냉동</span>
+          <div class="partner-meta">
+            <span class="partner-count">전표 3건</span>
+            <span class="badge pending">미마감</span>
+            <span class="partner-amount">1,230,000원</span>
+          </div>
+        </div>
+        <div class="partner-row">
+          <span class="partner-name">삼성에어텍</span>
+          <div class="partner-meta">
+            <span class="partner-count">전표 2건</span>
+            <span class="badge pending">미마감</span>
+            <span class="partner-amount">897,000원</span>
+          </div>
+        </div>
+        <div class="partner-row">
+          <span class="partner-name">한국냉동공업</span>
+          <div class="partner-meta">
+            <span class="partner-count">전표 1건</span>
+            <span class="badge pending">미마감</span>
+            <span class="partner-amount">520,000원</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline">취소</button>
+      <button class="btn btn-success">&#10003; 일마감 처리</button>
+    </div>
+  </div>
+</body>
+</html>

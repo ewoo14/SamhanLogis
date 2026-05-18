@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>거래처원장 — (주)삼한공조시스템</title>
+<style>
+  :root {
+    --surface-app:   #FAFBFC;
+    --surface-card:  #FFFFFF;
+    --surface-subtle:#F4F6F8;
+    --surface-hover: #F4F6F8;
+    --line-default:  #E1E5EA;
+    --line-focus:    #3B82F6;
+    --ink-primary:   #1A1F2E;
+    --ink-secondary: #5C6773;
+    --ink-tertiary:  #8A95A4;
+    --action-brand:        #1E40AF;
+    --action-brand-hover:  #1D4ED8;
+    --action-brand-subtle: #DBEAFE;
+    --state-success:    #10B981;
+    --state-success-bg: #D1FAE5;
+    --state-danger:     #EF4444;
+    --state-danger-bg:  #FEE2E2;
+
+    /* 원장 잔액 색상 */
+    --ledger-debit-color:  #1A1F2E;
+    --ledger-credit-color: #1E40AF;
+    --ledger-balance-pos:  #047857;
+    --ledger-balance-neg:  #B91C1C;
+    --ledger-running-bg:   #F0F7FF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: var(--surface-app);
+    color: var(--ink-primary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  /* ── App Header ── */
+  .app-header {
+    height: 56px;
+    background: var(--surface-card);
+    border-bottom: 1px solid var(--line-default);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-breadcrumb { font-size: 14px; color: var(--ink-secondary); }
+  .header-breadcrumb strong { color: var(--ink-primary); font-weight: 600; margin-left: 6px; }
+  .header-user { font-size: 14px; color: var(--ink-secondary); }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar {
+    width: 220px;
+    background: var(--surface-card);
+    border-right: 1px solid var(--line-default);
+    padding: 16px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-group { padding: 8px 24px 4px; font-size: 11px; color: var(--ink-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sidebar-item { padding: 10px 24px; font-size: 14px; color: var(--ink-secondary); cursor: pointer; }
+  .sidebar-item:hover { background: var(--surface-hover); }
+  .sidebar-item.active { background: var(--action-brand-subtle); color: var(--action-brand); font-weight: 600; border-left: 3px solid var(--action-brand); padding-left: 21px; }
+
+  .main { flex: 1; padding: 32px; overflow: auto; }
+  .page-title { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+  .page-subtitle { font-size: 13px; color: var(--ink-tertiary); margin-bottom: 28px; }
+
+  /* ── 필터 카드 ── */
+  .filter-card {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .filter-card-title { font-size: 13px; font-weight: 600; color: var(--ink-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .filter-row { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+  .filter-field { display: flex; flex-direction: column; gap: 5px; }
+  .filter-label { font-size: 12px; font-weight: 600; color: var(--ink-secondary); }
+  .input, .select {
+    height: 36px;
+    border: 1px solid var(--line-default);
+    background: var(--surface-card);
+    border-radius: 4px;
+    padding: 0 12px;
+    font-size: 14px;
+    color: var(--ink-primary);
+    font-family: inherit;
+  }
+  .input:focus, .select:focus { outline: none; border-color: var(--line-focus); box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+  .input.date   { width: 140px; }
+  .input.partner { width: 220px; }
+  .select.type  { min-width: 130px; }
+  .filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; }
+
+  .btn {
+    height: 36px; border-radius: 4px; padding: 0 16px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+    border: none; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--action-brand); color: #FFFFFF; }
+  .btn-primary:hover { background: var(--action-brand-hover); }
+  .btn-outline { background: var(--surface-card); color: var(--ink-primary); border: 1px solid var(--line-default); }
+  .btn-outline:hover { background: var(--surface-hover); }
+
+  /* ── 거래처 요약 카드 ── */
+  .partner-summary {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .partner-info { display: flex; flex-direction: column; gap: 2px; min-width: 180px; }
+  .partner-name-disp { font-size: 18px; font-weight: 700; }
+  .partner-meta-row { font-size: 12px; color: var(--ink-tertiary); }
+  .summary-divider { width: 1px; height: 48px; background: var(--line-default); }
+  .balance-summary { display: flex; gap: 32px; align-items: center; }
+  .balance-item { display: flex; flex-direction: column; gap: 4px; }
+  .balance-label { font-size: 12px; color: var(--ink-tertiary); font-weight: 500; }
+  .balance-value { font-size: 18px; font-weight: 700; font-feature-settings: "tnum" 1; }
+  .balance-value.debit  { color: var(--ledger-debit-color); }
+  .balance-value.credit { color: var(--ledger-credit-color); }
+  .balance-value.pos    { color: var(--ledger-balance-pos); }
+  .balance-value.neg    { color: var(--ledger-balance-neg); }
+  .balance-value.zero   { color: var(--ink-tertiary); }
+  .balance-period { font-size: 12px; color: var(--ink-tertiary); }
+
+  /* ── 원장 테이블 ── */
+  .table-wrap {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-default);
+  }
+  .table-header-title { font-size: 15px; font-weight: 600; }
+  .table-header-actions { display: flex; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    height: 44px;
+    background: var(--surface-subtle);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    text-align: left;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line-default);
+  }
+  thead th.right  { text-align: right; }
+  thead th.center { text-align: center; }
+  tbody td {
+    height: 44px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line-default);
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-hover); }
+
+  /* 컬럼 */
+  .col-date    { width: 100px; color: var(--ink-secondary); }
+  .col-slipno  { width: 120px; font-family: ui-monospace, "Cascadia Mono", monospace; color: var(--ink-secondary); font-size: 13px; }
+  .col-desc    { /* flex 1 */ }
+  .col-type    { width: 80px; text-align: center; }
+  .col-debit   { width: 130px; text-align: right; font-feature-settings: "tnum" 1, "lnum" 1; color: var(--ledger-debit-color); }
+  .col-credit  { width: 130px; text-align: right; font-feature-settings: "tnum" 1, "lnum" 1; color: var(--ledger-credit-color); }
+  .col-balance { width: 140px; text-align: right; font-feature-settings: "tnum" 1, "lnum" 1; font-weight: 600; }
+  .col-memo    { width: 120px; color: var(--ink-tertiary); font-size: 13px; }
+
+  .balance-pos  { color: var(--ledger-balance-pos); }
+  .balance-neg  { color: var(--ledger-balance-neg); }
+  .balance-zero { color: var(--ink-tertiary); }
+
+  /* 기초잔액 / 합계 행 */
+  .row-opening { background: var(--surface-subtle) !important; }
+  .row-total {
+    background: var(--surface-subtle) !important;
+    border-top: 2px solid var(--line-default);
+  }
+  .row-total td { font-weight: 700; font-size: 14px; height: 48px; }
+
+  /* 전표 유형 pill */
+  .type-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface-subtle);
+    color: var(--ink-secondary);
+  }
+  .type-pill.sales    { background: #FFEDD5; color: #C2410C; }
+  .type-pill.purchase { background: #EDE9FE; color: #6D28D9; }
+  .type-pill.receipt  { background: #D1FAE5; color: #047857; }
+  .type-pill.payment  { background: #FEE2E2; color: #B91C1C; }
+
+  /* ── 페이지네이션 ── */
+  .table-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--line-default);
+    background: var(--surface-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--ink-tertiary);
+  }
+  .pagination { display: flex; gap: 6px; }
+  .page-btn {
+    width: 28px; height: 28px;
+    border: 1px solid var(--line-default);
+    background: var(--surface-card);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .page-btn.active { background: var(--action-brand); color: white; border-color: var(--action-brand); }
+</style>
+</head>
+<body>
+  <!-- App Header -->
+  <div class="app-header">
+    <div class="header-breadcrumb">
+      업무 화면 / 회계 / <strong>거래처원장</strong>
+    </div>
+    <div class="header-user">박지혜 (회계담당) ▾</div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-group">영업</div>
+      <div class="sidebar-item">거래명세서</div>
+      <div class="sidebar-item">작업지시서</div>
+      <div class="sidebar-group">창고</div>
+      <div class="sidebar-item">재고</div>
+      <div class="sidebar-item">입출고</div>
+      <div class="sidebar-group">회계</div>
+      <div class="sidebar-item">계정과목</div>
+      <div class="sidebar-item">분개장</div>
+      <div class="sidebar-item">일마감</div>
+      <div class="sidebar-item active">거래처원장</div>
+      <div class="sidebar-group">시스템</div>
+      <div class="sidebar-item">사용자</div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <h1 class="page-title">거래처원장</h1>
+      <p class="page-subtitle">기간별 거래처 거래 내역 및 잔액 조회 — 이카운트 "거래처별거래명세원장" 동등</p>
+
+      <!-- 필터 카드 -->
+      <div class="filter-card">
+        <div class="filter-card-title">조회 조건</div>
+        <div class="filter-row">
+          <div class="filter-field">
+            <span class="filter-label">조회 시작일</span>
+            <input class="input date" type="date" value="2026-05-01" />
+          </div>
+          <div class="filter-field">
+            <span class="filter-label">조회 종료일</span>
+            <input class="input date" type="date" value="2026-05-17" />
+          </div>
+          <div class="filter-field">
+            <span class="filter-label">거래처</span>
+            <input class="input partner" type="text" value="(주)에이스냉동" />
+          </div>
+          <div class="filter-field">
+            <span class="filter-label">전표 유형</span>
+            <select class="select type">
+              <option>전체</option>
+              <option>매출</option>
+              <option>매입</option>
+              <option>수금</option>
+              <option>지급</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-outline">초기화</button>
+            <button class="btn btn-primary">&#128269; 조회</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 거래처 요약 카드 -->
+      <div class="partner-summary">
+        <div class="partner-info">
+          <span class="partner-name-disp">(주)에이스냉동</span>
+          <span class="partner-meta-row">사업자번호: 123-45-67890 · 담당: 이상혁</span>
+          <span class="partner-meta-row balance-period">조회 기간: 2026-05-01 ~ 2026-05-17</span>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="balance-summary">
+          <div class="balance-item">
+            <span class="balance-label">기초 잔액</span>
+            <span class="balance-value debit">1,200,000</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-label">기간 차변 (매출)</span>
+            <span class="balance-value debit">3,850,000</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-label">기간 대변 (수금)</span>
+            <span class="balance-value credit">2,600,000</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-label">기말 잔액</span>
+            <span class="balance-value pos">2,450,000</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 원장 테이블 -->
+      <div class="table-wrap">
+        <div class="table-header">
+          <span class="table-header-title">거래 내역</span>
+          <div class="table-header-actions">
+            <button class="btn btn-outline" style="font-size:13px;">엑셀 다운로드</button>
+            <button class="btn btn-outline" style="font-size:13px;">&#128438; 출력</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="col-date">일자</th>
+              <th class="col-slipno">전표번호</th>
+              <th class="col-desc">적요</th>
+              <th class="col-type center">유형</th>
+              <th class="col-debit right">차변 (원)</th>
+              <th class="col-credit right">대변 (원)</th>
+              <th class="col-balance right">잔액 (원)</th>
+              <th class="col-memo">비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 기초잔액 행 -->
+            <tr class="row-opening">
+              <td class="col-date" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-slipno" style="color:var(--ink-tertiary)">—</td>
+              <td><strong style="color:var(--ink-secondary)">기초 잔액 (2026-05-01 이전)</strong></td>
+              <td class="col-type center">—</td>
+              <td class="col-debit">1,200,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">1,200,000</td>
+              <td class="col-memo">—</td>
+            </tr>
+            <!-- 거래 라인 -->
+            <tr>
+              <td class="col-date">05-03</td>
+              <td class="col-slipno">SS-2026-05-003</td>
+              <td>에어컨 실외기 납품 (5EA)</td>
+              <td class="col-type center"><span class="type-pill sales">매출</span></td>
+              <td class="col-debit">850,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">2,050,000</td>
+              <td class="col-memo">5월 정기납품</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-05</td>
+              <td class="col-slipno">SS-2026-05-005</td>
+              <td>부품 추가 납품 (3EA)</td>
+              <td class="col-type center"><span class="type-pill sales">매출</span></td>
+              <td class="col-debit">420,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">2,470,000</td>
+              <td class="col-memo">긴급발주</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-07</td>
+              <td class="col-slipno">RC-2026-05-002</td>
+              <td>수금 처리 — 계좌이체</td>
+              <td class="col-type center"><span class="type-pill receipt">수금</span></td>
+              <td class="col-debit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-credit">1,500,000</td>
+              <td class="col-balance balance-pos">970,000</td>
+              <td class="col-memo">국민은행</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-10</td>
+              <td class="col-slipno">SS-2026-05-008</td>
+              <td>5월 정기 납품 2차 (7EA)</td>
+              <td class="col-type center"><span class="type-pill sales">매출</span></td>
+              <td class="col-debit">1,540,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">2,510,000</td>
+              <td class="col-memo">—</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-14</td>
+              <td class="col-slipno">SS-2026-05-011</td>
+              <td>냉동 콤프레샤 납품 (2EA)</td>
+              <td class="col-type center"><span class="type-pill sales">매출</span></td>
+              <td class="col-debit">1,040,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">3,550,000</td>
+              <td class="col-memo">—</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-15</td>
+              <td class="col-slipno">RC-2026-05-007</td>
+              <td>수금 처리 — 현금</td>
+              <td class="col-type center"><span class="type-pill receipt">수금</span></td>
+              <td class="col-debit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-credit">1,100,000</td>
+              <td class="col-balance balance-pos">2,450,000</td>
+              <td class="col-memo">—</td>
+            </tr>
+            <tr>
+              <td class="col-date">05-17</td>
+              <td class="col-slipno">SS-2026-05-012</td>
+              <td>에어컨 부품 출하 (3EA)</td>
+              <td class="col-type center"><span class="type-pill sales">매출</span></td>
+              <td class="col-debit">1,230,000</td>
+              <td class="col-credit" style="color:var(--ink-tertiary)">—</td>
+              <td class="col-balance balance-pos">3,680,000</td>
+              <td class="col-memo">미마감</td>
+            </tr>
+            <!-- 합계 행 -->
+            <tr class="row-total">
+              <td colspan="4" style="text-align:right; color:var(--ink-secondary);">합계</td>
+              <td class="col-debit" style="font-weight:700">5,080,000</td>
+              <td class="col-credit" style="font-weight:700;color:var(--ledger-credit-color)">2,600,000</td>
+              <td class="col-balance balance-pos" style="font-weight:700">3,680,000</td>
+              <td class="col-memo">—</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="table-footer">
+          <span>총 7건 (기초 제외)</span>
+          <div class="pagination">
+            <button class="page-btn">&#8249;</button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">&#8250;</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

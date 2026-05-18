@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>일마감 — (주)삼한공조시스템</title>
+<style>
+  :root {
+    --surface-app:   #FAFBFC;
+    --surface-card:  #FFFFFF;
+    --surface-subtle:#F4F6F8;
+    --surface-hover: #F4F6F8;
+    --line-default:  #E1E5EA;
+    --line-focus:    #3B82F6;
+    --ink-primary:   #1A1F2E;
+    --ink-secondary: #5C6773;
+    --ink-tertiary:  #8A95A4;
+    --action-brand:        #1E40AF;
+    --action-brand-hover:  #1D4ED8;
+    --action-brand-subtle: #DBEAFE;
+
+    --state-success:    #10B981;
+    --state-success-bg: #D1FAE5;
+    --state-warning:    #F59E0B;
+    --state-warning-bg: #FEF3C7;
+    --state-danger:     #EF4444;
+    --state-danger-bg:  #FEE2E2;
+
+    /* 일마감 상태 토큰 */
+    --close-pending:     #F59E0B;
+    --close-pending-bg:  #FEF3C7;
+    --close-pending-border: #FDE68A;
+    --close-done:        #047857;
+    --close-done-bg:     #D1FAE5;
+    --close-done-border: #6EE7B7;
+    --close-partial:     #9333EA;
+    --close-partial-bg:  #F3E8FF;
+    --close-partial-border: #D8B4FE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: var(--surface-app);
+    color: var(--ink-primary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  /* ── App Header ── */
+  .app-header {
+    height: 56px;
+    background: var(--surface-card);
+    border-bottom: 1px solid var(--line-default);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-breadcrumb { font-size: 14px; color: var(--ink-secondary); }
+  .header-breadcrumb strong { color: var(--ink-primary); font-weight: 600; margin-left: 6px; }
+  .header-user { font-size: 14px; color: var(--ink-secondary); }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar {
+    width: 220px;
+    background: var(--surface-card);
+    border-right: 1px solid var(--line-default);
+    padding: 16px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-group {
+    padding: 8px 24px 4px;
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .sidebar-item {
+    padding: 10px 24px;
+    font-size: 14px;
+    color: var(--ink-secondary);
+    cursor: pointer;
+  }
+  .sidebar-item:hover { background: var(--surface-hover); }
+  .sidebar-item.active {
+    background: var(--action-brand-subtle);
+    color: var(--action-brand);
+    font-weight: 600;
+    border-left: 3px solid var(--action-brand);
+    padding-left: 21px;
+  }
+
+  /* ── Main ── */
+  .main { flex: 1; padding: 32px; overflow: auto; }
+  .page-title { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+  .page-subtitle { font-size: 13px; color: var(--ink-tertiary); margin-bottom: 28px; }
+
+  /* ── 필터/조건 카드 ── */
+  .filter-card {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .filter-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .filter-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .filter-field { display: flex; flex-direction: column; gap: 5px; }
+  .filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+  }
+  .input, .select {
+    height: 36px;
+    border: 1px solid var(--line-default);
+    background: var(--surface-card);
+    border-radius: 4px;
+    padding: 0 12px;
+    font-size: 14px;
+    color: var(--ink-primary);
+    font-family: inherit;
+  }
+  .input:focus, .select:focus {
+    outline: none;
+    border-color: var(--line-focus);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  }
+  .input.date { width: 140px; }
+  .input.partner { width: 220px; }
+  .select.status { min-width: 130px; }
+  .filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; }
+
+  /* ── 버튼 ── */
+  .btn {
+    height: 36px;
+    border-radius: 4px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: var(--action-brand);
+    color: #FFFFFF;
+  }
+  .btn-primary:hover { background: var(--action-brand-hover); }
+  .btn-outline {
+    background: var(--surface-card);
+    color: var(--ink-primary);
+    border: 1px solid var(--line-default);
+  }
+  .btn-outline:hover { background: var(--surface-hover); }
+  .btn-danger {
+    background: var(--state-danger);
+    color: #FFFFFF;
+  }
+  .btn-danger:hover { background: #DC2626; }
+  .btn-success {
+    background: #047857;
+    color: #FFFFFF;
+  }
+  .btn-success:hover { background: #065F46; }
+
+  /* ── 처리 액션 영역 ── */
+  .action-bar {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .action-bar-left { display: flex; align-items: center; gap: 12px; }
+  .action-bar-info { font-size: 13px; color: var(--ink-secondary); }
+  .action-bar-info strong { color: var(--ink-primary); font-weight: 600; }
+  .action-bar-right { display: flex; gap: 8px; }
+
+  .info-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--action-brand-subtle);
+    color: var(--action-brand);
+  }
+
+  /* ── 처리 내역 테이블 ── */
+  .table-wrap {
+    background: var(--surface-card);
+    border: 1px solid var(--line-default);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-default);
+  }
+  .table-header-title { font-size: 15px; font-weight: 600; }
+  .table-header-count { font-size: 13px; color: var(--ink-tertiary); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    height: 44px;
+    background: var(--surface-subtle);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    text-align: left;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line-default);
+  }
+  thead th.center { text-align: center; }
+  thead th.right  { text-align: right; }
+  tbody td {
+    height: 44px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line-default);
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-hover); }
+  .col-date  { width: 100px; }
+  .col-partner { width: 180px; font-weight: 500; }
+  .col-slip  { width: 100px; font-family: ui-monospace, "Cascadia Mono", monospace; color: var(--ink-secondary); font-size: 13px; }
+  .col-count { width: 80px; text-align: center; }
+  .col-amount { width: 130px; text-align: right; font-feature-settings: "tnum" 1, "lnum" 1; }
+  .col-status { width: 110px; text-align: center; }
+  .col-close-time { width: 160px; color: var(--ink-tertiary); font-size: 13px; }
+  .col-action { width: 80px; text-align: center; }
+
+  /* ── 상태 뱃지 ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid;
+    line-height: 1.4;
+  }
+  .badge.pending  { background: var(--close-pending-bg);  color: var(--close-pending);  border-color: var(--close-pending-border); }
+  .badge.done     { background: var(--close-done-bg);     color: var(--close-done);     border-color: var(--close-done-border); }
+  .badge.partial  { background: var(--close-partial-bg);  color: var(--close-partial);  border-color: var(--close-partial-border); }
+
+  /* ── 선택 체크박스 ── */
+  .checkbox-cell { width: 44px; text-align: center; }
+  input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+  /* ── 선택 합계 footer ── */
+  .table-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--line-default);
+    background: var(--surface-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--ink-secondary);
+  }
+  .table-footer-total {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .total-item { display: flex; align-items: center; gap: 6px; }
+  .total-label { color: var(--ink-tertiary); }
+  .total-value {
+    font-weight: 700;
+    color: var(--ink-primary);
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+  .total-value.brand { color: var(--action-brand); }
+
+  /* ── 알림 배너 ── */
+  .alert {
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .alert.warning {
+    background: var(--state-warning-bg);
+    color: #92400E;
+    border: 1px solid #FDE68A;
+  }
+  .alert-icon { font-size: 15px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+  <!-- App Header -->
+  <div class="app-header">
+    <div class="header-breadcrumb">
+      업무 화면 / 회계 / <strong>일마감</strong>
+    </div>
+    <div class="header-user">박지혜 (회계담당) ▾</div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-group">영업</div>
+      <div class="sidebar-item">거래명세서</div>
+      <div class="sidebar-item">작업지시서</div>
+      <div class="sidebar-group">창고</div>
+      <div class="sidebar-item">재고</div>
+      <div class="sidebar-item">입출고</div>
+      <div class="sidebar-group">회계</div>
+      <div class="sidebar-item">계정과목</div>
+      <div class="sidebar-item">분개장</div>
+      <div class="sidebar-item active">일마감</div>
+      <div class="sidebar-item">거래처원장</div>
+      <div class="sidebar-group">시스템</div>
+      <div class="sidebar-item">사용자</div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <h1 class="page-title">일마감</h1>
+      <p class="page-subtitle">날짜 및 거래처별 일일 정산 처리 — 마감 후 해당 일자 수정 불가</p>
+
+      <!-- 알림 배너 -->
+      <div class="alert warning">
+        <span class="alert-icon">&#9888;</span>
+        <span><strong>2026-05-17</strong> 일자에 미마감 전표 3건이 있습니다. 마감 전 확인하세요.</span>
+      </div>
+
+      <!-- 필터 카드 -->
+      <div class="filter-card">
+        <div class="filter-card-title">조회 조건</div>
+        <div class="filter-row">
+          <div class="filter-field">
+            <span class="filter-label">마감 일자</span>
+            <input class="input date" type="date" value="2026-05-17" />
+          </div>
+          <div class="filter-field">
+            <span class="filter-label">거래처</span>
+            <input class="input partner" type="text" placeholder="거래처명 검색…" />
+          </div>
+          <div class="filter-field">
+            <span class="filter-label">마감 상태</span>
+            <select class="select status">
+              <option value="">전체</option>
+              <option value="PENDING" selected>미마감</option>
+              <option value="DONE">완료</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-outline">초기화</button>
+            <button class="btn btn-primary">&#128269; 조회</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 처리 액션 바 -->
+      <div class="action-bar">
+        <div class="action-bar-left">
+          <span class="info-pill">선택 3건</span>
+          <span class="action-bar-info">합계 <strong>2,647,000원</strong> 마감 처리</span>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn btn-outline">&#10006; 마감 취소</button>
+          <button class="btn btn-success">&#10003; 일마감 처리</button>
+        </div>
+      </div>
+
+      <!-- 처리 내역 테이블 -->
+      <div class="table-wrap">
+        <div class="table-header">
+          <span class="table-header-title">처리 내역</span>
+          <span class="table-header-count">총 8건 (미마감 5건 / 완료 3건)</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="checkbox-cell"><input type="checkbox" /></th>
+              <th class="col-date">일자</th>
+              <th class="col-partner">거래처</th>
+              <th class="col-slip">전표번호</th>
+              <th class="col-count center">건수</th>
+              <th class="col-amount right">금액 (원)</th>
+              <th class="col-status center">마감 상태</th>
+              <th class="col-close-time">마감 시각</th>
+              <th class="col-action center">비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 미마감 -->
+            <tr>
+              <td class="checkbox-cell"><input type="checkbox" checked /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">(주)에이스냉동</td>
+              <td class="col-slip">SS-2026-05-012</td>
+              <td class="col-count center">3</td>
+              <td class="col-amount">1,230,000</td>
+              <td class="col-status center"><span class="badge pending">미마감</span></td>
+              <td class="col-close-time">—</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr>
+              <td class="checkbox-cell"><input type="checkbox" checked /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">삼성에어텍</td>
+              <td class="col-slip">SS-2026-05-013</td>
+              <td class="col-count center">2</td>
+              <td class="col-amount">897,000</td>
+              <td class="col-status center"><span class="badge pending">미마감</span></td>
+              <td class="col-close-time">—</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr>
+              <td class="checkbox-cell"><input type="checkbox" checked /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">한국냉동공업</td>
+              <td class="col-slip">SS-2026-05-014</td>
+              <td class="col-count center">1</td>
+              <td class="col-amount">520,000</td>
+              <td class="col-status center"><span class="badge pending">미마감</span></td>
+              <td class="col-close-time">—</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr>
+              <td class="checkbox-cell"><input type="checkbox" /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">LG서비스센터</td>
+              <td class="col-slip">SS-2026-05-015</td>
+              <td class="col-count center">4</td>
+              <td class="col-amount">2,100,000</td>
+              <td class="col-status center"><span class="badge pending">미마감</span></td>
+              <td class="col-close-time">—</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr>
+              <td class="checkbox-cell"><input type="checkbox" /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">(주)한진냉공</td>
+              <td class="col-slip">SS-2026-05-016</td>
+              <td class="col-count center">2</td>
+              <td class="col-amount">345,000</td>
+              <td class="col-status center"><span class="badge pending">미마감</span></td>
+              <td class="col-close-time">—</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <!-- 완료 -->
+            <tr style="opacity:0.7">
+              <td class="checkbox-cell"><input type="checkbox" disabled /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">대성냉기</td>
+              <td class="col-slip">SS-2026-05-009</td>
+              <td class="col-count center">2</td>
+              <td class="col-amount">680,000</td>
+              <td class="col-status center"><span class="badge done">완료</span></td>
+              <td class="col-close-time">2026-05-17 09:42</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr style="opacity:0.7">
+              <td class="checkbox-cell"><input type="checkbox" disabled /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">캐리어에어컨</td>
+              <td class="col-slip">SS-2026-05-010</td>
+              <td class="col-count center">3</td>
+              <td class="col-amount">1,460,000</td>
+              <td class="col-status center"><span class="badge done">완료</span></td>
+              <td class="col-close-time">2026-05-17 09:45</td>
+              <td class="col-action center">—</td>
+            </tr>
+            <tr style="opacity:0.7">
+              <td class="checkbox-cell"><input type="checkbox" disabled /></td>
+              <td class="col-date">2026-05-17</td>
+              <td class="col-partner">(주)동화냉동</td>
+              <td class="col-slip">SS-2026-05-011</td>
+              <td class="col-count center">1</td>
+              <td class="col-amount">210,000</td>
+              <td class="col-status center"><span class="badge done">완료</span></td>
+              <td class="col-close-time">2026-05-17 10:03</td>
+              <td class="col-action center">—</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="table-footer">
+          <span>선택 3건</span>
+          <div class="table-footer-total">
+            <div class="total-item">
+              <span class="total-label">미마감 합계</span>
+              <span class="total-value">5,092,000원</span>
+            </div>
+            <div class="total-item">
+              <span class="total-label">완료 합계</span>
+              <span class="total-value brand">2,350,000원</span>
+            </div>
+            <div class="total-item">
+              <span class="total-label">당일 총계</span>
+              <span class="total-value">7,442,000원</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
