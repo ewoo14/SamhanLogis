@@ -961,7 +961,13 @@ test.describe('SP-D3 회귀 가드 (false green 0건 + SP-D3 PageCode 정합 검
     const specContent = fs.readFileSync(specFile, 'utf-8')
 
     // false green 패턴 검출 — SP-09 패턴 의무
-    const codeLines = specContent
+    // self-test 섹션 자체의 문자열이 매칭되지 않도록 self-test describe 블록을 제거한 후 검사.
+    // 'SP-D3 회귀 가드' describe 블록 이전 코드만 검사 대상으로 한정.
+    const selfTestMarker = "test.describe('SP-D3 회귀 가드"
+    const selfTestStart = specContent.indexOf(selfTestMarker)
+    const codeToCheck = selfTestStart >= 0 ? specContent.slice(0, selfTestStart) : specContent
+
+    const codeLines = codeToCheck
       .split('\n')
       .filter(line => {
         const trimmed = line.trimStart()
@@ -971,25 +977,31 @@ test.describe('SP-D3 회귀 가드 (false green 0건 + SP-D3 PageCode 정합 검
       })
       .join('\n')
 
-    // || true 패턴 금지
-    const orTrueMatches = codeLines.match(/\|\|\s*true(?!\s*\/\/)/g) ?? []
+    // || true 패턴 금지 (regex 자체를 split-join 으로 조합하여 self-match 방지)
+    // NOTE: 패턴 분리 표현 — '||' + ' true' 로 조합
+    const orTruePattern = new RegExp('\\|\\|\\s*true(?!\\s*//)' , 'g')
+    const orTrueMatches = codeLines.match(orTruePattern) ?? []
     expect(
       orTrueMatches.length,
-      `false green 패턴 발견: || true — SP-09 패턴 위반. 발견: ${JSON.stringify(orTrueMatches)}`,
+      `false green 패턴 발견: ${'||'} true — SP-09 패턴 위반. 발견: ${JSON.stringify(orTrueMatches)}`,
     ).toBe(0)
 
     // test.skip(!ok) 패턴 금지 — skip 대신 FAIL 의무
-    const skipNotOkMatches = codeLines.match(/test\.skip\(!ok\)/g) ?? []
+    // NOTE: 패턴 분리 표현 — 'test.skip' + '(!ok)' 로 조합
+    const skipPattern = new RegExp('test\\.skip\\(!ok\\)', 'g')
+    const skipNotOkMatches = codeLines.match(skipPattern) ?? []
     expect(
       skipNotOkMatches.length,
-      `false green 패턴 발견: test.skip(!ok) — SP-09 패턴 위반. 발견: ${JSON.stringify(skipNotOkMatches)}`,
+      `false green 패턴 발견: ${'test.skip(!ok)'} — SP-09 패턴 위반. 발견: ${JSON.stringify(skipNotOkMatches)}`,
     ).toBe(0)
 
     // page.setContent( 패턴 금지 — dev server 없이 HTML mock fallback 금지
-    const setContentMatches = codeLines.match(/page\.setContent\s*\(/g) ?? []
+    // NOTE: 패턴 분리 표현 — 'page.setContent' + '(' 로 조합
+    const setContentPattern = new RegExp('page\\.setContent\\s*\\(', 'g')
+    const setContentMatches = codeLines.match(setContentPattern) ?? []
     expect(
       setContentMatches.length,
-      `false green 패턴 발견: page.setContent() — SP-09 패턴 위반 (dev server 없이 HTML 직접 삽입). 발견: ${JSON.stringify(setContentMatches)}`,
+      `false green 패턴 발견: ${'page.setContent('}) — SP-09 패턴 위반 (dev server 없이 HTML 직접 삽입). 발견: ${JSON.stringify(setContentMatches)}`,
     ).toBe(0)
   })
 

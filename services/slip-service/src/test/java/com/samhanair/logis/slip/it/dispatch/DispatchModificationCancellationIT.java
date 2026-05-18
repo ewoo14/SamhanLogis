@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it.dispatch;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -7,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -20,6 +22,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -36,6 +39,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>각 case 는 Phase A 의 setup helper (DispatchTask 생성 → vehicle group 추가 → dispatch → confirm)
  * 를 거쳐 DISPATCHED 상태로 만든 뒤 Phase C 전이를 검증.
+ *
+ * <p>SP-D3 @MockBean DynamicPermissionClient — feedback_it_mockbean_external_clients.md 의무.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
@@ -45,6 +50,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
+    /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
+    @MockBean DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;
@@ -53,6 +60,16 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
     @MockBean PartnerBlockClient partnerBlockClient;
     @MockBean PartnerInternalClient partnerInternalClient;
     @MockBean SmsGateway smsGateway;
+
+    @BeforeEach
+    void setupLenientStubs() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
+    }
 
     // ---------- Admin endpoint ----------
 

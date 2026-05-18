@@ -228,7 +228,70 @@ SP-D2 P04 트랩 대응으로 다음 기존 IT에 `@MockBean DynamicPermissionCl
 
 ---
 
-## 10. 후속 SP-D4 이관 계획 (전체 121 @PreAuthorize 동적 전환)
+## 10. Cycle 2 Fix 내역 (2026-05-18)
+
+Cycle 1 Claude + Codex 양쪽 리뷰 결함 8건 종합 fix.
+
+### 10.1 F-BE-01 [CRITICAL] SlipController WRITE 엔드포인트 checkEditPermission 추가
+
+**대상 엔드포인트**: `create` / `editHeader` / `updateV20` / `addLine` / `removeLine` / `save` / `send` / `cancel`
+
+`checkEditPermissionBySlipType(roleHeader, slipType)` 헬퍼 추가:
+- `slipType=OUTBOUND` → `sales.slip.list` EDIT 가드
+- `slipType=INBOUND` → `purchases.slip.list` EDIT 가드
+- `create`: request.slipType() 직접 사용
+- id 기반 WRITE: `slipService.getOne(id).slipType()` 조회 후 분기
+
+### 10.2 F-BE-02 / F-FE-01 / F-DevOps-01 / Codex blocker 2 — V9 Flyway seed 정합
+
+**파일**: `services/auth-service/src/main/resources/db/migration/V9__sp_d3_fix_slip_dispatch_seed.sql`
+
+| 대상 | V7 값 | V9 fix | 이유 |
+|------|-------|--------|------|
+| SALES dispatch.board | canView=TRUE | canView=FALSE, canEdit=FALSE | 배차 메뉴 숨김 |
+| WAREHOUSE purchases.receipt-ocr | canView=FALSE | canView=TRUE, canEdit=TRUE | 매입 OCR 허용 |
+| WAREHOUSE sales.slip.list | canView=TRUE | canView=FALSE, canEdit=FALSE | 매출 슬립 숨김 |
+
+### 10.3 Codex blocker 1 — dispatch.board FE/BE 1:1 매핑 정합
+
+**대상 컨트롤러**: `DispatchBoardAdminController` + `DispatchTaskAdminController`
+
+FE `/dispatch-board` 라우트가 slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*` 호출.
+해당 컨트롤러에 `dispatch.board` 가드 추가:
+- `DispatchBoardAdminController.listUnDispatchedSlips` → VIEW 가드
+- `DispatchTaskAdminController` 모든 WRITE 엔드포인트 → EDIT 가드 (9개 메서드)
+
+### 10.4 F-QA-01 (ex F-BE-04) — SlipDynamicPermissionIT C5 assertion 강화
+
+`@MockBean`은 `DynamicPermissionClientImpl`을 bypass하므로 RuntimeException throw는
+컨트롤러까지 올라와 500이 발생. C5를 canView=false stub으로 재구성 → 403 FORBIDDEN assertion.
+
+### 10.5 Codex blocker 3 — Playwright false-green self-test 수정
+
+spec 내 `'SP-D3 회귀 가드'` describe 블록 이전 코드만 검사 범위로 한정.
+regex 패턴 문자열 자체의 self-match로 인한 false-red 방지.
+
+### 10.6 FE mock.ts SP-D3 V9 seed 정합
+
+`SP_D1_DEFAULT_VIEW`와 `SP_D1_DEFAULT_EDIT`:
+- SALES: `dispatch.board` 제거
+- WAREHOUSE: `sales.slip.list` 제거, `purchases.receipt-ocr` 추가
+
+### 10.7 기존 IT DynamicPermissionClient @MockBean 추가
+
+SP-D3 dispatch.board 가드 추가로 DynamicPermissionClient 주입이 필요한 기존 IT 보강:
+- `DispatchBoardAdminControllerIT` — @MockBean + lenient stub 추가
+- `DispatchTaskAdminControllerIT` — @MockBean + lenient stub 추가
+- `DispatchModificationCancellationIT` — @MockBean + lenient stub 추가
+
+### 10.8 domain-integrity-check.md §2-2 §3 정정
+
+- §2-2 WAREHOUSE 기대값 표 업데이트 (purchases.receipt-ocr view/edit=TRUE, sales.slip.list 제거)
+- §3 SALES dispatch.board 기대값 = 0 (V9 fix 적용 후 canView=FALSE)
+
+---
+
+## 11. 후속 SP-D4 이관 계획 (전체 121 @PreAuthorize 동적 전환)
 
 SP-D4 에서 전체 `@PreAuthorize` 121건을 PermissionGuard 단독으로 전환하여 완전 동적 RBAC 달성.
 

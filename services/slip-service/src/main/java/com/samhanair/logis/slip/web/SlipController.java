@@ -169,6 +169,9 @@ public class SlipController {
     /**
      * 전표 신규 생성 (DRAFT 상태). 라인 productId 일괄 검증 + 자동 메모 적용.
      *
+     * <p>SP-D3 동적 권한 EDIT 가드: slipType 이 OUTBOUND 면 sales.slip.list,
+     * INBOUND 면 purchases.slip.list EDIT 권한을 검증한다.
+     *
      * @return 201, SlipDetailResponse
      */
     @Operation(summary = "전표 생성", description = "DRAFT 상태로 생성. 라인 productId 일괄 검증")
@@ -182,18 +185,28 @@ public class SlipController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<SlipDetailResponse> create(
             @Valid @RequestBody CreateSlipRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — slipType 기반 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, request.slipType());
         return ApiResponse.ok(slipService.create(request, callerOrSystem(callerHeader)));
     }
 
-    /** 헤더 부분 수정 — DRAFT/SAVED 만. */
+    /**
+     * 헤더 부분 수정 — DRAFT/SAVED 만.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "헤더 수정", description = "DRAFT/SAVED 단계만. null 필드는 보존")
     @PatchMapping("/{id}/header")
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<SlipDetailResponse> editHeader(
             @PathVariable UUID id,
             @Valid @RequestBody EditHeaderRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.editHeader(id, request, callerOrSystem(callerHeader)));
     }
 
@@ -203,6 +216,8 @@ public class SlipController {
      * <p>V20 신규 5 필드 (deliveryAddress / supervisionAddress / projectName / recipientPhone /
      * paymentDueDate) 를 포함한 통합 수정 endpoint. null 필드는 보존 (부분 갱신).
      * businessNumber 는 partnerId 로 partner-service Feign 자동 resolve (사용자 직접 입력 X).
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
      *
      * @return 200, SlipDetailResponse (V20 필드 포함)
      */
@@ -220,11 +235,18 @@ public class SlipController {
     public ApiResponse<SlipDetailResponse> updateV20(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSlipRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.updateSlip(id, request, callerOrSystem(callerHeader)));
     }
 
-    /** 라인 추가 — DRAFT/SAVED 만. */
+    /**
+     * 라인 추가 — DRAFT/SAVED 만.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "라인 추가", description = "DRAFT/SAVED 단계만")
     @PostMapping("/{id}/lines")
     @ResponseStatus(HttpStatus.CREATED)
@@ -232,11 +254,18 @@ public class SlipController {
     public ApiResponse<SlipDetailResponse> addLine(
             @PathVariable UUID id,
             @Valid @RequestBody AddLineRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.addLine(id, request, callerOrSystem(callerHeader)));
     }
 
-    /** 라인 제거 — DRAFT/SAVED 만. 204 No Content. */
+    /**
+     * 라인 제거 — DRAFT/SAVED 만. 204 No Content.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "라인 제거", description = "DRAFT/SAVED 단계만, orphan removal")
     @DeleteMapping("/{id}/lines/{lineId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -244,25 +273,43 @@ public class SlipController {
     public void removeLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         slipService.removeLine(id, lineId, callerOrSystem(callerHeader));
     }
 
-    /** DRAFT → SAVED. */
+    /**
+     * DRAFT → SAVED.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "저장", description = "DRAFT → SAVED")
     @PostMapping("/{id}/save")
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<SlipDetailResponse> save(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.save(id, callerOrSystem(callerHeader)));
     }
 
-    /** SAVED → SENT. */
+    /**
+     * SAVED → SENT.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "전송", description = "SAVED → SENT")
     @PostMapping("/{id}/send")
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
-    public ApiResponse<SlipDetailResponse> send(@PathVariable UUID id) {
+    public ApiResponse<SlipDetailResponse> send(
+            @PathVariable UUID id,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.send(id));
     }
 
@@ -365,13 +412,20 @@ public class SlipController {
         return ApiResponse.ok(slipService.reject(id, callerOrSystem(callerHeader), request.reason()));
     }
 
-    /** 취소 — DRAFT/SAVED/SENT→CANCELED. */
+    /**
+     * 취소 — DRAFT/SAVED/SENT→CANCELED.
+     *
+     * <p>SP-D3 동적 권한 EDIT 가드: 기존 전표 slipType 을 조회하여 pageCode 를 결정한다.
+     */
     @Operation(summary = "취소", description = "DRAFT/SAVED/SENT → CANCELED")
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<SlipDetailResponse> cancel(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.cancel(id, callerOrSystem(callerHeader)));
     }
 
@@ -530,6 +584,26 @@ public class SlipController {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "동적 권한 설정에 의해 전표 목록 조회 권한이 차단되었습니다.");
         }
+    }
+
+    /**
+     * SP-D3 slipType 기반 동적 EDIT 권한 검증 — WRITE 엔드포인트 공통 진입점.
+     *
+     * <p>slipType 이 OUTBOUND 면 {@code sales.slip.list} pageCode,
+     * INBOUND 면 {@code purchases.slip.list} pageCode 로 {@link #checkEditPermission} 을 호출한다.
+     * slipType null 이면 건너뜀.
+     *
+     * @param actorRole 요청자 role (X-User-Role header)
+     * @param slipType  전표 유형 (OUTBOUND / INBOUND)
+     */
+    private void checkEditPermissionBySlipType(String actorRole, SlipType slipType) {
+        if (slipType == null) {
+            return;
+        }
+        String pageCode = SlipType.INBOUND.equals(slipType)
+                ? PURCHASES_SLIP_LIST_PAGE_CODE
+                : SALES_SLIP_LIST_PAGE_CODE;
+        checkEditPermission(actorRole, pageCode);
     }
 
     /**

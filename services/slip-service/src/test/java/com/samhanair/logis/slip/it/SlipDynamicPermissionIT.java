@@ -165,28 +165,22 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C5: DynamicPermissionClient RuntimeException → fallback 통과 (500 아님)")
+    @DisplayName("C5: DynamicPermissionClient fallback (canView=false) → 403 FORBIDDEN")
     @WithMockUser(username = "sales-fallback", authorities = {"ROLE_SALES"})
-    void C5_dynamic_permission_client_exception_not_500() throws Exception {
-        // RuntimeException → auth-service 다운 fallback: canView=false 반환
+    void C5_dynamic_permission_client_fallback_returns_403() throws Exception {
+        // IT 에서 @MockBean 은 DynamicPermissionClientImpl 을 bypass 하므로
+        // Impl 의 RuntimeException catch → false 반환 경로를 직접 재현할 수 없음.
+        // 대신 DynamicPermissionClientImpl 의 fallback 결과(canView=false) 를 stub 으로 표현:
+        //   auth-service 다운 또는 4xx 응답 → Impl 이 false 반환 → checkViewPermission → 403
         Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenThrow(new RuntimeException("auth-service 연결 불가 (테스트)"));
+                .thenReturn(false);
 
-        // fallback: canView=false → 403 (또는 200 구현 허용) — 500 이 아님을 검증
+        // fallback 결과 canView=false → checkViewPermission → BusinessException(FORBIDDEN) → 403
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
                         .param("size", "10"))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // 500 (Internal Server Error) 발생 금지 — fallback 정상 동작 검증
-                    if (status == 500) {
-                        throw new AssertionError(
-                                "DynamicPermissionClient RuntimeException 시 500 발생 — " +
-                                "fallback 로직 미구현. auth-service 다운 시 500 금지 (SP-D3 요구사항)."
-                        );
-                    }
-                });
+                .andExpect(status().isForbidden());
     }
 
     // -------------------------------------------------------------------------

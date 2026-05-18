@@ -5604,7 +5604,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
   ],
   DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
-  SALES: ['accounting.tax-invoice.list', 'sales.slip.list', 'dispatch.board'],
+  // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
+  SALES: ['accounting.tax-invoice.list', 'sales.slip.list'],
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
@@ -5615,7 +5616,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
   ],
-  WAREHOUSE: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
+  // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
+  // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)
+  WAREHOUSE: ['purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection'],
   INVENTORY: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
 }
 
@@ -5633,7 +5636,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.period-close',
     'accounting.statement-batch',
   ],
-  WAREHOUSE: ['inbound.inspection'],
+  // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
+  WAREHOUSE: ['inbound.inspection', 'purchases.receipt-ocr'],
   INVENTORY: ['inbound.inspection'],
 }
 

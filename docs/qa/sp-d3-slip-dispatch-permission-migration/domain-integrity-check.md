@@ -48,20 +48,21 @@ WHERE role_code = 'SALES'
 -- SALES | sales.slip.list | true | true
 ```
 
-### 2-2. WAREHOUSE 역할 — 3개 PageCode view=true
+### 2-2. WAREHOUSE 역할 — 3개 PageCode view=true (V9 fix 반영)
 
 ```sql
 SELECT role_code, page_code, can_view, can_edit
-FROM page_permission
+FROM role_page_permissions
 WHERE role_code = 'WAREHOUSE'
   AND page_code IN ('purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection')
-  AND deleted_at IS NULL
+  AND is_deleted = FALSE
 ORDER BY page_code;
 
--- 기대 결과:
+-- 기대 결과 (V9 fix 적용 후):
 -- WAREHOUSE | inbound.inspection     | true | true
--- WAREHOUSE | purchases.receipt-ocr  | true | false
--- WAREHOUSE | purchases.slip.list    | true | true
+-- WAREHOUSE | purchases.receipt-ocr  | true | true   ← V9 fix: FALSE→TRUE
+-- WAREHOUSE | purchases.slip.list    | true | false
+-- NOTE: sales.slip.list 는 V9 fix 로 canView=FALSE 처리됨 (매출 슬립 숨김)
 ```
 
 ### 2-3. DISPATCH 역할 — 2개 PageCode view=true
@@ -84,16 +85,18 @@ ORDER BY page_code;
 ## 3. SALES 역할 — 매입/배차 권한 없음 확인
 
 SALES 는 기본적으로 purchases.slip.list, dispatch.board, inbound.inspection 권한이 없어야 한다.
+V9 fix migration 적용 후 SALES dispatch.board canView = FALSE 로 보정됨.
 
 ```sql
 SELECT COUNT(*) AS unexpected_permission_count
-FROM page_permission
+FROM role_page_permissions
 WHERE role_code = 'SALES'
   AND page_code IN ('purchases.slip.list', 'dispatch.board', 'inbound.inspection')
-  AND deleted_at IS NULL
+  AND is_deleted = FALSE
   AND can_view = true;
 
--- 기대 결과: 0 (SALES 는 매입/배차 기본 권한 없음)
+-- 기대 결과: 0 (SALES 는 매입/배차 기본 권한 없음 — V9 seed fix 적용 후)
+-- V7 에서 SALES dispatch.board canView=TRUE 였으나 V9 에서 FALSE 로 보정됨.
 ```
 
 ---

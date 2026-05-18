@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.it.dispatch;
 
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -35,6 +38,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * DispatchTask + Group + Slip 매핑 CRUD IT — BE Task B11.
+ *
+ * <p>SP-D3 @MockBean DynamicPermissionClient — feedback_it_mockbean_external_clients.md 의무.
+ * canView/canEdit=true 기본 stub 으로 기존 테스트 회귀 방지.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
@@ -44,6 +50,8 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
+    /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
+    @MockBean DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;
@@ -52,6 +60,16 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     @MockBean PartnerBlockClient partnerBlockClient;
     @MockBean PartnerInternalClient partnerInternalClient;
     @MockBean SmsGateway smsGateway;
+
+    @BeforeEach
+    void setupLenientStubs() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
+    }
 
     @Test
     void POST_creates_DRAFT_task_with_daily_counter_code() throws Exception {
