@@ -369,7 +369,15 @@ const router = createHashRouter([
       // [2a 영업·구매 메뉴 통합] 판매관리 — 풍성한 컬럼 + 다중 선택 (SalesQueryPage).
       // 기존 SlipListPage 는 `/sales/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용 예정.
       { path: '/sales', element: <SalesQueryPage /> },
-      { path: '/sales/slips', element: <SlipListPage mode="OUTBOUND" /> },
+      // [SP-D3] 매출 슬립 목록 — sales.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
+      {
+        path: '/sales/slips',
+        element: (
+          <PermissionGuard pageCode="sales.slip.list" action="view">
+            <SlipListPage mode="OUTBOUND" />
+          </PermissionGuard>
+        ),
+      },
       {
         path: '/sales/new',
         element: (
@@ -482,7 +490,15 @@ const router = createHashRouter([
       // 기존 SlipListPage 는 `/purchases/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용.
       // `/purchases/slips` 는 정적 path 이므로 `/purchases/:id` 보다 먼저 등록.
       { path: '/purchases', element: <PurchaseQueryPage /> },
-      { path: '/purchases/slips', element: <SlipListPage mode="INBOUND" /> },
+      // [SP-D3] 매입 슬립 목록 — purchases.slip.list 동적 RBAC (RoleGuard 이중 가드 유지).
+      {
+        path: '/purchases/slips',
+        element: (
+          <PermissionGuard pageCode="purchases.slip.list" action="view">
+            <SlipListPage mode="INBOUND" />
+          </PermissionGuard>
+        ),
+      },
       {
         path: '/purchases/new',
         element: (
@@ -500,11 +516,14 @@ const router = createHashRouter([
       // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
       // shell 단계: DRY_RUN 고정 표시. Phase 11 sandbox 연동 시 CLOVA 활성.
       // 정적 path `/purchases/receipt-ocr` → `/purchases/:id` 보다 먼저 매칭되어야 함.
+      // [SP-D3] purchases.receipt-ocr 동적 RBAC 추가 (SP-D1 AppLayout 이미 전환, 라우트 이중 가드 완성).
       {
         path: '/purchases/receipt-ocr',
         element: (
           <RoleGuard allow={RECEIPT_OCR_ROLES}>
-            <PurchaseSlipOcrUploadPage />
+            <PermissionGuard pageCode="purchases.receipt-ocr" action="view">
+              <PurchaseSlipOcrUploadPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -905,11 +924,14 @@ const router = createHashRouter([
 
       // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회화면.
       // BE SEND_AUDIT append-only row 조회 + 수신번호 마스킹 + 상태 Badge + 날짜/결과 필터.
+      // [SP-D3] notification.dispatch-sms.send-audit 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/arologis/dispatch-sms/send-audit',
         element: (
           <RoleGuard allow={DISPATCH_SMS_ROLES}>
-            <DispatchSmsSendAuditPage />
+            <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
+              <DispatchSmsSendAuditPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -917,11 +939,14 @@ const router = createHashRouter([
       // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
       // 미배차 출고전표 50/page + 차량 그룹 (9 종류) + drag-and-drop + arologis 발송.
       // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*`.
+      // [SP-D3] dispatch.board 동적 RBAC 추가 (RoleGuard 이중 가드 유지; AppLayout 이미 전환됨).
       {
         path: '/dispatch-board',
         element: (
           <RoleGuard allow={DISPATCH_BOARD_ROLES}>
-            <DispatchBoardPage />
+            <PermissionGuard pageCode="dispatch.board" action="view">
+              <DispatchBoardPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1264,11 +1289,14 @@ const router = createHashRouter([
 
       // [P0-9] 입고 검수 목록 — WAREHOUSE / MANAGER / MASTER.
       // 매뉴얼 docs/manual/02-창고/01-입고-처리.md 검수 UI ✅.
+      // [SP-D3] inbound.inspection 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/inbound-inspections',
         element: (
           <RoleGuard allow={INBOUND_INSPECTION_ROLES}>
-            <InboundInspectionListPage />
+            <PermissionGuard pageCode="inbound.inspection" action="view">
+              <InboundInspectionListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },

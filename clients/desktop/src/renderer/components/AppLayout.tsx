@@ -233,7 +233,9 @@ export function AppLayout() {
   const showArologisPreClassify = !!auth?.role
     && (ARO_PRECLASSIFY_ROLES as readonly string[]).includes(auth.role)
   // [PR-E1 FE-6] 배차안내 SMS — DISPATCH / MANAGER / MASTER
-  const showDispatchSms = canAccessDispatchSms(auth?.role)
+  // [SP-D3] notification.dispatch-sms.send-audit 동적 RBAC 전환 (정적 role 체크 병행 유지).
+  const showDispatchSms = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+    || canAccessDispatchSms(auth?.role)
   // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — MASTER / MANAGER / DISPATCH
   const showArologisUnassigned = !!auth?.role
     && (ARO_UNASSIGNED_ROLES as readonly string[]).includes(auth.role)
@@ -265,7 +267,9 @@ export function AppLayout() {
   // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER
   const showPhotoAudit = canAccessSlipPhotoAudit(auth?.role)
   // [P0-9] 입고 검수 — WAREHOUSE / MANAGER / MASTER (inventory-service 권한과 일치)
-  const showInboundInspection = canInspectInbound(auth?.role)
+  // [SP-D3] inbound.inspection 동적 RBAC 전환 (정적 role 체크 병행 유지).
+  const showInboundInspection = dynamicCanAccess('inbound.inspection', 'view')
+    || canInspectInbound(auth?.role)
   // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE 가시
   const showSafetyStockAlerts = showSafetyStock
   // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 사진 감사 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
