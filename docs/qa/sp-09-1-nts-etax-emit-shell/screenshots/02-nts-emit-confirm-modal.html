@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>SP-09-1 #02 NTS 발행 confirm modal</title>
+<title>SP-09-1 #02 NTS 발행 confirm modal — DRY_RUN 모드</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; margin: 0; padding: 0; background: rgba(17,24,39,0.5); color: #1F2937; min-height: 720px; -webkit-font-smoothing: antialiased; }
@@ -37,7 +37,7 @@
   <div class="modal-overlay">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
       <div class="modal-head">
-        <div id="m-title" class="modal-title">NTS 홈택스 발행 확인</div>
+        <div id="m-title" class="modal-title">NTS 발행 (DRY_RUN — sandbox 모드)</div>
         <button class="modal-close" aria-label="닫기">✕</button>
       </div>
       <div class="modal-body">
@@ -46,18 +46,17 @@
           <strong>⚠ 발행은 비가역 작업입니다.</strong><br>
           발행 후에는 홈택스에서 직접 취소해야 하며, 본 시스템에서는 되돌릴 수 없습니다.
         </div>
+        <!-- shell 단계: DRY_RUN 고정 안내 (radio 선택 UI 없음) -->
         <div class="method-row">
-          <input type="radio" id="dry" name="m" checked>
-          <label for="dry"><strong>DRY_RUN</strong> — 가짜 외부 ID 반환 (sandbox)</label>
+          <label><strong>DRY_RUN 모드</strong> — 실제 국세청 전송 없음 (sandbox). 운영 발행은 관리자 설정 후 가능합니다.</label>
         </div>
-        <div class="method-row" style="background:#fff; border-color:#E5E7EB;">
-          <input type="radio" id="nts" name="m" disabled>
-          <label for="nts" style="color:#9CA3AF;"><strong>NTS</strong> — 실 홈택스 전송 (Phase 11)</label>
+        <div class="method-row" style="background:#fff; border-color:#E5E7EB; opacity:0.5;">
+          <label style="color:#9CA3AF;"><strong>NTS 실 전송</strong> — Phase 11 sandbox 연동 시 실 NTS 전환 예정</label>
         </div>
       </div>
       <div class="modal-foot">
         <button class="btn outline">취소</button>
-        <button class="btn nts">NTS 발행</button>
+        <button class="btn nts">NTS 발행 확인 (DRY_RUN)</button>
       </div>
     </div>
   </div>
