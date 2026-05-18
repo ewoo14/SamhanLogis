@@ -167,7 +167,7 @@ public class InsungQuickClientImpl implements InsungQuickClient {
         } catch (RestClientException ex) {
             log.error("[InsungQuick] requestOrder 5xx/network — vehicleSeq={} error={}",
                     vehicle.getSequence(), ex.getMessage());
-            throw new BusinessException(ErrorCode.INSUNG_QUICK_NOT_CONFIGURED,
+            throw new BusinessException(ErrorCode.INSUNG_QUICK_SUBMIT_FAILED,
                     "인성데이타 API 호출 실패: " + ex.getMessage());
         }
     }
@@ -224,7 +224,7 @@ public class InsungQuickClientImpl implements InsungQuickClient {
         } catch (RestClientException ex) {
             log.error("[InsungQuick] requestMatch 5xx/network — vendorOrderId={} error={}",
                     vendorOrderId, ex.getMessage());
-            throw new BusinessException(ErrorCode.INSUNG_QUICK_NOT_CONFIGURED,
+            throw new BusinessException(ErrorCode.INSUNG_QUICK_SUBMIT_FAILED,
                     "인성데이타 매칭 API 호출 실패: " + ex.getMessage());
         }
     }
@@ -262,7 +262,7 @@ public class InsungQuickClientImpl implements InsungQuickClient {
         } catch (RestClientException ex) {
             log.error("[InsungQuick] cancelOrder 5xx/network — vendorOrderId={} error={}",
                     vendorOrderId, ex.getMessage());
-            throw new BusinessException(ErrorCode.INSUNG_QUICK_NOT_CONFIGURED,
+            throw new BusinessException(ErrorCode.INSUNG_QUICK_SUBMIT_FAILED,
                     "인성데이타 취소 API 호출 실패: " + ex.getMessage());
         }
     }
@@ -310,7 +310,7 @@ public class InsungQuickClientImpl implements InsungQuickClient {
         } catch (RestClientException ex) {
             log.error("[InsungQuick] queryStatus 5xx/network — vendorOrderId={} error={}",
                     vendorOrderId, ex.getMessage());
-            throw new BusinessException(ErrorCode.INSUNG_QUICK_NOT_CONFIGURED,
+            throw new BusinessException(ErrorCode.INSUNG_QUICK_SUBMIT_FAILED,
                     "인성데이타 상태 조회 API 호출 실패: " + ex.getMessage());
         }
     }

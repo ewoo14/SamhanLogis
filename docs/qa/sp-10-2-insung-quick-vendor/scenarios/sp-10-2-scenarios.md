@@ -43,7 +43,7 @@ DISPATCH 역할 관리자
 3. vehicle row 의 `VehicleMatchStatusBadge` 확인
 
 ### 기대
-- `data-testid="match-status-badge"` 텍스트: **"대기 중"**
+- `data-testid="vehicle-match-status-badge"` 텍스트: **"대기 중"**
 - 아이콘: `Clock` (Lucide) — `--color-neutral-400`
 - 배경: `--color-neutral-100` (#EDF0F4)
 - sandbox 배너 미표시 (`data-testid="insung-sandbox-banner"` invisible)
@@ -123,12 +123,12 @@ DISPATCH 역할 관리자
 ### 단계 (시나리오 A: insung-lbs 활성)
 1. Vehicle.status = ASSIGNED, `DriverLocation` sources: EXTERNAL_INSUNG_LBS + APP_GPS_ACTIVE 동시 수신
 2. `InsungLbsPanel` (`data-testid="insung-lbs-panel"`) 확인
-3. 1순위 row (`EXTERNAL_INSUNG_LBS`) 활성 스타일, 2순위 row 비활성(muted) 확인
+3. 1순위 row (`insung-lbs`) 활성 스타일, 2순위 row 비활성(muted) 확인
 4. footer 요약: "인성 LBS" 표시
 
 ### 기대 (시나리오 A)
-- `data-testid="gps-source-row-EXTERNAL_INSUNG_LBS"` `data-active="true"` — bold + `--color-brand-50` bg
-- `data-testid="gps-source-row-APP_GPS_ACTIVE"` `data-active="false"` — muted
+- `data-testid="gps-source-row-insung-lbs"` `data-active="true"` — bold + `--color-brand-50` bg
+- `data-testid="gps-source-row-app-gps-active"` `data-active="false"` — muted
 - `data-testid="gps-active-source-label"` 텍스트 "인성 LBS" 포함
 - PENDING / MATCHING 상태에서는 패널 미표시
 
@@ -171,7 +171,7 @@ DISPATCH 역할 관리자
 4. badge 텍스트 + driverCode + INSUNG 뱃지 확인
 
 ### 기대
-- badge: `data-testid="match-status-badge"` 텍스트 **"매칭 완료"** — `--color-success-50` bg
+- badge: `data-testid="vehicle-match-status-badge"` 텍스트 **"매칭 완료"** — `--color-success-50` bg
 - driverCode: `data-testid="match-status-driver-code"` 텍스트 정규식 `INSUNG-\w+`
 - INSUNG 뱃지: `data-testid="insung-vendor-badge"` visible
 
@@ -231,7 +231,7 @@ DISPATCH 역할 관리자
 - `|| true` 패턴: spec 내 0건 확인
 - `test.skip(!ok)` 패턴: 0건 — `expect(ok).toBe(true)` 로 FAIL 처리 (dev server 미가동 시 명확 실패)
 - `page.setContent()` 패턴: 0건 — 모든 case `page.goto(BASE_URL + '/#/...')` 실제 URL 이동
-- `data-testid` / `aria-label` / `textContent` 기반 assertion: 전 case 적용
+- `data-testid` 우선 assertion 적용, nav/driverCode 등 단순 텍스트 검증만 textContent 보조
 - BE 미가동 시: `isServerAvailable()` → `expect(ok).toBe(true)` FAIL (CI dry-run 에서 false green 방지)
 - UUID 노출 금지: driverCode `INSUNG-{vendorId}` 형식만 노출 (UUID 아님)
 
@@ -240,7 +240,7 @@ DISPATCH 역할 관리자
 | spec assertion | FE 실제 testid / locator | 상태 |
 |---|---|---|
 | `vehicle-match-status-badge` | `data-testid="vehicle-match-status-badge"` (VehicleMatchStatusBadge line 199) | cycle 2 정합 |
-| `sandbox-banner` | `data-testid="sandbox-banner"` (SandboxBanner line 369) | cycle 2 정합 |
+| `insung-sandbox-banner` | `data-testid="insung-sandbox-banner"` (SandboxBanner) | cycle 2 정합 |
 | `notify-row-insung-talk` / `notify-row-aligo` | `data-testid="notify-row-{channel}"` (NotifyResultSection line 286) | cycle 2 정합 |
 | `notification-result-section` | `data-testid="notification-result-section"` (line 259) | cycle 2 정합 |
 | `insung-vendor-badge` | `data-testid="insung-vendor-badge"` (VehicleMatchStatusBadge line 230) | cycle 1 이후 유지 |
@@ -248,19 +248,11 @@ DISPATCH 역할 관리자
 | `gps-source-row-insung-lbs` | `data-testid="gps-source-row-insung-lbs"` (InsungLbsPanel SOURCE_TESTID line 64) | cycle 2 정합 |
 | `gps-source-row-app-gps-active` | `data-testid="gps-source-row-app-gps-active"` (line 65) | cycle 2 정합 |
 | `gps-stale-warning` | `data-testid="gps-stale-warning"` (SourceRow line 250) | cycle 1 이후 유지 |
-| `aria-label="GPS 위치 소스 패널"` | aria-label 기반 locator (InsungLbsPanel line 313) | cycle 2 정합 (insung-lbs-panel testid 미부여 대체) |
-| 패널 footer 텍스트 | `gpsPanel.toContainText('인성 LBS')` / `'앱 GPS'` | cycle 2 정합 (gps-active-source-label testid 미부여 대체) |
-| 마스킹 번호 | `insungRow.textContent()` 정규식 검증 | cycle 2 정합 (notification-masked-phone testid 미부여 대체) |
-| 실패 사유 | `failRow.textContent()` 포함 검증 | cycle 2 정합 (notification-fail-reason testid 미부여 대체) |
-| 발송 상태 텍스트 | row.toContainText('발송 성공'/'발송 실패'/'발송 지연') | cycle 2 정합 (status-chip testid 미부여 대체) |
-
-backlog testid (FE cycle 3 이후 확인):
-- `insung-lbs-panel` — InsungLbsPanel root div 에 data-testid 추가 시 aria-label 대체 가능
-- `gps-active-source-label` — footer span 에 data-testid 추가 시 textContent 대체 가능
-- `channel-badge-insung-talk` / `channel-badge-aligo` — 채널 badge span 에 data-testid 추가 시 정합
-- `notification-status-chip-{status}` — NotifyStatusChip span 에 data-testid 추가 시 정합
-- `notification-masked-phone` — 마스킹 번호 span 에 data-testid 추가 시 정합
-- `notification-fail-reason` — errorCode span 에 data-testid 추가 시 정합
+| `insung-lbs-panel` | `data-testid="insung-lbs-panel"` (InsungLbsPanel root) | cycle 2 정합 |
+| `gps-active-source-label` | `data-testid="gps-active-source-label"` | cycle 2 정합 |
+| 마스킹 번호 | `data-testid="notification-masked-phone"` | cycle 2 정합 |
+| 실패 사유 | `data-testid="notification-fail-reason"` | cycle 2 정합 |
+| 발송 상태 텍스트 | `data-testid="notification-status-chip-{status}"` | cycle 2 정합 |
 
 ---
 
@@ -268,7 +260,7 @@ backlog testid (FE cycle 3 이후 확인):
 
 | wireframe.md §6 매핑 항목 | QA case | 검증 요소 |
 |--------------------------|---------|----------|
-| PENDING badge (neutral-100 bg, Clock 아이콘) | QA-1 | `data-testid="match-status-badge"` text "대기 중" |
+| PENDING badge (neutral-100 bg, Clock 아이콘) | QA-1 | `data-testid="vehicle-match-status-badge"` text "대기 중" |
 | MATCHING → PENDING fail-soft (sandbox RPC 예외) | QA-2 | PENDING 복귀 + sandbox 배너 `role="status"` |
 | ASSIGNED + INSUNG 뱃지 | QA-5 | `driverCode` "INSUNG-*" + `data-testid="insung-vendor-badge"` |
 | DELIVERED + CheckCheck | QA-5 | badge text "배송 완료" + INSUNG 뱃지 없음 |

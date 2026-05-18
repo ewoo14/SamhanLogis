@@ -25,6 +25,7 @@ import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.domain.MatchSource;
+import com.samhanair.logis.arologis.domain.SignatureSource;
 import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStatus;
 import com.samhanair.logis.arologis.domain.VehicleStop;
@@ -35,6 +36,7 @@ import com.samhanair.logis.arologis.dto.insung.InsungMatchResultRequest;
 import com.samhanair.logis.arologis.dto.insung.InsungStatusUpdateRequest;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
+import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import java.time.LocalDate;
@@ -52,6 +54,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 인성데이타 퀵프로그램 vendor 통합 IT — Phase 10 W10-2.
@@ -80,7 +83,11 @@ import org.springframework.test.web.servlet.MockMvc;
                 "samhan.arologis.matcher.insung-quick.partner-id="
         })
 @AutoConfigureMockMvc
+@Transactional
 class InsungQuickIntegrationIT extends AbstractPostgresIT {
+
+    private static final LocalDate IT_BASE_DATE =
+            LocalDate.now().plusDays(10_000 + Math.floorMod(System.nanoTime(), 10_000));
 
     @Autowired
     private MockMvc mockMvc;
@@ -99,6 +106,9 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
 
     @Autowired
     private DriverRepository driverRepository;
+
+    @Autowired
+    private SignatureRepository signatureRepository;
 
     // ─── 외부 client @MockBean 격리 의무 ─────────────────────────────────
 
@@ -150,25 +160,35 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("TC-1: sandbox-mode + requestMatch 성공 → Vehicle.status ASSIGNED 전이")
     void tc1_sandboxMode_requestMatch_success_vehicle_assigned() throws Exception {
-        // 주어진 Vehicle + Dispatch 준비
-        Dispatch dispatch = dispatchRepository.save(
-                Dispatch.of(LocalDate.now(), DispatchType.DAY, "IT test kakao text"));
-        Vehicle vehicle = vehicleRepository.save(
-                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "IT테스트"));
-        vehicle.markMatching();
-        vehicleRepository.save(vehicle);
+        Map<String, Object> req = Map.of(
+                "samhanDispatchTaskId", UUID.randomUUID(),
+                "taskCode", "SP-10-2-IT-001",
+                "dispatchDate", IT_BASE_DATE.toString(),
+                "vehicles", List.of(Map.of(
+                        "sequence", 1,
+                        "vehicleType", "TONNAGE_1",
+                        "slips", List.of(Map.of(
+                                "sequence", 1,
+                                "slipId", UUID.randomUUID(),
+                                "slipNumber", "IT-SLIP-001",
+                                "partnerCode", "P-001",
+                                "partnerName", "IT테스트",
+                                "address", "서울시 강남구",
+                                "recipientPhoneNumber", "010-1111-2222",
+                                "notes", "인성 매처 실 흐름")))));
 
-        // InsungQuick sandbox match → ASSIGNED
-        Driver driver = driverRepository.findByDriverCode("INSUNG-DRV-IT-001")
-                .orElseGet(() -> driverRepository.save(
-                        Driver.of("INSUNG-DRV-IT-001", "010-1111-2222", "1톤",
-                                DriverSource.EXTERNAL_INSUNG_QUICK, Boolean.FALSE, null)));
-        vehicle.assignDriver(driver.getId(), MatchSource.EXTERNAL_INSUNG_QUICK, "SANDBOX-IT-001");
-        vehicleRepository.save(vehicle);
+        mockMvc.perform(post("/internal/arologis/dispatches")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.arologisDispatchId").exists());
 
-        Vehicle saved = vehicleRepository.findById(vehicle.getId()).orElseThrow();
+        Vehicle saved = vehicleRepository.findByVendorOrderId("SANDBOX-IT-001").orElseThrow();
         assertThat(saved.getStatus()).isEqualTo(VehicleStatus.ASSIGNED);
         assertThat(saved.getMatchSource()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
+        assertThat(saved.getVendorOrderId()).isEqualTo("SANDBOX-IT-001");
     }
 
     // ─── TC-2: webhook match-result 수신 → DB 반영 ────────────────────────
@@ -178,7 +198,7 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
     void tc2_webhook_matchResult_assigns_vehicle() throws Exception {
         // vendor_order_id 가 설정된 Vehicle 준비
         Dispatch dispatch = dispatchRepository.save(
-                Dispatch.of(LocalDate.now(), DispatchType.DAY, "IT test webhook"));
+                Dispatch.of(IT_BASE_DATE.plusDays(1), DispatchType.DAY, "IT test webhook"));
         Vehicle vehicle = vehicleRepository.save(
                 Vehicle.of(dispatch.getId(), 2, VehicleTonnage.TONNAGE_2_5, null));
         vehicle.markMatching();
@@ -213,7 +233,7 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
     @DisplayName("TC-3: webhook status-update DEPARTED 수신 → Vehicle.status DEPARTED 전이")
     void tc3_webhook_statusUpdate_departed_transitions_vehicle() throws Exception {
         Dispatch dispatch = dispatchRepository.save(
-                Dispatch.of(LocalDate.now(), DispatchType.NIGHT, "IT test departed"));
+                Dispatch.of(IT_BASE_DATE, DispatchType.NIGHT, "IT test departed"));
         Vehicle vehicle = vehicleRepository.save(
                 Vehicle.of(dispatch.getId(), 3, VehicleTonnage.TONNAGE_1, null));
         vehicle.markMatching();
@@ -245,7 +265,7 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
     @DisplayName("TC-4: webhook delivered 수신 → Signature 생성 + Vehicle.status DELIVERED")
     void tc4_webhook_delivered_creates_signature_and_delivered_status() throws Exception {
         Dispatch dispatch = dispatchRepository.save(
-                Dispatch.of(LocalDate.now(), DispatchType.DAY, "IT test delivered"));
+                Dispatch.of(IT_BASE_DATE.plusDays(2), DispatchType.DAY, "IT test delivered"));
         Vehicle vehicle = vehicleRepository.save(
                 Vehicle.of(dispatch.getId(), 4, VehicleTonnage.TONNAGE_1, null));
         vehicle.markMatching();
@@ -277,9 +297,22 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
+        mockMvc.perform(post("/internal/arologis/insung/delivered")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
         // Vehicle DELIVERED 확인
         Vehicle updated = vehicleRepository.findById(vehicle.getId()).orElseThrow();
         assertThat(updated.getStatus()).isEqualTo(VehicleStatus.DELIVERED);
+        assertThat(signatureRepository.findAllByStopIdOrderByCapturedAtDesc(stop.getId()))
+                .hasSize(1)
+                .first()
+                .extracting("source")
+                .isEqualTo(SignatureSource.EXTERNAL_INSUNG_LBS);
     }
 
     // ─── TC-5: RPC 예외 → fail-soft + Vehicle.status PENDING 유지 ─────────

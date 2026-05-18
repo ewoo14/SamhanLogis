@@ -11,7 +11,7 @@ import { test, expect, Page } from '@playwright/test';
  *    FE cycle 2 가 라우터 미연결 시 cycle 3 에서 최종 정합.
  *  - testid 11종 FE 실제값 기준으로 정합:
  *    data-testid="vehicle-match-status-badge"  (FE VehicleMatchStatusBadge line 199)
- *    data-testid="sandbox-banner"              (FE DispatchDetailPage SandboxBanner line 369)
+ *    data-testid="insung-sandbox-banner"       (FE DispatchDetailPage SandboxBanner)
  *    data-testid="notify-row-{channel}"        (FE DispatchDetailPage NotifyResultSection line 286)
  *    data-testid="notification-result-section" (FE DispatchDetailPage line 259)
  *    data-testid="insung-vendor-badge"         (FE VehicleMatchStatusBadge line 230 — 존재)
@@ -22,13 +22,13 @@ import { test, expect, Page } from '@playwright/test';
  *    data-testid="gps-source-row-manual"
  *    data-testid="gps-stale-warning"           (FE InsungLbsPanel SourceRow line 250 — 존재)
  *
- * 미반영 testid (FE cycle 2 에서 처리되지 않아 cycle 3 확인 필요):
- *  - channel-badge-insung-talk / channel-badge-aligo  → notify-row-{channel} + 텍스트 검증으로 대체
- *  - notification-status-chip-{status}                → row 내 텍스트 기반 검증으로 대체
- *  - notification-masked-phone                        → row 내 마스킹 번호 textContent 검증으로 대체
- *  - notification-fail-reason                         → row 내 errorCode 텍스트 검증으로 대체
- *  - insung-lbs-panel                                 → aria-label="GPS 위치 소스 패널" locator 로 대체
- *  - gps-active-source-label                          → 패널 footer 텍스트 검증으로 대체
+ * 직접 검증 testid:
+ *  - channel-badge-insung-talk / channel-badge-aligo
+ *  - notification-status-chip-{status}
+ *  - notification-masked-phone
+ *  - notification-fail-reason
+ *  - insung-lbs-panel
+ *  - gps-active-source-label
  *
  * false green 가드:
  *  - || true 패턴 0건
@@ -253,8 +253,8 @@ test.describe('QA-1 provider=mock 매칭 회귀', () => {
     expect(bgColor).not.toBe('');
 
     // sandbox 배너 미표시 (mock provider, sandboxMode=false)
-    // FE: data-testid="sandbox-banner" (SandboxBanner 컴포넌트 line 369)
-    const sandboxBanner = page.locator('[data-testid="sandbox-banner"]');
+    // FE: data-testid="insung-sandbox-banner"
+    const sandboxBanner = page.locator('[data-testid="insung-sandbox-banner"]');
     await expect(sandboxBanner).not.toBeVisible();
 
     // driverCode 미표시 (PENDING 상태)
@@ -312,8 +312,8 @@ test.describe('QA-2 sandbox + RPC 예외 fail-soft', () => {
     await page.waitForLoadState('networkidle');
 
     // sandbox 배너 존재 및 role="status"
-    // FE: data-testid="sandbox-banner" (SandboxBanner line 369) + role="status" (line 366)
-    const sandboxBanner = page.locator('[data-testid="sandbox-banner"]');
+    // FE: data-testid="insung-sandbox-banner" + role="status"
+    const sandboxBanner = page.locator('[data-testid="insung-sandbox-banner"]');
     await expect(sandboxBanner).toBeVisible({ timeout: 5_000 });
     await expect(sandboxBanner).toHaveAttribute('role', 'status');
 
@@ -377,24 +377,24 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     // FE: data-testid="notify-row-insung-talk" (NotifyResultSection line 286)
     const insungRow = page.locator('[data-testid="notify-row-insung-talk"]').first();
     await expect(insungRow).toBeVisible();
-    // 채널 라벨 "인성 알림톡" (CHANNEL_LABEL record line 121)
+    const insungBadge = page.locator('[data-testid="channel-badge-insung-talk"]').first();
+    await expect(insungBadge).toBeVisible();
     await expect(insungRow).toContainText('인성 알림톡');
 
     // Aligo SMS row 존재
     // FE: data-testid="notify-row-aligo"
     const aligoRow = page.locator('[data-testid="notify-row-aligo"]').first();
     await expect(aligoRow).toBeVisible();
-    // 채널 라벨 "Aligo SMS"
+    const aligoBadge = page.locator('[data-testid="channel-badge-aligo"]').first();
+    await expect(aligoBadge).toBeVisible();
     await expect(aligoRow).toContainText('Aligo SMS');
 
     // 마스킹 번호 패턴 검증 — maskPhone() 결과 (maskPhone.ts: "01012345678" → "010-XXXX-5678")
-    // FE: recipientPhone span (NotifyResultSection line 330~338) — testid 미부여 (cycle 2 미반영)
-    //     row 내 마스킹 번호 textContent 로 검증
-    const insungRowText = await insungRow.textContent();
-    expect(insungRowText ?? '').toMatch(/010-XXXX-\d{4}/);
+    const maskedPhone = insungRow.locator('[data-testid="notification-masked-phone"]').first();
+    await expect(maskedPhone).toHaveText(/010-XXXX-\d{4}/);
 
     // 발송 성공 텍스트 확인 (NotifyStatusChip SUCCESS 분기 line 150~168)
-    await expect(insungRow).toContainText('발송 성공');
+    await expect(insungRow.locator('[data-testid="notification-status-chip-success"]')).toBeVisible();
 
     await page.screenshot({
       path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-success.png',
@@ -429,13 +429,9 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     // 실패 텍스트 검증 (NotifyStatusChip FAILED 분기 line 169~203: "발송 실패")
     await expect(failRow).toContainText('발송 실패');
 
-    // 사유 서브텍스트 non-empty 검증
-    // FE: errorCode span (NotifyStatusChip line 191~201) — testid 미부여
-    //     row textContent 에 errorCode 포함 여부로 검증
-    const failRowText = await failRow.textContent();
-    expect(failRowText?.trim().length ?? 0).toBeGreaterThan(0);
-    // errorCode "E_INVALID_PHONE" 은 NOT_CONFIGURED 치환 대상 아님 → 그대로 노출
-    expect(failRowText ?? '').toContain('E_INVALID_PHONE');
+    const failReason = failRow.locator('[data-testid="notification-fail-reason"]').first();
+    await expect(failReason).toBeVisible();
+    await expect(failReason).toContainText('E_INVALID_PHONE');
 
     await page.screenshot({
       path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-failed.png',
@@ -468,7 +464,7 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     await expect(delayedRow).toBeVisible({ timeout: 5_000 });
 
     // 지연 텍스트 검증 (NotifyStatusChip DELAYED 분기 line 206~222: "발송 지연")
-    await expect(delayedRow).toContainText('발송 지연');
+    await expect(delayedRow.locator('[data-testid="notification-status-chip-delayed"]')).toBeVisible();
 
     // 지연 서브텍스트 "응답 대기 중" (NotifyResultSection DELAYED span line 341~350)
     await expect(delayedRow).toContainText(/응답 대기/);
@@ -525,8 +521,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     await page.waitForLoadState('networkidle');
 
     // GPS 패널 표시 확인 (ASSIGNED 상태 + driverCode 있음 → InsungLbsPanel 렌더)
-    // FE: aria-label="GPS 위치 소스 패널" (InsungLbsPanel line 313) — testid 미부여
-    const gpsPanel = page.locator('[aria-label="GPS 위치 소스 패널"]').first();
+    const gpsPanel = page.locator('[data-testid="insung-lbs-panel"]').first();
     await expect(gpsPanel).toBeVisible({ timeout: 5_000 });
 
     // 1순위 INSUNG_LBS row — data-active="true"
@@ -543,9 +538,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     await expect(appGpsRow).toHaveAttribute('data-active', 'false');
 
     // footer 요약: 활성 소스 = "인성 LBS"
-    // FE: SOURCE_LABEL.EXTERNAL_INSUNG_LBS = "인성 LBS" (InsungLbsPanel line 71)
-    //     패널 footer span (line 378) — testid 미부여, 패널 내 텍스트로 검증
-    await expect(gpsPanel).toContainText('인성 LBS');
+    await expect(gpsPanel.locator('[data-testid="gps-active-source-label"]')).toContainText('인성 LBS');
 
     await page.screenshot({
       path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-insung-active.png',
@@ -592,8 +585,8 @@ test.describe('QA-4 GPS 우선순위', () => {
     await expect(appGpsRow).toHaveAttribute('data-active', 'true');
 
     // footer: "앱 GPS (활성)" 텍스트 (SOURCE_LABEL.APP_GPS_ACTIVE = "앱 GPS (활성)")
-    const gpsPanel = page.locator('[aria-label="GPS 위치 소스 패널"]').first();
-    await expect(gpsPanel).toContainText('앱 GPS');
+    const gpsPanel = page.locator('[data-testid="insung-lbs-panel"]').first();
+    await expect(gpsPanel.locator('[data-testid="gps-active-source-label"]')).toContainText('앱 GPS');
 
     await page.screenshot({
       path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-stale-fallback.png',
@@ -614,7 +607,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     await page.waitForLoadState('networkidle');
 
     // 패널 표시 유지 (gpsSources empty 여도 패널 렌더 유지 — InsungLbsPanel line 335~343)
-    const gpsPanel = page.locator('[aria-label="GPS 위치 소스 패널"]').first();
+    const gpsPanel = page.locator('[data-testid="insung-lbs-panel"]').first();
     await expect(gpsPanel).toBeVisible({ timeout: 5_000 });
 
     // "위치 정보 없음" 메시지 (InsungLbsPanel line 338)

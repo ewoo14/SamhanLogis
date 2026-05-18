@@ -98,12 +98,16 @@ public class InsungWebhookService {
                         Driver.of(driverCode, phoneNumber, req.vehicleType(),
                                 DriverSource.EXTERNAL_INSUNG_QUICK, Boolean.FALSE, null)));
 
-        // Vehicle 상태 전이 MATCHING → ASSIGNED
-        vehicle.assignDriver(driver.getId(), MatchSource.EXTERNAL_INSUNG_QUICK, req.vendorOrderId());
-        vehicle.updateVendorStatus("ASSIGNED");
-
-        log.info("[InsungWebhook] 매칭 완료 — vendorOrderId={} driverCode={} vehicle.status={}",
-                req.vendorOrderId(), driverCode, vehicle.getStatus());
+        if (vehicle.getStatus() == VehicleStatus.MATCHING
+                || vehicle.getStatus() == VehicleStatus.PENDING) {
+            vehicle.assignDriver(driver.getId(), MatchSource.EXTERNAL_INSUNG_QUICK, req.vendorOrderId());
+            vehicle.updateVendorStatus("ASSIGNED");
+            log.info("[InsungWebhook] 매칭 완료 — vendorOrderId={} driverCode={} vehicle.status={}",
+                    req.vendorOrderId(), driverCode, vehicle.getStatus());
+        } else {
+            log.warn("[InsungWebhook] 매칭 완료 수신 but vehicle.status={} — 상태 후퇴 방지 skip",
+                    vehicle.getStatus());
+        }
     }
 
     /**
@@ -190,6 +194,10 @@ public class InsungWebhookService {
 
         List<VehicleStop> stops =
                 vehicleStopRepository.findAllByVehicleIdOrderBySequenceAsc(vehicle.getId());
+        if (stops.isEmpty()) {
+            log.warn("[InsungWebhook] handleDelivered — stop 없음, vehicle DELIVERED 전이 skip");
+            return;
+        }
 
         if (req.stopSequence() == null) {
             log.warn("[InsungWebhook] handleDelivered — stopSequence null, skip");
@@ -209,18 +217,19 @@ public class InsungWebhookService {
                         stop.markDelivered(capturedAt);
                     }
 
-                    // Signature 생성 (source=EXTERNAL_INSUNG_LBS)
+                    if (signatureRepository
+                            .findByStopIdAndSource(stop.getId(), SignatureSource.EXTERNAL_INSUNG_LBS)
+                            .isPresent()) {
+                        log.warn("[InsungWebhook] DELIVERED 중복 서명 skip — vendorOrderId={} stopSeq={}",
+                                req.vendorOrderId(), req.stopSequence());
+                        return;
+                    }
+
                     BigDecimal lat = req.gpsLat() != null ? BigDecimal.valueOf(req.gpsLat()) : null;
                     BigDecimal lng = req.gpsLng() != null ? BigDecimal.valueOf(req.gpsLng()) : null;
-                    Signature sig = Signature.of(
-                            stop.getId(),
-                            SignatureSource.EXTERNAL_INSUNG_LBS,
-                            req.signatureRef(),
-                            capturedAt,
-                            lat,
-                            lng
-                    );
-                    signatureRepository.save(sig);
+                    signatureRepository.save(Signature.of(
+                            stop.getId(), SignatureSource.EXTERNAL_INSUNG_LBS,
+                            req.signatureRef(), capturedAt, lat, lng));
 
                     log.info("[InsungWebhook] DELIVERED — vendorOrderId={} stopSeq={} signatureRef={}",
                             req.vendorOrderId(), req.stopSequence(), req.signatureRef());
@@ -229,8 +238,11 @@ public class InsungWebhookService {
         vehicle.updateVendorStatus("DELIVERED");
 
         // 모든 활성 stop 이 DELIVERED 이면 vehicle 도 DELIVERED 전이
-        boolean allDelivered = stops.stream()
+        List<VehicleStop> activeStops = stops.stream()
                 .filter(s -> s.getStatus() != StopStatus.UNPARSED)
+                .toList();
+        boolean allDelivered = !activeStops.isEmpty()
+                && activeStops.stream()
                 .allMatch(s -> s.getStatus() == StopStatus.DELIVERED || s.getStatus() == StopStatus.FAILED);
         if (allDelivered && vehicle.getStatus() != VehicleStatus.DELIVERED) {
             vehicle.markDelivered();
@@ -244,7 +256,7 @@ public class InsungWebhookService {
      */
     private LocalDateTime parseCapturedAt(String iso) {
         try {
-            return LocalDateTime.parse(iso.replace("Z", "").replace("T", "T"));
+            return LocalDateTime.parse(iso.replace("Z", ""));
         } catch (Exception e) {
             log.warn("[InsungWebhook] capturedAt 파싱 실패='{}' — now() 대체", iso);
             return LocalDateTime.now();

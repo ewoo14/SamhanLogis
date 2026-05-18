@@ -64,14 +64,14 @@ SP-09 패턴 (NTS/Aligo/Clova/KFTC) 일관 적용 — 인성 퀵프로그램 전
 |---|---|
 | 색조 | 주황-갈색 계열 (`#B45309` ~ `#78350F`) — 퀵/배송 서비스 에너지/긴박감 표현 |
 | 구분 | NTS(dark green) / Aligo(teal) / Clova(bright green) / KFTC(blue) 와 색조 충분히 분리 |
-| 접근성 | WCAG 2.1 AAA 충족 (`--color-insung-text` on `--color-insung-50` ≈ 10.2:1) |
+| 접근성 | WCAG 2.1 AAA 충족 (`--color-insung-text` on `--color-insung-50` ≈ 14.7:1) |
 
 ### 신규 토큰 정의 (tokens.css 추가 대상)
 
 ```css
 /* ---------- color: INSUNG 인성데이타 퀵프로그램 전용 ---------- */
 /* 주황-갈색 계열 — NTS(dark green)/Aligo(teal)/Clova(bright green)/KFTC(blue) 와 5색 시각 구분. SP-10-2 */
-/* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 10.2:1 (AAA 충족) */
+/* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 14.7:1 (AAA 충족) */
 --color-insung-primary: #B45309;
 --color-insung-50:      #FFF7ED;
 --color-insung-100:     #FFEDD5;
@@ -84,7 +84,7 @@ SP-09 패턴 (NTS/Aligo/Clova/KFTC) 일관 적용 — 인성 퀵프로그램 전
 
 | text 색 | 배경 색(50) | 대비비 | 등급 |
 |---|---|---|---|
-| `#431407` on `#FFF7ED` | 약 10.2:1 | **AAA** |
+| `#431407` on `#FFF7ED` | 약 14.7:1 | **AAA** |
 
 ### 5 vendor 컬러 구분 검증 (SP-09-5 D1 + 신규 INSUNG 추가)
 
@@ -200,7 +200,7 @@ const INSUNG_BADGE_STYLE = {
 ```css
 /* ---------- color: INSUNG (인성데이타 퀵프로그램 전용) ---------- */
 /* 주황-갈색 계열 — NTS(dark green)/Aligo(teal)/Clova(bright green)/KFTC(blue) 와 5색 시각 구분. SP-10-2 */
-/* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 10.2:1 (AAA 충족) */
+/* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 14.7:1 (AAA 충족) */
 --color-insung-primary: #B45309;
 --color-insung-50:      #FFF7ED;
 --color-insung-100:     #FFEDD5;

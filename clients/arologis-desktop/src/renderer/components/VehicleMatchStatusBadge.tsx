@@ -13,7 +13,7 @@
  *   - DELIVERED: --color-neutral-50 / --color-neutral-500
  *
  * 접근성:
- *   - MATCHING 상태에 aria-live="polite" 의무 (진행 상태 screen reader 자동 읽음)
+ *   - 모든 상태에 aria-live="polite" 적용 (상태 전이 screen reader 자동 읽음)
  *   - 상태 전이 전체를 aria-live container 로 감쌈
  *
  * UUID 비공개 (feedback_uuid_no_user_visibility.md):
@@ -192,9 +192,9 @@ export function VehicleMatchStatusBadge({
     : undefined
 
   return (
-    // aria-live container — MATCHING 상태에서 screen reader 자동 읽음
+    // aria-live container — 상태 전이 전체를 screen reader 가 읽음
     <div
-      aria-live={status === 'MATCHING' ? 'polite' : undefined}
+      aria-live="polite"
       aria-label={ariaLabel}
       data-testid="vehicle-match-status-badge"
       title={tooltipTitle}

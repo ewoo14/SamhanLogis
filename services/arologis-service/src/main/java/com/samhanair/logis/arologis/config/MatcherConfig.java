@@ -35,8 +35,7 @@ public class MatcherConfig {
         String provider = properties.getProvider() == null ? "mock" : properties.getProvider().toLowerCase();
         return switch (provider) {
             case "insung-quick" -> {
-                log.info("DriverMatcher = insung-quick (Phase 10 W10-2 vendor 통합 시점 활성, "
-                        + "현재 호출 시 UnsupportedOperationException throw — D-P10-03)");
+                log.info("DriverMatcher = insung-quick (Phase 10 W10-2 vendor 통합 활성)");
                 yield insung;
             }
             case "mock" -> {

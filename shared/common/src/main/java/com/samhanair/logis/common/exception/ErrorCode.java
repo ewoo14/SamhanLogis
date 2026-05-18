@@ -122,7 +122,12 @@ public enum ErrorCode {
      * {@code changeme} / {@code dummy} / {@code placeholder}) 차단.
      */
     INSUNG_QUICK_NOT_CONFIGURED(HttpStatus.BAD_GATEWAY,
-            "인성데이타 퀵프로그램 API 키가 설정되지 않았습니다. 환경변수를 확인해주세요.");
+            "인성데이타 퀵프로그램 API 키가 설정되지 않았습니다. 환경변수를 확인해주세요."),
+    /**
+     * 인성데이타 퀵프로그램 외부 API 호출 실패 — 5xx/network 런타임 오류 시 502 반환 (SP-10-2).
+     */
+    INSUNG_QUICK_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
+            "인성데이타 퀵프로그램 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

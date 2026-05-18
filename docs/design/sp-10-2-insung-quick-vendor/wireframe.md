@@ -162,7 +162,7 @@ DispatchDetailPage — vehicle row 레이아웃 (FE-1 / FE-4 연계)
 
 | Badge 상태 | QA Playwright case | 검증 요소 |
 |---|---|---|
-| PENDING | `QA-1` `insung-mock-match.spec.ts` | `data-testid="match-status-badge"` text "대기 중", bg `--color-neutral-100`, Clock 아이콘 |
+| PENDING | `QA-1` `insung-mock-match.spec.ts` | `data-testid="vehicle-match-status-badge"` text "대기 중", bg `--color-neutral-100`, Clock 아이콘 |
 | MATCHING → PENDING (fail-soft) | `QA-2` `insung-sandbox-fallback.spec.ts` | RPC 예외 후 PENDING 복귀, Loader2 spinner 제거, driverCode row 없음 |
 | ASSIGNED + INSUNG 뱃지 | `QA-5` `insung-webhook-status-update.spec.ts` | match-result webhook 수신 → badge text "매칭 완료", driverCode "INSUNG-*" 표시 |
 | DELIVERED + 체크 | `QA-5` `insung-webhook-status-update.spec.ts` | delivered webhook 수신 → badge text "배송 완료", CheckCheck 아이콘 |

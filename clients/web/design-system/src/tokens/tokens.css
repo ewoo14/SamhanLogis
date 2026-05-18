@@ -465,6 +465,7 @@ html[data-theme="dark"], body[data-theme="dark"] {
   --color-border-primary:   #404040;
   /* Phase 7 5차 reviewer 종합 — Designer P1: border-primary 보다 밝은 보조 border (이전 #303030 < #404040) */
   --color-border-secondary: #4a4a4a;
+  --surface-subtle: #1F2937;
 
   /* SP-10-2 INSUNG dark 오버라이드 — 주황-갈색 반전 팔레트 */
   --color-insung-primary: #F59E0B;

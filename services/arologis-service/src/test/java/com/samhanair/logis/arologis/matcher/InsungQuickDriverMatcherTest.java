@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.client.InsungQuickClient;
@@ -82,6 +83,8 @@ class InsungQuickDriverMatcherTest {
 
         assertThat(result.driver()).isEmpty();
         assertThat(result.externalRefId()).isNull();
+        assertThat(vehicle.getVendorOrderId()).isEqualTo("VENDOR-ORD-001");
+        verify(vehicleRepository).save(vehicle);
     }
 
     @Test
@@ -106,6 +109,8 @@ class InsungQuickDriverMatcherTest {
         assertThat(result.driver().get().getDriverCode()).isEqualTo("INSUNG-DRV-999");
         assertThat(result.source()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
         assertThat(result.externalRefId()).isEqualTo(vendorOrderId);
+        assertThat(vehicle.getVendorOrderId()).isEqualTo(vendorOrderId);
+        verify(vehicleRepository).save(vehicle);
     }
 
     @Test

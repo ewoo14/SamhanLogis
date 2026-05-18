@@ -68,6 +68,8 @@ public class InsungQuickDriverMatcher implements DriverMatcher {
                         vehicle.getSequence());
                 return DriverMatchResult.empty(MatchSource.EXTERNAL_INSUNG_QUICK);
             }
+            vehicle.updateVendorOrderId(vendorOrderId);
+            vehicleRepository.save(vehicle);
 
             // 2. 매칭 요청
             InsungDriverMatchResponse matchResp = insungQuickClient.requestMatch(vendorOrderId);

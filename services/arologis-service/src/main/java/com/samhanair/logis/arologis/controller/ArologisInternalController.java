@@ -1,5 +1,7 @@
 package com.samhanair.logis.arologis.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.config.ArologisMatcherProperties;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisCancellationRequest;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchRequest;
@@ -13,14 +15,18 @@ import com.samhanair.logis.arologis.service.dispatch.ModificationRequestReceiveS
 import com.samhanair.logis.arologis.service.insung.InsungWebhookService;
 import com.samhanair.logis.arologis.util.HmacSignatureVerifier;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +59,7 @@ public class ArologisInternalController {
     private final ModificationRequestReceiveService modificationRequestReceiveService;
     private final InsungWebhookService insungWebhookService;
     private final ArologisMatcherProperties matcherProperties;
+    private final ObjectMapper objectMapper;
 
     /**
      * 외부 vendor 배차 상태 동기화 callback.
@@ -165,13 +172,14 @@ public class ArologisInternalController {
     @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
     public ApiResponse<Map<String, Object>> receiveInsungMatchResult(
             @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
-            @RequestBody InsungMatchResultRequest req) {
+            @RequestBody String rawBody) {
 
-        verifyInsungSignature(signature, req);
+        verifyInsungSignature(signature, rawBody);
+        InsungMatchResultRequest req = readInsungBody(rawBody, InsungMatchResultRequest.class);
         log.info("[ArologisInternal] insung/match-result 수신 — vendorOrderId={} matched={}",
                 req.vendorOrderId(), req.matched());
         insungWebhookService.handleMatchResult(req);
-        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId()));
+        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", safeVendorOrderId(req.vendorOrderId())));
     }
 
     /**
@@ -196,13 +204,17 @@ public class ArologisInternalController {
     @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
     public ApiResponse<Map<String, Object>> receiveInsungStatusUpdate(
             @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
-            @RequestBody InsungStatusUpdateRequest req) {
+            @RequestBody String rawBody) {
 
-        verifyInsungSignature(signature, req);
+        verifyInsungSignature(signature, rawBody);
+        InsungStatusUpdateRequest req = readInsungBody(rawBody, InsungStatusUpdateRequest.class);
         log.info("[ArologisInternal] insung/status-update 수신 — vendorOrderId={} status={}",
                 req.vendorOrderId(), req.status());
         insungWebhookService.handleStatusUpdate(req);
-        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId(), "status", req.status()));
+        return ApiResponse.ok(Map.of(
+                "received", true,
+                "vendorOrderId", safeVendorOrderId(req.vendorOrderId()),
+                "status", req.status() != null ? req.status() : "<unknown>"));
     }
 
     /**
@@ -226,14 +238,17 @@ public class ArologisInternalController {
     @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
     public ApiResponse<Map<String, Object>> receiveInsungDelivered(
             @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
-            @RequestBody InsungDeliveredRequest req) {
+            @RequestBody String rawBody) {
 
-        verifyInsungSignature(signature, req);
+        verifyInsungSignature(signature, rawBody);
+        InsungDeliveredRequest req = readInsungBody(rawBody, InsungDeliveredRequest.class);
         log.info("[ArologisInternal] insung/delivered 수신 — vendorOrderId={} stopSeq={}",
                 req.vendorOrderId(), req.stopSequence());
         insungWebhookService.handleDelivered(req);
-        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId(),
-                "stopSequence", req.stopSequence()));
+        return ApiResponse.ok(Map.of(
+                "received", true,
+                "vendorOrderId", safeVendorOrderId(req.vendorOrderId()),
+                "stopSequence", req.stopSequence() != null ? req.stopSequence() : -1));
     }
 
     /**
@@ -243,9 +258,9 @@ public class ArologisInternalController {
      * HMAC 불일치 시 {@link org.springframework.security.access.AccessDeniedException} throw.
      *
      * @param signature X-Insung-Signature 헤더 값 (null 허용)
-     * @param reqBody   요청 body 객체 (toString 으로 HMAC 계산 — 실 운영에서는 raw byte 사용 권장)
+     * @param rawBody   요청 원문 JSON 문자열
      */
-    private void verifyInsungSignature(String signature, Object reqBody) {
+    private void verifyInsungSignature(String signature, String rawBody) {
         boolean sandboxMode = matcherProperties.getInsungQuick().isSandboxMode();
         String webhookSecret = matcherProperties.getInsungQuick().getWebhookSecret();
 
@@ -255,16 +270,28 @@ public class ArologisInternalController {
         }
 
         if (webhookSecret == null || webhookSecret.isBlank()) {
-            log.warn("[ArologisInternal] webhookSecret 미설정 — HMAC 검증 우회 (운영 환경 주입 필요)");
-            return;
+            log.error("[ArologisInternal] webhookSecret 미설정 — 운영 환경 HMAC 검증 불가. 요청 거부.");
+            throw new BusinessException(ErrorCode.INSUNG_QUICK_NOT_CONFIGURED,
+                    "운영 환경 webhook-secret 미설정");
         }
 
-        byte[] bodyBytes = reqBody.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bodyBytes = rawBody == null ? new byte[0] : rawBody.getBytes(StandardCharsets.UTF_8);
         boolean valid = HmacSignatureVerifier.verify(webhookSecret, bodyBytes, signature);
         if (!valid) {
             log.warn("[ArologisInternal] X-Insung-Signature 불일치 — 요청 거부");
-            throw new org.springframework.security.access.AccessDeniedException(
-                    "X-Insung-Signature HMAC 검증 실패");
+            throw new AccessDeniedException("X-Insung-Signature HMAC 검증 실패");
         }
+    }
+
+    private <T> T readInsungBody(String rawBody, Class<T> type) {
+        try {
+            return objectMapper.readValue(rawBody, type);
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "인성 webhook payload 형식이 올바르지 않습니다.", ex);
+        }
+    }
+
+    private String safeVendorOrderId(String vendorOrderId) {
+        return vendorOrderId != null ? vendorOrderId : "<unknown>";
     }
 }
