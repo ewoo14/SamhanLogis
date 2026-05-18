@@ -7,7 +7,7 @@
   [OCR 업로드 빈 상태]
   - 드롭존: dashed border + 아이콘 + 업로드 안내 텍스트
   - DRY_RUN 안내 배너: Phase 11 CLOVA 연동 전 mock 응답 안내
-  - submitMethod 안내: POST /api/receipts/ocr (multipart/form-data)
+  - submitMethod 안내: POST /slips/receipt-ocr (multipart/form-data) — cycle 2 정합
   - Clova 브랜드 토큰: --color-clova-primary #03C75A
   - 드롭존 keyboard 접근성: tabindex="0" + Enter/Space 활성 안내
 -->
@@ -208,6 +208,9 @@
         DRY_RUN 중 업로드된 영수증은 서버에 저장되지 않으며 <strong>mock 분석 결과</strong>가 반환됩니다.
       </div>
       <div><span class="dryrun-code">OCR_MODE=DRY_RUN · Phase 11 CLOVA 실 연동 예정</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--color-warning-700);">
+        접근 권한: <strong>WAREHOUSE / ACCOUNTANT / MANAGER / MASTER</strong> — SALES / DISPATCH 차단 (사용자 정정 2026-05-18)
+      </div>
     </div>
   </div>
 
@@ -268,10 +271,10 @@
 
       <!-- submitMethod 안내 -->
       <div class="method-box">
-        <strong>업로드 엔드포인트</strong> — <span class="method-code">POST /api/receipts/ocr</span>
+        <strong>업로드 엔드포인트</strong> — <span class="method-code">POST /slips/receipt-ocr</span>
         &nbsp;·&nbsp; <span class="method-code">multipart/form-data</span>
         &nbsp;·&nbsp; 필드명 <span class="method-code">file</span><br>
-        응답: <span class="method-code">201 Created</span> · OCR 결과 JSON (가게명 / 금액 / 부가세 / 일자) + <span class="method-code">slipNo</span> (매입 슬립 자동 생성)
+        응답: <span class="method-code">201 Created</span> · OCR 결과 JSON (slipNo / vendorName / totalAmount / vatAmount / issuedAt / submitMethod / parseRawJson)
       </div>
     </div>
   </div>
