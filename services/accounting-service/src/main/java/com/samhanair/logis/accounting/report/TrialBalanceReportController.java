@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.report;
 import com.samhanair.logis.accounting.service.TrialBalanceService;
 import com.samhanair.logis.accounting.web.dto.TrialBalanceResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -39,7 +40,6 @@ public class TrialBalanceReportController {
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final TrialBalanceService trialBalanceService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 시산표 조회 (별칭 endpoint).
@@ -61,11 +61,11 @@ public class TrialBalanceReportController {
     })
     @GetMapping("/trial-balance")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<TrialBalanceResponse> trialBalance(
             @Parameter(description = "회계 월 (yyyyMM, 예: 202604)")
             @RequestParam String period,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
         YearMonth ym;
         try {
             ym = YearMonth.parse(period, PERIOD_FMT);

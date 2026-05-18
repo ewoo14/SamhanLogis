@@ -3,31 +3,14 @@ package com.samhanair.logis.slip.client;
 /**
  * 동적 RBAC 권한 조회 클라이언트 인터페이스 — SP-D3 slip-service 이식.
  *
- * <p>auth-service 의 {@code GET /auth/admin/permissions/check} endpoint 를 호출하여
- * 특정 역할의 특정 페이지 접근 가능 여부를 확인한다.
- *
- * <p>MSA 패턴: slip-service 는 자체 DB 에 권한 정보를 갖지 않으므로
- * auth-service 를 통해 동적 권한을 조회한다.
- * 조회 실패(네트워크 오류 / auth-service 다운) 시에는 기존 {@code @PreAuthorize} 가드만 적용.
- *
- * <p>이중 가드 정책:
- * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>canEdit=false + canView=true → 403 (view-only override deny)</li>
- *   <li>canEdit=false + canView=false → fallback 통과 (override row 없음)</li>
- *   <li>actorRole null/blank → 동적 검증 건너뜀</li>
- * </ul>
- *
- * <p>IT 에서 {@code @MockBean} 으로 격리 필요 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
+ * @deprecated SP-D5 에서 {@link com.samhanair.logis.security.permission.DynamicPermissionClient}
+ *             로 일원화되었습니다. SP-D6+ 시점에 공통 인터페이스로 교체 예정. 현재는 후방 호환 유지.
  */
+@Deprecated(since = "SP-D5", forRemoval = false)
 public interface DynamicPermissionClient {
 
     /**
      * 특정 역할이 특정 페이지에 대한 편집(EDIT) 권한이 있는지 확인.
-     *
-     * <p>auth-service 조회 실패 시 {@code false} 반환 (보수적 fallback).
-     * 기존 {@code @PreAuthorize} 가 이미 통과된 이후 추가 동적 검증이므로,
-     * false 반환 시 403 를 직접 던지지 않고 호출부에서 판단.
      *
      * @param roleCode 역할 코드 (예: SALES)
      * @param pageCode 페이지 코드 (예: purchases.slip.list)

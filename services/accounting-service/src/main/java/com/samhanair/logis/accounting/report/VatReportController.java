@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -41,7 +42,6 @@ public class VatReportController {
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final VatReportService vatReportService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 부가세 신고서 조회 — 단월 또는 기간 (분기/반기).
@@ -67,6 +67,7 @@ public class VatReportController {
     })
     @GetMapping("/vat")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<VatReportResponse> vatReport(
             @Parameter(description = "단월 기간 (yyyyMM, 예: 202604)")
             @RequestParam(required = false) String period,
@@ -75,7 +76,6 @@ public class VatReportController {
             @Parameter(description = "기간 종료 월 (yyyyMM, 예: 202603)")
             @RequestParam(required = false) String toPeriod,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
 
         if (period != null && !period.isBlank()) {
             YearMonth ym = parsePeriod(period, "period");

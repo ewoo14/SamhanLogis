@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -45,7 +46,6 @@ public class PartnerAgingController {
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final PartnerAgingService partnerAgingService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 거래처별 미수/미지급금 조회.
@@ -71,13 +71,13 @@ public class PartnerAgingController {
     })
     @GetMapping("/partner-aging")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<PartnerAgingResponse> partnerAging(
             @Parameter(description = "기준 일자 (YYYY-MM-DD, 예: 2026-05-10)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
             @Parameter(description = "조회 유형 (RECEIVABLE=미수 / PAYABLE=미지급)")
             @RequestParam String type,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
 
         if (asOfDate == null) {
             throw new IllegalArgumentException("asOfDate 는 필수입니다 (예: 2026-05-10)");

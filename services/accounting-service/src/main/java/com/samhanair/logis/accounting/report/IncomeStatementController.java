@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -39,7 +40,6 @@ public class IncomeStatementController {
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final IncomeStatementService incomeStatementService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 손익계산서 조회 — 단월 또는 기간.
@@ -63,6 +63,7 @@ public class IncomeStatementController {
     })
     @GetMapping("/income-statement")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<IncomeStatementResponse> incomeStatement(
             @Parameter(description = "단월 기간 (yyyyMM)")
             @RequestParam(required = false) String period,
@@ -71,7 +72,6 @@ public class IncomeStatementController {
             @Parameter(description = "기간 종료 월 (yyyyMM)")
             @RequestParam(required = false) String toPeriod,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
 
         if (period != null && !period.isBlank()) {
             YearMonth ym = parsePeriod(period, "period");

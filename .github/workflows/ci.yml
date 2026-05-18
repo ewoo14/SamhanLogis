@@ -14,6 +14,8 @@ on:
       - 'clients/arologis-mobile/**'
       - '.github/workflows/arologis-ci.yml'
       - '.github/workflows/arologis-deploy.yml'
+      # Grafana 대시보드 JSON 변경만으로 BE 빌드+테스트 재실행 불필요 (SP-D5)
+      - 'infrastructure/grafana/**'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -22,6 +24,8 @@ on:
       - 'clients/arologis-mobile/**'
       - '.github/workflows/arologis-ci.yml'
       - '.github/workflows/arologis-deploy.yml'
+      # Grafana 대시보드 JSON 변경만으로 BE 빌드+테스트 재실행 불필요 (SP-D5)
+      - 'infrastructure/grafana/**'
   workflow_dispatch:
 
 permissions:

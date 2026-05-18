@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -36,7 +37,6 @@ public class EquityChangesController {
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final EquityChangesService equityChangesService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 자본변동표 조회.
@@ -56,13 +56,13 @@ public class EquityChangesController {
     })
     @GetMapping("/equity-changes")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<EquityChangesResponse> equityChanges(
             @Parameter(description = "기간 시작 일자 (YYYY-MM-DD)")
             @RequestParam String fromDate,
             @Parameter(description = "기간 종료 일자 (YYYY-MM-DD)")
             @RequestParam String toDate,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
 
         LocalDate from = parseDate(fromDate, "fromDate");
         LocalDate to = parseDate(toDate, "toDate");

@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -38,7 +39,6 @@ public class MonthlySummaryController {
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final MonthlySummaryService monthlySummaryService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 월계표 조회.
@@ -57,11 +57,11 @@ public class MonthlySummaryController {
     })
     @GetMapping("/monthly-summary")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<MonthlySummaryResponse> monthlySummary(
             @Parameter(description = "집계 월 (yyyyMM, 예: 202601)")
             @RequestParam String period,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
         YearMonth ym;
         try {
             ym = YearMonth.parse(period, PERIOD_FMT);

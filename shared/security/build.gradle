@@ -37,6 +37,13 @@ dependencies {
     api 'jakarta.annotation:jakarta.annotation-api'
     api 'org.slf4j:slf4j-api'
 
+    // SP-D5: Micrometer (permission_guard_denied_total Counter)
+    api 'io.micrometer:micrometer-core'
+
+    // SP-D5: Spring AOP (PermissionAspect @Around)
+    api 'org.springframework:spring-aop'
+    api 'org.aspectj:aspectjweaver'
+
     // ConfigurationProcessor for `META-INF/spring-configuration-metadata.json`
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
@@ -46,6 +53,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-web'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-aop'
+    testImplementation 'io.micrometer:micrometer-registry-prometheus'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     testCompileOnly "org.projectlombok:lombok:${lombokVersion}"

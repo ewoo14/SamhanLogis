@@ -1,1 +1,2 @@
 com.samhanair.logis.security.InternalSecurityAutoConfiguration
+com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration

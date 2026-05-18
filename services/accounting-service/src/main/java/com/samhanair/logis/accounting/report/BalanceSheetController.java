@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -28,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>asOfDate 기준 누적 잔액으로 B/S 를 산출한다.
  * 결산 분개 없는 상태에서는 당기순이익이 미처분이익잉여금(343) 에 자동 가산된다.
  *
- * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} 를 통해 {@code accounting.reports} VIEW 검증.
+ * <p>SP-D5 동적 권한: {@link RequirePermission} AOP 를 통해 {@code accounting.reports} VIEW 검증.
+ * (SP-D2 {@link ReportPermissionGuard} 직접 호출 → SP-D5 AOP 방식으로 전환)
  */
 @Tag(name = "재무 보고서", description = "손익계산서 / 재무상태표 / 시산표")
 @RestController
@@ -39,15 +41,15 @@ public class BalanceSheetController {
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final BalanceSheetService balanceSheetService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 재무상태표 조회.
      *
-     * <p>SP-D2 동적 권한: VIEW 검증 (점진 마이그레이션 — canView=false fallback 시 통과).
+     * <p>SP-D5 동적 권한: {@link RequirePermission} AOP 로 VIEW 검증.
+     * ({@code accounting.reports} 페이지 코드 — canView=false fallback 시 통과)
      *
      * @param asOfDate   기준 일자 (YYYY-MM-DD)
-     * @param roleHeader X-User-Role 헤더
+     * @param roleHeader X-User-Role 헤더 (AOP 에서 자동 추출)
      * @return 재무상태표 응답 (ApiResponse 래핑)
      */
     @Operation(
@@ -60,11 +62,11 @@ public class BalanceSheetController {
     })
     @GetMapping("/balance-sheet")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<BalanceSheetResponse> balanceSheet(
             @Parameter(description = "기준 일자 (YYYY-MM-DD)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
         return ApiResponse.ok(balanceSheetService.findByAsOfDate(asOfDate));
     }
 }

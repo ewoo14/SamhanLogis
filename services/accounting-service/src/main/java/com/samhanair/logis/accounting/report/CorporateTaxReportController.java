@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -38,7 +39,6 @@ public class CorporateTaxReportController {
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final CorporateTaxReportService corporateTaxReportService;
-    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 법인세 신고서 조회 — 사업연도 단위.
@@ -61,11 +61,11 @@ public class CorporateTaxReportController {
     })
     @GetMapping("/corporate-tax")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<CorporateTaxReportResponse> corporateTax(
             @Parameter(description = "사업연도 (YYYY, 예: 2026)")
             @RequestParam int fiscalYear,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        reportPermissionGuard.checkView(roleHeader);
 
         if (fiscalYear < 2000 || fiscalYear > 2100) {
             throw new IllegalArgumentException(
