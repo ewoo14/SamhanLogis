@@ -28,7 +28,7 @@
 | Vendor | 컬러 | 토큰 |
 |---|---|---|
 | NTS 국세청 | `#0F6523` (dark green) | `--color-nts-primary` |
-| Aligo SMS | `#0F766E` (teal) | 기존 success teal 계열 |
+| Aligo SMS | `#0F766E` (teal) | `--color-aligo-primary` (SP-09-4 사이클 1 fix 추가) |
 | Clova OCR | `#03C75A` (Naver green) | `--color-clova-primary` |
 | KFTC 오픈뱅킹 | `#0061A8` (official blue) | `--color-kftc-primary` (신규) |
 
@@ -51,6 +51,10 @@
 - `font-variant-numeric: tabular-nums`
 - `text-align: right` (테이블 금액 컬럼 전체)
 - 요약 카드 대형 숫자: `font-size: 32px; font-weight: 700`
+
+> **사이클 1 fix (2026-05-18)**: DepositMatchPage.tsx SummaryBadge 의 `fontSize` 를 22 → 32 로 정정.
+> monospace fontFamily + fontVariantNumeric: tabular-nums 동시 적용.
+> ResultRow 금액 셀에도 fontFamily monospace 추가 (decisions §3 완전 이행).
 
 ---
 
@@ -104,6 +108,11 @@
 | `clients/web/design-system/src/tokens/tokens.css` | KFTC 토큰 6종 신규 추가 (`:root` 블록) |
 | `clients/web/design-system/dist/tokens.css` | 동일 (dist 동기화 + Clova 토큰 누락분 보완) |
 | `clients/web/design-system/src/tokens/index.ts` | `colors.kftc` 객체 신규 추가 (6 keys) |
+| `clients/web/design-system/src/tokens/tokens.css` | **Aligo 토큰 6종 추가** — `--color-aligo-primary/50/100/200/700/text` (사이클 1 fix DS-04) |
+| `clients/web/design-system/src/tokens/index.ts` | **`colors.aligo` 객체 추가** — 6 keys (사이클 1 fix DS-04) |
+
+> **DS-04 결정 (2026-05-18 사이클 1 fix)**: SP-09-2 Aligo SMS 슬라이스에서 누락된 `--color-aligo-*` 6종 토큰을
+> 4색 vendor 체계 완성을 위해 본 슬라이스에서 추가. NTS / Aligo / Clova / KFTC 전원 전용 토큰 체계 보유.
 
 ---
 

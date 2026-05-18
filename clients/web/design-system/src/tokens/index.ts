@@ -73,6 +73,19 @@ export const colors = {
     text:    '#14532D',
   },
   /**
+   * Aligo SMS 전용 — teal 계열. SP-09-2
+   * NTS(#0F6523) / Clova(#03C75A) / KFTC(#0061A8) 와 4색 시각 구분.
+   * WCAG AA: text(#074B47) on 50(#F0FDFC) ≈ 9.1:1 (AAA 충족)
+   */
+  aligo: {
+    primary: '#0F766E',
+    50:      '#F0FDFC',
+    100:     '#CCFBF1',
+    200:     '#99F6E4',
+    700:     '#0D6460',
+    text:    '#074B47',
+  },
+  /**
    * Naver Clova OCR 전용 — Naver 공식 녹색 계열. SP-09-3
    * NTS(#0F6523) / Aligo teal(#0F766E) / success(#2A9D8F) 과 시각 구분.
    * WCAG: text(#014A22) on 50(#F0FDF6) ≈ 10.8:1 (AAA)

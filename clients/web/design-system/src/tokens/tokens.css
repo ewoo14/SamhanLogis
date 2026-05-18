@@ -65,6 +65,16 @@
   --color-nts-border:  #BBF7D0;
   --color-nts-text:    #14532D;
 
+  /* ---------- color: Aligo (Aligo SMS 전용) ---------- */
+  /* Aligo teal — NTS(#0F6523) / Clova(#03C75A) / KFTC(#0061A8) 와 4색 시각 구분. SP-09-2 */
+  /* WCAG AA: --color-aligo-text(#074B47) on --color-aligo-50(#F0FDFC) ≈ 9.1:1 (AAA 충족) */
+  --color-aligo-primary: #0F766E;
+  --color-aligo-50:      #F0FDFC;
+  --color-aligo-100:     #CCFBF1;
+  --color-aligo-200:     #99F6E4;
+  --color-aligo-700:     #0D6460;
+  --color-aligo-text:    #074B47;
+
   /* ---------- color: Clova (Naver Clova OCR 전용) ---------- */
   /* Naver 공식 녹색 계열 — NTS(#0F6523) / Aligo teal(#0F766E) 와 시각 구분. SP-09-3 */
   /* WCAG AA: --color-clova-text(#014A22) on --color-clova-50(#F0FDF6) ≈ 10.8:1 (AAA 충족) */
