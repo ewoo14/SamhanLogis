@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-1 #01 NTS 발행 전 (ISSUED)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    margin: 0; padding: 24px;
+    background: #F5F7FA;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #E5E7EB; }
+  .crumb { font-size: 13px; color: #6B7280; }
+  .title { font-size: 22px; font-weight: 700; }
+  .role { font-size: 12px; color: #6B7280; }
+  .body { padding: 24px; }
+  .head-row { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.issued { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+  .invno { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 14px; color: #1F2937; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .meta { font-size: 13px; }
+  .meta .k { color: #6B7280; margin-bottom: 4px; }
+  .meta .v { font-weight: 600; color: #111827; }
+  .lines { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+  .lines th, .lines td { border-bottom: 1px solid #E5E7EB; padding: 10px 12px; text-align: right; }
+  .lines th { background: #F9FAFB; font-weight: 600; color: #374151; }
+  .lines td.l, .lines th.l { text-align: left; }
+  .total-row { display: flex; justify-content: flex-end; gap: 24px; padding: 12px 0; border-top: 2px solid #1F2937; font-size: 14px; }
+  .total-row strong { font-weight: 700; }
+  .cta-bar { display: flex; justify-content: flex-end; gap: 12px; padding-top: 20px; border-top: 1px solid #E5E7EB; }
+  .btn { padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+  .btn.outline { background: #fff; color: #374151; border-color: #D1D5DB; }
+  .btn.primary { background: #2D77A8; color: #fff; }
+  .btn.nts { background: #0F6523; color: #fff; border-color: #0F6523; }
+  .btn.danger { background: #fff; color: #B91C1C; border-color: #FCA5A5; }
+  .legend { margin-top: 16px; padding: 12px 16px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; font-size: 12px; color: #14532D; }
+  .pointer { position: absolute; width: 14px; height: 14px; background: #DC2626; border-radius: 50%; box-shadow: 0 0 0 4px rgba(220,38,38,0.18); }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div>
+        <div class="crumb">회계 / 세금계산서 / 상세</div>
+        <div class="title">세금계산서 상세</div>
+      </div>
+      <div class="role">로그인: ACCOUNTANT — 김회계</div>
+    </div>
+    <div class="body">
+      <div class="head-row">
+        <span class="badge issued">ISSUED · 발행됨</span>
+        <span class="invno">TI-2026-05-001</span>
+        <span style="color:#6B7280; font-size:13px;">· 2026-05-18 09:32 발행</span>
+      </div>
+      <div class="meta-grid">
+        <div class="meta"><div class="k">거래처</div><div class="v">(주)대한물류</div></div>
+        <div class="meta"><div class="k">사업자등록번호</div><div class="v">123-45-67890</div></div>
+        <div class="meta"><div class="k">공급가액</div><div class="v">1,500,000원</div></div>
+        <div class="meta"><div class="k">세액</div><div class="v">150,000원</div></div>
+      </div>
+      <table class="lines">
+        <thead>
+          <tr><th class="l">품목</th><th>수량</th><th>단가</th><th>공급가액</th><th>세액</th><th>합계</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="l">항공 운송 서비스 — 인천 → LAX</td><td>1</td><td>1,500,000</td><td>1,500,000</td><td>150,000</td><td>1,650,000</td></tr>
+        </tbody>
+      </table>
+      <div class="total-row"><span>합계</span><strong>1,650,000원</strong></div>
+      <div class="cta-bar">
+        <button class="btn danger">발행 취소</button>
+        <button class="btn outline">인쇄</button>
+        <button class="btn nts" id="nts-cta">NTS 발행</button>
+      </div>
+      <div class="legend">
+        ✓ ISSUED 상태에서 ACCOUNTANT/MASTER 권한일 때 <strong>NTS 발행</strong> 버튼 활성 (국세청 녹색 #0F6523).
+        eTaxExternalId 미존재(아직 NTS 미전송) — 버튼 클릭 시 confirm modal 호출.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

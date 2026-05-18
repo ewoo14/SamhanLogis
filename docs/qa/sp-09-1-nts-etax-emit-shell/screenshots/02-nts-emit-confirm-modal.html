@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SP-09-1 #02 NTS 발행 confirm modal</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; margin: 0; padding: 0; background: rgba(17,24,39,0.5); color: #1F2937; min-height: 720px; -webkit-font-smoothing: antialiased; }
+  .bg { position: relative; padding: 24px; min-height: 720px; }
+  .bg::before { content: ""; position: absolute; inset: 0; background:
+    linear-gradient(180deg, #F5F7FA 0%, #F5F7FA 100%);
+    z-index: -1; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.55); display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .modal { width: 520px; background: #fff; border-radius: 10px; box-shadow: 0 20px 50px rgba(0,0,0,0.25); overflow: hidden; }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 12px; }
+  .modal-title { font-size: 18px; font-weight: 700; color: #0F6523; }
+  .modal-close { background: none; border: none; font-size: 20px; color: #6B7280; cursor: pointer; }
+  .modal-body { padding: 4px 24px 20px; font-size: 14px; line-height: 1.6; color: #374151; }
+  .invno { font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: #111827; }
+  .warn-box { margin-top: 16px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 12px 14px; color: #991B1B; font-size: 13px; line-height: 1.5; }
+  .warn-box strong { color: #7F1D1D; }
+  .method-row { margin-top: 16px; display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid #BBF7D0; background: #F0FDF4; border-radius: 6px; }
+  .method-row label { font-size: 13px; color: #14532D; cursor: pointer; }
+  .method-row input { accent-color: #0F6523; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #F9FAFB; border-top: 1px solid #E5E7EB; }
+  .btn { padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+  .btn.outline { background: #fff; color: #374151; border-color: #D1D5DB; }
+  .btn.nts { background: #0F6523; color: #fff; border-color: #0F6523; }
+</style>
+</head>
+<body>
+<div class="bg">
+  <div style="opacity:0.4; max-width:1100px; margin:0 auto; padding:24px; background:#fff; border:1px solid #E5E7EB; border-radius:8px;">
+    <div style="font-size:22px; font-weight:700; margin-bottom:12px;">세금계산서 상세 — TI-2026-05-001</div>
+    <div style="color:#6B7280; font-size:13px;">(주)대한물류 · 1,650,000원 · ISSUED</div>
+  </div>
+  <div class="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+      <div class="modal-head">
+        <div id="m-title" class="modal-title">NTS 홈택스 발행 확인</div>
+        <button class="modal-close" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        세금계산서 <span class="invno">TI-2026-05-001</span> 을 국세청 홈택스로 전송합니다.
+        <div class="warn-box">
+          <strong>⚠ 발행은 비가역 작업입니다.</strong><br>
+          발행 후에는 홈택스에서 직접 취소해야 하며, 본 시스템에서는 되돌릴 수 없습니다.
+        </div>
+        <div class="method-row">
+          <input type="radio" id="dry" name="m" checked>
+          <label for="dry"><strong>DRY_RUN</strong> — 가짜 외부 ID 반환 (sandbox)</label>
+        </div>
+        <div class="method-row" style="background:#fff; border-color:#E5E7EB;">
+          <input type="radio" id="nts" name="m" disabled>
+          <label for="nts" style="color:#9CA3AF;"><strong>NTS</strong> — 실 홈택스 전송 (Phase 11)</label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn outline">취소</button>
+        <button class="btn nts">NTS 발행</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
