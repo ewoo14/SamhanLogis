@@ -2,7 +2,96 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
-## 2026-05-19 SP-10-2 머지 완료 — Phase 10 W10-2 인성데이타 퀵프로그램 vendor 통합
+## 2026-05-19 SP-D5 머지 완료 — PermissionGuard 단일화 인프라 + Counter + AOP
+
+### 머지 결과
+
+- **PR #247 MERGED** (`fdc0a5d0` on main, squash) — `[FEAT] SP-D5 PermissionGuard 단일화 인프라 + Counter.builder + AOP @RequirePermission`
+- 사이클 N=2 완료 (`feedback_dual_5agent_review.md` 안 의무 충족, cycle 3 audit 만 진행)
+- 양쪽 (Claude 5-agent + Codex 5-section) cycle 1 양쪽 cross-check → cycle 2 11건 fix → cycle 2 verify 5 Claude APPROVE + Codex 문구 정정 → APPROVE
+- CI 27/27 PASS
+
+### 사이클 누적 fix
+
+| 사이클 | head | 결함 발견 | 처리 |
+|---|---|---|---|
+| Cycle 1 | `ee793327` | P0 2 + P1 4 + P2 2 + Minor 3 = **11건** (양쪽 reviewer 동시 발견 P0 2건이 AOP no-op 운영 critical) | cycle 2 통합 fix |
+| Cycle 2 | `a06e3983` → `c10dcefe` | 0건 — 5 Claude APPROVE + Codex 1 minor (cycle 3 audit 정정) | 머지 |
+
+### 핵심 변경 (BE 인프라 슬라이스, FE/Designer 영향 0)
+
+**BE — shared/security 공통 인프라**
+- `DynamicPermissionClient` interface 통합 (8 service 중복 정의 해소)
+- `@RequirePermission(page, action)` annotation + `PermissionAspect @Around` AOP
+- `PermissionGuardMetrics` Micrometer Counter `permission_guard_denied_total{service, page, role, action}`
+- `PermissionSecurityAutoConfiguration` 단일 진입점 (cycle 2 fix: `@Component` 제거)
+- service tag = `@Value("${spring.application.name:unknown}")` 주입 (cycle 2 fix P0-2)
+- 9 service `@Deprecated DynamicPermissionClient` interface 가 shared interface `extends` (cycle 2 fix P0-1)
+
+**BE — 시범 마이그레이션 10 endpoint (accounting.reports)**
+- BalanceSheet / CashFlow / CorporateTax / DailySummary / EquityChanges / IncomeStatement / MonthlySummary / PartnerAging / TrialBalance / Vat
+- `@PreAuthorize` + `checkView()` 명시 호출 제거 → `@RequirePermission(page=ReportPermissionGuard.PAGE_CODE, action="VIEW")` 단일화
+
+**BE — 테스트**
+- `PermissionAspectTest` AspectJProxyFactory + TestProtectedTarget 실 `@Around` 검증 9 케이스 (cycle 2 fix P1-3)
+- 3 IT (TrialBalanceControllerIT / SliceBValidationIT / SliceCValidationIT) `@BeforeEach setUpPermissionStub()` (cycle 2 fix P1-4)
+
+**FE — 영향 0** (`docs/qa/sp-d5-permission-guard-unification-and-aop/fe-impact-zero.md`)
+
+**Designer — 영향 0 + Grafana dashboard mock**
+
+**QA — 시나리오 Q1~Q6 + sidebar/domain-integrity SQL 10**
+
+**DevOps**
+- `infrastructure/grafana/provisioning/dashboards/permission-guard-denied.json` 5 panel
+- `infrastructure/grafana/provisioning/datasources/prometheus.yml` `uid: PROMETHEUS_DS` (cycle 2 fix M-2)
+- `infrastructure/prometheus/prometheus.yml` 17 scrape target (cycle 2 fix M-3)
+- `shared/security/build.gradle` spring-aop + aspectjweaver + micrometer-core
+- `.github/workflows/ci.yml` paths-ignore 보강
+
+### SP-D 시리즈 종료
+
+- ✅ SP-D1 (#241): 동적 RBAC 시스템 + 마스터 권한 관리 + 사이드바 hidden
+- ✅ SP-D2 (#242): 회계 화면 19 페이지 동적 RBAC
+- ✅ SP-D3 (#243): 매입/매출/배차 6 페이지 동적 RBAC
+- ✅ SP-D4 (#244): 잔여 7 도메인 동적 RBAC
+- ✅ SP-D5 (#247): PermissionGuard 단일화 인프라 + Counter + AOP + 시범 10 endpoint
+
+### SP-D6+ 이연 (점진성 우선)
+
+- 잔여 ~475 `@PreAuthorize` 완전 제거 (arologis-service 30개 등 대규모 마이그레이션은 별도 슬라이스 단위)
+- 핵심 인프라 (shared/security + AOP + Counter + Grafana) 가 SP-D5 에서 완비됨
+- SP-D6+ 는 endpoint 별 점진 마이그레이션만 진행하면 됨 (페이지/도메인 단위 슬라이싱)
+
+### 다음 trigger — SP-08 잔여 follow-up (사용자 결정: SP-D5 → SP-08 잔여)
+
+SP-08 시리즈 자체는 **16 PR 완전 종료** (SP-08-1~9). 본 "잔여"는 follow-up 14건:
+
+**P1 (1건)**: Phase 11 전 운영 비밀번호 교체 (운영 작업, 코드 변경 X)
+
+**P2 (6건)** — 다음 슬라이스 후보:
+1. **BE 35 IT `@MockBean` 일괄 추가** (UserInternalClient) — 테스트 안정성 (1순위 추천)
+2. **warehouse name snapshot** (destinationWarehouseName)
+3. **PartnerLookupClient 실 구현**
+4. **LedgerLine.accountName BE DTO 추가**
+5. **TaxInvoiceListPage 일괄 발행 path 정합**
+6. **NTS e-tax 실연동** (SP-09/10 진행 후 별도)
+
+**P3 (7건)** — 기타 minor
+
+### 메모리 가드 일관성 ✅
+
+- `feedback_dual_5agent_review.md`: Claude + Codex 양쪽 × cycle 1/2 완료
+- `feedback_multi_agent_team_pattern.md`: Designer 선행 + 5-team 병렬
+- `feedback_korean_commits.md`: 모든 commit/PR 한국어
+- `feedback_pr_ci_monitoring.md`: PR 발행 즉시 watch + auto merge 조건 발동
+- `feedback_user_merge_authority.md` (2026-05-10): 5-team 0결함 + CI green → PM 자동 머지
+- `feedback_function_documentation.md`: 한국어 Javadoc 의무
+- `feedback_continuous_docs_sync.md`: dev-report + design + qa docs 동기화
+
+---
+
+## 2026-05-19 SP-10-2 머지 완료 — Phase 10 W10-2 인성데이타 퀵프로그램 vendor 통합 (이전 기록)
 
 ### 머지 결과
 
