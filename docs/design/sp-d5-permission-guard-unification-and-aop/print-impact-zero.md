@@ -55,9 +55,9 @@ SP-D5 의 변경 파일은 다음으로 제한된다:
 
 ## 3. design-system 인쇄 토큰 보존 확인
 
-`clients/web/design-system/src/tokens/tokens.css` 에 정의된 인쇄 관련 토큰 **전수 (23개)** 가 SP-D5 이후에도 픽셀 단위 동일하다.
+`clients/web/design-system/src/tokens/tokens.css` 에 정의된 인쇄 관련 토큰 **전수 (27개 = 주요 layout/size 23 + 보조 color/gap 4)** 가 SP-D5 이후에도 픽셀 단위 동일하다.
 
-> SP-D5 cycle 2 fix (Designer M-1): 기존 14개 표기가 실제 23개와 수 불일치하여 cycle 1 리뷰에서 minor 결함 지적됨 — 본 표는 23개 전수 갱신본.
+> SP-D5 cycle 2 fix (Designer M-1, cycle 3 보강): cycle 1 리뷰 시 14개로 표기되어 실제 27개와 불일치 지적됨. cycle 2 에서 주요 23개 numbered row 갱신, cycle 3 에서 보조 4개 (color/gap) 도 합산 표기하여 "전수 27개" 로 명확화.
 
 | # | 토큰 | 값 | 용도 |
 |---|------|---|-----|
