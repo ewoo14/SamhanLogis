@@ -39,6 +39,13 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>읽기 — 인증된 모든 역할</li>
  *   <li>쓰기 (POST/PATCH/DELETE) — MASTER / MANAGER / DEVELOPER</li>
  * </ul>
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>GET 조회 → {@link InventoryPermissionGuard#checkView(String, String)} (PAGE_WAREHOUSE)</li>
+ *   <li>POST/PATCH/DELETE write → {@link InventoryPermissionGuard#checkEdit(String, String)}</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/inventory/warehouses")
@@ -46,19 +53,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class WarehouseController {
 
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER   = "X-User-Role";
 
     private final WarehouseService warehouseService;
     /** PR-H4b 후속 — 창고 audit overlay 실시간 SSE broadcast 채널. */
     private final RealtimeBroker realtimeBroker;
+    private final InventoryPermissionGuard inventoryPermissionGuard;
 
     /**
      * 활성 창고 전체 조회 — displayOrder ASC. 인증된 모든 역할.
      *
+     * @param roleHeader X-User-Role 헤더 (동적 권한 검증)
      * @return 응답 envelope 안 List&lt;WarehouseResponse&gt; (200)
      */
     @Operation(summary = "창고 목록 조회", description = "displayOrder 오름차순으로 활성 창고 전체 반환")
     @GetMapping
-    public ApiResponse<List<WarehouseResponse>> listAll() {
+    public ApiResponse<List<WarehouseResponse>> listAll(
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkView(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         return ApiResponse.ok(warehouseService.listAll());
     }
 
@@ -107,7 +119,10 @@ public class WarehouseController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
-    public ApiResponse<WarehouseResponse> create(@Valid @RequestBody CreateWarehouseRequest request) {
+    public ApiResponse<WarehouseResponse> create(
+            @Valid @RequestBody CreateWarehouseRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         return ApiResponse.ok(warehouseService.create(request));
     }
 

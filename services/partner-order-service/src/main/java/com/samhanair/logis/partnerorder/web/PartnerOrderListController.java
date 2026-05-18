@@ -21,14 +21,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 거래처 주문 list 조회 endpoint — FE desktop SalesPartnerOrderListPage 가 호출.
+ *
  * <p>GET /api/v1/partner-orders — 전체 페이지 조회 (createdAt DESC).
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>GET 조회 → {@link PartnerOrderPermissionGuard#checkView(String, String)} (PAGE_LIST)</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
 @RequiredArgsConstructor
 public class PartnerOrderListController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerOrderQueryService partnerOrderQueryService;
+    private final PartnerOrderPermissionGuard permissionGuard;
 
     @Operation(summary = "거래처 주문 목록", description = "날짜/거래처/상태/검색어 필터를 적용한 주문 페이지. createdAt DESC")
     @GetMapping
@@ -40,7 +50,9 @@ public class PartnerOrderListController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) String partnerId,
             @RequestParam(required = false) PartnerOrderStatus status,
-            @RequestParam(required = false) String searchKeyword) {
+            @RequestParam(required = false) String searchKeyword,
+            @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkView(roleHeader, PartnerOrderPermissionGuard.PAGE_LIST);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<?> result = partnerOrderQueryService.list(
                 new PartnerOrderListFilter(dateFrom, dateTo, partnerId, status, searchKeyword),
@@ -51,7 +63,10 @@ public class PartnerOrderListController {
     @Operation(summary = "거래처 주문 상세", description = "주문번호 또는 내부 식별자로 주문 헤더와 라인을 조회합니다.")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','PARTNER')")
-    public ApiResponse<?> detail(@PathVariable String id) {
+    public ApiResponse<?> detail(
+            @PathVariable String id,
+            @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkView(roleHeader, PartnerOrderPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(partnerOrderQueryService.findDetailById(id));
     }
 }

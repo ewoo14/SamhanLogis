@@ -19,13 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 거래처 history 조회 endpoint (legacy getOrderHistory). 페이징 — 본인 거래처만.
  * UUID 미노출 — orderNo / slipNo / bizCode 만 응답.
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * GET 조회 → {@link PartnerOrderPermissionGuard#checkView(String, String)} (PAGE_HISTORY).
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders/history")
 @RequiredArgsConstructor
 public class PartnerOrderHistoryController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerOrderHistoryService historyService;
+    private final PartnerOrderPermissionGuard permissionGuard;
 
     @Operation(summary = "거래처 주문 history",
             description = "bizCode + 날짜 범위 페이지. confirmedAt DESC")
@@ -36,7 +42,9 @@ public class PartnerOrderHistoryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkView(roleHeader, PartnerOrderPermissionGuard.PAGE_HISTORY);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(historyService.findHistory(bizCode, from, to, pageable));
     }

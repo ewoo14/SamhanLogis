@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,16 +45,26 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>모든 응답은 {@link PartnerAdminResponse} 사용 — UUID 비공개 가드 (memory feedback_uuid_no_user_visibility)
  * 일관 적용. partnerCode 만 응답에 노출, 후속 조회/수정도 partnerCode path variable.
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>GET 조회 → {@link PartnerPermissionGuard#checkView(String, String)} (PAGE_LIST)</li>
+ *   <li>POST/PUT/DELETE write → {@link PartnerPermissionGuard#checkEdit(String, String)}</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/admin/partners")
 @RequiredArgsConstructor
 public class PartnerAdminController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerService partnerService;
     private final PartnerCreditService creditService;
     private final PartnerAligoExportService aligoExportService;
     private final PartnerExcelExportService excelExportService;
+    private final PartnerPermissionGuard partnerPermissionGuard;
 
     /**
      * 신규 거래처 등록.
@@ -69,7 +80,10 @@ public class PartnerAdminController {
     })
     @PostMapping
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
-    public ApiResponse<PartnerAdminResponse> create(@Valid @RequestBody PartnerAdminRequest req) {
+    public ApiResponse<PartnerAdminResponse> create(
+            @Valid @RequestBody PartnerAdminRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.register(req)));
     }
 
@@ -91,7 +105,10 @@ public class PartnerAdminController {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES')")
-    public ApiResponse<Page<PartnerSummaryResponse>> findAll(Pageable pageable) {
+    public ApiResponse<Page<PartnerSummaryResponse>> findAll(
+            Pageable pageable,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkView(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         Page<PartnerSummaryResponse> page = partnerService.findAll(pageable)
                 .map(PartnerSummaryResponse::from);
         return ApiResponse.ok(page);
@@ -153,7 +170,10 @@ public class PartnerAdminController {
     })
     @GetMapping("/{partnerCode}")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT')")
-    public ApiResponse<PartnerAdminResponse> findOne(@PathVariable String partnerCode) {
+    public ApiResponse<PartnerAdminResponse> findOne(
+            @PathVariable String partnerCode,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkView(roleHeader, PartnerPermissionGuard.PAGE_DETAIL);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByCode(partnerCode)));
     }
 
@@ -165,8 +185,11 @@ public class PartnerAdminController {
     @Operation(summary = "거래처 프로필 수정", description = "name / address / phone 만 변경. creditLimit 변경은 별도 사용")
     @PutMapping("/{partnerCode}")
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
-    public ApiResponse<PartnerAdminResponse> update(@PathVariable String partnerCode,
-                                                    @Valid @RequestBody PartnerAdminRequest req) {
+    public ApiResponse<PartnerAdminResponse> update(
+            @PathVariable String partnerCode,
+            @Valid @RequestBody PartnerAdminRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.updateProfile(partnerCode, req)));
     }
 

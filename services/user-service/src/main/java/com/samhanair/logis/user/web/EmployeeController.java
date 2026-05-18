@@ -32,31 +32,46 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Employee CRUD + lookup. Authorization is via gateway-injected X-User-Role headers. */
+/**
+ * Employee CRUD + lookup. Authorization is via gateway-injected X-User-Role headers.
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>GET 조회 → {@link EmployeePermissionGuard#checkView(String, String)} (PAGE_EMPLOYEES)</li>
+ *   <li>POST/PATCH write → {@link EmployeePermissionGuard#checkEdit(String, String)}</li>
+ * </ul>
+ */
 @RestController
 @RequestMapping("/users/employees")
 @RequiredArgsConstructor
 public class EmployeeController {
 
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER   = "X-User-Role";
 
     private final EmployeeProvisioningService provisioningService;
     private final OrgChartService orgChartService;
     private final EmployeeRepository employeeRepository;
+    private final EmployeePermissionGuard employeePermissionGuard;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<EmployeeResponse> create(
             @Valid @RequestBody CreateEmployeeRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.create(request, parseCaller(callerHeader)));
     }
 
     @GetMapping
     public ApiResponse<List<EmployeeResponse>> list(
             @RequestParam(required = false) UUID departmentId,
-            @RequestParam(required = false) Role role) {
+            @RequestParam(required = false) Role role,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkView(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         List<Employee> result;
         if (departmentId != null && role != null) {
             result = employeeRepository.findAllByDepartment_IdAndRoleSnapshot(departmentId, role);
@@ -71,7 +86,10 @@ public class EmployeeController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<EmployeeResponse> getOne(@PathVariable UUID id) {
+    public ApiResponse<EmployeeResponse> getOne(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkView(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         Employee e = employeeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
         return ApiResponse.ok(EmployeeResponse.from(e));
@@ -87,7 +105,9 @@ public class EmployeeController {
     public ApiResponse<EmployeeResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEmployeeRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.update(id, request, parseCaller(callerHeader)));
     }
 
@@ -96,7 +116,9 @@ public class EmployeeController {
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.updateRole(id, request.role(), parseCaller(callerHeader)));
     }
 
@@ -106,7 +128,9 @@ public class EmployeeController {
     public void terminate(
             @PathVariable UUID id,
             @Valid @RequestBody TerminateRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         provisioningService.terminate(id, request.terminationDate(), parseCaller(callerHeader));
     }
 

@@ -226,6 +226,36 @@ export function AppLayout() {
     || canAccessAccounting(auth?.role)
   const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
 
+  // [SP-D4] 잔여 7 도메인 22 PageCode 동적 RBAC 연동.
+  // SP-D2 P04 트랩 회고: 신규 코드는 dynamicCanAccess 기본값 true (보수적 허용) 이므로
+  // 기존 정적 역할 체크 흐름 회귀 없음. RBAC 캐시 완료 후 DB 값 적용.
+  const showEstimatesList          = dynamicCanAccess('estimates.list',               'view')
+  const showPartnerOrderList       = dynamicCanAccess('sales.partner-order.list',     'view')
+  const showVendorOrder            = dynamicCanAccess('sales.vendor-order',           'view')
+  const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')
+  // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
+  const _showInventoryStock        = dynamicCanAccess('inventory.stock',              'view')
+  const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
+  const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
+  const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
+  const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
+  const showAdminUsersMgmt         = dynamicCanAccess('admin.users',                  'view')
+  const showPartnersList           = dynamicCanAccess('partners.list',                'view')
+  const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
+  const showPartnersEditRequest    = dynamicCanAccess('partners.edit-request',        'view')
+  // products.* — 현재 사이드바 직접 노출 없음 (향후 상품 메뉴 추가 시 SidebarLink 연결). 라우트 가드에서 사용.
+  const _showProductsList          = dynamicCanAccess('products.list',                'view')
+  const _showProductsAdmin         = dynamicCanAccess('products.admin',               'view')
+  const showArologisAdminPage      = dynamicCanAccess('arologis.admin',               'view')
+  const showArologisRegionPage     = dynamicCanAccess('arologis.region',              'view')
+  // SP-D4 그룹 헤더 가시성 (1개라도 true 이면 그룹 노출)
+  const showInventoryGroup =
+    showInventoryWarehouse || _showInventoryStock || showInventoryStockTransfer
+    || showInventoryDps || showInventoryAuditPage
+  const showPartnersGroup  =
+    showPartnersList || showPartnersBlock || showPartnersEditRequest
+  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt
+
   // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH / MANAGER / MASTER 가드
   const showArologisManual = !!auth?.role
     && (ARO_MANUAL_DISPATCH_ROLES as readonly string[]).includes(auth.role)
@@ -273,6 +303,7 @@ export function AppLayout() {
   // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE 가시
   const showSafetyStockAlerts = showSafetyStock
   // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 사진 감사 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
+  // [SP-D4] inventory 그룹 PageCode 변수 병합 (showInventoryGroup 은 이 시점에서 미정의이므로 개별 항목 직접 OR)
   const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showPhotoAudit || showInboundInspection || showSafetyStockAlerts
   // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
   // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
@@ -349,7 +380,8 @@ export function AppLayout() {
             배차 메뉴
           </SidebarLink>
 
-          {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub. */}
+          {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
+              [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
           <div
             className="app-sidebar-group"
             aria-hidden="true"
@@ -368,8 +400,22 @@ export function AppLayout() {
           {/* [2a 메뉴 통합 + SP-03 IA] '판매 조회 (상세)' / '구매 조회 (상세)' 중복 진입점 제거 —
               이제 사이드바 최상단 '판매관리' / '구매관리' 가 SalesQueryPage / PurchaseQueryPage
               로 직행한다. /sales/query, /purchases/query 라우트는 기존 bookmark 호환 유지. */}
-          <NavLink to="/sales/estimates">견적서 관리</NavLink>
-          <NavLink to="/sales/partner-orders">주문서 관리</NavLink>
+          {/* [SP-D4] estimates.list 동적 RBAC 연동 (기존 NavLink → SidebarLink). */}
+          <SidebarLink
+            to="/sales/estimates"
+            show={showEstimatesList}
+            data-testid="sidebar-sales-estimates"
+          >
+            견적서 관리
+          </SidebarLink>
+          {/* [SP-D4] sales.partner-order.list 동적 RBAC 연동 (기존 NavLink → SidebarLink). */}
+          <SidebarLink
+            to="/sales/partner-orders"
+            show={showPartnerOrderList}
+            data-testid="sidebar-sales-partner-orders"
+          >
+            주문서 관리
+          </SidebarLink>
           <NavLink to="/sales/order-approvals">주문서 승인</NavLink>
           <SidebarLink
             to="/sales/partner-dc-config"
@@ -379,10 +425,11 @@ export function AppLayout() {
           >
             거래처 DC 설정
           </SidebarLink>
-          {/* [SP-01] 거래처 관리 — 생성 성공 후 복귀 대상인 /admin/partners 를 SALES/MANAGER/MASTER 에 직접 노출. */}
+          {/* [SP-01] 거래처 관리 — 생성 성공 후 복귀 대상인 /admin/partners 를 SALES/MANAGER/MASTER 에 직접 노출.
+              [SP-D4] partners.* 동적 RBAC 병합 (정적 showPartnerManagement OR 유지). */}
           <SidebarLink
             to="/admin/partners"
-            show={showPartnerManagement}
+            show={showPartnerManagement || showPartnersGroup}
             requiredRole="SALES / MANAGER / MASTER"
             data-testid="sidebar-sales-partners"
           >
@@ -413,9 +460,11 @@ export function AppLayout() {
             내일자 전표 이미지
           </SidebarLink>
           {/* [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER. */}
+          {/* [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER.
+              [SP-D4] sales.vendor-order 동적 RBAC 병합 (정적 showVendorOrderOcr OR 유지). */}
           <SidebarLink
             to="/sales/vendor-order-upload"
-            show={showVendorOrderOcr}
+            show={showVendorOrderOcr || showVendorOrder}
             requiredRole="SALES / MANAGER / MASTER"
             data-testid="sidebar-sales-vendor-order-upload"
           >
@@ -713,19 +762,21 @@ export function AppLayout() {
               >
                 실배차 비교
               </SidebarLink>
-              {/* [SP-06] 배차지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
+              {/* [SP-06] 배차지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능.
+                  [SP-D4] arologis.region 동적 RBAC 병합 (기존 정적 showRegionMgmt OR 유지). */}
               <SidebarLink
                 to="/admin/regions"
-                show={showRegionMgmt || showArologisManual}
+                show={showRegionMgmt || showArologisManual || showArologisRegionPage}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-region-mgmt"
               >
                 배차지역 관리
               </SidebarLink>
-              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
+              {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER.
+                  [SP-D4] arologis.admin 동적 RBAC 병합 (기존 정적 showArologisAdmin OR 유지). */}
               <SidebarLink
                 to="/arologis/admin/auto-dispatch"
-                show={showArologisAdmin}
+                show={showArologisAdmin || showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-auto-dispatch"
               >
@@ -733,7 +784,7 @@ export function AppLayout() {
               </SidebarLink>
               <SidebarLink
                 to="/arologis/admin/manual-dispatch"
-                show={showArologisAdmin}
+                show={showArologisAdmin || showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-manual-dispatch-admin"
               >
@@ -741,7 +792,7 @@ export function AppLayout() {
               </SidebarLink>
               <SidebarLink
                 to="/arologis/admin/driver-assignment"
-                show={showArologisAdmin}
+                show={showArologisAdmin || showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-driver-assignment"
               >
@@ -750,7 +801,8 @@ export function AppLayout() {
             </>
           ) : null}
 
-          {showWarehouseOps ? (
+          {/* [SP-D4] showInventoryGroup: inventory.* PageCode 중 1개라도 view 허용이면 창고 운영 그룹 노출. */}
+          {(showWarehouseOps || showInventoryGroup) ? (
             <>
               <div
                 className="app-sidebar-group"
@@ -958,8 +1010,9 @@ export function AppLayout() {
             disabled 시 tooltip: "대표실 부서 권한자만 접근 가능".
             활성 시 AdminLayout (/admin/users) 로 진입.
           */}
-          {/* SP-D1: 인사 카테고리 — MASTER 만 가시. 권한 없으면 완전 미노출. */}
-          {showAdmin ? (
+          {/* SP-D1: 인사 카테고리 — MASTER 만 가시. 권한 없으면 완전 미노출.
+              SP-D4: admin.employees / admin.users 동적 RBAC 연동 — showAdminHrGroup 추가. */}
+          {(showAdmin || showAdminHrGroup) ? (
             <>
               <div
                 className="app-sidebar-group"
@@ -976,18 +1029,22 @@ export function AppLayout() {
               >
                 인사
               </div>
-              <NavLink
+              {/* admin.employees — MASTER/MANAGER (SP-D4 §2). */}
+              <SidebarLink
                 to="/admin/users"
+                show={showAdmin || showAdminEmployees}
                 data-testid="sidebar-hr-users"
               >
                 인사 관리
-              </NavLink>
-              <NavLink
+              </SidebarLink>
+              {/* admin.users — MASTER 전용 (SP-D4 §2). */}
+              <SidebarLink
                 to="/admin/permission-matrix"
+                show={showAdmin || showAdminUsersMgmt}
                 data-testid="sidebar-hr-permission-matrix"
               >
                 권한 매트릭스
-              </NavLink>
+              </SidebarLink>
             </>
           ) : null}
         </nav>

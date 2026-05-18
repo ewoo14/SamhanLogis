@@ -86,6 +86,10 @@ public class ArologisAdminController {
     private final ArologisAuditLogRecorder auditLogRecorder;
     private final ArologisEditRequestService editRequestService;
     private final RealtimeBroker realtimeBroker;
+    // SP-D4 동적 권한 이중 가드
+    private final ArologisAdminPermissionGuard arologisAdminPermissionGuard;
+
+    private static final String ROLE_HEADER = "X-User-Role";
 
     /**
      * 카톡 메시지 파싱 미리보기 — 저장 X.
@@ -95,7 +99,10 @@ public class ArologisAdminController {
     @Operation(summary = "카톡 배차 메시지 파싱 미리보기 (Admin)")
     @PostMapping("/dispatches/parse-kakao")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<ParsedDispatchResponse> parseKakao(@RequestBody Map<String, String> body) {
+    public ApiResponse<ParsedDispatchResponse> parseKakao(
+            @RequestBody Map<String, String> body,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String kakaoText = body == null ? null : body.get("kakaoText");
         if (kakaoText == null || kakaoText.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "kakaoText 필수");
@@ -111,7 +118,10 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch 저장 (Admin)")
     @PostMapping("/dispatches")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<Map<String, String>> create(@RequestBody Map<String, String> body) {
+    public ApiResponse<Map<String, String>> create(
+            @RequestBody Map<String, String> body,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String kakaoText = body == null ? null : body.get("kakaoText");
         if (kakaoText == null || kakaoText.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "kakaoText 필수");

@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>SP-D1 초기 12개 페이지 등록 (Phase 9 vendor 4 + 회계 5 + 매입 2 + admin 1).
  * <p>SP-D2 회계 카테고리 7개 추가 (accounts / journals / balances / reports / period-close / statement-batch / partner-ledger) — 총 19개.
+ * <p>SP-D4 잔여 7 도메인 22개 추가 (견적 / 거래처주문 / 재고 / 직원 / 거래처 / 상품 / 아로로지스) — 총 41개.
  */
 @Getter
 @RequiredArgsConstructor
@@ -95,7 +96,87 @@ public enum PageCode {
     // ---- 관리 (admin) ----
 
     /** 동적 RBAC 권한 관리 화면 — MASTER 전용. */
-    ADMIN_PERMISSIONS("admin.permissions", "권한 관리");
+    ADMIN_PERMISSIONS("admin.permissions", "권한 관리"),
+
+    // ---- 견적 (estimate) ----
+
+    /** 견적 목록/상세/작성/수정 화면 (SP-D4) — slip-service EstimateController. */
+    ESTIMATES_LIST("estimates.list", "견적 목록"),
+
+    // ---- 거래처주문 (sales partner-order) ----
+
+    /** 거래처 주문 목록 화면 (SP-D4) — partner-order-service PartnerOrderListController. */
+    SALES_PARTNER_ORDER_LIST("sales.partner-order.list", "거래처주문 목록"),
+
+    /** 거래처 주문 작성/임시저장/수정/삭제/견적→주문 화면 (SP-D4). */
+    SALES_PARTNER_ORDER_DRAFT("sales.partner-order.draft", "거래처주문 작성"),
+
+    /** 주문 확정/편집요청 화면 (SP-D4). */
+    SALES_PARTNER_ORDER_CONFIRM("sales.partner-order.confirm", "주문 확정"),
+
+    /** 주문 이력/감사로그 화면 (SP-D4). */
+    SALES_PARTNER_ORDER_HISTORY("sales.partner-order.history", "주문 이력"),
+
+    /** 주문서 인쇄 화면 (SP-D4). */
+    SALES_PARTNER_ORDER_PRINT("sales.partner-order.print", "주문서 인쇄"),
+
+    /** 벤더(외주) 발주서 업로드/확정 화면 (SP-D4) — VendorOrderController. */
+    SALES_VENDOR_ORDER("sales.vendor-order", "벤더(외주) 주문"),
+
+    // ---- 재고 (inventory) ----
+
+    /** 창고 관리 화면 (SP-D4) — inventory-service WarehouseController. */
+    INVENTORY_WAREHOUSE("inventory.warehouse", "창고 관리"),
+
+    /** 재고 현황/안전재고 화면 (SP-D4) — StockController / SafetyStockController. */
+    INVENTORY_STOCK("inventory.stock", "재고 현황"),
+
+    /** 재고 이동 화면 (SP-D4) — StockTransferController. */
+    INVENTORY_STOCK_TRANSFER("inventory.stock-transfer", "재고 이동"),
+
+    /** DPS 비교/저장이력 화면 (SP-D4) — DpsCompareController / DpsSaveHistoryController. */
+    INVENTORY_DPS("inventory.dps", "DPS 비교/이력"),
+
+    /** 재고 감사 화면 (SP-D4) — InventoryAuditController. */
+    INVENTORY_AUDIT("inventory.audit", "재고 감사"),
+
+    // ---- 직원 관리 (admin employees) ----
+
+    /** 직원 관리 화면 (SP-D4) — user-service EmployeeController. */
+    ADMIN_EMPLOYEES("admin.employees", "직원 관리"),
+
+    /** 계정(사용자) 관리 화면 (SP-D4) — user-service AdminUserController. */
+    ADMIN_USERS("admin.users", "계정 관리"),
+
+    // ---- 거래처 (partners) ----
+
+    /** 거래처 목록 화면 (SP-D4) — partner-service PartnerAdminController. */
+    PARTNERS_LIST("partners.list", "거래처 목록"),
+
+    /** 거래처 4탭 상세 화면 (SP-D4) — Partner4TabController. */
+    PARTNERS_DETAIL("partners.detail", "거래처 4탭 상세"),
+
+    /** 거래처 차단 관리 화면 (SP-D4) — PartnerBlockAdminController. */
+    PARTNERS_BLOCK("partners.block", "거래처 차단"),
+
+    /** 거래처 편집 결재/목록/승인 화면 (SP-D4) — PartnerEditRequestController. */
+    PARTNERS_EDIT_REQUEST("partners.edit-request", "거래처 편집 결재"),
+
+    // ---- 상품 (products) ----
+
+    /** 상품 목록 화면 (SP-D4) — product-service ProductController. */
+    PRODUCTS_LIST("products.list", "상품 목록"),
+
+    /** 상품 관리(카테고리 편집) 화면 (SP-D4) — CategoryController. */
+    PRODUCTS_ADMIN("products.admin", "상품 관리"),
+
+    // ---- 아로로지스 (arologis) ----
+
+    /** 아로로지스 배차 관리 화면 (SP-D4) — arologis-service ArologisAdminController. */
+    AROLOGIS_ADMIN("arologis.admin", "아로로지스 배차 관리"),
+
+    /** 아로로지스 지역/구역 관리 화면 (SP-D4) — RegionAdminController. */
+    AROLOGIS_REGION("arologis.region", "아로로지스 지역/구역 관리");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

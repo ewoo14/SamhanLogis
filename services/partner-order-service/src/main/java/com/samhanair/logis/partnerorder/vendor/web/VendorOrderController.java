@@ -53,14 +53,18 @@ public class VendorOrderController {
 
     private static final Logger log = LoggerFactory.getLogger(VendorOrderController.class);
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER    = "X-User-Role";
 
     private final VendorOrderService vendorOrderService;
     private final ObjectProvider<OcrEngine> ocrEngineProvider;
+    private final com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard permissionGuard;
 
     public VendorOrderController(VendorOrderService vendorOrderService,
-                                 ObjectProvider<OcrEngine> ocrEngineProvider) {
+                                 ObjectProvider<OcrEngine> ocrEngineProvider,
+                                 com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard permissionGuard) {
         this.vendorOrderService = vendorOrderService;
         this.ocrEngineProvider = ocrEngineProvider;
+        this.permissionGuard = permissionGuard;
     }
 
     /**
@@ -85,7 +89,9 @@ public class VendorOrderController {
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "vendor", required = false) String vendor,
             @RequestParam(value = "partnerCode", required = false) String partnerCode,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String userId) throws IOException {
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) throws IOException {
+        permissionGuard.checkEdit(roleHeader, com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard.PAGE_VENDOR);
         if (ocrEngineProvider.getIfAvailable() == null) {
             return serviceUnavailable();
         }
@@ -110,7 +116,9 @@ public class VendorOrderController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<VendorOrderConfirmResponse> confirm(
             @Valid @RequestBody VendorOrderConfirmRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String userId) {
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkEdit(roleHeader, com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard.PAGE_VENDOR);
         log.info("vendor confirm — actor={}, vendor={}, partnerCode={}, lines={}",
                 fallback(userId), request.vendorName(), request.partnerCode(),
                 request.lines() == null ? 0 : request.lines().size());

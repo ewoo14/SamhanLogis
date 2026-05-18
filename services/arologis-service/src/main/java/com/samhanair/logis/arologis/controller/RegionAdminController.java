@@ -55,12 +55,17 @@ public class RegionAdminController {
 
     private final RegionService regionService;
     private final RegionImportService importService;
+    private final ArologisAdminPermissionGuard arologisAdminPermissionGuard;
+
+    private static final String ROLE_HEADER = "X-User-Role";
 
     /** 전체 활성 분류 조회 (sort_order 오름차순). */
     @Operation(summary = "지역 분류 전체 조회 (Admin)")
     @GetMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
-    public ApiResponse<List<RegionResponse>> list() {
+    public ApiResponse<List<RegionResponse>> list(
+            @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_REGION);
         List<RegionDispatchClassification> all = regionService.findAll();
         return ApiResponse.ok(all.stream().map(RegionResponse::from).toList());
     }
@@ -69,7 +74,10 @@ public class RegionAdminController {
     @Operation(summary = "지역 분류 단건 추가 (Admin)")
     @PostMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<RegionResponse> create(@Valid @RequestBody RegionUpsertRequest req) {
+    public ApiResponse<RegionResponse> create(
+            @Valid @RequestBody RegionUpsertRequest req,
+            @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_REGION);
         if (req.groupName() == null || req.groupName().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "groupName 필수");
         }

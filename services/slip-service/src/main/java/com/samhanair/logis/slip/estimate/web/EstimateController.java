@@ -42,15 +42,24 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>변환 (견적 → 슬립) — SALES, MANAGER, MASTER</li>
  *   <li>조회 — 모든 인증 사용자</li>
  * </ul>
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>GET 조회 → {@link EstimatePermissionGuard#checkView(String)}</li>
+ *   <li>POST/PUT write → {@link EstimatePermissionGuard#checkEdit(String)}</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/slips/estimates")
 @RequiredArgsConstructor
 public class EstimateController {
 
-    private static final String CALLER_HEADER = "X-User-Id";
+    private static final String CALLER_HEADER  = "X-User-Id";
+    private static final String ROLE_HEADER    = "X-User-Role";
 
     private final EstimateService estimateService;
+    private final EstimatePermissionGuard estimatePermissionGuard;
 
     /** 견적서 페이지 조회 — status / partnerId / 기간 필터 (모두 옵션). */
     @Operation(summary = "견적서 페이지 조회",
@@ -65,7 +74,9 @@ public class EstimateController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkView(roleHeader);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, pageable));
     }
@@ -74,7 +85,10 @@ public class EstimateController {
     @Operation(summary = "견적서 단건 상세", description = "라인 포함")
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<EstimateDetailResponse> getOne(@PathVariable UUID id) {
+    public ApiResponse<EstimateDetailResponse> getOne(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkView(roleHeader);
         return ApiResponse.ok(estimateService.getOne(id));
     }
 
@@ -89,7 +103,9 @@ public class EstimateController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader)));
     }
 
@@ -100,7 +116,9 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader)));
     }
 
@@ -110,7 +128,9 @@ public class EstimateController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
     }
 
@@ -120,7 +140,9 @@ public class EstimateController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
     }
 
@@ -130,7 +152,9 @@ public class EstimateController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
@@ -145,7 +169,9 @@ public class EstimateController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        estimatePermissionGuard.checkEdit(roleHeader);
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
     }
 

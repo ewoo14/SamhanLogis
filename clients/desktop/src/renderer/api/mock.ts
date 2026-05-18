@@ -5565,6 +5565,7 @@ const SP_D1_ROLES = [
 /**
  * SP-D1 cycle 2 fix: 페이지 코드를 BE PageCode enum dot-separated code 와 일치.
  * SP-D2: 회계 카테고리 7개 신규 PageCode 추가 (V8 seed 기반).
+ * SP-D4: 잔여 7 도메인 22개 신규 PageCode 추가 (V10 seed 기반).
  */
 const SP_D1_PAGES = [
   // SP-D1 초기 12개
@@ -5588,9 +5589,58 @@ const SP_D1_PAGES = [
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
+  // SP-D4 잔여 7 도메인 22개 신규 (V10 seed 기반)
+  'estimates.list',
+  'sales.partner-order.list',
+  'sales.partner-order.draft',
+  'sales.partner-order.confirm',
+  'sales.partner-order.history',
+  'sales.partner-order.print',
+  'sales.vendor-order',
+  'inventory.warehouse',
+  'inventory.stock',
+  'inventory.stock-transfer',
+  'inventory.dps',
+  'inventory.audit',
+  'admin.employees',
+  'admin.users',
+  'partners.list',
+  'partners.detail',
+  'partners.block',
+  'partners.edit-request',
+  'products.list',
+  'products.admin',
+  'arologis.admin',
+  'arologis.region',
 ] as const
 
-/** 역할 × 페이지 기본 view 권한 (V7+V8 seed 기반 — SP-D1/D2 통합 매트릭스). */
+/**
+ * 역할 × 페이지 기본 view 권한 (V7+V8+V10 seed 기반 — SP-D1/D2/D4 통합 매트릭스).
+ *
+ * SP-D4 §2 표 V 열 기준:
+ *  estimates.list:             MASTER/MANAGER/ACCOUNTANT/SALES
+ *  sales.partner-order.list:   MASTER/MANAGER/ACCOUNTANT/SALES
+ *  sales.partner-order.draft:  MASTER/MANAGER/SALES
+ *  sales.partner-order.confirm:MASTER/MANAGER/SALES
+ *  sales.partner-order.history:MASTER/MANAGER/ACCOUNTANT/SALES
+ *  sales.partner-order.print:  MASTER/MANAGER/SALES/WAREHOUSE
+ *  sales.vendor-order:         MASTER/MANAGER/SALES/WAREHOUSE
+ *  inventory.warehouse:        MASTER/MANAGER/WAREHOUSE/INVENTORY
+ *  inventory.stock:            MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY
+ *  inventory.stock-transfer:   MASTER/MANAGER/WAREHOUSE/INVENTORY
+ *  inventory.dps:              MASTER/MANAGER/WAREHOUSE/INVENTORY
+ *  inventory.audit:            MASTER/MANAGER/ACCOUNTANT/WAREHOUSE/INVENTORY
+ *  admin.employees:            MASTER/MANAGER
+ *  admin.users:                MASTER
+ *  partners.list:              MASTER/MANAGER/ACCOUNTANT/SALES
+ *  partners.detail:            MASTER/MANAGER/ACCOUNTANT/SALES
+ *  partners.block:             MASTER/MANAGER
+ *  partners.edit-request:      MASTER/MANAGER/SALES
+ *  products.list:              MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/INVENTORY
+ *  products.admin:             MASTER/MANAGER/SALES/INVENTORY
+ *  arologis.admin:             MASTER/MANAGER/DISPATCH
+ *  arologis.region:            MASTER/MANAGER/DISPATCH
+ */
 const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
     // SP-D1
@@ -5602,10 +5652,29 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
+    // SP-D4 22개 — MANAGER: 대부분 view 허용
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
   ],
-  DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
+  DISPATCH: [
+    'notification.dispatch-sms.send-audit', 'dispatch.board',
+    // SP-D4 — DISPATCH: inventory.stock (view 전용) + arologis.*
+    'inventory.stock', 'arologis.admin', 'arologis.region',
+  ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
-  SALES: ['accounting.tax-invoice.list', 'sales.slip.list'],
+  SALES: [
+    'accounting.tax-invoice.list', 'sales.slip.list',
+    // SP-D4 — SALES: 견적/주문/거래처/상품 view
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.stock',
+    'partners.list', 'partners.detail', 'partners.edit-request',
+    'products.list', 'products.admin',
+  ],
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
@@ -5615,18 +5684,83 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
+    // SP-D4 — ACCOUNTANT: 견적/주문 이력/재고/거래처/상품 view 만
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
+    'inventory.stock', 'inventory.audit',
+    'partners.list', 'partners.detail',
+    'products.list',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)
-  WAREHOUSE: ['purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection'],
-  INVENTORY: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
+  WAREHOUSE: [
+    'purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection',
+    // SP-D4 — WAREHOUSE: 재고/창고/인쇄/벤더주문 view
+    'sales.partner-order.print', 'sales.vendor-order',
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit',
+    'products.list',
+  ],
+  INVENTORY: [
+    'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
+    // SP-D4 — INVENTORY: 재고/창고 view
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit',
+    'products.list', 'products.admin',
+  ],
 }
 
-/** 역할 × 페이지 기본 edit 권한 (V7+V8 seed 기반). */
+/**
+ * 역할 × 페이지 기본 edit 권한 (V7+V8+V10 seed 기반 — SP-D1/D2/D4 통합 매트릭스).
+ *
+ * SP-D4 §2 표 E 열 기준:
+ *  estimates.list:             MASTER/MANAGER/SALES
+ *  sales.partner-order.list:   MASTER/MANAGER/SALES
+ *  sales.partner-order.draft:  MASTER/MANAGER/SALES
+ *  sales.partner-order.confirm:MASTER/MANAGER/SALES
+ *  sales.partner-order.history:(없음 — view 전용)
+ *  sales.partner-order.print:  MASTER/SALES
+ *  sales.vendor-order:         MASTER/MANAGER/SALES/WAREHOUSE (BE EP 에 따라 WAREHOUSE 포함)
+ *  inventory.warehouse:        MASTER/MANAGER/WAREHOUSE/INVENTORY
+ *  inventory.stock:            MASTER/WAREHOUSE/INVENTORY (MANAGER view 전용)
+ *  inventory.stock-transfer:   MASTER/MANAGER/WAREHOUSE/INVENTORY
+ *  inventory.dps:              MASTER/WAREHOUSE/INVENTORY (MANAGER view 전용)
+ *  inventory.audit:            (없음 — 전 역할 view 전용 per §2 표)
+ *  admin.employees:            MASTER/MANAGER
+ *  admin.users:                MASTER
+ *  partners.list:              MASTER/MANAGER/SALES
+ *  partners.detail:            MASTER/MANAGER/SALES
+ *  partners.block:             MASTER/MANAGER
+ *  partners.edit-request:      MASTER/MANAGER (SALES view 전용)
+ *  products.list:              MASTER/MANAGER/SALES/INVENTORY
+ *  products.admin:             MASTER/MANAGER/SALES/INVENTORY
+ *  arologis.admin:             MASTER/MANAGER/DISPATCH
+ *  arologis.region:            MASTER/MANAGER/DISPATCH
+ */
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
-  MANAGER: [],
-  DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
-  SALES: ['sales.slip.list'],
+  MANAGER: [
+    // SP-D1 — MANAGER: edit 미허용 (view 전용)
+    // SP-D4 — MANAGER: 대부분 edit 허용
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock-transfer',
+    'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
+  ],
+  DISPATCH: [
+    'notification.dispatch-sms.send-audit', 'dispatch.board',
+    // SP-D4 — DISPATCH: arologis.* edit
+    'arologis.admin', 'arologis.region',
+  ],
+  SALES: [
+    'sales.slip.list',
+    // SP-D4 — SALES: 견적/주문/거래처/상품 edit
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.print',
+    'sales.vendor-order',
+    'partners.list', 'partners.detail',
+    'products.list', 'products.admin',
+  ],
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
@@ -5635,13 +5769,29 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.period-close',
     'accounting.statement-batch',
+    // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
   ],
   // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
-  WAREHOUSE: ['inbound.inspection', 'purchases.receipt-ocr'],
-  INVENTORY: ['inbound.inspection'],
+  WAREHOUSE: [
+    'inbound.inspection', 'purchases.receipt-ocr',
+    // SP-D4 — WAREHOUSE: 재고/창고 edit
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock',
+    'inventory.stock-transfer', 'inventory.dps',
+  ],
+  INVENTORY: [
+    'inbound.inspection',
+    // SP-D4 — INVENTORY: 재고/창고 edit
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps',
+    'products.list', 'products.admin',
+  ],
 }
 
-/** in-memory 매트릭스 — MASTER 포함 84셀. POST /batch 로 변경 반영. */
+/**
+ * in-memory 매트릭스 — MASTER 포함 287셀 (7 역할 × 41 페이지).
+ * SP-D4: V10 seed 22 PageCode × 7 역할 = 154 row 추가.
+ * POST /batch 로 변경 반영.
+ */
 let _mockPermissionCells: Array<{
   roleCode: string
   pageCode: string

@@ -364,7 +364,15 @@ const router = createHashRouter([
     ),
     children: [
       { path: '/', element: <DashboardPage /> },
-      { path: '/warehouses', element: <WarehousesPage /> },
+      // [SP-D4] inventory.warehouse 동적 RBAC 추가 (기존 미가드 라우트 → PermissionGuard 추가).
+      {
+        path: '/warehouses',
+        element: (
+          <PermissionGuard pageCode="inventory.warehouse" action="view">
+            <WarehousesPage />
+          </PermissionGuard>
+        ),
+      },
 
       // [2a 영업·구매 메뉴 통합] 판매관리 — 풍성한 컬럼 + 다중 선택 (SalesQueryPage).
       // 기존 SlipListPage 는 `/sales/slips` 로 이전 — 2c 전표 작성 plumbing 시 활용 예정.
@@ -419,13 +427,23 @@ const router = createHashRouter([
 
       // P2-1 견적서 SamhanLogis 도메인 (slip-service `/slips/estimates`).
       // legacy webview (EstimateLegacyWebviewPage) 폐기. 정적 path 우선 매칭 의무.
-      { path: '/sales/estimates', element: <EstimateListPage /> },
+      // [SP-D4] estimates.list 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
+      {
+        path: '/sales/estimates',
+        element: (
+          <PermissionGuard pageCode="estimates.list" action="view">
+            <EstimateListPage />
+          </PermissionGuard>
+        ),
+      },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },
       {
         path: '/sales/partner-orders',
         element: (
           <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
-            <SalesPartnerOrderListPage />
+            <PermissionGuard pageCode="sales.partner-order.list" action="view">
+              <SalesPartnerOrderListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -433,7 +451,9 @@ const router = createHashRouter([
         path: '/sales/partner-orders/:id',
         element: (
           <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
-            <SalesPartnerOrderDetailPage />
+            <PermissionGuard pageCode="sales.partner-order.list" action="view">
+              <SalesPartnerOrderDetailPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -529,16 +549,33 @@ const router = createHashRouter([
       },
 
       // 재고이동
-      { path: '/transfers', element: <TransferListPage /> },
+      // [SP-D4] inventory.stock-transfer 동적 RBAC 추가 (기존 미가드 라우트 → PermissionGuard 추가).
+      {
+        path: '/transfers',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+            <TransferListPage />
+          </PermissionGuard>
+        ),
+      },
       {
         path: '/transfers/new',
         element: (
           <RoleGuard allow={TRANSFER_CREATE_ROLES}>
-            <TransferFormPage />
+            <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+              <TransferFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
-      { path: '/transfers/:id', element: <TransferDetailPage /> },
+      {
+        path: '/transfers/:id',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+            <TransferDetailPage />
+          </PermissionGuard>
+        ),
+      },
 
       // Phase 10 P0-2 — 본인 비밀번호 변경 (모든 인증 사용자 접근 가능)
       { path: '/password/change', element: <PasswordChangePage /> },
@@ -966,11 +1003,14 @@ const router = createHashRouter([
       // 매뉴얼: docs/manual/05-arologis/01-카카오톡-배차.md (Frontend admin UI ✅)
       //         docs/manual/05-arologis/02-수동-배차.md     (정식 admin 배차 UI ✅)
       //         docs/manual/05-arologis/03-기사-배정.md     (Frontend admin 배정 UI ✅)
+      // [SP-D4] arologis.admin 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/arologis/admin/auto-dispatch',
         element: (
           <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <KakaoAutoDispatchPage />
+            <PermissionGuard pageCode="arologis.admin" action="view">
+              <KakaoAutoDispatchPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -978,7 +1018,9 @@ const router = createHashRouter([
         path: '/arologis/admin/manual-dispatch',
         element: (
           <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <ManualDispatchAdminPage />
+            <PermissionGuard pageCode="arologis.admin" action="view">
+              <ManualDispatchAdminPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -986,7 +1028,9 @@ const router = createHashRouter([
         path: '/arologis/admin/driver-assignment',
         element: (
           <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <DriverAssignmentPage />
+            <PermissionGuard pageCode="arologis.admin" action="view">
+              <DriverAssignmentPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1171,11 +1215,14 @@ const router = createHashRouter([
 
       // [P0-6] 거래처 4탭 신규 등록/목록 — SALES / MANAGER / MASTER.
       // AdminLayout (MASTER 전용) 외부 — SALES/MANAGER 도 생성 후 목록 복귀 가능.
+      // [SP-D4] partners.list / partners.detail 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/admin/partners/new',
         element: (
           <RoleGuard allow={PARTNER_FULL_ROLES}>
-            <AdminPartnerCreatePage />
+            <PermissionGuard pageCode="partners.detail" action="view">
+              <AdminPartnerCreatePage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1183,7 +1230,9 @@ const router = createHashRouter([
         path: '/admin/partners',
         element: (
           <RoleGuard allow={PARTNER_FULL_ROLES}>
-            <AdminPartnersPage />
+            <PermissionGuard pageCode="partners.list" action="view">
+              <AdminPartnersPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1198,11 +1247,15 @@ const router = createHashRouter([
           </RoleGuard>
         ),
       },
+      // [SP-D4 TM cross-check fix] partners.block PermissionGuard 이중 가드 추가
+      // — TM 권장 cycle 2 fix backlog 를 PM 통합 commit 에 포함 (사이클 절약).
       {
         path: '/admin/blocked-partners',
         element: (
           <RoleGuard allow={BLOCKED_PARTNER_ROLES}>
-            <AdminBlockedPartnersPage />
+            <PermissionGuard pageCode="partners.block" action="view">
+              <AdminBlockedPartnersPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1218,13 +1271,28 @@ const router = createHashRouter([
       // [Phase 10 P0-5 / slice 4] 관리자 통합 admin — MASTER 전용 (대표실 부서 추가 가드 포함).
       // AdminLayout 자체에 RoleGuard(MASTER) + useQuery(is-executive-office) 이중 가드.
       // outlet children 은 AdminLayout 이 통과한 후이므로 별도 가드 불필요.
+      // [SP-D4] admin.employees / admin.users 동적 RBAC 추가 (AdminLayout MASTER 가드 유지).
       {
         path: '/admin',
         element: <AdminLayout />,
         children: [
           // [PR-HR] 신규 인사 등록 — /admin/users/new (정적 path 우선 매칭).
-          { path: 'users/new', element: <AdminUsersPage /> },
-          { path: 'users', element: <AdminUsersPage /> },
+          {
+            path: 'users/new',
+            element: (
+              <PermissionGuard pageCode="admin.employees" action="view">
+                <AdminUsersPage />
+              </PermissionGuard>
+            ),
+          },
+          {
+            path: 'users',
+            element: (
+              <PermissionGuard pageCode="admin.employees" action="view">
+                <AdminUsersPage />
+              </PermissionGuard>
+            ),
+          },
           { path: 'roles', element: <AdminRolesPage /> },
           { path: 'warehouses', element: <AdminWarehousesPage /> },
           { path: 'departments', element: <AdminDepartmentsPage /> },
@@ -1234,22 +1302,28 @@ const router = createHashRouter([
       // [SP-D1] 권한 매트릭스 관리 — MASTER 전용.
       // AdminLayout (대표실 부서 이중 가드) 외부에 단독 라우트로 배치.
       // 접근 시도 시 MASTER 가 아니면 홈 redirect.
+      // [SP-D4] admin.users 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/admin/permission-matrix',
         element: (
           <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionMatrixPage />
+            <PermissionGuard pageCode="admin.users" action="view">
+              <PermissionMatrixPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [PR-D Phase B FE-B] arologis 지역 관리 — DISPATCH 조회 + MANAGER/MASTER 관리.
       // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능 — 자체 RoleGuard 적용.
+      // [SP-D4] arologis.region 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/admin/regions',
         element: (
           <RoleGuard allow={ARO_REGIONS_ADMIN_ROLES}>
-            <AdminRegionsPage />
+            <PermissionGuard pageCode="arologis.region" action="view">
+              <AdminRegionsPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1303,11 +1377,14 @@ const router = createHashRouter([
 
       // [Phase 10 P2-6 / slice 9] 재고 실사 — WAREHOUSE / MASTER 만.
       // 매뉴얼 docs/manual/02-창고/05-재고-실사.md 와 경로 일치.
+      // [SP-D4] inventory.audit 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/audit',
         element: (
           <RoleGuard allow={AUDIT_ROLES}>
-            <InventoryAuditListPage />
+            <PermissionGuard pageCode="inventory.audit" action="view">
+              <InventoryAuditListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1315,7 +1392,9 @@ const router = createHashRouter([
         path: '/warehouse/audit/new',
         element: (
           <RoleGuard allow={AUDIT_ROLES}>
-            <InventoryAuditFormPage />
+            <PermissionGuard pageCode="inventory.audit" action="view">
+              <InventoryAuditFormPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1323,18 +1402,23 @@ const router = createHashRouter([
         path: '/warehouse/audit/:id',
         element: (
           <RoleGuard allow={AUDIT_ROLES}>
-            <InventoryAuditDetailPage />
+            <PermissionGuard pageCode="inventory.audit" action="view">
+              <InventoryAuditDetailPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
 
       // [PR-E1 FE-1] DPS 입고 비교 — WAREHOUSE / MASTER / MANAGER / INVENTORY.
       // BE: inventory-service `/warehouse/audit/dps-compare` (commit 4b14084).
+      // [SP-D4] inventory.dps 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/dps-compare',
         element: (
           <RoleGuard allow={DPS_COMPARE_ROLES}>
-            <InventoryDpsComparePage />
+            <PermissionGuard pageCode="inventory.dps" action="view">
+              <InventoryDpsComparePage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
@@ -1342,11 +1426,14 @@ const router = createHashRouter([
       // [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER.
       // BE: inventory-service `GET /warehouse/audit/dps-compare/by-product`
       // 정적 path — `/warehouse/dps-compare` 뒤에 등록 (정적 path 우선 react-router 규칙 준수).
+      // [SP-D4] inventory.dps 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/dps-compare/by-product',
         element: (
           <RoleGuard allow={DPS_BY_PRODUCT_ROLES}>
-            <DpsByProductPage />
+            <PermissionGuard pageCode="inventory.dps" action="view">
+              <DpsByProductPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },

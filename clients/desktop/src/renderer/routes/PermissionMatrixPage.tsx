@@ -5,10 +5,12 @@
  * 역할(행) × 페이지(열) 체크박스 그리드로 권한을 시각적으로 관리.
  *
  * 기능:
- * - 7 역할 × 19 페이지 코드 = 최대 133 셀 (view / edit 체크박스 2개)
+ * - 7 역할 × 41 페이지 코드 = 최대 287 셀 (view / edit 체크박스 2개)
  * - 셀 변경 시 dirty 상태 강조 (노란 배경)
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
+ * - 카테고리 그룹 헤더 행: 회계/매입·매출·배차·알림/관리(SP-D1~D3) +
+ *   견적/거래처주문/재고/직원·계정/거래처/상품/아로지스(SP-D4) 총 13 그룹
  *
  * data-testid (SP-D1 cycle 2 fix: Playwright spec 기준으로 통일):
  * - permission-matrix-table                        — 매트릭스 표 wrapper
@@ -63,35 +65,148 @@ const ROLE_LABEL: Record<RbacRole, string> = {
   INVENTORY: '재고원',
 }
 
+// ---------------------------------------------------------------------------
+// 카테고리 그룹 정의 — SP-D1~D3 기존 + SP-D4 신규 7 그룹
+// ---------------------------------------------------------------------------
+
 /**
- * 페이지 코드 19개 표시 순서 — BE PageCode enum dot-separated code 와 1:1.
- * SP-D1: 12개 초기 등록.
- * SP-D2: 회계 7개 신규 추가 (accounts / journals / balances / reports /
- *         period-close / statement-batch / partner-ledger).
+ * 페이지 카테고리 그룹.
+ * label: 그룹 헤더 한국어 명칭.
+ * pages: 그룹 내 PageCode 목록 (순서 고정).
+ *
+ * 그룹 배치 순서 (사용자 업무 흐름 기준):
+ *   회계 → 매입 → 매출 → 배차 → 알림 → 관리 (SP-D1~D3 기존)
+ *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로지스 (SP-D4 신규)
  */
-const PAGES_ORDER: PageCode[] = [
-  // SP-D1 12개
-  'accounting.tax-invoice.emit-nts',
-  'accounting.tax-invoice.list',
-  'accounting.deposit-match',
-  'accounting.daily-closing',
-  'accounting.general-ledger',
-  'notification.dispatch-sms.send-audit',
-  'purchases.receipt-ocr',
-  'purchases.slip.list',
-  'sales.slip.list',
-  'inbound.inspection',
-  'dispatch.board',
-  'admin.permissions',
-  // SP-D2 회계 7개 신규
-  'accounting.accounts',
-  'accounting.journals',
-  'accounting.balances',
-  'accounting.reports',
-  'accounting.period-close',
-  'accounting.statement-batch',
-  'accounting.partner-ledger',
+interface PageGroup {
+  label: string
+  pages: PageCode[]
+}
+
+/**
+ * 전체 카테고리 그룹 13개.
+ * SP-D1: 회계·매입·매출·배차·알림·관리 (6 그룹 / 12 코드)
+ * SP-D2: 회계 그룹 내 7 코드 추가 (그룹 수 유지)
+ * SP-D3: 그룹 수 유지
+ * SP-D4: 7 신규 그룹 + 22 코드 추가
+ */
+const PAGE_GROUPS: PageGroup[] = [
+  // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
+  {
+    label: '회계',
+    pages: [
+      'accounting.tax-invoice.emit-nts',
+      'accounting.tax-invoice.list',
+      'accounting.deposit-match',
+      'accounting.daily-closing',
+      'accounting.general-ledger',
+      // SP-D2 회계 추가
+      'accounting.accounts',
+      'accounting.journals',
+      'accounting.balances',
+      'accounting.reports',
+      'accounting.period-close',
+      'accounting.statement-batch',
+      'accounting.partner-ledger',
+    ],
+  },
+  {
+    label: '매입',
+    pages: [
+      'purchases.receipt-ocr',
+      'purchases.slip.list',
+      'inbound.inspection',
+    ],
+  },
+  {
+    label: '매출',
+    pages: [
+      'sales.slip.list',
+    ],
+  },
+  {
+    label: '배차',
+    pages: [
+      'dispatch.board',
+    ],
+  },
+  {
+    label: '알림',
+    pages: [
+      'notification.dispatch-sms.send-audit',
+    ],
+  },
+  {
+    label: '관리',
+    pages: [
+      'admin.permissions',
+    ],
+  },
+  // ── SP-D4 신규 그룹 ──────────────────────────────────────────────────────
+  {
+    label: '견적',
+    pages: [
+      'estimates.list',
+    ],
+  },
+  {
+    label: '거래처주문',
+    pages: [
+      'sales.partner-order.list',
+      'sales.partner-order.draft',
+      'sales.partner-order.confirm',
+      'sales.partner-order.history',
+      'sales.partner-order.print',
+      'sales.vendor-order',
+    ],
+  },
+  {
+    label: '재고',
+    pages: [
+      'inventory.warehouse',
+      'inventory.stock',
+      'inventory.stock-transfer',
+      'inventory.dps',
+      'inventory.audit',
+    ],
+  },
+  {
+    label: '직원·계정',
+    pages: [
+      'admin.employees',
+      'admin.users',
+    ],
+  },
+  {
+    label: '거래처',
+    pages: [
+      'partners.list',
+      'partners.detail',
+      'partners.block',
+      'partners.edit-request',
+    ],
+  },
+  {
+    label: '상품',
+    pages: [
+      'products.list',
+      'products.admin',
+    ],
+  },
+  {
+    label: '아로지스',
+    pages: [
+      'arologis.admin',
+      'arologis.region',
+    ],
+  },
 ]
+
+/**
+ * PAGE_GROUPS 에서 파생된 전체 페이지 코드 순서 배열.
+ * 그룹 순서 × 그룹 내 순서가 최종 열 순서.
+ */
+const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
 
 /** 페이지 코드 한국어 라벨. */
 const PAGE_LABEL: Record<PageCode, string> = {
@@ -116,10 +231,34 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.period-close': '월말 마감',
   'accounting.statement-batch': '거래명세서 일괄',
   'accounting.partner-ledger': '거래처 원장',
+  // SP-D4 신규 22개
+  'estimates.list': '견적 목록',
+  'sales.partner-order.list': '주문 목록',
+  'sales.partner-order.draft': '주문 작성',
+  'sales.partner-order.confirm': '주문 확정',
+  'sales.partner-order.history': '주문 이력',
+  'sales.partner-order.print': '주문서 인쇄',
+  'sales.vendor-order': '벤더 주문',
+  'inventory.warehouse': '창고 관리',
+  'inventory.stock': '재고 현황',
+  'inventory.stock-transfer': '재고 이동',
+  'inventory.dps': 'DPS 비교',
+  'inventory.audit': '재고 감사',
+  'admin.employees': '직원 관리',
+  'admin.users': '계정 관리',
+  'partners.list': '거래처 목록',
+  'partners.detail': '거래처 상세',
+  'partners.block': '거래처 차단',
+  'partners.edit-request': '편집 결재',
+  'products.list': '상품 목록',
+  'products.admin': '상품 관리',
+  'arologis.admin': '아로지스 배차',
+  'arologis.region': '지역·구역',
 }
 
 /** edit 액션이 의미 있는 페이지 코드 목록. 나머지는 view 만 표시. */
 const PAGES_WITH_EDIT: Set<PageCode> = new Set([
+  // SP-D1~D3
   'accounting.tax-invoice.emit-nts',
   'accounting.deposit-match',
   'accounting.daily-closing',
@@ -130,6 +269,32 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'inbound.inspection',
   'dispatch.board',
   'admin.permissions',
+  // SP-D2 추가
+  'accounting.accounts',
+  'accounting.journals',
+  'accounting.period-close',
+  'accounting.statement-batch',
+  // SP-D4 신규 (V/E 양쪽 유의미한 코드)
+  'estimates.list',
+  'sales.partner-order.list',
+  'sales.partner-order.draft',
+  'sales.partner-order.confirm',
+  'sales.partner-order.history',
+  'sales.partner-order.print',
+  'sales.vendor-order',
+  'inventory.warehouse',
+  'inventory.stock',
+  'inventory.stock-transfer',
+  'inventory.dps',
+  'admin.employees',
+  'partners.list',
+  'partners.detail',
+  'partners.block',
+  'partners.edit-request',
+  'products.list',
+  'products.admin',
+  'arologis.admin',
+  'arologis.region',
 ])
 
 // ---------------------------------------------------------------------------
@@ -427,10 +592,12 @@ export function PermissionMatrixPage() {
           </colgroup>
           {/* D-3: thead sticky top:0 z-index:30, 교차 th z-index:40 */}
           <thead style={{ position: 'sticky', top: 0, zIndex: 30 }}>
+            {/* ── 카테고리 그룹 헤더 행 (SP-D4 추가) ── */}
             <tr>
-              {/* D-3/D-4: 교차 셀 z-index:40, scope="col" */}
+              {/* 역할 열 교차 셀 — rowSpan=3 으로 그룹/페이지/액션 3행 커버 */}
               <th
                 scope="col"
+                rowSpan={3}
                 style={{
                   padding: '6px 8px',
                   textAlign: 'left',
@@ -440,10 +607,35 @@ export function PermissionMatrixPage() {
                   position: 'sticky',
                   left: 0,
                   zIndex: 40,
+                  verticalAlign: 'middle',
                 }}
               >
                 역할 \ 페이지
               </th>
+              {PAGE_GROUPS.map((group) => (
+                <th
+                  key={group.label}
+                  scope="colgroup"
+                  colSpan={group.pages.length}
+                  style={{
+                    padding: '5px 6px',
+                    textAlign: 'center',
+                    background: 'var(--color-brand-50)',
+                    border: '1px solid var(--color-brand-200)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--color-brand-700)',
+                    letterSpacing: '0.02em',
+                    whiteSpace: 'nowrap',
+                  }}
+                  data-testid={`permission-matrix-group-${group.label}`}
+                >
+                  {group.label}
+                </th>
+              ))}
+            </tr>
+            {/* ── 페이지 코드 라벨 헤더 행 ── */}
+            <tr>
               {PAGES_ORDER.map((page) => (
                 <th
                   key={page}
@@ -462,23 +654,8 @@ export function PermissionMatrixPage() {
                 </th>
               ))}
             </tr>
-            {/* 액션 서브헤더 */}
+            {/* ── 액션 서브헤더 행 ── */}
             <tr>
-              <th
-                scope="col"
-                style={{
-                  padding: '4px 8px',
-                  background: 'var(--color-neutral-50)',
-                  border: '1px solid var(--color-neutral-200)',
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 40,
-                  fontSize: 11,
-                  color: 'var(--color-neutral-400)',
-                }}
-              >
-                액션
-              </th>
               {PAGES_ORDER.map((page) => (
                 <th
                   key={page}

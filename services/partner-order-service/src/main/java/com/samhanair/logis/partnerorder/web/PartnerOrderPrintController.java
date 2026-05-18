@@ -14,13 +14,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 거래처 주문 인쇄 HTML endpoint.
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * GET 인쇄 → {@link PartnerOrderPermissionGuard#checkView(String, String)} (PAGE_PRINT).
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
 @RequiredArgsConstructor
 public class PartnerOrderPrintController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerOrderPrintService printService;
+    private final PartnerOrderPermissionGuard permissionGuard;
 
     /**
      * 주문번호 또는 내부 UUID 문자열로 A4 인쇄 HTML 을 반환한다.
@@ -31,7 +37,9 @@ public class PartnerOrderPrintController {
     @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER','PARTNER')")
     public String print(
             @PathVariable String id,
-            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
+            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkView(roleHeader, PartnerOrderPermissionGuard.PAGE_PRINT);
         return printService.renderPrintHtml(id, partnerCode);
     }
 }

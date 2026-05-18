@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
+
 /**
  * 주문 확정 endpoint (legacy sendOrderFromUi). 설계서 §3.6 흐름 — Sync REST + outbox + Circuit Breaker.
  *
@@ -24,17 +26,25 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>본 endpoint 는 임시저장 ID (path) 를 받아 → DC + reserve + slip 발행. slipNo 는 응답에서
  * PUBLISHED 시 채워지고 PENDING_RETRY 시 null (FE 는 polling 또는 history 조회로 확인).
+ *
+ * <p>SP-D4 동적 권한 이중 가드:
+ * <ul>
+ *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>POST 확정 → {@link PartnerOrderPermissionGuard#checkEdit(String, String)} (PAGE_CONFIRM)</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
 @RequiredArgsConstructor
 public class PartnerOrderConfirmController {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_ID_HEADER      = "X-User-Id";
     private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
-    private static final String BIZ_CODE_HEADER = "X-Biz-Code";
+    private static final String BIZ_CODE_HEADER     = "X-Biz-Code";
+    private static final String ROLE_HEADER         = "X-User-Role";
 
     private final PartnerOrderConfirmService confirmService;
+    private final PartnerOrderPermissionGuard permissionGuard;
 
     /**
      * 임시저장 → 확정 (path variable = draftId). draftId 없이 confirm 도 향후 슬라이스에서 가능
@@ -56,7 +66,9 @@ public class PartnerOrderConfirmController {
             @Valid @RequestBody ConfirmRequest request,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
             @RequestHeader(value = BIZ_CODE_HEADER, required = false) String bizCode,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String userId) {
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        permissionGuard.checkEdit(roleHeader, PartnerOrderPermissionGuard.PAGE_CONFIRM);
         return ApiResponse.ok(
                 confirmService.confirm(partnerCode, bizCode, fallback(userId), draftId, request));
     }
