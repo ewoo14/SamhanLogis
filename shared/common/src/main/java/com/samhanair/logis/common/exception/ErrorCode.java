@@ -104,7 +104,17 @@ public enum ErrorCode {
      * 영수증 파일 유효성 오류 — 빈 파일, 10MB 초과, 비지원 포맷(jpg/png/jpeg 외) 시 422 반환 (SP-09-3).
      */
     RECEIPT_FILE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
-            "영수증 파일이 유효하지 않습니다. jpg/png 이미지, 10MB 이하만 허용됩니다.");
+            "영수증 파일이 유효하지 않습니다. jpg/png 이미지, 10MB 이하만 허용됩니다."),
+    /**
+     * KFTC 오픈뱅킹 API 호출 실패 — API 키 미설정, placeholder 사용, 또는 실 API 오류 시 502 반환 (SP-09-4).
+     */
+    KFTC_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
+            "KFTC 오픈뱅킹 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+    /**
+     * 입금 조회 기간 오류 — from 일자가 to 일자보다 늦을 때 422 반환 (SP-09-4).
+     */
+    DEPOSIT_DATE_RANGE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "조회 시작일이 종료일보다 늦을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

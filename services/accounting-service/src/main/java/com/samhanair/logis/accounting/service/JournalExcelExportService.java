@@ -98,9 +98,10 @@ public class JournalExcelExportService {
     private static String sourceTypeLabel(
             com.samhanair.logis.accounting.domain.JournalSourceType type) {
         return switch (type) {
-            case SLIP    -> "슬립자동";
-            case MANUAL  -> "수동입력";
-            case CLOSING -> "결산분개";
+            case SLIP         -> "슬립자동";
+            case MANUAL       -> "수동입력";
+            case CLOSING      -> "결산분개";
+            case KFTC_DEPOSIT -> "KFTC입금매칭";
         };
     }
 }

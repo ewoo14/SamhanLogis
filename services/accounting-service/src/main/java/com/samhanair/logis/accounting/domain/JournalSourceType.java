@@ -13,5 +13,8 @@ public enum JournalSourceType {
     MANUAL,
 
     /** 결산 분개 (Phase 5+). */
-    CLOSING
+    CLOSING,
+
+    /** KFTC 오픈뱅킹 입금 자동 매칭 분개 (SP-09-4). */
+    KFTC_DEPOSIT
 }

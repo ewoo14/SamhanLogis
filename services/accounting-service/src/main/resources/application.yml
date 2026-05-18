@@ -54,6 +54,17 @@ etax:
   nts-api-key: ${NTS_API_KEY:}
   nts-base-url: ${NTS_BASE_URL:}
 
+# KFTC 오픈뱅킹 입금 자동 매칭 설정 (SP-09-4)
+# submit-method: DRY_RUN (기본, Phase 11 이전) | KFTC (실 API, Phase 11 sandbox 연동 시 변경)
+# api-key / client-id / client-secret: 운영 PC .env 또는 AWS SSM 에서 주입 (코드 내 하드코딩 금지)
+# base-url: KFTC 오픈뱅킹 API endpoint (Phase 11 sandbox: https://testapi.openbanking.or.kr)
+kftc:
+  submit-method: ${KFTC_SUBMIT_METHOD:DRY_RUN}
+  api-key: ${KFTC_API_KEY:}
+  client-id: ${KFTC_CLIENT_ID:}
+  client-secret: ${KFTC_CLIENT_SECRET:}
+  base-url: ${KFTC_BASE_URL:https://testapi.openbanking.or.kr}
+
 management:
   endpoints:
     web:

@@ -14,6 +14,7 @@ import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
+import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -72,6 +73,8 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
     /** 신규 e-Tax client 격리 — SP-09-1. */
     @MockBean private ETaxClient eTaxClient;
+    /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
+    @MockBean private KftcClient kftcClient;
 
     // ─── 1. DRY_RUN 정상 발행 ───────────────────────────────────────────────
 

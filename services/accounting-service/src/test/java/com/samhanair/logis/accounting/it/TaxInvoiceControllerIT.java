@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ETaxClient;
+import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -55,6 +56,8 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
     /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
     @MockBean private ETaxClient eTaxClient;
+    /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
+    @MockBean private KftcClient kftcClient;
 
     @Test
     @DisplayName("POST /accounting/tax-invoices — ACCOUNTANT 201 DRAFT, SALES 403")

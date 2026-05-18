@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
+import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
@@ -53,6 +54,8 @@ class AccountingRealtimeIT extends AbstractPostgresIT {
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     /** SP-09-1 e-Tax client 격리 — Phase 11 NTS 전환 시 IT 실 API 호출 방지 (D2). */
     @MockBean private ETaxClient eTaxClient;
+    /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
+    @MockBean private KftcClient kftcClient;
 
     @Test
     @DisplayName("GET /accounting/tax-invoices/{id}/realtime — ACCOUNTANT 200 + text/event-stream")
