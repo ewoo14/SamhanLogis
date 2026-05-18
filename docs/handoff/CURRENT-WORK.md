@@ -2,6 +2,44 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-D4 머지 완료 — SP-D 시리즈 종료 + Phase 10 W10-2 진입
+
+### SP-D 시리즈 종료 (D1/D2/D3/D4 4 PR)
+
+- ✅ SP-D1 (#241): 동적 RBAC 시스템 + 마스터 권한 관리 + 사이드바 hidden
+- ✅ SP-D2 (#242): 회계 화면 19 페이지 동적 RBAC
+- ✅ SP-D3 (#243): 매입/매출/배차 6 페이지 동적 RBAC
+- ✅ SP-D4 (#244, `b76d3cc6`): 잔여 7 도메인 (견적/거래처주문/재고/직원/거래처/상품/아로지스) 동적 RBAC — cycle 1~4 누적 fix
+
+### SP-D5 이연 (운영 안정화 후)
+
+- RoleGuard `@PreAuthorize` 완전 제거 (단일 가드화)
+- Counter.builder `permission_guard_denied_total` 실 구현 (현재 로그 기반 모니터링)
+- AOP/Aspect 통합
+
+### 현재 진입: Phase 10 W10-2 (인성데이타 퀵프로그램 vendor 통합)
+
+- 브랜치: `feat/sp-10-2-insung-quick-program` (base `b76d3cc6`)
+- 마스터 plan: `docs/planning/2026-05-18_sp-10-2-insung-quick-program.md` (작성 예정)
+- 사용자 명시 trigger: SP-D4 이후 진행 결정
+- 실 인성 API 정보 미확정 → SP-09 vendor 시리즈 패턴 일관: Mock + sandbox 환경변수 분리, prod 모드는 운영 PC `.env` 키 보존
+
+### Phase 10 W10-2 범위 (W10-1 의 Mock vendor 확장)
+
+- `InsungQuickDriverMatcher` impl 신규 (DriverMatcher interface 의 두 번째 구현체, Mock + sandbox)
+- 양방향 동기화 webhook (배차 등록 / 기사 매칭 / 배송 완료)
+- `InsungQuickClient` 신규 (REST 패턴, 4xx → 보수적 fallback)
+- 환경변수 `SAMHAN_INSUNG_*` (api-key / base-url / sandbox-mode)
+- 알림톡 분리: 배차 단계 = 인성 알림톡, 일반 알림 = notification-service Aligo
+- GPS 하이브리드: insung-lbs 우선 + app-gps 보강 ([project_arologis_phase10.md](.claude/memory/project_arologis_phase10.md) §결정 4)
+
+### 다음 후보 (W10-2 머지 후)
+
+- W10-5: Phase 10 회고 + 누적 backlog 정리
+- Phase 11: AWS migration cutover
+
+---
+
 ## 2026-05-18 SP-09-5 완료 — Phase 9 vendor 통합 검증 종료 / 다음 Phase 진입 안내
 
 ### 현재 상태

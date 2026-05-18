@@ -65,15 +65,25 @@ samhan:
       # mock (W10-1 default) | insung-quick (W10-2 통합 시점)
       provider: ${SAMHAN_AROLOGIS_MATCHER_PROVIDER:mock}
       insung-quick:
-        api-url: ${SAMHAN_INSUNG_QUICK_API_URL:CHANGE_ME_LOCAL_ONLY}
-        api-key: ${SAMHAN_INSUNG_QUICK_API_KEY:CHANGE_ME_LOCAL_ONLY}
-        partner-id: ${SAMHAN_INSUNG_QUICK_PARTNER_ID:CHANGE_ME_LOCAL_ONLY}
+        api-url: ${SAMHAN_INSUNG_QUICK_API_URL:}
+        api-key: ${SAMHAN_INSUNG_QUICK_API_KEY:}
+        partner-id: ${SAMHAN_INSUNG_QUICK_PARTNER_ID:}
+        # sandbox-mode=true (default) — 실 API 미호출. prod cutover 시 false 전환.
+        sandbox-mode: ${SAMHAN_INSUNG_QUICK_SANDBOX_MODE:true}
+        # HMAC SHA-256 webhook 검증 secret. 빈 값 = sandbox-mode 우회.
+        webhook-secret: ${SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET:}
+        # API 호출 타임아웃 (ms). 기본 5000ms.
+        request-timeout-ms: ${SAMHAN_INSUNG_QUICK_TIMEOUT_MS:5000}
+      notify:
+        # 배차 완료 알림 채널 (insung-talk | aligo). 기본 insung-talk.
+        dispatch-channel: ${SAMHAN_AROLOGIS_NOTIFY_DISPATCH_CHANNEL:insung-talk}
+        # 기사 어플 invite 채널 (aligo). 기본 aligo.
+        invite-channel: ${SAMHAN_AROLOGIS_NOTIFY_INVITE_CHANNEL:aligo}
+      gps:
+        priority: ${SAMHAN_AROLOGIS_GPS_PRIORITY:insung-lbs,app-gps,manual}
+        stale-threshold-ms: ${SAMHAN_AROLOGIS_GPS_STALE_THRESHOLD_MS:60000}
     location-cleanup:
       retention-days: ${SAMHAN_AROLOGIS_LOCATION_RETENTION_DAYS:30}
-    # Phase 10 W10-1 BE-1 / QA-3 / Designer-2 통합 채택 fix (사용자 결정 4 GPS 하이브리드, 2026-05-07).
-    # W10-2 진입 시점에 인성 LBS 우선 + 본 어플 GPS 보강 + 수동 fallback (값 = comma-separated source 우선순위).
-    gps:
-      priority: ${SAMHAN_AROLOGIS_GPS_PRIORITY:insung-lbs,app-gps,manual}
     # Phase F (D-DF-10) — 사본 PNG 디스크 저장 경로. Phase 11 cutover 시 S3 키로 갈아탐.
     signature-copy:
       dir: ${AROLOGIS_SIGNATURE_COPY_DIR:/var/lib/arologis/signature-copies}

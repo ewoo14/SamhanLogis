@@ -75,6 +75,12 @@ PATTERN_CLOVA='CLOVA_(OCR_)?(API_KEY|SECRET_KEY|INVOKE_URL)\s*=\s*[^$\s{"\x27][^
 #   KFTC_API_KEY / KFTC_CLIENT_ID / KFTC_CLIENT_SECRET
 PATTERN_KFTC='KFTC_(API_KEY|CLIENT_ID|CLIENT_SECRET)\s*=\s*[^$\s{"\x27][^\s]*'
 
+# (9) 인성데이타 퀵프로그램 자격 직접 대입 (SP-10-2)
+#   INSUNG_QUICK_API_KEY / INSUNG_QUICK_API_URL / INSUNG_QUICK_PARTNER_ID / INSUNG_QUICK_WEBHOOK_SECRET
+#   SAMHAN_INSUNG_* prefix 포함 (substring 탐지).
+#   빈 값 의무 — placeholder 자체도 금지 (CLOVA/KFTC 패턴 일관).
+PATTERN_INSUNG='INSUNG_(QUICK_)?(API_KEY|API_URL|PARTNER_ID|WEBHOOK_SECRET)\s*=\s*[^$\s{"\x27][^\s]*'
+
 # ─── 스캔 디렉토리 ────────────────────────────────────────────────────────────
 
 CODE_DIRS=(
@@ -112,6 +118,7 @@ WHITELIST_PATTERNS=(
   'docs/qa/sp-09-5-phase9-integration/'
   'docs/dev-reports/sp-09-summary\.md'
   'docs/dev-reports/sp-09-5-vendor-integration-summary\.md'
+  'docs/operational-validation/sp-10-2-insung-key-rotation\.md'
 )
 # tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
 # 대신 scan_pattern 내 line 단위 placeholder 필터로만 허용.
@@ -200,7 +207,7 @@ scan_pattern() {
       #   - ${ENV_VAR:...} / $ENV:VAR              (환경변수 참조)
       #   - dummy- / example- prefix 값            (명백한 예시 값)
       #   - <MASK> 형식 마스킹                     (문서 마스킹 표기)
-      if [ "$label" != "CLOVA_OCR" ] && [ "$label" != "KFTC" ]; then
+      if [ "$label" != "CLOVA_OCR" ] && [ "$label" != "KFTC" ] && [ "$label" != "INSUNG_QUICK" ]; then
         if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
           continue
         fi
@@ -286,6 +293,10 @@ main() {
   scan_pattern "$PATTERN_KFTC" "KFTC" found \
     "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
 
+  # 5e) 인성데이타 퀵프로그램 자격 직접 대입 (SP-10-2)
+  scan_pattern "$PATTERN_INSUNG" "INSUNG_QUICK" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
   # 6) Sheet ID 환경변수 직접 대입 (docs 영역만)
   scan_sheet_id_in_code found
 
@@ -298,8 +309,8 @@ main() {
     echo " 처리 지침:"
     echo "   - 실 API 키/토큰: 즉시 제거 + .env 분리 + .gitignore 추가"
     echo "   - 일반 서비스 자격 (Aligo/Notion): PLACEHOLDER_DEV_ONLY 또는 SET_BY_OPS_PC 대체"
-    echo "   - 외부 vendor 자격 [CLOVA_OCR / KFTC]: 빈 값(=) 또는 AWS SSM Parameter Store 참조로 대체"
-    echo "     (CLOVA_OCR / KFTC 는 placeholder 자체도 금지 — env-template 은 반드시 빈 값 유지)"
+    echo "   - 외부 vendor 자격 [CLOVA_OCR / KFTC / INSUNG_QUICK]: 빈 값(=) 또는 AWS SSM Parameter Store 참조로 대체"
+    echo "     (CLOVA_OCR / KFTC / INSUNG_QUICK 는 placeholder 자체도 금지 — env-template 은 반드시 빈 값 유지)"
     echo "   - 문서 mention: 값 제거 후 '<SHEET_ID>' 등 마스킹 처리"
     echo "   - 예외 승인 필요 시: DevOps 에게 화이트리스트 추가 요청"
     echo "============================================================"

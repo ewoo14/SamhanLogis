@@ -98,6 +98,16 @@
   --color-kftc-700:     #004D85;
   --color-kftc-text:    #003662;
 
+  /* ---------- color: INSUNG (인성데이타 퀵프로그램 전용) ---------- */
+  /* 주황-갈색 계열 — NTS(dark green)/Aligo(teal)/Clova(bright green)/KFTC(blue) 와 5색 시각 구분. SP-10-2 */
+  /* WCAG AA: --color-insung-text(#431407) on --color-insung-50(#FFF7ED) ≈ 10.2:1 (AAA 충족) */
+  --color-insung-primary: #B45309;
+  --color-insung-50:      #FFF7ED;
+  --color-insung-100:     #FFEDD5;
+  --color-insung-200:     #FED7AA;
+  --color-insung-700:     #92400E;
+  --color-insung-text:    #431407;
+
   /* ---------- surfaces (semantic aliases) ---------- */
   --color-bg:           var(--color-neutral-0);
   --color-bg-subtle:    var(--color-neutral-50);
@@ -455,6 +465,14 @@ html[data-theme="dark"], body[data-theme="dark"] {
   --color-border-primary:   #404040;
   /* Phase 7 5차 reviewer 종합 — Designer P1: border-primary 보다 밝은 보조 border (이전 #303030 < #404040) */
   --color-border-secondary: #4a4a4a;
+
+  /* SP-10-2 INSUNG dark 오버라이드 — 주황-갈색 반전 팔레트 */
+  --color-insung-primary: #F59E0B;
+  --color-insung-50:      #2C1A07;
+  --color-insung-100:     #3D2409;
+  --color-insung-200:     #5C3510;
+  --color-insung-700:     #FBB040;
+  --color-insung-text:    #FDBA74;
 }
 
 /*

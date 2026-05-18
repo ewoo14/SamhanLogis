@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Import;
+import org.springframework.retry.annotation.EnableRetry;
 
 /**
  * Arologis Service entry point — Phase 10 W10-1.
@@ -28,6 +29,7 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootApplication
 @EnableDiscoveryClient
+@EnableRetry
 @Import(JpaAuditingConfig.class)
 @EnableConfigurationProperties({
         ArologisMatcherProperties.class,

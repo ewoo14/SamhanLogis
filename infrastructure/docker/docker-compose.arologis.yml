@@ -58,6 +58,30 @@ services:
       # 0.0=항상 성공 (DISPATCHED) / 1.0=항상 실패 (FAILED → slip UNDISPATCHED 복귀)
       SAMHAN_AROLOGIS_MOCK_FAIL_RATE: ${SAMHAN_AROLOGIS_MOCK_FAIL_RATE:-0.0}
 
+      # DriverMatcher provider 토글 (SP-10-2 W10-2)
+      # dev/staging = mock (sandbox 키 없을 때 안전 fallback)
+      # prod cutover = insung-quick (SAMHAN_INSUNG_QUICK_API_KEY 발급 후 전환)
+      SAMHAN_AROLOGIS_MATCHER_PROVIDER: ${SAMHAN_AROLOGIS_MATCHER_PROVIDER:-mock}
+
+      # SP-10-2 인성데이타 퀵프로그램 vendor 통합 (W10-2)
+      # 운영 PC .env 에서만 실 값 주입 — repo 평문 차단 (SP-08-8 INSUNG_QUICK 가드)
+      # sandbox 키 발급 전까지 빈 값 유지 → InsungQuickClient runtime guard 차단
+      SAMHAN_INSUNG_QUICK_API_URL: ${SAMHAN_INSUNG_QUICK_API_URL:-}
+      SAMHAN_INSUNG_QUICK_API_KEY: ${SAMHAN_INSUNG_QUICK_API_KEY:-}
+      SAMHAN_INSUNG_QUICK_PARTNER_ID: ${SAMHAN_INSUNG_QUICK_PARTNER_ID:-}
+      SAMHAN_INSUNG_QUICK_SANDBOX_MODE: ${SAMHAN_INSUNG_QUICK_SANDBOX_MODE:-true}
+      SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET: ${SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET:-}
+
+      # 알림 채널 분리 (SP-10-2 W10-2)
+      # 배차 완료 알림 = insung-talk / 어플 invite = aligo
+      SAMHAN_AROLOGIS_NOTIFY_DISPATCH_CHANNEL: ${SAMHAN_AROLOGIS_NOTIFY_DISPATCH_CHANNEL:-insung-talk}
+      SAMHAN_AROLOGIS_NOTIFY_INVITE_CHANNEL: ${SAMHAN_AROLOGIS_NOTIFY_INVITE_CHANNEL:-aligo}
+
+      # GPS 하이브리드 우선순위 (SP-10-2 W10-2)
+      # insung-lbs 우선 → app-gps 보강 → manual fallback
+      SAMHAN_AROLOGIS_GPS_PRIORITY: ${SAMHAN_AROLOGIS_GPS_PRIORITY:-insung-lbs,app-gps,manual}
+      SAMHAN_AROLOGIS_GPS_STALE_THRESHOLD_MS: ${SAMHAN_AROLOGIS_GPS_STALE_THRESHOLD_MS:-60000}
+
       # JVM 옵션 (m5.xlarge = 4 vCPU / 16 GB → 아로로지스 1.5 GB heap)
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms512m -Xmx1536m -XX:+UseG1GC}
     healthcheck:

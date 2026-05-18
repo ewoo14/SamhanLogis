@@ -60,6 +60,25 @@ public class Vehicle extends BaseEntity {
     @Column(name = "external_ref_id", length = 100)
     private String externalRefId;
 
+    /**
+     * 인성데이타 퀵프로그램 주문번호 — Phase 10 W10-2.
+     *
+     * <p>V13 migration 신규 컬럼. {@code vendor_order_id} partial unique index
+     * ({@code WHERE is_deleted=false AND vendor_order_id IS NOT NULL}) 가드.
+     * NULL = 인성 미사용 또는 배차 등록 전.
+     */
+    @Column(name = "vendor_order_id", length = 64)
+    private String vendorOrderId;
+
+    /**
+     * 인성 vendor 상태 스냅샷 — Phase 10 W10-2.
+     *
+     * <p>webhook {@code status-update} 수신 시 동기화. idempotent upsert 용.
+     * NULL = 상태 미수신.
+     */
+    @Column(name = "vendor_status", length = 20)
+    private String vendorStatus;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private VehicleStatus status;
@@ -125,5 +144,29 @@ public class Vehicle extends BaseEntity {
     /** 취소 — 어떤 상태에서도 호출 가능. */
     public void cancel() {
         this.status = VehicleStatus.CANCELLED;
+    }
+
+    /**
+     * 인성 vendor 주문번호 갱신 — Phase 10 W10-2.
+     *
+     * <p>{@code InsungQuickClient.requestOrder()} 응답으로 받은 vendorOrderId 를
+     * vehicle 에 기록. idempotent — 동일 값 재설정 허용.
+     *
+     * @param vendorOrderId 인성 vendor 주문번호 (null 허용, NULL 로 초기화 시)
+     */
+    public void updateVendorOrderId(String vendorOrderId) {
+        this.vendorOrderId = vendorOrderId;
+    }
+
+    /**
+     * 인성 vendor 상태 스냅샷 갱신 — Phase 10 W10-2.
+     *
+     * <p>webhook {@code status-update} / {@code delivered} 수신 시 동기화.
+     * idempotent upsert 용.
+     *
+     * @param vendorStatus 인성 vendor 상태 코드 (예: DEPARTED / ARRIVED / DELIVERED)
+     */
+    public void updateVendorStatus(String vendorStatus) {
+        this.vendorStatus = vendorStatus;
     }
 }

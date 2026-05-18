@@ -117,6 +117,18 @@ export default defineConfig({
         baseURL: process.env.QA_DESKTOP_URL ?? 'http://localhost:5173',
       },
     },
+    {
+      // SP-10-2 — 인성데이타 퀵프로그램 vendor 통합 QA (W10-2)
+      // 6 case: mock 회귀 / sandbox fail-soft / 알림톡 채널 분리 / GPS 우선순위 / webhook 전이 / 사이드바 변동 0
+      // BE 완료 전: page.route() mock 기반 FE 단독 검증
+      // BE 완료 후: QA_AROLOGIS_URL 실 서버 연동으로 점진 확장
+      name: 'arologis-sp-10-2',
+      testMatch: [/.*\/arologis\/sp-10-2-insung-quick-vendor\.spec\.ts/],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.QA_AROLOGIS_URL ?? 'http://localhost:5173',
+      },
+    },
   ],
 
   outputDir: 'test-results/',

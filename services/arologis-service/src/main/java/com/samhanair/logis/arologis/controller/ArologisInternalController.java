@@ -1,11 +1,17 @@
 package com.samhanair.logis.arologis.controller;
 
+import com.samhanair.logis.arologis.config.ArologisMatcherProperties;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisCancellationRequest;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchRequest;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisDispatchResponse;
 import com.samhanair.logis.arologis.dto.dispatch.ArologisModificationRequest;
+import com.samhanair.logis.arologis.dto.insung.InsungDeliveredRequest;
+import com.samhanair.logis.arologis.dto.insung.InsungMatchResultRequest;
+import com.samhanair.logis.arologis.dto.insung.InsungStatusUpdateRequest;
 import com.samhanair.logis.arologis.service.dispatch.DispatchReceiveService;
 import com.samhanair.logis.arologis.service.dispatch.ModificationRequestReceiveService;
+import com.samhanair.logis.arologis.service.insung.InsungWebhookService;
+import com.samhanair.logis.arologis.util.HmacSignatureVerifier;
 import com.samhanair.logis.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -19,17 +25,23 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Internal endpoint — Phase 10 W10-1 arologis-service.
+ * Internal endpoint — Phase 10 W10-2 arologis-service.
  *
- * <p>외부 vendor (W10-2 인성데이타) callback 수신 — 배차 상태 동기화. 본 PR 은 endpoint 정의만,
- * 실제 callback 처리 로직은 W10-2 통합 시점에 구현.
+ * <p>외부 vendor (인성데이타) callback 수신 — 배차 상태 동기화.
+ * W10-1 의 {@code /dispatches/sync} ack-only 보존 + W10-2 신규 3 sub-endpoint 추가.
  *
- * <p>인증 = X-Internal-Token 필수 (InternalTokenFilter ROLE_MASTER 부여).
+ * <h2>인증 이중 가드</h2>
+ * <ul>
+ *   <li>X-Internal-Token 필수 (InternalTokenFilter ROLE_MASTER 부여)</li>
+ *   <li>인성 webhook 3 endpoint: {@code X-Insung-Signature} HMAC SHA-256 추가 검증
+ *       (sandbox-mode=true 시 HMAC 우회 + WARN 로그)</li>
+ * </ul>
  */
 @Slf4j
 @RestController
@@ -39,6 +51,8 @@ public class ArologisInternalController {
 
     private final DispatchReceiveService dispatchReceiveService;
     private final ModificationRequestReceiveService modificationRequestReceiveService;
+    private final InsungWebhookService insungWebhookService;
+    private final ArologisMatcherProperties matcherProperties;
 
     /**
      * 외부 vendor 배차 상태 동기화 callback.
@@ -123,5 +137,134 @@ public class ArologisInternalController {
     public void receiveCancellationRequest(@PathVariable UUID arologisDispatchId,
                                             @Valid @RequestBody ArologisCancellationRequest req) {
         modificationRequestReceiveService.receiveCancellation(arologisDispatchId, req);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 10 W10-2 — 인성데이타 퀵프로그램 webhook 3 sub-endpoint
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * 인성데이타 기사 매칭 완료/실패 webhook.
+     *
+     * <p>X-Internal-Token + X-Insung-Signature HMAC SHA-256 이중 검증.
+     * sandbox-mode=true 시 HMAC 검증 우회 (WARN 로그). 매칭 성공 시 Vehicle.status ASSIGNED.
+     *
+     * @param signature X-Insung-Signature 헤더 (HMAC SHA-256 hex)
+     * @param req       매칭 결과 payload
+     */
+    @Operation(summary = "인성데이타 기사 매칭 완료/실패 webhook (W10-2)",
+            description = "인성 vendor 가 배차 매칭 완료 또는 실패 시 push. " +
+                    "X-Internal-Token + X-Insung-Signature HMAC 이중 검증. " +
+                    "sandbox-mode=true 시 HMAC 우회.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수신 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락 또는 HMAC 불일치")
+    })
+    @PostMapping("/insung/match-result")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    public ApiResponse<Map<String, Object>> receiveInsungMatchResult(
+            @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
+            @RequestBody InsungMatchResultRequest req) {
+
+        verifyInsungSignature(signature, req);
+        log.info("[ArologisInternal] insung/match-result 수신 — vendorOrderId={} matched={}",
+                req.vendorOrderId(), req.matched());
+        insungWebhookService.handleMatchResult(req);
+        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId()));
+    }
+
+    /**
+     * 인성데이타 상태 변경 webhook (DEPARTED / ARRIVED).
+     *
+     * <p>X-Internal-Token + X-Insung-Signature HMAC SHA-256 이중 검증.
+     * sandbox-mode=true 시 HMAC 검증 우회. DEPARTED → Vehicle.status 전이,
+     * ARRIVED → VehicleStop.status 전이.
+     *
+     * @param signature X-Insung-Signature 헤더 (HMAC SHA-256 hex)
+     * @param req       상태 변경 payload
+     */
+    @Operation(summary = "인성데이타 상태 변경 webhook (DEPARTED/ARRIVED, W10-2)",
+            description = "인성 기사 출발/도착 이벤트 수신. " +
+                    "DEPARTED: Vehicle.status 전이. ARRIVED: VehicleStop.status 전이.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수신 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락 또는 HMAC 불일치")
+    })
+    @PostMapping("/insung/status-update")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    public ApiResponse<Map<String, Object>> receiveInsungStatusUpdate(
+            @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
+            @RequestBody InsungStatusUpdateRequest req) {
+
+        verifyInsungSignature(signature, req);
+        log.info("[ArologisInternal] insung/status-update 수신 — vendorOrderId={} status={}",
+                req.vendorOrderId(), req.status());
+        insungWebhookService.handleStatusUpdate(req);
+        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId(), "status", req.status()));
+    }
+
+    /**
+     * 인성데이타 배송 완료 webhook (전자서명 + GPS).
+     *
+     * <p>X-Internal-Token + X-Insung-Signature HMAC SHA-256 이중 검증.
+     * sandbox-mode=true 시 HMAC 검증 우회. Signature 생성 (source=EXTERNAL_INSUNG_LBS).
+     *
+     * @param signature X-Insung-Signature 헤더 (HMAC SHA-256 hex)
+     * @param req       배송 완료 payload
+     */
+    @Operation(summary = "인성데이타 배송 완료 webhook (전자서명 + GPS, W10-2)",
+            description = "인성 기사 전자서명 + GPS 캡처 완료 이벤트 수신. " +
+                    "Signature 생성 (source=EXTERNAL_INSUNG_LBS) + VehicleStop.status DELIVERED.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수신 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락 또는 HMAC 불일치")
+    })
+    @PostMapping("/insung/delivered")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    public ApiResponse<Map<String, Object>> receiveInsungDelivered(
+            @RequestHeader(value = "X-Insung-Signature", required = false) String signature,
+            @RequestBody InsungDeliveredRequest req) {
+
+        verifyInsungSignature(signature, req);
+        log.info("[ArologisInternal] insung/delivered 수신 — vendorOrderId={} stopSeq={}",
+                req.vendorOrderId(), req.stopSequence());
+        insungWebhookService.handleDelivered(req);
+        return ApiResponse.ok(Map.of("received", true, "vendorOrderId", req.vendorOrderId(),
+                "stopSequence", req.stopSequence()));
+    }
+
+    /**
+     * 인성 webhook X-Insung-Signature HMAC SHA-256 검증 내부 헬퍼.
+     *
+     * <p>sandbox-mode=true 시 WARN 로그만 출력하고 검증 우회.
+     * HMAC 불일치 시 {@link org.springframework.security.access.AccessDeniedException} throw.
+     *
+     * @param signature X-Insung-Signature 헤더 값 (null 허용)
+     * @param reqBody   요청 body 객체 (toString 으로 HMAC 계산 — 실 운영에서는 raw byte 사용 권장)
+     */
+    private void verifyInsungSignature(String signature, Object reqBody) {
+        boolean sandboxMode = matcherProperties.getInsungQuick().isSandboxMode();
+        String webhookSecret = matcherProperties.getInsungQuick().getWebhookSecret();
+
+        if (sandboxMode) {
+            log.warn("[ArologisInternal] sandbox-mode — X-Insung-Signature HMAC 검증 우회");
+            return;
+        }
+
+        if (webhookSecret == null || webhookSecret.isBlank()) {
+            log.warn("[ArologisInternal] webhookSecret 미설정 — HMAC 검증 우회 (운영 환경 주입 필요)");
+            return;
+        }
+
+        byte[] bodyBytes = reqBody.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        boolean valid = HmacSignatureVerifier.verify(webhookSecret, bodyBytes, signature);
+        if (!valid) {
+            log.warn("[ArologisInternal] X-Insung-Signature 불일치 — 요청 거부");
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "X-Insung-Signature HMAC 검증 실패");
+        }
     }
 }

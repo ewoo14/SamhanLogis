@@ -38,6 +38,23 @@ permissions:
   pull-requests: write   # JUnit 결과 PR 코멘트
 
 jobs:
+  # ─── Credential Plaintext Guard (SP-08-8 + SP-10-2 INSUNG_QUICK) ─────────
+  # scripts/check-credential-plaintext.sh 정적 가드 실행.
+  # INSUNG_QUICK 패턴 (SP-10-2) 포함 — 빈 값 의무, placeholder 금지.
+  credential-guard:
+    name: 자격 평문 비공개 가드 (SP-08-8 + SP-10-2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Credential Plaintext Guard 실행
+        run: |
+          chmod +x scripts/check-credential-plaintext.sh
+          bash scripts/check-credential-plaintext.sh
+
   # ─── Backend ───────────────────────────────────────────────────────────────
   # arologis-service test + bootJar 산출. JAR artifact 는 후속 deploy workflow 에서 재활용 가능.
   backend:

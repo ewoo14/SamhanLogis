@@ -24,6 +24,17 @@ public interface VehicleRepository extends JpaRepository<Vehicle, UUID> {
     List<Vehicle> findAllByAssignedDriverIdOrderByCreatedAtDesc(UUID assignedDriverId);
 
     /**
+     * 인성 vendor 주문번호로 활성 vehicle 조회 — Phase 10 W10-2 webhook 처리용.
+     *
+     * <p>V13 migration 의 partial unique index ({@code uq_vehicle_vendor_order_id_active}) 와 정합.
+     * {@code @SQLRestriction("is_deleted = false")} 가 자동 적용됨.
+     *
+     * @param vendorOrderId 인성 vendor 주문번호
+     * @return 해당 주문번호를 가진 활성 vehicle (없으면 empty)
+     */
+    Optional<Vehicle> findByVendorOrderId(String vendorOrderId);
+
+    /**
      * 기사앱 오늘 배차 조회 — dispatch 날짜로 제한한다.
      *
      * @param driverId 배정 기사 내부 UUID

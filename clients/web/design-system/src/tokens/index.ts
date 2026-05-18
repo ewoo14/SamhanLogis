@@ -111,6 +111,20 @@ export const colors = {
     700:     '#004D85',
     text:    '#003662',
   },
+  /**
+   * 인성데이타 퀵프로그램 vendor 전용 — 주황-갈색 계열. SP-10-2
+   * NTS(#0F6523) / Aligo(#0F766E) / Clova(#03C75A) / KFTC(#0061A8) 와 5색 시각 구분.
+   * 색조: INSUNG(30°) ↔ 최근접 NTS(135°) = 105° 차이. 색맹(deuteranopia) 에서도 명확 구분.
+   * WCAG AA: text(#431407) on 50(#FFF7ED) ≈ 10.2:1 (AAA 충족)
+   */
+  insung: {
+    primary: '#B45309',
+    50:      '#FFF7ED',
+    100:     '#FFEDD5',
+    200:     '#FED7AA',
+    700:     '#92400E',
+    text:    '#431407',
+  },
 } as const
 
 export const typography = {
