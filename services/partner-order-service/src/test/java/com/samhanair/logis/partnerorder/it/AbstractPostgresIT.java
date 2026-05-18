@@ -43,6 +43,9 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("samhan.internal-token", () -> "test-internal-token");
+        // SP-D4 cycle 4 fix — HikariCP 풀 축소 (PR #188 / SP-D4 inventory CI 회고)
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
     }
 
     static class DockerAvailableCondition implements

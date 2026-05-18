@@ -41,6 +41,9 @@ public abstract class AbstractPostgresIT {
         registry.add("app.security.internal.token", () -> "test-internal-token");
         registry.add("samhan.arologis.client.skeleton-mode", () -> "true");
         registry.add("samhan.arologis.matcher.provider", () -> "mock");
+        // SP-D4 cycle 4 fix — HikariCP 풀 축소 (PR #188 / SP-D4 inventory CI 회고)
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
     }
 
     static class DockerAvailableCondition implements
