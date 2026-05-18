@@ -156,29 +156,9 @@ jobs:
           chmod +x scripts/check-credential-plaintext.sh
           bash scripts/check-credential-plaintext.sh
 
-      - name: Node 20 설치 (Playwright spec 실행용)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: qa/playwright/package-lock.json
-
-      - name: Playwright 의존성 설치
-        working-directory: qa/playwright
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      - name: Playwright Chromium 설치
-        working-directory: qa/playwright
-        run: npx playwright install chromium --with-deps
-
-      - name: 자격 평문 비공개 가드 — Playwright spec (hard gate)
-        working-directory: qa/playwright
-        run: |
-          npx playwright test \
-            ../../clients/desktop/playwright/sp-08-8-credential-plaintext-guard/sp-08-8-credential-plaintext-guard.spec.ts \
-            --project=web-order-app \
-            --reporter=list
+      # Playwright spec hard gate 는 후속 슬라이스 — 본 PR 에서는 shell guard 단독
+      # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)
+      # 해결은 별도 PR (qa/playwright testDir 확장 또는 spec 이전).
 
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
