@@ -2,6 +2,55 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-7 진입 — Notion runtime 의존 zero 정적 잠금
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-7-notion-runtime-zero
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `5b681d03` (PR #232 SP-08-6-7 squash merge)
+- master plan: `docs/planning/2026-05-16_legacy-gas-db-api-parity.md` §5.SP-08-7
+- 사용자 6/7회차 정책
+
+### SP-08-7 범위
+
+grep 가드 + Playwright RED gate — 전 영역에서 Notion runtime 의존 zero 검증:
+
+- 검사 대상: `clients/web/`, `clients/desktop/src/`, `clients/mobile-staff/src/`, `services/*/src/main/`
+- 금지 패턴:
+  - `api.notion.com`
+  - `Notion-Version` header
+  - `notion-sdk` import (혹은 `@notionhq/client`)
+  - `NOTION_TOKEN` / `NOTION_KEY` 등 환경변수 호출
+- estimate-app shim / 디버그 화면 잔존 reference 는 주석 + README 명시 후 차단
+
+### 작업 항목
+
+1. grep 가드 스크립트 (`scripts/check-notion-zero.sh` 또는 동등): CI 에서 실행 가능
+2. Playwright spec (`sp-08-7-notion-runtime-zero.spec.ts`): 정적 grep RED gate
+3. GitHub Actions workflow (또는 ci.yml 추가): grep 가드 step
+4. 잔존 reference 발견 시 dev-report 명시 + 차단
+5. dev-report 10 section + PNG (옵션)
+
+### 직전 머지 (PR #232)
+
+- branch: `feat/sp-08-6-7-sales-accounting-integration` (deleted)
+- mergeCommit: `5b681d03`
+- SP-08-6 시리즈 종료 — 7 슬라이스 7 PR 누적 + 통합 보고서
+
+### 다음 후보 (SP-08-7 머지 후)
+
+- **SP-08-8 자격 평문 비공개 가드 강화**: CI grep 가드 + placeholder 분리
+
+## 2026-05-18 SP-08-6-7 머지 완료 — 매출/회계 시리즈 종료 (참고 이력)
+
 ## 2026-05-18 SP-08-6-7 진입 — 통합 검증 + SP-08-6 시리즈 종료
 
 ### 즉시 시작

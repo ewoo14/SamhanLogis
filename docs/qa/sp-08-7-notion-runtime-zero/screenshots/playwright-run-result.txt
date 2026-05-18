@@ -1,0 +1,49 @@
+SP-08-7 Notion Runtime Zero — Playwright RED Gate 실행 결과
+실행일시: 2026-05-18
+실행 환경: Windows 11 Pro / Node.js / Playwright 1.59.x / chromium
+
+Command: cd clients/desktop && npx playwright test playwright/sp-08-7-notion-runtime-zero/sp-08-7-notion-runtime-zero.spec.ts --reporter=line
+
+==================================================
+Running 5 tests using 1 worker
+
+[1/5] T1 clients/web 소스: Notion API 금지 패턴 미포함         PASS
+[2/5] T2 clients/desktop/src 소스: Notion API 금지 패턴 미포함  PASS
+[3/5] T3 clients/mobile-staff/src 소스: Notion API 금지 패턴 미포함 PASS
+[4/5] T4 services/*/src/main 소스: Notion API 금지 패턴 미포함  PASS
+[5/5] T5 전 영역: NOTION_TOKEN / NOTION_API_KEY 환경변수 코드 참조 미포함 PASS
+
+  5 passed (4.7s)
+==================================================
+
+검사 대상 영역별 결과:
+
+T1 clients/web
+  - 검사 경로: clients/web/ (node_modules/build/dist 제외)
+  - 화이트리스트 제외: clients/web/estimate-app/lib/apps-script-shim.js
+  - 금지 패턴: api.notion.com / Notion-Version / @notionhq/client / notion-sdk
+  - 위반: 0건
+
+T2 clients/desktop/src
+  - 검사 경로: clients/desktop/src/
+  - 금지 패턴: 동일
+  - 위반: 0건
+
+T3 clients/mobile-staff/src
+  - 검사 경로: clients/mobile-staff/src/
+  - 금지 패턴: 동일
+  - 위반: 0건
+
+T4 services/*/src/main
+  - 검사 경로: services/ 하위 src/main/ 경로만 (src/test/ 제외)
+  - 금지 패턴: 동일
+  - 위반: 0건
+  - 참고: notification-service 내 notionCreatedAt 필드/변수는 컬럼명이며
+          api.notion.com / Notion-Version 헤더 호출 아님 → 검출 제외 확인
+
+T5 환경변수 런타임 참조 (전 영역)
+  - 금지 패턴: process.env.NOTION_TOKEN / process.env.NOTION_API_KEY /
+              System.getenv("NOTION_TOKEN") 등
+  - 위반: 0건
+
+최종 판정: CLEAN (전 영역 Notion runtime 의존 zero 확인)

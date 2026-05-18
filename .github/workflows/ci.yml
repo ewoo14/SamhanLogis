@@ -130,6 +130,19 @@ jobs:
           require_tests: false
           check_name: JUnit 테스트 결과 (${{ matrix.group.name }})
 
+  notion-zero-guard:
+    name: Notion Runtime Zero Guard (SP-08-7)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Notion runtime 의존 zero 정적 검사
+        run: |
+          chmod +x scripts/check-notion-zero.sh
+          bash scripts/check-notion-zero.sh
+
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
     runs-on: ubuntu-latest
