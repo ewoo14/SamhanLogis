@@ -10,7 +10,7 @@
  * 스크린샷 저장: docs/qa/sp-d2-accounting-permission-migration/screenshots/*.png
  *
  * TC 목록 (5건):
- *   T1 회계 12 라우트 PermissionGuard 일괄 적용 확인 — ACCOUNTANT 기본 권한 → 12 페이지 모두 접근
+ *   T1 회계 12 라우트 PermissionGuard 일괄 적용 확인 — ACCOUNTANT 기본 권한 → 19 페이지 (12 라우트) 모두 접근
  *   T2 SALES 로그인 → 회계 카테고리 사이드바 hidden (return null) + 모든 회계 URL 직접 진입 시 redirect "/"
  *   T3 마스터가 ACCOUNTANT 의 accounting.tax-invoice.list 권한 revoke → ACCOUNTANT 가 해당 페이지만 hidden + 다른 회계 페이지는 표시
  *   T4 권한 revoke 후 URL 직접 진입 차단 (404 효과 — redirect "/")
@@ -22,19 +22,20 @@
  *   - dev server 미가용 시 expect(ok).toBe(true) 로 FAIL
  *   - URL HashRouter 정합: /#/accounting/*
  *
- * SP-D2 마이그레이션 대상 12 라우트 + PermissionGuard pageCode 매핑:
- *   /accounting/accounts              → accounting.tax-invoice.list      (계정과목)
- *   /accounting/journals              → accounting.tax-invoice.list      (분개장)
- *   /accounting/balances              → accounting.tax-invoice.list      (시산표)
+ * SP-D2 마이그레이션 대상 12 라우트 + PermissionGuard pageCode 매핑 (routes/index.tsx 1:1 정합):
+ *   /accounting/accounts              → accounting.accounts              (계정과목)
+ *   /accounting/journals              → accounting.journals              (분개장)
+ *   /accounting/balances              → accounting.balances              (시산표)
  *   /accounting/tax-invoices          → accounting.tax-invoice.emit-nts  (세금계산서 — SP-D1 POC)
  *   /accounting/tax-invoices/batch    → accounting.tax-invoice.list      (세금계산서 일괄발행)
  *   /accounting/daily-closings        → accounting.daily-closing         (일마감)
  *   /accounting/ledgers               → accounting.general-ledger        (원장)
  *   /accounting/deposit-match         → accounting.deposit-match         (입금 매칭)
- *   /accounting/reports               → accounting.tax-invoice.list      (보고서 목록)
- *   /accounting/reports/*             → accounting.tax-invoice.list      (재무 보고서 6+)
- *   /accounting/period-close          → accounting.daily-closing         (월말 마감)
- *   /accounting/statement-batch       → accounting.tax-invoice.list      (거래명세서 일괄)
+ *   /accounting/reports               → accounting.reports               (보고서 목록)
+ *   /accounting/reports/*             → accounting.reports               (재무 보고서 6+)
+ *   /accounting/period-close          → accounting.period-close          (월말 마감)
+ *   /accounting/statement-batch       → accounting.statement-batch       (거래명세서 일괄)
+ *   /accounting/partner-ledger        → accounting.partner-ledger        (거래처별 원장)
  *
  * BE endpoint (user-service, SP-D1 구현):
  *   GET  /auth/admin/permissions/my   — 현재 사용자 권한 목록 (인증된 모든 역할)
@@ -120,21 +121,21 @@ const ACCOUNTING_ROUTES = [
     path: '/accounting/accounts',
     sidebarTestId: 'sidebar-accounting-accounts',
     pageText: ['계정과목', '계정 트리', '계정'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.accounts',
     label: '계정과목',
   },
   {
     path: '/accounting/journals',
     sidebarTestId: 'sidebar-accounting-journals',
     pageText: ['분개장', '분개', '전표'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.journals',
     label: '분개장',
   },
   {
     path: '/accounting/balances',
     sidebarTestId: 'sidebar-accounting-balances',
     pageText: ['시산표', '잔액', '계정'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.balances',
     label: '시산표',
   },
   {
@@ -176,28 +177,28 @@ const ACCOUNTING_ROUTES = [
     path: '/accounting/reports',
     sidebarTestId: 'sidebar-accounting-reports',
     pageText: ['재무 보고서', '보고서', '손익'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.reports',
     label: '보고서 목록',
   },
   {
     path: '/accounting/period-close',
     sidebarTestId: 'sidebar-accounting-period-close',
     pageText: ['월말 마감', '마감', '기간'],
-    pageCode: 'accounting.daily-closing',
+    pageCode: 'accounting.period-close',
     label: '월말 마감',
   },
   {
     path: '/accounting/statement-batch',
     sidebarTestId: 'sidebar-accounting-statement-batch',
     pageText: ['거래명세서', '일괄', 'batch'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.statement-batch',
     label: '거래명세서 일괄',
   },
   {
     path: '/accounting/partner-ledger',
     sidebarTestId: 'sidebar-accounting-partner-ledger',
     pageText: ['거래처별 원장', '원장', '거래처'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.partner-ledger',
     label: '거래처별 원장',
   },
 ] as const
@@ -210,11 +211,20 @@ function buildAccountantFullPermissions() {
   return {
     success: true,
     data: [
+      // SP-D1 기존 5개 PageCode
       { pageCode: 'accounting.tax-invoice.emit-nts', canView: true, canEdit: true },
       { pageCode: 'accounting.tax-invoice.list', canView: true, canEdit: true },
       { pageCode: 'accounting.deposit-match', canView: true, canEdit: false },
       { pageCode: 'accounting.daily-closing', canView: true, canEdit: true },
       { pageCode: 'accounting.general-ledger', canView: true, canEdit: false },
+      // SP-D2 신규 7개 PageCode (V8 seed 기준)
+      { pageCode: 'accounting.accounts', canView: true, canEdit: true },
+      { pageCode: 'accounting.journals', canView: true, canEdit: true },
+      { pageCode: 'accounting.balances', canView: true, canEdit: false },
+      { pageCode: 'accounting.reports', canView: true, canEdit: false },
+      { pageCode: 'accounting.period-close', canView: true, canEdit: true },
+      { pageCode: 'accounting.statement-batch', canView: true, canEdit: true },
+      { pageCode: 'accounting.partner-ledger', canView: true, canEdit: false },
     ],
   }
 }
@@ -289,7 +299,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    * T1: ACCOUNTANT 기본 권한 → 회계 12 페이지 모두 접근 가능
    *
    * 검증 항목:
-   *   - GET /auth/admin/permissions/my → ACCOUNTANT 회계 5개 pageCode view=true 응답
+   *   - GET /auth/admin/permissions/my → ACCOUNTANT 회계 12개 pageCode view=true 응답 (SP-D1 5 + SP-D2 7)
    *   - /accounting/accounts 진입 → 계정과목 페이지 표시 (RoleGuard + PermissionGuard 통과)
    *   - /accounting/tax-invoices 진입 → 세금계산서 페이지 표시 (SP-D1 POC 라우트 포함)
    *   - /accounting/daily-closings 진입 → 일마감 페이지 표시
@@ -302,7 +312,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — ACCOUNTANT 회계 전체 권한
+    // GET /auth/admin/permissions/my — ACCOUNTANT 회계 전체 권한 (SP-D1 5개 + SP-D2 7개 = 12개 PageCode)
     await page.route('**/auth/admin/permissions/my', async route => {
       await route.fulfill({
         status: 200,
@@ -472,24 +482,28 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       const sidebar = page.locator('nav, aside, [data-testid="app-sidebar"]').first()
       const sidebarVisible = await sidebar.isVisible().catch(() => false)
 
-      if (sidebarVisible) {
-        // 회계 카테고리 링크 미표시 확인
-        const accountingLink = page.locator('[data-testid="sidebar-accounting-accounts"]')
-        const taxInvoiceLink = page.locator('[data-testid="sidebar-accounting-tax-invoices"]')
+      // QA-C3 fix: false green 방지 — 사이드바 렌더링 여부 직접 assert (if 분기 제거)
+      expect(
+        sidebarVisible,
+        '사이드바가 렌더링되어야 함 — SALES 홈 진입 후 nav/aside 미표시',
+      ).toBe(true)
 
-        const accountingLinkVisible = await accountingLink.isVisible().catch(() => false)
-        const taxInvoiceLinkVisible = await taxInvoiceLink.isVisible().catch(() => false)
+      // 회계 카테고리 링크 미표시 확인
+      const accountingLink = page.locator('[data-testid="sidebar-accounting-accounts"]')
+      const taxInvoiceLink = page.locator('[data-testid="sidebar-accounting-tax-invoices"]')
 
-        expect(
-          accountingLinkVisible,
-          'SALES 사이드바에 계정과목 링크 표시됨 — 회계 권한 없으므로 hidden 필요',
-        ).toBe(false)
+      const accountingLinkVisible = await accountingLink.isVisible().catch(() => false)
+      const taxInvoiceLinkVisible = await taxInvoiceLink.isVisible().catch(() => false)
 
-        expect(
-          taxInvoiceLinkVisible,
-          'SALES 사이드바에 세금계산서 링크 표시됨 — 회계 권한 없으므로 hidden 필요',
-        ).toBe(false)
-      }
+      expect(
+        accountingLinkVisible,
+        'SALES 사이드바에 계정과목 링크 표시됨 — 회계 권한 없으므로 hidden 필요',
+      ).toBe(false)
+
+      expect(
+        taxInvoiceLinkVisible,
+        'SALES 사이드바에 세금계산서 링크 표시됨 — 회계 권한 없으므로 hidden 필요',
+      ).toBe(false)
     })
 
     await test.step('SALES — 세금계산서 URL 직접 진입 시 redirect "/" 확인', async () => {

@@ -13,14 +13,39 @@
 -- 역할별 기본 권한 정책:
 --   MASTER      → 전체 허용 (view + edit)
 --   MANAGER     → 전체 view 허용, edit 제한
---   ACCOUNTANT  → 전체 view + edit 허용 (회계 전담 역할)
---   SALES       → 모두 비허용 (회계 메뉴 미노출)
+--   ACCOUNTANT  → 회계 전담 역할 (view 전체 허용; edit 는 조회전용 페이지 제외)
+--                  accounts/journals/period-close/statement-batch: view + edit
+--                  balances/reports/partner-ledger: view 만 허용 (edit 제한)
+--   SALES       → 모두 비허용 (회계 메뉴 완전 hidden — 사용자 요구 ②)
 --   WAREHOUSE   → 모두 비허용
 --   DISPATCH    → 모두 비허용
 --   INVENTORY   → 모두 비허용
 --
+-- [SP-D2 Codex blocker fix] V7 seed 에서 SALES accounting.tax-invoice.list canView=TRUE 로
+-- 잘못 설정된 row 를 본 migration 에서 FALSE 로 보정한다.
+-- 사용자 요구 ② "SALES 회계 메뉴 완전 hidden" 보장.
+--
 -- BaseEntity 7 audit fields 준수 (created_at / created_by / is_deleted 필수).
 -- ON CONFLICT DO NOTHING — 이미 row 가 있는 환경에서 재실행 시 안전.
+
+-- ======================================================
+-- [SP-D2 fix] V7 SALES accounting.tax-invoice.list canView=TRUE → FALSE 보정
+-- 사용자 요구 ②: SALES 는 회계 메뉴 완전 hidden (AppLayout showAccounting=false 보장)
+-- ======================================================
+UPDATE role_page_permissions
+SET can_view = FALSE,
+    can_edit = FALSE,
+    modified_at = NOW(),
+    modified_by = 'system'
+WHERE role_code = 'SALES'
+  AND page_code IN (
+      'accounting.tax-invoice.list',
+      'accounting.tax-invoice.emit-nts',
+      'accounting.deposit-match',
+      'accounting.daily-closing',
+      'accounting.general-ledger'
+  )
+  AND is_deleted = FALSE;
 
 INSERT INTO role_page_permissions
     (id, role_code, page_code, can_view, can_edit, created_at, created_by, is_deleted)

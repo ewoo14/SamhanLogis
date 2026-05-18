@@ -38,7 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 — 동적 권한 deny 시나리오 IT.
+ * SP-D2 회계 19 페이지 동적 RBAC 마이그레이션 — 동적 권한 deny 시나리오 IT.
  *
  * <p>검증 대상: {@link DynamicPermissionClient} canView/canEdit 를 mock 하여
  * 동적 권한 허용/거부 두 케이스를 accounting-service endpoint 별로 검증.
@@ -119,37 +119,18 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     // ─── Case 2: canView=false → 세금계산서 목록 GET 차단 ──────────────────
 
     @Test
-    @DisplayName("C2: DynamicPermissionClient canView=false → 세금계산서 목록 차단 (403 또는 redirect)")
+    @DisplayName("C2: DynamicPermissionClient canView=false → 세금계산서 목록 GET 403 (VIEW 가드 차단)")
     void c2_taxInvoiceList_canViewFalse_denied() throws Exception {
-        // accounting.tax-invoice.emit-nts 페이지 코드로 canView=false
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.tax-invoice.emit-nts")))
-                .thenReturn(false);
+        // SP-D2 BE-C2 fix: VIEW 가드 구현 완료 — canView=false 시 반드시 403
         when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.tax-invoice.list")))
                 .thenReturn(false);
 
-        // SP-D2 동적 권한 deny 시나리오:
-        // BE 에서 DynamicPermissionClient.canView=false 를 확인 후 403 또는 허용 여부에 따라 응답 결정.
-        // 현재 구현 단계: BE endpoint 별 동적 권한 체크 구현 범위에 따라 403 또는 200 가능.
-        // 핵심 검증: DynamicPermissionClient.canView("ACCOUNTANT", "accounting.tax-invoice.list") 가
-        //            IT 컨텍스트에서 false 로 stub 되어 있음.
-        //
-        // SP-D2 완전 구현 후: status().isForbidden() 단일 assert.
-        // 현재 점진 마이그레이션 단계: 403 또는 200 모두 허용 (BE 구현 진행 중).
         mockMvc.perform(get("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("page", "0")
                         .param("size", "20"))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // 403 (차단) 또는 200 (허용) — 구현 단계에 따라 결정
-                    boolean isExpected = status == 200 || status == 403;
-                    if (!isExpected) {
-                        throw new AssertionError(
-                                "C2 세금계산서 목록 canView=false: 200(허용) 또는 403(차단) 기대, 실제: " + status
-                        );
-                    }
-                });
+                .andExpect(status().isForbidden());
     }
 
     // ─── Case 3: canView=true → 일마감 목록 GET 정상 ───────────────────────
@@ -246,21 +227,14 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         body.put("accountFinNo", "TEST-FIN-001");
         body.put("submitMethod", "DRY_RUN");
 
+        // QA-M2 fix: canView=true + canEdit=true → 200 단독 assert (422 불필요 허용 제거)
+        // accountFinNo: "TEST-FIN-001" 명시 → 422(accountFinNo 검증 오류) 발생 경로 없음
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // 200 (정상) 또는 422 (검증 오류 — 업무 규칙 위반) 허용
-                    boolean isExpected = status == 200 || status == 422;
-                    if (!isExpected) {
-                        throw new AssertionError(
-                                "C7 입금 매칭 POST canView=true: 200/422 기대, 실제: " + status
-                        );
-                    }
-                });
+                .andExpect(status().isOk());
     }
 
     // ─── Case 8: canEdit=false + canView=false → fallback 통과 ─────────────
@@ -280,6 +254,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
 
         // SP-D2 점진 마이그레이션: canEdit=false + canView=false = row 없음 fallback → 기존 @PreAuthorize 통과
         // ACCOUNTANT는 일마감 endpoint에 @PreAuthorize로 허용 → 201 또는 409 (이미 존재)
+        // BE-C4 fix: 404 불필요 허용 제거 — fallback 통과 시 201/409 만 허용
         mockMvc.perform(post("/api/v1/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
@@ -287,11 +262,11 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    // fallback 통과 → 201 (생성 성공) 또는 409 (이미 존재) — 403 은 허용하지 않음
-                    boolean isExpected = status == 201 || status == 409 || status == 404;
+                    // fallback 통과 → 201 (생성 성공) 또는 409 (이미 존재) — 403/404 금지
+                    boolean isExpected = status == 201 || status == 409;
                     if (!isExpected) {
                         throw new AssertionError(
-                                "C8 일마감 POST fallback: 201/409/404 기대 (403 금지), 실제: " + status
+                                "C8 일마감 POST fallback: 201/409 기대 (403/404 금지), 실제: " + status
                         );
                     }
                 });

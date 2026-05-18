@@ -234,7 +234,9 @@ public class TaxInvoiceController {
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) UUID partnerId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(roleHeader);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(taxInvoiceService.list(status, from, to, partnerId, pageable));
     }
@@ -291,6 +293,27 @@ public class TaxInvoiceController {
     // =========================================================================
     // SP-D2 동적 권한 헬퍼
     // =========================================================================
+
+    /**
+     * SP-D2 동적 VIEW 권한 검증 — 세금계산서 목록 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canView=false 이면 명시적 deny → 403.
+     * (VIEW 가드: GET /accounting/tax-invoices 목록 조회 진입 시점 호출)
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+        if (!canView) {
+            log.warn("[SP-D2] 동적 VIEW 권한 차단 — roleCode={} pageCode={}", actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "동적 권한 설정에 의해 세금계산서 목록 조회 권한이 차단되었습니다.");
+        }
+    }
 
     /**
      * SP-D2 동적 EDIT 권한 검증 — 세금계산서 목록 페이지 코드.

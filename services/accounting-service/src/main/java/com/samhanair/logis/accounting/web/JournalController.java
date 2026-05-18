@@ -51,8 +51,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>모든 응답은 ApiResponse 래핑. UUID(분개 id) 는 mutation path 로만 사용,
  * 사용자 화면 표시는 journalNo / journalDate / accountCode (memory 의무).
  *
- * <p>SP-D2 동적 권한: {@code accounting.general-ledger} 페이지 코드로 분개장 VIEW/EDIT 가드.
- * (분개장은 원장과 동일 권한 정책 적용 — 별도 PageCode 추가 없이 general-ledger 공유)
+ * <p>SP-D2 동적 권한: {@code accounting.journals} 페이지 코드로 분개장 EDIT 가드.
+ * (V8 seed: ACCOUNTANT canEdit=true — 분개 생성/게시/역분개 편집 허용)
  */
 @Slf4j
 @RestController
@@ -60,8 +60,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class JournalController {
 
-    /** SP-D2 — 분개장/원장 통합 페이지 코드. */
-    private static final String JOURNAL_PAGE_CODE = "accounting.general-ledger";
+    /** SP-D2 — 분개장 전용 페이지 코드 (accounting.journals). */
+    private static final String JOURNAL_PAGE_CODE = "accounting.journals";
 
     private static final String CALLER_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
@@ -192,7 +192,7 @@ public class JournalController {
     // =========================================================================
 
     /**
-     * SP-D2 동적 EDIT 권한 검증 — 분개/원장 페이지 코드.
+     * SP-D2 동적 EDIT 권한 검증 — 분개장 페이지 코드 ({@code accounting.journals}).
      *
      * <p>actorRole null/blank 이면 건너뜀.
      * canEdit=false + canView=true 이면 명시적 deny → 403.
