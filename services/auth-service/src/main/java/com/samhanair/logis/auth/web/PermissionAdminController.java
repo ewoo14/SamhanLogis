@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+// SP-D1 cycle 2: getMyPermissions endpoint 에서 X-User-Role 헤더를 사용한다.
+
 /**
  * 동적 RBAC 권한 관리 API — SP-D1.
  *
@@ -46,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PermissionAdminController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
 
     private final DynamicPermissionService permissionService;
 
@@ -118,6 +121,26 @@ public class PermissionAdminController {
             @RequestParam String pageCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
         permissionService.deletePermission(roleCode, pageCode, callerOrSystem(actorId));
+    }
+
+    /**
+     * 현재 사용자 역할의 활성 권한 목록 조회 — 인증된 모든 사용자 접근 가능.
+     *
+     * <p>FE {@code GET /admin/permissions/my} 호출 대응 endpoint.
+     * X-User-Role 헤더로 역할을 수신하여 해당 역할의 활성 override row 를 반환한다.
+     *
+     * <p>MASTER 역할의 경우 DB row 유무에 관계없이 모든 PageCode 에 대해 view+edit true 반환.
+     * 비MASTER 역할은 DB override row 가 존재하는 항목만 반환 (row 없음 = fallback false — 점진 마이그레이션 안전).
+     *
+     * @param userRole 요청자 역할 (X-User-Role 헤더, api-gateway 에서 전파)
+     * @return 활성 권한 목록 {@code List<PermissionDto>}
+     */
+    @GetMapping("/my")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<List<PermissionDto>> getMyPermissions(
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String userRole) {
+        String roleCode = (userRole == null || userRole.isBlank()) ? "UNKNOWN" : userRole;
+        return ApiResponse.ok(permissionService.getMyPermissions(roleCode));
     }
 
     /**

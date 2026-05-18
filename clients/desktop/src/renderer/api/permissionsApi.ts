@@ -1,12 +1,16 @@
 /**
  * 동적 RBAC 권한 매트릭스 API 클라이언트 — SP-D1 슬라이스.
  *
- * BE endpoint (user-service):
- * - GET  /admin/permissions          — 전체 역할 × 페이지 매트릭스 조회 (MASTER 전용)
- * - PUT  /admin/permissions          — 체크박스 다중 토글 batch update (MASTER 전용)
- * - GET  /admin/permissions/my       — 현재 로그인 사용자 권한 목록 조회 (인증된 모든 역할)
+ * BE endpoint (auth-service, api-gateway prefix /auth 제거 후 routing):
+ * - GET  /auth/admin/permissions          — 전체 역할 × 페이지 매트릭스 조회 (MASTER 전용)
+ * - POST /auth/admin/permissions/batch    — 체크박스 다중 토글 batch update (MASTER 전용)
+ * - GET  /auth/admin/permissions/my       — 현재 로그인 사용자 권한 목록 조회 (인증된 모든 역할)
  *
  * UUID 비공개 가드: 매트릭스 응답에 UUID 미포함 — roleCode / pageCode 비즈니스 식별자만 사용.
+ *
+ * PageCode 체계 (SP-D1 cycle 2 fix):
+ * FE PageCode 타입을 BE PageCode enum 의 dot-separated code 와 완전 일치시킨다.
+ * 예) 'accounting.tax-invoice.emit-nts', 'admin.permissions' 등.
  *
  * 권한 캐시: usePermissions hook 이 TanStack Query staleTime 으로 5분 캐시.
  * 동기 canAccess() 는 캐시된 데이터를 기반으로 즉시 응답.
@@ -18,12 +22,12 @@ import { apiClient, type ApiEnvelope } from './client'
 // ---------------------------------------------------------------------------
 
 /**
- * 8-role ROLE 풀네임 (BE Role enum 과 동일).
+ * 7-role ROLE 풀네임 (BE Role enum 과 동일).
  * feedback_role_naming_full — UI/PR/문서 모두 풀네임 의무.
+ * 참고: DEVELOPER 는 BE getPermissionMatrix allRoles 목록에 미포함 — 향후 추가 예정.
  */
 export type RbacRole =
   | 'MASTER'
-  | 'DEVELOPER'
   | 'MANAGER'
   | 'DISPATCH'
   | 'SALES'
@@ -35,22 +39,25 @@ export type RbacRole =
 export type PermissionAction = 'view' | 'edit'
 
 /**
- * 페이지 코드 12개 — BE PageCode enum 과 1:1.
+ * 페이지 코드 12개 — BE PageCode enum dot-separated code 와 1:1 매핑.
+ *
+ * SP-D1 cycle 2 fix: 대문자 상수(DASHBOARD 등)에서 dot-separated 소문자 코드로 교체.
+ * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
 export type PageCode =
-  | 'DASHBOARD'
-  | 'WAREHOUSES'
-  | 'SALES'
-  | 'PURCHASES'
-  | 'TRANSFERS'
-  | 'ACCOUNTING'
-  | 'AROLOGIS'
-  | 'WAREHOUSE_OPS'
-  | 'ADMIN'
-  | 'DISPATCH_BOARD'
-  | 'PERMISSION_MATRIX'
-  | 'REPORTS'
+  | 'accounting.tax-invoice.emit-nts'
+  | 'accounting.tax-invoice.list'
+  | 'accounting.deposit-match'
+  | 'accounting.daily-closing'
+  | 'accounting.general-ledger'
+  | 'notification.dispatch-sms.send-audit'
+  | 'purchases.receipt-ocr'
+  | 'purchases.slip.list'
+  | 'sales.slip.list'
+  | 'inbound.inspection'
+  | 'dispatch.board'
+  | 'admin.permissions'
 
 /**
  * 개별 역할-페이지 권한 셀.
@@ -105,42 +112,85 @@ export interface MyPermission {
 // ---------------------------------------------------------------------------
 
 /**
- * 전체 권한 매트릭스 조회 — `GET /admin/permissions`.
+ * 전체 권한 매트릭스 조회 — `GET /auth/admin/permissions`.
  * MASTER 전용. 다른 역할은 403.
+ *
+ * BE 응답: {@code Map<roleCode, Map<pageCode, PermissionDto>>}
+ * FE 변환: 중첩 Map → PermissionMatrix.cells 배열로 평탄화.
  *
  * @return PermissionMatrix
  */
+type PermissionDtoRaw = {
+  roleCode: string; pageCode: string; canView: boolean; canEdit: boolean; isOverride: boolean
+}
+
 export async function fetchPermissionMatrix(): Promise<PermissionMatrix> {
-  const res = await apiClient.get<ApiEnvelope<PermissionMatrix>>(
-    '/admin/permissions',
+  const res = await apiClient.get<ApiEnvelope<Record<string, Record<string, PermissionDtoRaw>>>>(
+    '/auth/admin/permissions',
   )
-  return res.data.data
+  const nestedMap = res.data.data ?? {}
+  const cells: PermissionCell[] = []
+  for (const roleCode of Object.keys(nestedMap)) {
+    const pageMap = nestedMap[roleCode]
+    if (!pageMap) continue
+    for (const pageCode of Object.keys(pageMap)) {
+      const dto = pageMap[pageCode]
+      if (!dto) continue
+      cells.push({
+        roleCode: dto.roleCode as RbacRole,
+        pageCode: dto.pageCode as PageCode,
+        view: dto.canView,
+        edit: dto.canEdit,
+      })
+    }
+  }
+  return { cells, generatedAt: new Date().toISOString() }
 }
 
 /**
- * 권한 batch 업데이트 — `PUT /admin/permissions`.
+ * 권한 batch 업데이트 — `POST /auth/admin/permissions/batch`.
  * MASTER 전용. 변경된 셀만 포함하여 전송.
+ *
+ * BE 요청 형식: {@code { permissions: [{ roleCode, pageCode, canView, canEdit }] }}
  *
  * @param updates 변경할 셀 목록
  */
 export async function updatePermissionBatch(
   updates: PermissionUpdateItem[],
 ): Promise<void> {
-  const body: PermissionBatchUpdateRequest = { updates }
-  await apiClient.put<ApiEnvelope<void>>('/admin/permissions', body)
+  // FE PermissionUpdateItem(action/allowed) → BE PermissionUpdateRequest(canView/canEdit) 변환.
+  // 여러 update 가 같은 (roleCode, pageCode) 를 참조할 수 있으므로 병합.
+  const mergeMap = new Map<string, { roleCode: string; pageCode: string; canView: boolean; canEdit: boolean }>()
+  for (const u of updates) {
+    const key = `${u.roleCode}__${u.pageCode}`
+    const existing = mergeMap.get(key) ?? { roleCode: u.roleCode, pageCode: u.pageCode, canView: false, canEdit: false }
+    if (u.action === 'view') existing.canView = u.allowed
+    if (u.action === 'edit') existing.canEdit = u.allowed
+    mergeMap.set(key, existing)
+  }
+  const permissions = Array.from(mergeMap.values())
+  await apiClient.post<ApiEnvelope<void>>('/auth/admin/permissions/batch', { permissions })
 }
 
 /**
- * 현재 로그인 사용자 권한 목록 조회 — `GET /admin/permissions/my`.
+ * 현재 로그인 사용자 권한 목록 조회 — `GET /auth/admin/permissions/my`.
  * 인증된 모든 역할 접근 가능. usePermissions hook 이 캐시.
+ *
+ * BE 응답: {@code List<PermissionDto>} (canView / canEdit 필드)
+ * FE 변환: PermissionDto → MyPermission (actions 배열)
  *
  * @return MyPermission[]
  */
 export async function fetchMyPermissions(): Promise<MyPermission[]> {
-  const res = await apiClient.get<ApiEnvelope<MyPermission[]>>(
-    '/admin/permissions/my',
-  )
-  return res.data.data
+  const res = await apiClient.get<ApiEnvelope<Array<{
+    roleCode: string; pageCode: string; canView: boolean; canEdit: boolean
+  }>>>('/auth/admin/permissions/my')
+  return res.data.data.map((dto) => {
+    const actions: PermissionAction[] = []
+    if (dto.canView) actions.push('view')
+    if (dto.canEdit) actions.push('edit')
+    return { pageCode: dto.pageCode as PageCode, actions }
+  })
 }
 
 // ---------------------------------------------------------------------------

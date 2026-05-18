@@ -292,6 +292,8 @@ const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 // [SP-D1] 동적 RBAC 권한 매트릭스 관리 화면 — MASTER 전용.
 import { PermissionMatrixPage } from './PermissionMatrixPage'
 const PERMISSION_MATRIX_ROLES = ['MASTER'] as const
+// [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
+import { PermissionGuard } from '../components/PermissionGuard'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -990,11 +992,19 @@ const router = createHashRouter([
 
       // P0-4 세금계산서 — accounting-service `/accounting/tax-invoices/*` (commit f8b8b49).
       // ACCOUNTANT / MASTER 만. 정적 path (`/new`) 우선, 다음 print, 마지막 `:id`.
+      //
+      // [SP-D1 cycle 2 POC] PermissionGuard 래핑 — accounting.tax-invoice.emit-nts 페이지에
+      // 동적 RBAC 적용. 정적 RoleGuard 와 이중 가드:
+      //   1) RoleGuard: ACCOUNTANT / MASTER 정적 화이트리스트 (기존 @PreAuthorize 보존)
+      //   2) PermissionGuard: DB override 권한 동적 체크 (SP-D1 신규 레이어)
+      // PermissionGuard 가 false 이면 홈 redirect. 점진 마이그레이션 의도로 1개 라우트 POC 적용.
       {
         path: '/accounting/tax-invoices',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <TaxInvoiceListPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+              <TaxInvoiceListPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },

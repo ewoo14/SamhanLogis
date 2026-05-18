@@ -10,13 +10,16 @@
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
  *
- * data-testid:
- * - permission-matrix-table          — 매트릭스 표 wrapper
- * - permission-cell-{role}-{page}    — 개별 셀 td
- * - permission-view-{role}-{page}    — view 체크박스
- * - permission-edit-{role}-{page}    — edit 체크박스
- * - permission-save-btn              — 저장 버튼
- * - permission-reset-btn             — 초기화 버튼
+ * data-testid (SP-D1 cycle 2 fix: Playwright spec 기준으로 통일):
+ * - permission-matrix-table                        — 매트릭스 표 wrapper
+ * - permission-matrix-role-{role}                  — 역할 헤더 th
+ * - permission-matrix-cell-{role}-{page}           — 개별 셀 td
+ * - permission-matrix-cell-{role}-{page}-view      — view 체크박스 (pageCode 를 '-' 로 normalize)
+ * - permission-matrix-cell-{role}-{page}-edit      — edit 체크박스
+ * - permission-matrix-save-btn                     — 저장 버튼
+ * - permission-matrix-reset-btn                    — 초기화 버튼
+ * - permission-matrix-change-count                 — 변경 건수 배지
+ * - sidebar-purchases-receipt-ocr (AppLayout)      — 영수증 OCR 사이드바 링크 (SP-D1 동적 권한 연동)
  */
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,9 +39,11 @@ import { usePageTitle } from '../hooks/usePageTitle'
 // 상수
 // ---------------------------------------------------------------------------
 
-/** 표시 순서 고정 역할 7개 (MASTER 제외 — MASTER 는 항상 전권이므로 편집 불가). */
+/**
+ * 표시 순서 고정 역할 6개 (MASTER 제외 — 항상 전권이므로 편집 불가).
+ * SP-D1 cycle 2 fix: BE allRoles 목록 기준 (DEVELOPER 제거 — BE 미지원).
+ */
 const ROLES_ORDER: RbacRole[] = [
-  'DEVELOPER',
   'MANAGER',
   'DISPATCH',
   'SALES',
@@ -50,7 +55,6 @@ const ROLES_ORDER: RbacRole[] = [
 /** 역할 한국어 라벨. */
 const ROLE_LABEL: Record<RbacRole, string> = {
   MASTER: '마스터',
-  DEVELOPER: '개발자',
   MANAGER: '매니저',
   DISPATCH: '배차담당자',
   SALES: '영업원',
@@ -59,48 +63,53 @@ const ROLE_LABEL: Record<RbacRole, string> = {
   INVENTORY: '재고원',
 }
 
-/** 페이지 코드 12개 표시 순서. */
+/**
+ * 페이지 코드 12개 표시 순서 — BE PageCode enum dot-separated code 와 1:1.
+ * SP-D1 cycle 2 fix: 대문자 상수에서 BE dot-separated 코드로 교체.
+ */
 const PAGES_ORDER: PageCode[] = [
-  'DASHBOARD',
-  'WAREHOUSES',
-  'SALES',
-  'PURCHASES',
-  'TRANSFERS',
-  'ACCOUNTING',
-  'AROLOGIS',
-  'WAREHOUSE_OPS',
-  'DISPATCH_BOARD',
-  'REPORTS',
-  'ADMIN',
-  'PERMISSION_MATRIX',
+  'accounting.tax-invoice.emit-nts',
+  'accounting.tax-invoice.list',
+  'accounting.deposit-match',
+  'accounting.daily-closing',
+  'accounting.general-ledger',
+  'notification.dispatch-sms.send-audit',
+  'purchases.receipt-ocr',
+  'purchases.slip.list',
+  'sales.slip.list',
+  'inbound.inspection',
+  'dispatch.board',
+  'admin.permissions',
 ]
 
 /** 페이지 코드 한국어 라벨. */
 const PAGE_LABEL: Record<PageCode, string> = {
-  DASHBOARD: '대시보드',
-  WAREHOUSES: '창고 관리',
-  SALES: '판매관리',
-  PURCHASES: '구매관리',
-  TRANSFERS: '재고이동',
-  ACCOUNTING: '회계',
-  AROLOGIS: 'arologis',
-  WAREHOUSE_OPS: '창고 운영',
-  DISPATCH_BOARD: '배차 메뉴',
-  REPORTS: '재무 보고서',
-  ADMIN: '인사 관리',
-  PERMISSION_MATRIX: '권한 관리',
+  'accounting.tax-invoice.emit-nts': 'NTS 발행',
+  'accounting.tax-invoice.list': '세금계산서 목록',
+  'accounting.deposit-match': '입금 매칭',
+  'accounting.daily-closing': '일마감',
+  'accounting.general-ledger': '원장',
+  'notification.dispatch-sms.send-audit': 'SMS 이력',
+  'purchases.receipt-ocr': '영수증 OCR',
+  'purchases.slip.list': '매입 슬립',
+  'sales.slip.list': '매출 슬립',
+  'inbound.inspection': '입고 검수',
+  'dispatch.board': '배차 보드',
+  'admin.permissions': '권한 관리',
 }
 
 /** edit 액션이 의미 있는 페이지 코드 목록. 나머지는 view 만 표시. */
 const PAGES_WITH_EDIT: Set<PageCode> = new Set([
-  'WAREHOUSES',
-  'SALES',
-  'PURCHASES',
-  'TRANSFERS',
-  'ACCOUNTING',
-  'WAREHOUSE_OPS',
-  'ADMIN',
-  'PERMISSION_MATRIX',
+  'accounting.tax-invoice.emit-nts',
+  'accounting.deposit-match',
+  'accounting.daily-closing',
+  'notification.dispatch-sms.send-audit',
+  'purchases.receipt-ocr',
+  'purchases.slip.list',
+  'sales.slip.list',
+  'inbound.inspection',
+  'dispatch.board',
+  'admin.permissions',
 ])
 
 // ---------------------------------------------------------------------------
@@ -300,7 +309,7 @@ export function PermissionMatrixPage() {
             variant="ghost"
             onClick={handleReset}
             disabled={dirtyKeys.size === 0}
-            data-testid="permission-reset-btn"
+            data-testid="permission-matrix-reset-btn"
           >
             초기화
           </Button>
@@ -308,16 +317,29 @@ export function PermissionMatrixPage() {
             variant="primary"
             onClick={handleSave}
             disabled={dirtyKeys.size === 0 || saveMutation.isPending}
-            data-testid="permission-save-btn"
+            data-testid="permission-matrix-save-btn"
           >
-            {saveMutation.isPending ? '저장 중…' : `저장${dirtyKeys.size > 0 ? ` (${dirtyKeys.size}건)` : ''}`}
+            {saveMutation.isPending
+              ? '저장 중…'
+              : (
+                <>
+                  저장
+                  {dirtyKeys.size > 0 && (
+                    <span data-testid="permission-matrix-change-count">
+                      {' '}({dirtyKeys.size}건)
+                    </span>
+                  )}
+                </>
+              )}
           </Button>
         </div>
       </div>
 
-      {/* dirty 경고 배너 */}
+      {/* dirty 경고 배너 — role="alert" aria-live="assertive" (D-4 접근성) */}
       {dirtyKeys.size > 0 && (
         <div
+          role="alert"
+          aria-live="assertive"
           style={{
             background: 'var(--color-warning-50)',
             border: '1px solid var(--color-warning-200)',
@@ -332,9 +354,21 @@ export function PermissionMatrixPage() {
         </div>
       )}
 
-      {/* toast */}
+      {/* 변경 카운트 live region — role="status" aria-live="polite" (D-4 접근성) */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
+      >
+        {dirtyKeys.size > 0 ? `${dirtyKeys.size}개 항목 변경됨` : '변경 사항 없음'}
+      </div>
+
+      {/* toast — role="alert" (D-4 접근성) */}
       {toast && (
         <div
+          role="alert"
+          aria-live="assertive"
           style={{
             position: 'fixed',
             bottom: 24,
@@ -371,9 +405,12 @@ export function PermissionMatrixPage() {
               <col key={page} style={{ width: PAGES_WITH_EDIT.has(page) ? 88 : 60 }} />
             ))}
           </colgroup>
-          <thead>
+          {/* D-3: thead sticky top:0 z-index:30, 교차 th z-index:40 */}
+          <thead style={{ position: 'sticky', top: 0, zIndex: 30 }}>
             <tr>
+              {/* D-3/D-4: 교차 셀 z-index:40, scope="col" */}
               <th
+                scope="col"
                 style={{
                   padding: '6px 8px',
                   textAlign: 'left',
@@ -382,7 +419,7 @@ export function PermissionMatrixPage() {
                   fontWeight: 600,
                   position: 'sticky',
                   left: 0,
-                  zIndex: 1,
+                  zIndex: 40,
                 }}
               >
                 역할 \ 페이지
@@ -390,6 +427,7 @@ export function PermissionMatrixPage() {
               {PAGES_ORDER.map((page) => (
                 <th
                   key={page}
+                  scope="col"
                   style={{
                     padding: '6px 4px',
                     textAlign: 'center',
@@ -407,13 +445,14 @@ export function PermissionMatrixPage() {
             {/* 액션 서브헤더 */}
             <tr>
               <th
+                scope="col"
                 style={{
                   padding: '4px 8px',
                   background: 'var(--color-neutral-50)',
                   border: '1px solid var(--color-neutral-200)',
                   position: 'sticky',
                   left: 0,
-                  zIndex: 1,
+                  zIndex: 40,
                   fontSize: 11,
                   color: 'var(--color-neutral-400)',
                 }}
@@ -423,6 +462,7 @@ export function PermissionMatrixPage() {
               {PAGES_ORDER.map((page) => (
                 <th
                   key={page}
+                  scope="col"
                   style={{
                     padding: '4px 2px',
                     background: 'var(--color-neutral-50)',
@@ -440,7 +480,11 @@ export function PermissionMatrixPage() {
           <tbody>
             {ROLES_ORDER.map((role) => (
               <tr key={role}>
+                {/* D-4: scope="row" 역할 열 헤더, D-3: z-index:20
+                    SP-D1 cycle 2: data-testid="permission-matrix-role-{role}" 추가 (Playwright spec 정합) */}
                 <td
+                  scope="row"
+                  data-testid={`permission-matrix-role-${role}`}
                   style={{
                     padding: '6px 8px',
                     border: '1px solid var(--color-neutral-200)',
@@ -448,7 +492,7 @@ export function PermissionMatrixPage() {
                     background: 'var(--color-neutral-50)',
                     position: 'sticky',
                     left: 0,
-                    zIndex: 1,
+                    zIndex: 20,
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -462,18 +506,25 @@ export function PermissionMatrixPage() {
                   const cell = currentState[k]
                   const isDirty = dirtyKeys.has(k)
                   const hasEdit = PAGES_WITH_EDIT.has(page)
+                  // Playwright spec 기준 testid: pageCode 의 '.' 를 '-' 로 normalize
+                  const pageNorm = page.replace(/\./g, '-')
 
                   return (
                     <td
                       key={page}
-                      data-testid={`permission-cell-${role}-${page}`}
+                      data-testid={`permission-matrix-cell-${role}-${pageNorm}`}
                       style={{
                         padding: '6px 4px',
                         border: '1px solid var(--color-neutral-200)',
                         textAlign: 'center',
+                        position: 'relative',
+                        /* D-1: dirty 셀 amber 배경 + 좌측 3px 마커 (::before 는 CSS-in-JS 미지원 → borderLeft 직접) */
                         background: isDirty
                           ? 'var(--color-warning-50)'
                           : 'var(--color-neutral-0)',
+                        borderLeft: isDirty
+                          ? '3px solid var(--color-warning-400)'
+                          : '1px solid var(--color-neutral-200)',
                         transition: 'background 0.15s',
                       }}
                     >
@@ -485,14 +536,14 @@ export function PermissionMatrixPage() {
                           alignItems: 'center',
                         }}
                       >
-                        {/* view 체크박스 */}
+                        {/* view 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-view */}
                         <label
                           style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
                           title="조회 권한"
                         >
                           <input
                             type="checkbox"
-                            data-testid={`permission-view-${role}-${page}`}
+                            data-testid={`permission-matrix-cell-${role}-${pageNorm}-view`}
                             checked={cell?.view ?? false}
                             onChange={() => handleToggle(role, page, 'view')}
                             style={{ cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}
@@ -503,7 +554,7 @@ export function PermissionMatrixPage() {
                             </span>
                           )}
                         </label>
-                        {/* edit 체크박스 — edit 이 있는 페이지만 */}
+                        {/* edit 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-edit */}
                         {hasEdit && (
                           <label
                             style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
@@ -511,7 +562,7 @@ export function PermissionMatrixPage() {
                           >
                             <input
                               type="checkbox"
-                              data-testid={`permission-edit-${role}-${page}`}
+                              data-testid={`permission-matrix-cell-${role}-${pageNorm}-edit`}
                               checked={cell?.edit ?? false}
                               onChange={() => handleToggle(role, page, 'edit')}
                               style={{ cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}

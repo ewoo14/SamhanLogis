@@ -8,6 +8,10 @@
 -- Legacy 호환: 신규 테이블만 생성. 기존 accounts 테이블 변경 없음.
 -- NULLable audit 컬럼: created_by / modified_by 는 NOT NULL 이지만
 --   seed INSERT 에서 'system' 으로 채움.
+--
+-- pgcrypto 확장: gen_random_uuid() 사용을 위해 확장 활성화.
+-- IF NOT EXISTS 이므로 기존 환경에서 재실행 시 오류 없음.
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS role_page_permissions (
     id              UUID        NOT NULL DEFAULT gen_random_uuid(),

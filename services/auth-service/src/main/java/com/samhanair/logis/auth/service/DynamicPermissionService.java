@@ -179,11 +179,44 @@ public class DynamicPermissionService {
     // 권한 갱신 (MASTER 전용)
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // 현재 사용자 권한 목록 조회 (FE GET /auth/admin/permissions/my 용)
+    // -----------------------------------------------------------------------
+
+    /**
+     * 특정 역할의 활성 권한 row 목록을 조회한다.
+     *
+     * <p>DB override row 가 존재하는 항목만 반환.
+     * row 미존재 항목은 fallback(false)이므로 응답에 포함하지 않는다.
+     *
+     * <p>MASTER 역할은 특별 처리:
+     * DB row 유무에 관계없이 12개 PageCode 모두 canView=true / canEdit=true 반환.
+     *
+     * @param roleCode 역할 코드 (예: ACCOUNTANT, MASTER)
+     * @return 활성 override row 목록 (canView 또는 canEdit 이 true 인 항목만)
+     */
+    @Transactional(readOnly = true)
+    public List<PermissionDto> getMyPermissions(String roleCode) {
+        if ("MASTER".equalsIgnoreCase(roleCode)) {
+            return Arrays.stream(PageCode.values())
+                    .map(pc -> new PermissionDto(
+                            "MASTER", pc.getCode(), pc.getDisplayName(), true, true, true))
+                    .collect(Collectors.toList());
+        }
+        return repository.findByRoleCode(roleCode).stream()
+                .map(p -> new PermissionDto(
+                        p.getRoleCode(), p.getPageCode(),
+                        resolveDisplayName(p.getPageCode()),
+                        p.isCanView(), p.isCanEdit(), true))
+                .collect(Collectors.toList());
+    }
+
     /**
      * 단일 권한 갱신 또는 신규 등록.
      *
      * <p>처리 흐름:
      * <ol>
+     *   <li>MASTER roleCode 변경 시도 → 거부 (403 — MASTER 는 항상 전권으로 하드코딩)</li>
      *   <li>pageCode 유효성 검증 ({@link PageCode#isValid(String)})</li>
      *   <li>기존 활성 row 조회 → 있으면 도메인 메서드로 갱신, 없으면 신규 생성</li>
      *   <li>저장 후 {@link PermissionDto} 반환</li>
@@ -192,10 +225,15 @@ public class DynamicPermissionService {
      * @param request   갱신 요청 (roleCode / pageCode / canView / canEdit)
      * @param actorId   요청자 userId (X-User-Id 헤더)
      * @return 갱신된 권한 정보
+     * @throws BusinessException(FORBIDDEN) MASTER 권한 변경 시도 시 (403)
      * @throws BusinessException(INVALID_INPUT) 미등록 pageCode 인 경우 (400)
      */
     @Transactional
     public PermissionDto updatePermission(PermissionUpdateRequest request, String actorId) {
+        if ("MASTER".equalsIgnoreCase(request.roleCode())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "MASTER 역할의 권한은 변경할 수 없습니다. MASTER 는 항상 전 페이지 전권입니다.");
+        }
         validatePageCode(request.pageCode());
         String displayName = resolveDisplayName(request.pageCode());
 
@@ -254,10 +292,15 @@ public class DynamicPermissionService {
      * @param roleCode 역할 코드
      * @param pageCode 페이지 코드
      * @param actorId  요청자 userId
+     * @throws BusinessException(FORBIDDEN) MASTER 권한 삭제 시도 시 (403)
      * @throws BusinessException(NOT_FOUND) override row 가 없는 경우 (404)
      */
     @Transactional
     public void deletePermission(String roleCode, String pageCode, String actorId) {
+        if ("MASTER".equalsIgnoreCase(roleCode)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "MASTER 역할의 권한은 삭제할 수 없습니다. MASTER 는 항상 전 페이지 전권입니다.");
+        }
         RolePagePermission perm = repository.findByRoleCodeAndPageCode(roleCode, pageCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "권한 override 행을 찾을 수 없습니다: roleCode=" + roleCode + ", pageCode=" + pageCode));

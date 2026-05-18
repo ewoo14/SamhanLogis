@@ -4133,58 +4133,78 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // ==========================================================================
   // SP-D1: 동적 RBAC 권한 매트릭스 mock
+  // SP-D1 cycle 2 fix: BE 계약과 동일한 endpoint/응답 shape 사용.
   // ==========================================================================
 
-  // GET /admin/permissions — 전체 역할 × 페이지 매트릭스 (MASTER 전용)
-  if (method === 'GET' && url.endsWith('/admin/permissions')) {
-    return envelope({
-      cells: _mockPermissionCells,
-      generatedAt: new Date().toISOString(),
-    })
+  // GET /auth/admin/permissions — 전체 역할 × 페이지 매트릭스 (MASTER 전용)
+  // BE 응답: Map<roleCode, Map<pageCode, PermissionDto>>
+  if (method === 'GET' && (url.endsWith('/auth/admin/permissions') || url.endsWith('/admin/permissions'))) {
+    const nestedMap: Record<string, Record<string, {
+      roleCode: string; pageCode: string; displayName: string
+      canView: boolean; canEdit: boolean; isOverride: boolean
+    }>> = {}
+    for (const cell of _mockPermissionCells) {
+      if (!nestedMap[cell.roleCode]) nestedMap[cell.roleCode] = {} as Record<string, { roleCode: string; pageCode: string; displayName: string; canView: boolean; canEdit: boolean; isOverride: boolean }>
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      nestedMap[cell.roleCode]![cell.pageCode] = {
+        roleCode: cell.roleCode,
+        pageCode: cell.pageCode,
+        displayName: cell.pageCode,
+        canView: cell.view,
+        canEdit: cell.edit,
+        isOverride: true,
+      }
+    }
+    return envelope(nestedMap)
   }
 
-  // PUT /admin/permissions — 배치 업데이트 (MASTER 전용)
-  if (method === 'PUT' && url.endsWith('/admin/permissions')) {
+  // POST /auth/admin/permissions/batch — 배치 업데이트 (MASTER 전용)
+  // BE 요청: { permissions: [{ roleCode, pageCode, canView, canEdit }] }
+  if (method === 'POST' && (url.includes('/auth/admin/permissions/batch') || url.includes('/admin/permissions/batch'))) {
     const body = parseMockBody(config) as {
-      updates?: Array<{ roleCode: string; pageCode: string; action: string; allowed: boolean }>
+      permissions?: Array<{ roleCode: string; pageCode: string; canView: boolean; canEdit: boolean }>
     }
-    if (Array.isArray(body.updates)) {
-      for (const u of body.updates) {
+    if (Array.isArray(body.permissions)) {
+      for (const p of body.permissions) {
         const cell = _mockPermissionCells.find(
-          (c) => c.roleCode === u.roleCode && c.pageCode === u.pageCode,
+          (c) => c.roleCode === p.roleCode && c.pageCode === p.pageCode,
         )
         if (cell) {
-          if (u.action === 'view') cell.view = u.allowed
-          if (u.action === 'edit') cell.edit = u.allowed
+          cell.view = p.canView
+          cell.edit = p.canEdit
         }
       }
     }
     return envelope(null)
   }
 
-  // GET /admin/permissions/my — 현재 사용자 권한 목록
-  if (method === 'GET' && url.endsWith('/admin/permissions/my')) {
+  // GET /auth/admin/permissions/my — 현재 사용자 권한 목록
+  // BE 응답: List<PermissionDto> (canView / canEdit 필드)
+  if (method === 'GET' && (url.includes('/auth/admin/permissions/my') || url.includes('/admin/permissions/my'))) {
     const mockRole = MOCK_AUTH.role
     if (mockRole === 'MASTER') {
       // MASTER 는 항상 모든 페이지 view+edit
       return envelope(
         SP_D1_PAGES.map((page) => ({
+          roleCode: 'MASTER',
           pageCode: page,
-          actions: ['view', 'edit'] as const,
+          displayName: page,
+          canView: true,
+          canEdit: true,
+          isOverride: true,
         })),
       )
     }
     const myCells = _mockPermissionCells.filter((c) => c.roleCode === mockRole)
     return envelope(
-      myCells
-        .filter((c) => c.view || c.edit)
-        .map((c) => ({
-          pageCode: c.pageCode,
-          actions: [
-            ...(c.view ? (['view'] as const) : []),
-            ...(c.edit ? (['edit'] as const) : []),
-          ],
-        })),
+      myCells.map((c) => ({
+        roleCode: c.roleCode,
+        pageCode: c.pageCode,
+        displayName: c.pageCode,
+        canView: c.view,
+        canEdit: c.edit,
+        isOverride: true,
+      })),
     )
   }
 
@@ -5535,49 +5555,82 @@ const MOCK_BATCH_ROWS = generateMockBatchRows(250)
  *
  * UUID 비공개 가드: roleCode / pageCode 비즈니스 식별자만 사용.
  */
+/**
+ * SP-D1 cycle 2 fix: 역할 목록을 BE allRoles 와 일치 (DEVELOPER 제거).
+ */
 const SP_D1_ROLES = [
-  'DEVELOPER', 'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
+  'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
 ] as const
 
+/**
+ * SP-D1 cycle 2 fix: 페이지 코드를 BE PageCode enum dot-separated code 와 일치.
+ */
 const SP_D1_PAGES = [
-  'DASHBOARD', 'WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS',
-  'ACCOUNTING', 'AROLOGIS', 'WAREHOUSE_OPS', 'DISPATCH_BOARD',
-  'REPORTS', 'ADMIN', 'PERMISSION_MATRIX',
+  'accounting.tax-invoice.emit-nts',
+  'accounting.tax-invoice.list',
+  'accounting.deposit-match',
+  'accounting.daily-closing',
+  'accounting.general-ledger',
+  'notification.dispatch-sms.send-audit',
+  'purchases.receipt-ocr',
+  'purchases.slip.list',
+  'sales.slip.list',
+  'inbound.inspection',
+  'dispatch.board',
+  'admin.permissions',
 ] as const
 
-/** 역할 × 페이지 기본 view 권한 (SP-03 §4.2 매트릭스). */
+/** 역할 × 페이지 기본 view 권한 (V7 seed 기반 — SP-D1 초기 매트릭스). */
 const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
-  DEVELOPER: SP_D1_PAGES as unknown as string[],
-  MANAGER: ['DASHBOARD', 'WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS', 'ACCOUNTING', 'AROLOGIS', 'WAREHOUSE_OPS', 'DISPATCH_BOARD', 'REPORTS'],
-  DISPATCH: ['DASHBOARD', 'AROLOGIS', 'DISPATCH_BOARD'],
-  SALES: ['DASHBOARD', 'SALES', 'PURCHASES'],
-  ACCOUNTANT: ['DASHBOARD', 'ACCOUNTING', 'REPORTS'],
-  WAREHOUSE: ['DASHBOARD', 'WAREHOUSES', 'TRANSFERS', 'WAREHOUSE_OPS'],
-  INVENTORY: ['DASHBOARD', 'WAREHOUSES', 'TRANSFERS'],
+  MANAGER: [
+    'accounting.tax-invoice.list', 'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
+    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    'inbound.inspection', 'dispatch.board',
+  ],
+  DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
+  SALES: ['accounting.tax-invoice.list', 'sales.slip.list', 'dispatch.board'],
+  ACCOUNTANT: [
+    'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.deposit-match', 'accounting.daily-closing', 'accounting.general-ledger',
+    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+  ],
+  WAREHOUSE: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
+  INVENTORY: ['purchases.slip.list', 'sales.slip.list', 'inbound.inspection'],
 }
 
-/** 역할 × 페이지 기본 edit 권한. */
+/** 역할 × 페이지 기본 edit 권한 (V7 seed 기반). */
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
-  DEVELOPER: SP_D1_PAGES as unknown as string[],
-  MANAGER: ['WAREHOUSES', 'SALES', 'PURCHASES', 'TRANSFERS', 'ACCOUNTING', 'WAREHOUSE_OPS'],
-  DISPATCH: [],
-  SALES: ['SALES'],
-  ACCOUNTANT: ['ACCOUNTING'],
-  WAREHOUSE: ['WAREHOUSES', 'TRANSFERS', 'WAREHOUSE_OPS'],
-  INVENTORY: ['TRANSFERS'],
+  MANAGER: [],
+  DISPATCH: ['notification.dispatch-sms.send-audit', 'dispatch.board'],
+  SALES: ['sales.slip.list'],
+  ACCOUNTANT: [
+    'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.deposit-match', 'accounting.daily-closing',
+    'purchases.receipt-ocr',
+  ],
+  WAREHOUSE: ['inbound.inspection'],
+  INVENTORY: ['inbound.inspection'],
 }
 
-/** in-memory 매트릭스 — PUT 으로 변경 반영. */
+/** in-memory 매트릭스 — MASTER 포함 84셀. POST /batch 로 변경 반영. */
 let _mockPermissionCells: Array<{
   roleCode: string
   pageCode: string
   view: boolean
   edit: boolean
-}> = SP_D1_ROLES.flatMap((role) =>
-  SP_D1_PAGES.map((page) => ({
-    roleCode: role,
-    pageCode: page,
-    view: (SP_D1_DEFAULT_VIEW[role] ?? []).includes(page),
-    edit: (SP_D1_DEFAULT_EDIT[role] ?? []).includes(page),
+}> = [
+  // MASTER — 항상 전 페이지 전권
+  ...SP_D1_PAGES.map((page) => ({
+    roleCode: 'MASTER', pageCode: page, view: true, edit: true,
   })),
-)
+  // 나머지 6 역할
+  ...SP_D1_ROLES.flatMap((role) =>
+    SP_D1_PAGES.map((page) => ({
+      roleCode: role,
+      pageCode: page,
+      view: (SP_D1_DEFAULT_VIEW[role] ?? []).includes(page),
+      edit: (SP_D1_DEFAULT_EDIT[role] ?? []).includes(page),
+    })),
+  ),
+]
