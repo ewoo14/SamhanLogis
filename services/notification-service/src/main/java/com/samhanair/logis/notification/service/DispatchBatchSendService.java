@@ -6,9 +6,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
+import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.NotificationRequest;
+import com.samhanair.logis.notification.domain.NotificationStatus;
 import com.samhanair.logis.notification.domain.RecipientType;
+import com.samhanair.logis.notification.service.NotificationService.SendResult;
 import com.samhanair.logis.notification.dto.DispatchBatchSendRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchSendRequest.SendEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
@@ -107,14 +110,19 @@ public class DispatchBatchSendService {
                         null,
                         entry.message(),
                         null);
-                NotificationRequest result = notificationService.send(payload);
-                if (result.getStatus().name().equals("SENT")) {
+                // SP-09-2: gateway result (msg_id / raw) 를 SEND_AUDIT detail 에 연결하기 위해 sendWithGatewayResult 사용
+                SendResult sendResult = notificationService.sendWithGatewayResult(payload);
+                NotificationRequest result = sendResult.notificationRequest();
+                NotificationGatewayResult gwResult = sendResult.gatewayResult();
+                if (NotificationStatus.SENT == result.getStatus()) {
                     sent++;
-                    details.add(new SendResultDetail(partnerCode, phone, "SENT", null));
+                    details.add(new SendResultDetail(partnerCode, phone, "SENT", null,
+                            gwResult.messageId(), gwResult.rawResponse()));
                 } else {
                     failed++;
                     details.add(new SendResultDetail(partnerCode, phone, "FAILED",
-                            "게이트웨이 응답 status=" + result.getStatus()));
+                            "게이트웨이 응답 status=" + result.getStatus(),
+                            null, gwResult.rawResponse()));
                 }
             } catch (Exception ex) {
                 failed++;
@@ -150,13 +158,17 @@ public class DispatchBatchSendService {
                                 DispatchBatchSendResponse response,
                                 String requestedBy) {
         try {
-            // requestParams: date + rowCount (entries 전체 건수)
+            // requestParams: date + rowCount + 집계 카운트 (FE extractCounts 호환 — H-FE-01 fix)
             ObjectNode requestParams = objectMapper.createObjectNode();
             requestParams.put("date", req.date().toString());
             requestParams.put("rowCount", req.entries().size());
+            requestParams.put("sent", response.sent());
+            requestParams.put("failed", response.failed());
+            requestParams.put("blocked", response.blocked());
 
-            // responsePayload: sent / failed / blocked + details 배열
+            // responsePayload: sent / failed / blocked + details 배열 + per-entry msgId/gatewayRaw
             ObjectNode responsePayload = objectMapper.createObjectNode();
+            responsePayload.put("date", req.date().toString());
             responsePayload.put("sent", response.sent());
             responsePayload.put("failed", response.failed());
             responsePayload.put("blocked", response.blocked());
@@ -168,6 +180,13 @@ public class DispatchBatchSendService {
                 d.put("status", detail.status());
                 if (detail.reason() != null) {
                     d.put("reason", detail.reason());
+                }
+                // SP-09-2: Aligo msg_id + raw gateway 결과 per-entry 저장 (운영 추적 — Codex HIGH fix)
+                if (detail.msgId() != null) {
+                    d.put("msgId", detail.msgId());
+                }
+                if (detail.gatewayRaw() != null) {
+                    d.put("gatewayRaw", detail.gatewayRaw());
                 }
                 detailsNode.add(d);
             }

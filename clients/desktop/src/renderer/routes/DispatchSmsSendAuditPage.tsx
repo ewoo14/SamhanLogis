@@ -54,12 +54,30 @@ function extractDate(row: DispatchSmsSaveHistoryListRow): string {
   return '-'
 }
 
-/** SEND_AUDIT requestParams 에서 sent/failed/blocked 카운트 추출. */
+/**
+ * SEND_AUDIT sent/failed/blocked 카운트 추출.
+ *
+ * BE 계약 정합 (H-FE-01 fix):
+ *   - 우선순위 1: responsePayload.sent/failed/blocked (BE saveSendAudit 저장 위치 — 정합)
+ *   - 우선순위 2: requestParams.sent/failed/blocked (BE SP-09-2 fix 로 함께 저장 — fallback 호환)
+ *
+ * mock.ts 픽스처는 requestParams 에 sent/failed/blocked 를 포함하므로 fallback 경로로도 동작한다.
+ */
 function extractCounts(row: DispatchSmsSaveHistoryListRow): {
   sent: number
   failed: number
   blocked: number
 } {
+  // 우선: responsePayload (BE SEND_AUDIT 저장 위치 — 운영 환경 정합)
+  const payload = (row as unknown as { responsePayload?: Record<string, unknown> }).responsePayload
+  if (payload && typeof payload['sent'] === 'number') {
+    return {
+      sent: Number(payload['sent'] ?? 0),
+      failed: Number(payload['failed'] ?? 0),
+      blocked: Number(payload['blocked'] ?? 0),
+    }
+  }
+  // fallback: requestParams (SP-09-2 fix 이후 중복 저장 + 구형 mock 호환)
   const params = row.requestParams as Record<string, unknown> | null
   if (!params) return { sent: 0, failed: 0, blocked: 0 }
   return {
@@ -188,10 +206,10 @@ function AuditDetailModal({ open, rowId, onClose }: AuditDetailModalProps) {
             {payload.blocked > 0 ? <Badge variant="warning">발송금지 {payload.blocked}건</Badge> : null}
           </div>
           {payload.details && payload.details.length > 0 ? (
-            <DataTable<SendAuditDetailEntry>
-              columns={detailColumns}
-              rows={payload.details}
-              rowKey={(row) => `${row.partnerCode}-${row.recipientPhone}`}
+            <DataTable<SendAuditDetailEntry & { _rowIdx: number }>
+              columns={detailColumns as DataTableColumn<SendAuditDetailEntry & { _rowIdx: number }>[]}
+              rows={payload.details.map((d, i) => ({ ...d, _rowIdx: i }))}
+              rowKey={(row) => `${row.partnerCode}-${row.recipientPhone}-${row._rowIdx}`}
               emptyMessage="발송 상세 내역이 없습니다."
             />
           ) : (

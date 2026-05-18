@@ -85,6 +85,21 @@ public class NotificationService {
      */
     @Transactional
     public NotificationRequest send(NotificationSendRequest req) {
+        return sendWithGatewayResult(req).notificationRequest();
+    }
+
+    /**
+     * 발송 요청 생성 + 즉시 1회 게이트웨이 호출 + status 전이. gateway 결과(msg_id / raw) 포함 반환.
+     *
+     * <p>SP-09-2 — {@code DispatchBatchSendService} 가 각 entry 별 Aligo msg_id / gatewayRaw 를
+     * SEND_AUDIT responsePayload 에 연결할 수 있도록 gateway 결과를 함께 반환한다.
+     * 기존 {@link #send} 는 본 메서드에 위임하여 하위 호환을 유지한다.
+     *
+     * @param req 발송 요청 DTO
+     * @return {@link SendResult} — NotificationRequest + NotificationGatewayResult 쌍
+     */
+    @Transactional
+    public SendResult sendWithGatewayResult(NotificationSendRequest req) {
         NotificationRequest entity = NotificationRequest.open(
                 req.recipientType(),
                 req.recipientId(),
@@ -104,8 +119,21 @@ public class NotificationService {
         // PARTNER verify 는 partner-service client (W4 / Phase 10 시점 통합) — W3 시점 skip.
 
         NotificationRequest saved = requestRepository.save(entity);
-        invokeGateway(saved);
-        return saved;
+        NotificationGatewayResult gatewayResult = invokeGatewayWithResult(saved);
+        return new SendResult(saved, gatewayResult);
+    }
+
+    /**
+     * 발송 결과 — NotificationRequest + NotificationGatewayResult 쌍.
+     *
+     * <p>SP-09-2 — SEND_AUDIT payload 에 msg_id / gatewayRaw 를 연결하기 위해 도입.
+     *
+     * @param notificationRequest 영속화된 발송 요청 엔티티
+     * @param gatewayResult       게이트웨이 호출 결과 (msg_id / rawResponse 포함)
+     */
+    public record SendResult(
+            NotificationRequest notificationRequest,
+            NotificationGatewayResult gatewayResult) {
     }
 
     /** 단건 조회. 미존재 시 404. */
@@ -148,7 +176,7 @@ public class NotificationService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
-        invokeGateway(req);
+        invokeGatewayWithResult(req);
         return req;
     }
 
@@ -175,18 +203,24 @@ public class NotificationService {
      * <p>post-W5 backlog cleanup (DevOps, D-P9-21) — {@link NotificationGatewayMetrics} 가
      * 주입된 경우 channel × result 별 counter increment ({@code notification_gateway_send_total}
      * actuator/prometheus 노출).
+     *
+     * <p>SP-09-2 — {@link NotificationGatewayResult} 반환 추가 (msg_id / rawResponse SEND_AUDIT 연결).
+     *
+     * @return 게이트웨이 호출 결과 (어댑터 미등록 시 FAILURE_NO_ADAPTER 결과 반환)
      */
-    private void invokeGateway(NotificationRequest req) {
+    private NotificationGatewayResult invokeGatewayWithResult(NotificationRequest req) {
         NotificationGateway gateway = gatewayMap.get(req.getChannel());
         if (gateway == null) {
             req.markFailed(false);
+            NotificationGatewayResult noAdapter = NotificationGatewayResult.failure(
+                    "FAILURE_NO_ADAPTER",
+                    "{\"error\":\"채널 어댑터 미등록: " + req.getChannel() + "\"}");
             logRepository.save(NotificationLog.record(req, req.getAttemptCount() + 1,
-                    "FAILURE_NO_ADAPTER", null,
-                    "{\"error\":\"채널 어댑터 미등록: " + req.getChannel() + "\"}"));
+                    noAdapter.gatewayStatus(), noAdapter.messageId(), noAdapter.rawResponse()));
             if (gatewayMetrics != null) {
                 gatewayMetrics.recordFailure(req.getChannel());
             }
-            return;
+            return noAdapter;
         }
         NotificationGatewayResult result;
         try {
@@ -213,5 +247,6 @@ public class NotificationService {
                 result.gatewayStatus(),
                 result.messageId(),
                 result.rawResponse()));
+        return result;
     }
 }

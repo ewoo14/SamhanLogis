@@ -26,11 +26,28 @@ public record DispatchBatchSendResponse(
      * @param recipientPhone 수신 번호
      * @param status SENT / FAILED / BLOCKED
      * @param reason 실패 / 차단 사유 (성공 시 null)
+     * @param msgId Aligo 발급 메시지 ID (성공 시만 존재, null 가능 — SP-09-2 운영 추적)
+     * @param gatewayRaw Aligo 게이트웨이 raw 응답 JSON (디버깅 / 감사용, null 가능)
      */
     public record SendResultDetail(
             String partnerCode,
             String recipientPhone,
             String status,
-            String reason) {
+            String reason,
+            String msgId,
+            String gatewayRaw) {
+
+        /**
+         * BLOCKED / 기본 entry 생성 — msgId / gatewayRaw 없음.
+         *
+         * @param partnerCode 거래처코드
+         * @param recipientPhone 수신 번호
+         * @param status SENT / FAILED / BLOCKED
+         * @param reason 사유
+         */
+        public SendResultDetail(String partnerCode, String recipientPhone,
+                                String status, String reason) {
+            this(partnerCode, recipientPhone, status, reason, null, null);
+        }
     }
 }

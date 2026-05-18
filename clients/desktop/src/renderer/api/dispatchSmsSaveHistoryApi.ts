@@ -58,12 +58,16 @@ export interface DispatchSmsSaveHistoryDetailResponse extends DispatchSmsSaveHis
  * @property recipientPhone 수신 전화번호 — UI 에서 가운데 4자리 **** 마스킹 후 표시
  * @property status SENT | FAILED | BLOCKED
  * @property reason 실패/차단 사유 (성공 시 null)
+ * @property msgId Aligo 발급 메시지 ID (성공 시, SP-09-2 운영 추적용 — 사용자 노출 OK)
+ * @property gatewayRaw Aligo 게이트웨이 raw 응답 JSON (디버깅/감사용, null 가능)
  */
 export interface SendAuditDetailEntry {
   partnerCode: string
   recipientPhone: string
   status: 'SENT' | 'FAILED' | 'BLOCKED'
   reason: string | null
+  msgId?: string | null
+  gatewayRaw?: string | null
 }
 
 /**
@@ -73,8 +77,9 @@ export interface SendAuditDetailEntry {
  * @property sent 성공 건수
  * @property failed 실패 건수
  * @property blocked 발송금지 제외 건수
- * @property details 수신자별 상세 (Aligo 결과)
- * @property msgId Aligo 발급 msg_id (결과 추적용 — 사용자 노출 OK)
+ * @property details 수신자별 상세 (Aligo 결과 + msgId/gatewayRaw per-entry)
+ * @property msgId batch-level Aligo msg_id (단건 발송 시, 대부분 null — per-entry msgId 는 details 참조)
+ * @property gatewayRaw batch-level raw 응답 (디버깅용, null 가능)
  */
 export interface SendAuditResponsePayload {
   date: string
@@ -83,6 +88,7 @@ export interface SendAuditResponsePayload {
   blocked: number
   details: SendAuditDetailEntry[]
   msgId?: string | null
+  gatewayRaw?: string | null
 }
 
 /** 목록 조회 옵션. */

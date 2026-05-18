@@ -96,35 +96,30 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      *
      * <p>AligoSmsAdapter.isPlaceholder(key) == true 시 외부 RestClient 미호출,
      * gateway_message_id = "aligo-stub-{requestId}", gateway_status = "SUCCESS".
-     * notification-service 는 dev/test profile 에서 이 path 를 타게 되어 있다.
+     *
+     * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. @BeforeEach 에서 key 를
+     * CHANGE_ME_LOCAL_ONLY 로 직접 주입하여 무조건 assertion 이 실행되도록 수정.
+     * CI / 운영 key 주입 환경 모두에서 가드가 작동함을 보장한다.
      */
     @Test
     @DisplayName("TC-1: Aligo key placeholder → stub-success, 외부 RestClient 미호출")
     void keyPlaceholderReturnsStubSuccess() {
-        // AligoProperties 는 application-test.yml 에서 CHANGE_ME_LOCAL_ONLY 가 설정되어 있음.
-        // AligoSmsAdapter 빈 자체를 직접 호출해 placeholder 분기 검증.
-        assertThat(smsAdapter).isInstanceOf(AligoSmsAdapter.class);
+        // TC-1: key 를 placeholder 로 강제 주입 — 무조건 assertion 실행 (H-BE-03 fix)
+        String originalKey = aligoProperties.getKey();
+        aligoProperties.setKey("CHANGE_ME_LOCAL_ONLY");
+        try {
+            assertThat(smsAdapter).isInstanceOf(AligoSmsAdapter.class);
+            AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
 
-        AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
-
-        // placeholder key 설정 확인 (테스트 설정값)
-        String key = aligoProperties.getKey();
-        boolean isKeyPlaceholder =
-                key == null || key.isBlank() || "CHANGE_ME_LOCAL_ONLY".equals(key);
-
-        if (isKeyPlaceholder) {
-            // placeholder 분기 검증 — stub 이라도 request 생성 후 adapter 직접 호출
             NotificationRequest stubRequest = buildSmsRequest("010-1234-5678", "stub 발송 테스트 TC-1");
-
             var result = adapter.send(stubRequest);
+
             assertThat(result.success()).isTrue();
             assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
             assertThat(result.messageId()).startsWith("aligo-stub-");
-        } else {
-            // 운영 key 주입 환경 — placeholder 가드 비활성이므로 TC-1 의미 없음 → skip
-            // assertThat(true).isTrue() — pass-through
+        } finally {
+            aligoProperties.setKey(originalKey);
         }
-        // 어떤 경우에도 외부 호출 시도 여부만 검증 (externally mocked)
     }
 
     /**
@@ -132,23 +127,24 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      *
      * <p>key 가 정상이어도 userid = CHANGE_ME_LOCAL_ONLY 이면 외부 호출 skip.
      * isPlaceholder(userid) 분기 커버.
+     *
+     * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. userid 를 직접 주입하여 무조건 assertion.
      */
     @Test
     @DisplayName("TC-2: Aligo userid placeholder → stub-success")
     void useridPlaceholderReturnsStubSuccess() {
-        AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
-
-        String userid = aligoProperties.getUserid();
-        boolean isUseridPlaceholder =
-                userid == null || userid.isBlank() || "CHANGE_ME_LOCAL_ONLY".equals(userid);
-
-        if (isUseridPlaceholder) {
+        String originalUserid = aligoProperties.getUserid();
+        aligoProperties.setUserid("CHANGE_ME_LOCAL_ONLY");
+        try {
+            AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
             NotificationRequest stubRequest = buildSmsRequest("010-2345-6789", "stub 발송 테스트 TC-2");
             var result = adapter.send(stubRequest);
+
             assertThat(result.success()).isTrue();
             assertThat(result.messageId()).startsWith("aligo-stub-");
+        } finally {
+            aligoProperties.setUserid(originalUserid);
         }
-        // placeholder 아닐 경우 TC-2 는 TC-4 로 커버
     }
 
     /**
@@ -156,21 +152,23 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
      *
      * <p>sender = CHANGE_ME_LOCAL_ONLY 시 외부 호출 skip + stub-success.
      * 발신번호 미등록 상태에서의 안전 가드.
+     *
+     * <p>SP-09-2 fix (H-BE-03) — 조건부 if-block 제거. sender 를 직접 주입하여 무조건 assertion.
      */
     @Test
     @DisplayName("TC-3: Aligo sender placeholder → stub-success")
     void senderPlaceholderReturnsStubSuccess() {
-        AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
-
-        String sender = aligoProperties.getSender();
-        boolean isSenderPlaceholder =
-                sender == null || sender.isBlank() || "CHANGE_ME_LOCAL_ONLY".equals(sender);
-
-        if (isSenderPlaceholder) {
+        String originalSender = aligoProperties.getSender();
+        aligoProperties.setSender("CHANGE_ME_LOCAL_ONLY");
+        try {
+            AligoSmsAdapter adapter = (AligoSmsAdapter) smsAdapter;
             NotificationRequest stubRequest = buildSmsRequest("010-3456-7890", "stub 발송 테스트 TC-3");
             var result = adapter.send(stubRequest);
+
             assertThat(result.success()).isTrue();
             assertThat(result.gatewayStatus()).isEqualTo("SUCCESS");
+        } finally {
+            aligoProperties.setSender(originalSender);
         }
     }
 
