@@ -1,3 +1,8 @@
+// Playwright 브라우저 경로 (ms-playwright 시스템 캐시)
+process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH ||
+  (process.env.LOCALAPPDATA
+    ? require('path').join(process.env.LOCALAPPDATA, 'ms-playwright')
+    : 'C:\\Users\\user\\AppData\\Local\\ms-playwright');
 const { chromium } = require('C:/dev/SamhanLogis/clients/desktop/node_modules/@playwright/test');
 const path = require('path');
 const fs = require('fs');

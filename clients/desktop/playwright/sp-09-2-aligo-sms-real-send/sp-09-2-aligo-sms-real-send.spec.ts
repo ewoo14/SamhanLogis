@@ -6,7 +6,7 @@
  *   VITE_MOCK_MODE=1 npx vite --port 5173  (별도 터미널)
  *   npx playwright test playwright/sp-09-2-aligo-sms-real-send/sp-09-2-aligo-sms-real-send.spec.ts --reporter=line
  *
- * dev server 미가용 시 UI 테스트 자동 SKIP.
+ * dev server 미가용 시 테스트 FAIL (false green 방지 — SP-09-1 cycle 1 H1 회귀 방지).
  * 스크린샷 저장: docs/qa/sp-09-2-aligo-sms-real-send/screenshots/*.png
  *
  * TC 목록 (5건):
@@ -14,10 +14,10 @@
  *   T2 필터 (날짜 범위 + 결과 상태) 적용 — 결과 row 갱신 확인
  *   T3 row 클릭 — 상세 modal 표시 + 전체 메시지 + msg_id 표시
  *   T4 실패 사례 row 클릭 — Aligo result_code + 한국어 에러 메시지 표시
- *   T5 권한 가드 — MANAGER/MASTER 만 발송 이력 조회 가능 (SP-03 §4.2)
+ *   T5 권한 가드 — MANAGER/MASTER/DISPATCH 허용, SALES/ACCOUNTANT 차단
  *
  * SP-09-1 패턴: test.step 분리 + role="alert" assertion + data-testid 사용
- * false green (|| true 등) 절대 금지
+ * false green (|| true / test.skip / page.setContent fallback) 절대 금지
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -47,7 +47,7 @@ function ensureQaDir(): void {
   }
 }
 
-/** dev server 가용 여부 확인 */
+/** dev server 가용 여부 확인 — 미가용 시 false 반환 (테스트는 반드시 FAIL) */
 async function isServerAvailable(): Promise<boolean> {
   return new Promise(resolve => {
     try {
@@ -87,13 +87,14 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// URL 상수
+// URL 상수 — 실제 HashRouter 라우트 /arologis/dispatch-sms/send-audit
 // ---------------------------------------------------------------------------
 
-const SMS_AUDIT_URL_MANAGER = `${BASE_URL}/admin/notifications/sms-audit?mockRole=MANAGER`
-const SMS_AUDIT_URL_MASTER = `${BASE_URL}/admin/notifications/sms-audit?mockRole=MASTER`
-const SMS_AUDIT_URL_SALES = `${BASE_URL}/admin/notifications/sms-audit?mockRole=SALES`
-const SMS_AUDIT_URL_DISPATCH = `${BASE_URL}/admin/notifications/sms-audit?mockRole=DISPATCH`
+const SMS_AUDIT_URL_MANAGER = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=MANAGER`
+const SMS_AUDIT_URL_MASTER = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=MASTER`
+const SMS_AUDIT_URL_SALES = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=SALES`
+const SMS_AUDIT_URL_DISPATCH = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=DISPATCH`
+const SMS_AUDIT_URL_ACCOUNTANT = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=ACCOUNTANT`
 
 // ---------------------------------------------------------------------------
 // Mock 데이터 — Aligo send_audit 발송 이력 10건 (성공 7 + 실패 3)
@@ -145,11 +146,12 @@ function buildSendAuditListResponse(rows: ReturnType<typeof mockSendAuditRows>) 
 // ---------------------------------------------------------------------------
 
 test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
-  test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
+  test.skip(SKIP_UI, 'PLAYWRIGHT_SKIP_UI=1 — UI 테스트 전체 skip')
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     const ok = await isServerAvailable()
-    test.skip(!ok, `dev server 미접근: ${BASE_URL}`)
+    // dev server 미가용 시 false green 방지 — skip 아닌 FAIL
+    expect(ok, `dev server 미접근: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite --port 5173 실행 후 재시도`).toBe(true)
   })
 
   // -------------------------------------------------------------------------
@@ -157,9 +159,10 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
    * T1: 발송 이력 리스트 진입 — SEND_AUDIT row 5+ 확인 + 수신자 마스킹 검증
    *
    * 검증 항목:
-   *   - /admin/notifications/sms-audit (or dispatch-sms 이력 탭) 진입 정상
+   *   - /arologis/dispatch-sms/send-audit (HashRouter) 진입 정상
    *   - SEND_AUDIT mode 필터 적용 후 row 5개 이상 확인
    *   - 수신자 전화번호가 마스킹 형식 (010-****-NNNN) 으로 표시됨
+   *     (평문 010-NNNN-NNNN 존재 검증 후 마스킹 assert — 데이터 부재 PASS 금지)
    *   - UUID 텍스트 노드 미노출 (피드백 UUID 비공개 원칙)
    *   - pageerror 없음
    *
@@ -177,7 +180,6 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
 
     // ── step 1: SEND_AUDIT 발송 이력 API mock 등록
     await test.step('SEND_AUDIT 발송 이력 API mock 등록', async () => {
-      // notification-service 발송 이력 목록 endpoint mock
       await page.route('**/admin/notifications/dispatch-sms/history**', async route => {
         const url = route.request().url()
         const isSendAudit = url.includes('mode=SEND_AUDIT') || url.includes('saveMode=SEND_AUDIT')
@@ -189,11 +191,9 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
         })
       })
 
-      // 발송 이력 조회 대체 endpoint mock (NotificationAdminController /admin/notifications)
       await page.route('**/admin/notifications**', async route => {
         const url = route.request().url()
         if (url.includes('/dispatch-sms/')) {
-          // dispatch-sms 전용 라우트 먼저 처리됨 (위 route 가 우선)
           return
         }
         const status = url.includes('status=SENT') ? 'SENT' : url.includes('status=FAILED') ? 'FAILED' : null
@@ -213,32 +213,15 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       await page.goto(SMS_AUDIT_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const isPageLoaded =
-        bodyText.includes('발송') ||
-        bodyText.includes('이력') ||
-        bodyText.includes('SMS') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(isPageLoaded, '발송 이력 페이지 미로드').toBeTruthy()
+      // 실제 화면 로드 여부 검증 — fallback 텍스트("접근"/"로그인")만으로는 PASS 불가
+      const pageTitle = page.locator('h3, h2, h1').first()
+      await expect(pageTitle, 'SMS 발송 이력 페이지 제목 미표시 — 실제 화면 진입 실패').toBeVisible({ timeout: 5000 })
     })
 
     // ── step 3: SEND_AUDIT row 5+ 확인
     await test.step('SEND_AUDIT row 5개 이상 확인', async () => {
-      // SEND_AUDIT 모드 선택 (select 또는 탭 UI)
-      const modeSelect = page.locator(
-        '[data-testid="dispatch-sms-history-mode"], select[name="mode"], select[name="saveMode"]',
-      ).first()
-
-      if ((await modeSelect.count()) > 0) {
-        await modeSelect.selectOption('SEND_AUDIT')
-        await page.waitForTimeout(800)
-      }
-
       // 조회 버튼 클릭 (존재 시)
-      const queryBtn = page.locator(
-        '[data-testid="dispatch-sms-history-query"], button:has-text("조회"), button:has-text("검색")',
-      ).first()
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
       if ((await queryBtn.count()) > 0) {
         await queryBtn.click()
         await page.waitForTimeout(800)
@@ -246,18 +229,14 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
 
       // row count 확인 — data-testid 패턴 또는 tbody tr
       const rowLocator = page.locator(
-        '[data-testid^="dispatch-sms-history-row-"], [data-testid^="send-audit-row-"], table tbody tr',
+        '[data-testid="sms-audit-table"] tbody tr, [data-testid^="sms-audit-date-"]',
       )
       const rowCount = await rowLocator.count()
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const hasSendAuditContent =
-        rowCount >= 5 ||
-        bodyText.includes('발송 감사') ||
-        bodyText.includes('SEND_AUDIT') ||
-        bodyText.includes('감사')
-
-      expect(hasSendAuditContent, 'SEND_AUDIT row 5개 이상 미확인 — 발송 이력 목록 또는 "발송 감사" 텍스트 필요').toBeTruthy()
+      expect(
+        rowCount,
+        `SEND_AUDIT row 5개 이상 미확인 — 현재 rowCount=${rowCount}. data-testid="sms-audit-table" 테이블 렌더 필요`,
+      ).toBeGreaterThanOrEqual(5)
     })
 
     // ── step 4: 수신자 전화번호 마스킹 형식 검증
@@ -269,17 +248,7 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       const hasMasking = maskingPattern.test(bodyText)
 
       // 평문 전화번호 (010-NNNN-NNNN) 미노출 확인
-      // mock 데이터에서 생성되는 평문 중간 4자리 패턴
       const plainPhoneInBody = /010-\d{4}-\d{4}/.test(bodyText)
-
-      // mock 서버가 마스킹 적용한 경우 → hasMasking true
-      // dev server 미가동 상태에서 route mock 만으로 검증 → bodyText 내 UI 렌더 여부 확인
-      const maskingVerified =
-        hasMasking ||
-        !plainPhoneInBody ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인') ||
-        bodyText.includes('권한')
 
       ensureQaDir()
       await page.screenshot({
@@ -287,10 +256,25 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
         fullPage: true,
       })
 
-      expect(
-        maskingVerified,
-        '수신자 전화번호 평문 노출 — 마스킹 형식 (010-****-NNNN) 미적용 또는 권한 가드 미작동',
-      ).toBeTruthy()
+      // 마스킹 검증: 데이터가 화면에 렌더된 경우 반드시 마스킹 형식이어야 함
+      // !plainPhoneInBody 는 데이터 자체가 없을 때도 PASS 하는 false green — 사용 금지
+      // 평문이 없다면 마스킹도 없어야 하거나, 마스킹이 있어야 정상
+      if (plainPhoneInBody) {
+        expect(
+          hasMasking,
+          '수신자 전화번호 평문 노출 — 마스킹 형식 (010-****-NNNN) 미적용. 화면에 010-NNNN-NNNN 형식 전화번호 표시됨',
+        ).toBe(true)
+        expect(
+          plainPhoneInBody,
+          '수신자 전화번호 평문 (010-NNNN-NNNN) 미마스킹 상태로 화면에 노출됨',
+        ).toBe(false)
+      } else {
+        // 데이터가 없거나 마스킹 처리된 경우 — 마스킹이 표시되어야 정상 데이터 로드
+        expect(
+          hasMasking,
+          '마스킹 데이터(010-****-NNNN) 미표시 — API mock 응답 10건이 화면에 렌더되지 않음',
+        ).toBe(true)
+      }
     })
 
     // ── step 5: UUID 비공개 — 텍스트 노드 UUID 미노출
@@ -329,7 +313,7 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
    *
    * 검증 항목:
    *   - 날짜 범위 (from: 2026-05-17, to: 2026-05-18) 입력 후 조회
-   *   - 결과 상태 필터 (SENT / FAILED) 적용 후 row 수 변화 확인
+   *   - 결과 상태 필터 (SUCCESS / FAIL) 적용 후 row 수 변화 확인
    *   - 필터 적용 전/후 row count 비교 (필터 동작 증명)
    *   - "조회 결과 없음" 메시지가 아닌 row 렌더 확인
    *   - pageerror 없음
@@ -337,7 +321,7 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
    * BE 계약 근거:
    *   GET /admin/notifications/dispatch-sms/history?mode=SEND_AUDIT&from=...&to=...
    *   DateRange.of(from, to) 경계 포함 (from=to 동일일 포함)
-   *   status 필터 — NotificationStatus.SENT / FAILED
+   *   결과 필터 — DispatchSmsSendAuditPage 클라이언트 측 SUCCESS/PARTIAL/FAIL 로컬 필터링
    */
   test('T2: 날짜 범위 + 결과 상태 필터 적용 — row 갱신 확인', async ({ page }) => {
     const errors: string[] = []
@@ -377,72 +361,47 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       await page.goto(SMS_AUDIT_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const isLoaded =
-        bodyText.includes('발송') ||
-        bodyText.includes('이력') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(isLoaded, '초기 발송 이력 페이지 미로드').toBeTruthy()
+      // 실제 화면 제목 확인 — bodyText fallback PASS 금지
+      const pageTitle = page.locator('h3, h2, h1').first()
+      await expect(pageTitle, '초기 발송 이력 페이지 미로드 — 화면 제목 미표시').toBeVisible({ timeout: 5000 })
     })
 
     // ── step 3: 날짜 범위 필터 입력 + 조회
     await test.step('날짜 범위 필터 (2026-05-17 ~ 2026-05-18) 입력 + 조회', async () => {
-      // from 날짜 입력
-      const fromInput = page.locator(
-        '[data-testid="dispatch-sms-history-from"], input[name="from"], input[placeholder*="시작"]',
-      ).first()
-      if ((await fromInput.count()) > 0) {
-        await fromInput.fill('2026-05-17')
-        await page.waitForTimeout(300)
-      }
+      // from 날짜 입력 — 실제 data-testid="sms-audit-filter-from"
+      const fromInput = page.locator('[data-testid="sms-audit-filter-from"]').first()
+      await expect(fromInput, '날짜 시작(from) 입력 필드 미존재 — data-testid="sms-audit-filter-from"').toBeVisible({ timeout: 5000 })
+      await fromInput.fill('2026-05-17')
+      await page.waitForTimeout(300)
 
-      // to 날짜 입력
-      const toInput = page.locator(
-        '[data-testid="dispatch-sms-history-to"], input[name="to"], input[placeholder*="종료"]',
-      ).first()
-      if ((await toInput.count()) > 0) {
-        await toInput.fill('2026-05-18')
-        await page.waitForTimeout(300)
-      }
+      // to 날짜 입력 — 실제 data-testid="sms-audit-filter-to"
+      const toInput = page.locator('[data-testid="sms-audit-filter-to"]').first()
+      await expect(toInput, '날짜 종료(to) 입력 필드 미존재 — data-testid="sms-audit-filter-to"').toBeVisible({ timeout: 5000 })
+      await toInput.fill('2026-05-18')
+      await page.waitForTimeout(300)
 
-      // 조회 버튼 클릭
-      const queryBtn = page.locator(
-        '[data-testid="dispatch-sms-history-query"], button:has-text("조회"), button:has-text("검색")',
-      ).first()
-      if ((await queryBtn.count()) > 0) {
-        await queryBtn.click()
-        await page.waitForTimeout(800)
-      }
+      // 조회 버튼 클릭 — data-testid="sms-audit-search-btn"
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
+      await expect(queryBtn, '조회 버튼 미존재 — data-testid="sms-audit-search-btn"').toBeVisible({ timeout: 5000 })
+      await queryBtn.click()
+      await page.waitForTimeout(800)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const hasContent =
-        bodyText.includes('발송') ||
-        bodyText.includes('감사') ||
-        bodyText.includes('결과 없음') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(hasContent, '날짜 필터 적용 후 페이지 내용 미변경').toBeTruthy()
+      // row 또는 empty 메시지 표시 확인
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, '날짜 필터 적용 후 sms-audit-table 미렌더').toBeVisible({ timeout: 5000 })
     })
 
-    // ── step 4: SENT 상태 필터 적용 + 스크린샷
-    await test.step('SENT 상태 필터 적용 + row 수 변화 확인', async () => {
-      const statusSelect = page.locator(
-        '[data-testid="dispatch-sms-history-status"], select[name="status"], select[name="resultStatus"]',
-      ).first()
+    // ── step 4: SUCCESS 상태 필터 적용 + 스크린샷
+    await test.step('SUCCESS 상태 필터 적용 + row 수 변화 확인', async () => {
+      // 결과 필터 select — data-testid="sms-audit-filter-result"
+      const resultSelect = page.locator('[data-testid="sms-audit-filter-result"]').first()
+      await expect(resultSelect, '결과 필터 select 미존재 — data-testid="sms-audit-filter-result"').toBeVisible({ timeout: 5000 })
+      await resultSelect.selectOption('SUCCESS')
+      await page.waitForTimeout(500)
 
-      if ((await statusSelect.count()) > 0) {
-        await statusSelect.selectOption('SENT')
-        await page.waitForTimeout(500)
-
-        const queryBtn = page.locator(
-          '[data-testid="dispatch-sms-history-query"], button:has-text("조회"), button:has-text("검색")',
-        ).first()
-        if ((await queryBtn.count()) > 0) {
-          await queryBtn.click()
-          await page.waitForTimeout(800)
-        }
-      }
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
+      await queryBtn.click()
+      await page.waitForTimeout(800)
 
       ensureQaDir()
       await page.screenshot({
@@ -450,44 +409,22 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
         fullPage: true,
       })
 
-      const bodyAfter = (await page.textContent('body')) ?? ''
-      const filterWorked =
-        bodyAfter.includes('발송') ||
-        bodyAfter.includes('감사') ||
-        bodyAfter.includes('성공') ||
-        bodyAfter.includes('접근') ||
-        bodyAfter.includes('로그인')
-      expect(filterWorked, 'SENT 상태 필터 후 페이지 정상 렌더 미확인').toBeTruthy()
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, 'SUCCESS 필터 후 sms-audit-table 미렌더').toBeVisible({ timeout: 5000 })
     })
 
-    // ── step 5: FAILED 상태 필터 적용
-    await test.step('FAILED 상태 필터 적용 + 실패 row 표시 확인', async () => {
-      const statusSelect = page.locator(
-        '[data-testid="dispatch-sms-history-status"], select[name="status"], select[name="resultStatus"]',
-      ).first()
+    // ── step 5: FAIL 상태 필터 적용
+    await test.step('FAIL 상태 필터 적용 + 실패 row 표시 확인', async () => {
+      const resultSelect = page.locator('[data-testid="sms-audit-filter-result"]').first()
+      await resultSelect.selectOption('FAIL')
+      await page.waitForTimeout(500)
 
-      if ((await statusSelect.count()) > 0) {
-        await statusSelect.selectOption('FAILED')
-        await page.waitForTimeout(500)
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
+      await queryBtn.click()
+      await page.waitForTimeout(800)
 
-        const queryBtn = page.locator(
-          '[data-testid="dispatch-sms-history-query"], button:has-text("조회"), button:has-text("검색")',
-        ).first()
-        if ((await queryBtn.count()) > 0) {
-          await queryBtn.click()
-          await page.waitForTimeout(800)
-        }
-
-        const bodyAfter = (await page.textContent('body')) ?? ''
-        const failedFilterWorked =
-          bodyAfter.includes('실패') ||
-          bodyAfter.includes('FAILED') ||
-          bodyAfter.includes('오류') ||
-          bodyAfter.includes('결과 없음') ||
-          bodyAfter.includes('접근') ||
-          bodyAfter.includes('로그인')
-        expect(failedFilterWorked, 'FAILED 필터 후 결과 미표시').toBeTruthy()
-      }
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, 'FAIL 필터 후 sms-audit-table 미렌더').toBeVisible({ timeout: 5000 })
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -498,10 +435,9 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
    * T3: row 클릭 — 상세 modal 표시 + 전체 메시지 + msg_id 표시
    *
    * 검증 항목:
-   *   - SEND_AUDIT row 클릭 시 상세 modal/drawer 오픈
-   *   - modal 내 전체 메시지 본문 표시 (truncated 없음)
-   *   - Aligo msg_id 노출 (aligo-msg-N-EPOCHMILLI 형식)
-   *   - data-testid="send-audit-detail-modal" 또는 role="dialog" 확인
+   *   - SEND_AUDIT row 클릭 시 상세 modal 오픈
+   *   - modal 내 Aligo msg_id 노출 (aligo-msg-N-EPOCHMILLI 형식)
+   *   - data-testid="dispatch-sms-send-audit-detail-modal" 확인 (실제 TSX 기준)
    *   - modal 닫기 후 목록 복귀
    *   - pageerror 없음
    *
@@ -521,7 +457,6 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
     await test.step('목록 + 상세 API mock 등록', async () => {
       await page.route('**/admin/notifications/dispatch-sms/history**', async route => {
         const url = route.request().url()
-        // 상세 조회 — UUID 형식 path segment
         const detailMatch = url.match(/history\/([^?]+)/)
         if (detailMatch) {
           const id = detailMatch[1]
@@ -552,7 +487,6 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
           return
         }
 
-        // 목록 조회
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -566,119 +500,51 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       await page.goto(SMS_AUDIT_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
-      const modeSelect = page.locator(
-        '[data-testid="dispatch-sms-history-mode"], select[name="mode"]',
-      ).first()
-      if ((await modeSelect.count()) > 0) {
-        await modeSelect.selectOption('SEND_AUDIT')
-        await page.waitForTimeout(500)
-      }
-
-      const queryBtn = page.locator(
-        '[data-testid="dispatch-sms-history-query"], button:has-text("조회"), button:has-text("검색")',
-      ).first()
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
       if ((await queryBtn.count()) > 0) {
         await queryBtn.click()
         await page.waitForTimeout(800)
       }
     })
 
-    // ── step 3: 첫 번째 row 클릭 → 상세 modal 오픈
-    await test.step('첫 번째 SEND_AUDIT row 클릭 → 상세 modal 오픈', async () => {
-      const firstRow = page.locator(
-        '[data-testid="dispatch-sms-history-row-0"], [data-testid="send-audit-row-0"], table tbody tr',
-      ).first()
+    // ── step 3: 첫 번째 row 상세 버튼 클릭 → 상세 modal 오픈
+    await test.step('첫 번째 SEND_AUDIT row 상세 버튼 클릭 → 상세 modal 오픈', async () => {
+      // sms-audit-table 안의 상세 버튼 — data-testid="sms-audit-detail-btn-{date}"
+      const detailBtn = page.locator('[data-testid^="sms-audit-detail-btn-"]').first()
+      await expect(detailBtn, '상세 버튼 미존재 — data-testid="sms-audit-detail-btn-*". sms-audit-table 에 row 가 없거나 버튼 렌더 실패').toBeVisible({ timeout: 5000 })
+      await detailBtn.click()
+      await page.waitForTimeout(1000)
 
-      if ((await firstRow.count()) > 0) {
-        await firstRow.click()
-        await page.waitForTimeout(1000)
+      // 실제 modal data-testid — dispatch-sms-send-audit-detail-modal
+      const modal = page.locator('[data-testid="dispatch-sms-send-audit-detail-modal"]').first()
+      await expect(modal, '상세 modal 미오픈 — data-testid="dispatch-sms-send-audit-detail-modal" 미표시').toBeVisible({ timeout: 5000 })
 
-        // modal / drawer 확인
-        const modal = page.locator(
-          '[role="dialog"], [data-testid="send-audit-detail-modal"], [data-testid*="history-detail"]',
-        ).first()
-        const modalVisible = (await modal.count()) > 0
-
-        // modal 없으면 inline 상세 또는 텍스트로 대체 검증
-        const bodyText = (await page.textContent('body')) ?? ''
-        const hasDetailContent =
-          modalVisible ||
-          bodyText.includes('발송 감사 1건차') ||
-          bodyText.includes(targetRow.messageBody.substring(0, 15)) ||
-          bodyText.includes('msg_id') ||
-          bodyText.includes('msgId') ||
-          bodyText.includes('aligo-msg')
-
-        await page.screenshot({
-          path: path.join(QA_DIR, 'T3-row-click-detail-modal.png'),
-          fullPage: true,
-        })
-
-        expect(
-          hasDetailContent,
-          '상세 modal 미오픈 — role="dialog" 또는 상세 내용 텍스트 미표시',
-        ).toBeTruthy()
-      } else {
-        // row 미존재 시 mock HTML snippet 으로 정적 검증
-        await page.setContent(`
-          <main>
-            <div data-testid="send-audit-row-0" role="row">
-              <span>발송 감사 1건차</span>
-              <span>010-****-1019</span>
-              <span>성공</span>
-            </div>
-            <dialog role="dialog" data-testid="send-audit-detail-modal" open>
-              <h2>상세</h2>
-              <p data-testid="send-audit-detail-msg-body">[삼한공조] 배차 안내: 1건차 출발 예정입니다.</p>
-              <span data-testid="send-audit-detail-msg-id">aligo-msg-1-1747555200000</span>
-              <button>닫기</button>
-            </dialog>
-          </main>
-        `)
-        await expect(page.locator('[data-testid="send-audit-detail-modal"]')).toBeVisible()
-        await expect(page.locator('[data-testid="send-audit-detail-msg-id"]')).toContainText('aligo-msg')
-      }
+      await page.screenshot({
+        path: path.join(QA_DIR, 'T3-row-click-detail-modal.png'),
+        fullPage: true,
+      })
     })
 
     // ── step 4: modal 내 msg_id 표시 검증
     await test.step('modal 내 Aligo msg_id 표시 검증', async () => {
-      const bodyText = (await page.textContent('body')) ?? ''
-      const msgIdElement = page.locator(
-        '[data-testid="send-audit-detail-msg-id"], [data-testid*="msg-id"], [data-testid*="msgId"]',
-      ).first()
-
-      const hasMsgId =
-        (await msgIdElement.count()) > 0 ||
-        bodyText.includes('aligo-msg') ||
-        bodyText.includes('msg_id') ||
-        bodyText.includes('msgId') ||
-        bodyText.includes('메시지 ID')
-
-      expect(
-        hasMsgId,
-        'Aligo msg_id 미표시 — [data-testid="send-audit-detail-msg-id"] 또는 "aligo-msg" 텍스트 없음',
-      ).toBeTruthy()
+      // 실제 data-testid — dispatch-sms-send-audit-msg-id
+      const msgIdElement = page.locator('[data-testid="dispatch-sms-send-audit-msg-id"]').first()
+      await expect(msgIdElement, 'Aligo msg_id 미표시 — data-testid="dispatch-sms-send-audit-msg-id" 없음').toBeVisible({ timeout: 5000 })
+      await expect(msgIdElement).toContainText('aligo-msg')
     })
 
     // ── step 5: 전체 메시지 본문 표시 검증
     await test.step('전체 메시지 본문 표시 검증 (truncated 없음)', async () => {
       const bodyText = (await page.textContent('body')) ?? ''
-      const msgBodyElement = page.locator(
-        '[data-testid="send-audit-detail-msg-body"], [data-testid*="message-body"]',
-      ).first()
-
       const hasFullBody =
-        (await msgBodyElement.count()) > 0 ||
         bodyText.includes('배차 안내') ||
         bodyText.includes('삼한공조') ||
-        bodyText.includes('출발 예정') ||
-        bodyText.includes('본문') ||
-        bodyText.includes('접근')
+        bodyText.includes('출발 예정')
 
       expect(
         hasFullBody,
-        '전체 메시지 본문 미표시 — 상세 modal 내 메시지 본문 렌더 필요',
-      ).toBeTruthy()
+        '전체 메시지 본문 미표시 — modal 내 "[삼한공조] 배차 안내:" 텍스트 없음',
+      ).toBe(true)
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -689,7 +555,7 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
    * T4: 실패 사례 row 클릭 — Aligo result_code + 한국어 에러 메시지 표시
    *
    * 검증 항목:
-   *   - FAILED 상태 row 클릭 시 상세 modal 내 Aligo result_code 표시 (-101)
+   *   - FAILED 상태 row 상세 버튼 클릭 시 상세 modal 내 Aligo result_code 표시 (-101)
    *   - 한국어 에러 메시지 표시 ("수신 거부 등록된 번호입니다." 등)
    *   - role="alert" 또는 error banner 표시
    *   - AligoSmsAdapter failure path — FAILURE_ALIGO_-101 gatewayStatus 확인
@@ -750,89 +616,59 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       })
     })
 
-    // ── step 2: FAILED 목록 진입
-    await test.step('FAILED 상태 목록 진입', async () => {
-      await page.goto(
-        `${SMS_AUDIT_URL_MANAGER}&mockStatus=FAILED`,
-        { waitUntil: 'domcontentloaded', timeout: 20000 },
-      )
+    // ── step 2: FAIL 필터 목록 진입
+    await test.step('FAIL 결과 필터 목록 진입', async () => {
+      await page.goto(SMS_AUDIT_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
-      const statusSelect = page.locator(
-        '[data-testid="dispatch-sms-history-status"], select[name="status"]',
-      ).first()
-      if ((await statusSelect.count()) > 0) {
-        await statusSelect.selectOption('FAILED')
-        await page.waitForTimeout(500)
-      }
+      // 결과 필터 FAIL 선택
+      const resultSelect = page.locator('[data-testid="sms-audit-filter-result"]').first()
+      await expect(resultSelect, '결과 필터 select 미존재 — data-testid="sms-audit-filter-result"').toBeVisible({ timeout: 5000 })
+      await resultSelect.selectOption('FAIL')
+      await page.waitForTimeout(500)
+
+      const queryBtn = page.locator('[data-testid="sms-audit-search-btn"]').first()
+      await queryBtn.click()
+      await page.waitForTimeout(800)
     })
 
-    // ── step 3: 실패 row 클릭 → 상세 modal
-    await test.step('실패 row 클릭 → 상세 modal + Aligo result_code 표시', async () => {
-      const failedRowLocator = page.locator(
-        '[data-testid="dispatch-sms-history-row-0"], [data-testid="send-audit-row-0"], table tbody tr',
-      ).first()
+    // ── step 3: 실패 row 상세 버튼 클릭 → 상세 modal + Aligo result_code 표시
+    await test.step('실패 row 상세 버튼 클릭 → 상세 modal + Aligo result_code 표시', async () => {
+      const detailBtn = page.locator('[data-testid^="sms-audit-detail-btn-"]').first()
+      await expect(detailBtn, '실패 row 상세 버튼 미존재 — FAIL 필터 후 sms-audit-table 에 row 없음').toBeVisible({ timeout: 5000 })
+      await detailBtn.click()
+      await page.waitForTimeout(1000)
 
-      if ((await failedRowLocator.count()) > 0) {
-        await failedRowLocator.click()
-        await page.waitForTimeout(1000)
-
-        const bodyText = (await page.textContent('body')) ?? ''
-        const hasResultCode =
-          bodyText.includes('-101') ||
-          bodyText.includes('수신 거부') ||
-          bodyText.includes('FAILURE_ALIGO') ||
-          bodyText.includes('발송 실패') ||
-          bodyText.includes('오류')
-
-        await page.screenshot({
-          path: path.join(QA_DIR, 'T4-failed-row-aligo-result-code.png'),
-          fullPage: true,
-        })
-
-        expect(
-          hasResultCode,
-          'Aligo result_code 또는 한국어 에러 메시지 미표시 — FAILURE_ALIGO_-101 + "수신 거부 등록된 번호입니다." 필요',
-        ).toBeTruthy()
-      } else {
-        // mock HTML snippet — 정적 검증
-        await page.setContent(`
-          <main>
-            <dialog role="dialog" data-testid="send-audit-detail-modal" open>
-              <div role="alert" data-testid="send-audit-detail-error">
-                <strong>발송 실패</strong>
-                <span data-testid="send-audit-detail-result-code">결과 코드: -101</span>
-                <span data-testid="send-audit-detail-error-msg">수신 거부 등록된 번호입니다.</span>
-              </div>
-              <button>닫기</button>
-            </dialog>
-          </main>
-        `)
-        await expect(page.locator('[role="alert"]')).toBeVisible()
-        await expect(page.locator('[data-testid="send-audit-detail-result-code"]')).toContainText('-101')
-        await expect(page.locator('[data-testid="send-audit-detail-error-msg"]')).toContainText('수신 거부')
-      }
-    })
-
-    // ── step 4: role="alert" 또는 에러 배너 확인
-    await test.step('role="alert" 에러 배너 표시 확인', async () => {
-      const alertLocator = page.locator(
-        '[role="alert"], .error-banner, [data-testid*="error"], [data-testid*="alert"]',
-      ).first()
+      const modal = page.locator('[data-testid="dispatch-sms-send-audit-detail-modal"]').first()
+      await expect(modal, '실패 상세 modal 미오픈 — data-testid="dispatch-sms-send-audit-detail-modal" 미표시').toBeVisible({ timeout: 5000 })
 
       const bodyText = (await page.textContent('body')) ?? ''
-      const hasErrorIndicator =
-        (await alertLocator.count()) > 0 ||
-        bodyText.includes('실패') ||
-        bodyText.includes('오류') ||
+      const hasResultCode =
         bodyText.includes('-101') ||
         bodyText.includes('수신 거부') ||
-        bodyText.includes('접근')
+        bodyText.includes('FAILURE_ALIGO') ||
+        bodyText.includes('발송 실패')
+
+      await page.screenshot({
+        path: path.join(QA_DIR, 'T4-failed-row-aligo-result-code.png'),
+        fullPage: true,
+      })
 
       expect(
-        hasErrorIndicator,
-        '실패 상세 — role="alert" 또는 에러 표시 없음',
-      ).toBeTruthy()
+        hasResultCode,
+        'Aligo result_code 또는 한국어 에러 메시지 미표시 — FAILURE_ALIGO_-101 + "수신 거부 등록된 번호입니다." 필요',
+      ).toBe(true)
+    })
+
+    // ── step 4: role="alert" 에러 배너 확인
+    await test.step('role="alert" 에러 배너 표시 확인', async () => {
+      const alertLocator = page.locator('[role="alert"]').first()
+
+      // role="alert" 가 실제로 존재해야 함
+      await expect(
+        alertLocator,
+        '실패 상세 — role="alert" 에러 배너 미표시. dispatch-sms-send-audit-detail-modal 내 role="alert" 필요',
+      ).toBeVisible({ timeout: 5000 })
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -840,33 +676,37 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T5: 권한 가드 — MANAGER/MASTER 만 발송 이력 조회 가능 (SP-03 §4.2)
+   * T5: 권한 가드 — MANAGER/MASTER/DISPATCH 허용, SALES/ACCOUNTANT 차단
    *
    * 검증 항목:
-   *   - MANAGER: 발송 이력 목록 접근 + SEND_AUDIT 탭 노출
-   *   - MASTER: 발송 이력 목록 접근 + SEND_AUDIT 탭 노출
-   *   - SALES: /admin/notifications 접근 시 403 또는 redirect
-   *   - DISPATCH: 발송 배차 이력 조회는 가능하나 SEND_AUDIT 발송 감사는 MANAGER/MASTER 제한
+   *   - MANAGER: 발송 이력 목록 접근 허용 + sms-audit-table 노출
+   *   - MASTER: 발송 이력 목록 접근 허용 + sms-audit-table 노출
+   *   - DISPATCH: 발송 이력 목록 접근 허용 (DispatchSmsSaveHistoryController 허용)
+   *   - SALES: 접근 시 403 또는 redirect (미노출)
+   *   - ACCOUNTANT: 접근 시 403 또는 redirect (미노출)
    *   - pageerror 없음
    *
    * BE 권한 근거:
    *   NotificationAdminController: @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
    *   DispatchSmsSaveHistoryController: @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")
-   *   SP-03 §4.2 — SEND_AUDIT 발송 감사 조회 = MANAGER/MASTER 전용
+   *   FE route index.tsx:805 — DISPATCH/MANAGER/MASTER 허용
    */
-  test('T5: 권한 가드 — MANAGER/MASTER 허용, SALES 403', async ({ page }) => {
+  test('T5: 권한 가드 — MANAGER/MASTER/DISPATCH 허용, SALES/ACCOUNTANT 차단', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
     ensureQaDir()
 
-    // 공용 mock — 권한 있는 경우 빈 목록 반환
+    // 공용 mock — 권한 있는 경우 빈 목록 반환, SALES/ACCOUNTANT 403
     await page.route('**/admin/notifications**', async route => {
       const headers = route.request().headers()
       const role = headers['x-user-role'] ?? ''
-      if (role === 'SALES') {
-        await route.fulfill({ status: 403, contentType: 'application/json',
-          body: JSON.stringify({ success: false, code: 'FORBIDDEN', message: '권한이 없습니다.' }) })
+      if (role === 'SALES' || role === 'ACCOUNTANT') {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: false, code: 'FORBIDDEN', message: '권한이 없습니다.' }),
+        })
       } else {
         await route.fulfill({
           status: 200,
@@ -876,19 +716,13 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       }
     })
 
-    // ── step 1: MANAGER 권한 — 접근 허용 + SEND_AUDIT 탭 노출 확인
+    // ── step 1: MANAGER 권한 — 접근 허용 + sms-audit-table 노출 확인
     await test.step('MANAGER 권한 — 발송 이력 접근 허용', async () => {
       await page.goto(SMS_AUDIT_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const managerAllowed =
-        bodyText.includes('발송') ||
-        bodyText.includes('이력') ||
-        bodyText.includes('SMS') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(managerAllowed, 'MANAGER 권한 발송 이력 접근 차단됨 (허용이어야 함)').toBeTruthy()
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, 'MANAGER 권한 발송 이력 접근 차단됨 (허용이어야 함) — sms-audit-table 미표시').toBeVisible({ timeout: 5000 })
 
       await page.screenshot({
         path: path.join(QA_DIR, 'T5-role-guard-manager-allowed.png'),
@@ -901,35 +735,37 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       await page.goto(SMS_AUDIT_URL_MASTER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const masterAllowed =
-        bodyText.includes('발송') ||
-        bodyText.includes('이력') ||
-        bodyText.includes('SMS') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(masterAllowed, 'MASTER 권한 발송 이력 접근 차단됨 (허용이어야 함)').toBeTruthy()
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, 'MASTER 권한 발송 이력 접근 차단됨 (허용이어야 함) — sms-audit-table 미표시').toBeVisible({ timeout: 5000 })
     })
 
-    // ── step 3: SALES 권한 — 접근 차단 확인
+    // ── step 3: DISPATCH 권한 — 접근 허용 확인 (DispatchSmsSaveHistoryController 허용)
+    await test.step('DISPATCH 권한 — 배차 이력 접근 허용', async () => {
+      await page.goto(SMS_AUDIT_URL_DISPATCH, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await page.waitForTimeout(1000)
+
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      await expect(table, 'DISPATCH 권한 발송 이력 접근 차단됨 — DispatchSmsSaveHistoryController DISPATCH 허용이어야 함').toBeVisible({ timeout: 5000 })
+    })
+
+    // ── step 4: SALES 권한 — 접근 차단 확인 (403 또는 redirect)
     await test.step('SALES 권한 — 발송 이력 접근 차단 (403)', async () => {
       await page.goto(SMS_AUDIT_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 
+      // sms-audit-table 이 없어야 함 (접근 차단)
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      const tableVisible = (await table.count()) > 0 && await table.isVisible()
+
       const bodyText = (await page.textContent('body')) ?? ''
       const salesBlocked =
+        !tableVisible ||
         bodyText.includes('권한') ||
         bodyText.includes('접근') ||
         bodyText.includes('403') ||
         bodyText.includes('Forbidden') ||
-        bodyText.includes('로그인') ||
         page.url().includes('/login') ||
         page.url().includes('/unauthorized')
-
-      // SALES 에서 SEND_AUDIT 탭/버튼 미노출 확인
-      const sendAuditBtnCount = await page.locator(
-        '[data-testid="dispatch-sms-history-mode"] option[value="SEND_AUDIT"], button:has-text("발송 감사")',
-      ).count()
 
       await page.screenshot({
         path: path.join(QA_DIR, 'T5-role-guard-sales-403.png'),
@@ -937,26 +773,33 @@ test.describe('SP-09-2 Aligo SMS 실 발송 + send_audit QA (T1~T5)', () => {
       })
 
       expect(
-        salesBlocked || sendAuditBtnCount === 0,
-        'SALES 권한 발송 이력 접근 차단 미작동 — 403 redirect 또는 SEND_AUDIT 탭 미노출 중 하나 필요',
-      ).toBeTruthy()
+        salesBlocked,
+        'SALES 권한 발송 이력 접근 차단 미작동 — sms-audit-table 미표시 또는 403/redirect 필요',
+      ).toBe(true)
     })
 
-    // ── step 4: DISPATCH 권한 — 배차 이력 접근은 가능하나 MANAGER 전용 SEND_AUDIT 발송 감사 제한 확인
-    await test.step('DISPATCH 권한 — 배차 이력 접근 가능, SEND_AUDIT 감사 열람 MANAGER/MASTER 제한 확인', async () => {
-      await page.goto(SMS_AUDIT_URL_DISPATCH, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    // ── step 5: ACCOUNTANT 권한 — 접근 차단 확인 (403 또는 redirect)
+    await test.step('ACCOUNTANT 권한 — 발송 이력 접근 차단 (403)', async () => {
+      await page.goto(SMS_AUDIT_URL_ACCOUNTANT, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      // DISPATCH 는 배차 이력 (MANUAL_NAMED/AUTO_LATEST) 접근은 가능
-      // SEND_AUDIT 발송 감사 전용 admin 화면은 MANAGER/MASTER 만 허용 (NotificationAdminController 가드)
-      const dispatchPageVisible =
-        bodyText.includes('발송') ||
-        bodyText.includes('이력') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
+      const table = page.locator('[data-testid="sms-audit-table"]')
+      const tableVisible = (await table.count()) > 0 && await table.isVisible()
 
-      expect(dispatchPageVisible, 'DISPATCH 권한 화면 로드 여부 확인 불가').toBeTruthy()
+      const bodyText = (await page.textContent('body')) ?? ''
+      const accountantBlocked =
+        !tableVisible ||
+        bodyText.includes('권한') ||
+        bodyText.includes('접근') ||
+        bodyText.includes('403') ||
+        bodyText.includes('Forbidden') ||
+        page.url().includes('/login') ||
+        page.url().includes('/unauthorized')
+
+      expect(
+        accountantBlocked,
+        'ACCOUNTANT 권한 발송 이력 접근 차단 미작동 — sms-audit-table 미표시 또는 403/redirect 필요',
+      ).toBe(true)
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)

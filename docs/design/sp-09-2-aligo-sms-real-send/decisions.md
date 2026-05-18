@@ -5,20 +5,34 @@
 
 ## 1. 발송 이력 테이블 컬럼 구성 (D1)
 
+> **2026-05-18 갱신 (Cycle 1 Designer fix)**: 목록은 배차일 단위 SEND_AUDIT 배치 요약 행. per-message 개별 이력 아님. 수신자별 결과는 상세보기 modal 에서 확인.
+
 ### 결정
-발송 이력 리스트는 5컬럼으로 구성한다.
+발송 이력 리스트는 8컬럼 배치 요약 구조로 구성한다 (실제 `buildListColumns()` 기준).
 
 | 컬럼 | 정렬 | 처리 |
 |---|---|---|
-| 발송 일시 | 좌 | `YYYY-MM-DD HH:mm` · color-text-secondary |
-| 수신자 | 좌 | `010-****-XXXX` 마스킹 · monospace |
-| 메시지 요약 | 좌 | max-width 300px, overflow ellipsis |
-| 결과 | 우 | Badge (성공/실패) |
-| msg_id | 좌 | monospace · color-text-secondary |
+| 배차일 | 좌 | `YYYY-MM-DD` · font-weight 500 |
+| 발송시각 | 좌 | `YYYY-MM-DD HH:mm` · color-text-secondary · font-size 12px |
+| 실행자 | 좌 | `maskCreatedBy()` 적용 |
+| 성공 | 우 | Badge success — 건수. 0이면 count-zero (#9CA3AF) |
+| 실패 | 우 | Badge danger — 건수. 0이면 count-zero |
+| 발송금지 | 우 | Badge warning — 건수. 0이면 count-zero |
+| 결과 | 가운데 | Badge: 성공 / 부분실패 / 실패 |
+| 상세 | 가운데 | ghost Button "보기" → AuditDetailModal |
+
+### 상세 Modal DataTable 컬럼 (detailColumns — per-message)
+| 컬럼 | 정렬 | 처리 |
+|---|---|---|
+| 거래처코드 | 좌 | `partnerCode` |
+| 수신번호 | 좌 | `010-****-XXXX` 마스킹 · monospace |
+| 결과 | 가운데 | Badge: 성공 / 실패 / 발송금지 |
+| 사유 | 좌 | `reason` · color-danger 실패 시 |
 
 ### 근거
+- 실제 `DispatchSmsSendAuditPage.tsx` `buildListColumns()` + `detailColumns` 와 1:1 일치
+- 목록은 배치 단위 집계 → 빠른 현황 파악; 수신자별 상세는 modal 클릭 후 확인
 - 이카운트 참조 리스트 화면의 우측 정렬 Badge 패턴 일관
-- msg_id 는 Aligo 식별자로 운영자 조회용 — 우선순위 낮아 우측 배치
 
 ---
 
