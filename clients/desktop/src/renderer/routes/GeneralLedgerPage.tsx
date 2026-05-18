@@ -28,35 +28,15 @@
  */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Spinner } from '@samhan/design-system'
+import { Button, Card, DataTable, Spinner, type DataTableColumn } from '@samhan/design-system'
 import {
   getGeneralLedger,
   type GeneralLedgerLine,
   type GeneralLedgerResponse,
 } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
-
-/** YYYY-MM-DD 오늘 날짜. */
-function today(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/** 당월 1일 YYYY-MM-DD. */
-function firstDayOfMonth(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-/** KRW BigDecimal string → "1,234,567" (NaN 시 "—", 음수 △ prefix). */
-function fmtKrw(raw: string | null | undefined): string {
-  if (raw === null || raw === undefined || raw === '') return '—'
-  const n = Number(raw)
-  if (!Number.isFinite(n)) return raw
-  if (n === 0) return '—'
-  if (n < 0) return `△ ${Math.abs(Math.round(n)).toLocaleString('ko-KR')}`
-  return Math.round(n).toLocaleString('ko-KR')
-}
+import { today, firstDayOfMonth } from '../utils/dateUtils'
+import { fmtKrw } from '../utils/currencyUtils'
 
 /** CSV 셀 escape — RFC4180. */
 function csvCell(v: string | number | null | undefined): string {
@@ -136,23 +116,11 @@ const inputStyle: CSSProperties = {
   background: 'var(--surface-card)',
 }
 
-const thStyle: CSSProperties = {
-  padding: '8px 10px',
-  borderBottom: '1px solid var(--line-default)',
-  fontSize: 'var(--font-size-xs)',
-  fontWeight: 'var(--font-weight-semibold)',
-  color: 'var(--ink-secondary)',
-  background: 'var(--color-neutral-50)',
-  textAlign: 'left',
-  whiteSpace: 'nowrap',
-}
-
-const tdStyle: CSSProperties = {
-  padding: '8px 10px',
-  fontSize: 'var(--font-size-sm)',
-  color: 'var(--ink-primary)',
-  whiteSpace: 'nowrap',
-  borderTop: '1px solid var(--color-neutral-50)',
+/** 기말잔액 색상 — 음수 시 경고 색상, 양수 시 기본 색상. */
+function balanceStyle(raw: string | null | undefined): CSSProperties {
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n >= 0) return {}
+  return { color: 'var(--state-danger)' }
 }
 
 export function GeneralLedgerPage() {
@@ -206,13 +174,98 @@ export function GeneralLedgerPage() {
   }
 
   // 기말잔액 색상 — 음수 시 경고
-  const balanceColor = useMemo(() => {
+  const closingBalanceColor = useMemo(() => {
     if (!ledgerQuery.data) return 'var(--ink-primary)'
     const n = Number(ledgerQuery.data.closingBalance)
-    if (!Number.isFinite(n)) return 'var(--ink-primary)'
-    if (n < 0) return 'var(--state-danger)'
-    return 'var(--ink-primary)'
+    if (!Number.isFinite(n) || n >= 0) return 'var(--ink-primary)'
+    return 'var(--state-danger)'
   }, [ledgerQuery.data])
+
+  // DataTable columns — DailyClosingPage 패턴 일관 (design-system DataTable 사용)
+  const columns: DataTableColumn<GeneralLedgerLine>[] = useMemo(
+    () => [
+      {
+        key: 'transactionDate',
+        header: '일자',
+        width: '110px',
+        render: (ln) => ln.transactionDate,
+      },
+      {
+        key: 'journalNo',
+        header: '분개번호',
+        width: '160px',
+        render: (ln) => ln.journalNo,
+      },
+      {
+        key: 'accountCode',
+        header: '계정코드',
+        width: '80px',
+        render: (ln) => ln.accountCode,
+      },
+      {
+        key: 'accountName',
+        header: '계정명',
+        width: '100px',
+        render: (ln) => ln.accountName,
+      },
+      {
+        key: 'partnerCode',
+        header: '거래처코드',
+        width: '110px',
+        render: (ln) => ln.partnerCode ?? '—',
+      },
+      {
+        key: 'partnerName',
+        header: '거래처명',
+        render: (ln) => ln.partnerName ?? '—',
+      },
+      {
+        key: 'description',
+        header: '적요',
+        render: (ln) => ln.description ?? '—',
+      },
+      {
+        key: 'debit',
+        header: '차변',
+        width: '130px',
+        align: 'right',
+        render: (ln) => (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {fmtKrw(ln.debit)}
+          </span>
+        ),
+      },
+      {
+        key: 'credit',
+        header: '대변',
+        width: '130px',
+        align: 'right',
+        render: (ln) => (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {fmtKrw(ln.credit)}
+          </span>
+        ),
+      },
+      {
+        key: 'runningBalance',
+        header: '잔액',
+        width: '140px',
+        align: 'right',
+        render: (ln) => (
+          <span
+            style={{
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 'var(--font-weight-semibold)',
+              ...balanceStyle(ln.runningBalance),
+            }}
+          >
+            {fmtKrw(ln.runningBalance)}
+          </span>
+        ),
+      },
+    ],
+    [],
+  )
 
   const ledgerError = ledgerQuery.error as Error | null
 
@@ -440,7 +493,7 @@ export function GeneralLedgerPage() {
                   <span
                     style={{
                       fontWeight: 'var(--font-weight-semibold)',
-                      color: balanceColor,
+                      color: closingBalanceColor,
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
@@ -483,7 +536,7 @@ export function GeneralLedgerPage() {
             </div>
           </Card>
 
-          {/* 원장 라인 테이블 */}
+          {/* 원장 라인 테이블 — design-system DataTable (DailyClosingPage 패턴 일관) */}
           <Card>
             <h3
               style={{
@@ -495,111 +548,49 @@ export function GeneralLedgerPage() {
               원장 라인
             </h3>
 
-            {ledgerQuery.data.lines.length === 0 ? (
+            <div data-testid="general-ledger-table">
+              <DataTable<GeneralLedgerLine>
+                columns={columns}
+                rows={ledgerQuery.data.lines}
+                rowKey={(ln) =>
+                  `${ln.transactionDate}-${ln.journalNo}-${ln.accountCode}-${ln.debit}-${ln.credit}`
+                }
+                emptyMessage="해당 기간 거래 내역이 없습니다."
+              />
+            </div>
+
+            {/* 기말잔액 요약 row — DataTable footer 미지원이므로 별도 표시 */}
+            {ledgerQuery.data.lines.length > 0 ? (
               <div
                 style={{
-                  padding: 32,
-                  textAlign: 'center',
-                  color: 'var(--ink-secondary)',
-                  border: '1px dashed var(--line-default)',
-                  borderRadius: 6,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  padding: '8px 10px',
+                  borderTop: '2px solid var(--line-default)',
+                  background: 'var(--color-neutral-100)',
                   fontSize: 'var(--font-size-sm)',
+                  gap: 12,
                 }}
               >
-                해당 기간 거래 내역이 없습니다.
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table
-                  data-testid="general-ledger-table"
-                  aria-label="원장 라인 테이블"
+                <span
                   style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    color: 'var(--color-neutral-900)',
                   }}
                 >
-                  <thead>
-                    <tr>
-                      <th style={{ ...thStyle, width: 110 }}>일자</th>
-                      <th style={{ ...thStyle, width: 160 }}>분개번호</th>
-                      <th style={{ ...thStyle, width: 80 }}>계정코드</th>
-                      <th style={{ ...thStyle, width: 100 }}>계정명</th>
-                      <th style={{ ...thStyle, width: 110 }}>거래처코드</th>
-                      <th style={thStyle}>거래처명</th>
-                      <th style={thStyle}>적요</th>
-                      <th
-                        style={{
-                          ...thStyle,
-                          textAlign: 'right',
-                          width: 130,
-                        }}
-                      >
-                        차변
-                      </th>
-                      <th
-                        style={{
-                          ...thStyle,
-                          textAlign: 'right',
-                          width: 130,
-                        }}
-                      >
-                        대변
-                      </th>
-                      <th
-                        style={{
-                          ...thStyle,
-                          textAlign: 'right',
-                          width: 140,
-                        }}
-                      >
-                        잔액
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledgerQuery.data.lines.map((ln, idx) => (
-                      <LedgerLineRow
-                        key={`${ln.transactionDate}-${ln.journalNo}-${idx}`}
-                        line={ln}
-                        tdStyle={tdStyle}
-                      />
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr
-                      style={{
-                        background: 'var(--color-neutral-100)',
-                        borderTop: '2px solid var(--line-default)',
-                      }}
-                    >
-                      <td
-                        colSpan={7}
-                        style={{
-                          ...tdStyle,
-                          fontWeight: 'var(--font-weight-semibold)',
-                          color: 'var(--color-neutral-900)',
-                        }}
-                      >
-                        기말잔액
-                      </td>
-                      <td colSpan={2} style={tdStyle} />
-                      <td
-                        style={{
-                          ...tdStyle,
-                          textAlign: 'right',
-                          fontWeight: 'var(--font-weight-bold)',
-                          color: balanceColor,
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {fmtKrw(ledgerQuery.data.closingBalance)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                  기말잔액
+                </span>
+                <span
+                  style={{
+                    fontWeight: 'var(--font-weight-bold)',
+                    color: closingBalanceColor,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {fmtKrw(ledgerQuery.data.closingBalance)}
+                </span>
               </div>
-            )}
+            ) : null}
           </Card>
         </>
       ) : null}
@@ -607,58 +598,3 @@ export function GeneralLedgerPage() {
   )
 }
 
-/** 원장 라인 행 컴포넌트 — 잔액 음수 시 색상 강조. */
-function LedgerLineRow({
-  line,
-  tdStyle,
-}: {
-  line: GeneralLedgerLine
-  tdStyle: CSSProperties
-}) {
-  const balanceColor = useMemo(() => {
-    const n = Number(line.runningBalance)
-    if (!Number.isFinite(n) || n >= 0) return 'var(--ink-primary)'
-    return 'var(--state-danger)'
-  }, [line.runningBalance])
-
-  return (
-    <tr style={{ borderTop: '1px solid var(--color-neutral-50)' }}>
-      <td style={tdStyle}>{line.transactionDate}</td>
-      <td style={tdStyle}>{line.journalNo}</td>
-      <td style={tdStyle}>{line.accountCode}</td>
-      <td style={tdStyle}>{line.accountName}</td>
-      <td style={tdStyle}>{line.partnerCode ?? '—'}</td>
-      <td style={tdStyle}>{line.partnerName ?? '—'}</td>
-      <td style={tdStyle}>{line.description ?? '—'}</td>
-      <td
-        style={{
-          ...tdStyle,
-          textAlign: 'right',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {fmtKrw(line.debit)}
-      </td>
-      <td
-        style={{
-          ...tdStyle,
-          textAlign: 'right',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {fmtKrw(line.credit)}
-      </td>
-      <td
-        style={{
-          ...tdStyle,
-          textAlign: 'right',
-          fontWeight: 'var(--font-weight-semibold)',
-          fontVariantNumeric: 'tabular-nums',
-          color: balanceColor,
-        }}
-      >
-        {fmtKrw(line.runningBalance)}
-      </td>
-    </tr>
-  )
-}

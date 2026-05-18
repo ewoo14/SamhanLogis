@@ -18,6 +18,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -33,9 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>권한 매트릭스:
  * <ul>
- *   <li>POST /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (일마감 실행)</li>
- *   <li>GET  /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (기간 조회)</li>
- *   <li>POST /api/v1/accounting/daily-closings/unlock — MASTER 만 (잠금 해제)</li>
+ *   <li>POST  /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (일마감 실행)</li>
+ *   <li>GET   /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (기간 조회)</li>
+ *   <li>PATCH /api/v1/accounting/daily-closings/{closingDate}/lock — MASTER 만 (잠금 해제)</li>
  * </ul>
  *
  * <p>SALES role 은 일마감 endpoint 에 접근 불가 (매뉴얼 §4 권한표).
@@ -105,11 +107,17 @@ public class DailyClosingController {
     /**
      * 일마감 잠금 해제 — MASTER 전용.
      *
-     * @param closingDate 마감 날짜
-     * @param partnerCode 거래처코드 (null = 전체 마감)
+     * <p>REST 설계: {@code PATCH /daily-closings/{closingDate}/lock}
+     * + body {@code {"locked": false}} — 리소스 상태 부분 변경 시맨틱.
+     *
+     * @param closingDate path variable — 마감 날짜 (yyyy-MM-dd)
+     * @param body        잠금 상태 변경 body ({"locked": false})
+     * @param partnerCode 거래처코드 query param (null = 전체 마감)
+     * @param callerHeader X-User-Id
+     * @return 갱신된 DailyClosingResponse
      */
     @Operation(summary = "일마감 잠금 해제 (MASTER 전용)",
-            description = "isLocked=false 로 전환. lockedAt/By 는 감사 추적을 위해 보존.")
+            description = "PATCH body {\"locked\": false} — isLocked=false 로 전환. lockedAt/By 는 감사 추적을 위해 보존.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "잠금 해제 성공"),
@@ -120,14 +128,23 @@ public class DailyClosingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
                     description = "잠금 상태가 아닐 때")
     })
-    @PostMapping("/unlock")
+    @PatchMapping("/{closingDate}/lock")
+    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<DailyClosingResponse> unlock(
-            @Parameter(description = "마감 날짜 (yyyy-MM-dd)")
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate closingDate,
+            @Parameter(description = "마감 날짜 (yyyy-MM-dd)", required = true)
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate closingDate,
+            @RequestBody java.util.Map<String, Object> body,
             @Parameter(description = "거래처코드 (null = 전체 마감)")
             @RequestParam(required = false) String partnerCode,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        // {"locked": false} 만 허용 (현재 unlock only — lock 은 POST /daily-closings 가 담당)
+        Object lockedVal = body.get("locked");
+        if (!Boolean.FALSE.equals(lockedVal)) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "현재 이 엔드포인트는 {\"locked\": false} 만 지원합니다");
+        }
         return ApiResponse.ok(
                 dailyClosingService.unlock(closingDate, partnerCode, callerOrSystem(callerHeader)));
     }

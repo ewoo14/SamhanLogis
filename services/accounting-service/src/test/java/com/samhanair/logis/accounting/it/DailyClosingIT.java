@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,10 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.repository.DailyClosingRepository;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 일마감 + 원장 endpoint IT (SP-08-6-5).
  *
- * <p>8 시나리오:
+ * <p>12 시나리오:
  * <ol>
  *   <li>일마감 생성 (전체 거래처) → 201 + isLocked=true</li>
  *   <li>동일 날짜 재마감 → 409 CONFLICT</li>
@@ -43,6 +48,10 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>없는 거래처코드 → 404</li>
  *   <li>원장 조회 (전체) → 200</li>
  *   <li>원장 조회 거래처 필터 → 200 (partner-service stub)</li>
+ *   <li>soft-delete 후 동일 날짜 재마감 → 201 (partial unique index 통과)</li>
+ *   <li>MASTER unlock → 200</li>
+ *   <li>ACCOUNTANT unlock → 403</li>
+ *   <li>MANAGER unlock → 403</li>
  * </ol>
  *
  * <p>외부 client 전체 {@code @MockBean} 격리 (메모리 가드
@@ -55,6 +64,7 @@ class DailyClosingIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private DailyClosingRepository dailyClosingRepository;
 
     // ── 외부 client @MockBean 격리 (전부 선언 필수) ──────────────────────────
     @MockBean private SlipServiceClient slipServiceClient;
@@ -249,5 +259,94 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.partnerCode").value(PARTNER_CODE))
                 .andExpect(jsonPath("$.data.lines").isArray());
+    }
+
+    // ── 9. soft-delete 후 동일 날짜 재마감 → 201 ────────────────────────────
+
+    @Test
+    @DisplayName("soft-delete 후 동일 날짜 재마감 — partial unique index 통과 201")
+    void testReopenAfterSoftDelete() throws Exception {
+        // (a) 마감 생성
+        Map<String, Object> body = new HashMap<>();
+        body.put("closingDate", "2026-05-20");
+        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+
+        // (b) soft-delete — 엔티티 직접 조작 (markDeleted 도메인 메서드)
+        DailyClosing dc = dailyClosingRepository
+                .findByClosingDateAndPartnerIdIsNull(LocalDate.of(2026, 5, 20))
+                .orElseThrow();
+        dc.markDeleted(ACCOUNTANT_ID);
+        dailyClosingRepository.saveAndFlush(dc);
+
+        // (c) 동일 날짜 재마감 — @SQLRestriction 으로 삭제된 row 비표시 → 신규 생성 성공
+        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.isLocked").value(true));
+    }
+
+    // ── 10. MASTER unlock → 200 ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("MASTER 역마감 — PATCH /{closingDate}/lock 200")
+    void testUnlockSuccess() throws Exception {
+        // (a) 마감 생성 (잠금됨)
+        Map<String, Object> closeBody = new HashMap<>();
+        closeBody.put("closingDate", "2026-05-21");
+        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+                        .header("X-User-Id", MASTER_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(closeBody)))
+                .andExpect(status().isCreated());
+
+        // (b) MASTER 역마감
+        Map<String, Object> unlockBody = new HashMap<>();
+        unlockBody.put("locked", false);
+        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-21/lock")
+                        .header("X-User-Id", MASTER_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(unlockBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isLocked").value(false));
+    }
+
+    // ── 11. ACCOUNTANT unlock → 403 ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("ACCOUNTANT 역마감 시도 — 403 Forbidden (MASTER 독점)")
+    void testUnlockForbiddenForAccountant() throws Exception {
+        Map<String, Object> unlockBody = new HashMap<>();
+        unlockBody.put("locked", false);
+        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-22/lock")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(unlockBody)))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── 12. MANAGER unlock → 403 ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("MANAGER 역마감 시도 — 403 Forbidden (MASTER 독점)")
+    void testUnlockForbiddenForManager() throws Exception {
+        Map<String, Object> unlockBody = new HashMap<>();
+        unlockBody.put("locked", false);
+        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-23/lock")
+                        .header("X-User-Id", "manager-user")
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(unlockBody)))
+                .andExpect(status().isForbidden());
     }
 }

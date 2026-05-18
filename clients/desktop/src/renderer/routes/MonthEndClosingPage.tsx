@@ -60,12 +60,7 @@ import {
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useSessionStore } from '../stores/session'
-
-/** YYYY-MM-DD 오늘 날짜 (한국 시간 클라이언트 local). */
-function today(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { today } from '../utils/dateUtils'
 
 /** YYYY-MM-DD → "YYYY-MM" (월별 input value). */
 function toMonth(iso: string): string {

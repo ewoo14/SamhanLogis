@@ -44,11 +44,16 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
      * @param pageable 페이지 정보
      * @return 일마감 snapshot 페이지
      */
-    @Query("""
+    @Query(value = """
             SELECT d FROM DailyClosing d
             WHERE d.closingDate >= :from
               AND d.closingDate <= :to
             ORDER BY d.closingDate DESC
+            """,
+            countQuery = """
+            SELECT count(d) FROM DailyClosing d
+            WHERE d.closingDate >= :from
+              AND d.closingDate <= :to
             """)
     Page<DailyClosing> findByDateRange(@Param("from") LocalDate from,
                                        @Param("to") LocalDate to,

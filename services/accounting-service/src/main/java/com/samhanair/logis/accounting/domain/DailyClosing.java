@@ -114,7 +114,7 @@ public class DailyClosing extends BaseEntity {
         this.totalAmount = nullToZero(totalAmount);
         this.slipCount = Math.max(0, slipCount);
         this.isLocked = false;
-        this.version = 0L;
+        // @Version 은 JPA 영속화 시 자동 초기화 — 수동 세팅 금지
     }
 
     /**

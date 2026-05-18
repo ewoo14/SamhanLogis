@@ -11,7 +11,10 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -80,6 +83,19 @@ public class LedgerService {
             lines = journalLineRepository.findAllPostedLinesInRange(from, to);
         }
 
+        // N+1 방지: 라인의 모든 partnerId 를 일괄 수집 후 단건 lookup 캐시 구성
+        Set<UUID> partnerIdSet = lines.stream()
+                .map(JournalLine::getPartnerId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<UUID, String> partnerCodeCache = new HashMap<>();
+        for (UUID pid : partnerIdSet) {
+            String code = partnerLookupClient.findByPartnerId(pid)
+                    .map(PartnerSummary::partnerCode)
+                    .orElse(null);
+            partnerCodeCache.put(pid, code);
+        }
+
         // 원장 라인 변환 + 누적 잔액 계산
         BigDecimal balance = BigDecimal.ZERO;
         BigDecimal totalDebit = BigDecimal.ZERO;
@@ -93,8 +109,10 @@ public class LedgerService {
             totalDebit = totalDebit.add(debit);
             totalCredit = totalCredit.add(credit);
 
-            // 라인 거래처코드 — partnerId 가 있으면 lookup (fail-soft)
-            String linePartnerCode = resolvePartnerCode(l.getPartnerId());
+            // 캐시에서 거래처코드 조회 (HTTP 추가 호출 없음)
+            String linePartnerCode = l.getPartnerId() != null
+                    ? partnerCodeCache.get(l.getPartnerId())
+                    : null;
 
             ledgerLines.add(new LedgerLine(
                     l.getJournal().getJournalDate(),
@@ -117,13 +135,4 @@ public class LedgerService {
                 ledgerLines);
     }
 
-    /** partnerId → partnerCode fail-soft 조회. UUID 비공개 원칙 — 코드만 노출. */
-    private String resolvePartnerCode(UUID partnerId) {
-        if (partnerId == null) {
-            return null;
-        }
-        return partnerLookupClient.findByPartnerId(partnerId)
-                .map(PartnerSummary::partnerCode)
-                .orElse(null);
-    }
 }

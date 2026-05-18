@@ -50,6 +50,10 @@
  * - `/accounting/reports/monthly-summary`    월계표 (월별)
  * - 각 보고서 `/print` 서브 라우트 (인쇄 전용 새 창)
  *
+ * SP-08-6-5 P2 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard):
+ * - `/accounting/daily-closings`  일마감 — 날짜 range + 거래처 필터 + 마감 실행 + 역마감(MASTER 만)
+ * - `/accounting/ledgers`         원장 — 기간/계정/거래처 필터 + 라인 DataTable + CSV 다운로드
+ *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
 import {

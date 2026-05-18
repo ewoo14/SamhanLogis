@@ -54,28 +54,8 @@ import {
 } from '../api/accounting'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useSessionStore } from '../stores/session'
-
-/** YYYY-MM-DD 오늘 날짜. */
-function today(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/** 7일 전 YYYY-MM-DD. */
-function sevenDaysAgo(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 7)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/** KRW BigDecimal string → "1,234,567" (NaN 시 "—"). */
-function fmtKrw(raw: string | null | undefined): string {
-  if (raw === null || raw === undefined || raw === '') return '—'
-  const n = Number(raw)
-  if (!Number.isFinite(n)) return raw
-  if (n === 0) return '—'
-  return Math.round(n).toLocaleString('ko-KR')
-}
+import { today, sevenDaysAgo } from '../utils/dateUtils'
+import { fmtKrw } from '../utils/currencyUtils'
 
 /** ISO 8601 → "YYYY-MM-DD HH:mm". */
 function fmtTimestamp(iso: string | null | undefined): string {

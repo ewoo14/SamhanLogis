@@ -104,30 +104,29 @@ public class DailyClosingService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         int slipCount = issued.size();
 
-        // (3) 기존 snapshot 조회 또는 신규 생성
+        // (3) 기존 snapshot 조회 또는 신규 생성 (신규는 0으로 초기화 후 recalculate 로 일원화)
         DailyClosing closing;
         if (filterPartnerId != null) {
             closing = dailyClosingRepository
                     .findByClosingDateAndPartnerId(closingDate, filterPartnerId)
                     .orElseGet(() -> dailyClosingRepository.save(
                             DailyClosing.create(closingDate, filterPartnerId,
-                                    totalSupply, totalVat, totalAmount, slipCount)));
+                                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0)));
         } else {
             closing = dailyClosingRepository
                     .findByClosingDateAndPartnerIdIsNull(closingDate)
                     .orElseGet(() -> dailyClosingRepository.save(
                             DailyClosing.create(closingDate, null,
-                                    totalSupply, totalVat, totalAmount, slipCount)));
+                                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0)));
         }
 
-        // (4) 이미 저장된 row 는 recalculate + lock
-        if (!closing.isLocked()) {
-            closing.recalculate(totalSupply, totalVat, totalAmount, slipCount);
+        // (4) 잠금 상태 확인 후 recalculate + lock (신규/기존 모두 동일 경로)
+        if (closing.isLocked()) {
+            // 도메인 메서드 내부에서 CONFLICT throw — 일관성 유지
             closing.lock(actorUserId);
-        } else {
-            // isLocked=true → CONFLICT (도메인 메서드가 throw, 직접 호출하여 일관성 유지)
-            closing.lock(actorUserId); // 내부에서 CONFLICT throw
         }
+        closing.recalculate(totalSupply, totalVat, totalAmount, slipCount);
+        closing.lock(actorUserId);
 
         return DailyClosingResponse.of(closing, resolvedPartnerCode);
     }

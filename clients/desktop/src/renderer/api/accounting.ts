@@ -1150,12 +1150,3 @@ export async function getGeneralLedger(
   return res.data.data
 }
 
-/**
- * 원장 접근 권한 — ACCOUNTANT / MANAGER / MASTER.
- *
- * `feedback_role_naming_full.md` — 풀네임 표기 의무.
- */
-export function canAccessGeneralLedger(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
-}
