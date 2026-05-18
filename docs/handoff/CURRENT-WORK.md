@@ -2,6 +2,44 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-6-7 진입 — 통합 검증 + SP-08-6 시리즈 종료
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-6-7-sales-accounting-integration
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `7ed50aaf` (PR #231 SP-08-6-6 squash merge)
+- master plan: `docs/planning/2026-05-18_sp-08-6-sales-accounting-crud-parity.md` §2.7
+- 사용자 6/7회차 정책
+
+### SP-08-6-7 범위 (통합 검증)
+
+SP-08-6 매출/회계 시리즈 6 PR 누적 완료. 통합 검증 + 시리즈 종료 dev-report.
+
+- `docs/dev-reports/sp-08-6-summary.md` 신규 — 종료 통합 보고서 6 section
+- CURRENT-WORK.md 갱신
+
+### 직전 머지 (PR #231)
+
+- branch: `feat/sp-08-6-6-tax-invoice-emit` (deleted)
+- mergeCommit: `7ed50aaf`
+- 옵션 A 결정: 기존 endpoint 충분, IT 1 case 회귀 가드 추가
+- TM PR comment 2건 (Claude + Codex)
+
+### 다음 시리즈 (SP-08-6-7 머지 후)
+
+- **SP-08-7 Notion runtime 의존 zero 정적 잠금**: grep 가드 + Playwright RED gate
+- **SP-08-8 자격 평문 비공개 가드 강화**: CI grep 가드 + placeholder 분리
+
+## 2026-05-18 SP-08-6-6 머지 완료 — 세금계산서 발행 회귀 (참고 이력)
+
 ## 2026-05-18 SP-08-6-6 진입 — 세금계산서 발행 + 외부 연동 (옵션)
 
 ### 즉시 시작
