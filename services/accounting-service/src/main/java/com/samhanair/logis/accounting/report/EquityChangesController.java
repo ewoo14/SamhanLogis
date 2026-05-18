@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,7 +54,6 @@ public class EquityChangesController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/equity-changes")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<EquityChangesResponse> equityChanges(
             @Parameter(description = "기간 시작 일자 (YYYY-MM-DD)")

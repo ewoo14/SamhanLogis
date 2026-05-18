@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -70,7 +69,6 @@ public class PartnerAgingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/partner-aging")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<PartnerAgingResponse> partnerAging(
             @Parameter(description = "기준 일자 (YYYY-MM-DD, 예: 2026-05-10)")

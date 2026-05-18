@@ -55,24 +55,36 @@ SP-D5 의 변경 파일은 다음으로 제한된다:
 
 ## 3. design-system 인쇄 토큰 보존 확인
 
-`clients/web/design-system/src/tokens/tokens.css` 에 정의된 인쇄 관련 토큰은 SP-D5 이후에도 동일하다:
+`clients/web/design-system/src/tokens/tokens.css` 에 정의된 인쇄 관련 토큰 **전수 (23개)** 가 SP-D5 이후에도 픽셀 단위 동일하다.
 
-| 토큰 | 값 | SP-D5 후 |
-|-----|---|---------|
-| `--print-text-base` | 14pt | 동일 |
-| `--print-text-sm` | 11pt | 동일 |
-| `--print-text-xs` | 9pt | 동일 |
-| `--print-text-md` | 12pt | 동일 |
-| `--print-text-lg` | 18pt | 동일 |
-| `--print-approval-w` | 38mm | 동일 |
-| `--print-approval-h` | 22mm | 동일 |
-| `--print-signature-w` | 80mm | 동일 |
-| `--print-signature-h` | 35mm | 동일 |
-| `--print-page-w` | 210mm (A4) | 동일 |
-| `--print-page-h` | 297mm (A4) | 동일 |
-| `--print-page-margin` | 12mm | 동일 |
-| `--print-line-color` | #000 | 동일 |
-| `--print-thead-bg` | #F0F0F0 | 동일 |
+> SP-D5 cycle 2 fix (Designer M-1): 기존 14개 표기가 실제 23개와 수 불일치하여 cycle 1 리뷰에서 minor 결함 지적됨 — 본 표는 23개 전수 갱신본.
+
+| # | 토큰 | 값 | 용도 |
+|---|------|---|-----|
+| 1 | `--print-text-base` | 14pt | 본문 (배송지/연락처/특이사항) |
+| 2 | `--print-text-sm` | 11pt | 라인 표 / 메타 |
+| 3 | `--print-text-xs` | 9pt | 결재란 시각 small |
+| 4 | `--print-text-md` | 12pt | 결재란 라벨 / bold label |
+| 5 | `--print-text-lg` | 18pt | 일련번호 강조 |
+| 6 | `--print-approval-w` | 38mm | 결재란 폭 |
+| 7 | `--print-approval-w-actual` | 36mm | 결재란 실 사용 폭 |
+| 8 | `--print-approval-h` | 22mm | 결재란 전체 높이 |
+| 9 | `--print-approval-label-h` | 5mm | 결재란 라벨 높이 |
+| 10 | `--print-approval-value-h` | 17mm | 결재란 서명 영역 높이 |
+| 11 | `--print-signature-w` | 80mm | 서명 박스 폭 |
+| 12 | `--print-signature-h` | 35mm | 서명 박스 높이 |
+| 13 | `--print-signature-gap` | 6mm | 서명 박스 간격 |
+| 14 | `--print-page-w` | 210mm | A4 가로 |
+| 15 | `--print-page-h` | 297mm | A4 세로 |
+| 16 | `--print-page-margin` | 12mm | 페이지 마진 |
+| 17 | `--print-content-w` | 186mm | 본문 가로 (margin 제외) |
+| 18 | `--print-content-h` | 273mm | 본문 세로 |
+| 19 | `--print-budget-header` | 35mm | 헤더 영역 |
+| 20 | `--print-budget-table` | 80mm | 라인 표 영역 |
+| 21 | `--print-budget-address` | 50mm | 배송지 영역 |
+| 22 | `--print-budget-signatures` | 35mm | 서명 영역 |
+| 23 | `--print-budget-footer` | 30mm | 푸터 영역 |
+| 보조 | `--print-budget-gap` / `--print-line-color` / `--print-thead-bg` / `--print-approval-label-bg` | 4mm / #000 / #F0F0F0 / #F0F0F0 | 색 + 간격 토큰 (SP-D5 미변경) |
 
 ---
 

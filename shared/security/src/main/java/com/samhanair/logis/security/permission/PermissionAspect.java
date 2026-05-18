@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -34,6 +33,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *   <li>VIEW: {@link DynamicPermissionClient#canView(String, String)} == false → deny</li>
  *   <li>EDIT: {@link DynamicPermissionClient#canEdit(String, String)} == false +
  *       canView == true → deny (view-only override); canView == false → fallback 통과</li>
+ *   <li>미지원 action: WARN 로그 + 권한 검증 건너뜀 (운영 안전 우선)</li>
  * </ul>
  *
  * <p>deny 시: {@link PermissionGuardMetrics#incrementDenied(String, String, String, String)} 호출
@@ -43,12 +43,19 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * {@link ObjectProvider} 를 통한 lazy 주입으로 bean 미존재 시 NoSuchBeanDefinitionException 회피.
  * DynamicPermissionClient bean 이 없으면 권한 검증을 건너뛴다 (서비스 미지원 환경 호환).
  *
+ * <p>SP-D5 cycle 2 fix:
+ * <ul>
+ *   <li>P0-2: {@code service} tag 를 {@code spring.application.name} 으로 정합 (패키지 추론 폐기)</li>
+ *   <li>P1-2: {@code @Component} 제거 — bean 은 {@link PermissionSecurityAutoConfiguration}
+ *       의 {@code @Bean} 으로 일원화 (consumer service component scan 우회 차단)</li>
+ *   <li>P2-2: 도달 불가 {@code annotation.action() == null} 죽은 체크 제거</li>
+ * </ul>
+ *
  * @see RequirePermission
  * @see PermissionGuardMetrics
  * @since SP-D5
  */
 @Aspect
-@Component
 public class PermissionAspect {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionAspect.class);
@@ -58,18 +65,23 @@ public class PermissionAspect {
 
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
+    private final String serviceName;
 
     /**
      * 생성자 주입.
      *
      * @param clientProvider DynamicPermissionClient lazy provider (service 별 bean)
      * @param metrics        deny 횟수 카운터 컴포넌트
+     * @param serviceName    {@code spring.application.name} 값 (Counter tag {@code service} 에 사용).
+     *                       blank 시 {@code "unknown"} 으로 정규화.
      */
     public PermissionAspect(
             ObjectProvider<DynamicPermissionClient> clientProvider,
-            PermissionGuardMetrics metrics) {
+            PermissionGuardMetrics metrics,
+            String serviceName) {
         this.clientProvider = clientProvider;
         this.metrics = metrics;
+        this.serviceName = (serviceName == null || serviceName.isBlank()) ? "unknown" : serviceName;
     }
 
     /**
@@ -88,8 +100,7 @@ public class PermissionAspect {
                 .getAnnotation(RequirePermission.class);
 
         String page   = annotation.page();
-        String action = annotation.action() == null || annotation.action().isBlank()
-                        ? "VIEW" : annotation.action().toUpperCase();
+        String action = annotation.action().isBlank() ? "VIEW" : annotation.action().toUpperCase();
 
         // DynamicPermissionClient bean 없으면 건너뜀 (서비스 미지원 환경)
         DynamicPermissionClient client = clientProvider.getIfAvailable();
@@ -105,9 +116,6 @@ public class PermissionAspect {
             log.debug("[SP-D5] X-User-Role 헤더 없음 — 권한 검증 건너뜀 (page={} action={})", page, action);
             return joinPoint.proceed();
         }
-
-        // service 이름 추론 (Controller 클래스 패키지 기반)
-        String serviceName = resolveServiceName(joinPoint);
 
         boolean denied = false;
         if ("VIEW".equals(action)) {
@@ -128,8 +136,8 @@ public class PermissionAspect {
                 // canView=false → fallback 통과 (override row 없음 — @PreAuthorize 가 이미 검증)
             }
         } else {
-            // 미지원 action → 건너뜀
-            log.warn("[SP-D5] 지원하지 않는 action 값 — action={} (page={}) → 건너뜀", action, page);
+            // 미지원 action → 권한 검증 건너뜀 (운영 안전 우선)
+            log.warn("[SP-D5] 지원하지 않는 action 값 — action={} (page={}) → 권한 검증 건너뜀", action, page);
         }
 
         if (denied) {
@@ -180,26 +188,5 @@ public class PermissionAspect {
         }
 
         return null;
-    }
-
-    /**
-     * Controller 클래스의 패키지 이름에서 service 식별자를 추론.
-     *
-     * <p>패키지 규칙: {@code com.samhanair.logis.<service>.<...>}
-     * 예: {@code com.samhanair.logis.accounting.report.BalanceSheetController} → {@code "accounting"}
-     *
-     * @param joinPoint AOP 조인 포인트
-     * @return service 이름 (추론 실패 시 {@code "unknown"})
-     */
-    private String resolveServiceName(ProceedingJoinPoint joinPoint) {
-        String packageName = joinPoint.getTarget().getClass().getPackageName();
-        // com.samhanair.logis.<service>.*
-        String prefix = "com.samhanair.logis.";
-        if (packageName.startsWith(prefix)) {
-            String rest = packageName.substring(prefix.length());
-            int dot = rest.indexOf('.');
-            return dot > 0 ? rest.substring(0, dot) : rest;
-        }
-        return "unknown";
     }
 }

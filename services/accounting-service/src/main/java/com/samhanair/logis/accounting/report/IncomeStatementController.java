@@ -10,7 +10,6 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,7 +61,6 @@ public class IncomeStatementController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/income-statement")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<IncomeStatementResponse> incomeStatement(
             @Parameter(description = "단월 기간 (yyyyMM)")

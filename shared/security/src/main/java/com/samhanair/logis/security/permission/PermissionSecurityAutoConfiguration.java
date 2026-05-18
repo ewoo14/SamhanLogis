@@ -1,11 +1,12 @@
 package com.samhanair.logis.security.permission;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
@@ -27,6 +28,13 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
  *
  * <p>{@code @EnableAspectJAutoProxy} — Spring AOP 프록시 자동 활성화.
  * 소비자 service 가 이미 {@code @EnableAspectJAutoProxy} 를 선언한 경우 중복 무시된다.
+ *
+ * <p>SP-D5 cycle 2 fix (P1-2): 본 클래스가 bean 등록의 단일 진입점.
+ * {@link PermissionAspect} / {@link PermissionGuardMetrics} 에서 {@code @Component} 를 제거하여
+ * consumer service 의 component scan 범위가 본 패키지를 포함하더라도 조건부 활성화 우회를 차단한다.
+ *
+ * <p>SP-D5 cycle 2 fix (P0-2): {@link PermissionAspect} 의 {@code service} tag 를
+ * {@code spring.application.name} property 로 주입하여 Controller 패키지 추론과의 불일치를 제거한다.
  *
  * @since SP-D5
  */
@@ -51,8 +59,11 @@ public class PermissionSecurityAutoConfiguration {
     /**
      * {@link RequirePermission} AOP 인터셉터.
      *
+     * <p>{@code spring.application.name} property 가 비어 있으면 {@code "unknown"} 으로 정규화한다.
+     *
      * @param clientProvider DynamicPermissionClient lazy provider
      * @param metrics        deny 횟수 카운터
+     * @param applicationName {@code spring.application.name} property (Counter {@code service} tag)
      * @return {@link PermissionAspect} bean
      */
     @Bean
@@ -60,7 +71,8 @@ public class PermissionSecurityAutoConfiguration {
     @ConditionalOnBean(MeterRegistry.class)
     public PermissionAspect permissionAspect(
             ObjectProvider<DynamicPermissionClient> clientProvider,
-            PermissionGuardMetrics metrics) {
-        return new PermissionAspect(clientProvider, metrics);
+            PermissionGuardMetrics metrics,
+            @Value("${spring.application.name:unknown}") String applicationName) {
+        return new PermissionAspect(clientProvider, metrics, applicationName);
     }
 }

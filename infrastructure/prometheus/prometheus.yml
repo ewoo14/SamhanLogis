@@ -100,7 +100,7 @@ scrape_configs:
     static_configs:
       - targets: ["partner-service:8095"]
 
-  # Phase 10 W10-1 — arologis-service 신규 (D-P10-01 / D-P10-02). 15 scrape target.
+  # Phase 10 W10-1 — arologis-service 신규 (D-P10-01 / D-P10-02). 17 scrape target.
   - job_name: arologis-service
     metrics_path: /actuator/prometheus
     static_configs:

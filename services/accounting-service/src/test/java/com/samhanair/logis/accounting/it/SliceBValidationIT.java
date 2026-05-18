@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,6 +26,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,8 +69,17 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
-    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    /**
+     * SP-D2 동적 권한 client 격리. SP-D5 cycle 2 fix (P1-4): {@code @RequirePermission} AOP 활성 후
+     * report endpoint 호출 시 canView=false 회귀 차단 위해 lenient stub 적용.
+     */
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void setUpPermissionStub() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+    }
 
     @Autowired private MockMvc mockMvc;
     @Autowired private TaxInvoiceRepository taxInvoiceRepository;

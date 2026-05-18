@@ -5,6 +5,10 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    # SP-D5 cycle 2 fix (DevOps M-2): permission-guard-denied.json 등 대시보드가
+    # 데이터소스를 uid 로 참조하므로 명시 고정 필요. 미지정 시 Grafana 재기동 자동 생성 UUID 와
+    # 불일치 → 패널 "datasource not found" 회귀.
+    uid: PROMETHEUS_DS
     type: prometheus
     access: proxy
     url: http://prometheus:9090

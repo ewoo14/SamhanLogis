@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -61,7 +60,6 @@ public class BalanceSheetController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "asOfDate 파라미터 오류")
     })
     @GetMapping("/balance-sheet")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<BalanceSheetResponse> balanceSheet(
             @Parameter(description = "기준 일자 (YYYY-MM-DD)")

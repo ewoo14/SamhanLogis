@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,7 +53,6 @@ public class DailySummaryController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/daily-summary")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
     public ApiResponse<DailySummaryResponse> dailySummary(
             @Parameter(description = "집계 일자 (ISO 날짜, 예: 2026-01-15)")

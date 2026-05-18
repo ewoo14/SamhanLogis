@@ -2,7 +2,6 @@ package com.samhanair.logis.security.permission;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.stereotype.Component;
 
 /**
  * PermissionGuard deny 횟수 Micrometer 카운터 — SP-D5 신규.
@@ -21,10 +20,13 @@ import org.springframework.stereotype.Component;
  * <p>Prometheus 노출: {@code /actuator/prometheus} 에 자동 포함.
  * CloudWatch / Grafana 대시보드에서 role × page × action 매트릭스 시각화 가능.
  *
+ * <p>SP-D5 cycle 2 fix (P1-2): {@code @Component} 제거. bean 등록은
+ * {@link PermissionSecurityAutoConfiguration} 의 {@code @Bean} 으로 일원화.
+ * consumer service 의 component scan 범위에 본 패키지가 포함되어도 conditional 우회 차단.
+ *
  * @see PermissionAspect
  * @since SP-D5
  */
-@Component
 public class PermissionGuardMetrics {
 
     /** Prometheus metric 이름 — Prometheus naming convention (lowercase + underscore + _total suffix). */

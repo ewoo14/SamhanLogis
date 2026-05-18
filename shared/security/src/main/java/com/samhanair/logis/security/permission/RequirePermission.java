@@ -58,7 +58,8 @@ public @interface RequirePermission {
      * 검증할 액션 코드.
      *
      * <p>지원 값: {@code "VIEW"} (조회), {@code "EDIT"} (편집).
-     * 미지원 값 입력 시 {@link PermissionAspect} 가 {@code EDIT} 으로 fallback.
+     * 미지원 값 입력 시 {@link PermissionAspect} 가 WARN 로그를 남기고 권한 검증을 건너뛴다
+     * (운영 안전 우선 — SP-D5 cycle 2 fix P2-1 에서 Javadoc 정정).
      *
      * @return 액션 코드 문자열
      */
