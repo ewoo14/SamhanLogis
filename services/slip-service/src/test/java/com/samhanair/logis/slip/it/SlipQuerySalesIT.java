@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -82,6 +83,10 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
     @Autowired
     private SlipRepository slipRepository;
 
+    /** SP-D3 cycle 3 fix — DynamicPermissionClient @MockBean 누락 시 Eureka 호출 → 403 fallback 트랩 */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @MockBean
     private InventoryClient inventoryClient;
 
@@ -144,6 +149,13 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                 .thenReturn(java.util.Collections.emptyList());
         Mockito.lenient().when(partnerBlockClient.findAllBlockedPartnerCodes())
                 .thenReturn(java.util.Collections.emptySet());
+        // SP-D3 cycle 3 fix — DynamicPermissionClient lenient stub (canView/canEdit=true)
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
     }
 
     // ─── R1 목록 권한 가드 ───────────────────────────────────────────────────

@@ -98,11 +98,13 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C1: SALES sales.slip.list canView=true → 매출 슬립 목록 200 OK")
     @WithMockUser(username = "sales-user", authorities = {"ROLE_SALES"})
     void C1_sales_slip_list_canView_true_returns_200() throws Exception {
-        // canView=true (lenient 기본값 사용)
+        // canView=true (lenient 기본값 사용).
+        // SlipSalesAccessGuard 정적 가드 통과를 위해 X-User-Role 헤더 필수 (cycle 3 fix).
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
     }
 
@@ -118,10 +120,12 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
         Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
                 .thenReturn(false);
 
+        // X-User-Role 헤더로 정적 가드 통과 → 동적 가드에서 403 발생 (cycle 3 fix)
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
 
@@ -133,11 +137,13 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C3: WAREHOUSE purchases.slip.list canView=true → 매입 슬립 목록 200 OK")
     @WithMockUser(username = "warehouse-user", authorities = {"ROLE_WAREHOUSE"})
     void C3_purchases_slip_list_canView_true_returns_200() throws Exception {
-        // canView=true (lenient 기본값 사용)
+        // canView=true (lenient 기본값 사용).
+        // SlipPurchaseAccessGuard 정적 가드 통과를 위해 X-User-Role 헤더 필수 (cycle 3 fix).
         mockMvc.perform(get("/slips")
                         .param("slipType", "INBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk());
     }
 
@@ -153,10 +159,12 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
         Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
                 .thenReturn(false);
 
+        // X-User-Role 헤더로 정적 가드 통과 → 동적 가드에서 403 발생 (cycle 3 fix)
         mockMvc.perform(get("/slips")
                         .param("slipType", "INBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isForbidden());
     }
 
@@ -176,10 +184,12 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                 .thenReturn(false);
 
         // fallback 결과 canView=false → checkViewPermission → BusinessException(FORBIDDEN) → 403
+        // X-User-Role 헤더로 정적 가드 통과 → 동적 가드에서 fallback 403 (cycle 3 fix)
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
 

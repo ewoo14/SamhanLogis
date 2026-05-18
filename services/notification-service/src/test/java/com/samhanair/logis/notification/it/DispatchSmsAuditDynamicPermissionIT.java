@@ -115,10 +115,12 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
         Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
                 .thenReturn(false);
 
+        // X-User-Role 헤더로 동적 가드 실행 → checkViewPermission(DISPATCH) → canView=false → 403 (cycle 3 fix)
         mockMvc.perform(get(HISTORY_URL)
                         .param("mode", "SEND_AUDIT")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isForbidden());
     }
 
