@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.HometaxExportService;
 import com.samhanair.logis.accounting.service.LedgerImageService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
@@ -15,6 +16,8 @@ import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchPreviewRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchPreviewResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -68,11 +72,18 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>UUID 비공개 가드 — 응답은 partnerCode + partnerName + slipNo / taxInvoiceNo / journalNo
  * 만 노출. 모든 응답 ApiResponse 래핑 (xlsx binary 제외).
  */
+@Slf4j
 @Tag(name = "회계 리포트", description = "매출집계/원장/거래명세서/홈택스export/일마감 + 일괄발행 배치(PR#161)")
 @RestController
 @RequestMapping
 @RequiredArgsConstructor
 public class AccountingReportController {
+
+    /** SP-D2 — 재무 보고서 페이지 코드 (매출집계/원장/일마감 detail). */
+    private static final String REPORTS_PAGE_CODE = "accounting.reports";
+    /** SP-D2 — 거래명세서 일괄 + 홈택스 export 페이지 코드. */
+    private static final String STATEMENT_BATCH_PAGE_CODE = "accounting.statement-batch";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private static final String XLSX_CONTENT_TYPE =
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -82,6 +93,7 @@ public class AccountingReportController {
     private final StatementBatchService statementBatchService;
     private final HometaxExportService hometaxExportService;
     private final MonthEndCloseService monthEndCloseService;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     // =========================================================================
     // BE-A8 ~ A12 (legacy — PR-E2)
@@ -99,7 +111,9 @@ public class AccountingReportController {
     public ApiResponse<List<SalesAggregateRow>> aggregate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String partnerCode) {
+            @RequestParam(required = false) String partnerCode,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkReportViewPermission(roleHeader);
         return ApiResponse.ok(salesAggregateService.aggregate(from, to, partnerCode));
     }
 
@@ -126,7 +140,9 @@ public class AccountingReportController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<List<StatementBatchRow>> statementBatch(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkStatementBatchViewPermission(roleHeader);
         return ApiResponse.ok(statementBatchService.batch(from, to));
     }
 
@@ -360,6 +376,40 @@ public class AccountingReportController {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 VIEW 권한 검증 — 재무 보고서 페이지.
+     * canView=false → 점진 마이그레이션 정책으로 통과.
+     */
+    private void checkReportViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, REPORTS_PAGE_CODE);
+        if (!canView) {
+            log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
+                    actorRole, REPORTS_PAGE_CODE);
+        }
+    }
+
+    /**
+     * SP-D2 동적 VIEW 권한 검증 — 거래명세서 일괄 페이지.
+     * canView=false → 점진 마이그레이션 정책으로 통과.
+     */
+    private void checkStatementBatchViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, STATEMENT_BATCH_PAGE_CODE);
+        if (!canView) {
+            log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
+                    actorRole, STATEMENT_BATCH_PAGE_CODE);
         }
     }
 }

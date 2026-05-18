@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.KftcDepositRecord;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -47,11 +48,20 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>UUID 비공개 원칙 (feedback_uuid_no_user_visibility):
  * journalDraftId(UUID) 는 {@link DepositMatchResult} 에만 존재하며 외부 응답 DTO 로 변환 시 제외.
+ *
+ * <p>SP-D2 동적 권한 검증:
+ * 기존 {@code @PreAuthorize} 가드에 더해 {@link DynamicPermissionClient} 를 통해
+ * auth-service 의 동적 override 권한도 확인한다.
+ * override row 미존재 또는 auth-service 장애 시에는 기존 @PreAuthorize 만 적용.
+ * 명시적 canEdit=false (view-only override) 시 403 반환.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DepositMatchService {
+
+    /** SP-D2 — 입금 매칭 페이지 코드. */
+    static final String PAGE_CODE = "accounting.deposit-match";
 
     /** 보통예금 계정과목 코드 (한국 일반기업회계기준 — project_korean_accounting.md). */
     private static final String ACCOUNT_CODE_DEPOSIT = "103";
@@ -65,6 +75,7 @@ public class DepositMatchService {
     private final JournalRepository journalRepository;
     private final JournalNumberService journalNumberService;
     private final DepositMatchAuditRecorder auditRecorder;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 입금 거래 조회 + 자동 매칭 + 분개 draft 생성.
@@ -72,20 +83,29 @@ public class DepositMatchService {
      * <p>from &gt; to 이면 {@code DEPOSIT_DATE_RANGE_INVALID} (422) 반환.
      * accountFinNo 가 blank 이면 {@code INVALID_INPUT} (400) 반환.
      *
+     * <p>SP-D2 동적 권한: actorRole not-null 이면 canEdit 검증.
+     * override row 없으면 기존 @PreAuthorize 통과로 충분.
+     * canView=true + canEdit=false 이면 명시적 deny → 403.
+     *
      * @param from         조회 시작 일자 (필수)
      * @param to           조회 종료 일자 (필수)
      * @param accountFinNo 계좌 금융기관 코드 (필수, blank 불허)
      * @param submitMethod 전송 방식 ("DRY_RUN" | "KFTC", null/blank 이면 "DRY_RUN" fallback — effectiveMethod 단일 계산)
      * @param actorId      실행자 UUID (X-User-Id 헤더에서 파싱)
+     * @param actorRole    요청자 role (X-User-Role 헤더) — 동적 권한 검증에 사용
      * @return 단건 매칭 결과 리스트
      * @throws BusinessException(DEPOSIT_DATE_RANGE_INVALID) from > to 시
      * @throws BusinessException(INVALID_INPUT) accountFinNo blank 시
      * @throws BusinessException(KFTC_SUBMIT_FAILED) KFTC 모드 API 오류 시
+     * @throws BusinessException(FORBIDDEN) 동적 권한 차단 시
      */
     @Transactional
     public List<DepositMatchResult> fetchAndMatch(LocalDate from, LocalDate to,
                                                    String accountFinNo, String submitMethod,
-                                                   UUID actorId) {
+                                                   UUID actorId, String actorRole) {
+        // SP-D2 동적 권한 검증 (기존 @PreAuthorize 이후 추가 레이어)
+        checkEditPermission(actorRole, actorId != null ? actorId.toString() : null);
+
         // 1. 날짜 범위 유효성 검증
         if (from.isAfter(to)) {
             throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
@@ -260,5 +280,37 @@ public class DepositMatchService {
 
         Journal saved = journalRepository.save(journal);
         return saved.getId();
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canEdit=false + canView=true 이면 명시적 deny → 403.
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole   요청자 role
+     * @param actorUserId 요청자 user-id (로그용)
+     */
+    private void checkEditPermission(String actorRole, String actorUserId) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={} actorUserId={}",
+                        actorRole, PAGE_CODE, actorUserId);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 입금 매칭 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={} actorUserId={}",
+                    actorRole, PAGE_CODE, actorUserId);
+        }
     }
 }

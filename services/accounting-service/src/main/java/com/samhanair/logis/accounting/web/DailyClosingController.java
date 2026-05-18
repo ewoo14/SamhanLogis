@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DailyClosingController {
 
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final DailyClosingService dailyClosingService;
 
@@ -74,8 +75,9 @@ public class DailyClosingController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<DailyClosingResponse> close(
             @Valid @RequestBody CreateDailyClosingRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(dailyClosingService.close(request, callerOrSystem(callerHeader)));
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        return ApiResponse.ok(dailyClosingService.close(request, callerOrSystem(callerHeader), roleHeader));
     }
 
     /**
@@ -100,8 +102,9 @@ public class DailyClosingController {
             @Parameter(description = "조회 종료 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 20, sort = "closingDate", direction = Sort.Direction.DESC)
-            Pageable pageable) {
-        return ApiResponse.ok(dailyClosingService.list(from, to, pageable));
+            Pageable pageable,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        return ApiResponse.ok(dailyClosingService.list(from, to, pageable, roleHeader));
     }
 
     /**
@@ -137,7 +140,8 @@ public class DailyClosingController {
             @RequestBody java.util.Map<String, Object> body,
             @Parameter(description = "거래처코드 (null = 전체 마감)")
             @RequestParam(required = false) String partnerCode,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         // {"locked": false} 만 허용 (현재 unlock only — lock 은 POST /daily-closings 가 담당)
         Object lockedVal = body.get("locked");
         if (!Boolean.FALSE.equals(lockedVal)) {
@@ -146,7 +150,7 @@ public class DailyClosingController {
                     "현재 이 엔드포인트는 {\"locked\": false} 만 지원합니다");
         }
         return ApiResponse.ok(
-                dailyClosingService.unlock(closingDate, partnerCode, callerOrSystem(callerHeader)));
+                dailyClosingService.unlock(closingDate, partnerCode, callerOrSystem(callerHeader), roleHeader));
     }
 
     private String callerOrSystem(String header) {

@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>asOfDate 기준 누적 잔액으로 B/S 를 산출한다.
  * 결산 분개 없는 상태에서는 당기순이익이 미처분이익잉여금(343) 에 자동 가산된다.
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} 를 통해 {@code accounting.reports} VIEW 검증.
  */
 @Tag(name = "재무 보고서", description = "손익계산서 / 재무상태표 / 시산표")
 @RestController
@@ -33,12 +36,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class BalanceSheetController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final BalanceSheetService balanceSheetService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 재무상태표 조회.
      *
-     * @param asOfDate 기준 일자 (YYYY-MM-DD)
+     * <p>SP-D2 동적 권한: VIEW 검증 (점진 마이그레이션 — canView=false fallback 시 통과).
+     *
+     * @param asOfDate   기준 일자 (YYYY-MM-DD)
+     * @param roleHeader X-User-Role 헤더
      * @return 재무상태표 응답 (ApiResponse 래핑)
      */
     @Operation(
@@ -53,7 +62,9 @@ public class BalanceSheetController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<BalanceSheetResponse> balanceSheet(
             @Parameter(description = "기준 일자 (YYYY-MM-DD)")
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
         return ApiResponse.ok(balanceSheetService.findByAsOfDate(asOfDate));
     }
 }

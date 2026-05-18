@@ -13,6 +13,7 @@ import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 내부적으로 동일한 {@link TrialBalanceService} 를 재사용한다.
  *
  * <p>권한: ACCOUNTANT / MANAGER / MASTER.
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "재무 보고서", description = "손익계산서 / 재무상태표 / 시산표")
 @RestController
@@ -32,9 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class TrialBalanceReportController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final TrialBalanceService trialBalanceService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 시산표 조회 (별칭 endpoint).
@@ -58,7 +63,9 @@ public class TrialBalanceReportController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<TrialBalanceResponse> trialBalance(
             @Parameter(description = "회계 월 (yyyyMM, 예: 202604)")
-            @RequestParam String period) {
+            @RequestParam String period,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
         YearMonth ym;
         try {
             ym = YearMonth.parse(period, PERIOD_FMT);

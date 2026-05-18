@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.service.JournalExcelExportService;
 import com.samhanair.logis.accounting.service.JournalService;
@@ -7,12 +8,15 @@ import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
 import com.samhanair.logis.accounting.web.dto.JournalResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -46,16 +50,25 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>모든 응답은 ApiResponse 래핑. UUID(분개 id) 는 mutation path 로만 사용,
  * 사용자 화면 표시는 journalNo / journalDate / accountCode (memory 의무).
+ *
+ * <p>SP-D2 동적 권한: {@code accounting.general-ledger} 페이지 코드로 분개장 VIEW/EDIT 가드.
+ * (분개장은 원장과 동일 권한 정책 적용 — 별도 PageCode 추가 없이 general-ledger 공유)
  */
+@Slf4j
 @RestController
 @RequestMapping("/accounting/journals")
 @RequiredArgsConstructor
 public class JournalController {
 
+    /** SP-D2 — 분개장/원장 통합 페이지 코드. */
+    private static final String JOURNAL_PAGE_CODE = "accounting.general-ledger";
+
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final JournalService journalService;
     private final JournalExcelExportService journalExcelExportService;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /** 분개 신규 생성 — DRAFT 상태. */
     @Operation(summary = "분개 생성", description = "DRAFT 상태로 생성. 라인 1개 이상 필수, accountCode leaf 검증")
@@ -67,7 +80,10 @@ public class JournalController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
-    public ApiResponse<JournalDetailResponse> create(@Valid @RequestBody CreateJournalRequest request) {
+    public ApiResponse<JournalDetailResponse> create(
+            @Valid @RequestBody CreateJournalRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(journalService.create(request));
     }
 
@@ -109,7 +125,9 @@ public class JournalController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
     public ApiResponse<JournalDetailResponse> post(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(journalService.post(id, callerOrSystem(callerHeader)));
     }
 
@@ -123,7 +141,9 @@ public class JournalController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
     public ApiResponse<JournalDetailResponse> reverse(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(journalService.reverse(id, callerOrSystem(callerHeader)));
     }
 
@@ -165,5 +185,34 @@ public class JournalController {
 
     private String callerOrSystem(String header) {
         return (header == null || header.isBlank()) ? "system" : header;
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증 — 분개/원장 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canEdit=false + canView=true 이면 명시적 deny → 403.
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, JOURNAL_PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, JOURNAL_PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, JOURNAL_PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 분개 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}", actorRole, JOURNAL_PAGE_CODE);
+        }
     }
 }

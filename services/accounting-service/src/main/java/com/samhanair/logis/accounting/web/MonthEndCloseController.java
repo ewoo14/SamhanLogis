@@ -1,16 +1,20 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.domain.PeriodType;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
 import com.samhanair.logis.accounting.web.dto.AccountingPeriodResponse;
 import com.samhanair.logis.accounting.web.dto.CreateClosingRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,15 +42,23 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>마감 실행 시 slip-service.lock-by-period 호출 → CONFIRMED 슬립 일괄 LOCKED.
  * 마감 후 해당 기간 분개/세금계산서 입력은 {@code AccountingPeriodGuard} 가 차단.
+ *
+ * <p>SP-D2 동적 권한: {@code accounting.period-close} 페이지 코드.
  */
+@Slf4j
 @RestController
 @RequestMapping("/accounting/closings")
 @RequiredArgsConstructor
 public class MonthEndCloseController {
 
+    /** SP-D2 — 월말 마감 페이지 코드. */
+    private static final String PAGE_CODE = "accounting.period-close";
+
     private static final String CALLER_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final MonthEndCloseService monthEndCloseService;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /** 마감 실행 — DAILY 또는 MONTHLY. slip-service 호출 + 합계 stamp. */
     @Operation(summary = "매출 마감 실행",
@@ -60,7 +72,9 @@ public class MonthEndCloseController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
     public ApiResponse<AccountingPeriodResponse> close(
             @Valid @RequestBody CreateClosingRequest request,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(monthEndCloseService.close(request, callerOrSystem(callerHeader)));
     }
 
@@ -86,11 +100,38 @@ public class MonthEndCloseController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<AccountingPeriodResponse> reverse(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(monthEndCloseService.reverse(id, callerOrSystem(callerHeader)));
     }
 
     private String callerOrSystem(String header) {
         return (header == null || header.isBlank()) ? "system" : header;
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증 — 월말 마감 페이지 코드.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 마감 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}", actorRole, PAGE_CODE);
+        }
     }
 }

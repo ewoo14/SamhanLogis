@@ -1,16 +1,20 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.SupplierProfileService;
 import com.samhanair.logis.accounting.web.dto.CreateSupplierProfileRequest;
 import com.samhanair.logis.accounting.web.dto.SupplierProfileResponse;
 import com.samhanair.logis.accounting.web.dto.UpdateSupplierProfileRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -40,14 +44,22 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>UUID 비공개 원칙 — 사용자 노출 식별자는 {@code businessNumber} / {@code companyName}.
  * UUID 는 PUT/PATCH/DELETE 경로 파라미터로만 사용.
+ *
+ * <p>SP-D2 동적 권한: {@code accounting.partner-ledger} 페이지 코드 (사업자 양식).
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/accounting/supplier-profiles")
 @RequiredArgsConstructor
 @Tag(name = "사업자 프로필", description = "홈택스 세금계산서 공급자 정보 관리 (사업자 양식)")
 public class SupplierProfileController {
 
+    /** SP-D2 — 사업자 양식/거래처 원장 페이지 코드. */
+    private static final String PAGE_CODE = "accounting.partner-ledger";
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final SupplierProfileService service;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     // =========================================================================
     // GET /api/v1/accounting/supplier-profiles
@@ -103,7 +115,9 @@ public class SupplierProfileController {
     @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
     @Operation(summary = "사업자 프로필 신규 등록", description = "다중 사업자 대비용. isPrimary=true 시 기존 primary 해제")
     public ApiResponse<SupplierProfileResponse> create(
-            @RequestBody @Valid CreateSupplierProfileRequest req) {
+            @RequestBody @Valid CreateSupplierProfileRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(service.create(req), "사업자 프로필이 등록되었습니다.");
     }
 
@@ -125,7 +139,9 @@ public class SupplierProfileController {
     @Operation(summary = "사업자 프로필 수정", description = "null 필드는 기존 값 유지. isPrimary 변경은 PATCH /{id}/primary 사용")
     public ApiResponse<SupplierProfileResponse> update(
             @PathVariable UUID id,
-            @RequestBody @Valid UpdateSupplierProfileRequest req) {
+            @RequestBody @Valid UpdateSupplierProfileRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(service.update(id, req), "사업자 프로필이 수정되었습니다.");
     }
 
@@ -166,7 +182,34 @@ public class SupplierProfileController {
     @Operation(summary = "사업자 프로필 삭제 (Soft Delete)", description = "primary 사업자는 삭제 불가 (409 반환)")
     public void delete(
             @PathVariable UUID id,
-            @RequestHeader("X-User-Id") String actorUserId) {
+            @RequestHeader("X-User-Id") String actorUserId,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         service.delete(id, actorUserId);
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증 — 사업자 양식/거래처 원장 페이지 코드.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 사업자 프로필 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}", actorRole, PAGE_CODE);
+        }
     }
 }

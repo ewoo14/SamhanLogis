@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.domain.AccountCategory;
@@ -33,6 +34,9 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean
     private KftcClient kftcClient;
+    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @Test
     @DisplayName("V1 시드 — 50+ 계정 + 8 카테고리 (7-그룹 + INCOME_TAX) 모두 존재")

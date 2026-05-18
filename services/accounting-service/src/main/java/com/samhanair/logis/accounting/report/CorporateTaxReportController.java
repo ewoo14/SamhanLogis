@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>한국 법인세율 단계별 적용 (법인세법 §55, 2023년 이후):
  * 2억 이하 9% / 2억~200억 19% / 200억~3000억 21% / 3000억 초과 24%.
  * 신고 기한: 사업연도 종료일 + 3개월.
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "세금 보고서", description = "부가세신고서 / 법인세신고서 / 거래처 미수미지급")
 @RestController
@@ -32,7 +35,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class CorporateTaxReportController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final CorporateTaxReportService corporateTaxReportService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 법인세 신고서 조회 — 사업연도 단위.
@@ -57,7 +63,9 @@ public class CorporateTaxReportController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<CorporateTaxReportResponse> corporateTax(
             @Parameter(description = "사업연도 (YYYY, 예: 2026)")
-            @RequestParam int fiscalYear) {
+            @RequestParam int fiscalYear,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
 
         if (fiscalYear < 2000 || fiscalYear > 2100) {
             throw new IllegalArgumentException(

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -65,6 +66,8 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
+    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @Autowired private MockMvc mockMvc;
 

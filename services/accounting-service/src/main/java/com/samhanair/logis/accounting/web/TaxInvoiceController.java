@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.service.TaxInvoiceEmitService;
@@ -14,12 +15,15 @@ import com.samhanair.logis.accounting.web.dto.TaxInvoicePrintResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceSummaryResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -54,17 +58,27 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <p>응답은 ApiResponse 래핑. UUID 는 mutation path 에만 사용 — 사용자 표시는 tax_invoice_no.
+ *
+ * <p>SP-D2 동적 권한:
+ * emit-nts 는 SP-D1 {@link TaxInvoiceEmitService} 에서 처리.
+ * 세금계산서 목록/단건 조회(VIEW)와 DRAFT 생성/수정/발행/취소(EDIT)는
+ * {@code accounting.tax-invoice.list} 페이지 코드로 동적 검증 추가.
  */
+@Slf4j
 @RestController
 @RequestMapping("/accounting/tax-invoices")
 @RequiredArgsConstructor
 public class TaxInvoiceController {
+
+    /** SP-D2 — 세금계산서 목록 페이지 코드. */
+    private static final String TAX_INVOICE_LIST_PAGE_CODE = "accounting.tax-invoice.list";
 
     private static final String CALLER_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final TaxInvoiceService taxInvoiceService;
     private final TaxInvoiceEmitService taxInvoiceEmitService;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /** DRAFT 생성. */
     @Operation(summary = "세금계산서 신규 생성", description = "DRAFT 상태로 생성. 라인 1개 이상 필수")
@@ -76,7 +90,9 @@ public class TaxInvoiceController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
     public ApiResponse<TaxInvoiceDetailResponse> create(
-            @Valid @RequestBody CreateTaxInvoiceRequest request) {
+            @Valid @RequestBody CreateTaxInvoiceRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(taxInvoiceService.create(request));
     }
 
@@ -91,7 +107,9 @@ public class TaxInvoiceController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
     public ApiResponse<TaxInvoiceDetailResponse> update(
             @PathVariable UUID id,
-            @Valid @RequestBody CreateTaxInvoiceRequest request) {
+            @Valid @RequestBody CreateTaxInvoiceRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
         return ApiResponse.ok(taxInvoiceService.update(id, request));
     }
 
@@ -268,5 +286,34 @@ public class TaxInvoiceController {
 
     private String callerOrSystem(String header) {
         return (header == null || header.isBlank()) ? "system" : header;
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증 — 세금계산서 목록 페이지 코드.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canEdit=false + canView=true 이면 명시적 deny → 403.
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkEditPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 세금계산서 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}", actorRole, TAX_INVOICE_LIST_PAGE_CODE);
+        }
     }
 }

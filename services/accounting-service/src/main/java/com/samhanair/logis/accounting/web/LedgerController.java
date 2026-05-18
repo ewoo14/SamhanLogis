@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,6 +35,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/accounting/ledgers")
 @RequiredArgsConstructor
 public class LedgerController {
+
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final LedgerService ledgerService;
 
@@ -67,7 +70,8 @@ public class LedgerController {
             @Parameter(description = "조회 종료 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @Parameter(description = "거래처코드 (선택 — null 이면 전체 거래처)")
-            @RequestParam(required = false) String partnerCode) {
-        return ApiResponse.ok(ledgerService.getLedger(from, to, partnerCode));
+            @RequestParam(required = false) String partnerCode,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        return ApiResponse.ok(ledgerService.getLedger(from, to, partnerCode, roleHeader));
     }
 }

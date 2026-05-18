@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.JournalLine;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,14 +36,23 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code @MockBean} 격리 의무 ({@code feedback_it_mockbean_external_clients.md}).
  *
  * <p>read-only service — 도메인 mutation 없음.
+ *
+ * <p>SP-D2 동적 권한 검증:
+ * VIEW 액션 — 기존 @PreAuthorize 이후 추가 레이어.
+ * override row 없음(fallback) 시 기존 @PreAuthorize 통과로 충분.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class LedgerService {
 
+    /** SP-D2 — 원장 페이지 코드. */
+    static final String PAGE_CODE = "accounting.general-ledger";
+
     private final JournalLineRepository journalLineRepository;
     private final PartnerLookupClient partnerLookupClient;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 기간별 + 거래처별 원장 조회.
@@ -49,14 +60,19 @@ public class LedgerService {
      * <p>partnerCode 가 null 이면 전체 거래처 통합 조회 (모든 라인 반환).
      * 잔액은 차변잔액 normal (debit - credit) 로 누적.
      *
+     * <p>SP-D2 동적 권한: VIEW 검증 (점진 마이그레이션 — canView=false fallback 시 통과).
+     *
      * @param from        조회 시작 날짜 (필수)
      * @param to          조회 종료 날짜 (필수)
      * @param partnerCode 거래처코드 필터 (선택 — null 이면 전체)
+     * @param actorRole   요청자 role (X-User-Role 헤더)
      * @return 기간 원장 (라인 목록 + 합계 요약)
      * @throws BusinessException(NOT_FOUND) partnerCode 지정 시 미존재
      * @throws IllegalArgumentException     from/to null 또는 to < from
      */
-    public LedgerResponse getLedger(LocalDate from, LocalDate to, String partnerCode) {
+    public LedgerResponse getLedger(LocalDate from, LocalDate to, String partnerCode,
+                                    String actorRole) {
+        checkViewPermission(actorRole);
         if (from == null || to == null) {
             throw new IllegalArgumentException("from/to 는 필수입니다");
         }
@@ -133,6 +149,30 @@ public class LedgerService {
                 totalCredit,
                 balance,
                 ledgerLines);
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 VIEW 권한 검증.
+     *
+     * <p>actorRole null/blank 이면 건너뜀.
+     * canView=false: fallback(row 없음) 또는 명시적 deny 구분 불가
+     * → 점진 마이그레이션 정책으로 통과 (기존 @PreAuthorize 가 이미 검증).
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+        if (!canView) {
+            log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
+                    actorRole, PAGE_CODE);
+        }
     }
 
 }

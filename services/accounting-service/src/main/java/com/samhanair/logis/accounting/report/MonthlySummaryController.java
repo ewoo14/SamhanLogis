@@ -11,6 +11,7 @@ import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET /api/v1/accounting/reports/monthly-summary?period=YYYYMM</li>
  * </ul>
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "일계표 / 월계표", description = "일계표 / 월계표 (P0-1 Slice C)")
 @RestController
@@ -31,9 +34,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MonthlySummaryController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final MonthlySummaryService monthlySummaryService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 월계표 조회.
@@ -54,7 +59,9 @@ public class MonthlySummaryController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<MonthlySummaryResponse> monthlySummary(
             @Parameter(description = "집계 월 (yyyyMM, 예: 202601)")
-            @RequestParam String period) {
+            @RequestParam String period,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
         YearMonth ym;
         try {
             ym = YearMonth.parse(period, PERIOD_FMT);

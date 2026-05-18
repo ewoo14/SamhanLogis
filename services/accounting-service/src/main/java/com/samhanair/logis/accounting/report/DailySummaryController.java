@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET /api/v1/accounting/reports/daily-summary?date=YYYY-MM-DD</li>
  * </ul>
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "일계표 / 월계표", description = "일계표 / 월계표 (P0-1 Slice C)")
 @RestController
@@ -30,7 +33,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DailySummaryController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final DailySummaryService dailySummaryService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 일계표 조회.
@@ -51,7 +57,9 @@ public class DailySummaryController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<DailySummaryResponse> dailySummary(
             @Parameter(description = "집계 일자 (ISO 날짜, 예: 2026-01-15)")
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
         return ApiResponse.ok(dailySummaryService.findByDate(date));
     }
 }

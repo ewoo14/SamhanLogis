@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.DailyClosing;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -39,15 +41,26 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>외부 client {@link PartnerLookupClient} 의존 — IT 에서 {@code @MockBean} 격리 의무.
  * ({@code feedback_it_mockbean_external_clients.md})
+ *
+ * <p>SP-D2 동적 권한 검증:
+ * 기존 {@code @PreAuthorize} 가드에 더해 {@link DynamicPermissionClient} 를 통해
+ * auth-service 의 동적 override 권한도 확인한다.
+ * override row 미존재 또는 auth-service 장애 시에는 기존 @PreAuthorize 만 적용.
+ * 명시적 canEdit=false (view-only override) 시 403 반환.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class DailyClosingService {
 
+    /** SP-D2 — 일마감 페이지 코드. */
+    static final String PAGE_CODE = "accounting.daily-closing";
+
     private final DailyClosingRepository dailyClosingRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final PartnerLookupClient partnerLookupClient;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 일마감 실행 — 세금계산서 집계 + lock.
@@ -58,13 +71,21 @@ public class DailyClosingService {
      *   <li>isLocked=true  → CONFLICT 예외</li>
      * </ul>
      *
+     * <p>SP-D2 동적 권한: actorRole 이 not-null 이면 canEdit 을 검증한다.
+     * override row 없음 (fallback false) 시에는 @PreAuthorize 통과로 충분.
+     * canView=true + canEdit=false 이면 명시적 deny → 403.
+     *
      * @param request     일마감 생성 요청 (closingDate + partnerCode)
      * @param actorUserId 마감 실행자 user-id
+     * @param actorRole   요청자 role (X-User-Role 헤더) — 동적 권한 검증에 사용
      * @return 생성된 DailyClosingResponse
      * @throws BusinessException(NOT_FOUND)  partnerCode 가 지정되었으나 partner-service 에서 미존재
      * @throws BusinessException(CONFLICT)   이미 잠금된 일마감
+     * @throws BusinessException(FORBIDDEN)  동적 권한 차단 시
      */
-    public DailyClosingResponse close(CreateDailyClosingRequest request, String actorUserId) {
+    public DailyClosingResponse close(CreateDailyClosingRequest request, String actorUserId,
+                                      String actorRole) {
+        checkEditPermission(actorRole, actorUserId);
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
@@ -134,13 +155,18 @@ public class DailyClosingService {
     /**
      * 일마감 기간 조회 (페이지네이션).
      *
-     * @param from     조회 시작 날짜 (필수)
-     * @param to       조회 종료 날짜 (필수)
-     * @param pageable 페이지 정보
+     * <p>SP-D2 동적 권한: VIEW 권한 검증. override row 없으면 기존 @PreAuthorize 통과로 충분.
+     *
+     * @param from      조회 시작 날짜 (필수)
+     * @param to        조회 종료 날짜 (필수)
+     * @param pageable  페이지 정보
+     * @param actorRole 요청자 role (X-User-Role 헤더) — 동적 권한 검증에 사용
      * @return 일마감 snapshot 페이지
      */
     @Transactional(readOnly = true)
-    public Page<DailyClosingResponse> list(LocalDate from, LocalDate to, Pageable pageable) {
+    public Page<DailyClosingResponse> list(LocalDate from, LocalDate to, Pageable pageable,
+                                           String actorRole) {
+        checkViewPermission(actorRole);
         if (from == null || to == null) {
             throw new IllegalArgumentException("from/to 는 필수입니다");
         }
@@ -157,14 +183,20 @@ public class DailyClosingService {
     /**
      * 일마감 잠금 해제 (MASTER 전용 — controller 가 role 가드).
      *
+     * <p>SP-D2 동적 권한: MASTER 전용 endpoint 이므로 canEdit 검증 추가.
+     *
      * @param closingDate 마감 날짜 (필수)
      * @param partnerCode 거래처코드 (null = 전체 마감)
      * @param actorUserId 해제자 user-id
+     * @param actorRole   요청자 role (X-User-Role 헤더)
      * @return 갱신된 DailyClosingResponse
      * @throws BusinessException(NOT_FOUND)  해당 마감 미존재
      * @throws BusinessException(CONFLICT)   잠금 상태가 아닐 때
+     * @throws BusinessException(FORBIDDEN)  동적 권한 차단 시
      */
-    public DailyClosingResponse unlock(LocalDate closingDate, String partnerCode, String actorUserId) {
+    public DailyClosingResponse unlock(LocalDate closingDate, String partnerCode,
+                                       String actorUserId, String actorRole) {
+        checkEditPermission(actorRole, actorUserId);
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
@@ -181,6 +213,60 @@ public class DailyClosingService {
         DailyClosing closing = findExisting(closingDate, partnerId);
         closing.unlock(actorUserId);
         return DailyClosingResponse.of(closing, resolvedPartnerCode);
+    }
+
+    // =========================================================================
+    // SP-D2 동적 권한 헬퍼
+    // =========================================================================
+
+    /**
+     * SP-D2 동적 EDIT 권한 검증.
+     *
+     * <p>actorRole 이 null/blank 이면 검증을 건너뜀 (기존 @PreAuthorize 만 적용).
+     * canEdit=false + canView=true 이면 명시적 deny → 403.
+     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
+     *
+     * @param actorRole   요청자 role
+     * @param actorUserId 요청자 user-id (로그용)
+     */
+    private void checkEditPermission(String actorRole, String actorUserId) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
+        if (!canEdit) {
+            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+            if (canView) {
+                log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={} actorUserId={}",
+                        actorRole, PAGE_CODE, actorUserId);
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "동적 권한 설정에 의해 일마감 편집 권한이 차단되었습니다.");
+            }
+            log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={} actorUserId={}",
+                    actorRole, PAGE_CODE, actorUserId);
+        }
+    }
+
+    /**
+     * SP-D2 동적 VIEW 권한 검증.
+     *
+     * <p>actorRole 이 null/blank 이면 건너뜀.
+     * canView=false 이며 override row 가 존재 (canEdit=true or canView=false but row exists) 이면 403.
+     * 현재 구현: row 자체 존재 여부를 구분하지 않으므로 canView=false 는 통과 (보수적 점진 마이그레이션).
+     *
+     * @param actorRole 요청자 role
+     */
+    private void checkViewPermission(String actorRole) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+        if (!canView) {
+            // VIEW=false: fallback(row 없음) 또는 명시적 deny.
+            // 점진 마이그레이션 정책: 구분 불가 → 통과 (기존 @PreAuthorize 가 이미 검증).
+            log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
+                    actorRole, PAGE_CODE);
+        }
     }
 
     /** partnerId → partnerCode fail-soft 조회 (응답 노출용). */

@@ -63,7 +63,8 @@ public class DepositMatchController {
     @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MANAGER', 'MASTER')")
     public ResponseEntity<ApiResponse<DepositMatchResponse>> fetchAndMatch(
             @Valid @RequestBody DepositFetchRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
 
         UUID actorId = parseActorId(userId);
         log.info("[SP-09-4] fetch-and-match 요청 — actorId={} from={} to={} submitMethod={}",
@@ -74,7 +75,8 @@ public class DepositMatchController {
                 request.to(),
                 request.accountFinNo(),
                 request.submitMethod(),
-                actorId
+                actorId,
+                roleHeader
         );
 
         long matchedCount = results.stream()

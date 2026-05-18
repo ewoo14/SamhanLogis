@@ -11,6 +11,7 @@ import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET /api/v1/accounting/reports/cash-flow?period=YYYYMM — 단월</li>
  *   <li>GET /api/v1/accounting/reports/cash-flow?fromPeriod=YYYYMM&amp;toPeriod=YYYYMM — 기간</li>
  * </ul>
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "현금흐름표", description = "현금흐름표 (영업/투자/재무 활동)")
 @RestController
@@ -32,9 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class CashFlowStatementController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
 
     private final CashFlowStatementService cashFlowStatementService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 현금흐름표 조회 — 단월 또는 기간.
@@ -65,7 +70,9 @@ public class CashFlowStatementController {
             @Parameter(description = "기간 시작 월 (yyyyMM)")
             @RequestParam(required = false) String fromPeriod,
             @Parameter(description = "기간 종료 월 (yyyyMM)")
-            @RequestParam(required = false) String toPeriod) {
+            @RequestParam(required = false) String toPeriod,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
 
         if (period != null && !period.isBlank()) {
             YearMonth ym = parsePeriod(period, "period");

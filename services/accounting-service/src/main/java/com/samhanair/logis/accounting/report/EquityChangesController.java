@@ -10,6 +10,7 @@ import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET /api/v1/accounting/reports/equity-changes?fromDate=YYYY-MM-DD&amp;toDate=YYYY-MM-DD</li>
  * </ul>
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "자본변동표", description = "자본변동표 (자본금 / 이익잉여금 변동 내역)")
 @RestController
@@ -30,7 +33,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class EquityChangesController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final EquityChangesService equityChangesService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 자본변동표 조회.
@@ -54,7 +60,9 @@ public class EquityChangesController {
             @Parameter(description = "기간 시작 일자 (YYYY-MM-DD)")
             @RequestParam String fromDate,
             @Parameter(description = "기간 종료 일자 (YYYY-MM-DD)")
-            @RequestParam String toDate) {
+            @RequestParam String toDate,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
 
         LocalDate from = parseDate(fromDate, "fromDate");
         LocalDate to = parseDate(toDate, "toDate");

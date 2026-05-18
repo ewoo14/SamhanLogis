@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
 import com.samhanair.logis.accounting.client.KftcClient;
@@ -85,6 +86,8 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
 
     /** KFTC 오픈뱅킹 client 격리 — SP-09-4. */
     @MockBean private KftcClient kftcClient;
+    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     /** KFTC 거래처 매칭 cross-service client 격리. */
     @MockBean private PartnerLookupClient partnerLookupClient;

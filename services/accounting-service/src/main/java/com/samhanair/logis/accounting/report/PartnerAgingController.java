@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <p>UUID 사용자 노출 금지 (메모리 feedback_uuid_no_user_visibility): 화면에는 partnerCode/name 만 노출.
+ *
+ * <p>SP-D2 동적 권한: {@link ReportPermissionGuard} VIEW 검증.
  */
 @Tag(name = "세금 보고서", description = "부가세신고서 / 법인세신고서 / 거래처 미수미지급")
 @RestController
@@ -39,7 +42,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PartnerAgingController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerAgingService partnerAgingService;
+    private final ReportPermissionGuard reportPermissionGuard;
 
     /**
      * 거래처별 미수/미지급금 조회.
@@ -69,7 +75,9 @@ public class PartnerAgingController {
             @Parameter(description = "기준 일자 (YYYY-MM-DD, 예: 2026-05-10)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
             @Parameter(description = "조회 유형 (RECEIVABLE=미수 / PAYABLE=미지급)")
-            @RequestParam String type) {
+            @RequestParam String type,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        reportPermissionGuard.checkView(roleHeader);
 
         if (asOfDate == null) {
             throw new IllegalArgumentException("asOfDate 는 필수입니다 (예: 2026-05-10)");

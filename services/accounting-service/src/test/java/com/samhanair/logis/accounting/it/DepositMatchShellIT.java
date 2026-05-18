@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.KftcDepositRecord;
@@ -86,6 +87,8 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     @MockBean private ProductClient productClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
+    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     // ─── 1. DRY_RUN 성공 (ACCOUNTANT) — 5건 mock 응답 ──────────────────────
 
