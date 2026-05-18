@@ -143,6 +143,19 @@ jobs:
           chmod +x scripts/check-notion-zero.sh
           bash scripts/check-notion-zero.sh
 
+  credential-plaintext-guard:
+    name: Credential Plaintext Guard (SP-08-8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 자격 평문 비공개 정적 검사
+        run: |
+          chmod +x scripts/check-credential-plaintext.sh
+          bash scripts/check-credential-plaintext.sh
+
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
     runs-on: ubuntu-latest

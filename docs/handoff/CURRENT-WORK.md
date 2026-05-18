@@ -2,6 +2,58 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-18 SP-08-8 진입 — 자격 평문 비공개 가드 강화
+
+### 즉시 시작
+
+```powershell
+cd C:\dev\SamhanLogis
+git checkout feat/sp-08-8-credential-plaintext-guard
+git status --short
+```
+
+### 현재 기준
+
+- 기준 branch: `main`
+- 기준 commit: `3e311e6e` (PR #233 SP-08-7 squash merge)
+- master plan: `docs/planning/2026-05-16_legacy-gas-db-api-parity.md` §5.SP-08-8
+- 사용자 6/7회차 정책
+
+### SP-08-8 범위
+
+CI grep 가드를 다음 영역에 모두 적용:
+- `docs/qa/sp-08-*/`
+- `docs/dev-reports/sp-08-*.md`
+- `docs/operational-validation/*.md`
+- Playwright fixture
+- 신규 commit diff
+
+금지 패턴:
+- `NOTION_TOKEN` / `NOTION_API_KEY` (SP-08-7 grep 가드와 연계)
+- 실 키 값 (`AKIA...`, `sk-...`, JWT 등)
+- 사업자등록번호 평문 (placeholder 외)
+- Sheet ID / Aligo Key / 카카오 SDK secret 등
+
+작업:
+1. `tools/operational-validation/` placeholder vs 실값 분리 (실값은 운영 PC `.env`)
+2. CI grep 가드 확장 (SP-08-7 notion-zero-guard 패턴 재사용)
+3. `.gitguardian.yaml` 정합 (false positive 처리)
+4. dev-report 10 section
+
+### 직전 머지 (PR #233)
+
+- branch: `feat/sp-08-7-notion-runtime-zero` (deleted)
+- mergeCommit: `3e311e6e`
+- 사이클 통계: N=1 (head A CI fail → head B README *.md 제외 fix)
+- TM PR comment 2건 (Claude + Codex)
+- 신규: scripts/check-notion-zero.sh + CI notion-zero-guard job + Playwright 5/5 PASS
+
+### 다음 후보 (SP-08-8 머지 후)
+
+- SP-08 시리즈 종료 후 다음 phase 진입 (master plan §5.SP-08-9 통합 PR + 5-team 리뷰 + 최종 머지)
+
+## 2026-05-18 SP-08-7 머지 완료 — Notion runtime zero (참고 이력)
+
 ## 2026-05-18 SP-08-7 진입 — Notion runtime 의존 zero 정적 잠금
 
 ### 즉시 시작

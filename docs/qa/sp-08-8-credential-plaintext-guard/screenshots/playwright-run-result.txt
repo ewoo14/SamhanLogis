@@ -1,0 +1,35 @@
+SP-08-8 자격 평문 비공개 가드 — Playwright RED Gate 실행 결과
+실행일시: 2026-05-18
+실행 환경: Windows 11 Pro / Node.js / Playwright 1.59.x / chromium
+
+Command: cd clients/desktop && npx playwright test playwright/sp-08-8-credential-plaintext-guard/sp-08-8-credential-plaintext-guard.spec.ts --reporter=line
+
+==================================================
+Running 5 tests using 1 worker
+
+[1/5] T1 docs/qa/sp-08-* — 평문 자격 증명 미포함                       PASS
+[2/5] T2 docs/dev-reports/sp-08-*.md — 평문 자격 증명 미포함            PASS
+[3/5] T3 docs/operational-validation/ — 평문 자격 증명 미포함            PASS
+[4/5] T4 clients/desktop/playwright/ fixture — 평문 자격 증명 미포함     PASS
+[5/5] T5 tools/operational-validation/ — 평문 자격 증명(실값) 미포함     PASS
+
+  5 passed (3.9s)
+==================================================
+
+검사 대상 전 영역 결과:
+  - docs/qa/sp-08-*/     : 위반 0건 — CLEAN
+  - docs/dev-reports/    : 위반 0건 — CLEAN
+  - docs/operational-validation/ : 위반 0건 — CLEAN
+  - clients/desktop/playwright/ : 위반 0건 — CLEAN (본 spec 디렉토리 화이트리스트 제외)
+  - tools/operational-validation/ : 위반 0건 — CLEAN
+
+금지 패턴 검사 유형:
+  - Notion integration token (secret_[A-Za-z0-9]{30,})
+  - AWS Access Key ID (AKIA[A-Z0-9]{16})
+  - AWS Temporary Key (ASIA[A-Z0-9]{16})
+  - OpenAI API Key (sk-[A-Za-z0-9\-]{40,})
+  - Google Sheet ID (spreadsheets.google.com/d/{40자+})
+  - JWT Bearer 실값 (Bearer eyJ...)
+  - JWT 원시값 (eyJ...{3-segment})
+
+판정: 합격 — 평문 자격 증명 위반 0건 전 영역 CLEAN

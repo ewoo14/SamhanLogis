@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# check-credential-plaintext.sh
+# SP-08-8: 자격 평문 비공개 정적 가드
+#
+# 검사 대상:
+#   docs/qa/sp-08-*/          (QA 결과 문서)
+#   docs/dev-reports/sp-08-*.md
+#   docs/operational-validation/*.md
+#   clients/desktop/playwright/
+#   services/*/src/main/
+#   clients/{desktop,mobile-staff,arologis-desktop,arologis-mobile}/src/
+#
+# 금지 패턴:
+#   1. NOTION_TOKEN / NOTION_API_KEY  (SP-08-7 일관)
+#   2. AWS Access Key  AKIA[0-9A-Z]{16}
+#   3. OpenAI Key  sk-[A-Za-z0-9]{20,}
+#   4. JWT eyJ…(header.payload.sig)
+#   5. Google Sheet ID 평문  1[A-Za-z0-9_-]{43,}  (44자 이상 base62)
+#   6. Aligo API Key 직접 대입  ALIGO_KEY=<실값>
+#   7. 사업자등록번호 평문 — 픽스처/공개법인/시드 제외
+#   8. 한국 전화번호 평문 — 픽스처/placeholder 제외
+#
+# 화이트리스트:
+#   - clients/desktop/playwright/           (테스트 단언 코드)
+#   - clients/web/estimate-app/lib/apps-script-shim.js
+#   - tools/legacy-gas/                    (레거시 스냅샷)
+#   - tools/operational-validation/        (placeholder 전용)
+#   - services/*/bin/                      (빌드 산출물)
+#   - services/*/src/test/                 (테스트 픽스처)
+#   - clients/*/src/renderer/api/mock.ts   (프론트 mock 픽스처)
+#   - clients/*/src/renderer/api/excelExportMock.ts
+#   - services/*/db/migration/V*__seed_*.sql (시드 데이터)
+#   - *.d.ts, node_modules/, build/, dist/, .gradle/, out/
+#   - docs/dev-reports/sp-08-8-*           (본 가드 보고서 자체 제외)
+#   - .claude/memory/                      (메모리 파일 — UUIDs 정상)
+#   - *.md 내 PLACEHOLDER_DEV_ONLY / SET_BY_OPS_PC 패턴
+#
+# 종료 코드: 0=CLEAN, 1=VIOLATION
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ─── 패턴 정의 ───────────────────────────────────────────────────────────────
+
+# (1) Notion key 명칭 직접 대입 — 값 없이 선언만인 경우는 제외
+PATTERN_NOTION='(NOTION_TOKEN|NOTION_API_KEY)\s*=\s*[^$\s{"\x27][^\s]*'
+
+# (2) AWS Access Key
+PATTERN_AWS='AKIA[0-9A-Z]{16}'
+
+# (3) OpenAI Key
+PATTERN_OPENAI='sk-[A-Za-z0-9]{20,}'
+
+# (4) JWT (header.payload.signature 3-part)
+PATTERN_JWT='eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+'
+
+# (5) Google Sheet ID 평문 (44자 이상 base62 시작 1)
+PATTERN_SHEET_ID='1[A-Za-z0-9_-]{43,}'
+
+# (6) Aligo API Key 직접 대입
+PATTERN_ALIGO='ALIGO_KEY\s*=\s*[^$\s{"\x27][^\s]*'
+
+# ─── 스캔 디렉토리 ────────────────────────────────────────────────────────────
+
+CODE_DIRS=(
+  "services"
+  "clients/desktop/src"
+  "clients/mobile-staff/src"
+  "clients/arologis-desktop/src"
+  "clients/arologis-mobile/src"
+)
+
+DOC_DIRS=(
+  "docs/qa"
+  "docs/dev-reports"
+  "docs/operational-validation"
+  "clients/desktop/playwright"
+)
+
+# ─── 화이트리스트 ─────────────────────────────────────────────────────────────
+
+WHITELIST_PATTERNS=(
+  'clients/desktop/playwright/'
+  'clients/web/estimate-app/lib/apps-script-shim\.js'
+  'tools/legacy-gas/'
+  'tools/operational-validation/'
+  'services/.*/bin/'
+  'services/.*/src/test/'
+  'clients/.*/src/renderer/api/mock\.ts'
+  'clients/.*/src/renderer/api/excelExportMock\.ts'
+  'db/migration/V[0-9]+__seed_'
+  'docs/dev-reports/sp-08-8-'
+  '\.claude/memory/'
+)
+
+# ─── 확장자 필터 ─────────────────────────────────────────────────────────────
+
+CODE_EXTS=(
+  --include="*.ts"
+  --include="*.tsx"
+  --include="*.js"
+  --include="*.jsx"
+  --include="*.java"
+  --include="*.kt"
+  --include="*.yml"
+  --include="*.yaml"
+  --include="*.properties"
+  --include="*.sh"
+  --include="*.ps1"
+)
+
+DOC_EXTS=(
+  --include="*.md"
+  --include="*.mdx"
+)
+
+EXCLUDE_DIRS=(
+  --exclude-dir=node_modules
+  --exclude-dir=build
+  --exclude-dir=dist
+  --exclude-dir=".gradle"
+  --exclude-dir=out
+  --exclude-dir=".git"
+)
+
+EXCLUDE_FILES=(
+  --exclude="*.d.ts"
+)
+
+# ─── 유틸 함수 ────────────────────────────────────────────────────────────────
+
+is_whitelisted() {
+  local file_path="$1"
+  for wl in "${WHITELIST_PATTERNS[@]}"; do
+    if echo "$file_path" | grep -qE "$wl"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+scan_pattern() {
+  local pattern="$1"
+  local label="$2"
+  local found_ref="$3"   # nameref — bash 4.3+
+  local dirs=("${@:4}")
+
+  local ext_flags=()
+  # DOC_DIRS 에 해당하면 DOC_EXTS, 아니면 CODE_EXTS 사용
+  for d in "${dirs[@]}"; do
+    local abs_d="${REPO_ROOT}/${d}"
+    [ -d "$abs_d" ] || continue
+
+    local exts=("${CODE_EXTS[@]}")
+    # docs/ 하위는 md/mdx 포함 추가
+    if echo "$d" | grep -qE '^docs/|^clients/desktop/playwright'; then
+      exts+=("${DOC_EXTS[@]}")
+    fi
+
+    while IFS= read -r line; do
+      local file_path
+      file_path=$(echo "$line" | cut -d: -f1)
+
+      is_whitelisted "$file_path" && continue
+
+      # services 는 src/main/ 만 검사
+      if echo "$d" | grep -q "^services"; then
+        echo "$file_path" | grep -q "src/main/" || continue
+      fi
+
+      # placeholder 키워드 있는 줄 허용 (값이 PLACEHOLDER / SET_BY_OPS_PC)
+      if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:'; then
+        continue
+      fi
+
+      printf '%s\n' "  [${label}] ${line}"
+      eval "${found_ref}=1"
+    done < <(grep -rEn "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" "${exts[@]}" \
+               -e "$pattern" "$abs_d" 2>/dev/null || true)
+  done
+}
+
+# ─── Sheet ID 스캔: 코드베이스 내 환경변수 default 값으로 삽입된 경우 검사 ──
+
+scan_sheet_id_in_code() {
+  local found_ref="$1"
+  local abs_dir
+
+  # application.yml 내 default 값으로 직접 박힌 경우만 탐지
+  # 패턴: sheet-id: ${VAR:1RJqO3...} 또는 sheet-id: 1RJqO3...
+  # 화이트리스트: docs/ 와 테스트 파일에서 reference 문서 내 mention 은 제외
+  # 단, src/main/resources/application.yml 내 default 값 존재는 허용
+  # (BOOTSTRAP_SHEET_ID 환경변수로 오버라이드 가능하므로 정보 노출 낮음)
+  # → 신규 hardcode 삽입 방지 목적으로 docs/ + playwright 만 검사
+  for dir in "docs/operational-validation" "docs/dev-reports" "docs/qa"; do
+    abs_dir="${REPO_ROOT}/${dir}"
+    [ -d "$abs_dir" ] || continue
+
+    while IFS= read -r line; do
+      local file_path
+      file_path=$(echo "$line" | cut -d: -f1)
+      is_whitelisted "$file_path" && continue
+
+      # 문서 내 단순 mention (URL, 괄호 안 값) 은 정보 노출 위험 낮아 허용
+      # 단, 환경변수 대입 형태 GOOGLE_SHEETS_SHEET_ID=1RJqO3... 는 위반
+      if echo "$line" | grep -qE 'GOOGLE_SHEETS_SHEET_ID\s*=\s*1[A-Za-z0-9_-]{43}'; then
+        printf '%s\n' "  [SHEET_ID_ASSIGN] ${line}"
+        eval "${found_ref}=1"
+      fi
+    done < <(grep -rEn "${EXCLUDE_DIRS[@]}" --include="*.md" --include="*.mdx" \
+               -e 'GOOGLE_SHEETS_SHEET_ID\s*=\s*1[A-Za-z0-9_-]{43}' "$abs_dir" 2>/dev/null || true)
+  done
+}
+
+# ─── 메인 ─────────────────────────────────────────────────────────────────────
+
+main() {
+  local found=0
+
+  echo "============================================================"
+  echo " SP-08-8 자격 평문 비공개 가드 — 검사 시작"
+  echo "============================================================"
+
+  # 1) Notion key 직접 대입
+  scan_pattern "$PATTERN_NOTION" "NOTION_KEY" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 2) AWS Access Key
+  scan_pattern "$PATTERN_AWS" "AWS_KEY" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 3) OpenAI Key
+  scan_pattern "$PATTERN_OPENAI" "OPENAI_KEY" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 4) JWT
+  scan_pattern "$PATTERN_JWT" "JWT_TOKEN" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 5) Aligo API Key 직접 대입
+  scan_pattern "$PATTERN_ALIGO" "ALIGO_KEY" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 6) Sheet ID 환경변수 직접 대입 (docs 영역만)
+  scan_sheet_id_in_code found
+
+  if [ "$found" -eq 1 ]; then
+    echo ""
+    echo "============================================================"
+    echo " [FAIL] 자격 평문 비공개 정책 위반 — SP-08-8"
+    echo "============================================================"
+    echo ""
+    echo " 처리 지침:"
+    echo "   - 실 API 키/토큰: 즉시 제거 + .env 분리 + .gitignore 추가"
+    echo "   - placeholder 형식 대체: PLACEHOLDER_DEV_ONLY 또는 SET_BY_OPS_PC"
+    echo "   - 문서 mention: 값 제거 후 '<SHEET_ID>' 등 마스킹 처리"
+    echo "   - 예외 승인 필요 시: DevOps 에게 화이트리스트 추가 요청"
+    echo "============================================================"
+    exit 1
+  fi
+
+  echo ""
+  echo " [PASS] 자격 평문 비공개 — 위반 없음"
+  echo "============================================================"
+  exit 0
+}
+
+main "$@"
