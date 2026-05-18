@@ -267,12 +267,13 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @DisplayName("거래처 매칭 성공 시 matchedCount > 0, MATCHED 상태 포함")
     void testAutoMatchJournalDraftCreated() throws Exception {
         UUID partnerId = UUID.randomUUID();
-        // 첫 번째 입금자명 "(주)삼성상사" 매칭 성공 stub
+        // lenient anyString stub 먼저 등록 — 정확 stub 이 override 되지 않도록
+        lenient().when(partnerLookupClient.findByPartnerCode(anyString()))
+                .thenReturn(Optional.empty());
+        // 정확 stub 나중에 등록 — Mockito stub 우선순위: 마지막 등록 stub 우선 적용
         when(partnerLookupClient.findByPartnerCode("(주)삼성상사"))
                 .thenReturn(Optional.of(new PartnerSummary(
                         partnerId, "SS-001", "(주)삼성상사", "123-45-67890", "서울시")));
-        lenient().when(partnerLookupClient.findByPartnerCode(anyString()))
-                .thenReturn(Optional.empty());
 
         List<KftcDepositRecord> mockDeposits = List.of(
                 new KftcDepositRecord(

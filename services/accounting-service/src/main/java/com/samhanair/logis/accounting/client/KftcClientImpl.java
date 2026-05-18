@@ -29,8 +29,8 @@ import org.springframework.stereotype.Component;
  *       placeholder 4 키워드 case-insensitive 차단. 실 API 미구현 → {@code KFTC_SUBMIT_FAILED} 발생.</li>
  * </ul>
  *
- * <p>placeholder 차단 키워드 (대소문자 무시): {@code placeholder_dev_only}, {@code changeme},
- * {@code dummy}, {@code test}. ETaxClientImpl 답습 + {@code test} 추가.
+ * <p>placeholder 차단 키워드 (대소문자 무시): {@code PLACEHOLDER_DEV_ONLY}, {@code CHANGE_ME_LOCAL_ONLY},
+ * {@code changeme}, {@code dummy}. SP-09-1 ETaxClientImpl 정책 일관.
  *
  * <p>IT 격리: {@code @MockBean KftcClient} 로 격리 의무
  * (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
@@ -203,7 +203,17 @@ public class KftcClientImpl implements KftcClient {
     }
 
     /**
-     * 알려진 placeholder 키 판별 — 4 키워드 case-insensitive 비교.
+     * 알려진 placeholder 키 판별 — 4 키워드 case-insensitive 정확 일치.
+     *
+     * <p>정책 4 키워드 (SP-09-1 ETaxClientImpl 동일):
+     * <ul>
+     *   <li>{@code PLACEHOLDER_DEV_ONLY} — 표준 개발 placeholder</li>
+     *   <li>{@code CHANGE_ME_LOCAL_ONLY} — 로컬 전용 변경 필요 placeholder</li>
+     *   <li>{@code changeme} — 범용 placeholder</li>
+     *   <li>{@code dummy} — 더미 값 placeholder</li>
+     * </ul>
+     *
+     * <p>주의: {@code test} 키워드는 실 sandbox 키에 우연히 포함될 수 있어 제외.
      *
      * <p>신규 placeholder 추가 시 이 메서드만 수정.
      *
@@ -213,8 +223,8 @@ public class KftcClientImpl implements KftcClient {
     private boolean isPlaceholderKey(String key) {
         String lower = key.toLowerCase(Locale.ROOT);
         return lower.equals("placeholder_dev_only")
+                || lower.equals("change_me_local_only")
                 || lower.equals("changeme")
-                || lower.equals("dummy")
-                || lower.equals("test");
+                || lower.equals("dummy");
     }
 }

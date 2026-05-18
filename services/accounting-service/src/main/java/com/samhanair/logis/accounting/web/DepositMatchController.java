@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.service.DepositMatchResult;
 import com.samhanair.logis.accounting.service.DepositMatchService;
+import com.samhanair.logis.accounting.service.DepositMatchStatus;
 import com.samhanair.logis.accounting.web.dto.DepositFetchRequest;
 import com.samhanair.logis.accounting.web.dto.DepositMatchResponse;
 import com.samhanair.logis.accounting.web.dto.DepositMatchResultDto;
@@ -77,7 +78,7 @@ public class DepositMatchController {
         );
 
         long matchedCount = results.stream()
-                .filter(r -> r.status().name().equals("MATCHED"))
+                .filter(r -> r.status() == DepositMatchStatus.MATCHED)
                 .count();
 
         List<DepositMatchResultDto> dtos = results.stream()

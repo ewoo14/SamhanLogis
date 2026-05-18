@@ -4012,7 +4012,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 시나리오:
   //   - accountFinNo 가 빈 문자열 → 422 (code: DEPOSIT_VALIDATION_ERROR)
   //   - from > to → 422 (code: DEPOSIT_DATE_RANGE_INVALID)
-  //   - accountFinNo 가 "502" 포함 → 502 KFTC 외부 서비스 오류 (code: KFTC_GATEWAY_ERROR)
+  //   - accountFinNo 가 "502" 포함 → 502 KFTC 외부 서비스 오류 (code: KFTC_SUBMIT_FAILED)
   //   - 그 외 → 정상 DRY_RUN 5건 응답
   //
   // UUID 비공개: journalDraftId 는 내부 전용 — 화면 미노출 (matchedPartnerCode / matchedTaxInvoiceNo 만 표시).
@@ -4035,7 +4035,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
     // 502 — KFTC 외부 서비스 오류 시나리오
     if (reqAccountFinNo.includes('502')) {
-      return mockError(502, 'KFTC_GATEWAY_ERROR', 'KFTC 오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+      return mockError(502, 'KFTC_SUBMIT_FAILED', 'KFTC 오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
     }
 
     // 정상 DRY_RUN 가짜 응답 — BE DepositMatchResponse 필드명 1:1 정합
@@ -4060,7 +4060,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         transactionDate: `${ym}-05`,
         matchedPartnerCode: 'P-002',
         matchedTaxInvoiceNo: null,
-        status: 'MATCHED',
+        status: 'UNMATCHED',
       },
       {
         depositorName: '□□설비공사',

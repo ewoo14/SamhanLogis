@@ -31,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>처리 흐름:
  * <ol>
- *   <li>{@link KftcClient#fetchDeposits} 로 입금 거래 목록 조회</li>
+ *   <li>submitMethod → effectiveMethod 단일 결정 (null/blank 시 "DRY_RUN" fallback) — 단일 source of truth</li>
+ *   <li>{@link KftcClient#fetchDeposits} 로 입금 거래 목록 조회 (effectiveMethod 전달)</li>
  *   <li>입금자명으로 {@link PartnerLookupClient#findByPartnerCode} 거래처 매칭 시도</li>
  *   <li>매칭 성공 + 금액 일치 시 {@link TaxInvoiceRepository} 에서 미수금 세금계산서 조회</li>
  *   <li>분개 DRAFT 생성 (차변: 보통예금 103, 대변: 외상매출금 110 — 한국 표준 계정과목)</li>
@@ -74,7 +75,7 @@ public class DepositMatchService {
      * @param from         조회 시작 일자 (필수)
      * @param to           조회 종료 일자 (필수)
      * @param accountFinNo 계좌 금융기관 코드 (필수, blank 불허)
-     * @param submitMethod 전송 방식 ("DRY_RUN" | "KFTC", null 이면 서버 property fallback)
+     * @param submitMethod 전송 방식 ("DRY_RUN" | "KFTC", null/blank 이면 "DRY_RUN" fallback — effectiveMethod 단일 계산)
      * @param actorId      실행자 UUID (X-User-Id 헤더에서 파싱)
      * @return 단건 매칭 결과 리스트
      * @throws BusinessException(DEPOSIT_DATE_RANGE_INVALID) from > to 시
@@ -96,24 +97,26 @@ public class DepositMatchService {
                     "accountFinNo 는 필수입니다.");
         }
 
-        // 3. KFTC 입금 거래 조회
-        List<KftcDepositRecord> deposits = kftcClient.fetchDeposits(from, to, accountFinNo, submitMethod);
-        log.info("[SP-09-4] fetchAndMatch — submitMethod={} from={} to={} 조회건수={}",
-                submitMethod, from, to, deposits.size());
+        // 3. 유효 전송 방식 단일 결정 — KftcClient 와 audit 모두 동일 값 사용 (단일 source of truth)
+        String effectiveMethod = (submitMethod != null && !submitMethod.isBlank())
+                ? submitMethod : "DRY_RUN";
 
-        // 4. 건별 매칭 + 분개 draft 생성
+        // 4. KFTC 입금 거래 조회 — effectiveMethod 전달로 client 내 이중 계산 방지
+        List<KftcDepositRecord> deposits = kftcClient.fetchDeposits(from, to, accountFinNo, effectiveMethod);
+        log.info("[SP-09-4] fetchAndMatch — effectiveMethod={} from={} to={} 조회건수={}",
+                effectiveMethod, from, to, deposits.size());
+
+        // 5. 건별 매칭 + 분개 draft 생성
         List<DepositMatchResult> results = new ArrayList<>(deposits.size());
         for (KftcDepositRecord deposit : deposits) {
             DepositMatchResult result = matchAndCreateJournal(deposit, actorId);
             results.add(result);
         }
 
-        // 5. audit 기록 — REQUIRES_NEW 별도 트랜잭션
+        // 6. audit 기록 — REQUIRES_NEW 별도 트랜잭션
         long matchedCount = results.stream()
                 .filter(r -> r.status() == DepositMatchStatus.MATCHED)
                 .count();
-        String effectiveMethod = (submitMethod != null && !submitMethod.isBlank())
-                ? submitMethod : "DRY_RUN";
         try {
             auditRecorder.recordFetchAndMatch(actorId, effectiveMethod,
                     results.size(), (int) matchedCount, (int) (results.size() - matchedCount));

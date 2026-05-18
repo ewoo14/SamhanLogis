@@ -508,11 +508,17 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
    *
    * 검증 항목:
    *   - FE 클라이언트 사이드 — from > to 시 즉시 한국어 에러 표시
-   *     ("시작일은 종료일보다 이전이어야 합니다." — FE handleSubmit 검증)
+   *     ("시작일은 종료일보다 이전이어야 합니다." — FE handleSubmit client-side 검증)
    *   - role="alert" 에러 배너 또는 data-testid="deposit-match-error" 표시
    *   - 한국어 에러 메시지 포함 ("시작일" 또는 "이전" 또는 "날짜" 키워드)
    *   - API mock 422 DEPOSIT_DATE_RANGE_INVALID 응답 + BE 한국어 에러 메시지 표시
    *   - pageerror 없음
+   *
+   * 검증 범위 주의:
+   *   - 이 TC 는 FE client-side `@PastOrPresent` 및 from > to 범위 검증을 테스트한다.
+   *     (FE handleSubmit에서 from > to 즉시 에러 표시 — API 호출 없이 FE 단에서 차단)
+   *   - BE server-side @PastOrPresent (400) 및 DEPOSIT_DATE_RANGE_INVALID (422) 검증은
+   *     별도 server-side validation 케이스로 분리하여 IT에서 검증한다 (carry-over).
    *
    * BE 계약 근거:
    *   DepositMatchService.fetchAndMatch() — from.isAfter(to) → DEPOSIT_DATE_RANGE_INVALID 422

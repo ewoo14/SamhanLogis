@@ -108,6 +108,7 @@ WHITELIST_PATTERNS=(
   '\.claude/memory/'
   'docs/qa/sp-09-2-aligo-sms-real-send/'
   'docs/qa/sp-09-3-ocr-receipt-shell/'
+  'docs/qa/sp-09-4-kftc-shell/'
 )
 # tools/operational-validation/ 은 통째 화이트리스트 제외 폐기 (Fix 2c).
 # 대신 scan_pattern 내 line 단위 placeholder 필터로만 허용.

@@ -166,7 +166,16 @@ function SummaryBadge({ label, count, variant }: SummaryBadgeProps) {
         gap: 4,
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 700, color: colorMap[variant] }}>
+      <div
+        style={{
+          fontSize: 32,
+          fontWeight: 700,
+          color: colorMap[variant],
+          fontFamily: "'JetBrains Mono', Consolas, monospace",
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1.1,
+        }}
+      >
         {count.toLocaleString('ko-KR')}
       </div>
       <div style={{ fontSize: 12, color: colorMap[variant], fontWeight: 500 }}>
@@ -203,7 +212,7 @@ function ResultRow({ result, index }: ResultRowProps) {
       style={rowStyle}
     >
       <td style={cellStyle}>{result.depositorName}</td>
-      <td style={{ ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>
         {formatKrw(result.amount)}
       </td>
       <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{formatDate(result.transactionDate)}</td>
@@ -498,6 +507,8 @@ export function DepositMatchPage() {
       {errorMessage ? (
         <div
           role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
           data-testid="deposit-match-error"
           style={{
             padding: '12px 14px',
@@ -516,6 +527,7 @@ export function DepositMatchPage() {
       {mutation.isSuccess && mutation.data ? (
         <>
           <section
+            role="status"
             data-testid="deposit-match-summary"
             aria-label="입금 매칭 요약"
             style={{
