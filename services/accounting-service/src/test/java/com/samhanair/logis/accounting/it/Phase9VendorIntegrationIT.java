@@ -331,7 +331,8 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
                 .isNotNull();
 
         // DRY_RUN stub 동작 확인 (lenient 호출 자체가 mock 동작 검증)
-        lenient().when(eTaxClient.submit(any(TaxInvoice.class), any()))
+        // SP-09-5 CI fix: any(TaxInvoice.class) 는 null 인자 매칭 안 됨 → any() 로 변경
+        lenient().when(eTaxClient.submit(any(), any()))
                 .thenReturn(ETaxSubmitResult.success("DRY-MOCKBEAN-CHECK", "DRY_RUN"));
         lenient().when(kftcClient.fetchDeposits(any(), any(), anyString(), anyString()))
                 .thenReturn(List.of());
@@ -339,7 +340,9 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
                 .thenReturn(Optional.empty());
 
         // stub 호출 후 예외 없음 확인 (mock 동작 정상)
+        // null TaxInvoice 전달 — any() 매처가 null 도 매칭함 (any(TaxInvoice.class) 와 차이)
         ETaxSubmitResult result = eTaxClient.submit(null, "DRY_RUN");
+        assertThat(result).as("MockBean stub 응답 not null").isNotNull();
         assertThat(result.eTaxExternalId()).isEqualTo("DRY-MOCKBEAN-CHECK");
 
         List<KftcDepositRecord> deposits = kftcClient.fetchDeposits(
