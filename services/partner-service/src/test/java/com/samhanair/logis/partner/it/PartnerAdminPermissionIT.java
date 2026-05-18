@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *   <li>C2: SALES canView=false → 403 FORBIDDEN</li>
  *   <li>C3: MASTER canEdit=true → POST /admin/partners checkEdit 통과</li>
  *   <li>C4: SALES canEdit=false + canView=true → POST 403 (view-only override)</li>
+ *   <li>C5: SALES partners.block canView=false → GET 403</li>
  * </ol>
  */
 @SpringBootTest(classes = PartnerServiceApplication.class)
@@ -115,6 +116,18 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
                         .content("{\"partnerCode\":\"P-TEST\","
                                 + "\"name\":\"테스트거래처\","
                                 + "\"bizNo\":\"123-45-67890\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("C5: SALES partners.block canView=false → BLOCK 목록 403")
+    @WithMockUser(username = "sales-block-denied", authorities = {"ROLE_SALES"})
+    void C5_sales_partners_block_canView_false_returns_403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(false);
+
+        mockMvc.perform(get("/api/v1/partners/admin/blocks")
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
 }

@@ -35,18 +35,20 @@ if (Test-Path "services\auth-service\src\main\resources\db\migration\V10__sp_d4_
 
 ---
 
-## §2 Flyway 상태 확인 (flywayInfo)
+## §2 Flyway 상태 확인 (Spring Boot Flyway 로그)
 
 auth-service Flyway 마이그레이션 이력 + pending 목록 출력:
 
 ```powershell
-# Windows PowerShell 5.1 — && 미지원, if ($?) 패턴 사용
-.\gradlew :services:auth-service:flywayInfo
-if ($?) {
-    Write-Host "flywayInfo 완료"
-} else {
-    Write-Host "flywayInfo 실패 — 로그 확인"
-}
+# auth-service 는 Gradle Flyway plugin 이 아니라 Spring Boot 기동 시 Flyway 를 실행한다.
+docker logs <auth-service-container> | Select-String -Pattern "flyway" -CaseSensitive:$false
+```
+
+```sql
+SELECT version, description, success
+FROM flyway_schema_history
+ORDER BY installed_rank DESC
+LIMIT 10;
 ```
 
 기대 출력 (V10 pending 상태):
@@ -76,13 +78,9 @@ V10 이 `Pending` 상태이면 정상. `Failed` 또는 순서 오류(Out of Orde
 
 실제 migrate 전에 SQL 파일의 체크섬 + 구문 정합을 확인:
 
-```powershell
-.\gradlew :services:auth-service:flywayValidate
-if ($?) {
-    Write-Host "Flyway validate 통과 — migrate 진행 가능"
-} else {
-    Write-Host "Flyway validate 실패 — V10 SQL 파일 확인 필요"
-}
+```text
+Gradle `Spring Boot Flyway 검증` task 는 현재 프로젝트에 없으므로 실행하지 않는다.
+V10 SQL 파일 review + Spring Boot 기동 로그 + flyway_schema_history 조회로 검증한다.
 ```
 
 validate 통과 기준:
@@ -100,7 +98,14 @@ auth-service 배포(또는 로컬 migrate 실행) 후 DB 에 직접 접속하여
 -- V10 seed row 삽입 확인 (154 기대)
 SELECT COUNT(*)
 FROM role_page_permissions
-WHERE created_by = 'sp-d4-v10'
+WHERE page_code IN (
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
+)
   AND is_deleted = FALSE;
 -- 기대값: 154
 ```
@@ -110,7 +115,15 @@ PowerShell 5.1 에서 psql 직접 실행:
 ```powershell
 $env:PGPASSWORD = "samhan_dev_pw"
 psql -h localhost -p 5432 -U samhan -d auth_db -c `
-    "SELECT COUNT(*) FROM role_page_permissions WHERE created_by = 'sp-d4-v10' AND is_deleted = FALSE;"
+    "SELECT COUNT(*) FROM role_page_permissions WHERE page_code IN (
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
+)
+  AND is_deleted = FALSE;"
 ```
 
 역할별 분포 검증 (22 row per ROLE × 7 ROLE):
@@ -119,7 +132,14 @@ psql -h localhost -p 5432 -U samhan -d auth_db -c `
 -- 역할별 row 수 검증 (각 역할 22 기대)
 SELECT role_code, COUNT(*) AS cnt
 FROM role_page_permissions
-WHERE created_by = 'sp-d4-v10'
+WHERE page_code IN (
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
+)
   AND is_deleted = FALSE
 GROUP BY role_code
 ORDER BY role_code;
@@ -146,7 +166,14 @@ PageCode 분포 검증:
 -- 22 PageCode 각각 7 row 검증
 SELECT page_code, COUNT(*) AS cnt
 FROM role_page_permissions
-WHERE created_by = 'sp-d4-v10'
+WHERE page_code IN (
+    'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
+    'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
+    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
+)
   AND is_deleted = FALSE
 GROUP BY page_code
 ORDER BY page_code;
@@ -172,9 +199,9 @@ WHERE is_deleted = FALSE;
 |---|---|---|
 | `Pending` 아닌 `Failed` 상태 | V10 SQL 구문 오류 | `flywayRepair` 후 SQL 수정 재시도 |
 | `Out of Order` 경고 | V10 보다 높은 버전 이미 적용 | 해당 없음 (현재 V9 가 최신) |
-| row count 154 미달 | `ON CONFLICT DO NOTHING` 충돌 | `SELECT COUNT(*) WHERE created_by != 'sp-d4-v10' AND page_code IN (...)` 로 충돌 row 확인 |
+| row count 154 미달 | `ON CONFLICT DO NOTHING` 충돌 | `SELECT COUNT(*) WHERE page_code IN (...)` 로 충돌 row 확인 |
 | psql 접속 실패 | Docker 미실행 | `docker start samhan-postgres` 후 재시도 |
-| flywayInfo 명령 없음 | build.gradle flyway plugin 미설정 | `build.gradle` 에 `id 'org.flywaydb.flyway' version '9.22.3'` 확인 |
+| Gradle Flyway task 없음 | Spring Boot Flyway 방식 | Spring Boot Flyway 기동 로그와 `flyway_schema_history` 조회 결과 확인 |
 
 ---
 

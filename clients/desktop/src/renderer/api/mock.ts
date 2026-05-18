@@ -5656,7 +5656,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
     'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
-    'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
+    'inventory.dps', 'inventory.audit', 'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
   ],
@@ -5688,7 +5688,6 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.audit',
     'partners.list', 'partners.detail',
-    'products.list',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)
@@ -5743,7 +5742,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm',
     'sales.vendor-order', 'inventory.warehouse', 'inventory.stock-transfer',
-    'admin.employees', 'admin.users',
+    'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
   ],
@@ -5759,7 +5758,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.partner-order.confirm', 'sales.partner-order.print',
     'sales.vendor-order',
     'partners.list', 'partners.detail',
-    'products.list', 'products.admin',
+    'products.admin',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -5775,7 +5774,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   WAREHOUSE: [
     'inbound.inspection', 'purchases.receipt-ocr',
     // SP-D4 — WAREHOUSE: 재고/창고 edit
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock',
+    'inventory.warehouse', 'inventory.stock',
     'inventory.stock-transfer', 'inventory.dps',
   ],
   INVENTORY: [
@@ -5783,7 +5782,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — INVENTORY: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps',
-    'products.list', 'products.admin',
+    'products.admin',
   ],
 }
 

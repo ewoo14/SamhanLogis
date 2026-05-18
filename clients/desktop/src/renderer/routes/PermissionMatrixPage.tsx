@@ -10,7 +10,7 @@
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
  * - 카테고리 그룹 헤더 행: 회계/매입·매출·배차·알림/관리(SP-D1~D3) +
- *   견적/거래처주문/재고/직원·계정/거래처/상품/아로지스(SP-D4) 총 13 그룹
+ *   견적/거래처주문/재고/직원·계정/거래처/상품/아로로지스(SP-D4) 총 13 그룹
  *
  * data-testid (SP-D1 cycle 2 fix: Playwright spec 기준으로 통일):
  * - permission-matrix-table                        — 매트릭스 표 wrapper
@@ -76,7 +76,7 @@ const ROLE_LABEL: Record<RbacRole, string> = {
  *
  * 그룹 배치 순서 (사용자 업무 흐름 기준):
  *   회계 → 매입 → 매출 → 배차 → 알림 → 관리 (SP-D1~D3 기존)
- *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로지스 (SP-D4 신규)
+ *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로로지스 (SP-D4 신규)
  */
 interface PageGroup {
   label: string
@@ -194,7 +194,7 @@ const PAGE_GROUPS: PageGroup[] = [
     ],
   },
   {
-    label: '아로지스',
+    label: '아로로지스',
     pages: [
       'arologis.admin',
       'arologis.region',
@@ -252,7 +252,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'partners.edit-request': '편집 결재',
   'products.list': '상품 목록',
   'products.admin': '상품 관리',
-  'arologis.admin': '아로지스 배차',
+  'arologis.admin': '아로로지스 배차',
   'arologis.region': '지역·구역',
 }
 
@@ -286,6 +286,7 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'inventory.stock',
   'inventory.stock-transfer',
   'inventory.dps',
+  'inventory.audit',
   'admin.employees',
   'partners.list',
   'partners.detail',
@@ -580,7 +581,7 @@ export function PermissionMatrixPage() {
           style={{
             borderCollapse: 'collapse',
             width: '100%',
-            fontSize: 12,
+            fontSize: 'var(--font-size-xs)',
             tableLayout: 'fixed',
           }}
         >
@@ -622,7 +623,7 @@ export function PermissionMatrixPage() {
                     textAlign: 'center',
                     background: 'var(--color-brand-50)',
                     border: '1px solid var(--color-brand-200)',
-                    fontSize: 12,
+                    fontSize: 'var(--font-size-xs)',
                     fontWeight: 600,
                     color: 'var(--color-brand-700)',
                     letterSpacing: '0.02em',
@@ -819,7 +820,7 @@ export function PermissionMatrixPage() {
           marginTop: 12,
           display: 'flex',
           gap: 16,
-          fontSize: 12,
+          fontSize: 'var(--font-size-xs)',
           color: 'var(--color-neutral-500)',
         }}
       >

@@ -59,7 +59,7 @@ if ($authHealth.status -eq "UP") {
 # 2) V10 seed row 154 확인
 $env:PGPASSWORD = "samhan_dev_pw"
 psql -h localhost -p 5432 -U samhan -d auth_db `
-    -c "SELECT COUNT(*) FROM role_page_permissions WHERE created_by = 'sp-d4-v10' AND is_deleted = FALSE;"
+    -c "SELECT COUNT(*) FROM role_page_permissions WHERE page_code IN ('estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft', 'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print', 'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer', 'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users', 'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request', 'products.list', 'products.admin', 'arologis.admin', 'arologis.region') AND is_deleted = FALSE;"
 # 기대: 154
 
 # 3) 신규 PageCode API 응답 확인 (estimates.list 대표 검증)

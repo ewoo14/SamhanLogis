@@ -142,7 +142,10 @@ public class ArologisAdminController {
             description = "카톡 우회 외 admin UI 직접 입력. driverCode 미지정 시 자동 매칭.")
     @PostMapping("/dispatches/manual")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<Map<String, String>> manualCreate(@Valid @RequestBody ManualDispatchRequest req) {
+    public ApiResponse<Map<String, String>> manualCreate(
+            @Valid @RequestBody ManualDispatchRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         UUID id = manualService.manualCreate(req);
         return ApiResponse.ok(Map.of("dispatchId", id.toString()));
     }
@@ -157,7 +160,9 @@ public class ArologisAdminController {
     @PostMapping("/dispatches/manual/preview")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<ManualDispatchPreviewResponse> manualPreview(
-            @Valid @RequestBody ManualDispatchRequest req) {
+            @Valid @RequestBody ManualDispatchRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(manualService.manualPreview(req));
     }
 
@@ -169,7 +174,9 @@ public class ArologisAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<DispatchResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) DispatchType type) {
+            @RequestParam(required = false) DispatchType type,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         LocalDate effectiveDate = date == null ? LocalDate.now() : date;
         List<Dispatch> result = dispatchService.findByDateAndType(effectiveDate, type);
         return ApiResponse.ok(result.stream().map(DispatchResponse::from).toList());
@@ -181,7 +188,10 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch 상세 조회 (Admin)")
     @GetMapping("/dispatches/{id}")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<DispatchDetailResponse> findById(@PathVariable UUID id) {
+    public ApiResponse<DispatchDetailResponse> findById(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         DispatchService.DispatchAggregate agg = dispatchService.findById(id);
         // QA-1 채택 fix — N round-trip → batch findAllById (N+1 → 1 query).
         List<UUID> driverIds = agg.vehicles().stream()
@@ -201,7 +211,10 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch 자동 매칭 (Admin)")
     @PostMapping("/dispatches/{id}/auto-match")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<DispatchService.AutoMatchResult> autoMatch(@PathVariable UUID id) {
+    public ApiResponse<DispatchService.AutoMatchResult> autoMatch(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(dispatchService.autoMatch(id));
     }
 
@@ -212,7 +225,9 @@ public class ArologisAdminController {
     @PostMapping("/dispatches/{id}/vehicles/{seq}/match-external")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<DispatchService.AutoMatchResult> matchExternal(
-            @PathVariable UUID id, @PathVariable Integer seq) {
+            @PathVariable UUID id, @PathVariable Integer seq,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         // 단순화 — 전체 auto-match 호출 후 결과 반환 (W10-2 시점에 단건 매칭으로 분리)
         log.info("matchExternal — dispatchId={} vehicleSeq={} (W10-2 시점 단건 매칭 분리 예정)", id, seq);
         return ApiResponse.ok(dispatchService.autoMatch(id));
@@ -224,7 +239,9 @@ public class ArologisAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> assignDriver(
             @PathVariable UUID id, @PathVariable Integer seq,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String driverCode = body == null ? null : body.get("driverCode");
         dispatchService.assignDriverManual(id, seq, driverCode);
         return ApiResponse.ok(Map.of("dispatchId", id.toString(), "driverCode", driverCode));
@@ -236,7 +253,9 @@ public class ArologisAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<Map<String, String>> updateStopStatus(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String statusRaw = body == null ? null : body.get("status");
         if (statusRaw == null || statusRaw.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "status 필수");
@@ -258,7 +277,9 @@ public class ArologisAdminController {
     public ApiResponse<List<DriverResponse>> listDrivers(
             @RequestParam(required = false) com.samhanair.logis.arologis.domain.DriverSource source,
             @RequestParam(required = false) String phoneNumber,
-            @RequestParam(required = false) Boolean appInstalled) {
+            @RequestParam(required = false) Boolean appInstalled,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         List<Driver> drivers = driverService.findDrivers(source, phoneNumber, appInstalled);
         return ApiResponse.ok(drivers.stream().map(DriverResponse::from).toList());
     }
@@ -267,7 +288,11 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch Soft Delete (Admin)")
     @PutMapping("/dispatches/{id}/delete")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<Map<String, String>> softDelete(@PathVariable UUID id, HttpServletRequest request) {
+    public ApiResponse<Map<String, String>> softDelete(
+            @PathVariable UUID id,
+            HttpServletRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String userId = request.getHeader("X-User-Id");
         dispatchService.softDelete(id, userId == null ? "system" : userId);
         return ApiResponse.ok(Map.of("dispatchId", id.toString(), "deleted", "true"));
@@ -296,7 +321,9 @@ public class ArologisAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<PreClassifyResponse> preClassify(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(preClassifyService.classify(from, to));
     }
 
@@ -316,7 +343,9 @@ public class ArologisAdminController {
     @GetMapping("/dispatches/unassigned")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<UnassignedSlipResponse> unassigned(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(unassignedService.findUnassigned(date));
     }
 
@@ -333,7 +362,9 @@ public class ArologisAdminController {
     @GetMapping("/dispatches/regional")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<RegionalDispatchResponse> regional(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(regionalService.classifyBySido(date));
     }
 
@@ -348,7 +379,10 @@ public class ArologisAdminController {
             description = "Dispatch/VehicleStop 변경 이력 (최신 revision 우선)")
     @GetMapping("/dispatches/{id}/audit-logs")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public ApiResponse<List<ArologisAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
+    public ApiResponse<List<ArologisAuditLogResponse>> listAuditLogs(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(auditLogRecorder.listByEntity(id).stream()
                 .map(ArologisAuditLogResponse::from).toList());
     }
@@ -360,7 +394,10 @@ public class ArologisAdminController {
             description = "audit/edit-request event SSE stream — heartbeat 30s")
     @GetMapping(value = "/dispatches/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
-    public SseEmitter subscribeRealtime(@PathVariable UUID id) {
+    public SseEmitter subscribeRealtime(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return realtimeBroker.subscribe(id);
     }
 
@@ -380,7 +417,9 @@ public class ArologisAdminController {
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
             @RequestHeader(value = "X-User-Id", required = false) String callerId,
-            @RequestHeader(value = "X-User-Name", required = false) String callerName) {
+            @RequestHeader(value = "X-User-Name", required = false) String callerName,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         EditRequestType requestType = parseRequestType(body == null ? null : body.get("requestType"));
         String reason = body == null ? null : body.get("reason");
         return ApiResponse.ok(ArologisEditRequestResponse.from(
@@ -393,7 +432,9 @@ public class ArologisAdminController {
     @GetMapping("/edit-requests/pending")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
     public ApiResponse<List<ArologisEditRequestResponse>> listPending(
-            @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
+            @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(editRequestService.listPendingForRole(targetRole).stream()
                 .map(ArologisEditRequestResponse::from).toList());
     }
@@ -406,7 +447,9 @@ public class ArologisAdminController {
             @PathVariable UUID requestId,
             @RequestBody(required = false) Map<String, String> body,
             @RequestHeader(value = "X-User-Id", required = false) String callerId,
-            @RequestHeader(value = "X-User-Name", required = false) String callerName) {
+            @RequestHeader(value = "X-User-Name", required = false) String callerName,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String note = body == null ? null : body.get("note");
         return ApiResponse.ok(ArologisEditRequestResponse.from(
                 editRequestService.approve(requestId,
@@ -421,7 +464,9 @@ public class ArologisAdminController {
             @PathVariable UUID requestId,
             @RequestBody Map<String, String> body,
             @RequestHeader(value = "X-User-Id", required = false) String callerId,
-            @RequestHeader(value = "X-User-Name", required = false) String callerName) {
+            @RequestHeader(value = "X-User-Name", required = false) String callerName,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_ADMIN);
         String reason = body == null ? null : body.get("decisionReason");
         return ApiResponse.ok(ArologisEditRequestResponse.from(
                 editRequestService.reject(requestId,

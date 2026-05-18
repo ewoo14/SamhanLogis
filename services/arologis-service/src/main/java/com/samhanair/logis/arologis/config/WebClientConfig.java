@@ -1,8 +1,10 @@
 package com.samhanair.logis.arologis.config;
 
 import java.time.Duration;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
@@ -24,10 +26,22 @@ import org.springframework.web.client.RestClient;
 public class WebClientConfig {
 
     @Bean
+    @Primary
     public RestClient.Builder restClientBuilder() {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
         rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
         rf.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
         return RestClient.builder().requestFactory(rf);
+    }
+
+    /**
+     * Spring Cloud LoadBalancer 통합 RestClient.Builder bean.
+     *
+     * <p>SP-D4 동적 RBAC 권한 조회처럼 서비스명 기반 내부 호출에 사용한다.
+     */
+    @Bean
+    @LoadBalanced
+    public RestClient.Builder loadBalancedRestClientBuilder() {
+        return RestClient.builder();
     }
 }

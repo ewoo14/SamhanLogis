@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.arologis.ArologisServiceApplication;
 import com.samhanair.logis.arologis.client.DynamicPermissionClient;
+import com.samhanair.logis.arologis.client.NotificationClient;
+import com.samhanair.logis.arologis.client.PartnerClient;
+import com.samhanair.logis.arologis.client.SlipClient;
+import com.samhanair.logis.arologis.client.SlipServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +45,18 @@ class ArologisAdminPermissionIT extends AbstractPostgresIT {
 
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
+
+    @MockBean
+    private PartnerClient partnerClient;
+
+    @MockBean
+    private SlipClient slipClient;
+
+    @MockBean
+    private NotificationClient notificationClient;
+
+    @MockBean
+    private SlipServiceClient slipServiceClient;
 
     @BeforeEach
     void setupLenientStubs() {
@@ -115,6 +131,28 @@ class ArologisAdminPermissionIT extends AbstractPostgresIT {
                         .content("{\"groupName\":\"테스트지역\","
                                 + "\"keywords\":\"테스트,지역\","
                                 + "\"sortOrder\":999}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("C5: AROLOGIS_MANAGER arologis.admin canView=true → 배차 목록 200 OK")
+    @WithMockUser(username = "arologis-manager", authorities = {"ROLE_AROLOGIS_MANAGER"})
+    void C5_arologis_admin_canView_true_returns_200() throws Exception {
+        mockMvc.perform(get("/admin/arologis/dispatches")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
+                        .param("date", "2026-05-18"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("C6: AROLOGIS_MANAGER arologis.admin canEdit=false + canView=true → auto-match 403")
+    @WithMockUser(username = "arologis-manager-viewonly", authorities = {"ROLE_AROLOGIS_MANAGER"})
+    void C6_arologis_admin_canEdit_false_canView_true_returns_403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/admin/arologis/dispatches/" + java.util.UUID.randomUUID() + "/auto-match")
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isForbidden());
     }
 }

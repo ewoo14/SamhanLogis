@@ -3,12 +3,13 @@ package com.samhanair.logis.arologis.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * 동적 RBAC 권한 조회 클라이언트 구현체 — SP-D3 arologis-service 이식.
+ * 동적 RBAC 권한 조회 클라이언트 구현체 — SP-D4 arologis-service 이식.
  *
  * <p>auth-service 의 {@code /auth/admin/permissions/check} endpoint 를 호출하여
  * 특정 역할의 특정 페이지 접근 가능 여부를 확인한다.
@@ -25,10 +26,8 @@ import org.springframework.web.client.RestClientException;
  *   <li>data 또는 allowed 필드 파싱 실패 → {@code false} 반환</li>
  * </ul>
  *
- * <p>arologis-service 는 {@code restClientBuilder} (LoadBalancer 없는 기본 빌더) 를 사용.
- * auth-service URL 은 환경변수 또는 Eureka 를 통해 해석.
- *
- * <p>IT 에서 {@code @MockBean} 으로 격리 필요 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
+ * <p>IT 에서 {@code @MockBean} 으로 격리 필요 (메모리 가드
+ * {@code feedback_it_mockbean_external_clients.md}).
  */
 @Component
 public class DynamicPermissionClientImpl implements DynamicPermissionClient {
@@ -39,11 +38,11 @@ public class DynamicPermissionClientImpl implements DynamicPermissionClient {
     private final RestClient restClient;
 
     /**
-     * {@code restClientBuilder} bean 을 주입받아 auth-service 로의 RestClient 를 생성한다.
+     * {@code loadBalancedRestClientBuilder} bean 을 주입받아 auth-service 로의 RestClient 를 생성한다.
      *
-     * @param builder arologis-service WebClientConfig 에서 제공하는 기본 빌더
+     * @param builder Spring Cloud LoadBalancer 가 적용된 RestClient.Builder
      */
-    public DynamicPermissionClientImpl(RestClient.Builder builder) {
+    public DynamicPermissionClientImpl(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder) {
         this.restClient = builder.baseUrl(AUTH_SERVICE_BASE).build();
     }
 
@@ -82,7 +81,7 @@ public class DynamicPermissionClientImpl implements DynamicPermissionClient {
                             roleCode, pageCode, permType)
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError(), (req, res) -> {
-                        log.debug("[SP-D3] 권한 조회 4xx — roleCode={} pageCode={} type={} status={}",
+                        log.debug("[SP-D4] 권한 조회 4xx — roleCode={} pageCode={} type={} status={}",
                                 roleCode, pageCode, permType, res.getStatusCode());
                     })
                     .body(JsonNode.class);
@@ -92,23 +91,23 @@ public class DynamicPermissionClientImpl implements DynamicPermissionClient {
             }
             JsonNode dataNode = root.path("data");
             if (dataNode.isMissingNode() || dataNode.isNull()) {
-                log.debug("[SP-D3] 권한 조회 응답 data 필드 누락 — roleCode={} pageCode={} type={}",
+                log.debug("[SP-D4] 권한 조회 응답 data 필드 누락 — roleCode={} pageCode={} type={}",
                         roleCode, pageCode, permType);
                 return false;
             }
             JsonNode allowedNode = dataNode.path("allowed");
             if (allowedNode.isMissingNode()) {
-                log.debug("[SP-D3] 권한 조회 응답 data.allowed 필드 누락 — roleCode={} pageCode={} type={}",
+                log.debug("[SP-D4] 권한 조회 응답 data.allowed 필드 누락 — roleCode={} pageCode={} type={}",
                         roleCode, pageCode, permType);
                 return false;
             }
             return allowedNode.asBoolean(false);
         } catch (RestClientException ex) {
-            log.warn("[SP-D3] auth-service 권한 조회 실패 (fallback=false) — roleCode={} pageCode={} error={}",
+            log.warn("[SP-D4] auth-service 권한 조회 실패 (fallback=false) — roleCode={} pageCode={} error={}",
                     roleCode, pageCode, ex.getMessage());
             return false;
         } catch (Exception ex) {
-            log.error("[SP-D3] 동적 권한 조회 예외 (fallback=false) — roleCode={} pageCode={} error={}",
+            log.error("[SP-D4] 동적 권한 조회 예외 (fallback=false) — roleCode={} pageCode={} error={}",
                     roleCode, pageCode, ex.getMessage(), ex);
             return false;
         }

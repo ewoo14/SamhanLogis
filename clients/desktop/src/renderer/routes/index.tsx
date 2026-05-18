@@ -431,9 +431,11 @@ const router = createHashRouter([
       {
         path: '/sales/estimates',
         element: (
-          <PermissionGuard pageCode="estimates.list" action="view">
-            <EstimateListPage />
-          </PermissionGuard>
+          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
+            <PermissionGuard pageCode="estimates.list" action="view">
+              <EstimateListPage />
+            </PermissionGuard>
+          </RoleGuard>
         ),
       },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },

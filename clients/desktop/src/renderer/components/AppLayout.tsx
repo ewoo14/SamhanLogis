@@ -131,7 +131,6 @@ const BLOCKED_PARTNERS_SIDEBAR_ROLES = ['MANAGER', 'MASTER'] as const
  * [samhan-dispatch-board Phase A] 배차 메뉴 (/dispatch-board) — DISPATCH/MANAGER/MASTER.
  * Samhan Public 배차담당자 → 차량 그룹 + arologis 발송 흐름.
  */
-const DISPATCH_BOARD_SIDEBAR_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 
 export function AppLayout() {
   const auth = useSessionStore((s) => s.auth)
@@ -234,7 +233,6 @@ export function AppLayout() {
   const showVendorOrder            = dynamicCanAccess('sales.vendor-order',           'view')
   const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')
   // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
-  const _showInventoryStock        = dynamicCanAccess('inventory.stock',              'view')
   const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
@@ -250,7 +248,7 @@ export function AppLayout() {
   const showArologisRegionPage     = dynamicCanAccess('arologis.region',              'view')
   // SP-D4 그룹 헤더 가시성 (1개라도 true 이면 그룹 노출)
   const showInventoryGroup =
-    showInventoryWarehouse || _showInventoryStock || showInventoryStockTransfer
+    showInventoryWarehouse || showInventoryStockTransfer
     || showInventoryDps || showInventoryAuditPage
   const showPartnersGroup  =
     showPartnersList || showPartnersBlock || showPartnersEditRequest

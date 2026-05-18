@@ -87,7 +87,9 @@ public class WarehouseController {
     public ApiResponse<AdminWarehouseListResponse> search(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String q) {
+            @RequestParam(required = false) String q,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkView(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.ASC, "displayOrder"));
         return ApiResponse.ok(warehouseService.searchAdmin(q, pageable));
@@ -138,7 +140,9 @@ public class WarehouseController {
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request,
-                                                 @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+                                                 @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+                                                 @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         return ApiResponse.ok(warehouseService.update(id, request, callerHeader));
     }
 
@@ -187,7 +191,9 @@ public class WarehouseController {
     public ApiResponse<WarehouseResponse> revertAudit(
             @PathVariable UUID id,
             @PathVariable int revisionNo,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         return ApiResponse.ok(warehouseService.revertToRevision(id, revisionNo, callerHeader));
     }
 
@@ -202,7 +208,9 @@ public class WarehouseController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public void delete(@PathVariable UUID id,
-                       @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+                       @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+                       @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         warehouseService.delete(id, callerHeader);
     }
 
@@ -233,7 +241,9 @@ public class WarehouseController {
     @PostMapping("/{id}/restore")
     @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
     public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
-                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+                                                  @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
         return ApiResponse.ok(warehouseService.restore(id, callerHeader));
     }
 }

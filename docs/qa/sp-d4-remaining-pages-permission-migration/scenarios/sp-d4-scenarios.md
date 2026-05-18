@@ -110,12 +110,12 @@ SALES (admin.users 권한 없음 — MASTER 전용)
 
 ### 단계
 1. `GET /auth/admin/permissions/my` mock → SALES: admin.users view=false, edit=false
-2. `/#/admin/users?mockRole=SALES` 직접 진입
+2. `/#/admin/permission-matrix?mockRole=SALES` 직접 진입
 3. redirect 발생 확인
 4. 계정 관리 콘텐츠 (`계정 관리`, `AdminUser`) 미표시 확인
 
 ### 기대
-- `/admin/users` URL 직접 진입 시 `"/"` redirect (PermissionGuard 차단)
+- `/admin/permission-matrix` URL 직접 진입 시 `"/"` redirect (PermissionGuard 차단)
 - 계정 관리 페이지 콘텐츠 미표시
 - pageerror 0건
 
@@ -131,13 +131,13 @@ WAREHOUSE (창고 관리 V/E)
 
 ### 단계
 1. `GET /auth/admin/permissions/my` mock → WAREHOUSE: inventory.warehouse view=true, edit=true
-2. `/#/inventory/warehouses?mockRole=WAREHOUSE` 진입
+2. `/#/warehouses?mockRole=WAREHOUSE` 진입
 3. redirect 미발생 확인
 4. `GET /warehouses` mock → `[{ code: "WH-001", name: "서울 창고" }]` 응답
 5. 편집 버튼 (`[data-testid="warehouse-edit-button"]`) isDisabled() 확인 → false (canEdit=true)
 
 ### 기대
-- `/inventory/warehouses` 200 OK
+- `/warehouses` 200 OK
 - 창고 목록 표시
 - 편집 버튼 활성 (canEdit=true)
 - pageerror 0건
@@ -198,7 +198,7 @@ DISPATCH (inventory.warehouse 권한 없음)
 1. `GET /auth/admin/permissions/my` mock → DISPATCH: inventory.warehouse view=false
 2. `/#/?mockRole=DISPATCH` 진입 → 사이드바 로드
 3. `[data-testid="sidebar-inventory-warehouses"]` isVisible() → false 기대
-4. `/#/inventory/warehouses?mockRole=DISPATCH` 직접 진입 → redirect 확인
+4. `/#/warehouses?mockRole=DISPATCH` 직접 진입 → redirect 확인
 
 ### 기대
 - 사이드바에 창고 관리 메뉴 hidden
@@ -296,14 +296,14 @@ SALES (sales.partner-order.confirm 이 revoke 된 상태)
 
 ---
 
-## T14: URL 직접 진입 redirect — SALES /inventory/audit
+## T14: URL 직접 진입 redirect — SALES /warehouse/audit
 
 ### 사용자
 SALES (inventory.audit 권한 없음)
 
 ### 단계
 1. `GET /auth/admin/permissions/my` mock → SALES: inventory.audit view=false
-2. `/#/inventory/audit?mockRole=SALES` 직접 진입
+2. `/#/warehouse/audit?mockRole=SALES` 직접 진입
 3. redirect 발생 확인 (URL = `/#/` 또는 `/login`)
 4. redirect 목적지 확인 (대시보드 또는 로그인 페이지)
 5. 재고 감사 콘텐츠 (`재고 감사`, `InventoryAudit`) 미표시 확인

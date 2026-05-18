@@ -17,9 +17,24 @@ SP-D4 배포 후 7 도메인 서비스 신규 22 PageCode 에 대한 `Permission
 
 ---
 
-## §2 대상 Metric
+## §2 단기 대안 — 로그 기반 모니터링
 
+현재 서비스 코드에는 `permission_guard_denied_total` Counter 구현이 없다. SP-D4 배포 직후에는 아래 로그 기반 패턴으로 403 deny 를 관찰하고, Counter 구현은 SP-D5 backlog 로 이연한다.
+
+```text
+FORBIDDEN.*pageCode=(estimates|sales\.partner-order|inventory|admin|partners|products|arologis).*
 ```
+
+운영 적용 예:
+- Promtail/Loki: 각 서비스 로그에서 위 패턴을 label `sp_d4_permission_denied=true` 로 추출한다.
+- 임시 grep: `docker logs <service-container> | grep -E "FORBIDDEN.*pageCode=(estimates|sales\\.partner-order|inventory|admin|partners|products|arologis).*"`
+- SP-D5: `PermissionGuard` 공통 계층에 Micrometer Counter 를 추가한 뒤 본 문서의 Prometheus rule 로 전환한다.
+
+---
+
+## §3 대상 Metric
+
+```text
 permission_guard_denied_total{
   code=~"estimates.*|sales\\.partner-order.*|inventory.*|admin.*|partners.*|products.*|arologis.*"
 }
@@ -37,13 +52,11 @@ permission_guard_denied_total{
 
 ---
 
-## §3 임계 완화 설정
+## §4 임계 완화 설정
 
-### 3-1. 배포 전 기본 임계 (운영 정상 상태)
+### 4-1. 배포 전 기본 임계
 
 ```yaml
-# Grafana Alert Rule (현재 기본값)
-# 5분 window, rate 기준
 expr: |
   rate(
     permission_guard_denied_total{
@@ -54,10 +67,9 @@ for: 2m
 severity: warning
 ```
 
-### 3-2. 배포 후 48시간 임시 완화 임계
+### 4-2. 배포 후 48시간 임시 완화 임계
 
 ```yaml
-# Grafana Alert Rule (48h 임시 완화)
 expr: |
   rate(
     permission_guard_denied_total{
@@ -69,12 +81,13 @@ severity: warning
 ```
 
 변경 내용 요약:
+
 | 항목 | 기본값 | 임시 완화값 |
 |---|---|---|
 | rate 임계 | 0.5/s | 5/s |
 | for (지속 시간) | 2m | 5m |
 
-### 3-3. 수동 Grafana UI 변경 절차
+### 4-3. 수동 Grafana UI 변경 절차
 
 Grafana UI (http://localhost:3100 — docker-compose 기본 포트 3100:3000 바인딩 또는 AWS Grafana URL) 에서:
 
@@ -88,24 +101,19 @@ Grafana UI (http://localhost:3100 — docker-compose 기본 포트 3100:3000 바
 
 ---
 
-## §4 48시간 운영 grant 분석
+## §5 48시간 운영 grant 분석
 
 48시간 동안 아래 쿼리로 실제 deny 패턴 분석:
 
-```
-# Grafana Explore — PromQL
-# 신규 22 PageCode 별 누적 deny 수
+```text
 increase(
   permission_guard_denied_total{
     code=~"estimates.*|sales\\.partner-order.*|inventory.*|admin.*|partners.*|products.*|arologis.*"
   }[48h]
 )
 
-# 역할별 deny 분포 (X-User-Role label 있는 경우)
 sum by (code, role) (
-  increase(
-    permission_guard_denied_total[48h]
-  )
+  increase(permission_guard_denied_total[48h])
 )
 ```
 
@@ -115,7 +123,7 @@ sum by (code, role) (
 
 ---
 
-## §5 임계 복귀 절차 (48시간 후)
+## §6 임계 복귀 절차
 
 1. Grafana UI 에서 `SP-D4 PermissionGuard Denied Rate` 규칙 재편집
 2. `Threshold` 값 `5` → `0.5` 복귀
@@ -125,7 +133,6 @@ sum by (code, role) (
 PowerShell 5.1 에서 복귀 일시 알림 타이머 설정 (선택):
 
 ```powershell
-# 배포 시각 기록 (48h 후 복귀 참조용)
 $deployTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "SP-D4 배포 시각: $deployTime"
 Write-Host "Grafana 알람 복귀 예정: $((Get-Date).AddHours(48).ToString('yyyy-MM-dd HH:mm:ss'))"
@@ -133,7 +140,7 @@ Write-Host "Grafana 알람 복귀 예정: $((Get-Date).AddHours(48).ToString('yy
 
 ---
 
-## §6 비정상 급증 판단 기준
+## §7 비정상 급증 판단 기준
 
 완화된 임계(5/s) 를 초과하거나 아래 패턴이 관찰되면 **배포 회귀** 로 간주하고 롤백 검토:
 
@@ -146,7 +153,7 @@ Write-Host "Grafana 알람 복귀 예정: $((Get-Date).AddHours(48).ToString('yy
 
 ---
 
-## §7 참조
+## §8 참조
 
 - `docs/operational-validation/sp-d4-v10-rollback.sql` — 긴급 롤백 SQL
 - `docs/operational-validation/sp-d4-deploy-rolling-order.md` — 배포 순서 + 장애 대응

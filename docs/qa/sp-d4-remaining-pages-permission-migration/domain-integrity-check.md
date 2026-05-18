@@ -161,6 +161,13 @@ WHERE page_code IN ('estimates.list', 'arologis.admin', 'admin.users', ...)
 SELECT DISTINCT page_code
 FROM role_page_permissions
 WHERE page_code NOT IN (
+    'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.deposit-match', 'accounting.daily-closing', 'accounting.general-ledger',
+    'accounting.accounts', 'accounting.journals', 'accounting.balances',
+    'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.partner-ledger', 'notification.dispatch-sms.send-audit',
+    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    'inbound.inspection', 'dispatch.board', 'admin.permissions',
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
     'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',

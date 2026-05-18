@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,8 +51,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class PartnerBlockAdminController {
 
+    private static final String ROLE_HEADER = "X-User-Role";
+
     private final PartnerBlockService blockService;
     private final PartnerBlockImportService importService;
+    private final PartnerPermissionGuard partnerPermissionGuard;
 
     /**
      * BLOCK 목록 페이지 조회 — admin 화면 backing.
@@ -66,7 +70,9 @@ public class PartnerBlockAdminController {
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<Page<BlockedPartnerResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkView(roleHeader, PartnerPermissionGuard.PAGE_BLOCK);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "blockedAt"));
         Page<BlockedPartnerResponse> result = blockService.findAll(pageable)
                 .map(BlockedPartnerResponse::from);
@@ -87,7 +93,9 @@ public class PartnerBlockAdminController {
     @PostMapping
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
     public ApiResponse<BlockedPartnerResponse> create(
-            @Valid @RequestBody BlockedPartnerCreateRequest req) {
+            @Valid @RequestBody BlockedPartnerCreateRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_BLOCK);
         return ApiResponse.ok(BlockedPartnerResponse.from(
                 blockService.block(req.partnerCode(), req.blockReason())));
     }
@@ -109,7 +117,9 @@ public class PartnerBlockAdminController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<BlockedPartnerImportResult> importCsv(
             @RequestParam("file") MultipartFile file,
-            Principal principal) throws IOException {
+            Principal principal,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) throws IOException {
+        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_BLOCK);
         String actor = principal != null ? principal.getName() : "system";
         return ApiResponse.ok(importService.importCsv(file.getInputStream(), actor));
     }
@@ -120,7 +130,11 @@ public class PartnerBlockAdminController {
     @Operation(summary = "BLOCK 해제 (soft-delete)", description = "MASTER 권한. id = BLOCK row UUID.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('MASTER')")
-    public ResponseEntity<ApiResponse<Void>> unblock(@PathVariable UUID id, Principal principal) {
+    public ResponseEntity<ApiResponse<Void>> unblock(
+            @PathVariable UUID id,
+            Principal principal,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_BLOCK);
         String actor = principal != null ? principal.getName() : "system";
         blockService.unblock(id, actor);
         return ResponseEntity.ok(ApiResponse.ok(null));
