@@ -112,13 +112,19 @@ class ProductPermissionIT extends AbstractPostgresIT {
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
         Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
 
         mockMvc.perform(post("/products")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"modelName\":\"TEST-MODEL\","
-                                + "\"description\":\"테스트상품\","
-                                + "\"salePrice\":10000}"))
+                                + "\"name\":\"Test Product\","
+                                + "\"categoryId\":\"00000000-0000-0000-0000-000000000001\","
+                                + "\"sellingPrice\":10000,"
+                                + "\"purchasePrice\":8000,"
+                                + "\"description\":\"Test Product\","
+                                + "\"currency\":\"KRW\"}"))
                 .andExpect(status().isForbidden());
     }
 }

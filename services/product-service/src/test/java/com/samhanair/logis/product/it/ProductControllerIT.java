@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.it;
 
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
+import com.samhanair.logis.product.client.DynamicPermissionClient;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import java.math.BigDecimal;
@@ -16,9 +18,11 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -52,10 +56,19 @@ class ProductControllerIT extends AbstractPostgresIT {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     private UUID categoryId;
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
         Category cat = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))
                 .findFirst()

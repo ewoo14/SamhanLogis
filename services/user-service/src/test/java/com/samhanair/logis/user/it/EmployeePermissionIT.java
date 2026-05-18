@@ -112,13 +112,19 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     void C4_manager_canEdit_false_canView_true_returns_403() throws Exception {
         Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
 
         mockMvc.perform(post("/users/employees")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"test@test.com\","
-                                + "\"fullName\":\"테스트직원\","
-                                + "\"role\":\"SALES\"}"))
+                                + "\"password\":\"password1\","
+                                + "\"fullName\":\"Test Employee\","
+                                + "\"position\":\"staff\","
+                                + "\"role\":\"SALES\","
+                                + "\"departmentId\":\"00000000-0000-0000-0000-000000000001\","
+                                + "\"hireDate\":\"2026-05-18\"}"))
                 .andExpect(status().isForbidden());
     }
 }

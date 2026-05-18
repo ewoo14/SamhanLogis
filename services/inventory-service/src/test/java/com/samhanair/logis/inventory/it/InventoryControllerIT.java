@@ -1,6 +1,7 @@
 package com.samhanair.logis.inventory.it;
 
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
+import com.samhanair.logis.inventory.client.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
@@ -65,10 +67,19 @@ class InventoryControllerIT extends AbstractPostgresIT {
     @MockBean
     private ProductClient productClient;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     private UUID hqWarehouseId;
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
         hqWarehouseId = warehouseRepository.findByCode("HQ-001")
                 .orElseThrow(() -> new IllegalStateException(
                         "HQ-001 시드 누락 — V2__seed_inventory_warehouses.sql 확인"))

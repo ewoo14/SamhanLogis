@@ -107,7 +107,7 @@ class WarehousePermissionIT extends AbstractPostgresIT {
         mockMvc.perform(post("/inventory/warehouses")
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"NORMAL\"}"))
+                        .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"VEHICLE\"}"))
                 .andExpect(status().is(org.hamcrest.Matchers.not(403)));
     }
 
@@ -121,11 +121,13 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     void C4_warehouse_canEdit_false_canView_true_returns_403() throws Exception {
         Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
 
         mockMvc.perform(post("/inventory/warehouses")
                         .header("X-User-Role", "WAREHOUSE")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"NORMAL\"}"))
+                        .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"VEHICLE\"}"))
                 .andExpect(status().isForbidden());
     }
 }

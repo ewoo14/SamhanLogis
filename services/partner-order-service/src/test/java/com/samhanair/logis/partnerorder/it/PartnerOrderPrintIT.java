@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
+import com.samhanair.logis.partnerorder.client.DynamicPermissionClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
@@ -72,12 +74,20 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
         auditLogRepository.deleteAll();
         outboxRepository.deleteAll();
         orderRepository.deleteAll();
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
         Mockito.lenient().when(partnerLookupClient.findByPartnerCode("P-PRINT-A"))
                 .thenReturn(Optional.of(new PartnerSummary(
                         UUID.randomUUID(), "P-PRINT-A", "삼한테스트공조", "1010101010")));

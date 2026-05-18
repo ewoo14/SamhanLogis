@@ -119,7 +119,8 @@ class PartnerOrderListPermissionIT extends AbstractPostgresIT {
         mockMvc.perform(post("/api/v1/partner-orders/00000000-0000-0000-0000-000000000001/confirm")
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"notes\":\"test\"}"))
+                        .content("{\"lines\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\","
+                                + "\"categoryKey\":\"wall\",\"quantity\":1}]}"))
                 .andExpect(status().is(org.hamcrest.Matchers.not(403)));
     }
 
@@ -133,12 +134,15 @@ class PartnerOrderListPermissionIT extends AbstractPostgresIT {
     void C4_sales_canEdit_false_canView_true_confirm_403() throws Exception {
         Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
         // canView=true 유지 (lenient 기본값)
 
         mockMvc.perform(post("/api/v1/partner-orders/00000000-0000-0000-0000-000000000001/confirm")
                         .header("X-User-Role", "SALES")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"notes\":\"test\"}"))
+                        .content("{\"lines\":[{\"productId\":\"00000000-0000-0000-0000-000000000001\","
+                                + "\"categoryKey\":\"wall\",\"quantity\":1}]}"))
                 .andExpect(status().isForbidden());
     }
 }

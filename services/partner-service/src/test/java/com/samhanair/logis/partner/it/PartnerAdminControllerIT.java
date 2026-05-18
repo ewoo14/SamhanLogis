@@ -1,15 +1,20 @@
 package com.samhanair.logis.partner.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
+import com.samhanair.logis.partner.client.DynamicPermissionClient;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -41,8 +46,17 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @BeforeEach
     void cleanup() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
         partnerRepository.deleteAll();
     }
 

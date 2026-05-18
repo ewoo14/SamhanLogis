@@ -2,9 +2,11 @@ package com.samhanair.logis.arologis.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
 import com.samhanair.logis.arologis.ArologisServiceApplication;
+import com.samhanair.logis.arologis.client.DynamicPermissionClient;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -115,6 +117,8 @@ class P15ValidationIT extends AbstractPostgresIT {
     private NotificationClient notificationClient;
     @MockBean
     private SlipServiceClient slipServiceClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     // ---- fixture 참조 (BeforeEach 에서 JPA 저장 후 할당) ----
     private UUID dispatchId1;
@@ -137,6 +141,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
 
         // FK 역순 cleanup
         signatureRepository.deleteAll();

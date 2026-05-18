@@ -1,10 +1,12 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
+import com.samhanair.logis.arologis.client.DynamicPermissionClient;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -72,6 +74,8 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     private SlipClient slipClient;
     @MockBean
     private NotificationClient notificationClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
     /** PR-E1 BE-3 — 출고전표 자동 조회 client (가배차/미배차/지방 endpoint source). */
     @MockBean
     private SlipServiceClient slipServiceClient;
@@ -90,6 +94,8 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         // PR-E1 BE-3 — 기본 빈 리스트 (graceful empty). 개별 테스트가 override 가능.
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
