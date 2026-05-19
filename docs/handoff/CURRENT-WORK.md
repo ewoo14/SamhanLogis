@@ -1563,7 +1563,16 @@ Get-Content docs/superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md, do
 
 ### Codex MCP 활성화 (회사 PC 회고용)
 
-본 repo 의 표준 Codex 호출 = `mcp__codex__codex` MCP tool ([feedback_codex_plugin_setup.md], Plugin 폐기 2026-05-17). 회사 PC 에서 처음 사용 시 [docs/dev-environment/codex-mcp-setup.md](../dev-environment/codex-mcp-setup.md) 의 설정 가이드 (별도 작성 예정).
+본 repo 의 표준 Codex 호출 = `mcp__codex__codex` MCP tool ([feedback_codex_plugin_setup.md], Plugin 폐기 2026-05-17). 회사 PC 에서 처음 사용 시 [docs/dev-environment/codex-mcp-setup.md](../dev-environment/codex-mcp-setup.md) 의 단계별 가이드 (Node 18 → `npm i -g @openai/codex` → `.mcp.json` 등록 → `claude mcp list` 검증) 1회 셋업.
+
+### MIG-2 (품목) 진행 시 의무 규칙 (사용자 명시 2026-05-19)
+
+- **이카운트 품목 신원 규칙** — 품목코드 ≠ 품목명 + 동일 품목명을 가진 다른 row 가 있으면 같은 품목 (품목관계 매핑). MIG-2 staging.ecount_item_raw + staging.ecount_item_relation_raw join 으로 deduplicate 의무. 상세: [.claude/memory/project_ecount_product_identity_rule.md](../../.claude/memory/project_ecount_product_identity_rule.md)
+- 입력 파일: `docs/migration/ecount-data/raw/품목-Excel다운로드.csv` + `품목관계-Excel다운로드.csv`
+
+### MIG-1 PoC 산출 데이터 = 추후 테스트 데이터 (사용자 명시 2026-05-19)
+
+본 PR 머지 후 partner_db 의 6,977 거래처 row + staging.ecount_partner_raw 는 **dev/test 환경 시드 데이터** 로 활용 가능. PartnerSeeder 의 P0_6 6건 외 추가 운영급 데이터셋 확보.
 
 ---
 

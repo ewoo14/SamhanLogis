@@ -41,3 +41,4 @@
 - [Claude + Codex 양쪽 review + 각자 fix + N=3](feedback_dual_5agent_review.md) — 2026-05-17 사용자 정정 (5회차 최종). **사이클 1회 = Claude review → Claude fix → Codex review → Codex fix**. 사이클 N.5 통합 fix 단계 폐기. 양쪽이 서로 review cross-check 하여 fix. **사이클 N=3 안 완료** 의무 유지.
 - [Codex CLI MCP 서버 사용](feedback_codex_plugin_setup.md) — 2026-05-17 사용자 정정. **`mcp__codex__codex` MCP 도구 사용** (Plugin 폐기). review = `sandbox: "read-only"`, fix = `sandbox: "workspace-write"`. 5 agents 병렬 호출 가능 → cross-check 가시화.
 - [Codex 모델 자동 전환](feedback_codex_model_auto_switch.md) — 2026-05-17 신규. Default spark+medium (fast). 보안/migration/architecture/race/incident/AWS sizing/vendor 시나리오 진입 시 PM 이 `--model gpt-5.5 --effort high/xhigh` 자동 override.
+- [이카운트 품목 신원 규칙 (MIG-2 의무)](project_ecount_product_identity_rule.md) — 2026-05-19. 품목코드 ≠ 품목명 + 동일 품목명 row 가 여러 개일 때 품목관계 매핑으로 같은 품목 판정. MIG-2 진행 시 staging.ecount_item_raw + staging.ecount_item_relation_raw join 으로 deduplicate.
