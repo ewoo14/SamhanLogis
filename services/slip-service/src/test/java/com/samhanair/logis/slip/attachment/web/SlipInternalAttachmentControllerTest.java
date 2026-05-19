@@ -10,6 +10,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachment;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
+import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.SlipInternalController;
 import java.math.BigDecimal;
@@ -28,6 +29,8 @@ class SlipInternalAttachmentControllerTest {
     private SlipAttachmentService attachmentService;
     @Mock
     private SlipSignatureService signatureService;
+    @Mock
+    private SlipLineRepository slipLineRepository;
 
     @Test
     void upload_allowsDeliveryAndInspectionOnlyAndForwardsToService() {
@@ -55,7 +58,7 @@ class SlipInternalAttachmentControllerTest {
                 capturedAt,
                 "DR-001")).thenReturn(saved);
 
-        SlipInternalController controller = new SlipInternalController(signatureService, attachmentService);
+        SlipInternalController controller = new SlipInternalController(signatureService, attachmentService, slipLineRepository);
 
         var response = controller.uploadAttachment(
                 slipId,
@@ -83,7 +86,7 @@ class SlipInternalAttachmentControllerTest {
     @Test
     void upload_rejectsEstimateTypeForInternalDriverPhotoBridge() {
         SlipAttachmentService service = attachmentService;
-        SlipInternalController controller = new SlipInternalController(signatureService, service);
+        SlipInternalController controller = new SlipInternalController(signatureService, service, slipLineRepository);
 
         assertThatThrownBy(() -> controller.uploadAttachment(
                 UUID.randomUUID(),
