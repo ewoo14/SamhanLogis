@@ -28,8 +28,6 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class SalesAccountingSlip extends BaseEntity {
 
-    private static final BigDecimal ONE_WON = BigDecimal.ONE;
-
     @Id @GeneratedValue @UuidGenerator
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
@@ -102,8 +100,8 @@ public class SalesAccountingSlip extends BaseEntity {
             BigDecimal allocatedTotal = line.getAllocations().stream()
                     .map(SalesAccountingSlipAllocation::getAllocatedAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal diff = line.getLineTotal().subtract(allocatedTotal).abs();
-            if (diff.compareTo(ONE_WON) >= 0) {
+            BigDecimal diff = line.getLineTotal().subtract(allocatedTotal);
+            if (diff.compareTo(BigDecimal.ZERO) != 0) {
                 throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
                         "line_total 과 allocation 합계가 일치하지 않습니다: lineNo="
                                 + line.getLineNo() + ", lineTotal=" + line.getLineTotal()

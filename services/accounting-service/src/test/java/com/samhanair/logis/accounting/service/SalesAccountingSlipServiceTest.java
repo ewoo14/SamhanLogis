@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
@@ -23,18 +24,23 @@ import com.samhanair.logis.accounting.web.dto.CreateSalesAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.SalesAccountingSlipResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class SalesAccountingSlipServiceTest {
@@ -43,7 +49,24 @@ class SalesAccountingSlipServiceTest {
     @Mock SalesAccountingSlipAllocationRepository allocationRepository;
     @Mock SlipServiceClient slipServiceClient;
     @Mock SalesAccountingSlipNumberGenerator numberGenerator;
-    @InjectMocks SalesAccountingSlipService service;
+    @Mock EntityManager entityManager;
+    @Mock Query advisoryQuery;
+    SalesAccountingSlipCreateAttemptService createAttemptService;
+    SalesAccountingSlipService service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(entityManager.createNativeQuery(anyString())).thenReturn(advisoryQuery);
+        lenient().when(advisoryQuery.setParameter(anyString(), any())).thenReturn(advisoryQuery);
+        lenient().when(advisoryQuery.getSingleResult()).thenReturn(1);
+        createAttemptService = new SalesAccountingSlipCreateAttemptService(
+                slipRepository,
+                allocationRepository,
+                slipServiceClient,
+                numberGenerator,
+                entityManager);
+        service = new SalesAccountingSlipService(slipRepository, createAttemptService);
+    }
 
     @Test
     void createDraft_1대1_정상생성_VAT자동분리() {
@@ -53,8 +76,8 @@ class SalesAccountingSlipServiceTest {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
-        when(allocationRepository.sumAllocatedAmountBySourceLineIdLocked(sourceLineId)).thenReturn(BigDecimal.ZERO);
-        lenient().when(slipRepository.save(any(SalesAccountingSlip.class)))
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
@@ -82,7 +105,7 @@ class SalesAccountingSlipServiceTest {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 UUID.randomUUID(), "OUT-...", sourceLineId, "P", 10,
                 new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
-        when(allocationRepository.sumAllocatedAmountBySourceLineIdLocked(sourceLineId))
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
@@ -110,9 +133,9 @@ class SalesAccountingSlipServiceTest {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-B", sourceLineId, "P", 10,
                 new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
-        when(allocationRepository.sumAllocatedAmountBySourceLineIdLocked(sourceLineId))
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
-        lenient().when(slipRepository.save(any(SalesAccountingSlip.class)))
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
 
         CreateSalesAccountingSlipRequest req = requestWithSingleAllocation(
@@ -147,10 +170,10 @@ class SalesAccountingSlipServiceTest {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-R", sourceLineId, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED"));
-        when(allocationRepository.sumAllocatedAmountBySourceLineIdLocked(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"sales_accounting_slips_slip_no_key\""))
                 .doAnswer((InvocationOnMock inv) -> inv.getArgument(0))
-                .when(slipRepository).save(any(SalesAccountingSlip.class));
+                .when(slipRepository).saveAndFlush(any(SalesAccountingSlip.class));
 
         SalesAccountingSlipResponse resp = service.createDraft(
                 requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
@@ -159,19 +182,65 @@ class SalesAccountingSlipServiceTest {
 
         assertThat(resp.slipNo()).isEqualTo("SAS-RETRY");
         verify(numberGenerator, times(2)).next(slipDate);
-        verify(slipRepository, times(2)).save(any(SalesAccountingSlip.class));
+        verify(slipRepository, times(2)).saveAndFlush(any(SalesAccountingSlip.class));
     }
 
     @Test
-    void recalcTotals_allocation합계와_lineTotal_1원이상_차이면_SAS_LINE_AMOUNT_MISMATCH() {
+    void createDraftAttempt_REQUIRES_NEW_트랜잭션_검증() throws NoSuchMethodException {
+        Method method = SalesAccountingSlipCreateAttemptService.class.getMethod(
+                "createDraftAttempt", CreateSalesAccountingSlipRequest.class, String.class);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    @Test
+    void verifySourceAndAllocation_advisory_lock_호출_검증() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        long expectedLockKey = sourceLineId.getMostSignificantBits() ^ sourceLineId.getLeastSignificantBits();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-2026-05-0004");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-L", sourceLineId, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        service.createDraft(requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
+                new BigDecimal("100000"), new BigDecimal("100000")), "actor-1");
+
+        verify(entityManager).createNativeQuery("SELECT pg_advisory_xact_lock(:k)");
+        verify(advisoryQuery).setParameter("k", expectedLockKey);
+        verify(advisoryQuery).getSingleResult();
+    }
+
+    @Test
+    void recalcTotals_allocation_정확일치_PASS() {
         SalesAccountingSlip slip = SalesAccountingSlip.createDraft("SAS-X", LocalDate.now(),
                 UUID.randomUUID(), "P-1", "X", SalesTaxType.TAXABLE, null);
         SalesAccountingSlipLine line = SalesAccountingSlipLine.create(slip, 1, "P", "P",
-                BigDecimal.ONE, new BigDecimal("100000"),
-                new BigDecimal("90909"), new BigDecimal("9091"), new BigDecimal("100000"));
+                BigDecimal.ONE, new BigDecimal("100000.00"),
+                new BigDecimal("90909.09"), new BigDecimal("9090.91"), new BigDecimal("100000.00"));
         line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
                 UUID.randomUUID(), "OUT-X", UUID.randomUUID(), 1,
-                BigDecimal.ONE, new BigDecimal("99999")));
+                BigDecimal.ONE, new BigDecimal("100000.00")));
+        slip.getLines().add(line);
+
+        assertThatCode(slip::recalcTotals).doesNotThrowAnyException();
+    }
+
+    @Test
+    void recalcTotals_allocation합계와_lineTotal_0_01원_차이면_SAS_LINE_AMOUNT_MISMATCH() {
+        SalesAccountingSlip slip = SalesAccountingSlip.createDraft("SAS-X", LocalDate.now(),
+                UUID.randomUUID(), "P-1", "X", SalesTaxType.TAXABLE, null);
+        SalesAccountingSlipLine line = SalesAccountingSlipLine.create(slip, 1, "P", "P",
+                BigDecimal.ONE, new BigDecimal("100000.00"),
+                new BigDecimal("90909.09"), new BigDecimal("9090.91"), new BigDecimal("100000.00"));
+        line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
+                UUID.randomUUID(), "OUT-X", UUID.randomUUID(), 1,
+                BigDecimal.ONE, new BigDecimal("99999.99")));
         slip.getLines().add(line);
 
         assertThatThrownBy(slip::recalcTotals)
