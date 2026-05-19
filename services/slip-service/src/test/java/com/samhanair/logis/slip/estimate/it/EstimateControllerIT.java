@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import static org.mockito.ArgumentMatchers.anyString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -83,6 +86,16 @@ class EstimateControllerIT extends AbstractPostgresIT {
     /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
+    /**
+     * SP-D4 회귀 fix (audit-slice-3) — EstimatePermissionGuard 가 DynamicPermissionClient 를
+     * 주입받으므로 @MockBean 격리 필수. 누락 시 실제 구현체가 auth-service 호출 → 500 오류.
+     * lenient stub 으로 기본 canView=true / canEdit=true 설정.
+     */
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+    /** SP-D4 회귀 fix (audit-slice-3) — ArologisDispatchClient @MockBean 격리. */
+    @MockBean
+    private ArologisDispatchClient arologisDispatchClient;
 
     private UUID productId;
 
@@ -90,6 +103,11 @@ class EstimateControllerIT extends AbstractPostgresIT {
     void setUpMocks() {
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(Optional.of("담당자"));
+        // SP-D4 회귀 fix — DynamicPermissionClient lenient stub (기본 허용)
+        Mockito.lenient().when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenReturn(true);
         productId = UUID.randomUUID();
         ProductSummary summary = new ProductSummary(productId, "에어컨 220V 실외기", "AC-220",
                 null, new BigDecimal("550000.00"), null);

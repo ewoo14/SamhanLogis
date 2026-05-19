@@ -16,6 +16,10 @@ on:
       - '.github/workflows/arologis-deploy.yml'
       # Grafana 대시보드 JSON 변경만으로 BE 빌드+테스트 재실행 불필요 (SP-D5)
       - 'infrastructure/grafana/**'
+      # 문서 변경만으로 BE 빌드+테스트 재실행 불필요 (audit-slice-3).
+      # docs/migration/** 은 Flyway SQL 이 아닌 마이그레이션 계획 문서이므로 함께 무시 안전.
+      # Flyway SQL 은 각 service 의 src/main/resources/db/migration/ 경로에 있으므로 영향 없음.
+      - 'docs/**'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -26,6 +30,10 @@ on:
       - '.github/workflows/arologis-deploy.yml'
       # Grafana 대시보드 JSON 변경만으로 BE 빌드+테스트 재실행 불필요 (SP-D5)
       - 'infrastructure/grafana/**'
+      # 문서 변경만으로 BE 빌드+테스트 재실행 불필요 (audit-slice-3).
+      # docs/migration/** 은 Flyway SQL 이 아닌 마이그레이션 계획 문서이므로 함께 무시 안전.
+      # Flyway SQL 은 각 service 의 src/main/resources/db/migration/ 경로에 있으므로 영향 없음.
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:

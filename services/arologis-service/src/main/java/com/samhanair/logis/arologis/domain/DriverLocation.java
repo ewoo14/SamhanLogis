@@ -19,8 +19,19 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * GPS 추적 데이터 — Phase 10 W10-1.
  *
- * <p>BaseEntity 미상속 — 일별 partition + 30일 자동 cleanup 정책 (대용량 GPS 데이터 특성).
- * Soft Delete 도 미적용 — 30일 경과 시 hard DELETE.
+ * <p><b>BaseEntity 미상속 정책 명시 (audit-slice-3 P1-3):</b><br>
+ * 본 entity 는 {@link com.samhanair.logis.common.entity.BaseEntity}를 의도적으로 상속하지 않는다.
+ * <ul>
+ *   <li>GPS 데이터 특성상 대량 적재가 발생하며, audit 필드(createdBy/modifiedBy 등) 가
+ *       불필요한 스토리지 오버헤드를 유발한다.</li>
+ *   <li>30일 retention 정책에 따라 {@code DriverLocationCleanupScheduler}가
+ *       {@code capturedDate &lt; threshold} 기준으로 batch hard DELETE 를 수행한다.</li>
+ *   <li>{@code @SQLRestriction} 미적용 — is_deleted 컬럼 자체가 없으므로 Soft Delete 적용 불가.
+ *       GPS 데이터 삭제는 {@link com.samhanair.logis.arologis.repository.DriverLocationRepository#deleteOlderThan}
+ *       을 통한 hard DELETE 가 유일한 삭제 경로이다.</li>
+ *   <li>이 설계는 의도적 예외이며, 모든 업무 도메인 entity 는 반드시 BaseEntity 를 상속해야 한다
+ *       (프로젝트 컨벤션 일관).</li>
+ * </ul>
  *
  * <p>capturedDate (DATE) 는 partition key 후보 — DriverLocationCleanupScheduler 의 30일 cleanup
  * 기준 컬럼. capturedAt (TIMESTAMPTZ) 는 정확한 시각.
