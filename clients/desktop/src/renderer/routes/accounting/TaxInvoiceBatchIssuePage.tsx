@@ -1,40 +1,63 @@
 import { useMemo, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
-import {
-  MOCK_SALES_ACCOUNTING_SLIPS,
-  type SalesAccountingSlipResponse,
-} from '../../api/salesAccountingSlipApi'
 import {
   createTaxInvoiceFromSalesSlips,
   type TaxInvoiceFromSalesSlipsResponse,
 } from '../../api/taxInvoiceAdminApi'
+import {
+  listTaxInvoiceBatchCandidates,
+  type TaxInvoiceBatchCandidateSlip,
+} from '../../api/taxInvoiceBatchApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { today } from '../../utils/dateUtils'
+import { firstDayOfMonth, today } from '../../utils/dateUtils'
 import { fmtKrw } from '../../utils/currencyUtils'
 
-const SALES_SLIP_ID_BY_NO: Record<string, string> = {
-  'SAS-20260520-001': '51111111-1111-4111-8111-111111111111',
-  'SAS-20260519-004': '51111111-1111-4111-8111-111111111112',
+type CandidateRow = TaxInvoiceBatchCandidateSlip & {
+  groupKey: string
+  partnerCode: string
+  partnerName: string
+  month: string
 }
 
 export function TaxInvoiceBatchIssuePage() {
   usePageTitle('세금계산서 발행 묶음')
+  const [from, setFrom] = useState(firstDayOfMonth())
+  const [to, setTo] = useState(today())
+  const [partnerCode, setPartnerCode] = useState('')
   const [issuedDate, setIssuedDate] = useState(today())
-  const [selected, setSelected] = useState<Set<string>>(new Set(['SAS-20260520-001']))
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [result, setResult] = useState<TaxInvoiceFromSalesSlipsResponse | null>(null)
+
+  const candidatesQuery = useQuery({
+    queryKey: ['tax-invoice-batch-candidates', from, to, partnerCode],
+    queryFn: () => listTaxInvoiceBatchCandidates({
+      from,
+      to,
+      partnerCode: partnerCode.trim() || undefined,
+    }),
+  })
 
   const mutation = useMutation({
     mutationFn: createTaxInvoiceFromSalesSlips,
     onSuccess: setResult,
   })
 
-  const selectedRows = useMemo(
-    () => MOCK_SALES_ACCOUNTING_SLIPS.filter((row) => selected.has(row.slipNo)),
-    [selected],
-  )
+  const rows = useMemo<CandidateRow[]>(() => {
+    return (candidatesQuery.data ?? []).flatMap((candidate) =>
+      candidate.salesSlips.map((slip) => ({
+        ...slip,
+        groupKey: candidate.groupKey,
+        partnerCode: candidate.partnerCode,
+        partnerName: candidate.partnerName,
+        month: candidate.month,
+      })),
+    )
+  }, [candidatesQuery.data])
 
-  const columns: DataTableColumn<SalesAccountingSlipResponse>[] = [
+  const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.salesSlipId)), [rows, selected])
+
+  const columns: DataTableColumn<CandidateRow>[] = [
     {
       key: 'select',
       header: '',
@@ -42,12 +65,12 @@ export function TaxInvoiceBatchIssuePage() {
       render: (row) => (
         <input
           type="checkbox"
-          checked={selected.has(row.slipNo)}
+          checked={selected.has(row.salesSlipId)}
           onChange={(e) => {
             setSelected((prev) => {
               const next = new Set(prev)
-              if (e.target.checked) next.add(row.slipNo)
-              else next.delete(row.slipNo)
+              if (e.target.checked) next.add(row.salesSlipId)
+              else next.delete(row.salesSlipId)
               return next
             })
           }}
@@ -57,6 +80,7 @@ export function TaxInvoiceBatchIssuePage() {
     },
     { key: 'slipNo', header: '매출전표', width: '160px' },
     { key: 'slipDate', header: '일자', width: '110px' },
+    { key: 'month', header: '발행월', width: '100px' },
     { key: 'partnerName', header: '거래처' },
     {
       key: 'totalAmount',
@@ -70,7 +94,7 @@ export function TaxInvoiceBatchIssuePage() {
   const handleIssue = () => {
     mutation.mutate({
       issuedDate,
-      salesSlipIds: selectedRows.map((row) => SALES_SLIP_ID_BY_NO[row.slipNo] ?? row.slipNo),
+      salesSlipIds: selectedRows.map((row) => row.salesSlipId),
     })
   }
 
@@ -83,6 +107,20 @@ export function TaxInvoiceBatchIssuePage() {
             발행일&nbsp;
             <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} />
           </label>
+          <label>
+            조회 시작&nbsp;
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>
+            조회 종료&nbsp;
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <input
+            value={partnerCode}
+            onChange={(e) => setPartnerCode(e.target.value)}
+            placeholder="거래처 코드"
+            style={{ height: 28, padding: '0 8px' }}
+          />
           <Button
             variant="primary"
             disabled={mutation.isPending || selectedRows.length === 0}
@@ -96,9 +134,9 @@ export function TaxInvoiceBatchIssuePage() {
       <Card style={{ marginBottom: 16 }}>
         <DataTable
           columns={columns}
-          rows={MOCK_SALES_ACCOUNTING_SLIPS.filter((row) => row.status === 'POSTED')}
-          rowKey={(row) => row.slipNo}
-          emptyMessage="발행 가능한 매출전표가 없습니다."
+          rows={rows}
+          rowKey={(row) => row.salesSlipId}
+          emptyMessage={candidatesQuery.isLoading ? '후보 조회 중입니다.' : '발행 가능한 매출전표가 없습니다.'}
         />
       </Card>
 

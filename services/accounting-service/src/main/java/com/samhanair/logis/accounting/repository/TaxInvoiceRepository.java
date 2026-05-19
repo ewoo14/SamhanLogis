@@ -79,6 +79,18 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
                                            @Param("partnerId") UUID partnerId,
                                            Pageable pageable);
 
+    @Query("""
+            SELECT t FROM TaxInvoice t
+            WHERE t.direction = com.samhanair.logis.accounting.domain.TaxInvoiceDirection.INBOUND
+              AND t.supplyDate >= :from
+              AND t.supplyDate <= :to
+              AND (:partnerCode IS NULL OR LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', :partnerCode, '%')))
+            ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
+            """)
+    List<TaxInvoice> findInboundByFilters(@Param("from") LocalDate from,
+                                          @Param("to") LocalDate to,
+                                          @Param("partnerCode") String partnerCode);
+
     /**
      * 발행 상태 + 공급일자 범위 list 조회 (PR-E2 BE-A11 hometax export 용).
      *

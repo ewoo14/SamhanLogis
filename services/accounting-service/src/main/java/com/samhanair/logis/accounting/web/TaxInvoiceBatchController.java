@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.web;
 import com.samhanair.logis.accounting.service.HometaxExportService;
 import com.samhanair.logis.accounting.service.TaxInvoiceBatchFromSalesSlipsService;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchCandidateResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchHistoryResponse;
@@ -83,6 +84,19 @@ public class TaxInvoiceBatchController {
             @Valid @RequestBody CreateTaxInvoiceFromSalesSlipsRequest req,
             @RequestHeader("X-User-Id") String userId) {
         return ResponseEntity.ok(batchFromSalesSlipsService.createFromSalesSlips(req, userId));
+    }
+
+    @Operation(summary = "매출전표 묶음 발행 후보 조회",
+            description = "POSTED + taxInvoice 미연결 매출전표를 거래처·월 기준으로 그룹화합니다.")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @GetMapping("/admin/tax-invoices/batch-from-sales-slips/candidates")
+    public ResponseEntity<List<TaxInvoiceBatchCandidateResponse>> listSalesSlipCandidates(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String partnerCode) {
+        return ResponseEntity.ok(batchFromSalesSlipsService.listCandidates(from, to, partnerCode));
     }
 
     // =========================================================================

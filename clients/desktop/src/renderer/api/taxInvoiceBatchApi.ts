@@ -20,6 +20,8 @@
  * <p>권한: ACCOUNTANT / MANAGER / MASTER — RoleGuard 가 라우팅 단계에서 차단.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
+import { isMockMode } from './mock'
+import { MOCK_SALES_ACCOUNTING_SLIPS } from './salesAccountingSlipApi'
 
 // ---------------------------------------------------------------------------
 // 타입 정의
@@ -159,6 +161,27 @@ export interface BatchHistory {
  */
 export type BatchHistoryDetail = BatchPreviewResponse
 
+export interface TaxInvoiceBatchCandidateSlip {
+  salesSlipId: string
+  slipNo: string
+  slipDate: string
+  totalSupplyAmount: string
+  totalVatAmount: string
+  totalAmount: string
+}
+
+export interface TaxInvoiceBatchCandidate {
+  groupKey: string
+  month: string
+  partnerCode: string
+  partnerName: string
+  slipCount: number
+  totalSupplyAmount: string
+  totalVatAmount: string
+  totalAmount: string
+  salesSlips: TaxInvoiceBatchCandidateSlip[]
+}
+
 // ---------------------------------------------------------------------------
 // API 호출 함수
 // ---------------------------------------------------------------------------
@@ -263,4 +286,70 @@ export async function getBatchHistory(batchId: string): Promise<BatchHistoryDeta
     `/accounting/tax-invoices/batch/history/${batchId}`,
   )
   return res.data.data
+}
+
+export async function listTaxInvoiceBatchCandidates(filters: {
+  from?: string
+  to?: string
+  partnerCode?: string
+} = {}): Promise<TaxInvoiceBatchCandidate[]> {
+  if (isMockMode()) {
+    const rows = MOCK_SALES_ACCOUNTING_SLIPS.filter((row) => {
+      if (row.status !== 'POSTED') return false
+      if (filters.from && row.slipDate < filters.from) return false
+      if (filters.to && row.slipDate > filters.to) return false
+      if (filters.partnerCode && !row.partnerCode.includes(filters.partnerCode)) return false
+      return true
+    })
+    const grouped = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const month = row.slipDate.slice(0, 7)
+      const key = `${row.partnerCode}:${month}`
+      grouped.set(key, [...(grouped.get(key) ?? []), row])
+    }
+    return Array.from(grouped.entries()).map(([groupKey, groupRows]) => {
+      const first = groupRows[0]!
+      const totalSupply = groupRows.reduce((sum, row) => sum + Number(row.totalSupplyAmount), 0)
+      const totalVat = groupRows.reduce((sum, row) => sum + Number(row.totalVatAmount), 0)
+      const total = groupRows.reduce((sum, row) => sum + Number(row.totalAmount), 0)
+      return {
+        groupKey,
+        month: first.slipDate.slice(0, 7),
+        partnerCode: first.partnerCode,
+        partnerName: first.partnerName,
+        slipCount: groupRows.length,
+        totalSupplyAmount: String(totalSupply),
+        totalVatAmount: String(totalVat),
+        totalAmount: String(total),
+        salesSlips: groupRows.map((row) => ({
+          salesSlipId: row.slipNo,
+          slipNo: row.slipNo,
+          slipDate: row.slipDate,
+          totalSupplyAmount: row.totalSupplyAmount,
+          totalVatAmount: row.totalVatAmount,
+          totalAmount: row.totalAmount,
+        })),
+      }
+    })
+  }
+
+  const params = new URLSearchParams()
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to) params.set('to', filters.to)
+  if (filters.partnerCode) params.set('partnerCode', filters.partnerCode)
+  const query = params.toString()
+  const res = await apiClient.get<
+    TaxInvoiceBatchCandidate[] | ApiEnvelope<TaxInvoiceBatchCandidate[]>
+  >(query
+    ? `/admin/tax-invoices/batch-from-sales-slips/candidates?${query}`
+    : '/admin/tax-invoices/batch-from-sales-slips/candidates')
+  if (
+    typeof res.data === 'object'
+    && res.data !== null
+    && 'data' in res.data
+    && 'success' in res.data
+  ) {
+    return (res.data as ApiEnvelope<TaxInvoiceBatchCandidate[]>).data
+  }
+  return res.data as TaxInvoiceBatchCandidate[]
 }

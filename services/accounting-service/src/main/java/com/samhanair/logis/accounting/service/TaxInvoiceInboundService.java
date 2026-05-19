@@ -11,6 +11,7 @@ import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepositor
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.InboundTaxInvoiceResponse;
 import com.samhanair.logis.accounting.web.dto.RegisterInboundTaxInvoiceRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceSummaryResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
@@ -26,11 +27,29 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class TaxInvoiceInboundService {
+    private static final LocalDate DEFAULT_FROM = LocalDate.of(1900, 1, 1);
+    private static final LocalDate DEFAULT_TO = LocalDate.of(9999, 12, 31);
 
     private final PurchaseAccountingSlipRepository purchaseSlipRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final TaxInvoiceNumberService taxInvoiceNumberService;
     private final PartnerLookupClient partnerLookupClient;
+
+    @Transactional(readOnly = true)
+    public List<TaxInvoiceSummaryResponse> listInbound(
+            LocalDate from,
+            LocalDate to,
+            String partnerCode) {
+        LocalDate resolvedFrom = from == null ? DEFAULT_FROM : from;
+        LocalDate resolvedTo = to == null ? DEFAULT_TO : to;
+        String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
+                ? null
+                : partnerCode.trim();
+        return taxInvoiceRepository.findInboundByFilters(resolvedFrom, resolvedTo, normalizedPartnerCode)
+                .stream()
+                .map(TaxInvoiceSummaryResponse::of)
+                .toList();
+    }
 
     public InboundTaxInvoiceResponse registerInbound(
             RegisterInboundTaxInvoiceRequest request, String actorUserId) {

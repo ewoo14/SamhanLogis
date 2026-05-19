@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -32,6 +33,21 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** slipType 별 페이지 조회. soft-delete 제외. */
     Page<Slip> findAllBySlipTypeAndIsDeletedFalse(SlipType slipType, Pageable pageable);
+
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.slipType = :type
+              AND s.slipDate BETWEEN :from AND :to
+              AND (:partnerId IS NULL OR s.partnerId = :partnerId)
+            ORDER BY s.slipDate DESC, s.seqNo DESC
+            """)
+    List<Slip> findByPeriodWithLines(
+            @org.springframework.data.repository.query.Param("type") SlipType type,
+            @org.springframework.data.repository.query.Param("from") LocalDate from,
+            @org.springframework.data.repository.query.Param("to") LocalDate to,
+            @org.springframework.data.repository.query.Param("partnerId") UUID partnerId);
 
     /** slipType + status 동시 필터 페이지. soft-delete 제외. */
     Page<Slip> findAllBySlipTypeAndStatusAndIsDeletedFalse(SlipType slipType, SlipStatus status, Pageable pageable);

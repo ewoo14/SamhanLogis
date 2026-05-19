@@ -51,6 +51,31 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
+    void listCandidates_POSTED_미연결_매출전표를_거래처_월별로_그룹화() {
+        LocalDate from = LocalDate.of(2026, 5, 1);
+        LocalDate to = LocalDate.of(2026, 5, 31);
+        UUID partnerId = UUID.randomUUID();
+        SalesAccountingSlip s1 = postedSlip("SAS-CAND-1", LocalDate.of(2026, 5, 1),
+                partnerId, "P-001", "한국공조", "100000.00", "10000.00");
+        SalesAccountingSlip s2 = postedSlip("SAS-CAND-2", LocalDate.of(2026, 5, 9),
+                partnerId, "P-001", "한국공조", "200000.00", "20000.00");
+        when(salesSlipRepository.findPostedUnlinkedForBatchCandidates(from, to, "P-001"))
+                .thenReturn(List.of(s1, s2));
+
+        var responses = service.listCandidates(from, to, "P-001");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).partnerCode()).isEqualTo("P-001");
+        assertThat(responses.get(0).month()).isEqualTo("2026-05");
+        assertThat(responses.get(0).slipCount()).isEqualTo(2);
+        assertThat(responses.get(0).totalSupplyAmount()).isEqualByComparingTo("300000.00");
+        assertThat(responses.get(0).salesSlips())
+                .extracting(row -> row.slipNo())
+                .containsExactly("SAS-CAND-1", "SAS-CAND-2");
+        verify(salesSlipRepository).findPostedUnlinkedForBatchCandidates(from, to, "P-001");
+    }
+
+    @Test
     void createFromSalesSlips_N1_묶음_거래처월동일_라인과_사업자번호_스냅샷_정상() {
         UUID partnerId = UUID.randomUUID();
         UUID taxInvoiceId = UUID.randomUUID();

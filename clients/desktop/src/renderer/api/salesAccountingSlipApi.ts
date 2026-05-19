@@ -1,4 +1,5 @@
 import { apiClient, type ApiEnvelope } from './client'
+import { isMockMode } from './mock'
 
 export type SalesAccountingSlipStatus = 'DRAFT' | 'POSTED'
 export type SalesTaxType = 'TAXABLE' | 'ZERO_RATED' | 'EXEMPT'
@@ -50,6 +51,7 @@ export interface SalesAccountingSlipLineResponse {
 }
 
 export interface SalesAccountingSlipResponse {
+  id: string | null
   slipNo: string
   slipDate: string
   partnerCode: string
@@ -75,12 +77,9 @@ function unwrap<T>(payload: T | ApiEnvelope<T>): T {
   return payload as T
 }
 
-function isMockMode(): boolean {
-  return import.meta.env['VITE_MOCK_MODE'] === '1'
-}
-
 export const MOCK_SALES_ACCOUNTING_SLIPS: SalesAccountingSlipResponse[] = [
   {
+    id: 'SAS-20260520-001',
     slipNo: 'SAS-20260520-001',
     slipDate: '2026-05-20',
     partnerCode: 'P-10021',
@@ -119,6 +118,7 @@ export const MOCK_SALES_ACCOUNTING_SLIPS: SalesAccountingSlipResponse[] = [
     ],
   },
   {
+    id: 'SAS-20260519-004',
     slipNo: 'SAS-20260519-004',
     slipDate: '2026-05-19',
     partnerCode: 'P-10044',
@@ -139,6 +139,7 @@ function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingS
   }, 0)
   const vat = req.taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0
   return {
+    id: null,
     slipNo: `SAS-${req.slipDate.replace(/-/g, '')}-${String(Date.now()).slice(-3)}`,
     slipDate: req.slipDate,
     partnerCode: req.partnerCode,
@@ -178,14 +179,26 @@ export async function listSalesAccountingSlips(options: {
   partnerCode?: string
   status?: SalesAccountingSlipStatus | 'ALL'
 } = {}): Promise<SalesAccountingSlipResponse[]> {
-  const rows = MOCK_SALES_ACCOUNTING_SLIPS.filter((row) => {
-    if (options.from && row.slipDate < options.from) return false
-    if (options.to && row.slipDate > options.to) return false
-    if (options.partnerCode && !row.partnerCode.includes(options.partnerCode)) return false
-    if (options.status && options.status !== 'ALL' && row.status !== options.status) return false
-    return true
-  })
-  return Promise.resolve(rows)
+  if (isMockMode()) {
+    const rows = MOCK_SALES_ACCOUNTING_SLIPS.filter((row) => {
+      if (options.from && row.slipDate < options.from) return false
+      if (options.to && row.slipDate > options.to) return false
+      if (options.partnerCode && !row.partnerCode.includes(options.partnerCode)) return false
+      if (options.status && options.status !== 'ALL' && row.status !== options.status) return false
+      return true
+    })
+    return Promise.resolve(rows)
+  }
+  const params = new URLSearchParams()
+  if (options.from) params.set('from', options.from)
+  if (options.to) params.set('to', options.to)
+  if (options.partnerCode) params.set('partnerCode', options.partnerCode)
+  if (options.status && options.status !== 'ALL') params.set('status', options.status)
+  const query = params.toString()
+  const res = await apiClient.get<
+    SalesAccountingSlipResponse[] | ApiEnvelope<SalesAccountingSlipResponse[]>
+  >(query ? `/admin/sales-slips?${query}` : '/admin/sales-slips')
+  return unwrap(res.data)
 }
 
 export async function createSalesSlipDraft(

@@ -69,6 +69,27 @@ class PurchaseAccountingSlipServiceTest {
     }
 
     @Test
+    void list_필터_조회_응답매핑() {
+        LocalDate from = LocalDate.of(2026, 5, 1);
+        LocalDate to = LocalDate.of(2026, 5, 31);
+        PurchaseAccountingSlip slip = postedSlip("PAS-LIST-1", LocalDate.of(2026, 5, 20),
+                "V-001", "매입거래처", new BigDecimal("200000.00"), new BigDecimal("20000.00"));
+        when(slipRepository.findByFilters(from, to, "V-001", PurchaseSlipStatus.POSTED))
+                .thenReturn(List.of(slip));
+
+        List<PurchaseAccountingSlipResponse> responses =
+                service.list(from, to, "V-001", PurchaseSlipStatus.POSTED);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).slipNo()).isEqualTo("PAS-LIST-1");
+        assertThat(responses.get(0).partnerCode()).isEqualTo("V-001");
+        assertThat(responses.get(0).status()).isEqualTo("POSTED");
+        assertThat(responses.get(0).lines()).hasSize(1);
+        assertThat(responses.get(0).lines().get(0).allocations()).hasSize(1);
+        verify(slipRepository).findByFilters(from, to, "V-001", PurchaseSlipStatus.POSTED);
+    }
+
+    @Test
     void createDraft_1대1_정상생성_VAT자동분리() {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
@@ -319,5 +340,22 @@ class PurchaseAccountingSlipServiceTest {
                                 sourceSlipId, "IN-X", sourceLineId, 1,
                                 qty, allocatedAmount))
                 )));
+    }
+
+    private static PurchaseAccountingSlip postedSlip(String slipNo, LocalDate slipDate,
+            String partnerCode, String partnerName, BigDecimal supply, BigDecimal vat) {
+        PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
+                slipNo, slipDate, UUID.randomUUID(), partnerCode, partnerName,
+                SalesTaxType.TAXABLE, "list test");
+        BigDecimal total = supply.add(vat);
+        PurchaseAccountingSlipLine line = PurchaseAccountingSlipLine.create(slip, 1,
+                "SKU-1", "상품A", BigDecimal.ONE, supply, supply, vat, total);
+        line.getAllocations().add(PurchaseAccountingSlipAllocation.create(line,
+                UUID.randomUUID(), "IN-" + slipNo, UUID.randomUUID(), 1,
+                BigDecimal.ONE, total));
+        slip.getLines().add(line);
+        slip.recalcTotals();
+        slip.post("actor-1");
+        return slip;
     }
 }

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
 import {
-  MOCK_PURCHASE_ACCOUNTING_SLIPS,
+  listPurchaseAccountingSlips,
   type PurchaseAccountingSlipResponse,
 } from '../../api/purchaseAccountingSlipApi'
 import {
@@ -11,26 +11,47 @@ import {
   type InboundTaxInvoiceAttachmentResponse,
   type InboundTaxInvoiceResponse,
 } from '../../api/taxInvoiceAdminApi'
+import {
+  listInboundTaxInvoices,
+  type InboundTaxInvoiceSummary,
+} from '../../api/taxInvoiceInboundApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { today } from '../../utils/dateUtils'
+import { firstDayOfMonth, today } from '../../utils/dateUtils'
 import { fmtKrw } from '../../utils/currencyUtils'
-
-const PURCHASE_SLIP_ID_BY_NO: Record<string, string> = {
-  'PAS-20260520-001': '61111111-1111-4111-8111-111111111111',
-  'PAS-20260519-003': '61111111-1111-4111-8111-111111111112',
-}
 
 export function TaxInvoiceInboundPage() {
   usePageTitle('수신 세금계산서')
+  const [from, setFrom] = useState(firstDayOfMonth())
+  const [to, setTo] = useState(today())
+  const [partnerCode, setPartnerCode] = useState('')
   const [issuedDate, setIssuedDate] = useState(today())
-  const [selected, setSelected] = useState<Set<string>>(new Set(['PAS-20260520-001']))
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [result, setResult] = useState<InboundTaxInvoiceResponse | null>(null)
   const [attachment, setAttachment] = useState<InboundTaxInvoiceAttachmentResponse | null>(null)
   const [file, setFile] = useState<File | null>(null)
 
+  const purchaseSlipsQuery = useQuery({
+    queryKey: ['purchase-accounting-slips-for-inbound', from, to, partnerCode],
+    queryFn: () => listPurchaseAccountingSlips({
+      from,
+      to,
+      partnerCode: partnerCode.trim() || undefined,
+      status: 'POSTED',
+    }),
+  })
+
+  const inboundListQuery = useQuery({
+    queryKey: ['inbound-tax-invoices', from, to, partnerCode],
+    queryFn: () => listInboundTaxInvoices({
+      from,
+      to,
+      partnerCode: partnerCode.trim() || undefined,
+    }),
+  })
+
   const selectedRows = useMemo(
-    () => MOCK_PURCHASE_ACCOUNTING_SLIPS.filter((row) => selected.has(row.slipNo)),
-    [selected],
+    () => (purchaseSlipsQuery.data ?? []).filter((row) => row.id && selected.has(row.id)),
+    [purchaseSlipsQuery.data, selected],
   )
 
   const registerMutation = useMutation({
@@ -52,12 +73,14 @@ export function TaxInvoiceInboundPage() {
       render: (row) => (
         <input
           type="checkbox"
-          checked={selected.has(row.slipNo)}
+          checked={row.id ? selected.has(row.id) : false}
+          disabled={!row.id}
           onChange={(e) => {
+            if (!row.id) return
             setSelected((prev) => {
               const next = new Set(prev)
-              if (e.target.checked) next.add(row.slipNo)
-              else next.delete(row.slipNo)
+              if (e.target.checked) next.add(row.id!)
+              else next.delete(row.id!)
               return next
             })
           }}
@@ -80,9 +103,23 @@ export function TaxInvoiceInboundPage() {
   const handleRegister = () => {
     registerMutation.mutate({
       issuedDate,
-      purchaseSlipIds: selectedRows.map((row) => PURCHASE_SLIP_ID_BY_NO[row.slipNo] ?? row.slipNo),
+      purchaseSlipIds: selectedRows.map((row) => row.id!).filter(Boolean),
     })
   }
+
+  const inboundColumns: DataTableColumn<InboundTaxInvoiceSummary>[] = [
+    { key: 'taxInvoiceNo', header: '세금계산서', width: '160px' },
+    { key: 'issueDate', header: '수신일', width: '110px' },
+    { key: 'partnerName', header: '거래처' },
+    {
+      key: 'totalAmount',
+      header: '합계',
+      align: 'right',
+      width: '120px',
+      render: (row) => fmtKrw(row.totalAmount),
+    },
+    { key: 'status', header: '상태', width: '90px' },
+  ]
 
   const handleUpload = () => {
     if (!result || !file) return
@@ -98,6 +135,20 @@ export function TaxInvoiceInboundPage() {
             수신일&nbsp;
             <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} />
           </label>
+          <label>
+            조회 시작&nbsp;
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>
+            조회 종료&nbsp;
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <input
+            value={partnerCode}
+            onChange={(e) => setPartnerCode(e.target.value)}
+            placeholder="거래처 코드"
+            style={{ height: 28, padding: '0 8px' }}
+          />
           <Button
             variant="primary"
             disabled={registerMutation.isPending || selectedRows.length === 0}
@@ -111,9 +162,19 @@ export function TaxInvoiceInboundPage() {
       <Card style={{ marginBottom: 16 }}>
         <DataTable
           columns={columns}
-          rows={MOCK_PURCHASE_ACCOUNTING_SLIPS.filter((row) => row.status === 'POSTED')}
+          rows={purchaseSlipsQuery.data ?? []}
           rowKey={(row) => row.slipNo}
-          emptyMessage="매칭 가능한 매입전표가 없습니다."
+          emptyMessage={purchaseSlipsQuery.isLoading ? '매입전표 조회 중입니다.' : '매칭 가능한 매입전표가 없습니다.'}
+        />
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <h3 style={{ marginTop: 0 }}>수신 세금계산서 목록</h3>
+        <DataTable
+          columns={inboundColumns}
+          rows={inboundListQuery.data ?? []}
+          rowKey={(row) => row.id ?? row.taxInvoiceNo}
+          emptyMessage={inboundListQuery.isLoading ? '수신 목록 조회 중입니다.' : '수신 세금계산서가 없습니다.'}
         />
       </Card>
 

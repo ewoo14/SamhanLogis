@@ -1,9 +1,13 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipService;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.PurchaseAccountingSlipResponse;
+import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +18,18 @@ import org.springframework.web.bind.annotation.*;
 public class PurchaseAccountingSlipController {
 
     private final PurchaseAccountingSlipService service;
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    public ResponseEntity<List<PurchaseAccountingSlipResponse>> list(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false) PurchaseSlipStatus status) {
+        return ResponseEntity.ok(service.list(from, to, partnerCode, status));
+    }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")

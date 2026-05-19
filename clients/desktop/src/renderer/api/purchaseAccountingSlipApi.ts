@@ -1,4 +1,5 @@
 import { apiClient, type ApiEnvelope } from './client'
+import { isMockMode } from './mock'
 import type {
   SalesTaxType,
   SlipAllocationRequest,
@@ -38,6 +39,7 @@ export interface PurchaseAccountingSlipLineResponse {
 }
 
 export interface PurchaseAccountingSlipResponse {
+  id: string | null
   slipNo: string
   slipDate: string
   partnerCode: string
@@ -63,12 +65,9 @@ function unwrap<T>(payload: T | ApiEnvelope<T>): T {
   return payload as T
 }
 
-function isMockMode(): boolean {
-  return import.meta.env['VITE_MOCK_MODE'] === '1'
-}
-
 export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = [
   {
+    id: 'PAS-20260520-001',
     slipNo: 'PAS-20260520-001',
     slipDate: '2026-05-20',
     partnerCode: 'V-30011',
@@ -107,6 +106,7 @@ export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = 
     ],
   },
   {
+    id: 'PAS-20260519-003',
     slipNo: 'PAS-20260519-003',
     slipDate: '2026-05-19',
     partnerCode: 'V-30028',
@@ -127,6 +127,7 @@ function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccou
   }, 0)
   const vat = req.taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0
   return {
+    id: null,
     slipNo: `PAS-${req.slipDate.replace(/-/g, '')}-${String(Date.now()).slice(-3)}`,
     slipDate: req.slipDate,
     partnerCode: req.partnerCode,
@@ -166,14 +167,26 @@ export async function listPurchaseAccountingSlips(options: {
   partnerCode?: string
   status?: PurchaseAccountingSlipStatus | 'ALL'
 } = {}): Promise<PurchaseAccountingSlipResponse[]> {
-  const rows = MOCK_PURCHASE_ACCOUNTING_SLIPS.filter((row) => {
-    if (options.from && row.slipDate < options.from) return false
-    if (options.to && row.slipDate > options.to) return false
-    if (options.partnerCode && !row.partnerCode.includes(options.partnerCode)) return false
-    if (options.status && options.status !== 'ALL' && row.status !== options.status) return false
-    return true
-  })
-  return Promise.resolve(rows)
+  if (isMockMode()) {
+    const rows = MOCK_PURCHASE_ACCOUNTING_SLIPS.filter((row) => {
+      if (options.from && row.slipDate < options.from) return false
+      if (options.to && row.slipDate > options.to) return false
+      if (options.partnerCode && !row.partnerCode.includes(options.partnerCode)) return false
+      if (options.status && options.status !== 'ALL' && row.status !== options.status) return false
+      return true
+    })
+    return Promise.resolve(rows)
+  }
+  const params = new URLSearchParams()
+  if (options.from) params.set('from', options.from)
+  if (options.to) params.set('to', options.to)
+  if (options.partnerCode) params.set('partnerCode', options.partnerCode)
+  if (options.status && options.status !== 'ALL') params.set('status', options.status)
+  const query = params.toString()
+  const res = await apiClient.get<
+    PurchaseAccountingSlipResponse[] | ApiEnvelope<PurchaseAccountingSlipResponse[]>
+  >(query ? `/admin/purchase-slips?${query}` : '/admin/purchase-slips')
+  return unwrap(res.data)
 }
 
 export async function createPurchaseSlipDraft(

@@ -9,12 +9,16 @@ import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchCandidateResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceFromSalesSlipsResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,11 +28,42 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class TaxInvoiceBatchFromSalesSlipsService {
+    private static final LocalDate DEFAULT_FROM = LocalDate.of(1900, 1, 1);
+    private static final LocalDate DEFAULT_TO = LocalDate.of(9999, 12, 31);
 
     private final SalesAccountingSlipRepository salesSlipRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final TaxInvoiceNumberService taxInvoiceNumberService;
     private final PartnerLookupClient partnerLookupClient;
+
+    @Transactional(readOnly = true)
+    public List<TaxInvoiceBatchCandidateResponse> listCandidates(
+            LocalDate from,
+            LocalDate to,
+            String partnerCode) {
+        LocalDate resolvedFrom = from == null ? DEFAULT_FROM : from;
+        LocalDate resolvedTo = to == null ? DEFAULT_TO : to;
+        String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
+                ? null
+                : partnerCode.trim();
+        List<SalesAccountingSlip> slips = salesSlipRepository
+                .findPostedUnlinkedForBatchCandidates(resolvedFrom, resolvedTo, normalizedPartnerCode);
+        Map<CandidateKey, List<SalesAccountingSlip>> grouped = new LinkedHashMap<>();
+        for (SalesAccountingSlip slip : slips) {
+            CandidateKey key = new CandidateKey(
+                    slip.getPartnerCode(),
+                    slip.getPartnerName(),
+                    YearMonth.from(slip.getSlipDate()));
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(slip);
+        }
+        return grouped.entrySet().stream()
+                .map(entry -> TaxInvoiceBatchCandidateResponse.of(
+                        entry.getKey().partnerCode(),
+                        entry.getKey().partnerName(),
+                        entry.getKey().month(),
+                        entry.getValue()))
+                .toList();
+    }
 
     public TaxInvoiceFromSalesSlipsResponse createFromSalesSlips(
             CreateTaxInvoiceFromSalesSlipsRequest request, String actorUserId) {
@@ -123,4 +158,6 @@ public class TaxInvoiceBatchFromSalesSlipsService {
                     "issuedDate 는 YYYY-MM-DD 형식이어야 합니다: " + raw);
         }
     }
+
+    private record CandidateKey(String partnerCode, String partnerName, YearMonth month) {}
 }

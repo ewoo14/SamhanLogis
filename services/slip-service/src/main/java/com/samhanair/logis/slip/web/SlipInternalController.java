@@ -8,15 +8,19 @@ import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.dto.InternalSignatureRegistrationRequest;
 import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
+import com.samhanair.logis.slip.web.dto.SlipSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +66,7 @@ public class SlipInternalController {
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;
     private final SlipLineRepository slipLineRepository;
+    private final SlipRepository slipRepository;
 
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.
@@ -261,6 +266,21 @@ public class SlipInternalController {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "slip line not found: " + lineId));
         return toSnapshot(line.getSlip(), line);
+    }
+
+    @Operation(summary = "Internal 기간별 전표 라인 검색 (SP-SAS-5)",
+            description = "X-Internal-Token 인증. 회계 전표 배분 source 선택용 Slip + line 요약 반환.")
+    @GetMapping("/by-period")
+    @PreAuthorize("hasRole('MASTER')")
+    public List<SlipSummary> findByPeriod(
+            @RequestParam SlipType type,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID partnerId) {
+        return slipRepository.findByPeriodWithLines(type, from, to, partnerId)
+                .stream()
+                .map(SlipSummary::of)
+                .toList();
     }
 
     /**

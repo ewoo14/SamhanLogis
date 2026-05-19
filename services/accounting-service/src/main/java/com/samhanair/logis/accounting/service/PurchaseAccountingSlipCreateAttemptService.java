@@ -11,13 +11,10 @@ import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipReques
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest.AllocationRequest;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest.LineRequest;
 import com.samhanair.logis.accounting.web.dto.PurchaseAccountingSlipResponse;
-import com.samhanair.logis.accounting.web.dto.PurchaseAccountingSlipResponse.AllocationResponse;
-import com.samhanair.logis.accounting.web.dto.PurchaseAccountingSlipResponse.LineResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -68,7 +65,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
 
         slip.recalcTotals();
         slipRepository.saveAndFlush(slip);
-        return toResponse(slip);
+        return PurchaseAccountingSlipResponse.of(slip);
     }
 
     private void verifySourceAndAllocation(AllocationRequest ar) {
@@ -99,18 +96,4 @@ public class PurchaseAccountingSlipCreateAttemptService {
                 .getSingleResult();
     }
 
-    private PurchaseAccountingSlipResponse toResponse(PurchaseAccountingSlip s) {
-        List<LineResponse> lines = s.getLines().stream().map(l -> new LineResponse(
-                l.getLineNo(), l.getProductCode(), l.getProductName(),
-                l.getQty(), l.getUnitPrice(),
-                l.getSupplyAmount(), l.getVatAmount(), l.getLineTotal(),
-                l.getAllocations().stream().map(a -> new AllocationResponse(
-                        a.getSourceSlipNo(), a.getSourceLineNo(),
-                        a.getAllocatedQty(), a.getAllocatedAmount())).toList()
-        )).toList();
-        return new PurchaseAccountingSlipResponse(s.getSlipNo(), s.getSlipDate(),
-                s.getPartnerCode(), s.getPartnerName(), s.getTaxType().name(), s.getStatus().name(),
-                s.getTotalSupplyAmount(), s.getTotalVatAmount(), s.getTotalAmount(),
-                s.getMemo(), lines);
-    }
 }

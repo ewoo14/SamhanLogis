@@ -124,6 +124,8 @@ export function PurchaseAccountingSlipFormPage() {
       <Card style={{ marginBottom: 16 }}>
         <SlipLineAllocationEditor
           sourceKind="INBOUND"
+          from={slipDate}
+          to={slipDate}
           rows={allocations}
           onChange={setAllocations}
         />

@@ -52,6 +52,34 @@ class TaxInvoiceInboundServiceTest {
     }
 
     @Test
+    void listInbound_direction_INBOUND_기간_거래처필터_목록응답() {
+        LocalDate from = LocalDate.of(2026, 5, 1);
+        LocalDate to = LocalDate.of(2026, 5, 31);
+        TaxInvoice invoice = TaxInvoice.createInbound(
+                "20260519-0001",
+                LocalDate.of(2026, 5, 19),
+                UUID.randomUUID(),
+                "V-001",
+                "한국공조",
+                "123-45-67890",
+                new BigDecimal("100000.00"),
+                new BigDecimal("10000.00"),
+                new BigDecimal("110000.00"),
+                "actor-1");
+        invoice.markReceived("actor-1");
+        when(taxInvoiceRepository.findInboundByFilters(from, to, "V-001"))
+                .thenReturn(List.of(invoice));
+
+        var responses = service.listInbound(from, to, "V-001");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).taxInvoiceNo()).isEqualTo("20260519-0001");
+        assertThat(responses.get(0).partnerCode()).isEqualTo("V-001");
+        assertThat(responses.get(0).status()).isEqualTo(TaxInvoiceStatus.ISSUED);
+        verify(taxInvoiceRepository).findInboundByFilters(from, to, "V-001");
+    }
+
+    @Test
     void registerInbound_정상_ISSUED_전이_lines_partnerBusinessNo_direction_INBOUND() {
         UUID partnerId = UUID.randomUUID();
         UUID taxInvoiceId = UUID.randomUUID();

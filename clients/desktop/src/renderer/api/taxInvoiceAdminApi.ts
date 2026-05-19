@@ -1,4 +1,5 @@
 import { apiClient, type ApiEnvelope } from './client'
+import { isMockMode } from './mock'
 import { MOCK_PURCHASE_ACCOUNTING_SLIPS } from './purchaseAccountingSlipApi'
 import { MOCK_SALES_ACCOUNTING_SLIPS } from './salesAccountingSlipApi'
 
@@ -55,10 +56,6 @@ function unwrap<T>(payload: T | ApiEnvelope<T>): T {
     return (payload as ApiEnvelope<T>).data
   }
   return payload as T
-}
-
-function isMockMode(): boolean {
-  return import.meta.env['VITE_MOCK_MODE'] === '1'
 }
 
 export async function createTaxInvoiceFromSalesSlips(

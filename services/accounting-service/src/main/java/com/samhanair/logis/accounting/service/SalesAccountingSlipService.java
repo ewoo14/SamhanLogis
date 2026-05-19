@@ -1,11 +1,14 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.web.dto.CreateSalesAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.SalesAccountingSlipResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,9 +19,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class SalesAccountingSlipService {
+    private static final LocalDate DEFAULT_FROM = LocalDate.of(1900, 1, 1);
+    private static final LocalDate DEFAULT_TO = LocalDate.of(9999, 12, 31);
 
     private final SalesAccountingSlipRepository slipRepository;
     private final SalesAccountingSlipCreateAttemptService createAttemptService;
+
+    @Transactional(readOnly = true)
+    public List<SalesAccountingSlipResponse> list(
+            LocalDate from,
+            LocalDate to,
+            String partnerCode,
+            SalesSlipStatus status) {
+        LocalDate resolvedFrom = from == null ? DEFAULT_FROM : from;
+        LocalDate resolvedTo = to == null ? DEFAULT_TO : to;
+        String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
+                ? null
+                : partnerCode.trim();
+        return slipRepository.findByFilters(resolvedFrom, resolvedTo, normalizedPartnerCode, status)
+                .stream()
+                .map(SalesAccountingSlipResponse::of)
+                .toList();
+    }
 
     public SalesAccountingSlipResponse createDraft(CreateSalesAccountingSlipRequest req, String actorUserId) {
         int attempt = 0;

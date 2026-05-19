@@ -251,7 +251,7 @@ public class MonthEndCloseService {
 
     private DailyClosingDetailResponse getSalesSlipDailyDetail(LocalDate date) {
         List<SalesAccountingSlip> slips = salesAccountingSlipRepository
-                .findBySlipDateAndStatus(date, SalesSlipStatus.POSTED);
+                .findBySlipDateAndStatusWithLines(date, SalesSlipStatus.POSTED);
         BigDecimal totalSupply = BigDecimal.ZERO;
         BigDecimal totalVat = BigDecimal.ZERO;
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -281,7 +281,7 @@ public class MonthEndCloseService {
 
     private DailyClosingDetailResponse getPurchaseSlipDailyDetail(LocalDate date) {
         List<PurchaseAccountingSlip> slips = purchaseAccountingSlipRepository
-                .findBySlipDateAndStatus(date, PurchaseSlipStatus.POSTED);
+                .findBySlipDateAndStatusWithLines(date, PurchaseSlipStatus.POSTED);
         BigDecimal totalSupply = BigDecimal.ZERO;
         BigDecimal totalVat = BigDecimal.ZERO;
         BigDecimal totalAmount = BigDecimal.ZERO;

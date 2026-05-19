@@ -1,5 +1,9 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Badge, Button, DataTable, type DataTableColumn } from '@samhan/design-system'
+import {
+  listSlipAllocationSources,
+  type SlipAllocationSourceSummary,
+} from '../api/slipAllocationSourceApi'
 
 export type AllocationSourceKind = 'OUTBOUND' | 'INBOUND'
 
@@ -18,74 +22,39 @@ export interface AllocationEditorRow {
 
 export interface SlipLineAllocationEditorProps {
   sourceKind: AllocationSourceKind
+  from: string
+  to: string
+  partnerId?: string
   rows: AllocationEditorRow[]
   onChange: (rows: AllocationEditorRow[]) => void
 }
 
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 
-const MOCK_OUTBOUND_LINES: AllocationEditorRow[] = [
-  {
-    sourceSlipId: '11111111-1111-4111-8111-111111111111',
-    sourceSlipNo: 'OUT-20260520-014',
-    sourceLineId: '21111111-1111-4111-8111-111111111111',
-    sourceLineNo: 1,
-    productCode: 'SKU-A100',
-    productName: '표준 팔레트 A',
-    sourceQty: 6,
-    sourceAmount: 750000,
-    allocatedQty: 0,
-    allocatedAmount: 0,
-  },
-  {
-    sourceSlipId: '11111111-1111-4111-8111-111111111112',
-    sourceSlipNo: 'OUT-20260520-018',
-    sourceLineId: '21111111-1111-4111-8111-111111111112',
-    sourceLineNo: 1,
-    productCode: 'SKU-A100',
-    productName: '표준 팔레트 A',
-    sourceQty: 4,
-    sourceAmount: 500000,
-    allocatedQty: 0,
-    allocatedAmount: 0,
-  },
-]
-
-const MOCK_INBOUND_LINES: AllocationEditorRow[] = [
-  {
-    sourceSlipId: '31111111-1111-4111-8111-111111111111',
-    sourceSlipNo: 'IN-20260520-006',
-    sourceLineId: '41111111-1111-4111-8111-111111111111',
-    sourceLineNo: 1,
-    productCode: 'PKG-B200',
-    productName: '완충 포장재 B',
-    sourceQty: 12,
-    sourceAmount: 516000,
-    allocatedQty: 0,
-    allocatedAmount: 0,
-  },
-  {
-    sourceSlipId: '31111111-1111-4111-8111-111111111112',
-    sourceSlipNo: 'IN-20260520-011',
-    sourceLineId: '41111111-1111-4111-8111-111111111112',
-    sourceLineNo: 1,
-    productCode: 'PKG-B200',
-    productName: '완충 포장재 B',
-    sourceQty: 8,
-    sourceAmount: 344000,
-    allocatedQty: 0,
-    allocatedAmount: 0,
-  },
-]
-
 const inputStyle: CSSProperties = {
   width: '100%',
 }
 
 export function getDefaultAllocationRows(sourceKind: AllocationSourceKind): AllocationEditorRow[] {
-  return (sourceKind === 'OUTBOUND' ? MOCK_OUTBOUND_LINES : MOCK_INBOUND_LINES).map((row) => ({
-    ...row,
-  }))
+  void sourceKind
+  return []
+}
+
+function toEditorRows(summaries: SlipAllocationSourceSummary[]): AllocationEditorRow[] {
+  return summaries.flatMap((slip) =>
+    slip.lines.map((line) => ({
+      sourceSlipId: slip.slipId,
+      sourceSlipNo: slip.slipNo,
+      sourceLineId: line.lineId,
+      sourceLineNo: line.lineNo,
+      productCode: line.productCode,
+      productName: line.productName,
+      sourceQty: line.quantity,
+      sourceAmount: Number(line.lineTotal),
+      allocatedQty: 0,
+      allocatedAmount: 0,
+    })),
+  )
 }
 
 function updateRow(
@@ -106,9 +75,38 @@ function updateRow(
 
 export function SlipLineAllocationEditor({
   sourceKind,
+  from,
+  to,
+  partnerId,
   rows,
   onChange,
 }: SlipLineAllocationEditorProps) {
+  const [isLoadingSources, setIsLoadingSources] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const loadSources = useCallback(async () => {
+    setIsLoadingSources(true)
+    setLoadError(null)
+    try {
+      const sources = await listSlipAllocationSources({
+        type: sourceKind,
+        from,
+        to,
+        partnerId,
+      })
+      onChange(toEditorRows(sources))
+    } catch (error) {
+      console.error('[SlipLineAllocationEditor] source slip search failed', error)
+      setLoadError('배분 가능한 전표 라인을 불러오지 못했습니다.')
+    } finally {
+      setIsLoadingSources(false)
+    }
+  }, [from, onChange, partnerId, sourceKind, to])
+
+  useEffect(() => {
+    void loadSources()
+  }, [loadSources])
+
   const totals = useMemo(() => {
     const allocated = rows.reduce((sum, row) => sum + row.allocatedAmount, 0)
     const source = rows.reduce((sum, row) => sum + row.sourceAmount, 0)
@@ -179,11 +177,17 @@ export function SlipLineAllocationEditor({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onChange(getDefaultAllocationRows(sourceKind))}
+          disabled={isLoadingSources}
+          onClick={() => void loadSources()}
         >
-          검색 결과 초기화
+          {isLoadingSources ? '검색 중' : '전표 검색'}
         </Button>
       </div>
+      {loadError ? (
+        <p style={{ margin: '0 0 8px', color: 'var(--state-danger)', fontSize: 12 }}>
+          {loadError}
+        </p>
+      ) : null}
       <DataTable
         columns={columns}
         rows={rows}

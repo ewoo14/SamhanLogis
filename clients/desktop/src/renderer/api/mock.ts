@@ -143,6 +143,7 @@ function buildMockPartnerFull(body: Record<string, unknown>) {
 /** 본 환경이 mock 모드인지 — Vite import.meta.env 기반 컴파일 타임 결정. */
 export function isMockMode(): boolean {
   return import.meta.env['VITE_MOCK_MODE'] === '1'
+    || import.meta.env.MODE === 'development_mock'
 }
 
 /**
