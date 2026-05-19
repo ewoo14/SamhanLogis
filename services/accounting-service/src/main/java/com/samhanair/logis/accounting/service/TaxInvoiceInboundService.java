@@ -78,6 +78,7 @@ public class TaxInvoiceInboundService {
                     taxInvoice, lineNo++, sourceLine));
         }
         TaxInvoice saved = taxInvoiceRepository.save(taxInvoice);
+        saved.markReceived(actorUserId);
 
         UUID taxInvoiceId = saved.getId();
         for (PurchaseAccountingSlip slip : slips) {

@@ -66,6 +66,33 @@ class TaxInvoiceDomainTest {
     }
 
     @Test
+    @DisplayName("markReceived — INBOUND DRAFT만 ISSUED 전이하고 OUTBOUND 자동분개는 만들지 않음")
+    void markReceivedSuccess() {
+        TaxInvoice ti = TaxInvoice.createInbound("20260504-9001", TODAY,
+                UUID.randomUUID(), "P-001", "테스트거래처", "123-45-67890",
+                new BigDecimal("100000.00"), new BigDecimal("10000.00"),
+                new BigDecimal("110000.00"), "source-user");
+
+        ti.markReceived("receiver-A");
+
+        assertThat(ti.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
+        assertThat(ti.getIssuedBy()).isEqualTo("receiver-A");
+        assertThat(ti.getJournalId()).isNull();
+    }
+
+    @Test
+    @DisplayName("markReceived 실패 — OUTBOUND 세금계산서 차단")
+    void markReceivedBlocksOutbound() {
+        TaxInvoice ti = newDraft();
+
+        assertThatThrownBy(() -> ti.markReceived("receiver-A"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT))
+                .hasMessageContaining("INBOUND");
+    }
+
+    @Test
     @DisplayName("ISSUED 후 addLine 차단 — CONFLICT")
     void issuedBlocksMutation() {
         TaxInvoice ti = newDraft();

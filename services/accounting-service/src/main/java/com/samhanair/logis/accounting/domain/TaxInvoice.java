@@ -45,6 +45,8 @@ import org.hibernate.annotations.UuidGenerator;
  *   <tr><th>메서드</th><th>from → to</th><th>부수효과</th></tr>
  *   <tr><td>{@link #issue(String, String)}</td><td>DRAFT → ISSUED</td>
  *     <td>tax_invoice_no 채번 + 자동 분개 ID 연결 (호출 service 책임)</td></tr>
+ *   <tr><td>{@link #markReceived(String)}</td><td>DRAFT → ISSUED</td>
+ *     <td>INBOUND 수신 확정만 수행, OUTBOUND 자동 매출분개 생성 없음</td></tr>
  *   <tr><td>{@link #cancel(String)}</td><td>ISSUED → CANCELLED</td>
  *     <td>역분개 자동 생성 + cancelled_at/by + reverse_journal_id 연결</td></tr>
  *   <tr><td>{@link #addLine}/{@link #updateBasic}</td><td>(DRAFT only)</td>
@@ -314,7 +316,8 @@ public class TaxInvoice extends BaseEntity {
      * 거래처 발행 전자세금계산서 수신 등록용 DRAFT 생성.
      *
      * <p>매입전표 POSTED N건을 하나의 INBOUND TaxInvoice 로 묶을 때 사용합니다.
-     * 수신 세금계산서는 외부 전송 전이가 아니므로 status 는 DRAFT 로 유지합니다.
+     * 수신 세금계산서는 {@link #markReceived(String)} 로 ISSUED 전이하되 OUTBOUND
+     * 매출 자동분개를 만들지 않습니다.
      */
     public static TaxInvoice createInbound(String taxInvoiceNo, LocalDate issuedDate,
             UUID partnerId, String partnerCode, String partnerName, String partnerBusinessNo,
@@ -413,6 +416,34 @@ public class TaxInvoice extends BaseEntity {
         this.taxInvoiceNo = taxInvoiceNo;
         this.status = TaxInvoiceStatus.ISSUED;
         this.issuedAt = LocalDateTime.now();
+        this.issuedBy = actorUserId;
+    }
+
+    /**
+     * 수신 확정 (INBOUND DRAFT → ISSUED).
+     *
+     * <p>{@link #issue(String, String)} 는 OUTBOUND 발행 플로우에서 자동 매출분개를
+     * 연결하는 서비스와 함께 쓰입니다. INBOUND 수신 등록은 거래처가 이미 발행한
+     * 세금계산서를 신고/마감 집계 대상으로 확정하는 전이만 수행합니다.
+     *
+     * @param actorUserId 수신 처리자 user-id
+     * @throws BusinessException(CONFLICT) INBOUND 가 아니거나 DRAFT 가 아닐 때
+     */
+    public void markReceived(String actorUserId) {
+        if (this.direction != TaxInvoiceDirection.INBOUND) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "INBOUND 세금계산서만 수신 처리 가능: "
+                            + taxInvoiceNo + " direction=" + direction);
+        }
+        if (this.status != TaxInvoiceStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태에서만 수신 처리 가능: "
+                            + taxInvoiceNo + " status=" + status);
+        }
+        if (actorUserId == null || actorUserId.isBlank()) {
+            throw new IllegalArgumentException("actorUserId 는 필수입니다");
+        }
+        this.status = TaxInvoiceStatus.ISSUED;
         this.issuedBy = actorUserId;
     }
 

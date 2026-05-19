@@ -52,7 +52,7 @@ class TaxInvoiceInboundServiceTest {
     }
 
     @Test
-    void registerInbound_정상_DRAFT_생성_lines_partnerBusinessNo_direction_INBOUND() {
+    void registerInbound_정상_ISSUED_전이_lines_partnerBusinessNo_direction_INBOUND() {
         UUID partnerId = UUID.randomUUID();
         UUID taxInvoiceId = UUID.randomUUID();
         PurchaseAccountingSlip slip = postedSlip("PAS-1", LocalDate.of(2026, 5, 1),
@@ -81,13 +81,13 @@ class TaxInvoiceInboundServiceTest {
         assertThat(response.totalVatAmount()).isEqualByComparingTo("10000.00");
         assertThat(response.totalAmount()).isEqualByComparingTo("110000.00");
         assertThat(response.linkedPurchaseSlipCount()).isEqualTo(1);
-        assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(response.status()).isEqualTo("ISSUED");
         assertThat(slip.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
 
         ArgumentCaptor<TaxInvoice> captor = ArgumentCaptor.forClass(TaxInvoice.class);
         verify(taxInvoiceRepository).save(captor.capture());
         TaxInvoice savedInvoice = captor.getValue();
-        assertThat(savedInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.DRAFT);
+        assertThat(savedInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
         assertThat(savedInvoice.getDirection()).isEqualTo(TaxInvoiceDirection.INBOUND);
         assertThat(savedInvoice.getIssuedBy()).isEqualTo("actor-1");
         assertThat(savedInvoice.getPartnerBusinessNo()).isEqualTo("123-45-67890");

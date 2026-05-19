@@ -25,6 +25,7 @@ import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceDirection;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.RegisterInboundTaxInvoiceRequest;
@@ -82,6 +83,10 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
         RegisterInboundTaxInvoiceRequest request = new RegisterInboundTaxInvoiceRequest(
                 List.of(s1.getId(), s2.getId(), s3.getId()), "2026-05-19");
 
+        TaxInvoiceRepository.VatSummary beforePurchaseVat = taxInvoiceRepository.aggregateVatByType(
+                TaxInvoiceType.PURCHASE, LocalDate.of(2026, 5, 1),
+                LocalDate.of(2026, 5, 31));
+
         String response = mvc.perform(post("/admin/tax-invoices/inbound")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", "it-tester")
@@ -95,7 +100,7 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.totalVatAmount").value(60000.00))
                 .andExpect(jsonPath("$.totalAmount").value(660000.00))
                 .andExpect(jsonPath("$.linkedPurchaseSlipCount").value(3))
-                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.status").value("ISSUED"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -107,7 +112,7 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(taxInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.DRAFT);
+        assertThat(taxInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
         assertThat(taxInvoice.getDirection()).isEqualTo(TaxInvoiceDirection.INBOUND);
         assertThat(taxInvoice.getIssuedBy()).isEqualTo("it-tester");
         assertThat(taxInvoice.getSupplyAmount()).isEqualByComparingTo("600000.00");
@@ -118,6 +123,38 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
         assertThat(purchaseSlipRepository.findByTaxInvoiceId(taxInvoice.getId()))
                 .extracting(PurchaseAccountingSlip::getSlipNo)
                 .containsExactlyInAnyOrder("PAS-IT-IN-1", "PAS-IT-IN-2", "PAS-IT-IN-3");
+
+        TaxInvoiceRepository.VatSummary afterPurchaseVat = taxInvoiceRepository.aggregateVatByType(
+                TaxInvoiceType.PURCHASE, LocalDate.of(2026, 5, 1),
+                LocalDate.of(2026, 5, 31));
+        assertThat(afterPurchaseVat.getInvoiceCount() - beforePurchaseVat.getInvoiceCount())
+                .isEqualTo(1);
+        assertThat(afterPurchaseVat.getSupplyAmountSum()
+                .subtract(beforePurchaseVat.getSupplyAmountSum()))
+                .isEqualByComparingTo("600000.00");
+        assertThat(afterPurchaseVat.getVatAmountSum()
+                .subtract(beforePurchaseVat.getVatAmountSum()))
+                .isEqualByComparingTo("60000.00");
+    }
+
+    @Test
+    void POST_admin_tax_invoices_inbound_VOIDED_purchase_slip_거부() throws Exception {
+        PurchaseAccountingSlip slip = postedSlip("PAS-IT-VOIDED",
+                LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A",
+                "100000.00", "10000.00");
+        slip.voidSlip("it-tester");
+        PurchaseAccountingSlip saved = purchaseSlipRepository.save(slip);
+
+        RegisterInboundTaxInvoiceRequest request = new RegisterInboundTaxInvoiceRequest(
+                List.of(saved.getId()), "2026-05-19");
+
+        mvc.perform(post("/admin/tax-invoices/inbound")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Role", "MASTER")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_PURCHASE_SLIP_NOT_POSTED"));
     }
 
     private static PurchaseAccountingSlip postedSlip(String slipNo, LocalDate slipDate,
