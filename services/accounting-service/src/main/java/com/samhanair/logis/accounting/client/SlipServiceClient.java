@@ -5,10 +5,13 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -101,6 +104,83 @@ public class SlipServiceClient {
             log.error("SlipServiceClient {} failed: {}", LOCK_BY_PERIOD_PATH, ex.getMessage());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "slip-service 호출 실패", ex);
+        }
+    }
+
+    /**
+     * 출고전표 slipId 의 모든 라인 조회 — accounting-service 매출전표 생성 시 검증용.
+     *
+     * <p>slip-service {@code GET /internal/slips/{slipId}/lines} 호출.
+     * CONFIRMED 상태 전표만 매출전표 source 로 사용 가능 (호출자 책임).
+     *
+     * @param slipId 전표 UUID (필수)
+     * @return 전표 라인 snapshot 리스트 (빈 리스트 가능)
+     * @throws BusinessException(NOT_FOUND) 전표 미존재 (404)
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public List<SlipLineSnapshot> getSlipLines(UUID slipId) {
+        if (slipId == null) {
+            throw new IllegalArgumentException("slipId 는 필수입니다");
+        }
+        try {
+            return restClient.get()
+                    .uri("/internal/slips/{slipId}/lines", slipId)
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.NOT_FOUND,
+                                "slip-service getSlipLines 호출 실패: slipId=" + slipId
+                                        + ", status=" + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service getSlipLines 5xx: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<List<SlipLineSnapshot>>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("SlipServiceClient getSlipLines slipId={} 실패: {}", slipId, ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "slip-service getSlipLines 호출 실패", ex);
+        }
+    }
+
+    /**
+     * 출고전표 line 단건 조회 — accounting-service 매출전표 라인 단건 검증용.
+     *
+     * <p>slip-service {@code GET /internal/slips/lines/{lineId}} 호출.
+     *
+     * @param lineId 라인 UUID (필수)
+     * @return 라인 snapshot
+     * @throws BusinessException(NOT_FOUND) 라인 미존재 (404)
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public SlipLineSnapshot getSlipLine(UUID lineId) {
+        if (lineId == null) {
+            throw new IllegalArgumentException("lineId 는 필수입니다");
+        }
+        try {
+            return restClient.get()
+                    .uri("/internal/slips/lines/{lineId}", lineId)
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.NOT_FOUND,
+                                "slip-service getSlipLine 호출 실패: lineId=" + lineId
+                                        + ", status=" + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service getSlipLine 5xx: " + res.getStatusCode());
+                    })
+                    .body(SlipLineSnapshot.class);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("SlipServiceClient getSlipLine lineId={} 실패: {}", lineId, ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "slip-service getSlipLine 호출 실패", ex);
         }
     }
 

@@ -7,14 +7,18 @@ import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.dto.InternalSignatureRegistrationRequest;
 import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
+import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +61,7 @@ public class SlipInternalController {
 
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;
+    private final SlipLineRepository slipLineRepository;
 
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.
@@ -212,6 +217,70 @@ public class SlipInternalController {
      * @param status 슬립 상태 (SIGNABLE_STATUSES 가드용 hint)
      */
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
+
+    // ---- SP-SAS-1 Task 7 — accounting-service cross-service read-only contract ----
+
+    /**
+     * Internal 전표 라인 전체 조회 — accounting-service 매출전표 생성 시 검증용.
+     *
+     * <p>slip-service 의 {@link Slip#getLines()} 를 SlipLineSnapshot 리스트로 변환하여 반환.
+     * CONFIRMED 상태 전표만 매출전표 source 로 사용 가능 (호출자 책임).
+     *
+     * @param slipId 전표 UUID
+     * @return SlipLineSnapshot 리스트
+     */
+    @Operation(summary = "Internal 전표 라인 전체 조회 (SP-SAS-1 Task 7 — accounting-service)",
+            description = "X-Internal-Token 인증. accounting-service 매출전표 생성 시 검증/매핑용.")
+    @GetMapping("/{slipId}/lines")
+    @PreAuthorize("hasRole('MASTER')")
+    public List<SlipLineSnapshot> getSlipLines(@PathVariable UUID slipId) {
+        Slip slip = signatureService.findById(slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "slip not found: " + slipId));
+        return slip.getLines().stream()
+                .map(line -> toSnapshot(slip, line))
+                .toList();
+    }
+
+    /**
+     * Internal 전표 라인 단건 조회 — accounting-service 라인 단건 검증용.
+     *
+     * <p>slip-service {@link SlipLineRepository#findById(Object)} 로 lineId 단건 조회 후
+     * SlipLineSnapshot 으로 변환하여 반환.
+     *
+     * @param lineId 라인 UUID
+     * @return SlipLineSnapshot 단건
+     */
+    @Operation(summary = "Internal 전표 라인 단건 조회 (SP-SAS-1 Task 7 — accounting-service)",
+            description = "X-Internal-Token 인증. accounting-service 라인 단건 검증용. "
+                    + "URL: /internal/slips/lines/{lineId}.")
+    @GetMapping("/lines/{lineId}")
+    @PreAuthorize("hasRole('MASTER')")
+    public SlipLineSnapshot getSlipLine(@PathVariable UUID lineId) {
+        SlipLine line = slipLineRepository.findById(lineId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "slip line not found: " + lineId));
+        return toSnapshot(line.getSlip(), line);
+    }
+
+    /**
+     * SlipLine → SlipLineSnapshot 변환 헬퍼.
+     *
+     * @param slip 전표 헤더 (라인과 연관된 Slip entity)
+     * @param line 전표 라인 entity
+     * @return SlipLineSnapshot
+     */
+    private static SlipLineSnapshot toSnapshot(Slip slip, SlipLine line) {
+        return new SlipLineSnapshot(
+                slip.getId(),
+                slip.getSlipNo(),
+                line.getId(),
+                line.getProductName(),
+                line.getQuantity(),
+                line.getUnitPrice(),
+                line.getLineTotal(),
+                slip.getStatus().name());
+    }
 
     // ---- Phase F (D-DF-05/06) — 인수자 번호 + 출고전표 사본 PNG 합성용 전체 상세 ----
 
