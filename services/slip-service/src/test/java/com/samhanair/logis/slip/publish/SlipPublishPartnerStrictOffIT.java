@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient.PartnerVerifyResult;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -59,9 +60,14 @@ class SlipPublishPartnerStrictOffIT extends AbstractPostgresIT {
     private InventoryClient inventoryClient;
     @MockBean
     private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     @BeforeEach
     void setup() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookupByModel(ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> new ProductSummary(
                         UUID.randomUUID(), "테스트 제품", inv.getArgument(0, String.class),

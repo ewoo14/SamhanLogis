@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,15 @@ class SlipLookupControllerIT extends AbstractPostgresIT {
     /** SlipService 가 다른 테스트에서 InventoryClient 를 의존하므로 mock 으로 격리. */
     @MockBean
     private InventoryClient inventoryClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUpUserInternalClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
+    }
 
     @Test
     void lookupProduct_authenticated_returns200() throws Exception {

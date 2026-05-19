@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.ReceiptOcrClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.ReceiptOcrResult;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -115,6 +116,9 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
      */
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     // ---- 테스트 픽스처 ----
 
@@ -135,6 +139,8 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
         auditLogRepository.deleteAll();
         slipRepository.deleteAll();
 
+        // SP-08-FU1 lenient stub — ownerFullName graceful fallback
+        Mockito.lenient().when(userInternalClient.resolveFullName(any())).thenReturn(java.util.Optional.of("담당자"));
         // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
         Mockito.lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);

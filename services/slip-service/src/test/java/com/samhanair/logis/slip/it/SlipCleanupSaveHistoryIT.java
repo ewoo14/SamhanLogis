@@ -16,9 +16,11 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.repository.SlipCleanupSaveHistoryRepository;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
@@ -64,6 +66,14 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private InventoryClient inventoryClient;
     @MockBean private NotificationChatRoomClient notificationChatRoomClient;
     @MockBean private ProductClient productClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean private UserInternalClient userInternalClient;
+
+    @BeforeEach
+    void setUpUserInternalClient() {
+        org.mockito.Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
+    }
 
     @BeforeEach
     @AfterEach

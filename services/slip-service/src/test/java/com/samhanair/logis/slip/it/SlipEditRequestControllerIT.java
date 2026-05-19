@@ -12,10 +12,12 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,9 +57,13 @@ class SlipEditRequestControllerIT extends AbstractPostgresIT {
     @MockBean private ProductClient productClient;
     @MockBean private NotificationClient notificationClient;
     @MockBean private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean private UserInternalClient userInternalClient;
 
     @BeforeEach
     void setupMocks() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

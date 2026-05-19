@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -32,6 +33,7 @@ import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -111,10 +113,15 @@ class SlipInspectionCtaRegressionIT extends AbstractPostgresIT {
 
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     @BeforeEach
     void setupLenientMocks() {
         auditLogRepository.deleteAll();
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(ArgumentMatchers.anyString()))
                 .thenReturn(java.util.Collections.emptyList());
         Mockito.lenient().when(notificationChatRoomClient.findChatRoomNames(

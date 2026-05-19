@@ -15,11 +15,13 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,11 +76,16 @@ class EstimateControllerIT extends AbstractPostgresIT {
     private PartnerBlockClient partnerBlockClient;
     @MockBean
     private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     private UUID productId;
 
     @BeforeEach
     void setUpMocks() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         productId = UUID.randomUUID();
         ProductSummary summary = new ProductSummary(productId, "에어컨 220V 실외기", "AC-220",
                 null, new BigDecimal("550000.00"), null);

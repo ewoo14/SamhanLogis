@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
@@ -56,6 +57,14 @@ class DispatchModificationEndToEndIT extends AbstractPostgresIT {
     @MockBean PartnerBlockClient partnerBlockClient;
     @MockBean PartnerInternalClient partnerInternalClient;
     @MockBean SmsGateway smsGateway;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean UserInternalClient userInternalClient;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUpUserInternalClient() {
+        org.mockito.Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
+    }
 
     @Test
     void dispatched_then_modification_request_accepted_marks_MODIFICATION_ACCEPTED() {

@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -106,9 +107,14 @@ class SlipQueryRedesignSpecIT extends AbstractPostgresIT {
 
     @MockBean
     private PartnerBlockClient partnerBlockClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     @BeforeEach
     void setupLenientMocks() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         // ProductClient — 전표 생성 시 제품 조회 lenient stub
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {

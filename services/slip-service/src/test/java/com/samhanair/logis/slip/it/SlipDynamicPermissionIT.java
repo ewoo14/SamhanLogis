@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,9 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
 
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     /**
      * @BeforeEach lenient stub — 기존 IT 회귀 0건 보장.
@@ -82,6 +86,8 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
      */
     @BeforeEach
     void setupLenientStubs() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient()
                 .when(dynamicPermissionClient.canView(anyString(), anyString()))
                 .thenReturn(true);

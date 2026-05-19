@@ -5,13 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
  * Slip 도메인 state machine 가드 + applyDeliveryTagAutoMemo 검증.
@@ -34,6 +40,16 @@ import org.springframework.boot.test.context.SpringBootTest;
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 class SlipDomainIT extends AbstractPostgresIT {
+
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
+
+    @BeforeEach
+    void setUpUserInternalClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
+    }
 
     private Slip newDraftOutbound() {
         return Slip.createOutbound(

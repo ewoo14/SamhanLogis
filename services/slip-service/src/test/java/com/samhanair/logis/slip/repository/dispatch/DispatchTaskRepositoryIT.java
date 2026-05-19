@@ -8,14 +8,20 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -32,6 +38,15 @@ class DispatchTaskRepositoryIT extends AbstractPostgresIT {
     @Autowired DispatchTaskRepository taskRepo;
     @Autowired DispatchVehicleGroupRepository groupRepo;
     @Autowired DispatchVehicleGroupSlipRepository slipMapRepo;
+
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean UserInternalClient userInternalClient;
+
+    @BeforeEach
+    void setUpUserInternalClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
+    }
 
     @Test
     void save_and_lookup_by_code_active() {

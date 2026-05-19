@@ -3,12 +3,18 @@ package com.samhanair.logis.slip.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import java.time.LocalDate;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
  * 일자별 채번(`SlipNumberSequence`) atomic 동작 검증.
@@ -31,6 +37,16 @@ class SlipNumberServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipNumberService slipNumberService;
+
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
+
+    @BeforeEach
+    void setUpUserInternalClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
+    }
 
     @Test
     void next_sameDate_returnsIncreasingSequence() {

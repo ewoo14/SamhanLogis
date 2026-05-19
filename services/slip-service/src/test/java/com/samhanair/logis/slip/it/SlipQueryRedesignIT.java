@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -107,6 +108,9 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
     /** 외부 client 격리 — SMS Gateway 실제 발송 차단. */
     @MockBean
     private SmsGateway smsGateway;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     /**
      * ProductClient lenient stub — SlipService.create 가 라인 productId 검증 시
@@ -114,6 +118,8 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
      */
     @BeforeEach
     void setupMocks() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

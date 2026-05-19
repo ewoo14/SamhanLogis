@@ -11,10 +11,12 @@ import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.assertj.core.api.Assertions;
@@ -62,9 +64,14 @@ class SlipLifecycleControllerIT extends AbstractPostgresIT {
     /** ProductClient 도 @MockBean (PR #17 1차 fail 회고 — 누락 시 lookup 실제 호출 → 500). */
     @MockBean
     private ProductClient productClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     @BeforeEach
     void mockProductClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

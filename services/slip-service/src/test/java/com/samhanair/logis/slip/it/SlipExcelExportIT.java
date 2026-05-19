@@ -14,11 +14,13 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -87,12 +89,17 @@ class SlipExcelExportIT extends AbstractPostgresIT {
     /** PartnerInternalClient — partner-service 내부 호출 격리 */
     @MockBean
     private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     /** 공통 export endpoint. BE 가 구현하면 URL 변경 가능 (현재 명세 기준). */
     private static final String EXPORT_URL = "/slips/export.xlsx";
 
     @BeforeEach
     void setupExternalMocks() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         // ProductClient — lenient 설정: 전표 생성 시 제품 조회 stub
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {

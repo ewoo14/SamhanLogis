@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -73,9 +74,14 @@ class EstimatePermissionIT extends AbstractPostgresIT {
 
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean
+    private UserInternalClient userInternalClient;
 
     @BeforeEach
     void setupLenientStubs() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient()
                 .when(dynamicPermissionClient.canView(anyString(), anyString()))
                 .thenReturn(true);

@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.delivery.domain.DeliveryBatch;
 import com.samhanair.logis.slip.delivery.repository.DeliveryBatchRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,9 +59,13 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
     @MockBean private InventoryClient inventoryClient;
     @MockBean private ProductClient productClient;
     @MockBean private SmsGateway smsGateway;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean private UserInternalClient userInternalClient;
 
     @BeforeEach
     void mockClients() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

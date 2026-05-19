@@ -15,12 +15,14 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,9 +72,13 @@ class SlipRealtimeControllerIT extends AbstractPostgresIT {
     @MockBean private NotificationChatRoomClient notificationChatRoomClient;
     @MockBean private PartnerBlockClient partnerBlockClient;
     @MockBean private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean private UserInternalClient userInternalClient;
 
     @BeforeEach
     void mockProductClient() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);

@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.domain.SignatureAuditAction;
@@ -73,9 +74,13 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
     @MockBean private ProductClient productClient;
     @MockBean private SmsGateway smsGateway;
     @MockBean private PartnerInternalClient partnerInternalClient;
+    /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
+    @MockBean private UserInternalClient userInternalClient;
 
     @BeforeEach
     void mockClients() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenAnswer(inv -> {
                     List<UUID> ids = inv.getArgument(0);
