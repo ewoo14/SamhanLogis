@@ -126,6 +126,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          # Cycle 2 fix (Claude DevOps D-01): npm cache 추가 (CI 캐시 효율).
+          cache: 'npm'
+          cache-dependency-path: qa/detox/package-lock.json
 
       - name: Detox 의존성 설치
         working-directory: qa/detox
@@ -138,7 +141,8 @@ jobs:
 
       - name: Detox config 검증 (arologis-mobile)
         working-directory: qa/detox
-        run: npx detox config --configuration arologis.android.release || true
+        # Cycle 2 fix (Codex DevOps): `|| true` 제거 — config 파싱 fail 을 gating.
+        run: npx detox config --configuration arologis.android.release
 
       - name: 스모크 테스트 결과 업로드 (실패 + always)
         if: always()
@@ -147,3 +151,5 @@ jobs:
           name: detox-arologis-report
           path: qa/detox/artifacts/
           retention-days: 7
+          # Cycle 2 fix (Claude DevOps D-02): 실 에뮬레이터 미구동 시 빈 디렉토리 경고 회피.
+          if-no-files-found: ignore

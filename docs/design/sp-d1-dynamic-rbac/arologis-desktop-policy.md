@@ -1,103 +1,100 @@
-# SP-D1 arologis-desktop 사이드바 Hidden 정책 적용 여부 결정
+﻿# SP-D1 arologis-desktop ?ъ씠?쒕컮 Hidden ?뺤콉 ?곸슜 ?щ? 寃곗젙
 
-**슬라이스**: audit Slice C — arologis-desktop 사이드바 hidden 정책 적용 감사  
-**작성일**: 2026-05-19  
-**담당**: FE Designer agent (audit cycle 1 QA 권고 해소)  
-**참조**: `docs/design/sp-d1-dynamic-rbac/decisions.md` §3
-
----
-
-## 결론: Option B — SP-D1 사이드바 Hidden 정책 비대상 (코드 변경 없음)
-
-arologis-desktop 은 단일 운영 도구(MASTER + MANAGER 전용)이므로  
-멀티 role 환경을 전제로 하는 SP-D1 hidden 정책의 적용 대상이 아니다.
+**?щ씪?댁뒪**: audit Slice C ??arologis-desktop ?ъ씠?쒕컮 hidden ?뺤콉 ?곸슜 媛먯궗
+**?묒꽦??*: 2026-05-19
+**?대떦**: FE Designer agent (audit cycle 1 QA 沅뚭퀬 ?댁냼)
+**李몄“**: `docs/design/sp-d1-dynamic-rbac/decisions.md` 짠3
 
 ---
 
-## 1. 결정 근거
+## 寃곕줎: Option B ??SP-D1 ?ъ씠?쒕컮 Hidden ?뺤콉 鍮꾨???(肄붾뱶 蹂寃??놁쓬)
 
-### 1-1. arologis-desktop Role 구조
+arologis-desktop ? ?⑥씪 ?댁쁺 ?꾧뎄(MASTER + MANAGER ?꾩슜)?대?濡?
+硫??role ?섍꼍???꾩젣濡??섎뒗 SP-D1 hidden ?뺤콉???곸슜 ??곸씠 ?꾨땲??
 
-`clients/arologis-desktop/src/renderer/stores/authStore.ts` 주석 및 `authStore.canManageDrivers()` 함수 정의 기준:
+---
 
-| Role | 대상 클라이언트 | 접근 범위 |
+## 1. 寃곗젙 洹쇨굅
+
+### 1-1. arologis-desktop Role 援ъ“
+
+`clients/arologis-desktop/src/renderer/stores/authStore.ts` 二쇱꽍 諛?`authStore.canManageDrivers()` ?⑥닔 ?뺤쓽 湲곗?:
+
+| Role | ????대씪?댁뼵??| ?묎렐 踰붿쐞 |
 |------|--------------|---------|
-| `AROLOGIS_MASTER` | arologis-desktop | 모든 메뉴 (배차 + 기사 관리) |
-| `AROLOGIS_MANAGER` | arologis-desktop | 배차 / 기사 관리 / 조회 |
-| `AROLOGIS_DRIVER` | mobile-staff (앱) | 모바일 전용 — arologis-desktop 미접근 |
+| `AROLOGIS_MASTER` | arologis-desktop | 紐⑤뱺 硫붾돱 (諛곗감 + 湲곗궗 愿由? |
+| `AROLOGIS_MANAGER` | arologis-desktop | 諛곗감 / 湲곗궗 愿由?/ 議고쉶 |
+| `AROLOGIS_DRIVER` | mobile-staff (?? | 紐⑤컮???꾩슜 ??arologis-desktop 誘몄젒洹?|
 
-arologis-desktop 에 접근하는 role 은 `AROLOGIS_MASTER` 와 `AROLOGIS_MANAGER` 두 가지뿐이며,  
-두 role 모두 배차와 기사 관리 메뉴에 대한 접근 권한을 보유한다.
+arologis-desktop ???묎렐?섎뒗 role ? `AROLOGIS_MASTER` ? `AROLOGIS_MANAGER` ??媛吏肉먯씠硫?
+??role 紐⑤몢 諛곗감? 湲곗궗 愿由?硫붾돱??????묎렐 沅뚰븳??蹂댁쑀?쒕떎.
 
-### 1-2. 현재 메뉴 구성
+### 1-2. ?꾩옱 硫붾돱 援ъ꽦
 
-`clients/arologis-desktop/src/renderer/components/AppLayout.tsx` 기준:
+`clients/arologis-desktop/src/renderer/components/AppLayout.tsx` 湲곗?:
 
-| 메뉴 항목 | 경로 |
+| 硫붾돱 ??ぉ | 寃쎈줈 |
 |---------|------|
-| 배차 | `/dispatches` |
-| 기사 관리 | `/drivers` |
+| 諛곗감 | `/dispatches` |
+| 湲곗궗 愿由?| `/drivers` |
 
-메뉴가 2개뿐이며, AROLOGIS_MASTER / AROLOGIS_MANAGER 양쪽 모두 접근 가능하다.  
-숨겨야 할 메뉴 항목이 role 분기 기준으로 존재하지 않는다.
+硫붾돱媛 2媛쒕퓧?대ŉ, AROLOGIS_MASTER / AROLOGIS_MANAGER ?묒そ 紐⑤몢 ?묎렐 媛?ν븯??
+?④꺼????硫붾돱 ??ぉ??role 遺꾧린 湲곗??쇰줈 議댁옱?섏? ?딅뒗??
 
-### 1-3. SP-D1 Hidden 정책의 전제 조건
+### 1-3. SP-D1 Hidden ?뺤콉???꾩젣 議곌굔
 
-SP-D1 (`decisions.md` §3) 의 hidden 정책은 다음 전제 조건을 갖는다:
+SP-D1 (`decisions.md` 짠3) ??hidden ?뺤콉? ?ㅼ쓬 ?꾩젣 議곌굔??媛뽯뒗??
 
-- **멀티 role 환경**: MASTER / MANAGER / SALES / ACCOUNTING / DRIVER 등 여러 role 이 동일 클라이언트를 사용
-- **페이지별 접근 매트릭스**: `GET /permissions/my` 로 동적 권한 목록을 조회
-- **카테고리 헤더 포함 미렌더링**: 권한 있는 하위 항목이 없으면 카테고리 헤더도 DOM 에서 제거
+- **硫??role ?섍꼍**: MASTER / MANAGER / SALES / ACCOUNTING / DRIVER ???щ윭 role ???숈씪 ?대씪?댁뼵?몃? ?ъ슜
+- **?섏씠吏蹂??묎렐 留ㅽ듃由?뒪**: `GET /permissions/my` 濡??숈쟻 沅뚰븳 紐⑸줉??議고쉶
+- **移댄뀒怨좊━ ?ㅻ뜑 ?ы븿 誘몃젋?붾쭅**: 沅뚰븳 ?덈뒗 ?섏쐞 ??ぉ???놁쑝硫?移댄뀒怨좊━ ?ㅻ뜑??DOM ?먯꽌 ?쒓굅
 
-arologis-desktop 은 이 세 조건 중 어느 것도 해당하지 않는다.
+arologis-desktop ? ????議곌굔 以??대뒓 寃껊룄 ?대떦?섏? ?딅뒗??
 
-### 1-4. 독립 운영 단위 특성
+### 1-4. ?낅┰ ?댁쁺 ?⑥쐞 ?뱀꽦
 
-아로로지스는 Samhan Public 에서 분리된 독립 운영 단위(Phase 10.5)다.  
-`project_arologis_independent.md` 에 따라 자체 role 체계 (`AROLOGIS_*`) 를 사용하며,  
-Samhan Public desktop 의 동적 RBAC 매트릭스(`/admin/permissions`)와 분리된 시스템이다.
+?꾨줈濡쒖??ㅻ뒗 Samhan Public ?먯꽌 遺꾨━???낅┰ ?댁쁺 ?⑥쐞(Phase 10.5)??
+`project_arologis_independent.md` ???곕씪 ?먯껜 role 泥닿퀎 (`AROLOGIS_*`) 瑜??ъ슜?섎ŉ,
+Samhan Public desktop ???숈쟻 RBAC 留ㅽ듃由?뒪(`/admin/permissions`)? 遺꾨━???쒖뒪?쒖씠??
 
 ---
 
-## 2. 현재 구현 상태 (변경 없음 확인)
+## 2. ?꾩옱 援ы쁽 ?곹깭 (蹂寃??놁쓬 ?뺤씤)
 
-| 파일 | 현재 상태 | 평가 |
+| ?뚯씪 | ?꾩옱 ?곹깭 | ?됯? |
 |-----|---------|-----|
-| `AppLayout.tsx` | 배차 + 기사 관리 NavLink 2개 — role 분기 없음 | 정상 (분기 불필요) |
-| `ProtectedRoute.tsx` | 미인증 시 `/login` 리다이렉트 — role 체크 없음 | 정상 (전체 메뉴 접근 허용) |
-| `authStore.ts` | `canManageDrivers()` — AROLOGIS_MASTER/MANAGER CUD 가드 | 정상 (UI 내 세부 기능 분기만) |
-| `routes/index.tsx` | `createHashRouter` — SP-D1 hidden 적용 없음 | 정상 (적용 불필요) |
+| `AppLayout.tsx` | 諛곗감 + 湲곗궗 愿由?NavLink 2媛???role 遺꾧린 ?놁쓬 | ?뺤긽 (遺꾧린 遺덊븘?? |
+| `ProtectedRoute.tsx` | 誘몄씤利???`/login` 由щ떎?대젆????role 泥댄겕 ?놁쓬 | ?뺤긽 (?꾩껜 硫붾돱 ?묎렐 ?덉슜) |
+| `authStore.ts` | `canManageDrivers()` ??AROLOGIS_MASTER/MANAGER CUD 媛??| ?뺤긽 (UI ???몃? 湲곕뒫 遺꾧린留? |
+| `routes/index.tsx` | `createHashRouter` ??SP-D1 hidden ?곸슜 ?놁쓬 | ?뺤긽 (?곸슜 遺덊븘?? |
 
 ---
 
-## 3. 향후 적용 조건 (의무 사항)
+## 3. ?ν썑 ?곸슜 議곌굔 (?섎Т ?ы빆)
 
-다음 조건 중 하나라도 충족되면 SP-D1 hidden 정책 적용이 **의무**가 된다:
+?ㅼ쓬 議곌굔 以??섎굹?쇰룄 異⑹”?섎㈃ SP-D1 hidden ?뺤콉 ?곸슜??**?섎Т**媛 ?쒕떎:
 
-1. arologis-desktop 에 `AROLOGIS_DRIVER` 이상 하위 role 이 접근 가능해질 때
-2. 메뉴 항목이 3개 이상으로 확대되고 role별 접근 제한이 필요해질 때
-3. 동적 RBAC 매트릭스가 아로로지스 `AROLOGIS_*` role 에도 적용 범위가 확대될 때
-
-위 조건이 발생하면 별도 슬라이스로 분리하여 적용한다. 본 슬라이스에서는 코드 변경을 하지 않는다.
+1. arologis-desktop ??`AROLOGIS_DRIVER` ?댁긽 ?섏쐞 role ???묎렐 媛?ν빐吏???2. 硫붾돱 ??ぉ??3媛??댁긽?쇰줈 ?뺣??섍퀬 role蹂??묎렐 ?쒗븳???꾩슂?댁쭏 ??3. ?숈쟻 RBAC 留ㅽ듃由?뒪媛 ?꾨줈濡쒖???`AROLOGIS_*` role ?먮룄 ?곸슜 踰붿쐞媛 ?뺣?????
+??議곌굔??諛쒖깮?섎㈃ 蹂꾨룄 ?щ씪?댁뒪濡?遺꾨━?섏뿬 ?곸슜?쒕떎. 蹂??щ씪?댁뒪?먯꽌??肄붾뱶 蹂寃쎌쓣 ?섏? ?딅뒗??
 
 ---
 
-## 4. audit cycle 1 QA 권고 해소 확인
+## 4. audit cycle 1 QA 沅뚭퀬 ?댁냼 ?뺤씤
 
-| QA 권고 내용 | 해소 방법 |
+| QA 沅뚭퀬 ?댁슜 | ?댁냼 諛⑸쾿 |
 |------------|---------|
-| `routes/index.tsx` SP-D1 hidden 정책 미적용 여부 점검 | 본 문서에서 비대상 결정 + 근거 명시 |
-| 정책 결정 문서 부재 | 본 문서 (`arologis-desktop-policy.md`) 신규 작성 |
+| `routes/index.tsx` SP-D1 hidden ?뺤콉 誘몄쟻???щ? ?먭? | 蹂?臾몄꽌?먯꽌 鍮꾨???寃곗젙 + 洹쇨굅 紐낆떆 |
+| ?뺤콉 寃곗젙 臾몄꽌 遺??| 蹂?臾몄꽌 (`arologis-desktop-policy.md`) ?좉퇋 ?묒꽦 |
 
 ---
 
-## 5. 관련 파일 참조
+## 5. 愿???뚯씪 李몄“
 
-| 파일 | 용도 |
+| ?뚯씪 | ?⑸룄 |
 |-----|------|
-| `clients/arologis-desktop/src/renderer/components/AppLayout.tsx` | 사이드바 메뉴 정의 |
-| `clients/arologis-desktop/src/renderer/routes/index.tsx` | 라우트 정의 |
-| `clients/arologis-desktop/src/renderer/stores/authStore.ts` | Role 정의 + canManageDrivers 가드 |
-| `clients/arologis-desktop/src/renderer/components/ProtectedRoute.tsx` | 인증 가드 |
-| `docs/design/sp-d1-dynamic-rbac/decisions.md` §3 | SP-D1 사이드바 Hidden 정책 원문 |
-| `.claude/memory/project_arologis_independent.md` | 아로로지스 독립 운영 단위 컨텍스트 |
+| `clients/arologis-desktop/src/renderer/components/AppLayout.tsx` | ?ъ씠?쒕컮 硫붾돱 ?뺤쓽 |
+| `clients/arologis-desktop/src/renderer/routes/index.tsx` | ?쇱슦???뺤쓽 |
+| `clients/arologis-desktop/src/renderer/stores/authStore.ts` | Role ?뺤쓽 + canManageDrivers 媛??|
+| `clients/arologis-desktop/src/renderer/components/ProtectedRoute.tsx` | ?몄쬆 媛??|
+| `docs/design/sp-d1-dynamic-rbac/decisions.md` 짠3 | SP-D1 ?ъ씠?쒕컮 Hidden ?뺤콉 ?먮Ц |
+| `.claude/memory/project_arologis_independent.md` | ?꾨줈濡쒖????낅┰ ?댁쁺 ?⑥쐞 而⑦뀓?ㅽ듃 |
