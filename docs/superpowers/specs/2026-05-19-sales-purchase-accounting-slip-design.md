@@ -384,9 +384,131 @@ actor 정보 = `X-User-Id` + `X-User-Role` 헤더 (기존 패턴). UUID raw 노�
 
 ---
 
-## 7. Admin UI (디자인 §6 — 작성 예정)
+## 7. Admin UI (디자인 §6) + 기존 코드 개정 항목
 
-(brainstorming §6 단계에서 작성)
+### 7-A. 메뉴 구조 (사이드바)
+
+```
+회계 (ACCOUNTANT / MASTER)
+├── 매출전표              [신규] /accounting/sales-slips
+├── 매입전표              [신규] /accounting/purchase-slips
+├── 세금계산서 발행      [신규] /accounting/tax-invoices/batch
+├── 세금계산서 수신      [신규] /accounting/tax-invoices/inbound
+├── 일마감 ⚠ 개정         [기존] /accounting/daily-closing  (DailyClosingPage 확장)
+├── 원장                  [기존] /accounting/ledger
+└── 마감 (월/기간)         [기존] /accounting/period-closing
+```
+
+### 7-B. 매출전표 작성 페이지 (`/accounting/sales-slips/new`)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  매출전표 작성  (ACCOUNTANT / MASTER)                          │
+├──────────────────────────────────────────────────────────────┤
+│  [헤더]                                                       │
+│  거래처: [검색▼] (주)한국공조 (P-2026-0001)                    │
+│  슬립일자: [2026-05-19 ▼]  과세구분: [● 과세 ○ 영세 ○ 면세]    │
+│  메모: [_____________________________________________]        │
+├──────────────────────────────────────────────────────────────┤
+│  [출고전표 선택]  잔여 미할당 출고전표만 표시 / 동일거래처 필터  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ □ 출고번호      일자        품목        수량   잔여금액 │  │
+│  │ ☑ OUT-...0042  2026-05-15  RX다배관    10     1,650,000 │  │
+│  │ ☑ OUT-...0043  2026-05-18  RX다배관    5      825,000   │  │
+│  │ ☐ OUT-...0044  2026-05-19  ...        ...    ...        │  │
+│  └────────────────────────────────────────────────────────┘  │
+│  [선택 line 추가 →]   [전체 추가 (1:1) →]                       │
+├──────────────────────────────────────────────────────────────┤
+│  [매출전표 lines]                                              │
+│  │ #  품목       수량  단가(VAT포함)  공급가액   부가세  합계  │
+│  │ 1  RX다배관   10    150,000       1,363,636  136,364 1,500K│
+│  │ 2  RX다배관   3     150,000       409,091    40,909  450K │  ← 출고 line 일부 분할
+│  │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│
+│  │ 합계                              1,772,727  177,273 1,950K│
+├──────────────────────────────────────────────────────────────┤
+│  [⚠ 잔여]  OUT-...0043 line#1 잔여 375,000 (allocation 미완)   │
+│  [임시저장 (DRAFT)]  [확정 (POSTED)]   [취소]                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**핵심 UX**:
+- VAT-inclusive 단가 입력 → 공급가액/부가세 실시간 자동 분리 표시
+- 출고전표 선택 시 잔여만 표시 + 분할 슬라이더 (sub-amount 분할 시)
+- over-allocation = 행 빨간 알림 + 확정 버튼 비활성
+- 임시저장 / 확정 분리 (DRAFT 는 수정 자유)
+
+### 7-C. 매출전표 목록 페이지 (`/accounting/sales-slips`)
+
+표 컬럼: `매출전표번호 / 일자 / 거래처 / 과세구분 / 공급가액 / 부가세 / 합계 / 상태 / 세금계산서번호 / 작업`
+
+필터: 기간 / 거래처 / 상태 (DRAFT / POSTED / VOIDED) / 과세구분 / 세금계산서 발행 여부
+
+행 액션: 상세 / 수정 (DRAFT 만) / 확정 / 취소 / 세금계산서 발행 묶음 추가
+
+### 7-D. 매입전표 페이지 — 매출 100% 대칭 (`/accounting/purchase-slips`)
+
+매출 패턴 동일, source = 입고전표.
+
+### 7-E. 세금계산서 발행 묶음 페이지 (`/accounting/tax-invoices/batch`)
+
+```
+[1단계] 매출전표 N장 선택
+  ├── 필터: 거래처 + 발행월
+  ├── 표: 매출전표번호 / 일자 / 거래처 / 공급가액 / 부가세 / 합계 / 발행여부
+  ├── ☑ 다중 선택 (체크박스)
+  └── [선택 N장 → 세금계산서 1장 생성]
+[2단계] 묶음 미리보기
+  ├── 거래처 동일성 검증 (PARTNER_MONTH_MISMATCH 가드)
+  ├── 월 동일성 검증
+  ├── 합계 표시
+  └── [DRAFT 생성]
+[3단계] TaxInvoice DRAFT → ISSUED → NTS 발행 (기존 TaxInvoiceController 흐름)
+```
+
+### 7-F. 세금계산서 수신 페이지 (`/accounting/tax-invoices/inbound`)
+
+옵션 A (NTS 수신 API) 또는 옵션 B (수동 등록, PDF/이미지 첨부 → OCR 후속).
+
+매입전표와 매칭 화면 (allocation 패턴 미러).
+
+### 7-G. 일마감 페이지 ⚠ **기존 코드 개정 의무**
+
+기존: `clients/desktop/src/renderer/routes/DailyClosingPage.tsx` (SP-08-6-5, source=TaxInvoice ISSUED)
+
+**개정 항목 (사용자 명시 2026-05-19 "기존 코드 개정 필요")**:
+
+#### BE 개정 (accounting-service)
+
+| 파일 | 개정 내역 |
+|---|---|
+| `domain/DailyClosing.java` | `closingKind` ENUM (SALES/PURCHASE) + `sourceKind` ENUM (TAX_INVOICE/SALES_SLIP/PURCHASE_SLIP) 필드 신규. `create()` overload 추가. 기존 메서드 시그니처는 backward-compat 으로 deprecated 표시 |
+| `service/DailyClosingService.java` | source_kind 분기 — SALES_SLIP/PURCHASE_SLIP 인 경우 신규 SalesAccountingSlipRepository / PurchaseAccountingSlipRepository 집계. TAX_INVOICE 는 기존 TaxInvoiceRepository 유지 (backward-compat) |
+| `web/dto/CreateDailyClosingRequest.java` | `closingKind` + `sourceKind` 필드 추가 (default SALES + TAX_INVOICE for backward-compat) |
+| `web/dto/DailyClosingResponse.java` | Daily Detail 표 컬럼 추가 — `salesSlipNo` / `sourceSlipNo` (매출전표·출고전표 번호 노출) |
+| `web/DailyClosingController.java` | `?kind=SALES&sourceKind=SALES_SLIP&date=YYYY-MM-DD` query param 분기. 기존 path 무변경 (default = SALES+TAX_INVOICE) |
+| 신규 Flyway migration (V??) | `daily_closings.closing_kind` + `source_kind` 컬럼 추가, 기존 row backward fill (SALES + TAX_INVOICE) |
+| `repository/DailyClosingRepository.java` | `findByClosingDateAndPartnerIdAndClosingKindAndSourceKind` 신규 메서드 |
+
+#### FE 개정 (clients/desktop)
+
+| 파일 | 개정 내역 |
+|---|---|
+| `routes/DailyClosingPage.tsx` | **일별/월별 토글 제거** (사용자 명시 "하루 단위 검색"). 단일 date picker 만 노출. 매출/매입/통합 종류 토글 신규 추가 |
+| 동일 페이지 Daily Detail 표 | `taxInvoiceNo` (기존) + `salesSlipNo` / `sourceSlipNo` (신규) 컬럼 추가 |
+| `api/accountingApi.ts` (또는 동등) | `getDailyClosingDaily(date, kind, sourceKind)` 시그니처 확장 |
+| 기존 SP-08-6-5 mockup PNG (`docs/qa/sp-08-6-5-...`) | 본 슬라이스 신규 mockup PNG 으로 superseded (sourceKind 토글 + 새 컬럼 반영) |
+
+#### 회귀 가드
+
+- 기존 SP-08-6-5 단위/IT 테스트 — `closingKind=SALES` + `sourceKind=TAX_INVOICE` default 로 통과 보장
+- 기존 `DailyClosingResponse` 소비자 (다른 화면/리포트) — 신규 필드는 nullable, 기존 필드 무변경
+- legacy GAS 12번 일마감 흐름 호환 (TaxInvoice ISSUED 집계 경로 유지)
+
+### 7-H. 공통 UX 가드
+
+- UUID 비공개: 모든 화면에서 partnerCode / slipNo / taxInvoiceNo 만 노출, UUID raw X
+- 권한: 매출/매입전표 = ACCOUNTANT/MASTER. 세금계산서 발행 묶음 = MASTER only (대량 발행 위험)
+- 일마감 잠금 시 매출전표 수정 차단 (UI 비활성 + BE 가드 SAS_DAILY_CLOSING_LOCKED)
 
 ---
 
