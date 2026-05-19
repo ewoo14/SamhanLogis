@@ -174,10 +174,10 @@ public enum ErrorCode {
     SAS_PARTNER_MONTH_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "묶음 발행 시 거래처 또는 발행월이 일치하지 않습니다."),
     /**
-     * 매출전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
+     * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
     SAS_SLIP_NO_CONFLICT(HttpStatus.CONFLICT,
-            "매출전표 번호 충돌 — 재시도 권장");
+            "매출/매입전표 번호 충돌 — 재시도 권장");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

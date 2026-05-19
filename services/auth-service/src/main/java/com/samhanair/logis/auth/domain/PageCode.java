@@ -179,7 +179,10 @@ public enum PageCode {
     AROLOGIS_REGION("arologis.region", "아로로지스 지역/구역 관리"),
 
     /** SAS 매출전표 목록 화면 (SP-SAS-1). */
-    ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)");
+    ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),
+
+    /** SAS 매입전표 목록 화면 (SP-SAS-2). */
+    ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "매입전표(회계분개)");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

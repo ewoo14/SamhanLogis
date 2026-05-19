@@ -11,4 +11,10 @@ class PageCodeTest {
         assertThat(PageCode.ACCOUNTING_SALES_SLIP_LIST.getDisplayName())
                 .isEqualTo("매출전표(회계분개)");
     }
+
+    @Test
+    void accounting_purchaseSlip_label_회계분개_명확화() {
+        assertThat(PageCode.ACCOUNTING_PURCHASE_SLIP_LIST.getDisplayName())
+                .isEqualTo("매입전표(회계분개)");
+    }
 }
