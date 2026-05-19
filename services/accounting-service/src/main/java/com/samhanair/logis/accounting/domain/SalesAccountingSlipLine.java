@@ -26,6 +26,7 @@ import org.hibernate.annotations.UuidGenerator;
 public class SalesAccountingSlipLine extends BaseEntity {
 
     @Id @GeneratedValue @UuidGenerator
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
