@@ -271,14 +271,19 @@ public class SlipInternalController {
      * @return SlipLineSnapshot
      */
     private static SlipLineSnapshot toSnapshot(Slip slip, SlipLine line) {
+        // SAS 표준 = VAT-inclusive 단가 (사용자 결정 2026-05-19).
+        // SlipLine.unitPriceWithVat 사용 + lineTotal 도 VAT 포함 재계산.
+        java.math.BigDecimal unitPriceWithVat = line.getUnitPriceWithVat();
+        java.math.BigDecimal lineTotalWithVat = unitPriceWithVat
+                .multiply(java.math.BigDecimal.valueOf(line.getQuantity()));
         return new SlipLineSnapshot(
                 slip.getId(),
                 slip.getSlipNo(),
                 line.getId(),
                 line.getProductName(),
                 line.getQuantity(),
-                line.getUnitPrice(),
-                line.getLineTotal(),
+                unitPriceWithVat,
+                lineTotalWithVat,
                 slip.getStatus().name());
     }
 
