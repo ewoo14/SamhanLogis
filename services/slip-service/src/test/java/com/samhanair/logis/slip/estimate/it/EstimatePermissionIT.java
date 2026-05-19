@@ -146,20 +146,40 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     // C4: SALES canEdit=false + canView=true → POST 403 (view-only override)
     // -------------------------------------------------------------------------
 
+    /**
+     * C4: view-only override 정책 검증.
+     *
+     * <p>canEdit=false + canView=true → {@link EstimatePermissionGuard#checkEdit} 가
+     * {@code BusinessException(FORBIDDEN)} 을 던지고 응답 403 이어야 한다.
+     *
+     * <p>audit Slice B#4 결함 2 fix:
+     * {@code Mockito.when()} 대신 {@code Mockito.doReturn()} 으로 canEdit/canView stub 을 명시 override.
+     * {@code @BeforeEach} lenient stub 과의 충돌 없이 invocation 순서를 보장한다.
+     */
     @Test
     @DisplayName("C4: SALES canEdit=false + canView=true → POST 견적 생성 403 (view-only override)")
     @WithMockUser(username = "sales-viewonly", authorities = {"ROLE_SALES"})
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
-                .thenReturn(false);
-        // canView=true 유지 (lenient 기본값)
+        // doReturn 방식: @BeforeEach lenient stub 위에 안전하게 override.
+        // canEdit=false → checkEdit 내부에서 canView 조회 → canView=true → FORBIDDEN throw.
+        Mockito.doReturn(false)
+                .when(dynamicPermissionClient).canEdit(anyString(), anyString());
+        Mockito.doReturn(true)
+                .when(dynamicPermissionClient).canView(anyString(), anyString());
 
+        // audit Slice B#4 cycle 2 fix: valid body 필수 — @Valid (lines @NotEmpty) 가
+        // controller 메서드 진입 전에 검증되므로 빈 body 는 400 (BadRequest) 회귀.
+        // lines 1건 + productId/quantity/unitPrice 필수 채워서 @Valid 통과 → checkEdit 도달 → 403.
         mockMvc.perform(post("/slips/estimates")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerId\":\"00000000-0000-0000-0000-000000000001\","
                                 + "\"validUntil\":\"2026-12-31\","
-                                + "\"lines\":[]}"))
+                                + "\"lines\":[{"
+                                + "\"productId\":\"00000000-0000-0000-0000-000000000002\","
+                                + "\"quantity\":1,"
+                                + "\"unitPrice\":1000.00"
+                                + "}]}"))
                 .andExpect(status().isForbidden());
     }
 }
