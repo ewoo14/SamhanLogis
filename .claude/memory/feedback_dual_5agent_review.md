@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-## 5-단계 전체 워크플로우 (2026-05-19 사용자 정정 — 7회차 최종)
+## 5-단계 전체 워크플로우 (2026-05-19 사용자 정정 — 8회차 최종)
 
 ```
 [1] Claude 기획 — brainstorming + writing-plans (spec + 5 슬라이스 plans)
@@ -15,14 +15,20 @@ metadata:
    - Claude subagent (general-purpose) 단독 implementation 패턴 금지
    - sandbox 권한 한계 (git index.lock / Gradle download) 시 controller (Claude) 가 gradle test + commit 만 대행
         ↓
-[3] Claude 5-agent review + TM 통합 fix (사이클 1 전반)
+[3] Claude 5-agent review + TM 통합 fix (사이클 1)
+   - BE/FE/Designer/QA(Docker 실 검증 의무)/DevOps 병렬
+   - Codex fix 위임 (sandbox=workspace-write) 또는 Claude 직접 fix
         ↓
-[4] Codex 5-agent review + TM 통합 fix (사이클 1 후반)
-        ↓
-[5] CI green + PM 머지 (사용자 명시 자동 머지)
+[4] CI green + **머지 전 사용자 확인** (자동 머지 금지)
+   - 사용자가 "이상 없음" 확인 후 PM 머지 트리거
 ```
 
-**핵심**: implementation 자체는 Codex. Claude 의 역할 = 기획 + review TM 통합 + commit/test 환경 대행 + PM (자동 머지 트리거).
+**핵심 변경 (8회차, 2026-05-19)**:
+- **Codex review 단계 제거** (7회차의 [4] Codex 5-agent review + TM 통합 fix 폐기)
+- 사이클 1 = Claude 5-agent review + fix 만으로 1회 사이클 종료
+- **PM 자동 머지 금지** — 머지 전 사용자 확인 의무 ("머지 하기 전에 이상 없는지 문의")
+
+implementation 자체는 Codex, review 는 Claude 5-agent 만, fix 는 Codex 위임 또는 Claude. Claude 의 역할 = 기획 + review TM 통합 + commit/test 환경 대행 + 머지 전 사용자 보고.
 
 ## QA 에이전트 Docker 실서버 테스트 의무 (2026-05-19 신규)
 
