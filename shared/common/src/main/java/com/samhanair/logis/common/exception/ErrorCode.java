@@ -127,7 +127,52 @@ public enum ErrorCode {
      * 인성데이타 퀵프로그램 외부 API 호출 실패 — 5xx/network 런타임 오류 시 502 반환 (SP-10-2).
      */
     INSUNG_QUICK_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
-            "인성데이타 퀵프로그램 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            "인성데이타 퀵프로그램 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+    /**
+     * 출고/입고전표를 찾을 수 없음 (SAS 슬라이스, 출고→매출 자동화 워크플로우).
+     */
+    SAS_SOURCE_SLIP_NOT_FOUND(HttpStatus.NOT_FOUND,
+            "출고/입고전표를 찾을 수 없습니다."),
+    /**
+     * 출고/입고전표가 CONFIRMED 상태가 아님 (SAS 슬라이스).
+     */
+    SAS_SOURCE_SLIP_NOT_CONFIRMED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "출고/입고전표가 CONFIRMED 상태가 아닙니다."),
+    /**
+     * 할당 합계가 출고/입고전표 line 잔여를 초과 (SAS 슬라이스).
+     */
+    SAS_OVER_ALLOCATION(HttpStatus.UNPROCESSABLE_ENTITY,
+            "할당 합계가 출고/입고전표 line 잔여를 초과합니다."),
+    /**
+     * line 의 공급가액+부가세가 line_total 과 다름 (SAS 슬라이스).
+     */
+    SAS_LINE_AMOUNT_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "line 의 공급가액+부가세가 line_total 과 다릅니다."),
+    /**
+     * 단일 매출/매입전표 내 line 단위 tax_type 혼합 금지 (SAS 슬라이스).
+     */
+    SAS_TAX_TYPE_MIXED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "단일 매출/매입전표 내 line 단위 tax_type 혼합은 금지됩니다."),
+    /**
+     * 이미 POSTED 된 전표는 수정 불가 (SAS 슬라이스).
+     */
+    SAS_ALREADY_POSTED(HttpStatus.CONFLICT,
+            "이미 POSTED 된 전표는 수정할 수 없습니다."),
+    /**
+     * 해당 일자 일마감이 잠겨 있음 (SAS 슬라이스).
+     */
+    SAS_DAILY_CLOSING_LOCKED(HttpStatus.CONFLICT,
+            "해당 일자 일마감이 잠겨 있습니다."),
+    /**
+     * 이미 세금계산서와 매핑된 매출전표 (SAS 슬라이스).
+     */
+    SAS_TAX_INVOICE_ALREADY_LINKED(HttpStatus.CONFLICT,
+            "이미 세금계산서와 매핑된 매출전표입니다."),
+    /**
+     * 묶음 발행 시 거래처 또는 발행월이 일치하지 않음 (SAS 슬라이스).
+     */
+    SAS_PARTNER_MONTH_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "묶음 발행 시 거래처 또는 발행월이 일치하지 않습니다.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;
