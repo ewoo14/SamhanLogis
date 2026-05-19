@@ -10,6 +10,7 @@ class ErrorCodeSasTest {
     void sas_errorCodes_정상등록() {
         assertThat(ErrorCode.SAS_SOURCE_SLIP_NOT_FOUND.getHttpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.SAS_OVER_ALLOCATION.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.SAS_LINE_AMOUNT_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.SAS_TAX_TYPE_MIXED.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);

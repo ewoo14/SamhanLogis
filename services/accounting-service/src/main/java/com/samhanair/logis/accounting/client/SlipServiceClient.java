@@ -111,10 +111,10 @@ public class SlipServiceClient {
     }
 
     /**
-     * 출고전표 slipId 의 모든 라인 조회 — accounting-service 매출전표 생성 시 검증용.
+     * 출고/입고전표 slipId 의 모든 라인 조회 — accounting-service 매출/매입전표 생성 시 검증용.
      *
      * <p>slip-service {@code GET /internal/slips/{slipId}/lines} 호출.
-     * CONFIRMED 상태 전표만 매출전표 source 로 사용 가능 (호출자 책임).
+     * CONFIRMED 상태 + 매출=OUTBOUND/매입=INBOUND source 검증은 호출자 책임.
      *
      * @param slipId 전표 UUID (필수)
      * @return 전표 라인 snapshot 리스트 (빈 리스트 가능)
@@ -150,7 +150,7 @@ public class SlipServiceClient {
     }
 
     /**
-     * 출고전표 line 단건 조회 — accounting-service 매출전표 라인 단건 검증용.
+     * 출고/입고전표 line 단건 조회 — accounting-service 매출/매입전표 라인 단건 검증용.
      *
      * <p>slip-service {@code GET /internal/slips/lines/{lineId}} 호출.
      *

@@ -51,7 +51,7 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-IT-0001");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관 30A",
-                10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
+                10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
 
         CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
                 LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
@@ -164,10 +164,31 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("SAS_LINE_AMOUNT_MISMATCH"));
     }
 
+    @Test
+    void POST_admin_purchase_slips_OUTBOUND_source_거부() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-IT-TYPE");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관 30A",
+                10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(
+                                sourceSlipId, sourceLineId, SalesTaxType.TAXABLE,
+                                new BigDecimal("1"), new BigDecimal("100000"),
+                                new BigDecimal("100000")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_SLIP_TYPE_MISMATCH"));
+    }
+
     private void stubConfirmedSourceLine(UUID sourceSlipId, UUID sourceLineId, BigDecimal lineTotal) {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관 30A",
-                10, new BigDecimal("150000"), lineTotal, "CONFIRMED"));
+                10, new BigDecimal("150000"), lineTotal, "CONFIRMED", "INBOUND"));
     }
 
     private static CreatePurchaseAccountingSlipRequest request(UUID sourceSlipId, UUID sourceLineId,

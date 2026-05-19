@@ -74,6 +74,11 @@ public class SalesAccountingSlipCreateAttemptService {
     private void verifySourceAndAllocation(AllocationRequest ar) {
         acquireSourceLineLock(ar.sourceLineId());
         SlipLineSnapshot src = slipServiceClient.getSlipLine(ar.sourceLineId());
+        if (!"OUTBOUND".equals(src.slipType())) {
+            throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH,
+                    "매출전표는 OUTBOUND 출고전표만 source 가능 (slip="
+                            + src.slipNo() + " type=" + src.slipType() + ")");
+        }
         if (!"CONFIRMED".equals(src.slipStatus())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED,
                     "(slip=" + src.slipNo() + " 상태=" + src.slipStatus() + ", CONFIRMED 요구)");

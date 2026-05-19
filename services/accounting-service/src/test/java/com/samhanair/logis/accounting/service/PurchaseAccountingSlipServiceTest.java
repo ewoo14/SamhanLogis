@@ -75,7 +75,7 @@ class PurchaseAccountingSlipServiceTest {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-2026-05-0001");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관",
-                10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
+                10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
@@ -104,7 +104,7 @@ class PurchaseAccountingSlipServiceTest {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 UUID.randomUUID(), "IN-...", sourceLineId, "P", 10,
-                new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
+                new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
 
@@ -132,7 +132,7 @@ class PurchaseAccountingSlipServiceTest {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-2026-05-0002");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-B", sourceLineId, "P", 10,
-                new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED"));
+                new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
         lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
@@ -169,7 +169,7 @@ class PurchaseAccountingSlipServiceTest {
         when(numberGenerator.next(slipDate)).thenReturn("PAS-DUP", "PAS-RETRY");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-R", sourceLineId, "P", 1,
-                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED"));
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"purchase_accounting_slips_slip_no_key\""))
                 .doAnswer((InvocationOnMock inv) -> inv.getArgument(0))
@@ -203,7 +203,7 @@ class PurchaseAccountingSlipServiceTest {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-2026-05-0004");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-L", sourceLineId, "P", 1,
-                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED"));
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
@@ -254,7 +254,7 @@ class PurchaseAccountingSlipServiceTest {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 UUID.randomUUID(), "IN-...", sourceLineId, "P", 10,
-                new BigDecimal("100000"), new BigDecimal("1000000"), "DRAFT"));
+                new BigDecimal("100000"), new BigDecimal("1000000"), "DRAFT", "INBOUND"));
 
         CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
                 LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
@@ -269,6 +269,30 @@ class PurchaseAccountingSlipServiceTest {
         assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("CONFIRMED");
+    }
+
+    @Test
+    void createDraft_OUTBOUND_source_거부_SAS_SOURCE_SLIP_TYPE_MISMATCH() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                UUID.randomUUID(), "OUT-...", sourceLineId, "P", 10,
+                new BigDecimal("100000"), new BigDecimal("1000000"), "CONFIRMED", "OUTBOUND"));
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        null, null, new BigDecimal("1"), new BigDecimal("100000"),
+                        List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-X", sourceLineId, 1,
+                                new BigDecimal("1"), new BigDecimal("100000")))
+                )));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("INBOUND")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH));
     }
 
     @Test

@@ -12,8 +12,9 @@ import java.util.UUID;
  * <p>필드 매핑:
  * <ul>
  *   <li>{@code quantity} — SlipLine.quantity (int)</li>
- *   <li>{@code unitPrice} — SlipLine.unitPrice (VAT 미포함 단가)</li>
- *   <li>{@code lineTotal} — SlipLine.lineTotal (= quantity × unitPrice)</li>
+ *   <li>{@code unitPrice} — SlipLine.unitPriceWithVat (VAT 포함 단가)</li>
+ *   <li>{@code lineTotal} — quantity × unitPriceWithVat (VAT 포함 합)</li>
+ *   <li>{@code slipType} — Slip.slipType.name() — 매출=OUTBOUND, 매입=INBOUND 만 source 가능</li>
  * </ul>
  */
 public record SlipLineSnapshot(
@@ -24,5 +25,6 @@ public record SlipLineSnapshot(
         int quantity,
         BigDecimal unitPrice,
         BigDecimal lineTotal,
-        String slipStatus        // CONFIRMED 만 매출/매입전표 source 사용 가능
+        String slipStatus,       // CONFIRMED 만 매출/매입전표 source 사용 가능
+        String slipType
 ) {}

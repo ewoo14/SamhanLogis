@@ -224,7 +224,7 @@ public class SlipInternalController {
      * Internal 전표 라인 전체 조회 — accounting-service 매출전표 생성 시 검증용.
      *
      * <p>slip-service 의 {@link Slip#getLines()} 를 SlipLineSnapshot 리스트로 변환하여 반환.
-     * CONFIRMED 상태 전표만 매출전표 source 로 사용 가능 (호출자 책임).
+     * CONFIRMED 상태 + 매출=OUTBOUND/매입=INBOUND source 검증은 호출자 책임.
      *
      * @param slipId 전표 UUID
      * @return SlipLineSnapshot 리스트
@@ -284,7 +284,8 @@ public class SlipInternalController {
                 line.getQuantity(),
                 unitPriceWithVat,
                 lineTotalWithVat,
-                slip.getStatus().name());
+                slip.getStatus().name(),
+                slip.getSlipType().name());
     }
 
     // ---- Phase F (D-DF-05/06) — 인수자 번호 + 출고전표 사본 PNG 합성용 전체 상세 ----
