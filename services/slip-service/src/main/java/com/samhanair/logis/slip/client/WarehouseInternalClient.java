@@ -18,7 +18,11 @@ import org.springframework.web.client.RestClientResponseException;
  * <p>입고전표 생성/수정 시점에 {@code destinationWarehouseId} (UUID) → 창고명 resolve 후
  * {@link com.samhanair.logis.slip.domain.Slip#snapshotDestinationWarehouseName} 으로 snapshot.
  *
- * <p>호출 endpoint: {@code GET /internal/warehouses/{warehouseId}} (inventory-service).
+ * <p>호출 endpoint: {@code GET /inventory/warehouses/{warehouseId}} (inventory-service).
+ *
+ * <p>SP-08-FU2 cycle 2 fix (Codex P0): 기존 {@code /internal/warehouses/...} 는 미구현 path 였으며
+ * fail-soft 가 404 를 가렸지만 운영에서 {@code destinationWarehouseName} 영구 null 회귀.
+ * 실제 {@code WarehouseController @RequestMapping("/inventory/warehouses")} 와 정합.
  *
  * <p>오류 처리 (fail-soft):
  * <ul>
@@ -52,7 +56,7 @@ public class WarehouseInternalClient {
     /**
      * 창고 UUID 로 창고명 조회 (fail-soft).
      *
-     * <p>inventory-service {@code GET /internal/warehouses/{warehouseId}} 호출.
+     * <p>inventory-service {@code GET /inventory/warehouses/{warehouseId}} 호출.
      * 성공 시 창고명 문자열, 실패 시 empty.
      *
      * @param warehouseId 창고 UUID (필수)
@@ -70,7 +74,7 @@ public class WarehouseInternalClient {
         }
         try {
             String body = restClient.get()
-                    .uri("/internal/warehouses/{warehouseId}", warehouseId)
+                    .uri("/inventory/warehouses/{warehouseId}", warehouseId)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);

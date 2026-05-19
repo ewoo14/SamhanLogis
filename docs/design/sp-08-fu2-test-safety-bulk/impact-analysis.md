@@ -1,7 +1,7 @@
 # SP-08-FU2 Designer 영향 분석
 
-**슬라이스**: SP-08-FU2 test-safety-bulk  
-**작성일**: 2026-05-19  
+**슬라이스**: SP-08-FU2 test-safety-bulk
+**작성일**: 2026-05-19
 **작성자**: Designer Agent
 
 ---

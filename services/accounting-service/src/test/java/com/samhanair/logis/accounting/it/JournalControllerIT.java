@@ -5,16 +5,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +64,17 @@ class JournalControllerIT extends AbstractPostgresIT {
      * 기본값: null 반환 → Spring이 false로 처리 (lenient stub 없음 → fallback 적용).
      */
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    /**
+     * SP-08-FU2 cycle 2 fix (QA P1) — LedgerService / LedgerImageService 가 주입받는 외부 RestClient.
+     * Eureka 비활성 IT 환경에서 loadBalancedRestClientBuilder 빈 해석 실패 또는 실 HTTP 호출 회피.
+     */
+    @MockBean private PartnerLookupClient partnerLookupClient;
+
+    @BeforeEach
+    void setUpPartnerLookupStub() {
+        lenient().when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
+        lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
+    }
 
     @Test
     @DisplayName("GET /accounting/accounts — SALES (ALL_AUTH) 200, 시드 50+ 확인")
