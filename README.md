@@ -3,11 +3,13 @@
 > 삼성 시스템에어컨 공식 파트너사 (주)삼한공조시스템의 자체 물류·회계·견적·주문 통합 플랫폼.
 > 14 backend MSA + 5 client (web 2 / desktop 1 / mobile 2) + legacy 마이그레이션 (견적서 / 주문서 / 장기미수) 으로 구성된다.
 
-## 🔗 비주얼 Overview
+## 🔗 비주얼 Overview (GitHub Pages 풀 디자인)
 
-**▶ 시스템 전체 구조 시각화**: [docs/samhan-public-overview.html](docs/samhan-public-overview.html)
+**▶ 시스템 전체 구조 시각화 (라이브 페이지)**: **<https://ewoo14.github.io/SamhanLogis/samhan-public-overview.html>**
 
-브라우저로 본 HTML 파일을 열면 Samhan Public 의 전체 도메인 / 운영 단위 / 서비스 / 클라이언트 / 마이그레이션 / 데이터 흐름이 한눈에 보입니다. 본 README 의 상세 텍스트 설명 이전에 본 페이지 먼저 권장.
+브라우저로 본 페이지를 열면 Samhan Public 의 전체 도메인 / 운영 단위 / 14 service / 클라이언트 / 마이그레이션 / 데이터 흐름이 풀 디자인 (dark theme + CSS Grid + Noto Sans KR) 으로 한눈에 보입니다. 본 README 의 상세 텍스트 설명 이전에 본 페이지 먼저 권장.
+
+> 본 HTML 원본 = [`docs/samhan-public-overview.html`](docs/samhan-public-overview.html) (main `/docs` GitHub Pages source).
 
 ![Samhan Public 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
 
