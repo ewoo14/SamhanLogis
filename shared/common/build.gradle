@@ -34,6 +34,12 @@ dependencies {
     api 'com.opencsv:opencsv:5.9'
     api 'commons-io:commons-io:2.16.1'
 
+    constraints {
+        api('commons-beanutils:commons-beanutils:1.11.0') {
+            because 'CVE-2025-48734 대응: OpenCSV transitive commons-beanutils 하한 고정'
+        }
+    }
+
     runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 

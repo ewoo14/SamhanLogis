@@ -3,15 +3,21 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.web.dto.EcountAccountImportResult;
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** MIG-2 — 이카운트 계정상세내역 CSV → chart_of_accounts + account lookup map import. */
 @Slf4j
@@ -19,7 +25,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EcountAccountImporter {
 
-    private static final String[] HEADERS = {
+    private static final UUID IMPORT_LOCK_NAMESPACE = UUID.fromString("cf87a538-57bf-4c90-ae44-4e54b588caab");
+    // raw: docs/migration/ecount-data/raw/계정상세내역-Excel다운로드.csv
+    static final String[] HEADERS = {
             "계정코드", "계정명", "검색창내용", "대차구분", "계정속성", "계정종류", "수입지출구분",
             "재무제표상위계정", "수입지출상위계정", "잔액집계구분", "재무제표하이퍼링크대상",
             "추가항목유형코드", "추가항목유형명", "관련업무", "수표", "적요1", "적요2",
@@ -35,9 +43,11 @@ public class EcountAccountImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountAccountImportResult importCsv(InputStream csv, String actorUserId) {
         byte[] content = EcountCsvSupport.readRequired(csv);
         String hash = EcountCsvSupport.computeFileHash(content);
+        acquireImportLock(hash);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountCsvSupport.validateHeader(parsed.header(), HEADERS);
 
@@ -48,7 +58,7 @@ public class EcountAccountImporter {
         List<EcountAccountImportResult.RejectedRow> rejected = new ArrayList<>();
 
         for (int i = 0; i < parsed.dataRows().size(); i++) {
-            int rowNo = parsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             stagingUpsert(hash, rowNo, c, actorUserId);
             String code = c[0];
@@ -113,7 +123,7 @@ public class EcountAccountImporter {
     }
 
     private void upsertAccountMap(String code, String name, String hash) {
-        jdbcTemplate.update("""
+        int rows = jdbcTemplate.update("""
                 INSERT INTO staging.ecount_account_map
                     (ecount_code, account_uuid, account_name, source_file_hash, updated_at)
                 VALUES (:code, :code, :name, :hash, NOW())
@@ -122,11 +132,23 @@ public class EcountAccountImporter {
                   account_name = EXCLUDED.account_name,
                   source_file_hash = EXCLUDED.source_file_hash,
                   updated_at = NOW()
+                WHERE staging.ecount_account_map.account_uuid = EXCLUDED.account_uuid
                 """,
                 new MapSqlParameterSource()
                         .addValue("code", truncate(code, 10))
                         .addValue("name", truncate(name, 100))
                         .addValue("hash", hash));
+        if (rows == 0) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "계정 lookup map 이 다른 account_uuid 를 가리킵니다: code=" + code);
+        }
+    }
+
+    private void acquireImportLock(String sourceFileHash) {
+        jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(:lockKey)",
+                new MapSqlParameterSource("lockKey",
+                        EcountCsvSupport.advisoryLockKey(IMPORT_LOCK_NAMESPACE, sourceFileHash)),
+                Object.class);
     }
 
     private void stagingUpsert(String hash, int rowNo, String[] c, String actor) {

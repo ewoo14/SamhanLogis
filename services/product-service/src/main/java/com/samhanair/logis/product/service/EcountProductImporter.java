@@ -8,17 +8,23 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** MIG-2 — 이카운트 품목/관계/계층그룹 CSV → products + product_aliases + lookup map import. */
 @Slf4j
@@ -26,15 +32,19 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EcountProductImporter {
 
-    private static final String[] ITEM_HEADERS = {
+    private static final UUID IMPORT_LOCK_NAMESPACE = UUID.fromString("4a735f0f-4448-4b63-bdd0-92f45c3a8b8b");
+    // raw: docs/migration/ecount-data/raw/품목-Excel다운로드.csv
+    static final String[] ITEM_HEADERS = {
             "품목코드", "품목명", "출하가", "입고단가", "싱글", "실외기(원형,스탠드)",
             "멀티(50%)", "멀티(48%)", "멀티(45%)", "단품(35%)", "품목구분", "규격명", "사용구분"
     };
-    private static final String[] RELATION_HEADERS = {
+    // raw: docs/migration/ecount-data/raw/품목관계-Excel다운로드.csv
+    static final String[] RELATION_HEADERS = {
             "대표품목코드", "대표품목명", "대표품목단위", "연결품목코드", "연결품목명",
             "연결품목단위", "연결품목 환산수량", "대표품목 환산수량", "수량관리기준"
     };
-    private static final String[] GROUP_HEADERS = {
+    // raw: docs/migration/ecount-data/raw/품목계층그룹-Excel다운로드.csv
+    static final String[] GROUP_HEADERS = {
             "그룹단계", "[그룹코드]그룹명", "품목코드", "품목명"
     };
     private static final Pattern PLACEHOLDER_CODE =
@@ -43,28 +53,31 @@ public class EcountProductImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountProductImportResult importCsv(InputStream itemCsv, InputStream relationCsv,
                                                InputStream groupCsv, String actorUserId) {
         byte[] itemContent = EcountCsvSupport.readRequired(itemCsv);
         String sourceFileHash = EcountCsvSupport.computeFileHash(itemContent);
+        acquireImportLock(sourceFileHash);
         EcountCsvSupport.ParsedCsv itemParsed = EcountCsvSupport.parse(itemContent);
         EcountCsvSupport.validateHeader(itemParsed.header(), ITEM_HEADERS);
 
-        Map<String, String> relationMainByAlias = parseRelations(relationCsv, actorUserId);
+        RelationParseResult relationParse = parseRelations(relationCsv, actorUserId);
+        Map<String, String> relationMainByAlias = relationParse.mainCodeByAlias();
         Map<String, String> groupByCode = parseGroups(groupCsv, actorUserId);
 
         Map<String, ItemRow> itemsByCode = new LinkedHashMap<>();
-        Map<String, String> mainCodeByName = new HashMap<>();
+        Map<String, Integer> normalNameCounts = new HashMap<>();
         List<ItemRow> itemRows = new ArrayList<>();
         for (int i = 0; i < itemParsed.dataRows().size(); i++) {
-            int rowNo = itemParsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] cells = EcountCsvSupport.normalizeRow(itemParsed.dataRows().get(i), ITEM_HEADERS.length);
             ItemRow row = new ItemRow(rowNo, cells);
             itemRows.add(row);
             stagingItemUpsert(sourceFileHash, rowNo, cells, actorUserId);
             if (isNormal(row.code(), row.name())) {
                 itemsByCode.putIfAbsent(row.code(), row);
-                mainCodeByName.putIfAbsent(row.name(), row.code());
+                normalNameCounts.merge(row.name(), 1, Integer::sum);
             }
         }
 
@@ -93,20 +106,27 @@ public class EcountProductImporter {
                 continue;
             }
 
-            String mainCode = relationMainByAlias.getOrDefault(row.code(),
-                    mainCodeByName.getOrDefault(row.name(), row.code()));
-            ItemRow mainRow = itemsByCode.get(mainCode);
-            if (mainRow == null) {
+            String explicitMainCode = relationMainByAlias.get(row.code());
+            if (explicitMainCode != null && !itemsByCode.containsKey(explicitMainCode)) {
                 skippedRelationOrphan++;
                 updateItemStatus(sourceFileHash, row.rowNo(), "SKIPPED_RELATION_ORPHAN",
-                        "대표품목코드 raw 미존재 (" + mainCode + ")", null, null);
+                        "대표품목코드 raw 미존재 (" + explicitMainCode + ")", null, null);
                 addRejectSample(rejectedSample, row.rowNo(), "SKIPPED_RELATION_ORPHAN", row.code(), row.name());
                 continue;
             }
+            ProductMainCandidate mainCandidate = resolveMainCandidate(
+                    row, explicitMainCode, relationParse.mainCodes(), itemsByCode, normalNameCounts);
+            String mainCode = mainCandidate.mainCode();
+            ItemRow mainRow = mainCandidate.rawRow();
 
-            UpsertProductResult upsert = productByMainCode.computeIfAbsent(mainCode,
-                    code -> upsertProduct(mainRow, groupByCode.get(mainCode), actorUserId));
-            if (countedMainCodes.add(mainCode)) {
+            UpsertProductResult upsert = productByMainCode.get(mainCode);
+            if (upsert == null) {
+                upsert = mainRow == null
+                        ? new UpsertProductResult(mainCandidate.existingProductId(), false)
+                        : upsertProduct(mainRow, groupByCode.get(mainCode), actorUserId);
+                productByMainCode.put(mainCode, upsert);
+            }
+            if (mainRow != null && countedMainCodes.add(mainCode)) {
                 if (upsert.isNew()) {
                     imported++;
                 } else {
@@ -127,26 +147,34 @@ public class EcountProductImporter {
                 skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample);
     }
 
-    private Map<String, String> parseRelations(InputStream relationCsv, String actorUserId) {
+    private RelationParseResult parseRelations(InputStream relationCsv, String actorUserId) {
         if (relationCsv == null) {
-            return Map.of();
+            return new RelationParseResult(Map.of(), Set.of());
         }
         byte[] content = EcountCsvSupport.readRequired(relationCsv);
         String hash = EcountCsvSupport.computeFileHash(content);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountCsvSupport.validateHeader(parsed.header(), RELATION_HEADERS);
         Map<String, String> relation = new HashMap<>();
+        Set<String> mainCodes = new HashSet<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
-            int rowNo = parsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), RELATION_HEADERS.length);
             stagingRelationUpsert(hash, rowNo, c, actorUserId);
             String mainCode = c[0];
             String aliasCode = c[3];
             if (!mainCode.isBlank() && !aliasCode.isBlank()) {
+                String existingMain = relation.get(aliasCode);
+                if (existingMain != null && !existingMain.equals(mainCode)) {
+                    throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
+                            "동일 alias_code 가 같은 파일 안에서 다른 main 에 매핑됩니다: aliasCode="
+                                    + aliasCode + ", sourceRowNo=" + rowNo);
+                }
                 relation.put(aliasCode, mainCode);
+                mainCodes.add(mainCode);
             }
         }
-        return relation;
+        return new RelationParseResult(relation, mainCodes);
     }
 
     private Map<String, String> parseGroups(InputStream groupCsv, String actorUserId) {
@@ -159,7 +187,7 @@ public class EcountProductImporter {
         EcountCsvSupport.validateHeader(parsed.header(), GROUP_HEADERS);
         Map<String, String> groups = new HashMap<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
-            int rowNo = parsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), GROUP_HEADERS.length);
             stagingGroupUpsert(hash, rowNo, c, actorUserId);
             if (!c[2].isBlank() && !c[1].isBlank()) {
@@ -167,6 +195,35 @@ public class EcountProductImporter {
             }
         }
         return groups;
+    }
+
+    private void acquireImportLock(String sourceFileHash) {
+        jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(:lockKey)",
+                new MapSqlParameterSource("lockKey",
+                        EcountCsvSupport.advisoryLockKey(IMPORT_LOCK_NAMESPACE, sourceFileHash)),
+                Object.class);
+    }
+
+    private ProductMainCandidate resolveMainCandidate(ItemRow row, String explicitMainCode, Set<String> relationMainCodes,
+                                                      Map<String, ItemRow> itemsByCode,
+                                                      Map<String, Integer> normalNameCounts) {
+        if (explicitMainCode != null) {
+            return new ProductMainCandidate(explicitMainCode, itemsByCode.get(explicitMainCode), null);
+        }
+        if (relationMainCodes.contains(row.code())) {
+            return new ProductMainCandidate(row.code(), row, null);
+        }
+        String dbMainCode = findActiveProductCodeByName(row.name());
+        if (dbMainCode != null && !dbMainCode.isBlank()) {
+            ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
+            return new ProductMainCandidate(dbMainCode, dbMainRaw,
+                    dbMainRaw == null ? findActiveProductIdByCode(dbMainCode) : null);
+        }
+        if (normalNameCounts.getOrDefault(row.name(), 0) == 1) {
+            return new ProductMainCandidate(row.code(), row, null);
+        }
+        throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                "품목 main 후보를 결정할 수 없습니다: name=" + row.name() + ", sourceRowNo=" + row.rowNo());
     }
 
     private boolean isNormal(String code, String name) {
@@ -195,6 +252,7 @@ public class EcountProductImporter {
                 .addValue("spec", truncate(row.cells()[11], 255))
                 .addValue("businessType", normalizeItemType(row.cells()[10]))
                 .addValue("categoryGroup", truncate(categoryGroup, 100))
+                .addValue("productGroup1", truncate(categoryGroup, 50))
                 .addValue("sellingPrice", outbound)
                 .addValue("purchasePrice", inbound)
                 .addValue("outboundPrice", outbound)
@@ -220,7 +278,7 @@ public class EcountProductImporter {
               (SELECT id FROM categories WHERE code = 'ECOUNT_MIG2' AND is_deleted = FALSE LIMIT 1),
               :sellingPrice, :purchasePrice, 'KRW', 'ACTIVE',
               NULL, NULL, :code, :spec, 'EA', :businessType, TRUE,
-              TRUE, :categoryGroup, :inboundPrice, :outboundPrice, :singlePrice, :outdoorPrice,
+              TRUE, :productGroup1, :inboundPrice, :outboundPrice, :singlePrice, :outdoorPrice,
               :multi50Price, :multi48Price, :multi45Price, :item35Price, :categoryGroup, 'TAXABLE',
               :outboundPrice, NOW(), :actor, FALSE
             )
@@ -257,14 +315,7 @@ public class EcountProductImporter {
                 .addValue("mainId", mainProductId)
                 .addValue("hash", hash)
                 .addValue("rowNo", rowNo);
-        if (exists("""
-                SELECT COUNT(1) FROM product_aliases
-                 WHERE alias_code = :alias AND main_product_id <> :mainId AND is_deleted = FALSE
-                """, p)) {
-            throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
-                    "동일 alias_code 가 다른 main 에 매핑됩니다: " + aliasCode);
-        }
-        jdbcTemplate.update("""
+        int aliasRows = jdbcTemplate.update("""
                 INSERT INTO product_aliases (alias_code, main_product_id, source, created_at, created_by, is_deleted)
                 VALUES (:alias, :mainId, 'ECOUNT_IMPORT', NOW(), 'system', FALSE)
                 ON CONFLICT (alias_code) WHERE is_deleted = FALSE DO UPDATE SET
@@ -272,8 +323,14 @@ public class EcountProductImporter {
                   source = EXCLUDED.source,
                   modified_at = NOW(),
                   modified_by = 'system'
+                WHERE product_aliases.main_product_id = EXCLUDED.main_product_id
                 """, p);
-        jdbcTemplate.update("""
+        if (aliasRows == 0) {
+            throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
+                    "동일 alias_code 가 다른 main 에 매핑됩니다: aliasCode=" + aliasCode
+                            + ", sourceRowNo=" + rowNo);
+        }
+        int mapRows = jdbcTemplate.update("""
                 INSERT INTO staging.ecount_item_alias
                     (alias_code, main_item_code, main_product_uuid, source_file_hash, source_row_no, updated_at)
                 VALUES (:alias, :mainCode, :mainId, :hash, :rowNo, NOW())
@@ -283,12 +340,52 @@ public class EcountProductImporter {
                   source_file_hash = EXCLUDED.source_file_hash,
                   source_row_no = EXCLUDED.source_row_no,
                   updated_at = NOW()
+                WHERE staging.ecount_item_alias.main_product_uuid = EXCLUDED.main_product_uuid
                 """, p);
+        if (mapRows == 0) {
+            throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
+                    "품목 alias lookup map 이 다른 main_product_uuid 를 가리킵니다: aliasCode="
+                            + aliasCode + ", sourceRowNo=" + rowNo);
+        }
     }
 
     private boolean exists(String sql, MapSqlParameterSource p) {
         Integer count = jdbcTemplate.queryForObject(sql, p, Integer.class);
         return count != null && count > 0;
+    }
+
+    private String findActiveProductCodeByName(String name) {
+        try {
+            return jdbcTemplate.queryForObject("""
+                    SELECT product_code
+                      FROM products
+                     WHERE name = :name AND is_deleted = FALSE
+                     ORDER BY created_at ASC
+                     LIMIT 1
+                    """, new MapSqlParameterSource("name", name), String.class);
+        } catch (EmptyResultDataAccessException ex) {
+            return null;
+        }
+    }
+
+    private UUID findActiveProductIdByCode(String code) {
+        try {
+            UUID productId = jdbcTemplate.queryForObject("""
+                    SELECT id
+                      FROM products
+                     WHERE product_code = :code AND is_deleted = FALSE
+                     ORDER BY created_at ASC
+                     LIMIT 1
+                    """, new MapSqlParameterSource("code", code), UUID.class);
+            if (productId == null) {
+                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                        "DB main 품목 UUID 를 찾을 수 없습니다: code=" + code);
+            }
+            return productId;
+        } catch (EmptyResultDataAccessException ex) {
+            throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                    "DB main 품목 UUID 를 찾을 수 없습니다: code=" + code);
+        }
     }
 
     private void stagingItemUpsert(String hash, int rowNo, String[] c, String actor) {
@@ -445,5 +542,11 @@ public class EcountProductImporter {
     }
 
     private record UpsertProductResult(UUID productId, boolean isNew) {
+    }
+
+    private record ProductMainCandidate(String mainCode, ItemRow rawRow, UUID existingProductId) {
+    }
+
+    private record RelationParseResult(Map<String, String> mainCodeByAlias, Set<String> mainCodes) {
     }
 }

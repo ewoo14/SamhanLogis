@@ -75,4 +75,12 @@ configure(leafProjects.collect { project(it) }) {
         useJUnitPlatform()
         systemProperty 'file.encoding', 'UTF-8'
     }
+
+    dependencies {
+        constraints {
+            implementation('commons-beanutils:commons-beanutils:1.11.0') {
+                because 'CVE-2025-48734 대응: OpenCSV transitive commons-beanutils 하한 고정'
+            }
+        }
+    }
 }

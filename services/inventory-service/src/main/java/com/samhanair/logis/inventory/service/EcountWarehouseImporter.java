@@ -1,6 +1,8 @@
 package com.samhanair.logis.inventory.service;
 
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.web.dto.EcountWarehouseImportResult;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -12,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** MIG-2 — 이카운트 창고 CSV → warehouses + warehouse lookup map import. */
 @Slf4j
@@ -19,7 +24,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EcountWarehouseImporter {
 
-    private static final String[] HEADERS = {
+    private static final UUID IMPORT_LOCK_NAMESPACE = UUID.fromString("982b42cc-8a27-4e9e-a554-98cb8a8a45c7");
+    // raw: docs/migration/ecount-data/raw/창고-Excel다운로드.csv
+    static final String[] HEADERS = {
             "창고코드", "창고명", "구분", "생산공정명", "외주거래처명", "사용", "추가사업장명"
     };
     private static final Pattern PLACEHOLDER_CODE =
@@ -28,9 +35,11 @@ public class EcountWarehouseImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountWarehouseImportResult importCsv(InputStream csv, String actorUserId) {
         byte[] content = EcountCsvSupport.readRequired(csv);
         String hash = EcountCsvSupport.computeFileHash(content);
+        acquireImportLock(hash);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountCsvSupport.validateHeader(parsed.header(), HEADERS);
 
@@ -41,7 +50,7 @@ public class EcountWarehouseImporter {
         List<EcountWarehouseImportResult.RejectedRow> rejected = new ArrayList<>();
 
         for (int i = 0; i < parsed.dataRows().size(); i++) {
-            int rowNo = parsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             stagingUpsert(hash, rowNo, c, actorUserId);
             String code = c[0];
@@ -104,7 +113,7 @@ public class EcountWarehouseImporter {
     }
 
     private void upsertMap(String code, String name, UUID warehouseId, String hash) {
-        jdbcTemplate.update("""
+        int rows = jdbcTemplate.update("""
                 INSERT INTO staging.ecount_warehouse_map
                     (ecount_code, ecount_name, warehouse_uuid, source_file_hash, updated_at)
                 VALUES (:code, :name, :id, :hash, NOW())
@@ -113,12 +122,24 @@ public class EcountWarehouseImporter {
                   warehouse_uuid = EXCLUDED.warehouse_uuid,
                   source_file_hash = EXCLUDED.source_file_hash,
                   updated_at = NOW()
+                WHERE staging.ecount_warehouse_map.warehouse_uuid = EXCLUDED.warehouse_uuid
                 """,
                 new MapSqlParameterSource()
                         .addValue("code", truncate(code, 50))
                         .addValue("name", truncate(name, 100))
                         .addValue("id", warehouseId)
                         .addValue("hash", hash));
+        if (rows == 0) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "창고 lookup map 이 다른 warehouse_uuid 를 가리킵니다: code=" + code);
+        }
+    }
+
+    private void acquireImportLock(String sourceFileHash) {
+        jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(:lockKey)",
+                new MapSqlParameterSource("lockKey",
+                        EcountCsvSupport.advisoryLockKey(IMPORT_LOCK_NAMESPACE, sourceFileHash)),
+                Object.class);
     }
 
     private void stagingUpsert(String hash, int rowNo, String[] c, String actor) {

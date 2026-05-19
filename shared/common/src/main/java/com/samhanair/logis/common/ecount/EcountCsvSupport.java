@@ -9,11 +9,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.apache.commons.io.input.BOMInputStream;
 
 /** 이카운트 CSV import 공통 유틸리티 — MIG-1 importer 의 BOM/OpenCSV/hash 패턴을 서비스별 MIG-2 importer 에 재사용한다. */
@@ -48,6 +51,20 @@ public final class EcountCsvSupport {
             return sb.toString();
         } catch (NoSuchAlgorithmException ex) {
             throw new BusinessException(ErrorCode.MIG2_FILE_HASH_INVALID, "SHA-256 hash 계산 실패", ex);
+        }
+    }
+
+    public static long advisoryLockKey(UUID namespace, String sourceFileHash) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            BigInteger seed = new BigInteger(1, md.digest(sourceFileHash.getBytes(StandardCharsets.UTF_8)));
+            ByteBuffer buffer = ByteBuffer.allocate(16)
+                    .putLong(namespace.getMostSignificantBits())
+                    .putLong(namespace.getLeastSignificantBits());
+            BigInteger namespaceBits = new BigInteger(1, buffer.array());
+            return namespaceBits.xor(seed).longValue();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new BusinessException(ErrorCode.MIG2_FILE_HASH_INVALID, "MD5 lock seed 계산 실패", ex);
         }
     }
 

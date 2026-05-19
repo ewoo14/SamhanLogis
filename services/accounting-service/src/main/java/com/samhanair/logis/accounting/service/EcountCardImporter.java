@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** MIG-2 — 이카운트 통장계좌 CSV → card_master import. */
 @Slf4j
@@ -21,7 +24,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EcountCardImporter {
 
-    private static final String[] HEADERS = {
+    private static final UUID IMPORT_LOCK_NAMESPACE = UUID.fromString("86a3d73c-5aa1-4685-a3d6-432c7cda071e");
+    // raw: docs/migration/ecount-data/raw/통장계좌-Excel다운로드.csv
+    static final String[] HEADERS = {
             "계좌코드", "계좌명", "계정명(계정코드)", "검색창내용", "적요", "외화통장", "사용"
     };
     private static final Pattern PLACEHOLDER_CODE =
@@ -31,9 +36,11 @@ public class EcountCardImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountCardImportResult importCsv(InputStream csv, String actorUserId) {
         byte[] content = EcountCsvSupport.readRequired(csv);
         String hash = EcountCsvSupport.computeFileHash(content);
+        acquireImportLock(hash);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountCsvSupport.validateHeader(parsed.header(), HEADERS);
 
@@ -44,7 +51,7 @@ public class EcountCardImporter {
         List<EcountCardImportResult.RejectedRow> rejected = new ArrayList<>();
 
         for (int i = 0; i < parsed.dataRows().size(); i++) {
-            int rowNo = parsed.headerIndex() + 2 + i;
+            int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             stagingUpsert(hash, rowNo, c, actorUserId);
             String code = c[0];
@@ -75,6 +82,13 @@ public class EcountCardImporter {
                 parsed.dataRows().size(), imported, updated, rejectedNullName, skippedPlaceholder, hash);
         return new EcountCardImportResult(parsed.dataRows().size(), imported, updated,
                 rejectedNullName, skippedPlaceholder, hash, rejected);
+    }
+
+    private void acquireImportLock(String sourceFileHash) {
+        jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(:lockKey)",
+                new MapSqlParameterSource("lockKey",
+                        EcountCsvSupport.advisoryLockKey(IMPORT_LOCK_NAMESPACE, sourceFileHash)),
+                Object.class);
     }
 
     private UUID upsertCard(String code, String name, String[] c, String actor) {

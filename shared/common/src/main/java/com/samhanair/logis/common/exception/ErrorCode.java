@@ -214,6 +214,11 @@ public enum ErrorCode {
     MIG2_ALIAS_DUPLICATE(HttpStatus.CONFLICT,
             "동일 alias_code 가 다른 main 에 매핑"),
     /**
+     * MIG-2 품목 relation/DB/원천 데이터에서 canonical main 후보를 결정할 수 없음.
+     */
+    MIG2_NO_MAIN_CANDIDATE(HttpStatus.UNPROCESSABLE_ENTITY,
+            "품목 main 후보를 결정할 수 없음"),
+    /**
      * MIG-2 source file hash 계산 실패.
      */
     MIG2_FILE_HASH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
