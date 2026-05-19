@@ -3,7 +3,9 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse.LedgerLine;
@@ -13,6 +15,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class LedgerImageService {
 
     private final JournalLineRepository journalLineRepository;
+    private final ChartOfAccountRepository chartOfAccountRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final ChatRoomMappingClient chatRoomMappingClient;
 
@@ -61,15 +67,29 @@ public class LedgerImageService {
                 ? List.of()
                 : journalLineRepository.findPartnerLinesInRange(summary.partnerId(), from, to);
 
+        // SP-08-FU2 P2-4 — accountName 매핑 캐시 (N+1 방지)
+        Set<String> accountCodes = lines.stream()
+                .map(JournalLine::getAccountCode)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, String> accountNameCache = chartOfAccountRepository.findAllById(accountCodes)
+                .stream()
+                .collect(Collectors.toMap(ChartOfAccount::getCode, ChartOfAccount::getName));
+
         List<LedgerLine> ledgerLines = new ArrayList<>(lines.size());
         BigDecimal balance = BigDecimal.ZERO;
         for (JournalLine l : lines) {
             // 차변잔액 normal — debit 가산 / credit 감산
             balance = balance.add(l.getDebitAmount()).subtract(l.getCreditAmount());
+            // SP-08-FU2 P2-4 — 계정명 캐시 조회 (없으면 null)
+            String accountName = l.getAccountCode() != null
+                    ? accountNameCache.get(l.getAccountCode())
+                    : null;
             ledgerLines.add(new LedgerLine(
                     l.getJournal().getJournalDate(),
                     l.getJournal().getJournalNo(),
                     l.getAccountCode(),
+                    accountName,
                     l.getMemo() == null ? l.getJournal().getDescription() : l.getMemo(),
                     l.getDebitAmount(),
                     l.getCreditAmount(),

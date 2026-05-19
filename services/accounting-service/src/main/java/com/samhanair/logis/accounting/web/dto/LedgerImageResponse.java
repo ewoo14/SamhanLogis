@@ -29,20 +29,23 @@ public record LedgerImageResponse(
         List<LedgerLine> lines) {
 
     /**
-     * 원장 라인 1건 — 일자 / 분개번호 / 적요 / 차변 / 대변 / 누적 잔액.
+     * 원장 라인 1건 — 일자 / 분개번호 / 계정코드 / 계정명 / 적요 / 차변 / 대변 / 누적 잔액.
      *
-     * @param date 분개 일자
-     * @param journalNo 분개번호 (사용자 노출, UUID 대신)
+     * @param date        분개 일자
+     * @param journalNo   분개번호 (사용자 노출, UUID 대신)
      * @param accountCode 계정 코드 (110/401/255 등)
+     * @param accountName 계정명 — SP-08-FU2 P2-4 신규. ChartOfAccount 마스터 lookup 결과.
+     *                    해당 코드의 계정과목이 없거나 조회 실패 시 null.
      * @param description 적요
-     * @param debit 차변 금액 (0 가능)
-     * @param credit 대변 금액 (0 가능)
-     * @param balance 누적 잔액 (해당 라인 적용 후, 차변잔액 normal)
+     * @param debit       차변 금액 (0 가능)
+     * @param credit      대변 금액 (0 가능)
+     * @param balance     누적 잔액 (해당 라인 적용 후, 차변잔액 normal)
      */
     public record LedgerLine(
             LocalDate date,
             String journalNo,
             String accountCode,
+            String accountName,
             String description,
             BigDecimal debit,
             BigDecimal credit,

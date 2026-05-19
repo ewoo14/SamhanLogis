@@ -134,6 +134,20 @@ public class Slip extends BaseEntity {
     @Column(name = "destination_warehouse_id")
     private UUID destinationWarehouseId;
 
+    /**
+     * 도착지 창고명 snapshot — SP-08-FU2 P2-2 (V26 migration) 신규.
+     *
+     * <p>inventory-service {@code GET /internal/warehouses/{warehouseId}} 조회 결과를
+     * 입고전표 생성/수정 시점에 snapshot 저장. UUID 비공개 가드 의무
+     * (memory feedback_uuid_no_user_visibility) — destinationWarehouseId(UUID) 대신
+     * FE 가 이 컬럼을 사용자 화면에 표시한다.
+     *
+     * <p>채움 정책: inventory-service lookup 실패 시 null 유지 (fail-soft).
+     * 기존 row 는 NULL — legacy 호환 (backfill 별도 운영).
+     */
+    @Column(name = "destination_warehouse_name", length = 100)
+    private String destinationWarehouseName;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "delivery_tag", length = 30)
     private DeliveryTag deliveryTag;
@@ -857,6 +871,20 @@ public class Slip extends BaseEntity {
      */
     public void setClassifiedRegionGroup(String classifiedRegionGroup) {
         this.classifiedRegionGroup = classifiedRegionGroup;
+    }
+
+    /**
+     * 도착지 창고명 snapshot 갱신 — SP-08-FU2 P2-2 (V26) 신규.
+     *
+     * <p>inventory-service warehouse lookup 결과를 입고전표 생성/수정 시점에 snapshot.
+     * 단계 가드 없음 — partner_code {@link #setPartnerCode} 와 동일한 패턴 (어떤 단계에서도 갱신 가능).
+     *
+     * @param destinationWarehouseName inventory-service 가 반환한 창고명. null 허용 (lookup 실패 시 유지).
+     */
+    public void snapshotDestinationWarehouseName(String destinationWarehouseName) {
+        if (destinationWarehouseName != null) {
+            this.destinationWarehouseName = destinationWarehouseName;
+        }
     }
 
     /**

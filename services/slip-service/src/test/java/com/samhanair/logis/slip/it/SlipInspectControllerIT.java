@@ -12,6 +12,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -77,6 +78,9 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
     /** 외부 client 격리 — SP-08-5-5 신규. user-service ownerFullName lookup 차단. */
     @MockBean
     private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     /**
      * SP-D3 동적 권한 client 격리.

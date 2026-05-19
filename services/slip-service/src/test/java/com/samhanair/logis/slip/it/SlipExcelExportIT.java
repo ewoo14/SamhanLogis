@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -92,6 +93,9 @@ class SlipExcelExportIT extends AbstractPostgresIT {
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean
     private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     /** 공통 export endpoint. BE 가 구현하면 URL 변경 가능 (현재 명세 기준). */
     private static final String EXPORT_URL = "/slips/export.xlsx";

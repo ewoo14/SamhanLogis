@@ -10,9 +10,12 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.AccountCategory;
+import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
+import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -21,13 +24,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 /**
  * LedgerImageService 단위 테스트 — BE-A9.
@@ -39,15 +46,27 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *   <li>단톡방 join — chatRoomNames 응답 포함</li>
  *   <li>거래처 not found — partnerCode 미존재 시 NOT_FOUND</li>
  * </ul>
+ *
+ * <p>SP-08-FU2 P2-4 — ChartOfAccountRepository Mock 추가 (accountName 매핑용 — lenient stub).
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class LedgerImageServiceTest {
 
     @Mock private JournalLineRepository journalLineRepository;
+    /** SP-08-FU2 P2-4 — accountName 매핑 캐시 조회용. lenient stub (빈 목록 반환). */
+    @Mock private ChartOfAccountRepository chartOfAccountRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private ChatRoomMappingClient chatRoomMappingClient;
 
     @InjectMocks private LedgerImageService service;
+
+    @BeforeEach
+    void stubChartOfAccount() {
+        // chartOfAccountRepository 기본 stub — accountName lookup 시 빈 리스트 반환 (lenient)
+        lenient().when(chartOfAccountRepository.findAllById(org.mockito.ArgumentMatchers.anyCollection()))
+                .thenReturn(List.of());
+    }
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
     private static final LocalDate TO = LocalDate.of(2026, 5, 31);
@@ -132,6 +151,34 @@ class LedgerImageServiceTest {
         assertThatThrownBy(() -> service.getLedger("UNKNOWN", FROM, TO))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("존재하지 않는 거래처");
+    }
+
+    @Test
+    @DisplayName("SP-08-FU2 P2-4 — accountName 매핑: ChartOfAccount 조회 결과가 LedgerLine.accountName 에 반영")
+    void accountNameMappedFromChartOfAccount() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("P-004"))
+                .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-004", "계정명테스트", "", "")));
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode("P-004"))
+                .thenReturn(List.of());
+
+        Journal j1 = newJournal("20260501-2", LocalDate.of(2026, 5, 1), "매출");
+        JournalLine line = JournalLine.create(j1, 1, "110",
+                new BigDecimal("50000"), BigDecimal.ZERO, partnerId, "외상매출");
+        when(journalLineRepository.findPartnerLinesInRange(eq(partnerId), eq(FROM), eq(TO)))
+                .thenReturn(List.of(line));
+
+        // ChartOfAccount stub — code="110", name="외상매출금"
+        ChartOfAccount coa = ChartOfAccount.create("110", "외상매출금",
+                AccountCategory.ASSET, "100", true, 1);
+        when(chartOfAccountRepository.findAllById(Set.of("110")))
+                .thenReturn(List.of(coa));
+
+        LedgerImageResponse resp = service.getLedger("P-004", FROM, TO);
+
+        assertThat(resp.lines()).hasSize(1);
+        assertThat(resp.lines().get(0).accountCode()).isEqualTo("110");
+        assertThat(resp.lines().get(0).accountName()).isEqualTo("외상매출금");
     }
 
     private static Journal newJournal(String no, LocalDate date, String desc) {

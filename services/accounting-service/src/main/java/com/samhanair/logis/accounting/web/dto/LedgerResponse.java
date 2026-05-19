@@ -32,11 +32,13 @@ public record LedgerResponse(
 ) {
 
     /**
-     * 원장 라인 1건 — 일자 / 분개번호 / 계정코드 / 거래처코드 / 적요 / 차변 / 대변 / 잔액.
+     * 원장 라인 1건 — 일자 / 분개번호 / 계정코드 / 계정명 / 거래처코드 / 적요 / 차변 / 대변 / 잔액.
      *
      * @param date        분개 일자
      * @param journalNo   분개번호 (사용자 노출 비즈니스 식별자)
      * @param accountCode 계정코드 (110/401 등)
+     * @param accountName 계정명 — SP-08-FU2 P2-4 신규. ChartOfAccount 마스터 lookup 결과.
+     *                    해당 코드의 계정과목이 없거나 조회 실패 시 null.
      * @param partnerCode 거래처코드 (해당 라인의 partnerId lookup 결과 — 없으면 null)
      * @param description 적요
      * @param debit       차변
@@ -47,6 +49,7 @@ public record LedgerResponse(
             LocalDate date,
             String journalNo,
             String accountCode,
+            String accountName,
             String partnerCode,
             String description,
             BigDecimal debit,

@@ -38,6 +38,12 @@ import java.util.UUID;
  *       단건 조회 resolve. null 이면 FE 는 {@code '-'} 표시. 인쇄 양식 담당자 영역 자동 표시 목적.
  *       단건 GET 전용 — mutation 응답은 null 반환 (graceful fallback).</li>
  * </ul>
+ *
+ * <p>SP-08-FU2 P2-2 신규 필드:
+ * <ul>
+ *   <li>{@code destinationWarehouseName} — 도착지 창고명 snapshot (inventory-service lookup).
+ *       null 이면 FE 는 {@code '—'} 대체 표시 (UUID 비공개 가드 의무 충족).</li>
+ * </ul>
  */
 public record SlipDetailResponse(
         UUID id,
@@ -93,6 +99,12 @@ public record SlipDetailResponse(
          * FE 는 null 이면 {@code '-'} 대체 표시.
          */
         String ownerFullName,
+        /**
+         * 도착지 창고명 snapshot — SP-08-FU2 P2-2 (V26). inventory-service lookup 결과.
+         * FE {@code InboundInspectionDialog} 가 {@code detail.destinationWarehouseName ?? '—'} 사용.
+         * null 허용 — lookup 실패 또는 legacy row.
+         */
+        String destinationWarehouseName,
         List<SlipLineResponse> lines) {
 
     /**
@@ -151,6 +163,8 @@ public record SlipDetailResponse(
                 slip.getPrintedAt() != null,
                 inspectionStatusOf(slip),
                 ownerFullName,
+                // SP-08-FU2 P2-2 — 도착지 창고명 snapshot
+                slip.getDestinationWarehouseName(),
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
     }
 

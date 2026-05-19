@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
@@ -107,6 +108,9 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
 
     @MockBean
     private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;

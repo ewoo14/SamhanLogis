@@ -3,7 +3,9 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerResponse.LedgerLine;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,6 +54,7 @@ public class LedgerService {
     static final String PAGE_CODE = "accounting.general-ledger";
 
     private final JournalLineRepository journalLineRepository;
+    private final ChartOfAccountRepository chartOfAccountRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final DynamicPermissionClient dynamicPermissionClient;
 
@@ -99,11 +103,11 @@ public class LedgerService {
             lines = journalLineRepository.findAllPostedLinesInRange(from, to);
         }
 
-        // N+1 방지: 라인의 모든 partnerId 를 일괄 수집 후 단건 lookup 캐시 구성
+        // N+1 방지 (partnerId): 라인의 모든 partnerId 를 일괄 수집 후 단건 lookup 캐시 구성
         Set<UUID> partnerIdSet = lines.stream()
                 .map(JournalLine::getPartnerId)
                 .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         Map<UUID, String> partnerCodeCache = new HashMap<>();
         for (UUID pid : partnerIdSet) {
             String code = partnerLookupClient.findByPartnerId(pid)
@@ -111,6 +115,16 @@ public class LedgerService {
                     .orElse(null);
             partnerCodeCache.put(pid, code);
         }
+
+        // N+1 방지 (accountCode): 라인의 모든 accountCode 를 일괄 수집 후 ChartOfAccount 캐시 구성
+        // SP-08-FU2 P2-4 — accountName 매핑용 인메모리 캐시 (DB round-trip 최소화)
+        Set<String> accountCodes = lines.stream()
+                .map(JournalLine::getAccountCode)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, String> accountNameCache = chartOfAccountRepository.findAllById(accountCodes)
+                .stream()
+                .collect(Collectors.toMap(ChartOfAccount::getCode, ChartOfAccount::getName));
 
         // 원장 라인 변환 + 누적 잔액 계산
         BigDecimal balance = BigDecimal.ZERO;
@@ -130,10 +144,16 @@ public class LedgerService {
                     ? partnerCodeCache.get(l.getPartnerId())
                     : null;
 
+            // SP-08-FU2 P2-4 — 계정명 캐시 조회
+            String accountName = l.getAccountCode() != null
+                    ? accountNameCache.get(l.getAccountCode())
+                    : null;
+
             ledgerLines.add(new LedgerLine(
                     l.getJournal().getJournalDate(),
                     l.getJournal().getJournalNo(),
                     l.getAccountCode(),
+                    accountName,
                     linePartnerCode,
                     l.getMemo() != null ? l.getMemo() : l.getJournal().getDescription(),
                     debit,

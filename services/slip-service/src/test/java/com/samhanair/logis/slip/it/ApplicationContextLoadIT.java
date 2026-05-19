@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ReceiptOcrClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +67,9 @@ class ApplicationContextLoadIT extends AbstractPostgresIT {
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean
     private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리 (destinationWarehouseName snapshot fail-soft). */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     /**
      * SP-08-FU1 cycle 2 fix — UserInternalClient lenient stub 적용으로 39 IT 패턴 일관.

@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,6 +78,9 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean
     private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     @BeforeEach
     void setupLenientStubs() {

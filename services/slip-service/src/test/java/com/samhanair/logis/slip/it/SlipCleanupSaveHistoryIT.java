@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.repository.SlipCleanupSaveHistoryRepository;
 import java.util.Map;
@@ -68,6 +69,9 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private ProductClient productClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     @BeforeEach
     void setUpUserInternalClient() {

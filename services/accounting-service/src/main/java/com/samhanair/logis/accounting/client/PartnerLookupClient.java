@@ -81,21 +81,47 @@ public class PartnerLookupClient {
     }
 
     /**
-     * partnerId(UUID) → PartnerSummary fail-soft. partner-service 측 endpoint 가
-     * UUID 기반 internal lookup 을 제공하지 않으면 empty 반환.
+     * partnerId(UUID) → PartnerSummary fail-soft — SP-08-FU2 P2-3 실 구현.
      *
-     * <p>본 슬라이스는 partner-service 의 partnerCode endpoint 만 활용 — partnerId 기반
-     * 조회는 향후 endpoint 추가 시 본 메서드를 본격 구현. 현 단계에서는 caller 가 분개의
-     * partnerId 만으로 응답 구성 시 partnerCode/name 누락 가능성을 인지하고 fallback.
+     * <p>partner-service {@code GET /internal/partners/{id}/summary} 호출.
+     * 성공 시 PartnerSummary (partnerCode + name 포함) 반환.
+     * 404 / 401 / 5xx / 네트워크 오류 모두 empty 반환 (caller 가 fallback 처리).
      *
-     * @return 항상 empty (placeholder — 본격 구현 보류)
+     * <p>인증 = X-Internal-Token (env {@code SAMHAN_INTERNAL_TOKEN}).
+     *
+     * @param partnerId 거래처 UUID (필수)
+     * @return PartnerSummary (성공) 또는 empty (실패)
      */
     public Optional<PartnerSummary> findByPartnerId(UUID partnerId) {
         if (partnerId == null) {
             return Optional.empty();
         }
-        log.debug("PartnerLookupClient.findByPartnerId — placeholder (partnerId={})", partnerId);
-        return Optional.empty();
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("PartnerLookupClient — X-Internal-Token 미설정, partnerId lookup 건너뜀 (partnerId={})",
+                    partnerId);
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/partners/{partnerId}/summary", partnerId)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseSummary(body);
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 404) {
+                log.debug("PartnerLookupClient — partnerId={} 404 (정상 미존재)", partnerId);
+                return Optional.empty();
+            }
+            log.warn("PartnerLookupClient — partnerId={} status={} (예외)", partnerId, status);
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("PartnerLookupClient partnerId 호출 실패 — partnerId={}, msg={}",
+                    partnerId, ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     /** ApiResponse wrapper 의 data 필드 → PartnerSummary 변환. */

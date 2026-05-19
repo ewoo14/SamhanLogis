@@ -144,4 +144,30 @@ public class PartnerInternalController {
     public ApiResponse<PartnerBusinessNumberResponse> getBusinessNumber(@PathVariable UUID id) {
         return ApiResponse.ok(PartnerBusinessNumberResponse.from(partnerService.findById(id)));
     }
+
+    /**
+     * partnerId (UUID) 로 거래처 마스터 요약 조회 — SP-08-FU2 P2-3 신규.
+     *
+     * <p>accounting-service {@code PartnerLookupClient.findByPartnerId} 실 구현에 필요한 endpoint.
+     * {@link PartnerInternalResponse} 와 동일 구조 — partnerCode / name 포함.
+     *
+     * <p>인증: X-Internal-Token 필수 (ROLE_MASTER 부여). 토큰 누락 시 403, 불일치 시 401.
+     *
+     * @param id 거래처 UUID (path variable)
+     * @return 200 + PartnerInternalResponse (partnerId / partnerCode / name 등)
+     *         ; 미존재 시 404 NOT_FOUND ; 토큰 누락 시 403 ; 토큰 불일치 시 401
+     */
+    @Operation(summary = "partnerId 로 거래처 마스터 요약 조회 (accounting-service 의존)",
+            description = "accounting-service PartnerLookupClient.findByPartnerId 실 구현용. X-Internal-Token 필수.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
+    })
+    @GetMapping("/{id}/summary")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<PartnerInternalResponse> getPartnerSummary(@PathVariable UUID id) {
+        return ApiResponse.ok(PartnerInternalResponse.from(partnerService.findById(id)));
+    }
 }

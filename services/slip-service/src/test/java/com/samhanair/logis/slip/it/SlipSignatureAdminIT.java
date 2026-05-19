@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.domain.SignatureAuditAction;
@@ -67,6 +68,9 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
     @MockBean private SmsGateway smsGateway;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     @BeforeEach
     void mockClients() {

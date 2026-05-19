@@ -7,6 +7,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
@@ -78,6 +79,12 @@ public class SlipService {
      * 호출 실패 시 graceful fallback (ownerFullName=NULL 유지).
      */
     private final UserInternalClient userInternalClient;
+    /**
+     * SP-08-FU2 P2-2 — inventory-service 창고명 lookup client.
+     * 입고전표 생성/수정 시 destinationWarehouseName snapshot 저장.
+     * 호출 실패 시 null 유지 (fail-soft).
+     */
+    private final WarehouseInternalClient warehouseInternalClient;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -174,6 +181,14 @@ public class SlipService {
                 req.projectName(),
                 req.recipientPhone(),
                 req.paymentDueDate());
+
+        // 9. SP-08-FU2 P2-2 — INBOUND 전표: destinationWarehouseName snapshot
+        // destinationWarehouseId 가 있으면 inventory-service lookup 후 snapshot.
+        // 실패 시 null 유지 (fail-soft).
+        if (req.slipType() == SlipType.INBOUND && req.destinationWarehouseId() != null) {
+            warehouseInternalClient.findWarehouseName(req.destinationWarehouseId())
+                    .ifPresent(slip::snapshotDestinationWarehouseName);
+        }
 
         Slip saved = slipRepository.save(slip);
         return SlipDetailResponse.from(saved);

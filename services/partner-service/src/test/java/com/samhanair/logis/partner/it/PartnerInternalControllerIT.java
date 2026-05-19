@@ -154,4 +154,38 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
                         .content("[\"P-2026-0001\"]"))
                 .andExpect(MockMvcResultMatchers.status().isForbidden());
     }
+
+    /**
+     * SP-08-FU2 P2-3 — partnerId 로 거래처 summary 조회 ({@code GET /internal/partners/{id}/summary}).
+     *
+     * <p>정상 케이스: valid token + 존재하는 partnerId → 200 + partnerCode / name 포함.
+     */
+    @Test
+    void get_summary_by_partner_id_returns_200() throws Exception {
+        Partner saved = partnerRepository.findByPartnerCode("P-2026-0001").orElseThrow();
+        java.util.UUID partnerId = saved.getId();
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/{id}/summary", partnerId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0001"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.name").value("(주)테스트거래처"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerId").exists());
+    }
+
+    /**
+     * SP-08-FU2 P2-3 — 미존재 UUID 로 summary 조회 → 404.
+     */
+    @Test
+    void get_summary_by_missing_partner_id_returns_404() throws Exception {
+        java.util.UUID nonExistentId = java.util.UUID.randomUUID();
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/{id}/summary", nonExistentId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false));
+    }
 }

@@ -150,6 +150,46 @@ class PartnerAgingServiceTest {
         assertThat(line.balance()).isEqualByComparingTo("500000");
     }
 
+    @Test
+    @DisplayName("SP-08-FU2 P2-3 회귀 — findByPartnerId 실 구현 후 partnerCode/partnerName 정상 표시")
+    void findReceivable_partnerIdLookup_returnsCodeAndName() {
+        // PARTNER_A 는 setUp 에서 findByPartnerId → "P-001" / "삼한물류" stub 이미 설정됨.
+        PartnerAgingResponse resp = partnerAgingService.findReceivable(AS_OF);
+
+        PartnerAgingLine lineA = resp.lines().stream()
+                .filter(l -> "P-001".equals(l.partnerCode()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("거래처 A 라인 없음 (findByPartnerId 미구현 fallback 의심)"));
+
+        // 실 구현 시 "(미조회)" 대신 정상 거래처명 반환
+        assertThat(lineA.partnerName()).isEqualTo("삼한물류");
+        assertThat(lineA.partnerCode()).isEqualTo("P-001");
+    }
+
+    @Test
+    @DisplayName("SP-08-FU2 P2-3 회귀 — findByPartnerId empty 반환 시 UUID fallback + 미조회 표시")
+    void findReceivable_partnerIdLookup_emptyFallback() {
+        // PARTNER_B 는 setUp 에서 findByPartnerId → empty stub 이미 설정됨. 잔액은 0 이므로 제외됨.
+        // 잔액 있는 별도 거래처 C 로 검증
+        UUID partnerC = UUID.randomUUID();
+        when(journalLineRepository.aggregateAgingByAccount(eq("110"), any(LocalDate.class)))
+                .thenReturn(List.of(
+                        partnerTotal(partnerC, "110", new BigDecimal("100000"), BigDecimal.ZERO)
+                ));
+        when(partnerLookupClient.findByPartnerId(eq(partnerC)))
+                .thenReturn(Optional.empty());
+        when(journalLineRepository.findOldestJournalDate(eq(partnerC), any(), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
+
+        PartnerAgingResponse resp = partnerAgingService.findReceivable(AS_OF);
+
+        assertThat(resp.lines()).hasSize(1);
+        PartnerAgingLine lineC = resp.lines().get(0);
+        // empty fallback: partnerCode = partnerId.toString(), partnerName = "(미조회)"
+        assertThat(lineC.partnerCode()).isEqualTo(partnerC.toString());
+        assertThat(lineC.partnerName()).isEqualTo("(미조회)");
+    }
+
     // ── fixture 헬퍼 ──
 
     private PartnerAccountTotal partnerTotal(UUID partnerId, String accountCode,

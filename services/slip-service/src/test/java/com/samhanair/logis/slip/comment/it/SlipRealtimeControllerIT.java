@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import java.math.BigDecimal;
@@ -74,6 +75,9 @@ class SlipRealtimeControllerIT extends AbstractPostgresIT {
     @MockBean private PartnerInternalClient partnerInternalClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean private UserInternalClient userInternalClient;
+    /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
 
     @BeforeEach
     void mockProductClient() {
