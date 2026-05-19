@@ -69,6 +69,7 @@ public class TaxInvoiceBatchFromSalesSlipsService {
         for (SalesAccountingSlip slip : slips) {
             slip.linkTaxInvoice(taxInvoiceId);
         }
+        saved.issue(saved.getTaxInvoiceNo(), actorUserId);
 
         return new TaxInvoiceFromSalesSlipsResponse(
                 saved.getTaxInvoiceNo(),
@@ -78,7 +79,8 @@ public class TaxInvoiceBatchFromSalesSlipsService {
                 saved.getVatAmount(),
                 saved.getTotalAmount(),
                 slips.size(),
-                slips.stream().map(SalesAccountingSlip::getSlipNo).toList());
+                slips.stream().map(SalesAccountingSlip::getSlipNo).toList(),
+                saved.getStatus().name());
     }
 
     private String resolvePartnerBusinessNo(String partnerCode) {

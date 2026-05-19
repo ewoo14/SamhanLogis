@@ -11,5 +11,6 @@ public record TaxInvoiceFromSalesSlipsResponse(
         BigDecimal totalVatAmount,
         BigDecimal totalAmount,
         int linkedSalesSlipCount,
-        List<String> linkedSalesSlipNos
+        List<String> linkedSalesSlipNos,
+        String status
 ) {}

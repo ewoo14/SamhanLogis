@@ -14,6 +14,7 @@ import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
+import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequest;
@@ -85,6 +86,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
         assertThat(response.totalAmount()).isEqualByComparingTo("660000.00");
         assertThat(response.linkedSalesSlipCount()).isEqualTo(3);
         assertThat(response.linkedSalesSlipNos()).containsExactly("SAS-1", "SAS-2", "SAS-3");
+        assertThat(response.status()).isEqualTo("ISSUED");
         assertThat(s1.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
         assertThat(s2.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
         assertThat(s3.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
@@ -93,6 +95,8 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
         ArgumentCaptor<TaxInvoice> captor = ArgumentCaptor.forClass(TaxInvoice.class);
         verify(taxInvoiceRepository).save(captor.capture());
         TaxInvoice savedInvoice = captor.getValue();
+        assertThat(savedInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
+        assertThat(savedInvoice.getIssuedBy()).isEqualTo("actor-1");
         assertThat(savedInvoice.getPartnerBusinessNo()).isEqualTo("123-45-67890");
         assertThat(savedInvoice.getLines()).hasSize(3);
         assertThat(savedInvoice.getLines())

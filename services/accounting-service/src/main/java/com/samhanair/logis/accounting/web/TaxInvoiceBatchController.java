@@ -71,12 +71,12 @@ public class TaxInvoiceBatchController {
     private final TaxInvoiceBatchFromSalesSlipsService batchFromSalesSlipsService;
 
     /**
-     * 매출전표 N장 → 세금계산서 1장 DRAFT 생성.
+     * 매출전표 N장 → 세금계산서 1장 묶음 발행.
      *
      * <p>동일 거래처 / 동일월 / POSTED / 미연결 매출전표만 허용합니다.
      */
-    @Operation(summary = "매출전표 묶음 세금계산서 DRAFT 생성",
-            description = "POSTED 매출전표 N장을 동일 거래처·동일월 기준으로 세금계산서 1장에 연결합니다.")
+    @Operation(summary = "매출전표 묶음 세금계산서 발행",
+            description = "POSTED 매출전표 N장을 동일 거래처·동일월 기준으로 세금계산서 1장에 연결하고 ISSUED 상태로 발행합니다.")
     @PreAuthorize("hasRole('MASTER')")
     @PostMapping("/admin/tax-invoices/batch-from-sales-slips")
     public ResponseEntity<TaxInvoiceFromSalesSlipsResponse> createFromSalesSlips(

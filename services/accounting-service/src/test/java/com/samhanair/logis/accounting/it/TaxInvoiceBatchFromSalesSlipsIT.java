@@ -23,6 +23,7 @@ import com.samhanair.logis.accounting.domain.SalesAccountingSlipAllocation;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
+import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequest;
@@ -90,6 +91,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.totalVatAmount").value(60000.00))
                 .andExpect(jsonPath("$.totalAmount").value(660000.00))
                 .andExpect(jsonPath("$.linkedSalesSlipCount").value(3))
+                .andExpect(jsonPath("$.status").value("ISSUED"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -101,6 +103,8 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
                 .findFirst()
                 .orElseThrow();
 
+        assertThat(taxInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
+        assertThat(taxInvoice.getIssuedBy()).isEqualTo("it-tester");
         assertThat(taxInvoice.getSupplyAmount()).isEqualByComparingTo("600000.00");
         assertThat(taxInvoice.getVatAmount()).isEqualByComparingTo("60000.00");
         assertThat(taxInvoice.getTotalAmount()).isEqualByComparingTo("660000.00");
