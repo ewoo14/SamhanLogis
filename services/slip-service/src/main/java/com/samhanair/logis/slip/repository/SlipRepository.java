@@ -150,4 +150,43 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             java.time.LocalDate to,
             java.util.Collection<com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus> statuses,
             Pageable pageable);
+
+    // ---- audit Slice 2 P0 — accounting-service 세금계산서 일괄발행 내부 판매조회 ----
+
+    /**
+     * accounting-service 세금계산서 일괄발행 배치용 OUTBOUND 판매조회 (기간 + 선택적 거래처코드).
+     *
+     * <p>필터 조건:
+     * <ul>
+     *   <li>slipType = OUTBOUND</li>
+     *   <li>status = CONFIRMED (확정 완료 슬립만)</li>
+     *   <li>slipDate ∈ [from, to] (inclusive)</li>
+     *   <li>partnerCode = :partnerCode (null 이면 전체 거래처)</li>
+     *   <li>is_deleted = false</li>
+     * </ul>
+     *
+     * <p>정렬: slipDate ASC, seqNo ASC (배치 처리 순서 보장).
+     *
+     * <p>accounting-service 의 {@code SlipQueryClient.fetchAllSalesRows} 가 페이지 단위로
+     * 반복 호출한다. 응답 Map 키: partnerCode / partnerName / slipNo / slipDate /
+     * accountingDate / supplyAmount / vatAmount / deliveryAddress / itemName.
+     *
+     * @param from        조회 시작일 (포함)
+     * @param to          조회 종료일 (포함)
+     * @param partnerCode 거래처코드 필터 (null 이면 전체)
+     * @param pageable    페이지 정보 (accounting-service 기본 page_size=200)
+     * @return 필터 조건 맞는 OUTBOUND CONFIRMED 슬립 페이지
+     */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT s FROM Slip s WHERE s.isDeleted = false" +
+            " AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND" +
+            " AND s.status = com.samhanair.logis.slip.domain.SlipStatus.CONFIRMED" +
+            " AND s.slipDate BETWEEN :from AND :to" +
+            " AND (:partnerCode IS NULL OR s.partnerCode = :partnerCode)" +
+            " ORDER BY s.slipDate ASC, s.seqNo ASC")
+    Page<Slip> findConfirmedSalesForPeriod(
+            @org.springframework.data.repository.query.Param("from") java.time.LocalDate from,
+            @org.springframework.data.repository.query.Param("to") java.time.LocalDate to,
+            @org.springframework.data.repository.query.Param("partnerCode") String partnerCode,
+            Pageable pageable);
 }
