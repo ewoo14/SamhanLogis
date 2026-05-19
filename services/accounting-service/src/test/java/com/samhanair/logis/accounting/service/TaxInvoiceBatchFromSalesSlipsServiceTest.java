@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlipAllocation;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
@@ -21,10 +23,12 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -34,17 +38,19 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     @Mock SalesAccountingSlipRepository salesSlipRepository;
     @Mock TaxInvoiceRepository taxInvoiceRepository;
     @Mock TaxInvoiceNumberService taxInvoiceNumberService;
+    @Mock PartnerLookupClient partnerLookupClient;
 
     TaxInvoiceBatchFromSalesSlipsService service;
 
     @BeforeEach
     void setUp() {
         service = new TaxInvoiceBatchFromSalesSlipsService(
-                salesSlipRepository, taxInvoiceRepository, taxInvoiceNumberService);
+                salesSlipRepository, taxInvoiceRepository, taxInvoiceNumberService,
+                partnerLookupClient);
     }
 
     @Test
-    void createFromSalesSlips_N1_묶음_거래처월동일_정상() {
+    void createFromSalesSlips_N1_묶음_거래처월동일_라인과_사업자번호_스냅샷_정상() {
         UUID partnerId = UUID.randomUUID();
         UUID taxInvoiceId = UUID.randomUUID();
         SalesAccountingSlip s1 = postedSlip("SAS-1", LocalDate.of(2026, 5, 1),
@@ -55,7 +61,10 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                 partnerId, "P-001", "한국공조", "300000.00", "30000.00");
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
-        when(salesSlipRepository.findAllById(ids)).thenReturn(List.of(s1, s2, s3));
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(s1, s2, s3));
+        when(partnerLookupClient.findByPartnerCode("P-001"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, "P-001", "한국공조", "123-45-67890", "서울")));
         when(taxInvoiceNumberService.next(LocalDate.of(2026, 5, 19)))
                 .thenReturn("20260519-0001");
         when(taxInvoiceRepository.save(any(TaxInvoice.class))).thenAnswer(inv -> {
@@ -79,13 +88,28 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
         assertThat(s1.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
         assertThat(s2.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
         assertThat(s3.getTaxInvoiceId()).isEqualTo(taxInvoiceId);
-        verify(taxInvoiceRepository).save(any(TaxInvoice.class));
+        verify(salesSlipRepository).findAllByIdsForBatch(ids);
+
+        ArgumentCaptor<TaxInvoice> captor = ArgumentCaptor.forClass(TaxInvoice.class);
+        verify(taxInvoiceRepository).save(captor.capture());
+        TaxInvoice savedInvoice = captor.getValue();
+        assertThat(savedInvoice.getPartnerBusinessNo()).isEqualTo("123-45-67890");
+        assertThat(savedInvoice.getLines()).hasSize(3);
+        assertThat(savedInvoice.getLines())
+                .extracting(line -> line.getItemName())
+                .containsExactly("상품", "상품", "상품");
+        assertThat(savedInvoice.getLines())
+                .extracting(line -> line.getSupplyAmount())
+                .containsExactly(
+                        new BigDecimal("100000.00"),
+                        new BigDecimal("200000.00"),
+                        new BigDecimal("300000.00"));
     }
 
     @Test
     void createFromSalesSlips_거래처_다름_SAS_PARTNER_MONTH_MISMATCH() {
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
-        when(salesSlipRepository.findAllById(ids)).thenReturn(List.of(
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(
                 postedSlip("SAS-1", LocalDate.of(2026, 5, 1),
                         UUID.randomUUID(), "P-001", "A", "100000.00", "10000.00"),
                 postedSlip("SAS-2", LocalDate.of(2026, 5, 2),
@@ -103,7 +127,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     void createFromSalesSlips_월_다름_SAS_PARTNER_MONTH_MISMATCH() {
         UUID partnerId = UUID.randomUUID();
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
-        when(salesSlipRepository.findAllById(ids)).thenReturn(List.of(
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(
                 postedSlip("SAS-1", LocalDate.of(2026, 5, 31),
                         partnerId, "P-001", "A", "100000.00", "10000.00"),
                 postedSlip("SAS-2", LocalDate.of(2026, 6, 1),
@@ -124,7 +148,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                 partnerId, "P-001", "A", "100000.00", "10000.00");
         linked.linkTaxInvoice(UUID.randomUUID());
         List<UUID> ids = List.of(UUID.randomUUID());
-        when(salesSlipRepository.findAllById(ids)).thenReturn(List.of(linked));
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(linked));
 
         assertThatThrownBy(() -> service.createFromSalesSlips(
                 new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"), "actor-1"))
@@ -139,7 +163,23 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                 LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A",
                 SalesTaxType.TAXABLE, null);
         List<UUID> ids = List.of(UUID.randomUUID());
-        when(salesSlipRepository.findAllById(ids)).thenReturn(List.of(draft));
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(draft));
+
+        assertThatThrownBy(() -> service.createFromSalesSlips(
+                new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_SALES_SLIP_NOT_POSTED));
+    }
+
+    @Test
+    void createFromSalesSlips_VOIDED_매출전표_SAS_SALES_SLIP_NOT_POSTED() {
+        SalesAccountingSlip voided = postedSlip("SAS-VOIDED",
+                LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A",
+                "100000.00", "10000.00");
+        voided.voidSlip("actor-1");
+        List<UUID> ids = List.of(UUID.randomUUID());
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(voided));
 
         assertThatThrownBy(() -> service.createFromSalesSlips(
                 new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"), "actor-1"))

@@ -1,6 +1,9 @@
 package com.samhanair.logis.accounting.service;
 
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
@@ -9,7 +12,6 @@ import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequ
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceFromSalesSlipsResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -26,6 +28,7 @@ public class TaxInvoiceBatchFromSalesSlipsService {
     private final SalesAccountingSlipRepository salesSlipRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final TaxInvoiceNumberService taxInvoiceNumberService;
+    private final PartnerLookupClient partnerLookupClient;
 
     public TaxInvoiceFromSalesSlipsResponse createFromSalesSlips(
             CreateTaxInvoiceFromSalesSlipsRequest request, String actorUserId) {
@@ -34,7 +37,8 @@ public class TaxInvoiceBatchFromSalesSlipsService {
         }
 
         LocalDate issuedDate = parseIssuedDate(request.issuedDate());
-        List<SalesAccountingSlip> slips = salesSlipRepository.findAllById(request.salesSlipIds());
+        List<SalesAccountingSlip> slips =
+                salesSlipRepository.findAllByIdsForBatch(request.salesSlipIds());
         if (slips.size() != request.salesSlipIds().size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "일부 매출전표를 찾을 수 없습니다.");
         }
@@ -44,15 +48,10 @@ public class TaxInvoiceBatchFromSalesSlipsService {
         YearMonth slipMonth = YearMonth.from(first.getSlipDate());
         validateSlips(slips, partnerId, slipMonth);
 
-        BigDecimal totalSupplyAmount = slips.stream()
-                .map(SalesAccountingSlip::getTotalSupplyAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalVatAmount = slips.stream()
-                .map(SalesAccountingSlip::getTotalVatAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAmount = slips.stream()
-                .map(SalesAccountingSlip::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<SalesAccountingSlipLine> sourceLines = slips.stream()
+                .flatMap(slip -> slip.getLines().stream())
+                .toList();
+        String partnerBusinessNo = resolvePartnerBusinessNo(first.getPartnerCode());
 
         String taxInvoiceNo = taxInvoiceNumberService.next(issuedDate);
         TaxInvoice taxInvoice = TaxInvoice.createDraftFromSalesSlips(
@@ -61,9 +60,8 @@ public class TaxInvoiceBatchFromSalesSlipsService {
                 partnerId,
                 first.getPartnerCode(),
                 first.getPartnerName(),
-                totalSupplyAmount,
-                totalVatAmount,
-                totalAmount,
+                partnerBusinessNo,
+                sourceLines,
                 actorUserId);
         TaxInvoice saved = taxInvoiceRepository.save(taxInvoice);
 
@@ -76,11 +74,18 @@ public class TaxInvoiceBatchFromSalesSlipsService {
                 saved.getTaxInvoiceNo(),
                 first.getPartnerCode(),
                 first.getPartnerName(),
-                totalSupplyAmount,
-                totalVatAmount,
-                totalAmount,
+                saved.getSupplyAmount(),
+                saved.getVatAmount(),
+                saved.getTotalAmount(),
                 slips.size(),
                 slips.stream().map(SalesAccountingSlip::getSlipNo).toList());
+    }
+
+    private String resolvePartnerBusinessNo(String partnerCode) {
+        return partnerLookupClient.findByPartnerCode(partnerCode)
+                .map(PartnerSummary::businessNo)
+                .filter(businessNo -> !businessNo.isBlank())
+                .orElse(null);
     }
 
     private static void validateSlips(List<SalesAccountingSlip> slips, UUID partnerId,

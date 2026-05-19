@@ -139,6 +139,46 @@ public class TaxInvoiceLine extends BaseEntity {
     }
 
     /**
+     * 신규 라인 생성 (금액 스냅샷 지정). 매출전표처럼 라인별 반올림/조정이 끝난 source 의
+     * 공급가액/부가세를 세금계산서에 그대로 보존할 때 사용합니다.
+     */
+    public static TaxInvoiceLine createWithAmounts(TaxInvoice taxInvoice, int lineNo,
+                                                   String itemName, String spec, String unit,
+                                                   BigDecimal quantity, BigDecimal unitPrice,
+                                                   BigDecimal supplyAmount, BigDecimal vatAmount,
+                                                   String memo) {
+        if (supplyAmount == null || supplyAmount.signum() < 0) {
+            throw new IllegalArgumentException("supplyAmount 는 0 이상 필수입니다");
+        }
+        if (vatAmount == null || vatAmount.signum() < 0) {
+            throw new IllegalArgumentException("vatAmount 는 0 이상 필수입니다");
+        }
+        TaxInvoiceLine line = create(taxInvoice, lineNo, itemName, spec, unit, quantity, unitPrice, memo);
+        line.supplyAmount = supplyAmount.setScale(2, RoundingMode.HALF_UP);
+        line.vatAmount = vatAmount.setScale(2, RoundingMode.HALF_UP);
+        return line;
+    }
+
+    /** 매출전표 라인 → 세금계산서 라인 스냅샷 변환. */
+    public static TaxInvoiceLine createFromSalesAccountingSlipLine(
+            TaxInvoice taxInvoice, int lineNo, SalesAccountingSlipLine sourceLine) {
+        if (sourceLine == null) {
+            throw new IllegalArgumentException("sourceLine 은 필수입니다");
+        }
+        String itemName = sourceLine.getProductName();
+        if (itemName == null || itemName.isBlank()) {
+            itemName = sourceLine.getProductCode();
+        }
+        if (itemName == null || itemName.isBlank()) {
+            itemName = "매출전표 품목";
+        }
+        String spec = sourceLine.getProductCode();
+        return createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
+                sourceLine.getQty(), sourceLine.getUnitPrice(),
+                sourceLine.getSupplyAmount(), sourceLine.getVatAmount(), null);
+    }
+
+    /**
      * 신규 라인 생성 (unit 생략) — 기존 호출부 하위 호환.
      *
      * @param taxInvoice 부모 세금계산서
