@@ -16,9 +16,9 @@ eas build --profile preview --platform android
 
 ## 환경 변수
 
-| 변수 | 용도 |
-|---|---|
-| `EXPO_PUBLIC_AROLOGIS_API_BASE` | fetch baseURL (예: `https://api.arologis.samhan-air.com`). 미지정 시 `__DEV__` true 면 localhost:8097. |
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `EXPO_PUBLIC_AROLOGIS_API_BASE` | `http://localhost:8097` (`__DEV__` true 시) | fetch baseURL. 운영 빌드 예시: `https://api.arologis.samhan-air.com`. |
 
 ## Pretendard 폰트 self-host
 
