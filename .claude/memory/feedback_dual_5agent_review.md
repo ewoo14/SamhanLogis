@@ -28,9 +28,15 @@ metadata:
        - commit + push
    → 사이클 1 종료. 잔존 결함 시 사이클 2 (3a + 3b 반복), 사이클 3 까지 모든 결함 fix.
         ↓
-[4] 이상 없을 경우 (0 결함 + CI green) PM 자동 머지 + 다음 PR 자동 진행
-   - 사용자 확인 X (이상 없을 경우 자동)
-   - 결함 잔존 또는 사이클 3+ 진입 시점에만 사용자 결정 위임
+[4] CI 모두 완료 대기 (필수 단계, 절대 생략 금지)
+   - CI watch monitor 가동 — 모든 check 의 pending → 완료 (success/fail) 대기
+   - **모두 PASS** → [5] 진입 (PM 마지막 리뷰 + 머지)
+   - **실패** (any fail) → 사이클 재진입 (Claude review/fix → Codex review/fix → 재 CI)
+        ↓
+[5] CI green 확정 후에만 PM 마지막 종합 리뷰 게시 + 자동 머지 + 다음 PR 자동 진입
+   - **CI green 확정 전에 PM 마지막 리뷰 게시 금지** — 시기상조 comment 폐기
+   - PM 마지막 리뷰 = CI 결과 + 사이클 1~N 종합 + 잔존 결함 0 명시 + 머지 결정
+   - `gh pr merge <num> --squash --delete-branch` 자동 실행
    - 머지 후 다음 슬라이스 (SP-SAS-2 등) 자동 진입
 ```
 
@@ -38,8 +44,33 @@ metadata:
 - 사이클 1회 = Claude review/fix + Codex review/fix **양쪽** ([feedback_dual_5agent_review] 5회차 형태 복원)
 - 8회차 의 "Codex review 단계 제거" + "머지 전 사용자 확인 의무" **모두 정정**
 - **3 사이클 내 모든 오류 fix 의무** — 후속 PR 백로그 금지
-- **이상 없을 경우 PM 자동 머지** — 사용자 확인 X
+- **CI 모두 PASS 시에만 PM 마지막 리뷰 + 자동 머지** — CI 미완료/실패 시 사이클 재진입
+- **CI green 전 PM 종합 리뷰 게시 금지** — 시기상조 (자주 잊는 함정, 절대 위반 금지)
 - **머지 후 다음 PR 자동 진행** — 자동화 강화
+
+## CI 결과 처리 절차 (사용자 명시 2026-05-19, 절대 잊지 말 것)
+
+```
+CI watch monitor → 모든 check 완료 알림
+    │
+    ├── 모두 PASS:
+    │     1. PM 마지막 종합 리뷰 PR comment 게시 (CI green 사실 + 사이클 N 결과 + 잔존 0)
+    │     2. `gh pr merge <num> --squash --delete-branch`
+    │     3. main checkout + pull
+    │     4. 다음 슬라이스 plan 파일 read + 자동 진입 (Codex 개발 dispatch)
+    │
+    └── 실패 (any check fail):
+          1. 실패 check log 분석 (`gh run view <id> --log-failed`)
+          2. 사이클 재진입 (사이클 +1):
+             - Claude 5-agent review (실패 원인 진단 포함) + TM 통합 PR comment + Codex fix
+             - Codex 5-agent review + TM 통합 PR comment + Codex fix
+          3. 재 CI watch
+          4. 사이클 N=3 도달 시점에도 fail 잔존하면 사용자 결정 위임
+```
+
+**위반 사례 회고**:
+- PR #263 사이클 2 fix 후 PM 종합 리뷰 게시 (CI 진행 중) → 사용자 정정: "CI 모두 통과 이후에"
+- 향후 본 절차 위반 금지 — CI watch monitor 결과 알림 받기 전에는 PM 마지막 리뷰 작성도, 게시도, 머지도 금지
 
 ## QA 에이전트 Docker 실서버 테스트 의무 (2026-05-19 신규)
 
