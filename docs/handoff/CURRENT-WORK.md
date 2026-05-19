@@ -2,6 +2,61 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
+## 2026-05-19 회사 PC 첨부 대기 — 이카운트 5월 샘플 + 출고전표 + 거래명세서 양식
+
+### 첨부 위치 (자택 PC 에서 셋업 완료, 회사 PC `git pull` 후 즉시 사용)
+
+| # | 첨부 대상 | 위치 | 보안 |
+|---|---|---|---|
+| 1 | **이카운트 5월 데이터 샘플 Excel** | `docs/migration/ecount-data/raw/master-export-202605.xlsx` | `.gitignore` 가 `*.xlsx` 차단 (로컬 보관만, git 제외) |
+| 2 | **출고전표 양식 이미지** | `docs/migration/legacy-print-forms/outbound-slip-20260519.png` | PNG/JPG commit OK, 운영 자격 정보 마스킹 의무 |
+| 3 | **거래명세서 양식 이미지** | `docs/migration/legacy-print-forms/sales-invoice-20260519.png` | 동일 |
+
+### 회사 PC 진입 절차
+
+```powershell
+# 1. 자택 PC 작업 동기화
+git checkout main
+git pull origin main
+
+# 2. 첨부 디렉토리 확인 (이미 셋업 완료)
+ls docs/migration/ecount-data/raw/         # → .gitkeep
+ls docs/migration/legacy-print-forms/      # → README.md / .gitignore / .gitkeep
+
+# 3. 데이터 첨부 (수동)
+#    - 이카운트 백업 (기초코드 탭 1회 — 마스터 6종 포함 1 파일):
+#      Self-Customizing > 정보관리 > 데이터관리 > 백업 및 삭제 > 기초코드 탭
+#      → "자료올리기형태로생성" → 메신저 알림 → Excel 다운로드
+#      → docs/migration/ecount-data/raw/master-export-202605.xlsx 저장
+#    - 출고전표 양식: 인쇄 캡처 → docs/migration/legacy-print-forms/outbound-slip-*.png
+#    - 거래명세서 양식: 동일
+
+# 4. PM 호출 (Claude Code)
+#    → 즉시 MIG-1 PoC dispatch (당일 5h 내 완성)
+```
+
+### 첨부 후 자동 dispatch (Claude Code PM 자동)
+
+1. **Designer agent**: 출고전표/거래명세서 픽셀/컬러/타이포 분석 → Figma baseline 명세
+2. **BE agent**: `staging.ecount_partner_raw` Flyway V3 + `EcountPartnerImporter` Apache POI parser + 검증 SQL 10건 + 단위/IT
+3. **QA agent**: MIG-1 시나리오 + idempotency 검증 + PII 마스킹 가드
+4. **5-agent + Codex** cycle 1~3 → 머지
+
+### 마스터 6종 (기초코드 탭) 우선순위
+
+| # | 항목 | 대상 service | 우선순위 |
+|---|---|---|---|
+| 1 | **거래처등록** | partner-service | **P0 PoC 1순위** (FK 의존 0) |
+| 2 | 품목등록 | product-service | P0 |
+| 3 | 계정등록 | accounting-service | P0 (선행) |
+| 4 | 부서등록 | hr / accounting-service | P0 |
+| 5 | 창고등록 | warehouse-service | P0 |
+| 6 | 카드등록 | accounting-service | P1 |
+
+자세한 가이드: [`docs/migration/ecount-data/README.md`](../migration/ecount-data/README.md) + [`docs/migration/legacy-print-forms/README.md`](../migration/legacy-print-forms/README.md)
+
+---
+
 ## 2026-05-19 전체 프로젝트 audit 시리즈 5/5 완료 — Figma/이카운트 전 안정성 확보
 
 ### 머지 결과 (5 PR)

@@ -1,0 +1,19 @@
+# Legacy 인쇄 양식 PNG/JPG 는 commit OK (양식 baseline)
+# 단, 운영 자격 정보 (실 사업자등록번호 / 실 거래처명) 포함 시 마스킹 후 첨부 의무
+
+# 운영 데이터 백업/원본 파일 차단
+*.xlsx
+*.xls
+*.csv
+*.zip
+*.pdf
+
+# 임시 작업 파일
+*.tmp
+*.bak
+
+# PNG/JPG 는 명시 허용 (양식 baseline 의 의도된 산출물)
+!*.png
+!*.jpg
+!*.jpeg
+!.gitkeep
