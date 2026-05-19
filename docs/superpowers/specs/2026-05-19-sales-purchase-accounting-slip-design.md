@@ -258,9 +258,80 @@ DailyClosing (기존 + 확장):
 
 ---
 
-## 5. VAT 계산 + 면세/영세 처리 (디자인 §4 — 작성 예정)
+## 5. VAT 계산 + 면세/영세 처리 (디자인 §4)
 
-(brainstorming §4 단계에서 작성)
+### 5-A. 한국 세법 3 분류
+
+| tax_type | VAT 율 | 세금계산서 | 매출전표 발행 |
+|---|---|---|---|
+| **TAXABLE** (과세) | 10% | 세금계산서 의무 | 분개 + VAT 분리 |
+| **ZERO_RATED** (영세율) | 0% | 세금계산서 의무 (영세율 표시) | 분개, VAT=0 |
+| **EXEMPT** (면세) | 없음 | 계산서 (면세계산서, 별도 양식) | 분개, VAT=0 |
+
+### 5-B. 분리 계산 공식 (VAT-inclusive 단가 → 공급가액 + 부가세)
+
+```java
+// TAXABLE
+BigDecimal lineTotal    = qty.multiply(unitPrice);             // VAT-inclusive 총액
+BigDecimal supplyAmount = lineTotal.divide(BD_110, 0, FLOOR)   // 공급가액 = 총액 / 1.1 (절사)
+                                   .multiply(BD_100);
+BigDecimal vatAmount    = lineTotal.subtract(supplyAmount);    // 부가세 = 잔액 (round-trip 정확성)
+
+// 또는 더 직관적:
+BigDecimal supplyAmount = lineTotal.multiply(BD_100)
+                                   .divide(BD_110, 0, FLOOR);  // line 단위 절사
+BigDecimal vatAmount    = lineTotal.subtract(supplyAmount);
+
+// ZERO_RATED / EXEMPT
+BigDecimal supplyAmount = lineTotal;  // 전체 = 공급가액
+BigDecimal vatAmount    = BigDecimal.ZERO;
+```
+
+**반올림 규칙**: `RoundingMode.FLOOR` (절사) — 한국 회계 관례 (사용자 세부 결정 가능).
+
+### 5-C. tax_type 결정 — 거래처 기본값 + 매출전표 override
+
+```
+1. 매출전표 작성 시 default = Partner.taxType (거래처 도메인 기본값)
+2. 관리자가 매출전표 헤더 level 에서 override 가능 (drop-down)
+3. 매출전표 1장 = 단일 tax_type (line 단위 다른 tax_type 금지)
+   — 회계 단순성 우선. 혼합 거래는 매출전표 2장 분리 발행
+```
+
+**Partner 도메인 확장** (Phase 12+ MIG-2 결정 의존):
+- `Partner.taxType ENUM` 신규 컬럼 (default TAXABLE)
+- MIG-2 거래처 import 시 이카운트 export 의 "사업자유형" 매핑
+
+본 SAS 슬라이스는 Partner.taxType 컬럼이 없을 경우 매출전표 작성 시 매번 관리자 입력 (default TAXABLE).
+
+### 5-D. 검증 SQL
+
+```sql
+-- (1) 매출전표 합계 = supply + vat 무결성
+SELECT id, slip_no FROM sales_accounting_slips
+WHERE is_deleted=false
+  AND total_amount <> total_supply_amount + total_vat_amount;
+-- 기대: 0건
+
+-- (2) Allocation 합계 = 매출전표 line_total 무결성
+SELECT sl.id, sl.line_no FROM sales_accounting_slip_lines sl
+WHERE EXISTS (
+  SELECT 1 FROM sales_accounting_slip_allocations a
+  WHERE a.sales_slip_line_id = sl.id
+  GROUP BY a.sales_slip_line_id
+  HAVING SUM(a.allocated_amount) <> sl.line_total
+);
+-- 기대: 0건
+
+-- (3) tax_type 별 분포
+SELECT tax_type, COUNT(*), SUM(total_amount)
+FROM sales_accounting_slips WHERE is_deleted=false
+GROUP BY tax_type;
+```
+
+### 5-E. 부가세 신고 데이터 (Phase 후속)
+
+매출전표 + 매입전표 의 tax_type / supply_amount / vat_amount 컬럼으로 부가세 신고 양식 (월·분기) 자동 산출 가능 — 별도 슬라이스 SP-SAS-VAT-REPORT 후속.
 
 ---
 
