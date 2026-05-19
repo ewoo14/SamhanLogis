@@ -284,4 +284,22 @@ CI watch monitor → 모든 check 완료 알림
 - **사이클 N=3 안 완료 의무** (2026-05-17 4회차 사용자 정정 — 최종). 사이클 4+ 진입 금지. 사이클 1.5/2.5 통합 fix 단계에서 가능한 한 모든 결함 묶어 처리.
 - 머지 trigger 는 사용자 또는 PM 자동 머지 (조건 충족 시)
 
+## PR #264 실수 회고 (사용자 정정 2026-05-19, 절대 잊지 말 것)
+
+**사실**: PR #264 SP-SAS-2 가 사이클 1 (Claude review APPROVE + Codex review BE/QA P1 발견 + Codex fix2 = head `e97ebfe7`) 만 진행. **새 head `e97ebfe7` 기준 사이클 2 의 Claude re-review + Codex re-review = 미진행 상태**에서 실수 머지 (squash `af4720ee` main 입성).
+
+**정확한 사이클 구조 (재명시)**:
+- 사이클 1 = Claude review + (Claude fix or 0 결함 skip) + Codex review + Codex fix → 새 head 생성
+- **새 head 가 다시 사이클 2 review 대상** (Codex fix 가 새 결함 발생 가능성)
+- 사이클 2 = Claude re-review + Codex re-review (둘 다 0 결함 + CI green 도달 시 종료)
+- 사이클 3 = 잔존 시 추가 round (최대 N=3)
+- **사이클 N 의 Codex re-review 가 0 결함 + CI green 시 머지 OK**
+
+**PR #264 처리**: 사용자 명시 = "특례 — 머지 완료". retrospective hotfix X. 향후 PR 부터 본 절차 의무.
+
+**향후 위반 금지 (자주 잊는 함정)**:
+- Codex fix 가 commit + push 했으면 **그 새 head 기준 자동으로 사이클 N+1 의 Claude 5-agent re-review 의무 dispatch** (PM 머지 가능 여부 사전 검증)
+- "Codex fix 후 잔존 0" 가정으로 사이클 2 review skip 금지
+- CI green 확정 + 사이클 N 의 Codex re-review 까지 끝나야 사이클 종료. 한쪽만으로는 X
+
 [[pr-title-caps-bracket]] [[multi-agent-team-pattern]] [[integrated-pr-pattern]] [[pr-review-workflow]] [[user-merge-authority]] [[codex-cli-mcp]]
