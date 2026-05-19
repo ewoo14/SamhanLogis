@@ -173,14 +173,19 @@ class EcountPartnerImporterTest {
 
     /**
      * 5-team 리뷰 cycle 1 회귀 가드 (2026-05-19) — narrow 정규식 적용 후
-     * 1~4자리 숫자 정상 거래처코드 6건이 IMPORTED 로 처리되는지 검증.
-     * 실 적재 발견: `01` 국민건강보험공단, `1123` 대덕구 건강검진센터,
+     * 1~4자리 숫자/운영 코드 8건이 IMPORTED 로 처리되는지 검증.
+     * 실 적재 발견: `0004` 정효림-개인, `01` 국민건강보험공단,
+     * `1` 세금계산서 카드매출중복용, `1123` 대덕구 건강검진센터,
      * `1212` 수석공장, `7002` 김초연 잡급, `7006` 윤경식, `7251` (주)에이치에스에이치.
      */
     @Test
     void classify_단기숫자코드_정상Imported_placeholder오판방지() {
         String csv = META_LINE + HEADER_LINE
+                + row("0004", "20230814", "이성미", "", "정효림-개인", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
                 + row("01", "20230814", "이성미", "", "국민건강보험공단", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("1", "20230814", "이성미", "", "세금계산서 카드매출중복용", "", "", "", "",
                 "", "", "일반업체", "YES", "등록", "0", "")
                 + row("1123", "20230814", "이성미", "", "대덕구 건강검진센터", "", "", "", "",
                 "", "", "일반업체", "YES", "등록", "0", "")
@@ -197,8 +202,8 @@ class EcountPartnerImporterTest {
 
         EcountPartnerImportResult result = importer.importCsv(csvStream(csv), "tester");
 
-        assertThat(result.totalRows()).isEqualTo(6);
-        assertThat(result.imported()).isEqualTo(6);
+        assertThat(result.totalRows()).isEqualTo(8);
+        assertThat(result.imported()).isEqualTo(8);
         assertThat(result.skippedPlaceholder()).isEqualTo(0);
         assertThat(result.rejectedNullName()).isEqualTo(0);
     }

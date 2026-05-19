@@ -1,7 +1,7 @@
 # MIG-1 거래처 PoC — QA 시나리오 + 검증
 
 > spec: `docs/superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md`
-> 입력 데이터: `docs/migration/ecount-data/raw/거래처-Excel다운로드.csv` (7,748 행 / 17 컬럼 + 메타 1 + 헤더 1 = 7,750 lines)
+> 입력 데이터: `docs/migration/ecount-data/raw/거래처-Excel다운로드.csv` (OpenCSV 기준 6,977 데이터 행 / 17 컬럼 + 메타 1 + 헤더 1)
 > 작성일: 2026-05-19
 
 ---
@@ -11,16 +11,16 @@
 > **2026-05-19 cycle 1 정정**: 5-team QA reviewer 지적 — 실 적재 측정치로 갱신.
 >
 > 실제 CSV 의 데이터 행 수는 6,977 (메타 1 + 헤더 1 제외 후 footer timestamp 1 포함). placeholder 정규식
-> narrow 적용 (cycle 1 fix) 후 SKIPPED_PLACEHOLDER 는 ~6 으로 축소되고 정상 IMPORTED 카운트가 6건 증가합니다.
+> narrow 적용 (cycle 1 fix) 후 SKIPPED_PLACEHOLDER 는 4건으로 축소되고 정상 IMPORTED 카운트가 8건 증가합니다.
 
 | 분류 | 행 수 (cycle 1 갱신) | 비고 |
 |---|---|---|
 | 총 데이터 행 | 6,977 | 메타 1 + 헤더 1 제외 (footer timestamp 1 포함) |
 | 거래처명 빈값 (REJECT_NAME_NULL) | 1 | footer timestamp 행 (`2026/05/19 오후 2:43:37`) |
-| 거래처코드 placeholder (SKIPPED_PLACEHOLDER, narrow) | ~6 | `-` / `0+` / `0+[- ]?0+[- ]?0+` 만 |
-| 정상 적재 후보 | ~6,970 | totalRows - rejectedNullName - skippedPlaceholder |
+| 거래처코드 placeholder (SKIPPED_PLACEHOLDER, narrow) | 4 | `-` / `0+` / `0+[- ]?0+[- ]?0+` 만 |
+| 정상 적재 후보 | 6,972 | totalRows - rejectedNullName - skippedPlaceholder |
 | 사용구분 YES → ACTIVE | 6,976 | 활성 거래처 |
-| 사용구분 빈/NO → SUSPENDED | 1 | 휴면 거래처 (REJECT/SKIP 포함) |
+| 사용구분 빈/NO → SUSPENDED | 1 | footer timestamp 행으로 미적재 (REJECT_NAME_NULL) |
 | 그룹 SF(밴더) | 2,981 | partner_group1 분포 1위 |
 | 그룹 빈 | 2,791 | 미분류 |
 | 그룹 일반업체 | 836 | |
@@ -29,7 +29,7 @@
 
 ---
 
-## 2. 7 시나리오
+## 2. 9 시나리오
 
 ### S1. 헤더 정상 — 17 컬럼 + 첫 행 메타 + trailing 18번째 빈 컬럼
 
@@ -37,16 +37,16 @@
 **When**: `POST /admin/partners/imports/ecount` multipart upload
 **Then**:
 - HTTP 200
-- `totalRows == 7748`
+- `totalRows == 6977`
 - `sourceFileHash` = 64자 대문자 hex
-- `staging.ecount_partner_raw` 행 수 = 7,748
+- `staging.ecount_partner_raw` 행 수 = 6,977
 
 ### S2. 거래처명 빈값 → REJECT_NAME_NULL (staging 적재만)
 
-**Given**: 거래처명 빈 행 (771개)
+**Given**: 거래처명 빈 행 (footer timestamp 1개)
 **When**: import 실행
 **Then**:
-- `rejectedNullName == 771`
+- `rejectedNullName == 1`
 - staging `transform_status == 'REJECT_NAME_NULL'`
 - partners 테이블에 INSERT 없음 (이 행들 한해서)
 
@@ -55,28 +55,29 @@
 **Given**: 거래처코드가 narrow placeholder 패턴 (`-` / `0+` / `0+[- ]?0+[- ]?0+`) 인 행
 **When**: import 실행
 **Then**:
-- `skippedPlaceholder ≈ 6` (cycle 1 narrow 정규식 — 기존 over-aggressive `[A-Za-z]?\d{0,4}` 제거)
+- `skippedPlaceholder == 4` (cycle 1 narrow 정규식 — 기존 over-aggressive `[A-Za-z]?\d{0,4}` 제거)
 - staging `transform_status == 'SKIPPED_PLACEHOLDER'`
 - partners 에 INSERT 없음
 
-### S3-회귀. 1~4자리 숫자 정상 코드 6건은 IMPORTED (cycle 1 회귀 가드)
+### S3-회귀. 1~4자리 숫자 정상/운영 코드 8건은 IMPORTED (cycle 1 회귀 가드)
 
-**Given**: `01` 국민건강보험공단, `1123` 대덕구 건강검진센터, `1212` 수석공장,
-`7002` 김초연 잡급, `7006` 윤경식, `7251` (주)에이치에스에이치
+**Given**: `0004` 정효림-개인, `01` 국민건강보험공단, `1` 세금계산서 카드매출중복용,
+`1123` 대덕구 건강검진센터, `1212` 수석공장, `7002` 김초연 잡급, `7006` 윤경식,
+`7251` (주)에이치에스에이치
 **When**: import 실행 (narrow 정규식 적용 후)
 **Then**:
-- 위 6건 모두 `imported` 카운트에 포함 (SKIPPED 아님)
+- 위 8건 모두 `imported` 카운트에 포함 (SKIPPED 아님)
 - staging `transform_status == 'IMPORTED'`
-- partners 에 6건 INSERT
+- partners 에 8건 INSERT
 - 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 로 자동 가드
 
 ### S4. 사용구분 분포 = ACTIVE/SUSPENDED 매핑
 
-**Given**: 사용구분 컬럼 (YES 6446 / 빈 1302)
+**Given**: 사용구분 컬럼 (YES 6,976 / 빈 1)
 **When**: import 실행
 **Then**:
-- `activeCount` 가 ACTIVE 분포에 포함 (= 6446 - 일부 reject/skip 제외)
-- `suspendedCount` 가 SUSPENDED 분포에 포함 (= 1302 - 일부 reject/skip 제외)
+- `activeCount == 6972` (cycle 1 narrow 기준 정상 적재 6,972건 모두 ACTIVE)
+- `suspendedCount == 0` (footer timestamp 1건은 REJECT_NAME_NULL)
 - SQL: `SELECT status, COUNT(*) FROM partners WHERE is_deleted=false GROUP BY status` 가 CSV 분포와 동일
 
 ### S5. 멱등 재실행 — 동일 파일 2회
@@ -84,9 +85,10 @@
 **Given**: 1회 import 후 동일 CSV 다시 POST
 **When**: 동일 sourceFileHash 로 import
 **Then**:
-- 응답 `imported == 0, updated > 0` (기존 모든 row update)
+- clean DB 기준 1회 import 후 재실행: `imported == 0, updated == 6972`
+- cycle 0 over-skip DB 에 narrow 적용 후 재실행: 약 6,972건 갱신 + 기존 over-skip 8건 신규 가능
 - staging 행 수 변화 없음 (PK 멱등)
-- partners 행 수 변화 없음
+- partners 행 수는 clean 재실행에서는 변화 없음, cycle 0 DB 보정 재실행에서는 8건 증가 가능
 
 ### S6. 검증 SQL 7건 모두 정상
 
@@ -116,13 +118,52 @@ SELECT COUNT(*) FILTER (WHERE registration_date IS NOT NULL) AS parsed,
 FROM partners WHERE is_deleted=false;
 ```
 
-**Then**: 모든 SQL 결과가 사전 분포 (§1) 와 일치.
+**Then**: 모든 SQL 결과가 cycle 1 사전 분포 (§1) 와 일치.
+
+| SQL | 기대값 (cycle 1 narrow) |
+|---|---|
+| (1) staging 분류 | `IMPORTED=6972`, `REJECT_NAME_NULL=1`, `SKIPPED_PLACEHOLDER=4` |
+| (2) partner_code 활성 중복 | 0 |
+| (3) NULL 필수 필드 | 0 |
+| (4) ACTIVE / SUSPENDED 분포 | `ACTIVE=6972`, `SUSPENDED=0` (+ P0_6 seed 6건 SUSPENDED 별도) |
+| (5) 그룹 분포 | `SF(밴더)=2981`, `일반업체=836`, `파트너사=118`, `조달업체=111` |
+| (6) 여신한도 합계 | 실측 합계와 CSV `여신한도` 정규화 합계 일치 |
+| (7) 등록일자 파싱 | parsed/null_or_unparsed 실측 분포 일치 |
 
 ### S7. 롤백 — DELETE 후 검증
 
 **Given**: 본 import 가 partners 적재한 상태
 **When**: `DELETE FROM partners WHERE created_by='migration-ecount@samhan'; TRUNCATE staging.ecount_partner_raw;`
 **Then**: 두 테이블 모두 빈 상태로 복귀
+
+### S8. trade-off — 운영 더미 `1` NORMAL 처리
+
+**Given**: row 182 `raw_partner_code='1'`, `raw_name='세금계산서 카드매출중복용'`
+**When**: narrow placeholder 정규식 적용 후 import 실행
+**Then**:
+- `1` 은 `^(-|0+|0+[- ]?0+[- ]?0+)$` 와 매칭되지 않음
+- staging `transform_status == 'IMPORTED'`
+- partners 에 NORMAL 적재
+- trade-off: 운영 더미 1건 NORMAL 처리보다 정상 단기 숫자 코드 8건 보존을 우선. 운영 더미 별도 필터는 MIG-1B+ 후속.
+
+### S9. placeholder narrow 추가 SQL
+
+**SQL**:
+```sql
+SELECT source_row_no, raw_partner_code, raw_name, transform_status
+FROM staging.ecount_partner_raw
+WHERE transform_status = 'SKIPPED_PLACEHOLDER'
+ORDER BY source_row_no;
+
+SELECT source_row_no, raw_partner_code, raw_name, transform_status
+FROM staging.ecount_partner_raw
+WHERE raw_partner_code IN ('01','1123','1212','7002','7006','7251','1','0004')
+ORDER BY source_row_no;
+```
+
+**Then**:
+- 첫 SQL 은 row 3 `-`, row 4 `00`, row 5 `000-00-00000`, row 6 `000000000` 총 4건만 반환
+- 둘째 SQL 은 8건 모두 `IMPORTED` 또는 재실행 시 `UPDATED` 상태로 반환
 
 ---
 
@@ -141,9 +182,9 @@ FROM partners WHERE is_deleted=false;
 | # | 시나리오 |
 |---|---|
 | 01 | CSV 업로드 화면 mock (Admin 콘솔 — multipart) |
-| 02 | import 응답 분류 결과 (totalRows=7748, imported, updated, rejectedNullName=771 등) |
+| 02 | import 응답 분류 결과 (totalRows=6977, imported, updated, rejectedNullName=1 등) |
 | 03 | ACTIVE/SUSPENDED 분포 SQL 결과 |
-| 04 | 그룹 분포 SQL 결과 (SF(밴더) 2712, 일반업체 787 ...) |
-| 05 | rejected sample (REJECT_NAME_NULL 771행 / SKIPPED_PLACEHOLDER ~10행) |
-| 06 | 멱등 재실행 응답 (imported=0, updated=6967) |
+| 04 | 그룹 분포 SQL 결과 (SF(밴더) 2981, 일반업체 836, 파트너사 118, 조달업체 111) |
+| 05 | rejected sample (REJECT_NAME_NULL 1행 / SKIPPED_PLACEHOLDER 4행) |
+| 06 | 멱등 재실행 응답 (imported=0, updated≈6972) |
 | 07 | 롤백 검증 (DELETE 후 partners + staging 모두 0건) |

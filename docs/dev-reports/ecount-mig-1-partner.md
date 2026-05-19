@@ -4,7 +4,7 @@
 > spec: [2026-05-19-ecount-mig-1-partner-design.md](../superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md)
 > plan: [2026-05-19-ecount-mig-1-partner.md](../superpowers/plans/2026-05-19-ecount-mig-1-partner.md)
 > branch: `feat/ecount-mig-1-partner-poc`
-> 입력: `docs/migration/ecount-data/raw/거래처-Excel다운로드.csv` (7,748 데이터 행)
+> 입력: `docs/migration/ecount-data/raw/거래처-Excel다운로드.csv` (OpenCSV 기준 6,977 데이터 행)
 
 ---
 
@@ -18,7 +18,7 @@
 | 신규 controller | `EcountPartnerImportController` (`POST /admin/partners/imports/ecount`, multipart 10MB, ROLE_MASTER+MANAGER) |
 | 신규 DTO | `EcountPartnerImportResult` (5 분류 카운트 + ACTIVE/SUSPENDED 분포 + sample reject 최대 20) |
 | 단위 테스트 | 13건 PASS (헤더 검증 / placeholder narrow / 단기숫자코드 회귀 / status 매핑 / creditLimit / registrationDate / 멱등 / hash) — cycle 1 fix 적용 후 12→13 |
-| 실 적재 결과 | 7,748 행 — (실제 적재 결과 본문 §3 참조) |
+| 실 적재 결과 | 6,977 데이터 행 — (실제 적재 결과 본문 §3 참조) |
 
 ---
 
@@ -30,8 +30,8 @@
 - D-MIG-1-01 3-Tier (Excel → staging.raw → partners)
 - D-MIG-1-02 멱등 키 (source_file_hash + source_row_no 복합 PK)
 - D-MIG-1-03 거래처코드 = bizNo = partner_code 동시 적재
-- D-MIG-1-04 거래처명 NULL 거부 (771행 reject)
-- D-MIG-1-05 사용구분 YES → ACTIVE / 빈 → SUSPENDED
+- D-MIG-1-04 거래처명 NULL 거부 (footer timestamp 1행 reject)
+- D-MIG-1-05 사용구분 YES → ACTIVE / 빈 → SUSPENDED (실 데이터 정상 적재 후보 6,972건 모두 ACTIVE)
 - D-MIG-1-06 trailing tab 일괄 strip
 - D-MIG-1-07 신규 3 컬럼 (transfer_info / note / manager_name)
 - D-MIG-1-08 등록일자 YYYYMMDD / 임시
@@ -52,8 +52,8 @@
 ```
 POST http://localhost:8095/admin/partners/imports/ecount
 Headers: X-User-Id=mig1-pm, X-User-Role=MASTER
-File: 거래처-Excel다운로드.csv (1.59 MB, CSV 7,748 lines)
-처리 시간: 49.5s (7,748 lines → 6,977 데이터 row, 약 141 row/sec)
+File: 거래처-Excel다운로드.csv (1.59 MB, OpenCSV 기준 6,977 데이터 row)
+처리 시간: 49.5s (6,977 데이터 row, 약 141 row/sec)
 ```
 
 **1차 import 응답**:
@@ -111,10 +111,10 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 → dash 단일 / 0 만 연속 / 0-구분자-0 패턴만 SKIP.
 
 **기대 효과** (cycle 1 narrow 적용 후 재적재 시):
-- SKIPPED_PLACEHOLDER: 12 → ~6 (정상 6건 NORMAL 전환)
-- 회귀 가드 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 추가 (1~4자리 숫자 6건 IMPORTED 검증)
+- SKIPPED_PLACEHOLDER: 12 → 4 (정상 8건 NORMAL 전환)
+- 회귀 가드 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 확장 (1~4자리 숫자/운영 코드 8건 IMPORTED 검증)
 
-**기존 적재 issue (cycle 1 fix 전 측정)** — 12 SKIPPED 중 6건이 정상 거래처:
+**기존 적재 issue (cycle 1 fix 전 측정)** — 12 SKIPPED 중 8건이 narrow 적용 후 NORMAL 전환 대상:
 
 | row | 거래처코드 | 거래처명 | 판정 가능성 |
 |---|---|---|---|
@@ -122,9 +122,9 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 | 4 | `00` | 파인씨엔디 | placeholder 정상 |
 | 5 | `000-00-00000` | 국제전자센타91호-이영규 | placeholder 정상 |
 | 6 | `000000000` | 에어컨총각들(임시) | placeholder 정상 (임시 명시) |
-| 10 | `0004` | 정효림-개인 | placeholder 의심 |
+| 10 | `0004` | 정효림-개인 | **NORMAL 전환** |
 | 12 | `01` | 국민건강보험공단 | **정상 데이터** (4자리 사업자번호 아니지만 의도된 ID) |
-| 182 | `1` | 세금계산서 카드매출중복용 | 운영 더미 (placeholder 정상) |
+| 182 | `1` | 세금계산서 카드매출중복용 | **NORMAL 전환** (운영 더미 trade-off) |
 | 631 | `1123` | 대덕구 건강검진센터 | **정상 데이터** (4자리 ID) |
 | 922 | `1212` | 수석공장 | **정상 데이터** (4자리 ID) |
 | 5814 | `7002` | 김초연 잡급 | **정상 데이터** (직원 청구 등) |
@@ -132,9 +132,9 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 | 5926 | `7251` | (주)에이치에스에이치 | **정상 데이터** (4자리 ID) |
 | 6979 | `2026/05/19  오후 2:43:37` | (빈) | REJECT_NAME_NULL — CSV footer timestamp |
 
-→ **fix 적용 (cycle 1)**: 본 PR 내에서 정규식 narrow (`^(-|0+|0+[- ]?0+[- ]?0+)$`) 적용 + 회귀 가드 단위 테스트 추가. 6건 (`01` / `1123` / `1212` / `7002` / `7006` / `7251`) 차후 재적재 시 IMPORTED 처리.
+→ **fix 적용 (cycle 1)**: 본 PR 내에서 정규식 narrow (`^(-|0+|0+[- ]?0+[- ]?0+)$`) 적용 + 회귀 가드 단위 테스트 확장. 8건 (`0004` / `01` / `1` / `1123` / `1212` / `7002` / `7006` / `7251`) 차후 재적재 시 NORMAL 처리.
 
-**trade-off 인지**: row 182 `1` (세금계산서 카드매출중복용) 운영 더미 는 narrow 적용 후 NORMAL 처리됩니다. 1 건 운영 더미 NORMAL 처리 vs 6 건 정상 데이터 IMPORTED — 후자 우선. 운영 더미 별도 필터링은 MIG-1B+ 후속.
+**trade-off 인지**: row 182 `1` (세금계산서 카드매출중복용) 운영 더미 는 narrow 적용 후 NORMAL 처리됩니다. 운영 더미 1건 NORMAL 처리 vs 8건 단기 숫자 코드 보존 — 후자 우선. 운영 더미 별도 필터링은 MIG-1B+ 후속.
 
 ---
 
@@ -146,11 +146,11 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 
 | SQL | 결과 (예상) | 비고 |
 |---|---|---|
-| (1) staging 분류 | IMPORTED=6967, REJECT_NAME_NULL=771, SKIPPED_PLACEHOLDER=10 | totalRows 합 = 7748 |
+| (1) staging 분류 | IMPORTED=6972, REJECT_NAME_NULL=1, SKIPPED_PLACEHOLDER=4 | cycle 1 narrow 재import 예상치, totalRows 합 = 6977 |
 | (2) partner_code 중복 | 0 | UPSERT 멱등 |
 | (3) 필수 필드 NULL | 0 | name/biz_no/partner_code NOT NULL 가드 |
-| (4) status 분포 | ACTIVE=6446, SUSPENDED=521 (+P0_6 seed 6건) | 사용구분 매핑 정합 |
-| (5) 그룹 분포 | SF(밴더)=2712, 일반업체=787, 조달업체=111, 파트너사=88 ... | CSV 분포 일관 |
+| (4) status 분포 | ACTIVE=6972, SUSPENDED=0 (+P0_6 seed 6건 SUSPENDED) | 사용구분 매핑 정합 |
+| (5) 그룹 분포 | SF(밴더)=2981, 일반업체=836, 파트너사=118, 조달업체=111 ... | CSV 분포 일관 |
 | (6) credit_limit 합계 | (실측치) | CSV 여신한도 컬럼 SUM 과 cross-check |
 | (7) registration_date 파싱 | parsed=N, null=N (임시/빈) | YYYYMMDD 정상 파싱 |
 
