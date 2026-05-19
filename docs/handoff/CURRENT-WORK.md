@@ -2,7 +2,59 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
-## 2026-05-19 SP-08-FU1/FU2 머지 완료 — 테스트 안정성 follow-up 종료
+## 2026-05-19 전체 프로젝트 audit 시리즈 5/5 완료 — Figma/이카운트 전 안정성 확보
+
+### 머지 결과 (5 PR)
+
+| PR | Merge | 슬라이스 |
+|---|---|---|
+| #252 | `d836909c` | Slice 1 — main CI FAIL 2건 (SlipServiceTest NPE + LedgerControllerIT auth) |
+| #253 | `1719087b` | Slice 2 — P0 cross-service (SlipQueryClient endpoint silent failure + Driver API contract) |
+| #254 | `8b3658e5` | Slice 3 — P1 9건 (auth/logging/api-gateway IT 신규 + ci.yml docs/** + DriverLocation 정책 + slip AbstractIT + arologis Dyn 정리 + EstimateControllerIT 회귀 fix) |
+| #255 | `877773b3` | Slice 4 — P1 FE 3건 (design-system lint exit 0 + dist/style.css @font-face + arologis-mobile Pretendard) |
+| #256 | `67e7ef25` | Slice 5 — P2/Minor 9건 (V11 .conf cleanup + clients/web 스캔 + SalesSubNav env + admin-hr OR false-green + Badge token + prometheus 18 + GPS 중복 + notification-gateway 대시보드 + 메모리 sync) |
+
+### audit 결과 요약
+
+- **P0/Critical 3건** 모두 해소 (main CI 회복 + 세금계산서 silent failure 해소 + Driver UI 404 차단)
+- **P1 12건** 모두 해소 (테스트 안정성 + FE Pretendard + CI 효율)
+- **P2/Minor 9건** 모두 해소 (품질 정리 + 대시보드 + token 일관성)
+
+### 양쪽 5-agent 리뷰 정상화
+
+- Slice 1/2/3: Codex 1회 verify (Claude 5-team 누락, 사용자 지적 후 회고)
+- **Slice 4/5: Claude 5-team 병렬 + Codex 5-section 정상화** (`feedback_dual_5agent_review.md` 의무 준수)
+
+### Figma / 이카운트 트리거 전 안정성 baseline 확보
+
+- 14 service compileJava + compileTestJava BUILD SUCCESSFUL
+- CI 27/27 PASS 일관
+- auth/logging/api-gateway IT 0건 → ContextLoadIT 3 신규 (테스트 안정성 가드)
+- DriverLocation BaseEntity 정책 명시 + DynamicPermissionClient @deprecated 추적
+- design-system token 일관성 (Badge variant-success/warning/danger 토큰 인용)
+- notification-gateway Grafana 대시보드 신규 (Phase 11 운영 가시성 확보)
+
+### 다음 trigger 후보 (사용자 결정 대기 — 기존 그대로)
+
+1. 🎨 **Figma UI/UX 개선** (사용자 trigger 시) — design-system token 보강 + legacy-print-forms PNG 수집 + 카테고리 컬러 토큰화
+2. 📊 **이카운트 마이그레이션** (Excel 파일 도착 시) — 6/10 부분 준비, 당일 5h 내 MIG-1 PoC
+3. 🟡 외부 API 연동 (NTS / Aligo / Clova / KFTC / 인성) — SP-09/10 인프라 완비
+4. 🟡 Phase 10 W10-3 (모바일 GPS / Aligo deeplink / 알림톡 템플릿)
+5. 🟡 SP-D6+ (잔여 ~475 @PreAuthorize 점진)
+6. ⏳ Phase 11 AWS (최후 순위)
+
+### 메모리 가드 일관성 ✅
+
+- `feedback_dual_5agent_review.md` Claude 5-team + Codex 정상화 (Slice 4부터)
+- `feedback_multi_agent_team_pattern.md`
+- `feedback_it_mockbean_external_clients.md`
+- `feedback_korean_commits.md`
+- `feedback_continuous_docs_sync.md`
+- `feedback_user_merge_authority.md`
+
+---
+
+## 2026-05-19 SP-08-FU1/FU2 머지 완료 — 테스트 안정성 follow-up 종료 (이전 기록)
 
 ### 머지 결과
 
