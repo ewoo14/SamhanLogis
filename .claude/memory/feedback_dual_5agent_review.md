@@ -1,11 +1,42 @@
 ---
 name: dual-5agent-review
-description: Claude 5-agent + Codex 5-agent (총 10 reviewer) 병렬 cross-check 사이클 + TM 통합 게시. 사이클당 PR comment 2건 (Claude TM 통합 1 + Codex TM 통합 1). 양쪽 0 결함 + CI green 까지 수렴.
+description: Claude 기획 → Codex 개발 → Claude 5-agent review + TM 통합 fix → Codex 5-agent review + TM 통합 fix → PM 머지. QA agent 는 5-agent review 시 Docker 실서버 직접 테스트 의무. 사이클당 PR comment 2건 + 양쪽 0 결함 + CI green 까지 수렴.
 metadata:
   type: feedback
 ---
 
-모든 PR 에 **양쪽 5-agent 병렬 cross-check + TM 통합 게시** 적용:
+## 5-단계 전체 워크플로우 (2026-05-19 사용자 정정 — 7회차 최종)
+
+```
+[1] Claude 기획 — brainstorming + writing-plans (spec + 5 슬라이스 plans)
+        ↓
+[2] Codex 개발 — mcp__codex__codex sandbox=workspace-write, TDD + commit
+   - 매 slice 의 모든 task implementation = Codex 의무
+   - Claude subagent (general-purpose) 단독 implementation 패턴 금지
+   - sandbox 권한 한계 (git index.lock / Gradle download) 시 controller (Claude) 가 gradle test + commit 만 대행
+        ↓
+[3] Claude 5-agent review + TM 통합 fix (사이클 1 전반)
+        ↓
+[4] Codex 5-agent review + TM 통합 fix (사이클 1 후반)
+        ↓
+[5] CI green + PM 머지 (사용자 명시 자동 머지)
+```
+
+**핵심**: implementation 자체는 Codex. Claude 의 역할 = 기획 + review TM 통합 + commit/test 환경 대행 + PM (자동 머지 트리거).
+
+## QA 에이전트 Docker 실서버 테스트 의무 (2026-05-19 신규)
+
+5-agent review 중 **QA agent 는 단순 코드 read 가 아니라 Docker 실서버 직접 테스트** 의무:
+
+- samhan-postgres 컨테이너 사용 (포트 5432, accounting_db / partner_db / slip_db 등)
+- 서비스 bootRun 또는 Testcontainers spinup
+- 실 endpoint curl / RestClient 호출 + 응답 검증
+- DB 분포 SQL cross-check (`docker exec samhan-postgres psql ...`)
+- 멱등성 / E2E flow / 실 데이터 적재 검증
+
+회피 표현 금지: "code read 만으로 PASS", "static review", "Docker 검증은 후속" — Docker 실서버 검증 누락 시 QA review FAIL.
+
+## 사이클 구조 (2026-05-17 사용자 정정 5회차 — review/fix 사이클 부분)
 
 ## 사이클 구조 (2026-05-17 사용자 정정 5회차 — 최종)
 
