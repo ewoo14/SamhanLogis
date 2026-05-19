@@ -24,7 +24,7 @@
 -- 회귀 영향:
 --   * V10 의 partial WHERE 절 (is_deleted = FALSE AND signature_source = 'APP' AND signed_at IS NOT NULL) 보존
 --   * IF EXISTS / IF NOT EXISTS 가드 — 신규 환경 (V10 적용 직후) 과 운영 환경 모두 호환
---   * V11.sql.conf (executeInTransaction=false) 는 유지 — 향후 CONCURRENTLY 재도입 시 활용
+--   * V11.sql.conf 는 audit Slice 5 (PR #256) 에서 cleanup 삭제됨 — 향후 CONCURRENTLY 재도입 시 신규 sidecar 작성
 --
 -- dev-report § 11-3 (Flyway V10/V11 lock 영향 시뮬레이션) 갱신 의무.
 

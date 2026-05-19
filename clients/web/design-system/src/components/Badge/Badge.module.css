@@ -58,8 +58,8 @@
 }
 
 .variant-danger {
-  background-color: rgba(214, 80, 74, 0.12);
-  border-color: rgba(214, 80, 74, 0.32);
+  background-color: var(--color-danger-50);
+  border-color: var(--color-danger-200);
   color: var(--color-danger);
 }
 
