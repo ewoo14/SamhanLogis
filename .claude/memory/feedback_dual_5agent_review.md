@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-## 5-단계 전체 워크플로우 (2026-05-19 사용자 정정 — 8회차 최종)
+## 5-단계 전체 워크플로우 (2026-05-19 사용자 정정 — 9회차 최종)
 
 ```
 [1] Claude 기획 — brainstorming + writing-plans (spec + 5 슬라이스 plans)
@@ -15,20 +15,31 @@ metadata:
    - Claude subagent (general-purpose) 단독 implementation 패턴 금지
    - sandbox 권한 한계 (git index.lock / Gradle download) 시 controller (Claude) 가 gradle test + commit 만 대행
         ↓
-[3] Claude 5-agent review + TM 통합 fix (사이클 1)
-   - BE/FE/Designer/QA(Docker 실 검증 의무)/DevOps 병렬
-   - Codex fix 위임 (sandbox=workspace-write) 또는 Claude 직접 fix
+[3] 사이클 (최대 N=3, 3 사이클 내 모든 오류 개선 의무, 다음 PR 미루기 금지):
+   3a. Claude 5-agent review 게시 (PR comment TM 통합) + fix
+       - BE/FE/Designer/QA(Docker 실 검증 의무)/DevOps 5 agent 병렬
+       - tech-manager 통합 → PR comment 게시
+       - Codex 위임 fix (sandbox=workspace-write) 또는 Claude 직접 fix
+       - commit + push
+   3b. Codex 5-agent review 게시 (PR comment TM 통합) + fix
+       - mcp__codex__codex × 5 병렬 (sandbox=read-only)
+       - tech-manager 통합 → PR comment 게시
+       - Codex fix (sandbox=workspace-write)
+       - commit + push
+   → 사이클 1 종료. 잔존 결함 시 사이클 2 (3a + 3b 반복), 사이클 3 까지 모든 결함 fix.
         ↓
-[4] CI green + **머지 전 사용자 확인** (자동 머지 금지)
-   - 사용자가 "이상 없음" 확인 후 PM 머지 트리거
+[4] 이상 없을 경우 (0 결함 + CI green) PM 자동 머지 + 다음 PR 자동 진행
+   - 사용자 확인 X (이상 없을 경우 자동)
+   - 결함 잔존 또는 사이클 3+ 진입 시점에만 사용자 결정 위임
+   - 머지 후 다음 슬라이스 (SP-SAS-2 등) 자동 진입
 ```
 
-**핵심 변경 (8회차, 2026-05-19)**:
-- **Codex review 단계 제거** (7회차의 [4] Codex 5-agent review + TM 통합 fix 폐기)
-- 사이클 1 = Claude 5-agent review + fix 만으로 1회 사이클 종료
-- **PM 자동 머지 금지** — 머지 전 사용자 확인 의무 ("머지 하기 전에 이상 없는지 문의")
-
-implementation 자체는 Codex, review 는 Claude 5-agent 만, fix 는 Codex 위임 또는 Claude. Claude 의 역할 = 기획 + review TM 통합 + commit/test 환경 대행 + 머지 전 사용자 보고.
+**핵심 (9회차, 2026-05-19)**:
+- 사이클 1회 = Claude review/fix + Codex review/fix **양쪽** ([feedback_dual_5agent_review] 5회차 형태 복원)
+- 8회차 의 "Codex review 단계 제거" + "머지 전 사용자 확인 의무" **모두 정정**
+- **3 사이클 내 모든 오류 fix 의무** — 후속 PR 백로그 금지
+- **이상 없을 경우 PM 자동 머지** — 사용자 확인 X
+- **머지 후 다음 PR 자동 진행** — 자동화 강화
 
 ## QA 에이전트 Docker 실서버 테스트 의무 (2026-05-19 신규)
 
