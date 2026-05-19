@@ -3,8 +3,9 @@
 > 작성일: 2026-05-19
 > 작성자: PM (Claude) + 개발책임자 brainstorming
 > 슬라이스 ID: SP-SAS (Sales/Purchase Accounting Slip)
-> 상태: **brainstorming 진행 중** — sections §1~§N 누적 작성 중
-> 후속 단계: BR-6 spec self-review → BR-8 사용자 리뷰 → writing-plans → implementation
+> 상태: **design 완료 + self-review 통과 — 사용자 spec 리뷰 대기**
+> sections: §1 architecture ✓ / §2 도메인 ✓ / §3 워크플로우+일마감 ✓ / §4 VAT ✓ / §5 에러 ✓ / §6 Admin UI + 회계 메뉴 17건 ✓ / §7 테스트 ✓
+> 후속 단계: 사용자 spec 리뷰 → writing-plans → 5 슬라이스 분해 implementation
 >
 > **본 spec 의 결정사항은 git tracked 의무** (사용자 명시 2026-05-19): 매 결정 후 즉시 본 문서 갱신 + commit.
 
@@ -301,11 +302,10 @@ BigDecimal vatAmount    = BigDecimal.ZERO;
    — 회계 단순성 우선. 혼합 거래는 매출전표 2장 분리 발행
 ```
 
-**Partner 도메인 확장** (Phase 12+ MIG-2 결정 의존):
-- `Partner.taxType ENUM` 신규 컬럼 (default TAXABLE)
-- MIG-2 거래처 import 시 이카운트 export 의 "사업자유형" 매핑
-
-본 SAS 슬라이스는 Partner.taxType 컬럼이 없을 경우 매출전표 작성 시 매번 관리자 입력 (default TAXABLE).
+**Partner 도메인 확장은 본 SAS 슬라이스 scope 외**:
+- 본 SAS 슬라이스에서는 `Partner.taxType` 컬럼 추가하지 **않음**. 매출전표 작성 시 관리자가 매번 헤더에서 tax_type 선택 (default TAXABLE).
+- `Partner.taxType ENUM` 컬럼 + 이카운트 "사업자유형" 매핑은 별도 **후속 슬라이스 SP-SAS-PARTNER-TAX-TYPE** (또는 MIG-2 부속) 에서 진행.
+- 이로써 본 슬라이스는 partner-service 무수정, MIG-2 의존 없음.
 
 ### 5-D. 검증 SQL
 
