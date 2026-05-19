@@ -12,8 +12,22 @@ import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
+import { usePretendardFontGuarded } from './src/theme/usePretendardFontGuarded';
 
 export default function App(): React.ReactElement {
+  // Pretendard self-host (mobile-staff 패턴 일관 — Designer-2 채택 2026-05-07).
+  // expo-font 미설치 또는 asset 누락 시 fontsReady=true (graceful guard, RN UI 미차단).
+  const fontsReady = usePretendardFontGuarded();
+
+  if (!fontsReady) {
+    // 폰트 로딩 중 — SafeAreaProvider 유지, Navigator 미마운트 (SplashScreen 대체).
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />

@@ -1,3 +1,8 @@
+// Pretendard @font-face 선언을 dist/style.css 에 포함 — desktop/order-app 등이
+// `@samhan/design-system/style.css` 만 import 해도 self-host font 경로가 등록됨.
+// fonts.css 는 side-effect only (no exports).
+import './styles/fonts.css'
+
 export * from './tokens'
 export * from './components/Badge'
 export * from './components/Button'
