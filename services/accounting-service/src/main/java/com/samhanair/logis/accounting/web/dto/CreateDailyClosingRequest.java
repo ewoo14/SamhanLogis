@@ -1,5 +1,7 @@
 package com.samhanair.logis.accounting.web.dto;
 
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
@@ -11,10 +13,16 @@ import java.time.LocalDate;
  *
  * @param closingDate 마감 날짜 (필수)
  * @param partnerCode 거래처코드 (선택 — null 이면 전체 마감). UUID 비공개 원칙에 따라 코드 사용.
+ * @param closingKind 매출/매입 구분 (null 이면 SALES 하위 호환)
+ * @param sourceKind 집계 source (null 이면 TAX_INVOICE 하위 호환)
  */
 public record CreateDailyClosingRequest(
         @NotNull(message = "closingDate 는 필수입니다")
         LocalDate closingDate,
 
-        String partnerCode
+        String partnerCode,
+
+        DailyClosingKind closingKind,
+
+        DailyClosingSourceKind sourceKind
 ) {}

@@ -4,14 +4,27 @@ import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductSummary;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
 import com.samhanair.logis.accounting.domain.PeriodType;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipAllocation;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipLine;
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlipAllocation;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
+import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.AccountingPeriodRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.AccountTotal;
+import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
+import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.AccountingPeriodResponse;
 import com.samhanair.logis.accounting.web.dto.CreateClosingRequest;
@@ -64,6 +77,8 @@ public class MonthEndCloseService {
     private final SlipServiceClient slipServiceClient;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final ProductClient productClient;
+    private final SalesAccountingSlipRepository salesAccountingSlipRepository;
+    private final PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
     /**
      * 마감 실행 — 일별 또는 월별. 동일 (type, period_date) row 가 OPEN 이면 재사용
@@ -147,11 +162,38 @@ public class MonthEndCloseService {
      */
     @Transactional(readOnly = true)
     public DailyClosingDetailResponse getDailyDetail(LocalDate date) {
+        return getDailyDetail(date, DailyClosingKind.SALES, DailyClosingSourceKind.TAX_INVOICE);
+    }
+
+    /**
+     * SP-SAS-5 일별 마감 detail — sourceKind 별 read-only 미리보기.
+     *
+     * <p>기본값은 기존 SP-08-6-5 와 동일한 SALES + TAX_INVOICE 이다.
+     */
+    @Transactional(readOnly = true)
+    public DailyClosingDetailResponse getDailyDetail(LocalDate date,
+                                                     DailyClosingKind closingKind,
+                                                     DailyClosingSourceKind sourceKind) {
         if (date == null) {
             throw new IllegalArgumentException("date 는 필수입니다");
         }
+        DailyClosingKind kind = DailyClosingService.resolveClosingKind(closingKind);
+        DailyClosingSourceKind source = DailyClosingService.resolveSourceKind(sourceKind);
+        DailyClosingService.validateKindSourceMatch(kind, source);
+
+        return switch (source) {
+            case TAX_INVOICE -> getTaxInvoiceDailyDetail(date, kind);
+            case SALES_SLIP -> getSalesSlipDailyDetail(date);
+            case PURCHASE_SLIP -> getPurchaseSlipDailyDetail(date);
+        };
+    }
+
+    private DailyClosingDetailResponse getTaxInvoiceDailyDetail(LocalDate date,
+                                                               DailyClosingKind closingKind) {
         List<TaxInvoice> issued = taxInvoiceRepository
-                .findIssuedInRange(TaxInvoiceStatus.ISSUED, date, date);
+                .findIssuedInRange(TaxInvoiceStatus.ISSUED, date, date).stream()
+                .filter(ti -> matchesInvoiceType(ti, closingKind))
+                .toList();
 
         BigDecimal totalSupply = BigDecimal.ZERO;
         BigDecimal totalVat = BigDecimal.ZERO;
@@ -167,6 +209,8 @@ public class MonthEndCloseService {
             totalAmount = totalAmount.add(ti.getTotalAmount());
             taxInvoices.add(new DailyTaxInvoice(
                     ti.getTaxInvoiceNo(),
+                    null,
+                    null,
                     ti.getPartnerName(),
                     ti.getSupplyAmount(),
                     ti.getVatAmount(),
@@ -203,6 +247,114 @@ public class MonthEndCloseService {
                 BigDecimal.ZERO,
                 taxInvoices,
                 products);
+    }
+
+    private DailyClosingDetailResponse getSalesSlipDailyDetail(LocalDate date) {
+        List<SalesAccountingSlip> slips = salesAccountingSlipRepository
+                .findBySlipDateAndStatus(date, SalesSlipStatus.POSTED);
+        BigDecimal totalSupply = BigDecimal.ZERO;
+        BigDecimal totalVat = BigDecimal.ZERO;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        List<DailyTaxInvoice> rows = new ArrayList<>(slips.size());
+        Map<String, ModelAccumulator> byModel = new LinkedHashMap<>();
+
+        for (SalesAccountingSlip slip : slips) {
+            totalSupply = totalSupply.add(slip.getTotalSupplyAmount());
+            totalVat = totalVat.add(slip.getTotalVatAmount());
+            totalAmount = totalAmount.add(slip.getTotalAmount());
+            rows.add(new DailyTaxInvoice(
+                    null,
+                    slip.getSlipNo(),
+                    firstSalesSourceSlipNo(slip),
+                    slip.getPartnerName(),
+                    slip.getTotalSupplyAmount(),
+                    slip.getTotalVatAmount(),
+                    slip.getTotalAmount()));
+            for (SalesAccountingSlipLine line : slip.getLines()) {
+                accumulateProduct(byModel, line.getProductName(), line.getQty(), line.getSupplyAmount());
+            }
+        }
+        ensureProductClientReachable();
+        return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
+                BigDecimal.ZERO, rows, toProductLines(byModel));
+    }
+
+    private DailyClosingDetailResponse getPurchaseSlipDailyDetail(LocalDate date) {
+        List<PurchaseAccountingSlip> slips = purchaseAccountingSlipRepository
+                .findBySlipDateAndStatus(date, PurchaseSlipStatus.POSTED);
+        BigDecimal totalSupply = BigDecimal.ZERO;
+        BigDecimal totalVat = BigDecimal.ZERO;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        List<DailyTaxInvoice> rows = new ArrayList<>(slips.size());
+        Map<String, ModelAccumulator> byModel = new LinkedHashMap<>();
+
+        for (PurchaseAccountingSlip slip : slips) {
+            totalSupply = totalSupply.add(slip.getTotalSupplyAmount());
+            totalVat = totalVat.add(slip.getTotalVatAmount());
+            totalAmount = totalAmount.add(slip.getTotalAmount());
+            rows.add(new DailyTaxInvoice(
+                    null,
+                    slip.getSlipNo(),
+                    firstPurchaseSourceSlipNo(slip),
+                    slip.getPartnerName(),
+                    slip.getTotalSupplyAmount(),
+                    slip.getTotalVatAmount(),
+                    slip.getTotalAmount()));
+            for (PurchaseAccountingSlipLine line : slip.getLines()) {
+                accumulateProduct(byModel, line.getProductName(), line.getQty(), line.getSupplyAmount());
+            }
+        }
+        ensureProductClientReachable();
+        return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
+                BigDecimal.ZERO, rows, toProductLines(byModel));
+    }
+
+    private static boolean matchesInvoiceType(TaxInvoice invoice, DailyClosingKind closingKind) {
+        TaxInvoiceType invoiceType = invoice.getInvoiceType();
+        if (closingKind == DailyClosingKind.SALES) {
+            return invoiceType == null || invoiceType == TaxInvoiceType.SALES;
+        }
+        return invoiceType == TaxInvoiceType.PURCHASE;
+    }
+
+    private static String firstSalesSourceSlipNo(SalesAccountingSlip slip) {
+        return slip.getLines().stream()
+                .flatMap(line -> line.getAllocations().stream())
+                .map(SalesAccountingSlipAllocation::getSourceSlipNo)
+                .filter(s -> s != null && !s.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String firstPurchaseSourceSlipNo(PurchaseAccountingSlip slip) {
+        return slip.getLines().stream()
+                .flatMap(line -> line.getAllocations().stream())
+                .map(PurchaseAccountingSlipAllocation::getSourceSlipNo)
+                .filter(s -> s != null && !s.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static void accumulateProduct(Map<String, ModelAccumulator> byModel,
+                                          String productName,
+                                          BigDecimal quantity,
+                                          BigDecimal supplyAmount) {
+        String key = productName == null || productName.isBlank() ? "-" : productName;
+        ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
+        acc.quantity = acc.quantity.add(nullToZero(quantity));
+        acc.supplyAmount = acc.supplyAmount.add(nullToZero(supplyAmount));
+    }
+
+    private static List<DailyProductLine> toProductLines(Map<String, ModelAccumulator> byModel) {
+        List<DailyProductLine> products = new ArrayList<>(byModel.size());
+        for (Map.Entry<String, ModelAccumulator> e : byModel.entrySet()) {
+            products.add(new DailyProductLine(
+                    e.getKey(),
+                    null,
+                    e.getValue().quantity,
+                    e.getValue().supplyAmount));
+        }
+        return products;
     }
 
     /**

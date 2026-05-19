@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +29,11 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
      */
     Optional<DailyClosing> findByClosingDateAndPartnerIdIsNull(LocalDate closingDate);
 
+    Optional<DailyClosing> findByClosingDateAndPartnerIdIsNullAndClosingKindAndSourceKind(
+            LocalDate closingDate,
+            DailyClosingKind closingKind,
+            DailyClosingSourceKind sourceKind);
+
     /**
      * 특정 날짜 + 특정 거래처 단건 조회.
      *
@@ -35,6 +42,12 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
      * @return 해당 날짜/거래처 마감 snapshot (없으면 empty)
      */
     Optional<DailyClosing> findByClosingDateAndPartnerId(LocalDate closingDate, UUID partnerId);
+
+    Optional<DailyClosing> findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+            LocalDate closingDate,
+            UUID partnerId,
+            DailyClosingKind closingKind,
+            DailyClosingSourceKind sourceKind);
 
     /**
      * 기간 범위 조회 (내림차순) — 페이지네이션 지원.
@@ -58,6 +71,27 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
     Page<DailyClosing> findByDateRange(@Param("from") LocalDate from,
                                        @Param("to") LocalDate to,
                                        Pageable pageable);
+
+    @Query(value = """
+            SELECT d FROM DailyClosing d
+            WHERE d.closingDate >= :from
+              AND d.closingDate <= :to
+              AND (:closingKind IS NULL OR d.closingKind = :closingKind)
+              AND (:sourceKind IS NULL OR d.sourceKind = :sourceKind)
+            ORDER BY d.closingDate DESC
+            """,
+            countQuery = """
+            SELECT count(d) FROM DailyClosing d
+            WHERE d.closingDate >= :from
+              AND d.closingDate <= :to
+              AND (:closingKind IS NULL OR d.closingKind = :closingKind)
+              AND (:sourceKind IS NULL OR d.sourceKind = :sourceKind)
+            """)
+    Page<DailyClosing> findByDateRangeAndKinds(@Param("from") LocalDate from,
+                                               @Param("to") LocalDate to,
+                                               @Param("closingKind") DailyClosingKind closingKind,
+                                               @Param("sourceKind") DailyClosingSourceKind sourceKind,
+                                               Pageable pageable);
 
     /**
      * 기간 범위 전체 조회 (페이지 없음) — 리스트 반환.

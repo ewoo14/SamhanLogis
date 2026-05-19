@@ -210,8 +210,14 @@ export function AppLayout() {
   const showAccountingPeriodClose = dynamicCanAccess('accounting.period-close',    'view')
   const showAccountingStatBatch   = dynamicCanAccess('accounting.statement-batch', 'view')
   const showAccountingPartnerLedger = dynamicCanAccess('accounting.partner-ledger', 'view')
+  const showAccountingSalesSlip   = dynamicCanAccess('accounting.sales-slip.list', 'view')
+  const showAccountingPurchaseSlip = dynamicCanAccess('accounting.purchase-slip.list', 'view')
+  const showAccountingTaxInvoiceBatch = dynamicCanAccess('accounting.tax-invoice.batch-issue', 'view')
+  const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound', 'view')
   const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.emit-nts', 'view')
     || dynamicCanAccess('accounting.tax-invoice.list', 'view')
+    || showAccountingTaxInvoiceBatch
+    || showAccountingTaxInvoiceInbound
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingDepositMatch = dynamicCanAccess('accounting.deposit-match',  'view')
@@ -219,6 +225,7 @@ export function AppLayout() {
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
     || showAccountingReports || showAccountingPeriodClose || showAccountingStatBatch
+    || showAccountingSalesSlip || showAccountingPurchaseSlip
     || showAccountingPartnerLedger || showAccountingTaxInvoice || showAccountingDailyClose
     || showAccountingLedger || showAccountingDepositMatch
     // 정적 role fallback — RBAC 캐시 초기화 전 깜박임 방지 (canAccessAccounting 유지)
@@ -498,6 +505,20 @@ export function AppLayout() {
               {/* [SP-D2] 회계 각 메뉴 — SidebarLink + dynamicCanAccess 로 전환.
                   권한 없는 메뉴는 완전 미노출(null). 회색 비활성 X. */}
               <SidebarLink
+                to="/accounting/sales-slips"
+                show={showAccountingSalesSlip}
+                data-testid="sidebar-accounting-sales-slips"
+              >
+                매출전표
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/purchase-slips"
+                show={showAccountingPurchaseSlip}
+                data-testid="sidebar-accounting-purchase-slips"
+              >
+                매입전표
+              </SidebarLink>
+              <SidebarLink
                 to="/accounting/accounts"
                 show={showAccountingAccounts}
                 data-testid="sidebar-accounting-accounts"
@@ -517,6 +538,20 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-tax-invoices"
               >
                 세금계산서
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/tax-invoices/batch"
+                show={showAccountingTaxInvoiceBatch}
+                data-testid="sidebar-accounting-tax-invoice-batch-issue"
+              >
+                세금계산서 발행 묶음
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/tax-invoices/inbound"
+                show={showAccountingTaxInvoiceInbound}
+                data-testid="sidebar-accounting-tax-invoice-inbound"
+              >
+                수신 세금계산서
               </SidebarLink>
               <SidebarLink
                 to="/accounting/balances"
@@ -671,7 +706,7 @@ export function AppLayout() {
               </SidebarLink>
               {/* [SP-08-6-5 P2] 일마감 — accounting.daily-closing 동적 RBAC. */}
               <SidebarLink
-                to="/accounting/daily-closings"
+                to="/accounting/daily-closing"
                 show={showAccountingDailyClose}
                 data-testid="sidebar-accounting-daily-closings"
               >

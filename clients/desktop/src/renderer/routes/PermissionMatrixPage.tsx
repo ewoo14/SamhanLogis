@@ -97,6 +97,10 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'accounting.tax-invoice.emit-nts',
       'accounting.tax-invoice.list',
+      'accounting.tax-invoice.batch-issue',
+      'accounting.tax-invoice.inbound',
+      'accounting.sales-slip.list',
+      'accounting.purchase-slip.list',
       'accounting.deposit-match',
       'accounting.daily-closing',
       'accounting.general-ledger',
@@ -210,6 +214,10 @@ const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
 
 /** 페이지 코드 한국어 라벨. */
 const PAGE_LABEL: Record<PageCode, string> = {
+  'accounting.tax-invoice.batch-issue': '세금계산서 발행 묶음',
+  'accounting.tax-invoice.inbound': '수신 세금계산서',
+  'accounting.sales-slip.list': '매출전표',
+  'accounting.purchase-slip.list': '매입전표',
   // SP-D1 12개
   'accounting.tax-invoice.emit-nts': 'NTS 발행',
   'accounting.tax-invoice.list': '세금계산서 목록',
@@ -258,6 +266,10 @@ const PAGE_LABEL: Record<PageCode, string> = {
 
 /** edit 액션이 의미 있는 페이지 코드 목록. 나머지는 view 만 표시. */
 const PAGES_WITH_EDIT: Set<PageCode> = new Set([
+  'accounting.tax-invoice.batch-issue',
+  'accounting.tax-invoice.inbound',
+  'accounting.sales-slip.list',
+  'accounting.purchase-slip.list',
   // SP-D1~D3
   'accounting.tax-invoice.emit-nts',
   'accounting.deposit-match',

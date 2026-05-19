@@ -1,37 +1,3 @@
-/**
- * 일마감 화면 — `/accounting/daily-closings` (SP-08-6-5 P2).
- *
- * <p>구성:
- * <ul>
- *   <li>상단: 날짜 range 필터 + 거래처 코드 필터 + 조회 버튼</li>
- *   <li>마감 실행 카드: 대상 일자 + 거래처 코드(선택) + 메모 + 마감 실행 버튼</li>
- *   <li>마감 이력 표 — closingDate / 거래처 / 상태 / 매출합계 / 슬립건수 / 마감시각 / 역마감</li>
- * </ul>
- *
- * <p>권한 (BE `@PreAuthorize` 와 동일):
- * <ul>
- *   <li>마감 실행: ACCOUNTANT / MASTER</li>
- *   <li>역마감:    MASTER 만</li>
- *   <li>조회:      ACCOUNTANT / MANAGER / MASTER</li>
- * </ul>
- *
- * <p>UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
- * 마감 row 의 `id` 는 역마감 path param 전용. 화면 표시는 closingDate + partnerCode.
- *
- * data-testid:
- * - `daily-closing-page`                     — 페이지 루트
- * - `daily-closing-filter-from`              — 시작 일자 input
- * - `daily-closing-filter-to`                — 종료 일자 input
- * - `daily-closing-filter-partner`           — 거래처 코드 필터 input
- * - `daily-closing-filter-search`            — 조회 버튼
- * - `daily-closing-exec-date`                — 마감 실행 대상 일자 input
- * - `daily-closing-exec-partner`             — 마감 실행 거래처 코드 input
- * - `daily-closing-exec-description`         — 메모 input
- * - `daily-closing-exec-button`              — 마감 실행 버튼
- * - `daily-closing-list-table`               — 마감 이력 표
- * - `daily-closing-reverse-button-{id}`      — 역마감 버튼 (CLOSED + MASTER)
- * - `daily-closing-reverse-confirm-button`   — 역마감 확인 Modal 확인 버튼
- */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -52,23 +18,30 @@ import {
   listDailyClosings,
   reverseDailyClosing,
   type DailyClosing,
+  type DailyClosingKind,
+  type DailyClosingSourceKind,
 } from '../api/accounting'
+import {
+  getDailyClosingDetail,
+  type DailyTaxInvoiceRow,
+} from '../api/closingApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useSessionStore } from '../stores/session'
-import { today, sevenDaysAgo } from '../utils/dateUtils'
+import { today } from '../utils/dateUtils'
 import { fmtKrw } from '../utils/currencyUtils'
 
-/** ISO 8601 → "YYYY-MM-DD HH:mm". */
-function fmtTimestamp(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const Y = d.getFullYear()
-  const Mo = String(d.getMonth() + 1).padStart(2, '0')
-  const D = String(d.getDate()).padStart(2, '0')
-  const h = String(d.getHours()).padStart(2, '0')
-  const m = String(d.getMinutes()).padStart(2, '0')
-  return `${Y}-${Mo}-${D} ${h}:${m}`
+type ClosingKindFilter = 'ALL' | DailyClosingKind
+
+const KIND_LABEL: Record<ClosingKindFilter, string> = {
+  ALL: '통합',
+  SALES: '매출',
+  PURCHASE: '매입',
+}
+
+const SOURCE_LABEL: Record<DailyClosingSourceKind, string> = {
+  TAX_INVOICE: '세금계산서',
+  SALES_SLIP: '매출전표',
+  PURCHASE_SLIP: '매입전표',
 }
 
 const inputStyle: CSSProperties = {
@@ -81,14 +54,38 @@ const inputStyle: CSSProperties = {
   background: 'var(--surface-card)',
 }
 
-const noticeStyle: CSSProperties = {
-  margin: 0,
-  padding: '8px 12px',
+const toggleButtonStyle: CSSProperties = {
+  height: 32,
+  padding: '0 12px',
   borderRadius: 6,
-  background: 'var(--state-warning-bg)',
-  color: 'var(--state-warning)',
-  fontSize: 'var(--font-size-xs)',
-  lineHeight: 1.5,
+  border: '1px solid var(--line-default)',
+  background: 'var(--surface-card)',
+  cursor: 'pointer',
+}
+
+function fmtTimestamp(iso: string | null | undefined): string {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const minute = String(d.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:${minute}`
+}
+
+function compatibleSource(kind: DailyClosingKind, source: DailyClosingSourceKind): DailyClosingSourceKind {
+  if (kind === 'SALES' && source === 'PURCHASE_SLIP') return 'SALES_SLIP'
+  if (kind === 'PURCHASE' && source === 'SALES_SLIP') return 'PURCHASE_SLIP'
+  return source
+}
+
+function availableSources(kind: ClosingKindFilter): DailyClosingSourceKind[] {
+  if (kind === 'ALL') return []
+  return kind === 'SALES'
+    ? ['TAX_INVOICE', 'SALES_SLIP']
+    : ['TAX_INVOICE', 'PURCHASE_SLIP']
 }
 
 export function DailyClosingPage() {
@@ -99,37 +96,41 @@ export function DailyClosingPage() {
 
   usePageTitle('일마감')
 
-  // 필터 상태
-  const [filterFrom, setFilterFrom] = useState<string>(sevenDaysAgo())
-  const [filterTo, setFilterTo] = useState<string>(today())
-  const [filterPartner, setFilterPartner] = useState<string>('')
-  // 검색 버튼 클릭 시점의 applied 값으로 query key 갱신
-  const [applied, setApplied] = useState<{
-    from: string
-    to: string
-    partnerCode: string | undefined
-  }>({
-    from: sevenDaysAgo(),
-    to: today(),
-    partnerCode: undefined,
-  })
-
-  // 마감 실행 폼 상태
-  const [execDate, setExecDate] = useState<string>(today())
-  const [execPartner, setExecPartner] = useState<string>('')
-  const [execDescription, setExecDescription] = useState<string>('')
-
-  // 역마감 확인 Modal 상태
+  const [filterDate, setFilterDate] = useState(today())
+  const [partnerCode, setPartnerCode] = useState('')
+  const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
+  const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
+  const [execDate, setExecDate] = useState(today())
+  const [execPartner, setExecPartner] = useState('')
+  const [execDescription, setExecDescription] = useState('')
+  const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
+  const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
 
+  const queryKind = closingKind === 'ALL' ? undefined : closingKind
+  const querySourceKind = closingKind === 'ALL' ? undefined : sourceKind
+
   const listQuery = useQuery({
-    queryKey: ['daily-closings', applied.from, applied.to, applied.partnerCode ?? ''],
+    queryKey: ['daily-closings', filterDate, partnerCode, queryKind ?? 'ALL', querySourceKind ?? 'ALL'],
     queryFn: () =>
       listDailyClosings({
-        from: applied.from,
-        to: applied.to,
-        partnerCode: applied.partnerCode,
+        from: filterDate,
+        to: filterDate,
+        partnerCode: partnerCode.trim() || undefined,
+        closingKind: queryKind,
+        sourceKind: querySourceKind,
       }),
+  })
+
+  const detailQuery = useQuery({
+    queryKey: ['daily-closing-detail', filterDate, queryKind, querySourceKind],
+    enabled: closingKind !== 'ALL',
+    queryFn: () =>
+      getDailyClosingDetail(
+        filterDate,
+        queryKind ?? 'SALES',
+        querySourceKind ?? 'TAX_INVOICE',
+      ),
   })
 
   const closeMutation = useMutation({
@@ -138,96 +139,103 @@ export function DailyClosingPage() {
         closingDate: execDate,
         partnerCode: execPartner.trim() || undefined,
         description: execDescription.trim() || undefined,
+        closingKind: execKind,
+        sourceKind: compatibleSource(execKind, execSourceKind),
       }),
     onSuccess: () => {
       setExecDescription('')
       void queryClient.invalidateQueries({ queryKey: ['daily-closings'] })
+      void queryClient.invalidateQueries({ queryKey: ['daily-closing-detail'] })
     },
   })
 
   const reverseMutation = useMutation({
-    mutationFn: ({ closingDate, partnerCode }: { closingDate: string; partnerCode: string | null }) =>
-      reverseDailyClosing(closingDate, partnerCode),
+    mutationFn: (row: DailyClosing) =>
+      reverseDailyClosing(row.closingDate, row.partnerCode, row.closingKind, row.sourceKind),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['daily-closings'] })
+      void queryClient.invalidateQueries({ queryKey: ['daily-closing-detail'] })
     },
   })
 
-  const handleSearch = () => {
-    if (!filterFrom || !filterTo || filterFrom > filterTo) return
-    setApplied({
-      from: filterFrom,
-      to: filterTo,
-      partnerCode: filterPartner.trim() || undefined,
-    })
-  }
-
-  const closeError = closeMutation.error as Error | null
-  const reverseError = reverseMutation.error as Error | null
-
   const columns: DataTableColumn<DailyClosing>[] = useMemo(
     () => [
+      { key: 'closingDate', header: '마감일', width: '110px' },
       {
-        key: 'closingDate',
-        header: '마감 일자',
+        key: 'kind',
+        header: '종류',
+        width: '110px',
+        render: (row) => KIND_LABEL[row.closingKind ?? 'SALES'],
+      },
+      {
+        key: 'source',
+        header: '원천',
         width: '120px',
-        render: (r) => r.closingDate,
+        render: (row) => SOURCE_LABEL[row.sourceKind ?? 'TAX_INVOICE'],
       },
       {
         key: 'partnerCode',
         header: '거래처',
-        render: (r) => r.partnerCode ?? '전체',
+        render: (row) => row.partnerCode ?? '전체',
       },
       {
         key: 'isLocked',
         header: '상태',
         width: '80px',
-        render: (r) => {
-          const st = deriveDailyClosingStatus(r.isLocked)
+        render: (row) => {
+          const status = deriveDailyClosingStatus(row.isLocked)
           return (
-            <Badge variant={r.isLocked ? 'danger' : 'success'}>
-              {DAILY_CLOSING_STATUS_LABEL[st]}
+            <Badge variant={row.isLocked ? 'danger' : 'success'}>
+              {DAILY_CLOSING_STATUS_LABEL[status]}
             </Badge>
           )
         },
       },
       {
-        key: 'totalAmount',
-        header: '합계금액',
-        width: '140px',
+        key: 'totalSupply',
+        header: '공급가',
+        width: '120px',
         align: 'right',
-        render: (r) => fmtKrw(r.totalAmount),
+        render: (row) => fmtKrw(row.totalSupply),
+      },
+      {
+        key: 'totalVat',
+        header: '부가세',
+        width: '120px',
+        align: 'right',
+        render: (row) => fmtKrw(row.totalVat),
+      },
+      {
+        key: 'totalAmount',
+        header: '합계',
+        width: '120px',
+        align: 'right',
+        render: (row) => fmtKrw(row.totalAmount),
       },
       {
         key: 'slipCount',
-        header: '전표 건수',
-        width: '90px',
+        header: '건수',
+        width: '80px',
         align: 'right',
-        render: (r) => r.slipCount.toLocaleString(),
+        render: (row) => row.slipCount.toLocaleString(),
       },
       {
         key: 'lockedAt',
         header: '마감 시각',
         width: '140px',
-        render: (r) => fmtTimestamp(r.lockedAt),
-      },
-      {
-        key: 'lockedBy',
-        header: '실행자',
-        width: '110px',
-        render: (r) => r.lockedBy ?? '—',
+        render: (row) => fmtTimestamp(row.lockedAt),
       },
       {
         key: 'reverseAction',
         header: '',
-        width: '110px',
-        render: (r) =>
-          r.isLocked && canReverse ? (
+        width: '100px',
+        render: (row) =>
+          row.isLocked && canReverse ? (
             <Button
               variant="ghost"
               size="sm"
-              data-testid={`daily-closing-reverse-button-${r.closingDate}`}
-              onClick={() => setReverseConfirmRow(r)}
+              data-testid={`daily-closing-reverse-button-${row.closingDate}-${row.closingKind}-${row.sourceKind}`}
+              onClick={() => setReverseConfirmRow(row)}
               disabled={reverseMutation.isPending}
             >
               역마감
@@ -238,261 +246,222 @@ export function DailyClosingPage() {
     [canReverse, reverseMutation.isPending],
   )
 
+  const detailColumns: DataTableColumn<DailyTaxInvoiceRow>[] = [
+    {
+      key: 'taxInvoiceNo',
+      header: '세금계산서',
+      width: '150px',
+      render: (row) => row.taxInvoiceNo || '-',
+    },
+    {
+      key: 'salesSlipNo',
+      header: '매출전표',
+      width: '150px',
+      render: (row) => row.salesSlipNo || '-',
+    },
+    {
+      key: 'sourceSlipNo',
+      header: '원천전표',
+      width: '150px',
+      render: (row) => row.sourceSlipNo || '-',
+    },
+    { key: 'partnerName', header: '거래처' },
+    {
+      key: 'supplyAmount',
+      header: '공급가',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtKrw(row.supplyAmount),
+    },
+    {
+      key: 'totalAmount',
+      header: '합계',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtKrw(row.totalAmount),
+    },
+  ]
+
+  const sourceButtons = availableSources(closingKind)
+  const execSourceButtons = availableSources(execKind)
+
   return (
     <div data-testid="daily-closing-page">
-      {/* 필터 카드 */}
       <Card style={{ marginBottom: 16 }}>
-        <h3
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: 'var(--font-card-title)',
-            fontWeight: 'var(--font-weight-semibold)',
-          }}
-        >
-          일마감 조회
-        </h3>
-        <div
-          style={{
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span
-              style={{
-                fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-medium)',
-                color: 'var(--ink-secondary)',
-              }}
-            >
-              시작일
-            </span>
+        <h3 style={{ margin: '0 0 12px' }}>일마감 조회</h3>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label>
+            대상일&nbsp;
             <input
               type="date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              data-testid="daily-closing-filter-from"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              data-testid="daily-closing-filter-date"
               style={inputStyle}
             />
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span
-              style={{
-                fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-medium)',
-                color: 'var(--ink-secondary)',
-              }}
-            >
-              종료일
-            </span>
+          <label>
+            거래처 코드&nbsp;
             <input
-              type="date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              data-testid="daily-closing-filter-to"
-              style={inputStyle}
-            />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span
-              style={{
-                fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-medium)',
-                color: 'var(--ink-secondary)',
-              }}
-            >
-              거래처 코드(선택)
-            </span>
-            <input
-              type="text"
-              value={filterPartner}
-              onChange={(e) => setFilterPartner(e.target.value)}
-              placeholder="예: P-00123"
+              value={partnerCode}
+              onChange={(e) => setPartnerCode(e.target.value)}
+              placeholder="선택"
               data-testid="daily-closing-filter-partner"
-              style={{ ...inputStyle, width: 160 }}
+              style={{ ...inputStyle, width: 140 }}
             />
           </label>
-          <Button
-            variant="primary"
-            data-testid="daily-closing-filter-search"
-            onClick={handleSearch}
-            disabled={!filterFrom || !filterTo || filterFrom > filterTo}
-          >
-            조회
-          </Button>
+          <div data-testid="closing-kind-toggle" role="radiogroup" aria-label="마감 종류">
+            {(['ALL', 'SALES', 'PURCHASE'] as ClosingKindFilter[]).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                role="radio"
+                aria-checked={closingKind === kind}
+                onClick={() => {
+                  setClosingKind(kind)
+                  if (kind !== 'ALL') setSourceKind((prev) => compatibleSource(kind, prev))
+                }}
+                style={{
+                  ...toggleButtonStyle,
+                  background: closingKind === kind ? 'var(--surface-selected)' : toggleButtonStyle.background,
+                }}
+              >
+                {KIND_LABEL[kind]}
+              </button>
+            ))}
+          </div>
+          {sourceButtons.length > 0 ? (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {sourceButtons.map((source) => (
+                <button
+                  key={source}
+                  type="button"
+                  onClick={() => setSourceKind(source)}
+                  style={{
+                    ...toggleButtonStyle,
+                    background: sourceKind === source ? 'var(--surface-selected)' : toggleButtonStyle.background,
+                  }}
+                >
+                  {SOURCE_LABEL[source]}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </Card>
 
-      {/* 마감 실행 카드 */}
       <Card style={{ marginBottom: 16 }}>
-        <h3
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: 'var(--font-card-title)',
-            fontWeight: 'var(--font-weight-semibold)',
-          }}
-        >
-          일마감 실행
-        </h3>
-        <p style={noticeStyle}>
-          마감 실행 시 해당 일자의 CONFIRMED 전표가 LOCKED 상태로 전환됩니다.
-          역마감은 MASTER 권한자만 가능합니다.
-        </p>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-            flexWrap: 'wrap',
-            marginTop: 12,
-          }}
-        >
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--ink-primary)',
+        <h3 style={{ margin: '0 0 12px' }}>일마감 실행</h3>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="date"
+            value={execDate}
+            onChange={(e) => setExecDate(e.target.value)}
+            data-testid="daily-closing-exec-date"
+            style={inputStyle}
+          />
+          <select
+            value={execKind}
+            onChange={(e) => {
+              const next = e.target.value as DailyClosingKind
+              setExecKind(next)
+              setExecSourceKind((prev) => compatibleSource(next, prev))
             }}
+            style={inputStyle}
           >
-            마감 일자:&nbsp;
-            <input
-              type="date"
-              value={execDate}
-              onChange={(e) => setExecDate(e.target.value)}
-              data-testid="daily-closing-exec-date"
-              style={inputStyle}
-            />
-          </label>
-
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--ink-primary)',
-            }}
+            <option value="SALES">매출</option>
+            <option value="PURCHASE">매입</option>
+          </select>
+          <select
+            value={compatibleSource(execKind, execSourceKind)}
+            onChange={(e) => setExecSourceKind(e.target.value as DailyClosingSourceKind)}
+            style={inputStyle}
           >
-            거래처 코드(선택):&nbsp;
-            <input
-              type="text"
-              value={execPartner}
-              onChange={(e) => setExecPartner(e.target.value)}
-              placeholder="미입력 시 전체 마감"
-              data-testid="daily-closing-exec-partner"
-              style={{ ...inputStyle, width: 200 }}
-            />
-          </label>
-
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexGrow: 1,
-              minWidth: 200,
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--ink-primary)',
-            }}
-          >
-            메모(선택):&nbsp;
-            <input
-              type="text"
-              value={execDescription}
-              maxLength={500}
-              placeholder="마감 사유 등 (선택)"
-              onChange={(e) => setExecDescription(e.target.value)}
-              data-testid="daily-closing-exec-description"
-              style={{ ...inputStyle, width: '100%', maxWidth: 320 }}
-            />
-          </label>
-
+            {execSourceButtons.map((source) => (
+              <option key={source} value={source}>
+                {SOURCE_LABEL[source]}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={execPartner}
+            onChange={(e) => setExecPartner(e.target.value)}
+            placeholder="거래처 코드 선택"
+            data-testid="daily-closing-exec-partner"
+            style={{ ...inputStyle, width: 160 }}
+          />
+          <input
+            type="text"
+            value={execDescription}
+            onChange={(e) => setExecDescription(e.target.value)}
+            placeholder="메모"
+            data-testid="daily-closing-exec-description"
+            style={{ ...inputStyle, width: 220 }}
+          />
           <Button
             variant="primary"
             data-testid="daily-closing-exec-button"
             onClick={() => closeMutation.mutate()}
             disabled={!canExecute || closeMutation.isPending || !execDate}
-            title={!canExecute ? 'ACCOUNTANT / MASTER 권한이 필요합니다' : undefined}
           >
-            {closeMutation.isPending ? '처리 중...' : '마감 실행'}
+            {closeMutation.isPending ? '처리 중' : '마감 실행'}
           </Button>
         </div>
-
         {!canExecute ? (
-          <p
-            style={{
-              margin: '8px 0 0 0',
-              fontSize: 'var(--font-size-xs)',
-              color: 'var(--state-danger)',
-            }}
-          >
-            마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
+          <p style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}>
+            ACCOUNTANT / MASTER 권한에서 실행할 수 있습니다.
           </p>
         ) : null}
-
-        {closeMutation.isSuccess ? (
-          <p
-            style={{
-              margin: '8px 0 0 0',
-              fontSize: 'var(--font-size-xs)',
-              color: 'var(--state-success)',
-            }}
-          >
-            마감이 완료되었습니다.
-          </p>
-        ) : null}
-
-        {closeError ? (
+        {closeMutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            마감 실행 실패: {closeError.message}
-          </div>
-        ) : null}
-
-        {reverseError ? (
-          <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            역마감 실패: {reverseError.message}
+            일마감 실행에 실패했습니다.
           </div>
         ) : null}
       </Card>
 
-      {/* 마감 이력 표 */}
-      <Card>
-        <h3
-          style={{
-            margin: '0 0 8px 0',
-            fontSize: 'var(--font-card-title)',
-            fontWeight: 'var(--font-weight-semibold)',
-          }}
-        >
-          마감 이력
-        </h3>
-
+      <Card style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: '0 0 12px' }}>마감 이력</h3>
         {listQuery.isLoading ? (
-          <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
-            <Spinner size="lg" label="마감 목록 불러오는 중" />
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: 140 }}>
+            <Spinner size="lg" label="마감 이력 로딩 중" />
           </div>
         ) : listQuery.isError ? (
-          <div className="error-banner" role="alert">
-            마감 목록을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
-          </div>
+          <div className="error-banner" role="alert">마감 이력을 불러오지 못했습니다.</div>
         ) : (
           <div data-testid="daily-closing-list-table">
             <DataTable
               columns={columns}
               rows={listQuery.data?.content ?? []}
-              rowKey={(r) => `${r.closingDate}-${r.partnerCode ?? 'ALL'}`}
-              emptyMessage="해당 기간의 일마감 이력이 없습니다."
+              rowKey={(row) => `${row.closingDate}-${row.partnerCode ?? 'ALL'}-${row.closingKind}-${row.sourceKind}`}
+              emptyMessage="해당 일자의 일마감 이력이 없습니다."
             />
           </div>
         )}
       </Card>
 
-      {/* 역마감 확인 Modal */}
+      <Card>
+        <h3 style={{ margin: '0 0 12px' }}>Daily Detail</h3>
+        {closingKind === 'ALL' ? (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-secondary)' }}>
+            통합 조회에서는 이력만 표시합니다. 상세는 매출 또는 매입을 선택해 확인하세요.
+          </p>
+        ) : detailQuery.isLoading ? (
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: 120 }}>
+            <Spinner size="lg" label="상세 로딩 중" />
+          </div>
+        ) : detailQuery.isError ? (
+          <div className="error-banner" role="alert">Daily Detail을 불러오지 못했습니다.</div>
+        ) : (
+          <DataTable
+            columns={detailColumns}
+            rows={detailQuery.data?.taxInvoices ?? []}
+            rowKey={(row) => `${row.taxInvoiceNo ?? ''}-${row.salesSlipNo ?? ''}-${row.sourceSlipNo ?? ''}-${row.partnerName}`}
+            emptyMessage="상세 전표가 없습니다."
+          />
+        )}
+      </Card>
+
       <Modal
         open={reverseConfirmRow !== null}
         onClose={() => setReverseConfirmRow(null)}
@@ -501,11 +470,7 @@ export function DailyClosingPage() {
         closeOnBackdropClick={false}
         footer={
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setReverseConfirmRow(null)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setReverseConfirmRow(null)}>
               취소
             </Button>
             <Button
@@ -515,28 +480,20 @@ export function DailyClosingPage() {
               disabled={reverseMutation.isPending}
               onClick={() => {
                 if (reverseConfirmRow) {
-                  reverseMutation.mutate({
-                    closingDate: reverseConfirmRow.closingDate,
-                    partnerCode: reverseConfirmRow.partnerCode,
-                  })
+                  reverseMutation.mutate(reverseConfirmRow)
                   setReverseConfirmRow(null)
                 }
               }}
             >
-              {reverseMutation.isPending ? '처리 중...' : '역마감'}
+              {reverseMutation.isPending ? '처리 중' : '역마감'}
             </Button>
           </div>
         }
       >
         {reverseConfirmRow ? (
-          <p style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
-            <strong>{reverseConfirmRow.closingDate}</strong>{' '}
-            {reverseConfirmRow.partnerCode
-              ? `(거래처: ${reverseConfirmRow.partnerCode})`
-              : '(전체)'}
-            {' '}일마감을 역마감 처리합니다.
-            <br />
-            역마감 후 전표 변경이 다시 허용됩니다. 진행하시겠습니까?
+          <p style={{ margin: 0, fontSize: 13 }}>
+            {reverseConfirmRow.closingDate} {KIND_LABEL[reverseConfirmRow.closingKind]}{' '}
+            {SOURCE_LABEL[reverseConfirmRow.sourceKind]} 마감을 해제합니다.
           </p>
         ) : null}
       </Modal>

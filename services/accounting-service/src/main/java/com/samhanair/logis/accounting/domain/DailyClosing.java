@@ -5,6 +5,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -22,8 +24,7 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 일마감 snapshot 엔티티 (SP-08-6-5).
  *
- * <p>legacy GAS 12번 "일마감 프로그램" — 특정 날짜의 매출 전표(세금계산서) 집계 결과를
- * 잠금 flag 와 함께 영속화한다.
+ * <p>legacy GAS 12번 "일마감 프로그램" — 특정 날짜의 매출/매입 source 집계 결과를 잠금 flag 와 함께 영속화한다.
  *
  * <p>설계 결정:
  * <ul>
@@ -72,6 +73,16 @@ public class DailyClosing extends BaseEntity {
     @Column(name = "partner_id")
     private UUID partnerId;
 
+    /** 마감 집계 종류 — 매출/매입. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "closing_kind", nullable = false, length = 20)
+    private DailyClosingKind closingKind;
+
+    /** 집계 source — 세금계산서/매출전표/매입전표. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_kind", nullable = false, length = 20)
+    private DailyClosingSourceKind sourceKind;
+
     /** 공급가액 합계 (세금계산서 ISSUED 기준). */
     @Column(name = "total_supply", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalSupply;
@@ -105,10 +116,13 @@ public class DailyClosing extends BaseEntity {
     private Long version;
 
     private DailyClosing(LocalDate closingDate, UUID partnerId,
+                         DailyClosingKind closingKind, DailyClosingSourceKind sourceKind,
                          BigDecimal totalSupply, BigDecimal totalVat,
                          BigDecimal totalAmount, int slipCount) {
         this.closingDate = closingDate;
         this.partnerId = partnerId;
+        this.closingKind = closingKind;
+        this.sourceKind = sourceKind;
         this.totalSupply = nullToZero(totalSupply);
         this.totalVat = nullToZero(totalVat);
         this.totalAmount = nullToZero(totalAmount);
@@ -128,13 +142,37 @@ public class DailyClosing extends BaseEntity {
      * @param slipCount   집계 전표 건수
      * @return 신규 DailyClosing 인스턴스 (미저장)
      */
+    @Deprecated(since = "SP-SAS-5")
     public static DailyClosing create(LocalDate closingDate, UUID partnerId,
                                       BigDecimal totalSupply, BigDecimal totalVat,
                                       BigDecimal totalAmount, int slipCount) {
+        return createV2(closingDate, partnerId, DailyClosingKind.SALES,
+                DailyClosingSourceKind.TAX_INVOICE,
+                totalSupply, totalVat, totalAmount, slipCount);
+    }
+
+    /**
+     * 신규 일마감 snapshot 생성 (SP-SAS-5).
+     *
+     * @param closingKind 매출/매입 구분
+     * @param sourceKind 집계 source 구분
+     */
+    public static DailyClosing createV2(LocalDate closingDate, UUID partnerId,
+                                        DailyClosingKind closingKind,
+                                        DailyClosingSourceKind sourceKind,
+                                        BigDecimal totalSupply, BigDecimal totalVat,
+                                        BigDecimal totalAmount, int slipCount) {
         if (closingDate == null) {
             throw new IllegalArgumentException("closingDate 는 필수입니다");
         }
-        return new DailyClosing(closingDate, partnerId, totalSupply, totalVat, totalAmount, slipCount);
+        if (closingKind == null) {
+            throw new IllegalArgumentException("closingKind 는 필수입니다");
+        }
+        if (sourceKind == null) {
+            throw new IllegalArgumentException("sourceKind 는 필수입니다");
+        }
+        return new DailyClosing(closingDate, partnerId, closingKind, sourceKind,
+                totalSupply, totalVat, totalAmount, slipCount);
     }
 
     /**

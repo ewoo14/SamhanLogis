@@ -106,7 +106,6 @@ import { TaxInvoiceFormPage } from './TaxInvoiceFormPage'
 import { TaxInvoiceDetailPage } from './TaxInvoiceDetailPage'
 // GAS 이식 — 세금계산서 일괄발행 4탭 페이지 (ACCOUNTANT / MANAGER / MASTER).
 // BE: accounting-service POST /batch/preview / GET /batch/{id}/excel / /batch/exclusions / /batch/history
-import { TaxInvoiceBatchPage } from './accounting/TaxInvoiceBatchPage'
 // [supplier-profile + datagrid] 사업자 양식 페이지 (ACCOUNTANT read / MANAGER+MASTER write).
 // BE: accounting-service `/api/v1/accounting/supplier-profiles`
 import { SupplierProfilePage } from './accounting/SupplierProfilePage'
@@ -262,6 +261,12 @@ import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 // BE: accounting-service `/accounting/daily-closings` + `/accounting/ledgers`
 import { DailyClosingPage } from './DailyClosingPage'
 import { GeneralLedgerPage } from './GeneralLedgerPage'
+import { SalesAccountingSlipPage } from './accounting/SalesAccountingSlipPage'
+import { SalesAccountingSlipFormPage } from './accounting/SalesAccountingSlipFormPage'
+import { PurchaseAccountingSlipPage } from './accounting/PurchaseAccountingSlipPage'
+import { PurchaseAccountingSlipFormPage } from './accounting/PurchaseAccountingSlipFormPage'
+import { TaxInvoiceBatchIssuePage } from './accounting/TaxInvoiceBatchIssuePage'
+import { TaxInvoiceInboundPage } from './accounting/TaxInvoiceInboundPage'
 // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 // 매뉴얼 docs/manual/03-회계/04-월말-마감.md 와 Stage 1 일치.
 import { PeriodCloseListPage } from './PeriodCloseListPage'
@@ -1053,7 +1058,57 @@ const router = createHashRouter([
       // BE: accounting-service `GET/POST /accounting/daily-closings` + `POST /{id}/reverse`.
       // [SP-D2] PermissionGuard 추가 — accounting.daily-closing 동적 RBAC.
       {
+        path: '/accounting/sales-slips',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+              <SalesAccountingSlipPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/sales-slips/new',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.sales-slip.list" action="edit">
+              <SalesAccountingSlipFormPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/purchase-slips',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.purchase-slip.list" action="view">
+              <PurchaseAccountingSlipPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/purchase-slips/new',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
+              <PurchaseAccountingSlipFormPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
         path: '/accounting/daily-closings',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.daily-closing" action="view">
+              <DailyClosingPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/daily-closing',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <PermissionGuard pageCode="accounting.daily-closing" action="view">
@@ -1168,8 +1223,18 @@ const router = createHashRouter([
         path: '/accounting/tax-invoices/batch',
         element: (
           <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
-              <TaxInvoiceBatchPage />
+            <PermissionGuard pageCode="accounting.tax-invoice.batch-issue" action="view">
+              <TaxInvoiceBatchIssuePage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/tax-invoices/inbound',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="accounting.tax-invoice.inbound" action="view">
+              <TaxInvoiceInboundPage />
             </PermissionGuard>
           </RoleGuard>
         ),

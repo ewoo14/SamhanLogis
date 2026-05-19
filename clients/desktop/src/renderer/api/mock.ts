@@ -5571,6 +5571,10 @@ const SP_D1_PAGES = [
   // SP-D1 초기 12개
   'accounting.tax-invoice.emit-nts',
   'accounting.tax-invoice.list',
+  'accounting.tax-invoice.batch-issue',
+  'accounting.tax-invoice.inbound',
+  'accounting.sales-slip.list',
+  'accounting.purchase-slip.list',
   'accounting.deposit-match',
   'accounting.daily-closing',
   'accounting.general-ledger',
@@ -5644,7 +5648,9 @@ const SP_D1_PAGES = [
 const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
     // SP-D1
-    'accounting.tax-invoice.list', 'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.tax-invoice.list', 'accounting.tax-invoice.batch-issue',
+    'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
+    'accounting.purchase-slip.list', 'accounting.deposit-match', 'accounting.daily-closing',
     'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board',
@@ -5678,6 +5684,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.deposit-match', 'accounting.daily-closing', 'accounting.general-ledger',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
@@ -5737,6 +5745,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
  */
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -5763,6 +5773,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
+    'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.deposit-match', 'accounting.daily-closing',
     'purchases.receipt-ocr',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)

@@ -34,6 +34,8 @@ public record DailyClosingDetailResponse(
     /** 일별 세금계산서 1건 — 발행번호 / 거래처 / 합계. */
     public record DailyTaxInvoice(
             String taxInvoiceNo,
+            String salesSlipNo,
+            String sourceSlipNo,
             String partnerName,
             BigDecimal supplyAmount,
             BigDecimal vatAmount,

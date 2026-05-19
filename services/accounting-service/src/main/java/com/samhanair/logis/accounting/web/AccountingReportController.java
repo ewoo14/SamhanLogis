@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.HometaxExportService;
 import com.samhanair.logis.accounting.service.LedgerImageService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
@@ -179,8 +181,10 @@ public class AccountingReportController {
     @GetMapping("/accounting/closings/daily")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
     public ApiResponse<DailyClosingDetailResponse> dailyDetail(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(monthEndCloseService.getDailyDetail(date));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) DailyClosingKind kind,
+            @RequestParam(required = false) DailyClosingSourceKind sourceKind) {
+        return ApiResponse.ok(monthEndCloseService.getDailyDetail(date, kind, sourceKind));
     }
 
     // =========================================================================

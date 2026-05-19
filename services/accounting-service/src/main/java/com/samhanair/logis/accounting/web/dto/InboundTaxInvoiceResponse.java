@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record InboundTaxInvoiceResponse(
+        String taxInvoiceId,
         String taxInvoiceNo,
         String partnerCode,
         String partnerName,

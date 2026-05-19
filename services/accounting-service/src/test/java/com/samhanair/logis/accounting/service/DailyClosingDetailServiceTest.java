@@ -15,6 +15,8 @@ import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.repository.AccountingPeriodRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
+import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
+import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.DailyClosingDetailResponse;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -50,6 +52,8 @@ class DailyClosingDetailServiceTest {
     @Mock private SlipServiceClient slipServiceClient;
     @Mock private TaxInvoiceRepository taxInvoiceRepository;
     @Mock private ProductClient productClient;
+    @Mock private SalesAccountingSlipRepository salesAccountingSlipRepository;
+    @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
     @InjectMocks private MonthEndCloseService service;
 

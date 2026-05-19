@@ -27,6 +27,8 @@ export type PeriodType = 'DAILY' | 'MONTHLY'
 
 /** 마감 상태 — BE `PeriodStatus`. */
 export type PeriodStatus = 'OPEN' | 'CLOSED'
+export type DailyClosingKind = 'SALES' | 'PURCHASE'
+export type DailyClosingSourceKind = 'TAX_INVOICE' | 'SALES_SLIP' | 'PURCHASE_SLIP'
 
 /**
  * 마감 단건 응답 — BE `AccountingPeriodResponse` record.
@@ -138,6 +140,8 @@ export async function reverseClosing(id: string): Promise<AccountingPeriod> {
 export interface DailyTaxInvoiceRow {
   /** 세금계산서 발행번호 (사용자 노출 식별자). */
   taxInvoiceNo: string
+  salesSlipNo: string | null
+  sourceSlipNo: string | null
   /** 거래처명 (사용자 노출). */
   partnerName: string
   /** 공급가액 (KRW BigDecimal — string). */
@@ -199,10 +203,12 @@ export interface DailyClosingDetail {
  */
 export async function getDailyClosingDetail(
   date: string,
+  kind?: DailyClosingKind,
+  sourceKind?: DailyClosingSourceKind,
 ): Promise<DailyClosingDetail> {
   const res = await apiClient.get<ApiEnvelope<DailyClosingDetail>>(
     '/accounting/closings/daily',
-    { params: { date } },
+    { params: { date, kind, sourceKind } },
   )
   return res.data.data
 }

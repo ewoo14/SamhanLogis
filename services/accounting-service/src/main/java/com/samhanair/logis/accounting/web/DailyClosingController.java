@@ -1,5 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.DailyClosingService;
 import com.samhanair.logis.accounting.web.dto.CreateDailyClosingRequest;
 import com.samhanair.logis.accounting.web.dto.DailyClosingResponse;
@@ -101,10 +103,14 @@ public class DailyClosingController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @Parameter(description = "조회 종료 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @Parameter(description = "마감 종류 (SALES/PURCHASE). 미지정 시 전체")
+            @RequestParam(required = false) DailyClosingKind kind,
+            @Parameter(description = "집계 source (TAX_INVOICE/SALES_SLIP/PURCHASE_SLIP). 미지정 시 전체")
+            @RequestParam(required = false) DailyClosingSourceKind sourceKind,
             @PageableDefault(size = 20, sort = "closingDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(dailyClosingService.list(from, to, pageable, roleHeader));
+        return ApiResponse.ok(dailyClosingService.list(from, to, kind, sourceKind, pageable, roleHeader));
     }
 
     /**
@@ -140,6 +146,10 @@ public class DailyClosingController {
             @RequestBody java.util.Map<String, Object> body,
             @Parameter(description = "거래처코드 (null = 전체 마감)")
             @RequestParam(required = false) String partnerCode,
+            @Parameter(description = "마감 종류 (SALES/PURCHASE). 미지정 시 SALES")
+            @RequestParam(required = false) DailyClosingKind kind,
+            @Parameter(description = "집계 source. 미지정 시 TAX_INVOICE")
+            @RequestParam(required = false) DailyClosingSourceKind sourceKind,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         // {"locked": false} 만 허용 (현재 unlock only — lock 은 POST /daily-closings 가 담당)
@@ -150,7 +160,8 @@ public class DailyClosingController {
                     "현재 이 엔드포인트는 {\"locked\": false} 만 지원합니다");
         }
         return ApiResponse.ok(
-                dailyClosingService.unlock(closingDate, partnerCode, callerOrSystem(callerHeader), roleHeader));
+                dailyClosingService.unlock(closingDate, partnerCode, kind, sourceKind,
+                        callerOrSystem(callerHeader), roleHeader));
     }
 
     private String callerOrSystem(String header) {

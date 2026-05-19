@@ -925,7 +925,12 @@ export async function getMonthlySummary(
  * - `slipCount` / `isLocked` / `lockedAt` / `lockedBy`
  * - `status` 는 BE 미제공 — `isLocked` boolean 에서 UI 파생.
  */
+export type DailyClosingKind = 'SALES' | 'PURCHASE'
+export type DailyClosingSourceKind = 'TAX_INVOICE' | 'SALES_SLIP' | 'PURCHASE_SLIP'
+
 export interface DailyClosing {
+  closingKind: DailyClosingKind
+  sourceKind: DailyClosingSourceKind
   /** 마감 대상 일자 (YYYY-MM-DD). */
   closingDate: string
   /** 거래처 코드 필터 (단일 거래처 마감 시 채워짐, null = 전체). */
@@ -958,6 +963,8 @@ export interface ListDailyClosingsOptions {
   to: string
   /** 거래처 코드 필터. */
   partnerCode?: string
+  closingKind?: DailyClosingKind
+  sourceKind?: DailyClosingSourceKind
   /** 페이지 번호 (0-based, 기본 0). */
   page?: number
   /** 페이지 크기 (기본 20). */
@@ -974,6 +981,8 @@ export interface CreateDailyClosingRequest {
   partnerCode?: string
   /** 메모 (선택, ≤500자). */
   description?: string
+  closingKind?: DailyClosingKind
+  sourceKind?: DailyClosingSourceKind
 }
 
 /**
@@ -992,6 +1001,8 @@ export async function listDailyClosings(
     size: options.size ?? 20,
   }
   if (options.partnerCode) params['partnerCode'] = options.partnerCode
+  if (options.closingKind) params['kind'] = options.closingKind
+  if (options.sourceKind) params['sourceKind'] = options.sourceKind
   const res = await apiClient.get<ApiEnvelope<PageResponse<DailyClosing>>>(
     '/accounting/daily-closings',
     { params },
@@ -1030,9 +1041,13 @@ export async function createDailyClosing(
 export async function reverseDailyClosing(
   closingDate: string,
   partnerCode?: string | null,
+  closingKind?: DailyClosingKind,
+  sourceKind?: DailyClosingSourceKind,
 ): Promise<DailyClosing> {
   const params: Record<string, string> = {}
   if (partnerCode) params['partnerCode'] = partnerCode
+  if (closingKind) params['kind'] = closingKind
+  if (sourceKind) params['sourceKind'] = sourceKind
   const res = await apiClient.patch<ApiEnvelope<DailyClosing>>(
     `/accounting/daily-closings/${closingDate}/lock`,
     { locked: false },
@@ -1175,4 +1190,3 @@ export async function getGeneralLedger(
   )
   return res.data.data
 }
-

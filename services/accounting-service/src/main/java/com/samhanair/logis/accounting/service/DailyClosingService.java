@@ -4,9 +4,18 @@ import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.DailyClosingRepository;
+import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
+import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.CreateDailyClosingRequest;
 import com.samhanair.logis.accounting.web.dto.DailyClosingResponse;
@@ -59,6 +68,8 @@ public class DailyClosingService {
 
     private final DailyClosingRepository dailyClosingRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
+    private final SalesAccountingSlipRepository salesAccountingSlipRepository;
+    private final PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final DynamicPermissionClient dynamicPermissionClient;
 
@@ -90,6 +101,9 @@ public class DailyClosingService {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
         LocalDate closingDate = request.closingDate();
+        DailyClosingKind closingKind = resolveClosingKind(request.closingKind());
+        DailyClosingSourceKind sourceKind = resolveSourceKind(request.sourceKind());
+        validateKindSourceMatch(closingKind, sourceKind);
 
         // (1) partnerCode → partnerId 도출
         UUID partnerId = null;
@@ -102,42 +116,29 @@ public class DailyClosingService {
             resolvedPartnerCode = summary.partnerCode();
         }
 
-        // (2) 세금계산서 ISSUED 집계
-        List<TaxInvoice> issued = taxInvoiceRepository.findIssuedInRange(
-                TaxInvoiceStatus.ISSUED, closingDate, closingDate);
-
-        // partnerId 필터 적용 (전체 마감이면 전부, 거래처 마감이면 해당 거래처만)
+        // (2) sourceKind 별 집계
         final UUID filterPartnerId = partnerId;
-        if (filterPartnerId != null) {
-            issued = issued.stream()
-                    .filter(ti -> filterPartnerId.equals(ti.getPartnerId()))
-                    .toList();
-        }
-
-        BigDecimal totalSupply = issued.stream()
-                .map(TaxInvoice::getSupplyAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalVat = issued.stream()
-                .map(TaxInvoice::getVatAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAmount = issued.stream()
-                .map(TaxInvoice::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        int slipCount = issued.size();
+        AggregationResult agg = switch (sourceKind) {
+            case TAX_INVOICE -> aggregateFromTaxInvoices(closingDate, filterPartnerId, closingKind);
+            case SALES_SLIP -> aggregateFromSalesSlips(closingDate, filterPartnerId);
+            case PURCHASE_SLIP -> aggregateFromPurchaseSlips(closingDate, filterPartnerId);
+        };
 
         // (3) 기존 snapshot 조회 또는 신규 생성 (신규는 0으로 초기화 후 recalculate 로 일원화)
         DailyClosing closing;
         if (filterPartnerId != null) {
             closing = dailyClosingRepository
-                    .findByClosingDateAndPartnerId(closingDate, filterPartnerId)
+                    .findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+                            closingDate, filterPartnerId, closingKind, sourceKind)
                     .orElseGet(() -> dailyClosingRepository.save(
-                            DailyClosing.create(closingDate, filterPartnerId,
+                            DailyClosing.createV2(closingDate, filterPartnerId, closingKind, sourceKind,
                                     BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0)));
         } else {
             closing = dailyClosingRepository
-                    .findByClosingDateAndPartnerIdIsNull(closingDate)
+                    .findByClosingDateAndPartnerIdIsNullAndClosingKindAndSourceKind(
+                            closingDate, closingKind, sourceKind)
                     .orElseGet(() -> dailyClosingRepository.save(
-                            DailyClosing.create(closingDate, null,
+                            DailyClosing.createV2(closingDate, null, closingKind, sourceKind,
                                     BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0)));
         }
 
@@ -146,7 +147,7 @@ public class DailyClosingService {
             // 도메인 메서드 내부에서 CONFLICT throw — 일관성 유지
             closing.lock(actorUserId);
         }
-        closing.recalculate(totalSupply, totalVat, totalAmount, slipCount);
+        closing.recalculate(agg.totalSupply(), agg.totalVat(), agg.totalAmount(), agg.slipCount());
         closing.lock(actorUserId);
 
         return DailyClosingResponse.of(closing, resolvedPartnerCode);
@@ -166,6 +167,15 @@ public class DailyClosingService {
     @Transactional(readOnly = true)
     public Page<DailyClosingResponse> list(LocalDate from, LocalDate to, Pageable pageable,
                                            String actorRole) {
+        return list(from, to, null, null, pageable, actorRole);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DailyClosingResponse> list(LocalDate from, LocalDate to,
+                                           DailyClosingKind closingKind,
+                                           DailyClosingSourceKind sourceKind,
+                                           Pageable pageable,
+                                           String actorRole) {
         checkViewPermission(actorRole);
         if (from == null || to == null) {
             throw new IllegalArgumentException("from/to 는 필수입니다");
@@ -173,7 +183,11 @@ public class DailyClosingService {
         if (to.isBefore(from)) {
             throw new IllegalArgumentException("to 는 from 이후여야 합니다");
         }
-        Page<DailyClosing> page = dailyClosingRepository.findByDateRange(from, to, pageable);
+        if (closingKind != null && sourceKind != null) {
+            validateKindSourceMatch(closingKind, sourceKind);
+        }
+        Page<DailyClosing> page = dailyClosingRepository.findByDateRangeAndKinds(
+                from, to, closingKind, sourceKind, pageable);
         List<DailyClosingResponse> rows = page.getContent().stream()
                 .map(d -> DailyClosingResponse.of(d, resolvePartnerCode(d.getPartnerId())))
                 .toList();
@@ -196,10 +210,21 @@ public class DailyClosingService {
      */
     public DailyClosingResponse unlock(LocalDate closingDate, String partnerCode,
                                        String actorUserId, String actorRole) {
+        return unlock(closingDate, partnerCode, DailyClosingKind.SALES,
+                DailyClosingSourceKind.TAX_INVOICE, actorUserId, actorRole);
+    }
+
+    public DailyClosingResponse unlock(LocalDate closingDate, String partnerCode,
+                                       DailyClosingKind closingKind,
+                                       DailyClosingSourceKind sourceKind,
+                                       String actorUserId, String actorRole) {
         checkEditPermission(actorRole, actorUserId);
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
+        DailyClosingKind resolvedKind = resolveClosingKind(closingKind);
+        DailyClosingSourceKind resolvedSource = resolveSourceKind(sourceKind);
+        validateKindSourceMatch(resolvedKind, resolvedSource);
         UUID partnerId = null;
         String resolvedPartnerCode = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
@@ -210,9 +235,73 @@ public class DailyClosingService {
             resolvedPartnerCode = summary.partnerCode();
         }
 
-        DailyClosing closing = findExisting(closingDate, partnerId);
+        DailyClosing closing = findExisting(closingDate, partnerId, resolvedKind, resolvedSource);
         closing.unlock(actorUserId);
         return DailyClosingResponse.of(closing, resolvedPartnerCode);
+    }
+
+    private AggregationResult aggregateFromTaxInvoices(LocalDate closingDate, UUID partnerId,
+                                                       DailyClosingKind closingKind) {
+        List<TaxInvoice> issued = taxInvoiceRepository.findIssuedInRange(
+                TaxInvoiceStatus.ISSUED, closingDate, closingDate).stream()
+                .filter(ti -> partnerId == null || partnerId.equals(ti.getPartnerId()))
+                .filter(ti -> matchesInvoiceType(ti, closingKind))
+                .toList();
+        return new AggregationResult(
+                issued.stream().map(TaxInvoice::getSupplyAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                issued.stream().map(TaxInvoice::getVatAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                issued.stream().map(TaxInvoice::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                issued.size());
+    }
+
+    private AggregationResult aggregateFromSalesSlips(LocalDate closingDate, UUID partnerId) {
+        List<SalesAccountingSlip> slips = salesAccountingSlipRepository
+                .findBySlipDateAndStatus(closingDate, SalesSlipStatus.POSTED).stream()
+                .filter(s -> partnerId == null || partnerId.equals(s.getPartnerId()))
+                .toList();
+        return new AggregationResult(
+                slips.stream().map(SalesAccountingSlip::getTotalSupplyAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.stream().map(SalesAccountingSlip::getTotalVatAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.stream().map(SalesAccountingSlip::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.size());
+    }
+
+    private AggregationResult aggregateFromPurchaseSlips(LocalDate closingDate, UUID partnerId) {
+        List<PurchaseAccountingSlip> slips = purchaseAccountingSlipRepository
+                .findBySlipDateAndStatus(closingDate, PurchaseSlipStatus.POSTED).stream()
+                .filter(s -> partnerId == null || partnerId.equals(s.getPartnerId()))
+                .toList();
+        return new AggregationResult(
+                slips.stream().map(PurchaseAccountingSlip::getTotalSupplyAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.stream().map(PurchaseAccountingSlip::getTotalVatAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.stream().map(PurchaseAccountingSlip::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add),
+                slips.size());
+    }
+
+    private static boolean matchesInvoiceType(TaxInvoice invoice, DailyClosingKind closingKind) {
+        TaxInvoiceType invoiceType = invoice.getInvoiceType();
+        if (closingKind == DailyClosingKind.SALES) {
+            return invoiceType == null || invoiceType == TaxInvoiceType.SALES;
+        }
+        return invoiceType == TaxInvoiceType.PURCHASE;
+    }
+
+    static DailyClosingKind resolveClosingKind(DailyClosingKind closingKind) {
+        return closingKind == null ? DailyClosingKind.SALES : closingKind;
+    }
+
+    static DailyClosingSourceKind resolveSourceKind(DailyClosingSourceKind sourceKind) {
+        return sourceKind == null ? DailyClosingSourceKind.TAX_INVOICE : sourceKind;
+    }
+
+    static void validateKindSourceMatch(DailyClosingKind closingKind,
+                                        DailyClosingSourceKind sourceKind) {
+        if (closingKind == DailyClosingKind.SALES && sourceKind == DailyClosingSourceKind.PURCHASE_SLIP) {
+            throw new IllegalArgumentException("closingKind/sourceKind 조합이 올바르지 않습니다: SALES + PURCHASE_SLIP");
+        }
+        if (closingKind == DailyClosingKind.PURCHASE && sourceKind == DailyClosingSourceKind.SALES_SLIP) {
+            throw new IllegalArgumentException("closingKind/sourceKind 조합이 올바르지 않습니다: PURCHASE + SALES_SLIP");
+        }
     }
 
     // =========================================================================
@@ -279,16 +368,27 @@ public class DailyClosingService {
                 .orElse(null);
     }
 
-    private DailyClosing findExisting(LocalDate closingDate, UUID partnerId) {
+    private DailyClosing findExisting(LocalDate closingDate, UUID partnerId,
+                                      DailyClosingKind closingKind,
+                                      DailyClosingSourceKind sourceKind) {
         if (partnerId != null) {
             return dailyClosingRepository
-                    .findByClosingDateAndPartnerId(closingDate, partnerId)
+                    .findByClosingDateAndPartnerIdAndClosingKindAndSourceKind(
+                            closingDate, partnerId, closingKind, sourceKind)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                             "일마감이 존재하지 않습니다: " + closingDate));
         }
         return dailyClosingRepository
-                .findByClosingDateAndPartnerIdIsNull(closingDate)
+                .findByClosingDateAndPartnerIdIsNullAndClosingKindAndSourceKind(
+                        closingDate, closingKind, sourceKind)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "일마감이 존재하지 않습니다: " + closingDate));
+    }
+
+    private record AggregationResult(
+            BigDecimal totalSupply,
+            BigDecimal totalVat,
+            BigDecimal totalAmount,
+            int slipCount) {
     }
 }

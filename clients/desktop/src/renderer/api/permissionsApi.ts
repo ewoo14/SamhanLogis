@@ -53,6 +53,10 @@ export type PageCode =
   // SP-D1 초기 12개
   | 'accounting.tax-invoice.emit-nts'
   | 'accounting.tax-invoice.list'
+  | 'accounting.tax-invoice.batch-issue'
+  | 'accounting.tax-invoice.inbound'
+  | 'accounting.sales-slip.list'
+  | 'accounting.purchase-slip.list'
   | 'accounting.deposit-match'
   | 'accounting.daily-closing'
   | 'accounting.general-ledger'

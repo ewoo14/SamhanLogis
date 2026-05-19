@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.web.dto;
 
 import com.samhanair.logis.accounting.domain.DailyClosing;
+import com.samhanair.logis.accounting.domain.DailyClosingKind;
+import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,6 +15,8 @@ import java.time.LocalDateTime;
  *
  * @param closingDate  마감 날짜
  * @param partnerCode  거래처코드 (전체 마감이면 null)
+ * @param closingKind  매출/매입 구분
+ * @param sourceKind   집계 source
  * @param totalSupply  공급가액 합계
  * @param totalVat     세액 합계
  * @param totalAmount  합계금액
@@ -24,6 +28,8 @@ import java.time.LocalDateTime;
 public record DailyClosingResponse(
         LocalDate closingDate,
         String partnerCode,
+        DailyClosingKind closingKind,
+        DailyClosingSourceKind sourceKind,
         BigDecimal totalSupply,
         BigDecimal totalVat,
         BigDecimal totalAmount,
@@ -43,6 +49,8 @@ public record DailyClosingResponse(
         return new DailyClosingResponse(
                 d.getClosingDate(),
                 partnerCode,
+                d.getClosingKind(),
+                d.getSourceKind(),
                 d.getTotalSupply(),
                 d.getTotalVat(),
                 d.getTotalAmount(),

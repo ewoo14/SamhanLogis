@@ -86,6 +86,7 @@ public class TaxInvoiceInboundService {
         }
 
         return new InboundTaxInvoiceResponse(
+                saved.getId().toString(),
                 saved.getTaxInvoiceNo(),
                 first.getPartnerCode(),
                 first.getPartnerName(),
