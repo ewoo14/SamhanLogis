@@ -8,18 +8,24 @@
 
 ## 1. CSV 사전 분포 (분류 SQL cross-check 기준값)
 
-| 분류 | 행 수 | 비고 |
+> **2026-05-19 cycle 1 정정**: 5-team QA reviewer 지적 — 실 적재 측정치로 갱신.
+>
+> 실제 CSV 의 데이터 행 수는 6,977 (메타 1 + 헤더 1 제외 후 footer timestamp 1 포함). placeholder 정규식
+> narrow 적용 (cycle 1 fix) 후 SKIPPED_PLACEHOLDER 는 ~6 으로 축소되고 정상 IMPORTED 카운트가 6건 증가합니다.
+
+| 분류 | 행 수 (cycle 1 갱신) | 비고 |
 |---|---|---|
-| 총 데이터 행 | 7,748 | 메타 1 + 헤더 1 제외 |
-| 거래처명 빈값 (REJECT_NAME_NULL) | 771 | Partner.name NOT NULL 가드 |
-| 거래처코드 placeholder (SKIPPED_PLACEHOLDER) | ~10 | `-` / `00` / `000000` / `0000` 등 |
-| 정상 적재 후보 | ~6,967 | totalRows - rejectedNullName - skippedPlaceholder |
-| 사용구분 YES → ACTIVE | 6,446 | 활성 거래처 |
-| 사용구분 빈/NO → SUSPENDED | 1,302 | 휴면 거래처 (REJECT/SKIP 포함) |
-| 그룹 SF(밴더) | 2,712 | partner_group1 분포 1위 |
-| 그룹 일반업체 | 787 | |
+| 총 데이터 행 | 6,977 | 메타 1 + 헤더 1 제외 (footer timestamp 1 포함) |
+| 거래처명 빈값 (REJECT_NAME_NULL) | 1 | footer timestamp 행 (`2026/05/19 오후 2:43:37`) |
+| 거래처코드 placeholder (SKIPPED_PLACEHOLDER, narrow) | ~6 | `-` / `0+` / `0+[- ]?0+[- ]?0+` 만 |
+| 정상 적재 후보 | ~6,970 | totalRows - rejectedNullName - skippedPlaceholder |
+| 사용구분 YES → ACTIVE | 6,976 | 활성 거래처 |
+| 사용구분 빈/NO → SUSPENDED | 1 | 휴면 거래처 (REJECT/SKIP 포함) |
+| 그룹 SF(밴더) | 2,981 | partner_group1 분포 1위 |
+| 그룹 빈 | 2,791 | 미분류 |
+| 그룹 일반업체 | 836 | |
+| 그룹 파트너사 | 118 | |
 | 그룹 조달업체 | 111 | |
-| 그룹 파트너사 | 88 | |
 
 ---
 
@@ -44,14 +50,25 @@
 - staging `transform_status == 'REJECT_NAME_NULL'`
 - partners 테이블에 INSERT 없음 (이 행들 한해서)
 
-### S3. 거래처코드 placeholder → SKIPPED_PLACEHOLDER
+### S3. 거래처코드 placeholder → SKIPPED_PLACEHOLDER (cycle 1 narrow)
 
-**Given**: 거래처코드가 `-` / `00` / `0000` / `000000` 등
+**Given**: 거래처코드가 narrow placeholder 패턴 (`-` / `0+` / `0+[- ]?0+[- ]?0+`) 인 행
 **When**: import 실행
 **Then**:
-- `skippedPlaceholder == 10` 내외
+- `skippedPlaceholder ≈ 6` (cycle 1 narrow 정규식 — 기존 over-aggressive `[A-Za-z]?\d{0,4}` 제거)
 - staging `transform_status == 'SKIPPED_PLACEHOLDER'`
 - partners 에 INSERT 없음
+
+### S3-회귀. 1~4자리 숫자 정상 코드 6건은 IMPORTED (cycle 1 회귀 가드)
+
+**Given**: `01` 국민건강보험공단, `1123` 대덕구 건강검진센터, `1212` 수석공장,
+`7002` 김초연 잡급, `7006` 윤경식, `7251` (주)에이치에스에이치
+**When**: import 실행 (narrow 정규식 적용 후)
+**Then**:
+- 위 6건 모두 `imported` 카운트에 포함 (SKIPPED 아님)
+- staging `transform_status == 'IMPORTED'`
+- partners 에 6건 INSERT
+- 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 로 자동 가드
 
 ### S4. 사용구분 분포 = ACTIVE/SUSPENDED 매핑
 

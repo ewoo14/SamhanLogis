@@ -71,9 +71,23 @@ public class EcountPartnerImporter {
             "사용구분", "이체정보", "여신한도", "최초작성일자"
     };
 
-    /** 거래처코드 placeholder 패턴 (이카운트 운영 데이터의 가짜/임시 값). */
+    /**
+     * 거래처코드 placeholder 패턴 (이카운트 운영 데이터의 가짜/임시 값).
+     *
+     * <p>5-team 리뷰 cycle 1 정정 (2026-05-19): 기존 정규식 `[A-Za-z]?\d{0,4}` 가
+     * over-aggressive 하여 1~4자리 숫자 정상 코드 (`01` 국민건강보험공단, `1123` 대덕구
+     * 건강검진센터, `1212` 수석공장, `7002`/`7006`/`7251` 등 6건) 를 placeholder 로 오판
+     * → SKIPPED. narrow 정규식 으로 교체.
+     *
+     * <p>매칭 대상 (placeholder 로 판정):
+     * <ul>
+     *   <li>{@code -} (단일 dash)
+     *   <li>{@code 0+} (0 만 연속, "00", "0000" 등)
+     *   <li>{@code 0+[- ]?0+[- ]?0+} (0-0-0 / 000-00-00000 사업자번호형 placeholder)
+     * </ul>
+     */
     private static final java.util.regex.Pattern PLACEHOLDER_CODE =
-            java.util.regex.Pattern.compile("^([-]|0+|0+[-]?0+[-]?0+|[A-Za-z]?\\d{0,4}|-)$");
+            java.util.regex.Pattern.compile("^(-|0+|0+[- ]?0+[- ]?0+)$");
 
     /** 등록일자 YYYYMMDD 파서. */
     private static final DateTimeFormatter REGISTRATION_DATE_FORMAT =

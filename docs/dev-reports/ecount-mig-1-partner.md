@@ -17,7 +17,7 @@
 | 신규 service | `EcountPartnerImporter` (OpenCSV + BOMInputStream + NamedParameterJdbcTemplate 멱등 UPSERT) |
 | 신규 controller | `EcountPartnerImportController` (`POST /admin/partners/imports/ecount`, multipart 10MB, ROLE_MASTER+MANAGER) |
 | 신규 DTO | `EcountPartnerImportResult` (5 분류 카운트 + ACTIVE/SUSPENDED 분포 + sample reject 최대 20) |
-| 단위 테스트 | 12건 PASS (헤더 검증 / placeholder / status 매핑 / creditLimit / registrationDate / 멱등 / hash) |
+| 단위 테스트 | 13건 PASS (헤더 검증 / placeholder narrow / 단기숫자코드 회귀 / status 매핑 / creditLimit / registrationDate / 멱등 / hash) — cycle 1 fix 적용 후 12→13 |
 | 실 적재 결과 | 7,748 행 — (실제 적재 결과 본문 §3 참조) |
 
 ---
@@ -96,9 +96,25 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 
 → **이카운트 실 데이터의 거의 100% 가 활성 (ACTIVE)** — 휴면 거래처 가드 대상 매우 적음.
 
-### 발견된 issue (후속 PR 대상)
+### 5-team cycle 1 fix — placeholder 정규식 narrow (2026-05-19)
 
-**placeholder 정규식 over-aggressive** — 12 SKIPPED 중 7건이 정상 거래처 가능성:
+**기존 정규식** (over-aggressive):
+```java
+"^([-]|0+|0+[-]?0+[-]?0+|[A-Za-z]?\\d{0,4}|-)$"
+```
+→ `[A-Za-z]?\d{0,4}` 가 1~4자리 숫자 영숫자 코드를 모두 placeholder 로 오판.
+
+**fix 정규식** (narrow):
+```java
+"^(-|0+|0+[- ]?0+[- ]?0+)$"
+```
+→ dash 단일 / 0 만 연속 / 0-구분자-0 패턴만 SKIP.
+
+**기대 효과** (cycle 1 narrow 적용 후 재적재 시):
+- SKIPPED_PLACEHOLDER: 12 → ~6 (정상 6건 NORMAL 전환)
+- 회귀 가드 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 추가 (1~4자리 숫자 6건 IMPORTED 검증)
+
+**기존 적재 issue (cycle 1 fix 전 측정)** — 12 SKIPPED 중 6건이 정상 거래처:
 
 | row | 거래처코드 | 거래처명 | 판정 가능성 |
 |---|---|---|---|
@@ -116,7 +132,9 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 | 5926 | `7251` | (주)에이치에스에이치 | **정상 데이터** (4자리 ID) |
 | 6979 | `2026/05/19  오후 2:43:37` | (빈) | REJECT_NAME_NULL — CSV footer timestamp |
 
-→ **후속 PR**: placeholder 정규식을 narrow 하여 0 만으로 구성된 코드만 SKIP (`^(-|0+|0+([- ]0+)+)$`), 정상 4자리 ID 는 NORMAL 처리. 별도 PR (MIG-1A-fix-placeholder) 진행 권장.
+→ **fix 적용 (cycle 1)**: 본 PR 내에서 정규식 narrow (`^(-|0+|0+[- ]?0+[- ]?0+)$`) 적용 + 회귀 가드 단위 테스트 추가. 6건 (`01` / `1123` / `1212` / `7002` / `7006` / `7251`) 차후 재적재 시 IMPORTED 처리.
+
+**trade-off 인지**: row 182 `1` (세금계산서 카드매출중복용) 운영 더미 는 narrow 적용 후 NORMAL 처리됩니다. 1 건 운영 더미 NORMAL 처리 vs 6 건 정상 데이터 IMPORTED — 후자 우선. 운영 더미 별도 필터링은 MIG-1B+ 후속.
 
 ---
 

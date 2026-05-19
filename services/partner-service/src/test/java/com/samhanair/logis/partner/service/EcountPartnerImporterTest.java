@@ -148,23 +148,59 @@ class EcountPartnerImporterTest {
 
     @Test
     void classify_거래처코드_placeholder_SkippedPlaceholder() {
-        // 각 patterns: "-", "00", "000000", "0000"
+        // narrow placeholder 패턴 (cycle 1 정정): "-", "0+", "0+-?0+-?0+" 만
         String csv = META_LINE + HEADER_LINE
                 + row("-", "임시", "장영구", "", "임시거래처1", "", "", "", "",
                 "", "", "일반업체", "YES", "등록", "0", "")
                 + row("00", "임시", "장영구", "", "임시거래처2", "", "", "", "",
                 "", "", "일반업체", "YES", "등록", "0", "")
                 + row("0000", "임시", "장영구", "", "임시거래처3", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("000-00-00000", "임시", "장영구", "", "임시거래처4", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("000000000", "임시", "장영구", "", "임시거래처5", "", "", "", "",
                 "", "", "일반업체", "YES", "등록", "0", "");
 
         EcountPartnerImportResult result = importer.importCsv(csvStream(csv), "tester");
 
-        assertThat(result.totalRows()).isEqualTo(3);
-        assertThat(result.skippedPlaceholder()).isEqualTo(3);
+        assertThat(result.totalRows()).isEqualTo(5);
+        assertThat(result.skippedPlaceholder()).isEqualTo(5);
         assertThat(result.imported()).isEqualTo(0);
-        assertThat(result.rejectedSample()).hasSize(3);
+        assertThat(result.rejectedSample()).hasSize(5);
         assertThat(result.rejectedSample()).allSatisfy(r ->
                 assertThat(r.reason()).isEqualTo("SKIPPED_PLACEHOLDER"));
+    }
+
+    /**
+     * 5-team 리뷰 cycle 1 회귀 가드 (2026-05-19) — narrow 정규식 적용 후
+     * 1~4자리 숫자 정상 거래처코드 6건이 IMPORTED 로 처리되는지 검증.
+     * 실 적재 발견: `01` 국민건강보험공단, `1123` 대덕구 건강검진센터,
+     * `1212` 수석공장, `7002` 김초연 잡급, `7006` 윤경식, `7251` (주)에이치에스에이치.
+     */
+    @Test
+    void classify_단기숫자코드_정상Imported_placeholder오판방지() {
+        String csv = META_LINE + HEADER_LINE
+                + row("01", "20230814", "이성미", "", "국민건강보험공단", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("1123", "20230814", "이성미", "", "대덕구 건강검진센터", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("1212", "20230814", "이성미", "", "수석공장", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("7002", "20230814", "이성미", "", "김초연 잡급", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("7006", "20230814", "이성미", "", "윤경식", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "")
+                + row("7251", "20230814", "이성미", "", "(주)에이치에스에이치", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
+        wireSaveEcho();
+
+        EcountPartnerImportResult result = importer.importCsv(csvStream(csv), "tester");
+
+        assertThat(result.totalRows()).isEqualTo(6);
+        assertThat(result.imported()).isEqualTo(6);
+        assertThat(result.skippedPlaceholder()).isEqualTo(0);
+        assertThat(result.rejectedNullName()).isEqualTo(0);
     }
 
     @Test
