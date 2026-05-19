@@ -36,7 +36,10 @@ import org.springframework.web.client.RestClient;
  * <p>HTTP 상태 매핑:
  *
  * <ul>
- *   <li>4xx → {@link BusinessException}({@link ErrorCode#CONFLICT})</li>
+ *   <li>lock-by-period 4xx → {@link BusinessException}({@link ErrorCode#CONFLICT})</li>
+ *   <li>source line 조회 401/403 → {@link BusinessException}({@link ErrorCode#FORBIDDEN})</li>
+ *   <li>source line 조회 404 → {@link BusinessException}({@link ErrorCode#SAS_SOURCE_SLIP_NOT_FOUND})</li>
+ *   <li>source line 조회 기타 4xx → {@link BusinessException}({@link ErrorCode#INVALID_INPUT})</li>
  *   <li>5xx / 연결 실패 → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR})</li>
  * </ul>
  *
@@ -115,7 +118,9 @@ public class SlipServiceClient {
      *
      * @param slipId 전표 UUID (필수)
      * @return 전표 라인 snapshot 리스트 (빈 리스트 가능)
-     * @throws BusinessException(NOT_FOUND) 전표 미존재 (404)
+     * @throws BusinessException(FORBIDDEN) slip-service 인증/권한 실패 (401/403)
+     * @throws BusinessException(SAS_SOURCE_SLIP_NOT_FOUND) 전표 미존재 (404)
+     * @throws BusinessException(INVALID_INPUT) 기타 4xx
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public List<SlipLineSnapshot> getSlipLines(UUID slipId) {
@@ -128,9 +133,7 @@ public class SlipServiceClient {
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        throw new BusinessException(ErrorCode.NOT_FOUND,
-                                "slip-service getSlipLines 호출 실패: slipId=" + slipId
-                                        + ", status=" + res.getStatusCode());
+                        throw mappedSourceRead4xx("getSlipLines", "slipId=" + slipId, res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -153,7 +156,9 @@ public class SlipServiceClient {
      *
      * @param lineId 라인 UUID (필수)
      * @return 라인 snapshot
-     * @throws BusinessException(NOT_FOUND) 라인 미존재 (404)
+     * @throws BusinessException(FORBIDDEN) slip-service 인증/권한 실패 (401/403)
+     * @throws BusinessException(SAS_SOURCE_SLIP_NOT_FOUND) 라인 미존재 (404)
+     * @throws BusinessException(INVALID_INPUT) 기타 4xx
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */
     public SlipLineSnapshot getSlipLine(UUID lineId) {
@@ -166,9 +171,7 @@ public class SlipServiceClient {
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        throw new BusinessException(ErrorCode.NOT_FOUND,
-                                "slip-service getSlipLine 호출 실패: lineId=" + lineId
-                                        + ", status=" + res.getStatusCode());
+                        throw mappedSourceRead4xx("getSlipLine", "lineId=" + lineId, res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -218,5 +221,19 @@ public class SlipServiceClient {
                     "app.security.internal.token 미설정");
         }
         return token;
+    }
+
+    private static BusinessException mappedSourceRead4xx(String operation, String target, HttpStatusCode status) {
+        int code = status.value();
+        if (code == 401 || code == 403) {
+            return new BusinessException(ErrorCode.FORBIDDEN,
+                    "slip-service 인증 실패: " + operation + " " + target + ", status=" + status);
+        }
+        if (code == 404) {
+            return new BusinessException(ErrorCode.SAS_SOURCE_SLIP_NOT_FOUND,
+                    "slip-service source 조회 실패: " + operation + " " + target + ", status=" + status);
+        }
+        return new BusinessException(ErrorCode.INVALID_INPUT,
+                "slip-service 4xx: " + operation + " " + target + ", status=" + status);
     }
 }

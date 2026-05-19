@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,22 @@ public class SalesAccountingSlipService {
     private final SalesAccountingSlipNumberGenerator numberGenerator;
 
     public SalesAccountingSlipResponse createDraft(CreateSalesAccountingSlipRequest req, String actorUserId) {
+        int attempt = 0;
+        while (true) {
+            try {
+                attempt++;
+                return doCreateDraft(req, actorUserId);
+            } catch (DataIntegrityViolationException ex) {
+                if (attempt >= 2 || !isSlipNoUniqueViolation(ex)) {
+                    throw new BusinessException(ErrorCode.SAS_SLIP_NO_CONFLICT,
+                            "slipNo 생성 충돌 (attempt=" + attempt + ")", ex);
+                }
+                log.warn("SalesAccountingSlip slipNo 충돌 retry — attempt={}", attempt);
+            }
+        }
+    }
+
+    private SalesAccountingSlipResponse doCreateDraft(CreateSalesAccountingSlipRequest req, String actorUserId) {
         String slipNo = numberGenerator.next(req.slipDate());
         SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
                 slipNo, req.slipDate(), req.partnerId(), req.partnerCode(),
@@ -41,6 +58,10 @@ public class SalesAccountingSlipService {
 
         int lineNo = 0;
         for (LineRequest lr : req.lines()) {
+            if (lr.allocations() == null || lr.allocations().isEmpty()) {
+                throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
+                        "매출전표 line allocation 이 비어 있습니다");
+            }
             lineNo++;
             VatCalculator.Result vat = VatCalculator.split(lr.qty(), lr.unitPrice(), req.taxType());
             SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
@@ -63,6 +84,12 @@ public class SalesAccountingSlipService {
         return toResponse(slip);
     }
 
+    private boolean isSlipNoUniqueViolation(DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        return cause != null && cause.getMessage() != null
+                && cause.getMessage().contains("slip_no");
+    }
+
     public void post(String slipNo, String actorUserId) {
         SalesAccountingSlip slip = slipRepository.findBySlipNo(slipNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "매출전표 없음: " + slipNo));
@@ -75,7 +102,7 @@ public class SalesAccountingSlipService {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED,
                     "(slip=" + src.slipNo() + " 상태=" + src.slipStatus() + ", CONFIRMED 요구)");
         }
-        BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineId(ar.sourceLineId());
+        BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineIdLocked(ar.sourceLineId());
         BigDecimal next = already.add(ar.allocatedAmount());
         if (next.compareTo(src.lineTotal()) > 0) {
             throw new BusinessException(ErrorCode.SAS_OVER_ALLOCATION,

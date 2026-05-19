@@ -49,4 +49,16 @@ class VatCalculatorTest {
         assertThat(r.supplyAmount()).isEqualByComparingTo("1000");
         assertThat(r.vatAmount()).isEqualByComparingTo("100");
     }
+
+    @Test
+    void roundTrip_slipLineSnapshot_VatCalculator_lineTotal_정확() {
+        BigDecimal qty = new BigDecimal("10");
+        BigDecimal unitPriceWithVat = new BigDecimal("150000");
+        BigDecimal slipServiceLineTotal = qty.multiply(unitPriceWithVat);
+
+        VatCalculator.Result r = VatCalculator.split(qty, unitPriceWithVat, SalesTaxType.TAXABLE);
+
+        assertThat(r.lineTotal()).isEqualByComparingTo(slipServiceLineTotal);
+        assertThat(r.supplyAmount().add(r.vatAmount())).isEqualByComparingTo(slipServiceLineTotal);
+    }
 }
