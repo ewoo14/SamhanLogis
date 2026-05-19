@@ -11,6 +11,8 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
+// 정적 파일 계약 검증 — dev server 불필요.
+// page.goto() 미사용 → isServerAvailable 가드 적용 대상 외.
 test.describe('SP-08-5-1 매입 목록/상세 계약', () => {
   test('T1 slip-service R1/R2 매입 endpoint contract', () => {
     const controller = read('services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java')

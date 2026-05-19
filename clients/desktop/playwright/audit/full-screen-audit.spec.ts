@@ -36,6 +36,27 @@ const SCREENSHOT_DIR = path.resolve(
   '../../../../docs/qa/full-audit',
 )
 
+/**
+ * dev server 가용 여부 — false green 방지 가드.
+ * server timeout 또는 미가동 시 false 반환 → test.skip 으로 처리.
+ */
+async function isServerAvailable(): Promise<boolean> {
+  try {
+    const url = new URL(BASE_URL)
+    const mod = await import('http')
+    return new Promise(resolve => {
+      const req = mod.default.get(
+        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2_000 },
+        res => { resolve(true); res.resume() },
+      )
+      req.on('error', () => resolve(false))
+      req.on('timeout', () => { req.destroy(); resolve(false) })
+    })
+  } catch {
+    return false
+  }
+}
+
 /** networkidle 타임아웃 (ms) */
 const IDLE_TIMEOUT = 5_000
 
@@ -213,8 +234,19 @@ const RESULTS: ErrorRecord[] = []
 // ---------------------------------------------------------------------------
 
 test.describe('Desktop 전 화면 자동 점검 — MASTER', () => {
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
+    const ok = await isServerAvailable()
+    if (!ok) {
+      // beforeAll 에서 skip: 전체 describe 를 건너뜀
+      // eslint-disable-next-line no-console
+      console.warn(`[full-screen-audit] dev server 미가동 (${BASE_URL}) — MASTER 전 라우트 점검 skip`)
+    }
+  })
+
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
   })
 
   for (const route of ROUTES) {
@@ -321,6 +353,11 @@ const SALES_ROUTES: RouteCase[] = [
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — SALES (표본)', () => {
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
+  })
+
   for (const route of SALES_ROUTES) {
     const role = 'SALES'
     const slug = pathToSlug(route.path)
@@ -365,6 +402,11 @@ const WAREHOUSE_ROUTES: RouteCase[] = [
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — WAREHOUSE (표본)', () => {
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
+  })
+
   for (const route of WAREHOUSE_ROUTES) {
     const role = 'WAREHOUSE'
     const slug = pathToSlug(route.path)
@@ -407,6 +449,11 @@ const ACCOUNTANT_ROUTES: RouteCase[] = [
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — ACCOUNTANT (표본)', () => {
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
+  })
+
   for (const route of ACCOUNTANT_ROUTES) {
     const role = 'ACCOUNTANT'
     const slug = pathToSlug(route.path)

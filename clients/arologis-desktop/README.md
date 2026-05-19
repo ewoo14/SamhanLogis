@@ -16,10 +16,10 @@ npm run build:win       # NSIS installer + portable .exe (release/)
 
 ## 환경 변수
 
-| 변수 | 용도 |
-|---|---|
-| `VITE_AROLOGIS_API_BASE` | renderer axios baseURL (예: `https://api.arologis.samhan-air.com`). 미지정 시 dev fallback. |
-| `ELECTRON_RENDERER_URL` | electron-vite dev server URL (자동 주입). |
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `VITE_AROLOGIS_API_BASE` | `http://localhost:8097` | renderer axios baseURL (예: `https://api.arologis.samhan-air.com`). 미지정 시 localhost:8097 fallback. |
+| `ELECTRON_RENDERER_URL` | (electron-vite 자동 주입) | dev 모드에서 electron-vite 가 자동 설정. 수동 지정 불필요. |
 
 ## 디렉토리 구조
 

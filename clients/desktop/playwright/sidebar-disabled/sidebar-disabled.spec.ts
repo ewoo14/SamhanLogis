@@ -35,6 +35,27 @@ const SCREENSHOT_DIR = path.resolve(
   '../../../../docs/qa/admin-hr-category-and-disabled-ux',
 )
 
+/**
+ * dev server 가용 여부 — false green 방지 가드.
+ * server timeout 또는 미가동 시 false 반환.
+ */
+async function isServerAvailable(): Promise<boolean> {
+  try {
+    const url = new URL(BASE_URL)
+    const http = await import('http')
+    return new Promise(resolve => {
+      const req = http.default.get(
+        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2_000 },
+        res => { resolve(true); res.resume() },
+      )
+      req.on('error', () => resolve(false))
+      req.on('timeout', () => { req.destroy(); resolve(false) })
+    })
+  } catch {
+    return false
+  }
+}
+
 const IDLE_TIMEOUT = 5_000
 const SETTLE_WAIT = 800
 
@@ -123,6 +144,16 @@ const WAREHOUSE_MENU_TEST_IDS = [
   'nav-warehouse-closing',
   'nav-category-warehouse',
 ] as const
+
+// ---------------------------------------------------------------------------
+// 사이드바 disabled UX 전체 — dev server 가용성 가드
+// ---------------------------------------------------------------------------
+
+test.describe('사이드바 disabled UX', () => {
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
+  })
 
 // ---------------------------------------------------------------------------
 // TC-SD1: SALES → 회계 카테고리 NavLink 회색 + cursor:not-allowed
@@ -357,3 +388,5 @@ test('TC-SD5: 활성 메뉴 정상 NavLink 동작 — SALES 영업 메뉴 regres
 
   expect(errors, `TC-SD5: pageerror 발생 — ${errors.join(', ')}`).toHaveLength(0)
 })
+
+}) // describe '사이드바 disabled UX'

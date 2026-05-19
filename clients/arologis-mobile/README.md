@@ -20,6 +20,23 @@ eas build --profile preview --platform android
 |---|---|
 | `EXPO_PUBLIC_AROLOGIS_API_BASE` | fetch baseURL (예: `https://api.arologis.samhan-air.com`). 미지정 시 `__DEV__` true 면 localhost:8097. |
 
+## Pretendard 폰트 self-host
+
+`assets/fonts/` 에 OTF 4 weight 가 포함되어 있습니다 (mobile-staff 패턴 일관).
+
+| 파일 | weight |
+|---|---|
+| `Pretendard-Regular.otf` | 400 |
+| `Pretendard-Medium.otf` | 500 |
+| `Pretendard-SemiBold.otf` | 600 |
+| `Pretendard-Bold.otf` | 700 |
+
+`src/theme/usePretendardFontGuarded.ts` 의 `usePretendardFontGuarded()` hook 이 `expo-font` 로 4 weight 를 로드합니다.
+폰트 로딩 완료 전에는 `App.tsx` 가 `SafeAreaProvider + StatusBar` 만 렌더링 (SplashScreen 대체).
+`expo-font` 미설치 또는 asset 누락 시 graceful guard 로 `fontsReady = true` 처리하여 RN UI 를 차단하지 않습니다.
+
+RN family 이름은 `Pretendard` (단일 family, weight 는 `fontWeight` prop 으로 분기).
+
 ## 디렉토리 구조
 
 ```

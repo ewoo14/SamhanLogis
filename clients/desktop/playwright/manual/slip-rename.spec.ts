@@ -41,6 +41,26 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 const IDLE_TIMEOUT = 6_000
 const SETTLE_WAIT = 1_500
 
+/**
+ * dev server 가용 여부 — false green 방지 가드.
+ */
+async function isServerAvailable(): Promise<boolean> {
+  try {
+    const url = new URL(BASE_URL)
+    const http = await import('http')
+    return new Promise(resolve => {
+      const req = http.default.get(
+        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2_000 },
+        res => { resolve(true); res.resume() },
+      )
+      req.on('error', () => resolve(false))
+      req.on('timeout', () => { req.destroy(); resolve(false) })
+    })
+  } catch {
+    return false
+  }
+}
+
 /** hash 라우터 URL (mockRole query 포함) */
 function url(routePath: string, role = 'MASTER'): string {
   return `${BASE_URL}/#${routePath}?mockRole=${role}`
@@ -79,6 +99,16 @@ async function findSlipWordInVisibleText(page: Page): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
+// UI 텍스트 검사 — dev server 필요, 가용성 가드 적용
+// ---------------------------------------------------------------------------
+
+test.describe('전표 UI 텍스트 슬립 잔류 검사', () => {
+  test.beforeEach(async () => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite --port 5173 후 재시도`)
+  })
+
+// ---------------------------------------------------------------------------
 // TC-UI-1: 전표 목록 페이지
 // ---------------------------------------------------------------------------
 
@@ -112,8 +142,11 @@ test('TC-UI-3: 공통 레이아웃 — visible 텍스트에 "슬립" 0건', asyn
   expect(matches, `공통 레이아웃에 "슬립" 잔류: ${matches.join(' | ')}`).toHaveLength(0)
 })
 
+}) // describe '전표 UI 텍스트 슬립 잔류 검사'
+
 // ---------------------------------------------------------------------------
 // TC-FILE-1: docs/manual 매뉴얼 markdown 파일 "슬립" 잔류 검사
+// (dev server 불필요 — 파일시스템 직접 스캔)
 // ---------------------------------------------------------------------------
 
 test('TC-FILE-1: docs/manual 매뉴얼 markdown — "슬립" 잔류 0건', async () => {

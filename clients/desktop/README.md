@@ -50,6 +50,8 @@ npm run build:win
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `VITE_API_BASE_URL` | `http://localhost:8080` | api-gateway URL |
+| `VITE_WEB_ESTIMATE_URL` | `http://localhost:5183` | 견적 web app URL (SalesSubNav WebView 탭) |
+| `VITE_WEB_ORDER_URL` | `http://localhost:5180` | 주문 web app URL (SalesSubNav WebView 탭) |
 
 ## 화면 구성 (첫 슬라이스 4 화면)
 

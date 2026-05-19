@@ -22,6 +22,8 @@ function listLegacyGasApps(): string[] {
     .sort((a, b) => a.localeCompare(b, 'ko'))
 }
 
+// 정적 파일 계약 검증 — dev server 불필요.
+// page.goto() 미사용 → isServerAvailable 가드 적용 대상 외.
 test.describe('SP-08 legacy GAS DB/API parity guard', () => {
   const orderAppApi = read('clients/web/order-app/src/samhanApi.ts')
   const orderAppHtml = read('clients/web/order-app/index.html')

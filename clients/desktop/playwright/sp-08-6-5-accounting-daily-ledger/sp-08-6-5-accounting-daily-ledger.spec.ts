@@ -10,6 +10,8 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
+// 정적 파일 계약 검증 — dev server 불필요.
+// page.goto() 미사용 → isServerAvailable 가드 적용 대상 외.
 test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
   /**
    * T1: BE 일마감 계약

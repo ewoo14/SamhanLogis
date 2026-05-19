@@ -40,6 +40,8 @@ const stockControllerPath =
 const screenshotScriptPath =
   'scripts/generate-sp-08-6-1-sales-slip-list-detail-screenshots.ps1'
 
+// 정적 파일 계약 검증 — dev server 불필요.
+// page.goto() 미사용 → isServerAvailable 가드 적용 대상 외.
 test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
   /**
    * T1 — BE 계약: SlipQueryController.listForQuery SALE 분기

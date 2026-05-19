@@ -10,6 +10,8 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
+// 정적 파일 계약 검증 — dev server 불필요.
+// page.goto() 미사용 → isServerAvailable 가드 적용 대상 외.
 test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
   test('T1 BE contract keeps direct PUT body shape and optimistic lock field', () => {
     const controller = read('services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/web/PartnerOrderEditController.java')

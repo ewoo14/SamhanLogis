@@ -44,6 +44,26 @@ const __dirname = path.dirname(__filename)
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
+/**
+ * dev server 가용 여부 — false green 방지 가드.
+ */
+async function isServerAvailable(): Promise<boolean> {
+  try {
+    const url = new URL(BASE_URL)
+    const http = await import('http')
+    return new Promise(resolve => {
+      const req = http.default.get(
+        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2_000 },
+        res => { resolve(true); res.resume() },
+      )
+      req.on('error', () => resolve(false))
+      req.on('timeout', () => { req.destroy(); resolve(false) })
+    })
+  } catch {
+    return false
+  }
+}
+
 /** docs/manual/screenshots 루트 (절대 경로) */
 const MANUAL_SHOTS = path.resolve(
   __dirname,
@@ -119,7 +139,7 @@ async function gotoAndSettle(page: Page, targetUrl: string): Promise<void> {
 // beforeAll: 디렉토리 생성 + 보고서 초기화
 // ---------------------------------------------------------------------------
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   fs.mkdirSync(MANUAL_SHOTS, { recursive: true })
   fs.mkdirSync(path.dirname(ERROR_REPORT), { recursive: true })
   // 실행마다 보고서 초기화
@@ -128,6 +148,18 @@ test.beforeAll(() => {
     '# 매뉴얼 페이지 런타임 에러 보고서\n\n생성일: ' + new Date().toISOString() + '\n',
     'utf8',
   )
+  const ok = await isServerAvailable()
+  if (!ok) {
+    // eslint-disable-next-line no-console
+    console.warn(`[manual-capture] dev server 미가동 (${BASE_URL}) — 전체 캡처 skip 예정`)
+  }
+})
+
+// dev server 가용성 가드 — 모든 describe 에 공통 적용
+// (최상위 beforeEach 는 모든 test 에 적용됨)
+test.beforeEach(async () => {
+  const ok = await isServerAvailable()
+  test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite --port 5173 후 재시도`)
 })
 
 // ===========================================================================
