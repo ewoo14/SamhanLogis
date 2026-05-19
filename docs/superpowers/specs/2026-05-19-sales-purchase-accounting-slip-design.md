@@ -182,7 +182,9 @@ N SalesAccountingSlip ─── 1 TaxInvoice
 [3] 매출전표 검토 → POSTED (회계분개 확정, 일마감 집계 source 진입)
         ↓
 [4] 일마감 화면 (기존 DailyClosingPage 확장)
-    ├── 마감 일자 선택 → 매출전표 POSTED 집계
+    ├── **마감 일자 = 하루 단위 단일 검색** (사용자 명시 2026-05-19, 월별/기간 검색 X)
+    ├── 단일 date picker 만 노출 (기존 SP-08-6-5 의 일별/월별 토글 제거)
+    ├── 마감 일자 선택 → 매출전표 POSTED 집계 (해당 1일치만)
     ├── 표: 매출전표번호 / 거래처명 / 공급가액 / 부가세 / 합계
     ├── 마감 실행 → DailyClosing snapshot 잠금 (기존 SP-08-6-5 패턴)
     └── 일마감 후 매출전표 수정 차단 (POSTED → VOIDED 만 허용)
@@ -234,7 +236,8 @@ N SalesAccountingSlip ─── 1 TaxInvoice
 | `DailyClosing.source_kind ENUM` (`TAX_INVOICE` / `SALES_SLIP` / `PURCHASE_SLIP`) | source 다양화 (기존 TaxInvoice + 신규 매출/매입전표 둘 다 지원) |
 | Daily Detail 표에 매출전표번호 (SAS-2026-05-0001) + 출고전표번호 (denormalize 노출) 컬럼 추가 | 추적성 |
 | Flyway V?? migration | 도메인 schema 확장 |
-| `DailyClosingPage.tsx` 우측 상단 토글 추가 — 매출 / 매입 / 통합 | UI 확장 |
+| `DailyClosingPage.tsx` 우측 상단 토글 추가 — 매출 / 매입 / 통합 (종류) | UI 확장 |
+| **단일 date picker 유지** — 일별/월별 토글 제거 (사용자 명시: "일마감은 하루 단위로 검색") | 검색 simplify |
 | 일마감 표 검증 SQL — 일마감.xlsx 양식 (사용자 추가) 의 컬럼 매핑 | QA scenarios.md |
 
 **참조 입력**: `docs/migration/ecount-data/raw/일마감.xlsx` — 이카운트 일마감 양식, 본 슬라이스의 UI 컬럼/표 디자인 근거.
@@ -335,9 +338,49 @@ GROUP BY tax_type;
 
 ---
 
-## 6. 에러 처리 + Audit (디자인 §5 — 작성 예정)
+## 6. 에러 처리 + Audit (디자인 §5)
 
-(brainstorming §5 단계에서 작성)
+### 6-A. ErrorCode 신규
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `SAS_SOURCE_SLIP_NOT_FOUND` | 404 | 출고/입고전표 UUID 없음 |
+| `SAS_SOURCE_SLIP_NOT_CONFIRMED` | 422 | 출고/입고전표가 CONFIRMED 상태 아님 |
+| `SAS_OVER_ALLOCATION` | 422 | 할당 합계가 출고/입고 line 잔여 초과 |
+| `SAS_LINE_AMOUNT_MISMATCH` | 422 | 매출/매입전표 line 의 supply+vat ≠ line_total |
+| `SAS_TAX_TYPE_MIXED` | 422 | 단일 매출/매입전표에 line 단위 다른 tax_type 시도 |
+| `SAS_ALREADY_POSTED` | 409 | 이미 POSTED 매출/매입전표 수정 시도 |
+| `SAS_DAILY_CLOSING_LOCKED` | 409 | 해당 일자 DailyClosing 이미 잠긴 상태에서 매출/매입전표 수정 시도 |
+| `SAS_TAX_INVOICE_ALREADY_LINKED` | 409 | 이미 TaxInvoice 와 매핑된 매출전표 재발행 시도 |
+| `SAS_PARTNER_MONTH_MISMATCH` | 422 | N:1 묶음 시 거래처 또는 월이 다른 매출전표 포함 |
+
+### 6-B. Audit log
+
+`accounting_audit_logs` 테이블 (기존) 에 SAS 관련 action 추가:
+
+| action | 컨텍스트 |
+|---|---|
+| `SAS_SALES_SLIP_CREATE` | 매출전표 DRAFT 생성 — source 출고전표 UUID 목록 + allocation snapshot |
+| `SAS_SALES_SLIP_POST` | POSTED 전이 |
+| `SAS_SALES_SLIP_VOID` | VOIDED — DailyClosing 잠금 여부 검증 |
+| `SAS_PURCHASE_SLIP_*` | 매입 대칭 |
+| `SAS_TAX_INVOICE_BATCH_CREATE` | N:1 묶음 발행 — 매출전표 UUID 목록 |
+
+actor 정보 = `X-User-Id` + `X-User-Role` 헤더 (기존 패턴). UUID raw 노출 금지 — 사용자 노출은 `slip_no` / `tax_invoice_no`.
+
+### 6-C. 트랜잭션 경계
+
+- 매출/매입전표 생성·수정·POST = 단일 DB 트랜잭션 (accounting_db)
+- slip-service 호출은 read-only (조회만, 외부 client failure 시 fail-fast)
+- TaxInvoice 묶음 발행 = REQUIRES_NEW 격리 (audit 트랜잭션 독립, 기존 SP-09-1 패턴 유지)
+- DailyClosing 잠금 + 매출/매입전표 수정 차단 = DB-level CHECK constraint 또는 application-level 가드
+
+### 6-D. 회귀 가드
+
+- 기존 TaxInvoice 흐름 무변경 — 본 슬라이스가 신규 매출전표 → TaxInvoice 매핑만 추가, 기존 수동 TaxInvoice 등록 path 보존
+- 기존 DailyClosing snapshot 잠금 메커니즘 무변경 — sourceKind 컬럼만 추가
+- 기존 ETaxClient 무변경 (SP-09-1 NTS 발행 path)
+- slip-service 무변경 (read-only client 호출만)
 
 ---
 
