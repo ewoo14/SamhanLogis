@@ -176,7 +176,10 @@ public enum PageCode {
     AROLOGIS_ADMIN("arologis.admin", "아로로지스 배차 관리"),
 
     /** 아로로지스 지역/구역 관리 화면 (SP-D4) — RegionAdminController. */
-    AROLOGIS_REGION("arologis.region", "아로로지스 지역/구역 관리");
+    AROLOGIS_REGION("arologis.region", "아로로지스 지역/구역 관리"),
+
+    /** SAS 매출전표 목록 화면 (SP-SAS-1). */
+    ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;
