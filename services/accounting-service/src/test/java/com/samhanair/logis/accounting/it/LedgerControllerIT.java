@@ -101,6 +101,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 // 라인 객체 자체는 정상 응답 (null accountName 도 record 직렬화 가능)
@@ -115,11 +116,14 @@ class LedgerControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lines").isArray())
-                .andExpect(jsonPath("$.data.openingDebitTotal").exists())
-                .andExpect(jsonPath("$.data.closingCreditTotal").exists());
+                // LedgerResponse 실제 필드: totalDebit / totalCredit / closingBalance
+                .andExpect(jsonPath("$.data.totalDebit").exists())
+                .andExpect(jsonPath("$.data.totalCredit").exists())
+                .andExpect(jsonPath("$.data.closingBalance").exists());
     }
 
     // -----------------------------------------------------------------------

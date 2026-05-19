@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
@@ -57,6 +58,11 @@ class SlipServiceTest {
     @Mock private SlipEditRequestService editRequestService;
     /** V20 — partner-service businessNumber resolve. 본 테스트에서는 mock 격리 (empty 반환). */
     @Mock private PartnerInternalClient partnerInternalClient;
+    /**
+     * SP-08-FU2 P2-2 — inventory-service 창고명 lookup client.
+     * 단위 테스트에서는 mock 격리 (empty 반환) — IT 에서만 실제 연결 검증.
+     */
+    @Mock private WarehouseInternalClient warehouseInternalClient;
 
     @InjectMocks private SlipService service;
 
@@ -80,6 +86,8 @@ class SlipServiceTest {
         lenient().when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "에어컨", "M-1", UUID.randomUUID(),
                         new BigDecimal("1000.00"), "ACTIVE"));
+        // SP-08-FU2 P2-2 — WarehouseInternalClient fail-soft mock (inventory-service 미연결 환경)
+        lenient().when(warehouseInternalClient.findWarehouseName(any())).thenReturn(Optional.empty());
     }
 
     // ---------- create ----------
