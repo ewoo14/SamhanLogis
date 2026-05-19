@@ -182,7 +182,10 @@ public enum PageCode {
     ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),
 
     /** SAS 매입전표 목록 화면 (SP-SAS-2). */
-    ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "매입전표(회계분개)");
+    ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "매입전표(회계분개)"),
+
+    /** 세금계산서 발행 묶음 화면 (SP-SAS-3). */
+    ACCOUNTING_TAX_INVOICE_BATCH_ISSUE("accounting.tax-invoice.batch-issue", "세금계산서 발행 묶음");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

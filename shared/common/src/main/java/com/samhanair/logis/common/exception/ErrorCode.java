@@ -179,6 +179,11 @@ public enum ErrorCode {
     SAS_PARTNER_MONTH_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "묶음 발행 시 거래처 또는 발행월이 일치하지 않습니다."),
     /**
+     * 매출전표가 POSTED 상태가 아니어서 세금계산서 묶음 발행 불가 (SAS 슬라이스).
+     */
+    SAS_SALES_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "POSTED 상태 매출전표만 세금계산서 묶음 발행할 수 있습니다."),
+    /**
      * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
     SAS_SLIP_NO_CONFLICT(HttpStatus.CONFLICT,

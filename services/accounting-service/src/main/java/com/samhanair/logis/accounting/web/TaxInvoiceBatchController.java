@@ -1,11 +1,14 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.service.HometaxExportService;
+import com.samhanair.logis.accounting.service.TaxInvoiceBatchFromSalesSlipsService;
+import com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceFromSalesSlipsRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchPreviewRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchPreviewResponse;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceFromSalesSlipsResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,10 +37,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 세금계산서 일괄발행 배치 endpoint — <b>Deprecated (Phase 12 통합)</b>.
+ * 세금계산서 배치 endpoint.
  *
- * <p>본 Controller 의 모든 endpoint 는 deprecated 상태입니다.
- * Phase 12 통합 작업에서 기능이 {@link AccountingReportController} 로 흡수되었습니다.
+ * <p>홈택스 일괄발행 legacy endpoint 는 deprecated 상태입니다.
+ * Phase 12 통합 작업에서 해당 기능이 {@link AccountingReportController} 로 흡수되었습니다.
  *
  * <p>신규 위치:
  * <ul>
@@ -50,15 +53,12 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET  /accounting/hometax-export/history/{batchId}}        — 저장 이력 단건</li>
  * </ul>
  *
- * <p>운영 전환 후 제거 예정 — 기존 클라이언트 마이그레이션 완료 시 삭제.
- *
- * @deprecated Phase 12 통합 — 신규 위치: {@code /accounting/hometax-export/...}
+ * <p>SP-SAS-3 이후 신규 매출전표 N:1 세금계산서 묶음 발행 endpoint 를 함께 제공합니다.
  */
-@Deprecated
-@Tag(name = "세금계산서 일괄발행 (Deprecated)",
-        description = "Phase 12 통합으로 deprecated. 신규 위치: /accounting/hometax-export/...")
+@Tag(name = "세금계산서 배치",
+        description = "매출전표 묶음 발행 및 deprecated 홈택스 일괄발행 호환 endpoint")
 @RestController
-@RequestMapping("/accounting/tax-invoices/batch")
+@RequestMapping
 @RequiredArgsConstructor
 public class TaxInvoiceBatchController {
 
@@ -68,6 +68,22 @@ public class TaxInvoiceBatchController {
     private static final String DEPRECATION_HEADER_VALUE = "true";
 
     private final HometaxExportService hometaxExportService;
+    private final TaxInvoiceBatchFromSalesSlipsService batchFromSalesSlipsService;
+
+    /**
+     * 매출전표 N장 → 세금계산서 1장 DRAFT 생성.
+     *
+     * <p>동일 거래처 / 동일월 / POSTED / 미연결 매출전표만 허용합니다.
+     */
+    @Operation(summary = "매출전표 묶음 세금계산서 DRAFT 생성",
+            description = "POSTED 매출전표 N장을 동일 거래처·동일월 기준으로 세금계산서 1장에 연결합니다.")
+    @PreAuthorize("hasRole('MASTER')")
+    @PostMapping("/admin/tax-invoices/batch-from-sales-slips")
+    public ResponseEntity<TaxInvoiceFromSalesSlipsResponse> createFromSalesSlips(
+            @Valid @RequestBody CreateTaxInvoiceFromSalesSlipsRequest req,
+            @RequestHeader("X-User-Id") String userId) {
+        return ResponseEntity.ok(batchFromSalesSlipsService.createFromSalesSlips(req, userId));
+    }
 
     // =========================================================================
     // A. 일괄발행 미리보기 (deprecated)
@@ -89,7 +105,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 일괄발행 미리보기",
             description = "Phase 12 통합으로 deprecated. 신규 위치: POST /accounting/hometax-export/preview")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @PostMapping("/preview")
+    @PostMapping("/accounting/tax-invoices/batch/preview")
     public ResponseEntity<ApiResponse<TaxInvoiceBatchPreviewResponse>> preview(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody TaxInvoiceBatchPreviewRequest req) {
@@ -120,7 +136,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 일괄발행 xlsx 다운로드",
             description = "Phase 12 통합으로 deprecated. 신규 위치: GET /accounting/hometax-export/{batchId}/split")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @GetMapping("/{batchId}/excel")
+    @GetMapping("/accounting/tax-invoices/batch/{batchId}/excel")
     public ResponseEntity<byte[]> downloadExcel(
             @PathVariable UUID batchId,
             @RequestParam(defaultValue = "0") int fileIndex) {
@@ -153,7 +169,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 제외 거래처 목록 조회",
             description = "Phase 12 통합으로 deprecated. 신규 위치: GET /accounting/hometax-export/exclusions")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @GetMapping("/exclusions")
+    @GetMapping("/accounting/tax-invoices/batch/exclusions")
     public ResponseEntity<ApiResponse<List<TaxInvoiceBatchExclusionResponse>>> listExclusions() {
         return ResponseEntity.ok()
                 .header("Deprecation", DEPRECATION_HEADER_VALUE)
@@ -176,7 +192,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 제외 거래처 등록",
             description = "Phase 12 통합으로 deprecated. 신규 위치: POST /accounting/hometax-export/exclusions")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @PostMapping("/exclusions")
+    @PostMapping("/accounting/tax-invoices/batch/exclusions")
     public ResponseEntity<ApiResponse<TaxInvoiceBatchExclusionResponse>> addExclusion(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody TaxInvoiceBatchExclusionRequest req) {
@@ -204,7 +220,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 제외 거래처 삭제",
             description = "Phase 12 통합으로 deprecated. 신규 위치: DELETE /accounting/hometax-export/exclusions/{partnerCode}")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @DeleteMapping("/exclusions/{partnerCode}")
+    @DeleteMapping("/accounting/tax-invoices/batch/exclusions/{partnerCode}")
     public ResponseEntity<Void> removeExclusion(
             @PathVariable String partnerCode,
             @RequestHeader("X-User-Id") String userId) {
@@ -236,7 +252,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 저장 이력 목록",
             description = "Phase 12 통합으로 deprecated. 신규 위치: GET /accounting/hometax-export/history")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @GetMapping("/history")
+    @GetMapping("/accounting/tax-invoices/batch/history")
     public ResponseEntity<ApiResponse<Page<TaxInvoiceBatchHistoryResponse>>> listHistory(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -267,7 +283,7 @@ public class TaxInvoiceBatchController {
     @Operation(summary = "[Deprecated] 저장 이력 단건 조회",
             description = "Phase 12 통합으로 deprecated. 신규 위치: GET /accounting/hometax-export/history/{batchId}")
     @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
-    @GetMapping("/history/{batchId}")
+    @GetMapping("/accounting/tax-invoices/batch/history/{batchId}")
     public ResponseEntity<ApiResponse<TaxInvoiceBatchHistoryResponse>> getHistoryDetail(
             @PathVariable UUID batchId) {
         return ResponseEntity.ok()

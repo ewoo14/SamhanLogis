@@ -18,6 +18,7 @@ class ErrorCodeSasTest {
         assertThat(ErrorCode.SAS_DAILY_CLOSING_LOCKED.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.SAS_TAX_INVOICE_ALREADY_LINKED.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.SAS_PARTNER_MONTH_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.SAS_SALES_SLIP_NOT_POSTED.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.SAS_SLIP_NO_CONFLICT.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
     }
 }

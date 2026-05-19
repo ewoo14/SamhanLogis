@@ -276,6 +276,33 @@ public class TaxInvoice extends BaseEntity {
     }
 
     /**
+     * 매출전표 N:1 묶음 발행용 DRAFT 생성.
+     *
+     * <p>매출전표에서 이미 합산된 공급가액/부가세/총액을 헤더에 스냅샷으로 보존합니다.
+     * 현재 도메인은 {@link TaxInvoiceType} 으로 매출/매입을 구분하므로 매출전표 묶음은
+     * {@link TaxInvoiceType#SALES} 로 생성합니다.
+     */
+    public static TaxInvoice createDraftFromSalesSlips(String taxInvoiceNo, LocalDate issuedDate,
+            UUID partnerId, String partnerCode, String partnerName,
+            BigDecimal totalSupply, BigDecimal totalVat, BigDecimal totalAmount,
+            String actorUserId) {
+        if (taxInvoiceNo == null || taxInvoiceNo.isBlank() || taxInvoiceNo.length() > 20) {
+            throw new IllegalArgumentException("taxInvoiceNo 는 1~20자 필수입니다");
+        }
+        if (totalSupply == null || totalVat == null || totalAmount == null) {
+            throw new IllegalArgumentException("합계 금액은 필수입니다");
+        }
+        TaxInvoice taxInvoice = create(partnerId, partnerCode, null, partnerName, null,
+                issuedDate, "매출전표 묶음 발행", TaxInvoiceType.SALES);
+        taxInvoice.taxInvoiceNo = taxInvoiceNo;
+        taxInvoice.supplyAmount = totalSupply.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.vatAmount = totalVat.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.issuedBy = actorUserId;
+        return taxInvoice;
+    }
+
+    /**
      * 헤더 기본 정보 갱신 (DRAFT 만). partner snapshot / supplyDate / description 변경.
      *
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
