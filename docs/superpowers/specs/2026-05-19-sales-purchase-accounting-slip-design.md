@@ -574,9 +574,66 @@ ACCOUNTING_TAX_INVOICE_INBOUND("accounting.tax-invoice.inbound", "세금계산�
 
 ---
 
-## 8. 테스트 전략 (디자인 §7 — 작성 예정)
+## 8. 테스트 전략 (디자인 §7)
 
-(brainstorming §7 단계에서 작성)
+### 8-A. 단위 테스트 (Mockito, 격리)
+
+**accounting-service 신규**:
+- `SalesAccountingSlipServiceTest` — DRAFT 생성 / POSTED 전이 / VOIDED / over-allocation 가드 / VAT 분리 정확성 (TAXABLE / ZERO_RATED / EXEMPT)
+- `PurchaseAccountingSlipServiceTest` — 매출 대칭
+- `SalesAccountingSlipAllocationTest` — N:M 매핑, sub-amount 분할, 잔여 view 집계
+- `VatCalculatorTest` — `RoundingMode.FLOOR` 절사 정확성 + line 합계 검증 + 면세/영세 분기
+- `TaxInvoiceBatchFromSalesSlipsServiceTest` — N:1 묶음 (거래처/월 동일성 가드)
+- `DailyClosingServiceTest` (개정) — `sourceKind` 분기 (TAX_INVOICE / SALES_SLIP / PURCHASE_SLIP) + 기존 케이스 backward-compat 유지
+
+**slip-service 신규**: 무변경 (read-only client 호출만)
+
+### 8-B. IT 테스트 (Testcontainers Postgres + Spring Boot)
+
+- `SalesAccountingSlipControllerIT` — POST /admin/sales-slips (multipart 또는 JSON), Flyway V?? 적용 후 schema 검증, 잔여 view query 동작
+- `PurchaseAccountingSlipControllerIT` — 대칭
+- `TaxInvoiceBatchFromSalesSlipsIT` — 매출전표 5장 → TaxInvoice 1장 시나리오, NTS DRY_RUN 발행까지 풀 흐름
+- `DailyClosingIT` (개정) — `?kind=SALES&sourceKind=SALES_SLIP&date=...` 분기 + 기존 default (TAX_INVOICE) 통과
+- 외부 client (`SlipServiceClient`, `PartnerLookupClient`) 는 `@MockBean` 격리 ([feedback_it_mockbean_external_clients])
+
+### 8-C. QA 시나리오 (`docs/qa/sp-sas/scenarios.md`)
+
+| # | 시나리오 |
+|---|---|
+| S1 | 출고전표 1장 (line 2개) → 매출전표 1장 (1:1 묶음) — VAT 자동 분리 |
+| S2 | 출고전표 3장 → 매출전표 1장 (N:1 묶음) — 동일 거래처 가드 |
+| S3 | 출고전표 1장 → 매출전표 2장 (1:N 분할, line 단위) — 잔여 표시 |
+| S4 | 출고전표 1장 → 매출전표 2장 (1:N 분할, sub-amount) — 잔여 표시 |
+| S5 | over-allocation 시도 → SAS_OVER_ALLOCATION 422 |
+| S6 | tax_type mixed (line 단위 다른 과세) 시도 → SAS_TAX_TYPE_MIXED 422 |
+| S7 | 매출전표 N:1 → TaxInvoice 1장 → ISSUED → NTS DRY_RUN |
+| S8 | DailyClosing 잠금 후 매출전표 수정 시도 → SAS_DAILY_CLOSING_LOCKED 409 |
+| S9 | 면세 거래처 매출전표 → VAT=0 + 면세계산서 분기 |
+| S10 | 영세율 매출전표 → VAT=0 + 세금계산서 (영세율 표시) |
+| S11 | 매입전표 (입고 → 매입) 100% 대칭 |
+| S12 | 일마감 sourceKind=SALES_SLIP 집계 + Daily Detail 표 매출전표번호 노출 |
+| S13 | 일마감 잠금 후 unlock (MASTER 만) — 기존 SP-08-6-5 가드 회귀 |
+| S14 | 회귀: 기존 DailyClosing TAX_INVOICE 집계 default 흐름 PASS |
+| S15 | 회귀: 기존 TaxInvoice NTS 발행 (SP-09-1) 무변경 PASS |
+
+각 시나리오 화면 mockup PNG 또는 실제 캡처 (`docs/qa/sp-sas/screenshots/`) — [feedback_pr_qa_screenshots] 의무.
+
+### 8-D. 회귀 회로
+
+| 영역 | 회귀 보장 방법 |
+|---|---|
+| 기존 SP-08-6-5 일마감 흐름 | default `sourceKind=TAX_INVOICE` + backward-compat 단위/IT 통과 |
+| 기존 SP-09-1 NTS 발행 | ETaxClient 무변경 + 기존 TaxInvoiceEmitService IT 통과 |
+| slip-service 무변경 | accounting-service 가 read-only client 만 호출, slip 도메인/repo 무수정 |
+| 기존 회계 메뉴 13건 | PageCode 추가만 (기존 row/시드 무변경), role_page_permissions 신규 4건만 INSERT |
+| Partner 도메인 호환 | `Partner.taxType` 컬럼은 본 슬라이스에서 optional (없으면 매출전표 작성 시 매번 입력) |
+
+### 8-E. 사전 컴파일 + Docker IT (PM 통합 가드 의무, [feedback_pm_integration_build_check])
+
+- BE 작업 완료 후 PM 사전 검증: `.\gradlew.bat :services:accounting-service:test :services:auth-service:test` BUILD SUCCESSFUL
+- Docker postgres IT: samhan-postgres 컨테이너에서 V?? migration + 실 매출전표 생성/POSTED/일마감 잠금 end-to-end 검증 (사용자 명시 "실서버 테스트 Docker 사용")
+- FE typecheck: `cd clients/desktop && npm run typecheck` partnerApi/accountingApi 정합 확인
+- legacy GAS 회계 메뉴 13건 회귀 검증: `playwright test --grep accounting` 기존 패턴 통과
 
 ---
 
