@@ -29,6 +29,9 @@ import java.time.LocalDate;
  * @param outstandingBalance 미수금 잔액
  * @param status            거래 상태
  * @param registrationDate  거래 시작일 (회계상)
+ * @param transferInfo      이체정보 (MIG-1 신규, 이카운트 V9)
+ * @param note              특이사항 (MIG-1 신규, 이카운트 V9)
+ * @param managerName       담당자명 (MIG-1 신규, 이카운트 V9)
  */
 public record PartnerBasicResponse(
         String partnerCode,
@@ -49,7 +52,10 @@ public record PartnerBasicResponse(
         BigDecimal creditLimit,
         BigDecimal outstandingBalance,
         PartnerStatus status,
-        LocalDate registrationDate
+        LocalDate registrationDate,
+        String transferInfo,
+        String note,
+        String managerName
 ) {
 
     /**
@@ -78,7 +84,10 @@ public record PartnerBasicResponse(
                 p.getCreditLimit(),
                 p.getOutstandingBalance(),
                 p.getStatus(),
-                p.getRegistrationDate()
+                p.getRegistrationDate(),
+                p.getTransferInfo(),
+                p.getNote(),
+                p.getManagerName()
         );
     }
 }

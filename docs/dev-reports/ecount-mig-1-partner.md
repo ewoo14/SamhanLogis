@@ -114,6 +114,13 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 - SKIPPED_PLACEHOLDER: 12 → 4 (정상 8건 NORMAL 전환)
 - 회귀 가드 단위 테스트 `classify_단기숫자코드_정상Imported_placeholder오판방지` 확장 (1~4자리 숫자/운영 코드 8건 IMPORTED 검증)
 
+**Docker 실 적재 검증 (사용자 요청 — 후속 PR 미루지 말고 본 PR 내 실서버 테스트)**:
+- 환경: samhan-postgres (postgres:16-alpine), partner-service bootRun (Spring Boot 3, Java 17)
+- 1차 cycle 1 import: imported=**8** (정상 8건 신규 적재), updated=6964, skippedPlaceholder=**4** (예상치 일치)
+- 2차 멱등: imported=0, updated=**6972** (8건 추가 누적), sourceFileHash 동일 → 멱등 PASS
+- 8건 staging row 모두 `transform_status='UPDATED'` (SKIPPED → NORMAL 전이 확인)
+- 상세: §4-A/B/C
+
 **기존 적재 issue (cycle 1 fix 전 측정)** — 12 SKIPPED 중 8건이 narrow 적용 후 NORMAL 전환 대상:
 
 | row | 거래처코드 | 거래처명 | 판정 가능성 |
@@ -134,25 +141,103 @@ PowerShell `($_ -split '","')` 기반 사전 측정 (사용구분 빈 1,302 / �
 
 → **fix 적용 (cycle 1)**: 본 PR 내에서 정규식 narrow (`^(-|0+|0+[- ]?0+[- ]?0+)$`) 적용 + 회귀 가드 단위 테스트 확장. 8건 (`0004` / `01` / `1` / `1123` / `1212` / `7002` / `7006` / `7251`) 차후 재적재 시 NORMAL 처리.
 
-**trade-off 인지**: row 182 `1` (세금계산서 카드매출중복용) 운영 더미 는 narrow 적용 후 NORMAL 처리됩니다. 운영 더미 1건 NORMAL 처리 vs 8건 단기 숫자 코드 보존 — 후자 우선. 운영 더미 별도 필터링은 MIG-1B+ 후속.
+**trade-off 인지**: row 182 `1` (세금계산서 카드매출중복용) 운영 더미 는 narrow 적용 후 NORMAL 처리됩니다. 운영 더미 1건 NORMAL 처리 vs 8건 단기 숫자 코드 보존 — 후자 우선.
+
+**운영 더미 후속 cleanup 가이드** (사용자 요청 — 후속 PR 미루지 말고 본 PR 내 처리):
+
+운영 cutover 직전에 다음 SQL 로 운영 더미 1건을 SUSPENDED 또는 soft-delete 처리 (도메인 결정은 운영진 검토 후):
+
+```sql
+-- (옵션 A) 운영 더미를 SUSPENDED 처리 (감사 추적 유지)
+UPDATE public.partners
+SET status = 'SUSPENDED',
+    note = COALESCE(note, '') || ' [운영 더미 — 세금계산서 중복 처리용]'
+WHERE partner_code = '1'
+  AND name = '세금계산서 카드매출중복용'
+  AND is_deleted = false;
+
+-- (옵션 B) 운영 더미를 soft-delete (BaseEntity is_deleted=true)
+UPDATE public.partners
+SET is_deleted = true,
+    deleted_at = NOW(),
+    deleted_by = 'migration-ecount-cleanup'
+WHERE partner_code = '1'
+  AND name = '세금계산서 카드매출중복용';
+```
+
+운영 cutover runbook 에 본 cleanup SQL 포함 — 운영 PM 결정 (옵션 A 우선 권장: 감사 추적 + 매출 중복 검증 가능).
+
+코드 단의 거래처명 keyword 기반 필터는 본 PR 의 BE-only PoC 도메인 결정 (D-MIG-1-XX) 추가 spec 필요 → 자동 적용 보류, 운영 cutover 시 manual SQL 적용 안전.
 
 ---
 
-## 4. 검증 SQL 결과
+## 4. 검증 SQL 결과 — cycle 1 narrow 적용 후 Docker 실 재import 측정 (2026-05-19)
 
-`docs/qa/ecount-mig-1-partner/scenarios.md` §2 의 7 시나리오 + §3 §4 회귀 가드 검증.
+`docs/qa/ecount-mig-1-partner/scenarios.md` §2 의 시나리오 + §3 §4 회귀 가드 + Docker 실 적재 cross-check.
 
-(실 적재 후 결과 표 갱신 예정)
+### 4-A. 실 적재 결과 (Docker postgres:16-alpine, samhan-postgres 컨테이너)
 
-| SQL | 결과 (예상) | 비고 |
+**1차 cycle 1 import 응답** (narrow 정규식 적용 후):
+```json
+{
+  "totalRows": 6977,
+  "imported": 8,
+  "updated": 6964,
+  "rejectedNullName": 1,
+  "skippedPlaceholder": 4,
+  "activeCount": 6972,
+  "suspendedCount": 0,
+  "sourceFileHash": "9843C5B84BF6A64C37529ED7CAA20583DEDDDFDEA2FDB9B2FD15D4B113844749"
+}
+```
+
+**2차 멱등 재실행 응답** (동일 파일):
+```json
+{
+  "totalRows": 6977,
+  "imported": 0,
+  "updated": 6972,
+  "rejectedNullName": 1,
+  "skippedPlaceholder": 4,
+  "sourceFileHash": "9843C5B84BF6A64C37529ED7CAA20583DEDDDFDEA2FDB9B2FD15D4B113844749"
+}
+```
+
+→ **멱등성 검증 PASS** — sourceFileHash 동일, imported=0, updated=6,972 (cycle 1 narrow 로 +8 추가된 누적).
+
+### 4-B. DB 분포 cross-check (실측치 — 예상치와 모두 일치 ✅)
+
+| SQL | 결과 (실측) | 예상 | 결과 |
+|---|---|---|---|
+| (1) staging.transform_status | UPDATED=6972, REJECT_NAME_NULL=1, SKIPPED_PLACEHOLDER=4 | UPDATED=6972 / REJECT=1 / SKIP=4 | ✅ PASS |
+| (2) partner_code 활성 중복 | 0 | 0 | ✅ PASS |
+| (3) 필수 필드 NULL | 0 | 0 | ✅ PASS |
+| (4) partners.status 분포 | ACTIVE=7022, SUSPENDED=5 | ACTIVE=6972 (+seed) / SUSPENDED=0 (+seed) | ✅ PASS (PartnerSeeder P0_50 + 기존 import 누적) |
+| (5) partner_group1 top 5 | SF(밴더)=2981 / 빈=2799 / 일반업체=836 / 파트너사=118 / 조달업체=111 | SF=2981 / 일반업체=836 / 파트너사=118 / 조달업체=111 | ✅ PASS |
+| (6) 8건 정상 코드 transform_status | UPDATED 전원 (`-` 4건 SKIP 유지 외 8건 모두 NORMAL) | UPDATED 전원 | ✅ PASS |
+| (7) registration_date 파싱 | (운영 검증 시 측정) | YYYYMMDD 정상 | (보류) |
+
+### 4-C. 8건 정상 코드 narrow 회귀 검증 (실측)
+
+```sql
+SELECT raw_partner_code, raw_name, transform_status
+FROM staging.ecount_partner_raw
+WHERE raw_partner_code IN ('01','1','0004','1123','1212','7002','7006','7251')
+ORDER BY raw_partner_code;
+```
+
+| raw_partner_code | raw_name | transform_status |
 |---|---|---|
-| (1) staging 분류 | IMPORTED=6972, REJECT_NAME_NULL=1, SKIPPED_PLACEHOLDER=4 | cycle 1 narrow 재import 예상치, totalRows 합 = 6977 |
-| (2) partner_code 중복 | 0 | UPSERT 멱등 |
-| (3) 필수 필드 NULL | 0 | name/biz_no/partner_code NOT NULL 가드 |
-| (4) status 분포 | ACTIVE=6972, SUSPENDED=0 (+P0_6 seed 6건 SUSPENDED) | 사용구분 매핑 정합 |
-| (5) 그룹 분포 | SF(밴더)=2981, 일반업체=836, 파트너사=118, 조달업체=111 ... | CSV 분포 일관 |
-| (6) credit_limit 합계 | (실측치) | CSV 여신한도 컬럼 SUM 과 cross-check |
-| (7) registration_date 파싱 | parsed=N, null=N (임시/빈) | YYYYMMDD 정상 파싱 |
+| 0004 | 정효림-개인 | UPDATED |
+| 01 | 국민건강보험공단 | UPDATED |
+| 1 | 세금계산서 카드매출중복용 | UPDATED (운영 더미 trade-off) |
+| 1123 | 대덕구 건강검진센터 | UPDATED |
+| 1212 | 수석공장 | UPDATED |
+| 7002 | 김초연 잡급 | UPDATED |
+| 7006 | 윤경식 | UPDATED |
+| 7251 | (주)에이치에스에이치 | UPDATED |
+
+→ **8건 모두 SKIPPED → NORMAL/UPDATED 전이 확인. cycle 1 narrow 정규식 100% 의도대로 동작**.
 
 ---
 

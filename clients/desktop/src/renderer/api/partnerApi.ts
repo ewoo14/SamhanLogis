@@ -116,6 +116,12 @@ export interface PartnerBasic {
   status: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED'
   /** 거래 시작일 (회계상). ISO yyyy-MM-dd */
   registrationDate: string | null
+  /** 이체정보 (MIG-1 신규, 이카운트 V9). */
+  transferInfo: string | null
+  /** 특이사항 (MIG-1 신규, 이카운트 V9). */
+  note: string | null
+  /** 담당자명 (MIG-1 신규, 이카운트 V9). */
+  managerName: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +452,9 @@ export const MOCK_PARTNER_FULL: PartnerFullResponse = {
     outstandingBalance: 0,
     status: 'ACTIVE',
     registrationDate: '2024-01-02',
+    transferInfo: null,
+    note: null,
+    managerName: '홍길동',
   },
   priceDiscount: {
     basicDiscountRate: 5.0,
