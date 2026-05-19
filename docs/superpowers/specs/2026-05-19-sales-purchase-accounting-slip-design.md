@@ -386,18 +386,80 @@ actor 정보 = `X-User-Id` + `X-User-Role` 헤더 (기존 패턴). UUID raw 노�
 
 ## 7. Admin UI (디자인 §6) + 기존 코드 개정 항목
 
-### 7-A. 메뉴 구조 (사이드바)
+### 7-A. 메뉴 구조 (회계 사이드바 전체 통합) — 사용자 명시 2026-05-19
+
+기존 legacy GAS 회계 메뉴 (PR #118 "GAS B 회계 4건" 이식 + 후속 확장) + 본 SAS 신규 4건 모두 포함.
+
+PageCode 기준 회계 카테고리 전체:
+
+| 분류 | 메뉴 | 라우트 | PageCode | 출처 |
+|---|---|---|---|---|
+| **전표 (신규 SAS)** | 매출전표 | `/accounting/sales-slips` | `accounting.sales-slip.list` ⚡신규 | 본 슬라이스 |
+| | 매입전표 | `/accounting/purchase-slips` | `accounting.purchase-slip.list` ⚡신규 | 본 슬라이스 |
+| **세금계산서** | 세금계산서 목록 | `/accounting/tax-invoices` | `accounting.tax-invoice.list` | 기존 (SP-09 시리즈) |
+| | 세금계산서 발행 묶음 | `/accounting/tax-invoices/batch` | `accounting.tax-invoice.batch-issue` ⚡신규 | 본 슬라이스 |
+| | 세금계산서 수신 | `/accounting/tax-invoices/inbound` | `accounting.tax-invoice.inbound` ⚡신규 | 본 슬라이스 |
+| | NTS 발행 | (action) | `accounting.tax-invoice.emit-nts` | 기존 (SP-09-1) |
+| **마감** | 일마감 ⚠개정 | `/accounting/daily-closing` | `accounting.daily-closing` | 기존 (SP-08-6-5) — §7-G 개정 |
+| | 월말 마감 | `/accounting/period-close` | `accounting.period-close` | 기존 |
+| **원장/조회** | 원장 | `/accounting/general-ledger` | `accounting.general-ledger` | 기존 (PR #118) |
+| | 거래처 원장 | `/accounting/partner-ledger` | `accounting.partner-ledger` | 기존 |
+| | 분개장 | `/accounting/journals` | `accounting.journals` | 기존 |
+| | 시산표 | `/accounting/balances` | `accounting.balances` | 기존 |
+| **기준정보** | 계정과목 | `/accounting/accounts` | `accounting.accounts` | 기존 |
+| **출력/거래** | 거래명세서 일괄 | `/accounting/statements/batch` | `accounting.statement-batch` | 기존 (PR #118) |
+| | 입금 매칭 | `/accounting/deposit-match` | `accounting.deposit-match` | 기존 |
+| **보고서** | 재무 보고서 | `/accounting/reports` | `accounting.reports` | 기존 |
+
+### 7-A-1. 사이드바 트리 구조 (Electron `AppLayout` 또는 sidebar 컴포넌트)
 
 ```
 회계 (ACCOUNTANT / MASTER)
-├── 매출전표              [신규] /accounting/sales-slips
-├── 매입전표              [신규] /accounting/purchase-slips
-├── 세금계산서 발행      [신규] /accounting/tax-invoices/batch
-├── 세금계산서 수신      [신규] /accounting/tax-invoices/inbound
-├── 일마감 ⚠ 개정         [기존] /accounting/daily-closing  (DailyClosingPage 확장)
-├── 원장                  [기존] /accounting/ledger
-└── 마감 (월/기간)         [기존] /accounting/period-closing
+├── 전표
+│   ├── 매출전표              ⚡신규
+│   └── 매입전표              ⚡신규
+├── 세금계산서
+│   ├── 목록 (기존)
+│   ├── 발행 묶음            ⚡신규  ← 매출전표 N장 → TaxInvoice 1장
+│   └── 수신                ⚡신규  ← NTS API 또는 수동 등록
+├── 마감
+│   ├── 일마감 ⚠ 개정         ← DailyClosingPage 확장 (sourceKind/closingKind, 하루 단위)
+│   └── 월말 마감 (기존)
+├── 원장/조회
+│   ├── 원장 (총계정원장)
+│   ├── 거래처 원장
+│   ├── 분개장
+│   └── 시산표
+├── 기준정보
+│   └── 계정과목
+├── 출력/거래
+│   ├── 거래명세서 일괄 (PR #118 이식)
+│   └── 입금 매칭
+└── 보고서
+    └── 재무 보고서 (B/S, P/L, 자금일보 등)
 ```
+
+### 7-A-2. PageCode 신규 등록 (auth-service 의무)
+
+본 슬라이스 BE 작업 시 `services/auth-service/.../PageCode.java` 에 4건 추가:
+
+```java
+ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표"),
+ACCOUNTING_PURCHASE_SLIP_LIST("accounting.purchase-slip.list", "매입전표"),
+ACCOUNTING_TAX_INVOICE_BATCH_ISSUE("accounting.tax-invoice.batch-issue", "세금계산서 발행 묶음"),
+ACCOUNTING_TAX_INVOICE_INBOUND("accounting.tax-invoice.inbound", "세금계산서 수신"),
+```
+
+신규 Flyway migration (auth-service) — `role_page_permissions` 시드 row 추가:
+- ACCOUNTANT/MASTER → view+edit
+- SALES → view (매출전표만 자기 거래처)
+- DISPATCH → 차단
+
+### 7-A-3. 회귀 가드
+
+- 기존 회계 메뉴 13건 모두 **표시 + 라우트 + 권한 무변경**
+- 신규 4건은 추가만 (기존 권한 시드에 영향 X)
+- legacy GAS B 회계 4건 (PR #118 원장/거래명세서/계산서/일마감) 흐름 100% 보존
 
 ### 7-B. 매출전표 작성 페이지 (`/accounting/sales-slips/new`)
 
