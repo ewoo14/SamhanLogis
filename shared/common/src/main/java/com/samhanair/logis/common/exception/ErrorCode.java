@@ -192,7 +192,32 @@ public enum ErrorCode {
      * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
     SAS_SLIP_NO_CONFLICT(HttpStatus.CONFLICT,
-            "매출/매입전표 번호 충돌 — 재시도 권장");
+            "매출/매입전표 번호 충돌 — 재시도 권장"),
+    /**
+     * MIG-2 이카운트 마스터 CSV 헤더 형식 불일치.
+     */
+    MIG2_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "CSV 헤더 형식 불일치"),
+    /**
+     * MIG-2 품목명/마스터명 빈값 거부.
+     */
+    MIG2_ITEM_NAME_NULL(HttpStatus.UNPROCESSABLE_ENTITY,
+            "품목명 빈값 거부"),
+    /**
+     * MIG-2 품목관계의 대표품목코드가 품목 raw 에 없음.
+     */
+    MIG2_RELATION_ORPHAN(HttpStatus.UNPROCESSABLE_ENTITY,
+            "품목관계 main_code 가 raw 에 없음"),
+    /**
+     * MIG-2 동일 alias_code 가 다른 main 에 매핑되는 충돌.
+     */
+    MIG2_ALIAS_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 alias_code 가 다른 main 에 매핑"),
+    /**
+     * MIG-2 source file hash 계산 실패.
+     */
+    MIG2_FILE_HASH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "파일 hash 계산 실패");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

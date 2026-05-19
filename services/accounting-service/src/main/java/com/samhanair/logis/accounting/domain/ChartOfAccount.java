@@ -28,9 +28,9 @@ import org.hibernate.annotations.SQLRestriction;
 @SQLRestriction("is_deleted = false")
 public class ChartOfAccount extends BaseEntity {
 
-    /** 계정 코드 — VARCHAR(6) PK. 예: "101"(현금), "10101"(본점현금). */
+    /** 계정 코드 — VARCHAR(10) PK. 예: "101"(현금), 이카운트 "00010". */
     @Id
-    @Column(name = "code", length = 6, nullable = false)
+    @Column(name = "code", length = 10, nullable = false)
     private String code;
 
     /** 계정명 — 한국어 (최대 100자). 예: "현금", "보통예금". */
@@ -46,7 +46,7 @@ public class ChartOfAccount extends BaseEntity {
      * 부모 계정 코드 (self FK). 통제 계정(부모) → 보조 계정(자식) 트리.
      * Root 계정(예: "100" 자산)은 null.
      */
-    @Column(name = "parent_code", length = 6)
+    @Column(name = "parent_code", length = 10)
     private String parentCode;
 
     /**
@@ -81,8 +81,8 @@ public class ChartOfAccount extends BaseEntity {
      */
     public static ChartOfAccount create(String code, String name, AccountCategory category,
                                         String parentCode, boolean isLeaf, int displayOrder) {
-        if (code == null || code.isBlank() || code.length() > 6) {
-            throw new IllegalArgumentException("계정 코드는 1~6자 필수입니다");
+        if (code == null || code.isBlank() || code.length() > 10) {
+            throw new IllegalArgumentException("계정 코드는 1~10자 필수입니다");
         }
         if (name == null || name.isBlank() || name.length() > 100) {
             throw new IllegalArgumentException("계정명은 1~100자 필수입니다");
@@ -91,5 +91,15 @@ public class ChartOfAccount extends BaseEntity {
             throw new IllegalArgumentException("category 는 필수입니다");
         }
         return new ChartOfAccount(code, name, category, parentCode, isLeaf, displayOrder);
+    }
+
+    public void renameFromEcount(String name, AccountCategory category, String parentCode, boolean isLeaf) {
+        if (name == null || name.isBlank() || name.length() > 100) {
+            throw new IllegalArgumentException("계정명은 1~100자 필수입니다");
+        }
+        this.name = name;
+        this.category = category == null ? this.category : category;
+        this.parentCode = parentCode;
+        this.isLeaf = isLeaf;
     }
 }

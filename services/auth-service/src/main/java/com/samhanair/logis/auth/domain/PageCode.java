@@ -188,7 +188,22 @@ public enum PageCode {
     ACCOUNTING_TAX_INVOICE_BATCH_ISSUE("accounting.tax-invoice.batch-issue", "세금계산서 발행 묶음"),
 
     /** 세금계산서 수신 화면 (SP-SAS-4). */
-    ACCOUNTING_TAX_INVOICE_INBOUND("accounting.tax-invoice.inbound", "세금계산서 수신");
+    ACCOUNTING_TAX_INVOICE_INBOUND("accounting.tax-invoice.inbound", "세금계산서 수신"),
+
+    /** MIG-2 이카운트 품목 마이그레이션. */
+    ECOUNT_MIG2_PRODUCT("ecount.mig2.product", "이카운트 품목 마이그레이션"),
+
+    /** MIG-2 이카운트 계정 마이그레이션. */
+    ECOUNT_MIG2_ACCOUNT("ecount.mig2.account", "이카운트 계정 마이그레이션"),
+
+    /** MIG-2 이카운트 부서 마이그레이션. */
+    ECOUNT_MIG2_DEPARTMENT("ecount.mig2.department", "이카운트 부서 마이그레이션"),
+
+    /** MIG-2 이카운트 창고 마이그레이션. */
+    ECOUNT_MIG2_WAREHOUSE("ecount.mig2.warehouse", "이카운트 창고 마이그레이션"),
+
+    /** MIG-2 이카운트 카드/계좌 마이그레이션. */
+    ECOUNT_MIG2_CARD("ecount.mig2.card", "이카운트 카드 마이그레이션");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

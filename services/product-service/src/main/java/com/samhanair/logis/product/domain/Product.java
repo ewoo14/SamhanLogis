@@ -233,6 +233,19 @@ public class Product extends BaseEntity {
     @Column(name = "product_group2", length = 50)
     private String productGroup2;
 
+    /** MIG-2 품목계층그룹 raw 명칭 ([CAC] 싱글 등). */
+    @Column(name = "category_group", length = 100)
+    private String categoryGroup;
+
+    /** MIG-2/SAS VAT 계산 정책. 이카운트 품목은 기본 과세. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tax_type", nullable = false, length = 20)
+    private ProductTaxType taxType = ProductTaxType.TAXABLE;
+
+    /** VAT-inclusive 기준 단가. slip-service / SAS 라인 금액 분리 기준과 일관. */
+    @Column(name = "unit_price_with_vat", nullable = false, precision = 15, scale = 2)
+    private BigDecimal unitPriceWithVat = BigDecimal.ZERO;
+
     // === HVAC 특화 단가 6종 (이카운트 발견 — Stage 1 핵심 보강) ===
 
     /** 입고단가 — 매입 기준가. */
@@ -491,6 +504,17 @@ public class Product extends BaseEntity {
     public void updateGroups(String productGroup1, String productGroup2) {
         this.productGroup1 = productGroup1;
         this.productGroup2 = productGroup2;
+    }
+
+    /** MIG-2 이카운트 품목 import 메타 갱신. */
+    public void updateMig2EcountFields(String categoryGroup, ProductTaxType taxType,
+                                       BigDecimal unitPriceWithVat) {
+        this.categoryGroup = categoryGroup;
+        this.taxType = taxType == null ? ProductTaxType.TAXABLE : taxType;
+        if (unitPriceWithVat != null) {
+            validateNonNegative(unitPriceWithVat, "VAT 포함 단가");
+            this.unitPriceWithVat = unitPriceWithVat;
+        }
     }
 
     /**

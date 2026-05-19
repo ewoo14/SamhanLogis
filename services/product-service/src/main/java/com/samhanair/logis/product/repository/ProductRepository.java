@@ -80,6 +80,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     boolean existsByModelCodeAndIsDeletedFalse(String modelCode);
 
+    Optional<Product> findByProductCodeAndIsDeletedFalse(String productCode);
+
+    boolean existsByProductCodeAndIsDeletedFalse(String productCode);
+
     /**
      * 카탈로그 endpoint 필터 — usageScope/estimateCategory 조합 검색.
      * GET /api/v1/products?usageScope={enum}&category={enum}.

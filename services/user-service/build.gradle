@@ -35,6 +35,9 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
+    // springdoc-openapi — /v3/api-docs (JSON) + /swagger-ui.html (대화형 UI) 자동 노출
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
     implementation project(':shared:common')
     implementation project(':shared:security')
     // PR-H4b (Phase 12 Step 4b) — shared:realtime-abstraction module.
