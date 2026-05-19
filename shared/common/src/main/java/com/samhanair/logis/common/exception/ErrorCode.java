@@ -199,6 +199,11 @@ public enum ErrorCode {
     MIG2_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "CSV 헤더 형식 불일치"),
     /**
+     * MIG-2 이카운트 마스터 CSV 헤더 strict 형식 불일치.
+     */
+    MIG2_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "CSV 헤더 strict 형식 불일치"),
+    /**
      * MIG-2 품목명/마스터명 빈값 거부.
      */
     MIG2_ITEM_NAME_NULL(HttpStatus.UNPROCESSABLE_ENTITY,
@@ -218,6 +223,11 @@ public enum ErrorCode {
      */
     MIG2_NO_MAIN_CANDIDATE(HttpStatus.UNPROCESSABLE_ENTITY,
             "품목 main 후보를 결정할 수 없음"),
+    /**
+     * MIG-2 business key 원천 코드가 DB 컬럼 폭을 초과함.
+     */
+    MIG2_CODE_OUT_OF_RANGE(HttpStatus.UNPROCESSABLE_ENTITY,
+            "이카운트 코드 길이가 허용 범위를 초과했습니다"),
     /**
      * MIG-2 source file hash 계산 실패.
      */

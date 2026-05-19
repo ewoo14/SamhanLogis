@@ -18,7 +18,6 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -105,17 +104,18 @@ public class EcountProductImporter {
                 addRejectSample(rejectedSample, row.rowNo(), "SKIPPED_PLACEHOLDER", row.code(), row.name());
                 continue;
             }
+            EcountCsvSupport.requireMaxLength(row.code(), 100, "product_code", row.rowNo());
 
             String explicitMainCode = relationMainByAlias.get(row.code());
-            if (explicitMainCode != null && !itemsByCode.containsKey(explicitMainCode)) {
+            ProductMainCandidate mainCandidate = resolveMainCandidate(
+                    row, explicitMainCode, relationParse.mainCodes(), itemsByCode, normalNameCounts);
+            if (mainCandidate == null) {
                 skippedRelationOrphan++;
                 updateItemStatus(sourceFileHash, row.rowNo(), "SKIPPED_RELATION_ORPHAN",
-                        "대표품목코드 raw 미존재 (" + explicitMainCode + ")", null, null);
+                        "대표품목코드 CSV/DB 미존재 (" + explicitMainCode + ")", null, null);
                 addRejectSample(rejectedSample, row.rowNo(), "SKIPPED_RELATION_ORPHAN", row.code(), row.name());
                 continue;
             }
-            ProductMainCandidate mainCandidate = resolveMainCandidate(
-                    row, explicitMainCode, relationParse.mainCodes(), itemsByCode, normalNameCounts);
             String mainCode = mainCandidate.mainCode();
             ItemRow mainRow = mainCandidate.rawRow();
 
@@ -164,6 +164,8 @@ public class EcountProductImporter {
             String mainCode = c[0];
             String aliasCode = c[3];
             if (!mainCode.isBlank() && !aliasCode.isBlank()) {
+                EcountCsvSupport.requireMaxLength(mainCode, 100, "product_code", rowNo);
+                EcountCsvSupport.requireMaxLength(aliasCode, 100, "product_code", rowNo);
                 String existingMain = relation.get(aliasCode);
                 if (existingMain != null && !existingMain.equals(mainCode)) {
                     throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
@@ -208,7 +210,12 @@ public class EcountProductImporter {
                                                       Map<String, ItemRow> itemsByCode,
                                                       Map<String, Integer> normalNameCounts) {
         if (explicitMainCode != null) {
-            return new ProductMainCandidate(explicitMainCode, itemsByCode.get(explicitMainCode), null);
+            ItemRow explicitMainRow = itemsByCode.get(explicitMainCode);
+            if (explicitMainRow != null) {
+                return new ProductMainCandidate(explicitMainCode, explicitMainRow, null);
+            }
+            UUID existingMainId = findActiveProductIdByCode(explicitMainCode);
+            return existingMainId == null ? null : new ProductMainCandidate(explicitMainCode, null, existingMainId);
         }
         if (relationMainCodes.contains(row.code())) {
             return new ProductMainCandidate(row.code(), row, null);
@@ -216,8 +223,13 @@ public class EcountProductImporter {
         String dbMainCode = findActiveProductCodeByName(row.name());
         if (dbMainCode != null && !dbMainCode.isBlank()) {
             ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
+            UUID dbMainId = dbMainRaw == null ? findActiveProductIdByCode(dbMainCode) : null;
+            if (dbMainRaw == null && dbMainId == null) {
+                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                        "DB main 품목 UUID 를 찾을 수 없습니다: code=" + dbMainCode);
+            }
             return new ProductMainCandidate(dbMainCode, dbMainRaw,
-                    dbMainRaw == null ? findActiveProductIdByCode(dbMainCode) : null);
+                    dbMainId);
         }
         if (normalNameCounts.getOrDefault(row.name(), 0) == 1) {
             return new ProductMainCandidate(row.code(), row, null);
@@ -302,6 +314,9 @@ public class EcountProductImporter {
               category_group = EXCLUDED.category_group,
               tax_type = EXCLUDED.tax_type,
               unit_price_with_vat = EXCLUDED.unit_price_with_vat,
+              is_deleted = FALSE,
+              deleted_at = NULL,
+              deleted_by = NULL,
               modified_at = NOW(),
               modified_by = EXCLUDED.created_by
             RETURNING id
@@ -355,37 +370,32 @@ public class EcountProductImporter {
     }
 
     private String findActiveProductCodeByName(String name) {
-        try {
-            return jdbcTemplate.queryForObject("""
-                    SELECT product_code
-                      FROM products
-                     WHERE name = :name AND is_deleted = FALSE
-                     ORDER BY created_at ASC
-                     LIMIT 1
-                    """, new MapSqlParameterSource("name", name), String.class);
-        } catch (EmptyResultDataAccessException ex) {
+        List<String> productCodes = jdbcTemplate.queryForList("""
+                SELECT product_code
+                  FROM products
+                 WHERE name = :name AND is_deleted = FALSE AND status = 'ACTIVE'
+                 ORDER BY created_at ASC
+                 LIMIT 2
+                """, new MapSqlParameterSource("name", name), String.class);
+        if (productCodes == null || productCodes.isEmpty()) {
             return null;
         }
+        if (productCodes.size() > 1) {
+            throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                    "동명 ACTIVE 품목이 2건 이상입니다: name=" + name + ", sampleMainCodes=" + productCodes);
+        }
+        return productCodes.get(0);
     }
 
     private UUID findActiveProductIdByCode(String code) {
-        try {
-            UUID productId = jdbcTemplate.queryForObject("""
-                    SELECT id
-                      FROM products
-                     WHERE product_code = :code AND is_deleted = FALSE
-                     ORDER BY created_at ASC
-                     LIMIT 1
-                    """, new MapSqlParameterSource("code", code), UUID.class);
-            if (productId == null) {
-                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                        "DB main 품목 UUID 를 찾을 수 없습니다: code=" + code);
-            }
-            return productId;
-        } catch (EmptyResultDataAccessException ex) {
-            throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                    "DB main 품목 UUID 를 찾을 수 없습니다: code=" + code);
-        }
+        List<UUID> productIds = jdbcTemplate.queryForList("""
+                SELECT id
+                  FROM products
+                 WHERE product_code = :code AND is_deleted = FALSE AND status = 'ACTIVE'
+                 ORDER BY created_at ASC
+                 LIMIT 1
+                """, new MapSqlParameterSource("code", code), UUID.class);
+        return productIds == null || productIds.isEmpty() ? null : productIds.get(0);
     }
 
     private void stagingItemUpsert(String hash, int rowNo, String[] c, String actor) {

@@ -1,20 +1,20 @@
 package com.samhanair.logis.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.samhanair.logis.accounting.web.dto.EcountCardImportResult;
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,9 +50,9 @@ class EcountCardImporterTest {
     void importCsv_통장계좌를_cardMaster로_분류한다() {
         String csv = """
                 "데이터관리>통장계좌-Excel다운로드"
-                "계좌코드\t","계좌명\t","계정명(계정코드)\t\t","검색창내용\t","적요\t","외화통장\t","사용\t",""
-                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
-                "0000\t","placeholder\t","현금(1019)\t","\t","\t","미사용\t","YES\t",""
+                "계좌코드\t","계좌명\t","계정명(계정코드)\t\t","검색창내용\t","적요\t","외화통장\t","사용\t"
+                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
+                "0000\t","placeholder\t","현금(1019)\t","\t","\t","미사용\t","YES\t"
                 """;
 
         EcountCardImportResult result = importer.importCsv(stream(csv), "tester");
@@ -64,7 +64,7 @@ class EcountCardImporterTest {
     @Test
     void importCsv_계좌명_빈값은_REJECT_NAME_NULL로_거부한다() {
         EcountCardImportResult result = importer.importCsv(stream(cardCsv("""
-                "079815326474401\t","\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
+                "079815326474401\t","\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
                 """)), "tester");
 
         assertThat(result.rejectedNullName()).isEqualTo(1);
@@ -75,7 +75,7 @@ class EcountCardImporterTest {
     @Test
     void importCsv_card_code_upsert는_2회_import에도_ON_CONFLICT로_idempotent하다() {
         String csv = cardCsv("""
-                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
+                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
                 """);
 
         importer.importCsv(stream(csv), "tester");
@@ -93,9 +93,9 @@ class EcountCardImporterTest {
     @Test
     void importCsv_source_row_no는_데이터행_기준_1부터_증가한다() {
         String csv = cardCsv("""
-                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
-                "079815326474402\t","신한예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
-                "079815326474403\t","하나예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t",""
+                "079815326474401\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
+                "079815326474402\t","신한예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
+                "079815326474403\t","하나예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
                 """);
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
 
@@ -107,17 +107,32 @@ class EcountCardImporterTest {
                 .map(p -> (Integer) p.getValue("row"))
                 .distinct()
                 .toList();
-        assertThat(sourceRows).contains(1, 2, 3);
+        assertThat(sourceRows).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void importCsv_계좌코드가_50자를_초과하면_MIG2_CODE_OUT_OF_RANGE로_거부한다() {
+        String longCode = "C".repeat(51);
+
+        assertThatThrownBy(() -> importer.importCsv(stream(cardCsv("""
+                "%s\t","국민예금\t","정기예.적금(1059)\t","\t","\t","미사용\t","YES\t"
+                """.formatted(longCode))), "tester"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG2_CODE_OUT_OF_RANGE))
+                .hasMessageContaining("length=51");
     }
 
     @Test
     void rawHeaderCrossCheck() throws Exception {
-        Path rawFile = Path.of("docs/migration/ecount-data/raw/통장계좌-Excel다운로드.csv");
-        assumeTrue(Files.exists(rawFile));
+        try (InputStream fixture = EcountCardImporterTest.class
+                .getResourceAsStream("/ecount-raw-fixtures/card.csv")) {
+            assertThat(fixture).isNotNull();
 
-        EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(Files.readAllBytes(rawFile));
+            EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
 
-        EcountCsvSupport.validateHeader(parsed.header(), EcountCardImporter.HEADERS);
+            EcountCsvSupport.validateHeader(parsed.header(), EcountCardImporter.HEADERS);
+        }
     }
 
     private static InputStream stream(String csv) {
@@ -127,7 +142,7 @@ class EcountCardImporterTest {
     private static String cardCsv(String rows) {
         return """
                 "데이터관리>통장계좌-Excel다운로드"
-                "계좌코드\t","계좌명\t","계정명(계정코드)\t\t","검색창내용\t","적요\t","외화통장\t","사용\t",""
+                "계좌코드\t","계좌명\t","계정명(계정코드)\t\t","검색창내용\t","적요\t","외화통장\t","사용\t"
                 """ + rows;
     }
 }

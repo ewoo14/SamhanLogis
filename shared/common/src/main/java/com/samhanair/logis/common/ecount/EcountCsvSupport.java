@@ -90,19 +90,35 @@ public final class EcountCsvSupport {
 
         int headerIndex = hasMetaRow(rows.get(0)) ? 1 : 0;
         if (rows.size() <= headerIndex) {
-            throw new BusinessException(ErrorCode.MIG2_HEADER_MISMATCH, "CSV 헤더 누락");
+            throw new BusinessException(ErrorCode.MIG2_CSV_HEADER_MISMATCH, "CSV 헤더 누락");
         }
         return new ParsedCsv(headerIndex, rows.get(headerIndex), rows.subList(headerIndex + 1, rows.size()));
     }
 
     public static void validateHeader(String[] header, String[] expected) {
+        if (header.length != expected.length) {
+            throw new BusinessException(ErrorCode.MIG2_CSV_HEADER_MISMATCH,
+                    "CSV 헤더 컬럼 수 불일치 — 예상=" + expected.length
+                            + " 실제=" + header.length
+                            + " 차이컬럼=" + headerDiff(header, expected));
+        }
         for (int i = 0; i < expected.length; i++) {
             String actual = i < header.length ? stripCell(header[i]) : "";
             if (!expected[i].equals(actual)) {
-                throw new BusinessException(ErrorCode.MIG2_HEADER_MISMATCH,
+                throw new BusinessException(ErrorCode.MIG2_CSV_HEADER_MISMATCH,
                         "CSV 헤더 형식 불일치 — 컬럼 " + (i + 1)
                                 + " 예상='" + expected[i] + "' 실제='" + actual + "'");
             }
+        }
+    }
+
+    public static void requireMaxLength(String raw, int max, String fieldName, int sourceRowNo) {
+        if (raw != null && raw.length() > max) {
+            throw new BusinessException(ErrorCode.MIG2_CODE_OUT_OF_RANGE,
+                    fieldName + " 길이 초과: sourceRowNo=" + sourceRowNo
+                            + ", length=" + raw.length()
+                            + ", max=" + max
+                            + ", sample='" + sample(raw) + "'");
         }
     }
 
@@ -136,6 +152,23 @@ public final class EcountCsvSupport {
 
     private static boolean hasMetaRow(String[] row) {
         return row.length > 0 && stripCell(row[0]).startsWith("데이터관리>");
+    }
+
+    private static List<String> headerDiff(String[] header, String[] expected) {
+        List<String> diff = new ArrayList<>();
+        int width = Math.max(header.length, expected.length);
+        for (int i = 0; i < width; i++) {
+            String actual = i < header.length ? stripCell(header[i]) : "<missing>";
+            String exp = i < expected.length ? expected[i] : "<unexpected>";
+            if (!exp.equals(actual)) {
+                diff.add((i + 1) + ": expected='" + exp + "', actual='" + actual + "'");
+            }
+        }
+        return diff;
+    }
+
+    private static String sample(String raw) {
+        return raw.length() <= 80 ? raw : raw.substring(0, 80);
     }
 
     public record ParsedCsv(int headerIndex, String[] header, List<String[]> dataRows) {

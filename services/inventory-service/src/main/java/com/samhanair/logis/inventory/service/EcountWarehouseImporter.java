@@ -67,6 +67,7 @@ public class EcountWarehouseImporter {
                 addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", code, name);
                 continue;
             }
+            EcountCsvSupport.requireMaxLength(code, 50, "warehouse_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM warehouses WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
             UUID warehouseId = upsertWarehouse(code, name, c, actorUserId);
@@ -98,6 +99,9 @@ public class EcountWarehouseImporter {
                   type = EXCLUDED.type,
                   display_order = EXCLUDED.display_order,
                   description = EXCLUDED.description,
+                  is_deleted = FALSE,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
                   modified_at = NOW(),
                   modified_by = EXCLUDED.created_by
                 RETURNING id

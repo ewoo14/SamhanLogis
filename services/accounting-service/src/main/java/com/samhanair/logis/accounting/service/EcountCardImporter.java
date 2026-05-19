@@ -68,6 +68,7 @@ public class EcountCardImporter {
                 addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", code, name);
                 continue;
             }
+            EcountCsvSupport.requireMaxLength(code, 50, "card_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM card_master WHERE card_code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
             UUID cardId = upsertCard(code, name, c, actorUserId);
@@ -106,6 +107,9 @@ public class EcountCardImporter {
                   account_number = EXCLUDED.account_number,
                   linked_account_code = EXCLUDED.linked_account_code,
                   note = EXCLUDED.note,
+                  is_deleted = FALSE,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
                   modified_at = NOW(),
                   modified_by = EXCLUDED.created_by
                 RETURNING id

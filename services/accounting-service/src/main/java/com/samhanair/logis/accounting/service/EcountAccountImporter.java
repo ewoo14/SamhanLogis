@@ -75,6 +75,7 @@ public class EcountAccountImporter {
                 addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", code, name);
                 continue;
             }
+            EcountCsvSupport.requireMaxLength(code, 10, "account_code", rowNo);
 
             boolean exists = exists("SELECT COUNT(1) FROM chart_of_accounts WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
@@ -109,6 +110,9 @@ public class EcountAccountImporter {
                   parent_code = EXCLUDED.parent_code,
                   is_leaf = EXCLUDED.is_leaf,
                   display_order = EXCLUDED.display_order,
+                  is_deleted = FALSE,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
                   modified_at = NOW(),
                   modified_by = EXCLUDED.created_by
                 """,

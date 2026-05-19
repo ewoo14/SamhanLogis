@@ -1,20 +1,20 @@
 package com.samhanair.logis.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,9 +50,9 @@ class EcountDepartmentImporterTest {
     void importCsv_부서코드_정상과_placeholder를_분류한다() {
         String csv = """
                 "데이터관리>부서코드-Excel다운로드"
-                "부서코드\t","부서명\t","사용\t","추가사업장\t",""
-                "00001\t","관리부\t","Yes\t","\t",""
-                "0000\t","placeholder\t","Yes\t","\t",""
+                "부서코드\t","부서명\t","사용\t","추가사업장\t"
+                "00001\t","관리부\t","Yes\t","\t"
+                "0000\t","placeholder\t","Yes\t","\t"
                 """;
 
         EcountDepartmentImportResult result = importer.importCsv(stream(csv), "tester");
@@ -64,7 +64,7 @@ class EcountDepartmentImporterTest {
     @Test
     void importCsv_부서명_빈값은_REJECT_NAME_NULL로_거부한다() {
         EcountDepartmentImportResult result = importer.importCsv(stream(departmentCsv("""
-                "00001\t","\t","Yes\t","\t",""
+                "00001\t","\t","Yes\t","\t"
                 """)), "tester");
 
         assertThat(result.rejectedNullName()).isEqualTo(1);
@@ -75,7 +75,7 @@ class EcountDepartmentImporterTest {
     @Test
     void importCsv_lookup_map_upsert는_2회_import에도_동일_key_ON_CONFLICT를_사용한다() {
         String csv = departmentCsv("""
-                "00001\t","관리부\t","Yes\t","\t",""
+                "00001\t","관리부\t","Yes\t","\t"
                 """);
 
         importer.importCsv(stream(csv), "tester");
@@ -92,9 +92,9 @@ class EcountDepartmentImporterTest {
     @Test
     void importCsv_source_row_no는_데이터행_기준_1부터_증가한다() {
         String csv = departmentCsv("""
-                "00001\t","관리부\t","Yes\t","\t",""
-                "00002\t","영업부\t","Yes\t","\t",""
-                "00003\t","물류부\t","Yes\t","\t",""
+                "00001\t","관리부\t","Yes\t","\t"
+                "00002\t","영업부\t","Yes\t","\t"
+                "00003\t","물류부\t","Yes\t","\t"
                 """);
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
 
@@ -106,17 +106,32 @@ class EcountDepartmentImporterTest {
                 .map(p -> (Integer) p.getValue("row"))
                 .distinct()
                 .toList();
-        assertThat(sourceRows).contains(1, 2, 3);
+        assertThat(sourceRows).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void importCsv_부서코드가_50자를_초과하면_MIG2_CODE_OUT_OF_RANGE로_거부한다() {
+        String longCode = "D".repeat(51);
+
+        assertThatThrownBy(() -> importer.importCsv(stream(departmentCsv("""
+                "%s\t","관리부\t","Yes\t","\t"
+                """.formatted(longCode))), "tester"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG2_CODE_OUT_OF_RANGE))
+                .hasMessageContaining("length=51");
     }
 
     @Test
     void rawHeaderCrossCheck() throws Exception {
-        Path rawFile = Path.of("docs/migration/ecount-data/raw/부서코드-Excel다운로드.csv");
-        assumeTrue(Files.exists(rawFile));
+        try (InputStream fixture = EcountDepartmentImporterTest.class
+                .getResourceAsStream("/ecount-raw-fixtures/department.csv")) {
+            assertThat(fixture).isNotNull();
 
-        EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(Files.readAllBytes(rawFile));
+            EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
 
-        EcountCsvSupport.validateHeader(parsed.header(), EcountDepartmentImporter.HEADERS);
+            EcountCsvSupport.validateHeader(parsed.header(), EcountDepartmentImporter.HEADERS);
+        }
     }
 
     private static InputStream stream(String csv) {
@@ -126,7 +141,7 @@ class EcountDepartmentImporterTest {
     private static String departmentCsv(String rows) {
         return """
                 "데이터관리>부서코드-Excel다운로드"
-                "부서코드\t","부서명\t","사용\t","추가사업장\t",""
+                "부서코드\t","부서명\t","사용\t","추가사업장\t"
                 """ + rows;
     }
 }

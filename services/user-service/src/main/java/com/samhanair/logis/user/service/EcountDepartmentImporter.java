@@ -65,6 +65,7 @@ public class EcountDepartmentImporter {
                 addRejectSample(rejected, rowNo, "SKIPPED_PLACEHOLDER", code, name);
                 continue;
             }
+            EcountCsvSupport.requireMaxLength(code, 50, "department_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM departments WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
             UUID departmentId = upsertDepartment(code, name, actorUserId);
@@ -89,6 +90,9 @@ public class EcountDepartmentImporter {
                 ON CONFLICT (code) WHERE is_deleted = FALSE DO UPDATE SET
                   name = EXCLUDED.name,
                   display_order = EXCLUDED.display_order,
+                  is_deleted = FALSE,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
                   modified_at = NOW(),
                   modified_by = EXCLUDED.created_by
                 RETURNING id
