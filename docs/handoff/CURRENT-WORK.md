@@ -2,7 +2,70 @@
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
-## 2026-05-19 SP-D5 머지 완료 — PermissionGuard 단일화 인프라 + Counter + AOP
+## 2026-05-19 SP-08-FU1/FU2 머지 완료 — 테스트 안정성 follow-up 종료
+
+### 머지 결과
+
+- **PR #249** `a8c8cbdd` — SP-08-FU1 slip-service IT 39건 UserInternalClient @MockBean 일괄
+- **PR #250** `b00bd7f4` — SP-08-FU2 테스트 안정성 잔여 P2 4건 통합 (warehouse + PartnerLookup + LedgerName + path)
+
+### SP-08 follow-up 14건 진행 상황
+
+| 항목 | 상태 |
+|---|---|
+| ✅ P2-1 BE 35 IT @MockBean | PR #249 (실제 39 IT) |
+| ✅ P2-2 warehouse name snapshot | PR #250 (Flyway V26 + Slip entity + WarehouseInternalClient + 43 IT) |
+| ✅ P2-3 PartnerLookupClient 실 구현 | PR #250 (partner-service /summary + accounting-service findByPartnerId) |
+| ✅ P2-4 LedgerLine.accountName | PR #250 (DTO + ChartOfAccount LEFT JOIN) |
+| ✅ P2-5 TaxInvoiceListPage path 정합 | PR #250 (변경 0, 8 endpoint 100% 일치 검증) |
+| ⏳ P2-6 NTS e-tax 실연동 | Phase 9/10 진행 후 (외부 API trigger 시 즉시) |
+| ⏳ P3 7건 minor | 후순위 |
+| ⏳ P1 1건 Phase 11 전 운영 비밀번호 교체 | 운영 작업 (Phase 11 진입 직전) |
+
+### SP-08-FU2 cycle 누적
+
+| 사이클 | head | 결함 | 처리 |
+|---|---|---|---|
+| Cycle 1 | `233b40c8` | P0 1 (Codex CRITICAL — WarehouseClient path) + P1 1 (JournalControllerIT @MockBean) + P2 1 (LedgerControllerIT 미작성) + Minor 1 (whitespace) = **4건** | cycle 2 fix |
+| Cycle 2 | `8ed3943b` | 0건 — 양쪽 APPROVE | 머지 |
+
+### 핵심 변경
+
+**SP-08-FU2 BE 3건**
+- P2-2: `V26__add_destination_warehouse_name.sql` + `Slip.snapshotDestinationWarehouseName()` 도메인 메서드 + `WarehouseInternalClient` (inventory-service `/inventory/warehouses/{id}` fail-soft) + 43 IT `@MockBean`
+- P2-3: `partner-service` `GET /internal/partners/{id}/summary` 신규 + `accounting-service.PartnerLookupClient.findByPartnerId()` 실 구현 (RestClient + fail-soft) + IT 4건 신규
+- P2-4: `LedgerResponse.LedgerLine` + `LedgerImageResponse.LedgerLine` `accountName` 필드 + `LedgerService` / `LedgerImageService` ChartOfAccount 캐시 LEFT JOIN (N+1 방지) + `LedgerControllerIT` 신규 3 케이스
+
+**P2-5 FE 검증** (변경 0): 8 endpoint FE-BE path 100% 정합 (`p2-5-path-verification.md`)
+
+**Critical fix (Codex cycle 1 P0)**: `WarehouseInternalClient` path 정정 (`/internal/warehouses` → `/inventory/warehouses`). fail-soft 가 가렸지만 운영에서 `destinationWarehouseName` 영구 null 회귀를 cycle 2 fix로 차단.
+
+### SP-08 시리즈 최종 상태
+
+- **본체 16 PR (SP-08-1~9)**: 2026-05-18 완전 종료
+- **Follow-up 14건 중 5건 (P2-1~5) ✅ 완료** (PR #249, #250)
+- **잔여 9건**: P1 Phase 11 운영 + P2-6 NTS e-tax + P3 7건 minor
+
+### 다음 trigger 후보 (사용자 결정 대기)
+
+1. 🟡 외부 API 연동 (사용자 trigger 시 즉시) — NTS / Aligo / Clova / KFTC / 인성 모두 SP-09/10 인프라 완비
+2. 🟡 이카운트 마이그레이션 (Excel 파일 도착 시) — 6/10 부분 준비, 당일 5h 내 MIG-1 PoC 가능
+3. 🟡 Phase 10 W10-3 (모바일 GPS 정밀화 / Aligo deeplink / 알림톡 템플릿)
+4. 🟡 SP-D6+ (잔여 ~475 @PreAuthorize 점진 마이그레이션)
+5. ⏳ Phase 11 AWS (최후 순위)
+
+### 메모리 가드 일관성 ✅
+
+- `feedback_dual_5agent_review.md` 사이클 N=2 완료
+- `feedback_multi_agent_team_pattern.md` 5-team 병렬
+- `feedback_integrated_pr_pattern.md` 4건 통합 PR
+- `feedback_it_mockbean_external_clients.md` 43 + 신규 IT 격리
+- `feedback_korean_commits.md`
+- `feedback_user_merge_authority.md` PM 자동 머지
+
+---
+
+## 2026-05-19 SP-D5 머지 완료 — PermissionGuard 단일화 인프라 + Counter + AOP (이전 기록)
 
 ### 머지 결과
 
