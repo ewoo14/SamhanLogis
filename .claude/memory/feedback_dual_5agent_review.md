@@ -72,6 +72,33 @@ CI watch monitor → 모든 check 완료 알림
 - PR #263 사이클 2 fix 후 PM 종합 리뷰 게시 (CI 진행 중) → 사용자 정정: "CI 모두 통과 이후에"
 - 향후 본 절차 위반 금지 — CI watch monitor 결과 알림 받기 전에는 PM 마지막 리뷰 작성도, 게시도, 머지도 금지
 
+## 사이클 N 종료 조건 명확화 (사용자 명시 2026-05-19, PR #264 회고)
+
+**1 사이클 단위** = `Claude 5-agent review/fix` + `Codex 5-agent review/fix` (4 단계로 한 사이클).
+
+```
+사이클 N:
+  Na. Claude 5-agent review (TM 통합 PR comment) + Claude fix (필요 시) + push
+  Nb. Codex 5-agent review (TM 통합 PR comment) + Codex fix (필요 시) + push
+```
+
+**종료 조건** (둘 다 충족 시 사이클 종료, 다음 사이클 미진행):
+1. **잔존 결함 0** — Claude+Codex review 양쪽 모두 P0/P1/P2/MAJOR/CRITICAL 발견 0건
+2. **CI 모두 PASS** — 본 사이클 fix 후 push 트리거된 CI 모두 green
+
+종료 시 → [5] PM 마지막 종합 리뷰 게시 + 자동 머지 + 다음 PR 자동 진입.
+
+**잔존 결함 또는 CI 실패 시** → 사이클 N+1 진입 (최대 N=3).
+
+**PR #264 특례** (회고용):
+- 사이클 1: Claude 5-agent APPROVE 5/5 (Claude fix 스킵) → Codex 5-agent BE+QA P1 (slipType 가드) → Codex fix2 → 잔존 0 + CI green
+- → 사이클 1 종료 조건 충족 → 사이클 2 미진행 → PM 머지 (정상)
+- 사용자 정정: 본 해석 향후 적용 OK
+
+**위반 금지**:
+- 사이클 N 의 Nb (Codex review) 단계 skip 금지 — Claude review APPROVE 라도 Codex review 의무 (cross-check)
+- Codex fix 후 단지 잔존 0 이라고 다음 사이클 review 자동 스킵 — 정상 (사이클 종료 조건 충족)
+
 ## QA 에이전트 Docker 실서버 테스트 의무 (2026-05-19 신규)
 
 5-agent review 중 **QA agent 는 단순 코드 read 가 아니라 Docker 실서버 직접 테스트** 의무:
