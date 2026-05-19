@@ -128,6 +128,11 @@ public class TaxInvoice extends BaseEntity {
     @Column(name = "invoice_type", length = 20)
     private TaxInvoiceType invoiceType;
 
+    /** 발행/수신 방향 — OUTBOUND(우리가 발행) / INBOUND(거래처가 발행). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction", nullable = false, length = 20)
+    private TaxInvoiceDirection direction;
+
     /** 상태 (DRAFT / ISSUED / CANCELLED). */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -191,6 +196,7 @@ public class TaxInvoice extends BaseEntity {
         this.supplyDate = supplyDate;
         this.description = description;
         this.invoiceType = invoiceType != null ? invoiceType : TaxInvoiceType.SALES;
+        this.direction = TaxInvoiceDirection.OUTBOUND;
         this.status = TaxInvoiceStatus.DRAFT;
         this.supplyAmount = BigDecimal.ZERO;
         this.vatAmount = BigDecimal.ZERO;
@@ -301,6 +307,39 @@ public class TaxInvoice extends BaseEntity {
                     taxInvoice, lineNo++, sourceLine));
         }
         taxInvoice.recalcTotals();
+        return taxInvoice;
+    }
+
+    /**
+     * 거래처 발행 전자세금계산서 수신 등록용 DRAFT 생성.
+     *
+     * <p>매입전표 POSTED N건을 하나의 INBOUND TaxInvoice 로 묶을 때 사용합니다.
+     * 수신 세금계산서는 외부 전송 전이가 아니므로 status 는 DRAFT 로 유지합니다.
+     */
+    public static TaxInvoice createInbound(String taxInvoiceNo, LocalDate issuedDate,
+            UUID partnerId, String partnerCode, String partnerName, String partnerBusinessNo,
+            BigDecimal totalSupply, BigDecimal totalVat, BigDecimal totalAmount,
+            String actorUserId) {
+        if (taxInvoiceNo == null || taxInvoiceNo.isBlank() || taxInvoiceNo.length() > 20) {
+            throw new IllegalArgumentException("taxInvoiceNo 는 1~20자 필수입니다");
+        }
+        if (totalSupply == null || totalSupply.signum() < 0) {
+            throw new IllegalArgumentException("totalSupply 는 0 이상 필수입니다");
+        }
+        if (totalVat == null || totalVat.signum() < 0) {
+            throw new IllegalArgumentException("totalVat 는 0 이상 필수입니다");
+        }
+        if (totalAmount == null || totalAmount.signum() < 0) {
+            throw new IllegalArgumentException("totalAmount 는 0 이상 필수입니다");
+        }
+        TaxInvoice taxInvoice = create(partnerId, partnerCode, partnerBusinessNo, partnerName,
+                null, issuedDate, "매입세금계산서 수신 등록", TaxInvoiceType.PURCHASE);
+        taxInvoice.taxInvoiceNo = taxInvoiceNo;
+        taxInvoice.direction = TaxInvoiceDirection.INBOUND;
+        taxInvoice.supplyAmount = totalSupply.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.vatAmount = totalVat.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
+        taxInvoice.issuedBy = actorUserId;
         return taxInvoice;
     }
 

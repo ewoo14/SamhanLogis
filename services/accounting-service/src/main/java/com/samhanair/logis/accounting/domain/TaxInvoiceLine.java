@@ -178,6 +178,25 @@ public class TaxInvoiceLine extends BaseEntity {
                 sourceLine.getSupplyAmount(), sourceLine.getVatAmount(), null);
     }
 
+    /** 매입전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
+    public static TaxInvoiceLine createFromPurchaseAccountingSlipLine(
+            TaxInvoice taxInvoice, int lineNo, PurchaseAccountingSlipLine sourceLine) {
+        if (sourceLine == null) {
+            throw new IllegalArgumentException("sourceLine 은 필수입니다");
+        }
+        String itemName = sourceLine.getProductName();
+        if (itemName == null || itemName.isBlank()) {
+            itemName = sourceLine.getProductCode();
+        }
+        if (itemName == null || itemName.isBlank()) {
+            itemName = "매입전표 품목";
+        }
+        String spec = sourceLine.getProductCode();
+        return createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
+                sourceLine.getQty(), sourceLine.getUnitPrice(),
+                sourceLine.getSupplyAmount(), sourceLine.getVatAmount(), null);
+    }
+
     /**
      * 신규 라인 생성 (unit 생략) — 기존 호출부 하위 호환.
      *

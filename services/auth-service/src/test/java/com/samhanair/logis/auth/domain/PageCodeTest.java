@@ -17,4 +17,12 @@ class PageCodeTest {
         assertThat(PageCode.ACCOUNTING_PURCHASE_SLIP_LIST.getDisplayName())
                 .isEqualTo("매입전표(회계분개)");
     }
+
+    @Test
+    void accounting_taxInvoiceInbound_label_세금계산서_수신() {
+        assertThat(PageCode.ACCOUNTING_TAX_INVOICE_INBOUND.getCode())
+                .isEqualTo("accounting.tax-invoice.inbound");
+        assertThat(PageCode.ACCOUNTING_TAX_INVOICE_INBOUND.getDisplayName())
+                .isEqualTo("세금계산서 수신");
+    }
 }

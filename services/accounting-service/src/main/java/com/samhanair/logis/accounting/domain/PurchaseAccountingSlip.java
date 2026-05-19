@@ -132,4 +132,8 @@ public class PurchaseAccountingSlip extends BaseEntity {
         }
         this.taxInvoiceId = taxInvoiceId;
     }
+
+    public void linkInboundTaxInvoice(UUID taxInvoiceId) {
+        linkTaxInvoice(taxInvoiceId);
+    }
 }

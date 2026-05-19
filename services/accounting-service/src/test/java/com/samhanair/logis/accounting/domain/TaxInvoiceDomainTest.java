@@ -33,6 +33,7 @@ class TaxInvoiceDomainTest {
         TaxInvoice ti = newDraft();
 
         assertThat(ti.getStatus()).isEqualTo(TaxInvoiceStatus.DRAFT);
+        assertThat(ti.getDirection()).isEqualTo(TaxInvoiceDirection.OUTBOUND);
         assertThat(ti.getTaxInvoiceNo()).isNull();
         assertThat(ti.getSupplyAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(ti.getVatAmount()).isEqualByComparingTo(BigDecimal.ZERO);

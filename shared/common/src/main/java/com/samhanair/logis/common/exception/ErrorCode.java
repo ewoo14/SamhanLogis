@@ -184,6 +184,11 @@ public enum ErrorCode {
     SAS_SALES_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
             "POSTED 상태 매출전표만 세금계산서 묶음 발행할 수 있습니다."),
     /**
+     * 매입전표가 POSTED 상태가 아니어서 수신 세금계산서 매칭 불가 (SAS 슬라이스).
+     */
+    SAS_PURCHASE_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "POSTED 상태 매입전표만 수신 세금계산서와 매칭할 수 있습니다."),
+    /**
      * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
     SAS_SLIP_NO_CONFLICT(HttpStatus.CONFLICT,
