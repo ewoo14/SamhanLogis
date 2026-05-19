@@ -132,6 +132,11 @@ pnpm-workspace.yaml
 # 사용자 운영 환경 의존 데이터, dev-env 에 placeholder 만 둘 것
 tools/legacy-gas/
 
+# 이카운트 ERP 실 운영 데이터 (MIG-1~6) — VCS 추적 금지
+# 거래처 사업자번호 / 미수금 / 매입매출 등 민감 정보 포함, .gitkeep 만 보존
+docs/migration/ecount-data/raw/*
+!docs/migration/ecount-data/raw/.gitkeep
+
 # Tesseract OCR (PR-F2) — 로컬 다운로드 traineddata 무시.
 # 한국어 모델 (kor.traineddata) 약 50MB; 환경별 설치 가이드 docs/dev-environment/tesseract-setup.md 참조.
 # system 경로 (C:\Program Files\Tesseract-OCR\tessdata, /usr/share/tesseract-ocr/...) 사용 권장이며,

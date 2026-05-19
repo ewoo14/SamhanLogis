@@ -2033,3 +2033,43 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | SP-08-5-2-06 | 라인 수정은 전체 교체 방식(`replaceLines`)으로 구현하되 기존 라인은 hard delete 하지 않고 `markDeleted` 처리한다. 잘못된 라인은 `SLIP_UPDATE_INVALID_LINE` 422로 거절한다. |
 | SP-08-5-2-07 | direct PUT 성공 시 `slip_audit_logs`에 `SLIP_EDIT` action을 같은 revision 1건으로 기록한다. 화면과 QA PNG에는 내부 UUID/actorId 대신 구매번호/변경자명만 표시한다. |
 | SP-08-5-2-08 | 기존 `SlipEditRequestController` 요청·승인 flow는 유지한다. direct PUT은 본사 운영자 즉시 수정 전용 별도 controller/service로 둔다. |
+---
+
+### D-MIG-1-00. 이카운트 → SamhanLogis 거래처 PoC (MIG-1, 2026-05-19)
+
+**배경**: 사용자 (개발책임자) 가 이카운트 ERP `Self-Customizing > 정보관리 > 데이터관리 > 백업 및 삭제 > 기초코드 탭` 의 거래처 export CSV (7,748 lines) 첨부. 본 PoC 가 3-Tier (Excel → staging → 도메인) 패턴 + 멱등 적재 검증 → MIG-2~6 (마스터 5종 + 트랜잭션 4종) 의 선행 검증.
+
+| # | 결정 |
+|---|---|
+| D-MIG-1-01 | **3-Tier 적재** = Excel/CSV → `staging.ecount_partner_raw` (17 raw text 컬럼) → transform → `samhan_partner.partners` |
+| D-MIG-1-02 | **멱등 키** = staging `(source_file_hash, source_row_no)` 복합 PK + 도메인 `partner_code` UNIQUE (활성 행). source_file_hash = SHA-256(전체 파일 내용) |
+| D-MIG-1-03 | **거래처코드 = partnerCode + bizNo 동시 적재** (이카운트는 둘을 분리하지 않음). 빈/`-`/`0000...` 등 가짜값은 SKIPPED_PLACEHOLDER 마킹 + staging 만 적재 |
+| D-MIG-1-04 | **거래처명 NULL 거부** = REJECT_NAME_NULL 분류, staging 적재 유지 (사용자 보정 후 재 import) |
+| D-MIG-1-05 | **사용구분 매핑** = `YES → ACTIVE`, `빈/NO → SUSPENDED`. 실 데이터에서는 거의 모두 YES (6,976/6,977) |
+| D-MIG-1-06 | **trailing tab/CR/공백 일괄 strip** = OpenCSV 파싱 후 모든 셀에 `String.strip()` (이카운트 export 일관 트랩) |
+| D-MIG-1-07 | **신규 컬럼 3개** (V9 migration) = `transfer_info VARCHAR(20)` + `note TEXT` + `manager_name VARCHAR(50)`. NULLable, 기본값 NULL |
+| D-MIG-1-08 | **등록일자 파싱** = `YYYYMMDD` 정상 / `임시` or 빈값 → NULL. `최초작성일자` 는 staging 만 |
+| D-MIG-1-09 | **여신한도 파싱** = 빈값/`-` → `BigDecimal.ZERO`. `,` 천단위 구분자 제거 |
+| D-MIG-1-10 | **PII 마스킹 불필요** = 실 CSV 에 주민번호 컬럼 부재 확인 (spec 27 필드 정정) |
+| D-MIG-1-11 | **importer 호출 방식** = Spring `@Service` + Admin REST `POST /admin/partners/imports/ecount` (multipart upload). 동기 실행 (7천 건 ~50초). 응답 = `{total, imported, updated, rejectedNullName, skippedPlaceholder, ACTIVE/SUSPENDED, sourceFileHash, sample}` |
+| D-MIG-1-12 | **권한** = `ROLE_MASTER` + `ROLE_MANAGER` only (대량 운영 데이터 + 신용한도 노출 → DISPATCH 차단) |
+| D-MIG-1-13 | **첨부파일 out-of-scope** = README §2-B Phase 1 일관 — 사업자등록증/명함 import 안 함. Phase 2 운영 cutover 시 상위 30~50건 사용자 수동 업로드 |
+| D-MIG-1-14 | **DB 형태 이카운트 정렬 (V10, 사용자 요청 2026-05-19)** = 이카운트 export 에 없는 8 컬럼 (currency/shipment_target/sales_type/purchase_type/receivable_no_mgmt/payable_no_mgmt/outbound_adjustment_rate/inbound_adjustment_rate) NOT NULL + DEFAULT 제거. Partner.java 의 Java-level default 도 제거. 잉여 컬럼 완전 DROP 은 후속 PR (회귀 위험 큼) |
+| D-MIG-1-15 | **VARCHAR length 확장 (V11)** = 실 CSV 측정 후 길이 부족 발견. partner_code/biz_no VARCHAR(50/20→100), phone/mobile/fax VARCHAR(30→50). 거래처코드 실측 max=86, 전화번호 max=43 |
+
+**산출**:
+- BE 1 cycle: V9 (3컬럼 + staging) + V10 (NOT NULL/default 제거) + V11 (VARCHAR 확장) + Partner.java 변경 + `EcountPartnerImporter` (OpenCSV + BOMInputStream + NamedParameterJdbcTemplate) + `EcountPartnerImportController` + `EcountPartnerImportResult` DTO + 단위 12 PASS
+- QA: 7 시나리오 + 검증 SQL 7건 + 실 적재 cross-check
+- 실 적재: **6,977 행 → 6,719 imported + 245 updated + 1 reject + 12 skipped** (49.5s, 141 row/sec)
+- 멱등 검증: 재실행 시 imported=0 / updated=6,964 / sourceFileHash 동일 PASS
+
+**테스트**: partner-service 단위 12건 PASS / 실 CSV 적재 cross-check PASS / 멱등 PASS.
+
+**후속 (별도 PR)**:
+- **MIG-1A-fix-placeholder** — placeholder 정규식을 narrow (0 만 + `-` 만). 현 정규식은 `01`/`1123`/`7002` 등 정상 4자리 ID 까지 SKIP. 사용자 검토 후 정정 PR
+- **MIG-1B** — 이카운트 추가 export 확보 시 누락 10 잉여 필드 (FAX/email/주소2/단가그룹 등) 보강
+- **partner-cleanup** — V10 NULLable 컬럼 중 사용도 0 인 것 완전 DROP (PartnerSeeder / Partner4TabService 영향 분석)
+- **MIG-2** — 품목/계정/부서/창고/카드 마스터 5종 (동일 패턴)
+- **MIG-3~6** — 트랜잭션 전표 (회계/매출매입/입출금/재고)
+
+**비용**: AWS 변경 0 (partner-service 기존 그대로).

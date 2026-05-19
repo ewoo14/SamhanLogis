@@ -44,12 +44,14 @@ public class Partner extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** 사용자 노출 식별자 (예: P-2026-0001). UUID 비공개 가드. partial unique index 가 활성 행 중복 방지. */
-    @Column(name = "partner_code", nullable = false, length = 50)
+    /** 사용자 노출 식별자 (예: P-2026-0001). UUID 비공개 가드. partial unique index 가 활성 행 중복 방지.
+     *  V11: 이카운트 운영 데이터 실측 max=86 반영 length 100 확장. */
+    @Column(name = "partner_code", nullable = false, length = 100)
     private String partnerCode;
 
-    /** 사업자등록번호 (한국 표준 10자리, '-' 포함 입력 가능). 활성 행 unique. */
-    @Column(name = "biz_no", nullable = false, length = 20)
+    /** 사업자등록번호 (한국 표준 10자리, '-' 포함 입력 가능). 활성 행 unique.
+     *  V11: 이카운트 운영 데이터에서 partner_code 와 동일 식별자 사용 (실측 max=86) length 100 확장. */
+    @Column(name = "biz_no", nullable = false, length = 100)
     private String bizNo;
 
     /** 거래처 상호. */
@@ -60,8 +62,8 @@ public class Partner extends BaseEntity {
     @Column(name = "address", length = 500)
     private String address;
 
-    /** 거래처 대표 연락처 (선택). */
-    @Column(name = "phone", length = 30)
+    /** 거래처 대표 연락처 (선택). V11: 이카운트 실측 max=43 (다중 전화번호 콤마 구분) length 50 확장. */
+    @Column(name = "phone", length = 50)
     private String phone;
 
     /** 신용한도 (원). 0 이면 신용거래 불가. */
@@ -96,8 +98,8 @@ public class Partner extends BaseEntity {
     @Column(name = "industry", length = 50)
     private String industry;
 
-    /** FAX 번호. */
-    @Column(name = "fax", length = 30)
+    /** FAX 번호. V11: 안전 마진 length 50 확장. */
+    @Column(name = "fax", length = 50)
     private String fax;
 
     /** email 1 (대표). */
@@ -108,8 +110,8 @@ public class Partner extends BaseEntity {
     @Column(name = "email2", length = 120)
     private String email2;
 
-    /** 휴대전화. */
-    @Column(name = "mobile", length = 30)
+    /** 휴대전화. V11: 안전 마진 length 50 확장. */
+    @Column(name = "mobile", length = 50)
     private String mobile;
 
     /** 우편번호 1 (본사). */
@@ -144,37 +146,37 @@ public class Partner extends BaseEntity {
     @Column(name = "website", length = 255)
     private String website;
 
-    /** 통화 (default KRW). */
-    @Column(name = "currency", length = 8, nullable = false)
-    private String currency = "KRW";
+    /** 통화. 이카운트 거래처 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "currency", length = 8)
+    private String currency;
 
-    /** 출하 대상 여부 (재고 차감 대상). */
-    @Column(name = "shipment_target", nullable = false)
-    private Boolean shipmentTarget = Boolean.TRUE;
+    /** 출하 대상 여부 (재고 차감 대상). 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "shipment_target")
+    private Boolean shipmentTarget;
 
-    /** 판매유형 (이카운트 default '기본설정'). */
-    @Column(name = "sales_type", length = 20, nullable = false)
-    private String salesType = "기본설정";
+    /** 판매유형. 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "sales_type", length = 20)
+    private String salesType;
 
-    /** 구매유형 (이카운트 default '기본설정'). */
-    @Column(name = "purchase_type", length = 20, nullable = false)
-    private String purchaseType = "기본설정";
+    /** 구매유형. 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "purchase_type", length = 20)
+    private String purchaseType;
 
-    /** 매출계정 관리 (이카운트 default '기본설정'). */
-    @Column(name = "receivable_no_mgmt", length = 20, nullable = false)
-    private String receivableNoMgmt = "기본설정";
+    /** 매출계정 관리. 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "receivable_no_mgmt", length = 20)
+    private String receivableNoMgmt;
 
-    /** 매입계정 관리 (이카운트 default '기본설정'). */
-    @Column(name = "payable_no_mgmt", length = 20, nullable = false)
-    private String payableNoMgmt = "기본설정";
+    /** 매입계정 관리. 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "payable_no_mgmt", length = 20)
+    private String payableNoMgmt;
 
-    /** 출고조정률 (0 ~ 0.05 = 0~5%). */
-    @Column(name = "outbound_adjustment_rate", precision = 5, scale = 4, nullable = false)
-    private BigDecimal outboundAdjustmentRate = BigDecimal.ZERO;
+    /** 출고조정률 (0 ~ 0.05 = 0~5%). 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "outbound_adjustment_rate", precision = 5, scale = 4)
+    private BigDecimal outboundAdjustmentRate;
 
-    /** 입고조정률 (0 ~ 0.05 = 0~5%). */
-    @Column(name = "inbound_adjustment_rate", precision = 5, scale = 4, nullable = false)
-    private BigDecimal inboundAdjustmentRate = BigDecimal.ZERO;
+    /** 입고조정률 (0 ~ 0.05 = 0~5%). 이카운트 export 무존재 → NULL 허용 (V10 align). */
+    @Column(name = "inbound_adjustment_rate", precision = 5, scale = 4)
+    private BigDecimal inboundAdjustmentRate;
 
     /** 판매단가그룹 (VIP단가/일반단가/신규단가). */
     @Column(name = "sales_price_group", length = 50)
@@ -195,6 +197,22 @@ public class Partner extends BaseEntity {
     /** 등록일자 (회계상 거래시작일 — audit created_at 와 별도). */
     @Column(name = "registration_date")
     private LocalDate registrationDate;
+
+    // ============================================================
+    // MIG-1 PoC — 이카운트 17 컬럼 export 보강 (V9 migration)
+    // ============================================================
+
+    /** 이체정보 — 이카운트 "등록" / NULL. 자동이체 등록 여부. */
+    @Column(name = "transfer_info", length = 20)
+    private String transferInfo;
+
+    /** 특이사항 — 거래처 자유 메모 (예: "엘케이토탈 개인고객"). */
+    @Column(name = "note", columnDefinition = "TEXT")
+    private String note;
+
+    /** 담당자명 — 이카운트 운영 데이터 (이성미/장영구/김미선 등). */
+    @Column(name = "manager_name", length = 50)
+    private String managerName;
 
     private Partner(String partnerCode, String bizNo, String name, String address, String phone,
                     BigDecimal creditLimit) {
@@ -403,5 +421,32 @@ public class Partner extends BaseEntity {
     /** 회계상 거래시작일 (등록일자) 설정. */
     public void changeRegistrationDate(LocalDate registrationDate) {
         this.registrationDate = registrationDate;
+    }
+
+    // ============================================================
+    // MIG-1 — 이카운트 보강 컬럼 setter
+    // ============================================================
+
+    /** 이체정보 ("등록" / null). */
+    public void updateTransferInfo(String transferInfo) {
+        this.transferInfo = transferInfo;
+    }
+
+    /** 특이사항 자유 메모. */
+    public void updateNote(String note) {
+        this.note = note;
+    }
+
+    /** 담당자명. */
+    public void updateManagerName(String managerName) {
+        this.managerName = managerName;
+    }
+
+    /** {@link PartnerStatus} 직접 설정 — MIG-1 import 시 이카운트 "사용구분" YES/빈 → ACTIVE/SUSPENDED 매핑. */
+    public void changeStatus(PartnerStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("status 는 null 불가");
+        }
+        this.status = status;
     }
 }

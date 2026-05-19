@@ -1491,9 +1491,81 @@ fa5c7648 [FEAT] SP-08-3-1 배차 GAS parity 기반 잠금 (#212)
   - 로컬 검증: SP-08-3 단독 Playwright, SP-08-3+SP-08-2+SP-08-1+full-menu 회귀, QA PNG, `git diff --check`, secret/runtime scan.
   - push 후 Claude PM이 PR 생성: `[FEAT] SP-08-3-1 배차 GAS parity 기반 잠금`.
 
-> 갱신일: 2026-05-16 (SP-08-3-1 **배차 legacy GAS parity 기반 잠금 진행**, Codex)
-> 갱신자: Codex
-> 사용법: 새 도구/세션 시작 시 본 파일 read → §0 (즉시 시작) + §1 (방금 끝난 일) + §3 (다음 trigger 후보) 순서
+> 갱신일: 2026-05-19 (MIG-1 PoC PR #262 발행, **Codex CLI 5-team review 사이클 인계**)
+> 갱신자: PM (Claude Opus 4.7) → 다음 진행 도구 = **OpenAI Codex CLI** (사용자 결정, 토큰 한도 사유 + 5-team review 사이클 의무)
+> 사용법: 새 도구/세션 시작 시 본 파일 read → §0 + §A (Codex 다음 단계 — 5-team review) 순서
+> 이전 핸드오프 (2026-05-16 SP-08-3-1, Codex 진행) 는 §2 이후 보존.
+
+---
+
+## A. 2026-05-19 Codex 다음 단계 — MIG-1 PoC 5-team Review 사이클
+
+이 섹션이 아래의 과거 D-AX-11 / Phase F 기록보다 우선한다.
+
+### 현재 상태
+
+- 현재 브랜치: `feat/ecount-mig-1-partner-poc`
+- 최신 commit: (본 commit 시점 기준 — `git log --oneline -5` 참조)
+- PR: (push + gh pr create 후 URL 갱신)
+- 상태: BE 작업 완료 + 단위 테스트 PASS + 실 CSV 7,748 lines 적재 검증 PASS + 멱등 PASS. **5-team review 사이클 대기**.
+
+### 산출 (Claude Code 본 세션)
+
+- **spec**: `docs/superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md` (D-MIG-1-01~15)
+- **plan**: `docs/superpowers/plans/2026-05-19-ecount-mig-1-partner.md`
+- **Flyway 신규**: V9 (3컬럼 + staging) / V10 (NOT NULL/default 제거 — 사용자 요청 "DB 형태 이카운트 정렬") / V11 (VARCHAR length 확장)
+- **신규 코드**: `EcountPartnerImporter` (OpenCSV + BOMInputStream + NamedParameterJdbcTemplate 멱등 UPSERT) + `EcountPartnerImportController` (`POST /admin/partners/imports/ecount`) + `EcountPartnerImportResult` DTO
+- **Partner.java 변경**: 3 신규 필드 (transferInfo/note/managerName) + 8 잉여 필드 Java-level default 제거 + 5 컬럼 length 확장
+- **단위 테스트**: `EcountPartnerImporterTest` 12건 PASS
+- **DECISIONS**: D-MIG-1-00 entry 추가 (15 결정)
+- **dev-report**: `docs/dev-reports/ecount-mig-1-partner.md` (3-layer)
+- **QA 시나리오**: `docs/qa/ecount-mig-1-partner/scenarios.md` (7 시나리오 + 검증 SQL 7건)
+
+### 실 적재 결과 (검증 완료)
+
+- partner-service bootRun → V9/V10/V11 Flyway 자동 적용
+- POST `/admin/partners/imports/ecount` (multipart, X-User-Id + X-User-Role=MASTER)
+- **1차**: 6,977 row → imported 6,719 + updated 245 + reject 1 + skipped 12 (49.5s)
+- **2차 (멱등)**: imported 0 + updated 6,964 + sourceFileHash 동일 — **멱등성 PASS**
+
+### Codex CLI 다음 단계 — 5-team Review (의무)
+
+사용자 명시: **"반드시 클로드 코덱스 한 사이클로 PR 리뷰 진행. 기존 워크플로우로 진행할 것"**.
+
+본 작업의 기존 워크플로우 = [feedback_multi_agent_team_pattern] + [feedback_tm_led_agent_discussion] + [feedback_pr_review_workflow]:
+
+1. **5-team reviewer agent dispatch** — BE/FE/Designer/DevOps 4 parallel + QA sequential
+2. 각 reviewer agent 가 PR 본문 또는 PR comment 에 review 작성
+3. TM (Codex 가 본 역할) 종합 → fix commit
+4. CI green 까지 watch
+5. 사용자 (개발책임자) 머지 trigger
+
+본 작업의 5-team scope:
+- **BE reviewer**: Importer 로직 정합성 + 멱등성 + Flyway 영향 + 단위 테스트 충분성
+- **FE reviewer**: "변경 없음" (BE-only PoC) — review pass
+- **Designer reviewer**: "변경 없음" (UI 0) — review pass
+- **DevOps reviewer**: "변경 없음" (env/infra 0) — review pass. 단 Phase 11 migration runbook 영향 검토
+- **QA reviewer (sequential, BE/FE/Designer 후)**: 7 시나리오 + 검증 SQL + 실 적재 cross-check + 회귀 (PartnerServiceTest / PartnerBlockImportServiceTest)
+
+### 사용자 확정 대기 항목 (Codex 진행 전 검토)
+
+- **placeholder 정규식** — 12 SKIPPED 중 7건 (`01`/`1123`/`1212`/`7002`/`7006`/`7251` 등) 정상 거래처 가능성. 본 PR 머지 또는 별도 후속 PR (MIG-1A-fix-placeholder) 로 정정.
+- **V10 잉여 컬럼 DROP** — 본 PR 은 NULLable 화 만. 완전 DROP 는 후속 PR (partner-cleanup) 별도 분기.
+
+### Codex 첫 명령
+
+```powershell
+git checkout feat/ecount-mig-1-partner-poc
+git pull
+git log --oneline -3
+Get-Content docs/superpowers/specs/2026-05-19-ecount-mig-1-partner-design.md, docs/superpowers/plans/2026-05-19-ecount-mig-1-partner.md, docs/dev-reports/ecount-mig-1-partner.md, docs/qa/ecount-mig-1-partner/scenarios.md -Encoding UTF8
+```
+
+### Codex MCP 활성화 (회사 PC 회고용)
+
+본 repo 의 표준 Codex 호출 = `mcp__codex__codex` MCP tool ([feedback_codex_plugin_setup.md], Plugin 폐기 2026-05-17). 회사 PC 에서 처음 사용 시 [docs/dev-environment/codex-mcp-setup.md](../dev-environment/codex-mcp-setup.md) 의 설정 가이드 (별도 작성 예정).
+
+---
 
 ## 2026-05-16 Codex 최신 핸드오프 — SP-08-2 DPS legacy GAS DB/API parity
 
