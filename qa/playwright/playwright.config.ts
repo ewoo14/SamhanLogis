@@ -129,6 +129,31 @@ export default defineConfig({
         baseURL: process.env.QA_AROLOGIS_URL ?? 'http://localhost:5173',
       },
     },
+    {
+      // Signature Slice C — 공개 서명 번들 smoke 검증 (audit cycle 1 QA 결과)
+      // 10 case: BE API 계약(mock) / UUID 0건 / PNG 50KB 경계 / Web Crypto SHA-256
+      //   + FE 번들 미구현 fixme 4건 (false green 불허)
+      //
+      // FE 미구현 상태:
+      //   - signature.js (≤6KB gzip) 미존재
+      //   - mobile.css canvas 클래스 추가분 미존재
+      //   - /d/{token}/s/{slipNo} HTML 서빙 미구현
+      //   - /share/{shareToken} HTML 서빙 미구현
+      //
+      // FE 구현 후: QA_SIGNATURE_URL 을 sign.samhan-air.com 또는 localhost:포트로 지정
+      //   fixme 해제 + 실 navigate 검증으로 전환
+      //
+      // BE 구현 완료 (slip-service):
+      //   POST /public/batches/{token}/slips/{slipNo}/signature  (SHA-256 + 50KB 가드)
+      //   GET  /public/signatures/{shareToken}                   (UUID 미포함)
+      //   PublicSignatureControllerIT 8 시나리오 커버
+      name: 'signature-c-smoke',
+      testMatch: [/.*\/signature-c\/signature-c-smoke\.spec\.ts/],
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.QA_SIGNATURE_URL ?? process.env.QA_API_BASE_URL ?? 'http://localhost:8080',
+      },
+    },
   ],
 
   outputDir: 'test-results/',

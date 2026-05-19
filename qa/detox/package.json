@@ -2,7 +2,7 @@
   "name": "@samhan/qa-detox",
   "version": "0.1.0",
   "private": true,
-  "description": "SamhanLogis Phase 7 QA — Detox e2e (RN). 2 config: mobile-staff iOS / mobile v4 Android. WebView 안 legacy 흐름 검증.",
+  "description": "SamhanLogis Phase 7 + Phase 10 QA — Detox e2e (RN). 3 config: mobile-staff iOS / mobile v4 Android / arologis-mobile Android. legacy 흐름 및 아로로지스 기사 어플 스모크 검증.",
   "scripts": {
     "test:ios": "detox test --configuration ios.sim.release",
     "test:android": "detox test --configuration android.emu.release",
@@ -10,6 +10,10 @@
     "build:android": "detox build --configuration android.emu.release",
     "test:ios-debug": "detox test --configuration ios.sim.debug",
     "test:android-debug": "detox test --configuration android.emu.debug",
+    "detox-build:arologis": "detox build --configuration arologis.android.release",
+    "detox-test:arologis": "detox test --configuration arologis.android.release",
+    "detox-build:arologis-debug": "detox build --configuration arologis.android.debug",
+    "detox-test:arologis-debug": "detox test --configuration arologis.android.debug",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

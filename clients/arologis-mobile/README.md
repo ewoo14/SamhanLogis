@@ -98,6 +98,50 @@ clients/arologis-mobile/
 
 화면과 driver-facing API 어디에도 UUID 노출 금지. D-AX-16 은 `dispatchType` / `vehicleSequence` / `stopSequence` / 카톡 순번으로 today target 을 좁히고, 서버가 내부 `dispatchId` 를 해석한다. 사용자 노출 = `driverCode` / `phoneNumber` / 차량 순번 / 정차 순번 / 카톡 순번 등.
 
+## E2E (Detox Android)
+
+아로로지스 기사 어플의 E2E 시나리오는 `qa/detox` 중앙 패키지에서 관리됩니다 (`mobile-staff` / `mobile-v4` 와 동일 패턴).
+
+### 사전 조건
+
+- Node 20+, Java 17, Android Studio
+- AVD: `Pixel_6_API_34` (Android 14) — Android Studio AVD Manager 에서 생성
+- `npx expo prebuild -p android --clean` 으로 `clients/arologis-mobile/android/` 생성 필요
+
+### 실행 방법
+
+```bash
+cd qa/detox
+npm install
+
+# 빌드 (첫 실행 또는 네이티브 변경 후)
+npm run detox-build:arologis
+
+# 스모크 테스트 실행
+npm run detox-test:arologis
+
+# debug 빌드 (개발 중 핫리로드 확인)
+npm run detox-build:arologis-debug
+npm run detox-test:arologis-debug
+```
+
+### 시나리오 (`qa/detox/e2e/arologis-mobile/smoke.test.ts`)
+
+| 시나리오 | 검증 항목 |
+|---|---|
+| 앱 부팅 → 로그인 화면 | heading "아로로지스 기사" 텍스트 가시성 (Pretendard 폰트 로드 완료 포함) |
+| 수동 입력 카드 노출 | `phone-input` / `phone-submit` testID 가시성 (READ_PHONE_NUMBERS 권한 미부여 fallback) |
+| 빈 번호 제출 방어 | Alert "휴대번호를 입력해 주세요." 노출 |
+
+### CI
+
+`.github/workflows/qa-e2e.yml` 의 `detox-android-arologis` job 이 `macos-latest` runner 에서 자동 실행됩니다.
+현재는 typecheck + Detox config 검증까지만 수행하며, 실 AVD 구동은 후속 빌드 PR 에서 enable 됩니다.
+
+### AVD 이름 변경
+
+로컬 AVD 이름이 `Pixel_6_API_34` 와 다르면 `qa/detox/.detoxrc.js` 의 `arologisEmulator.device.avdName` 을 수정하세요.
+
 ## 후속 슬라이스 (본 PR 외)
 
 - 배송사진 / 검수사진 화면 이식.
