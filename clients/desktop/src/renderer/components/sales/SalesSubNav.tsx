@@ -27,10 +27,21 @@ const ITEMS = [
 /**
  * 거래처(파트너) 가 사업자번호 로그인으로 직접 사용하는 외부 웹앱.
  * 데스크탑 사용자는 새 브라우저 창에서 열어 본인 직원 동작이 아닌 거래처 입장에서 확인한다.
+ *
+ * URL 은 Vite 빌드 시 환경변수로 주입:
+ *   VITE_WEB_ESTIMATE_URL — 웹 종합견적서 origin (기본값: http://localhost:5183)
+ *   VITE_WEB_ORDER_URL    — 웹 주문서 origin (기본값: http://localhost:5180)
+ * production 빌드 시 실제 도메인 (https://order.samhan-air.com 등) 으로 override.
  */
 const EXTERNAL_ITEMS = [
-  { url: 'http://localhost:5183', label: '웹 종합견적서' },
-  { url: 'http://localhost:5180', label: '웹 주문서' },
+  {
+    url: import.meta.env.VITE_WEB_ESTIMATE_URL ?? 'http://localhost:5183',
+    label: '웹 종합견적서',
+  },
+  {
+    url: import.meta.env.VITE_WEB_ORDER_URL ?? 'http://localhost:5180',
+    label: '웹 주문서',
+  },
 ]
 
 export function SalesSubNav() {

@@ -154,12 +154,6 @@ test('TC-HR2: MASTER+영업 — /admin/users 직접 URL 진입 시 forbidden 또
   await waitForSettle(page)
   await capture(page, 'TC-HR2-master-sales-dept-forbidden')
 
-  // /admin/users 로 머무르거나 forbidden 처리 → 인사 관리 본문 콘텐츠 없어야 함
-  // 구현에 따라 redirect to '/' 또는 403 메시지 노출
-  const url = page.url()
-  const hasForbiddenMessage = await page.locator('text=/forbidden|접근 불가|권한/i').isVisible().catch(() => false)
-  const isRedirected = !url.includes('/admin/users') || hasForbiddenMessage
-
   // pageerror 0건 조건은 별도 (가드 redirect 는 error 가 아님)
   const fatalErrors = errors.filter((e) => !e.includes('ChunkLoadError'))
   expect(
@@ -167,12 +161,26 @@ test('TC-HR2: MASTER+영업 — /admin/users 직접 URL 진입 시 forbidden 또
     `TC-HR2: 치명적 pageerror 발생 — ${fatalErrors.join(', ')}`,
   ).toHaveLength(0)
 
-  // URL redirect 또는 forbidden 메시지 중 하나는 있어야 함
-  // (미구현 시 경고 — BLOCKING 실패 처리)
-  if (!isRedirected) {
-    console.warn(
-      'TC-HR2: 대표실 가드 미적용 — /admin/users 그대로 진입 성공. FE 가드 구현 후 재검증 필요.',
-    )
+  // [P2 정정] OR 조건 false-green 위험 제거: URL redirect OR 명시적 403 메시지 엄격 검증.
+  // redirect 경로 (/ 또는 /login 등 /admin/users 제외) 또는
+  // ApiResponse error envelope 의 '권한 없음' 텍스트 중 하나가 반드시 존재해야 함.
+  const currentUrl = page.url()
+  const isUrlRedirected = !currentUrl.includes('/admin/users')
+
+  if (isUrlRedirected) {
+    // redirect 케이스 — URL 만으로 충분
+    expect(isUrlRedirected, 'TC-HR2: SALES role 가드 — /admin/users 에서 벗어나야 함').toBe(true)
+  } else {
+    // 페이지에 남아있는 케이스 — 명시적 권한 없음 메시지 visible 필수
+    const forbiddenLocator = page.locator('text=/권한 없음|접근 불가|forbidden/i').first()
+    await expect(
+      forbiddenLocator,
+      'TC-HR2: /admin/users 잔류 시 \"권한 없음\" 메시지가 화면에 표시되어야 함 (403 envelope contract)',
+    ).toBeVisible()
+    await expect(
+      forbiddenLocator,
+      'TC-HR2: 권한 없음 메시지 텍스트 검증',
+    ).toContainText(/권한 없음|접근 불가|forbidden/i)
   }
 })
 

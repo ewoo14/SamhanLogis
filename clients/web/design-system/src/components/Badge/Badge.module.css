@@ -40,15 +40,17 @@
 }
 
 .variant-success {
-  background-color: rgba(42, 157, 143, 0.12);
-  border-color: rgba(42, 157, 143, 0.32);
+  /* [P2 정정] RGB 하드코딩 → success-50 token 일관 */
+  background-color: var(--color-success-50);
+  border-color: var(--color-success-200);
   color: var(--color-success);
 }
 
 .variant-warning {
-  background-color: rgba(233, 165, 61, 0.14);
-  border-color: rgba(233, 165, 61, 0.36);
-  color: #8A5A12;
+  /* [P2 정정] RGB 하드코딩 → warning token 일관 */
+  background-color: var(--color-warning-50);
+  border-color: var(--color-warning-200);
+  color: var(--color-warning-800);
 }
 
 [data-theme='dark'] .variant-warning {

@@ -89,6 +89,7 @@ CODE_DIRS=(
   "clients/mobile-staff/src"
   "clients/arologis-desktop/src"
   "clients/arologis-mobile/src"
+  "clients/web"
 )
 
 DOC_DIRS=(
