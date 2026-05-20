@@ -4,7 +4,15 @@
 
 ---
 
-## 🚀 2026-05-20 최신 진행 — MIG-9 머지 완료 + MIG-10 자동 진입 대기
+## 🚀 2026-05-20 최신 진행 — MIG-10 개발 진행 중
+
+### MIG-10 Codex 진행 (2026-05-20)
+
+- 브랜치: `spec/2026-05-20-mig-10-employee-cross-link-aging-net`
+- 범위: D-MIG-8-05 Order `manager_name` → Employee cross-link + C6-MIN-3 `partner_aging_snapshot` net 컬럼
+- 구현: accounting V30, auth V23, MIG10 ErrorCode 4종, PageCode 1종, `Mig10OrderEmployeeBackfillService`, controller 1종, user-service `/internal/users/by-name?name=` lookup
+- DB 경계 결정: `employees`는 user-service DB 소유. accounting V30은 `manager_employee_id` UUID + index를 항상 추가하고, 동일 schema에 `employees`가 있을 때만 FK를 조건부 생성한다.
+- 검증: `--init-script .gradle/codex-plugin-resolution.init.gradle --offline` 기준 `:shared:common:test :services:auth-service:test :services:accounting-service:test` PASS, 추가 `:services:user-service:test` PASS.
 
 ### 머지 완료 슬라이스 (2026-05-20)
 
@@ -65,11 +73,11 @@
 
 - `feedback_codex_plugin_setup.md` — Codex `sandbox=workspace-write` 통일 (review 단계 read-only 폐기)
 
-### 다음 슬라이스 — MIG-10 (자동 진입 대기)
+### 다음 슬라이스 — MIG-10 (진행 중)
 
 **후보 범위**:
-- Order 매니저명 → Employee cross-link (D-MIG-8-05 이연 처리)
-- partner_aging_snapshot net 계산 view 보정 (C6-MIN-3 이연 — `total_receivable = debit - credit` net 잔액)
+- Order 매니저명 → Employee cross-link (D-MIG-8-05 이연 처리) — 구현 진행
+- partner_aging_snapshot net 계산 view 보정 (C6-MIN-3 이연 — `total_receivable = debit - credit` net 잔액) — 구현 진행
 - 잔여 검증 raw (매출장/매입장 xlsx → DailyClosing 대조)
 - admin UI 화면 (Cash/Order/AgingSnapshot 조회)
 - 사용자 우선순위 결정 후보

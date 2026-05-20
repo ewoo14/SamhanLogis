@@ -49,6 +49,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     @EntityGraph(attributePaths = "department")
     List<Employee> findAllByDepartment_IdAndRoleSnapshot(UUID departmentId, Role role);
 
+    @EntityGraph(attributePaths = "department")
+    List<Employee> findTop20ByFullName(String fullName);
+
     /**
      * Phase 10 P0-5 — admin 사용자 목록 페이지 조회 (q / role / dept / status 필터).
      *

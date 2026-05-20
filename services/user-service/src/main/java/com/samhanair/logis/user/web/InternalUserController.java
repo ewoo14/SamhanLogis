@@ -6,6 +6,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.user.repository.EmployeeRepository;
 import com.samhanair.logis.user.web.dto.BulkVerifyRequest;
 import com.samhanair.logis.user.web.dto.BulkVerifyResponse;
+import com.samhanair.logis.user.web.dto.InternalEmployeeLookupResponse;
 import com.samhanair.logis.user.web.dto.InternalUserResponse;
 import jakarta.validation.Valid;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -59,6 +61,24 @@ public class InternalUserController {
                 emp.getLoginId(),
                 emp.getFullName(),
                 emp.getRoleSnapshot()));
+    }
+
+    /**
+     * 직원명 exact lookup. accounting-service MIG-10 Order.manager_name cross-link 에서 사용한다.
+     *
+     * <p>0건/2건 이상도 정상 200 + 배열로 반환한다. caller 가 miss/ambiguous warning 으로 분기한다.
+     */
+    @GetMapping("/by-name")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<InternalEmployeeLookupResponse>> findByName(@RequestParam("name") String name) {
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isBlank()) {
+            return ApiResponse.ok(List.of());
+        }
+        List<InternalEmployeeLookupResponse> employees = employeeRepository.findTop20ByFullName(normalized).stream()
+                .map(emp -> new InternalEmployeeLookupResponse(emp.getId(), emp.getFullName()))
+                .toList();
+        return ApiResponse.ok(employees);
     }
 
     /**

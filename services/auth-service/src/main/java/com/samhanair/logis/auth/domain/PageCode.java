@@ -264,7 +264,12 @@ public enum PageCode {
     /** MIG-9 이카운트 CashReceipt 자동 분개 생성. */
     ECOUNT_MIG9_CASH_JOURNAL_RECEIPT(
             "ecount.mig9.cash-journal.receipt",
-            "이카운트 입금보고서 자동 분개 생성");
+            "이카운트 입금보고서 자동 분개 생성"),
+
+    /** MIG-10 이카운트 주문 담당자 Employee cross-link backfill. */
+    ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL(
+            "ecount.mig10.order-employee-backfill",
+            "이카운트 주문 담당자 Employee 연결");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

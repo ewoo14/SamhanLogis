@@ -47,6 +47,9 @@ public class Order extends BaseEntity {
     @Column(name = "manager_name", length = 100)
     private String managerName;
 
+    @Column(name = "manager_employee_id")
+    private UUID managerEmployeeId;
+
     @Column(name = "valid_until")
     private LocalDate validUntil;
 

@@ -2236,3 +2236,25 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-9-14 | cash-journals controller IT는 5 case × 2 endpoint = 10 cases로 유지한다. |
 
 **산출 예정/진행**: accounting V29, auth V22, `Mig9CashJournalService`, `Mig9AgingSnapshotRefreshService`, controller 3 endpoint, 단위 테스트 11 cases, controller IT 10 cases, dev-report `docs/dev-reports/ecount-mig-9-cash-journal-aging.md`.
+
+### D-MIG-10-00. Order Employee cross-link + Partner aging net view 보정 (MIG-10, 2026-05-20)
+
+**배경**: MIG-8에서 이연한 D-MIG-8-05와 MIG-9 후 남은 C6-MIN-3을 묶어 처리한다. Order 담당자명 snapshot은 유지하되 Employee UUID를 별도 컬럼으로 backfill하고, Partner aging snapshot은 기존 increase-only 컬럼을 보존하면서 net 컬럼을 추가한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-10-01 | 두 이연 항목(D-MIG-8-05 + C6-MIN-3)을 한 PR 통합으로 처리한다. |
+| D-MIG-10-02 | `orders.manager_name`은 snapshot으로 유지하고 `manager_employee_id`를 nullable UUID로 추가한다. |
+| D-MIG-10-03 | `employees`는 user-service DB 소유이므로 lookup은 user-service internal `/internal/users/by-name?name=` endpoint로 수행한다. |
+| D-MIG-10-04 | accounting V30 FK는 동일 schema에 `employees`가 있을 때만 조건부 생성한다. service-per-DB 배포에서는 UUID logical reference + index로 둔다. |
+| D-MIG-10-05 | Employee name lookup 0건은 `MIG10_EMPLOYEE_LOOKUP_MISS` warning으로 보고하고 NULL을 유지한다. |
+| D-MIG-10-06 | Employee name lookup 2건 이상은 `MIG10_EMPLOYEE_AMBIGUOUS` warning으로 보고하고 NULL을 유지한다. |
+| D-MIG-10-07 | backfill 대상은 `manager_name IS NOT NULL AND manager_employee_id IS NULL AND is_deleted = FALSE`로 제한한다. |
+| D-MIG-10-08 | backfill service는 `REQUIRES_NEW + READ_COMMITTED`와 `pg_advisory_xact_lock`을 사용한다. |
+| D-MIG-10-09 | `partner_aging_snapshot`은 DROP + RECREATE로 기존 4컬럼과 신규 `net_receivable`/`net_payable`/`net_cash`를 함께 정의한다. |
+| D-MIG-10-10 | `partner_aging_snapshot.partner_id` unique index를 재생성해 `REFRESH CONCURRENTLY` 계약을 유지한다. |
+| D-MIG-10-11 | auth-service V23에 MIG10 PageCode 1종과 MASTER/MANAGER edit permission 2건을 seed한다. |
+| D-MIG-10-12 | shared/common에 MIG10 ErrorCode 4종과 `EcountMig10Result`를 추가한다. |
+| D-MIG-10-13 | 단위 테스트 8 cases와 controller IT 5 cases를 처음부터 작성한다. |
+
+**산출 예정/진행**: accounting V30, auth V23, `Mig10OrderEmployeeBackfillService`, user-service internal Employee by-name lookup, controller 1 endpoint, 단위 테스트 8 cases, controller IT 5 cases, dev-report `docs/dev-reports/ecount-mig-10-employee-cross-link-aging-net.md`.

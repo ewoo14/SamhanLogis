@@ -55,8 +55,8 @@
 - SP-08-4 시리즈 완료: partner-order 주문 목록·상세, 수정, 삭제+견적 변환, 인쇄 양식 4개 PR이 main `d5c3d573`까지 머지됐다.
 - SP-08-5-1 진행: 구매/매입 R1/R2를 `Slip(type=INBOUND)` 기준으로 잠근다. `type=INBOUND` alias, 최신 전표일자 정렬, `WAREHOUSE / MANAGER / MASTER` 권한, `INVENTORY` 제외, 상세 `inspectionStatus`를 IT/Playwright/QA PNG로 고정한다.
 - SP-08-5-2 진행: 구매/매입 수정 direct PUT을 `slip-service` `PUT /api/v1/slips/{id}`로 잠근다. INBOUND 전용, `WAREHOUSE / MANAGER / MASTER` 권한, `updatedAt` 낙관적 잠금, 라인 422 검증, `SLIP_EDIT` audit revision, desktop 상세 수정 Modal과 409 최신 내용 불러오기 배너를 정적 계약/QA PNG로 고정한다.
-- MIG-9 진행: D-MIG-7-04 옵션 C 이연 처리로 CashDisbursement/CashReceipt → Journal 자동 생성과 `partner_aging_snapshot` MATERIALIZED VIEW를 accounting-service에 추가한다. `journals(source_type, source_ref)` unique 멱등 키, MIG9 ErrorCode 5종, auth V22 PageCode 2종, 11개 service behavior test와 cash journal endpoint 10개 IT를 포함한다.
-- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity.
+- MIG-10 진행: D-MIG-8-05 + C6-MIN-3 이연 처리로 Order `manager_name` → Employee UUID cross-link와 `partner_aging_snapshot` net 컬럼을 accounting-service에 추가한다. service-per-DB 경계상 Employee lookup은 user-service internal by-name endpoint로 수행하고, V30 FK는 동일 schema에 `employees`가 있을 때만 조건부 생성한다.
+- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, MIG-11 admin UI 조회 화면.
 
 ## Phase 0 — 저장소·가드 정립
 

@@ -73,3 +73,16 @@ MIG-9는 MIG-7 Cash 도메인의 `journal_id IS NULL` row를 회계 Journal로 �
 공통 규칙: `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock` 1 namespace, `journals(source_type, source_ref)` unique 멱등 키, `journal_no = 'J-' + slip_no`, `ROLE_MASTER`/`ROLE_MANAGER`, row-level reject, `DuplicateKeyException` constraint 분기.
 
 기본 계정 lookup은 `ChartOfAccount.name` 기준으로 지출=`지급수수료`, 현금=`보통예금`, 매출채권=`외상매출금`을 사용한다. lookup miss는 `MIG9_DEFAULT_ACCOUNT_MISSING`, 0 이하 금액은 `MIG9_CASH_AMOUNT_INVALID`, source 중복은 `MIG9_JOURNAL_DUPLICATE`로 422 응답한다.
+
+## Ecount MIG-10 Order Employee Cross-link + Aging Net
+
+MIG-10은 MIG-8 Order의 `manager_name` snapshot을 user-service Employee와 연결하고, MIG-9 `partner_aging_snapshot`에 순잔액 컬럼을 추가한다.
+
+| 기능 | Endpoint | 처리 |
+|---|---|---|
+| Order 담당자 Employee 연결 | `POST /admin/accounting/orders/backfill-employee-cross-link` | `manager_name` → user-service `/internal/users/by-name?name=` exact lookup 후 `manager_employee_id` backfill |
+| Aging snapshot net | Flyway V30 | `net_receivable`, `net_payable`, `net_cash` 추가 + 기존 increase-only 컬럼 유지 |
+
+공통 규칙: `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock`, `ROLE_MASTER`/`ROLE_MANAGER`, `manager_employee_id IS NULL` 대상만 처리, lookup miss/ambiguous는 warning sample로 응답하고 NULL을 유지한다.
+
+service-per-DB 경계상 `employees`는 user-service 소유다. V30은 `orders.manager_employee_id` UUID와 index를 항상 추가하고, 동일 schema에 `employees`가 존재하는 배포에서만 FK를 조건부 생성한다.

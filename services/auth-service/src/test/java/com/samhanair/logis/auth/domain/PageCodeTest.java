@@ -69,4 +69,12 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG9_CASH_JOURNAL_RECEIPT.getCode())
                 .isEqualTo("ecount.mig9.cash-journal.receipt");
     }
+
+    @Test
+    void mig10_pageCode_V23_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL.getCode())
+                .isEqualTo("ecount.mig10.order-employee-backfill");
+        assertThat(PageCode.ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL.getDisplayName())
+                .isEqualTo("이카운트 주문 담당자 Employee 연결");
+    }
 }

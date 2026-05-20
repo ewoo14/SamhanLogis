@@ -342,7 +342,15 @@ public enum ErrorCode {
     MIG9_AGING_REFRESH_FAILED(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-9 Partner aging snapshot refresh 실패"),
     MIG9_CASH_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-9 Cash 금액 형식 불일치 또는 0 이하");
+            "MIG-9 Cash 금액 형식 불일치 또는 0 이하"),
+    MIG10_ORDER_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-10 Employee 연결 대상 주문이 없습니다"),
+    MIG10_EMPLOYEE_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-10 담당자명과 일치하는 직원이 없습니다"),
+    MIG10_EMPLOYEE_AMBIGUOUS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-10 담당자명과 일치하는 직원이 2명 이상입니다"),
+    MIG10_AGING_VIEW_VERSION_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;
