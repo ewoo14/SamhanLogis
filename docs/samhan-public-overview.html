@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.5 진행 중</span>
+    <span class="nav-badge">Phase 10.6 · MIG-4 진행 중</span>
   </div>
 </nav>
 
@@ -1328,8 +1328,14 @@ body {
     <tr>
       <td>10.5</td>
       <td>아로로지스 독립 운영 단위 분리 — monorepo 유지 + 자체 auth + Passwordless + arologis.samhan-air.com</td>
-      <td>D-AX-01 ~ D-AX-22 / SP-01 ~ SP-08</td>
-      <td><span class="status-badge wip">🔄 진행 중</span></td>
+      <td>D-AX-01 ~ D-AX-22 / SP-01 ~ SP-10 / SP-D1 ~ SP-D5</td>
+      <td><span class="status-badge done">✅ 완료</span></td>
+    </tr>
+    <tr>
+      <td>10.6</td>
+      <td>이카운트 → SamhanLogis 마이그레이션 — 거래처/마스터 5종/회계 전표 4종/영업·세무 4종 일괄 이관 (3-Tier staging + lookup map 4종 + 멱등 SHA-256 file_hash)</td>
+      <td>MIG-1 #262 / MIG-2 #270 / MIG-3 #271 / MIG-4 #272</td>
+      <td><span class="status-badge wip">🔄 MIG-4 진행 중</span></td>
     </tr>
     <tr>
       <td>11</td>
@@ -1342,6 +1348,11 @@ body {
   <div class="callout green" style="margin-top: 20px;">
     <div class="callout-icon">📌</div>
     <div><strong>운영 도메인 분리:</strong> Samhan Public (api.samhan-air.com · 14 service) + 아로로지스 (api.arologis.samhan-air.com · 독립 운영 단위). Phase 10.5 이후 같은 AWS 인프라를 공유하면서 빌드/배포는 독립.</div>
+  </div>
+
+  <div class="callout" style="margin-top: 12px;">
+    <div class="callout-icon">📊</div>
+    <div><strong>이카운트 마이그레이션 누적 (Phase 10.6):</strong> MIG-1 거래처 PoC ✅ · MIG-2 마스터 5종 + lookup map 4종 ✅ · MIG-3 회계 전표 4종 (매입/매출/일반/분개) ✅ · <strong>MIG-4 영업·세무 4종 (세금계산서/판매전표/매출매입내역/주문서) 진행 중</strong> · MIG-5+ (창고이동/지출결의서/입금보고서) 예정. 모든 importer 3-Tier (raw CSV → staging.ecount_*_raw → 도메인) + 멱등 키 source_file_hash SHA-256 + pg_advisory_xact_lock namespace 분리.</div>
   </div>
 </section>
 
