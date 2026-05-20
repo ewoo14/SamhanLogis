@@ -65,6 +65,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C1_master_canView_true_returns_200() throws Exception {
         mockMvc.perform(get("/users/employees")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000010")
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk());
     }
@@ -81,6 +82,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
                 .thenReturn(false);
 
         mockMvc.perform(get("/users/employees")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isForbidden());
     }
@@ -94,6 +96,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C3_master_canEdit_true_create_passes() throws Exception {
         mockMvc.perform(post("/users/employees")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000010")
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"test@test.com\","
@@ -116,6 +119,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
                 .thenReturn(true);
 
         mockMvc.perform(post("/users/employees")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"loginId\":\"test@test.com\","
