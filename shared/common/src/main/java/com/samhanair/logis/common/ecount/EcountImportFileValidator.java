@@ -1,18 +1,18 @@
-package com.samhanair.logis.accounting.web;
+package com.samhanair.logis.common.ecount;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import org.springframework.web.multipart.MultipartFile;
 
 /** 이카운트 import controller 공통 multipart 검증. */
-final class EcountImportFileValidator {
+public final class EcountImportFileValidator {
 
     private static final long MAX_SIZE_BYTES = 10L * 1024 * 1024;
 
     private EcountImportFileValidator() {
     }
 
-    static void validate(MultipartFile file) {
+    public static void validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일 필수");
         }

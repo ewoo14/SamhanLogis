@@ -60,7 +60,7 @@ V18 seed:
 - `MIG5_DATE_INVALID(BAD_REQUEST, "일자 포맷 불일치")`
 - `MIG5_TRANSACTION_TYPE_INVALID(UNPROCESSABLE_ENTITY, "거래유형 값 불일치 - 지출결의서/입금보고서 외")`
 - `MIG5_AGING_BALANCE_MISMATCH(UNPROCESSABLE_ENTITY, "Partner aging 잔액 ↔ 누계 합계 불일치")`
-- `MIG5_CSV_HEADER_MISMATCH(BAD_REQUEST, "MIG-5 CSV 헤더 불일치")`
+- `MIG5_CSV_HEADER_MISMATCH(UNPROCESSABLE_ENTITY, "MIG-5 CSV 헤더 불일치")`
 
 ### Task 5: EcountStockTransferImporter (inventory-service)
 

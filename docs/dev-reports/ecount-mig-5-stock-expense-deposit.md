@@ -43,6 +43,8 @@
 - 지정 검증 명령은 Gradle wrapper가 배포본을 다운로드하려다 sandbox 네트워크 제한으로 실패했다: `Permission denied: getsockopt`.
 - 캐시된 Gradle 8.10.2 직접 실행 + `--offline`도 plugin classpath 의존성 캐시 부재로 구성 실패했다.
 - 사용자 지시 조건에 따라 commit/push는 보류한다.
+- 사이클 1c 기준 로컬 Windows Docker Desktop npipe 한계로 Testcontainers IT는 skip될 수 있다. Linux CI에서는 MIG-5 controller IT 27/27 PASS로 검증되었다.
+- 사이클 1c fix 후 동일 검증 명령을 재시도했으나 wrapper 배포본 다운로드가 sandbox 네트워크 제한으로 실패했다. 캐시된 Gradle 8.10.2 직접 실행도 offline classpath 캐시 부재로 `dependency-management-plugin-1.1.6.jar` 등을 resolve하지 못해 실패했다.
 
 ```powershell
 .\gradlew.bat :services:inventory-service:test :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon
@@ -56,4 +58,3 @@
 - StockTransfer domain 변환 importer와 accounting staging-only importer 2종을 추가했다.
 - classpath fixture 3종, header cross-check, behavior test, controller IT를 추가했다.
 - README/ROADMAP/DECISIONS/handoff/samhan-public-overview 문서를 MIG-5 진행 상태로 동기화했다.
-

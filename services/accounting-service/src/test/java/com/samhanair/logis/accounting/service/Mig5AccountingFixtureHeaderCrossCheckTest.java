@@ -28,14 +28,24 @@ class Mig5AccountingFixtureHeaderCrossCheckTest {
     private static void assertHeader(String fixturePath, String rawFileName) throws Exception {
         try (InputStream fixture = Mig5AccountingFixtureHeaderCrossCheckTest.class.getResourceAsStream(fixturePath)) {
             assertThat(fixture).isNotNull();
-            EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
+            byte[] fixtureContent = fixture.readAllBytes();
+            assertUtf8Bom(fixtureContent);
+            EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixtureContent);
             EcountMig5ImportSupport.validateHeader(parsed.header(), AbstractEcountMig5CashImporter.HEADERS);
 
             Path raw = Path.of("docs", "migration", "ecount-data", "raw", rawFileName);
             Assumptions.assumeTrue(Files.exists(raw), "raw CSV 미존재 → cross-check skip: " + raw);
-            EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
+            byte[] rawContent = Files.readAllBytes(raw);
+            assertUtf8Bom(rawContent);
+            EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(rawContent);
             assertThat(normalized(parsed.header())).containsExactly(normalized(rawCsv.header()));
         }
+    }
+
+    private static void assertUtf8Bom(byte[] content) {
+        assertThat(content).startsWith(new byte[] {
+                (byte) 0xEF, (byte) 0xBB, (byte) 0xBF
+        });
     }
 
     private static String[] normalized(String[] row) {

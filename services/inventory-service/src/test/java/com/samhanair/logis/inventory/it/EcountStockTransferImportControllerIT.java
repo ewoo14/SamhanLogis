@@ -86,15 +86,14 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
                 Arguments.of("anonymous", file("sample.csv", "text/csv"), null, 403),
                 Arguments.of("memberForbidden", file("sample.csv", "text/csv"), "MEMBER", 403),
                 Arguments.of("invalidMime", file("sample.txt", "text/plain"), "MANAGER", 400),
-                Arguments.of("headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 400));
+                Arguments.of("headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 422));
     }
 
     private static EcountMig5ImportResult result() {
-        return new EcountMig5ImportResult(1, 1, 0, 0, 0, 0, "HASH", List.of(), List.of());
+        return new EcountMig5ImportResult(1, 1, 0, 0, 0, 0, 0, false, "HASH", List.of(), List.of());
     }
 
     private static MockMultipartFile file(String name, String contentType) {
         return new MockMultipartFile("file", name, contentType, "x".getBytes());
     }
 }
-

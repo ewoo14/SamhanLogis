@@ -52,8 +52,8 @@ public class EcountStockTransferImporter {
                 }
                 EcountMig5ImportSupport.SlipKey transferKey =
                         EcountMig5ImportSupport.parseSlipKey(c[0], rowNo);
-                int quantity = EcountMig5ImportSupport.parsePositiveQuantity(c[4], rowNo);
-                BigDecimal amount = EcountMig5ImportSupport.parseAmount(c[5], rowNo, true);
+                int quantity = parseQuantity(c[4], rowNo);
+                BigDecimal amount = parseOptionalAmount(c[5], rowNo);
                 UUID sourceWarehouseId = lookupWarehouse(c[1], rowNo, "출고창고명");
                 UUID destinationWarehouseId = lookupWarehouse(c[2], rowNo, "입고창고명");
                 if (sourceWarehouseId.equals(destinationWarehouseId)) {
@@ -73,8 +73,10 @@ public class EcountStockTransferImporter {
                         before == null ? "IMPORTED" : "UPDATED", null, transferKey.canonicalNo());
                 if (before == null) {
                     result.imported();
-                } else {
+                } else if (before.deleted()) {
                     result.updated();
+                } else {
+                    result.lineAdded();
                 }
             } catch (BusinessException ex) {
                 insertRejectedStaging(hash, rowNo, c, actor);
@@ -109,6 +111,30 @@ public class EcountStockTransferImporter {
                     fieldName + " lookup ambiguous: sourceRowNo=" + rowNo + ", warehouseName='" + name + "'");
         }
         return rows.get(0);
+    }
+
+    private int parseQuantity(String raw, int rowNo) {
+        try {
+            return EcountMig5ImportSupport.parsePositiveQuantity(raw, rowNo);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.MIG5_AMOUNT_INVALID) {
+                throw new BusinessException(ErrorCode.MIG5_AMOUNT_INVALID,
+                        "수량 형식 불일치: sourceRowNo=" + rowNo + ", sample='" + raw + "'", ex);
+            }
+            throw ex;
+        }
+    }
+
+    private BigDecimal parseOptionalAmount(String raw, int rowNo) {
+        try {
+            return EcountMig5ImportSupport.parseAmount(raw, rowNo, true);
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.MIG5_AMOUNT_INVALID) {
+                throw new BusinessException(ErrorCode.MIG5_AMOUNT_INVALID,
+                        "금액 형식 불일치: sourceRowNo=" + rowNo + ", sample='" + raw + "'", ex);
+            }
+            throw ex;
+        }
     }
 
     private UUID lookupProduct(String itemName, int rowNo) {
@@ -310,7 +336,7 @@ public class EcountStockTransferImporter {
 
     private static String sampleRawValue(String[] c, BusinessException ex) {
         return switch (ex.getErrorCode()) {
-            case MIG5_AMOUNT_INVALID -> c[4];
+            case MIG5_AMOUNT_INVALID -> ex.getMessage() != null && ex.getMessage().startsWith("금액") ? c[5] : c[4];
             case MIG5_DATE_INVALID -> c[0];
             case MIG5_LOOKUP_MISS, MIG5_LOOKUP_AMBIGUOUS -> c[3];
             default -> String.join("\u001F", c);
@@ -320,4 +346,3 @@ public class EcountStockTransferImporter {
     private record ExistingTransfer(UUID id, boolean deleted) {
     }
 }
-

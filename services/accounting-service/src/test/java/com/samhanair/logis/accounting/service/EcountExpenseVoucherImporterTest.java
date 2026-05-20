@@ -41,6 +41,8 @@ class EcountExpenseVoucherImporterTest {
         importer = new EcountExpenseVoucherImporter(jdbcTemplate, partnerLookupClient);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Object.class)))
                 .thenReturn(null);
+        lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
         lenient().when(partnerLookupClient.findByPartnerNameStrict(anyString()))
                 .thenReturn(Optional.of(partner()));
@@ -106,10 +108,14 @@ class EcountExpenseVoucherImporterTest {
     }
 
     @Test
-    void rawHeaderCrossCheck() {
+    void aging_원장_없으면_INFO성_skip_flag() {
+        when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+
         EcountMig5ImportResult result = importer.importCsv(stream(csv(row("2026/05/18 -247", "지출결의서", "1,000", "거래처A"))), "tester");
 
-        assertThat(result.totalRows()).isEqualTo(1);
+        assertThat(result.agingValidationSkipped()).isTrue();
+        assertThat(result.agingMismatchCount()).isZero();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -150,4 +156,3 @@ class EcountExpenseVoucherImporterTest {
                 .formatted(slipNo, type, amount, partnerName);
     }
 }
-

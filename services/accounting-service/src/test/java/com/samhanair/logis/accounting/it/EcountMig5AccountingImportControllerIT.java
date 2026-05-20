@@ -104,7 +104,7 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
                 Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, 403),
                 Arguments.of(endpoint[0], endpoint[1], "memberForbidden", file("sample.csv", "text/csv"), "MEMBER", 403),
                 Arguments.of(endpoint[0], endpoint[1], "invalidMime", file("sample.txt", "text/plain"), "MANAGER", 400),
-                Arguments.of(endpoint[0], endpoint[1], "headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 400)
+                Arguments.of(endpoint[0], endpoint[1], "headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 422)
         ));
     }
 
@@ -115,7 +115,7 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
     }
 
     private static EcountMig5ImportResult result() {
-        return new EcountMig5ImportResult(1, 1, 0, 0, 0, 0, "HASH", List.of(), List.of());
+        return new EcountMig5ImportResult(1, 1, 0, 0, 0, 0, 0, false, "HASH", List.of(), List.of());
     }
 
     private static MockMultipartFile file(String name, String contentType) {

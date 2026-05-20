@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
@@ -18,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.RowMapper;
@@ -62,6 +65,19 @@ class EcountStockTransferImporterTest {
     }
 
     @Test
+    void 동일_transferNo_두번째_active는_lineAdded로_집계한다() {
+        stubLookupRowsWithTransferLookupSequence(false, false, false, true);
+
+        EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(
+                row("2026/05/02 -1", "품목A", "2", "") +
+                row("2026/05/02 -1", "품목B", "1", "10,000"))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.lineAdded()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
+    }
+
+    @Test
     void warehouse_lookup_miss는_MIG5_LOOKUP_MISS() {
         stubLookupRows(true, false, false);
 
@@ -89,6 +105,22 @@ class EcountStockTransferImporterTest {
 
         assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::errorCode)
                 .containsExactly("MIG5_AMOUNT_INVALID");
+    }
+
+    @Test
+    void amount_컬럼_파싱오류는_amount_raw_값을_sample_반환() {
+        EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(row("2026/05/02 -1", "품목A", "2", "BAD-AMOUNT"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::rawValue)
+                .containsExactly("BAD-AMOUNT");
+    }
+
+    @Test
+    void quantity_컬럼_파싱오류는_quantity_raw_값을_sample_반환() {
+        EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(row("2026/05/02 -1", "품목A", "BAD-QTY", ""))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::rawValue)
+                .containsExactly("BAD-QTY");
     }
 
     @Test
@@ -130,14 +162,43 @@ class EcountStockTransferImporterTest {
     }
 
     @Test
-    void rawHeaderCrossCheck() {
-        EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(row("2026/05/02 -1", "품목A", "2", ""))), "tester");
+    void multi_row_source_row_no_는_1부터_증가한다() {
+        importer.importCsv(stream(stockCsv(
+                row("2026/05/02 -1", "품목A", "2", "") +
+                row("2026/05/02 -2", "품목B", "1", "10,000") +
+                row("2026/05/02 -3", "품목C", "3", ""))), "tester");
 
-        assertThat(result.totalRows()).isEqualTo(1);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate, atLeast(3)).update(sqlCaptor.capture(), paramsCaptor.capture());
+
+        List<Integer> sourceRows = new java.util.ArrayList<>();
+        for (int i = 0; i < sqlCaptor.getAllValues().size(); i++) {
+            String sql = sqlCaptor.getAllValues().get(i);
+            if (sql.contains("INSERT INTO staging.ecount_stock_transfer_raw")
+                    && !sql.contains("'REJECTED'")) {
+                sourceRows.add((Integer) paramsCaptor.getAllValues().get(i).getValue("row"));
+            }
+        }
+        assertThat(sourceRows).containsExactly(1, 2, 3);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private void stubLookupRows(boolean warehouseMiss, boolean productMiss, boolean existingTransfer) {
+        stubLookupRowsWithTransferLookupSequence(warehouseMiss, productMiss,
+                existingTransfer ? TransferLookup.SOFT_DELETED : TransferLookup.MISSING);
+    }
+
+    private void stubLookupRowsWithTransferLookupSequence(boolean warehouseMiss, boolean productMiss,
+                                                          boolean firstExists, boolean secondExists) {
+        stubLookupRowsWithTransferLookupSequence(warehouseMiss, productMiss,
+                firstExists ? TransferLookup.ACTIVE : TransferLookup.MISSING,
+                secondExists ? TransferLookup.ACTIVE : TransferLookup.MISSING);
+    }
+
+    private void stubLookupRowsWithTransferLookupSequence(boolean warehouseMiss, boolean productMiss,
+                                                          TransferLookup... transferLookupSequence) {
+        transferLookupCallIndex = 0;
         lenient().when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
@@ -164,16 +225,28 @@ class EcountStockTransferImporterTest {
                         return List.of(mapper.mapRow(rs, 0));
                     }
                     if (sql.contains("FROM stock_transfers")) {
-                        if (!existingTransfer) {
+                        int callIndex = transferLookupCallIndex++;
+                        TransferLookup lookup = transferLookupSequence.length == 0
+                                ? TransferLookup.MISSING
+                                : transferLookupSequence[Math.min(callIndex, transferLookupSequence.length - 1)];
+                        if (lookup == TransferLookup.MISSING) {
                             return List.of();
                         }
                         ResultSet rs = mock(ResultSet.class);
                         when(rs.getObject("id")).thenReturn(UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"));
-                        when(rs.getBoolean("is_deleted")).thenReturn(true);
+                        when(rs.getBoolean("is_deleted")).thenReturn(lookup == TransferLookup.SOFT_DELETED);
                         return List.of(mapper.mapRow(rs, 0));
                     }
                     return List.of();
                 });
+    }
+
+    private int transferLookupCallIndex;
+
+    private enum TransferLookup {
+        MISSING,
+        ACTIVE,
+        SOFT_DELETED
     }
 
     private static InputStream stream(String csv) {
@@ -192,4 +265,3 @@ class EcountStockTransferImporterTest {
                 .formatted(transferNo, itemName, quantity, amount);
     }
 }
-

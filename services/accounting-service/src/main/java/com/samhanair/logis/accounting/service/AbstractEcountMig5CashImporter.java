@@ -95,6 +95,19 @@ abstract class AbstractEcountMig5CashImporter {
     }
 
     public void validateAgainstAging(String sourceFileHash, EcountMig5ImportResult.Builder result) {
+        Long postedAgingRows = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM journal_lines jl
+                  JOIN journals j ON j.id = jl.journal_id
+                 WHERE jl.account_code = :accountCode
+                   AND jl.is_deleted = FALSE
+                   AND j.is_deleted = FALSE
+                   AND j.status = 'POSTED'
+                """, new MapSqlParameterSource("accountCode", agingAccountCode), Long.class);
+        if (postedAgingRows == null || postedAgingRows == 0) {
+            result.agingValidationSkipped();
+            return;
+        }
         String balanceExpression = receivable
                 ? "COALESCE(SUM(jl.debit_amount - jl.credit_amount), 0)"
                 : "COALESCE(SUM(jl.credit_amount - jl.debit_amount), 0)";
@@ -192,11 +205,11 @@ abstract class AbstractEcountMig5CashImporter {
         jdbcTemplate.update("""
                 INSERT INTO %s (
                   source_file_hash, source_row_no, slip_no, transaction_type,
-                  partner_name, description, raw_payload, transform_status,
+                  partner_name, description, raw_payload,
                   created_by, modified_by
                 ) VALUES (
                   :hash, :row, :rawSlipNo, :transactionType,
-                  :partnerName, :description, :payload, 'REJECTED',
+                  :partnerName, :description, :payload,
                   :actor, :actor
                 )
                 ON CONFLICT (source_file_hash, source_row_no) DO NOTHING
@@ -249,4 +262,3 @@ abstract class AbstractEcountMig5CashImporter {
     private record AgingMismatch(String partnerName, String rawValue, String agingValue) {
     }
 }
-

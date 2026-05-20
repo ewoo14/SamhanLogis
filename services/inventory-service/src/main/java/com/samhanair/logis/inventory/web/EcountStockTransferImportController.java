@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web;
 
+import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;

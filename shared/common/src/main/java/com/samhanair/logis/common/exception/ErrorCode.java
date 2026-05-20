@@ -283,7 +283,7 @@ public enum ErrorCode {
             "거래유형 값 불일치 - 지출결의서/입금보고서 외"),
     MIG5_AGING_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "Partner aging 잔액 ↔ 누계 합계 불일치"),
-    MIG5_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
+    MIG5_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-5 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;

@@ -16,7 +16,6 @@ class ErrorCodeMig5Test {
         assertThat(ErrorCode.MIG5_DATE_INVALID.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(ErrorCode.MIG5_TRANSACTION_TYPE_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG5_AGING_BALANCE_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(ErrorCode.MIG5_CSV_HEADER_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ErrorCode.MIG5_CSV_HEADER_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 }
-

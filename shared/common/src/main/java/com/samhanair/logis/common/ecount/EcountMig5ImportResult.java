@@ -7,9 +7,11 @@ public record EcountMig5ImportResult(
         int totalRows,
         int imported,
         int updated,
+        int lineAdded,
         int skipped,
         int rejected,
         int agingMismatchCount,
+        boolean agingValidationSkipped,
         String sourceFileHash,
         List<RejectedRow> rejectedSample,
         List<AgingMismatchSample> agingMismatchSamples) {
@@ -31,9 +33,11 @@ public record EcountMig5ImportResult(
         private final String sourceFileHash;
         private int imported;
         private int updated;
+        private int lineAdded;
         private int skipped;
         private int rejected;
         private int agingMismatchCount;
+        private boolean agingValidationSkipped;
         private final java.util.ArrayList<RejectedRow> rejectedSample = new java.util.ArrayList<>();
         private final java.util.ArrayList<AgingMismatchSample> agingMismatchSamples = new java.util.ArrayList<>();
 
@@ -44,7 +48,9 @@ public record EcountMig5ImportResult(
 
         public void imported() { imported++; }
         public void updated() { updated++; }
+        public void lineAdded() { lineAdded++; }
         public void skipped() { skipped++; }
+        public void agingValidationSkipped() { agingValidationSkipped = true; }
 
         public void reject(int rowNumber, String errorCode, String message, String businessKey, String rawValue) {
             rejected++;
@@ -61,10 +67,9 @@ public record EcountMig5ImportResult(
         }
 
         public EcountMig5ImportResult build() {
-            return new EcountMig5ImportResult(totalRows, imported, updated, skipped, rejected,
-                    agingMismatchCount, sourceFileHash,
+            return new EcountMig5ImportResult(totalRows, imported, updated, lineAdded, skipped, rejected,
+                    agingMismatchCount, agingValidationSkipped, sourceFileHash,
                     List.copyOf(rejectedSample), List.copyOf(agingMismatchSamples));
         }
     }
 }
-
