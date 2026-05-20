@@ -4,15 +4,7 @@
 
 ---
 
-## 🚀 2026-05-20 최신 진행 — MIG-10 개발 진행 중
-
-### MIG-10 Codex 진행 (2026-05-20)
-
-- 브랜치: `spec/2026-05-20-mig-10-employee-cross-link-aging-net`
-- 범위: D-MIG-8-05 Order `manager_name` → Employee cross-link + C6-MIN-3 `partner_aging_snapshot` net 컬럼
-- 구현: accounting V30, auth V23, MIG10 ErrorCode 5종, PageCode 1종, `Mig10OrderEmployeeBackfillService`, controller 1종, user-service `/internal/users/by-name?name=` lookup
-- DB 경계 결정: `employees`는 user-service DB 소유. accounting V30은 `manager_employee_id` UUID + index만 추가하고 FK를 선언하지 않으며, application-level `EmployeeLookupClient` 검증으로 참조 무결성을 보장한다.
-- 검증: `--init-script .gradle/codex-plugin-resolution.init.gradle --offline` 기준 `:shared:common:test :services:auth-service:test :services:accounting-service:test` PASS, 추가 `:services:user-service:test` PASS.
+## 🚀 2026-05-20 최신 진행 — MIG-10 머지 완료 + MIG-11 자동 진입 (PM 자율 연속)
 
 ### 머지 완료 슬라이스 (2026-05-20)
 
@@ -25,7 +17,13 @@
 | #274 | **MIG-6** 잔여 마스터 5종 (PII 가드) | `5c15db2b` | 08:43 UTC | 75 file |
 | #275 | **MIG-7** Cash 도메인 신규 (CashDisbursement + CashReceipt) | `9fd88bc5` | 09:38 UTC | 26 file, V27 + V20 |
 | #276 | **MIG-8** Order 도메인 신규 + MIG-4 주문서 변환 | `b62c6cb8` | 10:39 UTC | 23 file, V28 + V21 |
-| #277 | **MIG-9** Cash → Journal 자동 생성 + Partner aging snapshot view (D-MIG-7-04 옵션 C 이연 처리) | `1d30dee6` | 11:52 UTC | 25 file 초기 + 사이클 fix 12 file, V29 + V22, ErrorCode MIG9 5종, JournalSourceType.CASH_DISBURSEMENT/CASH_RECEIPT enum, partner_aging_snapshot MATERIALIZED VIEW + REFRESH CONCURRENTLY, journal_no JD-/JR- 접두사 분리, ON CONFLICT (source_type, source_ref) DO NOTHING (PG duplicate trans abort 회피), PageCode enum + V22 seed 일관, 단위 테스트 15+ cases + 15 IT parameterized (3 endpoint × 5 case) |
+| #277 | **MIG-9** Cash → Journal 자동 생성 + Partner aging snapshot view | `1d30dee6` | 11:52 UTC | 25 file 초기 + 사이클 fix 12 file, V29 + V22 |
+| #278 | **MIG-10** Order Employee cross-link + aging_snapshot net 컬럼 (D-MIG-8-05 + C6-MIN-3 이연 처리) | `4f925a94` | 13:40 UTC | 27 file 초기 + 사이클 fix 17 file, V30 + V23, ErrorCode MIG10 5종, orders.manager_employee_id (FK 미선언 — service boundary), EmployeeLookupClient (config/contract fail-fast LOOKUP_ERROR), partner_aging_snapshot DROP+RECREATE + net_receivable/net_payable/net_cash (stable account_code), user-service /internal/users/by-name endpoint 신규, InternalUserByNameControllerIT 6 case |
+
+### 신규 메모리 (2026-05-20)
+
+- `feedback_pm_auto_continuous.md` — PM 자율 연속 진행 (사용자 명시 "PM이 자동으로 계속 다음 단계 진행")
+- `feedback_qa_docker_real_test.md` — QA Docker 실서버 테스트 의무 강화 (code read 만 PASS 금지)
 
 ### MIG-9 사이클 1 누적 (PR #277)
 
