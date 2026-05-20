@@ -7,6 +7,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,10 @@ public class EcountSalesPurchaseSummaryImporter {
                 if (isFooterRow(c)) {
                     result.skipped();
                     continue;
+                }
+                if (EcountCsvSupport.stripCell(c[0]).isBlank()) {
+                    throw new BusinessException(ErrorCode.MIG4_DATE_INVALID,
+                            "매출매입내역 일자가 비어 있습니다: sourceRowNo=" + rowNo);
                 }
                 LocalDate summaryDate = EcountMig4ImportSupport.parseSlipKey(c[0], rowNo).date();
                 BigDecimal purchaseSupply = EcountMig4ImportSupport.parseAmount(c[5], rowNo);
@@ -106,14 +111,18 @@ public class EcountSalesPurchaseSummaryImporter {
         }
     }
 
-    private static boolean isFooterRow(String[] c) {
-        String first = EcountCsvSupport.stripCell(c[0]);
-        if (first.isBlank()) {
-            return true;
+    private static boolean isFooterRow(String[] row) {
+        if (row.length < 1) {
+            return false;
         }
-        return first.contains("계 (")
-                || first.contains("누계")
-                || (first.contains("오전") || first.contains("오후"));
+        String first = row[0] == null ? "" : EcountCsvSupport.stripCell(row[0]).trim();
+        if (first.isEmpty()) {
+            return Arrays.stream(row)
+                    .allMatch(c -> c == null || EcountCsvSupport.stripCell(c).trim().isEmpty());
+        }
+        return first.matches("\\d{4}/\\d{2}\\s*계\\s*\\(.*건.*")
+                || first.startsWith("누계")
+                || first.matches("\\d{4}/\\d{2}/\\d{2}\\s*(오전|오후).*");
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, LocalDate summaryDate,

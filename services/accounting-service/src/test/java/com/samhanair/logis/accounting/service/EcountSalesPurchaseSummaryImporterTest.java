@@ -105,6 +105,18 @@ class EcountSalesPurchaseSummaryImporterTest {
         assertThat(result.totalRows()).isEqualTo(1);
     }
 
+    @Test
+    void malformed_row_빈일자_nonblank_금액_MIG4_DATE_INVALID() {
+        EcountMig4ImportResult result = importer.importCsv(stream(summaryCsv(
+                "\"\",\"?멸툑怨꾩궛??t\",\"?꾩옄-??t\",\"?쇳븳?곸궗\t\",\"malformed\t\",\"\",\"\",\"100,000\",\"10,000\",\"110,000\",\"\"\n"
+        )), "tester");
+
+        assertThat(result.skipped()).isZero();
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample()).extracting(EcountMig4ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG4_DATE_INVALID");
+    }
+
     private static InputStream stream(String csv) {
         return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }

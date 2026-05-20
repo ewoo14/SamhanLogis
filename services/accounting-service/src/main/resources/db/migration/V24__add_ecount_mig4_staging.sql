@@ -145,3 +145,6 @@ CREATE INDEX IF NOT EXISTS ix_ecount_order_raw_partner
     ON staging.ecount_order_raw (partner_name);
 CREATE INDEX IF NOT EXISTS ix_ecount_order_raw_order
     ON staging.ecount_order_raw (order_no);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_tax_invoice_lines_invoice_line
+    ON tax_invoice_lines (tax_invoice_id, line_no);

@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -124,26 +123,50 @@ public class EcountTaxInvoiceImporter {
     private UUID upsertInvoice(String hash, int rowNo, PartnerSummary partner, String[] c,
                                LocalDate issueDate, String actor) {
         String migrationKey = "MIG-4:" + hash + ":" + rowNo;
-        List<UUID> existing = jdbcTemplate.queryForList("""
-                SELECT id FROM tax_invoices
-                 WHERE description = :description AND is_deleted = FALSE
-                 LIMIT 1
-                """, new MapSqlParameterSource("description", migrationKey), UUID.class);
-        if (!existing.isEmpty()) {
-            return existing.get(0);
-        }
         return jdbcTemplate.queryForObject("""
-                INSERT INTO tax_invoices (
-                  id, tax_invoice_no, partner_id, partner_code, partner_business_no, partner_name,
-                  partner_address, supply_date, supply_amount, vat_amount, total_amount,
-                  invoice_type, direction, status, description, created_at, created_by,
-                  modified_at, modified_by, is_deleted, version
-                ) VALUES (
-                  gen_random_uuid(), NULL, :partnerId, :partnerCode, :businessNo, :partnerName,
-                  :address, :supplyDate, 0, 0, 0, 'SALES', 'OUTBOUND', 'MIGRATED', :description,
-                  NOW(), :actor, NOW(), :actor, FALSE, 0
+                WITH restored AS (
+                    UPDATE tax_invoices
+                       SET partner_id = :partnerId,
+                           partner_code = :partnerCode,
+                           partner_business_no = :businessNo,
+                           partner_name = :partnerName,
+                           partner_address = :address,
+                           supply_date = :supplyDate,
+                           supply_amount = 0,
+                           vat_amount = 0,
+                           total_amount = 0,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE description = :description AND is_deleted = TRUE
+                     RETURNING id
+                ), existing AS (
+                    SELECT id
+                      FROM tax_invoices
+                     WHERE description = :description AND is_deleted = FALSE
+                     LIMIT 1
+                ), inserted AS (
+                    INSERT INTO tax_invoices (
+                      id, tax_invoice_no, partner_id, partner_code, partner_business_no, partner_name,
+                      partner_address, supply_date, supply_amount, vat_amount, total_amount,
+                      invoice_type, direction, status, description, created_at, created_by,
+                      modified_at, modified_by, is_deleted, version
+                    )
+                    SELECT gen_random_uuid(), NULL, :partnerId, :partnerCode, :businessNo, :partnerName,
+                      :address, :supplyDate, 0, 0, 0, 'SALES', 'OUTBOUND', 'MIGRATED', :description,
+                      NOW(), :actor, NOW(), :actor, FALSE, 0
+                    WHERE NOT EXISTS (SELECT 1 FROM restored)
+                      AND NOT EXISTS (SELECT 1 FROM existing)
+                    RETURNING id
                 )
-                RETURNING id
+                SELECT id FROM restored
+                UNION ALL
+                SELECT id FROM existing
+                UNION ALL
+                SELECT id FROM inserted
+                LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("partnerId", partner.partnerId())
                 .addValue("partnerCode", partner.partnerCode())
@@ -167,15 +190,49 @@ public class EcountTaxInvoiceImporter {
     private void insertLine(UUID invoiceId, int lineNo, String itemName, BigDecimal quantity,
                             BigDecimal unitPrice, BigDecimal supply, BigDecimal vat,
                             String relatedSlipNo, String actor) {
-        jdbcTemplate.update("""
-                INSERT INTO tax_invoice_lines (
-                  id, tax_invoice_id, line_no, item_name, spec, unit, quantity, unit_price,
-                  supply_amount, vat_amount, memo, created_at, created_by, modified_at, modified_by,
-                  is_deleted
-                ) VALUES (
-                  gen_random_uuid(), :invoiceId, :lineNo, :itemName, NULL, NULL, :quantity, :unitPrice,
-                  :supply, :vat, :memo, NOW(), :actor, NOW(), :actor, FALSE
+        jdbcTemplate.queryForObject("""
+                WITH restored AS (
+                    UPDATE tax_invoice_lines
+                       SET item_name = :itemName,
+                           quantity = :quantity,
+                           unit_price = :unitPrice,
+                           supply_amount = :supply,
+                           vat_amount = :vat,
+                           memo = :memo,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE tax_invoice_id = :invoiceId AND line_no = :lineNo AND is_deleted = TRUE
+                     RETURNING id
+                ), upserted AS (
+                    INSERT INTO tax_invoice_lines (
+                      id, tax_invoice_id, line_no, item_name, spec, unit, quantity, unit_price,
+                      supply_amount, vat_amount, memo, created_at, created_by, modified_at, modified_by,
+                      is_deleted
+                    )
+                    SELECT gen_random_uuid(), :invoiceId, :lineNo, :itemName, NULL, NULL, :quantity, :unitPrice,
+                      :supply, :vat, :memo, NOW(), :actor, NOW(), :actor, FALSE
+                    WHERE NOT EXISTS (SELECT 1 FROM restored)
+                    ON CONFLICT (tax_invoice_id, line_no) DO UPDATE SET
+                      item_name = EXCLUDED.item_name,
+                      quantity = EXCLUDED.quantity,
+                      unit_price = EXCLUDED.unit_price,
+                      supply_amount = EXCLUDED.supply_amount,
+                      vat_amount = EXCLUDED.vat_amount,
+                      memo = EXCLUDED.memo,
+                      is_deleted = FALSE,
+                      deleted_at = NULL,
+                      deleted_by = NULL,
+                      modified_at = NOW(),
+                      modified_by = EXCLUDED.modified_by
+                    RETURNING id
                 )
+                SELECT id FROM restored
+                UNION ALL
+                SELECT id FROM upserted
+                LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("invoiceId", invoiceId)
                 .addValue("lineNo", lineNo)
@@ -185,7 +242,7 @@ public class EcountTaxInvoiceImporter {
                 .addValue("supply", supply)
                 .addValue("vat", vat)
                 .addValue("memo", relatedSlipNo == null ? null : "회계전표:" + relatedSlipNo)
-                .addValue("actor", actor));
+                .addValue("actor", actor), UUID.class);
     }
 
     private void addTaxInvoiceTotals(UUID invoiceId, BigDecimal supply, BigDecimal vat, String actor) {

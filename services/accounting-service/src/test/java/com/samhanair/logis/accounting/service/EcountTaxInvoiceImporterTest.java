@@ -156,6 +156,20 @@ class EcountTaxInvoiceImporterTest {
         assertThat(second.skipped()).isEqualTo(1);
     }
 
+    @Test
+    void soft_deleted_tax_invoice_복구_CTE를_사용한다() {
+        EcountMig4ImportResult result = importer.importCsv(stream(taxCsv(row("P-001", "?쇳븳?곸궗",
+                "100,000", "10,000", "2026/05/01", "AC-001", "1", "100,000", "2026/05/01 -1"))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .queryForObject(org.mockito.ArgumentMatchers.contains("UPDATE tax_invoices"),
+                        any(SqlParameterSource.class), eq(UUID.class));
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .queryForObject(org.mockito.ArgumentMatchers.contains("UPDATE tax_invoice_lines"),
+                        any(SqlParameterSource.class), eq(UUID.class));
+    }
+
     private static PartnerSummary partner() {
         return new PartnerSummary(UUID.fromString("00000000-0000-0000-0000-000000000101"),
                 "P-001", "삼한상사", "123-45-67890", "서울");

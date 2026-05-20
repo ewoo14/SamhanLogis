@@ -240,15 +240,51 @@ public class EcountSalesSlipLineImporter {
     private void insertLine(UUID slipId, int lineNo, String itemName, BigDecimal quantity,
                             BigDecimal unitPrice, BigDecimal supply, BigDecimal vat,
                             BigDecimal total, String actor) {
-        jdbcTemplate.update("""
-                INSERT INTO sales_accounting_slip_lines (
-                  id, slip_id, line_no, product_code, product_name, qty, unit_price,
-                  supply_amount, vat_amount, line_total, created_at, created_by,
-                  modified_at, modified_by, is_deleted, version
-                ) VALUES (
-                  gen_random_uuid(), :slipId, :lineNo, 'MIG4', :itemName, :quantity, :unitPrice,
-                  :supply, :vat, :total, NOW(), :actor, NOW(), :actor, FALSE, 0
+        jdbcTemplate.queryForObject("""
+                WITH restored AS (
+                    UPDATE sales_accounting_slip_lines
+                       SET product_code = 'MIG4',
+                           product_name = :itemName,
+                           qty = :quantity,
+                           unit_price = :unitPrice,
+                           supply_amount = :supply,
+                           vat_amount = :vat,
+                           line_total = :total,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE slip_id = :slipId AND line_no = :lineNo AND is_deleted = TRUE
+                     RETURNING id
+                ), upserted AS (
+                    INSERT INTO sales_accounting_slip_lines (
+                      id, slip_id, line_no, product_code, product_name, qty, unit_price,
+                      supply_amount, vat_amount, line_total, created_at, created_by,
+                      modified_at, modified_by, is_deleted, version
+                    )
+                    SELECT gen_random_uuid(), :slipId, :lineNo, 'MIG4', :itemName, :quantity, :unitPrice,
+                      :supply, :vat, :total, NOW(), :actor, NOW(), :actor, FALSE, 0
+                    WHERE NOT EXISTS (SELECT 1 FROM restored)
+                    ON CONFLICT (slip_id, line_no) DO UPDATE SET
+                      product_code = EXCLUDED.product_code,
+                      product_name = EXCLUDED.product_name,
+                      qty = EXCLUDED.qty,
+                      unit_price = EXCLUDED.unit_price,
+                      supply_amount = EXCLUDED.supply_amount,
+                      vat_amount = EXCLUDED.vat_amount,
+                      line_total = EXCLUDED.line_total,
+                      is_deleted = FALSE,
+                      deleted_at = NULL,
+                      deleted_by = NULL,
+                      modified_at = NOW(),
+                      modified_by = EXCLUDED.modified_by
+                    RETURNING id
                 )
+                SELECT id FROM restored
+                UNION ALL
+                SELECT id FROM upserted
+                LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("slipId", slipId)
                 .addValue("lineNo", lineNo)
@@ -258,7 +294,7 @@ public class EcountSalesSlipLineImporter {
                 .addValue("supply", supply)
                 .addValue("vat", vat)
                 .addValue("total", total)
-                .addValue("actor", actor));
+                .addValue("actor", actor), UUID.class);
     }
 
     private void recalcSlipTotals(UUID slipId, String actor) {
