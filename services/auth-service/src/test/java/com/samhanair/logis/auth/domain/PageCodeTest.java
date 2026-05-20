@@ -37,4 +37,14 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG3_JOURNAL_ENTRY.getCode())
                 .isEqualTo("ecount.mig3.journal-entry");
     }
+
+    @Test
+    void mig5_pageCodes_3종_정상등록() {
+        assertThat(PageCode.ECOUNT_MIG5_STOCK_TRANSFER.getCode())
+                .isEqualTo("ecount.mig5.stock-transfer");
+        assertThat(PageCode.ECOUNT_MIG5_EXPENSE_VOUCHER.getCode())
+                .isEqualTo("ecount.mig5.expense-voucher");
+        assertThat(PageCode.ECOUNT_MIG5_DEPOSIT_REPORT.getCode())
+                .isEqualTo("ecount.mig5.deposit-report");
+    }
 }

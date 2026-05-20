@@ -268,7 +268,23 @@ public enum ErrorCode {
     MIG4_ORDER_STATUS_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "주문서 진행상태 unknown 값"),
     MIG4_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-4 CSV 헤더 불일치");
+            "MIG-4 CSV 헤더 불일치"),
+    MIG5_TRANSFER_NO_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 source_file 내 transferNo 중복"),
+    MIG5_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "lookup 키 매핑 누락 - 거래처/품목/창고 확인 필요"),
+    MIG5_LOOKUP_AMBIGUOUS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "거래처명/창고명 중복 매칭"),
+    MIG5_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "금액 형식 불일치 또는 음수"),
+    MIG5_DATE_INVALID(HttpStatus.BAD_REQUEST,
+            "일자 포맷 불일치"),
+    MIG5_TRANSACTION_TYPE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "거래유형 값 불일치 - 지출결의서/입금보고서 외"),
+    MIG5_AGING_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "Partner aging 잔액 ↔ 누계 합계 불일치"),
+    MIG5_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
+            "MIG-5 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

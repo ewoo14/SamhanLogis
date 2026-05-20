@@ -23,6 +23,14 @@ PostgreSQL `auth_db` — owns the `accounts` table (UUID PK, soft-deleted).
 All responses are wrapped in `ApiResponse<T>`; errors surface as
 `BusinessException` with Korean messages.
 
+## Ecount migration page codes
+
+| Slice | Flyway | PageCode |
+|---|---|---|
+| MIG-5 | V18 | `ecount.mig5.stock-transfer`, `ecount.mig5.expense-voucher`, `ecount.mig5.deposit-report` |
+
+MIG-5 seed는 MASTER/MANAGER edit 허용, DISPATCH/MEMBER deny 기본값으로 role_page_permissions에 추가된다.
+
 ## Environment variables
 
 | Variable               | Default                                                   | Description                                       |

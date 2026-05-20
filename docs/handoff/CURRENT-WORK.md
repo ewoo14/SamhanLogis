@@ -4,7 +4,17 @@
 
 ---
 
-## 🚀 2026-05-20 최신 진행 — MIG-4 머지 완료 + MIG-5 자동 진입 대기
+## 2026-05-20 Codex Update — MIG-5 개발 진행 중
+
+- 브랜치: `spec/2026-05-20-mig-5-stock-expense-deposit`
+- 범위: inventory V13 창고이동 staging + `EcountStockTransferImporter`, accounting V25 지출결의서/입금보고서 staging + importer 2종, auth V18 PageCode 3종, shared/common MIG5 ErrorCode 8종.
+- 테스트 산출: behavior test 3종, fixture header cross-check 2종, controller IT 2종 추가.
+- 검증 상태: `gradlew.bat`는 Gradle 배포본 다운로드가 sandbox 네트워크 제한으로 실패했고, 캐시 Gradle `--offline`도 plugin classpath 캐시 부재로 실패했다. 사용자 지시 조건에 따라 commit/push 보류.
+- 다음 단계: 네트워크 접근 가능한 환경에서 `./gradlew.bat :services:inventory-service:test :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon` 재실행 후 통과 시 한국어 commit + push.
+
+---
+
+## 🚀 2026-05-20 최신 진행 — MIG-4 머지 완료 + MIG-5 개발 진행 중
 
 ### 머지 완료 슬라이스 (2026-05-20)
 
@@ -28,7 +38,7 @@
 
 - `.claude/memory/feedback_samhan_public_overview_sync.md` — `docs/samhan-public-overview.html` GitHub Pages 항시 동기화 의무 (사용자 명시 "항시 업데이트 요망")
 
-### 다음 슬라이스 — MIG-5 (자동 진입 대기, 사용자 결정)
+### 현재 슬라이스 — MIG-5 (개발 진행 중, 검증/commit 보류)
 
 **raw 후보 (이미 `docs/migration/ecount-data/raw/` 에 존재)**:
 - `창고이동-Excel다운로드(20260501~20260519_1).csv` → Inventory 도메인 (StockMovement / 창고 간 이동)
@@ -92,7 +102,7 @@ claude mcp list  # → codex: codex mcp-server - ✓ Connected
 - [x] MIG-2 마스터 5종 + lookup map 4종 (PR #270, 5월 20일)
 - [x] MIG-3 회계 전표 4종 (PR #271, 5월 20일)
 - [x] MIG-4 영업·세무 raw 4종 (PR #272, 5월 20일 05:34 UTC)
-- [ ] **MIG-5** 창고이동/지출결의서/입금보고서 (자동 진입 대기)
+- [ ] **MIG-5** 창고이동/지출결의서/입금보고서 (구현 완료, sandbox 네트워크 제한으로 Gradle 검증/commit 보류)
 - [ ] MIG-6+ Order 도메인 신규 / 주문서 → SalesAccountingSlip 전환
 
 ---

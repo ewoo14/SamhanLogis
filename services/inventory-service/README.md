@@ -11,6 +11,14 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 - **이동전표 (`stock_transfers` + `stock_transfer_lines`)** — 창고 간 재배치 워크플로우
 - **DPS 저장내역 (`dps_save_history`)** — legacy GAS DPS 비교/품목별 DPS 결과의 자동 latest 저장 + 명시 저장/복원
 
+## Ecount MIG-5 Importer
+
+| Importer | Endpoint | 처리 |
+|---|---|---|
+| `EcountStockTransferImporter` | `POST /admin/inventory/stock-transfers/imports/ecount` | 창고이동 raw → `staging.ecount_stock_transfer_raw` 멱등 적재 + `StockTransfer`/`StockTransferLine` `CONFIRMED` 변환 |
+
+MIG-2 `staging.ecount_warehouse_map` / `staging.ecount_item_alias` lookup map을 재사용한다. 응답은 UUID를 노출하지 않고 `transferNo`, 창고명, 품목명 중심 sample만 반환한다.
+
 ## 외부 의존
 
 - **product-service** — `POST /products/internal/lookup` 으로 productId 검증 (`X-Internal-Token`)

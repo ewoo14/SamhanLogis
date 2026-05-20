@@ -2116,3 +2116,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-4-15 | 주문서 5분할 파일은 동일 importer를 file hash 별로 5회 실행하는 방식으로 처리한다. |
 
 **산출 예정/진행**: accounting V23 staging 4종, auth V16 PageCode seed, ErrorCode MIG3 5종, 4 importer/controller, fixture cross-check 4종, dev-report `docs/dev-reports/ecount-mig-3-voucher.md`.
+
+### D-MIG-5-00. 이카운트 창고이동·지출결의서·입금보고서 raw 3종 마이그레이션 (MIG-5, 2026-05-20)
+
+**배경**: MIG-4 영업·세무 raw 4종 머지 후, 재고 이동과 입출금성 raw 2종을 한 PR에서 처리한다. 창고이동은 기존 inventory `StockTransfer` 도메인으로 변환하고, 지출결의서/입금보고서는 cash 도메인 신설 전 staging + Partner aging 검증 근거를 남긴다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-5-01 | 3 raw는 한 PR 통합으로 처리한다. |
+| D-MIG-5-02 | 창고이동은 `StockTransfer` + `StockTransferLine` 으로 변환하고 마이그레이션 완료 상태는 `CONFIRMED`로 둔다. |
+| D-MIG-5-03 | 지출결의서/입금보고서는 staging only + Partner aging cross-check로 처리한다. |
+| D-MIG-5-04 | 거래처/품목/창고 lookup miss는 silent fallback 없이 `MIG5_LOOKUP_MISS` reject로 보고한다. |
+| D-MIG-5-05 | staging 멱등 키는 SHA-256 `source_file_hash` + 1-base `source_row_no` 복합 PK로 둔다. |
+| D-MIG-5-06 | 3 importer는 서로 다른 `pg_advisory_xact_lock` namespace를 사용한다. |
+| D-MIG-5-07 | StockTransfer/Line soft-delete row는 CTE로 복구한다. |
+| D-MIG-5-08 | admin UI는 후속 슬라이스로 둔다. |
+| D-MIG-5-09 | auth-service V18에 MIG5 PageCode 3종 권한 seed를 추가한다. |
+| D-MIG-5-10 | shared/common에 MIG5 ErrorCode 8종을 추가한다. |
+| D-MIG-5-11 | PM 자동시작 범위로 spec → plan → Codex 개발을 진행한다. |
+| D-MIG-5-12 | footer는 빈 footer만 skip하고, 빈 일자 + nonblank row는 `MIG5_DATE_INVALID`로 reject 한다. |
+| D-MIG-5-13 | importer behavior 테스트를 처음부터 작성해 MIG-4 회고를 반영한다. |
+| D-MIG-5-14 | controller IT는 endpoint별 multipart/권한/header mismatch 케이스를 parameterized로 유지한다. |
+
+**산출 예정/진행**: inventory V13, accounting V25, auth V18, 3 importer/controller, fixture cross-check 3종, dev-report `docs/dev-reports/ecount-mig-5-stock-expense-deposit.md`.

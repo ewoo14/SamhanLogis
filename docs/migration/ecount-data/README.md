@@ -34,8 +34,9 @@
 | 판매전표 | `accounting-service` | P2 | MIG-4 영업·세무 |
 | 매출매입내역 | `accounting-service` | P2 | MIG-4 영업·세무 검증 |
 | 주문서 | `accounting-service` | P3 | MIG-4 staging / 후속 Order 도메인 |
-| 지출결의서 | `accounting-service` | P2 | MIG-5 입출금 |
-| 입금보고서 | `accounting-service` | P2 | MIG-5 입출금 |
+| 창고이동 | `inventory-service` | P2 | MIG-5 재고 이동 |
+| 지출결의서 | `accounting-service` | P2 | MIG-5 입출금 staging |
+| 입금보고서 | `accounting-service` | P2 | MIG-5 입출금 staging |
 
 > **참고**: 입출고/재고이동 전표는 거래내역 탭 포함 여부 PoC 시 확인 (별도 메뉴일 수 있음). 확인 후 MIG-6 슬라이스로 분리.
 
@@ -168,8 +169,8 @@ c:\dev\SamhanLogis\docs\migration\ecount-data\raw\master-export-20260513.xlsx
 |---|---|---|---|
 | **MIG-3** 회계 전표 묶음 | 일반전표 + 매입전표 + 매출전표 | `accounting-service` | MIG-2 (계정과목 + 부서) |
 | **MIG-4** 영업·세무 묶음 | 세금계산서용 판매전표 + 판매전표 + 매출매입내역 + 주문서 | `accounting-service` | MIG-1 partner + MIG-2 lookup |
-| **MIG-5** 입출금 묶음 | 지출결의서 + 입금보고서 | `accounting-service` | MIG-2 (계정 + 카드) |
-| **MIG-6** 재고 입출고 | (메뉴 확인 후 분리) | `warehouse` / `inventory` | MIG-2 (창고 + 품목) |
+| **MIG-5** 재고/입출금 묶음 | 창고이동 + 지출결의서 + 입금보고서 | `inventory-service` + `accounting-service` | MIG-1 partner + MIG-2 lookup |
+| **MIG-6** 재고 입출고 | (잔여 메뉴 확인 후 분리) | `warehouse` / `inventory` | MIG-2 (창고 + 품목) |
 
 각 Tier 2 슬라이스는 분기별 N개 파일 반복 import — `source_file_hash + slip_no` 멱등 키로 중복 방지.
 

@@ -33,6 +33,10 @@
 - MIG-4 (PR #272): 이카운트 영업·세무 raw 4종 마이그레이션 — 세금계산서/판매전표/매출매입내역/주문서
   - TaxInvoice OUTBOUND + SalesAccountingSlipLine 보강 + staging only (summary/order)
   - V24 Flyway staging 4표 + TaxInvoiceStatus.MIGRATED + auth V17 PageCode 4종
+- MIG-5 (진행 중): 이카운트 창고이동/지출결의서/입금보고서 raw 3종 마이그레이션
+  - inventory V13 창고이동 staging + StockTransfer 도메인 변환
+  - accounting V25 지출결의서/입금보고서 staging only + Partner aging cross-check
+  - auth V18 PageCode 3종 + MIG5 ErrorCode 8종
 
 ### 최신 진행 메모 (2026-05-16)
 
