@@ -6,6 +6,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
@@ -18,11 +19,16 @@ import com.samhanair.logis.accounting.service.EcountSalesPurchaseSummaryImporter
 import com.samhanair.logis.accounting.service.EcountSalesSlipLineImporter;
 import com.samhanair.logis.accounting.service.EcountTaxInvoiceImporter;
 import com.samhanair.logis.accounting.web.dto.EcountMig4ImportResult;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,51 +61,101 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
         lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} manager upload 200")
+    @MethodSource("endpoints")
     @WithMockUser(authorities = "ROLE_MANAGER")
-    void manager_can_upload_all_mig4_import_files() throws Exception {
-        when(taxInvoiceImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
-        when(salesSlipLineImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
-        when(summaryImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
-        when(orderImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
+    void manager_can_upload(String label, String url) throws Exception {
+        stubSuccess(url);
 
-        forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
-                        .file(file)
+        mockMvc.perform(multipart(url)
+                        .file(file())
                         .header("X-User-Id", "tester")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
-                .andExpect(status().isOk()));
+                .andExpect(status().isOk());
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} member forbidden")
+    @MethodSource("endpoints")
     @WithMockUser(authorities = "ROLE_MEMBER")
-    void member_cannot_upload_all_mig4_import_files() throws Exception {
-        forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
-                        .file(file)
+    void member_cannot_upload(String label, String url) throws Exception {
+        mockMvc.perform(multipart(url)
+                        .file(file())
                         .header("X-User-Id", "tester")
                         .header("X-User-Role", "MEMBER")
                         .with(csrf()))
-                .andExpect(status().isForbidden()));
+                .andExpect(status().isForbidden());
     }
 
-    @Test
-    void anonymous_cannot_upload_all_mig4_import_files() throws Exception {
-        forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
-                        .file(file)
+    @ParameterizedTest(name = "{0} anonymous forbidden")
+    @MethodSource("endpoints")
+    void anonymous_cannot_upload(String label, String url) throws Exception {
+        mockMvc.perform(multipart(url)
+                        .file(file())
                         .header("X-User-Id", "tester")
                         .with(csrf()))
-                .andExpect(status().isForbidden()));
+                .andExpect(status().isForbidden());
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} invalid mime 400")
+    @MethodSource("endpoints")
     @WithMockUser(authorities = "ROLE_MANAGER")
-    void invalid_mime_returns_400_for_all_mig4_import_files() throws Exception {
-        forEachEndpoint((url, ignored) -> mockMvc.perform(multipart(url)
+    void invalid_mime_returns_400(String label, String url) throws Exception {
+        mockMvc.perform(multipart(url)
                         .file(new MockMultipartFile("file", "sample.txt", "text/plain", "x".getBytes()))
                         .header("X-User-Id", "tester")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
-                .andExpect(status().isBadRequest()));
+                .andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest(name = "{0} csv header mismatch 422")
+    @MethodSource("endpoints")
+    @WithMockUser(authorities = "ROLE_MANAGER")
+    void csv_header_mismatch_returns_422(String label, String url) throws Exception {
+        stubHeaderMismatch(url);
+
+        mockMvc.perform(multipart(url)
+                        .file(new MockMultipartFile("file", "broken.csv", "text/csv",
+                                "\"bad\"\n\"row\"\n".getBytes()))
+                        .header("X-User-Id", "tester")
+                        .header("X-User-Role", "MANAGER")
+                        .with(csrf()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("MIG4_CSV_HEADER_MISMATCH")));
+    }
+
+    private void stubSuccess(String url) throws Exception {
+        if (url.contains("tax-invoices")) {
+            when(taxInvoiceImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
+        } else if (url.contains("ecount-line")) {
+            when(salesSlipLineImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
+        } else if (url.contains("sales-purchase-summary")) {
+            when(summaryImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
+        } else {
+            when(orderImporter.importCsv(any(InputStream.class), anyString())).thenReturn(result());
+        }
+    }
+
+    private void stubHeaderMismatch(String url) throws Exception {
+        BusinessException ex = new BusinessException(ErrorCode.MIG4_CSV_HEADER_MISMATCH, "MIG4_CSV_HEADER_MISMATCH");
+        if (url.contains("tax-invoices")) {
+            when(taxInvoiceImporter.importCsv(any(InputStream.class), anyString())).thenThrow(ex);
+        } else if (url.contains("ecount-line")) {
+            when(salesSlipLineImporter.importCsv(any(InputStream.class), anyString())).thenThrow(ex);
+        } else if (url.contains("sales-purchase-summary")) {
+            when(summaryImporter.importCsv(any(InputStream.class), anyString())).thenThrow(ex);
+        } else {
+            when(orderImporter.importCsv(any(InputStream.class), anyString())).thenThrow(ex);
+        }
+    }
+
+    private static Stream<Arguments> endpoints() {
+        return Stream.of(
+                Arguments.of("taxInvoice", "/admin/accounting/tax-invoices/imports/ecount"),
+                Arguments.of("salesSlipLine", "/admin/accounting/sales-slips/imports/ecount-line"),
+                Arguments.of("summary", "/admin/accounting/sales-purchase-summary/imports/ecount"),
+                Arguments.of("order", "/admin/accounting/orders/imports/ecount"));
     }
 
     private static EcountMig4ImportResult result() {
@@ -108,20 +164,5 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
 
     private static MockMultipartFile file() {
         return new MockMultipartFile("file", "sample.csv", "text/csv", "x".getBytes());
-    }
-
-    private void forEachEndpoint(EndpointAssertion assertion) throws Exception {
-        for (String url : List.of(
-                "/admin/accounting/tax-invoices/imports/ecount",
-                "/admin/accounting/sales-slips/imports/ecount-line",
-                "/admin/accounting/sales-purchase-summary/imports/ecount",
-                "/admin/accounting/orders/imports/ecount")) {
-            assertion.verify(url, file());
-        }
-    }
-
-    @FunctionalInterface
-    private interface EndpointAssertion {
-        void verify(String url, MockMultipartFile file) throws Exception;
     }
 }

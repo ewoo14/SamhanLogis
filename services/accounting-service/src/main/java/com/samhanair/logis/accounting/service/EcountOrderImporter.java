@@ -76,6 +76,7 @@ public class EcountOrderImporter {
                 reject(hash, rowNo, ex.getErrorCode().name(), ex.getMessage());
                 if (ex.getErrorCode() == ErrorCode.MIG4_ORDER_STATUS_INVALID) {
                     result.unknownStatus();
+                    continue;
                 }
                 result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), c[0], c[6]);
             }

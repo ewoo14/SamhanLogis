@@ -9,10 +9,12 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -49,6 +51,7 @@ public class EcountTaxInvoiceImporter {
                 EcountMig4ImportResult.builder(parsed.dataRows().size(), hash);
         String actor = EcountMig4ImportSupport.actor(actorUserId);
         Map<String, UUID> invoiceIds = new LinkedHashMap<>();
+        Set<String> seenLineKeys = new HashSet<>();
 
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
@@ -68,6 +71,14 @@ public class EcountTaxInvoiceImporter {
 
                 PartnerSummary partner = lookupPartner(c[0], c[2], rowNo);
                 String groupKey = partner.partnerCode() + "|" + issueDate;
+                String lineKey = groupKey + "|" + EcountCsvSupport.stripCell(c[11]) + "|"
+                        + supply + "|" + vat + "|" + EcountCsvSupport.stripCell(c[14]);
+                if (!seenLineKeys.add(lineKey)) {
+                    throw new BusinessException(ErrorCode.MIG4_TAX_INVOICE_DUPLICATE,
+                            "동일 파일 내 세금계산서 라인 중복: sourceRowNo=" + rowNo
+                                    + ", partnerCode=" + partner.partnerCode()
+                                    + ", issueDate=" + issueDate);
+                }
                 UUID invoiceId = invoiceIds.computeIfAbsent(groupKey,
                         ignored -> upsertInvoice(hash, rowNo, partner, c, issueDate, actor));
                 int lineNo = nextTaxInvoiceLineNo(invoiceId);

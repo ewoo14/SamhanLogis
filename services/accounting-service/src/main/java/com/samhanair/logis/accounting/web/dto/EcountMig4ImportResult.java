@@ -53,6 +53,7 @@ public record EcountMig4ImportResult(
         public void skipped() { skipped++; }
         public void linkedSlip() { linkedSlipCount++; }
         public void unlinkedSlip() { unlinkedSlipCount++; }
+        /** 주문서 unknown 상태 카운터. rejected 의 하위 분류가 아니므로 reject()와 중복 호출하지 않는다. */
         public void unknownStatus() { unknownStatusCount++; }
 
         public void reject(int rowNumber, String errorCode, String message, String businessKey, String rawValue) {

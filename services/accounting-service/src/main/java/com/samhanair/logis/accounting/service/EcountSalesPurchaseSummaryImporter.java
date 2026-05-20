@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.web.dto.EcountMig4ImportResult;
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +46,10 @@ public class EcountSalesPurchaseSummaryImporter {
             int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             try {
+                if (isFooterRow(c)) {
+                    result.skipped();
+                    continue;
+                }
                 LocalDate summaryDate = EcountMig4ImportSupport.parseSlipKey(c[0], rowNo).date();
                 BigDecimal purchaseSupply = EcountMig4ImportSupport.parseAmount(c[5], rowNo);
                 BigDecimal purchaseVat = EcountMig4ImportSupport.parseAmount(c[6], rowNo);
@@ -96,8 +101,19 @@ public class EcountSalesPurchaseSummaryImporter {
                         rs.getString("domain_value")));
         for (SummaryMismatch row : rows) {
             result.mismatch(row.businessKey(), row.rawValue(), row.domainValue(),
-                    "매출매입내역 일별 매출 합계와 매출전표 합계가 다릅니다");
+                    ErrorCode.MIG4_SUMMARY_BALANCE_MISMATCH.name()
+                            + ": 매출매입내역 일별 매출 합계와 매출전표 합계가 다릅니다");
         }
+    }
+
+    private static boolean isFooterRow(String[] c) {
+        String first = EcountCsvSupport.stripCell(c[0]);
+        if (first.isBlank()) {
+            return true;
+        }
+        return first.contains("계 (")
+                || first.contains("누계")
+                || (first.contains("오전") || first.contains("오후"));
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, LocalDate summaryDate,

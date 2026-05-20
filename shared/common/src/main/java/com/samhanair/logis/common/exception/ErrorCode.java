@@ -267,7 +267,7 @@ public enum ErrorCode {
             "매출매입내역 합계 ↔ 도메인 합계 불일치"),
     MIG4_ORDER_STATUS_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "주문서 진행상태 unknown 값"),
-    MIG4_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
+    MIG4_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-4 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;

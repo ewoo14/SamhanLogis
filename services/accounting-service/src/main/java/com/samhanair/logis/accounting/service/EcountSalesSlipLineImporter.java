@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -67,7 +68,7 @@ public class EcountSalesSlipLineImporter {
                 ExistingSlip existingSlip = findSlip(slipKey);
                 UUID slipId = existingSlip == null
                         ? insertSlip(slipKey.canonicalSlipNo(), slipKey.date(), partner, dueDate, actor)
-                        : restoreAndUpdateSlip(existingSlip, partner, dueDate, actor);
+                        : restoreAndUpdateSlip(existingSlip, partner, dueDate, actor, result);
                 int lineNo = nextLineNo(slipId);
                 insertLine(slipId, lineNo, c[3], quantity, unitPrice, supply, vat, total, actor);
                 recalcSlipTotals(slipId, actor);
@@ -84,6 +85,11 @@ public class EcountSalesSlipLineImporter {
                 insertRejectedStaging(hash, rowNo, c, actor);
                 reject(hash, rowNo, ex.getErrorCode().name(), ex.getMessage());
                 result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), c[0], sampleRawValue(c, ex));
+            } catch (DuplicateKeyException ex) {
+                insertRejectedStaging(hash, rowNo, c, actor);
+                reject(hash, rowNo, ErrorCode.CONFLICT.name(), ex.getMessage());
+                result.reject(rowNo, ErrorCode.CONFLICT.name(),
+                        "판매전표 line upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
             }
         }
         return result.build();
@@ -112,7 +118,7 @@ public class EcountSalesSlipLineImporter {
 
     private ExistingSlip findSlip(EcountMig4ImportSupport.SlipKey slipKey) {
         List<ExistingSlip> rows = jdbcTemplate.query("""
-                SELECT id, slip_no, is_deleted
+                SELECT id, slip_no, is_deleted, partner_code, partner_name
                   FROM sales_accounting_slips
                  WHERE slip_no IN (:canonical, :legacy)
                  ORDER BY CASE WHEN is_deleted = FALSE THEN 0 ELSE 1 END
@@ -121,47 +127,92 @@ public class EcountSalesSlipLineImporter {
                 .addValue("canonical", slipKey.canonicalSlipNo())
                 .addValue("legacy", slipKey.legacySlipNo()),
                 (rs, rowNum) -> new ExistingSlip(
-                        (UUID) rs.getObject("id"), rs.getString("slip_no"), rs.getBoolean("is_deleted")));
+                        (UUID) rs.getObject("id"), rs.getString("slip_no"), rs.getBoolean("is_deleted"),
+                        rs.getString("partner_code"), rs.getString("partner_name")));
         return rows.isEmpty() ? null : rows.get(0);
     }
 
     private UUID insertSlip(String slipNo, LocalDate slipDate, PartnerSummary partner,
                             LocalDate dueDate, String actor) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO sales_accounting_slips (
-                  id, slip_no, slip_date, partner_id, partner_code, partner_name, tax_type, status,
-                  total_supply_amount, total_vat_amount, total_amount, posted_at, posted_by,
-                  due_date, memo, created_at, created_by, modified_at, modified_by, is_deleted, version
-                ) VALUES (
-                  gen_random_uuid(), :slipNo, :slipDate, :partnerId, :partnerCode, :partnerName,
-                  'TAXABLE', 'POSTED', 0, 0, 0, NOW(), :actor, :dueDate, 'MIG-4 신규',
-                  NOW(), :actor, NOW(), :actor, FALSE, 0
+                WITH restored AS (
+                    UPDATE sales_accounting_slips
+                       SET slip_date = :slipDate,
+                           partner_id = :partnerId,
+                           partner_code = :partnerCode,
+                           partner_name = :partnerName,
+                           due_date = :dueDate,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE slip_no = :slipNo AND is_deleted = TRUE
+                     RETURNING id
+                ), upserted AS (
+                    INSERT INTO sales_accounting_slips (
+                      id, slip_no, slip_date, partner_id, partner_code, partner_name, tax_type, status,
+                      total_supply_amount, total_vat_amount, total_amount, posted_at, posted_by,
+                      due_date, memo, created_at, created_by, modified_at, modified_by, is_deleted, version
+                    )
+                    SELECT gen_random_uuid(), :slipNo, :slipDate, :partnerId, :partnerCode, :partnerName,
+                      'TAXABLE', 'POSTED', 0, 0, 0, NOW(), :actor, :dueDate, 'MIG-4 신규',
+                      NOW(), :actor, NOW(), :actor, FALSE, 0
+                    WHERE NOT EXISTS (SELECT 1 FROM restored)
+                    ON CONFLICT (slip_no) DO UPDATE SET
+                      due_date = COALESCE(EXCLUDED.due_date, sales_accounting_slips.due_date),
+                      is_deleted = FALSE,
+                      deleted_at = NULL,
+                      deleted_by = NULL,
+                      modified_at = NOW(),
+                      modified_by = EXCLUDED.created_by
+                    RETURNING id
                 )
-                RETURNING id
+                SELECT id FROM restored
+                UNION ALL
+                SELECT id FROM upserted
+                LIMIT 1
                 """, slipParams(slipNo, slipDate, partner, dueDate, actor), UUID.class);
     }
 
     private UUID restoreAndUpdateSlip(ExistingSlip slip, PartnerSummary partner,
-                                      LocalDate dueDate, String actor) {
-        jdbcTemplate.update("""
-                UPDATE sales_accounting_slips
-                   SET partner_id = :partnerId,
-                       partner_code = :partnerCode,
-                       partner_name = :partnerName,
-                       due_date = COALESCE(:dueDate, due_date),
-                       is_deleted = FALSE,
-                       deleted_at = NULL,
-                       deleted_by = NULL,
-                       modified_at = NOW(),
-                       modified_by = :actor
-                 WHERE id = :id
-                """, new MapSqlParameterSource()
-                .addValue("id", slip.id())
-                .addValue("partnerId", partner.partnerId())
-                .addValue("partnerCode", partner.partnerCode())
-                .addValue("partnerName", partner.name())
-                .addValue("dueDate", dueDate)
-                .addValue("actor", actor));
+                                      LocalDate dueDate, String actor, EcountMig4ImportResult.Builder result) {
+        if (slip.deleted()) {
+            jdbcTemplate.update("""
+                    UPDATE sales_accounting_slips
+                       SET partner_id = :partnerId,
+                           partner_code = :partnerCode,
+                           partner_name = :partnerName,
+                           due_date = COALESCE(:dueDate, due_date),
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE id = :id
+                    """, new MapSqlParameterSource()
+                    .addValue("id", slip.id())
+                    .addValue("partnerId", partner.partnerId())
+                    .addValue("partnerCode", partner.partnerCode())
+                    .addValue("partnerName", partner.name())
+                    .addValue("dueDate", dueDate)
+                    .addValue("actor", actor));
+        } else {
+            jdbcTemplate.update("""
+                    UPDATE sales_accounting_slips
+                       SET due_date = COALESCE(:dueDate, due_date),
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE id = :id
+                    """, new MapSqlParameterSource()
+                    .addValue("id", slip.id())
+                    .addValue("dueDate", dueDate)
+                    .addValue("actor", actor));
+            if (partnerMismatch(slip, partner)) {
+                result.mismatch(slip.slipNo(), partner.partnerCode(), slip.partnerCode(),
+                        "기존 active 매출전표 거래처 정보는 덮어쓰지 않습니다");
+            }
+        }
         return slip.id();
     }
 
@@ -316,6 +367,11 @@ public class EcountSalesSlipLineImporter {
         };
     }
 
-    private record ExistingSlip(UUID id, String slipNo, boolean deleted) {
+    private static boolean partnerMismatch(ExistingSlip slip, PartnerSummary partner) {
+        return !java.util.Objects.equals(slip.partnerCode(), partner.partnerCode())
+                || !java.util.Objects.equals(slip.partnerName(), partner.name());
+    }
+
+    private record ExistingSlip(UUID id, String slipNo, boolean deleted, String partnerCode, String partnerName) {
     }
 }

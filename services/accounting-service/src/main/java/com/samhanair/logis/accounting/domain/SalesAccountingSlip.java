@@ -134,8 +134,4 @@ public class SalesAccountingSlip extends BaseEntity {
         this.taxInvoiceId = taxInvoiceId;
     }
 
-    /** MIG-4 판매전표 raw 의 입금예정일 보강. */
-    public void updateDueDate(LocalDate dueDate) {
-        this.dueDate = dueDate;
-    }
 }
