@@ -92,6 +92,9 @@ public class Employee extends BaseEntity {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "ecount_code", length = 50)
+    private String ecountCode;
+
     private Employee(UUID id, String loginId, String fullName, String position, Role roleSnapshot,
                      Department department, boolean teamLead, LocalDate hireDate, String email, String phone) {
         this.id = id;

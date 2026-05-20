@@ -288,7 +288,23 @@ public enum ErrorCode {
     MIG5_AGING_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "Partner aging 잔액 ↔ 누계 합계 불일치"),
     MIG5_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-5 CSV 헤더 불일치");
+            "MIG-5 CSV 헤더 불일치"),
+    MIG6_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "lookup 키 매핑 누락 - 계정/부서/사원 확인 필요"),
+    MIG6_LOOKUP_AMBIGUOUS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "lookup 키 다중 매치 - 중복 데이터 정리 필요"),
+    MIG6_EMPLOYEE_CODE_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 source_file 내 사원코드 중복"),
+    MIG6_BANK_ACCOUNT_CODE_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 source_file 내 계좌코드 중복"),
+    MIG6_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-6 일자 포맷 불일치"),
+    MIG6_RESIDENT_NUMBER_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "주민등록번호 형식 불일치"),
+    MIG6_BOOLEAN_FLAG_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "사용 여부 값 불일치"),
+    MIG6_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-6 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

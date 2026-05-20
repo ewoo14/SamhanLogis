@@ -23,3 +23,14 @@ MIG-5는 이카운트 입출금성 raw 2종을 accounting-service staging에 보
 | `EcountDepositReportImporter` | `POST /admin/accounting/deposit-reports/imports/ecount` | 입금보고서 staging only + 미수 Partner aging 검증 |
 
 cash disbursement/receipt 도메인 신설은 후속 슬라이스로 둔다.
+
+## Ecount MIG-6 Importers
+
+MIG-6는 잔여 마스터 중 accounting-service 소유 2종을 staging과 도메인 테이블로 이관한다.
+
+| Importer | Endpoint | 처리 |
+|---|---|---|
+| `EcountBankAccountImporter` | `POST /admin/accounting/bank-accounts/imports/ecount` | 통장계좌 → `bank_accounts` (`chart_account_code`, 외화 여부, 사용 여부 포함) |
+| `EcountFixedAssetTypeImporter` | `POST /admin/accounting/fixed-asset-types/imports/ecount` | 고정자산유형 → `fixed_asset_types` |
+
+공통 규칙은 MIG-5와 동일하다: SHA-256 `source_file_hash`, 1-base `source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, importer별 `pg_advisory_xact_lock`, soft-delete CTE 복구, header mismatch 422.

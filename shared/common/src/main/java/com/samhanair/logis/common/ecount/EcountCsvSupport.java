@@ -158,7 +158,11 @@ public final class EcountCsvSupport {
     }
 
     private static boolean hasMetaRow(String[] row) {
-        return row.length > 0 && stripCell(row[0]).startsWith("데이터관리>");
+        if (row.length == 0) {
+            return false;
+        }
+        String first = stripCell(row[0]);
+        return first.startsWith("데이터관리>") || first.startsWith("회사명 :");
     }
 
     private static List<String> headerDiff(String[] header, String[] expected) {

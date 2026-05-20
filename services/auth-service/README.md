@@ -28,8 +28,9 @@ All responses are wrapped in `ApiResponse<T>`; errors surface as
 | Slice | Flyway | PageCode |
 |---|---|---|
 | MIG-5 | V18 | `ecount.mig5.stock-transfer`, `ecount.mig5.expense-voucher`, `ecount.mig5.deposit-report` |
+| MIG-6 | V19 | `ecount.mig6.bank-account`, `ecount.mig6.employee`, `ecount.mig6.employee-card`, `ecount.mig6.payroll-employee`, `ecount.mig6.fixed-asset-type` |
 
-MIG-5 seed는 MASTER/MANAGER edit 허용, DISPATCH/MEMBER deny 기본값으로 role_page_permissions에 추가된다.
+MIG-5/6 seed는 MASTER/MANAGER edit 허용을 role_page_permissions에 추가한다.
 
 ## Environment variables
 

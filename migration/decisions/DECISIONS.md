@@ -2139,3 +2139,28 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-5-14 | controller IT는 endpoint별 multipart/권한/header mismatch 케이스를 parameterized로 유지한다. |
 
 **산출 예정/진행**: inventory V13, accounting V25, auth V18, 3 importer/controller, fixture cross-check 3종, dev-report `docs/dev-reports/ecount-mig-5-stock-expense-deposit.md`.
+
+### D-MIG-6-00. 이카운트 잔여 마스터 5종 마이그레이션 (MIG-6, 2026-05-20)
+
+**배경**: MIG-5 머지 후 잔여 마스터 raw 5종(통장계좌/사원/인사카드/급여관리사원/고정자산유형)을 한 PR에서 정리한다. 신규 meta row `회사명 :`와 인사카드 주민등록번호 PII를 critical guard로 둔다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-6-01 | 5 raw는 한 PR 통합으로 처리한다. |
+| D-MIG-6-02 | 통장계좌는 `BankAccount` 신규 도메인으로 둔다. MIG-2 `CardMaster`와 분리한다. |
+| D-MIG-6-03 | 사원은 기존 `Employee`에 `ecount_code`를 보강하고, 인사카드/급여관리사원은 신규 도메인으로 둔다. |
+| D-MIG-6-04 | 주민등록번호 평문 저장 금지. staging/domain 모두 `resident_number_masked`만 저장한다. |
+| D-MIG-6-05 | `EcountCsvSupport.hasMetaRow`는 `데이터관리>`와 `회사명 :`를 모두 meta row로 인식한다. |
+| D-MIG-6-06 | lookup miss/ambiguous는 silent fallback 없이 `MIG6_LOOKUP_MISS`/`MIG6_LOOKUP_AMBIGUOUS`로 reject 한다. |
+| D-MIG-6-07 | staging 멱등 키는 SHA-256 `source_file_hash` + 1-base `source_row_no` 복합 PK로 둔다. |
+| D-MIG-6-08 | 5 importer는 서로 다른 `pg_advisory_xact_lock` namespace를 사용한다. |
+| D-MIG-6-09 | 5 도메인 upsert는 soft-delete CTE 복구 패턴을 적용한다. |
+| D-MIG-6-10 | admin UI는 후속 슬라이스로 둔다. |
+| D-MIG-6-11 | auth-service V19에 MIG6 PageCode 5종 권한 seed를 추가한다. |
+| D-MIG-6-12 | shared/common에 MIG6 ErrorCode 8종을 추가한다. |
+| D-MIG-6-13 | PM 자동시작 범위로 spec → plan → Codex 개발을 진행한다. |
+| D-MIG-6-14 | importer behavior 테스트를 처음부터 작성해 MIG-4/5 회고를 반영한다. |
+| D-MIG-6-15 | controller IT는 5 endpoint × 5 case parameterized로 유지한다. |
+| D-MIG-6-16 | `MIG6_CSV_HEADER_MISMATCH`는 HTTP 422로 통일한다. |
+
+**산출 예정/진행**: accounting V26, user V8, auth V19, 5 importer/controller, fixture cross-check 5종, dev-report `docs/dev-reports/ecount-mig-6-master-employee-asset.md`.

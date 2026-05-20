@@ -93,3 +93,15 @@ default datasource (or the `local` profile for H2).
 - production 진입 시점에는 입사일 입력 의무 또는 사용자 입력 화면 추가 (Phase 10 user-service 화면 슬라이스 시점 정식 처리)
 
 상세 결정은 `migration/decisions/DECISIONS.md` D-P9-21 참조.
+
+## Ecount MIG-6 Importers
+
+MIG-6는 이카운트 잔여 마스터 중 user-service 소유 3종을 이관한다.
+
+| Importer | Endpoint | 처리 |
+|---|---|---|
+| `EcountEmployeeImporter` | `POST /admin/user/employees/imports/ecount` | 사원 → `employees.ecount_code` 보강, 연락처/이메일/사용 여부 반영 |
+| `EcountEmployeeCardImporter` | `POST /admin/user/employee-cards/imports/ecount` | 인사카드 → `employee_cards`, 주민등록번호는 `resident_number_masked`만 저장 |
+| `EcountPayrollEmployeeImporter` | `POST /admin/user/payroll-employees/imports/ecount` | 급여관리사원 → `payroll_employees`, 사원/부서 lookup 기반 연결 |
+
+PII 가드: 인사카드 CSV의 주민등록번호 평문은 staging에도 저장하지 않는다. import 시점에 `740114-1030932` 형식은 `740114-1******`로 변환하고, fixture는 `XXXXXX-XXXXXXX` placeholder만 사용한다.

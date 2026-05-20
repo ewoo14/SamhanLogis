@@ -4,6 +4,16 @@
 
 ---
 
+## 🚧 2026-05-20 Codex Update — MIG-6 잔여 마스터 5종 개발 진행
+
+- Branch: `spec/2026-05-20-mig-6-master-employee-asset`
+- 범위: 통장계좌/사원/인사카드/급여관리사원/고정자산유형 5종 importer + controller + Flyway + PageCode + fixture/test + 문서 동기화.
+- PII guard: 인사카드 주민등록번호는 staging/domain 모두 `resident_number_masked`만 저장. fixture는 `XXXXXX-XXXXXXX` placeholder 사용.
+- 구현 상태: Task 1~9 반영 완료. `docs/dev-reports/ecount-mig-6-master-employee-asset.md`에 설계/검증 메모 누적.
+- 검증 상태: Gradle wrapper/Gradle plugin 의존성 다운로드가 현재 Codex sandbox 네트워크 제한(`Permission denied: getsockopt`)에 막혀 전체 Gradle 검증 미완료. 따라서 commit/push 보류.
+
+---
+
 ## 🚀 2026-05-20 최신 진행 — MIG-5 머지 완료 + MIG-6 자동 진입 대기
 
 ### 머지 완료 슬라이스 (2026-05-20)

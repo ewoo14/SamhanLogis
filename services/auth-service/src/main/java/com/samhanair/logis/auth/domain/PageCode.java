@@ -236,7 +236,22 @@ public enum PageCode {
     ECOUNT_MIG5_EXPENSE_VOUCHER("ecount.mig5.expense-voucher", "이카운트 지출결의서 마이그레이션"),
 
     /** MIG-5 이카운트 입금보고서 마이그레이션. */
-    ECOUNT_MIG5_DEPOSIT_REPORT("ecount.mig5.deposit-report", "이카운트 입금보고서 마이그레이션");
+    ECOUNT_MIG5_DEPOSIT_REPORT("ecount.mig5.deposit-report", "이카운트 입금보고서 마이그레이션"),
+
+    /** MIG-6 이카운트 통장계좌 마이그레이션. */
+    ECOUNT_MIG6_BANK_ACCOUNT("ecount.mig6.bank-account", "이카운트 통장계좌 마이그레이션"),
+
+    /** MIG-6 이카운트 사원 마이그레이션. */
+    ECOUNT_MIG6_EMPLOYEE("ecount.mig6.employee", "이카운트 사원 마이그레이션"),
+
+    /** MIG-6 이카운트 인사카드 마이그레이션. */
+    ECOUNT_MIG6_EMPLOYEE_CARD("ecount.mig6.employee-card", "이카운트 인사카드 마이그레이션"),
+
+    /** MIG-6 이카운트 급여관리사원 마이그레이션. */
+    ECOUNT_MIG6_PAYROLL_EMPLOYEE("ecount.mig6.payroll-employee", "이카운트 급여관리사원 마이그레이션"),
+
+    /** MIG-6 이카운트 고정자산유형 마이그레이션. */
+    ECOUNT_MIG6_FIXED_ASSET_TYPE("ecount.mig6.fixed-asset-type", "이카운트 고정자산유형 마이그레이션");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

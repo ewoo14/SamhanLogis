@@ -47,4 +47,18 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG5_DEPOSIT_REPORT.getCode())
                 .isEqualTo("ecount.mig5.deposit-report");
     }
+
+    @Test
+    void mig6_pageCodes_5종_정상등록() {
+        assertThat(PageCode.ECOUNT_MIG6_BANK_ACCOUNT.getCode())
+                .isEqualTo("ecount.mig6.bank-account");
+        assertThat(PageCode.ECOUNT_MIG6_EMPLOYEE.getCode())
+                .isEqualTo("ecount.mig6.employee");
+        assertThat(PageCode.ECOUNT_MIG6_EMPLOYEE_CARD.getCode())
+                .isEqualTo("ecount.mig6.employee-card");
+        assertThat(PageCode.ECOUNT_MIG6_PAYROLL_EMPLOYEE.getCode())
+                .isEqualTo("ecount.mig6.payroll-employee");
+        assertThat(PageCode.ECOUNT_MIG6_FIXED_ASSET_TYPE.getCode())
+                .isEqualTo("ecount.mig6.fixed-asset-type");
+    }
 }
