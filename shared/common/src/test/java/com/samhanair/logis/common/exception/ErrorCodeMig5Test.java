@@ -11,6 +11,8 @@ class ErrorCodeMig5Test {
     void mig5_errorCodes_정상등록() {
         assertThat(ErrorCode.MIG5_TRANSFER_NO_DUPLICATE.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.MIG5_LOOKUP_MISS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.MIG5_WAREHOUSE_LOOKUP_MISS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.MIG5_PRODUCT_LOOKUP_MISS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG5_LOOKUP_AMBIGUOUS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG5_AMOUNT_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG5_DATE_INVALID.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);

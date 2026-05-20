@@ -47,7 +47,7 @@ V18 seed:
 - `INSERT INTO page_codes ... ON CONFLICT DO NOTHING` × 3
 - `INSERT INTO role_page_permissions ...` × 6 (MASTER/MANAGER true, DISPATCH/MEMBER false)
 
-### Task 4: ErrorCode MIG5 8종 (shared/common)
+### Task 4: ErrorCode MIG5 10종 (shared/common)
 
 **Files:**
 - Modify: `shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java`
@@ -55,6 +55,8 @@ V18 seed:
 신규 enum 값:
 - `MIG5_TRANSFER_NO_DUPLICATE(CONFLICT, "동일 source_file 내 transferNo 중복")`
 - `MIG5_LOOKUP_MISS(UNPROCESSABLE_ENTITY, "lookup 키 매핑 누락 - 거래처/품목/창고 확인 필요")`
+- `MIG5_WAREHOUSE_LOOKUP_MISS(UNPROCESSABLE_ENTITY, "창고명 lookup miss")`
+- `MIG5_PRODUCT_LOOKUP_MISS(UNPROCESSABLE_ENTITY, "품목명 lookup miss")`
 - `MIG5_LOOKUP_AMBIGUOUS(UNPROCESSABLE_ENTITY, "거래처명/창고명 중복 매칭")`
 - `MIG5_AMOUNT_INVALID(UNPROCESSABLE_ENTITY, "금액 형식 불일치 또는 음수")`
 - `MIG5_DATE_INVALID(BAD_REQUEST, "일자 포맷 불일치")`
@@ -74,7 +76,7 @@ V18 seed:
 - OpenCSV + EcountCsvSupport.parse → strict 7 column header + trailing empty 1개 허용
 - staging `ON CONFLICT DO NOTHING`
 - 출고/입고 창고명 → MIG-2 `staging.ecount_warehouse_map` lookup
-- 품목명[규격] → MIG-2 `staging.ecount_item_alias` lookup
+- 품목명[규격] → product-service `/products/internal/by-name?name=` lookup
 - 동일 transferNo 다중 raw row → 1 StockTransfer + N StockTransferLine
 - `StockTransfer.draftMigration(transferNo, sourceWarehouseId, destinationWarehouseId, memo, status=CONFIRMED, externalRef)` factory 신규 (또는 raw INSERT 패턴 MIG-3/4 일관)
 - soft-delete CTE 복구 (StockTransfer + StockTransferLine 양쪽)
@@ -84,8 +86,8 @@ V18 seed:
 behavior 테스트 9 케이스 (D-MIG-5-13 의무):
 - 정상 1건 적재 + N line group
 - 정상 동일 transferNo 다중 line group
-- MIG5_LOOKUP_MISS (warehouse)
-- MIG5_LOOKUP_MISS (product)
+- MIG5_WAREHOUSE_LOOKUP_MISS (warehouse)
+- MIG5_PRODUCT_LOOKUP_MISS (product)
 - MIG5_AMOUNT_INVALID (음수)
 - MIG5_DATE_INVALID
 - multi_row_source_row_no

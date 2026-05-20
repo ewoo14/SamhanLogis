@@ -17,7 +17,7 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 |---|---|---|
 | `EcountStockTransferImporter` | `POST /admin/inventory/stock-transfers/imports/ecount` | 창고이동 raw → `staging.ecount_stock_transfer_raw` 멱등 적재 + `StockTransfer`/`StockTransferLine` `CONFIRMED` 변환 |
 
-MIG-2 `staging.ecount_warehouse_map` / `staging.ecount_item_alias` lookup map을 재사용한다. 응답은 UUID를 노출하지 않고 `transferNo`, 창고명, 품목명 중심 sample만 반환한다.
+창고명은 MIG-2 `staging.ecount_warehouse_map` lookup map을 재사용하고, 품목명은 product-service internal lookup으로 해석한다. 응답은 UUID를 노출하지 않고 `transferNo`, 창고명, 품목명 중심 sample만 반환한다.
 
 ## 외부 의존
 

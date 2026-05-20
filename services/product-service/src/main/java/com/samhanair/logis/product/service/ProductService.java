@@ -90,6 +90,31 @@ public class ProductService {
     }
 
     /**
+     * 제품명 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
+     * MIG-5 이카운트 창고이동 raw 품목명 lookup 의 service-to-service 경로다.
+     *
+     * @param name 정확 매칭할 제품명
+     * @return ProductSummaryResponse
+     * @throws BusinessException(INVALID_INPUT) name null/blank
+     * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
+     * @throws BusinessException(CONFLICT) 동일 제품명 활성 row 2건 이상
+     */
+    @Transactional(readOnly = true)
+    public ProductSummaryResponse lookupSummaryByName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "제품명이 비어있습니다");
+        }
+        List<Product> rows = productRepository.findByNameAndIsDeletedFalse(name.trim());
+        if (rows.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "제품명에 해당하는 제품이 없습니다");
+        }
+        if (rows.size() > 1) {
+            throw new BusinessException(ErrorCode.CONFLICT, "제품명 중복 매칭: " + name.trim());
+        }
+        return ProductSummaryResponse.from(rows.get(0));
+    }
+
+    /**
      * 모델명 정확 매칭 단건 조회 후 ProductResponse(상세) 로 변환.
      * Public endpoint 전용 경로 (gateway 경유 FE 호출).
      *

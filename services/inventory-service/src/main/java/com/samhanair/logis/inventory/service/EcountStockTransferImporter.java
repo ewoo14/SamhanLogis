@@ -5,9 +5,12 @@ import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
 import com.samhanair.logis.common.ecount.EcountMig5ImportSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.inventory.client.ProductLookupClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,6 +33,7 @@ public class EcountStockTransferImporter {
     };
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final ProductLookupClient productLookupClient;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig5ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -103,7 +107,7 @@ public class EcountStockTransferImporter {
                 """, new MapSqlParameterSource("name", name),
                 (rs, rowNum) -> (UUID) rs.getObject("warehouse_uuid"));
         if (rows.isEmpty()) {
-            throw new BusinessException(ErrorCode.MIG5_LOOKUP_MISS,
+            throw new BusinessException(ErrorCode.MIG5_WAREHOUSE_LOOKUP_MISS,
                     fieldName + " lookup miss: sourceRowNo=" + rowNo + ", warehouseName='" + name + "'");
         }
         if (rows.size() > 1) {
@@ -138,23 +142,13 @@ public class EcountStockTransferImporter {
     }
 
     private UUID lookupProduct(String itemName, int rowNo) {
-        String alias = EcountCsvSupport.stripCell(itemName);
-        List<UUID> rows = jdbcTemplate.query("""
-                SELECT main_product_uuid
-                  FROM staging.ecount_item_alias
-                 WHERE alias_code = :alias
-                 LIMIT 2
-                """, new MapSqlParameterSource("alias", alias),
-                (rs, rowNum) -> (UUID) rs.getObject("main_product_uuid"));
-        if (rows.isEmpty()) {
-            throw new BusinessException(ErrorCode.MIG5_LOOKUP_MISS,
-                    "품목 lookup miss: sourceRowNo=" + rowNo + ", itemName='" + alias + "'");
+        String name = EcountCsvSupport.stripCell(itemName);
+        Optional<ProductSummary> product = productLookupClient.findByProductNameStrict(name);
+        if (product.isEmpty() || product.get().id() == null) {
+            throw new BusinessException(ErrorCode.MIG5_PRODUCT_LOOKUP_MISS,
+                    "품목 lookup miss: sourceRowNo=" + rowNo + ", itemName='" + name + "'");
         }
-        if (rows.size() > 1) {
-            throw new BusinessException(ErrorCode.MIG5_LOOKUP_AMBIGUOUS,
-                    "품목 lookup ambiguous: sourceRowNo=" + rowNo + ", itemName='" + alias + "'");
-        }
-        return rows.get(0);
+        return product.get().id();
     }
 
     private ExistingTransfer findTransfer(String transferNo) {
@@ -338,9 +332,27 @@ public class EcountStockTransferImporter {
         return switch (ex.getErrorCode()) {
             case MIG5_AMOUNT_INVALID -> ex.getMessage() != null && ex.getMessage().startsWith("금액") ? c[5] : c[4];
             case MIG5_DATE_INVALID -> c[0];
-            case MIG5_LOOKUP_MISS, MIG5_LOOKUP_AMBIGUOUS -> c[3];
+            case MIG5_WAREHOUSE_LOOKUP_MISS -> warehouseSample(c, ex);
+            case MIG5_PRODUCT_LOOKUP_MISS -> c[3];
+            case MIG5_LOOKUP_MISS -> c[3];
+            case MIG5_LOOKUP_AMBIGUOUS -> lookupAmbiguousSample(c, ex);
             default -> String.join("\u001F", c);
         };
+    }
+
+    private static String warehouseSample(String[] c, BusinessException ex) {
+        return ex.getMessage() != null && ex.getMessage().startsWith("입고창고명") ? c[2] : c[1];
+    }
+
+    private static String lookupAmbiguousSample(String[] c, BusinessException ex) {
+        String message = ex.getMessage();
+        if (message != null && message.startsWith("입고창고명")) {
+            return c[2];
+        }
+        if (message != null && message.startsWith("출고창고명")) {
+            return c[1];
+        }
+        return c[3];
     }
 
     private record ExistingTransfer(UUID id, boolean deleted) {

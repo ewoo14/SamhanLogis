@@ -7,7 +7,7 @@
 ## 2026-05-20 Codex Update — MIG-5 개발 진행 중
 
 - 브랜치: `spec/2026-05-20-mig-5-stock-expense-deposit`
-- 범위: inventory V13 창고이동 staging + `EcountStockTransferImporter`, accounting V25 지출결의서/입금보고서 staging + importer 2종, auth V18 PageCode 3종, shared/common MIG5 ErrorCode 8종.
+- 범위: inventory V13 창고이동 staging + `EcountStockTransferImporter`, accounting V25 지출결의서/입금보고서 staging + importer 2종, auth V18 PageCode 3종, shared/common MIG5 ErrorCode 10종.
 - 테스트 산출: behavior test 3종, fixture header cross-check 2종, controller IT 2종 추가.
 - 검증 상태: `gradlew.bat`는 Gradle 배포본 다운로드가 sandbox 네트워크 제한으로 실패했고, 캐시 Gradle `--offline`도 plugin classpath 캐시 부재로 실패했다. 사용자 지시 조건에 따라 commit/push 보류.
 - 다음 단계: 네트워크 접근 가능한 환경에서 `./gradlew.bat :services:inventory-service:test :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon` 재실행 후 통과 시 한국어 commit + push.

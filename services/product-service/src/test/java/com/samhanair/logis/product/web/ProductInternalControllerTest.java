@@ -179,4 +179,52 @@ class ProductInternalControllerTest {
         assertThat(response.getStatus()).isEqualTo(401);
         verify(productService, never()).lookupSummaryByModelName(any());
     }
+
+    @Test
+    void lookupByName_existing_returns200() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        when(productService.lookupSummaryByName("품목A")).thenReturn(
+                new ProductSummaryResponse(id, "품목A", "MODEL-A", categoryId,
+                        new BigDecimal("1000.00"), ProductStatus.ACTIVE));
+
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders
+                        .get("/products/internal/by-name")
+                        .queryParam("name", "품목A")
+                        .header("X-Internal-Token", VALID_TOKEN))
+                .andReturn().getResponse();
+        response.setCharacterEncoding("UTF-8");
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).contains("품목A");
+        verify(productService).lookupSummaryByName("품목A");
+    }
+
+    @Test
+    void lookupByName_missing_returns404() throws Exception {
+        when(productService.lookupSummaryByName("미등록품목"))
+                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "제품명에 해당하는 제품이 없습니다"));
+
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders
+                        .get("/products/internal/by-name")
+                        .queryParam("name", "미등록품목")
+                        .header("X-Internal-Token", VALID_TOKEN))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(404);
+        verify(productService).lookupSummaryByName("미등록품목");
+    }
+
+    @Test
+    void lookupByName_wrongToken_returns401() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders
+                        .get("/products/internal/by-name")
+                        .queryParam("name", "품목A")
+                        .header("X-Internal-Token", "wrong-token"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        verify(productService, never()).lookupSummaryByName(any());
+    }
 }

@@ -11,11 +11,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
+import com.samhanair.logis.inventory.client.ProductLookupClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,12 +36,13 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 class EcountStockTransferImporterTest {
 
     @Mock private NamedParameterJdbcTemplate jdbcTemplate;
+    @Mock private ProductLookupClient productLookupClient;
 
     private EcountStockTransferImporter importer;
 
     @BeforeEach
     void setUp() {
-        importer = new EcountStockTransferImporter(jdbcTemplate);
+        importer = new EcountStockTransferImporter(jdbcTemplate, productLookupClient);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Object.class)))
                 .thenReturn(null);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
@@ -78,23 +83,27 @@ class EcountStockTransferImporterTest {
     }
 
     @Test
-    void warehouse_lookup_miss는_MIG5_LOOKUP_MISS() {
+    void 창고_lookup_miss는_MIG5_WAREHOUSE_LOOKUP_MISS_와_창고명_sample_반환() {
         stubLookupRows(true, false, false);
 
         EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(row("2026/05/02 -1", "품목A", "2", ""))), "tester");
 
         assertThat(result.rejected()).isEqualTo(1);
         assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::errorCode)
-                .containsExactly("MIG5_LOOKUP_MISS");
+                .containsExactly("MIG5_WAREHOUSE_LOOKUP_MISS");
+        assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::rawValue)
+                .containsExactly("출고창고");
     }
 
     @Test
-    void product_lookup_miss는_MIG5_LOOKUP_MISS() {
+    void 품목_lookup_miss는_MIG5_PRODUCT_LOOKUP_MISS_와_품목명_sample_반환() {
         stubLookupRows(false, true, false);
 
         EcountMig5ImportResult result = importer.importCsv(stream(stockCsv(row("2026/05/02 -1", "품목A", "2", ""))), "tester");
 
         assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG5_PRODUCT_LOOKUP_MISS");
         assertThat(result.rejectedSample()).extracting(EcountMig5ImportResult.RejectedRow::rawValue)
                 .containsExactly("품목A");
     }
@@ -199,6 +208,8 @@ class EcountStockTransferImporterTest {
     private void stubLookupRowsWithTransferLookupSequence(boolean warehouseMiss, boolean productMiss,
                                                           TransferLookup... transferLookupSequence) {
         transferLookupCallIndex = 0;
+        lenient().when(productLookupClient.findByProductNameStrict(anyString()))
+                .thenReturn(productMiss ? Optional.empty() : Optional.of(productSummary()));
         lenient().when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
@@ -213,15 +224,6 @@ class EcountStockTransferImporterTest {
                         when(rs.getObject("warehouse_uuid")).thenReturn(
                                 name.contains("입고") ? UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2")
                                         : UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1"));
-                        return List.of(mapper.mapRow(rs, 0));
-                    }
-                    if (sql.contains("staging.ecount_item_alias")) {
-                        if (productMiss) {
-                            return List.of();
-                        }
-                        ResultSet rs = mock(ResultSet.class);
-                        when(rs.getObject("main_product_uuid"))
-                                .thenReturn(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
                         return List.of(mapper.mapRow(rs, 0));
                     }
                     if (sql.contains("FROM stock_transfers")) {
@@ -247,6 +249,12 @@ class EcountStockTransferImporterTest {
         MISSING,
         ACTIVE,
         SOFT_DELETED
+    }
+
+    private static ProductSummary productSummary() {
+        return new ProductSummary(UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                "품목A", "MODEL-A", UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                new BigDecimal("1000.00"), "ACTIVE");
     }
 
     private static InputStream stream(String csv) {

@@ -34,6 +34,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      */
     Optional<Product> findByModelNameAndIsDeletedFalse(String modelName);
 
+    List<Product> findByNameAndIsDeletedFalse(String name);
+
     List<Product> findAllByIdIn(Collection<UUID> ids);
 
     Page<Product> findAllByCategory_Id(UUID categoryId, Pageable pageable);

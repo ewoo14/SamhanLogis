@@ -34,7 +34,7 @@ MIG-4 ([영업·세무 raw 4종, PR #272](https://github.com/.../pull/272)) 머�
 |---|---|---|
 | inventory-service | V13 | `staging.ecount_stock_transfer_raw` + `EcountStockTransferImporter` + controller |
 | accounting-service | V25 | `staging.ecount_expense_voucher_raw` + `staging.ecount_deposit_report_raw` + 2 importer + 2 controller + Partner aging cross-check SQL |
-| shared/common | — | ErrorCode MIG5 8종 |
+| shared/common | — | ErrorCode MIG5 10종 |
 | auth-service | V18 | PageCode MIG5 3종 + ROLE_MASTER+MANAGER seed |
 
 > partner / product / user 변경 없음 (MIG-1 partner + MIG-2 lookup map 4종 사용만).
@@ -70,9 +70,9 @@ staging.ecount_*_raw (3 테이블, 멱등 키 = source_file_hash SHA-256 + sourc
 | 일자-No. (`yyyy/MM/dd -N`) | `StockTransfer.transferNo` | `yyyy-MM-dd-NNN` 정규화 (MIG-3/4 패턴 일관) |
 | 출고창고명 | `sourceWarehouseId` | MIG-2 `staging.ecount_warehouse_map` lookup |
 | 입고창고명 | `destinationWarehouseId` | MIG-2 warehouse_map lookup |
-| 품목명[규격] | `StockTransferLine.productId` | MIG-2 `staging.ecount_item_alias` lookup (품목코드 ≠ 품목명 [[project_ecount_product_identity_rule]] 적용) |
+| 품목명[규격] | `StockTransferLine.productId` | product-service `/products/internal/by-name?name=` lookup (품목코드 ≠ 품목명 [[project_ecount_product_identity_rule]] 적용) |
 | 수량 | `StockTransferLine.quantity` | Integer parse |
-| 금액(수량*입고단가) | `StockTransferLine.amount` | KRW comma 제거 + BigDecimal (빈 값 허용 — raw 일부 null) |
+| 금액(수량*입고단가) | staging.ecount_stock_transfer_raw.amount 보존만 (도메인 변환 X) | KRW comma 제거 + BigDecimal (빈 값 허용 — raw 일부 null). StockTransferLine 도메인은 amount 컬럼 미보유 — 후속 슬라이스에서 inventory 도메인 보강 시 검토. |
 | 적요 | `StockTransfer.memo` | trim |
 
 - 상태: `CONFIRMED` (마이그레이션은 운영 완료 transfer 만 대상)
@@ -107,9 +107,9 @@ staging.ecount_*_raw (3 테이블, 멱등 키 = source_file_hash SHA-256 + sourc
 ## 6. lookup 정규화 (MIG-1/2 lookup map 재사용)
 
 - `staging.ecount_warehouse_map` (MIG-2) — 출고/입고 창고명 → Warehouse.id
-- `staging.ecount_item_alias` (MIG-2) — 품목명[규격] → Product.id
+- `product-service` `/products/internal/by-name?name=` — 품목명[규격] → Product.id (inventory-service DB 경계 준수)
 - `partner-service` `/internal/partners/by-name` (MIG-3 endpoint) — 거래처명 → Partner.id
-- lookup miss → silent fallback 금지, `MIG5_LOOKUP_MISS` reject (sample 컬럼+raw value 포함 message) — MIG-3 D-05 / MIG-4 패턴
+- lookup miss → silent fallback 금지, 거래처는 `MIG5_LOOKUP_MISS`, 창고는 `MIG5_WAREHOUSE_LOOKUP_MISS`, 품목은 `MIG5_PRODUCT_LOOKUP_MISS` reject (sample 컬럼+raw value 포함 message) — MIG-3 D-05 / MIG-4 패턴
 
 ---
 
@@ -139,7 +139,9 @@ staging.ecount_*_raw (3 테이블, 멱등 키 = source_file_hash SHA-256 + sourc
 ## 9. ErrorCode 신규 (shared/common)
 
 - `MIG5_TRANSFER_NO_DUPLICATE` — 동일 source_file 내 transferNo 중복
-- `MIG5_LOOKUP_MISS` — 거래처/품목/창고 lookup miss (sample 포함)
+- `MIG5_LOOKUP_MISS` — 거래처 lookup miss (sample 포함)
+- `MIG5_WAREHOUSE_LOOKUP_MISS` — 창고명 lookup miss (출고/입고 창고명 sample 포함)
+- `MIG5_PRODUCT_LOOKUP_MISS` — 품목명 lookup miss (품목명 sample 포함)
 - `MIG5_LOOKUP_AMBIGUOUS` — 거래처명/창고명 중복 매칭
 - `MIG5_AMOUNT_INVALID` — 금액 parse 실패 또는 음수
 - `MIG5_DATE_INVALID` — 일자 포맷 불일치
@@ -154,17 +156,18 @@ staging.ecount_*_raw (3 테이블, 멱등 키 = source_file_hash SHA-256 + sourc
 - D-MIG-5-01 한 PR 통합 3 importer (PM 자동시작)
 - D-MIG-5-02 창고이동 → `StockTransfer` + `StockTransferLine` (기존 도메인, status=CONFIRMED 적재)
 - D-MIG-5-03 지출결의서/입금보고서 → staging only + Partner aging cross-check (cash 도메인 신규는 후속 슬라이스)
-- D-MIG-5-04 lookup miss = MIG5_LOOKUP_MISS reject (silent fallback 금지)
+- D-MIG-5-04 lookup miss = 거래처 `MIG5_LOOKUP_MISS`, 창고 `MIG5_WAREHOUSE_LOOKUP_MISS`, 품목 `MIG5_PRODUCT_LOOKUP_MISS` reject (silent fallback 금지)
 - D-MIG-5-05 멱등 키 source_file_hash SHA-256 (VARCHAR 64) + source_row_no — MIG-2/3/4 통일
 - D-MIG-5-06 3 namespace pg_advisory_xact_lock 분리
 - D-MIG-5-07 soft-delete CTE 복구 (StockTransfer / StockTransferLine 모두)
 - D-MIG-5-08 admin UI 미구현 (관리자 화면 후속 슬라이스)
 - D-MIG-5-09 PageCode MIG5 3종 (auth-service V18)
-- D-MIG-5-10 ErrorCode MIG5 8종 (shared/common)
+- D-MIG-5-10 ErrorCode MIG5 10종 (shared/common)
 - D-MIG-5-11 PM 자동시작 (사용자 명시 자율 진행, brainstorming HARD-GATE skip)
 - D-MIG-5-12 footer 정확 매칭 (MIG-4 C1-CODEX-P2-2 회고 적용)
 - D-MIG-5-13 4 importer behavior 단위 테스트 필수 (MIG-4 C1-P0-1 회고 — 처음부터 적용)
 - D-MIG-5-14 IT 5 case × 3 endpoint = 15 IT parameterized (MIG-4 C1-P2-4 회고)
+- D-MIG-5-15 창고이동 금액은 staging 보존만 (도메인 변환 X) — StockTransferLine 도메인 영향 최소 우선
 
 ---
 

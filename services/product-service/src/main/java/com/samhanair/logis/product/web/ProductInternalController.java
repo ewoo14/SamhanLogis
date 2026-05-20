@@ -10,9 +10,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -64,5 +66,22 @@ public class ProductInternalController {
     @PostMapping("/lookup-by-model")
     public ApiResponse<ProductSummaryResponse> lookupByModel(@Valid @RequestBody LookupByModelRequest request) {
         return ApiResponse.ok(productService.lookupSummaryByModelName(request.modelName()));
+    }
+
+    /**
+     * 제품명 단건 조회 (internal) — MIG-5 inventory-service 창고이동 raw 품목명 lookup 경로.
+     */
+    @Operation(summary = "제품명 단건 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. 이카운트 raw 품목명 정확 매칭 전용.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "name 누락/공백"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "제품명에 해당하는 제품이 없습니다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "제품명 중복 매칭")
+    })
+    @GetMapping("/by-name")
+    public ApiResponse<ProductSummaryResponse> lookupByName(@RequestParam String name) {
+        return ApiResponse.ok(productService.lookupSummaryByName(name));
     }
 }
