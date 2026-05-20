@@ -5,6 +5,7 @@ package com.samhanair.logis.accounting.domain;
  *
  * <pre>
  *   DRAFT → ISSUED → CANCELLED
+ *   MIGRATED
  * </pre>
  *
  * <ul>
@@ -23,5 +24,8 @@ public enum TaxInvoiceStatus {
     ISSUED,
 
     /** 취소 — 역분개 자동, 발행번호는 보존 (감사 추적). */
-    CANCELLED
+    CANCELLED,
+
+    /** MIG-4 이카운트 raw 에서 이관된 과거 세금계산서. */
+    MIGRATED
 }

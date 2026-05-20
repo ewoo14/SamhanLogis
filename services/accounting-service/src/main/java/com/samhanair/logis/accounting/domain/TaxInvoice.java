@@ -248,6 +248,17 @@ public class TaxInvoice extends BaseEntity {
                 supplyDate, description, invoiceType);
     }
 
+    /** MIG-4 이카운트 세금계산서용 판매전표 이관용 헤더 생성. */
+    public static TaxInvoice draftMigration(UUID partnerId, String partnerCode, String partnerBusinessNo,
+                                            String partnerName, String partnerAddress, LocalDate supplyDate,
+                                            String externalRef) {
+        TaxInvoice taxInvoice = create(partnerId, partnerCode, partnerBusinessNo, partnerName,
+                partnerAddress, supplyDate, externalRef, TaxInvoiceType.SALES);
+        taxInvoice.direction = TaxInvoiceDirection.OUTBOUND;
+        taxInvoice.status = TaxInvoiceStatus.MIGRATED;
+        return taxInvoice;
+    }
+
     /**
      * 신규 세금계산서 생성 (DRAFT) — partnerCode 생략, invoiceType 지정. 기존 호출부 호환용.
      *

@@ -77,8 +77,17 @@ claude mcp list  # → codex: codex mcp-server - ✓ Connected
 - [x] MIG-1 거래처 PoC (PR #262, 5월 14일)
 - [x] MIG-2 마스터 5종 + lookup map 4종 (PR #270, 5월 20일)
 - [x] MIG-3 회계 전표 4종 (PR #271, 5월 20일)
-- [ ] **MIG-4** 세금계산서/판매전표/매출매입내역 (다음 슬라이스, 자동 진입 대기)
+- [ ] **MIG-4** 세금계산서/판매전표/매출매입내역/주문서 (Codex 구현 진행 중, branch `spec/2026-05-20-mig-4-sales-tax-invoice`)
 - [ ] MIG-5+ 주문서/창고이동/지출결의서/입금보고서 (이후)
+
+### 2026-05-20 Codex Update — MIG-4 구현 진행
+
+- accounting V24: MIG-4 staging 4표 + `sales_accounting_slips.due_date` nullable 보강.
+- shared/common: MIG4 ErrorCode 9종.
+- auth V17: MIG4 PageCode 4종 role_page_permissions seed.
+- accounting-service: TaxInvoice / SalesSlipLine / Summary / Order importer 4종 + controller 4종 + `EcountMig4ImportResult`.
+- test resources: `fixtures/mig4-*.csv` 4종 + raw header cross-check.
+- 검증 대기: Gradle wrapper/dependency network 제한 해소 후 `.\gradlew.bat :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon`.
 
 ---
 

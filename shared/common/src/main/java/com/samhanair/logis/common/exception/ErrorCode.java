@@ -250,7 +250,25 @@ public enum ErrorCode {
     MIG3_JOURNAL_GROUP_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "분개 group 내 일부 row 가 reject 되어 전체 group 가 거부되었습니다"),
     MIG3_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
-            "회계 전표 CSV 헤더 불일치");
+            "회계 전표 CSV 헤더 불일치"),
+    MIG4_TAX_INVOICE_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 source_file 내 세금계산서 중복"),
+    MIG4_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "lookup 키 매핑 누락 - 거래처/품목 확인 필요"),
+    MIG4_LOOKUP_AMBIGUOUS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "거래처명 중복 매칭 - 거래처코드 보강 필요"),
+    MIG4_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "금액 형식 불일치 또는 0 이하"),
+    MIG4_DATE_INVALID(HttpStatus.BAD_REQUEST,
+            "일자 포맷 불일치 - yyyy/MM/dd 외 포맷"),
+    MIG4_SLIP_NO_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "전표번호 또는 회계전표일자-No 포맷 불일치"),
+    MIG4_SUMMARY_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "매출매입내역 합계 ↔ 도메인 합계 불일치"),
+    MIG4_ORDER_STATUS_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "주문서 진행상태 unknown 값"),
+    MIG4_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
+            "MIG-4 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

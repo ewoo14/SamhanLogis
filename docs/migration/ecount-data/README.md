@@ -30,10 +30,10 @@
 | 일반전표 (분개) | `accounting-service` | P2 | MIG-3 회계 |
 | 매입전표 | `accounting-service` | P2 | MIG-3 회계 |
 | 매출전표 | `accounting-service` | P2 | MIG-3 회계 |
-| 매입청구서 | `purchase-service` | P2 | MIG-4 매출매입 |
-| 매출청구서 | `sales-service` | P2 | MIG-4 매출매입 |
-| 매입요청서 | `purchase-service` | P3 | MIG-4 매출매입 |
-| 매출요청서 | `sales-service` | P3 | MIG-4 매출매입 |
+| 세금계산서용 판매전표 | `accounting-service` | P2 | MIG-4 영업·세무 |
+| 판매전표 | `accounting-service` | P2 | MIG-4 영업·세무 |
+| 매출매입내역 | `accounting-service` | P2 | MIG-4 영업·세무 검증 |
+| 주문서 | `accounting-service` | P3 | MIG-4 staging / 후속 Order 도메인 |
 | 지출결의서 | `accounting-service` | P2 | MIG-5 입출금 |
 | 입금보고서 | `accounting-service` | P2 | MIG-5 입출금 |
 
@@ -167,7 +167,7 @@ c:\dev\SamhanLogis\docs\migration\ecount-data\raw\master-export-20260513.xlsx
 | 슬라이스 | 대상 전표 | 대상 서비스 | 의존 |
 |---|---|---|---|
 | **MIG-3** 회계 전표 묶음 | 일반전표 + 매입전표 + 매출전표 | `accounting-service` | MIG-2 (계정과목 + 부서) |
-| **MIG-4** 매출매입 묶음 | 매입/매출 청구서 + 요청서 | `sales` / `purchase` | MIG-2 (거래처 + 품목) |
+| **MIG-4** 영업·세무 묶음 | 세금계산서용 판매전표 + 판매전표 + 매출매입내역 + 주문서 | `accounting-service` | MIG-1 partner + MIG-2 lookup |
 | **MIG-5** 입출금 묶음 | 지출결의서 + 입금보고서 | `accounting-service` | MIG-2 (계정 + 카드) |
 | **MIG-6** 재고 입출고 | (메뉴 확인 후 분리) | `warehouse` / `inventory` | MIG-2 (창고 + 품목) |
 

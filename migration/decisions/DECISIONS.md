@@ -2093,4 +2093,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-3-09 | 응답 DTO는 UUID를 노출하지 않고 slipNo/journalNo/partnerName/accountCode 등 비즈니스 식별자와 sample raw value만 반환한다. |
 | D-MIG-3-10 | 실 raw CSV 의 마지막 빈 컬럼 1개는 이카운트 export 호환 범위로 허용하되, 그 외 헤더 컬럼 추가/불일치는 strict reject 한다. |
 
+### D-MIG-4-00. 이카운트 영업·세무 raw 4종 마이그레이션 (MIG-4, 2026-05-20)
+
+**배경**: MIG-3 회계 전표 4종 머지 후, 이카운트 영업·세무 raw 4종을 accounting-service 로 통합 이관한다. 세금계산서/판매전표는 기존 TaxInvoice/SalesAccountingSlip 도메인을 보강하고, 매출매입내역/주문서는 staging + 검증 SQL로 운영 대조 근거를 남긴다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-4-01 | 4 raw는 한 PR 통합으로 처리한다. |
+| D-MIG-4-02 | 세금계산서용 판매전표는 `TaxInvoice` OUTBOUND + `TaxInvoiceLine` 으로 이관한다. |
+| D-MIG-4-03 | 판매전표는 `SalesAccountingSlipLine` 보강으로 처리하고, 전표가 없으면 신규 `SalesAccountingSlip`을 생성한다. |
+| D-MIG-4-04 | `TaxInvoiceStatus.MIGRATED`를 추가한다. DB status 컬럼은 `VARCHAR(20)` 이므로 Postgres enum 분리 V25는 불필요하다. |
+| D-MIG-4-05 | 매출매입내역은 staging only + 검증 SQL로 처리한다. |
+| D-MIG-4-06 | 주문서는 staging only + 검증 SQL로 처리하고 Order 도메인 변환은 후속으로 둔다. |
+| D-MIG-4-07 | 매출장/매입장 xlsx는 본 슬라이스 변환 대상에서 제외하고 DailyClosing 대조는 후속으로 둔다. |
+| D-MIG-4-08 | lookup miss는 silent fallback 없이 `MIG4_LOOKUP_MISS` reject로 보고한다. |
+| D-MIG-4-09 | staging 멱등 키는 SHA-256 `source_file_hash` + 1-base `source_row_no` 복합 PK로 둔다. |
+| D-MIG-4-10 | 4 importer는 서로 다른 `pg_advisory_xact_lock` namespace를 사용한다. |
+| D-MIG-4-11 | admin UI는 후속 슬라이스로 둔다. |
+| D-MIG-4-12 | auth-service V17에 MIG4 PageCode 4종 권한 seed를 추가한다. |
+| D-MIG-4-13 | shared/common에 MIG4 ErrorCode 9종을 추가한다. |
+| D-MIG-4-14 | PM 자동시작 범위로 spec → plan → Codex 개발을 진행한다. |
+| D-MIG-4-15 | 주문서 5분할 파일은 동일 importer를 file hash 별로 5회 실행하는 방식으로 처리한다. |
+
 **산출 예정/진행**: accounting V23 staging 4종, auth V16 PageCode seed, ErrorCode MIG3 5종, 4 importer/controller, fixture cross-check 4종, dev-report `docs/dev-reports/ecount-mig-3-voucher.md`.

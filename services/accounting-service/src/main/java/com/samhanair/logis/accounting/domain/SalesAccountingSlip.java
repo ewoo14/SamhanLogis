@@ -67,6 +67,7 @@ public class SalesAccountingSlip extends BaseEntity {
     @Column(name = "posted_at") private LocalDateTime postedAt;
     @Column(name = "posted_by", length = 100) private String postedBy;
     @Column(name = "tax_invoice_id") private UUID taxInvoiceId;
+    @Column(name = "due_date") private LocalDate dueDate;
     @Column(name = "memo", columnDefinition = "TEXT") private String memo;
 
     @OneToMany(mappedBy = "slip", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -131,5 +132,10 @@ public class SalesAccountingSlip extends BaseEntity {
                     "이미 세금계산서와 매핑됨: " + slipNo);
         }
         this.taxInvoiceId = taxInvoiceId;
+    }
+
+    /** MIG-4 판매전표 raw 의 입금예정일 보강. */
+    public void updateDueDate(LocalDate dueDate) {
+        this.dueDate = dueDate;
     }
 }
