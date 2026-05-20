@@ -2,6 +2,8 @@ package com.samhanair.logis.accounting.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/** user-service internal Employee name lookup client. 404/409/network 는 caller 가 warning 처리하도록 empty 반환. */
+/** user-service internal Employee name lookup client. 200 empty 는 miss, 호출 실패는 MIG10 lookup error 로 분리한다. */
 @Component
 public class EmployeeLookupClient {
 
@@ -53,10 +55,12 @@ public class EmployeeLookupClient {
             return parseResults(body);
         } catch (RestClientResponseException ex) {
             log.warn("EmployeeLookupClient — fullName={} status={}", fullName, ex.getStatusCode().value());
-            return List.of();
+            throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                    "user-service Employee lookup 실패: status=" + ex.getStatusCode().value(), ex);
         } catch (Exception ex) {
             log.warn("EmployeeLookupClient 호출 실패 — fullName={}, msg={}", fullName, ex.getMessage());
-            return List.of();
+            throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                    "user-service Employee lookup 호출 실패", ex);
         }
     }
 

@@ -4,21 +4,8 @@
 ALTER TABLE orders
     ADD COLUMN IF NOT EXISTS manager_employee_id UUID;
 
-DO $$
-BEGIN
-    IF to_regclass('public.employees') IS NOT NULL
-       AND NOT EXISTS (
-           SELECT 1
-             FROM pg_constraint
-            WHERE conname = 'orders_manager_employee_fk'
-              AND conrelid = 'orders'::regclass
-       ) THEN
-        ALTER TABLE orders
-            ADD CONSTRAINT orders_manager_employee_fk
-            FOREIGN KEY (manager_employee_id) REFERENCES employees(id);
-    END IF;
-END
-$$;
+COMMENT ON COLUMN orders.manager_employee_id IS
+    'MIG-10 manager Employee UUID logical reference. service boundary: employees 는 user_db 의 도메인, accounting_db 에서 FK 강제 불가. application-level (EmployeeLookupClient) 검증으로 참조 무결성 보장.';
 
 CREATE INDEX IF NOT EXISTS idx_orders_manager_employee_id
     ON orders (manager_employee_id)
@@ -35,27 +22,27 @@ BEGIN
                 p.id AS partner_id,
                 p.name AS partner_name,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND jl.debit_amount > 0 AND coa.name = '외상매출금'
+                    WHEN j.id IS NOT NULL AND jl.debit_amount > 0 AND jl.account_code IN ('110')
                     THEN jl.debit_amount ELSE 0 END), 0) AS total_receivable,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND jl.credit_amount > 0 AND coa.name = '외상매입금'
+                    WHEN j.id IS NOT NULL AND jl.credit_amount > 0 AND jl.account_code IN ('201')
                     THEN jl.credit_amount ELSE 0 END), 0) AS total_payable,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND jl.debit_amount > 0 AND coa.name IN ('보통예금', '현금')
+                    WHEN j.id IS NOT NULL AND jl.debit_amount > 0 AND jl.account_code IN ('101', '102')
                     THEN jl.debit_amount ELSE 0 END), 0) AS total_receipt,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND jl.credit_amount > 0 AND coa.name IN ('보통예금', '현금')
+                    WHEN j.id IS NOT NULL AND jl.credit_amount > 0 AND jl.account_code IN ('101', '102')
                     THEN jl.credit_amount ELSE 0 END), 0) AS total_disbursement,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND coa.name = '외상매출금'
+                    WHEN j.id IS NOT NULL AND jl.account_code IN ('110')
                     THEN COALESCE(jl.debit_amount, 0) - COALESCE(jl.credit_amount, 0)
                     ELSE 0 END), 0) AS net_receivable,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND coa.name = '외상매입금'
+                    WHEN j.id IS NOT NULL AND jl.account_code IN ('201')
                     THEN COALESCE(jl.credit_amount, 0) - COALESCE(jl.debit_amount, 0)
                     ELSE 0 END), 0) AS net_payable,
                 COALESCE(SUM(CASE
-                    WHEN j.id IS NOT NULL AND coa.name IN ('보통예금', '현금')
+                    WHEN j.id IS NOT NULL AND jl.account_code IN ('101', '102')
                     THEN COALESCE(jl.debit_amount, 0) - COALESCE(jl.credit_amount, 0)
                     ELSE 0 END), 0) AS net_cash,
                 NOW() AS last_refreshed_at
@@ -67,9 +54,6 @@ BEGIN
               ON j.id = jl.journal_id
              AND j.is_deleted = FALSE
              AND j.status = 'POSTED'
-            LEFT JOIN chart_of_accounts coa
-              ON coa.code = jl.account_code
-             AND coa.is_deleted = FALSE
             WHERE p.is_deleted = FALSE
             GROUP BY p.id, p.name
         $view$;
@@ -80,27 +64,27 @@ BEGIN
                 jl.partner_id AS partner_id,
                 NULL::VARCHAR(100) AS partner_name,
                 COALESCE(SUM(CASE
-                    WHEN jl.debit_amount > 0 AND coa.name = '외상매출금'
+                    WHEN jl.debit_amount > 0 AND jl.account_code IN ('110')
                     THEN jl.debit_amount ELSE 0 END), 0) AS total_receivable,
                 COALESCE(SUM(CASE
-                    WHEN jl.credit_amount > 0 AND coa.name = '외상매입금'
+                    WHEN jl.credit_amount > 0 AND jl.account_code IN ('201')
                     THEN jl.credit_amount ELSE 0 END), 0) AS total_payable,
                 COALESCE(SUM(CASE
-                    WHEN jl.debit_amount > 0 AND coa.name IN ('보통예금', '현금')
+                    WHEN jl.debit_amount > 0 AND jl.account_code IN ('101', '102')
                     THEN jl.debit_amount ELSE 0 END), 0) AS total_receipt,
                 COALESCE(SUM(CASE
-                    WHEN jl.credit_amount > 0 AND coa.name IN ('보통예금', '현금')
+                    WHEN jl.credit_amount > 0 AND jl.account_code IN ('101', '102')
                     THEN jl.credit_amount ELSE 0 END), 0) AS total_disbursement,
                 COALESCE(SUM(CASE
-                    WHEN coa.name = '외상매출금'
+                    WHEN jl.account_code IN ('110')
                     THEN COALESCE(jl.debit_amount, 0) - COALESCE(jl.credit_amount, 0)
                     ELSE 0 END), 0) AS net_receivable,
                 COALESCE(SUM(CASE
-                    WHEN coa.name = '외상매입금'
+                    WHEN jl.account_code IN ('201')
                     THEN COALESCE(jl.credit_amount, 0) - COALESCE(jl.debit_amount, 0)
                     ELSE 0 END), 0) AS net_payable,
                 COALESCE(SUM(CASE
-                    WHEN coa.name IN ('보통예금', '현금')
+                    WHEN jl.account_code IN ('101', '102')
                     THEN COALESCE(jl.debit_amount, 0) - COALESCE(jl.credit_amount, 0)
                     ELSE 0 END), 0) AS net_cash,
                 NOW() AS last_refreshed_at
@@ -109,9 +93,6 @@ BEGIN
               ON j.id = jl.journal_id
              AND j.is_deleted = FALSE
              AND j.status = 'POSTED'
-            LEFT JOIN chart_of_accounts coa
-              ON coa.code = jl.account_code
-             AND coa.is_deleted = FALSE
             WHERE jl.is_deleted = FALSE
               AND jl.partner_id IS NOT NULL
             GROUP BY jl.partner_id

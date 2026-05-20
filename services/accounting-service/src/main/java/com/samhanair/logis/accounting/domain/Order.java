@@ -114,6 +114,10 @@ public class Order extends BaseEntity {
         this.linkedSlipNo = slipNo;
     }
 
+    public void linkManagerEmployee(UUID employeeId) {
+        this.managerEmployeeId = employeeId;
+    }
+
     private void recalcTotals() {
         this.totalSupplyAmount = lines.stream()
                 .map(OrderLine::getSupplyAmount)

@@ -85,4 +85,4 @@ MIG-10은 MIG-8 Order의 `manager_name` snapshot을 user-service Employee와 연
 
 공통 규칙: `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock`, `ROLE_MASTER`/`ROLE_MANAGER`, `manager_employee_id IS NULL` 대상만 처리, lookup miss/ambiguous는 warning sample로 응답하고 NULL을 유지한다.
 
-service-per-DB 경계상 `employees`는 user-service 소유다. V30은 `orders.manager_employee_id` UUID와 index를 항상 추가하고, 동일 schema에 `employees`가 존재하는 배포에서만 FK를 조건부 생성한다.
+service-per-DB 경계상 `employees`는 user-service 소유다. V30은 `orders.manager_employee_id` UUID와 index만 추가하고 FK는 선언하지 않는다. 참조 무결성은 user-service internal lookup을 통한 application-level 검증으로 보장한다.

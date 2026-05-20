@@ -12,6 +12,7 @@ class ErrorCodeMig10Test {
         assertThat(ErrorCode.MIG10_ORDER_NOT_FOUND.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG10_EMPLOYEE_LOOKUP_MISS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG10_EMPLOYEE_AMBIGUOUS.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG10_AGING_VIEW_VERSION_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 }

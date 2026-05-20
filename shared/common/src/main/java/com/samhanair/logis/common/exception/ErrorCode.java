@@ -349,6 +349,8 @@ public enum ErrorCode {
             "MIG-10 담당자명과 일치하는 직원이 없습니다"),
     MIG10_EMPLOYEE_AMBIGUOUS(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-10 담당자명과 일치하는 직원이 2명 이상입니다"),
+    MIG10_EMPLOYEE_LOOKUP_ERROR(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-10 Employee lookup 호출 실패"),
     MIG10_AGING_VIEW_VERSION_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다");
 
