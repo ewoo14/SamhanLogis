@@ -128,7 +128,7 @@ public static ParsedXlsx parse(InputStream xlsxStream, String[] expectedHeaders)
 public static String computeFileHash(InputStream stream) { // SHA-256, EcountCsvSupport 재사용 가능 }
 ```
 
-- Apache POI 5.x (`poi-ooxml:5.2.5` 또는 최신)
+- Apache POI 5.4.0 (`poi-ooxml:5.4.0`)
 - SHA-256 file hash (MIG-1~10 통일)
 - header strict (expectedHeaders 와 정확 매칭, 추가 컬럼 reject)
 - 빈 row skip, footer 패턴 (`합계`, `총계` 등) skip

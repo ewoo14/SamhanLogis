@@ -43,7 +43,7 @@ dependencies {
     // P1-6 Excel export — 전표 목록/상세 .xlsx 다운로드 (GET /slips/export.xlsx).
     // poi-ooxml 이 poi-core 를 전이 의존으로 포함하므로 별도 poi 선언 불필요.
     // 버전 5.2.5 = accounting-service / inventory-service / arologis-service 와 동일.
-    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation 'org.apache.poi:poi-ooxml:5.4.0'
 
     // P1-8 슬립 첨부 사진 — MinIO (S3 호환) 백엔드. partner-service 와 동일 패턴.
     // app.slip.minio.enabled=true 일 때만 활성, default false → NoopSlipAttachmentStorage fallback.

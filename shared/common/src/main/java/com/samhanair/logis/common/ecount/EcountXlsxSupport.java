@@ -82,7 +82,7 @@ public final class EcountXlsxSupport {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException ex) {
-            throw new BusinessException(ErrorCode.MIG2_FILE_HASH_INVALID, "SHA-256 hash 계산 실패", ex);
+            throw new BusinessException(ErrorCode.MIG11_FILE_HASH_INVALID, "SHA-256 hash 계산 실패", ex);
         }
     }
 
@@ -132,14 +132,32 @@ public final class EcountXlsxSupport {
     }
 
     private static boolean isFooterRow(String[] row) {
-        for (String cell : row) {
-            String value = stripCell(cell);
-            if (value.isEmpty()) {
-                continue;
-            }
-            return "합계".equals(value) || "총계".equals(value);
+        if (row.length == 0) {
+            return false;
         }
-        return false;
+        String first = stripCell(row[0]);
+        if (!"합계".equals(first) && !"총계".equals(first)) {
+            return false;
+        }
+        for (int i = 1; i < row.length; i++) {
+            if (!isBlankOrNumeric(row[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isBlankOrNumeric(String raw) {
+        String value = stripCell(raw).replace(",", "");
+        if (value.isBlank()) {
+            return true;
+        }
+        try {
+            new java.math.BigDecimal(value);
+            return true;
+        } catch (NumberFormatException ex) {
+            return false;
+        }
     }
 
     public static String stripCell(String raw) {

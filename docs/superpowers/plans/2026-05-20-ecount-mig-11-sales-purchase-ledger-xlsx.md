@@ -10,7 +10,7 @@
 
 ### Task 1: build.gradle Apache POI 의존성 추가
 
-`shared/common/build.gradle` (또는 root): `implementation 'org.apache.poi:poi-ooxml:5.2.5'`.
+`shared/common/build.gradle` (또는 root): `implementation 'org.apache.poi:poi-ooxml:5.4.0'`.
 
 ### Task 2: EcountXlsxSupport 신규 헬퍼
 

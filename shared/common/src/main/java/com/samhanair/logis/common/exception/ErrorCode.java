@@ -355,6 +355,8 @@ public enum ErrorCode {
             "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다"),
     MIG11_XLSX_PARSE_FAILED(HttpStatus.BAD_REQUEST,
             "MIG-11 XLSX 파싱 실패"),
+    MIG11_FILE_HASH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-11 파일 hash 계산 실패"),
     MIG11_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-11 XLSX 헤더 불일치"),
     MIG11_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,

@@ -9,7 +9,7 @@
 ### 2026-05-20 Codex Update — MIG-11 구현 진행
 
 - 현재 branch: `spec/2026-05-20-mig-11-sales-purchase-ledger-xlsx`
-- 범위: `매출장.xlsx` / `매입장.xlsx` Apache POI 파서 도입, staging 2표, DailyClosing 대조 warning, auth PageCode 2종.
+- 범위: `매출장.xlsx` / `매입장.xlsx` Apache POI 5.4.0 파서 도입, staging 2표, DailyClosing 대조 warning, auth PageCode 2종.
 - 실제 raw 헤더 확인:
   - row 0은 header가 아니라 `회사명 ... / 매출장|매입장` meta row.
   - 매출장 row 1 header: `월/일`, `유형명`, `전자구분`, `거래처코드`, `거래처명`, `적요`, `매출공급가액`, `매출부가세`, `매출합계`.

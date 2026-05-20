@@ -49,6 +49,7 @@ abstract class AbstractEcountMig11LedgerImporter {
         this.totalAmountInFile = totalAmountInFile;
     }
 
+    // MIG-3~10 import/transform 패턴과 동일하게 controller 외부 트랜잭션이 생겨도 import 단위를 격리한다.
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig11Result importXlsx(InputStream xlsx, String actorUserId) {
         EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(xlsx, headers);
@@ -145,7 +146,7 @@ abstract class AbstractEcountMig11LedgerImporter {
                 )
                 ON CONFLICT (source_file_hash, source_row_no) DO NOTHING
                 """.formatted(tableName), params(hash, rowNo, cells, actor)
-                .addValue("transactionRef", cell(cells, mapping.transactionRefIndex()))
+                .addValue("transactionRef", rejectedTransactionRef(cells, rowNo))
                 .addValue("partnerCode", cell(cells, mapping.partnerCodeIndex()))
                 .addValue("partnerName", cell(cells, mapping.partnerNameIndex()))
                 .addValue("description", cell(cells, mapping.descriptionIndex()))
@@ -154,6 +155,7 @@ abstract class AbstractEcountMig11LedgerImporter {
     }
 
     private void validateAgainstDailyClosing(String sourceFileHash, EcountMig11Result.Builder result) {
+        // 매출장/매입장 = TAX_INVOICE + SALES_SLIP/PURCHASE_SLIP 모두 합산 (closing_kind 만 필터).
         List<DailyClosingMismatch> rows = jdbcTemplate.query("""
                 WITH raw_totals AS (
                     SELECT transaction_date, COALESCE(SUM(total_amount), 0) raw_total
@@ -270,6 +272,19 @@ abstract class AbstractEcountMig11LedgerImporter {
 
     private static String cell(String[] cells, int index) {
         return index >= 0 && index < cells.length ? EcountXlsxSupport.nullIfBlank(cells[index]) : null;
+    }
+
+    private static String rejectedTransactionRef(String[] cells, int rowNo) {
+        String raw = cell(cells, 0);
+        if (raw == null) {
+            return "[INVALID]";
+        }
+        try {
+            return parseTransactionKey(raw, rowNo).canonicalRef();
+        } catch (BusinessException ex) {
+            // Reject row 에는 원천 추적성이 더 중요하다. 정규화 실패 시 raw 월/일 값을 보존한다.
+            return raw;
+        }
     }
 
     record LedgerMapping(

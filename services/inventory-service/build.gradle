@@ -47,7 +47,7 @@ dependencies {
     implementation 'io.minio:minio:8.5.12'
 
     // Apache POI — DPS 입고 비교 endpoint 의 .xlsx parse + template 다운로드 (PR-E1 BE-2)
-    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation 'org.apache.poi:poi-ooxml:5.4.0'
 
     implementation project(':shared:common')
     implementation project(':shared:security')

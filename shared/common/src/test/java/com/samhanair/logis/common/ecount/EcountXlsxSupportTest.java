@@ -72,6 +72,18 @@ class EcountXlsxSupportTest {
     }
 
     @Test
+    void 첫_cell이_합계여도_나머지가_비숫자면_footer로_skip하지_않는다() {
+        EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(workbook(
+                null,
+                HEADERS,
+                new String[]{"합계", "거래처A", "1,100"}
+        ), HEADERS);
+
+        assertThat(parsed.dataRowCount()).isEqualTo(1);
+        assertThat(parsed.rows().get(0).get("거래처명")).isEqualTo("거래처A");
+    }
+
+    @Test
     void 한글_cell은_깨지지_않고_strip된다() {
         EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(workbook(
                 new String[]{"회사명 : 테스트 / 매출장"},

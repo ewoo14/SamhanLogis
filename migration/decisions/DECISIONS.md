@@ -2266,7 +2266,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-MIG-11-01 | 매출장/매입장 XLSX 2종은 단일 통합 PR로 처리하며 FE/admin UI는 MIG-12+로 이연한다. |
-| D-MIG-11-02 | shared/common에 Apache POI 5.2.5 기반 `EcountXlsxSupport`를 추가한다. |
+| D-MIG-11-02 | GHSA-gmg8-593g-7mv3 대응을 위해 Apache POI 5.4.0 기반 `EcountXlsxSupport`를 추가한다. |
 | D-MIG-11-03 | 실제 raw sheet 0 row 0은 header가 아니라 `회사명 ... / 매출장|매입장` meta row이므로 row 1을 strict header로 사용한다. |
 | D-MIG-11-04 | 매출장 header는 `월/일/유형명/전자구분/거래처코드/거래처명/적요/매출공급가액/매출부가세/매출합계`로 고정한다. |
 | D-MIG-11-05 | 매입장 header는 `월/일/거래처코드/유형명/전자구분/거래처명/적요/매입공급가액/매입부가세`로 고정하고 `total_amount = 공급가액 + 부가세`로 계산한다. |

@@ -48,6 +48,8 @@ public class Mig11PurchaseLedgerImportController {
 
     private void checkEditPermission(String actorRole) {
         if (actorRole == null || actorRole.isBlank()) {
+            // actorRole 미주입 시 @PreAuthorize 1차 가드로 차단됨 → dynamic permission skip 안전.
+            // MIG-3~10 controller 일관 패턴이며, dynamic 정책 강제 시 일괄 정정한다.
             return;
         }
         boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);

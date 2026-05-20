@@ -4,7 +4,7 @@
 
 ## 범위
 
-- `shared/common`에 Apache POI 기반 `EcountXlsxSupport`를 추가했다.
+- `shared/common`에 Apache POI 5.4.0 기반 `EcountXlsxSupport`를 추가했다.
 - `accounting-service`에 매출장/매입장 XLSX importer와 admin multipart endpoint 2종을 추가했다.
 - `auth-service` V24에 MIG-11 PageCode 2종과 `MASTER`/`MANAGER` edit 권한을 seed했다.
 - `accounting-service` V31에 `staging.ecount_sales_ledger_raw`, `staging.ecount_purchase_ledger_raw` 2테이블을 추가했다.
@@ -25,6 +25,10 @@ Apache POI `XSSFWorkbook`으로 실제 raw sheet 0을 확인했다.
 실제 `DailyClosing` 도메인은 `close_date/sales_amount/purchase_amount`가 아니라 `closing_date`, `closing_kind`, `source_kind`, `total_amount` 구조다. MIG-11은 `partner_id IS NULL` 전체 마감 row를 대상으로 `closing_kind = SALES|PURCHASE`의 `total_amount` 합계를 일별 raw 합계와 비교한다.
 
 불일치는 `MIG11_DAILY_CLOSING_MISMATCH` warning sample로만 반환하며 row reject로 처리하지 않는다.
+
+## POI 의존성 범위
+
+GHSA-gmg8-593g-7mv3 대응으로 Apache POI는 5.4.0으로 상향했다. 이번 슬라이스에서는 `EcountXlsxSupport`가 `shared/common`에 위치하므로 POI가 shared/common `implementation`으로 14 service 소비자에 전이될 수 있다. MIG-12+ 후속에서 `shared:ecount-io` 같은 별도 module로 XLSX/CSV importer 의존성을 분리하는 방안을 검토한다. 본 PR에서는 migration 일정과 기존 shared Excel export 패턴 유지를 우선해 분리하지 않는다.
 
 ## 테스트
 
