@@ -28,7 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class EcountSalesSlipImportController {
 
     /** Codex BE M6 cycle 2 — MIG-3 매출전표 import 페이지 코드 (SP-D2 동적 권한). */
-    private static final String PAGE_CODE = "accounting.ecount.mig3.sales-slip";
+    private static final String PAGE_CODE = "ecount.mig3.sales-slip";
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final EcountSalesSlipImporter importer;

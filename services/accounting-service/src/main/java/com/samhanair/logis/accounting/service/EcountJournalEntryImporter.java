@@ -228,7 +228,7 @@ public class EcountJournalEntryImporter {
                         .addValue("debit", debit)
                         .addValue("credit", credit)
                         .addValue("description", EcountCsvSupport.nullIfBlank(c[5]))
-                        .addValue("payload", String.join("", c))
+                        .addValue("payload", String.join("\u001F", c))
                         .addValue("actor", actor));
         return rows > 0;
     }
@@ -496,7 +496,7 @@ public class EcountJournalEntryImporter {
         if (code == ErrorCode.MIG3_LOOKUP_MISS || code == ErrorCode.MIG3_LOOKUP_AMBIGUOUS) {
             return c[1];
         }
-        return String.join("", c);
+        return String.join("\u001F", c);
     }
 
     private record EntryRow(int rowNo, LocalDate journalDate, String journalNo, int lineSequence,

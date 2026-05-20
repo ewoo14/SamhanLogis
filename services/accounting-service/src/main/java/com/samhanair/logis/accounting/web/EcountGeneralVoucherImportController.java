@@ -28,7 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class EcountGeneralVoucherImportController {
 
     /** Codex BE M6 cycle 2 — MIG-3 일반전표 import 페이지 코드 (SP-D2 동적 권한). */
-    private static final String PAGE_CODE = "accounting.ecount.mig3.general-voucher";
+    private static final String PAGE_CODE = "ecount.mig3.general-voucher";
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final EcountGeneralVoucherImporter importer;

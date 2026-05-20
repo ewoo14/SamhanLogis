@@ -42,6 +42,12 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("app.security.internal.token", () -> "test-internal-token");
+        // MIG-3 사이클 3 — Testcontainers PostgreSQL 단일 컨테이너 reuse 환경에서
+        // ApplicationContext 다수 (29+ IT) 가 connection pool 누적 → max_connections 초과 방지.
+        // HikariCP maximumPoolSize=5 로 제한하여 CI 의 PSQLException at ConnectionFactoryImpl:711 회귀 차단.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
+        registry.add("spring.datasource.hikari.connection-timeout", () -> "20000");
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */
