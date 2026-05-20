@@ -183,11 +183,26 @@ public class EcountPayrollEmployeeImporter {
 
     private UUID lookupDepartment(String departmentName, int rowNo) {
         String name = EcountCsvSupport.stripCell(departmentName);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM staging.ecount_department_map
+                 WHERE ecount_name = :name
+                   AND is_deleted = FALSE
+                """, new MapSqlParameterSource("name", name), Long.class);
+        if (count == null || count == 0) {
+            throw new BusinessException(ErrorCode.MIG6_LOOKUP_MISS,
+                    "부서 lookup miss: sourceRowNo=" + rowNo + ", departmentName='" + name + "'");
+        }
+        if (count > 1) {
+            throw new BusinessException(ErrorCode.MIG6_LOOKUP_AMBIGUOUS,
+                    "부서명 중복: sourceRowNo=" + rowNo + ", departmentName='" + name + "'");
+        }
         try {
             UUID id = jdbcTemplate.queryForObject("""
                     SELECT department_uuid
                       FROM staging.ecount_department_map
                      WHERE ecount_name = :name
+                       AND is_deleted = FALSE
                      ORDER BY updated_at DESC
                      LIMIT 1
                     """, new MapSqlParameterSource("name", name), UUID.class);

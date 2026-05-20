@@ -51,8 +51,7 @@ public class EcountBankAccountImporter {
                 String name = require(c[1], "계좌명", rowNo);
                 String chartAccountCode = parseLinkedAccountCode(c[2], rowNo);
                 boolean active = EcountMig6ImportSupport.parseActiveFlag(c[6], rowNo);
-                boolean foreignCurrency = EcountCsvSupport.stripCell(c[5]).contains("사용")
-                        && !EcountCsvSupport.stripCell(c[5]).contains("미사용");
+                boolean foreignCurrency = EcountMig6ImportSupport.parseUsageFlag(c[5], rowNo);
                 if (!insertStaging(hash, rowNo, c, chartAccountCode, actor)) {
                     result.skipped();
                     continue;

@@ -20,7 +20,9 @@ import org.hibernate.annotations.SQLRestriction;
 
 /**
  * Employee aggregate. The {@code id} is the canonical user UUID — assigned (not generated)
- * so it matches {@code auth-service.accounts.id} 1:1. Soft-deleted via {@link SQLRestriction}.
+ * so it matches {@code auth-service.accounts.id} 1:1 when an auth account exists.
+ * Ecount migration employees may keep {@code accountId} null until a login account is created.
+ * Soft-deleted via {@link SQLRestriction}.
  *
  * <p>post-W5 backlog cleanup (DevOps user-service backlog 채택, D-P9-21) — 시간 의존 회귀 회피
  * 학습 (W4 slip-service 회고). 입사일 ({@link #hireDate}) 미입력 시 fixture 용 default 가
@@ -57,7 +59,7 @@ public class Employee extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "account_id", nullable = false)
+    @Column(name = "account_id")
     private UUID accountId;
 
     @Column(name = "login_id", nullable = false, length = 50)
@@ -143,6 +145,10 @@ public class Employee extends BaseEntity {
 
     public void updateRoleSnapshot(Role roleSnapshot) {
         this.roleSnapshot = roleSnapshot;
+    }
+
+    public void linkToAccount(UUID accountId) {
+        this.accountId = accountId;
     }
 
     public void terminate(LocalDate date) {

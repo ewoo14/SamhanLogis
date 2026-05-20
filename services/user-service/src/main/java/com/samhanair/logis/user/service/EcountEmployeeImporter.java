@@ -134,7 +134,7 @@ public class EcountEmployeeImporter {
                       is_team_lead, hire_date, termination_date, email, phone, ecount_code,
                       created_at, created_by, modified_at, modified_by, is_deleted
                     )
-                    SELECT (SELECT id FROM new_employee), (SELECT id FROM new_employee),
+                    SELECT (SELECT id FROM new_employee), NULL,
                            'ecount-' || :code, :name, '사원', 'MEMBER',
                            (SELECT id FROM dept_id), FALSE, DATE '2026-01-01',
                            CASE WHEN :active THEN NULL ELSE CURRENT_DATE END,

@@ -37,3 +37,11 @@
 
 - 추가: 단위 테스트 5 importer + shared meta/error test + fixture cross-check + controller IT parameterized.
 - 로컬 Gradle 실행은 sandbox 네트워크 제한으로 플러그인 의존성 다운로드 단계에서 중단됨. 커밋 전 검증은 후속 환경에서 재실행 필요.
+
+## Cycle 1c Fix
+
+- `EcountEmployeeCardImporter` raw payload PII 가드: `raw_payload` 작성 전 주민등록번호 컬럼을 마스킹하고, 실패 시 `[MASKED]`로 대체.
+- `EcountPayrollEmployeeImporter` 부서 lookup ambiguous 가드: `staging.ecount_department_map` count 검증 후 `MIG6_LOOKUP_AMBIGUOUS` reject.
+- `EcountBankAccountImporter` 외화통장 여부는 공통 `parseUsageFlag`로 `사용/미사용/YES/NO`만 허용.
+- MIG-6 user/accounting import IT에 `X-User-Id` 누락 401 케이스 추가.
+- 이카운트 사원 migration row는 auth account 미생성 상태를 표현하기 위해 `employees.account_id`를 nullable로 전환.

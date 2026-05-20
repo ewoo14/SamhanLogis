@@ -229,7 +229,7 @@ public class EcountEmployeeCardImporter {
                 .addValue("positionName", EcountCsvSupport.nullIfBlank(c[4]))
                 .addValue("accountNumber", EcountCsvSupport.nullIfBlank(c[6]))
                 .addValue("email", EcountCsvSupport.nullIfBlank(c[7]))
-                .addValue("payload", String.join("\u001F", c))
+                .addValue("payload", maskedPayload(c))
                 .addValue("actor", actor);
     }
 
@@ -253,8 +253,20 @@ public class EcountEmployeeCardImporter {
         return switch (ex.getErrorCode()) {
             case MIG6_RESIDENT_NUMBER_INVALID -> "[MASKED]";
             case MIG6_DATE_INVALID -> c[5];
-            default -> String.join("\u001F", c);
+            default -> maskedPayload(c);
         };
+    }
+
+    private static String maskedPayload(String[] c) {
+        String[] maskedRow = c.clone();
+        if (maskedRow.length > 2) {
+            try {
+                maskedRow[2] = maskResidentNumber(c[2]);
+            } catch (Exception ignored) {
+                maskedRow[2] = "[MASKED]";
+            }
+        }
+        return String.join("\u001F", maskedRow);
     }
 
     private static String truncate(String value, int max) {

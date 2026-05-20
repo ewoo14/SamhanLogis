@@ -55,7 +55,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
     @MethodSource("cases")
     void user_import_endpoint_cases(String endpointLabel, String url, String label,
                                     MockMultipartFile file, String role,
-                                    int expectedStatus) throws Exception {
+                                    boolean includeUserId, int expectedStatus) throws Exception {
         if (expectedStatus == 200) {
             stubSuccess(url);
         }
@@ -63,7 +63,10 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
             stubHeaderMismatch(url);
         }
 
-        var request = multipart(url).file(file).header("X-User-Id", "tester");
+        var request = multipart(url).file(file);
+        if (includeUserId) {
+            request.header("X-User-Id", "tester");
+        }
         if (role != null) {
             request.header("X-User-Role", role);
         }
@@ -99,11 +102,12 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
 
     private static Stream<Arguments> cases() {
         return endpoints().flatMap(endpoint -> Stream.of(
-                Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", 200),
-                Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, 403),
-                Arguments.of(endpoint[0], endpoint[1], "memberForbidden", file("sample.csv", "text/csv"), "MEMBER", 403),
-                Arguments.of(endpoint[0], endpoint[1], "invalidMime", file("sample.txt", "text/plain"), "MANAGER", 400),
-                Arguments.of(endpoint[0], endpoint[1], "headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 422)
+                Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", true, 200),
+                Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
+                Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, true, 403),
+                Arguments.of(endpoint[0], endpoint[1], "memberForbidden", file("sample.csv", "text/csv"), "MEMBER", true, 403),
+                Arguments.of(endpoint[0], endpoint[1], "invalidMime", file("sample.txt", "text/plain"), "MANAGER", true, 400),
+                Arguments.of(endpoint[0], endpoint[1], "headerMismatch", file("broken.csv", "text/csv"), "MANAGER", true, 422)
         ));
     }
 

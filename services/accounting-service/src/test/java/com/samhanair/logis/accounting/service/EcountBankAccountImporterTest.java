@@ -3,9 +3,11 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.ecount.EcountMig6ImportResult;
 import java.io.ByteArrayInputStream;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
@@ -86,6 +89,35 @@ class EcountBankAccountImporterTest {
         assertThat(result.imported()).isEqualTo(1);
     }
 
+    @Test
+    void 외화통장_사용은_parseUsageFlag로_true_처리한다() {
+        importer.importCsv(stream(csv(rowWithForeignCurrency("001", "A", "현금(1019)", "사용", "YES"))), "tester");
+
+        ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForObject(contains("INSERT INTO bank_accounts"),
+                params.capture(), eq(UUID.class));
+        assertThat(params.getValue().getValue("foreignCurrency")).isEqualTo(true);
+    }
+
+    @Test
+    void 외화통장_unknown은_MIG6_BOOLEAN_FLAG_INVALID로_reject한다() {
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(rowWithForeignCurrency("001", "A", "현금(1019)", "모름", "YES"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_BOOLEAN_FLAG_INVALID");
+    }
+
+    @Test
+    void bank_account_duplicate는_MIG6_BANK_ACCOUNT_CODE_DUPLICATE로_reject한다() {
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO bank_accounts"), any(SqlParameterSource.class), eq(UUID.class)))
+                .thenThrow(new DuplicateKeyException("dup"));
+
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(row("001", "A", "현금(1019)", "YES"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_BANK_ACCOUNT_CODE_DUPLICATE");
+    }
+
     static InputStream stream(String csv) {
         return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }
@@ -98,7 +130,11 @@ class EcountBankAccountImporterTest {
     }
 
     static String row(String code, String name, String account, String active) {
-        return "\"%s\t\",\"%s\t\",\"%s\t\",\"\",\"\",\"미사용\t\",\"%s\t\",\"\"\n"
-                .formatted(code, name, account, active);
+        return rowWithForeignCurrency(code, name, account, "미사용", active);
+    }
+
+    static String rowWithForeignCurrency(String code, String name, String account, String foreignCurrency, String active) {
+        return "\"%s\t\",\"%s\t\",\"%s\t\",\"\",\"\",\"%s\t\",\"%s\t\",\"\"\n"
+                .formatted(code, name, account, foreignCurrency, active);
     }
 }

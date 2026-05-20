@@ -35,6 +35,18 @@ public final class EcountMig6ImportSupport {
                 "사용 여부 값 불일치: sourceRowNo=" + rowNo + ", sample='" + raw + "'");
     }
 
+    public static boolean parseUsageFlag(String raw, int rowNo) {
+        String value = EcountCsvSupport.stripCell(raw);
+        if ("사용".equals(value) || value.equalsIgnoreCase("YES") || value.equalsIgnoreCase("Y")) {
+            return true;
+        }
+        if ("미사용".equals(value) || value.equalsIgnoreCase("NO") || value.equalsIgnoreCase("N")) {
+            return false;
+        }
+        throw new BusinessException(ErrorCode.MIG6_BOOLEAN_FLAG_INVALID,
+                "사용 flag invalid: sourceRowNo=" + rowNo + ", sample='" + raw + "'");
+    }
+
     public static LocalDate parseDate(String raw, int rowNo, boolean blankAllowed) {
         String value = EcountCsvSupport.stripCell(raw);
         if (value.isBlank()) {

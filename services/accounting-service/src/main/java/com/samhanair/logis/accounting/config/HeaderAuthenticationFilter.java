@@ -27,6 +27,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String userId = request.getHeader(USER_ID_HEADER);
         String role = request.getHeader(USER_ROLE_HEADER);
 
+        if ((userId == null || userId.isBlank()) && role != null && !role.isBlank()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing X-User-Id header");
+            return;
+        }
+
         if (userId != null && !userId.isBlank() && role != null && !role.isBlank()
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             var authority = new SimpleGrantedAuthority("ROLE_" + role);

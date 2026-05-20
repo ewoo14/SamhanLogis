@@ -11,7 +11,8 @@ class Mig6UserFixtureHeaderCrossCheckTest {
 
     @Test
     void employee_fixture_BOM과_회사명_meta_header를_검증한다() throws Exception {
-        assertFixture("/fixtures/mig6-employee.csv", EcountEmployeeImporter.HEADERS, true);
+        byte[] bytes = assertFixture("/fixtures/mig6-employee.csv", EcountEmployeeImporter.HEADERS, true);
+        assertFivePlaceholderEmployees(bytes);
     }
 
     @Test
@@ -20,12 +21,13 @@ class Mig6UserFixtureHeaderCrossCheckTest {
         String text = new String(bytes, StandardCharsets.UTF_8);
         assertThat(text).contains("XXXXXX-XXXXXXX");
         assertThat(text).doesNotContain("740114-1030932");
-        assertThat(text).contains("사원A");
+        assertFivePlaceholderEmployees(bytes);
     }
 
     @Test
     void payrollEmployee_fixture_BOM과_회사명_meta_header를_검증한다() throws Exception {
-        assertFixture("/fixtures/mig6-payroll-employee.csv", EcountPayrollEmployeeImporter.HEADERS, true);
+        byte[] bytes = assertFixture("/fixtures/mig6-payroll-employee.csv", EcountPayrollEmployeeImporter.HEADERS, true);
+        assertFivePlaceholderEmployees(bytes);
     }
 
     private static byte[] assertFixture(String path, String[] expectedHeaders, boolean companyMeta) throws Exception {
@@ -41,5 +43,11 @@ class Mig6UserFixtureHeaderCrossCheckTest {
             EcountCsvSupport.validateHeader(parsed.header(), expectedHeaders);
             return bytes;
         }
+    }
+
+    private static void assertFivePlaceholderEmployees(byte[] bytes) {
+        String text = new String(bytes, StandardCharsets.UTF_8);
+        assertThat(text).contains("사원A", "사원B", "사원C", "사원D", "사원E");
+        assertThat(EcountCsvSupport.parse(bytes).dataRows()).hasSize(5);
     }
 }

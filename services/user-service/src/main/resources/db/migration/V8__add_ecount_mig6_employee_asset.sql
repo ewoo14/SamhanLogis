@@ -5,6 +5,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE SCHEMA IF NOT EXISTS staging;
 
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS ecount_code VARCHAR(50);
+ALTER TABLE employees ALTER COLUMN account_id DROP NOT NULL;
+ALTER TABLE staging.ecount_department_map ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_employees_ecount_code_active
     ON employees (ecount_code)
