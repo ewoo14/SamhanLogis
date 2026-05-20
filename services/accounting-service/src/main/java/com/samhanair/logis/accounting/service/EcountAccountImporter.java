@@ -77,15 +77,15 @@ public class EcountAccountImporter {
             }
             EcountCsvSupport.requireMaxLength(code, 10, "account_code", rowNo);
 
-            boolean exists = exists("SELECT COUNT(1) FROM chart_of_accounts WHERE code = :code",
+            boolean exists = exists("SELECT COUNT(1) FROM chart_of_accounts WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
-            upsertAccount(code, name, c, actorUserId, rowNo);
+            UpsertAccountResult upsert = upsertAccount(code, name, c, actorUserId, rowNo, exists);
             upsertAccountMap(code, name, hash);
-            updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, code);
-            if (exists) {
-                updated++;
-            } else {
+            updateStatus(hash, rowNo, upsert.isNew() ? "IMPORTED" : "UPDATED", null, code);
+            if (upsert.isNew()) {
                 imported++;
+            } else {
+                updated++;
             }
         }
 
@@ -95,7 +95,15 @@ public class EcountAccountImporter {
                 rejectedNullName, skippedPlaceholder, hash, rejected);
     }
 
-    private void upsertAccount(String code, String name, String[] c, String actor, int rowNo) {
+    private UpsertAccountResult upsertAccount(String code, String name, String[] c, String actor,
+                                              int rowNo, boolean activeExists) {
+        MapSqlParameterSource params = accountParams(code, name, c, actor, rowNo);
+        if (!activeExists) {
+            int restoredRows = restoreSoftDeletedAccount(params);
+            if (restoredRows > 0) {
+                return new UpsertAccountResult(false);
+            }
+        }
         jdbcTemplate.update("""
                 INSERT INTO chart_of_accounts (
                   code, name, category, parent_code, is_leaf, display_order,
@@ -116,14 +124,41 @@ public class EcountAccountImporter {
                   modified_at = NOW(),
                   modified_by = EXCLUDED.created_by
                 """,
-                new MapSqlParameterSource()
-                        .addValue("code", truncate(code, 10))
-                        .addValue("name", truncate(name, 100))
-                        .addValue("category", mapCategory(code, c[5]).name())
-                        .addValue("parentCode", normalizeParentCode(c[7], rowNo))
-                        .addValue("isLeaf", c[4].contains("전표입력계정"))
-                        .addValue("displayOrder", parseDisplayOrder(code))
-                        .addValue("actor", actor == null || actor.isBlank() ? "system" : actor));
+                params);
+        return new UpsertAccountResult(!activeExists);
+    }
+
+    private int restoreSoftDeletedAccount(MapSqlParameterSource params) {
+        List<String> restored = jdbcTemplate.queryForList("""
+                WITH restored AS (
+                    UPDATE chart_of_accounts
+                       SET name = :name,
+                           category = :category,
+                           parent_code = :parentCode,
+                           is_leaf = :isLeaf,
+                           display_order = :displayOrder,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE code = :code AND is_deleted = TRUE
+                     RETURNING code
+                )
+                SELECT code FROM restored
+                """, params, String.class);
+        return restored == null ? 0 : restored.size();
+    }
+
+    private MapSqlParameterSource accountParams(String code, String name, String[] c, String actor, int rowNo) {
+        return new MapSqlParameterSource()
+                .addValue("code", truncate(code, 10))
+                .addValue("name", truncate(name, 100))
+                .addValue("category", mapCategory(code, c[5]).name())
+                .addValue("parentCode", normalizeParentCode(c[7], rowNo))
+                .addValue("isLeaf", c[4].contains("전표입력계정"))
+                .addValue("displayOrder", parseDisplayOrder(code))
+                .addValue("actor", actor == null || actor.isBlank() ? "system" : actor);
     }
 
     private void upsertAccountMap(String code, String name, String hash) {
@@ -278,5 +313,8 @@ public class EcountAccountImporter {
         if (sample.size() < REJECT_SAMPLE_MAX) {
             sample.add(new EcountAccountImportResult.RejectedRow(rowNo, reason, code, name));
         }
+    }
+
+    private record UpsertAccountResult(boolean isNew) {
     }
 }

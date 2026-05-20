@@ -40,6 +40,8 @@ class EcountAccountImporterTest {
     void setUp() {
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(0);
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(List.of());
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
     }
 
@@ -102,6 +104,23 @@ class EcountAccountImporterTest {
                         .contains("is_deleted = FALSE")
                         .contains("deleted_at = NULL")
                         .contains("deleted_by = NULL"));
+    }
+
+    @Test
+    void soft_deleted_account_복구_시_UPDATED_집계() {
+        String csv = accountCsv("""
+                "00010\t","출자금\t","\t","차변\t","전표입력계정\t","자산\t","\t","2470\t","\t","1\t","계정명세서\t","\t","\t","없음\t","N\t","\t","\t","X\t","\t","0\t","N\t","Y\t","기타\t","1\t","N\t","N\t","Y\t","Other\t","1\t","N\t","N\t","N\t"
+                """);
+        lenient().when(jdbcTemplate.queryForList(
+                        org.mockito.ArgumentMatchers.contains("WITH restored AS"),
+                        any(SqlParameterSource.class),
+                        eq(String.class)))
+                .thenReturn(List.of("00010"));
+
+        EcountAccountImportResult result = importer.importCsv(stream(csv), "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.updated()).isEqualTo(1);
     }
 
     @Test
