@@ -125,6 +125,17 @@ class EcountPayrollEmployeeImporterTest {
                 .containsExactly("MIG6_LOOKUP_MISS");
     }
 
+    @Test
+    void 동일_source_file_안_business_key_중복은_DUPLICATE_reject() {
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(
+                row("00009", "사원A", "1차수", "영업부", "고정급", "2024/07/23", "")
+                        + row("00009", "사원A-중복", "1차수", "영업부", "고정급", "2024/07/24", ""))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_EMPLOYEE_CODE_DUPLICATE");
+    }
+
     static InputStream stream(String csv) {
         return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }

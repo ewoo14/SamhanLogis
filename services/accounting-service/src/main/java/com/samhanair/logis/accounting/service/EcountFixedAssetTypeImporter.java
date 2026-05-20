@@ -6,6 +6,8 @@ import com.samhanair.logis.common.ecount.EcountMig6ImportSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -38,12 +40,14 @@ public class EcountFixedAssetTypeImporter {
         EcountMig6ImportResult.Builder result =
                 EcountMig6ImportResult.builder(parsed.dataRows().size(), hash);
         String actor = EcountMig6ImportSupport.actor(actorUserId);
+        Set<String> seenTypeCodes = new HashSet<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             try {
                 String code = require(c[0], "고정자산유형코드", rowNo);
                 String name = require(c[1], "고정자산유형명", rowNo);
+                rejectDuplicateBusinessKey(seenTypeCodes, code, rowNo);
                 boolean active = EcountMig6ImportSupport.parseActiveFlag(c[2], rowNo);
                 if (!insertStaging(hash, rowNo, c, actor)) {
                     result.skipped();
@@ -185,6 +189,13 @@ public class EcountFixedAssetTypeImporter {
 
     private static String sampleRawValue(String[] c, BusinessException ex) {
         return ex.getErrorCode() == ErrorCode.MIG6_BOOLEAN_FLAG_INVALID ? c[2] : String.join("\u001F", c);
+    }
+
+    private static void rejectDuplicateBusinessKey(Set<String> seenKeys, String code, int rowNo) {
+        if (!seenKeys.add(code)) {
+            throw new BusinessException(ErrorCode.MIG6_FIXED_ASSET_TYPE_CODE_DUPLICATE,
+                    "동일 source_file 내 고정자산유형코드 중복: sourceRowNo=" + rowNo + ", typeCode='" + code + "'");
+        }
     }
 
     private static String truncate(String value, int max) {

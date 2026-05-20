@@ -25,6 +25,7 @@ class Mig6AccountingFixtureHeaderCrossCheckTest {
             assertThat(bytes).startsWith((byte) 0xEF, (byte) 0xBB, (byte) 0xBF);
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(bytes);
             EcountCsvSupport.validateHeader(parsed.header(), expectedHeaders);
+            assertThat(parsed.dataRows()).hasSize(5);
         }
     }
 }

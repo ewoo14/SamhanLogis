@@ -6,11 +6,14 @@ import com.samhanair.logis.common.ecount.EcountMig6ImportSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -43,13 +46,15 @@ public class EcountBankAccountImporter {
         EcountMig6ImportResult.Builder result =
                 EcountMig6ImportResult.builder(parsed.dataRows().size(), hash);
         String actor = EcountMig6ImportSupport.actor(actorUserId);
+        Set<String> seenAccountCodes = new HashSet<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             try {
                 String code = require(c[0], "계좌코드", rowNo);
                 String name = require(c[1], "계좌명", rowNo);
-                String chartAccountCode = parseLinkedAccountCode(c[2], rowNo);
+                rejectDuplicateBusinessKey(seenAccountCodes, code, rowNo);
+                String chartAccountCode = lookupChartAccountCode(parseLinkedAccountCode(c[2], rowNo), rowNo);
                 boolean active = EcountMig6ImportSupport.parseActiveFlag(c[6], rowNo);
                 boolean foreignCurrency = EcountMig6ImportSupport.parseUsageFlag(c[5], rowNo);
                 if (!insertStaging(hash, rowNo, c, chartAccountCode, actor)) {
@@ -172,6 +177,30 @@ public class EcountBankAccountImporter {
         String code = EcountCsvSupport.stripCell(matcher.group(1));
         EcountCsvSupport.requireMaxLength(code, 10, "account_chart_code", rowNo);
         return code;
+    }
+
+    private String lookupChartAccountCode(String ecountCode, int rowNo) {
+        try {
+            String accountCode = jdbcTemplate.queryForObject("""
+                    SELECT account_uuid
+                      FROM staging.ecount_account_map
+                     WHERE ecount_code = :ecountCode
+                    """, new MapSqlParameterSource("ecountCode", ecountCode), String.class);
+            if (accountCode != null && !accountCode.isBlank()) {
+                return accountCode;
+            }
+        } catch (EmptyResultDataAccessException ignored) {
+            // Normalize DB lookup miss to the MIG-6 import contract.
+        }
+        throw new BusinessException(ErrorCode.MIG6_LOOKUP_MISS,
+                "계정 lookup miss: sourceRowNo=" + rowNo + ", ecountCode='" + ecountCode + "'");
+    }
+
+    private static void rejectDuplicateBusinessKey(Set<String> seenKeys, String code, int rowNo) {
+        if (!seenKeys.add(code)) {
+            throw new BusinessException(ErrorCode.MIG6_BANK_ACCOUNT_CODE_DUPLICATE,
+                    "동일 source_file 내 계좌코드 중복: sourceRowNo=" + rowNo + ", accountCode='" + code + "'");
+        }
     }
 
     private void updateStatus(String hash, int rowNo, String status, String reason, UUID id) {

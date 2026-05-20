@@ -7,6 +7,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -45,21 +47,24 @@ public class EcountEmployeeCardImporter {
         EcountMig6ImportResult.Builder result =
                 EcountMig6ImportResult.builder(parsed.dataRows().size(), hash);
         String actor = EcountMig6ImportSupport.actor(actorUserId);
+        Set<String> seenEmployeeCodes = new HashSet<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             try {
                 String code = require(c[0], "사원번호", rowNo);
                 String name = require(c[1], "성명", rowNo);
+                rejectDuplicateBusinessKey(seenEmployeeCodes, code, rowNo);
                 String residentNumberMasked = maskResidentNumber(c[2]);
                 LocalDate hireDate = EcountMig6ImportSupport.parseDate(c[5], rowNo, true);
-                if (!insertStaging(hash, rowNo, c, residentNumberMasked, hireDate, actor)) {
+                UUID departmentId = lookupDepartment(c[3], rowNo);
+                if (!insertStaging(hash, rowNo, c, residentNumberMasked, departmentId, hireDate, actor)) {
                     result.skipped();
                     continue;
                 }
                 UUID employeeId = lookupEmployee(code, rowNo);
                 boolean exists = exists(employeeId);
-                UUID id = upsertCard(employeeId, code, name, residentNumberMasked, c, hireDate, actor);
+                UUID id = upsertCard(employeeId, departmentId, code, name, residentNumberMasked, c, hireDate, actor);
                 updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, id);
                 if (exists) {
                     result.updated();
@@ -92,21 +97,22 @@ public class EcountEmployeeCardImporter {
         return value.substring(0, 8) + "******";
     }
 
-    private boolean insertStaging(String hash, int rowNo, String[] c, String residentNumberMasked,
+    private boolean insertStaging(String hash, int rowNo, String[] c, String residentNumberMasked, UUID departmentId,
                                   LocalDate hireDate, String actor) {
         int rows = jdbcTemplate.update("""
                 INSERT INTO staging.ecount_employee_card_raw (
                   source_file_hash, source_row_no, employee_code, employee_name, resident_number_masked,
-                  department_name, position_name, hire_date, account_number, email,
+                  department_id, department_name, position_name, hire_date, account_number, email,
                   raw_payload, created_by, modified_by
                 ) VALUES (
                   :hash, :row, :code, :name, :residentNumberMasked,
-                  :departmentName, :positionName, :hireDate, :accountNumber, :email,
+                  :departmentId, :departmentName, :positionName, :hireDate, :accountNumber, :email,
                   :payload, :actor, :actor
                 )
                 ON CONFLICT (source_file_hash, source_row_no) DO NOTHING
                 """, params(hash, rowNo, c, actor)
                 .addValue("residentNumberMasked", residentNumberMasked)
+                .addValue("departmentId", departmentId)
                 .addValue("hireDate", hireDate));
         return rows > 0;
     }
@@ -126,7 +132,7 @@ public class EcountEmployeeCardImporter {
                 """, params(hash, rowNo, c, actor));
     }
 
-    private UUID upsertCard(UUID employeeId, String code, String name, String residentNumberMasked,
+    private UUID upsertCard(UUID employeeId, UUID departmentId, String code, String name, String residentNumberMasked,
                             String[] c, LocalDate hireDate, String actor) {
         return jdbcTemplate.queryForObject("""
                 WITH restored AS (
@@ -134,6 +140,7 @@ public class EcountEmployeeCardImporter {
                        SET employee_code = :code,
                            employee_name = :name,
                            resident_number_masked = :residentNumberMasked,
+                           department_id = :departmentId,
                            department_name = :departmentName,
                            position_name = :positionName,
                            hire_date = :hireDate,
@@ -149,17 +156,18 @@ public class EcountEmployeeCardImporter {
                 ), upserted AS (
                     INSERT INTO employee_cards (
                       id, employee_id, employee_code, employee_name, resident_number_masked,
-                      department_name, position_name, hire_date, account_number, email,
+                      department_id, department_name, position_name, hire_date, account_number, email,
                       created_at, created_by, modified_at, modified_by, is_deleted
                     )
                     SELECT gen_random_uuid(), :employeeId, :code, :name, :residentNumberMasked,
-                           :departmentName, :positionName, :hireDate, :accountNumber, :email,
+                           :departmentId, :departmentName, :positionName, :hireDate, :accountNumber, :email,
                            NOW(), :actor, NOW(), :actor, FALSE
                     WHERE NOT EXISTS (SELECT 1 FROM restored)
                     ON CONFLICT (employee_id) WHERE is_deleted = FALSE DO UPDATE SET
                       employee_code = EXCLUDED.employee_code,
                       employee_name = EXCLUDED.employee_name,
                       resident_number_masked = EXCLUDED.resident_number_masked,
+                      department_id = EXCLUDED.department_id,
                       department_name = EXCLUDED.department_name,
                       position_name = EXCLUDED.position_name,
                       hire_date = EXCLUDED.hire_date,
@@ -175,6 +183,7 @@ public class EcountEmployeeCardImporter {
                 LIMIT 1
                 """, params(null, 0, c, actor)
                 .addValue("employeeId", employeeId)
+                .addValue("departmentId", departmentId)
                 .addValue("code", truncate(code, 50))
                 .addValue("name", truncate(name, 100))
                 .addValue("residentNumberMasked", residentNumberMasked)
@@ -194,6 +203,41 @@ public class EcountEmployeeCardImporter {
         }
         throw new BusinessException(ErrorCode.MIG6_LOOKUP_MISS,
                 "사원 lookup miss: sourceRowNo=" + rowNo + ", employeeCode='" + code + "'");
+    }
+
+    private UUID lookupDepartment(String departmentName, int rowNo) {
+        String name = EcountCsvSupport.stripCell(departmentName);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM staging.ecount_department_map
+                 WHERE ecount_name = :name
+                   AND is_deleted = FALSE
+                """, new MapSqlParameterSource("name", name), Long.class);
+        if (count == null || count == 0) {
+            throw new BusinessException(ErrorCode.MIG6_LOOKUP_MISS,
+                    "부서 lookup miss: sourceRowNo=" + rowNo + ", departmentName='" + name + "'");
+        }
+        if (count > 1) {
+            throw new BusinessException(ErrorCode.MIG6_LOOKUP_AMBIGUOUS,
+                    "부서명 중복: sourceRowNo=" + rowNo + ", departmentName='" + name + "'");
+        }
+        try {
+            UUID id = jdbcTemplate.queryForObject("""
+                    SELECT department_uuid
+                      FROM staging.ecount_department_map
+                     WHERE ecount_name = :name
+                       AND is_deleted = FALSE
+                     ORDER BY updated_at DESC
+                     LIMIT 1
+                    """, new MapSqlParameterSource("name", name), UUID.class);
+            if (id != null) {
+                return id;
+            }
+        } catch (EmptyResultDataAccessException ignored) {
+            // Normalize DB lookup miss to the MIG-6 import contract.
+        }
+        throw new BusinessException(ErrorCode.MIG6_LOOKUP_MISS,
+                "부서 lookup miss: sourceRowNo=" + rowNo + ", departmentName='" + name + "'");
     }
 
     private boolean exists(UUID employeeId) {
@@ -267,6 +311,13 @@ public class EcountEmployeeCardImporter {
             }
         }
         return String.join("\u001F", maskedRow);
+    }
+
+    private static void rejectDuplicateBusinessKey(Set<String> seenKeys, String code, int rowNo) {
+        if (!seenKeys.add(code)) {
+            throw new BusinessException(ErrorCode.MIG6_EMPLOYEE_CODE_DUPLICATE,
+                    "동일 source_file 내 사원코드 중복: sourceRowNo=" + rowNo + ", employeeCode='" + code + "'");
+        }
     }
 
     private static String truncate(String value, int max) {

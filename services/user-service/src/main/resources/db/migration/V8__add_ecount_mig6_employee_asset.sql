@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS employee_cards (
     employee_code           VARCHAR(50)  NOT NULL,
     employee_name           VARCHAR(100) NOT NULL,
     resident_number_masked  VARCHAR(14)  NOT NULL,
+    department_id           UUID         REFERENCES departments(id),
     department_name         VARCHAR(100),
     position_name           VARCHAR(50),
     hire_date               DATE,
@@ -32,6 +33,8 @@ CREATE TABLE IF NOT EXISTS employee_cards (
     is_deleted              BOOLEAN      NOT NULL DEFAULT FALSE,
     CONSTRAINT employee_cards_pk PRIMARY KEY (id)
 );
+
+ALTER TABLE employee_cards ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_employee_cards_employee_active
     ON employee_cards (employee_id)
@@ -91,6 +94,7 @@ CREATE TABLE IF NOT EXISTS staging.ecount_employee_card_raw (
     employee_code           TEXT,
     employee_name           TEXT,
     resident_number_masked  VARCHAR(14),
+    department_id           UUID,
     department_name         TEXT,
     position_name           TEXT,
     hire_date               DATE,
@@ -109,6 +113,8 @@ CREATE TABLE IF NOT EXISTS staging.ecount_employee_card_raw (
     is_deleted              BOOLEAN     NOT NULL DEFAULT FALSE,
     PRIMARY KEY (source_file_hash, source_row_no)
 );
+
+ALTER TABLE staging.ecount_employee_card_raw ADD COLUMN IF NOT EXISTS department_id UUID;
 
 CREATE TABLE IF NOT EXISTS staging.ecount_payroll_employee_raw (
     source_file_hash            VARCHAR(64) NOT NULL,

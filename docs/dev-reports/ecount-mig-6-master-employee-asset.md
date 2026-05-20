@@ -1,7 +1,7 @@
 # MIG-6 이카운트 잔여 마스터 5종 마이그레이션 — dev-report
 
-> spec: [2026-05-20-ecount-mig-6-master-employee-asset-design.md](../superpowers/specs/2026-05-20-ecount-mig-6-master-employee-asset-design.md)  
-> plan: [2026-05-20-ecount-mig-6-master-employee-asset.md](../superpowers/plans/2026-05-20-ecount-mig-6-master-employee-asset.md)  
+> spec: [2026-05-20-ecount-mig-6-master-employee-asset-design.md](../superpowers/specs/2026-05-20-ecount-mig-6-master-employee-asset-design.md)
+> plan: [2026-05-20-ecount-mig-6-master-employee-asset.md](../superpowers/plans/2026-05-20-ecount-mig-6-master-employee-asset.md)
 > branch: `spec/2026-05-20-mig-6-master-employee-asset`
 
 ## 범위
@@ -45,3 +45,10 @@
 - `EcountBankAccountImporter` 외화통장 여부는 공통 `parseUsageFlag`로 `사용/미사용/YES/NO`만 허용.
 - MIG-6 user/accounting import IT에 `X-User-Id` 누락 401 케이스 추가.
 - 이카운트 사원 migration row는 auth account 미생성 상태를 표현하기 위해 `employees.account_id`를 nullable로 전환.
+
+## Cycle 1e Fix
+
+- 통장계좌 `계정명(계정코드)`는 `staging.ecount_account_map`으로 lookup하고 누락 시 `MIG6_LOOKUP_MISS` reject.
+- 인사카드는 `staging.ecount_department_map` 부서 lookup을 거쳐 `employee_cards.department_id`를 저장하고, 누락/중복은 각각 `MIG6_LOOKUP_MISS`/`MIG6_LOOKUP_AMBIGUOUS` reject.
+- 5 importer 모두 같은 source file 내 business key 중복을 `seenKeys`로 선감지해 2번째 행을 duplicate reject.
+- accounting fixture 2종을 5 row로 확장하고 fixture cross-check에 row count assertion 추가.

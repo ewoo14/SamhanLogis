@@ -1,20 +1,22 @@
 ---
 name: codex-plugin-setup
-description: Codex CLI MCP 서버 사용 (mcp__codex__codex) — 2026-05-17 사용자 정정. Plugin (openai/codex-plugin-cc) 폐기. MCP 서버 통한 review/fix 모두 안정 동작.
+description: Codex CLI MCP 서버 사용 (mcp__codex__codex) — 2026-05-17 사용자 정정 / 2026-05-20 갱신. Plugin 폐기. review + fix 모두 sandbox=workspace-write 통일 (사용자 명시).
 metadata:
   type: feedback
 ---
 
-# Codex CLI MCP 서버 사용 (2026-05-17 사용자 정정)
+# Codex CLI MCP 서버 사용 (2026-05-17 사용자 정정 / 2026-05-20 갱신)
 
 > **2026-05-17 사용자 명시**: "코덱스 플러그인 아니며 codex CLI로 MCP 서버를 활용". Plugin (`openai/codex-plugin-cc`) 폐기. **`mcp__codex__codex` MCP 도구 사용**.
+>
+> **2026-05-20 사용자 정정 (MIG-6 사이클 1d 직후)**: review 단계 sandbox 도 `workspace-write` 로 통일 (`read-only` 폐기). 앞으로 모든 Codex 호출은 `workspace-write`.
 
 ## 핵심 규칙
 
 | 구분 | 사용 도구 | 비고 |
 |---|---|---|
-| **Code review (read-only)** | `mcp__codex__codex` `sandbox: "read-only"` | review 5-agent (BE/FE/Designer/QA/DevOps) 병렬 호출 |
-| **Code fix (write)** | `mcp__codex__codex` `sandbox: "workspace-write"` | 통합 fix commit |
+| **Code review** | `mcp__codex__codex` `sandbox: "workspace-write"` | review 5-agent 병렬, **2026-05-20 read-only 폐기 후 workspace-write 통일** |
+| **Code fix** | `mcp__codex__codex` `sandbox: "workspace-write"` | 통합 fix commit |
 | **Adversarial / 위험 작업** | `mcp__codex__codex` `sandbox: "danger-full-access"` | 신중 사용 |
 | **Continue session** | `mcp__codex__codex-reply` `threadId` | 동일 thread 이어가기 |
 
@@ -23,7 +25,7 @@ metadata:
 ```yaml
 mcp__codex__codex:
   prompt: "<role-specific review/fix prompt>"
-  sandbox: "read-only"             # review
+  sandbox: "workspace-write"       # review + fix 모두 (2026-05-20 통일)
   approval-policy: "never"         # interactive 차단
   model: "gpt-5.5-codex"           # 또는 "gpt-5.2-codex" 등
   cwd: "C:\\dev\\SamhanLogis"      # repo root

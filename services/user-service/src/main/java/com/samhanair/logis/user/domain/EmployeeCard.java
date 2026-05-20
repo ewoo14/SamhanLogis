@@ -44,6 +44,10 @@ public class EmployeeCard extends BaseEntity {
     @Column(name = "resident_number_masked", nullable = false, length = 14)
     private String residentNumberMasked;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
+
     @Column(name = "department_name", length = 100)
     private String departmentName;
 

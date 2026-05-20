@@ -108,6 +108,17 @@ class EcountFixedAssetTypeImporterTest {
         assertThat(result.rejected()).isZero();
     }
 
+    @Test
+    void 동일_source_file_안_business_key_중복은_DUPLICATE_reject() {
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(
+                row("00001", "토지", "Yes")
+                        + row("00001", "토지-중복", "Yes"))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_FIXED_ASSET_TYPE_CODE_DUPLICATE");
+    }
+
     static InputStream stream(String csv) {
         return new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }

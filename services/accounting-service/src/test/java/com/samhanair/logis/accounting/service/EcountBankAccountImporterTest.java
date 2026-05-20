@@ -38,6 +38,8 @@ class EcountBankAccountImporterTest {
                 .thenReturn(null);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(0);
+        lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn("1019");
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000006101"));
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
@@ -114,6 +116,28 @@ class EcountBankAccountImporterTest {
 
         EcountMig6ImportResult result = importer.importCsv(stream(csv(row("001", "A", "현금(1019)", "YES"))), "tester");
 
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_BANK_ACCOUNT_CODE_DUPLICATE");
+    }
+
+    @Test
+    void 계정명_lookup_miss는_MIG6_LOOKUP_MISS_reject() {
+        when(jdbcTemplate.queryForObject(contains("FROM staging.ecount_account_map"), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(null);
+
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(row("001", "A", "현금(1019)", "YES"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_LOOKUP_MISS");
+    }
+
+    @Test
+    void 동일_source_file_안_business_key_중복은_DUPLICATE_reject() {
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(
+                row("001", "A", "현금(1019)", "YES")
+                        + row("001", "A-중복", "현금(1019)", "YES"))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
         assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
                 .containsExactly("MIG6_BANK_ACCOUNT_CODE_DUPLICATE");
     }

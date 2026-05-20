@@ -7,6 +7,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -42,12 +44,14 @@ public class EcountPayrollEmployeeImporter {
         EcountMig6ImportResult.Builder result =
                 EcountMig6ImportResult.builder(parsed.dataRows().size(), hash);
         String actor = EcountMig6ImportSupport.actor(actorUserId);
+        Set<String> seenEmployeeCodes = new HashSet<>();
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
             String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
             try {
                 String code = require(c[0], "사원번호", rowNo);
                 String name = require(c[1], "성명", rowNo);
+                rejectDuplicateBusinessKey(seenEmployeeCodes, code, rowNo);
                 LocalDate hireDate = EcountMig6ImportSupport.parseDate(c[5], rowNo, true);
                 LocalDate leaveDate = EcountMig6ImportSupport.parseDate(c[6], rowNo, true);
                 if (!insertStaging(hash, rowNo, c, hireDate, leaveDate, actor)) {
@@ -270,6 +274,13 @@ public class EcountPayrollEmployeeImporter {
 
     private static String sampleRawValue(String[] c, BusinessException ex) {
         return ex.getErrorCode() == ErrorCode.MIG6_DATE_INVALID ? c[5] + "/" + c[6] : String.join("\u001F", c);
+    }
+
+    private static void rejectDuplicateBusinessKey(Set<String> seenKeys, String code, int rowNo) {
+        if (!seenKeys.add(code)) {
+            throw new BusinessException(ErrorCode.MIG6_EMPLOYEE_CODE_DUPLICATE,
+                    "동일 source_file 내 사원코드 중복: sourceRowNo=" + rowNo + ", employeeCode='" + code + "'");
+        }
     }
 
     private static String truncate(String value, int max) {

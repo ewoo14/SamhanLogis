@@ -39,6 +39,8 @@ class EcountEmployeeCardImporterTest {
                 .thenReturn(null);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(0);
+        lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000006301"));
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
@@ -166,6 +168,39 @@ class EcountEmployeeCardImporterTest {
 
         assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
                 .containsExactly("CONFLICT");
+    }
+
+    @Test
+    void 부서명_lookup_miss는_MIG6_LOOKUP_MISS_reject() {
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(row("00009", "사원A", "XXXXXX-XXXXXXX", "영업부", "2024/07/23"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_LOOKUP_MISS");
+    }
+
+    @Test
+    void 부서명_중복은_MIG6_LOOKUP_AMBIGUOUS_reject() {
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), any(SqlParameterSource.class), eq(Long.class)))
+                .thenReturn(2L);
+
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(row("00009", "사원A", "XXXXXX-XXXXXXX", "영업부", "2024/07/23"))), "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_LOOKUP_AMBIGUOUS");
+    }
+
+    @Test
+    void 동일_source_file_안_business_key_중복은_DUPLICATE_reject() {
+        EcountMig6ImportResult result = importer.importCsv(stream(csv(
+                row("00009", "사원A", "XXXXXX-XXXXXXX", "영업부", "2024/07/23")
+                        + row("00009", "사원A-중복", "XXXXXX-XXXXXXX", "영업부", "2024/07/24"))), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejectedSample()).extracting(EcountMig6ImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG6_EMPLOYEE_CODE_DUPLICATE");
     }
 
     static InputStream stream(String csv) {

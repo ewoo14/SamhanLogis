@@ -297,6 +297,8 @@ public enum ErrorCode {
             "동일 source_file 내 사원코드 중복"),
     MIG6_BANK_ACCOUNT_CODE_DUPLICATE(HttpStatus.CONFLICT,
             "동일 source_file 내 계좌코드 중복"),
+    MIG6_FIXED_ASSET_TYPE_CODE_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 source_file 내 고정자산유형코드 중복"),
     MIG6_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-6 일자 포맷 불일치"),
     MIG6_RESIDENT_NUMBER_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
