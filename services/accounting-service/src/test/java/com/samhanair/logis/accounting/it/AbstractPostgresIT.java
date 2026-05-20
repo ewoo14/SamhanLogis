@@ -45,6 +45,7 @@ public abstract class AbstractPostgresIT {
         // MIG-3 사이클 3 — Testcontainers PostgreSQL 단일 컨테이너 reuse 환경에서
         // ApplicationContext 다수 (29+ IT) 가 connection pool 누적 → max_connections 초과 방지.
         // HikariCP maximumPoolSize=5 로 제한하여 CI 의 PSQLException at ConnectionFactoryImpl:711 회귀 차단.
+        // PostgreSQL 단일 Testcontainers reuse 가정 — test parallelism 도입 시 connection 부족 회귀 가능, 재검토 필요 (사후 재점검 회고).
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
         registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
         registry.add("spring.datasource.hikari.connection-timeout", () -> "20000");

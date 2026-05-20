@@ -14,7 +14,7 @@
 - 지출: 차변 `지급수수료`, 대변 `보통예금`.
 - 입금: 차변 `보통예금`, 대변 `외상매출금`.
 - ChartOfAccount lookup은 `name` + `is_leaf=true` 기준이며 miss는 `MIG9_DEFAULT_ACCOUNT_MISSING` sample로 응답한다.
-- `journal_no`는 `J-` + `slip_no`이며, 기존 20자 제한을 cash slip 번호 수용을 위해 40자로 확장했다.
+- `journal_no`는 CashDisbursement `JD-` + `slip_no`, CashReceipt `JR-` + `slip_no`로 분리하며, 기존 20자 제한을 cash slip 번호 수용을 위해 40자로 확장했다.
 - 동시성은 `REQUIRES_NEW + READ_COMMITTED`와 `pg_advisory_xact_lock` 단일 namespace로 제어한다.
 - `DuplicateKeyException`은 `journals_source_type_ref_uk` constraint 명칭일 때만 `MIG9_JOURNAL_DUPLICATE`로 흡수한다.
 - `REFRESH MATERIALIZED VIEW CONCURRENTLY partner_aging_snapshot`은 `Propagation.NEVER`로 트랜잭션 밖에서 실행한다.

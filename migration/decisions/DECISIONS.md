@@ -2297,3 +2297,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-12-07 | 회귀 가드는 `TaxInvoiceLineSoftDeleteIT` 3 cases와 LookupClient 단위 테스트(token null/blank, 401, 403, 404)로 둔다. |
 
 **산출 예정/진행**: accounting V32, `TaxInvoiceLineSoftDeleteIT`, Product/Partner LookupClient auth fail-fast, ErrorCode `MIG12_INTERNAL_AUTH_MISS`, dev-report `docs/dev-reports/mig-12-followup-tax-invoice-line-unique-lookup-auth.md`.
+
+### D-MIG-13-00. Minor 백로그 청소 (MIG-13, 2026-05-21)
+
+**배경**: MIG-1~12 사후 재점검에서 남은 Minor 항목을 admin UI(MIG-14) 진입 전에 정리한다. 신규 마이그레이션/권한/API는 만들지 않고 stale 문서, footer 판별, dead branch, 회고 주석만 다룬다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-13-01 | PartnerLookupClient 문서는 V32(MIG-12) 이후 401/403 fail-fast 계약을 명시하고, 404/5xx/network fail-soft만 남긴다. |
+| D-MIG-13-02 | MIG-9 dev-report의 cash journal prefix는 1e fix 결과에 맞춰 CashDisbursement `JD-`, CashReceipt `JR-`로 정정한다. |
+| D-MIG-13-03 | EcountSalesPurchaseSummaryImporter footer 판별은 full-width 숫자와 NBSP 공백을 월계/누계/timestamp 모두에서 허용한다. |
+| D-MIG-13-04 | EcountStockTransferImporter는 `MIG5_LOOKUP_MISS`를 throw하지 않으므로 sampleRawValue dead branch를 제거하고 enum 공유 배경만 주석으로 남긴다. |
+| D-MIG-13-05 | AbstractPostgresIT HikariCP pool=5 값은 변경하지 않고, PostgreSQL 단일 Testcontainers reuse 및 test parallelism 회귀 위험을 주석으로 남긴다. |
+
+**산출 예정/진행**: accounting/inventory service minor cleanup, `EcountSalesPurchaseSummaryImporterTest` full-width footer 회귀 가드, dev-report `docs/dev-reports/mig-13-minor-cleanup.md`.

@@ -334,7 +334,7 @@ public class EcountStockTransferImporter {
             case MIG5_DATE_INVALID -> c[0];
             case MIG5_WAREHOUSE_LOOKUP_MISS -> warehouseSample(c, ex);
             case MIG5_PRODUCT_LOOKUP_MISS -> c[3];
-            case MIG5_LOOKUP_MISS -> c[3];
+            // MIG5_LOOKUP_MISS는 Expense/Deposit importer와 공유하는 enum이며 본 importer에서는 사용하지 않는다.
             case MIG5_LOOKUP_AMBIGUOUS -> lookupAmbiguousSample(c, ex);
             default -> String.join("\u001F", c);
         };

@@ -92,6 +92,19 @@ class EcountSalesPurchaseSummaryImporterTest {
     }
 
     @Test
+    void full_width_숫자_footer_정확_skip() {
+        EcountMig4ImportResult result = importer.importCsv(stream(summaryCsv(
+                row("2026/05/01 -1", "110,000") +
+                "\"２０２６/０５\u00A0계\u00A0(２２３７ 건)\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"\n" +
+                "\"누계\u00A0(２２３７ 건)\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"\n" +
+                "\"２０２６/０５/１９\u00A0오후 3:13:45\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"\n")), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.skipped()).isEqualTo(3);
+        assertThat(result.rejected()).isZero();
+    }
+
+    @Test
     void BOM_INPUT을_정상_strip한다() {
         EcountMig4ImportResult result = importer.importCsv(stream("\uFEFF" + summaryCsv(row("2026/05/01 -1", "110,000"))), "tester");
 

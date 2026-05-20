@@ -29,6 +29,16 @@ public class EcountSalesPurchaseSummaryImporter {
             "월/일", "유형명", "전자구분", "거래처명", "세부내역", "매입공급가액",
             "매입부가세", "매출공급가액", "매출부가세", "매출합계"
     };
+    private static final String FOOTER_DIGIT = "[\\d０-９]";
+    private static final String FOOTER_SPACE = "[\\s\\u00A0]";
+    private static final String MONTH_TOTAL_FOOTER =
+            FOOTER_DIGIT + "{4}/" + FOOTER_DIGIT + "{2}" + FOOTER_SPACE + "*계"
+                    + FOOTER_SPACE + "*\\(.*건.*";
+    private static final String CUMULATIVE_TOTAL_FOOTER =
+            "누계" + FOOTER_SPACE + "*\\(.*건.*";
+    private static final String TIMESTAMP_FOOTER =
+            FOOTER_DIGIT + "{4}/" + FOOTER_DIGIT + "{2}/" + FOOTER_DIGIT + "{2}"
+                    + FOOTER_SPACE + "*(오전|오후).*";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -120,9 +130,9 @@ public class EcountSalesPurchaseSummaryImporter {
             return Arrays.stream(row)
                     .allMatch(c -> c == null || EcountCsvSupport.stripCell(c).trim().isEmpty());
         }
-        return first.matches("\\d{4}/\\d{2}\\s*계\\s*\\(.*건.*")
-                || first.startsWith("누계")
-                || first.matches("\\d{4}/\\d{2}/\\d{2}\\s*(오전|오후).*");
+        return first.matches(MONTH_TOTAL_FOOTER)
+                || first.matches(CUMULATIVE_TOTAL_FOOTER)
+                || first.matches(TIMESTAMP_FOOTER);
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, LocalDate summaryDate,

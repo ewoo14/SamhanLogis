@@ -18,8 +18,9 @@ import org.springframework.web.client.RestClientResponseException;
  * partner-service internal endpoint 호출 client (PR-E2 BE-A8/A9/A10 의존).
  *
  * <p>{@code GET /internal/partners/{partnerCode}} 호출 → PartnerSummary 반환.
- * notification-service 의 {@code RestClientPartnerLookupClient} 를 답습한 fail-soft 패턴 —
- * 404 / 401 / 5xx / 네트워크 모두 empty 반환 (caller 가 fallback 처리).
+ * notification-service 의 {@code RestClientPartnerLookupClient} 를 답습하되,
+ * V32(MIG-12) 이후 401/403 응답은 fail-fast ({@code MIG12_INTERNAL_AUTH_MISS})로 격상한다.
+ * 404 / 5xx / 네트워크 오류는 empty 반환 (caller 가 fallback 처리).
  *
  * <p>인증 = X-Internal-Token (env {@code SAMHAN_INTERNAL_TOKEN}).
  *
@@ -45,7 +46,7 @@ public class PartnerLookupClient {
     }
 
     /**
-     * partnerCode 로 거래처 단건 조회. 미존재(404)/토큰오류(401)/5xx 모두 empty 반환.
+     * partnerCode 로 거래처 단건 조회. 401/403 은 fail-fast, 404/5xx 는 empty 반환.
      *
      * @param partnerCode 거래처코드 (필수, 사용자 노출 식별자)
      * @return PartnerSummary (성공) 또는 empty (실패)
@@ -88,7 +89,7 @@ public class PartnerLookupClient {
      *
      * <p>partner-service {@code GET /internal/partners/{id}/summary} 호출.
      * 성공 시 PartnerSummary (partnerCode + name 포함) 반환.
-     * 404 / 401 / 5xx / 네트워크 오류 모두 empty 반환 (caller 가 fallback 처리).
+     * 401/403 은 fail-fast, 404 / 5xx / 네트워크 오류는 empty 반환 (caller 가 fallback 처리).
      *
      * <p>인증 = X-Internal-Token (env {@code SAMHAN_INTERNAL_TOKEN}).
      *
@@ -132,8 +133,8 @@ public class PartnerLookupClient {
      * 거래처명 → PartnerSummary fail-soft — MIG-3 이카운트 전표 import 의 거래처명 lookup.
      *
      * <p>partner-service {@code GET /internal/partners/by-name?name=} 호출.
-     * 404/409/401/5xx/network 는 모두 empty 로 반환하고, importer 가 {@code MIG3_LOOKUP_MISS}
-     * reject 로 명시 보고한다.
+     * 401/403 은 fail-fast, 404/409/5xx/network 는 empty 로 반환하고,
+     * importer 가 {@code MIG3_LOOKUP_MISS} reject 로 명시 보고한다.
      *
      * @param partnerName 이카운트 raw 거래처명
      * @return PartnerSummary (성공) 또는 empty (실패)
@@ -146,7 +147,8 @@ public class PartnerLookupClient {
      * MIG-3 import 전용 strict 거래처명 lookup.
      *
      * <p>partner-service 가 409 을 반환하면 운영자가 "미등록"이 아니라 "중복/모호"로 조치할 수 있도록
-     * {@code MIG3_LOOKUP_AMBIGUOUS} 를 throw 한다. 404/인증/네트워크 실패는 기존 fail-soft miss 로 둔다.
+     * {@code MIG3_LOOKUP_AMBIGUOUS} 를 throw 한다. 401/403 은 fail-fast,
+     * 404/네트워크 실패는 기존 fail-soft miss 로 둔다.
      */
     public Optional<PartnerSummary> findByPartnerNameStrict(String partnerName) {
         return findByPartnerName(partnerName, true);
