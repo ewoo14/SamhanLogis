@@ -55,11 +55,16 @@
   - `cash_disbursements` / `cash_receipts` 의 `journal_id IS NULL` row를 POSTED Journal + JournalLine 2건으로 생성
   - ChartOfAccount 기본 lookup: 지급수수료 / 보통예금 / 외상매출금, missing은 `MIG9_DEFAULT_ACCOUNT_MISSING` reject
   - auth V22 PageCode 2종 + MIG9 ErrorCode 5종 + cash journal endpoint 2종 + aging snapshot refresh endpoint
-- MIG-10 (진행 중): Order Employee cross-link + Partner aging net view 보정
+- MIG-10 (PR #278): Order Employee cross-link + Partner aging net view 보정
   - accounting V30 `orders.manager_employee_id` UUID + active index, `partner_aging_snapshot` DROP + RECREATE + `net_receivable`/`net_payable`/`net_cash`
   - `POST /admin/accounting/orders/backfill-employee-cross-link`로 `manager_name` → user-service Employee exact lookup backfill
   - lookup miss/ambiguous는 warning sample로 응답하고 `manager_employee_id` NULL 유지
   - auth V23 PageCode 1종 + MIG10 ErrorCode 5종 + service 8 cases + endpoint IT 5 cases
+- MIG-11 (본 PR): 매출장/매입장 XLSX → staging + DailyClosing 대조
+  - Apache POI `EcountXlsxSupport` 도입, 실제 raw row 0 meta / row 1 header 구조 반영
+  - accounting V31 `staging.ecount_sales_ledger_raw` / `staging.ecount_purchase_ledger_raw`
+  - `POST /admin/accounting/sales-ledger/imports/ecount`, `POST /admin/accounting/purchase-ledger/imports/ecount`
+  - DailyClosing 불일치는 `MIG11_DAILY_CLOSING_MISMATCH` warning sample만 반환하고 reject하지 않음
 
 ### 최신 진행 메모 (2026-05-16)
 

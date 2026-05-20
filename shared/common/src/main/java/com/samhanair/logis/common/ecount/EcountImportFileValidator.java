@@ -28,4 +28,20 @@ public final class EcountImportFileValidator {
                     "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
         }
     }
+
+    public static void validateXlsx(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "XLSX 파일 필수");
+        }
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.isBlank()
+                && !contentType.equalsIgnoreCase("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                && !contentType.equalsIgnoreCase("application/octet-stream")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "XLSX 파일만 업로드할 수 있습니다");
+        }
+        if (file.getSize() > MAX_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
+        }
+    }
 }

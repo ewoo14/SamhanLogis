@@ -38,13 +38,13 @@ MIG-10 ([PR #278, `4f925a94`](https://github.com/.../pull/278)) 머지 직후 �
 ## 4. 데이터 흐름
 
 ```
-raw xlsx (2 종, sheet 1 + header row + data rows):
-   ├─ 매출장.xlsx (월/일 / 거래처명 / 품목명 / 수량 / 단가 / 공급가액 / 부가세 / 합계)
-   └─ 매입장.xlsx (동일 구조)
-       ↓ EcountXlsxSupport.parse() (Apache POI 5.x) — sheet 0 + header strict
+raw xlsx (2 종, sheet 0 + row 0 meta + row 1 header + data rows):
+   ├─ 매출장.xlsx (월/일 / 유형명 / 전자구분 / 거래처코드 / 거래처명 / 적요 / 매출공급가액 / 매출부가세 / 매출합계)
+   └─ 매입장.xlsx (월/일 / 거래처코드 / 유형명 / 전자구분 / 거래처명 / 적요 / 매입공급가액 / 매입부가세)
+       ↓ EcountXlsxSupport.parse() (Apache POI 5.x) — sheet 0 + row 0 meta 인식 + row 1 header strict
 staging.ecount_*_ledger_raw (2 테이블, 멱등 키 = source_file_hash SHA-256 + source_row_no)
        ↓ DailyClosing 대조 SQL
-검증 결과: total_sales / total_purchase 일별 합계 vs DailyClosing 의 sales_amount / purchase_amount 일치 확인
+검증 결과: total_sales / total_purchase 일별 합계 vs DailyClosing 의 `closing_kind + total_amount` 일치 확인
        ↓ 불일치 sample MIG11_DAILY_CLOSING_MISMATCH 보고
 ```
 
@@ -54,25 +54,34 @@ staging.ecount_*_ledger_raw (2 테이블, 멱등 키 = source_file_hash SHA-256 
 
 ### 5.1 매출장 → `staging.ecount_sales_ledger_raw`
 
-**xlsx 컬럼 (예상)**: 월/일 / 거래처명 / 품목명 / 수량 / 단가 / 공급가액 / 부가세 / 합계
+**Apache POI 실측 컬럼**:
+
+- row 0: `회사명 : (주)삼한공조시스템 / 2026/05/01  ~ 2026/05/19  / 매출장` (meta)
+- row 1: `월/일`, `유형명`, `전자구분`, `거래처코드`, `거래처명`, `적요`, `매출공급가액`, `매출부가세`, `매출합계`
 
 | 컬럼 | staging 매핑 |
 |---|---|
-| 월/일 | `transaction_date` DATE |
+| 월/일 | `transaction_ref`, `transaction_date`, `sequence_no` |
+| 유형명 | `transaction_type` TEXT |
+| 전자구분 | `electronic_type` TEXT |
+| 거래처코드 | `partner_code` TEXT |
 | 거래처명 | `partner_name` TEXT |
-| 품목명 | `item_name` TEXT |
-| 수량 | `quantity` INT |
-| 단가 | `unit_price` NUMERIC(15,2) |
-| 공급가액 | `supply_amount` NUMERIC(15,2) |
-| 부가세 | `vat_amount` NUMERIC(15,2) |
-| 합계 | `total_amount` NUMERIC(15,2) |
+| 적요 | `description` TEXT |
+| 매출공급가액 | `supply_amount` NUMERIC(15,2) |
+| 매출부가세 | `vat_amount` NUMERIC(15,2) |
+| 매출합계 | `total_amount` NUMERIC(15,2) |
 
 - staging 적재만 (도메인 변환 X)
 - 멱등 키 = `source_file_hash` SHA-256 + `source_row_no`
 
 ### 5.2 매입장 → `staging.ecount_purchase_ledger_raw`
 
-동일 패턴, 매입 transaction.
+**Apache POI 실측 컬럼**:
+
+- row 0: `회사명 : (주)삼한공조시스템 / 2026/05/01  ~ 2026/05/19  / 매입장` (meta)
+- row 1: `월/일`, `거래처코드`, `유형명`, `전자구분`, `거래처명`, `적요`, `매입공급가액`, `매입부가세`
+
+매입장에는 `매입합계` 컬럼이 없으므로 `total_amount = 매입공급가액 + 매입부가세`로 계산한다.
 
 ---
 
@@ -83,16 +92,23 @@ staging.ecount_*_ledger_raw (2 테이블, 멱등 키 = source_file_hash SHA-256 
 SELECT
     sl.transaction_date,
     SUM(sl.total_amount) as raw_total,
-    COALESCE(dc.sales_amount, 0) as closing_total,
-    SUM(sl.total_amount) - COALESCE(dc.sales_amount, 0) as diff
+    COALESCE(dc.closing_total, 0) as closing_total,
+    SUM(sl.total_amount) - COALESCE(dc.closing_total, 0) as diff
 FROM staging.ecount_sales_ledger_raw sl
-LEFT JOIN daily_closings dc ON dc.close_date = sl.transaction_date AND dc.is_deleted = FALSE
+LEFT JOIN (
+    SELECT closing_date, SUM(total_amount) closing_total
+    FROM daily_closings
+    WHERE is_deleted = FALSE
+      AND partner_id IS NULL
+      AND closing_kind = 'SALES'
+    GROUP BY closing_date
+) dc ON dc.closing_date = sl.transaction_date
 WHERE sl.is_deleted = FALSE
-GROUP BY sl.transaction_date, dc.sales_amount
-HAVING ABS(SUM(sl.total_amount) - COALESCE(dc.sales_amount, 0)) > 0.01;
+GROUP BY sl.transaction_date, dc.closing_total
+HAVING ABS(SUM(sl.total_amount) - COALESCE(dc.closing_total, 0)) > 0.01;
 ```
 
-매입장도 동일 패턴 (`closing.purchase_amount`).
+매입장도 동일 패턴 (`closing_kind = 'PURCHASE'`, `total_amount`).
 
 불일치 → `MIG11_DAILY_CLOSING_MISMATCH` 보고서 sample 5건 (sample DTO).
 

@@ -86,3 +86,16 @@ MIG-10은 MIG-8 Order의 `manager_name` snapshot을 user-service Employee와 연
 공통 규칙: `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock`, `ROLE_MASTER`/`ROLE_MANAGER`, `manager_employee_id IS NULL` 대상만 처리, lookup miss/ambiguous는 warning sample로 응답하고 NULL을 유지한다.
 
 service-per-DB 경계상 `employees`는 user-service 소유다. V30은 `orders.manager_employee_id` UUID와 index만 추가하고 FK는 선언하지 않는다. 참조 무결성은 user-service internal lookup을 통한 application-level 검증으로 보장한다.
+
+## Ecount MIG-11 Sales/Purchase Ledger XLSX
+
+MIG-11은 이카운트 출력물 `매출장.xlsx`, `매입장.xlsx`를 Apache POI로 파싱해 staging에만 적재하고 `DailyClosing` 일별 합계와 대조한다.
+
+| Importer | Endpoint | 처리 |
+|---|---|---|
+| `EcountSalesLedgerImporter` | `POST /admin/accounting/sales-ledger/imports/ecount` | 매출장 XLSX → `staging.ecount_sales_ledger_raw` + `closing_kind='SALES'` DailyClosing warning |
+| `EcountPurchaseLedgerImporter` | `POST /admin/accounting/purchase-ledger/imports/ecount` | 매입장 XLSX → `staging.ecount_purchase_ledger_raw` + `closing_kind='PURCHASE'` DailyClosing warning |
+
+실제 raw는 sheet 0 row 0이 `회사명 ... / 매출장|매입장` meta row이고 row 1이 strict header다. 매입장에는 합계 컬럼이 없어 `매입공급가액 + 매입부가세`로 `total_amount`를 계산한다.
+
+공통 규칙: Apache POI `XSSFWorkbook`, SHA-256 `source_file_hash`, source Excel row number 기반 `source_row_no`, `(source_file_hash, source_row_no)` staging PK, `REQUIRES_NEW + READ_COMMITTED`, importer별 `pg_advisory_xact_lock`, footer 정확 매칭(`합계`/`총계`) skip, DailyClosing 불일치는 reject가 아닌 warning sample.

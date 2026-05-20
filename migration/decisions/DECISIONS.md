@@ -2258,3 +2258,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-10-13 | 단위 테스트 8 cases와 controller IT 5 cases를 처음부터 작성한다. |
 
 **산출 예정/진행**: accounting V30, auth V23, `Mig10OrderEmployeeBackfillService`, user-service internal Employee by-name lookup, controller 1 endpoint, 단위 테스트 8 cases, controller IT 5 cases, dev-report `docs/dev-reports/ecount-mig-10-employee-cross-link-aging-net.md`.
+
+### D-MIG-11-00. 매출장/매입장 XLSX staging + DailyClosing 대조 (MIG-11, 2026-05-20)
+
+**배경**: MIG-10 머지 후 잔여 검증 raw인 `매출장.xlsx`, `매입장.xlsx`를 도메인 변환 없이 보존하고, Samhan Public `DailyClosing` snapshot과 일별 합계를 대조한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-11-01 | 매출장/매입장 XLSX 2종은 단일 통합 PR로 처리하며 FE/admin UI는 MIG-12+로 이연한다. |
+| D-MIG-11-02 | shared/common에 Apache POI 5.2.5 기반 `EcountXlsxSupport`를 추가한다. |
+| D-MIG-11-03 | 실제 raw sheet 0 row 0은 header가 아니라 `회사명 ... / 매출장|매입장` meta row이므로 row 1을 strict header로 사용한다. |
+| D-MIG-11-04 | 매출장 header는 `월/일/유형명/전자구분/거래처코드/거래처명/적요/매출공급가액/매출부가세/매출합계`로 고정한다. |
+| D-MIG-11-05 | 매입장 header는 `월/일/거래처코드/유형명/전자구분/거래처명/적요/매입공급가액/매입부가세`로 고정하고 `total_amount = 공급가액 + 부가세`로 계산한다. |
+| D-MIG-11-06 | staging 멱등 키는 `source_file_hash` SHA-256 + 실제 Excel 1-base `source_row_no` 복합 PK로 둔다. |
+| D-MIG-11-07 | accounting V31은 BaseEntity 7 audit 컬럼과 soft-delete flag를 포함한 staging 2표를 추가한다. |
+| D-MIG-11-08 | DailyClosing 대조는 실제 도메인 스키마인 `closing_date`, `closing_kind`, `total_amount` 기준으로 수행한다. |
+| D-MIG-11-09 | DailyClosing 불일치는 `MIG11_DAILY_CLOSING_MISMATCH` warning sample만 반환하고 import reject로 처리하지 않는다. |
+| D-MIG-11-10 | footer skip은 첫 nonblank cell이 정확히 `합계` 또는 `총계`인 경우에만 적용한다. |
+| D-MIG-11-11 | auth-service V24에 `ecount.mig11.sales-ledger`, `ecount.mig11.purchase-ledger` PageCode와 MASTER/MANAGER edit seed를 추가한다. |
+| D-MIG-11-12 | shared/common에 MIG11 ErrorCode 5종과 `EcountMig11Result`를 추가한다. |
+| D-MIG-11-13 | 단위 테스트는 importer별 9 cases, controller IT는 5 case × 2 endpoint로 작성한다. |
+| D-MIG-11-14 | commit 가능한 fixture XLSX 2종은 PII placeholder `거래처A~E`만 포함하고 raw header cross-check test로 고정한다. |
+
+**산출 예정/진행**: shared/common `EcountXlsxSupport`, accounting V31, auth V24, `EcountSalesLedgerImporter`, `EcountPurchaseLedgerImporter`, controller 2 endpoint, fixture XLSX 2종, dev-report `docs/dev-reports/ecount-mig-11-sales-purchase-ledger-xlsx.md`.

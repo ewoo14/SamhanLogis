@@ -6,6 +6,30 @@
 
 ## 🚀 2026-05-20 최신 진행 — MIG-10 머지 완료 + MIG-11 자동 진입 (PM 자율 연속)
 
+### 2026-05-20 Codex Update — MIG-11 구현 진행
+
+- 현재 branch: `spec/2026-05-20-mig-11-sales-purchase-ledger-xlsx`
+- 범위: `매출장.xlsx` / `매입장.xlsx` Apache POI 파서 도입, staging 2표, DailyClosing 대조 warning, auth PageCode 2종.
+- 실제 raw 헤더 확인:
+  - row 0은 header가 아니라 `회사명 ... / 매출장|매입장` meta row.
+  - 매출장 row 1 header: `월/일`, `유형명`, `전자구분`, `거래처코드`, `거래처명`, `적요`, `매출공급가액`, `매출부가세`, `매출합계`.
+  - 매입장 row 1 header: `월/일`, `거래처코드`, `유형명`, `전자구분`, `거래처명`, `적요`, `매입공급가액`, `매입부가세`.
+  - 매입장 `total_amount`는 `매입공급가액 + 매입부가세`로 계산.
+- 구현 파일:
+  - `shared/common/src/main/java/com/samhanair/logis/common/ecount/EcountXlsxSupport.java`
+  - `shared/common/src/main/java/com/samhanair/logis/common/ecount/EcountMig11Result.java`
+  - `services/accounting-service/src/main/resources/db/migration/V31__add_ecount_ledger_staging.sql`
+  - `services/auth-service/src/main/resources/db/migration/V24__seed_mig11_page_codes.sql`
+  - `EcountSalesLedgerImporter`, `EcountPurchaseLedgerImporter`, controller 2종, 단위/IT/fixture tests.
+- 문서:
+  - spec 실제 header/DailyClosing schema 정정 완료.
+  - dev-report: `docs/dev-reports/ecount-mig-11-sales-purchase-ledger-xlsx.md`
+  - README / ROADMAP / DECISIONS / accounting-service README / overview HTML 갱신.
+- 검증 상태:
+  - Gradle wrapper는 distribution/plugin classpath 다운로드를 시도했으나 sandbox network 제한으로 `Permission denied: getsockopt` 실패.
+  - 캐시된 Gradle 직접 실행 + `--offline`도 root plugin classpath 캐시 부재로 실패.
+  - 네트워크 가능한 환경에서 `./gradlew.bat :shared:common:test :services:auth-service:test :services:accounting-service:test --no-daemon` 재실행 필요.
+
 ### 머지 완료 슬라이스 (2026-05-20)
 
 | PR | 슬라이스 | head | merged | 산출 |

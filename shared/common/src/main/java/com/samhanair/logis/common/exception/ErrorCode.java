@@ -352,7 +352,17 @@ public enum ErrorCode {
     MIG10_EMPLOYEE_LOOKUP_ERROR(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-10 Employee lookup 호출 실패"),
     MIG10_AGING_VIEW_VERSION_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다");
+            "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다"),
+    MIG11_XLSX_PARSE_FAILED(HttpStatus.BAD_REQUEST,
+            "MIG-11 XLSX 파싱 실패"),
+    MIG11_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-11 XLSX 헤더 불일치"),
+    MIG11_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-11 금액 형식 불일치"),
+    MIG11_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-11 일자 포맷 불일치"),
+    MIG11_DAILY_CLOSING_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-11 DailyClosing 합계 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;
