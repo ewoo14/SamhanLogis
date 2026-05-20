@@ -25,4 +25,16 @@ class PageCodeTest {
         assertThat(PageCode.ACCOUNTING_TAX_INVOICE_INBOUND.getDisplayName())
                 .isEqualTo("세금계산서 수신");
     }
+
+    @Test
+    void mig3_pageCodes_4종_정상등록() {
+        assertThat(PageCode.ECOUNT_MIG3_PURCHASE_SLIP.getCode())
+                .isEqualTo("ecount.mig3.purchase-slip");
+        assertThat(PageCode.ECOUNT_MIG3_SALES_SLIP.getCode())
+                .isEqualTo("ecount.mig3.sales-slip");
+        assertThat(PageCode.ECOUNT_MIG3_GENERAL_VOUCHER.getCode())
+                .isEqualTo("ecount.mig3.general-voucher");
+        assertThat(PageCode.ECOUNT_MIG3_JOURNAL_ENTRY.getCode())
+                .isEqualTo("ecount.mig3.journal-entry");
+    }
 }

@@ -124,6 +124,51 @@ public class PartnerLookupClient {
         }
     }
 
+    /**
+     * 거래처명 → PartnerSummary fail-soft — MIG-3 이카운트 전표 import 의 거래처명 lookup.
+     *
+     * <p>partner-service {@code GET /internal/partners/by-name?name=} 호출.
+     * 404/409/401/5xx/network 는 모두 empty 로 반환하고, importer 가 {@code MIG3_LOOKUP_MISS}
+     * reject 로 명시 보고한다.
+     *
+     * @param partnerName 이카운트 raw 거래처명
+     * @return PartnerSummary (성공) 또는 empty (실패)
+     */
+    public Optional<PartnerSummary> findByPartnerName(String partnerName) {
+        if (partnerName == null || partnerName.isBlank()) {
+            return Optional.empty();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("PartnerLookupClient — X-Internal-Token 미설정, partnerName lookup 건너뜀 (partnerName={})",
+                    partnerName);
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/internal/partners/by-name")
+                            .queryParam("name", partnerName.trim())
+                            .build())
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseSummary(body);
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 404 || status == 409) {
+                log.debug("PartnerLookupClient — partnerName={} status={} (lookup miss/ambiguous)",
+                        partnerName, status);
+                return Optional.empty();
+            }
+            log.warn("PartnerLookupClient — partnerName={} status={} (예외)", partnerName, status);
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("PartnerLookupClient partnerName 호출 실패 — partnerName={}, msg={}",
+                    partnerName, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     /** ApiResponse wrapper 의 data 필드 → PartnerSummary 변환. */
     private Optional<PartnerSummary> parseSummary(String body) {
         if (body == null || body.isBlank()) {

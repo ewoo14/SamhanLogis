@@ -2073,3 +2073,23 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 - **MIG-3~6** — 트랜잭션 전표 (회계/매출매입/입출금/재고)
 
 **비용**: AWS 변경 0 (partner-service 기존 그대로).
+
+---
+
+### D-MIG-3-00. 이카운트 회계 전표 4종 마이그레이션 (MIG-3, 2026-05-20)
+
+**배경**: MIG-2 마스터 5종과 자동 lookup map 4종이 완료되어 회계 트랜잭션 raw 4종(매입전표 I / 매출전표 I / 일반전표 / 회계전표분개)을 accounting-service 도메인으로 transform 할 수 있게 됐다.
+
+| # | 결정 |
+|---|---|
+| D-MIG-3-01 | 4 raw는 한 PR 통합으로 처리한다. |
+| D-MIG-3-02 | staging 멱등 키는 `source_file_hash(MD5)` + `source_row_no(1-base)` 복합 PK로 둔다. |
+| D-MIG-3-03 | 4 importer 모두 `REQUIRES_NEW + READ_COMMITTED`와 `pg_advisory_xact_lock` namespace 분리를 사용한다. |
+| D-MIG-3-04 | `EcountCsvSupport`의 BOM strip, `데이터관리>` meta row, strict header, advisory lock, max length guard를 재사용한다. |
+| D-MIG-3-05 | 거래처명 lookup은 partner-service `/internal/partners/by-name?name=`를 사용한다. miss/ambiguous/fail은 silent fallback 없이 `MIG3_LOOKUP_MISS` reject로 보고한다. |
+| D-MIG-3-06 | 회계전표분개 계정명 lookup은 MIG-2 산출 `staging.ecount_account_map.account_name → account_uuid` 역방향 검색으로 한다. |
+| D-MIG-3-07 | 회계전표분개 journalNo 그룹의 차/대 합계가 일치하면 POSTED, 불일치하면 DRAFT 유지 + `MIG3_JOURNAL_BALANCE_MISMATCH` warning으로 보고한다. |
+| D-MIG-3-08 | domain upsert 전 soft-deleted row는 `WITH restored AS (...)` CTE로 복구한다. |
+| D-MIG-3-09 | 응답 DTO는 UUID를 노출하지 않고 slipNo/journalNo/partnerName/accountCode 등 비즈니스 식별자와 sample raw value만 반환한다. |
+
+**산출 예정/진행**: accounting V23 staging 4종, auth V16 PageCode seed, ErrorCode MIG3 5종, 4 importer/controller, fixture cross-check 4종, dev-report `docs/dev-reports/ecount-mig-3-voucher.md`.

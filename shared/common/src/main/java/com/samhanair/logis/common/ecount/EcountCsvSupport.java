@@ -54,6 +54,21 @@ public final class EcountCsvSupport {
         }
     }
 
+    /** MIG-3 source_file_hash 멱등 키용 MD5 hash. 기존 MIG-2 SHA-256 hash 와 호환을 위해 별도 메서드로 둔다. */
+    public static String computeMd5FileHash(byte[] content) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(content);
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02X", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new BusinessException(ErrorCode.MIG2_FILE_HASH_INVALID, "MD5 hash 계산 실패", ex);
+        }
+    }
+
     public static long advisoryLockKey(UUID namespace, String sourceFileHash) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

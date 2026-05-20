@@ -232,7 +232,17 @@ public enum ErrorCode {
      * MIG-2 source file hash 계산 실패.
      */
     MIG2_FILE_HASH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
-            "파일 hash 계산 실패");
+            "파일 hash 계산 실패"),
+    MIG3_VOUCHER_NO_DUPLICATE(HttpStatus.CONFLICT,
+            "전표번호가 중복되었습니다"),
+    MIG3_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "lookup 키 매핑 누락 - 거래처/계정/부서/창고 확인 필요"),
+    MIG3_SLIP_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "전표 금액 형식 불일치 또는 0 이하"),
+    MIG3_JOURNAL_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "차/대 합계 불일치 - POSTED 전이 차단"),
+    MIG3_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
+            "회계 전표 CSV 헤더 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

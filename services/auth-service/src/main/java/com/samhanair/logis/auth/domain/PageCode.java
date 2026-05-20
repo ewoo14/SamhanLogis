@@ -203,7 +203,19 @@ public enum PageCode {
     ECOUNT_MIG2_WAREHOUSE("ecount.mig2.warehouse", "이카운트 창고 마이그레이션"),
 
     /** MIG-2 이카운트 카드/계좌 마이그레이션. */
-    ECOUNT_MIG2_CARD("ecount.mig2.card", "이카운트 카드 마이그레이션");
+    ECOUNT_MIG2_CARD("ecount.mig2.card", "이카운트 카드 마이그레이션"),
+
+    /** MIG-3 이카운트 매입전표 마이그레이션. */
+    ECOUNT_MIG3_PURCHASE_SLIP("ecount.mig3.purchase-slip", "이카운트 매입전표 마이그레이션"),
+
+    /** MIG-3 이카운트 매출전표 마이그레이션. */
+    ECOUNT_MIG3_SALES_SLIP("ecount.mig3.sales-slip", "이카운트 매출전표 마이그레이션"),
+
+    /** MIG-3 이카운트 일반전표 마이그레이션. */
+    ECOUNT_MIG3_GENERAL_VOUCHER("ecount.mig3.general-voucher", "이카운트 일반전표 마이그레이션"),
+
+    /** MIG-3 이카운트 회계전표분개 마이그레이션. */
+    ECOUNT_MIG3_JOURNAL_ENTRY("ecount.mig3.journal-entry", "이카운트 회계전표분개 마이그레이션");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

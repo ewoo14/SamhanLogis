@@ -27,6 +27,10 @@
 
 ---
 
+### 최신 진행 메모 (2026-05-20)
+
+- MIG-3: 이카운트 회계 전표 4종(매입전표 I / 매출전표 I / 일반전표 / 회계전표분개) 마이그레이션 구현 진행. accounting-service V23 staging 4종, auth-service V16 MIG3 PageCode, 4 importer/controller, partner name lookup, account map 역방향 lookup, classpath fixture 4종을 추가했다.
+
 ### 최신 진행 메모 (2026-05-16)
 
 - D-AX-15: `clients/arologis-mobile` driver dashboard GPS 이식 완료, PR #194 merge.
