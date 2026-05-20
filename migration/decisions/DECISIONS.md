@@ -2306,7 +2306,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 |---|---|
 | D-MIG-13-01 | PartnerLookupClient 문서는 V32(MIG-12) 이후 401/403 fail-fast 계약을 명시하고, 404/5xx/network fail-soft만 남긴다. |
 | D-MIG-13-02 | MIG-9 dev-report의 cash journal prefix는 1e fix 결과에 맞춰 CashDisbursement `JD-`, CashReceipt `JR-`로 정정한다. |
-| D-MIG-13-03 | EcountSalesPurchaseSummaryImporter footer 판별은 full-width 숫자와 NBSP 공백을 월계/누계/timestamp 모두에서 허용한다. |
+| D-MIG-13-03 | EcountSalesPurchaseSummaryImporter footer 판별은 full-width 숫자와 NBSP 공백을 월계/누계/timestamp 모두에서 허용하고, 실 raw extra column footer를 위해 row 전체 셀에서 표식을 찾는다. |
 | D-MIG-13-04 | EcountStockTransferImporter는 `MIG5_LOOKUP_MISS`를 throw하지 않으므로 sampleRawValue dead branch를 제거하고 enum 공유 배경만 주석으로 남긴다. |
 | D-MIG-13-05 | AbstractPostgresIT HikariCP pool=5 값은 변경하지 않고, PostgreSQL 단일 Testcontainers reuse 및 test parallelism 회귀 위험을 주석으로 남긴다. |
 

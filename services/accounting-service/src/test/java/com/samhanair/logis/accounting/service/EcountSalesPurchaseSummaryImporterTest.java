@@ -105,6 +105,18 @@ class EcountSalesPurchaseSummaryImporterTest {
     }
 
     @Test
+    void 실_raw_footer_누계_11번째_컬럼_skip() {
+        EcountMig4ImportResult result = importer.importCsv(stream(summaryCsv(
+                row("2026/05/19 -187", "2,778,000") +
+                "\"\",\"\",\"\",\"\",\"\",\"72,033,473\",\"7,023,759\",\"6,235,995,370\","
+                        + "\"623,599,887\",\"6,859,595,257\",\"누계 (2237 건)\",\"\"\n")), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.rejected()).isZero();
+    }
+
+    @Test
     void BOM_INPUT을_정상_strip한다() {
         EcountMig4ImportResult result = importer.importCsv(stream("\uFEFF" + summaryCsv(row("2026/05/01 -1", "110,000"))), "tester");
 

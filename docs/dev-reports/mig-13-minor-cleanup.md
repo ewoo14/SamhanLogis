@@ -11,6 +11,7 @@ MIG-1~12 사후 재점검에서 남은 Minor 5건을 admin UI(MIG-14) 진입 전
 - `PartnerLookupClient` Javadoc에서 V32(MIG-12) 이후 401/403 fail-fast 격상 계약을 명시했다. 404/5xx/network fail-soft 동작은 유지한다.
 - MIG-9 dev-report의 `journal_no` prefix를 실제 1e fix 결과인 CashDisbursement `JD-`, CashReceipt `JR-`로 정정했다.
 - `EcountSalesPurchaseSummaryImporter` footer regex는 full-width 숫자(`０-９`)와 NBSP 공백을 허용하도록 월계/누계/timestamp 패턴을 같은 정책으로 확장했다.
+- 사이클 1e에서 실 raw처럼 `row[0]`이 비고 11번째 컬럼에 footer 표식이 있는 row도 skip하도록 raw row 전체 셀 검출로 보강했다.
 - `EcountStockTransferImporter`의 `MIG5_LOOKUP_MISS` sample branch는 본 importer에서 throw되지 않는 dead branch라 제거하고, enum 공유 배경만 주석으로 남겼다.
 - `AbstractPostgresIT`의 HikariCP `maximum-pool-size=5`는 변경하지 않고, Testcontainers reuse 및 향후 test parallelism 도입 시 재검토 필요성을 주석으로 명시했다.
 
@@ -18,6 +19,8 @@ MIG-1~12 사후 재점검에서 남은 Minor 5건을 admin UI(MIG-14) 진입 전
 
 - `EcountSalesPurchaseSummaryImporterTest.full_width_숫자_footer_정확_skip` 추가.
 - full-width 월계, NBSP 포함 누계, full-width timestamp footer 3종이 skip 처리되는지 확인한다.
+- `EcountSalesPurchaseSummaryImporterTest.실_raw_footer_누계_11번째_컬럼_skip` 추가.
+- 실 raw 매출매입내역 footer처럼 금액 컬럼이 채워지고 11번째 컬럼에 `누계 (NNN 건)`이 위치한 row가 skip 처리되는지 확인한다.
 
 ## 이연
 

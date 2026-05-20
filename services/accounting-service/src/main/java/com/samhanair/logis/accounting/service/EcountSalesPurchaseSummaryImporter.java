@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -31,14 +32,14 @@ public class EcountSalesPurchaseSummaryImporter {
     };
     private static final String FOOTER_DIGIT = "[\\d０-９]";
     private static final String FOOTER_SPACE = "[\\s\\u00A0]";
-    private static final String MONTH_TOTAL_FOOTER =
+    private static final Pattern MONTH_TOTAL_FOOTER = Pattern.compile(
             FOOTER_DIGIT + "{4}/" + FOOTER_DIGIT + "{2}" + FOOTER_SPACE + "*계"
-                    + FOOTER_SPACE + "*\\(.*건.*";
-    private static final String CUMULATIVE_TOTAL_FOOTER =
-            "누계" + FOOTER_SPACE + "*\\(.*건.*";
-    private static final String TIMESTAMP_FOOTER =
+                    + FOOTER_SPACE + "*\\(.*건.*");
+    private static final Pattern CUMULATIVE_TOTAL_FOOTER = Pattern.compile(
+            "누계" + FOOTER_SPACE + "*\\(.*건.*");
+    private static final Pattern TIMESTAMP_FOOTER = Pattern.compile(
             FOOTER_DIGIT + "{4}/" + FOOTER_DIGIT + "{2}/" + FOOTER_DIGIT + "{2}"
-                    + FOOTER_SPACE + "*(오전|오후).*";
+                    + FOOTER_SPACE + "*(오전|오후).*");
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -55,9 +56,10 @@ public class EcountSalesPurchaseSummaryImporter {
         String actor = EcountMig4ImportSupport.actor(actorUserId);
         for (int i = 0; i < parsed.dataRows().size(); i++) {
             int rowNo = i + 1;
-            String[] c = EcountCsvSupport.normalizeRow(parsed.dataRows().get(i), HEADERS.length);
+            String[] raw = parsed.dataRows().get(i);
+            String[] c = EcountCsvSupport.normalizeRow(raw, HEADERS.length);
             try {
-                if (isFooterRow(c)) {
+                if (isFooterRow(raw)) {
                     result.skipped();
                     continue;
                 }
@@ -125,14 +127,19 @@ public class EcountSalesPurchaseSummaryImporter {
         if (row.length < 1) {
             return false;
         }
-        String first = row[0] == null ? "" : EcountCsvSupport.stripCell(row[0]).trim();
-        if (first.isEmpty()) {
-            return Arrays.stream(row)
-                    .allMatch(c -> c == null || EcountCsvSupport.stripCell(c).trim().isEmpty());
+        return Arrays.stream(row)
+                .allMatch(c -> c == null || EcountCsvSupport.stripCell(c).trim().isEmpty())
+                || Arrays.stream(row).anyMatch(EcountSalesPurchaseSummaryImporter::isFooterCell);
+    }
+
+    private static boolean isFooterCell(String cell) {
+        String value = cell == null ? "" : EcountCsvSupport.stripCell(cell).trim();
+        if (value.isEmpty()) {
+            return false;
         }
-        return first.matches(MONTH_TOTAL_FOOTER)
-                || first.matches(CUMULATIVE_TOTAL_FOOTER)
-                || first.matches(TIMESTAMP_FOOTER);
+        return MONTH_TOTAL_FOOTER.matcher(value).matches()
+                || CUMULATIVE_TOTAL_FOOTER.matcher(value).matches()
+                || TIMESTAMP_FOOTER.matcher(value).matches();
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, LocalDate summaryDate,
