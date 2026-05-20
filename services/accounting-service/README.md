@@ -59,3 +59,17 @@ MIG-8는 MIG-4 주문서 staging에 적재된 주문 raw를 `Order`/`OrderLine` 
 공통 규칙: `transform_status='PENDING'`, 동일 `order_no` grouping, `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock`, Order/OrderLine soft-delete CTE 복구, `DuplicateKeyException` row-level reject, `MIG8_*` ErrorCode 422 통일.
 
 `progress_status='완료'` 주문은 `SalesAccountingSlip.slip_no` cross-link를 시도한다. 매칭 실패는 reject가 아니라 `MIG8_SLIP_LINK_MISS` warning sample로 응답한다.
+
+## Ecount MIG-9 Cash Journal + Aging Snapshot
+
+MIG-9는 MIG-7 Cash 도메인의 `journal_id IS NULL` row를 회계 Journal로 자동 생성하고, Partner aging 조회용 materialized view를 추가한다.
+
+| 기능 | Endpoint | 처리 |
+|---|---|---|
+| 지출 Journal 생성 | `POST /admin/accounting/cash-journals/generate-from-disbursements` | CashDisbursement → POSTED Journal + JournalLine 2건 |
+| 입금 Journal 생성 | `POST /admin/accounting/cash-journals/generate-from-receipts` | CashReceipt → POSTED Journal + JournalLine 2건 |
+| Aging snapshot refresh | `POST /admin/accounting/aging-snapshot/refresh` | `REFRESH MATERIALIZED VIEW CONCURRENTLY partner_aging_snapshot` |
+
+공통 규칙: `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock` 1 namespace, `journals(source_type, source_ref)` unique 멱등 키, `journal_no = 'J-' + slip_no`, `ROLE_MASTER`/`ROLE_MANAGER`, row-level reject, `DuplicateKeyException` constraint 분기.
+
+기본 계정 lookup은 `ChartOfAccount.name` 기준으로 지출=`지급수수료`, 현금=`보통예금`, 매출채권=`외상매출금`을 사용한다. lookup miss는 `MIG9_DEFAULT_ACCOUNT_MISSING`, 0 이하 금액은 `MIG9_CASH_AMOUNT_INVALID`, source 중복은 `MIG9_JOURNAL_DUPLICATE`로 422 응답한다.

@@ -182,7 +182,7 @@ class LedgerImageServiceTest {
     }
 
     private static Journal newJournal(String no, LocalDate date, String desc) {
-        Journal j = Journal.create(no, date, desc, JournalSourceType.MANUAL, null);
+        Journal j = Journal.create(no, date, desc, JournalSourceType.MANUAL, (java.util.UUID) null);
         try {
             Field idField = Journal.class.getDeclaredField("id");
             idField.setAccessible(true);

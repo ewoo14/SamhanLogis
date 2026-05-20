@@ -54,13 +54,18 @@
 
 - `feedback_codex_plugin_setup.md` — Codex `sandbox=workspace-write` 통일 (review 단계 read-only 폐기)
 
-### 다음 슬라이스 — MIG-9 (자동 진입 대기)
+### 현재 슬라이스 — MIG-9 (Codex 구현 진행)
 
-**후보 범위**:
-- aging snapshot view 신규 + Journal 자동 생성 (D-MIG-7-04 옵션 C 이연 처리)
-- Order 매니저명 → Employee cross-link (D-MIG-8-05 이연 처리)
-- 잔여 검증 raw (매출장/매입장 xlsx → DailyClosing 대조)
-- 사용자 우선순위 결정 후보
+**범위**:
+- CashDisbursement/CashReceipt → Journal 자동 생성 (D-MIG-7-04 옵션 C 이연 처리)
+- `partner_aging_snapshot` MATERIALIZED VIEW + concurrent refresh
+- `journals(source_type, source_ref)` unique 멱등 키
+- auth V22 PageCode 2종 + MIG9 ErrorCode 5종
+- 단위 테스트 11 cases + cash-journals controller IT 10 cases
+
+**이연 유지**:
+- Order 매니저명 → Employee cross-link (D-MIG-8-05)는 MIG-10+ 후속
+- 잔여 검증 raw(매출장/매입장 xlsx → DailyClosing 대조)는 후속
 
 ### 새 세션 즉시 진입 절차
 

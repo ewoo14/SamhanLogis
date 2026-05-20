@@ -2213,3 +2213,26 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-8-16 | SalesAccountingSlip cross-link 성공/실패 회귀 테스트를 포함한다. |
 
 **산출 예정/진행**: accounting V28, auth V21, Order 도메인 2종, transform service/controller 1종, 단위 테스트 13 cases, controller IT 5 cases, dev-report `docs/dev-reports/ecount-mig-8-order-domain.md`.
+
+### D-MIG-9-00. Cash → Journal 자동 생성 + Partner aging snapshot view (MIG-9, 2026-05-20)
+
+**배경**: MIG-7에서 이연한 D-MIG-7-04 옵션 C를 처리한다. CashDisbursement/CashReceipt를 POSTED Journal로 1:1 생성하고, 운영 조회용 `partner_aging_snapshot` MATERIALIZED VIEW를 추가한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-9-01 | CashDisbursement/CashReceipt 1건당 Journal 1건 + JournalLine 2건을 생성한다. |
+| D-MIG-9-02 | JournalSourceType에 `CASH_DISBURSEMENT`, `CASH_RECEIPT`를 추가한다. |
+| D-MIG-9-03 | `journal_no = 'J-' + cash.slip_no`로 둔다. |
+| D-MIG-9-04 | 기본 ChartOfAccount lookup은 지출=`지급수수료`, 현금=`보통예금`, 매출채권=`외상매출금`으로 시작한다. |
+| D-MIG-9-05 | lookup miss는 `MIG9_DEFAULT_ACCOUNT_MISSING` row-level reject로 처리한다. |
+| D-MIG-9-06 | `journals(source_type, source_ref)` UNIQUE를 MIG-9 멱등 키로 둔다. |
+| D-MIG-9-07 | 이미 `journal_id`가 있는 cash row는 skip한다. batch 조회 기본은 `journal_id IS NULL`이다. |
+| D-MIG-9-08 | `DuplicateKeyException`은 `journals_source_type_ref_uk` constraint 명칭을 확인한 경우만 `MIG9_JOURNAL_DUPLICATE`로 흡수한다. |
+| D-MIG-9-09 | `partner_aging_snapshot` MATERIALIZED VIEW는 partner_id unique index를 갖고 `REFRESH CONCURRENTLY`로 갱신한다. |
+| D-MIG-9-10 | refresh는 트랜잭션 외(`Propagation.NEVER`)에서 실행한다. |
+| D-MIG-9-11 | auth-service V22에 MIG9 PageCode 2종과 MASTER/MANAGER edit permission 4건을 seed한다. |
+| D-MIG-9-12 | shared/common에 MIG9 ErrorCode 5종을 추가한다. |
+| D-MIG-9-13 | 단위 테스트 11 cases를 처음부터 작성한다. |
+| D-MIG-9-14 | cash-journals controller IT는 5 case × 2 endpoint = 10 cases로 유지한다. |
+
+**산출 예정/진행**: accounting V29, auth V22, `Mig9CashJournalService`, `Mig9AgingSnapshotRefreshService`, controller 3 endpoint, 단위 테스트 11 cases, controller IT 10 cases, dev-report `docs/dev-reports/ecount-mig-9-cash-journal-aging.md`.

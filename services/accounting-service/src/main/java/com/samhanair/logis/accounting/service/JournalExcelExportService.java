@@ -102,6 +102,8 @@ public class JournalExcelExportService {
             case MANUAL       -> "수동입력";
             case CLOSING      -> "결산분개";
             case KFTC_DEPOSIT -> "KFTC입금매칭";
+            case CASH_DISBURSEMENT -> "현금지출";
+            case CASH_RECEIPT -> "현금회수";
         };
     }
 }

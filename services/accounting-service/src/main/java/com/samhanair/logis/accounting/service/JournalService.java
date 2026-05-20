@@ -62,7 +62,7 @@ public class JournalService {
 
         String journalNo = journalNumberService.next(request.journalDate());
         Journal journal = Journal.create(journalNo, request.journalDate(), request.description(),
-                JournalSourceType.MANUAL, null);
+                JournalSourceType.MANUAL, (UUID) null);
 
         int lineNo = 1;
         for (CreateJournalLineRequest lineReq : request.lines()) {

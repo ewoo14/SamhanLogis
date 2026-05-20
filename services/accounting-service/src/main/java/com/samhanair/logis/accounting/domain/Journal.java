@@ -67,7 +67,7 @@ public class Journal extends BaseEntity {
      * 분개번호 — {@code yyyyMMdd-N} ({@link com.samhanair.logis.accounting.service.JournalNumberService}).
      * partial UNIQUE INDEX 로 active 분개 안에서 유일성 보장.
      */
-    @Column(name = "journal_no", nullable = false, length = 20)
+    @Column(name = "journal_no", nullable = false, length = 40)
     private String journalNo;
 
     /** 분개 일자 (귀속 회계 일자). */
@@ -89,6 +89,10 @@ public class Journal extends BaseEntity {
      */
     @Column(name = "source_ref_id")
     private UUID sourceRefId;
+
+    /** 출처 business key — MIG-9 Cash external_ref 등 문자열 기반 멱등 키. */
+    @Column(name = "source_ref", length = 100)
+    private String sourceRef;
 
     /** 분개 상태 (DRAFT/POSTED/REVERSED). */
     @Enumerated(EnumType.STRING)
@@ -129,6 +133,12 @@ public class Journal extends BaseEntity {
         this.version = 0L;
     }
 
+    private Journal(String journalNo, LocalDate journalDate, String description,
+                    JournalSourceType sourceType, String sourceRef) {
+        this(journalNo, journalDate, description, sourceType, (UUID) null);
+        this.sourceRef = sourceRef;
+    }
+
     /**
      * 신규 분개 생성 (DRAFT). 라인은 별도 {@link #addLine} 으로 추가.
      *
@@ -142,8 +152,8 @@ public class Journal extends BaseEntity {
      */
     public static Journal create(String journalNo, LocalDate journalDate, String description,
                                  JournalSourceType sourceType, UUID sourceRefId) {
-        if (journalNo == null || journalNo.isBlank() || journalNo.length() > 20) {
-            throw new IllegalArgumentException("journalNo 는 1~20자 필수입니다");
+        if (journalNo == null || journalNo.isBlank() || journalNo.length() > 40) {
+            throw new IllegalArgumentException("journalNo 는 1~40자 필수입니다");
         }
         if (journalDate == null) {
             throw new IllegalArgumentException("journalDate 는 필수입니다");
@@ -155,6 +165,30 @@ public class Journal extends BaseEntity {
             throw new IllegalArgumentException("description 은 최대 500자입니다");
         }
         return new Journal(journalNo, journalDate, description, sourceType, sourceRefId);
+    }
+
+    /**
+     * 문자열 sourceRef 기반 신규 분개 생성. MIG-9 Cash external_ref 처럼 UUID 가 아닌 business key
+     * 멱등 키를 사용하는 자동 생성 경로에서 사용한다.
+     */
+    public static Journal create(String journalNo, LocalDate journalDate, String description,
+                                 JournalSourceType sourceType, String sourceRef) {
+        if (journalNo == null || journalNo.isBlank() || journalNo.length() > 40) {
+            throw new IllegalArgumentException("journalNo 는 1~40자 필수입니다");
+        }
+        if (journalDate == null) {
+            throw new IllegalArgumentException("journalDate 는 필수입니다");
+        }
+        if (sourceType == null) {
+            throw new IllegalArgumentException("sourceType 은 필수입니다");
+        }
+        if (sourceRef != null && sourceRef.length() > 100) {
+            throw new IllegalArgumentException("sourceRef 는 최대 100자입니다");
+        }
+        if (description != null && description.length() > 500) {
+            throw new IllegalArgumentException("description 은 최대 500자입니다");
+        }
+        return new Journal(journalNo, journalDate, description, sourceType, sourceRef);
     }
 
     /**

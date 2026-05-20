@@ -136,7 +136,7 @@ class JournalServiceTest {
 
     private Journal newPersistedDraft() {
         Journal j = Journal.create("20260504-1", TODAY, "테스트",
-                JournalSourceType.MANUAL, null);
+                JournalSourceType.MANUAL, (UUID) null);
         UUID id = UUID.randomUUID();
         setField(j, "id", id);
         j.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(

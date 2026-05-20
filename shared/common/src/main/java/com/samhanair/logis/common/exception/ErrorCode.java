@@ -332,7 +332,17 @@ public enum ErrorCode {
     MIG8_SLIP_LINK_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-8 완료 주문의 SalesAccountingSlip 매칭 실패"),
     MIG8_DUPLICATE_EXTERNAL_REF(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-8 external_ref 도메인 중복");
+            "MIG-8 external_ref 도메인 중복"),
+    MIG9_CASH_ROW_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-9 Journal 생성 대상 Cash row 가 없습니다"),
+    MIG9_DEFAULT_ACCOUNT_MISSING(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-9 기본 ChartOfAccount 계정이 없습니다"),
+    MIG9_JOURNAL_DUPLICATE(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-9 Cash Journal source_type/source_ref 중복"),
+    MIG9_AGING_REFRESH_FAILED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-9 Partner aging snapshot refresh 실패"),
+    MIG9_CASH_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-9 Cash 금액 형식 불일치 또는 0 이하");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

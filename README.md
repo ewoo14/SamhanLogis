@@ -45,12 +45,16 @@
   - accounting V27 `cash_disbursements` / `cash_receipts` 도메인 + `slip_no`/`external_ref` UNIQUE
   - `staging.ecount_expense_voucher_raw` → CashDisbursement, `staging.ecount_deposit_report_raw` → CashReceipt
   - auth V20 PageCode 2종 + MIG7 ErrorCode 6종 + transform endpoint 2종
-- MIG-8 (본 PR): Order 도메인 신규 + MIG-4 주문서 staging 변환
+- MIG-8 (PR #276): Order 도메인 신규 + MIG-4 주문서 staging 변환
   - accounting V28 `orders` / `order_lines` 도메인 + `order_no`/`external_ref` UNIQUE
   - `staging.ecount_order_raw` → Order + OrderLine, 동일 `order_no` 다중 row grouping
   - 완료 주문은 `SalesAccountingSlip.slip_no` cross-link, miss는 warning sample 처리
   - auth V21 PageCode 1종 + MIG8 ErrorCode 7종 + transform endpoint 1종
-  - aging snapshot + Journal 자동 생성은 MIG-9+ 후속 슬라이스 이연 (D-MIG-7-04 옵션 C)
+- MIG-9 (본 PR): Cash → Journal 자동 생성 + Partner aging snapshot view
+  - accounting V29 `journals(source_type, source_ref)` UNIQUE + `partner_aging_snapshot` MATERIALIZED VIEW
+  - `cash_disbursements` / `cash_receipts` 의 `journal_id IS NULL` row를 POSTED Journal + JournalLine 2건으로 생성
+  - ChartOfAccount 기본 lookup: 지급수수료 / 보통예금 / 외상매출금, missing은 `MIG9_DEFAULT_ACCOUNT_MISSING` reject
+  - auth V22 PageCode 2종 + MIG9 ErrorCode 5종 + cash journal endpoint 2종 + aging snapshot refresh endpoint
 
 ### 최신 진행 메모 (2026-05-16)
 

@@ -34,7 +34,7 @@ class JournalDomainTest {
     @Test
     @DisplayName("create 시 status=DRAFT, postedAt/By null")
     void createInitialState() {
-        Journal j = Journal.create("20260504-1", TODAY, "테스트", JournalSourceType.MANUAL, null);
+        Journal j = Journal.create("20260504-1", TODAY, "테스트", JournalSourceType.MANUAL, (java.util.UUID) null);
 
         assertThat(j.getStatus()).isEqualTo(JournalStatus.DRAFT);
         assertThat(j.getPostedAt()).isNull();
@@ -143,7 +143,7 @@ class JournalDomainTest {
     }
 
     private Journal newJournal() {
-        return Journal.create("20260504-1", TODAY, "테스트", JournalSourceType.MANUAL, null);
+        return Journal.create("20260504-1", TODAY, "테스트", JournalSourceType.MANUAL, (java.util.UUID) null);
     }
 
     private void addBalancedLines(Journal j, String amount) {

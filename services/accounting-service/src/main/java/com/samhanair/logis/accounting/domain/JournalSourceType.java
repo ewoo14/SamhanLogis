@@ -16,5 +16,11 @@ public enum JournalSourceType {
     CLOSING,
 
     /** KFTC 오픈뱅킹 입금 자동 매칭 분개 (SP-09-4). */
-    KFTC_DEPOSIT
+    KFTC_DEPOSIT,
+
+    /** MIG-9 지출결의서 CashDisbursement 에서 자동 생성된 분개. */
+    CASH_DISBURSEMENT,
+
+    /** MIG-9 입금보고서 CashReceipt 에서 자동 생성된 분개. */
+    CASH_RECEIPT
 }
