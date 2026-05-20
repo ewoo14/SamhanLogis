@@ -18,6 +18,8 @@
 - 동시성은 `REQUIRES_NEW + READ_COMMITTED`와 `pg_advisory_xact_lock` 단일 namespace로 제어한다.
 - `DuplicateKeyException`은 `journals_source_type_ref_uk` constraint 명칭일 때만 `MIG9_JOURNAL_DUPLICATE`로 흡수한다.
 - `REFRESH MATERIALIZED VIEW CONCURRENTLY partner_aging_snapshot`은 `Propagation.NEVER`로 트랜잭션 밖에서 실행한다.
+- `partner_aging_snapshot.total_receivable` 등 4개 금액 컬럼은 본 슬라이스에서 increase-only 누계로 정의한다. net 잔액(`debit - credit`) view 보정은 MIG-10+ 후속 슬라이스로 이연한다.
+- Controller IT는 controller-service 권한/오류 계약 검증에 한정한다(`@MockBean Mig9CashJournalService`, `@MockBean Mig9AgingSnapshotRefreshService`). Flyway V29 + MATERIALIZED VIEW end-to-end 검증은 후속 슬라이스 또는 별도 IT에서 다룬다.
 
 ## 검증
 

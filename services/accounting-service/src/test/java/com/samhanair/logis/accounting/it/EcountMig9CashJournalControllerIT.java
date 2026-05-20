@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,6 +66,9 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         if ("noRows".equals(label)) {
             whenNoRows(url);
         }
+        if ("refreshFailed".equals(label)) {
+            whenRefreshFailed();
+        }
 
         var request = post(url).contentType(MediaType.APPLICATION_JSON);
         if (body != null) {
@@ -82,12 +86,20 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         if ("noRows".equals(label)) {
             actions.andExpect(content().string(org.hamcrest.Matchers.containsString("MIG9_CASH_ROW_NOT_FOUND")));
         }
+        if ("refreshSuccess".equals(label)) {
+            actions.andExpect(content().string(org.hamcrest.Matchers.containsString("\"status\":\"REFRESHED\"")))
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("\"refreshedAt\"")));
+        }
+        if ("refreshFailed".equals(label)) {
+            actions.andExpect(content().string(org.hamcrest.Matchers.containsString("MIG9_AGING_REFRESH_FAILED")));
+        }
     }
 
     private static Stream<Arguments> cases() {
         return Stream.of(
                 endpointCases("/admin/accounting/cash-journals/generate-from-disbursements"),
-                endpointCases("/admin/accounting/cash-journals/generate-from-receipts")
+                endpointCases("/admin/accounting/cash-journals/generate-from-receipts"),
+                refreshEndpointCases()
         ).flatMap(s -> s);
     }
 
@@ -101,8 +113,21 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         );
     }
 
+    private static Stream<Arguments> refreshEndpointCases() {
+        String url = "/admin/accounting/aging-snapshot/refresh";
+        return Stream.of(
+                Arguments.of("refreshSuccess", url, "MANAGER", true, "{}", 200),
+                Arguments.of("refreshMissingUserId", url, "MANAGER", false, "{}", 401),
+                Arguments.of("refreshMemberForbidden", url, "MEMBER", true, "{}", 403),
+                Arguments.of("refreshBadBody", url, "MANAGER", true, "{", 400),
+                Arguments.of("refreshFailed", url, "MANAGER", true, "{}", 422)
+        );
+    }
+
     private void whenSuccess(String url) {
-        if (url.endsWith("disbursements")) {
+        if (url.endsWith("aging-snapshot/refresh")) {
+            return;
+        } else if (url.endsWith("disbursements")) {
             when(cashJournalService.generateFromDisbursements(anyInt(), anyString())).thenReturn(result());
         } else {
             when(cashJournalService.generateFromReceipts(anyInt(), anyString())).thenReturn(result());
@@ -117,6 +142,12 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         } else {
             when(cashJournalService.generateFromReceipts(anyInt(), anyString())).thenThrow(ex);
         }
+    }
+
+    private void whenRefreshFailed() {
+        doThrow(new BusinessException(ErrorCode.MIG9_AGING_REFRESH_FAILED,
+                "MIG9_AGING_REFRESH_FAILED"))
+                .when(agingSnapshotRefreshService).refresh();
     }
 
     private static EcountMig9JournalResult result() {

@@ -3,13 +3,14 @@ package com.samhanair.logis.accounting.web;
 import com.samhanair.logis.accounting.client.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.Mig9AgingSnapshotRefreshService;
 import com.samhanair.logis.accounting.service.Mig9CashJournalService;
+import com.samhanair.logis.accounting.web.dto.AgingSnapshotRefreshResult;
 import com.samhanair.logis.accounting.web.dto.EcountMig9JournalRequest;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.List;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -60,9 +61,11 @@ public class Mig9CashJournalController {
     @PostMapping("/aging-snapshot/refresh")
     @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
     @Operation(summary = "MIG-9 partner_aging_snapshot MATERIALIZED VIEW refresh")
-    public EcountMig9JournalResult refreshAgingSnapshot(@RequestHeader("X-User-Id") String userId) {
+    public AgingSnapshotRefreshResult refreshAgingSnapshot(
+            @RequestBody(required = false) EcountMig9JournalRequest ignored,
+            @RequestHeader("X-User-Id") String userId) {
         agingSnapshotRefreshService.refresh();
-        return new EcountMig9JournalResult(0, 0, 0, 0, 0, List.of());
+        return new AgingSnapshotRefreshResult(LocalDateTime.now(), "REFRESHED");
     }
 
     private void checkEditPermission(String actorRole, String pageCode) {

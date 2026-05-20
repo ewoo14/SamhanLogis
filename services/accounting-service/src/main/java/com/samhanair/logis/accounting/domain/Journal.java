@@ -170,6 +170,9 @@ public class Journal extends BaseEntity {
     /**
      * 문자열 sourceRef 기반 신규 분개 생성. MIG-9 Cash external_ref 처럼 UUID 가 아닌 business key
      * 멱등 키를 사용하는 자동 생성 경로에서 사용한다.
+     *
+     * <p>MIG-9 구현은 대량 insert/row-level reject 처리를 위해 raw SQL INSERT 패턴을 사용한다.
+     * 본 오버로드는 MIG-10+ 자동 분개 도메인 factory 정리 시 활용 후보로 유지한다.
      */
     public static Journal create(String journalNo, LocalDate journalDate, String description,
                                  JournalSourceType sourceType, String sourceRef) {

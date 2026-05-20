@@ -121,6 +121,7 @@ CREATE UNIQUE INDEX idx_partner_aging_snapshot_partner_id ON partner_aging_snaps
 
 - MIG-9 Journal 생성 후 `REFRESH MATERIALIZED VIEW CONCURRENTLY partner_aging_snapshot`
 - 운영자 조회 endpoint: `GET /admin/accounting/partner-aging-snapshot` (옵션, 본 슬라이스는 view 생성만, 화면은 MIG-10+ 후속)
+- `total_receivable` / `total_payable` / `total_receipt` / `total_disbursement` 는 spec §6 기준 increase-only 누계로 정의한다. net 잔액(`debit - credit` / `credit - debit`) 산출 view 보정은 MIG-10+ 후속 슬라이스에서 처리한다.
 
 ---
 

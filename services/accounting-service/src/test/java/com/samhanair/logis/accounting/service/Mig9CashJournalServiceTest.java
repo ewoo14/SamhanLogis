@@ -58,15 +58,41 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void 정상_CashDisbursement_1건은_Journal과_Line_2건을_생성한다() {
-        disbursements(row(7, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
+        Mig9CashJournalService.CashRow row =
+                row(7, "CD-001", "REF-CD-001", new BigDecimal("1000"), null);
+        disbursements(row);
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
         assertThat(result.cashDisbursementJournalsCreated()).isEqualTo(1);
         assertThat(result.rejected()).isZero();
-        assertThat(journalParams().getValue("sourceType")).isEqualTo("CASH_DISBURSEMENT");
-        assertThat(journalParams().getValue("sourceRef")).isEqualTo("REF-CD-001");
-        assertThat(lineParams()).extracting(p -> p.getValue("accountCode")).containsExactly("831", "102");
+        SqlParameterSource journal = journalParams();
+        assertThat(journal.getValue("journalNo")).isEqualTo("J-" + row.slipNo());
+        assertThat(journal.getValue("sourceType")).isEqualTo("CASH_DISBURSEMENT");
+        assertThat(journal.getValue("sourceRef")).isEqualTo(row.externalRef());
+        List<SqlParameterSource> lines = lineParams();
+        assertThat(lines).extracting(p -> p.getValue("accountCode")).containsExactly("831", "102");
+        assertThat(lines).extracting(p -> p.getValue("partnerId"))
+                .containsExactly(row.partnerId(), row.partnerId());
+        assertThat(lines).extracting(p -> p.getValue("debitAmount"))
+                .containsExactly(row.amount(), BigDecimal.ZERO);
+        assertThat(lines).extracting(p -> p.getValue("creditAmount"))
+                .containsExactly(BigDecimal.ZERO, row.amount());
+    }
+
+    @Test
+    void multi_row_disbursement_2건은_각각_Journal_생성한다() {
+        disbursements(
+                row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null),
+                row(2, "CD-002", "REF-CD-002", new BigDecimal("2000"), null));
+
+        EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
+
+        assertThat(result.cashDisbursementJournalsCreated()).isEqualTo(2);
+        assertThat(result.skipped()).isZero();
+        assertThat(result.rejected()).isZero();
+        assertThat(journalParams(2)).extracting(p -> p.getValue("journalNo"))
+                .containsExactly("J-CD-001", "J-CD-002");
     }
 
     @Test
@@ -192,9 +218,14 @@ class Mig9CashJournalServiceTest {
     }
 
     private SqlParameterSource journalParams() {
+        return journalParams(1).get(0);
+    }
+
+    private List<SqlParameterSource> journalParams(int times) {
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
-        verify(jdbcTemplate).queryForObject(contains("INSERT INTO journals"), params.capture(), eq(UUID.class));
-        return params.getValue();
+        verify(jdbcTemplate, org.mockito.Mockito.times(times))
+                .queryForObject(contains("INSERT INTO journals"), params.capture(), eq(UUID.class));
+        return params.getAllValues();
     }
 
     private List<SqlParameterSource> lineParams() {
