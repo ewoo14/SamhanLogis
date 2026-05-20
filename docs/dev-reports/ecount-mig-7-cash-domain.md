@@ -11,7 +11,7 @@
 | shared/common | `EcountMig7TransformResult`, MIG7 ErrorCode 6종 |
 | auth-service | V20 PageCode seed 2종 (`MASTER`/`MANAGER` edit) |
 | accounting-service | V27 `cash_disbursements` / `cash_receipts`, Cash 도메인 2종, transform service/controller 2종 |
-| QA | transform behavior 단위 테스트 17 cases + controller IT 10 case parameterized |
+| QA | transform behavior 단위 테스트 20 cases + controller IT 10 case parameterized |
 
 ## 변환 계약
 
@@ -41,14 +41,16 @@ MIG-7은 CSV를 직접 받지 않고 MIG-5 staging을 단방향 변환한다.
 
 request body는 생략 가능하며, `{ "batchSize": 500 }` 형태로 batch size를 지정할 수 있다. 허용 범위는 1~5000이다.
 
-## MIG-8 이연
+## 결정
 
-Journal 자동 생성은 본 슬라이스에서 수행하지 않는다. `CashDisbursement.linkJournal(UUID)`와 `CashReceipt.linkJournal(UUID)` 도메인 메서드만 열어 두고, 실제 Journal/Partner aging 자동 반영은 MIG-8+에서 연결한다.
+- D-MIG-7-04 옵션 C: aging snapshot 갱신 + Journal 자동 생성 모두 MIG-8 후속 슬라이스로 이연한다.
+- 본 슬라이스는 MIG-5 staging row를 CashDisbursement/CashReceipt 도메인으로 변환하고 `transform_status`를 추적하는 데 한정한다.
+- `CashDisbursement.linkJournal(UUID)`와 `CashReceipt.linkJournal(UUID)` 도메인 메서드는 MIG-8+ 연결 지점으로만 제공한다.
 
 ## 검증 상태
 
 - 추가: `Mig7CashDisbursementTransformServiceTest` 10 cases.
-- 추가: `Mig7CashReceiptTransformServiceTest` 7 cases.
+- 추가: `Mig7CashReceiptTransformServiceTest` 10 cases.
 - 추가: `EcountMig7CashTransformControllerIT` 10 parameterized cases.
-- 로컬 선검증: transform service 단위 테스트 17 cases PASS.
+- 로컬 선검증: transform service 단위 테스트 20 cases PASS.
 - Testcontainers controller IT는 Docker daemon 접근 가능 환경에서 실행된다.

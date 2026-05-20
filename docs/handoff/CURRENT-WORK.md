@@ -15,7 +15,7 @@
   - `staging.ecount_deposit_report_raw` → `cash_receipts`
 - 핵심 계약: `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, transform별 advisory lock namespace, soft-delete CTE 복구, row-level reject 흡수.
 - 검증 진행:
-  - `Mig7CashDisbursementTransformServiceTest` 10 cases + `Mig7CashReceiptTransformServiceTest` 7 cases PASS.
+  - `Mig7CashDisbursementTransformServiceTest` 10 cases + `Mig7CashReceiptTransformServiceTest` 10 cases PASS.
   - `EcountMig7CashTransformControllerIT` 10 parameterized cases 추가. Docker daemon 접근 가능 환경에서 실행.
 - 문서: `docs/dev-reports/ecount-mig-7-cash-domain.md` 신규.
 

@@ -11,7 +11,7 @@
 
 ## 1. 개요
 
-MIG-6 ([PR #274, `5c15db2b`](https://github.com/.../pull/274)) 머지 직후 진입. MIG-5 staging-only 패턴을 **Cash 도메인 (CashDisbursement / CashReceipt) 신규 + 변환** 으로 완성. Partner aging cross-link + Journal 연계.
+MIG-6 ([PR #274, `5c15db2b`](https://github.com/.../pull/274)) 머지 직후 진입. MIG-5 staging-only 패턴을 **Cash 도메인 (CashDisbursement / CashReceipt) 신규 + 변환** 으로 완성한다. Partner aging snapshot 갱신 + Journal 연계는 D-MIG-7-04 옵션 C에 따라 MIG-8 후속 슬라이스로 이연한다.
 
 - baseline: MIG-1~6 (PR #262/#270/#271/#272/#273/#274) 모두 머지 완료
 - 9회차 워크플로우 ([feedback_dual_5agent_review])
@@ -30,7 +30,7 @@ MIG-6 ([PR #274, `5c15db2b`](https://github.com/.../pull/274)) 머지 직후 진
 
 | 영역 | Flyway | 신규 |
 |---|---|---|
-| accounting-service | V27 | `cash_disbursements` + `cash_receipts` 도메인 테이블 + 2 transform service + 2 controller + Partner aging cross-link |
+| accounting-service | V27 | `cash_disbursements` + `cash_receipts` 도메인 테이블 + 2 transform service + 2 controller |
 | auth-service | V20 | PageCode MIG7 2종 + ROLE_MASTER+MANAGER seed |
 | shared/common | — | ErrorCode MIG7 6종 |
 
@@ -48,9 +48,8 @@ MIG-5 staging (이미 적재됨):
 도메인:
    ├─ CashDisbursement (지출 트랜잭션, partner_id + amount + slip_no + journal_id 연계)
    └─ CashReceipt (회수 트랜잭션, 동일 구조)
-       ↓
-   Partner aging 갱신 (지출 누계 ↓, 회수 누계 ↑)
-   Journal 자동 생성 옵션 (D-MIG-7-04 결정)
+       ↓ MIG-8+
+   Partner aging snapshot 갱신 + Journal 자동 생성 (D-MIG-7-04 옵션 C 이연)
 ```
 
 ---
@@ -93,18 +92,18 @@ MIG-5 staging (이미 적재됨):
 
 ---
 
-## 6. Partner aging cross-link
+## 6. Partner aging cross-link (MIG-8 이연)
 
-MIG-5 의 `validateAgainstAging` 검증을 MIG-7 변환 후 **실제 aging 갱신** 으로 확장:
+MIG-5 의 `validateAgainstAging` 검증을 변환 후 실제 aging 갱신으로 확장하는 안을 검토했으나, MIG-7에서는 스코프를 Cash 도메인 변환에 고정한다. aging snapshot 갱신과 Journal 자동 생성은 함께 MIG-8+ 후속 슬라이스에서 처리한다.
 
-- CashDisbursement 적재 → Partner aging `total_expense` += amount
-- CashReceipt 적재 → Partner aging `total_receipt` += amount
-- `JournalLineRepository` 기존 aging 계산 로직과 일치성 확인
+- CashDisbursement 적재 → Partner aging `total_expense` 반영: MIG-8+ 후속
+- CashReceipt 적재 → Partner aging `total_receipt` 반영: MIG-8+ 후속
+- `JournalLineRepository` 기존 aging 계산 로직과 일치성 확인: MIG-8+ 후속
 
 **aging 갱신 옵션** (D-MIG-7-04):
 - 옵션 A: CashDisbursement/Receipt insert 시 Journal 자동 생성 → JournalLine 통해 aging 자동 반영
 - 옵션 B: aging snapshot view 만 갱신 (Journal 생성 X, MIG-7 minimal)
-- **옵션 B 권장** (MIG-7 슬라이스 규모 최소화, Journal 자동 생성은 MIG-8+ 후속)
+- **옵션 C 채택**: aging snapshot 갱신 + Journal 자동 생성 모두 MIG-8 후속 슬라이스로 이연. 본 슬라이스는 CashDisbursement/CashReceipt 도메인 변환만 수행.
 
 ---
 
@@ -146,7 +145,7 @@ MIG-5 의 `validateAgainstAging` 검증을 MIG-7 변환 후 **실제 aging 갱�
 - D-MIG-7-01 CashDisbursement + CashReceipt 도메인 신규 (cash 도메인 별 변환 service 2종)
 - D-MIG-7-02 MIG-5 staging-only → MIG-7 도메인 변환 단방향 (staging 재사용)
 - D-MIG-7-03 transform_status 추적: PENDING → TRANSFORMED / REJECTED
-- D-MIG-7-04 **옵션 B**: aging snapshot view 만 갱신, Journal 자동 생성은 MIG-8+ 이연
+- D-MIG-7-04 **옵션 C**: aging snapshot 갱신 + Journal 자동 생성 모두 MIG-8 후속 슬라이스로 이연. 본 슬라이스는 CashDisbursement/CashReceipt 도메인 변환만 수행.
 - D-MIG-7-05 lookup miss = `MIG7_LOOKUP_MISS` reject (silent fallback 금지)
 - D-MIG-7-06 멱등 키 = `external_ref` UNIQUE (hash + row_no)
 - D-MIG-7-07 2 namespace pg_advisory_xact_lock

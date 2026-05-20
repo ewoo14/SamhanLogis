@@ -2174,7 +2174,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-7-01 | CashDisbursement + CashReceipt 도메인을 accounting-service에 신규 추가한다. |
 | D-MIG-7-02 | MIG-5 staging 2표(`ecount_expense_voucher_raw`, `ecount_deposit_report_raw`)를 재사용하고 CSV 직접 import는 하지 않는다. |
 | D-MIG-7-03 | transform 상태는 `PENDING` → `TRANSFORMED` / `REJECTED`로 추적한다. |
-| D-MIG-7-04 | Journal 자동 생성은 MIG-8+로 이연하고, 본 슬라이스는 `linkJournal(UUID)` 도메인 메서드만 제공한다. |
+| D-MIG-7-04 | **옵션 C**: aging snapshot 갱신 + Journal 자동 생성 모두 MIG-8 후속 슬라이스로 이연한다. 본 슬라이스는 CashDisbursement/CashReceipt 도메인 변환만 수행하고 `linkJournal(UUID)` 도메인 메서드만 제공한다. |
 | D-MIG-7-05 | `partner_id` 누락은 silent fallback 없이 `MIG7_LOOKUP_MISS`로 reject 한다. |
 | D-MIG-7-06 | 도메인 멱등 키는 `external_ref = source_file_hash + '-' + source_row_no`로 둔다. |
 | D-MIG-7-07 | CashDisbursement/CashReceipt transform은 서로 다른 `pg_advisory_xact_lock` namespace를 사용한다. |
@@ -2187,4 +2187,4 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-7-14 | controller IT는 2 endpoint × 5 case parameterized로 유지한다. |
 | D-MIG-7-15 | 본 슬라이스는 CSV 직접 import가 아니므로 MIG7 CSV header error는 만들지 않는다. |
 
-**산출 예정/진행**: accounting V27, auth V20, Cash 도메인 2종, transform service/controller 2종, 단위 테스트 17 cases, controller IT 10 cases, dev-report `docs/dev-reports/ecount-mig-7-cash-domain.md`.
+**산출 예정/진행**: accounting V27, auth V20, Cash 도메인 2종, transform service/controller 2종, 단위 테스트 20 cases, controller IT 10 cases, dev-report `docs/dev-reports/ecount-mig-7-cash-domain.md`.

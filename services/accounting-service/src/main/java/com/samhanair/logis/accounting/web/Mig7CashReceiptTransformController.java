@@ -33,7 +33,7 @@ public class Mig7CashReceiptTransformController {
 
     @PostMapping("/transform-from-staging")
     @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
-    @Operation(summary = "MIG-5 입금보고서 staging 을 CashReceipt 로 변환")
+    @Operation(summary = "MIG-7 입금보고서 staging 을 CashReceipt 로 변환")
     public EcountMig7TransformResult transform(
             @RequestBody(required = false) EcountMig7TransformRequest request,
             @RequestHeader("X-User-Id") String userId,

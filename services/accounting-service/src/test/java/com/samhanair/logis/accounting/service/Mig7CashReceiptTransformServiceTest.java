@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
@@ -102,6 +103,28 @@ class Mig7CashReceiptTransformServiceTest {
     }
 
     @Test
+    void slip_no_날짜_불일치는_MIG7_DATE_INVALID로_reject() {
+        pending(row(1, "BROKEN-001"));
+
+        EcountMig7TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig7TransformResult.RejectedRow::errorCode)
+                .containsExactly("MIG7_DATE_INVALID");
+    }
+
+    @Test
+    void domain_duplicate는_MIG7_DUPLICATE_EXTERNAL_REF로_reject() {
+        pending(row(1, "2026-05-20-001"));
+        when(jdbcTemplate.queryForObject(contains("WITH restored"), any(SqlParameterSource.class), eq(UUID.class)))
+                .thenThrow(new DuplicateKeyException("dup"));
+
+        EcountMig7TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.rejectedSample()).extracting(EcountMig7TransformResult.RejectedRow::errorCode)
+                .containsExactly("MIG7_DUPLICATE_EXTERNAL_REF");
+    }
+
+    @Test
     void 정상_row는_TRANSFORMED로_상태_갱신한다() {
         pending(row(1, "2026-05-20-001"));
 
@@ -113,6 +136,18 @@ class Mig7CashReceiptTransformServiceTest {
                 .filter(p -> p.hasValue("status"))
                 .map(p -> p.getValue("status"))
                 .toList()).contains("TRANSFORMED");
+    }
+
+    @Test
+    void soft_deleted_external_ref가_있으면_updated로_집계한다() {
+        pending(row(1, "2026-05-20-001"));
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(1)"), any(SqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(1);
+
+        EcountMig7TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.updated()).isEqualTo(1);
+        verify(jdbcTemplate).queryForObject(contains("WITH restored"), any(SqlParameterSource.class), eq(UUID.class));
     }
 
     private void pending(AbstractMig7CashTransformService.StagingRow... rows) {

@@ -45,6 +45,12 @@ abstract class AbstractMig7CashTransformService {
         this.lockNamespace = lockNamespace;
     }
 
+    /**
+     * MIG-5 staging PENDING row 를 Cash 도메인으로 변환한다.
+     *
+     * <p>주의: Partner aging snapshot 갱신 + Journal 자동 생성은 본 슬라이스 범위 외 —
+     * MIG-8 후속 슬라이스 이연 (D-MIG-7-04).
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig7TransformResult transformFromStaging(int batchSize, String actorUserId) {
         acquireTransformLock();
@@ -59,9 +65,9 @@ abstract class AbstractMig7CashTransformService {
         String actor = normalizeActor(actorUserId);
         for (StagingRow row : rows) {
             try {
-                validate(row, seenExternalRefs);
+                LocalDate transactionDate = validate(row, seenExternalRefs);
                 boolean existed = existsAny(row.externalRef());
-                upsertDomain(row, actor);
+                upsertDomain(row, actor, transactionDate);
                 updateStatus(row, "TRANSFORMED", null);
                 if (existed) {
                     result.updated();
@@ -82,7 +88,7 @@ abstract class AbstractMig7CashTransformService {
         return result.build();
     }
 
-    private void validate(StagingRow row, Set<String> seenExternalRefs) {
+    private LocalDate validate(StagingRow row, Set<String> seenExternalRefs) {
         if (!seenExternalRefs.add(row.externalRef())) {
             throw new BusinessException(ErrorCode.MIG7_DUPLICATE_EXTERNAL_REF,
                     "동일 batch 내 externalRef 중복: sourceRowNo=" + row.sourceRowNo()
@@ -103,7 +109,7 @@ abstract class AbstractMig7CashTransformService {
                     "금액 형식 불일치 또는 0 이하: sourceRowNo=" + row.sourceRowNo()
                             + ", amount='" + row.amount() + "'");
         }
-        parseTransactionDate(row);
+        return parseTransactionDate(row);
     }
 
     private LocalDate parseTransactionDate(StagingRow row) {
@@ -146,8 +152,7 @@ abstract class AbstractMig7CashTransformService {
                         rs.getString("external_ref")));
     }
 
-    private UUID upsertDomain(StagingRow row, String actor) {
-        LocalDate transactionDate = parseTransactionDate(row);
+    private UUID upsertDomain(StagingRow row, String actor, LocalDate transactionDate) {
         return jdbcTemplate.queryForObject("""
                 WITH restored AS (
                     UPDATE %s
