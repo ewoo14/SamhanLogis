@@ -133,12 +133,6 @@ public class Journal extends BaseEntity {
         this.version = 0L;
     }
 
-    private Journal(String journalNo, LocalDate journalDate, String description,
-                    JournalSourceType sourceType, String sourceRef) {
-        this(journalNo, journalDate, description, sourceType, (UUID) null);
-        this.sourceRef = sourceRef;
-    }
-
     /**
      * 신규 분개 생성 (DRAFT). 라인은 별도 {@link #addLine} 으로 추가.
      *
@@ -165,33 +159,6 @@ public class Journal extends BaseEntity {
             throw new IllegalArgumentException("description 은 최대 500자입니다");
         }
         return new Journal(journalNo, journalDate, description, sourceType, sourceRefId);
-    }
-
-    /**
-     * 문자열 sourceRef 기반 신규 분개 생성. MIG-9 Cash external_ref 처럼 UUID 가 아닌 business key
-     * 멱등 키를 사용하는 자동 생성 경로에서 사용한다.
-     *
-     * <p>MIG-9 구현은 대량 insert/row-level reject 처리를 위해 raw SQL INSERT 패턴을 사용한다.
-     * 본 오버로드는 MIG-10+ 자동 분개 도메인 factory 정리 시 활용 후보로 유지한다.
-     */
-    public static Journal create(String journalNo, LocalDate journalDate, String description,
-                                 JournalSourceType sourceType, String sourceRef) {
-        if (journalNo == null || journalNo.isBlank() || journalNo.length() > 40) {
-            throw new IllegalArgumentException("journalNo 는 1~40자 필수입니다");
-        }
-        if (journalDate == null) {
-            throw new IllegalArgumentException("journalDate 는 필수입니다");
-        }
-        if (sourceType == null) {
-            throw new IllegalArgumentException("sourceType 은 필수입니다");
-        }
-        if (sourceRef != null && sourceRef.length() > 100) {
-            throw new IllegalArgumentException("sourceRef 는 최대 100자입니다");
-        }
-        if (description != null && description.length() > 500) {
-            throw new IllegalArgumentException("description 은 최대 500자입니다");
-        }
-        return new Journal(journalNo, journalDate, description, sourceType, sourceRef);
     }
 
     /**

@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -77,6 +76,9 @@ public class Mig9CashJournalService {
             String expenseCode = lookupAccountCode(ACCOUNT_EXPENSE);
             String cashCode = lookupAccountCode(ACCOUNT_CASH);
             UUID journalId = insertJournal(row, JournalSourceType.CASH_DISBURSEMENT, actor);
+            if (skipDuplicateSource(journalId, result)) {
+                return;
+            }
             insertLine(journalId, 1, expenseCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, cashCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
             linkCash("cash_disbursements", row.id(), journalId, actor);
@@ -84,8 +86,6 @@ public class Mig9CashJournalService {
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
                     "MIG-9 기본 계정 조회 실패: 지급수수료/보통예금", result);
-        } catch (DuplicateKeyException ex) {
-            rejectDuplicate(row, ex, result);
         }
     }
 
@@ -100,6 +100,9 @@ public class Mig9CashJournalService {
             String cashCode = lookupAccountCode(ACCOUNT_CASH);
             String receivableCode = lookupAccountCode(ACCOUNT_RECEIVABLE);
             UUID journalId = insertJournal(row, JournalSourceType.CASH_RECEIPT, actor);
+            if (skipDuplicateSource(journalId, result)) {
+                return;
+            }
             insertLine(journalId, 1, cashCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, receivableCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
             linkCash("cash_receipts", row.id(), journalId, actor);
@@ -107,9 +110,15 @@ public class Mig9CashJournalService {
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
                     "MIG-9 기본 계정 조회 실패: 보통예금/외상매출금", result);
-        } catch (DuplicateKeyException ex) {
-            rejectDuplicate(row, ex, result);
         }
+    }
+
+    private boolean skipDuplicateSource(UUID journalId, EcountMig9JournalResult.Builder result) {
+        if (journalId == null) {
+            result.skipped();
+            return true;
+        }
+        return false;
     }
 
     private boolean skipLinked(CashRow row, EcountMig9JournalResult.Builder result) {
@@ -151,9 +160,10 @@ public class Mig9CashJournalService {
                     gen_random_uuid(), :journalNo, :journalDate, :description, :sourceType, :sourceRef,
                     'POSTED', NOW(), :actor, 0, NOW(), :actor, FALSE
                 )
+                ON CONFLICT (source_type, source_ref) DO NOTHING
                 RETURNING id
                 """, new MapSqlParameterSource()
-                .addValue("journalNo", "J-" + row.slipNo())
+                .addValue("journalNo", journalNo(sourceType, row.slipNo()))
                 .addValue("journalDate", row.transactionDate())
                 .addValue("description", row.memo())
                 .addValue("sourceType", sourceType.name())
@@ -223,16 +233,6 @@ public class Mig9CashJournalService {
                 rs.getString("external_ref"));
     }
 
-    private void rejectDuplicate(CashRow row, DuplicateKeyException ex,
-                                 EcountMig9JournalResult.Builder result) {
-        String message = mostSpecificMessage(ex);
-        if (!message.contains("journals_source_type_ref_uk")) {
-            throw ex;
-        }
-        reject(row, ErrorCode.MIG9_JOURNAL_DUPLICATE,
-                "MIG-9 Journal source 중복 constraint=journals_source_type_ref_uk: " + message, result);
-    }
-
     private void reject(CashRow row, ErrorCode code, String message, EcountMig9JournalResult.Builder result) {
         result.reject(row.sourceRowNo(), code.name(), message, row.slipNo(), sampleRawValue(row, code));
     }
@@ -253,12 +253,6 @@ public class Mig9CashJournalService {
         };
     }
 
-    private static String mostSpecificMessage(DuplicateKeyException ex) {
-        Throwable cause = ex.getMostSpecificCause();
-        String message = cause == null ? ex.getMessage() : cause.getMessage();
-        return message == null ? ex.toString() : message;
-    }
-
     private static int normalizeBatchSize(int batchSize) {
         if (batchSize <= 0) {
             return DEFAULT_BATCH_SIZE;
@@ -268,6 +262,14 @@ public class Mig9CashJournalService {
 
     private static String normalizeActor(String actorUserId) {
         return actorUserId == null || actorUserId.isBlank() ? "system" : actorUserId;
+    }
+
+    private static String journalNo(JournalSourceType sourceType, String slipNo) {
+        return switch (sourceType) {
+            case CASH_DISBURSEMENT -> "JD-" + slipNo;
+            case CASH_RECEIPT -> "JR-" + slipNo;
+            default -> "J-" + slipNo;
+        };
     }
 
     record CashRow(int sourceRowNo, UUID id, String slipNo, UUID partnerId, BigDecimal amount,

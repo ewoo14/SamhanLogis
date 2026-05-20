@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,7 +68,7 @@ class Mig9CashJournalServiceTest {
         assertThat(result.cashDisbursementJournalsCreated()).isEqualTo(1);
         assertThat(result.rejected()).isZero();
         SqlParameterSource journal = journalParams();
-        assertThat(journal.getValue("journalNo")).isEqualTo("J-" + row.slipNo());
+        assertThat(journal.getValue("journalNo")).isEqualTo("JD-" + row.slipNo());
         assertThat(journal.getValue("sourceType")).isEqualTo("CASH_DISBURSEMENT");
         assertThat(journal.getValue("sourceRef")).isEqualTo(row.externalRef());
         List<SqlParameterSource> lines = lineParams();
@@ -92,7 +93,40 @@ class Mig9CashJournalServiceTest {
         assertThat(result.skipped()).isZero();
         assertThat(result.rejected()).isZero();
         assertThat(journalParams(2)).extracting(p -> p.getValue("journalNo"))
-                .containsExactly("J-CD-001", "J-CD-002");
+                .containsExactly("JD-CD-001", "JD-CD-002");
+    }
+
+    @Test
+    void disbursement_journal_no는_JD_접두사를_사용한다() {
+        disbursements(row(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
+
+        service.generateFromDisbursements(500, "tester");
+
+        assertThat(journalParams().getValue("journalNo")).isEqualTo("JD-SAME-001");
+    }
+
+    @Test
+    void receipt_journal_no는_JR_접두사를_사용한다() {
+        receipts(row(1, "SAME-001", "REF-CR-SAME", new BigDecimal("1000"), null));
+
+        service.generateFromReceipts(500, "tester");
+
+        assertThat(journalParams().getValue("journalNo")).isEqualTo("JR-SAME-001");
+    }
+
+    @Test
+    void slip_no_충돌_안전성_검증() {
+        disbursements(row(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
+        service.generateFromDisbursements(500, "tester");
+        SqlParameterSource disbursementJournal = journalParams();
+
+        clearInvocations(jdbcTemplate);
+        receipts(row(1, "SAME-001", "REF-CR-SAME", new BigDecimal("1000"), null));
+        service.generateFromReceipts(500, "tester");
+        SqlParameterSource receiptJournal = journalParams();
+
+        assertThat(disbursementJournal.getValue("journalNo")).isEqualTo("JD-SAME-001");
+        assertThat(receiptJournal.getValue("journalNo")).isEqualTo("JR-SAME-001");
     }
 
     @Test
@@ -155,11 +189,27 @@ class Mig9CashJournalServiceTest {
                 .thenThrow(new DuplicateKeyException(
                         "duplicate key value violates unique constraint \"journals_source_type_ref_uk\""));
 
+        assertThatThrownBy(() -> service.generateFromDisbursements(500, "tester"))
+                .isInstanceOf(DuplicateKeyException.class);
+    }
+
+    @Test
+    void duplicate_journal은_ON_CONFLICT_skip하고_다음_row는_정상_처리된다() {
+        disbursements(
+                row(1, "CD-DUP", "REF-DUP", new BigDecimal("1000"), null),
+                row(2, "CD-NEXT", "REF-NEXT", new BigDecimal("2000"), null));
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO journals"), any(SqlParameterSource.class), eq(UUID.class)))
+                .thenReturn(null)
+                .thenReturn(journalId());
+
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
-        assertThat(result.samples()).extracting(EcountMig9JournalResult.Sample::code)
-                .containsExactly("MIG9_JOURNAL_DUPLICATE");
-        assertThat(result.samples().get(0).message()).contains("journals_source_type_ref_uk");
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.rejected()).isZero();
+        assertThat(result.cashDisbursementJournalsCreated()).isEqualTo(1);
+        assertThat(journalSql(2).get(0)).contains("ON CONFLICT (source_type, source_ref) DO NOTHING");
+        assertThat(journalParams(2)).extracting(p -> p.getValue("journalNo"))
+                .containsExactly("JD-CD-DUP", "JD-CD-NEXT");
     }
 
     @Test
@@ -226,6 +276,15 @@ class Mig9CashJournalServiceTest {
         verify(jdbcTemplate, org.mockito.Mockito.times(times))
                 .queryForObject(contains("INSERT INTO journals"), params.capture(), eq(UUID.class));
         return params.getAllValues();
+    }
+
+    private List<String> journalSql(int times) {
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(times))
+                .queryForObject(sql.capture(), any(SqlParameterSource.class), eq(UUID.class));
+        return sql.getAllValues().stream()
+                .filter(value -> value.contains("INSERT INTO journals"))
+                .toList();
     }
 
     private List<SqlParameterSource> lineParams() {

@@ -61,4 +61,12 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG6_FIXED_ASSET_TYPE.getCode())
                 .isEqualTo("ecount.mig6.fixed-asset-type");
     }
+
+    @Test
+    void mig9_pageCodes_2종_V22_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_MIG9_CASH_JOURNAL_DISBURSEMENT.getCode())
+                .isEqualTo("ecount.mig9.cash-journal.disbursement");
+        assertThat(PageCode.ECOUNT_MIG9_CASH_JOURNAL_RECEIPT.getCode())
+                .isEqualTo("ecount.mig9.cash-journal.receipt");
+    }
 }

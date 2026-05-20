@@ -254,7 +254,17 @@ public enum PageCode {
     ECOUNT_MIG6_FIXED_ASSET_TYPE("ecount.mig6.fixed-asset-type", "이카운트 고정자산유형 마이그레이션"),
 
     /** MIG-8 이카운트 주문서 도메인 변환. */
-    ECOUNT_MIG8_ORDER("ecount.mig8.order", "이카운트 주문서 도메인 변환");
+    ECOUNT_MIG8_ORDER("ecount.mig8.order", "이카운트 주문서 도메인 변환"),
+
+    /** MIG-9 이카운트 CashDisbursement 자동 분개 생성. */
+    ECOUNT_MIG9_CASH_JOURNAL_DISBURSEMENT(
+            "ecount.mig9.cash-journal.disbursement",
+            "이카운트 지출결의서 자동 분개 생성"),
+
+    /** MIG-9 이카운트 CashReceipt 자동 분개 생성. */
+    ECOUNT_MIG9_CASH_JOURNAL_RECEIPT(
+            "ecount.mig9.cash-journal.receipt",
+            "이카운트 입금보고서 자동 분개 생성");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;
