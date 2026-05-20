@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -42,7 +43,7 @@ public class Mig8OrderTransformService {
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig8TransformResult transformFromStaging(int batchSize, String actorUserId) {
         acquireTransformLock();
-        List<StagingRow> rows = pendingRows(batchSize);
+        List<StagingRow> rows = pendingRows();
         if (rows.isEmpty()) {
             throw new BusinessException(ErrorCode.MIG8_STAGING_ROW_NOT_FOUND,
                     "MIG-8 Order 변환 대상 staging row 가 없습니다.");
@@ -162,7 +163,7 @@ public class Mig8OrderTransformService {
                         + ", partnerName='" + row.partnerName() + "'");
     }
 
-    private List<StagingRow> pendingRows(int batchSize) {
+    private List<StagingRow> pendingRows() {
         return jdbcTemplate.query("""
                 SELECT source_file_hash, source_row_no, order_no, legacy_order_no, order_date,
                        partner_name, manager_name, valid_until, payment_terms, reference,
@@ -172,8 +173,7 @@ public class Mig8OrderTransformService {
                  WHERE transform_status = 'PENDING'
                    AND is_deleted = FALSE
                  ORDER BY order_no, source_file_hash, source_row_no
-                 LIMIT :limit
-                """, new MapSqlParameterSource("limit", batchSize), stagingMapper());
+                """, new MapSqlParameterSource(), stagingMapper());
     }
 
     private RowMapper<StagingRow> stagingMapper() {
@@ -255,7 +255,7 @@ public class Mig8OrderTransformService {
         jdbcTemplate.queryForObject("""
                 WITH restored AS (
                     UPDATE order_lines
-                       SET product_id = NULL,
+                       SET product_id = :productId,
                            item_name = :itemName,
                            quantity = :quantity,
                            unit_price = :unitPrice,
@@ -277,7 +277,7 @@ public class Mig8OrderTransformService {
                       supply_amount, vat_amount, item_due_date, created_at, created_by,
                       modified_at, modified_by, is_deleted
                     )
-                    SELECT gen_random_uuid(), :orderId, :lineNo, NULL, :itemName, :quantity, :unitPrice,
+                    SELECT gen_random_uuid(), :orderId, :lineNo, :productId, :itemName, :quantity, :unitPrice,
                            :supplyAmount, :vatAmount, :itemDueDate, NOW(), :actor, NOW(), :actor, FALSE
                     WHERE NOT EXISTS (SELECT 1 FROM restored)
                     ON CONFLICT (order_id, line_no) DO UPDATE SET
@@ -412,16 +412,34 @@ public class Mig8OrderTransformService {
 
     private MapSqlParameterSource lineParams(UUID orderId, int lineNo, ValidatedRow row, String actor) {
         StagingRow raw = row.row();
+        String itemName = EcountCsvSupport.stripCell(raw.itemName());
         return new MapSqlParameterSource()
                 .addValue("orderId", orderId)
                 .addValue("lineNo", lineNo)
-                .addValue("itemName", EcountCsvSupport.stripCell(raw.itemName()))
+                .addValue("productId", lookupProductId(itemName))
+                .addValue("itemName", itemName)
                 .addValue("quantity", raw.quantity())
                 .addValue("unitPrice", raw.unitPrice())
                 .addValue("supplyAmount", raw.supplyAmount())
                 .addValue("vatAmount", raw.vatAmount())
                 .addValue("itemDueDate", raw.itemDueDate())
                 .addValue("actor", actor);
+    }
+
+    private UUID lookupProductId(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return null;
+        }
+        try {
+            return jdbcTemplate.queryForObject("""
+                    SELECT main_product_uuid
+                      FROM staging.ecount_item_alias
+                     WHERE alias_code = :name
+                     LIMIT 1
+                    """, new MapSqlParameterSource("name", itemName), UUID.class);
+        } catch (EmptyResultDataAccessException ex) {
+            return null;
+        }
     }
 
     private void acquireTransformLock() {

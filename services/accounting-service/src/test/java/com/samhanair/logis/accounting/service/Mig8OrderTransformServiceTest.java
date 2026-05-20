@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
@@ -74,6 +77,26 @@ class Mig8OrderTransformServiceTest {
         assertThat(result.imported()).isEqualTo(1);
         assertThat(result.totalRows()).isEqualTo(2);
         assertThat(statuses()).containsExactly("TRANSFORMED", "TRANSFORMED");
+    }
+
+    @Test
+    void batch_boundary_같은_order_no_분리되지_않는다() {
+        pending(
+                row(1, "2026-05-20-001", "진행"),
+                row(2, "2026-05-20-001", "진행"),
+                row(3, "2026-05-20-001", "진행"),
+                row(4, "2026-05-20-002", "진행"),
+                row(5, "2026-05-20-003", "진행"));
+
+        EcountMig8TransformResult result = service.transformFromStaging(2, "tester");
+
+        assertThat(result.totalRows()).isEqualTo(5);
+        assertThat(result.imported()).isEqualTo(3);
+        assertThat(statuses()).containsExactly("TRANSFORMED", "TRANSFORMED", "TRANSFORMED",
+                "TRANSFORMED", "TRANSFORMED");
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class), any(RowMapper.class));
+        assertThat(sql.getValue()).doesNotContain("LIMIT");
     }
 
     @Test
@@ -212,6 +235,28 @@ class Mig8OrderTransformServiceTest {
                 .containsExactly("MIG8_SLIP_LINK_MISS");
     }
 
+    @Test
+    void product_id_lookup_성공시_매핑된다() {
+        pending(row(1, "2026-05-20-001", "진행"));
+        doReturn(productId()).when(jdbcTemplate)
+                .queryForObject(contains("FROM staging.ecount_item_alias"), any(SqlParameterSource.class), eq(UUID.class));
+
+        service.transformFromStaging(500, "tester");
+
+        assertThat(lineParams().getValue("productId")).isEqualTo(productId());
+    }
+
+    @Test
+    void product_id_lookup_miss는_NULL_유지() {
+        pending(row(1, "2026-05-20-001", "진행"));
+        doThrow(new EmptyResultDataAccessException(1)).when(jdbcTemplate)
+                .queryForObject(contains("FROM staging.ecount_item_alias"), any(SqlParameterSource.class), eq(UUID.class));
+
+        service.transformFromStaging(500, "tester");
+
+        assertThat(lineParams().getValue("productId")).isNull();
+    }
+
     private void pending(Mig8OrderTransformService.StagingRow... rows) {
         when(jdbcTemplate.<Mig8OrderTransformService.StagingRow>query(
                 contains("FROM staging.ecount_order_raw"),
@@ -226,6 +271,13 @@ class Mig8OrderTransformServiceTest {
                 .filter(p -> p.hasValue("status"))
                 .map(p -> p.getValue("status"))
                 .toList();
+    }
+
+    private SqlParameterSource lineParams() {
+        ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .queryForObject(contains("INSERT INTO order_lines"), params.capture(), eq(UUID.class));
+        return params.getAllValues().get(0);
     }
 
     private static Mig8OrderTransformService.StagingRow row(int rowNo, String orderNo, String status) {
@@ -252,5 +304,9 @@ class Mig8OrderTransformServiceTest {
 
     private static UUID orderId() {
         return UUID.fromString("00000000-0000-0000-0000-000000008001");
+    }
+
+    private static UUID productId() {
+        return UUID.fromString("00000000-0000-0000-0000-00000000b001");
     }
 }
