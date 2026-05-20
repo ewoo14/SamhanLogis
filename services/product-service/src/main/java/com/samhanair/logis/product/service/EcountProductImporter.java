@@ -247,12 +247,19 @@ public class EcountProductImporter {
     }
 
     private UpsertProductResult upsertProduct(ItemRow row, String categoryGroup, String actor) {
-        boolean exists = exists("""
+        boolean activeExists = exists("""
                 SELECT COUNT(1) FROM products
                  WHERE product_code = :code AND is_deleted = FALSE
                 """, new MapSqlParameterSource("code", row.code()));
-        UUID productId = jdbcTemplate.queryForObject(UPSERT_PRODUCT_SQL, productParams(row, categoryGroup, actor), UUID.class);
-        return new UpsertProductResult(productId, !exists);
+        MapSqlParameterSource params = productParams(row, categoryGroup, actor);
+        if (!activeExists) {
+            UUID restoredId = restoreSoftDeletedProduct(params);
+            if (restoredId != null) {
+                return new UpsertProductResult(restoredId, false);
+            }
+        }
+        UUID productId = jdbcTemplate.queryForObject(UPSERT_PRODUCT_SQL, params, UUID.class);
+        return new UpsertProductResult(productId, !activeExists);
     }
 
     private MapSqlParameterSource productParams(ItemRow row, String categoryGroup, String actor) {
@@ -321,6 +328,56 @@ public class EcountProductImporter {
               modified_by = EXCLUDED.created_by
             RETURNING id
             """;
+
+    private UUID restoreSoftDeletedProduct(MapSqlParameterSource params) {
+        List<UUID> restored = jdbcTemplate.queryForList("""
+                WITH restored AS (
+                    SELECT id
+                      FROM products
+                     WHERE product_code = :code AND is_deleted = TRUE
+                     ORDER BY deleted_at DESC NULLS LAST, modified_at DESC NULLS LAST, created_at DESC
+                     LIMIT 1
+                     FOR UPDATE
+                )
+                UPDATE products p
+                   SET name = :name,
+                       model_name = :code,
+                       model_code = :code,
+                       category_id = (SELECT id FROM categories WHERE code = 'ECOUNT_MIG2' AND is_deleted = FALSE LIMIT 1),
+                       selling_price = :sellingPrice,
+                       purchase_price = :purchasePrice,
+                       currency = 'KRW',
+                       status = 'ACTIVE',
+                       tags = NULL,
+                       description = NULL,
+                       specification = :spec,
+                       unit = 'EA',
+                       product_business_type = :businessType,
+                       inventory_qty_mgmt = TRUE,
+                       price_includes_vat = TRUE,
+                       product_group1 = :productGroup1,
+                       inbound_price = :inboundPrice,
+                       outbound_price = :outboundPrice,
+                       single_price = :singlePrice,
+                       outdoor_price = :outdoorPrice,
+                       multi_50_price = :multi50Price,
+                       multi_48_price = :multi48Price,
+                       multi_45_price = :multi45Price,
+                       item_35_price = :item35Price,
+                       category_group = :categoryGroup,
+                       tax_type = 'TAXABLE',
+                       unit_price_with_vat = :outboundPrice,
+                       is_deleted = FALSE,
+                       deleted_at = NULL,
+                       deleted_by = NULL,
+                       modified_at = NOW(),
+                       modified_by = :actor
+                  FROM restored
+                 WHERE p.id = restored.id
+                 RETURNING p.id
+                """, params, UUID.class);
+        return restored == null || restored.isEmpty() ? null : restored.get(0);
+    }
 
     private void upsertAlias(String aliasCode, String mainCode, UUID mainProductId,
                              String hash, int rowNo) {

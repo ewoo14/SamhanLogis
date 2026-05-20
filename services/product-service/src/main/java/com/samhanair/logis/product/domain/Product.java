@@ -64,7 +64,7 @@ public class Product extends BaseEntity {
      * 사용자 노출 식별자 — 시트 B열 모델명 정규화. UUID 비공개 원칙 충족
      * (feedback_uuid_no_user_visibility.md). V3 마이그에서 추가된 신규 컬럼.
      */
-    @Column(name = "model_code", length = 64)
+    @Column(name = "model_code", length = 100)
     private String modelCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -174,7 +174,7 @@ public class Product extends BaseEntity {
     // ============================================================
 
     /** 이카운트 품목코드 (5자리, 01XXXX). 사용자 노출 식별자 (modelCode 와 별도 — 시트 vs 이카운트). */
-    @Column(name = "product_code", length = 20)
+    @Column(name = "product_code", length = 100)
     private String productCode;
 
     /** 규격 (예: "13평형 / R32 / 인버터"). */

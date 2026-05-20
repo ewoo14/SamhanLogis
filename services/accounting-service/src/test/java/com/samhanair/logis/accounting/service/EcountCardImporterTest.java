@@ -124,6 +124,20 @@ class EcountCardImporterTest {
     }
 
     @Test
+    void importCsv_linked_account_code가_10자를_초과하면_MIG2_CODE_OUT_OF_RANGE로_거부한다() {
+        String longLinkedAccountCode = "1".repeat(11);
+
+        assertThatThrownBy(() -> importer.importCsv(stream(cardCsv("""
+                "079815326474401\t","국민예금\t","정기예.적금(%s)\t","\t","\t","미사용\t","YES\t"
+                """.formatted(longLinkedAccountCode))), "tester"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG2_CODE_OUT_OF_RANGE))
+                .hasMessageContaining("linked_account_code")
+                .hasMessageContaining("length=11");
+    }
+
+    @Test
     void rawHeaderCrossCheck() throws Exception {
         try (InputStream fixture = EcountCardImporterTest.class
                 .getResourceAsStream("/ecount-raw-fixtures/card.csv")) {

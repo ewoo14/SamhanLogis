@@ -138,6 +138,20 @@ class EcountAccountImporterTest {
     }
 
     @Test
+    void importCsv_parent_code가_10자를_초과하면_MIG2_CODE_OUT_OF_RANGE로_거부한다() {
+        String longParentCode = "2".repeat(11);
+
+        assertThatThrownBy(() -> importer.importCsv(stream(accountCsv("""
+                "00010\t","출자금\t","\t","차변\t","전표입력계정\t","자산\t","\t","%s\t","\t","1\t","계정명세서\t","\t","\t","없음\t","N\t","\t","\t","X\t","\t","0\t","N\t","Y\t","기타\t","1\t","N\t","N\t","Y\t","Other\t","1\t","N\t","N\t","N\t"
+                """.formatted(longParentCode))), "tester"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG2_CODE_OUT_OF_RANGE))
+                .hasMessageContaining("parent_code")
+                .hasMessageContaining("length=11");
+    }
+
+    @Test
     void rawHeaderCrossCheck() throws Exception {
         try (InputStream fixture = EcountAccountImporterTest.class
                 .getResourceAsStream("/ecount-raw-fixtures/account.csv")) {

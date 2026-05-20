@@ -68,13 +68,13 @@ public class EcountDepartmentImporter {
             EcountCsvSupport.requireMaxLength(code, 50, "department_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM departments WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
-            UUID departmentId = upsertDepartment(code, name, actorUserId);
-            upsertMap(code, name, departmentId, hash);
-            updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, departmentId);
-            if (exists) {
-                updated++;
-            } else {
+            UpsertDepartmentResult upsert = upsertDepartment(code, name, actorUserId, exists);
+            upsertMap(code, name, upsert.departmentId(), hash);
+            updateStatus(hash, rowNo, upsert.isNew() ? "IMPORTED" : "UPDATED", null, upsert.departmentId());
+            if (upsert.isNew()) {
                 imported++;
+            } else {
+                updated++;
             }
         }
         log.info("MIG-2 department import 완료 total={} imported={} updated={} rejected={} placeholder={} hash={}",
@@ -83,8 +83,15 @@ public class EcountDepartmentImporter {
                 rejectedNullName, skippedPlaceholder, hash, rejected);
     }
 
-    private UUID upsertDepartment(String code, String name, String actor) {
-        return jdbcTemplate.queryForObject("""
+    private UpsertDepartmentResult upsertDepartment(String code, String name, String actor, boolean activeExists) {
+        MapSqlParameterSource params = departmentParams(code, name, actor);
+        if (!activeExists) {
+            UUID restoredId = restoreSoftDeletedDepartment(params);
+            if (restoredId != null) {
+                return new UpsertDepartmentResult(restoredId, false);
+            }
+        }
+        UUID departmentId = jdbcTemplate.queryForObject("""
                 INSERT INTO departments (id, code, name, display_order, created_at, created_by, is_deleted)
                 VALUES (gen_random_uuid(), :code, :name, :displayOrder, NOW(), :actor, FALSE)
                 ON CONFLICT (code) WHERE is_deleted = FALSE DO UPDATE SET
@@ -97,12 +104,42 @@ public class EcountDepartmentImporter {
                   modified_by = EXCLUDED.created_by
                 RETURNING id
                 """,
-                new MapSqlParameterSource()
-                        .addValue("code", truncate(code, 50))
-                        .addValue("name", truncate(name, 100))
-                        .addValue("displayOrder", parseDisplayOrder(code))
-                        .addValue("actor", actor == null || actor.isBlank() ? "system" : actor),
+                params,
                 UUID.class);
+        return new UpsertDepartmentResult(departmentId, !activeExists);
+    }
+
+    private UUID restoreSoftDeletedDepartment(MapSqlParameterSource params) {
+        List<UUID> restored = jdbcTemplate.queryForList("""
+                WITH restored AS (
+                    SELECT id
+                      FROM departments
+                     WHERE code = :code AND is_deleted = TRUE
+                     ORDER BY deleted_at DESC NULLS LAST, modified_at DESC NULLS LAST, created_at DESC
+                     LIMIT 1
+                     FOR UPDATE
+                )
+                UPDATE departments d
+                   SET name = :name,
+                       display_order = :displayOrder,
+                       is_deleted = FALSE,
+                       deleted_at = NULL,
+                       deleted_by = NULL,
+                       modified_at = NOW(),
+                       modified_by = :actor
+                  FROM restored
+                 WHERE d.id = restored.id
+                 RETURNING d.id
+                """, params, UUID.class);
+        return restored == null || restored.isEmpty() ? null : restored.get(0);
+    }
+
+    private MapSqlParameterSource departmentParams(String code, String name, String actor) {
+        return new MapSqlParameterSource()
+                .addValue("code", truncate(code, 50))
+                .addValue("name", truncate(name, 100))
+                .addValue("displayOrder", parseDisplayOrder(code))
+                .addValue("actor", actor == null || actor.isBlank() ? "system" : actor);
     }
 
     private void upsertMap(String code, String name, UUID departmentId, String hash) {
@@ -207,5 +244,8 @@ public class EcountDepartmentImporter {
         if (sample.size() < REJECT_SAMPLE_MAX) {
             sample.add(new EcountDepartmentImportResult.RejectedRow(rowNo, reason, code, name));
         }
+    }
+
+    private record UpsertDepartmentResult(UUID departmentId, boolean isNew) {
     }
 }

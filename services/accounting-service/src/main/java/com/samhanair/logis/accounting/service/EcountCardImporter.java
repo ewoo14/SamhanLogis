@@ -71,12 +71,12 @@ public class EcountCardImporter {
             EcountCsvSupport.requireMaxLength(code, 50, "card_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM card_master WHERE card_code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
-            UUID cardId = upsertCard(code, name, c, actorUserId);
-            updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, cardId);
-            if (exists) {
-                updated++;
-            } else {
+            UpsertCardResult upsert = upsertCard(code, name, c, actorUserId, rowNo, exists);
+            updateStatus(hash, rowNo, upsert.isNew() ? "IMPORTED" : "UPDATED", null, upsert.cardId());
+            if (upsert.isNew()) {
                 imported++;
+            } else {
+                updated++;
             }
         }
         log.info("MIG-2 card import 완료 total={} imported={} updated={} rejected={} placeholder={} hash={}",
@@ -92,8 +92,16 @@ public class EcountCardImporter {
                 Object.class);
     }
 
-    private UUID upsertCard(String code, String name, String[] c, String actor) {
-        return jdbcTemplate.queryForObject("""
+    private UpsertCardResult upsertCard(String code, String name, String[] c, String actor,
+                                        int rowNo, boolean activeExists) {
+        MapSqlParameterSource params = cardParams(code, name, c, actor, rowNo);
+        if (!activeExists) {
+            UUID restoredId = restoreSoftDeletedCard(params);
+            if (restoredId != null) {
+                return new UpsertCardResult(restoredId, false);
+            }
+        }
+        UUID cardId = jdbcTemplate.queryForObject("""
                 INSERT INTO card_master (
                   card_code, card_name, card_type, account_number, linked_account_code,
                   note, created_at, created_by, is_deleted
@@ -114,15 +122,48 @@ public class EcountCardImporter {
                   modified_by = EXCLUDED.created_by
                 RETURNING id
                 """,
-                new MapSqlParameterSource()
-                        .addValue("code", truncate(code, 50))
-                        .addValue("name", truncate(name, 100))
-                        .addValue("type", inferType(name, c[2]).name())
-                        .addValue("accountNumber", truncate(code, 50))
-                        .addValue("linkedAccountCode", parseLinkedAccountCode(c[2]))
-                        .addValue("note", EcountCsvSupport.nullIfBlank(c[4]))
-                        .addValue("actor", actor == null || actor.isBlank() ? "system" : actor),
+                params,
                 UUID.class);
+        return new UpsertCardResult(cardId, !activeExists);
+    }
+
+    private UUID restoreSoftDeletedCard(MapSqlParameterSource params) {
+        List<UUID> restored = jdbcTemplate.queryForList("""
+                WITH restored AS (
+                    SELECT id
+                      FROM card_master
+                     WHERE card_code = :code AND is_deleted = TRUE
+                     ORDER BY deleted_at DESC NULLS LAST, modified_at DESC NULLS LAST, created_at DESC
+                     LIMIT 1
+                     FOR UPDATE
+                )
+                UPDATE card_master c
+                   SET card_name = :name,
+                       card_type = :type,
+                       account_number = :accountNumber,
+                       linked_account_code = :linkedAccountCode,
+                       note = :note,
+                       is_deleted = FALSE,
+                       deleted_at = NULL,
+                       deleted_by = NULL,
+                       modified_at = NOW(),
+                       modified_by = :actor
+                  FROM restored
+                 WHERE c.id = restored.id
+                 RETURNING c.id
+                """, params, UUID.class);
+        return restored == null || restored.isEmpty() ? null : restored.get(0);
+    }
+
+    private MapSqlParameterSource cardParams(String code, String name, String[] c, String actor, int rowNo) {
+        return new MapSqlParameterSource()
+                .addValue("code", truncate(code, 50))
+                .addValue("name", truncate(name, 100))
+                .addValue("type", inferType(name, c[2]).name())
+                .addValue("accountNumber", truncate(code, 50))
+                .addValue("linkedAccountCode", parseLinkedAccountCode(c[2], rowNo))
+                .addValue("note", EcountCsvSupport.nullIfBlank(c[4]))
+                .addValue("actor", actor == null || actor.isBlank() ? "system" : actor);
     }
 
     private void stagingUpsert(String hash, int rowNo, String[] c, String actor) {
@@ -186,12 +227,17 @@ public class EcountCardImporter {
         return CardType.BANK_ACCOUNT;
     }
 
-    static String parseLinkedAccountCode(String raw) {
+    static String parseLinkedAccountCode(String raw, int rowNo) {
         if (raw == null) {
             return null;
         }
         Matcher matcher = ACCOUNT_CODE.matcher(raw);
-        return matcher.find() ? truncate(matcher.group(1), 10) : null;
+        if (!matcher.find()) {
+            return null;
+        }
+        String accountCode = matcher.group(1);
+        EcountCsvSupport.requireMaxLength(accountCode, 10, "linked_account_code", rowNo);
+        return accountCode;
     }
 
     private boolean exists(String sql, MapSqlParameterSource p) {
@@ -215,5 +261,8 @@ public class EcountCardImporter {
         if (sample.size() < REJECT_SAMPLE_MAX) {
             sample.add(new EcountCardImportResult.RejectedRow(rowNo, reason, code, name));
         }
+    }
+
+    private record UpsertCardResult(UUID cardId, boolean isNew) {
     }
 }

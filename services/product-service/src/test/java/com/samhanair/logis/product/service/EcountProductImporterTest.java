@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,7 +50,13 @@ class EcountProductImporterTest {
         lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of());
         lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
-                .thenReturn(List.of(PRODUCT_ID));
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    if (sql.contains("is_deleted = TRUE")) {
+                        return List.of();
+                    }
+                    return sql.contains("SELECT id") ? List.of(PRODUCT_ID) : List.of();
+                });
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
     }
 
@@ -316,6 +323,36 @@ class EcountProductImporterTest {
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.MIG2_CODE_OUT_OF_RANGE))
                 .hasMessageContaining("length=101");
+    }
+
+    @Test
+    void importCsv_soft_deleted_product_code는_기존_UUID를_복구하고_INSERT를_skip한다() {
+        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    return sql.contains("UPDATE products") ? List.of(PRODUCT_ID) : List.of();
+                });
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "P-001\t","제품A\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.updated()).isEqualTo(1);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .queryForList(sql.capture(), any(SqlParameterSource.class), eq(UUID.class));
+        assertThat(sql.getAllValues())
+                .anySatisfy(value -> assertThat(value)
+                        .contains("UPDATE products")
+                        .contains("WHERE product_code = :code AND is_deleted = TRUE")
+                        .contains("RETURNING p.id"));
+        verify(jdbcTemplate, never())
+                .queryForObject(org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
+                        any(SqlParameterSource.class), eq(UUID.class));
     }
 
     @Test

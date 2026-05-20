@@ -77,9 +77,9 @@ public class EcountAccountImporter {
             }
             EcountCsvSupport.requireMaxLength(code, 10, "account_code", rowNo);
 
-            boolean exists = exists("SELECT COUNT(1) FROM chart_of_accounts WHERE code = :code AND is_deleted = FALSE",
+            boolean exists = exists("SELECT COUNT(1) FROM chart_of_accounts WHERE code = :code",
                     new MapSqlParameterSource("code", code));
-            upsertAccount(code, name, c, actorUserId);
+            upsertAccount(code, name, c, actorUserId, rowNo);
             upsertAccountMap(code, name, hash);
             updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, code);
             if (exists) {
@@ -95,7 +95,7 @@ public class EcountAccountImporter {
                 rejectedNullName, skippedPlaceholder, hash, rejected);
     }
 
-    private void upsertAccount(String code, String name, String[] c, String actor) {
+    private void upsertAccount(String code, String name, String[] c, String actor, int rowNo) {
         jdbcTemplate.update("""
                 INSERT INTO chart_of_accounts (
                   code, name, category, parent_code, is_leaf, display_order,
@@ -120,7 +120,7 @@ public class EcountAccountImporter {
                         .addValue("code", truncate(code, 10))
                         .addValue("name", truncate(name, 100))
                         .addValue("category", mapCategory(code, c[5]).name())
-                        .addValue("parentCode", normalizeParentCode(c[7]))
+                        .addValue("parentCode", normalizeParentCode(c[7], rowNo))
                         .addValue("isLeaf", c[4].contains("전표입력계정"))
                         .addValue("displayOrder", parseDisplayOrder(code))
                         .addValue("actor", actor == null || actor.isBlank() ? "system" : actor));
@@ -250,11 +250,12 @@ public class EcountAccountImporter {
         return code == null || code.isBlank() || PLACEHOLDER_CODE.matcher(code).matches();
     }
 
-    private static String normalizeParentCode(String raw) {
+    private static String normalizeParentCode(String raw, int rowNo) {
         if (raw == null || raw.isBlank() || PLACEHOLDER_CODE.matcher(raw).matches()) {
             return null;
         }
-        return truncate(raw, 10);
+        EcountCsvSupport.requireMaxLength(raw, 10, "parent_code", rowNo);
+        return raw;
     }
 
     private static int parseDisplayOrder(String code) {

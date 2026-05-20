@@ -70,13 +70,13 @@ public class EcountWarehouseImporter {
             EcountCsvSupport.requireMaxLength(code, 50, "warehouse_code", rowNo);
             boolean exists = exists("SELECT COUNT(1) FROM warehouses WHERE code = :code AND is_deleted = FALSE",
                     new MapSqlParameterSource("code", code));
-            UUID warehouseId = upsertWarehouse(code, name, c, actorUserId);
-            upsertMap(code, name, warehouseId, hash);
-            updateStatus(hash, rowNo, exists ? "UPDATED" : "IMPORTED", null, warehouseId);
-            if (exists) {
-                updated++;
-            } else {
+            UpsertWarehouseResult upsert = upsertWarehouse(code, name, c, actorUserId, exists);
+            upsertMap(code, name, upsert.warehouseId(), hash);
+            updateStatus(hash, rowNo, upsert.isNew() ? "IMPORTED" : "UPDATED", null, upsert.warehouseId());
+            if (upsert.isNew()) {
                 imported++;
+            } else {
+                updated++;
             }
         }
         log.info("MIG-2 warehouse import 완료 total={} imported={} updated={} rejected={} placeholder={} hash={}",
@@ -85,8 +85,16 @@ public class EcountWarehouseImporter {
                 rejectedNullName, skippedPlaceholder, hash, rejected);
     }
 
-    private UUID upsertWarehouse(String code, String name, String[] c, String actor) {
-        return jdbcTemplate.queryForObject("""
+    private UpsertWarehouseResult upsertWarehouse(String code, String name, String[] c,
+                                                  String actor, boolean activeExists) {
+        MapSqlParameterSource params = warehouseParams(code, name, c, actor);
+        if (!activeExists) {
+            UUID restoredId = restoreSoftDeletedWarehouse(params);
+            if (restoredId != null) {
+                return new UpsertWarehouseResult(restoredId, false);
+            }
+        }
+        UUID warehouseId = jdbcTemplate.queryForObject("""
                 INSERT INTO warehouses (
                   id, code, name, type, address, display_order, description,
                   created_at, created_by, is_deleted
@@ -106,14 +114,46 @@ public class EcountWarehouseImporter {
                   modified_by = EXCLUDED.created_by
                 RETURNING id
                 """,
-                new MapSqlParameterSource()
-                        .addValue("code", truncate(code, 50))
-                        .addValue("name", truncate(name, 100))
-                        .addValue("type", mapType(c[2]))
-                        .addValue("displayOrder", parseDisplayOrder(code))
-                        .addValue("description", buildDescription(c))
-                        .addValue("actor", actor == null || actor.isBlank() ? "system" : actor),
+                params,
                 UUID.class);
+        return new UpsertWarehouseResult(warehouseId, !activeExists);
+    }
+
+    private UUID restoreSoftDeletedWarehouse(MapSqlParameterSource params) {
+        List<UUID> restored = jdbcTemplate.queryForList("""
+                WITH restored AS (
+                    SELECT id
+                      FROM warehouses
+                     WHERE code = :code AND is_deleted = TRUE
+                     ORDER BY deleted_at DESC NULLS LAST, modified_at DESC NULLS LAST, created_at DESC
+                     LIMIT 1
+                     FOR UPDATE
+                )
+                UPDATE warehouses w
+                   SET name = :name,
+                       type = :type,
+                       display_order = :displayOrder,
+                       description = :description,
+                       is_deleted = FALSE,
+                       deleted_at = NULL,
+                       deleted_by = NULL,
+                       modified_at = NOW(),
+                       modified_by = :actor
+                  FROM restored
+                 WHERE w.id = restored.id
+                 RETURNING w.id
+                """, params, UUID.class);
+        return restored == null || restored.isEmpty() ? null : restored.get(0);
+    }
+
+    private MapSqlParameterSource warehouseParams(String code, String name, String[] c, String actor) {
+        return new MapSqlParameterSource()
+                .addValue("code", truncate(code, 50))
+                .addValue("name", truncate(name, 100))
+                .addValue("type", mapType(c[2]))
+                .addValue("displayOrder", parseDisplayOrder(code))
+                .addValue("description", buildDescription(c))
+                .addValue("actor", actor == null || actor.isBlank() ? "system" : actor);
     }
 
     private void upsertMap(String code, String name, UUID warehouseId, String hash) {
@@ -247,5 +287,8 @@ public class EcountWarehouseImporter {
         if (sample.size() < REJECT_SAMPLE_MAX) {
             sample.add(new EcountWarehouseImportResult.RejectedRow(rowNo, reason, code, name));
         }
+    }
+
+    private record UpsertWarehouseResult(UUID warehouseId, boolean isNew) {
     }
 }
