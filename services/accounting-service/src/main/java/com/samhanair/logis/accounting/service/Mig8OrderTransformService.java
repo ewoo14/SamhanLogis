@@ -58,8 +58,11 @@ public class Mig8OrderTransformService {
             } catch (BusinessException ex) {
                 rejectGroup(group, ex.getErrorCode().name(), ex.getMessage(), result);
             } catch (DuplicateKeyException ex) {
-                String message = "MIG-8 order upsert 충돌: " + ex.getMostSpecificCause().getMessage();
-                rejectGroup(group, ErrorCode.MIG8_DUPLICATE_EXTERNAL_REF.name(), message, result);
+                DuplicateReject duplicate = duplicateReject(ex);
+                if (duplicate == null) {
+                    throw ex;
+                }
+                rejectGroup(group, duplicate.code().name(), duplicate.message(), result);
             }
         }
         return result.build();
@@ -117,6 +120,7 @@ public class Mig8OrderTransformService {
         PartnerSummary partner = lookupPartner(head.row());
         boolean existed = existsAny(head.row().externalRef());
         UUID orderId = upsertOrder(head, partner, actor);
+        // 본 슬라이스는 동일 source_file_hash 재실행만 가정 (line_no 안정). partial re-import 시 stale line cleanup 은 MIG-9+ 후속.
         for (int i = 0; i < group.size(); i++) {
             upsertLine(orderId, i + 1, group.get(i), actor);
         }
@@ -124,7 +128,7 @@ public class Mig8OrderTransformService {
 
         String linkedSlipNo = null;
         if (head.progressStatus() == OrderProgressStatus.COMPLETED) {
-            linkedSlipNo = findSalesSlip(head.row());
+            linkedSlipNo = findSalesSlip(head);
             if (linkedSlipNo == null) {
                 result.warning(head.row().sourceRowNo(), ErrorCode.MIG8_SLIP_LINK_MISS.name(),
                         "완료 주문의 SalesAccountingSlip 매칭 실패", head.orderNo(), head.orderNo());
@@ -312,7 +316,7 @@ public class Mig8OrderTransformService {
                 """, new MapSqlParameterSource("orderId", orderId).addValue("actor", actor));
     }
 
-    private String findSalesSlip(StagingRow row) {
+    private String findSalesSlip(ValidatedRow row) {
         List<String> rows = jdbcTemplate.query("""
                 SELECT slip_no
                   FROM sales_accounting_slips
@@ -322,7 +326,7 @@ public class Mig8OrderTransformService {
                  LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("canonical", row.orderNo())
-                .addValue("legacy", row.legacyOrderNo()),
+                .addValue("legacy", row.row().legacyOrderNo()),
                 (rs, rowNum) -> rs.getString("slip_no"));
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -370,6 +374,25 @@ public class Mig8OrderTransformService {
             updateStatus(row.row(), "REJECTED", message);
             result.reject(row.row().sourceRowNo(), code, message, row.orderNo(), row.row().externalRef());
         }
+    }
+
+    private static DuplicateReject duplicateReject(DuplicateKeyException ex) {
+        String message = mostSpecificMessage(ex);
+        if (message.contains("orders_external_ref_uk")) {
+            return new DuplicateReject(ErrorCode.MIG8_DUPLICATE_EXTERNAL_REF,
+                    "MIG-8 external_ref 중복 constraint=orders_external_ref_uk: " + message);
+        }
+        if (message.contains("orders_order_no_uk")) {
+            return new DuplicateReject(ErrorCode.CONFLICT,
+                    "MIG-8 order_no 중복 constraint=orders_order_no_uk: " + message);
+        }
+        return null;
+    }
+
+    private static String mostSpecificMessage(DuplicateKeyException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String message = cause == null ? ex.getMessage() : cause.getMessage();
+        return message == null ? ex.toString() : message;
     }
 
     private MapSqlParameterSource orderParams(ValidatedRow row, PartnerSummary partner, String actor) {
@@ -446,5 +469,8 @@ public class Mig8OrderTransformService {
 
     record ValidatedRow(StagingRow row, String orderNo, OrderProgressStatus progressStatus,
                         LocalDate validUntil) {
+    }
+
+    private record DuplicateReject(ErrorCode code, String message) {
     }
 }

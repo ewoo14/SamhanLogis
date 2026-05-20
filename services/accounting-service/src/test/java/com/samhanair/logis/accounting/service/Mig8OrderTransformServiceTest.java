@@ -131,12 +131,28 @@ class Mig8OrderTransformServiceTest {
     void domain_duplicate는_MIG8_DUPLICATE_EXTERNAL_REF로_reject() {
         pending(row(1, "2026-05-20-001", "진행"));
         when(jdbcTemplate.queryForObject(contains("INSERT INTO orders"), any(SqlParameterSource.class), eq(UUID.class)))
-                .thenThrow(new DuplicateKeyException("dup"));
+                .thenThrow(new DuplicateKeyException(
+                        "duplicate key value violates unique constraint \"orders_external_ref_uk\""));
 
         EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
 
         assertThat(result.samples()).extracting(EcountMig8TransformResult.Sample::code)
                 .containsExactly("MIG8_DUPLICATE_EXTERNAL_REF");
+        assertThat(result.samples().get(0).message()).contains("orders_external_ref_uk");
+    }
+
+    @Test
+    void order_no_unique_violation은_constraint_name을_sample_message에_노출한다() {
+        pending(row(1, "2026-05-20-001", "진행"));
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO orders"), any(SqlParameterSource.class), eq(UUID.class)))
+                .thenThrow(new DuplicateKeyException(
+                        "duplicate key value violates unique constraint \"orders_order_no_uk\""));
+
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.samples()).extracting(EcountMig8TransformResult.Sample::code)
+                .containsExactly("CONFLICT");
+        assertThat(result.samples().get(0).message()).contains("orders_order_no_uk");
     }
 
     @Test
@@ -158,7 +174,7 @@ class Mig8OrderTransformServiceTest {
     }
 
     @Test
-    void soft_deleted_external_ref가_있으면_updated로_집계한다() {
+    void 기존_external_ref가_있으면_updated로_집계한다() {
         pending(row(1, "2026-05-20-001", "진행"));
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(1)"), any(SqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(1);
@@ -180,6 +196,9 @@ class Mig8OrderTransformServiceTest {
 
         assertThat(result.completedLinkedSlipCount()).isEqualTo(1);
         assertThat(result.samples()).isEmpty();
+        ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate).update(contains("SET linked_slip_no"), params.capture());
+        assertThat(params.getValue().getValue("linkedSlipNo")).isEqualTo("2026-05-20-001");
     }
 
     @Test
