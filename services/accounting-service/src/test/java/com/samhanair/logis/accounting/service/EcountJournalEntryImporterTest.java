@@ -15,6 +15,8 @@ import com.samhanair.logis.common.ecount.EcountCsvSupport;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,7 +53,7 @@ class EcountJournalEntryImporterTest {
                         any(SqlParameterSource.class),
                         eq(String.class)))
                 .thenReturn(List.of("101"));
-        lenient().when(partnerLookupClient.findByPartnerName("삼한상사"))
+        lenient().when(partnerLookupClient.findByPartnerNameStrict("삼한상사"))
                 .thenReturn(Optional.of(new PartnerSummary(
                         UUID.fromString("00000000-0000-0000-0000-000000000101"),
                         "P-001", "삼한상사", "123-45-67890", "서울")));
@@ -106,6 +108,38 @@ class EcountJournalEntryImporterTest {
     }
 
     @Test
+    void importCsv_account_lookup_다중매칭은_MIG3_LOOKUP_AMBIGUOUS로_reject한다() {
+        when(jdbcTemplate.queryForList(
+                org.mockito.ArgumentMatchers.contains("staging.ecount_account_map"),
+                any(SqlParameterSource.class),
+                eq(String.class))).thenReturn(List.of("101", "102"));
+
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
+                """)), "tester");
+
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG3_LOOKUP_AMBIGUOUS");
+    }
+
+    @Test
+    void importCsv_행별_형식오류가_다른행_import를_막지_않는다() {
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "bad-key\t","현금\t","삼한상사\t","1,000\t","0\t","오류\t",""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
+                "2026/05/01 -1-2\t","매출\t","삼한상사\t","0\t","1,000\t","입금\t",""
+                """)), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG3_VOUCHER_NO_INVALID");
+    }
+
+    @Test
     void importCsv_lineSequence_순서를_보존한다() {
         importer.importCsv(stream(journalEntryCsv("""
                 "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t"
@@ -123,12 +157,37 @@ class EcountJournalEntryImporterTest {
     }
 
     @Test
+    void importCsv_soft_deleted_line은_새_uuid_삽입이_아니라_CTE로_복구한다() {
+        lenient().when(jdbcTemplate.queryForObject(
+                org.mockito.ArgumentMatchers.contains("WHERE journal_no = :journalNo AND is_deleted = FALSE"),
+                any(SqlParameterSource.class),
+                eq(Integer.class))).thenReturn(1);
+
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
+                "2026/05/01 -1-2\t","매출\t","삼한상사\t","0\t","1,000\t","입금\t",""
+                """)), "tester");
+
+        assertThat(result.updated()).isEqualTo(1);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).update(sql.capture(), any(SqlParameterSource.class));
+        assertThat(sql.getAllValues())
+                .anySatisfy(value -> assertThat(value)
+                        .contains("WITH restored AS")
+                        .contains("WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = TRUE")
+                        .contains("ON CONFLICT (journal_id, line_no) DO UPDATE"));
+    }
+
+    @Test
     void rawHeaderCrossCheck() throws Exception {
         try (InputStream fixture = EcountJournalEntryImporterTest.class
                 .getResourceAsStream("/ecount-raw-fixtures/voucher-journal-entry.csv")) {
             assertThat(fixture).isNotNull();
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountJournalEntryImporter.HEADERS);
+            EcountCsvSupport.ParsedCsv raw = EcountCsvSupport.parse(Files.readAllBytes(rawPath(
+                    "회계전표분개-Excel다운로드(20260501~20260519_1).csv")));
+            assertThat(normalized(parsed.header())).containsExactly(normalized(raw.header()));
         }
     }
 
@@ -139,7 +198,21 @@ class EcountJournalEntryImporterTest {
     private static String journalEntryCsv(String rows) {
         return """
                 "데이터관리>회계전표분개-Excel다운로드"
-                "일자-No-순번\t","계정명\t","거래처명\t","차변금액\t","대변금액\t","적요\t"
+                "일자-No-순번\t","계정명\t","거래처명\t","차변금액\t","대변금액\t","적요\t",""
                 """ + rows;
+    }
+
+    private static Path rawPath(String fileName) {
+        Path fromRoot = Path.of("docs", "migration", "ecount-data", "raw", fileName);
+        if (Files.exists(fromRoot)) {
+            return fromRoot;
+        }
+        return Path.of("..", "..", "docs", "migration", "ecount-data", "raw", fileName).normalize();
+    }
+
+    private static String[] normalized(String[] row) {
+        return java.util.Arrays.stream(row)
+                .map(EcountCsvSupport::stripCell)
+                .toArray(String[]::new);
     }
 }

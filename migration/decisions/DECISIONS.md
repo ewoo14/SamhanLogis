@@ -2083,7 +2083,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | # | 결정 |
 |---|---|
 | D-MIG-3-01 | 4 raw는 한 PR 통합으로 처리한다. |
-| D-MIG-3-02 | staging 멱등 키는 `source_file_hash(MD5)` + `source_row_no(1-base)` 복합 PK로 둔다. |
+| D-MIG-3-02 | staging 멱등 키는 MIG-1/MIG-2 와 동일한 `source_file_hash(SHA-256, VARCHAR(64))` + `source_row_no(1-base)` 복합 PK로 둔다. |
 | D-MIG-3-03 | 4 importer 모두 `REQUIRES_NEW + READ_COMMITTED`와 `pg_advisory_xact_lock` namespace 분리를 사용한다. |
 | D-MIG-3-04 | `EcountCsvSupport`의 BOM strip, `데이터관리>` meta row, strict header, advisory lock, max length guard를 재사용한다. |
 | D-MIG-3-05 | 거래처명 lookup은 partner-service `/internal/partners/by-name?name=`를 사용한다. miss/ambiguous/fail은 silent fallback 없이 `MIG3_LOOKUP_MISS` reject로 보고한다. |
@@ -2091,5 +2091,6 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-3-07 | 회계전표분개 journalNo 그룹의 차/대 합계가 일치하면 POSTED, 불일치하면 DRAFT 유지 + `MIG3_JOURNAL_BALANCE_MISMATCH` warning으로 보고한다. |
 | D-MIG-3-08 | domain upsert 전 soft-deleted row는 `WITH restored AS (...)` CTE로 복구한다. |
 | D-MIG-3-09 | 응답 DTO는 UUID를 노출하지 않고 slipNo/journalNo/partnerName/accountCode 등 비즈니스 식별자와 sample raw value만 반환한다. |
+| D-MIG-3-10 | 실 raw CSV 의 마지막 빈 컬럼 1개는 이카운트 export 호환 범위로 허용하되, 그 외 헤더 컬럼 추가/불일치는 strict reject 한다. |
 
 **산출 예정/진행**: accounting V23 staging 4종, auth V16 PageCode seed, ErrorCode MIG3 5종, 4 importer/controller, fixture cross-check 4종, dev-report `docs/dev-reports/ecount-mig-3-voucher.md`.

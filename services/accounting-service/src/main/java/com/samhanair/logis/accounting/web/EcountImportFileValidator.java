@@ -16,6 +16,13 @@ final class EcountImportFileValidator {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일 필수");
         }
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.isBlank()
+                && !contentType.equalsIgnoreCase("text/csv")
+                && !contentType.equalsIgnoreCase("application/csv")
+                && !contentType.equalsIgnoreCase("application/vnd.ms-excel")) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일만 업로드할 수 있습니다");
+        }
         if (file.getSize() > MAX_SIZE_BYTES) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);

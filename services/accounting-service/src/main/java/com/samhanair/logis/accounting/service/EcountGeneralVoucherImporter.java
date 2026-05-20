@@ -37,7 +37,7 @@ public class EcountGeneralVoucherImporter {
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountVoucherImportResult importCsv(InputStream csv, String actorUserId) {
         byte[] content = EcountCsvSupport.readRequired(csv);
-        String hash = EcountCsvSupport.computeMd5FileHash(content);
+        String hash = EcountCsvSupport.computeFileHash(content);
         acquireImportLock(hash);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountVoucherImportSupport.validateHeader(parsed.header(), HEADERS);
@@ -74,7 +74,7 @@ public class EcountGeneralVoucherImporter {
                     result.reject(rowNo, "MIG3_VOUCHER_NO_DUPLICATE", "동일 파일 내 전표번호 중복", journalNo, c[0]);
                     continue;
                 }
-                Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerName(c[3]);
+                Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerNameStrict(c[3]);
                 if (partner.isEmpty() || partner.get().partnerId() == null) {
                     String message = "거래처명 lookup miss: " + c[3];
                     reject(hash, rowNo, "MIG3_LOOKUP_MISS", message, journalNo);
@@ -95,7 +95,10 @@ public class EcountGeneralVoucherImporter {
                 }
                 result.draft();
             } catch (BusinessException ex) {
-                throw ex;
+                if (journalNo != null) {
+                    reject(hash, rowNo, ex.getErrorCode().name(), ex.getMessage(), journalNo);
+                }
+                result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), journalNo, sampleRawValue(c, ex));
             }
         }
         return result.build();
@@ -191,26 +194,39 @@ public class EcountGeneralVoucherImporter {
     private void replaceLine(UUID journalId, int lineNo, BigDecimal debit, BigDecimal credit,
                              UUID partnerId, String memo, String actor) {
         jdbcTemplate.update("""
-                UPDATE journal_lines
-                   SET is_deleted = TRUE,
-                       deleted_at = NOW(),
-                       deleted_by = :actor,
-                       modified_at = NOW(),
-                       modified_by = :actor
-                 WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = FALSE
-                """,
-                new MapSqlParameterSource()
-                        .addValue("journalId", journalId)
-                        .addValue("lineNo", lineNo)
-                        .addValue("actor", actor));
-        jdbcTemplate.update("""
+                WITH restored AS (
+                    UPDATE journal_lines
+                       SET account_code = :accountCode,
+                           debit_amount = :debit,
+                           credit_amount = :credit,
+                           partner_id = :partnerId,
+                           memo = :memo,
+                           is_deleted = FALSE,
+                           deleted_at = NULL,
+                           deleted_by = NULL,
+                           modified_at = NOW(),
+                           modified_by = :actor
+                     WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = TRUE
+                     RETURNING line_no
+                )
                 INSERT INTO journal_lines (
                   id, journal_id, line_no, account_code, debit_amount, credit_amount,
                   partner_id, memo, created_at, created_by, modified_at, modified_by, is_deleted
-                ) VALUES (
-                  gen_random_uuid(), :journalId, :lineNo, :accountCode, :debit, :credit,
-                  :partnerId, :memo, NOW(), :actor, NOW(), :actor, FALSE
                 )
+                SELECT gen_random_uuid(), :journalId, :lineNo, :accountCode, :debit, :credit,
+                  :partnerId, :memo, NOW(), :actor, NOW(), :actor, FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM restored)
+                ON CONFLICT (journal_id, line_no) DO UPDATE SET
+                  account_code = EXCLUDED.account_code,
+                  debit_amount = EXCLUDED.debit_amount,
+                  credit_amount = EXCLUDED.credit_amount,
+                  partner_id = EXCLUDED.partner_id,
+                  memo = EXCLUDED.memo,
+                  is_deleted = FALSE,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
+                  modified_at = NOW(),
+                  modified_by = EXCLUDED.created_by
                 """,
                 new MapSqlParameterSource()
                         .addValue("journalId", journalId)
@@ -246,5 +262,19 @@ public class EcountGeneralVoucherImporter {
     private boolean exists(String sql, MapSqlParameterSource p) {
         Integer count = jdbcTemplate.queryForObject(sql, p, Integer.class);
         return count != null && count > 0;
+    }
+
+    private static String sampleRawValue(String[] c, BusinessException ex) {
+        ErrorCode code = ex.getErrorCode();
+        if (code == ErrorCode.MIG3_VOUCHER_NO_INVALID) {
+            return c[0];
+        }
+        if (code == ErrorCode.MIG3_SLIP_AMOUNT_INVALID) {
+            return c[2];
+        }
+        if (code == ErrorCode.MIG3_LOOKUP_MISS || code == ErrorCode.MIG3_LOOKUP_AMBIGUOUS) {
+            return c[3];
+        }
+        return String.join("\u001F", c);
     }
 }

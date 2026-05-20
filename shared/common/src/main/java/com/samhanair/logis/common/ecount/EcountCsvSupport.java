@@ -54,21 +54,6 @@ public final class EcountCsvSupport {
         }
     }
 
-    /** MIG-3 source_file_hash 멱등 키용 MD5 hash. 기존 MIG-2 SHA-256 hash 와 호환을 위해 별도 메서드로 둔다. */
-    public static String computeMd5FileHash(byte[] content) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(content);
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(String.format("%02X", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException ex) {
-            throw new BusinessException(ErrorCode.MIG2_FILE_HASH_INVALID, "MD5 hash 계산 실패", ex);
-        }
-    }
-
     public static long advisoryLockKey(UUID namespace, String sourceFileHash) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -111,7 +96,7 @@ public final class EcountCsvSupport {
     }
 
     public static void validateHeader(String[] header, String[] expected) {
-        if (header.length != expected.length) {
+        if (!isExpectedWidth(header, expected)) {
             throw new BusinessException(ErrorCode.MIG2_CSV_HEADER_MISMATCH,
                     "CSV 헤더 컬럼 수 불일치 — 예상=" + expected.length
                             + " 실제=" + header.length
@@ -125,6 +110,13 @@ public final class EcountCsvSupport {
                                 + " 예상='" + expected[i] + "' 실제='" + actual + "'");
             }
         }
+    }
+
+    private static boolean isExpectedWidth(String[] header, String[] expected) {
+        if (header.length == expected.length) {
+            return true;
+        }
+        return header.length == expected.length + 1 && stripCell(header[header.length - 1]).isEmpty();
     }
 
     public static void requireMaxLength(String raw, int max, String fieldName, int sourceRowNo) {

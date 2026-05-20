@@ -38,7 +38,7 @@ abstract class AbstractEcountSlipImporter {
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountVoucherImportResult importCsv(InputStream csv, String actorUserId) {
         byte[] content = EcountCsvSupport.readRequired(csv);
-        String hash = EcountCsvSupport.computeMd5FileHash(content);
+        String hash = EcountCsvSupport.computeFileHash(content);
         acquireImportLock(hash);
         EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(content);
         EcountVoucherImportSupport.validateHeader(parsed.header(), headers());
@@ -76,7 +76,7 @@ abstract class AbstractEcountSlipImporter {
                     result.reject(rowNo, "MIG3_VOUCHER_NO_DUPLICATE", "동일 파일 내 전표번호 중복", slipNo, c[0]);
                     continue;
                 }
-                Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerName(c[3]);
+                Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerNameStrict(c[3]);
                 if (partner.isEmpty() || partner.get().partnerId() == null) {
                     String message = "거래처명 lookup miss: " + c[3];
                     reject(hash, rowNo, "MIG3_LOOKUP_MISS", message, slipNo);
@@ -103,7 +103,10 @@ abstract class AbstractEcountSlipImporter {
                 }
                 result.posted();
             } catch (BusinessException ex) {
-                throw ex;
+                if (slipNo != null) {
+                    reject(hash, rowNo, ex.getErrorCode().name(), ex.getMessage(), slipNo);
+                }
+                result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), slipNo, sampleRawValue(c, ex));
             }
         }
         return result.build();
@@ -270,5 +273,19 @@ abstract class AbstractEcountSlipImporter {
     private boolean exists(String sql, MapSqlParameterSource p) {
         Integer count = jdbcTemplate.queryForObject(sql, p, Integer.class);
         return count != null && count > 0;
+    }
+
+    private static String sampleRawValue(String[] c, BusinessException ex) {
+        ErrorCode code = ex.getErrorCode();
+        if (code == ErrorCode.MIG3_VOUCHER_NO_INVALID) {
+            return c[0];
+        }
+        if (code == ErrorCode.MIG3_SLIP_AMOUNT_INVALID) {
+            return c[2];
+        }
+        if (code == ErrorCode.MIG3_LOOKUP_MISS || code == ErrorCode.MIG3_LOOKUP_AMBIGUOUS) {
+            return c[3];
+        }
+        return String.join("\u001F", c);
     }
 }

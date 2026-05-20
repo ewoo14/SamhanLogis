@@ -2,6 +2,8 @@ package com.samhanair.logis.accounting.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Optional;
 import java.util.UUID;
@@ -135,6 +137,20 @@ public class PartnerLookupClient {
      * @return PartnerSummary (성공) 또는 empty (실패)
      */
     public Optional<PartnerSummary> findByPartnerName(String partnerName) {
+        return findByPartnerName(partnerName, false);
+    }
+
+    /**
+     * MIG-3 import 전용 strict 거래처명 lookup.
+     *
+     * <p>partner-service 가 409 을 반환하면 운영자가 "미등록"이 아니라 "중복/모호"로 조치할 수 있도록
+     * {@code MIG3_LOOKUP_AMBIGUOUS} 를 throw 한다. 404/인증/네트워크 실패는 기존 fail-soft miss 로 둔다.
+     */
+    public Optional<PartnerSummary> findByPartnerNameStrict(String partnerName) {
+        return findByPartnerName(partnerName, true);
+    }
+
+    private Optional<PartnerSummary> findByPartnerName(String partnerName, boolean strictAmbiguous) {
         if (partnerName == null || partnerName.isBlank()) {
             return Optional.empty();
         }
@@ -155,6 +171,10 @@ public class PartnerLookupClient {
             return parseSummary(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
+            if (status == 409 && strictAmbiguous) {
+                throw new BusinessException(ErrorCode.MIG3_LOOKUP_AMBIGUOUS,
+                        "거래처명 lookup ambiguous: " + partnerName);
+            }
             if (status == 404 || status == 409) {
                 log.debug("PartnerLookupClient — partnerName={} status={} (lookup miss/ambiguous)",
                         partnerName, status);

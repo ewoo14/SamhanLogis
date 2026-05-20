@@ -18,6 +18,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +50,7 @@ class EcountPurchaseSlipImporterTest {
         lenient().when(jdbcTemplate.queryForObject(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000000301"));
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
-        lenient().when(partnerLookupClient.findByPartnerName("삼한상사"))
+        lenient().when(partnerLookupClient.findByPartnerNameStrict("삼한상사"))
                 .thenReturn(Optional.of(new PartnerSummary(
                         UUID.fromString("00000000-0000-0000-0000-000000000101"),
                         "P-001", "삼한상사", "123-45-67890", "서울")));
@@ -57,7 +59,7 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_정상_1건을_purchaseSlip으로_적재한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t"
+                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.totalRows()).isEqualTo(1);
@@ -81,10 +83,10 @@ class EcountPurchaseSlipImporterTest {
 
     @Test
     void importCsv_partner_lookup_miss는_MIG3_LOOKUP_MISS로_reject한다() {
-        when(partnerLookupClient.findByPartnerName("미등록거래처")).thenReturn(Optional.empty());
+        when(partnerLookupClient.findByPartnerNameStrict("미등록거래처")).thenReturn(Optional.empty());
 
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","미등록거래처\t","원자재 매입\t"
+                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","미등록거래처\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isZero();
@@ -98,7 +100,7 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_금액_0이하는_MIG3_SLIP_AMOUNT_INVALID로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","0\t","삼한상사\t","원자재 매입\t"
+                "2026/05/18 -253\t","매입전표 I(매입)\t","0\t","삼한상사\t","원자재 매입\t",""
                 """)), "tester");
 
         assertThat(result.rejected()).isEqualTo(1);
@@ -110,8 +112,8 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_동일파일_전표번호_중복은_MIG3_VOUCHER_NO_DUPLICATE로_reject한다() {
         EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t"
-                "2026/05/18 -253\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t"
+                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/18 -253\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
                 """)), "tester");
 
         assertThat(result.imported()).isEqualTo(1);
@@ -124,9 +126,9 @@ class EcountPurchaseSlipImporterTest {
     @Test
     void importCsv_source_row_no는_데이터행_기준_1부터_증가한다() {
         importer.importCsv(stream(purchaseCsv("""
-                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t"
-                "2026/05/19 -254\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t"
-                "2026/05/20 -255\t","매입전표 I(매입)\t","5,600\t","삼한상사\t","원자재 추가2\t"
+                "2026/05/18 -253\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","원자재 매입\t",""
+                "2026/05/19 -254\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","원자재 추가\t",""
+                "2026/05/20 -255\t","매입전표 I(매입)\t","5,600\t","삼한상사\t","원자재 추가2\t",""
                 """)), "tester");
 
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
@@ -136,6 +138,20 @@ class EcountPurchaseSlipImporterTest {
                 .map(p -> (Integer) p.getValue("row"))
                 .distinct()
                 .toList()).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void importCsv_행별_형식오류가_다른행_import를_막지_않는다() {
+        EcountVoucherImportResult result = importer.importCsv(stream(purchaseCsv("""
+                "bad-voucher\t","매입전표 I(매입)\t","1,200\t","삼한상사\t","오류\t",""
+                "2026/05/19 -254\t","매입전표 I(매입)\t","3,400\t","삼한상사\t","정상\t",""
+                """)), "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG3_VOUCHER_NO_INVALID");
     }
 
     @Test
@@ -156,6 +172,9 @@ class EcountPurchaseSlipImporterTest {
             assertThat(fixture).isNotNull();
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountPurchaseSlipImporter.HEADERS);
+            EcountCsvSupport.ParsedCsv raw = EcountCsvSupport.parse(Files.readAllBytes(rawPath(
+                    "매입전표I-Excel다운로드(20260501~20260519_1).csv")));
+            assertThat(normalized(parsed.header())).containsExactly(normalized(raw.header()));
         }
     }
 
@@ -166,7 +185,21 @@ class EcountPurchaseSlipImporterTest {
     private static String purchaseCsv(String rows) {
         return """
                 "데이터관리>매입전표 I-Excel다운로드"
-                "전표번호\t","거래유형\t","금액\t","거래처명\t","적요명\t"
+                "전표번호\t","거래유형\t","금액\t","거래처명\t","적요명\t",""
                 """ + rows;
+    }
+
+    private static Path rawPath(String fileName) {
+        Path fromRoot = Path.of("docs", "migration", "ecount-data", "raw", fileName);
+        if (Files.exists(fromRoot)) {
+            return fromRoot;
+        }
+        return Path.of("..", "..", "docs", "migration", "ecount-data", "raw", fileName).normalize();
+    }
+
+    private static String[] normalized(String[] row) {
+        return java.util.Arrays.stream(row)
+                .map(EcountCsvSupport::stripCell)
+                .toArray(String[]::new);
     }
 }
