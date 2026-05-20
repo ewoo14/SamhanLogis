@@ -37,10 +37,14 @@
   - inventory V13 창고이동 staging + StockTransfer 도메인 변환
   - accounting V25 지출결의서/입금보고서 staging only + Partner aging cross-check
   - auth V18 PageCode 3종 + MIG5 ErrorCode 8종
-- MIG-6 (본 PR): 이카운트 잔여 마스터 5종(통장계좌/사원/인사카드/급여관리사원/고정자산유형) 마이그레이션
+- MIG-6 (PR #274): 이카운트 잔여 마스터 5종(통장계좌/사원/인사카드/급여관리사원/고정자산유형) 마이그레이션
   - accounting V26 통장계좌/고정자산유형 staging + domain
   - user V8 Employee `ecount_code` 보강 + EmployeeCard/PayrollEmployee 신규
   - 주민등록번호는 staging 적재 시점부터 `resident_number_masked`만 저장
+- MIG-7 (본 PR): Cash 도메인 신규 + MIG-5 staging 변환
+  - accounting V27 `cash_disbursements` / `cash_receipts` 도메인 + `slip_no`/`external_ref` UNIQUE
+  - `staging.ecount_expense_voucher_raw` → CashDisbursement, `staging.ecount_deposit_report_raw` → CashReceipt
+  - auth V20 PageCode 2종 + MIG7 ErrorCode 6종 + transform endpoint 2종
 
 ### 최신 진행 메모 (2026-05-16)
 

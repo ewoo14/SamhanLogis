@@ -4,7 +4,20 @@
 
 ---
 
-## 🚀 2026-05-20 최신 진행 — MIG-6 머지 완료 + MIG-7 자동 진입 대기
+## 🚀 2026-05-20 최신 진행 — MIG-7 Cash 도메인 구현 진행
+
+### 현재 Codex 슬라이스 — MIG-7 Cash 도메인 신규 + MIG-5 staging 변환
+
+- branch: `spec/2026-05-20-mig-7-cash-domain`
+- 범위: `CashDisbursement` / `CashReceipt` 도메인 신규, accounting V27, auth V20, MIG7 ErrorCode 6종, staging transform service/controller 2종.
+- 변환 source:
+  - `staging.ecount_expense_voucher_raw` → `cash_disbursements`
+  - `staging.ecount_deposit_report_raw` → `cash_receipts`
+- 핵심 계약: `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, transform별 advisory lock namespace, soft-delete CTE 복구, row-level reject 흡수.
+- 검증 진행:
+  - `Mig7CashDisbursementTransformServiceTest` 10 cases + `Mig7CashReceiptTransformServiceTest` 7 cases PASS.
+  - `EcountMig7CashTransformControllerIT` 10 parameterized cases 추가. Docker daemon 접근 가능 환경에서 실행.
+- 문서: `docs/dev-reports/ecount-mig-7-cash-domain.md` 신규.
 
 ### 머지 완료 슬라이스 (2026-05-20)
 

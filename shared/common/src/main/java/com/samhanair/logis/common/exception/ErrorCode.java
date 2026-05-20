@@ -306,7 +306,19 @@ public enum ErrorCode {
     MIG6_BOOLEAN_FLAG_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "사용 여부 값 불일치"),
     MIG6_CSV_HEADER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-6 CSV 헤더 불일치");
+            "MIG-6 CSV 헤더 불일치"),
+    MIG7_STAGING_ROW_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 변환 대상 staging row 가 없습니다"),
+    MIG7_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 lookup 키 매핑 누락 - 거래처 확인 필요"),
+    MIG7_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 금액 형식 불일치 또는 0 이하"),
+    MIG7_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 전표번호 일자 포맷 불일치"),
+    MIG7_DUPLICATE_EXTERNAL_REF(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 external_ref 도메인 중복"),
+    MIG7_KIND_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-7 거래유형 값 불일치");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;
