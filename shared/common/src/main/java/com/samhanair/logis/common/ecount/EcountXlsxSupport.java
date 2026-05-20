@@ -33,8 +33,9 @@ public final class EcountXlsxSupport {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter formatter = new DataFormatter(Locale.KOREA);
             int headerIndex = headerIndex(sheet, formatter);
-            String[] header = readRow(sheet.getRow(headerIndex), expectedHeaders.length, formatter);
-            validateHeader(header, expectedHeaders);
+            Row headerRow = sheet.getRow(headerIndex);
+            String[] header = readRow(headerRow, expectedHeaders.length, formatter);
+            validateHeader(headerRow, header, expectedHeaders, formatter);
 
             List<ParsedRow> rows = new ArrayList<>();
             for (int rowIndex = headerIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
@@ -108,7 +109,12 @@ public final class EcountXlsxSupport {
         return values;
     }
 
-    private static void validateHeader(String[] actual, String[] expected) {
+    private static void validateHeader(Row headerRow, String[] actual, String[] expected, DataFormatter formatter) {
+        int nonBlankCount = countNonBlankCells(headerRow, formatter);
+        if (nonBlankCount > expected.length) {
+            throw new BusinessException(ErrorCode.MIG11_HEADER_MISMATCH,
+                    "Unexpected extra columns: expected=" + expected.length + ", got=" + nonBlankCount);
+        }
         if (actual.length != expected.length) {
             throw new BusinessException(ErrorCode.MIG11_HEADER_MISMATCH,
                     "XLSX 헤더 컬럼 수 불일치 — 예상=" + expected.length + " 실제=" + actual.length);
@@ -120,6 +126,20 @@ public final class EcountXlsxSupport {
                                 + " 예상='" + expected[i] + "' 실제='" + actual[i] + "'");
             }
         }
+    }
+
+    private static int countNonBlankCells(Row row, DataFormatter formatter) {
+        if (row == null || row.getLastCellNum() < 0) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            if (cell != null && !stripCell(formatter.formatCellValue(cell)).isEmpty()) {
+                count = i + 1;
+            }
+        }
+        return count;
     }
 
     public static boolean isAllBlank(String[] row) {

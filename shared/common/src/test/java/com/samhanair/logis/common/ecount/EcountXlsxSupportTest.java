@@ -46,6 +46,30 @@ class EcountXlsxSupportTest {
     }
 
     @Test
+    void extra_column_은_MIG11_HEADER_MISMATCH_throw() {
+        InputStream xlsx = workbook(new String[]{"회사명 : 테스트 / 매출장"},
+                new String[]{"월/일", "거래처명", "매출합계", "추가컬럼"},
+                new String[]{"2026/05/01 -1", "거래처A", "1,100", "비고"});
+
+        assertThatThrownBy(() -> EcountXlsxSupport.parse(xlsx, HEADERS))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.MIG11_HEADER_MISMATCH);
+    }
+
+    @Test
+    void trailing_blank_column_은_허용() {
+        EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(workbook(
+                new String[]{"회사명 : 테스트 / 매출장"},
+                new String[]{"월/일", "거래처명", "매출합계", ""},
+                new String[]{"2026/05/01 -1", "거래처A", "1,100", ""}
+        ), HEADERS);
+
+        assertThat(parsed.dataRowCount()).isEqualTo(1);
+        assertThat(parsed.rows().get(0).get("거래처명")).isEqualTo("거래처A");
+    }
+
+    @Test
     void 빈_row는_skip한다() {
         EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(workbook(
                 null,
