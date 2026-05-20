@@ -76,12 +76,19 @@ final class EcountVoucherImportSupport {
         if (value.isBlank() || PLACEHOLDER.matcher(value).matches()) {
             return BigDecimal.ZERO;
         }
+        BigDecimal amount;
         try {
-            return new BigDecimal(value);
+            amount = new BigDecimal(value);
         } catch (NumberFormatException ex) {
             throw new BusinessException(ErrorCode.MIG3_SLIP_AMOUNT_INVALID,
                     "금액 형식 불일치: sourceRowNo=" + rowNo + ", sample='" + raw + "'", ex);
         }
+        // Codex BE H3 cycle 2 — 음수 금액 reject (DB CHECK ck_journal_lines_amount_xor 도달 전 방어).
+        if (amount.signum() < 0) {
+            throw new BusinessException(ErrorCode.MIG3_SLIP_AMOUNT_INVALID,
+                    "금액은 0 이상이어야 합니다: sourceRowNo=" + rowNo + ", sample='" + raw + "'");
+        }
+        return amount;
     }
 
     static boolean isBlankOrPlaceholder(String value) {

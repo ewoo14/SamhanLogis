@@ -169,9 +169,12 @@ class EcountSalesSlipImporterTest {
             assertThat(fixture).isNotNull();
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountSalesSlipImporter.HEADERS);
-            EcountCsvSupport.ParsedCsv raw = EcountCsvSupport.parse(Files.readAllBytes(rawPath(
-                    "매출전표I-Excel다운로드(20260501~20260519_1).csv")));
-            assertThat(normalized(parsed.header())).containsExactly(normalized(raw.header()));
+            // raw 파일은 docs/migration/ecount-data/raw/ 에 회사/자택 PC 에만 존재 (CI Linux 미존재).
+            Path raw = rawPath("매출전표I-Excel다운로드(20260501~20260519_1).csv");
+            org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(raw),
+                    "raw CSV (" + raw + ") 미존재 → cross-check skip");
+            EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
+            assertThat(normalized(parsed.header())).containsExactly(normalized(rawCsv.header()));
         }
     }
 

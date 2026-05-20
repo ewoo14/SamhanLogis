@@ -15,6 +15,9 @@ class ErrorCodeMig3Test {
         assertThat(ErrorCode.MIG3_VOUCHER_NO_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG3_SLIP_AMOUNT_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG3_JOURNAL_BALANCE_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        // Codex BE cycle 2 — 신규 ErrorCode 2종.
+        assertThat(ErrorCode.MIG3_JOURNAL_LINE_DUPLICATE.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorCode.MIG3_JOURNAL_GROUP_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG3_CSV_HEADER_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

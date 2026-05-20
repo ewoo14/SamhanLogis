@@ -172,9 +172,13 @@ class EcountPurchaseSlipImporterTest {
             assertThat(fixture).isNotNull();
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountPurchaseSlipImporter.HEADERS);
-            EcountCsvSupport.ParsedCsv raw = EcountCsvSupport.parse(Files.readAllBytes(rawPath(
-                    "매입전표I-Excel다운로드(20260501~20260519_1).csv")));
-            assertThat(normalized(parsed.header())).containsExactly(normalized(raw.header()));
+            // raw 파일은 docs/migration/ecount-data/raw/ 에 회사/자택 PC 에만 존재 (CI Linux 미존재).
+            // 존재 시 fixture 와 cross-check, 미존재 시 skip (feedback_testcontainers_windows_docker 답습).
+            Path raw = rawPath("매입전표I-Excel다운로드(20260501~20260519_1).csv");
+            org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(raw),
+                    "raw CSV (" + raw + ") 미존재 → cross-check skip");
+            EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
+            assertThat(normalized(parsed.header())).containsExactly(normalized(rawCsv.header()));
         }
     }
 

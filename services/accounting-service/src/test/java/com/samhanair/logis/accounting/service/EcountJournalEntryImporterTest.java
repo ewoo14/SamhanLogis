@@ -157,11 +157,93 @@ class EcountJournalEntryImporterTest {
     }
 
     @Test
-    void importCsv_soft_deleted_line은_새_uuid_삽입이_아니라_CTE로_복구한다() {
+    void importCsv_같은_journalNo_group_의_sibling_reject_시_group_전체_reject() {
+        // Codex BE H2 cycle 2 — 같은 group 안에 1 row 라도 lookup miss 등으로 reject 되면 group 전체 거부.
+        // line 2 는 미등록 계정 → reject. line 1 은 정상이지만 group 차원에서 MIG3_JOURNAL_GROUP_INVALID 처리.
+        when(jdbcTemplate.queryForList(
+                        org.mockito.ArgumentMatchers.contains("staging.ecount_account_map"),
+                        any(SqlParameterSource.class),
+                        eq(String.class)))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource src = invocation.getArgument(1);
+                    String accountName = (String) src.getValue("accountName");
+                    return "미등록계정".equals(accountName) ? List.of() : List.of("101");
+                });
+
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
+                "2026/05/01 -1-2\t","미등록계정\t","삼한상사\t","0\t","1,000\t","입금\t",""
+                """)), "tester");
+
+        // 두 row 모두 reject. line 2 = MIG3_LOOKUP_MISS, line 1 = MIG3_JOURNAL_GROUP_INVALID (poison 방지).
+        assertThat(result.rejected()).isEqualTo(2);
+        assertThat(result.imported()).isZero();
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsExactlyInAnyOrder("MIG3_LOOKUP_MISS", "MIG3_JOURNAL_GROUP_INVALID");
+    }
+
+    @Test
+    void importCsv_음수_금액은_MIG3_SLIP_AMOUNT_INVALID로_reject() {
+        // Codex BE H3 cycle 2 — 음수 차변/대변 금액은 BusinessException 으로 row reject (DB CHECK 도달 전).
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","-1,000\t","0\t","음수\t",""
+                """)), "tester");
+
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsExactly("MIG3_SLIP_AMOUNT_INVALID");
+    }
+
+    @Test
+    void importCsv_동일_line_no_에_다른_데이터_존재_시_MIG3_JOURNAL_LINE_DUPLICATE() {
+        // Codex BE H1 cycle 2 — (journal_id, line_no) 동일하지만 다른 데이터인 line 이 이미 존재할 때
+        // silent overwrite 대신 MIG3_JOURNAL_LINE_DUPLICATE 로 reject.
+        java.util.Map<String, Object> conflictingLine = new java.util.HashMap<>();
+        conflictingLine.put("account_code", "DIFFERENT");
+        conflictingLine.put("debit_amount", new java.math.BigDecimal("999"));
+        conflictingLine.put("credit_amount", java.math.BigDecimal.ZERO);
+        conflictingLine.put("partner_id", null);
+        conflictingLine.put("memo", "다른_데이터");
+        conflictingLine.put("is_deleted", false);
+        lenient().when(jdbcTemplate.queryForList(
+                org.mockito.ArgumentMatchers.contains("FROM journal_lines"),
+                any(SqlParameterSource.class)))
+                .thenReturn(java.util.List.of(conflictingLine));
+
+        EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
+                "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
+                "2026/05/01 -1-2\t","매출\t","삼한상사\t","0\t","1,000\t","입금\t",""
+                """)), "tester");
+
+        assertThat(result.rejected()).isEqualTo(2);
+        assertThat(result.rejectedSample())
+                .extracting(EcountVoucherImportResult.RejectedRow::errorCode)
+                .containsOnly("MIG3_JOURNAL_LINE_DUPLICATE");
+    }
+
+    @Test
+    void importCsv_soft_deleted_line은_새_uuid_삽입이_아니라_기존_row_UPDATE로_복구한다() {
+        // Codex H1/M4 cycle 2 — soft-deleted line 이 존재할 때 새 INSERT 가 아니라 기존 row 를 UPDATE.
+        // active journal 이 이미 존재하는 케이스 (M4 — soft-deleted journal + active 동시 존재 시
+        // active 만 update 하여 partial unique conflict 회피).
         lenient().when(jdbcTemplate.queryForObject(
                 org.mockito.ArgumentMatchers.contains("WHERE journal_no = :journalNo AND is_deleted = FALSE"),
                 any(SqlParameterSource.class),
                 eq(Integer.class))).thenReturn(1);
+        // findExistingLine — soft-deleted line 반환 시 restore UPDATE 경로로 가도록.
+        java.util.Map<String, Object> deletedLine = new java.util.HashMap<>();
+        deletedLine.put("account_code", "old");
+        deletedLine.put("debit_amount", java.math.BigDecimal.ZERO);
+        deletedLine.put("credit_amount", java.math.BigDecimal.ZERO);
+        deletedLine.put("partner_id", null);
+        deletedLine.put("memo", null);
+        deletedLine.put("is_deleted", true);
+        lenient().when(jdbcTemplate.queryForList(
+                org.mockito.ArgumentMatchers.contains("FROM journal_lines"),
+                any(SqlParameterSource.class)))
+                .thenReturn(java.util.List.of(deletedLine));
 
         EcountVoucherImportResult result = importer.importCsv(stream(journalEntryCsv("""
                 "2026/05/01 -1-1\t","현금\t","삼한상사\t","1,000\t","0\t","입금\t",""
@@ -171,11 +253,17 @@ class EcountJournalEntryImporterTest {
         assertThat(result.updated()).isEqualTo(1);
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).update(sql.capture(), any(SqlParameterSource.class));
+        // soft-deleted line restore UPDATE — is_deleted = FALSE 로 되돌리고 new UUID 사용 X.
         assertThat(sql.getAllValues())
                 .anySatisfy(value -> assertThat(value)
-                        .contains("WITH restored AS")
-                        .contains("WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = TRUE")
-                        .contains("ON CONFLICT (journal_id, line_no) DO UPDATE"));
+                        .contains("UPDATE journal_lines")
+                        .contains("is_deleted = FALSE")
+                        .contains("WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = TRUE"));
+        // 새 INSERT line 은 호출되지 않아야 함 (UUID 재사용).
+        assertThat(sql.getAllValues())
+                .noneSatisfy(value -> assertThat(value)
+                        .contains("INSERT INTO journal_lines")
+                        .contains("gen_random_uuid()"));
     }
 
     @Test
@@ -185,9 +273,12 @@ class EcountJournalEntryImporterTest {
             assertThat(fixture).isNotNull();
             EcountCsvSupport.ParsedCsv parsed = EcountCsvSupport.parse(fixture.readAllBytes());
             EcountCsvSupport.validateHeader(parsed.header(), EcountJournalEntryImporter.HEADERS);
-            EcountCsvSupport.ParsedCsv raw = EcountCsvSupport.parse(Files.readAllBytes(rawPath(
-                    "회계전표분개-Excel다운로드(20260501~20260519_1).csv")));
-            assertThat(normalized(parsed.header())).containsExactly(normalized(raw.header()));
+            // raw 파일은 docs/migration/ecount-data/raw/ 에 회사/자택 PC 에만 존재 (CI Linux 미존재).
+            Path raw = rawPath("회계전표분개-Excel다운로드(20260501~20260519_1).csv");
+            org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(raw),
+                    "raw CSV (" + raw + ") 미존재 → cross-check skip");
+            EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(Files.readAllBytes(raw));
+            assertThat(normalized(parsed.header())).containsExactly(normalized(rawCsv.header()));
         }
     }
 

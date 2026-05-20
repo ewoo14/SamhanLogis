@@ -245,6 +245,10 @@ public enum ErrorCode {
             "전표 금액 형식 불일치 또는 0 이하"),
     MIG3_JOURNAL_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "차/대 합계 불일치 - POSTED 전이 차단"),
+    MIG3_JOURNAL_LINE_DUPLICATE(HttpStatus.CONFLICT,
+            "동일 journal_no/line_no 에 다른 데이터가 존재합니다"),
+    MIG3_JOURNAL_GROUP_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "분개 group 내 일부 row 가 reject 되어 전체 group 가 거부되었습니다"),
     MIG3_CSV_HEADER_MISMATCH(HttpStatus.BAD_REQUEST,
             "회계 전표 CSV 헤더 불일치");
 
