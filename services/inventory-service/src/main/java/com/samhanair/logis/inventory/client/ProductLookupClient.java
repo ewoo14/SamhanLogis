@@ -51,9 +51,10 @@ public class ProductLookupClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("ProductLookupClient — X-Internal-Token 미설정, lookup 건너뜀 (productName={})",
+            log.error("ProductLookupClient — X-Internal-Token 미설정 (productName={})",
                     productName);
-            return Optional.empty();
+            throw new BusinessException(ErrorCode.MIG12_INTERNAL_AUTH_MISS,
+                    "ProductLookupClient 내부 인증 토큰 미설정");
         }
         try {
             String body = restClient.get()
@@ -70,7 +71,13 @@ public class ProductLookupClient {
                 throw new BusinessException(ErrorCode.MIG5_LOOKUP_AMBIGUOUS,
                         "품목명 lookup ambiguous: " + productName);
             }
-            if (status == 404 || status == 401 || status == 403) {
+            if (status == 401 || status == 403) {
+                log.error("ProductLookupClient — productName={} status={} (내부 인증 실패)",
+                        productName, status);
+                throw new BusinessException(ErrorCode.MIG12_INTERNAL_AUTH_MISS,
+                        "ProductLookupClient 내부 인증 실패: status=" + status);
+            }
+            if (status == 404) {
                 log.debug("ProductLookupClient — productName={} status={} (lookup miss)",
                         productName, status);
                 return Optional.empty();

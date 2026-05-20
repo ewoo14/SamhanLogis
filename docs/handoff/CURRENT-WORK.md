@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-21 진행 중 — MIG-12 follow-up (V32 partial UNIQUE + Lookup auth 격상)
+
+- 현재 브랜치: `spec/2026-05-21-mig-12-followup-tax-invoice-line-unique-lookup-auth`
+- 범위: MIG-1~11 사후 재점검 MAJOR 1건 + P1 1건 follow-up
+- 구현:
+  - accounting V32 `tax_invoice_lines(tax_invoice_id,line_no)` active partial UNIQUE
+  - `MIG12_INTERNAL_AUTH_MISS(503)` ErrorCode
+  - Product/Partner LookupClient token null/blank 및 401/403 fail-fast
+  - `TaxInvoiceLineSoftDeleteIT` 3 cases + LookupClient 단위 테스트
+- 검증 명령:
+  - `./gradlew.bat :shared:common:test :services:accounting-service:test :services:inventory-service:test --no-daemon`
+- 산출 문서:
+  - `docs/dev-reports/mig-12-followup-tax-invoice-line-unique-lookup-auth.md`
+
+---
+
 ## 🎉 2026-05-20 최신 진행 — 이카운트 마이그레이션 시리즈 종료 (MIG-1~11 모두 머지)
 
 ### 시리즈 종료 보고 (PM 자율 연속 진행 종결)

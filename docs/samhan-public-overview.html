@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-11 구현 중</span>
+    <span class="nav-badge">Phase 10.6 · MIG-12 follow-up 진행 중</span>
   </div>
 </nav>
 
@@ -1333,9 +1333,9 @@ body {
     </tr>
     <tr>
       <td>10.6</td>
-      <td>이카운트 → SamhanLogis 마이그레이션 — 거래처/마스터 5종/회계 전표 4종/영업·세무 4종/재고·입출금 3종/잔여 마스터 5종/Cash 도메인 변환/Order 도메인 변환/매출장·매입장 XLSX 검증 (3-Tier staging + lookup map 4종 + 멱등 SHA-256 file_hash)</td>
-      <td>MIG-1 #262 ~ MIG-11 #279 (11건 머지, 시리즈 종료)</td>
-      <td><span class="status-badge done">✅ 완료</span></td>
+      <td>이카운트 → SamhanLogis 마이그레이션 — 거래처/마스터 5종/회계 전표 4종/영업·세무 4종/재고·입출금 3종/잔여 마스터 5종/Cash 도메인 변환/Order 도메인 변환/매출장·매입장 XLSX 검증 + V32 partial UNIQUE/Lookup auth follow-up</td>
+      <td>MIG-1 #262 ~ MIG-11 #279 (11건 머지) + MIG-12 follow-up</td>
+      <td><span class="status-badge wip">진행 중</span></td>
     </tr>
     <tr>
       <td>11</td>
@@ -1353,6 +1353,10 @@ body {
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">📊</div>
     <div><strong>🎉 이카운트 마이그레이션 시리즈 종료 (Phase 10.6, 11 슬라이스, 2026-05-20 하루 완료):</strong> MIG-1 거래처 PoC ✅ · MIG-2~6 마스터/staging ✅ · MIG-7 Cash 도메인 ✅ · MIG-8 Order 도메인 ✅ · MIG-9 Cash → Journal + partner_aging_snapshot view ✅ · MIG-10 Employee cross-link + aging net 계산 ✅ · MIG-11 매출장/매입장 XLSX (Apache POI) + DailyClosing 대조 ✅. 11 슬라이스 모두 9회차 워크플로우 (Claude 5-agent + Codex 5-section + 사이클 N=1) + PM 자동 머지 + 30+ ErrorCode + 10+ Flyway + 200+ test case + 100+ IT.</div>
+  </div>
+  <div class="callout" style="margin-top: 12px;">
+    <div class="callout-icon">🛠️</div>
+    <div><strong>MIG-12 follow-up 진행 중:</strong> V32로 tax_invoice_lines 라인 번호 UNIQUE를 active row partial UNIQUE로 보정하고, Product/Partner LookupClient 내부 인증 실패를 MIG12_INTERNAL_AUTH_MISS(503)로 격상한다.</div>
   </div>
 </section>
 

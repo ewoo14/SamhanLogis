@@ -77,6 +77,55 @@ class ProductLookupClientTest {
     }
 
     @Test
+    void token_null은_MIG12_INTERNAL_AUTH_MISS_throw() {
+        InternalAuthProperties props = new InternalAuthProperties();
+        ProductLookupClient noTokenClient =
+                new ProductLookupClient(RestClient.builder(), props, new ObjectMapper());
+
+        assertThatThrownBy(() -> noTokenClient.findByProductNameStrict("품목A"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG12_INTERNAL_AUTH_MISS));
+    }
+
+    @Test
+    void token_blank는_MIG12_INTERNAL_AUTH_MISS_throw() {
+        InternalAuthProperties props = new InternalAuthProperties();
+        props.setToken(" ");
+        ProductLookupClient noTokenClient =
+                new ProductLookupClient(RestClient.builder(), props, new ObjectMapper());
+
+        assertThatThrownBy(() -> noTokenClient.findByProductNameStrict("품목A"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG12_INTERNAL_AUTH_MISS));
+    }
+
+    @Test
+    void findByProductNameStrict_401은_MIG12_INTERNAL_AUTH_MISS_throw() {
+        server.expect(requestTo("http://product-service/products/internal/by-name?name=%ED%92%88%EB%AA%A9A"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> client.findByProductNameStrict("품목A"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG12_INTERNAL_AUTH_MISS));
+        server.verify();
+    }
+
+    @Test
+    void findByProductNameStrict_403은_MIG12_INTERNAL_AUTH_MISS_throw() {
+        server.expect(requestTo("http://product-service/products/internal/by-name?name=%ED%92%88%EB%AA%A9A"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.findByProductNameStrict("품목A"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG12_INTERNAL_AUTH_MISS));
+        server.verify();
+    }
+
+    @Test
     void findByProductNameStrict_409_throwsLookupAmbiguous() {
         server.expect(requestTo("http://product-service/products/internal/by-name?name=%EC%A4%91%EB%B3%B5"))
                 .andRespond(withStatus(HttpStatus.CONFLICT));

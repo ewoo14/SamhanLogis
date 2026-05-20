@@ -2281,3 +2281,19 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-11-14 | commit 가능한 fixture XLSX 2종은 PII placeholder `거래처A~E`만 포함하고 raw header cross-check test로 고정한다. |
 
 **산출 예정/진행**: shared/common `EcountXlsxSupport`, accounting V31, auth V24, `EcountSalesLedgerImporter`, `EcountPurchaseLedgerImporter`, controller 2 endpoint, fixture XLSX 2종, dev-report `docs/dev-reports/ecount-mig-11-sales-purchase-ledger-xlsx.md`.
+
+### D-MIG-12-00. V32 partial UNIQUE + Lookup auth 격상 follow-up (MIG-12, 2026-05-21)
+
+**배경**: MIG-1~11 사후 재점검에서 `tax_invoice_lines` full UNIQUE가 soft-delete 컨벤션을 위반하는 MAJOR 결함과, Product/Partner lookup 401/403 silent miss P1 결함을 확인했다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-12-01 | follow-up은 V32 partial UNIQUE와 Lookup auth 격상을 단일 통합 PR로 처리한다. |
+| D-MIG-12-02 | V32는 기존 `ux_tax_invoice_lines_invoice_line`을 DROP하고 `ux_tax_invoice_lines_invoice_line_active WHERE is_deleted = FALSE`를 생성한다. |
+| D-MIG-12-03 | 내부 서비스 token mis-config 및 401/403은 운영 설정 오류로 보고 `SERVICE_UNAVAILABLE(503)`로 격상한다. |
+| D-MIG-12-04 | shared/common ErrorCode는 `MIG12_INTERNAL_AUTH_MISS` 1종만 추가한다. |
+| D-MIG-12-05 | 신규 PageCode/API는 추가하지 않고 기존 lookup endpoint 계약을 유지한다. |
+| D-MIG-12-06 | 옵션 A 12단계 첫 적용 슬라이스로 진행한다. |
+| D-MIG-12-07 | 회귀 가드는 `TaxInvoiceLineSoftDeleteIT` 3 cases와 LookupClient 단위 테스트(token null/blank, 401, 403, 404)로 둔다. |
+
+**산출 예정/진행**: accounting V32, `TaxInvoiceLineSoftDeleteIT`, Product/Partner LookupClient auth fail-fast, ErrorCode `MIG12_INTERNAL_AUTH_MISS`, dev-report `docs/dev-reports/mig-12-followup-tax-invoice-line-unique-lookup-auth.md`.

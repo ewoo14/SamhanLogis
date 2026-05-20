@@ -353,6 +353,8 @@ public enum ErrorCode {
             "MIG-10 Employee lookup 호출 실패"),
     MIG10_AGING_VIEW_VERSION_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-10 Partner aging snapshot view 버전이 올바르지 않습니다"),
+    MIG12_INTERNAL_AUTH_MISS(HttpStatus.SERVICE_UNAVAILABLE,
+            "내부 서비스 인증 실패 — X-Internal-Token 설정 확인 필요"),
     MIG11_XLSX_PARSE_FAILED(HttpStatus.BAD_REQUEST,
             "MIG-11 XLSX 파싱 실패"),
     MIG11_FILE_HASH_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,

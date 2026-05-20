@@ -55,7 +55,8 @@
 - SP-08-4 시리즈 완료: partner-order 주문 목록·상세, 수정, 삭제+견적 변환, 인쇄 양식 4개 PR이 main `d5c3d573`까지 머지됐다.
 - SP-08-5-1 진행: 구매/매입 R1/R2를 `Slip(type=INBOUND)` 기준으로 잠근다. `type=INBOUND` alias, 최신 전표일자 정렬, `WAREHOUSE / MANAGER / MASTER` 권한, `INVENTORY` 제외, 상세 `inspectionStatus`를 IT/Playwright/QA PNG로 고정한다.
 - SP-08-5-2 진행: 구매/매입 수정 direct PUT을 `slip-service` `PUT /api/v1/slips/{id}`로 잠근다. INBOUND 전용, `WAREHOUSE / MANAGER / MASTER` 권한, `updatedAt` 낙관적 잠금, 라인 422 검증, `SLIP_EDIT` audit revision, desktop 상세 수정 Modal과 409 최신 내용 불러오기 배너를 정적 계약/QA PNG로 고정한다.
-- MIG-11 진행: 매출장/매입장 XLSX를 Apache POI로 파싱해 accounting-service staging 2표에 보존하고, `DailyClosing(closing_kind,total_amount)`과 일별 합계를 warning 방식으로 대조한다.
+- MIG-11 완료: 매출장/매입장 XLSX를 Apache POI로 파싱해 accounting-service staging 2표에 보존하고, `DailyClosing(closing_kind,total_amount)`과 일별 합계를 warning 방식으로 대조한다.
+- MIG-12 follow-up 진행: V32로 `tax_invoice_lines(tax_invoice_id,line_no)` UNIQUE를 active row partial UNIQUE로 교체하고, Product/Partner LookupClient 내부 인증 실패를 `MIG12_INTERNAL_AUTH_MISS(503)`로 격상한다.
 - 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, MIG-12 admin UI 조회 화면.
 
 ## Phase 0 — 저장소·가드 정립

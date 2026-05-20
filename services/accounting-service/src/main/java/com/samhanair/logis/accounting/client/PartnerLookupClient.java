@@ -56,9 +56,7 @@ public class PartnerLookupClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("PartnerLookupClient — X-Internal-Token 미설정, lookup 건너뜀 (partnerCode={})",
-                    partnerCode);
-            return Optional.empty();
+            throw internalAuthMiss("partnerCode", partnerCode, 0);
         }
         try {
             String body = restClient.get()
@@ -72,6 +70,9 @@ public class PartnerLookupClient {
             if (status == 404) {
                 log.debug("PartnerLookupClient — partnerCode={} 404 (정상 미존재)", partnerCode);
                 return Optional.empty();
+            }
+            if (status == 401 || status == 403) {
+                throw internalAuthMiss("partnerCode", partnerCode, status);
             }
             log.warn("PartnerLookupClient — partnerCode={} status={} (예외)", partnerCode, status);
             return Optional.empty();
@@ -100,9 +101,7 @@ public class PartnerLookupClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("PartnerLookupClient — X-Internal-Token 미설정, partnerId lookup 건너뜀 (partnerId={})",
-                    partnerId);
-            return Optional.empty();
+            throw internalAuthMiss("partnerId", partnerId, 0);
         }
         try {
             String body = restClient.get()
@@ -116,6 +115,9 @@ public class PartnerLookupClient {
             if (status == 404) {
                 log.debug("PartnerLookupClient — partnerId={} 404 (정상 미존재)", partnerId);
                 return Optional.empty();
+            }
+            if (status == 401 || status == 403) {
+                throw internalAuthMiss("partnerId", partnerId, status);
             }
             log.warn("PartnerLookupClient — partnerId={} status={} (예외)", partnerId, status);
             return Optional.empty();
@@ -156,9 +158,7 @@ public class PartnerLookupClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("PartnerLookupClient — X-Internal-Token 미설정, partnerName lookup 건너뜀 (partnerName={})",
-                    partnerName);
-            return Optional.empty();
+            throw internalAuthMiss("partnerName", partnerName, 0);
         }
         try {
             String body = restClient.get()
@@ -174,6 +174,9 @@ public class PartnerLookupClient {
             if (status == 409 && strictAmbiguous) {
                 throw new BusinessException(ErrorCode.MIG3_LOOKUP_AMBIGUOUS,
                         "거래처명 lookup ambiguous: " + partnerName);
+            }
+            if (status == 401 || status == 403) {
+                throw internalAuthMiss("partnerName", partnerName, status);
             }
             if (status == 404 || status == 409) {
                 log.debug("PartnerLookupClient — partnerName={} status={} (lookup miss/ambiguous)",
@@ -238,5 +241,16 @@ public class PartnerLookupClient {
             }
         }
         return null;
+    }
+
+    private BusinessException internalAuthMiss(String key, Object value, int status) {
+        if (status == 0) {
+            log.error("PartnerLookupClient — X-Internal-Token 미설정 ({}={})", key, value);
+            return new BusinessException(ErrorCode.MIG12_INTERNAL_AUTH_MISS,
+                    "PartnerLookupClient 내부 인증 토큰 미설정");
+        }
+        log.error("PartnerLookupClient — {}={} status={} (내부 인증 실패)", key, value, status);
+        return new BusinessException(ErrorCode.MIG12_INTERNAL_AUTH_MISS,
+                "PartnerLookupClient 내부 인증 실패: status=" + status);
     }
 }

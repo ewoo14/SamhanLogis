@@ -65,6 +65,10 @@
   - accounting V31 `staging.ecount_sales_ledger_raw` / `staging.ecount_purchase_ledger_raw`
   - `POST /admin/accounting/sales-ledger/imports/ecount`, `POST /admin/accounting/purchase-ledger/imports/ecount`
   - DailyClosing 불일치는 `MIG11_DAILY_CLOSING_MISMATCH` warning sample만 반환하고 reject하지 않음
+- MIG-12 follow-up (진행 중): V32 partial UNIQUE + Lookup auth 격상
+  - accounting V32 `tax_invoice_lines(tax_invoice_id,line_no)` UNIQUE를 `is_deleted = FALSE` partial UNIQUE로 교체
+  - Product/Partner LookupClient token null/blank 및 401/403을 `MIG12_INTERNAL_AUTH_MISS(503)`로 fail-fast
+  - 404/empty는 기존 lookup miss 동작 유지
 
 ### 최신 진행 메모 (2026-05-16)
 
