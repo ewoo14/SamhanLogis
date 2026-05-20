@@ -59,4 +59,31 @@ class EmployeeLookupClientTest {
                         .isEqualTo(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR));
         server.verify();
     }
+
+    @Test
+    void token_누락은_MIG10_EMPLOYEE_LOOKUP_ERROR_throw() {
+        InternalAuthProperties props = new InternalAuthProperties();
+        props.setToken(" ");
+        EmployeeLookupClient noTokenClient =
+                new EmployeeLookupClient(RestClient.builder(), props, new ObjectMapper());
+
+        assertThatThrownBy(() -> noTokenClient.findByFullName("김담당"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR));
+    }
+
+    @Test
+    void parse_실패는_MIG10_EMPLOYEE_LOOKUP_ERROR_throw() {
+        server.expect(requestTo("http://user-service/internal/users/by-name?name=%EA%B9%80%EB%8B%B4%EB%8B%B9"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{}}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.findByFullName("김담당"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR));
+        server.verify();
+    }
 }

@@ -18,9 +18,9 @@ QA agent 가 단위 테스트 + IT 코드만 read 하고 "PASS 가능 예상" �
 - 모든 QA agent dispatch prompt 에 **명시 의무**:
   ```
   ## Docker 실서버 검증 의무 (사용자 명시 2026-05-20)
-  
+
   QA agent 는 반드시 Docker 실행 후 IT 검증:
-  
+
   1. Docker 가용 여부 확인 (`docker info` 또는 `docker ps`)
   2. Testcontainers Postgres 부팅 직접 시도:
      ```

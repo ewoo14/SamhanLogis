@@ -41,8 +41,9 @@ public class EmployeeLookupClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("EmployeeLookupClient — X-Internal-Token 미설정, lookup skip (fullName={})", fullName);
-            return List.of();
+            log.warn("EmployeeLookupClient — X-Internal-Token 미설정 (fullName={})", fullName);
+            throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                    "user-service Employee lookup internal token 미설정");
         }
         try {
             String body = restClient.get()
@@ -53,6 +54,8 @@ public class EmployeeLookupClient {
                     .retrieve()
                     .body(String.class);
             return parseResults(body);
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (RestClientResponseException ex) {
             log.warn("EmployeeLookupClient — fullName={} status={}", fullName, ex.getStatusCode().value());
             throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
@@ -66,13 +69,15 @@ public class EmployeeLookupClient {
 
     private List<EmployeeLookupResult> parseResults(String body) {
         if (body == null || body.isBlank()) {
-            return List.of();
+            throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                    "user-service Employee lookup 응답 body 없음");
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || !data.isArray()) {
-                return List.of();
+                throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                        "user-service Employee lookup 응답 data 배열 아님");
             }
             List<EmployeeLookupResult> results = new ArrayList<>();
             for (JsonNode item : data) {
@@ -83,9 +88,12 @@ public class EmployeeLookupClient {
                 }
             }
             return List.copyOf(results);
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.warn("EmployeeLookupClient response 파싱 실패 — bodyLen={}, msg={}", body.length(), ex.getMessage());
-            return List.of();
+            throw new BusinessException(ErrorCode.MIG10_EMPLOYEE_LOOKUP_ERROR,
+                    "user-service Employee lookup 응답 파싱 실패", ex);
         }
     }
 

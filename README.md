@@ -59,7 +59,7 @@
   - accounting V30 `orders.manager_employee_id` UUID + active index, `partner_aging_snapshot` DROP + RECREATE + `net_receivable`/`net_payable`/`net_cash`
   - `POST /admin/accounting/orders/backfill-employee-cross-link`로 `manager_name` → user-service Employee exact lookup backfill
   - lookup miss/ambiguous는 warning sample로 응답하고 `manager_employee_id` NULL 유지
-  - auth V23 PageCode 1종 + MIG10 ErrorCode 4종 + service 8 cases + endpoint IT 5 cases
+  - auth V23 PageCode 1종 + MIG10 ErrorCode 5종 + service 8 cases + endpoint IT 5 cases
 
 ### 최신 진행 메모 (2026-05-16)
 
