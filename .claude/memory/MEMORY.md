@@ -20,6 +20,7 @@
 - [QA sequential after BE/FE](feedback_qa_sequential_after_be_fe.md) — 2026-05-14 정정. QA agent 는 BE/FE/Designer 완료 후 sequential dispatch (실 산출 검증 + 실 화면 캡처). 5-team 병렬에서 QA 만 분리
 - [문서 동기화 의무](feedback_continuous_docs_sync.md) — 매 작업 PR 에 README + ROADMAP + DECISIONS + 각 client/service README + dev-report 갱신 의무 포함, 별도 docs PR 금지 (PR #80/#85 패턴 폐기)
 - [samhan-public-overview.html 동기화 의무](feedback_samhan_public_overview_sync.md) — 2026-05-20. docs/samhan-public-overview.html (GitHub Pages 호스팅) 도 항시 동기화. nav-badge + progress 표 + callout 갱신 (사용자 명시 "항시 업데이트 요망")
+- [PM 자율 연속 진행](feedback_pm_auto_continuous.md) — 2026-05-20. 한 슬라이스 머지 후 사용자 개입 없이 다음 슬라이스 자동 진입. 멈추는 시점: 시리즈 종료 / 사이클 3 안 미해소 / critical / 사용자 stop
 - [인쇄 양식 디자인 반복 정정](feedback_print_design_iteration.md) — 인쇄 양식은 단번 완성 가정 금지, 사용자 이미지 → mock → Edge 캡처 → CSS-only 미세 조정 3~5회 iteration (PR #21 회고)
 - [gradlew 실행 권한](feedback_gradlew_exec_bit.md) — Windows 커밋 시 `git update-index --chmod=+x gradlew` 필수 (Linux CI Permission denied 방지)
 - [멀티 에이전트 팀 디스패치 패턴](feedback_multi_agent_team_pattern.md) — 모든 슬라이스에 Plan + **5-team(BE/FE/Designer/QA/DevOps)** parallel + TM 검토 (PR #19 회고 후 Designer 추가)
