@@ -4,7 +4,16 @@
 
 ---
 
-## 🚀 2026-05-20 최신 진행 — MIG-7 머지 완료 + MIG-8 자동 진입 대기
+## 🚀 2026-05-20 최신 진행 — MIG-8 Order 도메인 구현 진행 중
+
+### Codex MIG-8 구현 메모 (2026-05-20)
+
+- 브랜치: `spec/2026-05-20-mig-8-order-domain`
+- 범위: Order + OrderLine + OrderProgressStatus 신규, `staging.ecount_order_raw` → Order 도메인 transform, 완료 주문 SalesAccountingSlip cross-link.
+- 신규 Flyway: accounting V28 `orders`/`order_lines`, auth V21 `ecount.mig8.order`.
+- 신규 계약: shared/common `EcountMig8TransformResult`, ErrorCode MIG8 7종.
+- 검증 진행: targeted `:shared:common:test --tests ErrorCodeMig8Test` + `:services:accounting-service:test --tests Mig8OrderTransformServiceTest` PASS (`GRADLE_USER_HOME=C:\dev\SamhanLogis\.gradle\codex-home`).
+- 남은 단계: 전체 요청 검증 `:shared:common:test :services:auth-service:test :services:accounting-service:test`, commit, push.
 
 ### 머지 완료 슬라이스 (2026-05-20)
 

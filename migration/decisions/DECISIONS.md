@@ -2188,3 +2188,28 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-7-15 | 본 슬라이스는 CSV 직접 import가 아니므로 MIG7 CSV header error는 만들지 않는다. |
 
 **산출 예정/진행**: accounting V27, auth V20, Cash 도메인 2종, transform service/controller 2종, 단위 테스트 20 cases, controller IT 10 cases, dev-report `docs/dev-reports/ecount-mig-7-cash-domain.md`.
+
+### D-MIG-8-00. Order 도메인 신규 + MIG-4 주문서 staging 변환 (MIG-8, 2026-05-20)
+
+**배경**: MIG-4에서 staging only로 남긴 주문서를 Order/OrderLine 도메인으로 승격한다. 완료 주문은 기존 SalesAccountingSlip과 전표번호 기준으로 연결하되, 매칭 실패는 운영 warning으로 남기고 변환 자체는 성공 처리한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-8-01 | Order + OrderLine 도메인을 accounting-service에 신규 추가한다. |
+| D-MIG-8-02 | MIG-4 `staging.ecount_order_raw`를 재사용하고 CSV 직접 import는 하지 않는다. |
+| D-MIG-8-03 | progress_status enum은 COMPLETED / IN_PROGRESS / CANCELED / PENDING 4종으로 둔다. |
+| D-MIG-8-04 | SalesAccountingSlip cross-link는 progress_status=COMPLETED일 때만 시도하고 miss는 warning 처리한다. |
+| D-MIG-8-05 | 매니저명은 snapshot만 보존하고 Employee cross-link는 MIG-9+로 이연한다. |
+| D-MIG-8-06 | 동일 order_no 다중 row는 1 Order + N OrderLine으로 grouping한다. |
+| D-MIG-8-07 | 도메인 멱등 키는 `external_ref = source_file_hash + '-' + source_row_no`로 둔다. |
+| D-MIG-8-08 | transform은 1개 `pg_advisory_xact_lock` namespace를 사용한다. |
+| D-MIG-8-09 | soft-delete row는 Order + OrderLine 양쪽 모두 CTE로 복구한다. |
+| D-MIG-8-10 | admin UI는 후속 슬라이스로 둔다. |
+| D-MIG-8-11 | auth-service V21에 MIG8 PageCode 1종 권한 seed를 추가한다. |
+| D-MIG-8-12 | shared/common에 MIG8 ErrorCode 7종을 추가한다. |
+| D-MIG-8-13 | PM 자동시작 범위로 spec → plan → Codex 개발을 진행한다. |
+| D-MIG-8-14 | transform service behavior 테스트를 11+ 케이스로 작성해 MIG-4~7 회고를 반영한다. |
+| D-MIG-8-15 | controller IT는 1 endpoint × 5 case parameterized로 유지한다. |
+| D-MIG-8-16 | SalesAccountingSlip cross-link 성공/실패 회귀 테스트를 포함한다. |
+
+**산출 예정/진행**: accounting V28, auth V21, Order 도메인 2종, transform service/controller 1종, 단위 테스트 13 cases, controller IT 5 cases, dev-report `docs/dev-reports/ecount-mig-8-order-domain.md`.

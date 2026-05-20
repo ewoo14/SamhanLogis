@@ -251,7 +251,10 @@ public enum PageCode {
     ECOUNT_MIG6_PAYROLL_EMPLOYEE("ecount.mig6.payroll-employee", "이카운트 급여관리사원 마이그레이션"),
 
     /** MIG-6 이카운트 고정자산유형 마이그레이션. */
-    ECOUNT_MIG6_FIXED_ASSET_TYPE("ecount.mig6.fixed-asset-type", "이카운트 고정자산유형 마이그레이션");
+    ECOUNT_MIG6_FIXED_ASSET_TYPE("ecount.mig6.fixed-asset-type", "이카운트 고정자산유형 마이그레이션"),
+
+    /** MIG-8 이카운트 주문서 도메인 변환. */
+    ECOUNT_MIG8_ORDER("ecount.mig8.order", "이카운트 주문서 도메인 변환");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

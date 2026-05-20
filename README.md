@@ -41,11 +41,16 @@
   - accounting V26 통장계좌/고정자산유형 staging + domain
   - user V8 Employee `ecount_code` 보강 + EmployeeCard/PayrollEmployee 신규
   - 주민등록번호는 staging 적재 시점부터 `resident_number_masked`만 저장
-- MIG-7 (본 PR): Cash 도메인 신규 + MIG-5 staging 변환
+- MIG-7 (PR #275): Cash 도메인 신규 + MIG-5 staging 변환
   - accounting V27 `cash_disbursements` / `cash_receipts` 도메인 + `slip_no`/`external_ref` UNIQUE
   - `staging.ecount_expense_voucher_raw` → CashDisbursement, `staging.ecount_deposit_report_raw` → CashReceipt
   - auth V20 PageCode 2종 + MIG7 ErrorCode 6종 + transform endpoint 2종
-  - aging snapshot + Journal 자동 생성은 MIG-8 후속 슬라이스 이연 (D-MIG-7-04 옵션 C)
+- MIG-8 (본 PR): Order 도메인 신규 + MIG-4 주문서 staging 변환
+  - accounting V28 `orders` / `order_lines` 도메인 + `order_no`/`external_ref` UNIQUE
+  - `staging.ecount_order_raw` → Order + OrderLine, 동일 `order_no` 다중 row grouping
+  - 완료 주문은 `SalesAccountingSlip.slip_no` cross-link, miss는 warning sample 처리
+  - auth V21 PageCode 1종 + MIG8 ErrorCode 7종 + transform endpoint 1종
+  - aging snapshot + Journal 자동 생성은 MIG-9+ 후속 슬라이스 이연 (D-MIG-7-04 옵션 C)
 
 ### 최신 진행 메모 (2026-05-16)
 

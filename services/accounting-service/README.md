@@ -46,4 +46,16 @@ MIG-7는 MIG-5 staging에 적재된 지출결의서/입금보고서를 Cash 도�
 
 공통 규칙: `transform_status='PENDING'`, `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, transform별 `pg_advisory_xact_lock`, soft-delete CTE 복구, `DuplicateKeyException` row-level reject, `MIG7_*` ErrorCode 422 통일.
 
-aging snapshot + Journal 자동 생성은 MIG-8 후속 슬라이스로 이연한다 (D-MIG-7-04 옵션 C).
+aging snapshot + Journal 자동 생성은 MIG-9+ 후속 슬라이스로 이연한다 (D-MIG-7-04 옵션 C).
+
+## Ecount MIG-8 Order Transform
+
+MIG-8는 MIG-4 주문서 staging에 적재된 주문 raw를 `Order`/`OrderLine` 도메인으로 변환한다. CSV multipart upload는 없고, staging batch trigger endpoint만 제공한다.
+
+| Transform | Endpoint | 처리 |
+|---|---|---|
+| `Mig8OrderTransformService` | `POST /admin/accounting/orders/transform-from-staging` | `staging.ecount_order_raw` → `orders` + `order_lines` |
+
+공통 규칙: `transform_status='PENDING'`, 동일 `order_no` grouping, `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, `pg_advisory_xact_lock`, Order/OrderLine soft-delete CTE 복구, `DuplicateKeyException` row-level reject, `MIG8_*` ErrorCode 422 통일.
+
+`progress_status='완료'` 주문은 `SalesAccountingSlip.slip_no` cross-link를 시도한다. 매칭 실패는 reject가 아니라 `MIG8_SLIP_LINK_MISS` warning sample로 응답한다.

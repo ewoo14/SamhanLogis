@@ -318,7 +318,21 @@ public enum ErrorCode {
     MIG7_DUPLICATE_EXTERNAL_REF(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-7 external_ref 도메인 중복"),
     MIG7_KIND_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-7 거래유형 값 불일치");
+            "MIG-7 거래유형 값 불일치"),
+    MIG8_STAGING_ROW_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 변환 대상 staging row 가 없습니다"),
+    MIG8_LOOKUP_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 lookup 키 매핑 누락 - 거래처 확인 필요"),
+    MIG8_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 금액/수량 형식 불일치 또는 0 이하"),
+    MIG8_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 주문번호/일자 포맷 불일치"),
+    MIG8_PROGRESS_STATUS_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 주문 진행상태 값 불일치"),
+    MIG8_SLIP_LINK_MISS(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 완료 주문의 SalesAccountingSlip 매칭 실패"),
+    MIG8_DUPLICATE_EXTERNAL_REF(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-8 external_ref 도메인 중복");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

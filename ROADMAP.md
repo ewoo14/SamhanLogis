@@ -448,7 +448,8 @@
 - **MIG-4** (완료, PR #272) — **이카운트 영업·세무 raw 4종 마이그레이션** — 세금계산서용 판매전표 / 판매전표 / 매출매입내역 / 주문서 raw를 accounting-service V24 staging 4표로 멱등 적재한다. 세금계산서용 판매전표는 `TaxInvoice` OUTBOUND `MIGRATED`, 판매전표는 `SalesAccountingSlipLine` 보강으로 변환하고, 매출매입내역/주문서는 staging only + 검증 SQL로 처리한다. auth-service V17은 MIG4 PageCode 4종과 MASTER/MANAGER edit seed를 포함한다.
 - **MIG-5** (완료, PR #273) — **이카운트 창고이동·지출결의서·입금보고서 raw 3종 마이그레이션** — inventory-service V13 창고이동 staging + `StockTransfer` 도메인 변환, accounting-service V25 지출결의서/입금보고서 staging only + Partner aging cross-check, auth-service V18 PageCode 3종, shared/common MIG5 ErrorCode 10종을 추가했다.
 - **MIG-6** (완료, PR #274) — **이카운트 잔여 마스터 5종 마이그레이션** — accounting-service V26 통장계좌/고정자산유형 staging + 신규 domain, user-service V8 사원/인사카드/급여관리사원 staging + Employee `ecount_code` 보강 + EmployeeCard/PayrollEmployee 신규 domain, auth-service V19 PageCode 5종, shared/common MIG6 ErrorCode 8종과 `회사명 :` meta row 인식을 추가했다. 인사카드 주민등록번호는 staging 적재 시점부터 `resident_number_masked`만 저장한다.
-- **MIG-7** (본 PR) — **Cash 도메인 신규 + MIG-5 staging 변환** — accounting-service V27 `cash_disbursements` / `cash_receipts` 도메인, 지출결의서/입금보고서 staging transform endpoint 2종, auth-service V20 PageCode 2종, shared/common MIG7 ErrorCode 6종을 추가한다. aging snapshot 갱신과 Journal 자동 생성은 MIG-8+로 함께 이연한다.
+- **MIG-7** (완료, PR #275) — **Cash 도메인 신규 + MIG-5 staging 변환** — accounting-service V27 `cash_disbursements` / `cash_receipts` 도메인, 지출결의서/입금보고서 staging transform endpoint 2종, auth-service V20 PageCode 2종, shared/common MIG7 ErrorCode 6종을 추가했다.
+- **MIG-8** (본 PR) — **Order 도메인 신규 + MIG-4 주문서 staging 변환** — accounting-service V28 `orders` / `order_lines` 도메인, 주문서 staging transform endpoint 1종, auth-service V21 PageCode 1종, shared/common MIG8 ErrorCode 7종을 추가한다. 동일 `order_no` 다중 row는 1 Order + N OrderLine으로 grouping하고, 완료 주문은 SalesAccountingSlip cross-link를 시도한다. aging snapshot 갱신과 Journal 자동 생성은 MIG-9+로 이연한다.
 
 ### Pretendard 9 weight 정식 운영 배치 (W10-3 종합 TM 채택 — D-P10-10)
 
