@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
-import com.samhanair.logis.inventory.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
@@ -42,7 +42,7 @@ class WarehousePermissionIT extends AbstractPostgresIT {
 
     // ---- 외부 client @MockBean 격리 ----
 
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

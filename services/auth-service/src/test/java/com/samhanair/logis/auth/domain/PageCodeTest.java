@@ -77,4 +77,16 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL.getDisplayName())
                 .isEqualTo("이카운트 주문 담당자 Employee 연결");
     }
+
+    @Test
+    void mig14_adminPageCodes_4종_V25_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_MIG14_CASH_LIST.getCode())
+                .isEqualTo("ecount.mig14.cash-list");
+        assertThat(PageCode.ECOUNT_MIG14_ORDER_LIST.getCode())
+                .isEqualTo("ecount.mig14.order-list");
+        assertThat(PageCode.ECOUNT_MIG14_AGING_SNAPSHOT.getCode())
+                .isEqualTo("ecount.mig14.aging-snapshot");
+        assertThat(PageCode.ECOUNT_MIG14_LEDGER.getCode())
+                .isEqualTo("ecount.mig14.ledger");
+    }
 }

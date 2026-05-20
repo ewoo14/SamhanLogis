@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
-import com.samhanair.logis.inventory.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
@@ -67,7 +67,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
     @MockBean
     private ProductClient productClient;
 
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     private UUID hqWarehouseId;

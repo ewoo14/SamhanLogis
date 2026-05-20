@@ -5617,6 +5617,11 @@ const SP_D1_PAGES = [
   'products.admin',
   'arologis.admin',
   'arologis.region',
+  // MIG-14 admin UI 4 groups
+  'ecount.mig14.cash-list',
+  'ecount.mig14.order-list',
+  'ecount.mig14.aging-snapshot',
+  'ecount.mig14.ledger',
 ] as const
 
 /**
@@ -5666,6 +5671,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.dps', 'inventory.audit', 'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
+    // MIG-14 admin UI
+    'ecount.mig14.cash-list', 'ecount.mig14.order-list',
+    'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -5756,6 +5764,9 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
+    // MIG-14 admin UI
+    'ecount.mig14.cash-list', 'ecount.mig14.order-list',
+    'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',

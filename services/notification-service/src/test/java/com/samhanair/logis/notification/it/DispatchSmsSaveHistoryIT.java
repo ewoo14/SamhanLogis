@@ -12,7 +12,7 @@ import com.samhanair.logis.notification.NotificationServiceApplication;
 import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
-import com.samhanair.logis.notification.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
 import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
@@ -67,7 +67,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
      * SP-D3 동적 권한 client 격리.
      * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
      */
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.notification.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     @AfterEach

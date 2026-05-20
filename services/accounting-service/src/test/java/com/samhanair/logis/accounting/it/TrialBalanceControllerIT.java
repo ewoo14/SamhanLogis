@@ -10,7 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import java.math.BigDecimal;
@@ -51,7 +51,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
      * SP-D2 동적 권한 client 격리. SP-D5 cycle 2 fix (P1-4): {@code @RequirePermission} AOP 가
      * 본 IT 의 report endpoint 호출 시 canView=false 로 회귀하지 않도록 lenient stub 적용.
      */
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUpPermissionStub() {

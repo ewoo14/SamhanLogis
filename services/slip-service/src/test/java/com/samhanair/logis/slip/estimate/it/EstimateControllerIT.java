@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -91,7 +91,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
      * 주입받으므로 @MockBean 격리 필수. 누락 시 실제 구현체가 auth-service 호출 → 500 오류.
      * lenient stub 으로 기본 canView=true / canEdit=true 설정.
      */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
     /** SP-D4 회귀 fix (audit-slice-3) — ArologisDispatchClient @MockBean 격리. */
     @MockBean

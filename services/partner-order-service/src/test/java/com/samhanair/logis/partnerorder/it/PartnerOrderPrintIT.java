@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
-import com.samhanair.logis.partnerorder.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
@@ -74,7 +74,7 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.partnerorder.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach

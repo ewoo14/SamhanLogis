@@ -267,6 +267,13 @@ import { PurchaseAccountingSlipPage } from './accounting/PurchaseAccountingSlipP
 import { PurchaseAccountingSlipFormPage } from './accounting/PurchaseAccountingSlipFormPage'
 import { TaxInvoiceBatchIssuePage } from './accounting/TaxInvoiceBatchIssuePage'
 import { TaxInvoiceInboundPage } from './accounting/TaxInvoiceInboundPage'
+import { CashDisbursementListPage } from './accounting/admin/CashDisbursementListPage'
+import { CashReceiptListPage } from './accounting/admin/CashReceiptListPage'
+import { OrderListPage } from './accounting/admin/OrderListPage'
+import { OrderDetailPage } from './accounting/admin/OrderDetailPage'
+import { PartnerAgingSnapshotPage } from './accounting/admin/PartnerAgingSnapshotPage'
+import { SalesLedgerPage } from './accounting/admin/SalesLedgerPage'
+import { PurchaseLedgerPage } from './accounting/admin/PurchaseLedgerPage'
 // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 // 매뉴얼 docs/manual/03-회계/04-월말-마감.md 와 Stage 1 일치.
 import { PeriodCloseListPage } from './PeriodCloseListPage'
@@ -1093,6 +1100,76 @@ const router = createHashRouter([
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
               <PurchaseAccountingSlipFormPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-disbursements',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
+              <CashDisbursementListPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-receipts',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
+              <CashReceiptListPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/orders',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
+              <OrderListPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/orders/:orderNo',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
+              <OrderDetailPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/aging-snapshot',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.aging-snapshot" action="view">
+              <PartnerAgingSnapshotPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/ledger/sales',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
+              <SalesLedgerPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/ledger/purchase',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
+              <PurchaseLedgerPage />
             </PermissionGuard>
           </RoleGuard>
         ),

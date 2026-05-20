@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-12 follow-up 진행 중</span>
+    <span class="nav-badge">Phase 10.6 · MIG-14 admin UI 진행 중</span>
   </div>
 </nav>
 
@@ -1333,8 +1333,8 @@ body {
     </tr>
     <tr>
       <td>10.6</td>
-      <td>이카운트 → SamhanLogis 마이그레이션 — 거래처/마스터 5종/회계 전표 4종/영업·세무 4종/재고·입출금 3종/잔여 마스터 5종/Cash 도메인 변환/Order 도메인 변환/매출장·매입장 XLSX 검증 + V32 partial UNIQUE/Lookup auth follow-up</td>
-      <td>MIG-1 #262 ~ MIG-11 #279 (11건 머지) + MIG-12 follow-up</td>
+      <td>이카운트 → SamhanLogis 마이그레이션 — MIG-1~13 완료 + Cash/Order/AgingSnapshot/Ledger admin UI 4 화면 통합</td>
+      <td>MIG-1 #262 ~ MIG-13 완료 + MIG-14 진행 중</td>
       <td><span class="status-badge wip">진행 중</span></td>
     </tr>
     <tr>
@@ -1356,7 +1356,7 @@ body {
   </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">🛠️</div>
-    <div><strong>MIG-12 follow-up 진행 중:</strong> V32로 tax_invoice_lines 라인 번호 UNIQUE를 active row partial UNIQUE로 보정하고, Product/Partner LookupClient 내부 인증 실패를 MIG12_INTERNAL_AUTH_MISS(503)로 격상한다.</div>
+    <div><strong>MIG-14 admin UI 진행 중:</strong> Cash / Order / AgingSnapshot / Ledger 4 화면군을 desktop admin route로 통합하고, UUID 비공개 DTO와 PermissionGuard, Playwright fixture 자격 평문 금지, DynamicPermissionClient IT mock 청소를 함께 진행한다.</div>
   </div>
 </section>
 

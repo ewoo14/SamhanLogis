@@ -13,7 +13,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
-import com.samhanair.logis.inventory.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductLookupClient;
@@ -44,7 +44,7 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountStockTransferImporter importer;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private ProductLookupClient productLookupClient;
     @MockBean private SlipServiceClient slipServiceClient;

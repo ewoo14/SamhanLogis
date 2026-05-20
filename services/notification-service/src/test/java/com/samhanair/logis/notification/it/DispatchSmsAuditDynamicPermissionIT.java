@@ -8,7 +8,7 @@ import com.samhanair.logis.notification.NotificationServiceApplication;
 import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
-import com.samhanair.logis.notification.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
 import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
@@ -52,7 +52,7 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
     // ---- 외부 client @MockBean 격리 (feedback_it_mockbean_external_clients.md) ----
 
     /** SP-D3 핵심 @MockBean — notification.dispatch-sms.send-audit canView/canEdit 제어 */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.notification.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

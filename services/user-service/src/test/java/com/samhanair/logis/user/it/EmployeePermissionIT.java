@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
-import com.samhanair.logis.user.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
 
     // ---- 외부 client @MockBean 격리 ----
 
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

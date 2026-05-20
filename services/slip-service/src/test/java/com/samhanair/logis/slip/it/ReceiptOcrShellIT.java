@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -115,7 +115,7 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
      * SP-D3 동적 권한 client 격리.
      * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
      */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean

@@ -4,6 +4,32 @@
 
 ---
 
+## 🚧 2026-05-21 최신 진행 — MIG-14 admin UI 4 화면 통합 진행 중
+
+### 현재 브랜치
+
+- `spec/2026-05-21-mig-14-admin-ui-4-screens`
+- 병렬 작업 주의: BE / FE / QA / Designer worker가 같은 브랜치에서 source와 QA 산출물을 수정할 수 있다. DevOps/TM 문서 worker는 docs/devops write set만 수정하고 다른 worker 변경을 revert하지 않는다.
+
+### 범위
+
+- Cash / Order / AgingSnapshot / Ledger admin UI 4 화면군을 Samhan Public desktop에 통합한다.
+- 예상 desktop route: `clients/desktop/src/renderer/routes/accounting/admin/` 아래 7개 page.
+- 예상 API: `GET /api/v1/accounting/cash-disbursements`, `/cash-receipts`, `/orders`, `/orders/{orderNo}`, `/aging-snapshot`, `/ledger/sales`, `/ledger/purchase` + MIG-9 `POST /aging-snapshot/refresh` 재사용.
+- UUID 비공개: 화면, DTO, test id, screenshot에는 내부 UUID를 노출하지 않고 `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName`만 표시한다.
+- DynamicPermissionClient 청소: 30+ IT의 deprecated service-local `DynamicPermissionClient @MockBean`을 shared/security 통합 인터페이스 mock으로 교체한다. adapter 완전 삭제는 후속.
+- DevOps 확인: `.github/workflows/ci.yml`은 `clients/desktop/**`를 paths-ignore하지 않으므로 FE source 변경 시 `frontend-desktop` CI가 트리거된다. `docs/**` 단독 변경은 의도대로 CI trigger 제외.
+- Playwright fixture guard: fixture에는 실 계정/사업자번호/API key/token/Sheet ID를 넣지 않는다. 기존 `credential-plaintext-guard`와 GitGuardian 기준을 따른다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-14-admin-ui-4-screens-design.md`
+- plan: `docs/superpowers/plans/2026-05-21-mig-14-admin-ui-4-screens.md`
+- dev-report: `docs/dev-reports/mig-14-admin-ui-4-screens.md`
+- decisions: `D-MIG-14-01~09`
+
+---
+
 ## 🚀 2026-05-21 최신 진행 — MIG-12 follow-up 머지 완료 + 옵션 A 12단계 첫 적용
 
 ### MIG-12 PR #280 머지 (`d14affb2`, 21:48 UTC, 14 file +433 LOC)

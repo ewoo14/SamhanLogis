@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
-import com.samhanair.logis.inventory.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
@@ -37,7 +37,7 @@ class EcountWarehouseImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountWarehouseImporter importer;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private AccountingClient accountingClient;

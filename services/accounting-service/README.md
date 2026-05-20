@@ -99,3 +99,19 @@ MIG-11은 이카운트 출력물 `매출장.xlsx`, `매입장.xlsx`를 Apache PO
 실제 raw는 sheet 0 row 0이 `회사명 ... / 매출장|매입장` meta row이고 row 1이 strict header다. 매입장에는 합계 컬럼이 없어 `매입공급가액 + 매입부가세`로 `total_amount`를 계산한다.
 
 공통 규칙: Apache POI `XSSFWorkbook`, SHA-256 `source_file_hash`, source Excel row number 기반 `source_row_no`, `(source_file_hash, source_row_no)` staging PK, `REQUIRES_NEW + READ_COMMITTED`, importer별 `pg_advisory_xact_lock`, footer 정확 매칭(`합계`/`총계`) skip, DailyClosing 불일치는 reject가 아닌 warning sample.
+
+## Ecount MIG-14 Admin 조회 API
+
+MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read endpoint를 추가한다. Import/transform endpoint가 아니라 운영 조회용 API이며, DTO에는 내부 UUID를 노출하지 않는다.
+
+| 화면군 | Endpoint | 응답 식별자 |
+|---|---|---|
+| Cash 지출 | `GET /api/v1/accounting/cash-disbursements` | `slipNo`, `partnerName`, `journalNo`, `kind`, `amount` |
+| Cash 입금 | `GET /api/v1/accounting/cash-receipts` | `slipNo`, `partnerName`, `journalNo`, `kind`, `amount` |
+| Order 목록 | `GET /api/v1/accounting/orders` | `orderNo`, `partnerName`, `managerName`, `progressStatus`, `linkedSlipNo` |
+| Order 상세 | `GET /api/v1/accounting/orders/{orderNo}` | `orderNo` + `lines[]`; 내부 `orderId` path 금지 |
+| Aging snapshot | `GET /api/v1/accounting/aging-snapshot` | `partnerName`, `netReceivable`, `netPayable`, `netCash`, `lastRefreshedAt` |
+| Ledger 매출 | `GET /api/v1/accounting/ledger/sales` | staging row 업무 컬럼 + DailyClosing 대조 결과 |
+| Ledger 매입 | `GET /api/v1/accounting/ledger/purchase` | staging row 업무 컬럼 + DailyClosing 대조 결과 |
+
+권한은 auth-service V25 MIG14 PageCode 4종과 desktop `PermissionGuard`를 사용한다. `DynamicPermissionClient` 테스트 mock은 deprecated service-local 타입 대신 shared/security 통합 인터페이스를 대상으로 정렬한다.

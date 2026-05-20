@@ -22,10 +22,18 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 8 완료 (PR #88 / #89 / #90), Phase 9 완료 + post-W5 cleanup (W1 #91 / W2 #92 / W3 #93 / W4 #94 / W5 #95 / post-W5 #96), Phase 10 완료 (W10-1 #97 / W10-3 #98 / W10-4 #99), **Phase 10.5 아로로지스 독립 분리 진행 중 — 본 PR (D-AX-01~10, monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless + arologis.samhan-air.com 도메인)** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~13 완료 + MIG-14 admin UI 4 화면(Cash/Order/AgingSnapshot/Ledger) 통합 진행** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
+
+### 최신 진행 메모 (2026-05-21)
+
+- MIG-14 (진행 중): Cash / Order / AgingSnapshot / Ledger admin UI 4 화면 통합
+  - `clients/desktop/src/renderer/routes/accounting/admin/` 아래 7개 route로 조회 화면을 연결하고, `PermissionGuard` + MIG14 PageCode 4종을 적용한다.
+  - 조회 DTO/화면은 UUID를 숨기고 `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName` 등 업무 식별자만 표시한다.
+  - MIG-12 백로그였던 30+ IT의 deprecated `DynamicPermissionClient @MockBean`은 shared/security 통합 인터페이스 mock으로 청소한다.
+  - Playwright fixture는 placeholder만 사용하고, 자격 평문은 기존 `credential-plaintext-guard` + GitGuardian 기준으로 금지한다.
 
 ### 최신 진행 메모 (2026-05-20)
 
@@ -69,6 +77,7 @@
   - accounting V32 `tax_invoice_lines(tax_invoice_id,line_no)` UNIQUE를 `is_deleted = FALSE` partial UNIQUE로 교체
   - Product/Partner LookupClient token null/blank 및 401/403을 `MIG12_INTERNAL_AUTH_MISS(503)`로 fail-fast
   - 404/empty는 기존 lookup miss 동작 유지
+- MIG-13 (완료): MIG-14 진입 전 minor cleanup. PartnerLookupClient 문서, MIG-9 dev-report prefix, footer 판별, dead branch, HikariCP pool 주석을 정리했다.
 
 ### 최신 진행 메모 (2026-05-16)
 
@@ -645,6 +654,7 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 | Phase 8 회고               | `docs/dev-reports/phase8-retrospective.md`                          |
 | Phase 9 readiness          | `docs/migration/phase9/M-PHASE-9-readiness.md`                      |
 | Phase 9 회고               | `docs/dev-reports/phase9-retrospective.md`                          |
+| MIG-14 admin UI 4 화면     | `docs/dev-reports/mig-14-admin-ui-4-screens.md`                     |
 | Phase 10 readiness (arologis) | `docs/migration/phase10/M-PHASE-10-readiness.md` (renumber, arologis-service 5 슬라이스) |
 | Phase 11 readiness (AWS cutover) | `docs/migration/phase11/M-PHASE-11-readiness.md` (renumber, 기존 phase10) |
 | Phase 11 AWS dry-run plan  | `docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md` (renumber, 기존 phase10) |

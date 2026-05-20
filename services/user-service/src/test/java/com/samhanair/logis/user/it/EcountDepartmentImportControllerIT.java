@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
-import com.samhanair.logis.user.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.user.service.EcountDepartmentImporter;
 import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import java.io.InputStream;
@@ -34,7 +34,7 @@ class EcountDepartmentImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountDepartmentImporter importer;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AuthClient authClient;
 
     @BeforeEach

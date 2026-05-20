@@ -23,6 +23,7 @@
 | 9     | -           | 잔여 도메인 (partner-service / groupware / notification / dashboard) | **4차 진행 (W1 partner #91 + W2 groupware #92 + W3 notification #93 + W4 dashboard skeleton 본 PR)** |
 | 10    | -           | arologis-service (배차 마이크로서비스) + 모바일 어플 driver tab + slip 통합 (renumber, D-P10-05) | **완료 — W10-1 PR #97 + W10-3 PR #98 + W10-4 PR #99 (slip-service 전자서명 LINK+APP source 통합, V10 Flyway, ApiResponse wrapper IT 의무화) — D-P10-11 / D-P10-12** |
 | 10.5  | -           | **아로로지스 독립 분리** (monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless + arologis.samhan-air.com 도메인 + clients/arologis-desktop + clients/arologis-mobile + 별도 GitHub Actions workflow) + **Phase A 배차 메뉴 + 아로로지스 발송** (PR #188, D-DB-01~09) + **Phase C 배차 수정/취소 요청 흐름** (PR #189, D-DC-01~09) + **Phase F 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송** (TM 통합, D-DF-01~13) | Phase A/C **머지** + Phase F **TM 통합 완료 (QA sequential 진행 중)** + Phase B/D 인성데이타 API 링크 도착 대기 |
+| 10.6  | -           | **이카운트 → Samhan Public 마이그레이션** (MIG-1~13 완료) + **MIG-14 admin UI 4 화면** (Cash / Order / AgingSnapshot / Ledger 조회 + DynamicPermissionClient IT mock 청소) | **MIG-14 진행 중 — 옵션 A 12단계 + 5-team 병렬** |
 | 11    | -           | AWS 마이그레이션 + Migration Service + 운영 안정화 (AWS cutover 본격) — dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md` | 대기 |
 | 12    | -           | 실시간 협업 시리즈 (SSE infra + slip 코멘트 / audit overlay / 권한·수락 / 전 15 service 확장) — 총 ~13주 (사용자 결정 옵션 A) | **step-1 (PR #123) + step-2 (PR #124) + step-3 (PR #125) + step-4a (PR #126) 머지 + step-4b 진행 (PR-H4b BE 13 service 일괄 `shared/realtime-abstraction` 적용, 본 PR)** |
 
@@ -56,8 +57,10 @@
 - SP-08-5-1 진행: 구매/매입 R1/R2를 `Slip(type=INBOUND)` 기준으로 잠근다. `type=INBOUND` alias, 최신 전표일자 정렬, `WAREHOUSE / MANAGER / MASTER` 권한, `INVENTORY` 제외, 상세 `inspectionStatus`를 IT/Playwright/QA PNG로 고정한다.
 - SP-08-5-2 진행: 구매/매입 수정 direct PUT을 `slip-service` `PUT /api/v1/slips/{id}`로 잠근다. INBOUND 전용, `WAREHOUSE / MANAGER / MASTER` 권한, `updatedAt` 낙관적 잠금, 라인 422 검증, `SLIP_EDIT` audit revision, desktop 상세 수정 Modal과 409 최신 내용 불러오기 배너를 정적 계약/QA PNG로 고정한다.
 - MIG-11 완료: 매출장/매입장 XLSX를 Apache POI로 파싱해 accounting-service staging 2표에 보존하고, `DailyClosing(closing_kind,total_amount)`과 일별 합계를 warning 방식으로 대조한다.
-- MIG-12 follow-up 진행: V32로 `tax_invoice_lines(tax_invoice_id,line_no)` UNIQUE를 active row partial UNIQUE로 교체하고, Product/Partner LookupClient 내부 인증 실패를 `MIG12_INTERNAL_AUTH_MISS(503)`로 격상한다.
-- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, MIG-12 admin UI 조회 화면.
+- MIG-12 follow-up 완료: V32로 `tax_invoice_lines(tax_invoice_id,line_no)` UNIQUE를 active row partial UNIQUE로 교체하고, Product/Partner LookupClient 내부 인증 실패를 `MIG12_INTERNAL_AUTH_MISS(503)`로 격상했다.
+- MIG-13 minor cleanup 완료: V32 이후 문서/회고/테스트 주석과 footer 판별 dead branch를 정리했다.
+- MIG-14 진행 중: Cash / Order / AgingSnapshot / Ledger admin UI 4 화면을 `clients/desktop`에 통합하고, 30+ IT의 deprecated `DynamicPermissionClient @MockBean`을 shared/security 통합 인터페이스 mock으로 청소한다.
+- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, MIG-14 검증 완료 후 운영 데이터 실 import 검증.
 
 ## Phase 0 — 저장소·가드 정립
 
@@ -759,6 +762,7 @@ W10-3 시점 = 4 weight (`Regular / Medium / SemiBold / Bold`) 의무 + graceful
 - Phase 9 4차 PR template color reference: `docs/templates/PR-template-color-reference.md`
 - Phase 9 5차 dev report: `docs/dev-reports/phase9-step-5-retrospective.md`
 - Phase 9 회고 보고서: `docs/dev-reports/phase9-retrospective.md`
+- MIG-14 admin UI 4 화면 dev report: `docs/dev-reports/mig-14-admin-ui-4-screens.md`
 - Phase 10 진입 plan: `docs/migration/phase10/M-PHASE-10-readiness.md`
 - Phase 10 dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md`
 - 본 문서 갱신 보고: `docs/dev-reports/docs-roadmap-update.md`

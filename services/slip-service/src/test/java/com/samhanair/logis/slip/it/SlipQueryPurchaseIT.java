@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -74,7 +74,7 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
     private SlipRepository slipRepository;
 
     /** SP-D3 cycle 3 fix — DynamicPermissionClient @MockBean 누락 시 Eureka 호출 → 403 fallback 트랩 */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

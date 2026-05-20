@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
-import com.samhanair.logis.partnerorder.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.partnerorder.client.EstimateClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
@@ -47,7 +47,7 @@ class PartnerOrderListPermissionIT extends AbstractPostgresIT {
 
     // ---- 외부 client @MockBean 격리 ----
 
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.partnerorder.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

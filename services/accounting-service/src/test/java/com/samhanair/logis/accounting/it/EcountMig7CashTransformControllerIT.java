@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -43,7 +43,7 @@ class EcountMig7CashTransformControllerIT extends AbstractPostgresIT {
 
     @MockBean private Mig7CashDisbursementTransformService disbursementService;
     @MockBean private Mig7CashReceiptTransformService receiptService;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;

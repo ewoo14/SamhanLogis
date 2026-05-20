@@ -269,7 +269,19 @@ public enum PageCode {
     /** MIG-10 이카운트 주문 담당자 Employee cross-link backfill. */
     ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL(
             "ecount.mig10.order-employee-backfill",
-            "이카운트 주문 담당자 Employee 연결");
+            "이카운트 주문 담당자 Employee 연결"),
+
+    /** MIG-14 Cash admin 목록 화면. */
+    ECOUNT_MIG14_CASH_LIST("ecount.mig14.cash-list", "이카운트 현금 입출금 admin 조회"),
+
+    /** MIG-14 Order admin 목록/상세 화면. */
+    ECOUNT_MIG14_ORDER_LIST("ecount.mig14.order-list", "이카운트 주문서 admin 조회"),
+
+    /** MIG-14 Partner aging snapshot admin 화면. */
+    ECOUNT_MIG14_AGING_SNAPSHOT("ecount.mig14.aging-snapshot", "이카운트 거래처 aging snapshot 조회"),
+
+    /** MIG-14 Ledger admin 화면. */
+    ECOUNT_MIG14_LEDGER("ecount.mig14.ledger", "이카운트 매출장/매입장 admin 조회");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

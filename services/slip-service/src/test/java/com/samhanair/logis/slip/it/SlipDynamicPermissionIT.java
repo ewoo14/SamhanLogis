@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -54,7 +54,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
     // ---- 외부 client @MockBean 격리 (feedback_it_mockbean_external_clients.md) ----
 
     /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

@@ -2311,3 +2311,21 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-13-05 | AbstractPostgresIT HikariCP pool=5 값은 변경하지 않고, PostgreSQL 단일 Testcontainers reuse 및 test parallelism 회귀 위험을 주석으로 남긴다. |
 
 **산출 예정/진행**: accounting/inventory service minor cleanup, `EcountSalesPurchaseSummaryImporterTest` full-width footer 회귀 가드, dev-report `docs/dev-reports/mig-13-minor-cleanup.md`.
+
+### D-MIG-14-00. Admin UI 4 화면 통합 + DynamicPermissionClient 청소 (MIG-14, 2026-05-21)
+
+**배경**: MIG-7 Cash, MIG-8 Order, MIG-9 partner_aging_snapshot, MIG-11 Ledger staging이 모두 머지되어 운영자 조회 화면을 만들 수 있는 상태가 됐다. MIG-12 follow-up의 minor 백로그였던 deprecated `DynamicPermissionClient @MockBean` 청소도 같은 큰 PR에서 처리한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-14-01 | Cash / Order / AgingSnapshot / Ledger admin UI 4 화면군은 단일 통합 PR로 처리한다. |
+| D-MIG-14-02 | admin UI route는 `clients/desktop/src/renderer/routes/accounting/admin/` 아래에 둔다. |
+| D-MIG-14-03 | 화면 권한은 SP-D5 이후 기존 desktop `PermissionGuard` 컴포넌트와 PageCode 기반 정책을 사용한다. |
+| D-MIG-14-04 | API 응답 DTO와 renderer text/test id/screenshot에는 내부 UUID를 노출하지 않고, `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName` 같은 업무 식별자만 표시한다. |
+| D-MIG-14-05 | 30+ IT의 deprecated service-local `DynamicPermissionClient @MockBean`은 shared/security 통합 인터페이스 mock으로 일괄 교체한다. deprecated adapter 완전 삭제는 별도 운영 검증 후속으로 둔다. |
+| D-MIG-14-06 | auth-service V25에 MIG14 PageCode 4종(`ECOUNT_MIG14_CASH_LIST`, `ECOUNT_MIG14_ORDER_LIST`, `ECOUNT_MIG14_AGING_SNAPSHOT`, `ECOUNT_MIG14_LEDGER`)과 MASTER/MANAGER 권한 seed를 추가한다. |
+| D-MIG-14-07 | MIG14 전용 ErrorCode는 추가하지 않고 기존 조회/권한/검증 ErrorCode를 재사용한다. |
+| D-MIG-14-08 | Playwright spec은 4개 화면군별 정상/권한거부/빈 결과/페이지네이션/캡처를 포함하고, fixture는 placeholder만 사용하며 자격 평문을 포함하지 않는다. |
+| D-MIG-14-09 | 옵션 A 12단계 + 5-team 병렬 방식으로 PM 자율 연속 진행한다. DevOps/TM 문서는 dev-report, ROADMAP, DECISIONS, README, handoff, overview HTML을 동기화한다. |
+
+**산출 예정/진행**: accounting-service 조회 endpoint 8개, auth V25 PageCode 4종, desktop admin route 7개, Playwright spec 4개 + QA PNG 4장 이상, DynamicPermissionClient IT mock cleanup, dev-report `docs/dev-reports/mig-14-admin-ui-4-screens.md`.

@@ -112,6 +112,10 @@ const PAGE_GROUPS: PageGroup[] = [
       'accounting.period-close',
       'accounting.statement-batch',
       'accounting.partner-ledger',
+      'ecount.mig14.cash-list',
+      'ecount.mig14.order-list',
+      'ecount.mig14.aging-snapshot',
+      'ecount.mig14.ledger',
     ],
   },
   {
@@ -239,6 +243,10 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.period-close': '월말 마감',
   'accounting.statement-batch': '거래명세서 일괄',
   'accounting.partner-ledger': '거래처 원장',
+  'ecount.mig14.cash-list': 'MIG-14 현금',
+  'ecount.mig14.order-list': 'MIG-14 주문',
+  'ecount.mig14.aging-snapshot': 'MIG-14 잔액 스냅샷',
+  'ecount.mig14.ledger': 'MIG-14 원장',
   // SP-D4 신규 22개
   'estimates.list': '견적 목록',
   'sales.partner-order.list': '주문 목록',

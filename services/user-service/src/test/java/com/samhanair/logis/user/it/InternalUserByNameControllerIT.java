@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
-import com.samhanair.logis.user.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.user.domain.Department;
 import com.samhanair.logis.user.domain.Employee;
 import com.samhanair.logis.user.repository.DepartmentRepository;
@@ -34,7 +34,7 @@ class InternalUserByNameControllerIT extends AbstractPostgresIT {
     @Autowired private DepartmentRepository departmentRepository;
     @Autowired private EmployeeRepository employeeRepository;
 
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AuthClient authClient;
 
     private Department department;

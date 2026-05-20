@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -59,7 +59,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
     /** SP-09-4 KFTC 오픈뱅킹 client 격리. */
     @MockBean private KftcClient kftcClient;
     /** SP-D2 동적 권한 client 격리. */
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     /** SP-08-FU2 cycle 2 — LedgerService 가 의존하는 외부 RestClient 격리. */
     @MockBean private PartnerLookupClient partnerLookupClient;
 

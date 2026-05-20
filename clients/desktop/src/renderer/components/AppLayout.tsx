@@ -221,6 +221,10 @@ export function AppLayout() {
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingDepositMatch = dynamicCanAccess('accounting.deposit-match',  'view')
+  const showAccountingAdminCash = dynamicCanAccess('ecount.mig14.cash-list', 'view')
+  const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
+  const showAccountingAdminAging = dynamicCanAccess('ecount.mig14.aging-snapshot', 'view')
+  const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
@@ -228,6 +232,8 @@ export function AppLayout() {
     || showAccountingSalesSlip || showAccountingPurchaseSlip
     || showAccountingPartnerLedger || showAccountingTaxInvoice || showAccountingDailyClose
     || showAccountingLedger || showAccountingDepositMatch
+    || showAccountingAdminCash || showAccountingAdminOrder
+    || showAccountingAdminAging || showAccountingAdminLedger
     // 정적 role fallback — RBAC 캐시 초기화 전 깜박임 방지 (canAccessAccounting 유지)
     || canAccessAccounting(auth?.role)
   const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
@@ -719,6 +725,55 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-ledgers"
               >
                 원장
+              </SidebarLink>
+              {/* [MIG-14] 회계 admin 4개 그룹 — 동적 RBAC PageCode 기반. */}
+              <SidebarLink
+                to="/accounting/admin/cash-disbursements"
+                show={showAccountingAdminCash}
+                data-testid="sidebar-accounting-admin-cash-disbursements"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                지출 트랜잭션
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/cash-receipts"
+                show={showAccountingAdminCash}
+                data-testid="sidebar-accounting-admin-cash-receipts"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                회수 트랜잭션
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/orders"
+                show={showAccountingAdminOrder}
+                data-testid="sidebar-accounting-admin-orders"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                주문서 관리
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/aging-snapshot"
+                show={showAccountingAdminAging}
+                data-testid="sidebar-accounting-admin-aging-snapshot"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                잔액 스냅샷
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/ledger/sales"
+                show={showAccountingAdminLedger}
+                data-testid="sidebar-accounting-admin-sales-ledger"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                매출 원장 대조
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/ledger/purchase"
+                show={showAccountingAdminLedger}
+                data-testid="sidebar-accounting-admin-purchase-ledger"
+                style={{ paddingLeft: 20, fontSize: 13 }}
+              >
+                매입 원장 대조
               </SidebarLink>
             </>
           ) : null}

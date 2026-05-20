@@ -98,6 +98,11 @@ export type PageCode =
   | 'products.admin'
   | 'arologis.admin'
   | 'arologis.region'
+  // MIG-14 admin UI 4 groups
+  | 'ecount.mig14.cash-list'
+  | 'ecount.mig14.order-list'
+  | 'ecount.mig14.aging-snapshot'
+  | 'ecount.mig14.ledger'
 
 /**
  * 개별 역할-페이지 권한 셀.

@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -82,7 +82,7 @@ class DailyClosingIT extends AbstractPostgresIT {
      * SP-D2 동적 권한 client 격리 — auth-service 호출 차단.
      * 기본 lenient stub: canView/canEdit 모두 true (기존 테스트 영향 없음).
      */
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     private static final String ACCOUNTANT_ID = "accountant-user";
     private static final String SALES_ID = "sales-user";

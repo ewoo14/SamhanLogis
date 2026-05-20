@@ -3,7 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.domain.AccountCategory;
@@ -35,7 +35,7 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
     @MockBean
     private KftcClient kftcClient;
     /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
-    @MockBean
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @Test

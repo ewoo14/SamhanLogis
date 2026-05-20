@@ -127,3 +127,24 @@ npm run build:print-renderer
 - 대상 화면은 가배차/지방가배차/미배차/운송사 비교, 전표정리, 배차안내 SMS 6개다.
 - 본 단계는 route/UI 변경 없이 기존 endpoint와 후속 history endpoint matrix를 잠근다.
 - SP-08-3-2~4에서 6 화면 모두 `실행 / 저장내역` 2탭과 `*-history-row-{i}` 기반 UUID 비노출 testid를 적용한다.
+
+## MIG-14 — 회계 마이그레이션 admin UI 4 화면 (2026-05-21)
+
+MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/desktop/src/renderer/routes/accounting/admin/` 아래에 통합한다.
+
+| route/page | 목적 |
+|---|---|
+| `CashDisbursementListPage.tsx` | 이카운트 지출결의서 기반 CashDisbursement 조회 |
+| `CashReceiptListPage.tsx` | 이카운트 입금보고서 기반 CashReceipt 조회 |
+| `OrderListPage.tsx` | 주문 목록 + 진행상태/담당자/거래처 필터 |
+| `OrderDetailPage.tsx` | `orderNo` 기반 주문 상세 + 라인 조회 |
+| `PartnerAgingSnapshotPage.tsx` | partner aging materialized view + net 컬럼 조회/refresh |
+| `SalesLedgerPage.tsx` | 매출장 staging + DailyClosing 대조 조회 |
+| `PurchaseLedgerPage.tsx` | 매입장 staging + DailyClosing 대조 조회 |
+
+공통 UI 계약:
+
+- `PermissionGuard`로 MIG14 PageCode 4종을 적용한다.
+- 화면과 `data-testid`는 내부 UUID를 포함하지 않는다. 사용자 식별자는 `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName` 중심으로 둔다.
+- Playwright fixture는 placeholder만 사용한다. 실 계정, API key, token, 사업자등록번호, Sheet ID를 추가하지 않으며 CI `credential-plaintext-guard` 기준을 따른다.
+- desktop CI는 `.github/workflows/ci.yml`의 `frontend-desktop` job에서 `npm run typecheck`, `npm run lint`, `npm run build`로 검증된다.

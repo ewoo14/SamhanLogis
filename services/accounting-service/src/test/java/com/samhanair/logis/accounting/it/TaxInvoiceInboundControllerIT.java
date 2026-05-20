@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -62,7 +62,7 @@ class TaxInvoiceInboundControllerIT extends AbstractPostgresIT {
     @MockBean ChatRoomMappingClient chatRoomMappingClient;
     @MockBean ETaxClient eTaxClient;
     @MockBean KftcClient kftcClient;
-    @MockBean DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
 
     @Test
     void POST_admin_tax_invoices_inbound_3장_정상등록과_매입전표_link() throws Exception {

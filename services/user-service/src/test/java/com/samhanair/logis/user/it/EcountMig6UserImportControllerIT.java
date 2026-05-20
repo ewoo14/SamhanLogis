@@ -13,7 +13,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
-import com.samhanair.logis.user.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.user.service.EcountEmployeeCardImporter;
 import com.samhanair.logis.user.service.EcountEmployeeImporter;
 import com.samhanair.logis.user.service.EcountPayrollEmployeeImporter;
@@ -42,7 +42,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
     @MockBean private EcountEmployeeImporter employeeImporter;
     @MockBean private EcountEmployeeCardImporter employeeCardImporter;
     @MockBean private EcountPayrollEmployeeImporter payrollEmployeeImporter;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AuthClient authClient;
 
     @BeforeEach
