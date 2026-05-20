@@ -2,7 +2,7 @@
 
 > Codex 개발 의무. `mcp__codex__codex sandbox=workspace-write` (review + fix 모두 workspace-write, 2026-05-20 사용자 정정).
 
-**Goal:** MIG-5 staging 2표 (지출결의서/입금보고서) → CashDisbursement / CashReceipt 도메인 변환 + Partner aging 갱신.
+**Goal:** MIG-5 staging 2표 (지출결의서/입금보고서) → CashDisbursement / CashReceipt 도메인 변환. Partner aging snapshot + Journal 자동 생성은 D-MIG-7-04 옵션 C 에 따라 MIG-8 후속 이연.
 
 **Architecture:** staging → 도메인 변환 단방향. 2 transform service + 2 controller + 6 ErrorCode + V27 (accounting) + V20 (auth).
 

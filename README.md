@@ -45,6 +45,7 @@
   - accounting V27 `cash_disbursements` / `cash_receipts` 도메인 + `slip_no`/`external_ref` UNIQUE
   - `staging.ecount_expense_voucher_raw` → CashDisbursement, `staging.ecount_deposit_report_raw` → CashReceipt
   - auth V20 PageCode 2종 + MIG7 ErrorCode 6종 + transform endpoint 2종
+  - aging snapshot + Journal 자동 생성은 MIG-8 후속 슬라이스 이연 (D-MIG-7-04 옵션 C)
 
 ### 최신 진행 메모 (2026-05-16)
 

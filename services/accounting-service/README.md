@@ -45,3 +45,5 @@ MIG-7는 MIG-5 staging에 적재된 지출결의서/입금보고서를 Cash 도�
 | `Mig7CashReceiptTransformService` | `POST /admin/accounting/cash-receipts/transform-from-staging` | `staging.ecount_deposit_report_raw` → `cash_receipts` (`DEPOSIT_REPORT`) |
 
 공통 규칙: `transform_status='PENDING'`, `external_ref = source_file_hash + '-' + source_row_no`, `REQUIRES_NEW + READ_COMMITTED`, transform별 `pg_advisory_xact_lock`, soft-delete CTE 복구, `DuplicateKeyException` row-level reject, `MIG7_*` ErrorCode 422 통일.
+
+aging snapshot + Journal 자동 생성은 MIG-8 후속 슬라이스로 이연한다 (D-MIG-7-04 옵션 C).
