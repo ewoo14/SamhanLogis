@@ -47,7 +47,6 @@ class PermissionAspectTest {
     private DynamicPermissionClient client;
 
     @Mock
-    @SuppressWarnings("unchecked")
     private ObjectProvider<DynamicPermissionClient> clientProvider;
 
     private MeterRegistry meterRegistry;

@@ -43,7 +43,7 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
 
     // 외부 client @MockBean — [feedback_it_mockbean_external_clients]
     /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
-    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;

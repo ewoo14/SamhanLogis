@@ -67,7 +67,7 @@ class InventoryControllerIT extends AbstractPostgresIT {
     @MockBean
     private ProductClient productClient;
 
-    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     private UUID hqWarehouseId;

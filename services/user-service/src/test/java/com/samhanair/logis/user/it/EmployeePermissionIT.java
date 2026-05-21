@@ -40,7 +40,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
 
     // ---- 외부 client @MockBean 격리 ----
 
-    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

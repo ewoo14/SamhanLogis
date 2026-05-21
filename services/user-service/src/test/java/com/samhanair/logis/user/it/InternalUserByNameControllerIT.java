@@ -34,7 +34,7 @@ class InternalUserByNameControllerIT extends AbstractPostgresIT {
     @Autowired private DepartmentRepository departmentRepository;
     @Autowired private EmployeeRepository employeeRepository;
 
-    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AuthClient authClient;
 
     private Department department;

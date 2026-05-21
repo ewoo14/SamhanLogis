@@ -42,7 +42,7 @@ class TaxInvoiceLineSoftDeleteIT extends AbstractPostgresIT {
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     @Test
     @DisplayName("soft-delete 된 line_no 는 같은 세금계산서에 재발행 가능")

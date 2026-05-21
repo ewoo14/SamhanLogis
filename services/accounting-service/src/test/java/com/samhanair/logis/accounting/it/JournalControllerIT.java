@@ -63,7 +63,7 @@ class JournalControllerIT extends AbstractPostgresIT {
      * SP-D2 동적 권한 client 격리 — auth-service 호출 차단.
      * 기본값: null 반환 → Spring이 false로 처리 (lenient stub 없음 → fallback 적용).
      */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     /**
      * SP-08-FU2 cycle 2 fix (QA P1) — LedgerService / LedgerImageService 가 주입받는 외부 RestClient.
      * Eureka 비활성 IT 환경에서 loadBalancedRestClientBuilder 빈 해석 실패 또는 실 HTTP 호출 회피.

@@ -46,7 +46,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
     @MockBean private Mig9CashJournalService cashJournalService;
     @MockBean private Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
     @SuppressWarnings("removal")
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;

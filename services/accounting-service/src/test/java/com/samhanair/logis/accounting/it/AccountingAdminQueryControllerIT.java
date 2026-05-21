@@ -55,7 +55,7 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @SuppressWarnings("removal")
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach

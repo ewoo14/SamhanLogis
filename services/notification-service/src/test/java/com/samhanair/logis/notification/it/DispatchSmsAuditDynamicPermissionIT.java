@@ -52,7 +52,7 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
     // ---- 외부 client @MockBean 격리 (feedback_it_mockbean_external_clients.md) ----
 
     /** SP-D3 핵심 @MockBean — notification.dispatch-sms.send-audit canView/canEdit 제어 */
-    @MockBean(classes = com.samhanair.logis.notification.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

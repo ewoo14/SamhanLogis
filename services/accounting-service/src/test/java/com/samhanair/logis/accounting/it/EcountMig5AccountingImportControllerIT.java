@@ -43,7 +43,7 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
 
     @MockBean private EcountExpenseVoucherImporter expenseVoucherImporter;
     @MockBean private EcountDepositReportImporter depositReportImporter;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;

@@ -80,7 +80,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
      * SP-D1 동적 권한 client 격리 — auth-service 호출 차단.
      * 기본 lenient stub: canView/canEdit 모두 true (기존 테스트 8건 영향 없음).
      */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     // ─── 1. DRY_RUN 정상 발행 ───────────────────────────────────────────────
 

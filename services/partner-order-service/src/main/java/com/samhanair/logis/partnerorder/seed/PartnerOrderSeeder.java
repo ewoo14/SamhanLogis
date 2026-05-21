@@ -54,10 +54,6 @@ public class PartnerOrderSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerOrderSeeder.class);
 
-    /** Stage 1 partner 50 의 partnerCode prefix — P-2026-0001 ~ P-2026-0050. */
-    private static final String PARTNER_CODE_PREFIX = "P-2026-";
-    /** Stage 1 product 100 의 modelCode prefix — Samsung HVAC 01XXXX. */
-    private static final String PRODUCT_CODE_PREFIX = "01";
     /** Stage 2 slip 100 의 slipNo prefix — yyyy/MM/dd-N (slip-service SlipNumberService). */
     private static final String SLIP_DATE_PREFIX = "2026/04/15";
 

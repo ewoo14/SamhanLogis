@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.Mig8OrderTransformService;
 import com.samhanair.logis.accounting.web.dto.EcountMig8TransformRequest;
 import com.samhanair.logis.common.ecount.EcountMig8TransformResult;

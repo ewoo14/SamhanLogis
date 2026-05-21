@@ -60,7 +60,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
     @MockBean ChatRoomMappingClient chatRoomMappingClient;
     @MockBean ETaxClient eTaxClient;
     @MockBean KftcClient kftcClient;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
 
     @Test
     void POST_admin_tax_invoices_batch_from_sales_slips_3장_정상묶음() throws Exception {

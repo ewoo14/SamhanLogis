@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.KftcDepositRecord;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;

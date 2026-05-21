@@ -230,7 +230,6 @@ class ArologisDriverAppControllerTest {
                 new BigDecimal("37.4979000"), new BigDecimal("127.0276000"), capturedAt);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        @SuppressWarnings("unchecked")
         ApiResponse<DriverPhotoUploadResponse> body =
                 (ApiResponse<DriverPhotoUploadResponse>) response.getBody();
         assertThat(body).isNotNull();
@@ -435,7 +434,6 @@ class ArologisDriverAppControllerTest {
         var response = controller.slipDetailToday(DispatchType.NIGHT, 4, 2, request, 5555L);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        @SuppressWarnings("unchecked")
         ApiResponse<DriverSlipDetailResponse> body =
                 (ApiResponse<DriverSlipDetailResponse>) response.getBody();
         assertThat(body).isNotNull();

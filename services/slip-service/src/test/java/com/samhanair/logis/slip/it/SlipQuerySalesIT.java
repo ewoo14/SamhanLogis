@@ -85,7 +85,7 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
     private SlipRepository slipRepository;
 
     /** SP-D3 cycle 3 fix — DynamicPermissionClient @MockBean 누락 시 Eureka 호출 → 403 fallback 트랩 */
-    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

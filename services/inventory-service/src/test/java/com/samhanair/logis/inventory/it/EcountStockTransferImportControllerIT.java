@@ -44,7 +44,7 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountStockTransferImporter importer;
-    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private ProductLookupClient productLookupClient;
     @MockBean private SlipServiceClient slipServiceClient;

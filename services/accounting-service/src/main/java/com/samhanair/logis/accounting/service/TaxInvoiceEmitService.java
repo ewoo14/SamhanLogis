@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.ETaxSubmitResult;
 import com.samhanair.logis.accounting.domain.TaxInvoice;

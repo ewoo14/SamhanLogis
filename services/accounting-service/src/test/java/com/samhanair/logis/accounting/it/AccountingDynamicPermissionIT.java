@@ -78,7 +78,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
      * SP-D2 핵심 — 동적 권한 client 격리.
      * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 보호).
      */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setupLenientStubs() {

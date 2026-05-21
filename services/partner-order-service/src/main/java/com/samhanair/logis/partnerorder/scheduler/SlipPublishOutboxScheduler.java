@@ -138,7 +138,6 @@ public class SlipPublishOutboxScheduler {
         row.markRetry(error, LocalDateTime.now().plusMinutes(delayMin));
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> parsePayload(String json) {
         try {
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});

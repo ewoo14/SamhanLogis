@@ -37,7 +37,7 @@ class EcountWarehouseImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountWarehouseImporter importer;
-    @MockBean(classes = com.samhanair.logis.inventory.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private AccountingClient accountingClient;

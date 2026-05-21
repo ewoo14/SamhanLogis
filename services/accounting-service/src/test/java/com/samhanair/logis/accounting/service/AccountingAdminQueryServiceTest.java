@@ -83,7 +83,8 @@ class AccountingAdminQueryServiceTest {
                 "운송비",
                 "mig7:row:1");
         when(cashDisbursementRepository.findAll(
-                any(Specification.class), any(Pageable.class)))
+                org.mockito.ArgumentMatchers.<Specification<CashDisbursement>>any(),
+                any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(disbursement)));
         when(partnerLookupClient.findByPartnerIdsBatch(any()))
                 .thenReturn(Map.of(PARTNER_ID, "삼한상사"));
@@ -115,7 +116,8 @@ class AccountingAdminQueryServiceTest {
         Map<UUID, String> names = new LinkedHashMap<>();
         rows.forEach(row -> names.put(row.getPartnerId(), "거래처-" + row.getSlipNo()));
         when(cashDisbursementRepository.findAll(
-                any(Specification.class), any(Pageable.class)))
+                org.mockito.ArgumentMatchers.<Specification<CashDisbursement>>any(),
+                any(Pageable.class)))
                 .thenReturn(new PageImpl<>(rows, PageRequest.of(0, 50), 50));
         when(partnerLookupClient.findByPartnerIdsBatch(any()))
                 .thenReturn(names);
@@ -125,7 +127,7 @@ class AccountingAdminQueryServiceTest {
 
         assertThat(result.getContent()).hasSize(50);
         org.mockito.ArgumentCaptor<List<UUID>> idsCaptor =
-                org.mockito.ArgumentCaptor.forClass(List.class);
+                org.mockito.ArgumentCaptor.captor();
         verify(partnerLookupClient).findByPartnerIdsBatch(idsCaptor.capture());
         assertThat(idsCaptor.getValue()).hasSize(50);
         verify(partnerLookupClient, never()).findByPartnerId(any());
@@ -164,7 +166,8 @@ class AccountingAdminQueryServiceTest {
     void ledgerDailyDiff_usesUnfilteredRawDailyTotals() {
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
                 .thenReturn(0L);
-        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<Object>>any()))
                 .thenReturn(List.of());
 
         service.listSalesLedger(
@@ -178,7 +181,7 @@ class AccountingAdminQueryServiceTest {
         org.mockito.Mockito.verify(jdbcTemplate).query(
                 sqlCaptor.capture(),
                 any(MapSqlParameterSource.class),
-                any(RowMapper.class));
+                org.mockito.ArgumentMatchers.<RowMapper<Object>>any());
         String sql = sqlCaptor.getValue();
         assertThat(sql).contains("raw_totals");
         assertThat(sql).contains("GROUP BY transaction_date");
@@ -189,7 +192,8 @@ class AccountingAdminQueryServiceTest {
     void agingSnapshot_usesPageableLimitOffsetAndCountQuery() {
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
                 .thenReturn(0L);
-        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<Object>>any()))
                 .thenReturn(List.of());
 
         Page<?> result = service.listAgingSnapshot(
@@ -201,7 +205,7 @@ class AccountingAdminQueryServiceTest {
         verify(jdbcTemplate).query(
                 anyString(),
                 paramsCaptor.capture(),
-                any(RowMapper.class));
+                org.mockito.ArgumentMatchers.<RowMapper<Object>>any());
         MapSqlParameterSource params = paramsCaptor.getValue();
         assertThat(params.getValue("limit")).isEqualTo(500);
         assertThat(params.getValue("offset")).isEqualTo(1000L);

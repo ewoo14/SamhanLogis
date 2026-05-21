@@ -72,7 +72,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     // ---- 외부 client @MockBean 격리 (feedback_it_mockbean_external_clients.md) ----
 
     /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
-    @MockBean(classes = com.samhanair.logis.notification.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean

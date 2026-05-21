@@ -88,7 +88,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @MockBean private ProductClient productClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     // ─── 1. DRY_RUN 성공 (ACCOUNTANT) — 5건 mock 응답 ──────────────────────
 

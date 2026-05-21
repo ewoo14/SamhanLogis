@@ -303,7 +303,8 @@ class StockServiceTest {
         ReflectionTestUtils.setField(p2Hq, "availableQty", 7);
         ReflectionTestUtils.setField(p2Hq, "totalQty", 7);
 
-        when(stockBalanceRepository.findAllByProductIdInAndIsDeletedFalse(any(Collection.class)))
+        when(stockBalanceRepository.findAllByProductIdInAndIsDeletedFalse(
+                org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
                 .thenReturn(List.of(p2Hq, p1Vh, p1Hq)); // DB 순서는 임의
 
         List<ProductBalanceResponse> result = service.findBalancesByProductIds(List.of(p1, p2));
@@ -322,7 +323,8 @@ class StockServiceTest {
         // DB 에 row 가 없어도 요청한 productId 마다 빈 balances 리스트 반환 (FE 가 dash 표시).
         UUID p1 = UUID.randomUUID();
         UUID p2 = UUID.randomUUID();
-        when(stockBalanceRepository.findAllByProductIdInAndIsDeletedFalse(any(Collection.class)))
+        when(stockBalanceRepository.findAllByProductIdInAndIsDeletedFalse(
+                org.mockito.ArgumentMatchers.<Collection<UUID>>any()))
                 .thenReturn(Collections.emptyList());
 
         List<ProductBalanceResponse> result = service.findBalancesByProductIds(List.of(p1, p2));

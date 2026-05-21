@@ -125,6 +125,7 @@ public class DispatchService {
      * 모든 vehicle 자동 매칭 — 활성 DriverMatcher 호출 + 매칭 결과 반영 + 알림.
      */
     @Transactional
+    @SuppressWarnings("deprecation") // Driver.getAppUserId 는 2026-05-14 분리로 deprecated 지만, Phase 11 cutover 전까지 기존 row 의 user-service userId 매핑이 살아있는 동안 push 알림에 사용 — phoneNumber 기반 push 도입 슬라이스 전 임시 유지.
     public AutoMatchResult autoMatch(UUID dispatchId) {
         DispatchAggregate agg = findById(dispatchId);
         int total = agg.vehicles().size();
@@ -143,9 +144,12 @@ public class DispatchService {
                     Driver driver = result.driver().get();
                     vehicle.assignDriver(driver.getId(), result.source(), result.externalRefId());
                     matched++;
-                    notificationClient.send(driver.getAppUserId(), "PUSH",
-                            "신규 배차 매칭",
-                            "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
+                    UUID appUserId = driver.getAppUserId();
+                    if (appUserId != null) {
+                        notificationClient.send(appUserId, "PUSH",
+                                "신규 배차 매칭",
+                                "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
+                    }
                 } else {
                     log.info("자동 매칭 실패 — vehicleSeq={}, source={}",
                             vehicle.getSequence(), result.source());

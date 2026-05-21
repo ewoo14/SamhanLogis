@@ -87,7 +87,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
     /** KFTC 오픈뱅킹 client 격리 — SP-09-4. */
     @MockBean private KftcClient kftcClient;
     /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     /** KFTC 거래처 매칭 cross-service client 격리. */
     @MockBean private PartnerLookupClient partnerLookupClient;

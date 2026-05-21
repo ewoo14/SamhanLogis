@@ -4,7 +4,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
-import com.samhanair.logis.partner.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import java.math.BigDecimal;

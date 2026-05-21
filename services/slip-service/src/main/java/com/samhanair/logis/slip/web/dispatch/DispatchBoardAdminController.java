@@ -2,7 +2,7 @@ package com.samhanair.logis.slip.web.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
 import com.samhanair.logis.slip.dto.dispatch.SlipBoardResponse;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskBoardQueryService;

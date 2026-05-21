@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.Mig10OrderEmployeeBackfillService;
 import com.samhanair.logis.accounting.web.dto.EcountMig10BackfillRequest;
 import com.samhanair.logis.common.ecount.EcountMig10Result;

@@ -114,7 +114,7 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
      * SP-D3 동적 권한 client 격리.
      * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
      */
-    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean

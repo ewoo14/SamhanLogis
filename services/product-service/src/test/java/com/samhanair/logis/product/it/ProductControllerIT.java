@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
-import com.samhanair.logis.product.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import java.math.BigDecimal;

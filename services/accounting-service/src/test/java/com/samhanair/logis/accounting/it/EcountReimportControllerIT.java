@@ -57,7 +57,7 @@ class EcountReimportControllerIT {
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach

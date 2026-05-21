@@ -34,23 +34,6 @@ import org.springframework.web.client.RestClient;
  */
 class Phase10VendorPlaceholderGuardConsistencyTest {
 
-    /** 6 표준 placeholder 키워드 (SP-10-2 InsungQuickClientImpl 에서 사용). */
-    private static final String[] STANDARD_PLACEHOLDERS = {
-            "PLACEHOLDER_DEV_ONLY",
-            "CHANGE_ME_LOCAL_ONLY",
-            "changeme",
-            "dummy",
-            "placeholder"
-    };
-
-    /** 합법적인 키 샘플 — 차단되지 않아야 한다 (false-positive 가드). */
-    private static final String[] LEGITIMATE_KEY_SAMPLES = {
-            "sandbox-key-9a3f",
-            "sk-live-abc123",
-            "real-insung-api-key-20260519",
-            "insung_prod_key_xyz"
-    };
-
     // ═══════════════════════════════════════════════════════════════════════
     // InsungQuickClientImpl placeholder 가드 검증
     // ═══════════════════════════════════════════════════════════════════════

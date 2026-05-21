@@ -1,6 +1,5 @@
 package com.samhanair.logis.partnerorder.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
@@ -31,14 +30,11 @@ public class DcConfigClient {
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
-    private final ObjectMapper objectMapper;
 
     public DcConfigClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
-                          InternalAuthProperties internalAuthProperties,
-                          ObjectMapper objectMapper) {
+                          InternalAuthProperties internalAuthProperties) {
         this.restClient = builder.baseUrl(DC_CONFIG_SERVICE_BASE).build();
         this.internalAuthProperties = internalAuthProperties;
-        this.objectMapper = objectMapper;
     }
 
     /**

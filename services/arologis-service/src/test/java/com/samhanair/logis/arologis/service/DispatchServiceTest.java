@@ -56,12 +56,6 @@ class DispatchServiceTest {
             dispatchRepository, vehicleRepository, stopRepository,
             driverRepository, driverMatcher, notificationClient, auditLogRecorder);
 
-    private static UUID idOf(Dispatch d) throws Exception {
-        Field f = Dispatch.class.getDeclaredField("id");
-        f.setAccessible(true);
-        return (UUID) f.get(d);
-    }
-
     private static void setId(Object entity, String fieldName, UUID id) throws Exception {
         Field f = entity.getClass().getDeclaredField(fieldName);
         f.setAccessible(true);

@@ -256,14 +256,16 @@ class Mig9CashJournalServiceTest {
         when(jdbcTemplate.<Mig9CashJournalService.CashRow>query(
                 contains("FROM cash_disbursements"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<Mig9CashJournalService.CashRow>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private void receipts(Mig9CashJournalService.CashRow... rows) {
         when(jdbcTemplate.<Mig9CashJournalService.CashRow>query(
                 contains("FROM cash_receipts"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<Mig9CashJournalService.CashRow>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private SqlParameterSource journalParams() {

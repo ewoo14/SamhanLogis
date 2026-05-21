@@ -7,6 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -67,7 +68,7 @@ public class SlipServiceClient {
         }
 
         try {
-            ResponseEntity<Map> response = restClient.post()
+            ResponseEntity<Map<String, Object>> response = restClient.post()
                     .uri("/slips/from-partner-order")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .header(IDEMPOTENCY_HEADER, idempotencyKey)
@@ -82,7 +83,7 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })
-                    .toEntity(Map.class);
+                    .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {});
 
             String slipNo = extractSlipNo(response.getBody());
             if (slipNo == null || slipNo.isBlank()) {
@@ -101,8 +102,7 @@ public class SlipServiceClient {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private String extractSlipNo(Map body) {
+    private String extractSlipNo(Map<String, Object> body) {
         if (body == null) {
             return null;
         }

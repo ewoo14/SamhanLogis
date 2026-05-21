@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.EcountSalesLedgerImporter;
 import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig11Result;

@@ -42,7 +42,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
     @MockBean private EcountEmployeeImporter employeeImporter;
     @MockBean private EcountEmployeeCardImporter employeeCardImporter;
     @MockBean private EcountPayrollEmployeeImporter payrollEmployeeImporter;
-    @MockBean(classes = com.samhanair.logis.user.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AuthClient authClient;
 
     @BeforeEach

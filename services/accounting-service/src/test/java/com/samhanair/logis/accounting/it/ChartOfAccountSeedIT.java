@@ -35,7 +35,7 @@ class ChartOfAccountSeedIT extends AbstractPostgresIT {
     @MockBean
     private KftcClient kftcClient;
     /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
 
     @Test

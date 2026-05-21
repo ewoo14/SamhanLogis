@@ -91,7 +91,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
      * 주입받으므로 @MockBean 격리 필수. 누락 시 실제 구현체가 auth-service 호출 → 500 오류.
      * lenient stub 으로 기본 canView=true / canEdit=true 설정.
      */
-    @MockBean(classes = com.samhanair.logis.slip.client.DynamicPermissionClient.class)
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
     private DynamicPermissionClient dynamicPermissionClient;
     /** SP-D4 회귀 fix (audit-slice-3) — ArologisDispatchClient @MockBean 격리. */
     @MockBean

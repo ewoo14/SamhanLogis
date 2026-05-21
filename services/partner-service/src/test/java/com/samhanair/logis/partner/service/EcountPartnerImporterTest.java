@@ -76,13 +76,6 @@ class EcountPartnerImporterTest {
                 + "\"" + transfer + "\t\",\"" + credit + "\",\"" + firstCreated + "\t\",\"\"\n";
     }
 
-    /** 신규 Partner stub (save 반환용). */
-    private Partner stubSaved(String code, String name) {
-        Partner p = Partner.register(code, code, name, null, null, BigDecimal.ZERO);
-        // ID 는 register 시점 미발급. 실제로는 save() 시 hibernate 가 발급. 단위테스트는 모킹 우회.
-        return p;
-    }
-
     private void wireSaveEcho() {
         lenient().when(partnerRepository.save(any(Partner.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));

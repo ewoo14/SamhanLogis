@@ -4,7 +4,7 @@ import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.inventory.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.service.EcountStockTransferImporter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -59,7 +59,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
     /** SP-09-4 KFTC 오픈뱅킹 client 격리. */
     @MockBean private KftcClient kftcClient;
     /** SP-D2 동적 권한 client 격리. */
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     /** SP-08-FU2 cycle 2 — LedgerService 가 의존하는 외부 RestClient 격리. */
     @MockBean private PartnerLookupClient partnerLookupClient;
 

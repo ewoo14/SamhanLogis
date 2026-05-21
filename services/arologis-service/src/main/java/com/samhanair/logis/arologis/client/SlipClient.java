@@ -50,7 +50,6 @@ public class SlipClient {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
-    private final String baseUrl;
     private final String internalToken;
     private final boolean skeletonMode;
 
@@ -65,7 +64,6 @@ public class SlipClient {
         // 그대로 build — production timeout 설정은 WebClientConfig bean (또는 호출자 builder) 가 책임.
         this.restClient = builder.baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
-        this.baseUrl = baseUrl;
         this.internalToken = internalToken;
         this.skeletonMode = skeletonMode;
     }

@@ -3,7 +3,7 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.slip.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.service.ReceiptOcrParseService;
 import com.samhanair.logis.slip.web.dto.ReceiptParseResponse;
 import io.swagger.v3.oas.annotations.Operation;

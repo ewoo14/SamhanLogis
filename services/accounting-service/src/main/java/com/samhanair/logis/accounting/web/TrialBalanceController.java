@@ -1,6 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
-import com.samhanair.logis.accounting.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.service.TrialBalanceService;
 import com.samhanair.logis.accounting.web.dto.TrialBalanceResponse;
 import com.samhanair.logis.common.dto.ApiResponse;

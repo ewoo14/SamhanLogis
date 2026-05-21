@@ -3,7 +3,7 @@ package com.samhanair.logis.notification.controller;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.notification.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.service.DispatchSmsSaveHistoryService;

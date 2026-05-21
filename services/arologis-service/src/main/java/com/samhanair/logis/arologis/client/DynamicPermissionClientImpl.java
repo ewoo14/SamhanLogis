@@ -1,5 +1,6 @@
 package com.samhanair.logis.arologis.client;
 
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

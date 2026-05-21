@@ -335,11 +335,6 @@ public class HvacProductSeeder implements CommandLineRunner {
             java.util.UUID categoryId,
             BigDecimal tonnageHp,
             String description) {
-
-        /** dummy ProductCategory mapping (현재 entity 비필수 — null fallback). */
-        ProductCategory productCategory() {
-            return null;
-        }
     }
 
     /**

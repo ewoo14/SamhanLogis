@@ -41,7 +41,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     @MockBean SlipServiceClient slipServiceClient;
     @MockBean ETaxClient eTaxClient;
     @MockBean KftcClient kftcClient;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
     @MockBean SalesAccountingSlipNumberGenerator numberGenerator;
 
     @Test

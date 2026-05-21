@@ -1,6 +1,5 @@
 package com.samhanair.logis.arologis.service.insung;
 
-import com.samhanair.logis.arologis.config.ArologisMatcherProperties;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.domain.MatchSource;
@@ -57,7 +56,6 @@ public class InsungWebhookService {
     private final VehicleStopRepository vehicleStopRepository;
     private final DriverRepository driverRepository;
     private final SignatureRepository signatureRepository;
-    private final ArologisMatcherProperties matcherProperties;
 
     /**
      * 인성 매칭 완료/실패 webhook 처리.

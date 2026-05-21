@@ -1,6 +1,6 @@
 package com.samhanair.logis.arologis.controller;
 
-import com.samhanair.logis.arologis.client.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.dto.AvailableDriverResponse;
 import com.samhanair.logis.arologis.dto.DispatchPageResponse;

@@ -46,7 +46,7 @@ class DispatchTaskBoardQueryServiceTest {
 
         ArgumentCaptor<LocalDate> fromC = ArgumentCaptor.forClass(LocalDate.class);
         ArgumentCaptor<LocalDate> toC = ArgumentCaptor.forClass(LocalDate.class);
-        ArgumentCaptor<Set<SlipDispatchStatus>> statusC = ArgumentCaptor.forClass(Set.class);
+        ArgumentCaptor<Set<SlipDispatchStatus>> statusC = ArgumentCaptor.captor();
         verify(slipRepo).findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
                 eq(SlipType.OUTBOUND), fromC.capture(), toC.capture(),
                 statusC.capture(), any(Pageable.class));

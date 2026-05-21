@@ -42,7 +42,7 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private Mig10OrderEmployeeBackfillService service;
-    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
