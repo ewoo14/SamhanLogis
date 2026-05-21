@@ -208,9 +208,15 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
   PENDING: '대기',
 }
 
+export const LEDGER_TRANSFORM_STATUS_LABEL: Record<string, string> = {
+  PENDING: '대기',
+  TRANSFORMED: '변환완료',
+  REJECTED: '제외',
+}
+
 export function orderStatusTone(status: string): 'neutral' | 'success' | 'danger' | 'warning' {
   if (status === 'COMPLETED') return 'success'
-  if (status === 'CANCELED') return 'danger'
+  if (status === 'CANCELED') return 'neutral'
   if (status === 'IN_PROGRESS') return 'warning'
   return 'neutral'
 }

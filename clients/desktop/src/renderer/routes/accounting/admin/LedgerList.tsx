@@ -9,6 +9,7 @@ import { usePageTitle } from '../../../hooks/usePageTitle'
 import { firstDayOfMonth, today } from '../../../utils/dateUtils'
 import {
   FilterField,
+  LEDGER_TRANSFORM_STATUS_LABEL,
   MoneyText,
   PAGE_SIZE,
   PagedTable,
@@ -20,6 +21,12 @@ import {
   inputStyle,
   pageRootStyle,
 } from './Mig14AdminShared'
+
+function ledgerTransformStatusTone(status: string): 'neutral' | 'success' | 'danger' | 'warning' {
+  if (status === 'TRANSFORMED') return 'success'
+  if (status === 'PENDING') return 'warning'
+  return 'neutral'
+}
 
 interface LedgerListProps {
   title: string
@@ -132,10 +139,18 @@ export function LedgerList({
         width: '90px',
         render: (row) => {
           const tone = diffTone(row.dailyDiff)
+          const status = row.transformStatus ?? 'PENDING'
+          const label = LEDGER_TRANSFORM_STATUS_LABEL[status] ?? status
+          if (tone === 'success') {
+            return <StatusBadge label="일치" tone="success" />
+          }
+          if (status !== 'PENDING') {
+            return <StatusBadge label={label} tone={ledgerTransformStatusTone(status)} />
+          }
           return (
             <StatusBadge
-              label={tone === 'success' ? '일치' : row.transformStatus ?? '차이'}
-              tone={tone}
+              label="차이"
+              tone="danger"
             />
           )
         },

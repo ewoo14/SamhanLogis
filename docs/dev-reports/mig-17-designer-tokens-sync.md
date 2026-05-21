@@ -1,7 +1,7 @@
 # MIG-17 Designer tokens.md + Mock 라벨 실 enum 동기화
 
-> 날짜: 2026-05-21  
-> 브랜치: `spec/2026-05-21-mig-17-designer-tokens-sync`  
+> 날짜: 2026-05-21
+> 브랜치: `spec/2026-05-21-mig-17-designer-tokens-sync`
 > 범위: FE 라벨 + docs
 
 ---
