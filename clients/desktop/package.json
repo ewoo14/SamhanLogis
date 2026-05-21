@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build:legacy && electron-vite dev",
+    "local-dev": "node ../../scripts/run-client-local-dev.cjs desktop",
     "build": "npm run build:legacy && electron-vite build",
     "build:legacy": "node scripts/build-legacy-estimate.cjs",
     "build:print-renderer": "vite build --config vite.print-renderer.config.ts",

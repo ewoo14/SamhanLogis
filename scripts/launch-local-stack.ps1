@@ -1,0 +1,132 @@
+param(
+    [switch]$SkipBuild,
+    [switch]$SkipClients,
+    [switch]$TunnelExpo
+)
+
+$ErrorActionPreference = "Stop"
+
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ComposeFiles = @(
+    "-f", "infrastructure/docker-compose.yml",
+    "-f", "infrastructure/docker-compose.local-all.yml"
+)
+$LogDir = Join-Path $RepoRoot "logs/local-stack/clients"
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+
+function Invoke-AtRoot {
+    param([scriptblock]$Block)
+    Push-Location $RepoRoot
+    try { & $Block } finally { Pop-Location }
+}
+
+function Wait-Http {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [int]$TimeoutSeconds = 180
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                Write-Host "[local-stack] OK $Name $Url"
+                return
+            }
+        } catch {
+            Start-Sleep -Seconds 3
+        }
+    } while ((Get-Date) -lt $deadline)
+    throw "[local-stack] TIMEOUT $Name $Url"
+}
+
+function Wait-Postgres {
+    $deadline = (Get-Date).AddSeconds(120)
+    do {
+        Invoke-AtRoot {
+            docker exec samhan-postgres pg_isready -U samhan | Out-Null
+        }
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[local-stack] OK postgres pg_isready"
+            return
+        }
+        Start-Sleep -Seconds 3
+    } while ((Get-Date) -lt $deadline)
+    throw "[local-stack] TIMEOUT postgres pg_isready"
+}
+
+function Start-Client {
+    param(
+        [string]$Name,
+        [string]$Path
+    )
+    $clientDir = Join-Path $RepoRoot $Path
+    $logPath = Join-Path $LogDir "$Name.log"
+    $command = "cd /d `"$clientDir`" && npm.cmd run local-dev *> `"$logPath`""
+    $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -PassThru -WindowStyle Hidden
+    Write-Host ("[local-stack] client {0,-18} pid={1} log={2}" -f $Name, $process.Id, $logPath)
+}
+
+Invoke-AtRoot {
+    if (-not $SkipBuild) {
+        Write-Host "[local-stack] bootJar build 시작"
+        ./gradlew.bat `
+            :services:eureka-server:bootJar `
+            :services:api-gateway:bootJar `
+            :services:auth-service:bootJar `
+            :services:user-service:bootJar `
+            :services:product-service:bootJar `
+            :services:inventory-service:bootJar `
+            :services:slip-service:bootJar `
+            :services:accounting-service:bootJar `
+            :services:partner-order-service:bootJar `
+            :services:dc-config-service:bootJar `
+            :services:partner-auth-service:bootJar `
+            :services:groupware-service:bootJar `
+            :services:notification-service:bootJar `
+            :services:dashboard-service:bootJar `
+            :services:partner-service:bootJar `
+            :services:arologis-service:bootJar `
+            --no-daemon --no-parallel
+    }
+
+    Write-Host "[local-stack] docker compose up -d"
+    docker compose @ComposeFiles up -d --build
+}
+
+Wait-Postgres
+Wait-Http "eureka" "http://localhost:8761/actuator/health" 180
+Wait-Http "gateway" "http://localhost:8080/actuator/health" 180
+Wait-Http "auth" "http://localhost:8081/actuator/health" 180
+Wait-Http "dashboard" "http://localhost:8094/actuator/health" 180
+
+if (-not $SkipClients) {
+    if ($TunnelExpo) {
+        Write-Host "[local-stack] TunnelExpo 요청은 Expo CLI에서 수동 전환합니다. 기본 실행은 --localhost 입니다."
+    }
+    Start-Client "desktop" "clients/desktop"
+    Start-Client "mobile" "clients/mobile"
+    Start-Client "mobile-staff" "clients/mobile-staff"
+    Start-Client "estimate-app" "clients/web/estimate-app"
+    Start-Client "order-app" "clients/web/order-app"
+    Start-Client "design-system" "clients/web/design-system"
+    Start-Client "arologis-desktop" "clients/arologis-desktop"
+    Start-Client "arologis-mobile" "clients/arologis-mobile"
+}
+
+Write-Host ""
+Write-Host "SamhanLogis local stack URLs"
+Write-Host "  API Gateway       http://localhost:8080"
+Write-Host "  Eureka            http://localhost:8761"
+Write-Host "  Grafana           http://localhost:3000  (admin / samhan_dev_pw)"
+Write-Host "  Prometheus        http://localhost:9090"
+Write-Host "  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)"
+Write-Host "  Desktop           Electron 자동 실행, Vite renderer http://localhost:5173"
+Write-Host "  Estimate Web      http://localhost:5174"
+Write-Host "  Order Web         http://localhost:5175"
+Write-Host "  Design System     http://localhost:5176"
+Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:8097"
+Write-Host "  Mobile QR         Expo 터미널 로그: $LogDir"
+Write-Host ""
+Write-Host "Seed 실행: .\scripts\seed-local-stack.ps1"

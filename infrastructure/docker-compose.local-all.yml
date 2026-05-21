@@ -1,0 +1,501 @@
+# SamhanLogis MIG-23 local-all overlay.
+#
+# Usage:
+#   docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d
+#
+# This overlay adds Eureka, gateway, and the 14 Spring services on top of the
+# existing infra compose file. JAR artifacts are produced by scripts/launch-local-stack.*
+# before docker compose builds these runtime images.
+
+x-spring-build: &spring-build
+  context: ..
+  dockerfile: infrastructure/docker/spring-service.Dockerfile
+
+x-spring-env: &spring-env
+  SPRING_PROFILES_ACTIVE: dev
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: samhan
+  DB_PASSWORD: samhan_dev_pw
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  RABBIT_HOST: rabbitmq
+  RABBIT_PORT: "5672"
+  RABBIT_USER: samhan
+  RABBIT_PASSWORD: samhan_dev_pw
+  EUREKA_URL: http://eureka-server:8761/eureka/
+  SAMHAN_DISCOVERY_PROVIDER: eureka
+  SAMHAN_INTERNAL_TOKEN: dev-internal-token-change-me
+  ECOUNT_REIMPORT_RAW_DIR: /workspace/docs/migration/ecount-data/raw
+  LOGGING_FILE_PATH: /logs/samhan-service.log
+
+x-service-depends: &service-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  eureka-server:
+    condition: service_healthy
+  api-gateway:
+    condition: service_healthy
+
+x-service-volumes: &service-volumes
+  - ../docs/migration/ecount-data/raw:/workspace/docs/migration/ecount-data/raw:ro
+  - ../logs/local-stack:/logs
+
+services:
+  grafana:
+    ports:
+      - "3000:3000"
+
+  eureka-server:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/eureka-server/build/libs/eureka-server.jar
+    container_name: samhan-eureka
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: "8761"
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+    ports:
+      - "8761:8761"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    volumes:
+      - ../logs/local-stack:/logs
+    networks:
+      - samhan-net
+
+  api-gateway:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/api-gateway/build/libs/api-gateway.jar
+    container_name: samhan-api-gateway
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+    ports:
+      - "8080:8080"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+    volumes:
+      - ../logs/local-stack:/logs
+    networks:
+      - samhan-net
+
+  auth-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/auth-service/build/libs/auth-service.jar
+    container_name: samhan-auth-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8081"
+      DB_NAME: auth_db
+      SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+    ports:
+      - "8081:8081"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  user-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/user-service/build/libs/user-service.jar
+    container_name: samhan-user-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8083"
+      DB_NAME: user_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+    ports:
+      - "8083:8083"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  product-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/product-service/build/libs/product-service.jar
+    container_name: samhan-product-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8084"
+      DB_NAME: product_db
+    ports:
+      - "8084:8084"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  inventory-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/inventory-service/build/libs/inventory-service.jar
+    container_name: samhan-inventory-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8085"
+      DB_NAME: inventory_db
+    ports:
+      - "8085:8085"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8085/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  slip-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/slip-service/build/libs/slip-service.jar
+    container_name: samhan-slip-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8086"
+      DB_NAME: slip_db
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
+    ports:
+      - "8086:8086"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  accounting-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/accounting-service/build/libs/accounting-service.jar
+    container_name: samhan-accounting-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8087"
+      DB_NAME: accounting_db
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
+      SAMHAN_DASHBOARD_SERVICE_URL: http://dashboard-service:8094
+      SAMHAN_ACCOUNTING_SEED_TEST_DATA: "true"
+    ports:
+      - "8087:8087"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8087/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 75s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  partner-order-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/partner-order-service/build/libs/partner-order-service.jar
+    container_name: samhan-partner-order-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8088"
+      SAMHAN_PARTNER_ORDER_DB_HOST: postgres
+      SAMHAN_PARTNER_ORDER_DB_PORT: "5432"
+      SAMHAN_PARTNER_ORDER_DB_NAME: partner_order_db
+      SAMHAN_PARTNER_ORDER_DB_USER: samhan
+      SAMHAN_PARTNER_ORDER_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+    ports:
+      - "8088:8088"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  dc-config-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/dc-config-service/build/libs/dc-config-service.jar
+    container_name: samhan-dc-config-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8089"
+      SAMHAN_DC_CONFIG_DB_HOST: postgres
+      SAMHAN_DC_CONFIG_DB_PORT: "5432"
+      SAMHAN_DC_CONFIG_DB_NAME: dc_config_db
+      SAMHAN_DC_CONFIG_DB_USER: samhan
+      SAMHAN_DC_CONFIG_DB_PASSWORD: samhan_dev_pw
+    ports:
+      - "8089:8089"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8089/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  partner-auth-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/partner-auth-service/build/libs/partner-auth-service.jar
+    container_name: samhan-partner-auth-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8091"
+      DB_NAME: partner_auth_db
+    ports:
+      - "8091:8091"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8091/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  groupware-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/groupware-service/build/libs/groupware-service.jar
+    container_name: samhan-groupware-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8092"
+      SAMHAN_GROUPWARE_DB_HOST: postgres
+      SAMHAN_GROUPWARE_DB_PORT: "5432"
+      SAMHAN_GROUPWARE_DB_NAME: groupware_db
+      SAMHAN_GROUPWARE_DB_USER: samhan
+      SAMHAN_GROUPWARE_DB_PASSWORD: samhan_dev_pw
+    ports:
+      - "8092:8092"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8092/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  notification-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/notification-service/build/libs/notification-service.jar
+    container_name: samhan-notification-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8093"
+      SAMHAN_NOTIFICATION_DB_HOST: postgres
+      SAMHAN_NOTIFICATION_DB_PORT: "5432"
+      SAMHAN_NOTIFICATION_DB_NAME: notification_db
+      SAMHAN_NOTIFICATION_DB_USER: samhan
+      SAMHAN_NOTIFICATION_DB_PASSWORD: samhan_dev_pw
+      SMTP_HOST: localhost
+      SMTP_PORT: "2525"
+    ports:
+      - "8093:8093"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8093/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  dashboard-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/dashboard-service/build/libs/dashboard-service.jar
+    container_name: samhan-dashboard-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8094"
+      SAMHAN_DASHBOARD_DB_HOST: postgres
+      SAMHAN_DASHBOARD_DB_PORT: "5432"
+      SAMHAN_DASHBOARD_DB_NAME: dashboard_db
+      SAMHAN_DASHBOARD_DB_USER: samhan
+      SAMHAN_DASHBOARD_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
+    ports:
+      - "8094:8094"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8094/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  partner-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/partner-service/build/libs/partner-service.jar
+    container_name: samhan-partner-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8095"
+      SAMHAN_PARTNER_DB_HOST: postgres
+      SAMHAN_PARTNER_DB_PORT: "5432"
+      SAMHAN_PARTNER_DB_NAME: partner_db
+      SAMHAN_PARTNER_DB_USER: samhan
+      SAMHAN_PARTNER_DB_PASSWORD: samhan_dev_pw
+    ports:
+      - "8095:8095"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8095/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes: *service-volumes
+    networks:
+      - samhan-net
+
+  arologis-service:
+    build:
+      <<: *spring-build
+      args:
+        JAR_FILE: services/arologis-service/build/libs/arologis-service.jar
+    container_name: samhan-arologis-service
+    restart: unless-stopped
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8097"
+      SAMHAN_AROLOGIS_DB_HOST: postgres
+      SAMHAN_AROLOGIS_DB_PORT: "5432"
+      SAMHAN_AROLOGIS_DB_NAME: arologis_db
+      SAMHAN_AROLOGIS_DB_USER: samhan
+      SAMHAN_AROLOGIS_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
+      SAMHAN_AROLOGIS_SEED_TEST_DATA: "true"
+      SAMHAN_AROLOGIS_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
+      SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
+      AROLOGIS_SIGNATURE_COPY_DIR: /var/lib/arologis/signature-copies
+    ports:
+      - "8097:8097"
+    depends_on: *service-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8097/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 75s
+    volumes:
+      - ../docs/migration/ecount-data/raw:/workspace/docs/migration/ecount-data/raw:ro
+      - ../logs/local-stack:/logs
+      - arologis_signature_copies:/var/lib/arologis/signature-copies
+    networks:
+      - samhan-net
+
+volumes:
+  arologis_signature_copies:

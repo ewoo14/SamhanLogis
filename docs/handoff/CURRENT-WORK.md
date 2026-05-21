@@ -4,6 +4,34 @@
 
 ---
 
+## 🚧 2026-05-21 최신 진행 — MIG-23 로컬 6 client 직접 검증 환경
+
+### 현재 브랜치
+- `spec/2026-05-21-mig-23-local-6-client-direct-test`
+
+### 범위
+
+- `infrastructure/docker-compose.local-all.yml` overlay로 Eureka, gateway, 14 backend service를 기존 infra compose 위에 추가한다.
+- `scripts/launch-local-stack.ps1` / `.sh`가 bootJar build → compose up → postgres/eureka/gateway/auth/dashboard health check → 6 client 운영 단위 병렬 실행을 처리한다.
+- 8개 실제 dev target(desktop, mobile, mobile-staff, web estimate/order/design-system, arologis-desktop, arologis-mobile)에 `local-dev` script를 추가했다.
+- `scripts/seed-local-stack.ps1`가 사용자 5 credential을 등록하고 MIG-1~11 reimport를 호출한다.
+- Samhan Public backend role enum에 `STAFF`/`DRIVER`가 아직 없으므로 seed는 `ROLE_STAFF -> SALES`, `ROLE_DRIVER -> DISPATCH` alias를 명시한다. 실제 enum 확장은 별도 auth 정책 슬라이스 대상이다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-23-local-6-client-direct-test-design.md`
+- plan: `docs/superpowers/plans/2026-05-21-mig-23-local-6-client-direct-test.md`
+- guide: `docs/local-stack/README.md`
+- dev-report: `docs/dev-reports/mig-23-local-6-client-direct-test.md`
+- decisions: `D-MIG-23-01~07`
+
+### 다음 상태
+
+- compose YAML 검증 및 가능한 client typecheck/build 후 commit + push 예정.
+- 실 `docker compose up`은 개발책임자가 `.\scripts\launch-local-stack.ps1`로 직접 시작한다.
+
+---
+
 ## ✅ 2026-05-21 최신 진행 — MIG-22 IDE workspace + PROBLEMS 정리
 
 ### 현재 브랜치

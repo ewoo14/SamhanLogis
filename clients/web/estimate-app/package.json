@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "node server.js",
+    "local-dev": "node ../../../scripts/run-client-local-dev.cjs web-estimate-app",
     "start": "node server.js",
     "test": "jest --passWithNoTests",
     "qa:capture": "node scripts/qa-capture.mjs"

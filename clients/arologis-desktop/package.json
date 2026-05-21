@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "local-dev": "node ../../scripts/run-client-local-dev.cjs arologis-desktop",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win",

@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "dev": "vite",
+    "local-dev": "node ../../../scripts/run-client-local-dev.cjs web-design-system",
     "build": "tsc -p tsconfig.build.json && vite build",
     "lint": "eslint src",
     "storybook": "storybook dev -p 6006",
