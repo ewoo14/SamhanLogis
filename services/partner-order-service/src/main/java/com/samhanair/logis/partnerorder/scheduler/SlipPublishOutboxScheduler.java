@@ -8,7 +8,6 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.config.OutboxProperties;
 import com.samhanair.logis.partnerorder.domain.HistoryEventType;
-import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderHistory;
 import com.samhanair.logis.partnerorder.outbox.OutboxStatus;
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;

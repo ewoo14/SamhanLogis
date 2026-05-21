@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
  * <p>case 1: 헤더 추출 (8일착 야상 → DispatchType.NIGHT)
  * <p>case 2: 차량 그룹 분리 (13 차량)
  * <p>case 3: 정차 라인 정규표현식 (전체 정차 추출)
- * <p>case 4: 톤수 인식 (1톤 12 + 1.4톤 1)
+ * <p>case 4: 톤수 인식 (1톤 12 + legacy 1.4톤 1 → active 1톤)
  * <p>case 5: 미해석 라인 ("상일상차" / "초월상차") group label 보존
  * <p>case 6: notes 다양 패턴 ("9시하차" / "오전일찍" / "아침7시" / "9시까지배송요망")
  * <p>case 7: edge case (헤더 누락 → IllegalArgumentException)
@@ -128,19 +128,14 @@ class KakaoDispatchParserTest {
     }
 
     @Test
-    @DisplayName("case 4 — 톤수 인식 (1톤 12 + 1.4톤 1)")
+    @DisplayName("case 4 — 톤수 인식 (legacy 1.4톤은 active 1톤으로 보정)")
     void parseTonnage() {
         ParsedDispatch parsed = parser.parse(SAMPLE_KAKAO, REFERENCE);
         long tonnage1 = parsed.vehicles().stream()
                 .filter(v -> v.tonnage() == VehicleTonnage.TONNAGE_1)
                 .count();
-        long tonnage14 = parsed.vehicles().stream()
-                .filter(v -> v.tonnage() == VehicleTonnage.TONNAGE_1_4)
-                .count();
-        assertThat(tonnage1).isEqualTo(12);
-        assertThat(tonnage14).isEqualTo(1);
-        // 7번 차량이 1.4톤
-        assertThat(parsed.vehicles().get(6).tonnage()).isEqualTo(VehicleTonnage.TONNAGE_1_4);
+        assertThat(tonnage1).isEqualTo(13);
+        assertThat(parsed.vehicles().get(6).tonnage()).isEqualTo(VehicleTonnage.TONNAGE_1);
     }
 
     @Test

@@ -29,6 +29,11 @@
 
 ### 최신 진행 메모 (2026-05-21)
 
+- MIG-22 (완료): IDE workspace + PROBLEMS 정리를 완료했다.
+  - Gradle Java leaf project에 Eclipse plugin을 적용해 `./gradlew eclipse` / `eclipseClasspath`가 `shared:ecount-io` 프로젝트 의존성을 생성하도록 했다.
+  - VS Code/Eclipse workspace stale 상태는 `shared/ecount-io`를 Gradle project로 인식시킨 뒤 Java/Gradle workspace refresh로 복구한다.
+  - desktop TypeScript `baseUrl` deprecation은 로컬 TypeScript 5.9 허용값인 `ignoreDeprecations: "5.0"`으로 고정했고, Java unused import 69건과 VehicleTonnage legacy enum 직접 사용을 정리했다.
+
 - MIG-21 (완료): 마이그레이션 운영 대시보드를 추가했다.
   - accounting-service Micrometer 지표를 `/actuator/prometheus`로 노출하고 dashboard-service `/api/v1/dashboard/ecount-mig`가 운영 DTO로 요약한다.
   - desktop 회계 관리자 그룹에 `운영 대시보드` 6카드 화면을 추가하고 React Query 5분 polling을 적용했다.
@@ -218,6 +223,17 @@ graph TB
 ### Frontend / Client
 - `clients/desktop` — Electron 33 + electron-vite + React 18 + zustand
 - `clients/web/design-system` — Vite + TypeScript + Storybook (21 컴포넌트)
+
+## IDE workspace 복구 (VS Code / Eclipse)
+
+MIG-15 이후 POI/Excel IO 구현은 `shared:ecount-io` Gradle module에 있다. IDE가 stale workspace를 잡고 있으면
+`Project '...service' is missing required Java project: 'ecount-io'`, `EcountXlsxSupport cannot be resolved`,
+`ExcelExporter cannot be resolved`가 보일 수 있다.
+
+1. repo root에서 `./gradlew eclipse --no-daemon --no-parallel`를 실행한다.
+2. VS Code: `Java: Clean Java Language Server Workspace` 실행 후 창을 reload한다. 필요하면 Gradle view에서 `Refresh Gradle Project`를 실행한다.
+3. Eclipse/STS: Gradle project refresh 또는 재import를 실행한다. `shared/ecount-io`가 `ecount-io` Java project로 보여야 한다.
+4. `.project`, `.classpath`, `.settings/`는 로컬 IDE 산출물이라 commit하지 않는다.
 - `clients/web/order-app` v4 — Vite + React + legacy `partner-order/index.html` 9427 라인 임베드 + PWA
 - `clients/web/estimate-app` v2 — Node.js + Express + EJS + legacy estimate 18614 라인 1:1 변환 (B2 옵션)
 - `clients/mobile` v4 — Expo SDK 53 + react-native-webview (order-app v4 임베드)

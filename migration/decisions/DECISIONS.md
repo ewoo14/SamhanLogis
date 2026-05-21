@@ -2440,3 +2440,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 **Cycle 1c 보완**: `/actuator/prometheus`는 동일 endpoint를 유지하되 `X-Internal-Token` 내부 scrape로 제한한다. Aging/DailyClosing gauge는 실제 refresh/import call site에서 기록하고, dashboard-service scrape 실패는 `dashboard_accounting_scrape_failures_total`로 별도 관측한다. ACCOUNTANT는 V27 view-only seed와 일관되게 API view도 허용한다.
 
 **산출 예정/진행**: accounting-service `MigOpsMetricsRecorder`, dashboard-service `EcountMigOpsDashboardService`, desktop `MigOpsDashboardPage`, auth-service V27, Grafana JSON/README, dev-report `docs/dev-reports/mig-21-migration-ops-dashboard.md`.
+
+### D-MIG-22-00. IDE workspace + PROBLEMS 정리 (MIG-22, 2026-05-21)
+
+**배경**: MIG-21 머지 후 사용자 PROBLEMS 지적에서 VS Code/Eclipse Java workspace가 MIG-15 신규 `shared:ecount-io` module을 stale 상태로 인식하지 못하고, TypeScript deprecation 및 Java warning이 다수 남은 것을 확인했다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-22-01 | repo에는 `.project`/`.classpath`를 commit하지 않고, Gradle Java leaf project에 Eclipse plugin을 적용해 `./gradlew eclipse`/`eclipseClasspath`가 `/ecount-io` project dependency를 생성하도록 한다. |
+| D-MIG-22-02 | `clients/desktop/tsconfig.web.json`은 `baseUrl` 유지와 함께 로컬 TypeScript 5.9가 허용하는 `ignoreDeprecations: "5.0"`을 추가해 deprecation 경고를 고정한다. |
+| D-MIG-22-03 | Java unused import는 자동 스캔 + compile 검증으로 52개 파일 69건을 정리한다. |
+| D-MIG-22-04 | `VehicleTonnage.fromRaw("1.4"/"11"/"25")`는 deprecated enum을 반환하지 않고 active enum(`TONNAGE_1`/`TONNAGE_10`/`TONNAGE_20`)으로 normalize한다. |
+| D-MIG-22-05 | service-local `DynamicPermissionClient` 잔존 warning 25+ 파일은 본 PR에서 삭제하지 않고 MIG-23+ 점진 제거 백로그로 명시한다. |
+
+**산출**: root Gradle Eclipse task 활성화, README IDE workspace 복구 절차, desktop tsconfig, Java unused import 정리, arologis tonnage normalization, dev-report `docs/dev-reports/mig-22-ide-workspace-problems-cleanup.md`.

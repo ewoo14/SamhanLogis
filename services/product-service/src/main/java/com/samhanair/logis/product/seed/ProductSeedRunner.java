@@ -1,6 +1,4 @@
 package com.samhanair.logis.product.seed;
-
-import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.product.domain.MaterialKey;
 import com.samhanair.logis.product.service.VariableDiscountDetector;
 import java.io.BufferedWriter;
@@ -8,7 +6,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

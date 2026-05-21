@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
-import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashDisbursement;
 import com.samhanair.logis.accounting.domain.CashKind;
 import com.samhanair.logis.accounting.domain.Order;

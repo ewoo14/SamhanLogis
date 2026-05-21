@@ -60,6 +60,7 @@ def leafProjects = [
 
 configure(leafProjects.collect { project(it) }) {
     apply plugin: 'java'
+    apply plugin: 'eclipse'
 
     java {
         toolchain {

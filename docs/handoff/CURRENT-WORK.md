@@ -4,7 +4,42 @@
 
 ---
 
-## ✅ 2026-05-21 최신 진행 — MIG-21 마이그레이션 운영 대시보드
+## ✅ 2026-05-21 최신 진행 — MIG-22 IDE workspace + PROBLEMS 정리
+
+### 현재 브랜치
+- `spec/2026-05-21-mig-22-ide-workspace-problems-cleanup`
+
+### 범위
+
+- MIG-15 이후 stale IDE workspace에서 `shared:ecount-io`가 인식되지 않는 문제를 Gradle Eclipse task + README 복구 절차로 정리했다.
+- 4개 service generated `.classpath` 검증에서 `/ecount-io` project dependency가 생성됨을 확인했다.
+- `clients/desktop/tsconfig.web.json`에 로컬 TypeScript 5.9 허용값인 `ignoreDeprecations: "5.0"`을 추가했다.
+- Java unused import 52개 파일 69건을 제거했다.
+- `VehicleTonnage` legacy raw 입력은 deprecated enum 반환 대신 active enum으로 normalize한다.
+- `DynamicPermissionClient` 잔존 warning은 MIG-23+ 점진 제거 백로그로 남겼다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-22-ide-workspace-problems-cleanup-design.md`
+- dev-report: `docs/dev-reports/mig-22-ide-workspace-problems-cleanup.md`
+- decisions: `D-MIG-22-01~05`
+
+### 다음 상태
+
+- **PM 자율 종료(D 도달).**
+- 다음 작업은 사용자(개발책임자) 결정 대기.
+
+### 검증 메모
+
+- `./gradlew :services:accounting-service:compileJava :services:inventory-service:compileJava :services:partner-service:compileJava :services:slip-service:compileJava --no-daemon --no-parallel` PASS.
+- 변경 모듈별 `compileTestJava` PASS: accounting, arologis, auth, dashboard, inventory, notification, partner-auth, partner-order, partner, product, slip.
+- `./gradlew :shared:ecount-io:eclipseProject :services:accounting-service:eclipseClasspath :services:inventory-service:eclipseClasspath :services:partner-service:eclipseClasspath :services:slip-service:eclipseClasspath --no-daemon --no-parallel` PASS, 4개 `.classpath`에 `/ecount-io` 확인.
+- `clients/desktop`: `npm.cmd run typecheck`, `npm.cmd run build` PASS. 기존 Pretendard font runtime warning 유지.
+- 전체 `compileJava compileTestJava` 단일 실행은 Windows 로컬 native memory 부족으로 Gradle daemon crash. 모듈별 검증으로 대체했다.
+
+---
+
+## ✅ 2026-05-21 진행 — MIG-21 마이그레이션 운영 대시보드
 
 ### 현재 브랜치
 - `spec/2026-05-21-mig-21-migration-ops-dashboard`

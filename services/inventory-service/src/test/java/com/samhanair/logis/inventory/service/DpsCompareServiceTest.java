@@ -3,7 +3,6 @@ package com.samhanair.logis.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
@@ -13,7 +12,6 @@ import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.web.dto.DpsCompareResponse;
 import com.samhanair.logis.inventory.web.dto.RowMismatch;
 import com.samhanair.logis.inventory.web.dto.RowMismatch.MismatchType;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;

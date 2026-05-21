@@ -1,6 +1,4 @@
 package com.samhanair.logis.inventory.client;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDate;
 
 /**

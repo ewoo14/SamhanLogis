@@ -28,11 +28,10 @@ class VehicleTonnageTest {
     }
 
     @Test
-    void fromRaw_legacy_2_values_kakao_compat() {
-        // legacy 카톡 파싱 호환
-        assertThat(VehicleTonnage.fromRaw("1.4")).isEqualTo(VehicleTonnage.TONNAGE_1_4);
-        assertThat(VehicleTonnage.fromRaw("11")).isEqualTo(VehicleTonnage.TONNAGE_BIG);
-        assertThat(VehicleTonnage.fromRaw("25")).isEqualTo(VehicleTonnage.TONNAGE_BIG);
+    void fromRaw_legacy_inputs_normalize_to_active_values() {
+        assertThat(VehicleTonnage.fromRaw("1.4")).isEqualTo(VehicleTonnage.TONNAGE_1);
+        assertThat(VehicleTonnage.fromRaw("11")).isEqualTo(VehicleTonnage.TONNAGE_10);
+        assertThat(VehicleTonnage.fromRaw("25")).isEqualTo(VehicleTonnage.TONNAGE_20);
     }
 
     @Test
