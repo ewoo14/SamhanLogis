@@ -1,5 +1,6 @@
 package com.samhanair.logis.dashboard.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -26,6 +27,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * Admin endpoint 시나리오 (5 case).
@@ -52,6 +54,8 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     private RealTimeStockRepository stockRepository;
     @Autowired
     private SalesAggregateRepository salesRepository;
+    @Autowired
+    private RequestMappingHandlerMapping requestMappingHandlerMapping;
 
     @MockBean
     private InventoryClient inventoryClient;
@@ -173,10 +177,11 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void old_admin_ecount_mig_ops_path_is_removed() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/ecount-mig")
-                        .header("X-User-Id", "test-admin")
-                        .header("X-User-Role", "MANAGER"))
-                .andExpect(MockMvcResultMatchers.status().isNotFound());
+        boolean mapped = requestMappingHandlerMapping.getHandlerMethods().keySet().stream()
+                .flatMap(info -> info.getPathPatternsCondition().getPatterns().stream())
+                .anyMatch(pattern -> "/admin/dashboard/ecount-mig".equals(pattern.getPatternString()));
+
+        assertThat(mapped).isFalse();
     }
 
     @Test
