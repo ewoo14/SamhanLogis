@@ -2384,7 +2384,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-18-01 | `FilterChipBar`를 desktop renderer 공통 컴포넌트로 추가하고 admin 화면에서 재사용한다. |
 | D-MIG-18-02 | 필터 chip은 Cash 2 + OrderList + Aging + Ledger 2 목록 화면에 일괄 적용하고, OrderDetailPage는 단일 상세 화면이므로 제외한다. |
 | D-MIG-18-03 | AGING 목록은 FE page/size state를 React Query key에 포함하며 size 옵션은 50/100/200/500으로 둔다. |
-| D-MIG-18-04 | MIG-14 스크린샷은 Playwright dev server가 안정적으로 뜨는 환경에서 재캡처한다. 불가 시 Linux CI 재캡처 보류로 기록한다. |
+| D-MIG-18-04 | Linux 스크린샷 재캡처는 본 PR 범위 밖으로 두고 후속 issue로 분리한다. Windows EPERM 환경 한계를 회피하기 위해 본 PR은 mock fallback PNG를 유지하며, Linux CI 자동 캡처 또는 별도 Linux 환경 재캡처를 후속으로 처리한다. |
 | D-MIG-18-05 | 회계 admin 메뉴는 "회계 관리자" collapse/expand 그룹으로 묶고, 동적 권한 캐시 false 시 그룹 전체를 숨긴다. |
 | D-MIG-18-06 | 옵션 C 21단계 + PM 자율 연속 슬라이스로 진행하고 dev-report/handoff/overview를 같은 변경에 포함한다. |
 

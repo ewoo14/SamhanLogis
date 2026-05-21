@@ -77,6 +77,10 @@
 - 날짜 범위는 `2026-05-01 ~ 2026-05-31` 형식으로 표시한다.
 - 거래처 조건은 `거래처: 삼한공조`처럼 업무 식별자만 표시한다.
 
+| 컴포넌트 | token mapping |
+|---|---|
+| `FilterChipBar` | bg=`--mig14-filter-chip-active-bg`, fg=`--mig14-filter-chip-active-fg`, border=`--mig14-filter-chip-active-border`, remove=`--mig14-filter-chip-remove-fg` |
+
 ---
 
 ## 5. 페이지네이션 토큰
