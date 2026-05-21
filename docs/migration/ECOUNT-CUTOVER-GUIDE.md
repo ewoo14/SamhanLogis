@@ -299,7 +299,10 @@ POST /admin/accounting/orders/imports/ecount
   "updated": 50,
   "skipped": 0,
   "rejected": 20,
+  "linkedSlipCount": 17000,
+  "unlinkedSlipCount": 930,
   "mismatchCount": 3,
+  "unknownStatusCount": 2,
   "sourceFileHash": "sha256...",
   "rejectedSample": [
     {
@@ -341,6 +344,8 @@ POST /admin/accounting/deposit-reports/imports/ecount
   "lineAdded": 0,
   "skipped": 0,
   "rejected": 30,
+  "agingMismatchCount": 2,
+  "agingValidationSkipped": false,
   "sourceFileHash": "sha256...",
   "rejectedSample": [
     {
@@ -811,7 +816,7 @@ UPDATE journals
    AND is_deleted = TRUE;
 ```
 
-> ⚠️ `orders` 테이블은 V28 스키마에 일자 컬럼(`order_date`)이 없습니다. 일자 범위 복구가 필요하면 옵션 A 의 `source_file_hash` 기준 복구로만 진행하거나, 부모 staging 테이블 `staging.ecount_order_raw.order_date` 와 join 하여 별도 batch 로 처리합니다 (DBA 협의 필수).
+> ⚠️ `orders` 테이블은 V28 스키마에 일자 컬럼(`order_date`)이 없습니다. `order_lines` child row 복구는 옵션 A의 `source_file_hash` 기준만 기본 지원합니다. 주문 일자 범위 기준 복구가 필요하면 `staging.ecount_order_raw.order_date`와 `orders.external_ref`의 source hash/row 번호를 함께 대조하는 별도 DBA batch로 처리합니다.
 
 `order_lines`, `journal_lines`에는 `external_ref` 컬럼이 없습니다. child row는 부모 row 기준으로 별도 복구합니다.
 
@@ -843,21 +848,11 @@ UPDATE journal_lines
           AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
  )
    AND is_deleted = TRUE;
+```
 
--- 옵션 B: 일자 범위 기준 child row 복구
-UPDATE order_lines
-   SET is_deleted = FALSE,
-       deleted_at = NULL,
-       deleted_by = NULL,
-       modified_at = NOW(),
-       modified_by = 'ROLLBACK_OPERATOR'
- WHERE order_id IN (
-       SELECT id
-         FROM orders
-        WHERE order_date BETWEEN :from AND :to
- )
-   AND is_deleted = TRUE;
+Journal line은 부모 `journals.journal_date`가 있으므로 일자 범위 child 복구가 가능합니다.
 
+```sql
 UPDATE journal_lines
    SET is_deleted = FALSE,
        deleted_at = NULL,
