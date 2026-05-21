@@ -32,6 +32,7 @@ slip-service 측 client (PartnerClient) 구현 시점은 Phase 9 W5 또는 Phase
 |---|---|---|---|
 | GET | `/internal/partners/{partnerCode}` | ROLE_MASTER (token) | partnerCode → 마스터 + partnerId UUID lookup. M5 의존성 해소 |
 | POST | `/internal/partners/find-by-codes` | ROLE_MASTER (token) | partnerCode N건 동시 조회 batch endpoint (W5 신규, D-P9-16 — fan-out 직렬 RPC 회피용) |
+| POST | `/internal/partners/lookup-by-ids` | ROLE_MASTER (token) | partnerId N건 → `partners[].id/name` batch endpoint (MIG-16 — accounting admin partnerName N+1 회피용) |
 
 #### bulk endpoint (W5 신규, D-P9-16)
 
@@ -43,6 +44,15 @@ slip-service 측 client (PartnerClient) 구현 시점은 Phase 9 W5 또는 Phase
 - 토큰 누락 → 403, 토큰 불일치 → 401 (단건 lookup 패턴 일관)
 
 dashboard-service `PartnerCodeResolver.resolveAll(List<String>)` 가 본 endpoint 의 첫 소비자 — cache hit / miss 분리 + miss 만 1회 bulk RPC.
+
+#### partnerId name lookup (MIG-16)
+
+`POST /internal/partners/lookup-by-ids` 입력 = JSON object (`{"ids":["uuid-1","uuid-2"]}`).
+
+- 응답 = `ApiResponse<{partners:[{id,name}]}>`
+- 빈 배열 → 200 + `partners: []`
+- 일부 미존재 UUID는 응답에서 누락
+- accounting-service `PartnerLookupClient.findByPartnerIdsBatch()`가 첫 소비자
 
 ### Admin (X-User-* 헤더, gateway 경유)
 

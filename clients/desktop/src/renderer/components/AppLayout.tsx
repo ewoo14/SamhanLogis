@@ -202,7 +202,7 @@ export function AppLayout() {
   // SP-D1 정책: 권한 없는 메뉴는 회색 비활성 X — 완전 미노출(null) 의무.
   //
   // 회계 카테고리 헤더: 12개 PageCode 중 1개라도 canAccess=true 면 표시.
-  // 정적 role 체크는 RBAC 캐시 미로드 시 보수적 허용(true)으로 동작하므로 두 가지 OR.
+  // RBAC 캐시 미로드 시 dynamicCanAccess 는 false 로 동작해 admin 메뉴 flash 를 방지한다.
   const showAccountingAccounts    = dynamicCanAccess('accounting.accounts',        'view')
   const showAccountingJournals    = dynamicCanAccess('accounting.journals',        'view')
   const showAccountingBalances    = dynamicCanAccess('accounting.balances',        'view')
@@ -234,13 +234,12 @@ export function AppLayout() {
     || showAccountingLedger || showAccountingDepositMatch
     || showAccountingAdminCash || showAccountingAdminOrder
     || showAccountingAdminAging || showAccountingAdminLedger
-    // 정적 role fallback — RBAC 캐시 초기화 전 깜박임 방지 (canAccessAccounting 유지)
+    // 정적 role fallback — legacy 회계 entry 호환. MIG-14 admin 하위 메뉴는 dynamic 값만 따른다.
     || canAccessAccounting(auth?.role)
   const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
 
   // [SP-D4] 잔여 7 도메인 22 PageCode 동적 RBAC 연동.
-  // SP-D2 P04 트랩 회고: 신규 코드는 dynamicCanAccess 기본값 true (보수적 허용) 이므로
-  // 기존 정적 역할 체크 흐름 회귀 없음. RBAC 캐시 완료 후 DB 값 적용.
+  // SP-D 일관성: dynamicCanAccess 는 캐시 미로드 시 false 로 deny 하며 로딩 flash 를 만들지 않는다.
   const showEstimatesList          = dynamicCanAccess('estimates.list',               'view')
   const showPartnerOrderList       = dynamicCanAccess('sales.partner-order.list',     'view')
   const showVendorOrder            = dynamicCanAccess('sales.vendor-order',           'view')
@@ -328,7 +327,7 @@ export function AppLayout() {
     && (VENDOR_ORDER_OCR_SIDEBAR_ROLES as readonly string[]).includes(auth.role)
   // [SP-09-3 + SP-D1 cycle 2] 영수증 OCR 업로드 entry — 동적 RBAC 권한 연동.
   // 기존 정적 역할 체크(WAREHOUSE/ACCOUNTANT/MANAGER/MASTER) → purchases.receipt-ocr 동적 canAccess 로 전환.
-  // dynamicCanAccess 는 로딩 중 true(보수적 허용) → 캐시 완료 후 DB 값 적용.
+  // dynamicCanAccess 는 로딩 중 false(보수적 deny) → 캐시 완료 후 DB 값 적용.
   const showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
   const showChatRoomAdmin = canAccessChatRoomAdmin(auth?.role)
 

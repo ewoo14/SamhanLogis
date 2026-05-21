@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +24,9 @@ import com.samhanair.logis.accounting.web.dto.CashDisbursementResponse;
 import com.samhanair.logis.accounting.web.dto.OrderDetailResponse;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,8 +86,8 @@ class AccountingAdminQueryServiceTest {
         when(cashDisbursementRepository.findAll(
                 any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(disbursement)));
-        when(partnerLookupClient.findByPartnerId(PARTNER_ID))
-                .thenReturn(Optional.of(new PartnerSummary(PARTNER_ID, "P-001", "삼한상사", null, null)));
+        when(partnerLookupClient.findByPartnerIdsBatch(any()))
+                .thenReturn(Map.of(PARTNER_ID, "삼한상사"));
 
         Page<CashDisbursementResponse> result = service.listCashDisbursements(
                 null, null, null, null, null, PageRequest.of(0, 20));
@@ -95,6 +99,37 @@ class AccountingAdminQueryServiceTest {
         String json = objectMapper.writeValueAsString(row);
         assertThat(json).contains("slipNo", "partnerName", "amount", "transactionDate", "kind");
         assertThat(json).doesNotContain(PARTNER_ID.toString(), "partnerId", "journalId", "externalRef");
+    }
+
+    @Test
+    void cashDisbursementList_resolvesPartnerNamesWithSingleBatchCallForFiftyRows() {
+        List<CashDisbursement> rows = java.util.stream.IntStream.range(0, 50)
+                .mapToObj(i -> CashDisbursement.fromMig7Staging(
+                        "CD-20260521-" + String.format("%03d", i),
+                        UUID.nameUUIDFromBytes(("partner-" + i).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        new BigDecimal("1000.00"),
+                        LocalDate.of(2026, 5, 21),
+                        CashKind.EXPENSE_VOUCHER,
+                        "운송비",
+                        "mig7:row:" + i))
+                .toList();
+        Map<UUID, String> names = new LinkedHashMap<>();
+        rows.forEach(row -> names.put(row.getPartnerId(), "거래처-" + row.getSlipNo()));
+        when(cashDisbursementRepository.findAll(
+                any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(rows, PageRequest.of(0, 50), 50));
+        when(partnerLookupClient.findByPartnerIdsBatch(any()))
+                .thenReturn(names);
+
+        Page<CashDisbursementResponse> result = service.listCashDisbursements(
+                null, null, null, null, null, PageRequest.of(0, 50));
+
+        assertThat(result.getContent()).hasSize(50);
+        org.mockito.ArgumentCaptor<List<UUID>> idsCaptor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(partnerLookupClient).findByPartnerIdsBatch(idsCaptor.capture());
+        assertThat(idsCaptor.getValue()).hasSize(50);
+        verify(partnerLookupClient, never()).findByPartnerId(any());
     }
 
     @Test
@@ -149,5 +184,27 @@ class AccountingAdminQueryServiceTest {
         assertThat(sql).contains("raw_totals");
         assertThat(sql).contains("GROUP BY transaction_date");
         assertThat(sql).doesNotContain("SUM(total_amount) OVER (PARTITION BY transaction_date)");
+    }
+
+    @Test
+    void agingSnapshot_usesPageableLimitOffsetAndCountQuery() {
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of());
+
+        Page<?> result = service.listAgingSnapshot(
+                PageRequest.of(2, 600), "삼한", "net_cash_desc");
+
+        assertThat(result.getTotalElements()).isZero();
+        org.mockito.ArgumentCaptor<MapSqlParameterSource> paramsCaptor =
+                org.mockito.ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).query(
+                anyString(),
+                paramsCaptor.capture(),
+                any(RowMapper.class));
+        MapSqlParameterSource params = paramsCaptor.getValue();
+        assertThat(params.getValue("limit")).isEqualTo(500);
+        assertThat(params.getValue("offset")).isEqualTo(1000L);
     }
 }

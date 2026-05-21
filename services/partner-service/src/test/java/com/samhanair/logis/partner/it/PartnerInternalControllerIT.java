@@ -188,4 +188,70 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isNotFound())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false));
     }
+
+    @Test
+    void lookup_by_ids_with_valid_token_returns_partner_names() throws Exception {
+        Partner saved = partnerRepository.findByPartnerCode("P-2026-0001").orElseThrow();
+        Partner extra = Partner.register("P-2026-0002", "222-33-44444", "추가 거래처",
+                null, null, new BigDecimal("3000000"));
+        partnerRepository.save(extra);
+
+        String body = """
+                {"ids":["%s","%s"]}
+                """.formatted(saved.getId(), extra.getId());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/internal/partners/lookup-by-ids")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners.length()").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners[0].id").exists())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("(주)테스트거래처", "추가 거래처")));
+    }
+
+    @Test
+    void lookup_by_ids_with_empty_ids_returns_200_empty() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/internal/partners/lookup-by-ids")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[]}"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners.length()").value(0));
+    }
+
+    @Test
+    void lookup_by_ids_without_internal_token_returns_403() throws Exception {
+        Partner saved = partnerRepository.findByPartnerCode("P-2026-0001").orElseThrow();
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/internal/partners/lookup-by-ids")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[\"" + saved.getId() + "\"]}"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
+    }
+
+    @Test
+    void lookup_by_ids_with_partial_missing_returns_only_existing() throws Exception {
+        Partner saved = partnerRepository.findByPartnerCode("P-2026-0001").orElseThrow();
+        java.util.UUID missingId = java.util.UUID.randomUUID();
+
+        String body = """
+                {"ids":["%s","%s"]}
+                """.formatted(saved.getId(), missingId);
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/internal/partners/lookup-by-ids")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners[0].id")
+                        .value(saved.getId().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners[0].name")
+                        .value("(주)테스트거래처"));
+    }
 }

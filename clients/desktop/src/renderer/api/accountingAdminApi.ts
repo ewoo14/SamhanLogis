@@ -99,6 +99,11 @@ export interface PartnerAgingSnapshotRow {
   lastRefreshedAt?: string | null
 }
 
+export interface AgingSnapshotRefreshResult {
+  refreshedAt: string
+  status: string
+}
+
 export interface LedgerListOptions {
   page?: number
   size?: number
@@ -231,6 +236,8 @@ export async function listPartnerAgingSnapshots(
     '/accounting/aging-snapshot',
     {
       params: compactParams({
+        page,
+        size,
         partnerName: options.partnerName,
         sort: options.sort,
       }),
@@ -242,11 +249,12 @@ export async function listPartnerAgingSnapshots(
   return res.data.data
 }
 
-export async function refreshPartnerAgingSnapshot(): Promise<void> {
-  await apiClient.post<ApiEnvelope<void>>(
+export async function refreshPartnerAgingSnapshot(): Promise<AgingSnapshotRefreshResult> {
+  const res = await apiClient.post<AgingSnapshotRefreshResult>(
     '/admin/accounting/aging-snapshot/refresh',
     {},
   )
+  return res.data
 }
 
 export async function listSalesLedgers(

@@ -4,6 +4,40 @@
 
 ---
 
+## 🚧 2026-05-21 최신 진행 — MIG-16 BE Minor 청소 진행 중
+
+### 현재 브랜치
+
+- `spec/2026-05-21-mig-16-be-minor-cleanup`
+
+### 범위
+
+- partner-service internal `POST /internal/partners/lookup-by-ids` batch endpoint를 추가한다.
+- accounting-service `PartnerLookupClient.findByPartnerIdsBatch(List<UUID>)`로 admin cash 조회의 partnerName N+1 호출을 batch 1회로 전환한다.
+- `/api/v1/accounting/aging-snapshot`은 `Pageable` 기반으로 전환하고 기본 size=100, 최대 size=500으로 제한한다.
+- desktop `PartnerAgingSnapshotPage`는 refresh 성공/실패 toast를 표시한다.
+- `usePermissions().canAccess()`는 권한 캐시 미로드 시 false를 반환해 AppLayout admin 메뉴 flash를 방지한다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-16-be-minor-cleanup-design.md`
+- plan: `docs/superpowers/plans/2026-05-21-mig-16-be-minor-cleanup.md`
+- dev-report: `docs/dev-reports/mig-16-be-minor-cleanup.md`
+- decisions: `D-MIG-16-01~06`
+
+### 검증 메모
+
+- 캐시된 Gradle 사용:
+
+```powershell
+$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle\codex-home'
+```
+
+- `./gradlew :services:accounting-service:compileTestJava :services:partner-service:compileTestJava --no-daemon` PASS.
+- 최종 검증 대상: `./gradlew :services:accounting-service:test :services:partner-service:test :shared:common:test --no-daemon`, `clients/desktop npm run typecheck/build`.
+
+---
+
 ## 🚧 2026-05-21 최신 진행 — MIG-15 POI shared/common 분리 진행 중
 
 ### 현재 브랜치

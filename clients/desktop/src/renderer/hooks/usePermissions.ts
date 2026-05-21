@@ -24,7 +24,7 @@ import {
 } from '../api/permissionsApi'
 
 export interface UsePermissionsResult {
-  /** 권한 보유 여부 동기 확인. 로딩 중이면 true (보수적 허용). */
+  /** 권한 보유 여부 동기 확인. 로딩 중이면 false (보수적 deny). */
   canAccess: (pageCode: PageCode, action?: PermissionAction) => boolean
   /** 현재 사용자 권한 목록. 로딩 중이면 undefined. */
   permissions: MyPermission[] | undefined
@@ -59,7 +59,7 @@ export function usePermissions(): UsePermissionsResult {
     pageCode: PageCode,
     action: PermissionAction = 'view',
   ): boolean {
-    if (!query.data) return true // 로딩 중 — 보수적 허용 (깜박임 방지)
+    if (!query.data) return false // 로딩 중 — 보수적 deny (admin 메뉴 flash 방지)
     const entry = query.data.find((p) => p.pageCode === pageCode)
     if (!entry) return false
     return entry.actions.includes(action)

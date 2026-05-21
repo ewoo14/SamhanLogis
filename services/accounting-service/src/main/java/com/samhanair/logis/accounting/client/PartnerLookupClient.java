@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -130,6 +134,51 @@ public class PartnerLookupClient {
     }
 
     /**
+     * partnerId 목록 → 거래처명 batch lookup. 401/403 은 fail-fast, 5xx/network 는 빈 Map 반환.
+     *
+     * <p>partner-service {@code POST /internal/partners/lookup-by-ids} 호출. 응답은
+     * {@code data.partners[].id/name} 또는 wrapper 없는 {@code partners[].id/name} 을 모두 허용한다.
+     *
+     * @param partnerIds 조회할 거래처 UUID 목록
+     * @return partnerId → 거래처명 Map
+     */
+    public Map<UUID, String> findByPartnerIdsBatch(List<UUID> partnerIds) {
+        if (partnerIds == null || partnerIds.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashSet<UUID> distinct = new LinkedHashSet<>(partnerIds);
+        distinct.removeIf(java.util.Objects::isNull);
+        if (distinct.isEmpty()) {
+            return Map.of();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            throw internalAuthMiss("partnerIds", distinct.size(), 0);
+        }
+        try {
+            String body = restClient.post()
+                    .uri("/internal/partners/lookup-by-ids")
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .body(Map.of("ids", distinct))
+                    .retrieve()
+                    .body(String.class);
+            return parsePartnerNames(body);
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            if (status == 401 || status == 403) {
+                throw internalAuthMiss("partnerIds", distinct.size(), status);
+            }
+            log.warn("PartnerLookupClient batch — count={} status={} (예외)",
+                    distinct.size(), status);
+            return Map.of();
+        } catch (Exception ex) {
+            log.warn("PartnerLookupClient batch 호출 실패 — count={}, msg={}",
+                    distinct.size(), ex.getMessage());
+            return Map.of();
+        }
+    }
+
+    /**
      * 거래처명 → PartnerSummary fail-soft — MIG-3 이카운트 전표 import 의 거래처명 lookup.
      *
      * <p>partner-service {@code GET /internal/partners/by-name?name=} 호출.
@@ -218,6 +267,34 @@ public class PartnerLookupClient {
             log.warn("PartnerLookupClient response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
             return Optional.empty();
+        }
+    }
+
+    /** ApiResponse wrapper 의 data.partners 또는 root.partners → partnerId/name Map 변환. */
+    private Map<UUID, String> parsePartnerNames(String body) {
+        if (body == null || body.isBlank()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            JsonNode partners = data == null ? null : data.get("partners");
+            if (partners == null || !partners.isArray()) {
+                return Map.of();
+            }
+            Map<UUID, String> result = new LinkedHashMap<>();
+            for (JsonNode partner : partners) {
+                UUID id = parseUuid(partner, "id", "partnerId");
+                String name = textOrNull(partner, "name", "partnerName", "businessName");
+                if (id != null && name != null) {
+                    result.put(id, name);
+                }
+            }
+            return result;
+        } catch (Exception ex) {
+            log.warn("PartnerLookupClient batch response 파싱 실패 — bodyLen={}, msg={}",
+                    body.length(), ex.getMessage());
+            return Map.of();
         }
     }
 

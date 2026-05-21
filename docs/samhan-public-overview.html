@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-15 POI 분리</span>
+    <span class="nav-badge">Phase 10.6 · MIG-16 BE Minor 청소</span>
   </div>
 </nav>
 
@@ -1333,8 +1333,8 @@ body {
     </tr>
     <tr>
       <td>10.6</td>
-      <td>이카운트 → SamhanLogis 마이그레이션 — MIG-1~13 완료 + Cash/Order/AgingSnapshot/Ledger admin UI 4 화면 통합</td>
-      <td>MIG-1 #262 ~ MIG-13 완료 + MIG-14 진행 중</td>
+      <td>이카운트 → SamhanLogis 마이그레이션 — MIG-1~15 완료 + BE Minor 청소</td>
+      <td>MIG-1 #262 ~ MIG-15 완료 + MIG-16 진행 중</td>
       <td><span class="status-badge wip">진행 중</span></td>
     </tr>
     <tr>
@@ -1356,7 +1356,7 @@ body {
   </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">🛠️</div>
-    <div><strong>MIG-15 POI 분리 진행 중:</strong> `shared/common`의 Apache POI 직접 의존성을 `shared:ecount-io`로 분리하고, EcountXlsxSupport + ExcelExporter 구현을 새 module로 이동한다. accounting/partner는 direct POI 선언을 제거하고, arologis/slip/inventory는 자체 Excel parser/export 검증 때문에 direct POI를 유지한다.</div>
+    <div><strong>MIG-16 BE Minor 청소 진행 중:</strong> partner-service batch lookup endpoint, accounting admin partnerName batch 호출, aging snapshot Pageable 전환, refresh toast, 권한 캐시 로딩 중 admin 메뉴 hidden 계약을 한 슬라이스에서 정리한다.</div>
   </div>
 </section>
 

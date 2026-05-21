@@ -68,6 +68,11 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any(Pageable.class)))
                 .thenReturn(Page.<CashDisbursementResponse>empty());
+        lenient().when(adminQueryService.listAgingSnapshot(
+                        org.mockito.ArgumentMatchers.any(Pageable.class),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Page.empty());
     }
 
     @Test
@@ -91,6 +96,24 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
         mockMvc.perform(withActor(get("/api/v1/accounting/cash-disbursements"), "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @DisplayName("MIG-16 AgingSnapshot 조회 size는 최대 500으로 clamp 한다")
+    void agingSnapshotPageSizeIsClampedToFiveHundred() throws Exception {
+        mockMvc.perform(withActor(get("/api/v1/accounting/aging-snapshot")
+                        .param("page", "1")
+                        .param("size", "700"), "MANAGER"))
+                .andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<Pageable> pageableCaptor =
+                org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        verify(adminQueryService).listAgingSnapshot(
+                pageableCaptor.capture(),
+                isNull(),
+                isNull());
+        org.assertj.core.api.Assertions.assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(500);
     }
 
     @ParameterizedTest(name = "{0} -> {1}")

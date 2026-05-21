@@ -32,6 +32,9 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
      */
     List<Partner> findAllByPartnerCodeIn(Collection<String> partnerCodes);
 
+    /** partnerId bulk lookup — accounting-service admin 목록의 partnerName N+1 회피용. */
+    List<Partner> findAllByIdIn(Collection<UUID> ids);
+
     /** 사업자번호 중복 검사 — 신규 등록 가드. */
     Optional<Partner> findByBizNo(String bizNo);
 

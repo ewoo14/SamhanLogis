@@ -3,6 +3,8 @@ package com.samhanair.logis.partner.controller;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partner.dto.PartnerBusinessNumberResponse;
 import com.samhanair.logis.partner.dto.PartnerInternalResponse;
+import com.samhanair.logis.partner.dto.PartnerLookupByIdsRequest;
+import com.samhanair.logis.partner.dto.PartnerLookupByIdsResponse;
 import com.samhanair.logis.partner.service.PartnerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -80,6 +82,27 @@ public class PartnerInternalController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<List<PartnerInternalResponse>> findByCodes(@RequestBody List<String> partnerCodes) {
         return ApiResponse.ok(partnerService.findByCodes(partnerCodes));
+    }
+
+    /**
+     * partnerId N건으로 거래처명만 batch lookup — accounting-service admin 목록 N+1 제거용.
+     *
+     * <p>응답은 최소 DTO {@code partners[].id/name} 만 포함한다. 일부 미존재 ID 는 누락하고,
+     * 빈 ids 는 200 + 빈 배열로 반환한다.
+     */
+    @Operation(summary = "partnerId N건 거래처명 batch lookup",
+            description = "accounting-service admin 목록의 partnerName N+1 회피. X-Internal-Token 필수.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "매칭 결과 (미존재 ID 는 누락)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락")
+    })
+    @PostMapping("/lookup-by-ids")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<PartnerLookupByIdsResponse> lookupByIds(
+            @RequestBody PartnerLookupByIdsRequest request) {
+        List<UUID> ids = request == null ? List.of() : request.ids();
+        return ApiResponse.ok(PartnerLookupByIdsResponse.from(partnerService.findAllByIds(ids)));
     }
 
     /**

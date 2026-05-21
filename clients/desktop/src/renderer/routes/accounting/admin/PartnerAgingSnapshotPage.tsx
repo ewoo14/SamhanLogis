@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, type DataTableColumn } from '@samhan/design-system'
 import {
@@ -31,6 +31,7 @@ export function PartnerAgingSnapshotPage() {
   const [partnerName, setPartnerName] = useState('')
   const [sort, setSort] = useState('net_receivable_desc')
   const [applied, setApplied] = useState({ partnerName: '', sort: 'net_receivable_desc' })
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const query = useQuery({
     queryKey: ['mig14-aging-snapshot', page, applied],
@@ -45,10 +46,24 @@ export function PartnerAgingSnapshotPage() {
 
   const refreshMutation = useMutation({
     mutationFn: refreshPartnerAgingSnapshot,
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['mig14-aging-snapshot'] })
+      setToast({
+        type: 'success',
+        message: `새로고침 완료 — ${formatRefreshTime(result.refreshedAt)}`,
+      })
+    },
+    onError: (error) => {
+      console.error('Partner aging snapshot refresh failed', error)
+      setToast({ type: 'error', message: '새로고침 실패 — 운영자 문의' })
     },
   })
+
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(null), 3500)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const columns: DataTableColumn<PartnerAgingSnapshotRow>[] = useMemo(
     () => [
@@ -180,6 +195,35 @@ export function PartnerAgingSnapshotPage() {
           스냅샷 새로고침 요청에 실패했습니다.
         </div>
       ) : null}
+      {toast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            right: 24,
+            bottom: 24,
+            zIndex: 1000,
+            maxWidth: 360,
+            padding: '10px 14px',
+            borderRadius: 6,
+            background: toast.type === 'success' ? 'var(--color-success-700)' : 'var(--color-danger-700)',
+            color: 'var(--color-neutral-0)',
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
+          }}
+        >
+          {toast.message}
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function formatRefreshTime(value?: string | null): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('ko-KR')
 }

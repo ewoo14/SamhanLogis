@@ -110,8 +110,10 @@ MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read end
 | Cash 입금 | `GET /api/v1/accounting/cash-receipts` | `slipNo`, `partnerName`, `journalNo`, `kind`, `amount` |
 | Order 목록 | `GET /api/v1/accounting/orders` | `orderNo`, `partnerName`, `managerName`, `progressStatus`, `linkedSlipNo` |
 | Order 상세 | `GET /api/v1/accounting/orders/{orderNo}` | `orderNo` + `lines[]`; 내부 `orderId` path 금지 |
-| Aging snapshot | `GET /api/v1/accounting/aging-snapshot` | `partnerName`, `netReceivable`, `netPayable`, `netCash`, `lastRefreshedAt` |
+| Aging snapshot | `GET /api/v1/accounting/aging-snapshot?page=0&size=100&sort=net_receivable_desc` | `partnerName`, `netReceivable`, `netPayable`, `netCash`, `lastRefreshedAt`; 기본 100 / 최대 500 |
 | Ledger 매출 | `GET /api/v1/accounting/ledger/sales` | staging row 업무 컬럼 + DailyClosing 대조 결과 |
 | Ledger 매입 | `GET /api/v1/accounting/ledger/purchase` | staging row 업무 컬럼 + DailyClosing 대조 결과 |
 
 권한은 auth-service V25 MIG14 PageCode 4종과 desktop `PermissionGuard`를 사용한다. `DynamicPermissionClient` 테스트 mock은 deprecated service-local 타입 대신 shared/security 통합 인터페이스를 대상으로 정렬한다.
+
+MIG-16 이후 Cash 조회의 `partnerName` 표시는 partner-service batch lookup으로 해결하며, aging snapshot은 Spring `Page` 응답을 반환한다.

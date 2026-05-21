@@ -2346,3 +2346,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-15-08 | 옵션 C 21단계 첫 적용 슬라이스로 진행한다. |
 
 **산출 예정/진행**: settings/root Gradle 갱신, `shared:ecount-io`, `EcountXlsxSupport` 이동, `ExcelExporter` 이동, direct POI dependency 정리, dev-report `docs/dev-reports/mig-15-poi-shared-io-module.md`.
+
+### D-MIG-16-00. BE Minor 청소 — partnerNames batch + AGING pagination + 권한/토스트 보정 (MIG-16, 2026-05-21)
+
+**배경**: MIG-14 사후 review에서 남은 Minor 항목 중 BE N+1 lookup, aging snapshot hard cap, refresh 피드백 부재, 권한 캐시 로딩 flash를 한 슬라이스에서 정리한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-16-01 | partner-service에 `POST /internal/partners/lookup-by-ids` batch endpoint를 추가하고, 요청은 `{ids:[uuid...]}`, 응답은 `partners[].id/name` 최소 DTO로 둔다. |
+| D-MIG-16-02 | accounting-service `PartnerLookupClient`에 `findByPartnerIdsBatch(List<UUID>) -> Map<UUID, String>`을 추가하고 admin cash 조회의 partnerName N+1 호출을 batch 1회로 전환한다. |
+| D-MIG-16-03 | `/api/v1/accounting/aging-snapshot`은 `Pageable` 기반 `Page<PartnerAgingSnapshotResponse>`를 반환하며 기본 size=100, 최대 size=500으로 제한한다. |
+| D-MIG-16-04 | desktop `PartnerAgingSnapshotPage` refresh는 성공 시 `새로고침 완료 — refreshedAt`, 실패 시 `새로고침 실패 — 운영자 문의` toast를 표시하고 실패 상세는 console에 남긴다. |
+| D-MIG-16-05 | `usePermissions().canAccess()`는 권한 캐시 미로드 시 false를 반환해 AppLayout admin 메뉴 flash를 방지한다. |
+| D-MIG-16-06 | 옵션 C 21단계 일괄 개발 슬라이스로 진행하고, dev-report/handoff/overview를 같은 PR에서 동기화한다. |
+
+**산출 예정/진행**: partner-service internal batch endpoint, accounting-service batch client/admin query pagination, desktop toast/permission loading 보정, dev-report `docs/dev-reports/mig-16-be-minor-cleanup.md`.

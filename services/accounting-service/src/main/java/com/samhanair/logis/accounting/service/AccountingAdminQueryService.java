@@ -51,7 +51,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AccountingAdminQueryService {
 
-    private static final int AGING_LIMIT = 500;
+    public static final int AGING_DEFAULT_PAGE_SIZE = 100;
+    public static final int AGING_MAX_PAGE_SIZE = 500;
 
     private final CashDisbursementRepository cashDisbursementRepository;
     private final CashReceiptRepository cashReceiptRepository;
@@ -129,7 +130,9 @@ public class AccountingAdminQueryService {
         return toOrderDetail(order);
     }
 
-    public List<PartnerAgingSnapshotResponse> listAgingSnapshot(String partnerName, String sort) {
+    public Page<PartnerAgingSnapshotResponse> listAgingSnapshot(
+            Pageable pageable, String partnerName, String sort) {
+        Pageable boundedPageable = boundAgingPageable(pageable);
         String orderBy = switch (sort == null ? "" : sort) {
             case "net_payable_desc" -> "net_payable DESC, partner_name ASC NULLS LAST";
             case "net_cash_desc" -> "net_cash DESC, partner_name ASC NULLS LAST";
@@ -138,16 +141,23 @@ public class AccountingAdminQueryService {
         };
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("partnerName", like(partnerName))
-                .addValue("limit", AGING_LIMIT);
-        return jdbcTemplate.query("""
+                .addValue("limit", boundedPageable.getPageSize())
+                .addValue("offset", boundedPageable.getOffset());
+        long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(1)
+                  FROM partner_aging_snapshot
+                 WHERE (:partnerName IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE :partnerName)
+                """, params, Long.class);
+        List<PartnerAgingSnapshotResponse> rows = jdbcTemplate.query("""
                 SELECT partner_name, total_receivable, total_payable, total_receipt,
                        total_disbursement, net_receivable, net_payable, net_cash,
                        last_refreshed_at
                   FROM partner_aging_snapshot
                  WHERE (:partnerName IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE :partnerName)
                  ORDER BY %s
-                 LIMIT :limit
+                 LIMIT :limit OFFSET :offset
                 """.formatted(orderBy), params, this::mapAging);
+        return new PageImpl<>(rows, boundedPageable, total);
     }
 
     public Page<LedgerStagingResponse> listSalesLedger(
@@ -329,13 +339,14 @@ public class AccountingAdminQueryService {
     }
 
     private Map<UUID, String> partnerNames(Set<UUID> partnerIds) {
-        Map<UUID, String> result = new LinkedHashMap<>();
-        for (UUID partnerId : partnerIds) {
-            result.put(partnerId, partnerLookupClient.findByPartnerId(partnerId)
-                    .map(AccountingAdminQueryService::partnerDisplayName)
-                    .orElse(null));
+        return partnerNamesBatch(partnerIds);
+    }
+
+    private Map<UUID, String> partnerNamesBatch(Set<UUID> partnerIds) {
+        if (partnerIds.isEmpty()) {
+            return Map.of();
         }
-        return result;
+        return new LinkedHashMap<>(partnerLookupClient.findByPartnerIdsBatch(List.copyOf(partnerIds)));
     }
 
     private Map<UUID, String> journalNos(Set<UUID> journalIds) {
@@ -351,10 +362,6 @@ public class AccountingAdminQueryService {
 
     private static String journalNo(Map<UUID, String> journalNos, UUID journalId) {
         return journalId == null ? null : journalNos.get(journalId);
-    }
-
-    private static String partnerDisplayName(PartnerSummary summary) {
-        return notBlank(summary.name()) ? summary.name() : summary.partnerCode();
     }
 
     private UUID resolvePartnerId(String partnerName) {
@@ -419,6 +426,13 @@ public class AccountingAdminQueryService {
 
     private static String blankToNull(String value) {
         return notBlank(value) ? value.trim() : null;
+    }
+
+    private static Pageable boundAgingPageable(Pageable pageable) {
+        int page = pageable == null ? 0 : pageable.getPageNumber();
+        int requestedSize = pageable == null ? AGING_DEFAULT_PAGE_SIZE : pageable.getPageSize();
+        int size = Math.min(Math.max(requestedSize, 1), AGING_MAX_PAGE_SIZE);
+        return org.springframework.data.domain.PageRequest.of(page, size);
     }
 
     private static boolean notBlank(String value) {

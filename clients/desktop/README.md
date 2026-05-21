@@ -148,3 +148,9 @@ MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/deskto
 - 화면과 `data-testid`는 내부 UUID를 포함하지 않는다. 사용자 식별자는 `slipNo`, `journalNo`, `orderNo`, `partnerName`, `managerName` 중심으로 둔다.
 - Playwright fixture는 placeholder만 사용한다. 실 계정, API key, token, 사업자등록번호, Sheet ID를 추가하지 않으며 CI `credential-plaintext-guard` 기준을 따른다.
 - desktop CI는 `.github/workflows/ci.yml`의 `frontend-desktop` job에서 `npm run typecheck`, `npm run lint`, `npm run build`로 검증된다.
+
+## MIG-16 — AgingSnapshot refresh toast + 권한 로딩 deny (2026-05-21)
+
+- `PartnerAgingSnapshotPage`는 refresh 성공 시 `새로고침 완료 — refreshedAt`, 실패 시 `새로고침 실패 — 운영자 문의` toast를 표시한다.
+- `listPartnerAgingSnapshots`는 `/accounting/aging-snapshot?page&size&sort` Page 응답을 우선 사용하고, 배열 응답 fallback을 유지한다.
+- `usePermissions().canAccess()`는 권한 캐시 미로드 시 false를 반환해 AppLayout admin 메뉴 flash를 방지한다.

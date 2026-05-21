@@ -106,6 +106,28 @@ public class PartnerService {
     }
 
     /**
+     * partnerId N건 batch lookup — accounting-service admin 조회의 거래처명 N+1 호출 제거용.
+     *
+     * <p>입력 순서와 중복은 보장하지 않는다. null/blank 역할의 null UUID 는 제거하고, 미존재 ID 는
+     * 결과에서 누락한다. 호출 측은 응답 id 기준으로 매칭한다.
+     *
+     * @param ids 거래처 UUID 목록
+     * @return 존재하는 Partner 목록
+     */
+    @Transactional(readOnly = true)
+    public List<Partner> findAllByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> distinct = new HashSet<>(ids);
+        distinct.removeIf(Objects::isNull);
+        if (distinct.isEmpty()) {
+            return List.of();
+        }
+        return partnerRepository.findAllByIdIn(distinct);
+    }
+
+    /**
      * 활성 거래처 페이지 조회 — admin 목록 화면 ({@code GET /admin/partners}) 전용.
      *
      * <p>Phase 10 W10-6 — 50 partner 시드 검증을 위한 페이지네이션 조회. 본 메서드는 활성 row
