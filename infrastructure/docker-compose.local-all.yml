@@ -28,6 +28,14 @@ x-spring-env: &spring-env
   SAMHAN_INTERNAL_TOKEN: dev-internal-token-change-me
   ECOUNT_REIMPORT_RAW_DIR: /workspace/docs/migration/ecount-data/raw
   LOGGING_FILE_PATH: /logs/samhan-service.log
+  # MIG-23 사이클 1e fix (Codex Performance MAJOR) — Container heap 비율 cap.
+  # Docker Desktop 8GB + 14 service + 8 client 환경에서 OOM 차단.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0"
+
+# MIG-23 사이클 1e fix (Codex Performance MAJOR) — Container memory hard cap.
+x-service-memory: &service-memory
+  mem_limit: 1g
+  mem_reservation: 512m
 
 x-service-depends: &service-depends
   postgres:
@@ -48,7 +56,7 @@ x-service-volumes: &service-volumes
 services:
   grafana:
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
   eureka-server:
     build:
@@ -57,12 +65,14 @@ services:
         JAR_FILE: services/eureka-server/build/libs/eureka-server.jar
     container_name: samhan-eureka
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SERVER_PORT: "8761"
       EUREKA_INSTANCE_HOSTNAME: eureka-server
     ports:
-      - "8761:8761"
+      - "127.0.0.1:8761:8761"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,12 +96,14 @@ services:
         JAR_FILE: services/api-gateway/build/libs/api-gateway.jar
     container_name: samhan-api-gateway
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       eureka-server:
         condition: service_healthy
@@ -113,13 +125,15 @@ services:
         JAR_FILE: services/auth-service/build/libs/auth-service.jar
     container_name: samhan-auth-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8081"
       DB_NAME: auth_db
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health || exit 1"]
@@ -138,13 +152,15 @@ services:
         JAR_FILE: services/user-service/build/libs/user-service.jar
     container_name: samhan-user-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8083"
       DB_NAME: user_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8083/actuator/health || exit 1"]
@@ -163,12 +179,14 @@ services:
         JAR_FILE: services/product-service/build/libs/product-service.jar
     container_name: samhan-product-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8084"
       DB_NAME: product_db
     ports:
-      - "8084:8084"
+      - "127.0.0.1:8084:8084"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8084/actuator/health || exit 1"]
@@ -187,12 +205,14 @@ services:
         JAR_FILE: services/inventory-service/build/libs/inventory-service.jar
     container_name: samhan-inventory-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8085"
       DB_NAME: inventory_db
     ports:
-      - "8085:8085"
+      - "127.0.0.1:8085:8085"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8085/actuator/health || exit 1"]
@@ -211,6 +231,8 @@ services:
         JAR_FILE: services/slip-service/build/libs/slip-service.jar
     container_name: samhan-slip-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8086"
@@ -219,7 +241,7 @@ services:
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
     ports:
-      - "8086:8086"
+      - "127.0.0.1:8086:8086"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health || exit 1"]
@@ -238,6 +260,8 @@ services:
         JAR_FILE: services/accounting-service/build/libs/accounting-service.jar
     container_name: samhan-accounting-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8087"
@@ -249,7 +273,7 @@ services:
       SAMHAN_DASHBOARD_SERVICE_URL: http://dashboard-service:8094
       SAMHAN_ACCOUNTING_SEED_TEST_DATA: "true"
     ports:
-      - "8087:8087"
+      - "127.0.0.1:8087:8087"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8087/actuator/health || exit 1"]
@@ -268,6 +292,8 @@ services:
         JAR_FILE: services/partner-order-service/build/libs/partner-order-service.jar
     container_name: samhan-partner-order-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8088"
@@ -279,7 +305,7 @@ services:
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
     ports:
-      - "8088:8088"
+      - "127.0.0.1:8088:8088"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8088/actuator/health || exit 1"]
@@ -298,6 +324,8 @@ services:
         JAR_FILE: services/dc-config-service/build/libs/dc-config-service.jar
     container_name: samhan-dc-config-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8089"
@@ -307,7 +335,7 @@ services:
       SAMHAN_DC_CONFIG_DB_USER: samhan
       SAMHAN_DC_CONFIG_DB_PASSWORD: samhan_dev_pw
     ports:
-      - "8089:8089"
+      - "127.0.0.1:8089:8089"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8089/actuator/health || exit 1"]
@@ -326,12 +354,14 @@ services:
         JAR_FILE: services/partner-auth-service/build/libs/partner-auth-service.jar
     container_name: samhan-partner-auth-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8091"
       DB_NAME: partner_auth_db
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8091/actuator/health || exit 1"]
@@ -350,6 +380,8 @@ services:
         JAR_FILE: services/groupware-service/build/libs/groupware-service.jar
     container_name: samhan-groupware-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8092"
@@ -359,7 +391,7 @@ services:
       SAMHAN_GROUPWARE_DB_USER: samhan
       SAMHAN_GROUPWARE_DB_PASSWORD: samhan_dev_pw
     ports:
-      - "8092:8092"
+      - "127.0.0.1:8092:8092"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8092/actuator/health || exit 1"]
@@ -378,6 +410,8 @@ services:
         JAR_FILE: services/notification-service/build/libs/notification-service.jar
     container_name: samhan-notification-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8093"
@@ -389,7 +423,7 @@ services:
       SMTP_HOST: localhost
       SMTP_PORT: "2525"
     ports:
-      - "8093:8093"
+      - "127.0.0.1:8093:8093"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8093/actuator/health || exit 1"]
@@ -408,6 +442,8 @@ services:
         JAR_FILE: services/dashboard-service/build/libs/dashboard-service.jar
     container_name: samhan-dashboard-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8094"
@@ -418,7 +454,7 @@ services:
       SAMHAN_DASHBOARD_DB_PASSWORD: samhan_dev_pw
       SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
     ports:
-      - "8094:8094"
+      - "127.0.0.1:8094:8094"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8094/actuator/health || exit 1"]
@@ -437,6 +473,8 @@ services:
         JAR_FILE: services/partner-service/build/libs/partner-service.jar
     container_name: samhan-partner-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8095"
@@ -446,7 +484,7 @@ services:
       SAMHAN_PARTNER_DB_USER: samhan
       SAMHAN_PARTNER_DB_PASSWORD: samhan_dev_pw
     ports:
-      - "8095:8095"
+      - "127.0.0.1:8095:8095"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8095/actuator/health || exit 1"]
@@ -465,6 +503,8 @@ services:
         JAR_FILE: services/arologis-service/build/libs/arologis-service.jar
     container_name: samhan-arologis-service
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       <<: *spring-env
       SERVER_PORT: "8097"
@@ -482,7 +522,7 @@ services:
       SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
       AROLOGIS_SIGNATURE_COPY_DIR: /var/lib/arologis/signature-copies
     ports:
-      - "8097:8097"
+      - "127.0.0.1:8097:8097"
     depends_on: *service-depends
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8097/actuator/health || exit 1"]

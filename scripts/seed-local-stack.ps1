@@ -112,6 +112,7 @@ foreach ($url in $serviceHealth) {
 }
 Write-Host "[seed] 14 service actuator health OK — Flyway startup completed"
 
+$loginVerifyFailures = @()
 foreach ($user in $users) {
     try {
         $verifyLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
@@ -124,8 +125,16 @@ foreach ($user in $users) {
             throw "응답 token 누락"
         }
     } catch {
+        $loginVerifyFailures += "$($user.loginId): $($_.Exception.Message)"
         Write-Warning "[seed] login verify FAILED for $($user.loginId) — $($_.Exception.Message)"
     }
+}
+
+# MIG-23 사이클 1e fix (Codex Correctness/Maintainability/Test MAJOR) — hard fail
+# 로그인 검증 실패 1건이라도 있으면 seed 전체 비-0 exit. soft-fail (Write-Warning 만 후 complete) 차단.
+if ($loginVerifyFailures.Count -gt 0) {
+    Write-Error "[seed] login verify FAILED ($($loginVerifyFailures.Count)건): $($loginVerifyFailures -join '; ')"
+    exit 1
 }
 
 if (-not $SkipReimport) {

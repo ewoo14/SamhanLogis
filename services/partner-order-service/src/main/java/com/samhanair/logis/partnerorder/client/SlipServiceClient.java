@@ -83,6 +83,10 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })
+                    // MIG-23 사이클 1e fix (Codex Correctness MAJOR) — 409 duplicate 명시 통과.
+                    // RestClient 의 default 4xx handler 가 onStatus 미처리 status 를 throw 하므로
+                    // 409 는 no-op handler 로 explicit pass 처리해야 body parse + duplicate(slipNo) 분기 도달.
+                    .onStatus(s -> s.value() == 409, (req, res) -> { /* no-op, allow body parse */ })
                     .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {});
 
             String slipNo = extractSlipNo(response.getBody());

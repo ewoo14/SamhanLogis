@@ -1,18 +1,15 @@
 package com.samhanair.logis.security.permission;
 
 /**
- * 동적 RBAC 권한 조회 클라이언트 공통 인터페이스 — SP-D5 통합.
+ * 동적 RBAC 권한 조회 클라이언트 공통 인터페이스 — SP-D5 통합 + SP-D6 (MIG-23) 단일 구현 통합.
  *
  * <p>SP-D1~D4 에서 각 service(accounting/arologis/inventory/notification/partner-order/partner/
- * product/slip/user) 가 자체 패키지에 중복 정의하던 동일 인터페이스를 {@code shared:security}
- * 모듈로 일원화한다.
- *
- * <p>구현체({@code DynamicPermissionClientImpl}) 는 각 service 패키지에 유지된다.
- * RestClient 의 baseUrl/qualifier/loadBalancer 설정이 service 별로 다르기 때문에
- * 인터페이스만 공유하고 impl 은 이동하지 않는다.
- *
- * <p>이전 service 별 인터페이스 파일은 {@code @Deprecated} 처리 후 본 타입으로의
- * import 변경으로 대체될 예정이다 (SP-D6+ 이연).
+ * product/slip/user) 가 자체 패키지에 중복 정의하던 동일 인터페이스를 SP-D5 에서
+ * {@code shared:security} 모듈로 일원화. SP-D6 (MIG-23) 에서 9 service 의 service-local
+ * {@link DefaultDynamicPermissionClient} 9 파일을 단일 구현으로 통합 + service-local interface 9 파일
+ * 모두 삭제. 기본 bean 등록은 {@link PermissionSecurityAutoConfiguration#defaultDynamicPermissionClient}
+ * 가 담당하며, 소비자 service 가 자체 bean 을 정의하면 {@code @ConditionalOnMissingBean} 에
+ * 의해 override.
  *
  * <p>auth-service {@code GET /auth/admin/permissions/check} 를 호출하여
  * 특정 역할의 특정 페이지 접근 가능 여부를 확인한다.

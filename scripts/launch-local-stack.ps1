@@ -93,8 +93,11 @@ function Start-Client {
     )
     $clientDir = Join-Path $RepoRoot $Path
     $logPath = Join-Path $LogDir "$Name.log"
+    $pidPath = Join-Path $LogDir "$Name.pid"
     $command = "cd /d `"$clientDir`" && npm.cmd run local-dev *> `"$logPath`""
     $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -PassThru -WindowStyle Hidden
+    # MIG-23 사이클 1e fix (Codex Maintainability/Test MAJOR) — stop-local-stack.ps1 *.pid 종료 호환
+    $process.Id | Out-File -FilePath $pidPath -Encoding UTF8 -Force
     Write-Host ("[local-stack] client {0,-18} pid={1} log={2}" -f $Name, $process.Id, $logPath)
 }
 

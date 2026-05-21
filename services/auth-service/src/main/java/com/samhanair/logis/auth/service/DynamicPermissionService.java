@@ -132,8 +132,9 @@ public class DynamicPermissionService {
         }
 
         // 모든 역할 × 페이지 조합으로 매트릭스 구성
+        // MIG-23 사이클 1e fix (Codex Correctness MINOR) — Role enum 10-role 확장 (STAFF/DRIVER 추가) 동기화.
         List<String> allRoles = List.of(
-                "MASTER", "MANAGER", "ACCOUNTANT", "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY");
+                "MASTER", "MANAGER", "ACCOUNTANT", "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY", "STAFF", "DRIVER");
         List<PageCode> allPages = Arrays.asList(PageCode.values());
 
         Map<String, Map<String, PermissionDto>> matrix = new LinkedHashMap<>();

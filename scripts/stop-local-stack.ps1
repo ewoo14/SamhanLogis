@@ -18,24 +18,25 @@ $LogDir = Join-Path $RepoRoot "logs/local-stack/clients"
 
 if (-not $KeepClients) {
     if (Test-Path $LogDir) {
+        # MIG-23 사이클 1e fix (Codex Security MINOR) — pid 의 ProcessName 가
+        # cmd/node/electron/expo/npm 패턴인지 검증 후 종료. tampered/stale pid 시 무관 process 종료 차단.
+        $allowedNames = @('cmd', 'conhost', 'node', 'npm', 'electron', 'expo', 'vite')
         Get-ChildItem -Path $LogDir -Filter "*.pid" -ErrorAction SilentlyContinue | ForEach-Object {
             $pidValue = (Get-Content $_.FullName -ErrorAction SilentlyContinue | Select-Object -First 1)
             if ($pidValue) {
                 try {
-                    Stop-Process -Id [int]$pidValue -Force -ErrorAction Stop
-                    Write-Host "[stop] client pid=$pidValue ($($_.BaseName)) terminated"
+                    $proc = Get-Process -Id [int]$pidValue -ErrorAction Stop
+                    if ($allowedNames -contains $proc.ProcessName.ToLower()) {
+                        Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+                        Write-Host "[stop] client pid=$pidValue ($($_.BaseName) name=$($proc.ProcessName)) terminated"
+                    } else {
+                        Write-Warning "[stop] client pid=$pidValue ($($_.BaseName)) skipped — unexpected ProcessName='$($proc.ProcessName)'"
+                    }
                 } catch {
                     Write-Host "[stop] client pid=$pidValue ($($_.BaseName)) already gone"
                 }
                 Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
             }
-        }
-        # Vite / Expo / Electron 잔여 process 추가 정리
-        Get-Process | Where-Object {
-            $_.ProcessName -match '^(node|electron|vite|expo)$' -and
-            $_.MainWindowTitle -match 'samhan|local-stack'
-        } | ForEach-Object {
-            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
         }
     }
 }

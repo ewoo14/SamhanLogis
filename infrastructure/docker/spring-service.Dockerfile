@@ -16,8 +16,8 @@ RUN apk add --no-cache curl \
 
 WORKDIR /app
 
-COPY ${JAR_FILE} /app/app.jar
-RUN chown app:app /app/app.jar
+# MIG-23 사이클 1e fix (Codex Performance MINOR) — RUN chown 별도 layer 회피.
+COPY --chown=app:app ${JAR_FILE} /app/app.jar
 
 USER app
 

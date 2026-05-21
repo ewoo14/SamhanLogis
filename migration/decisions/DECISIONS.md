@@ -2464,7 +2464,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-23-01 | 신규 client를 만들지 않고 기존 6 client 운영 단위(desktop / mobile / mobile-staff / web 3종 / arologis-desktop / arologis-mobile)를 정비한다. |
 | D-MIG-23-02 | 기존 `infrastructure/docker-compose.yml`은 infra source of truth로 유지하고, backend 전체 실행은 `infrastructure/docker-compose.local-all.yml` overlay로 분리한다. |
 | D-MIG-23-03 | `scripts/launch-local-stack.ps1`와 `.sh`가 bootJar build, compose up, health check, client 병렬 실행을 담당한다. |
-| D-MIG-23-04 | 사용자 5 credential은 auth-service register API로 seed한다. auth-service에는 현재 `POST /admin/users`가 없고 user-service admin create는 임시 비밀번호 자동 발급 계약이므로, 고정 비밀번호 로컬 seed는 `/api/auth/register`를 사용한다. 현재 backend role enum에 없는 `ROLE_STAFF`/`ROLE_DRIVER`는 각각 `SALES`/`DISPATCH` alias로 등록하고 문서에 명시한다. |
+| D-MIG-23-04 | 사용자 5 credential은 auth-service register API로 seed한다. auth-service에는 현재 `POST /admin/users`가 없고 user-service admin create는 임시 비밀번호 자동 발급 계약이므로, 고정 비밀번호 로컬 seed는 `/api/auth/register`를 사용한다. Role enum은 본 슬라이스에서 8 → 10 (STAFF/DRIVER 추가, commit a4db1f08) 으로 확장하여 alias 없이 직접 등록한다. 등록 후 `POST /api/auth/login` token 발급 verification 자동화 (실패 시 비-0 exit). |
 | D-MIG-23-05 | 이카운트 raw 11종 자동 import는 MIG-20 reimport endpoint `mig-1`~`mig-11` 호출로 수행하며 `source_file_hash` 멱등을 그대로 사용한다. |
 | D-MIG-23-06 | 사용자 친화 가이드는 `docs/local-stack/README.md`에 1 command 시작, URL, credential, troubleshooting, migration 검증 절차를 모은다. |
 | D-MIG-23-07 | 옵션 C 21단계와 TM PR comment 머지 게이트 의무는 PR 발행 후 comment로 남겨 머지 전 확인한다. |
