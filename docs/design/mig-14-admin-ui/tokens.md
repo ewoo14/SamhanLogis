@@ -137,28 +137,23 @@ CashKind:
 | 값 | 표시 | chip token |
 |---|---|---|
 | `EXPENSE_VOUCHER` | 지출결의서 | `status-badge.done` |
-| `DEPOSIT_REPORT` | 입금보고서 | `status-badge.done` |
-| `MANUAL` | 수동 분개 | `status-badge.wip` |
-| `OTHER` | 기타 | `status-badge.plan` |
+| `MANUAL_DISBURSEMENT` | 수기 지출 | `status-badge.wip` |
 
 CashReceiptKind:
 
 | 값 | 표시 | chip token |
 |---|---|---|
-| `EXPENSE_VOUCHER` | 지출결의서 | `status-badge.done` |
 | `DEPOSIT_REPORT` | 입금보고서 | `status-badge.done` |
-| `MANUAL` | 수동 분개 | `status-badge.wip` |
-| `OTHER` | 기타 | `status-badge.plan` |
+| `MANUAL_RECEIPT` | 수기 입금 | `status-badge.wip` |
 
 OrderProgressStatus:
 
 | 값 | 표시 | chip token |
 |---|---|---|
-| `DRAFT` | 초안 | `status-badge.plan` |
-| `CONFIRMED` | 확정 | `status-badge.wip` |
-| `IN_PROGRESS` | 진행 중 | `status-badge.wip` |
 | `COMPLETED` | 완료 | `status-badge.done` |
-| `CANCELLED` | 취소 | `status-badge.plan` |
+| `IN_PROGRESS` | 진행 | `status-badge.wip` |
+| `CANCELED` | 취소 | `status-badge.plan` |
+| `PENDING` | 대기 | `status-badge.plan` |
 
 원장 변환:
 

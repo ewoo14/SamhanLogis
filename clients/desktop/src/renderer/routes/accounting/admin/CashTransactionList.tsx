@@ -8,7 +8,6 @@ import {
 import { usePageTitle } from '../../../hooks/usePageTitle'
 import { firstDayOfMonth, today } from '../../../utils/dateUtils'
 import {
-  CASH_KIND_LABEL,
   FilterField,
   MoneyText,
   PAGE_SIZE,
@@ -25,6 +24,8 @@ interface CashTransactionListProps {
   testId: string
   queryKey: string
   emptyMessage: string
+  kindLabels: Record<string, string>
+  kindOptions: Array<{ value: string; label: string }>
   loadRows: (options: CashTransactionListOptions) => Promise<{
     content: CashTransactionRow[]
     totalElements: number
@@ -41,6 +42,8 @@ export function CashTransactionList({
   testId,
   queryKey,
   emptyMessage,
+  kindLabels,
+  kindOptions,
   loadRows,
 }: CashTransactionListProps) {
   usePageTitle(title)
@@ -93,7 +96,7 @@ export function CashTransactionList({
         key: 'kind',
         header: '유형',
         width: '110px',
-        render: (row) => CASH_KIND_LABEL[row.kind] ?? row.kind,
+        render: (row) => kindLabels[row.kind] ?? row.kind,
       },
       {
         key: 'amount',
@@ -114,7 +117,7 @@ export function CashTransactionList({
         render: (row) => <PlainText value={row.memo} />,
       },
     ],
-    [],
+    [kindLabels],
   )
 
   const applyFilters = () => {
@@ -156,9 +159,11 @@ export function CashTransactionList({
         <FilterField label="유형">
           <select value={kind} onChange={(e) => setKind(e.target.value)} style={inputStyle}>
             <option value="">전체</option>
-            <option value="EXPENSE_VOUCHER">지출결의</option>
-            <option value="DEPOSIT_REPORT">입금보고</option>
-            <option value="MANUAL">수기</option>
+            {kindOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </FilterField>
         <FilterField label="시작일">

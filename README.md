@@ -30,8 +30,9 @@
 ### 최신 진행 메모 (2026-05-21)
 
 - MIG-17 (진행 중): Designer tokens.md와 mock 라벨을 실제 화면 API enum 계약으로 동기화한다.
-  - CashKind / CashReceiptKind 라벨은 `지출결의서`, `입금보고서`, `수동 분개`, `기타`로 고정한다.
-  - OrderProgressStatus 라벨은 `초안`, `확정`, `진행 중`, `완료`, `취소`로 고정한다.
+  - CashKind 라벨은 `EXPENSE_VOUCHER=지출결의서`, `MANUAL_DISBURSEMENT=수기 지출`로 고정한다.
+  - CashReceiptKind 라벨은 `DEPOSIT_REPORT=입금보고서`, `MANUAL_RECEIPT=수기 입금`으로 고정한다.
+  - OrderProgressStatus 라벨은 `COMPLETED=완료`, `IN_PROGRESS=진행`, `CANCELED=취소`, `PENDING=대기`로 고정한다.
   - Ledger mock은 `transformStatus`(`PENDING` / `TRANSFORMED` / `REJECTED`) 기준 변환상태 chip으로 정리한다.
 
 - MIG-16 (완료): MIG-14 사후 BE Minor 백로그를 정리했다.

@@ -49,7 +49,7 @@
 | 순미수금 | `netReceivable` | 양수 강조 |
 | 순미지급금 | `netPayable` | 양수 경고 |
 
-`netCash`는 기본 표에서는 숨기고, 행 펼침 또는 상세 tooltip에서 `순현금`으로 표시한다. 본 화면은 집계표라 kind/status chip을 직접 표시하지 않으며, CashKind/CashReceiptKind 라벨은 상세 tooltip 또는 후속 drill-down에서 tokens.md 매핑을 따른다.
+`netCash`는 기본 표에서는 숨기고, 행 펼침 또는 상세 tooltip에서 `순현금`으로 표시한다. 본 화면은 집계표라 kind/status chip을 직접 표시하지 않으며, CashKind(`EXPENSE_VOUCHER`/`MANUAL_DISBURSEMENT`)와 CashReceiptKind(`DEPOSIT_REPORT`/`MANUAL_RECEIPT`) 라벨은 상세 tooltip 또는 후속 drill-down에서 tokens.md 매핑을 따른다.
 
 ---
 

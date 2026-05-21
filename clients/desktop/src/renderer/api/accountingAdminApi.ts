@@ -8,9 +8,9 @@ import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 
 export type CashTransactionKind =
   | 'EXPENSE_VOUCHER'
+  | 'MANUAL_DISBURSEMENT'
   | 'DEPOSIT_REPORT'
-  | 'MANUAL'
-  | 'OTHER'
+  | 'MANUAL_RECEIPT'
   | string
 
 export interface CashTransactionListOptions {
@@ -35,11 +35,10 @@ export interface CashTransactionRow {
 }
 
 export type OrderProgressStatus =
-  | 'DRAFT'
-  | 'CONFIRMED'
-  | 'IN_PROGRESS'
   | 'COMPLETED'
-  | 'CANCELLED'
+  | 'IN_PROGRESS'
+  | 'CANCELED'
+  | 'PENDING'
   | string
 
 export interface OrderListOptions {

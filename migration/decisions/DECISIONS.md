@@ -2368,9 +2368,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 
 | 결정 | 내용 |
 |---|---|
-| D-MIG-17-01 | `docs/design/mig-14-admin-ui/tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus는 화면 API enum 값과 한국어 라벨을 1:1로 명시한다. |
+| D-MIG-17-01 | MIG-14 FE 라벨과 `docs/design/mig-14-admin-ui/tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus는 실제 BE enum 값과 한국어 라벨을 1:1로 명시한다. |
 | D-MIG-17-02 | `docs/design/mig-14-admin-ui/01~07` mock wireframe의 상태 chip과 구분 라벨은 tokens.md 라벨 계약을 따른다. |
 | D-MIG-17-03 | 필터 chip + reset 공통 UI 구현은 MIG-18(E admin UI 2단계)로 이연하고, MIG-17은 라벨/문서 정합만 처리한다. |
-| D-MIG-17-04 | 옵션 C 21단계 + PM 자율 연속 docs-only 슬라이스로 진행하고, dev-report/handoff/overview HTML을 같은 변경에 포함한다. |
+| D-MIG-17-04 | 옵션 C 21단계 + PM 자율 연속 슬라이스로 진행하고, 사이클 1c CRITICAL fix에서 FE 라벨과 dev-report/handoff/overview HTML을 같은 변경에 포함한다. |
 
 **산출 예정/진행**: MIG-14 design tokens/mock 문서 8건, dev-report `docs/dev-reports/mig-17-designer-tokens-sync.md`, handoff, overview HTML.

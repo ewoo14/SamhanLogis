@@ -141,11 +141,10 @@ export function OrderListPage() {
             style={inputStyle}
           >
             <option value="">전체</option>
-            <option value="DRAFT">임시</option>
-            <option value="CONFIRMED">확정</option>
+            <option value="PENDING">대기</option>
             <option value="IN_PROGRESS">진행</option>
             <option value="COMPLETED">완료</option>
-            <option value="CANCELLED">취소</option>
+            <option value="CANCELED">취소</option>
           </select>
         </FilterField>
       </div>

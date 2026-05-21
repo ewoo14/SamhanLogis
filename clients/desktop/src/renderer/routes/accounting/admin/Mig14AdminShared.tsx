@@ -192,24 +192,26 @@ export function PagedTable<T>({
 }
 
 export const CASH_KIND_LABEL: Record<string, string> = {
-  EXPENSE_VOUCHER: '지출결의',
-  DEPOSIT_REPORT: '입금보고',
-  MANUAL: '수기',
-  OTHER: '기타',
+  EXPENSE_VOUCHER: '지출결의서',
+  MANUAL_DISBURSEMENT: '수기 지출',
+}
+
+export const CASH_RECEIPT_KIND_LABEL: Record<string, string> = {
+  DEPOSIT_REPORT: '입금보고서',
+  MANUAL_RECEIPT: '수기 입금',
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {
-  DRAFT: '임시',
-  CONFIRMED: '확정',
-  IN_PROGRESS: '진행',
   COMPLETED: '완료',
-  CANCELLED: '취소',
+  IN_PROGRESS: '진행',
+  CANCELED: '취소',
+  PENDING: '대기',
 }
 
 export function orderStatusTone(status: string): 'neutral' | 'success' | 'danger' | 'warning' {
   if (status === 'COMPLETED') return 'success'
-  if (status === 'CANCELLED') return 'danger'
-  if (status === 'IN_PROGRESS' || status === 'CONFIRMED') return 'warning'
+  if (status === 'CANCELED') return 'danger'
+  if (status === 'IN_PROGRESS') return 'warning'
   return 'neutral'
 }
 

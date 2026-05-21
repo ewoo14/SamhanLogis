@@ -8,7 +8,7 @@
 
 ## 1. 개요
 
-MIG-16 머지 후 PM 자율 연속 — **G Designer 라벨/Mock 동기화** (docs only).
+MIG-16 머지 후 PM 자율 연속 — **G Designer 라벨/Mock 동기화**. 사이클 1c에서 MIG-14 FE 라벨 테이블까지 실제 BE enum 기준으로 보정한다.
 
 - baseline: MIG-1~16 머지
 - 옵션 C 21단계
@@ -23,20 +23,19 @@ MIG-16 머지 후 PM 자율 연속 — **G Designer 라벨/Mock 동기화** (doc
 
 기존: `DISBURSEMENT/RECEIPT/READY/IN_PROGRESS/DONE/CANCELED` 매핑
 변경: **실 도메인 enum 값** 일치
-- `CashKind`: `EXPENSE_VOUCHER` / `DEPOSIT_REPORT` / `MANUAL` / `OTHER`
-- `CashReceiptKind`: 동일 패턴
-- `OrderProgressStatus`: `DRAFT` / `CONFIRMED` / `IN_PROGRESS` / `COMPLETED` / `CANCELLED`
+- `CashKind`: `EXPENSE_VOUCHER` / `MANUAL_DISBURSEMENT`
+- `CashReceiptKind`: `DEPOSIT_REPORT` / `MANUAL_RECEIPT`
+- `OrderProgressStatus`: `COMPLETED` / `IN_PROGRESS` / `CANCELED` / `PENDING`
 
 각 enum 의 한국어 표시 라벨 정의:
 - `EXPENSE_VOUCHER` → "지출결의서"
+- `MANUAL_DISBURSEMENT` → "수기 지출"
 - `DEPOSIT_REPORT` → "입금보고서"
-- `MANUAL` → "수동 분개"
-- `OTHER` → "기타"
-- `DRAFT` → "초안"
-- `CONFIRMED` → "확정"
-- `IN_PROGRESS` → "진행 중"
+- `MANUAL_RECEIPT` → "수기 입금"
 - `COMPLETED` → "완료"
-- `CANCELLED` → "취소"
+- `IN_PROGRESS` → "진행"
+- `CANCELED` → "취소"
+- `PENDING` → "대기"
 
 ### 2.2 4 mockup wireframe 정합 갱신 (MIG-14 Designer-MIN-2)
 
@@ -44,12 +43,13 @@ MIG-16 머지 후 PM 자율 연속 — **G Designer 라벨/Mock 동기화** (doc
 
 ---
 
-## 3. 산출 예정 (5~10 file, 약 100~200 LOC docs only)
+## 3. 산출 예정 (FE 라벨 + docs)
 
 | 영역 | 변경 |
 |---|---|
 | docs/design/mig-14-admin-ui/tokens.md | 라벨 enum 정확 매핑 |
 | docs/design/mig-14-admin-ui/01~07 mockup | 상태 chip + 라벨 정정 |
+| clients/desktop/src/renderer/routes/accounting/admin/* | MIG-14 FE 라벨 테이블과 지출/입금 kind 옵션 분리 |
 | dev-report | D-MIG-17-01~02 |
 
 ---
