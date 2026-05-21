@@ -732,34 +732,149 @@ file=<매출장 또는 매입장 XLSX>
 
 ### 4.1 Soft-delete 복구
 
-잘못 soft-delete된 운영 row는 audit 값을 남기고 복구합니다.
+잘못 soft-delete된 운영 row는 audit 값을 남기고 복구합니다. `external_ref`는 ECOUNT 접두사 형식이 아니라 MIG-7/MIG-8 변환 코드 기준 `source_file_hash || '-' || source_row_no` 형식입니다. MIG-9 Journal은 Cash row의 `external_ref`를 `journals.source_ref`로 저장합니다.
+
+옵션 A: 특정 `source_file_hash` 전체 복구
 
 ```sql
-WITH target_rows AS (
-    SELECT id
-      FROM cash_disbursements
-     WHERE is_deleted = TRUE
-       AND external_ref LIKE 'ECOUNT:%'
-       AND deleted_at >= TIMESTAMP '2026-05-21 00:00:00'
-)
-UPDATE cash_disbursements t
+UPDATE cash_disbursements
    SET is_deleted = FALSE,
        deleted_at = NULL,
        deleted_by = NULL,
-       modified_at = now(),
-       modified_by = 'mig-19-rollback'
-  FROM target_rows r
- WHERE t.id = r.id;
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE external_ref LIKE :source_file_hash || '-%'
+   AND is_deleted = TRUE;
+
+UPDATE cash_receipts
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE external_ref LIKE :source_file_hash || '-%'
+   AND is_deleted = TRUE;
+
+UPDATE orders
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE external_ref LIKE :source_file_hash || '-%'
+   AND is_deleted = TRUE;
+
+UPDATE journals
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE source_ref LIKE :source_file_hash || '-%'
+   AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
+   AND is_deleted = TRUE;
 ```
 
-대상 테이블만 바꿔 같은 패턴으로 적용합니다.
+옵션 B: 특정 일자 범위 복구
 
-- `cash_disbursements`
-- `cash_receipts`
-- `orders`
-- `order_lines`
-- `journals`
-- `journal_lines`
+```sql
+UPDATE cash_disbursements
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE transaction_date BETWEEN :from AND :to
+   AND is_deleted = TRUE;
+
+UPDATE cash_receipts
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE transaction_date BETWEEN :from AND :to
+   AND is_deleted = TRUE;
+
+UPDATE orders
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE order_date BETWEEN :from AND :to
+   AND is_deleted = TRUE;
+
+UPDATE journals
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE journal_date BETWEEN :from AND :to
+   AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
+   AND is_deleted = TRUE;
+```
+
+`order_lines`, `journal_lines`에는 `external_ref` 컬럼이 없습니다. child row는 부모 row 기준으로 별도 복구합니다.
+
+```sql
+-- 옵션 A: source_file_hash 기준 child row 복구
+UPDATE order_lines
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE order_id IN (
+       SELECT id
+         FROM orders
+        WHERE external_ref LIKE :source_file_hash || '-%'
+ )
+   AND is_deleted = TRUE;
+
+UPDATE journal_lines
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE journal_id IN (
+       SELECT id
+         FROM journals
+        WHERE source_ref LIKE :source_file_hash || '-%'
+          AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
+ )
+   AND is_deleted = TRUE;
+
+-- 옵션 B: 일자 범위 기준 child row 복구
+UPDATE order_lines
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE order_id IN (
+       SELECT id
+         FROM orders
+        WHERE order_date BETWEEN :from AND :to
+ )
+   AND is_deleted = TRUE;
+
+UPDATE journal_lines
+   SET is_deleted = FALSE,
+       deleted_at = NULL,
+       deleted_by = NULL,
+       modified_at = NOW(),
+       modified_by = 'ROLLBACK_OPERATOR'
+ WHERE journal_id IN (
+       SELECT id
+         FROM journals
+        WHERE journal_date BETWEEN :from AND :to
+          AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
+ )
+   AND is_deleted = TRUE;
+```
 
 ### 4.2 journal_no JD-/JR- 접두사 충돌 회피
 
