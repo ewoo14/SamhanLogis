@@ -2,6 +2,7 @@ package com.samhanair.logis.security.permission;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -9,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.web.client.RestClient;
 
 /**
  * SP-D5 동적 RBAC 권한 검증 공통 인프라 자동 설정.
@@ -74,5 +76,24 @@ public class PermissionSecurityAutoConfiguration {
             PermissionGuardMetrics metrics,
             @Value("${spring.application.name:unknown}") String applicationName) {
         return new PermissionAspect(clientProvider, metrics, applicationName);
+    }
+
+    /**
+     * SP-D6 — 9 service 의 중복 {@code DynamicPermissionClientImpl} 을 일원화한 기본 구현.
+     *
+     * <p>소비자 service 가 자체 {@link DynamicPermissionClient} bean 을 정의한 경우
+     * {@code @ConditionalOnMissingBean} 에 의해 본 기본 구현은 비활성화된다.
+     *
+     * <p>{@code loadBalancedRestClientBuilder} bean 이 모든 9 service 에 존재해야 한다
+     * (SP-D6 마이그레이션 사전 조건).
+     *
+     * @param loadBalancedBuilder Spring Cloud LoadBalancer 통합 빌더
+     * @return {@link DefaultDynamicPermissionClient} bean
+     */
+    @Bean
+    @ConditionalOnMissingBean(DynamicPermissionClient.class)
+    public DynamicPermissionClient defaultDynamicPermissionClient(
+            @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder loadBalancedBuilder) {
+        return new DefaultDynamicPermissionClient(loadBalancedBuilder);
     }
 }

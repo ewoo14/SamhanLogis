@@ -3,7 +3,7 @@ package com.samhanair.logis.common.security;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 8-role taxonomy with Korean display names for UI rendering. */
+/** 10-role taxonomy with Korean display names for UI rendering. */
 @Getter
 @RequiredArgsConstructor
 public enum Role {
@@ -14,7 +14,9 @@ public enum Role {
     SALES("영업원"),
     ACCOUNTANT("회계원"),
     WAREHOUSE("창고원"),
-    INVENTORY("재고원");
+    INVENTORY("재고원"),
+    STAFF("사원"),
+    DRIVER("기사");
 
     private static final String AUTHORITY_PREFIX = "ROLE_";
 

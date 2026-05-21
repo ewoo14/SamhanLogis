@@ -6,6 +6,30 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-Command {
+    param([string]$Name, [string]$Hint)
+    $exists = Get-Command $Name -ErrorAction SilentlyContinue
+    if (-not $exists) {
+        throw "[local-stack] '$Name' 미설치. $Hint"
+    }
+}
+
+function Assert-DockerDaemon {
+    try {
+        docker info 2>$null | Out-Null
+    } catch {
+        # Get-Command 으로 잡혔어도 daemon 미가동 시 docker info 가 비정상 종료
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "[local-stack] Docker daemon 미가동. Docker Desktop 실행 후 다시 시도하세요."
+    }
+}
+
+Assert-Command "docker" "Docker Desktop 설치 (https://www.docker.com/products/docker-desktop)"
+Assert-Command "java"   "JDK 17 설치 후 JAVA_HOME 설정"
+Assert-Command "npm.cmd" "Node.js 20+ 설치"
+Assert-DockerDaemon
+
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ComposeFiles = @(
     "-f", "infrastructure/docker-compose.yml",

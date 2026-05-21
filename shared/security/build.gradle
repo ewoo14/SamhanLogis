@@ -44,6 +44,10 @@ dependencies {
     api 'org.springframework:spring-aop'
     api 'org.aspectj:aspectjweaver'
 
+    // SP-D6: shared DefaultDynamicPermissionClient (RestClient) + Jackson JsonNode 응답 파싱
+    api 'org.springframework:spring-web'
+    api 'com.fasterxml.jackson.core:jackson-databind'
+
     // ConfigurationProcessor for `META-INF/spring-configuration-metadata.json`
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 

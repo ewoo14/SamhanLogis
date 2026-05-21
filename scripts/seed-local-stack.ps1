@@ -60,11 +60,11 @@ $headers = @{
 }
 
 $users = @(
-    @{ loginId = "master@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 마스터"; requestedRole = "ROLE_MASTER"; serviceRole = "MASTER" },
-    @{ loginId = "manager@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 관리자"; requestedRole = "ROLE_MANAGER"; serviceRole = "MANAGER" },
-    @{ loginId = "accountant@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 회계"; requestedRole = "ROLE_ACCOUNTANT"; serviceRole = "ACCOUNTANT" },
-    @{ loginId = "staff@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 현장직"; requestedRole = "ROLE_STAFF"; serviceRole = "SALES" },
-    @{ loginId = "driver@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 기사"; requestedRole = "ROLE_DRIVER"; serviceRole = "DISPATCH" }
+    @{ loginId = "master@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 마스터"; role = "MASTER" },
+    @{ loginId = "manager@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 관리자"; role = "MANAGER" },
+    @{ loginId = "accountant@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 회계"; role = "ACCOUNTANT" },
+    @{ loginId = "staff@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 현장직"; role = "STAFF" },
+    @{ loginId = "driver@samhan.test"; password = 'Pa$$w0rd!'; displayName = "로컬 기사"; role = "DRIVER" }
 )
 
 foreach ($user in $users) {
@@ -73,10 +73,10 @@ foreach ($user in $users) {
             loginId = $user.loginId
             password = $user.password
             displayName = $user.displayName
-            role = $user.serviceRole
+            role = $user.role
         }
         Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/register" -Headers $headers -Body $body | Out-Null
-        Write-Host "[seed] created $($user.loginId) $($user.requestedRole) -> backend $($user.serviceRole)"
+        Write-Host "[seed] created $($user.loginId) ROLE_$($user.role)"
     } catch {
         $message = $_.Exception.Message
         if ($message -match "409|CONFLICT|이미") {
@@ -108,6 +108,22 @@ foreach ($url in $serviceHealth) {
 }
 Write-Host "[seed] 14 service actuator health OK — Flyway startup completed"
 
+foreach ($user in $users) {
+    try {
+        $verifyLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
+            loginId = $user.loginId
+            password = $user.password
+        }
+        if ($verifyLogin.data.token) {
+            Write-Host "[seed] verified login OK: $($user.loginId) (role=$($user.role))"
+        } else {
+            throw "응답 token 누락"
+        }
+    } catch {
+        Write-Warning "[seed] login verify FAILED for $($user.loginId) — $($_.Exception.Message)"
+    }
+}
+
 if (-not $SkipReimport) {
     foreach ($slice in 1..11) {
         $name = "mig-$slice"
@@ -125,5 +141,5 @@ Write-Host "Local credential seed complete"
 Write-Host "  master@samhan.test     / Pa`$`$w0rd! / ROLE_MASTER"
 Write-Host "  manager@samhan.test    / Pa`$`$w0rd! / ROLE_MANAGER"
 Write-Host "  accountant@samhan.test / Pa`$`$w0rd! / ROLE_ACCOUNTANT"
-Write-Host "  staff@samhan.test      / Pa`$`$w0rd! / ROLE_STAFF (backend SALES alias)"
-Write-Host "  driver@samhan.test     / Pa`$`$w0rd! / ROLE_DRIVER (backend DISPATCH alias)"
+Write-Host "  staff@samhan.test      / Pa`$`$w0rd! / ROLE_STAFF"
+Write-Host "  driver@samhan.test     / Pa`$`$w0rd! / ROLE_DRIVER"
