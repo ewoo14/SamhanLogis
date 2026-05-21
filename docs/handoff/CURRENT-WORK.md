@@ -4,6 +4,32 @@
 
 ---
 
+## 🚧 2026-05-21 최신 진행 — MIG-20 이카운트 raw 자동 재import 스케줄
+
+### 현재 브랜치
+- `spec/2026-05-21-mig-20-scheduled-reimport`
+
+### 범위
+
+- accounting-service에 `POST /admin/ecount/reimport/{slice}` MASTER 전용 재import endpoint를 추가한다.
+- `docs/migration/ecount-data/raw/` 파일을 slice별 기존 importer/transform endpoint로 다시 흘려보내되, `source_file_hash`와 `staging.ecount_reimport_file_runs` 기준으로 이미 처리된 파일은 skip한다.
+- auth-service에 `PageCode.ECOUNT_REIMPORT`와 V26 seed를 추가하고, shared/common에 `EcountReimportResult` 및 MIG-20 ErrorCode 3종을 추가한다.
+- 운영 가이드는 `docs/migration/ECOUNT-CUTOVER-GUIDE.md` §7에 Linux crontab, Windows Task Scheduler, curl, Slack alert 연동 절차로 정리한다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-20-scheduled-reimport-design.md`
+- dev-report: `docs/dev-reports/mig-20-scheduled-reimport.md`
+- cutover guide: `docs/migration/ECOUNT-CUTOVER-GUIDE.md`
+- decisions: `D-MIG-20-01~06`
+
+### 검증 메모
+
+- RED: `./gradlew :services:accounting-service:compileTestJava :services:auth-service:test --no-daemon` 실패 확인.
+- GREEN 진행: accounting-service compile/test IT, auth-service/shared common 최종 검증 후 commit + push 예정.
+
+---
+
 ## 🚧 2026-05-21 최신 진행 — MIG-19 이카운트 cutover 가이드 docs-only
 
 ### 현재 브랜치

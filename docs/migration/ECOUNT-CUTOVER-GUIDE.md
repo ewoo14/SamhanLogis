@@ -1143,7 +1143,124 @@ UUID 노출은 운영자 실수 유발과 보안 정책 위반 가능성이 있�
 
 ---
 
-## 7. cutover 완료 기준
+## 7. 자동 재import 절차 (MIG-20)
+
+MIG-20은 서비스 내부 스케줄러가 아니라 외부 스케줄러가 MASTER 권한으로 `POST /admin/ecount/reimport/{slice}`를 호출하는 방식입니다. 운영자는 매월 raw 파일을 `docs/migration/ecount-data/raw/`에 내려받은 뒤 slice 순서대로 호출합니다.
+
+Endpoint:
+
+```http
+POST /admin/ecount/reimport/{slice}
+X-User-Id: system-cron
+X-User-Role: MASTER
+```
+
+허용 slice:
+
+```text
+mig-1, mig-2, mig-3, mig-4, mig-5, mig-6, mig-7, mig-8, mig-9, mig-10, mig-11
+```
+
+응답 sample:
+
+```json
+{
+  "slice": "mig-4",
+  "filesScanned": 7,
+  "filesProcessed": 2,
+  "filesSkipped": 5,
+  "totalImported": 1400,
+  "totalRejected": 3,
+  "details": [
+    {
+      "target": "order",
+      "fileName": "주문서-Excel다운로드(20260501~20260519_1).csv",
+      "sourceFileHash": "sha256...",
+      "status": "PROCESSED",
+      "imported": 380,
+      "rejected": 0,
+      "message": null
+    }
+  ],
+  "errors": []
+}
+```
+
+멱등 정책:
+
+- accounting-service staging table에 같은 `source_file_hash`가 있으면 파일 단위로 skip합니다.
+- partner/product/user/inventory처럼 다른 service가 소유한 import는 `staging.ecount_reimport_file_runs`에 성공 기록을 남겨 다음 실행에서 skip합니다.
+- MIG-7~10은 raw 파일이 아니라 staging/domain 변환 단계이므로 `details.fileName`과 `sourceFileHash`가 `null`일 수 있습니다.
+
+Linux crontab 예시 (매월 1일 02:00 UTC):
+
+```bash
+SHELL=/bin/bash
+SAMHAN_API_BASE=https://api.samhan-air.com
+SAMHAN_CRON_USER=system-cron
+
+0 2 1 * * for slice in mig-1 mig-2 mig-3 mig-4 mig-5 mig-6 mig-7 mig-8 mig-9 mig-10 mig-11; do \
+  curl -fsS -X POST "$SAMHAN_API_BASE/admin/ecount/reimport/$slice" \
+    -H "X-User-Id: $SAMHAN_CRON_USER" \
+    -H "X-User-Role: MASTER" \
+    -H "Content-Type: application/json" \
+  || curl -fsS -X POST "$SAMHAN_API_BASE/internal/notifications/slack/alerts" \
+    -H "X-Internal-Token: $SAMHAN_INTERNAL_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"channel\":\"ops-alerts\",\"text\":\"MIG-20 reimport failed: $slice\"}"; \
+done
+```
+
+Windows Task Scheduler 예시:
+
+```powershell
+$apiBase = "https://api.samhan-air.com"
+$headers = @{
+  "X-User-Id" = "system-cron"
+  "X-User-Role" = "MASTER"
+  "Content-Type" = "application/json"
+}
+
+"mig-1","mig-2","mig-3","mig-4","mig-5","mig-6","mig-7","mig-8","mig-9","mig-10","mig-11" | ForEach-Object {
+  try {
+    Invoke-RestMethod -Method Post -Uri "$apiBase/admin/ecount/reimport/$_" -Headers $headers
+  } catch {
+    Invoke-RestMethod -Method Post -Uri "$apiBase/internal/notifications/slack/alerts" `
+      -Headers @{ "X-Internal-Token" = $env:SAMHAN_INTERNAL_TOKEN; "Content-Type" = "application/json" } `
+      -Body (@{ channel = "ops-alerts"; text = "MIG-20 reimport failed: $_" } | ConvertTo-Json)
+    throw
+  }
+}
+```
+
+Task Scheduler 등록 예시:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File C:\SamhanOps\mig20-reimport.ps1"
+$trigger = New-ScheduledTaskTrigger -Monthly -DaysOfMonth 1 -At 11:00am
+Register-ScheduledTask -TaskName "Samhan MIG-20 Ecount Reimport" `
+  -Action $action -Trigger $trigger -Description "매월 이카운트 raw 재import"
+```
+
+curl 단건 재시도 예시:
+
+```bash
+curl -fsS -X POST "https://api.samhan-air.com/admin/ecount/reimport/mig-11" \
+  -H "X-User-Id: operator-001" \
+  -H "X-User-Role: MASTER" \
+  -H "Content-Type: application/json"
+```
+
+실패 처리:
+
+1. 응답의 `errors[].errorCode`를 확인합니다.
+2. `MIG20_SLICE_UNKNOWN`이면 slice 철자를 `mig-1`~`mig-11`로 고칩니다.
+3. `MIG20_RAW_DIR_NOT_FOUND`이면 raw 다운로드 위치와 `ecount.reimport.raw-dir` 설정을 확인합니다.
+4. `MIG20_REIMPORT_FAILED`이면 `details.target` 기준으로 해당 service 로그를 확인합니다.
+5. 같은 실패가 2회 반복되면 notification-service Slack alert를 남기고 월별 자동 재import를 중단합니다.
+
+## 8. cutover 완료 기준
 
 다음 조건을 모두 만족하면 MIG-19 cutover 가이드를 기준으로 운영 전환을 완료로 봅니다.
 

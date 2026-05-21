@@ -89,4 +89,11 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_MIG14_LEDGER.getCode())
                 .isEqualTo("ecount.mig14.ledger");
     }
+
+    @Test
+    void mig20_reimport_pageCode_V26_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_REIMPORT.getCode()).isEqualTo("ecount.reimport");
+        assertThat(PageCode.ECOUNT_REIMPORT.getDisplayName()).isEqualTo("이카운트 raw 자동 재import");
+        assertThat(PageCode.isValid("ecount.reimport")).isTrue();
+    }
 }

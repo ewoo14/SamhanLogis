@@ -2407,3 +2407,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-19-09 | MIG-19는 docs-only 슬라이스로 유지하고 코드, Flyway, 권한 seed를 변경하지 않는다. |
 
 **산출 예정/진행**: 운영자용 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`, dev-report `docs/dev-reports/mig-19-cutover-guide.md`, handoff/overview 동기화.
+
+### D-MIG-20-00. 이카운트 raw 자동 재import 스케줄 (MIG-20, 2026-05-21)
+
+**배경**: MIG-19 cutover 가이드 이후 운영자가 월별 raw 파일을 같은 디렉토리에 내려받고 기존 MIG-1~11 importer/transform을 반복 실행할 수 있는 운영 trigger가 필요하다. 실행 주기는 회사 운영 일정에 종속되므로 서비스 내부 `@Scheduled`가 아니라 외부 스케줄러가 수동 endpoint를 호출한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-20-01 | Spring `@Scheduled` 대신 수동 trigger endpoint + 외부 cron/Windows Task Scheduler로 운영한다. |
+| D-MIG-20-02 | 단일 endpoint `POST /admin/ecount/reimport/{slice}`가 `mig-1`~`mig-11` slice를 모두 받는다. |
+| D-MIG-20-03 | 실행 권한은 정적 `ROLE_MASTER`와 동적 `ecount.reimport` EDIT를 모두 통과해야 한다. MANAGER/ACCOUNTANT는 실행할 수 없다. |
+| D-MIG-20-04 | raw 파일 scan 위치는 `docs/migration/ecount-data/raw/`를 기본값으로 두고 `ecount.reimport.raw-dir`로 운영 환경에서 변경 가능하게 한다. |
+| D-MIG-20-05 | 멱등성은 기존 staging `source_file_hash` 확인과 `staging.ecount_reimport_file_runs` run registry를 함께 사용한다. |
+| D-MIG-20-06 | 실패 알림은 notification-service Slack alert 연동 대상으로 두고, 본 슬라이스는 cron/Task Scheduler/curl 예시와 실패 시 수동 Slack 호출 예시를 운영 가이드에 제공한다. |
+
+**산출 예정/진행**: shared/common `EcountReimportResult`, accounting-service `EcountReimportService`/controller/V33, auth-service V26 `ECOUNT_REIMPORT`, dev-report `docs/dev-reports/mig-20-scheduled-reimport.md`, cutover guide §7.

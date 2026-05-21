@@ -366,7 +366,13 @@ public enum ErrorCode {
     MIG11_DATE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "MIG-11 일자 포맷 불일치"),
     MIG11_DAILY_CLOSING_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "MIG-11 DailyClosing 합계 불일치");
+            "MIG-11 DailyClosing 합계 불일치"),
+    MIG20_SLICE_UNKNOWN(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-20 재import slice 가 허용 목록에 없습니다"),
+    MIG20_RAW_DIR_NOT_FOUND(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-20 raw 디렉토리를 찾을 수 없습니다"),
+    MIG20_REIMPORT_FAILED(HttpStatus.UNPROCESSABLE_ENTITY,
+            "MIG-20 재import 실행 실패");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

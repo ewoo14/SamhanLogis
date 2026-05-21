@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-19 cutover 가이드</span>
+    <span class="nav-badge">Phase 10.6 · MIG-20 raw 자동 재import</span>
   </div>
 </nav>
 
@@ -1333,8 +1333,8 @@ body {
     </tr>
     <tr>
       <td>10.6</td>
-      <td>이카운트 → SamhanLogis 마이그레이션 — MIG-1~18 완료 + 운영 cutover 가이드</td>
-      <td>MIG-1 #262 ~ MIG-18 완료 + MIG-19 진행 중</td>
+      <td>이카운트 → SamhanLogis 마이그레이션 — MIG-1~19 완료 + raw 자동 재import 스케줄</td>
+      <td>MIG-1 #262 ~ MIG-19 완료 + MIG-20 진행 중</td>
       <td><span class="status-badge wip">진행 중</span></td>
     </tr>
     <tr>
@@ -1356,7 +1356,7 @@ body {
   </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">🛠️</div>
-    <div><strong>MIG-19 cutover 가이드 진행 중:</strong> 운영자가 이카운트 raw 11종 다운로드, DB 백업, MIG-1~11 실행, admin UI 확인, rollback, DailyClosing 대조를 한 문서에서 따라갈 수 있도록 <a href="migration/ECOUNT-CUTOVER-GUIDE.md" style="color:#67e8f9;">ECOUNT-CUTOVER-GUIDE</a>를 정리한다.</div>
+    <div><strong>MIG-20 raw 자동 재import 진행 중:</strong> 외부 cron/Task Scheduler가 MASTER 전용 재import endpoint를 호출하고, `source_file_hash` 기준으로 새 raw 파일만 기존 importer/transform 경로에 재투입하도록 <a href="migration/ECOUNT-CUTOVER-GUIDE.md" style="color:#67e8f9;">ECOUNT-CUTOVER-GUIDE</a> §7에 운영 절차를 추가한다.</div>
   </div>
 </section>
 

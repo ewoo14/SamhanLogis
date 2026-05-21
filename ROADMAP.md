@@ -23,7 +23,7 @@
 | 9     | -           | 잔여 도메인 (partner-service / groupware / notification / dashboard) | **4차 진행 (W1 partner #91 + W2 groupware #92 + W3 notification #93 + W4 dashboard skeleton 본 PR)** |
 | 10    | -           | arologis-service (배차 마이크로서비스) + 모바일 어플 driver tab + slip 통합 (renumber, D-P10-05) | **완료 — W10-1 PR #97 + W10-3 PR #98 + W10-4 PR #99 (slip-service 전자서명 LINK+APP source 통합, V10 Flyway, ApiResponse wrapper IT 의무화) — D-P10-11 / D-P10-12** |
 | 10.5  | -           | **아로로지스 독립 분리** (monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless + arologis.samhan-air.com 도메인 + clients/arologis-desktop + clients/arologis-mobile + 별도 GitHub Actions workflow) + **Phase A 배차 메뉴 + 아로로지스 발송** (PR #188, D-DB-01~09) + **Phase C 배차 수정/취소 요청 흐름** (PR #189, D-DC-01~09) + **Phase F 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송** (TM 통합, D-DF-01~13) | Phase A/C **머지** + Phase F **TM 통합 완료 (QA sequential 진행 중)** + Phase B/D 인성데이타 API 링크 도착 대기 |
-| 10.6  | -           | **이카운트 → Samhan Public 마이그레이션** (MIG-1~18 완료) + **MIG-19 cutover 운영 가이드** | **MIG-19 진행 중 — docs-only** |
+| 10.6  | -           | **이카운트 → Samhan Public 마이그레이션** (MIG-1~19 완료) + **MIG-20 raw 자동 재import 스케줄** | **MIG-20 진행 중 — endpoint/auth/docs** |
 | 11    | -           | AWS 마이그레이션 + Migration Service + 운영 안정화 (AWS cutover 본격) — dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md` | 대기 |
 | 12    | -           | 실시간 협업 시리즈 (SSE infra + slip 코멘트 / audit overlay / 권한·수락 / 전 15 service 확장) — 총 ~13주 (사용자 결정 옵션 A) | **step-1 (PR #123) + step-2 (PR #124) + step-3 (PR #125) + step-4a (PR #126) 머지 + step-4b 진행 (PR-H4b BE 13 service 일괄 `shared/realtime-abstraction` 적용, 본 PR)** |
 
@@ -65,6 +65,7 @@
 - MIG-17 완료: Designer tokens.md와 7개 mock wireframe의 CashKind / CashReceiptKind / OrderProgressStatus 라벨을 화면 API enum 기준으로 동기화했다.
 - MIG-18 완료: admin UI 2단계로 filter chip/reset, AgingSnapshot page size, "회계 관리자" 메뉴 그룹을 연결했다.
 - MIG-19 진행 중: 운영자용 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`를 신규 작성해 raw 다운로드, DB 백업, MIG-1~11 실행, admin UI 확인, rollback, DailyClosing 대조 절차를 묶는다.
+- MIG-20 진행 중: `POST /admin/ecount/reimport/{slice}` MASTER 전용 endpoint와 `source_file_hash` 멱등 skip, 외부 cron/Task Scheduler 운영 절차를 추가한다.
 - 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, 운영 데이터 실 import 검증.
 
 ## Phase 0 — 저장소·가드 정립
@@ -463,6 +464,7 @@
 - **MIG-17** (완료) — **Designer tokens.md + Mock 라벨 실 enum 동기화** — MIG-14 admin UI `tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus 라벨과 chip token을 정리하고, 7개 mock wireframe을 같은 라벨 계약으로 맞췄다.
 - **MIG-18** (완료) — **Admin UI 2단계** — Cash / Order / AgingSnapshot / Ledger 목록에 `FilterChipBar`를 적용하고, AgingSnapshot page size 50/100/200/500 및 "회계 관리자" collapse/expand 메뉴 그룹을 연결했다.
 - **MIG-19** (진행 중, 본 PR) — **이카운트 cutover 운영 가이드** — 운영자가 raw 11종 다운로드, `pg_dump accounting_db`, `X-Internal-Token`, MIG-1~11 endpoint 실행, admin UI 확인, soft-delete 복구, staging `PENDING` 재실행, DailyClosing 대조를 한 문서에서 따라갈 수 있도록 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`를 추가한다.
+- **MIG-20** (진행 중, 본 PR) — **이카운트 raw 자동 재import 스케줄** — 외부 스케줄러가 `POST /admin/ecount/reimport/{slice}`를 호출하고, `source_file_hash` 기준으로 새 raw 파일만 기존 importer/transform 경로에 재투입한다.
 - **MIG-7** (완료, PR #275) — **Cash 도메인 신규 + MIG-5 staging 변환** — accounting-service V27 `cash_disbursements` / `cash_receipts` 도메인, 지출결의서/입금보고서 staging transform endpoint 2종, auth-service V20 PageCode 2종, shared/common MIG7 ErrorCode 6종을 추가했다.
 - **MIG-8** (본 PR) — **Order 도메인 신규 + MIG-4 주문서 staging 변환** — accounting-service V28 `orders` / `order_lines` 도메인, 주문서 staging transform endpoint 1종, auth-service V21 PageCode 1종, shared/common MIG8 ErrorCode 7종을 추가한다. 동일 `order_no` 다중 row는 1 Order + N OrderLine으로 grouping하고, 완료 주문은 SalesAccountingSlip cross-link를 시도한다. aging snapshot 갱신과 Journal 자동 생성은 MIG-9+로 이연한다.
 
@@ -775,6 +777,7 @@ W10-3 시점 = 4 weight (`Regular / Medium / SemiBold / Bold`) 의무 + graceful
 - MIG-17 Designer 동기화 dev report: `docs/dev-reports/mig-17-designer-tokens-sync.md`
 - MIG-19 cutover 운영 가이드: `docs/migration/ECOUNT-CUTOVER-GUIDE.md`
 - MIG-19 dev report: `docs/dev-reports/mig-19-cutover-guide.md`
+- MIG-20 raw 자동 재import dev report: `docs/dev-reports/mig-20-scheduled-reimport.md`
 - Phase 10 진입 plan: `docs/migration/phase10/M-PHASE-10-readiness.md`
 - Phase 10 dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md`
 - 본 문서 갱신 보고: `docs/dev-reports/docs-roadmap-update.md`
