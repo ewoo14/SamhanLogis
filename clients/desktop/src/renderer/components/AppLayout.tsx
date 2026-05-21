@@ -108,6 +108,64 @@ function SidebarLink({
   )
 }
 
+function SidebarGroupToggle({
+  label,
+  open,
+  onToggle,
+  testId,
+  controls,
+}: {
+  label: string
+  open: boolean
+  onToggle: () => void
+  testId: string
+  controls: string
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        minHeight: 34,
+        padding: 'var(--space-2) var(--space-3)',
+        border: 'none',
+        borderRadius: 'var(--radius-md)',
+        background: 'transparent',
+        color: 'var(--color-neutral-700)',
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 600,
+        textAlign: 'left',
+      }}
+    >
+      <span>{label}</span>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        aria-hidden="true"
+        style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 120ms ease' }}
+      >
+        <path
+          d="M3.5 5.25 7 8.75l3.5-3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  )
+}
+
 /**
  * [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES / MANAGER / MASTER.
  * legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
@@ -140,6 +198,7 @@ export function AppLayout() {
   const navigate = useNavigate()
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [accountingAdminOpen, setAccountingAdminOpen] = useState(true)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
@@ -225,6 +284,9 @@ export function AppLayout() {
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminAging = dynamicCanAccess('ecount.mig14.aging-snapshot', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
+  const showAccountingAdminGroup =
+    showAccountingAdminCash || showAccountingAdminOrder
+    || showAccountingAdminAging || showAccountingAdminLedger
   // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
@@ -232,8 +294,7 @@ export function AppLayout() {
     || showAccountingSalesSlip || showAccountingPurchaseSlip
     || showAccountingPartnerLedger || showAccountingTaxInvoice || showAccountingDailyClose
     || showAccountingLedger || showAccountingDepositMatch
-    || showAccountingAdminCash || showAccountingAdminOrder
-    || showAccountingAdminAging || showAccountingAdminLedger
+    || showAccountingAdminGroup
     // 정적 role fallback — legacy 회계 entry 호환. MIG-14 admin 하위 메뉴는 dynamic 값만 따른다.
     || canAccessAccounting(auth?.role)
   const showDeliveryBatch = canAccessDeliveryBatch(auth?.role)
@@ -725,55 +786,70 @@ export function AppLayout() {
               >
                 원장
               </SidebarLink>
-              {/* [MIG-14] 회계 admin 4개 그룹 — 동적 RBAC PageCode 기반. */}
-              <SidebarLink
-                to="/accounting/admin/cash-disbursements"
-                show={showAccountingAdminCash}
-                data-testid="sidebar-accounting-admin-cash-disbursements"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                지출 트랜잭션
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/admin/cash-receipts"
-                show={showAccountingAdminCash}
-                data-testid="sidebar-accounting-admin-cash-receipts"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                회수 트랜잭션
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/admin/orders"
-                show={showAccountingAdminOrder}
-                data-testid="sidebar-accounting-admin-orders"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                주문서 관리
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/admin/aging-snapshot"
-                show={showAccountingAdminAging}
-                data-testid="sidebar-accounting-admin-aging-snapshot"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                잔액 스냅샷
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/admin/ledger/sales"
-                show={showAccountingAdminLedger}
-                data-testid="sidebar-accounting-admin-sales-ledger"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                매출 원장 대조
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/admin/ledger/purchase"
-                show={showAccountingAdminLedger}
-                data-testid="sidebar-accounting-admin-purchase-ledger"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                매입 원장 대조
-              </SidebarLink>
+              {/* [MIG-18] 회계 관리자 그룹 — 동적 RBAC 캐시 false 시 그룹 전체 hidden. */}
+              {showAccountingAdminGroup ? (
+                <>
+                  <SidebarGroupToggle
+                    label="회계 관리자"
+                    open={accountingAdminOpen}
+                    onToggle={() => setAccountingAdminOpen((value) => !value)}
+                    testId="sidebar-accounting-admin-group-toggle"
+                    controls="sidebar-accounting-admin-group"
+                  />
+                  {accountingAdminOpen ? (
+                    <div id="sidebar-accounting-admin-group" data-testid="sidebar-accounting-admin-group">
+                      <SidebarLink
+                        to="/accounting/admin/cash-disbursements"
+                        show={showAccountingAdminCash}
+                        data-testid="sidebar-accounting-admin-cash-disbursements"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        지출 트랜잭션
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/cash-receipts"
+                        show={showAccountingAdminCash}
+                        data-testid="sidebar-accounting-admin-cash-receipts"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        입금 트랜잭션
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/orders"
+                        show={showAccountingAdminOrder}
+                        data-testid="sidebar-accounting-admin-orders"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        주문서 관리
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/aging-snapshot"
+                        show={showAccountingAdminAging}
+                        data-testid="sidebar-accounting-admin-aging-snapshot"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        잔액 스냅샷
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/ledger/sales"
+                        show={showAccountingAdminLedger}
+                        data-testid="sidebar-accounting-admin-sales-ledger"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        매출 원장 대조
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/ledger/purchase"
+                        show={showAccountingAdminLedger}
+                        data-testid="sidebar-accounting-admin-purchase-ledger"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        매입 원장 대조
+                      </SidebarLink>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </>
           ) : null}
 

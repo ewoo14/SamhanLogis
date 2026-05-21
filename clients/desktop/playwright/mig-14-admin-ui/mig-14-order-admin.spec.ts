@@ -11,7 +11,6 @@ import {
   attachPageErrorHook,
   capture,
   expectAnyVisibleText,
-  expectMenuHidden,
   expectNoUuidVisible,
   expectPermissionBlocked,
   grant,
@@ -85,8 +84,8 @@ test.describe('MIG-14 Order admin UI', () => {
     const ok = await isServerAvailable()
     test.skip(!ok, 'desktop dev server unavailable; screenshots pending')
     await mockPermissions(page, grant(ORDER_PAGE_CODES))
-    await mockApiJson(page, '**/accounting/orders/ORD-2026-0001', orderDetail)
     await mockApiJson(page, '**/accounting/orders**', apiPage(orderRows, 64))
+    await mockApiJson(page, '**/accounting/orders/ORD-2026-0001', orderDetail)
   })
 
   test('TC-MIG14-ORDER-1: 주문 목록 + 진행상태/담당자 컬럼', async ({ page }) => {
@@ -113,7 +112,13 @@ test.describe('MIG-14 Order admin UI', () => {
 
   test('TC-MIG14-ORDER-3: 권한 없는 SALES 메뉴 hidden + 직접 진입 차단', async ({ page }) => {
     await mockPermissions(page, [])
-    await expectMenuHidden(page, /주문|Order/, 'order-admin-03-sales-menu-hidden.png')
+    await page.goto(appUrl('/', 'SALES'), {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSettle(page)
+    await capture(page, 'order-admin-03-sales-menu-hidden.png')
+    await expect(page.getByTestId('sidebar-accounting-admin-orders')).toHaveCount(0)
     await expectPermissionBlocked(page, ORDER_LIST_ROUTE, 'order-admin-04-sales-direct-denied.png')
   })
 

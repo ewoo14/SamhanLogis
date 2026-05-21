@@ -4,31 +4,33 @@
 
 ---
 
-## 🚧 2026-05-21 최신 진행 — MIG-17 Designer tokens/Mock 라벨 동기화
+## 🚧 2026-05-21 최신 진행 — MIG-18 admin UI 2단계 일괄 개발
 
 ### 현재 브랜치
 
-- `spec/2026-05-21-mig-17-designer-tokens-sync`
+- `spec/2026-05-21-mig-18-admin-ui-phase-2`
 
 ### 범위
 
-- `docs/design/mig-14-admin-ui/tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus 라벨과 chip token 매핑을 실제 BE enum 계약으로 정렬한다.
-- MIG-14 FE 라벨 테이블과 mock wireframe 7건의 상태 chip/구분 라벨을 `EXPENSE_VOUCHER=지출결의서`, `MANUAL_DISBURSEMENT=수기 지출`, `DEPOSIT_REPORT=입금보고서`, `MANUAL_RECEIPT=수기 입금`, `COMPLETED=완료`, `IN_PROGRESS=진행`, `CANCELED=취소`, `PENDING=대기` 기준으로 정정한다.
-- Ledger mock은 `reconcileStatus` 임의 라벨 대신 `transformStatus`(`PENDING` / `TRANSFORMED` / `REJECTED`) 기준 변환상태 chip으로 정리한다.
-- 필터 chip + reset 공통 UI 구현은 MIG-18(E admin UI 2단계)로 이연한다.
+- `FilterChipBar` 공통 컴포넌트를 추가하고 Cash 2 + OrderList + Aging + Ledger 2 목록 화면에 적용한다.
+- Cash/Ledger는 거래처/업무번호/상태/일자 range, Order는 거래처/담당자/진행상태, Aging은 거래처 chip을 표시한다.
+- AGING 목록은 React Query `page`/`size` 상태와 50/100/200/500 페이지 크기 선택을 API `page`/`size` 파라미터로 전달한다.
+- AppLayout 회계 admin 메뉴는 "회계 관리자" collapse/expand 그룹으로 묶고, 권한 캐시 false 시 hidden 정책을 유지한다.
+- Playwright dev server가 안정적으로 뜨면 MIG-14 스크린샷을 재캡처하고, 불가능하면 Linux CI 재캡처 보류로 dev-report에 남긴다.
 
 ### 문서 산출
 
-- spec: `docs/superpowers/specs/2026-05-21-mig-17-designer-tokens-sync-design.md`
-- dev-report: `docs/dev-reports/mig-17-designer-tokens-sync.md`
-- decisions: `D-MIG-17-01~04`
+- spec: `docs/superpowers/specs/2026-05-21-mig-18-admin-ui-phase-2-design.md`
+- plan: `docs/superpowers/plans/2026-05-21-mig-18-admin-ui-phase-2.md`
+- dev-report: `docs/dev-reports/mig-18-admin-ui-phase-2.md`
+- decisions: `D-MIG-18-01~06`
 
 ### 검증 메모
 
-- `clients/desktop npm run typecheck`
-- `clients/desktop npm run build`
-- `./gradlew :services:accounting-service:test --no-daemon`
-- `git diff --check`
+- `clients/desktop npm.cmd run typecheck` PASS.
+- `clients/desktop npm.cmd run lint` PASS (기존 warning 2건 유지).
+- `clients/desktop npm.cmd run build` PASS.
+- `clients/desktop npx.cmd playwright test playwright/mig-14-admin-ui --reporter=line` 재캡처 시도: Windows EPERM으로 screenshot write pending, 17번째 테스트까지 도달했으나 600초 command timeout으로 최종 summary 없음. Linux CI 재캡처 보류.
 
 ---
 

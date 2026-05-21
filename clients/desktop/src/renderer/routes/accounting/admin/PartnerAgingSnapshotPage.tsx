@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, type DataTableColumn } from '@samhan/design-system'
+import { FilterChipBar, type FilterChip } from '../../../components/FilterChipBar'
 import {
   listPartnerAgingSnapshots,
   refreshPartnerAgingSnapshot,
@@ -11,7 +12,6 @@ import { usePageTitle } from '../../../hooks/usePageTitle'
 import {
   FilterField,
   MoneyText,
-  PAGE_SIZE,
   PagedTable,
   PlainText,
   TimestampText,
@@ -21,6 +21,9 @@ import {
   pageRootStyle,
 } from './Mig14AdminShared'
 
+const AGING_DEFAULT_PAGE_SIZE = 100
+const AGING_PAGE_SIZE_OPTIONS = [50, 100, 200, 500]
+
 export function PartnerAgingSnapshotPage() {
   usePageTitle('거래처 잔액 스냅샷')
   const queryClient = useQueryClient()
@@ -28,17 +31,18 @@ export function PartnerAgingSnapshotPage() {
   const canRefreshSnapshot = !!permissions && canAccess('ecount.mig14.aging-snapshot', 'edit')
 
   const [page, setPage] = useState(0)
+  const [size, setSize] = useState(AGING_DEFAULT_PAGE_SIZE)
   const [partnerName, setPartnerName] = useState('')
   const [sort, setSort] = useState('net_receivable_desc')
   const [applied, setApplied] = useState({ partnerName: '', sort: 'net_receivable_desc' })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const query = useQuery({
-    queryKey: ['mig14-aging-snapshot', page, applied],
+    queryKey: ['mig14-aging-snapshot', page, size, applied],
     queryFn: () =>
       listPartnerAgingSnapshots({
         page,
-        size: PAGE_SIZE,
+        size,
         partnerName: applied.partnerName || undefined,
         sort: applied.sort,
       }),
@@ -138,6 +142,28 @@ export function PartnerAgingSnapshotPage() {
     setApplied({ partnerName: partnerName.trim(), sort })
   }
 
+  const activeFilters: FilterChip[] = [
+    applied.partnerName
+      ? {
+          key: 'partnerName',
+          label: '거래처',
+          value: applied.partnerName,
+          onRemove: () => {
+            setPage(0)
+            setPartnerName('')
+            setApplied((prev) => ({ ...prev, partnerName: '' }))
+          },
+        }
+      : null,
+  ].filter((filter): filter is FilterChip => filter !== null)
+
+  const resetFilters = () => {
+    setPage(0)
+    setPartnerName('')
+    setSort('net_receivable_desc')
+    setApplied({ partnerName: '', sort: 'net_receivable_desc' })
+  }
+
   return (
     <div style={pageRootStyle} data-testid="mig14-aging-snapshot-page">
       <div style={headerStyle}>
@@ -173,6 +199,8 @@ export function PartnerAgingSnapshotPage() {
         </FilterField>
       </div>
 
+      <FilterChipBar filters={activeFilters} onResetAll={resetFilters} />
+
       <PagedTable
         columns={columns}
         rows={query.data?.content ?? []}
@@ -182,6 +210,12 @@ export function PartnerAgingSnapshotPage() {
         page={page}
         pageData={query.data}
         onPageChange={setPage}
+        pageSize={size}
+        pageSizeOptions={AGING_PAGE_SIZE_OPTIONS}
+        onPageSizeChange={(nextSize) => {
+          setPage(0)
+          setSize(nextSize)
+        }}
         testId="mig14-aging-snapshot-table"
       />
 

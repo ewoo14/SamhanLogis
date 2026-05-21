@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, type DataTableColumn } from '@samhan/design-system'
+import { FilterChipBar, type FilterChip } from '../../../components/FilterChipBar'
 import {
   listAccountingOrders,
   type OrderSummaryRow,
@@ -108,6 +109,57 @@ export function OrderListPage() {
     })
   }
 
+  const activeFilters: FilterChip[] = [
+    applied.partnerName
+      ? {
+          key: 'partnerName',
+          label: '거래처',
+          value: applied.partnerName,
+          onRemove: () => {
+            setPage(0)
+            setPartnerName('')
+            setApplied((prev) => ({ ...prev, partnerName: '' }))
+          },
+        }
+      : null,
+    applied.managerName
+      ? {
+          key: 'managerName',
+          label: '담당자',
+          value: applied.managerName,
+          onRemove: () => {
+            setPage(0)
+            setManagerName('')
+            setApplied((prev) => ({ ...prev, managerName: '' }))
+          },
+        }
+      : null,
+    applied.progressStatus
+      ? {
+          key: 'progressStatus',
+          label: '진행상태',
+          value: ORDER_STATUS_LABEL[applied.progressStatus] ?? applied.progressStatus,
+          onRemove: () => {
+            setPage(0)
+            setProgressStatus('')
+            setApplied((prev) => ({ ...prev, progressStatus: '' }))
+          },
+        }
+      : null,
+  ].filter((filter): filter is FilterChip => filter !== null)
+
+  const resetFilters = () => {
+    setPage(0)
+    setPartnerName('')
+    setManagerName('')
+    setProgressStatus('')
+    setApplied({
+      partnerName: '',
+      managerName: '',
+      progressStatus: '',
+    })
+  }
+
   return (
     <div style={pageRootStyle} data-testid="mig14-order-list-page">
       <div style={headerStyle}>
@@ -148,6 +200,8 @@ export function OrderListPage() {
           </select>
         </FilterField>
       </div>
+
+      <FilterChipBar filters={activeFilters} onResetAll={resetFilters} />
 
       <PagedTable
         columns={columns}

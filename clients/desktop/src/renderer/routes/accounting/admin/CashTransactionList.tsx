@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, type DataTableColumn } from '@samhan/design-system'
+import { FilterChipBar, type FilterChip } from '../../../components/FilterChipBar'
 import {
   type CashTransactionListOptions,
   type CashTransactionRow,
@@ -131,6 +132,74 @@ export function CashTransactionList({
     })
   }
 
+  const activeFilters: FilterChip[] = [
+    applied.partnerName
+      ? {
+          key: 'partnerName',
+          label: '거래처',
+          value: applied.partnerName,
+          onRemove: () => {
+            setPage(0)
+            setPartnerName('')
+            setApplied((prev) => ({ ...prev, partnerName: '' }))
+          },
+        }
+      : null,
+    applied.slipNo
+      ? {
+          key: 'slipNo',
+          label: '전표번호',
+          value: applied.slipNo,
+          onRemove: () => {
+            setPage(0)
+            setSlipNo('')
+            setApplied((prev) => ({ ...prev, slipNo: '' }))
+          },
+        }
+      : null,
+    applied.kind
+      ? {
+          key: 'kind',
+          label: '유형',
+          value: kindLabels[applied.kind] ?? applied.kind,
+          onRemove: () => {
+            setPage(0)
+            setKind('')
+            setApplied((prev) => ({ ...prev, kind: '' }))
+          },
+        }
+      : null,
+    applied.from || applied.to
+      ? {
+          key: 'transactionDate',
+          label: '일자',
+          value: `${applied.from || '시작 미지정'} ~ ${applied.to || '종료 미지정'}`,
+          onRemove: () => {
+            setPage(0)
+            setFrom('')
+            setTo('')
+            setApplied((prev) => ({ ...prev, from: '', to: '' }))
+          },
+        }
+      : null,
+  ].filter((filter): filter is FilterChip => filter !== null)
+
+  const resetFilters = () => {
+    setPage(0)
+    setPartnerName('')
+    setSlipNo('')
+    setKind('')
+    setFrom('')
+    setTo('')
+    setApplied({
+      partnerName: '',
+      slipNo: '',
+      kind: '',
+      from: '',
+      to: '',
+    })
+  }
+
   return (
     <div style={pageRootStyle} data-testid={testId}>
       <div style={headerStyle}>
@@ -173,6 +242,8 @@ export function CashTransactionList({
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
         </FilterField>
       </div>
+
+      <FilterChipBar filters={activeFilters} onResetAll={resetFilters} />
 
       <PagedTable
         columns={columns}

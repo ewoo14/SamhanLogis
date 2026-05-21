@@ -2374,3 +2374,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-17-04 | 옵션 C 21단계 + PM 자율 연속 슬라이스로 진행하고, 사이클 1c CRITICAL fix에서 FE 라벨과 dev-report/handoff/overview HTML을 같은 변경에 포함한다. |
 
 **산출 예정/진행**: MIG-14 design tokens/mock 문서 8건, dev-report `docs/dev-reports/mig-17-designer-tokens-sync.md`, handoff, overview HTML.
+
+### D-MIG-18-00. Admin UI 2단계 — 필터 chip + AGING pagination + 메뉴 그룹화 (MIG-18, 2026-05-21)
+
+**배경**: MIG-14 admin UI 산출 이후 Designer Minor로 남은 필터 chip/reset UI와 MIG-16의 aging snapshot Pageable 계약을 desktop FE에 연결한다. 회계 admin 목록 메뉴는 기존 회계 그룹 아래에서 접기/펼치기 가능한 운영자 묶음으로 정리한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-18-01 | `FilterChipBar`를 desktop renderer 공통 컴포넌트로 추가하고 admin 화면에서 재사용한다. |
+| D-MIG-18-02 | 필터 chip은 Cash 2 + OrderList + Aging + Ledger 2 목록 화면에 일괄 적용하고, OrderDetailPage는 단일 상세 화면이므로 제외한다. |
+| D-MIG-18-03 | AGING 목록은 FE page/size state를 React Query key에 포함하며 size 옵션은 50/100/200/500으로 둔다. |
+| D-MIG-18-04 | MIG-14 스크린샷은 Playwright dev server가 안정적으로 뜨는 환경에서 재캡처한다. 불가 시 Linux CI 재캡처 보류로 기록한다. |
+| D-MIG-18-05 | 회계 admin 메뉴는 "회계 관리자" collapse/expand 그룹으로 묶고, 동적 권한 캐시 false 시 그룹 전체를 숨긴다. |
+| D-MIG-18-06 | 옵션 C 21단계 + PM 자율 연속 슬라이스로 진행하고 dev-report/handoff/overview를 같은 변경에 포함한다. |
+
+**산출 예정/진행**: desktop `FilterChipBar`, Cash/Order/Aging/Ledger admin 화면 적용, AGING page-size UI, AppLayout 회계 관리자 그룹화, dev-report `docs/dev-reports/mig-18-admin-ui-phase-2.md`.

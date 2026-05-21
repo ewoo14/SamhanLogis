@@ -106,13 +106,20 @@ export function PaginationControls<T>({
   page,
   data,
   onPageChange,
+  pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
 }: {
   page: number
   data?: PageResponse<T>
   onPageChange: (page: number) => void
+  pageSize?: number
+  pageSizeOptions?: number[]
+  onPageSizeChange?: (size: number) => void
 }) {
   const totalPages = Math.max(1, data?.totalPages ?? 1)
   const totalElements = data?.totalElements ?? 0
+  const currentSize = pageSize ?? data?.size ?? PAGE_SIZE
   return (
     <div
       style={{
@@ -126,8 +133,25 @@ export function PaginationControls<T>({
         color: 'var(--ink-secondary)',
       }}
     >
-      <span>총 {totalElements.toLocaleString('ko-KR')}건 · {PAGE_SIZE}/페이지</span>
+      <span>총 {totalElements.toLocaleString('ko-KR')}건 · {currentSize}/페이지</span>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {onPageSizeChange && pageSizeOptions ? (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            페이지 크기
+            <select
+              value={currentSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              style={{ ...inputStyle, minWidth: 86, height: 30 }}
+              aria-label="페이지 크기"
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <Button
           variant="secondary"
           size="sm"
@@ -163,6 +187,9 @@ export function PagedTable<T>({
   onPageChange,
   onRowClick,
   testId,
+  pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
 }: {
   columns: DataTableColumn<T>[]
   rows: T[]
@@ -174,6 +201,9 @@ export function PagedTable<T>({
   onPageChange: (page: number) => void
   onRowClick?: (row: T) => void
   testId: string
+  pageSize?: number
+  pageSizeOptions?: number[]
+  onPageSizeChange?: (size: number) => void
 }) {
   const stableColumns = useMemo(() => columns, [columns])
   return (
@@ -186,7 +216,14 @@ export function PagedTable<T>({
         onRowClick={onRowClick}
         emptyMessage={emptyMessage}
       />
-      <PaginationControls page={page} data={pageData} onPageChange={onPageChange} />
+      <PaginationControls
+        page={page}
+        data={pageData}
+        onPageChange={onPageChange}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={onPageSizeChange}
+      />
     </div>
   )
 }
