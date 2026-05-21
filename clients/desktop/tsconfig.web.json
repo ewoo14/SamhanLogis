@@ -18,10 +18,8 @@
     "useDefineForClassFields": true,
     "outDir": "out/renderer",
     "types": ["vite/client"],
-    "baseUrl": ".",
-    "ignoreDeprecations": "5.0",
     "paths": {
-      "@renderer/*": ["src/renderer/*"]
+      "@renderer/*": ["./src/renderer/*"]
     },
     "composite": true
   },
