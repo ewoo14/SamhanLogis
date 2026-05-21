@@ -10,8 +10,8 @@ const configs = {
     env: {
       VITE_API_BASE_URL: commonApi,
       API_BASE_URL: commonApi,
-      VITE_WEB_ESTIMATE_URL: 'http://localhost:5174',
-      VITE_WEB_ORDER_URL: 'http://localhost:5175',
+      VITE_WEB_ESTIMATE_URL: 'http://localhost:5183',
+      VITE_WEB_ORDER_URL: 'http://localhost:5180',
     },
   },
   'arologis-desktop': {
@@ -24,14 +24,14 @@ const configs = {
     command: ['npx', 'expo', 'start', '--localhost'],
     env: {
       EXPO_PUBLIC_API_BASE_URL: commonApi,
-      EXPO_PUBLIC_ORDER_APP_URL: 'http://localhost:5175',
+      EXPO_PUBLIC_ORDER_APP_URL: 'http://localhost:5180',
     },
   },
   'mobile-staff': {
     command: ['npx', 'expo', 'start', '--localhost'],
     env: {
       EXPO_PUBLIC_API_BASE_URL: commonApi,
-      EXPO_PUBLIC_ESTIMATE_APP_URL: 'http://localhost:5174',
+      EXPO_PUBLIC_ESTIMATE_APP_URL: 'http://localhost:5183',
     },
   },
   'arologis-mobile': {
@@ -43,12 +43,12 @@ const configs = {
   'web-estimate-app': {
     command: ['npm', 'run', 'dev'],
     env: {
-      PORT: '5174',
+      PORT: '5183',
       SAMHAN_API_BASE_URL: commonApi,
     },
   },
   'web-order-app': {
-    command: ['npx', 'vite', '--host', '127.0.0.1', '--port', '5175'],
+    command: ['npm', 'run', 'dev'],
     env: {
       VITE_API_BASE_URL: `${commonApi}/api/v1`,
     },

@@ -7,17 +7,32 @@ mkdir -p "$LOG_DIR"
 
 SKIP_BUILD=0
 SKIP_CLIENTS=0
+SERIAL_BUILD=0
+REBUILD=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=1 ;;
     --skip-clients) SKIP_CLIENTS=1 ;;
+    --serial-build) SERIAL_BUILD=1 ;;
+    --rebuild) REBUILD=1 ;;
     *) echo "Unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
 
+# Sanity check — docker daemon
+command -v docker >/dev/null 2>&1 || { echo "[local-stack] 'docker' 미설치" >&2; exit 1; }
+docker info >/dev/null 2>&1 || { echo "[local-stack] Docker daemon 미가동" >&2; exit 1; }
+command -v java >/dev/null 2>&1 || { echo "[local-stack] 'java' 미설치 (JDK 17)" >&2; exit 1; }
+command -v npm >/dev/null 2>&1 || { echo "[local-stack] 'npm' 미설치 (Node 20+)" >&2; exit 1; }
+
 cd "$ROOT_DIR"
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
+  if [[ "$SERIAL_BUILD" -eq 1 ]]; then
+    GRADLE_OPTS_ARRAY=(--no-daemon --no-parallel)
+  else
+    GRADLE_OPTS_ARRAY=(--parallel --max-workers=2)
+  fi
   ./gradlew \
     :services:eureka-server:bootJar \
     :services:api-gateway:bootJar \
@@ -35,10 +50,14 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     :services:dashboard-service:bootJar \
     :services:partner-service:bootJar \
     :services:arologis-service:bootJar \
-    --no-daemon --no-parallel
+    "${GRADLE_OPTS_ARRAY[@]}"
 fi
 
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build
+if [[ "$REBUILD" -eq 1 ]]; then
+  docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build
+else
+  docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d
+fi
 
 wait_http() {
   local name="$1"
@@ -64,8 +83,11 @@ wait_http "dashboard" "http://localhost:8094/actuator/health"
 start_client() {
   local name="$1"
   local path="$2"
-  (cd "$ROOT_DIR/$path" && nohup npm run local-dev > "$LOG_DIR/$name.log" 2>&1 & echo $! > "$LOG_DIR/$name.pid")
-  echo "[local-stack] client $name log=$LOG_DIR/$name.log"
+  # setsid 로 새 process group 시작 — stop-local-stack 가 group kill 으로 자손 vite/expo 까지 정리
+  setsid bash -c "cd '$ROOT_DIR/$path' && npm run local-dev > '$LOG_DIR/$name.log' 2>&1" </dev/null &
+  local pid=$!
+  echo "$pid" > "$LOG_DIR/$name.pid"
+  echo "[local-stack] client $name pid=$pid log=$LOG_DIR/$name.log"
 }
 
 if [[ "$SKIP_CLIENTS" -eq 0 ]]; then
@@ -88,8 +110,8 @@ SamhanLogis local stack URLs
   Prometheus        http://localhost:9090
   MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)
   Desktop           Electron auto launch, Vite renderer http://localhost:5173
-  Estimate Web      http://localhost:5174
-  Order Web         http://localhost:5175
+  Estimate Web      http://localhost:5183
+  Order Web         http://localhost:5180
   Design System     http://localhost:5176
   Arologis Desktop  Electron auto launch, API http://localhost:8097
   Mobile QR         Expo logs under logs/local-stack/clients

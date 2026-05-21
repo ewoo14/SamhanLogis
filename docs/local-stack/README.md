@@ -1,6 +1,6 @@
 # MIG-23 로컬 직접 검증 스택
 
-이 문서는 개발책임자가 로컬 PC에서 backend 14개 service와 6개 client 묶음을 직접 실행해 클릭 검증하는 절차다.
+이 문서는 개발책임자가 로컬 PC에서 backend 14개 service와 6 운영 단위 (= 8 dev target: desktop, mobile, mobile-staff, web 3종 = estimate/order/design-system, arologis 2종 = desktop/mobile) 를 직접 실행해 클릭 검증하는 절차다.
 
 ## 1 command 시작
 
@@ -34,11 +34,11 @@ powershell.exe -ExecutionPolicy Bypass -File scripts/seed-local-stack.ps1
 | desktop | Electron 자동 실행, renderer http://localhost:5173 | 회계/영업 admin |
 | mobile | Expo QR | 거래처 주문서 WebView |
 | mobile-staff | Expo QR | 현장 직원 견적 WebView |
-| web/estimate-app | http://localhost:5174 | 종합견적서 |
-| web/order-app | http://localhost:5175 | 거래처 주문서 |
+| web/estimate-app | http://localhost:5183 | 종합견적서 (기존 PORT 표준 유지) |
+| web/order-app | http://localhost:5180 | 거래처 주문서 (vite.config 표준 유지) |
 | web/design-system | http://localhost:5176 | 디자인 시스템 Vite dev |
 | arologis-desktop | Electron 자동 실행 | API `http://localhost:8097` |
-| arologis-mobile | Expo QR | 기사 앱 |
+| arologis-mobile | Expo QR | 아로로지스 기사 앱 |
 
 Client 로그는 `logs/local-stack/clients/*.log`에 쌓인다.
 
@@ -71,7 +71,7 @@ Samhan Public backend role enum은 `MASTER / DEVELOPER / MANAGER / DISPATCH / SA
 
 | 증상 | 조치 |
 |---|---|
-| port 충돌 | `Get-NetTCPConnection -LocalPort 8080,8761,3000,5173,5174,5175,5176`로 점유 프로세스 확인 후 종료한다. |
+| port 충돌 | `Get-NetTCPConnection -LocalPort 8080,8761,3000,5173,5176,5180,5183`로 점유 프로세스 확인 후 종료한다. |
 | Docker memory 부족 | Docker Desktop memory를 8GB 이상으로 올리고 `.\scripts\launch-local-stack.ps1 -SkipClients`로 backend만 먼저 올린다. |
 | bootJar 실패 | JDK 17 확인 후 `.\gradlew.bat :services:auth-service:bootJar --no-daemon`처럼 단일 service부터 확인한다. |
 | Electron build 실패 | 해당 client에서 `npm.cmd install` 후 `npm.cmd run typecheck`를 먼저 실행한다. |
@@ -85,19 +85,31 @@ Samhan Public backend role enum은 `MASTER / DEVELOPER / MANAGER / DISPATCH / SA
 
 ## 회사 PC 첫 셋업
 
-1. `git pull origin main` 으로 최신 코드 동기화.
+1. `git fetch origin && git checkout spec/2026-05-21-mig-23-local-6-client-direct-test` (또는 main 머지 후 `git checkout main && git pull origin main`).
 2. `./scripts/sync-claude-memory.ps1` 으로 Claude 메모리 동기화 (양 PC 일관성).
 3. Docker Desktop 설치/기동 + memory 8GB+ 할당.
-4. JDK 17 설치 + `JAVA_HOME` 설정.
-5. Node.js 20+ 설치.
+4. JDK 17 설치 + `JAVA_HOME` 설정. 한글 path 회피 위해 `C:\dev\SamhanLogis` 등 ASCII path 권장.
+5. Node.js 20+ + npm 10+ 설치.
 6. `./gradlew :shared:ecount-io:eclipse :services:accounting-service:eclipse :services:inventory-service:eclipse :services:notification-service:eclipse :services:partner-order-service:eclipse :services:partner-service:eclipse :services:product-service:eclipse :services:slip-service:eclipse :services:user-service:eclipse --no-daemon --no-parallel` 으로 IDE 인덱싱용 `.classpath`/`.project` 생성.
-7. IDE Reload Window 또는 "Import Existing Gradle Projects".
+7. IDE 재로드 — VS Code/Cursor: `Developer: Reload Window`, IntelliJ IDEA: `Gradle Tool Window > Reload All Gradle Projects`, Eclipse: `File > Refresh + Project > Clean`.
 8. `.env` 등 시크릿은 [`docs/dev-environment-setup-multi-pc.md`](../dev-environment-setup-multi-pc.md) 참고.
 
 ## 중지
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml down
+.\scripts\stop-local-stack.ps1
 ```
 
-데이터까지 초기화하려면 `down -v`를 사용한다. 로컬 검증 데이터가 삭제된다.
+또는 Bash:
+
+```bash
+./scripts/stop-local-stack.sh
+```
+
+`stop-local-stack` 는 client process (8 target) 의 process group kill (Bash) 또는 PID 종료 (PowerShell) 후 `docker compose down` 까지 처리한다.
+
+데이터까지 초기화하려면 `-DownVolumes` (PowerShell) 또는 `--down-volumes` (Bash) 옵션을 사용한다. 로컬 검증 데이터가 삭제된다.
+
+## 로그 cleanup
+
+`logs/local-stack/clients/*.log` 는 매 launch 시 자동 truncate (덮어쓰기) 되지만, 단일 launch 안에서는 Expo/Vite HMR 로그가 누적된다. 장시간 dev 작업 후 디스크 절약은 `Remove-Item logs/local-stack/clients/*.log -ErrorAction SilentlyContinue` 또는 `rm -f logs/local-stack/clients/*.log` 를 stop 직후 실행한다.

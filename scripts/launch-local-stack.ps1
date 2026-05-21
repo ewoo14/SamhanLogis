@@ -1,10 +1,16 @@
 param(
     [switch]$SkipBuild,
     [switch]$SkipClients,
+    [switch]$SerialBuild,
+    [switch]$Rebuild,
     [switch]$TunnelExpo
 )
 
 $ErrorActionPreference = "Stop"
+
+# PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 function Assert-Command {
     param([string]$Name, [string]$Hint)
@@ -95,6 +101,11 @@ function Start-Client {
 Invoke-AtRoot {
     if (-not $SkipBuild) {
         Write-Host "[local-stack] bootJar build 시작"
+        $gradleOpts = if ($SerialBuild) {
+            @('--no-daemon', '--no-parallel')
+        } else {
+            @('--parallel', '--max-workers=2')
+        }
         ./gradlew.bat `
             :services:eureka-server:bootJar `
             :services:api-gateway:bootJar `
@@ -112,11 +123,12 @@ Invoke-AtRoot {
             :services:dashboard-service:bootJar `
             :services:partner-service:bootJar `
             :services:arologis-service:bootJar `
-            --no-daemon --no-parallel
+            @gradleOpts
     }
 
     Write-Host "[local-stack] docker compose up -d"
-    docker compose @ComposeFiles up -d --build
+    $composeArgs = if ($Rebuild) { @('up', '-d', '--build') } else { @('up', '-d') }
+    docker compose @ComposeFiles @composeArgs
 }
 
 Wait-Postgres
@@ -147,8 +159,8 @@ Write-Host "  Grafana           http://localhost:3000  (admin / samhan_dev_pw)"
 Write-Host "  Prometheus        http://localhost:9090"
 Write-Host "  MinIO Console     http://localhost:9001  (samhan / samhan_dev_pw)"
 Write-Host "  Desktop           Electron 자동 실행, Vite renderer http://localhost:5173"
-Write-Host "  Estimate Web      http://localhost:5174"
-Write-Host "  Order Web         http://localhost:5175"
+Write-Host "  Estimate Web      http://localhost:5183"
+Write-Host "  Order Web         http://localhost:5180"
 Write-Host "  Design System     http://localhost:5176"
 Write-Host "  Arologis Desktop  Electron 자동 실행, API http://localhost:8097"
 Write-Host "  Mobile QR         Expo 터미널 로그: $LogDir"

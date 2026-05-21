@@ -7,6 +7,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# PowerShell 5.1 (cp949) 환경에서 한글 console 출력 보존 — [feedback_powershell_utf8_writes]
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
 function Invoke-Json {
     param(
         [string]$Method,

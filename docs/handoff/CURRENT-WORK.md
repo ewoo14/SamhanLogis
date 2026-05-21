@@ -13,9 +13,10 @@
 
 - `infrastructure/docker-compose.local-all.yml` overlay로 Eureka, gateway, 14 backend service를 기존 infra compose 위에 추가한다.
 - `scripts/launch-local-stack.ps1` / `.sh`가 bootJar build → compose up → postgres/eureka/gateway/auth/dashboard health check → 6 client 운영 단위 병렬 실행을 처리한다.
-- 8개 실제 dev target(desktop, mobile, mobile-staff, web estimate/order/design-system, arologis-desktop, arologis-mobile)에 `local-dev` script를 추가했다.
-- `scripts/seed-local-stack.ps1`가 사용자 5 credential을 등록하고 MIG-1~11 reimport를 호출한다.
-- Samhan Public backend role enum에 `STAFF`/`DRIVER`가 아직 없으므로 seed는 `ROLE_STAFF -> SALES`, `ROLE_DRIVER -> DISPATCH` alias를 명시한다. 실제 enum 확장은 별도 auth 정책 슬라이스 대상이다.
+- 6 운영 단위 = 8 dev target (desktop, mobile, mobile-staff, web estimate/order/design-system, arologis-desktop, arologis-mobile) 에 `local-dev` script를 추가했다.
+- `scripts/seed-local-stack.ps1`가 사용자 5 credential을 등록하고 등록 후 실 로그인 token 발급 검증 + MIG-1~11 reimport를 호출한다.
+- Samhan Public backend Role enum에 `STAFF`/`DRIVER` 2종을 추가 (8 → 10 role taxonomy, commit a4db1f08) 하고 seed가 직접 등록한다.
+- SP-D6 — 9 service 의 중복 `DynamicPermissionClientImpl` 9 파일을 `shared/security/DefaultDynamicPermissionClient` 단일 구현으로 통합. `PermissionSecurityAutoConfiguration` `@ConditionalOnBean(name="loadBalancedRestClientBuilder")` + `@ConditionalOnMissingBean` 패턴 (commit a4db1f08 + 10fca9d7).
 
 ### 문서 산출
 
@@ -27,7 +28,8 @@
 
 ### 다음 상태
 
-- compose YAML 검증 및 가능한 client typecheck/build 후 commit + push 예정.
+- PR #291 발행 (head 2bf88ec8 → 사이클 1c fix 진행 중). CI 27/27 PASS, GitGuardian PM false positive 처리됨.
+- 5-team Claude review 사이클 1a 완료 (P1 8건 + P2 8건 + Minor 13건). 사이클 1c fix → Codex 5-section 사이클 1d → 사용자 머지 요청 흐름.
 - 실 `docker compose up`은 개발책임자가 `.\scripts\launch-local-stack.ps1`로 직접 시작한다.
 
 ---

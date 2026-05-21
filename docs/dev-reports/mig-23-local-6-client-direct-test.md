@@ -37,6 +37,10 @@ MIG-22 이후 개발책임자가 요청한 “로컬에서 직접 접속해서 5
 | S4 거래처 web 직접 클릭 | web | estimate/order/design-system URL을 브라우저에서 직접 연다 | 세 포트가 충돌 없이 열린다. |
 | S5 아로로지스 배차/기사 | arologis-desktop + arologis-mobile | desktop에서 배차 목록 확인, mobile에서 기사 로그인/오늘 배차 진입 | arologis-service dev seed 데이터로 관리자/기사 흐름을 확인한다. |
 
-## 주의
+## Role enum 확장 (MIG-23 통합 처리)
 
-Samhan Public role enum에는 아직 `STAFF`와 `DRIVER`가 없다. MIG-23 seed는 개발책임자 요청 label을 문서와 출력에 보존하되 backend 등록은 `STAFF -> SALES`, `DRIVER -> DISPATCH` alias로 처리한다. 실제 role enum 확장은 별도 auth 정책 변경 슬라이스로 분리해야 한다.
+Samhan Public Role enum이 본 PR 안에서 8 → 10 role taxonomy 로 확장되었다 (`STAFF` "사원", `DRIVER` "기사" 신규 추가, commit `a4db1f08`). 따라서 MIG-23 seed는 alias 없이 5 credential을 실 enum 값으로 직접 등록하며, 등록 후 `POST /api/auth/login` 으로 token 발급 검증까지 자동화한다.
+
+- DB schema 변경 없음 (`Account.role` VARCHAR(20) NOT NULL, 신규 enum 값 길이 fits).
+- 기존 비즈니스 로직 switch case 0 — STAFF/DRIVER 추가 무영향.
+- `Role.values()` 의존 assertion 1건 (`AdminUserControllerTest.listRoles`) 도 같은 commit에서 8 → 10 갱신.
