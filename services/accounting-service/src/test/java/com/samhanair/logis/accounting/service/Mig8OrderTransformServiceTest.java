@@ -51,7 +51,8 @@ class Mig8OrderTransformServiceTest {
                 .thenReturn(orderId());
         lenient().when(jdbcTemplate.queryForObject(contains("INSERT INTO order_lines"), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000008002"));
-        lenient().when(jdbcTemplate.query(contains("FROM sales_accounting_slips"), any(SqlParameterSource.class), any(RowMapper.class)))
+        lenient().when(jdbcTemplate.query(contains("FROM sales_accounting_slips"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<String>>any()))
                 .thenReturn(List.of());
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
         lenient().when(partnerLookupClient.findByPartnerNameStrict("삼한상사"))
@@ -95,7 +96,8 @@ class Mig8OrderTransformServiceTest {
         assertThat(statuses()).containsExactly("TRANSFORMED", "TRANSFORMED", "TRANSFORMED",
                 "TRANSFORMED", "TRANSFORMED");
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class), any(RowMapper.class));
+        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<RowMapper<Mig8OrderTransformService.StagingRow>>any());
         assertThat(sql.getValue()).doesNotContain("LIMIT");
     }
 
@@ -212,7 +214,8 @@ class Mig8OrderTransformServiceTest {
     @Test
     void completed_order는_SalesAccountingSlip_cross_link한다() {
         pending(row(1, "2026-05-20-001", "완료"));
-        when(jdbcTemplate.query(contains("FROM sales_accounting_slips"), any(SqlParameterSource.class), any(RowMapper.class)))
+        when(jdbcTemplate.query(contains("FROM sales_accounting_slips"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<String>>any()))
                 .thenReturn(List.of("2026-05-20-001"));
 
         EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
@@ -261,7 +264,8 @@ class Mig8OrderTransformServiceTest {
         when(jdbcTemplate.<Mig8OrderTransformService.StagingRow>query(
                 contains("FROM staging.ecount_order_raw"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<Mig8OrderTransformService.StagingRow>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private List<Object> statuses() {

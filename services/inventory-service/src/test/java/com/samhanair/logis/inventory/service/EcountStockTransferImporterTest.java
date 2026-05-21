@@ -210,10 +210,11 @@ class EcountStockTransferImporterTest {
         transferLookupCallIndex = 0;
         lenient().when(productLookupClient.findByProductNameStrict(anyString()))
                 .thenReturn(productMiss ? Optional.empty() : Optional.of(productSummary()));
-        lenient().when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+        lenient().when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<Object>>any()))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
-                    RowMapper mapper = invocation.getArgument(2);
+                    RowMapper<?> mapper = invocation.getArgument(2);
                     if (sql.contains("staging.ecount_warehouse_map")) {
                         if (warehouseMiss) {
                             return List.of();

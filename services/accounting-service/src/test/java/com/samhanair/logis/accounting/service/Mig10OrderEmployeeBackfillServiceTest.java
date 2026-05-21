@@ -75,7 +75,8 @@ class Mig10OrderEmployeeBackfillServiceTest {
         service.backfill(500, "tester");
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class), any(RowMapper.class));
+        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<RowMapper<Mig10OrderEmployeeBackfillService.OrderCandidate>>any());
         assertThat(sql.getValue()).contains("manager_employee_id IS NULL");
         assertThat(sql.getValue()).contains("manager_name IS NOT NULL");
         assertThat(sql.getValue()).contains("is_deleted = FALSE");
@@ -150,7 +151,8 @@ class Mig10OrderEmployeeBackfillServiceTest {
         when(jdbcTemplate.<Mig10OrderEmployeeBackfillService.OrderCandidate>query(
                 contains("FROM orders"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<Mig10OrderEmployeeBackfillService.OrderCandidate>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private static Mig10OrderEmployeeBackfillService.OrderCandidate row(int rowNo, String orderNo,

@@ -68,7 +68,7 @@ class EcountPurchaseSlipImporterTest {
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForObject(
-                sql.capture(), any(SqlParameterSource.class), any(Class.class));
+                sql.capture(), any(SqlParameterSource.class), org.mockito.ArgumentMatchers.<Class<?>>any());
         assertThat(sql.getAllValues())
                 .anySatisfy(value -> assertThat(value).contains("pg_advisory_xact_lock"));
 

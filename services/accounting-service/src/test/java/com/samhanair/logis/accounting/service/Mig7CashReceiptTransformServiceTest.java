@@ -154,7 +154,8 @@ class Mig7CashReceiptTransformServiceTest {
         when(jdbcTemplate.<AbstractMig7CashTransformService.StagingRow>query(
                 contains("FROM staging.ecount_deposit_report_raw"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<AbstractMig7CashTransformService.StagingRow>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private static AbstractMig7CashTransformService.StagingRow row(int rowNo, String slipNo) {

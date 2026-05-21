@@ -168,7 +168,7 @@ class SlipAuditLogServiceTest {
         assertThat(saved.get(0).getOldValue()).isEqualTo("수정된 메모"); // 현재값
         assertThat(saved.get(0).getNewValue()).isEqualTo("원본 메모"); // 복원값
         assertThat(slip.getMemo()).isEqualTo("원본 메모");
-        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.captor();
         verify(broker, times(1))
                 .publish(eq(slipId), eq(SlipAuditLogService.EVENT_SLIP_REVERTED),
                         payloadCaptor.capture());

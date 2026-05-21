@@ -150,7 +150,8 @@ class Mig7CashDisbursementTransformServiceTest {
         when(jdbcTemplate.<AbstractMig7CashTransformService.StagingRow>query(
                 contains("FROM staging.ecount_expense_voucher_raw"),
                 any(SqlParameterSource.class),
-                any(RowMapper.class))).thenReturn(List.of(rows));
+                org.mockito.ArgumentMatchers.<RowMapper<AbstractMig7CashTransformService.StagingRow>>any()))
+                .thenReturn(List.of(rows));
     }
 
     private List<Object> statuses() {

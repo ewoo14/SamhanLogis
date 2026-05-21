@@ -55,7 +55,7 @@ class SlipServiceListSpecTest {
     @SuppressWarnings("unchecked")
     private void stubFindAllReturnsEmpty() {
         Page<Slip> empty = new PageImpl<>(Collections.emptyList(), pageable, 0);
-        when(slipRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(empty);
+        when(slipRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class))).thenReturn(empty);
     }
 
     @SuppressWarnings("unchecked")
@@ -90,7 +90,7 @@ class SlipServiceListSpecTest {
         service.list(null, null,
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, null, null, pageable);
-        verify(slipRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
     }
 
     // case 4 — partnerCode 정확 일치
@@ -99,7 +99,7 @@ class SlipServiceListSpecTest {
         stubFindAllReturnsEmpty();
         service.list(null, null, null, null,
                 "P-2026-0001", null, null, pageable);
-        verify(slipRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
     }
 
     // case 5 — driverPhone like
@@ -108,7 +108,7 @@ class SlipServiceListSpecTest {
         stubFindAllReturnsEmpty();
         service.list(null, null, null, null, null,
                 "1234", null, pageable);
-        verify(slipRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
     }
 
     // case 6 — regionGroup 정확 일치
@@ -117,7 +117,7 @@ class SlipServiceListSpecTest {
         stubFindAllReturnsEmpty();
         service.list(null, null, null, null, null, null,
                 "서울특별시", pageable);
-        verify(slipRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
     }
 
     // case 7 — 5 param 모두 동시 (BE-A0 시나리오 종합)
@@ -127,6 +127,6 @@ class SlipServiceListSpecTest {
         service.list(SlipType.OUTBOUND, SlipStatus.CONFIRMED,
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 "P-2026-0001", "010", "서울특별시", pageable);
-        verify(slipRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
     }
 }
