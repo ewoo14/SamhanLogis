@@ -103,7 +103,6 @@ export interface LedgerListOptions {
   page?: number
   size?: number
   partnerName?: string
-  slipNo?: string
   from?: string
   to?: string
   transformStatus?: string

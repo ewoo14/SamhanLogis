@@ -5705,6 +5705,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.audit',
     'partners.list', 'partners.detail',
+    // MIG-14 admin UI — ACCOUNTANT: view 전용
+    'ecount.mig14.cash-list', 'ecount.mig14.order-list',
+    'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)

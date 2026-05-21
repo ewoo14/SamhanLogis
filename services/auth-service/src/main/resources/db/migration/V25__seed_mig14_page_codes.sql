@@ -13,5 +13,9 @@ VALUES
     (gen_random_uuid(), 'MANAGER', 'ecount.mig14.cash-list',      TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'MANAGER', 'ecount.mig14.order-list',     TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'MANAGER', 'ecount.mig14.aging-snapshot', TRUE, TRUE, NOW(), 'system', FALSE),
-    (gen_random_uuid(), 'MANAGER', 'ecount.mig14.ledger',         TRUE, TRUE, NOW(), 'system', FALSE)
+    (gen_random_uuid(), 'MANAGER', 'ecount.mig14.ledger',         TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.cash-list',      TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.order-list',     TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.aging-snapshot', TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.ledger',         TRUE, FALSE, NOW(), 'system', FALSE)
 ON CONFLICT DO NOTHING;

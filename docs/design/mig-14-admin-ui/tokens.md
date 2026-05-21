@@ -126,15 +126,17 @@
 
 | 영역 | 값 | 표시 |
 |---|---|---|
-| Cash kind | `DISBURSEMENT` | 지출 |
-| Cash kind | `RECEIPT` | 회수 |
-| 주문 진행 | `READY` | 준비 |
+| 지출 kind | `EXPENSE_VOUCHER` | 지출결의 |
+| 지출 kind | `MANUAL_DISBURSEMENT` | 수기지출 |
+| 입금 kind | `DEPOSIT_REPORT` | 입금보고 |
+| 입금 kind | `MANUAL_RECEIPT` | 수기입금 |
+| 주문 진행 | `PENDING` | 대기 |
 | 주문 진행 | `IN_PROGRESS` | 진행 |
-| 주문 진행 | `DONE` | 완료 |
+| 주문 진행 | `COMPLETED` | 완료 |
 | 주문 진행 | `CANCELED` | 취소 |
-| 원장 대조 | `MATCHED` | 일치 |
-| 원장 대조 | `DIFF` | 차이 |
-| 원장 대조 | `MISSING_CLOSING` | 결산 없음 |
+| 원장 변환 | `PENDING` | 대기 |
+| 원장 변환 | `TRANSFORMED` | 변환완료 |
+| 원장 변환 | `REJECTED` | 제외 |
 
 ---
 

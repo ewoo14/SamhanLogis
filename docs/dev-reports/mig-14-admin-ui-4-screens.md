@@ -79,6 +79,26 @@ Deprecated adapter 완전 삭제는 운영 검증 후 별도 슬라이스로 둔
 
 ---
 
+## 4.1 Cycle 1c 권한 보강
+
+Claude cycle 1c 지적에 따라 MIG-14 조회 컨트롤러도 FE `PermissionGuard`와 동일한 PageCode를 BE에서 직접 시행한다.
+
+| Endpoint | PageCode | 정책 |
+|---|---|---|
+| `GET /api/v1/accounting/cash-disbursements` | `ecount.mig14.cash-list` | `VIEW` |
+| `GET /api/v1/accounting/cash-receipts` | `ecount.mig14.cash-list` | `VIEW` |
+| `GET /api/v1/accounting/orders` | `ecount.mig14.order-list` | `VIEW` |
+| `GET /api/v1/accounting/orders/{orderNo}` | `ecount.mig14.order-list` | `VIEW` |
+| `GET /api/v1/accounting/aging-snapshot` | `ecount.mig14.aging-snapshot` | `VIEW` |
+| `GET /api/v1/accounting/ledger/sales` | `ecount.mig14.ledger` | `VIEW` |
+| `GET /api/v1/accounting/ledger/purchase` | `ecount.mig14.ledger` | `VIEW` |
+
+- `@PreAuthorize` 정적 역할은 `MASTER`, `MANAGER`, `ACCOUNTANT`로 확장한다.
+- V25 auth seed는 `ACCOUNTANT × 4 PageCode`를 `can_view=true`, `can_edit=false`로 추가한다.
+- 동적 권한은 SP-D5 `@RequirePermission(action = "VIEW")` AOP로 시행하며, `DynamicPermissionClient.canView(roleCode, pageCode)=false`이면 403으로 차단한다.
+
+---
+
 ## 5. QA / verification placeholders
 
 | 항목 | 명령 / 산출 | 상태 |
@@ -91,6 +111,13 @@ Deprecated adapter 완전 삭제는 운영 검증 후 별도 슬라이스로 둔
 | Credential guard | `bash scripts/check-credential-plaintext.sh` | TODO |
 | UUID scan | 신규 DTO/renderer/screenshot/test id에서 UUID regex 노출 0건 | TODO |
 | QA screenshots | `docs/qa/mig-14-admin-ui-4-screens/screenshots/*.png` 4장 이상 | TODO |
+
+Cycle 1c local verification:
+
+- `./gradlew.bat :services:accounting-service:test :services:auth-service:test --no-daemon`은 sandbox 네트워크 제한으로 Gradle zip 다운로드 단계에서 실패했다.
+- 동일 task를 로컬 캐시 Gradle 8.10.2로 재실행해 `BUILD SUCCESSFUL` 확인.
+- `cd clients/desktop && npm run typecheck` 통과.
+- `cd clients/desktop && npm run build` 통과. Pretendard runtime font resolve warning은 기존 경고다.
 
 ---
 
@@ -111,3 +138,20 @@ Deprecated adapter 완전 삭제는 운영 검증 후 별도 슬라이스로 둔
 - `services/accounting-service/README.md`: MIG-14 조회 endpoint 계약 추가
 - `docs/handoff/CURRENT-WORK.md`: 현재 브랜치와 병렬 작업 주의사항 갱신
 - `docs/samhan-public-overview.html`: nav badge와 Phase 10.6 진행 문구 갱신
+
+---
+
+## 8. Minor backlog / 회고
+
+| 항목 | 처리 |
+|---|---|
+| BE-MIN-1 `partnerNames` N+1 | PartnerLookupClient batch endpoint 도입 슬라이스에서 처리 |
+| BE-MIN-2 AgingSnapshot 500 cap | 운영 초기는 500건 상한 유지. 대량 거래처 운영 확인 후 서버 페이지네이션 또는 cursor API로 확장 |
+| BE-MIN-3 `LedgerListOptions.slipNo` orphan | cycle 1c에서 제거 |
+| FE-MIN-1 권한 캐시 flash | SP-D PermissionGuard 일관 패턴 유지, skeleton/denied 상태 개선은 후속 |
+| FE-MIN-2 라벨 design 불일치 | cycle 1c에서 `tokens.md`를 실제 enum 값 기준으로 정정 |
+| FE-MIN-3 refresh 토스트 | AgingSnapshot refresh UX 개선 백로그 |
+| Designer-MIN-2 chip + reset 미구현 | 필터 chip/reset 공통 컴포넌트화 시 처리 |
+| QA-MIN-1 스크린샷 mock fallback | Windows `EPERM` 때문에 mock fallback PNG를 사용. Linux CI에서 재캡처 |
+| QA-MIN-2 Playwright 정규식 | 화면 안정화 후 `data-testid` 중심으로 강화 |
+| DevOps-MIN-1 BASE_URL fallback README | Playwright dev-server/BASE_URL 표준화 시 desktop README에 보강 |
