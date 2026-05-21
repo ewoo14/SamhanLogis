@@ -84,14 +84,15 @@ public class PermissionSecurityAutoConfiguration {
      * <p>소비자 service 가 자체 {@link DynamicPermissionClient} bean 을 정의한 경우
      * {@code @ConditionalOnMissingBean} 에 의해 본 기본 구현은 비활성화된다.
      *
-     * <p>{@code loadBalancedRestClientBuilder} bean 이 모든 9 service 에 존재해야 한다
-     * (SP-D6 마이그레이션 사전 조건).
+     * <p>{@code loadBalancedRestClientBuilder} bean 이 없는 service
+     * (auth/dashboard/dc-config/groupware 등 — DPC 호출자 아님) 에서는 본 bean 도 비활성화된다.
      *
      * @param loadBalancedBuilder Spring Cloud LoadBalancer 통합 빌더
      * @return {@link DefaultDynamicPermissionClient} bean
      */
     @Bean
     @ConditionalOnMissingBean(DynamicPermissionClient.class)
+    @ConditionalOnBean(name = "loadBalancedRestClientBuilder")
     public DynamicPermissionClient defaultDynamicPermissionClient(
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder loadBalancedBuilder) {
         return new DefaultDynamicPermissionClient(loadBalancedBuilder);
