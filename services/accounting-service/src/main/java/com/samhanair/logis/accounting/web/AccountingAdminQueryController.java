@@ -11,11 +11,15 @@ import com.samhanair.logis.accounting.web.dto.OrderDetailResponse;
 import com.samhanair.logis.accounting.web.dto.OrderSummaryResponse;
 import com.samhanair.logis.accounting.web.dto.PartnerAgingSnapshotResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -30,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** MIG-14 admin UI 4 화면용 회계 읽기 endpoint. */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/accounting")
 @RequiredArgsConstructor
@@ -43,6 +48,7 @@ public class AccountingAdminQueryController {
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final AccountingAdminQueryService service;
+    private final DynamicPermissionClient dynamicPermissionClient;
 
     @GetMapping("/cash-disbursements")
     @RequirePermission(page = CASH_PAGE_CODE, action = "VIEW")
@@ -56,6 +62,7 @@ public class AccountingAdminQueryController {
             @PageableDefault(size = 50, sort = "transactionDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(CASH_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listCashDisbursements(slipNo, kind, from, to, partnerName, pageable));
     }
 
@@ -71,6 +78,7 @@ public class AccountingAdminQueryController {
             @PageableDefault(size = 50, sort = "transactionDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(CASH_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listCashReceipts(slipNo, kind, from, to, partnerName, pageable));
     }
 
@@ -84,6 +92,7 @@ public class AccountingAdminQueryController {
             @PageableDefault(size = 50, sort = "validUntil", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(ORDER_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listOrders(progressStatus, managerName, partnerName, pageable));
     }
 
@@ -93,6 +102,7 @@ public class AccountingAdminQueryController {
     public ApiResponse<OrderDetailResponse> orderDetail(
             @PathVariable String orderNo,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(ORDER_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.getOrderDetail(orderNo));
     }
 
@@ -103,6 +113,7 @@ public class AccountingAdminQueryController {
             @RequestParam(required = false) String partnerName,
             @RequestParam(required = false) String sort,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(AGING_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listAgingSnapshot(partnerName, sort));
     }
 
@@ -117,6 +128,7 @@ public class AccountingAdminQueryController {
             @PageableDefault(size = 50)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(LEDGER_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listSalesLedger(from, to, partnerName, transformStatus, pageable));
     }
 
@@ -131,6 +143,19 @@ public class AccountingAdminQueryController {
             @PageableDefault(size = 50)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkViewPermission(LEDGER_PAGE_CODE, roleHeader);
         return ApiResponse.ok(service.listPurchaseLedger(from, to, partnerName, transformStatus, pageable));
+    }
+
+    private void checkViewPermission(String pageCode, String roleCode) {
+        if (roleCode == null || roleCode.isBlank()) {
+            return;
+        }
+        if (!dynamicPermissionClient.canView(roleCode, pageCode)) {
+            log.warn("[MIG-14] admin VIEW 동적 권한 차단 — roleCode={} pageCode={}",
+                    roleCode, pageCode);
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "동적 권한 설정에 의해 MIG-14 admin 조회 권한이 차단되었습니다.");
+        }
     }
 }
