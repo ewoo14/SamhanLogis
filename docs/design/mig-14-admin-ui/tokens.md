@@ -122,21 +122,51 @@
 }
 ```
 
-상태 라벨 매핑:
+상태 라벨 매핑은 화면 API enum 값을 그대로 기준으로 둔다. 색상은 기존 overview의
+`status-badge.done` / `status-badge.wip` / `status-badge.plan` 의미를 MIG-14
+상태 토큰에 매핑해 재사용한다.
 
-| 영역 | 값 | 표시 |
+| chip token | MIG-14 토큰 | 용도 |
 |---|---|---|
-| 지출 kind | `EXPENSE_VOUCHER` | 지출결의 |
-| 지출 kind | `MANUAL_DISBURSEMENT` | 수기지출 |
-| 입금 kind | `DEPOSIT_REPORT` | 입금보고 |
-| 입금 kind | `MANUAL_RECEIPT` | 수기입금 |
-| 주문 진행 | `PENDING` | 대기 |
-| 주문 진행 | `IN_PROGRESS` | 진행 |
-| 주문 진행 | `COMPLETED` | 완료 |
-| 주문 진행 | `CANCELED` | 취소 |
-| 원장 변환 | `PENDING` | 대기 |
-| 원장 변환 | `TRANSFORMED` | 변환완료 |
-| 원장 변환 | `REJECTED` | 제외 |
+| `status-badge.done` | `--mig14-status-success-{fg,bg,border}` | 완료/정상/확정된 자료 |
+| `status-badge.wip` | `--mig14-status-warning-{fg,bg,border}` | 진행 중 또는 수동 확인이 필요한 자료 |
+| `status-badge.plan` | `--mig14-status-neutral-{fg,bg,border}` | 초안/기타/취소처럼 진행 대상이 아닌 자료 |
+
+CashKind:
+
+| 값 | 표시 | chip token |
+|---|---|---|
+| `EXPENSE_VOUCHER` | 지출결의서 | `status-badge.done` |
+| `DEPOSIT_REPORT` | 입금보고서 | `status-badge.done` |
+| `MANUAL` | 수동 분개 | `status-badge.wip` |
+| `OTHER` | 기타 | `status-badge.plan` |
+
+CashReceiptKind:
+
+| 값 | 표시 | chip token |
+|---|---|---|
+| `EXPENSE_VOUCHER` | 지출결의서 | `status-badge.done` |
+| `DEPOSIT_REPORT` | 입금보고서 | `status-badge.done` |
+| `MANUAL` | 수동 분개 | `status-badge.wip` |
+| `OTHER` | 기타 | `status-badge.plan` |
+
+OrderProgressStatus:
+
+| 값 | 표시 | chip token |
+|---|---|---|
+| `DRAFT` | 초안 | `status-badge.plan` |
+| `CONFIRMED` | 확정 | `status-badge.wip` |
+| `IN_PROGRESS` | 진행 중 | `status-badge.wip` |
+| `COMPLETED` | 완료 | `status-badge.done` |
+| `CANCELLED` | 취소 | `status-badge.plan` |
+
+원장 변환:
+
+| 값 | 표시 | chip token |
+|---|---|---|
+| `PENDING` | 대기 | `status-badge.wip` |
+| `TRANSFORMED` | 변환완료 | `status-badge.done` |
+| `REJECTED` | 제외 | `status-badge.plan` |
 
 ---
 

@@ -2361,3 +2361,16 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-16-06 | 옵션 C 21단계 일괄 개발 슬라이스로 진행하고, dev-report/handoff/overview를 같은 PR에서 동기화한다. |
 
 **산출 예정/진행**: partner-service internal batch endpoint, accounting-service batch client/admin query pagination, desktop toast/permission loading 보정, dev-report `docs/dev-reports/mig-16-be-minor-cleanup.md`.
+
+### D-MIG-17-00. Designer tokens.md + Mock 라벨 실 enum 동기화 (MIG-17, 2026-05-21)
+
+**배경**: MIG-14 admin UI 4 화면 산출 이후 Designer Minor 백로그로 남은 `tokens.md`와 mock wireframe의 상태/구분 라벨을 화면 API enum 계약에 맞춰 docs-only로 정리한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-17-01 | `docs/design/mig-14-admin-ui/tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus는 화면 API enum 값과 한국어 라벨을 1:1로 명시한다. |
+| D-MIG-17-02 | `docs/design/mig-14-admin-ui/01~07` mock wireframe의 상태 chip과 구분 라벨은 tokens.md 라벨 계약을 따른다. |
+| D-MIG-17-03 | 필터 chip + reset 공통 UI 구현은 MIG-18(E admin UI 2단계)로 이연하고, MIG-17은 라벨/문서 정합만 처리한다. |
+| D-MIG-17-04 | 옵션 C 21단계 + PM 자율 연속 docs-only 슬라이스로 진행하고, dev-report/handoff/overview HTML을 같은 변경에 포함한다. |
+
+**산출 예정/진행**: MIG-14 design tokens/mock 문서 8건, dev-report `docs/dev-reports/mig-17-designer-tokens-sync.md`, handoff, overview HTML.
