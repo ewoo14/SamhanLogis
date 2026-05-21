@@ -6,6 +6,7 @@ import {
   refreshPartnerAgingSnapshot,
   type PartnerAgingSnapshotRow,
 } from '../../../api/accountingAdminApi'
+import { usePermissions } from '../../../hooks/usePermissions'
 import { usePageTitle } from '../../../hooks/usePageTitle'
 import {
   FilterField,
@@ -23,6 +24,8 @@ import {
 export function PartnerAgingSnapshotPage() {
   usePageTitle('거래처 잔액 스냅샷')
   const queryClient = useQueryClient()
+  const { canAccess, permissions } = usePermissions()
+  const canRefreshSnapshot = !!permissions && canAccess('ecount.mig14.aging-snapshot', 'edit')
 
   const [page, setPage] = useState(0)
   const [partnerName, setPartnerName] = useState('')
@@ -125,9 +128,11 @@ export function PartnerAgingSnapshotPage() {
       <div style={headerStyle}>
         <h3 style={{ margin: 0 }}>거래처 잔액 스냅샷</h3>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="secondary" size="sm" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-            스냅샷 새로고침
-          </Button>
+          {canRefreshSnapshot ? (
+            <Button variant="secondary" size="sm" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
+              스냅샷 새로고침
+            </Button>
+          ) : null}
           <Button variant="primary" size="sm" onClick={applyFilters}>
             조회
           </Button>

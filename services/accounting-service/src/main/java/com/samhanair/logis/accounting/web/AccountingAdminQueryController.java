@@ -49,13 +49,14 @@ public class AccountingAdminQueryController {
     @Operation(summary = "MIG-14 지출결의서 admin 목록 조회")
     public ApiResponse<Page<CashDisbursementResponse>> cashDisbursements(
             @RequestParam(required = false) String slipNo,
+            @RequestParam(required = false) String partnerName,
             @RequestParam(required = false) CashKind kind,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 50, sort = "transactionDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(service.listCashDisbursements(slipNo, kind, from, to, pageable));
+        return ApiResponse.ok(service.listCashDisbursements(slipNo, kind, from, to, partnerName, pageable));
     }
 
     @GetMapping("/cash-receipts")
@@ -63,13 +64,14 @@ public class AccountingAdminQueryController {
     @Operation(summary = "MIG-14 입금보고서 admin 목록 조회")
     public ApiResponse<Page<CashReceiptResponse>> cashReceipts(
             @RequestParam(required = false) String slipNo,
+            @RequestParam(required = false) String partnerName,
             @RequestParam(required = false) CashReceiptKind kind,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 50, sort = "transactionDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(service.listCashReceipts(slipNo, kind, from, to, pageable));
+        return ApiResponse.ok(service.listCashReceipts(slipNo, kind, from, to, partnerName, pageable));
     }
 
     @GetMapping("/orders")

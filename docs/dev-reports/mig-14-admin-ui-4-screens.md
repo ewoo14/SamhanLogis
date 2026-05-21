@@ -119,6 +119,14 @@ Cycle 1c local verification:
 - `cd clients/desktop && npm run typecheck` 통과.
 - `cd clients/desktop && npm run build` 통과. Pretendard runtime font resolve warning은 기존 경고다.
 
+Cycle 1e follow-up:
+
+- `POST /admin/accounting/aging-snapshot/refresh`는 MIG-14 화면 액션이므로 `ecount.mig14.aging-snapshot` PageCode `EDIT` 권한으로 검증한다.
+- `ACCOUNTANT`는 V25 seed에서 `can_view=true`, `can_edit=false`이므로 조회는 가능하지만 refresh는 403으로 차단된다.
+- Ledger `dailyDiff`는 필터된 row 합계가 아니라, 같은 거래일의 전체 raw 합계(`raw_totals`)와 `daily_closings` 합계를 비교한다. partner/status 필터는 화면 row에만 적용된다.
+- Cash 조회 API는 `partnerName` query를 수신하고 partner-service lookup 결과의 `partnerId`로 cash 도메인을 필터링한다.
+- AgingSnapshot refresh 버튼은 `ecount.mig14.aging-snapshot` edit 권한이 로드되어 true일 때만 표시한다.
+
 ---
 
 ## 6. CI path finding

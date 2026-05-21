@@ -61,9 +61,13 @@ public class AccountingAdminQueryService {
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public Page<CashDisbursementResponse> listCashDisbursements(
-            String slipNo, CashKind kind, LocalDate from, LocalDate to, Pageable pageable) {
+            String slipNo, CashKind kind, LocalDate from, LocalDate to, String partnerName, Pageable pageable) {
+        UUID partnerId = resolvePartnerId(partnerName);
+        if (notBlank(partnerName) && partnerId == null) {
+            return Page.empty(pageable);
+        }
         Page<CashDisbursement> page = cashDisbursementRepository.findAll(
-                cashDisbursementSpec(slipNo, kind, from, to), pageable);
+                cashDisbursementSpec(slipNo, kind, from, to, partnerId), pageable);
         Map<UUID, String> partnerNames = partnerNames(page.getContent().stream()
                 .map(CashDisbursement::getPartnerId)
                 .collect(Collectors.toSet()));
@@ -85,9 +89,13 @@ public class AccountingAdminQueryService {
     }
 
     public Page<CashReceiptResponse> listCashReceipts(
-            String slipNo, CashReceiptKind kind, LocalDate from, LocalDate to, Pageable pageable) {
+            String slipNo, CashReceiptKind kind, LocalDate from, LocalDate to, String partnerName, Pageable pageable) {
+        UUID partnerId = resolvePartnerId(partnerName);
+        if (notBlank(partnerName) && partnerId == null) {
+            return Page.empty(pageable);
+        }
         Page<CashReceipt> page = cashReceiptRepository.findAll(
-                cashReceiptSpec(slipNo, kind, from, to), pageable);
+                cashReceiptSpec(slipNo, kind, from, to, partnerId), pageable);
         Map<UUID, String> partnerNames = partnerNames(page.getContent().stream()
                 .map(CashReceipt::getPartnerId)
                 .collect(Collectors.toSet()));
@@ -174,10 +182,14 @@ public class AccountingAdminQueryService {
                 """.formatted(tableName, where), params, Long.class);
         List<LedgerStagingResponse> rows = jdbcTemplate.query("""
                 WITH filtered AS (
-                    SELECT *,
-                           COALESCE(SUM(total_amount) OVER (PARTITION BY transaction_date), 0) AS raw_daily_total
+                    SELECT *
                       FROM %s
                      %s
+                ), raw_totals AS (
+                    SELECT transaction_date, COALESCE(SUM(total_amount), 0) AS raw_daily_total
+                      FROM %s
+                     WHERE is_deleted = FALSE
+                     GROUP BY transaction_date
                 ), closing_totals AS (
                     SELECT closing_date, COALESCE(SUM(total_amount), 0) AS closing_daily_total
                       FROM daily_closings
@@ -189,15 +201,16 @@ public class AccountingAdminQueryService {
                        f.transaction_type, f.electronic_type, f.partner_code, f.partner_name,
                        f.description, f.supply_amount, f.vat_amount, f.total_amount,
                        f.transform_status, f.reject_reason, f.imported_at,
-                       f.raw_daily_total,
+                       COALESCE(r.raw_daily_total, 0) AS raw_daily_total,
                        COALESCE(c.closing_daily_total, 0) AS closing_daily_total,
-                       f.raw_daily_total - COALESCE(c.closing_daily_total, 0) AS daily_diff
+                       COALESCE(r.raw_daily_total, 0) - COALESCE(c.closing_daily_total, 0) AS daily_diff
                   FROM filtered f
+                  LEFT JOIN raw_totals r ON r.transaction_date = f.transaction_date
                   LEFT JOIN closing_totals c ON c.closing_date = f.transaction_date
                  ORDER BY f.transaction_date DESC NULLS LAST, f.sequence_no DESC NULLS LAST,
                           f.source_row_no DESC
                  LIMIT :limit OFFSET :offset
-                """.formatted(tableName, where), params, this::mapLedger);
+                """.formatted(tableName, where, tableName), params, this::mapLedger);
         return new PageImpl<>(rows, pageable, total);
     }
 
@@ -212,11 +225,14 @@ public class AccountingAdminQueryService {
     }
 
     private static Specification<CashDisbursement> cashDisbursementSpec(
-            String slipNo, CashKind kind, LocalDate from, LocalDate to) {
+            String slipNo, CashKind kind, LocalDate from, LocalDate to, UUID partnerId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new java.util.ArrayList<>();
             if (notBlank(slipNo)) {
                 predicates.add(cb.like(cb.lower(root.get("slipNo")), likeLiteral(slipNo)));
+            }
+            if (partnerId != null) {
+                predicates.add(cb.equal(root.get("partnerId"), partnerId));
             }
             if (kind != null) {
                 predicates.add(cb.equal(root.get("kind"), kind));
@@ -232,11 +248,14 @@ public class AccountingAdminQueryService {
     }
 
     private static Specification<CashReceipt> cashReceiptSpec(
-            String slipNo, CashReceiptKind kind, LocalDate from, LocalDate to) {
+            String slipNo, CashReceiptKind kind, LocalDate from, LocalDate to, UUID partnerId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new java.util.ArrayList<>();
             if (notBlank(slipNo)) {
                 predicates.add(cb.like(cb.lower(root.get("slipNo")), likeLiteral(slipNo)));
+            }
+            if (partnerId != null) {
+                predicates.add(cb.equal(root.get("partnerId"), partnerId));
             }
             if (kind != null) {
                 predicates.add(cb.equal(root.get("kind"), kind));
@@ -336,6 +355,15 @@ public class AccountingAdminQueryService {
 
     private static String partnerDisplayName(PartnerSummary summary) {
         return notBlank(summary.name()) ? summary.name() : summary.partnerCode();
+    }
+
+    private UUID resolvePartnerId(String partnerName) {
+        if (!notBlank(partnerName)) {
+            return null;
+        }
+        return partnerLookupClient.findByPartnerName(partnerName)
+                .map(PartnerSummary::partnerId)
+                .orElse(null);
     }
 
     private PartnerAgingSnapshotResponse mapAging(ResultSet rs, int rowNum) throws SQLException {

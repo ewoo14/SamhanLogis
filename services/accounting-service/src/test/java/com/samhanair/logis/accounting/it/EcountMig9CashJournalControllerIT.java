@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,6 +46,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
 
     @MockBean private Mig9CashJournalService cashJournalService;
     @MockBean private Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
+    @SuppressWarnings("removal")
     @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
@@ -93,6 +97,22 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         if ("refreshFailed".equals(label)) {
             actions.andExpect(content().string(org.hamcrest.Matchers.containsString("MIG9_AGING_REFRESH_FAILED")));
         }
+    }
+
+    @Test
+    @DisplayName("MIG-14 AgingSnapshot refresh는 canEdit=false + canView=true이면 403")
+    void refreshAgingSnapshot_viewOnlyDynamicPermissionDenied() throws Exception {
+        when(dynamicPermissionClient.canEdit("MANAGER", "ecount.mig14.aging-snapshot"))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canView("MANAGER", "ecount.mig14.aging-snapshot"))
+                .thenReturn(true);
+
+        mockMvc.perform(post("/admin/accounting/aging-snapshot/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .header("X-User-Id", "tester")
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(status().isForbidden());
     }
 
     private static Stream<Arguments> cases() {
