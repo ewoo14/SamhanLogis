@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.annotation.Isolation;
@@ -31,7 +32,10 @@ abstract class AbstractEcountMig11LedgerImporter {
     private final LedgerMapping mapping;
     private final UUID lockNamespace;
     private final String closingKind;
+    private final String sourceKind;
     private final boolean totalAmountInFile;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     AbstractEcountMig11LedgerImporter(NamedParameterJdbcTemplate jdbcTemplate,
                                       String tableName,
@@ -39,6 +43,7 @@ abstract class AbstractEcountMig11LedgerImporter {
                                       LedgerMapping mapping,
                                       UUID lockNamespace,
                                       String closingKind,
+                                      String sourceKind,
                                       boolean totalAmountInFile) {
         this.jdbcTemplate = jdbcTemplate;
         this.tableName = tableName;
@@ -46,6 +51,7 @@ abstract class AbstractEcountMig11LedgerImporter {
         this.mapping = mapping;
         this.lockNamespace = lockNamespace;
         this.closingKind = closingKind;
+        this.sourceKind = sourceKind;
         this.totalAmountInFile = totalAmountInFile;
     }
 
@@ -74,7 +80,9 @@ abstract class AbstractEcountMig11LedgerImporter {
             }
         }
         validateAgainstDailyClosing(parsed.sourceFileHash(), result);
-        return result.build();
+        EcountMig11Result built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-11", built);
+        return built;
     }
 
     private LedgerRow toLedgerRow(EcountXlsxSupport.ParsedRow row) {
@@ -177,11 +185,10 @@ abstract class AbstractEcountMig11LedgerImporter {
                        r.raw_total::text raw_value,
                        COALESCE(c.closing_total, 0)::text closing_value,
                        (r.raw_total - COALESCE(c.closing_total, 0))::text diff_value
-                  FROM raw_totals r
+                 FROM raw_totals r
                   LEFT JOIN closing_totals c ON c.closing_date = r.transaction_date
                  WHERE ABS(r.raw_total - COALESCE(c.closing_total, 0)) > 0.01
                  ORDER BY r.transaction_date
-                 LIMIT 5
                 """.formatted(tableName), new MapSqlParameterSource()
                 .addValue("hash", sourceFileHash)
                 .addValue("closingKind", closingKind),
@@ -194,6 +201,9 @@ abstract class AbstractEcountMig11LedgerImporter {
             result.dailyClosingMismatch(row.transactionDate(), row.rawValue(), row.closingValue(), row.diffValue(),
                     ErrorCode.MIG11_DAILY_CLOSING_MISMATCH.name()
                             + ": 매출장/매입장 일별 합계와 DailyClosing total_amount 가 다릅니다");
+        }
+        if (metricsRecorder != null) {
+            metricsRecorder.recordDailyClosingDiff(closingKind, sourceKind, rows.size());
         }
     }
 

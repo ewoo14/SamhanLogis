@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -33,6 +34,8 @@ abstract class AbstractEcountMig5CashImporter {
     private final UUID lockNamespace;
     private final String agingAccountCode;
     private final boolean receivable;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     AbstractEcountMig5CashImporter(NamedParameterJdbcTemplate jdbcTemplate,
                                    PartnerLookupClient partnerLookupClient,
@@ -91,7 +94,9 @@ abstract class AbstractEcountMig5CashImporter {
             }
         }
         validateAgainstAging(hash, result);
-        return result.build();
+        EcountMig5ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-5", built);
+        return built;
     }
 
     public void validateAgainstAging(String sourceFileHash, EcountMig5ImportResult.Builder result) {

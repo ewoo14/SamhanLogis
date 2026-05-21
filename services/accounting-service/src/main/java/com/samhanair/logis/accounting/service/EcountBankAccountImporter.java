@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,6 +35,8 @@ public class EcountBankAccountImporter {
     };
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig6ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -82,7 +85,9 @@ public class EcountBankAccountImporter {
                         "통장계좌 domain upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
             }
         }
-        return result.build();
+        EcountMig6ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-6", built);
+        return built;
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, String chartAccountCode, String actor) {

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -30,6 +31,8 @@ abstract class AbstractMig7CashTransformService {
     private final String expectedTransactionType;
     private final String kind;
     private final UUID lockNamespace;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     AbstractMig7CashTransformService(NamedParameterJdbcTemplate jdbcTemplate,
                                      String stagingTable,
@@ -85,7 +88,9 @@ abstract class AbstractMig7CashTransformService {
                         row.slipNo(), row.externalRef());
             }
         }
-        return result.build();
+        EcountMig7TransformResult built = result.build();
+        EcountMigMetricsSupport.recordTransformResult(metricsRecorder, "mig-7", built);
+        return built;
     }
 
     private LocalDate validate(StagingRow row, Set<String> seenExternalRefs) {

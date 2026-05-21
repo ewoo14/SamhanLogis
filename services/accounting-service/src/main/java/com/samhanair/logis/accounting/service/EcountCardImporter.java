@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,8 @@ public class EcountCardImporter {
     private static final int REJECT_SAMPLE_MAX = 20;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountCardImportResult importCsv(InputStream csv, String actorUserId) {
@@ -81,8 +84,10 @@ public class EcountCardImporter {
         }
         log.info("MIG-2 card import 완료 total={} imported={} updated={} rejected={} placeholder={} hash={}",
                 parsed.dataRows().size(), imported, updated, rejectedNullName, skippedPlaceholder, hash);
-        return new EcountCardImportResult(parsed.dataRows().size(), imported, updated,
+        EcountCardImportResult result = new EcountCardImportResult(parsed.dataRows().size(), imported, updated,
                 rejectedNullName, skippedPlaceholder, hash, rejected);
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-2", result);
+        return result;
     }
 
     private void acquireImportLock(String sourceFileHash) {

@@ -16,6 +16,7 @@
 - desktop 회계 관리자 그룹에 `운영 대시보드` 메뉴와 6개 카드 화면을 추가하고 React Query 5분 polling으로 갱신한다.
 - auth-service V27 `ecount.mig.ops-dashboard` PageCode를 추가한다. MASTER/MANAGER view+edit, ACCOUNTANT view-only.
 - Grafana dashboard JSON 8패널과 observability README를 추가한다.
+- Cycle 1c에서 Aging/DailyClosing recorder call site, MIG-2~11 accounting importer/transform 초기 메트릭, `/actuator/prometheus` 내부 토큰 가드, ACCOUNTANT API view, Grafana alert 표현식, FE number 타입, scrape failure counter를 보완했다.
 
 ### 문서 산출
 
@@ -23,6 +24,7 @@
 - dev-report: `docs/dev-reports/mig-21-migration-ops-dashboard.md`
 - grafana: `docs/observability/grafana-mig-ops-dashboard.json`
 - decisions: `D-MIG-21-01~07`
+  - Cycle 1c 보완은 기존 결정 유지: endpoint는 그대로 `/actuator/prometheus`, 접근만 `X-Internal-Token` 내부 scrape로 제한.
 
 ### 다음 상태
 
@@ -39,6 +41,10 @@
   - `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
   - `clients/desktop`: `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd run build` PASS.
   - lint 기존 warning 2건과 build 기존 Pretendard font runtime warning 유지.
+- Cycle 1c 부분 검증:
+  - `./gradlew :services:accounting-service:test :services:dashboard-service:test --no-daemon` PASS.
+  - `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
+  - `clients/desktop`: `npm.cmd run typecheck`, `npm.cmd run build` PASS.
 
 ---
 

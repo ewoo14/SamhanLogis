@@ -60,8 +60,8 @@ export function MigOpsDashboardPage() {
         </MetricCard>
         <MetricCard title="Aging net" value="" suffix="">
           <div style={{ display: 'grid', gap: 8 }}>
-            <InlineMetric label="순미수" value={<MoneyText value={data?.agingNet.netReceivable ?? '0'} strong />} />
-            <InlineMetric label="순미지급" value={<MoneyText value={data?.agingNet.netPayable ?? '0'} strong />} />
+            <InlineMetric label="순미수" value={<MoneyText value={data?.agingNet.netReceivable ?? 0} strong />} />
+            <InlineMetric label="순미지급" value={<MoneyText value={data?.agingNet.netPayable ?? 0} strong />} />
           </div>
         </MetricCard>
         <MetricCard title="재import 이력" value={totals.reimportRuns} suffix="회">
@@ -198,12 +198,12 @@ function summarize(data?: EcountMigOpsDashboardResponse) {
   }
 }
 
-function sum(rows?: Array<{ count: string }>): number {
-  return rows?.reduce((acc, row) => acc + Number(row.count || 0), 0) ?? 0
+function sum(rows?: Array<{ count: number }>): number {
+  return rows?.reduce((acc, row) => acc + row.count, 0) ?? 0
 }
 
-function formatCount(value?: string | null): string {
-  return Number(value ?? 0).toLocaleString('ko-KR')
+function formatCount(value?: number | null): string {
+  return (value ?? 0).toLocaleString('ko-KR')
 }
 
 function formatObservedAt(value?: string): string {

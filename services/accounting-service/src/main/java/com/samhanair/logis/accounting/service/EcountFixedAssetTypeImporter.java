@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -28,6 +29,8 @@ public class EcountFixedAssetTypeImporter {
     public static final String[] HEADERS = {"고정자산유형코드", "고정자산유형명", "사용여부"};
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig6ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -72,7 +75,9 @@ public class EcountFixedAssetTypeImporter {
                         "고정자산유형 domain upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
             }
         }
-        return result.build();
+        EcountMig6ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-6", built);
+        return built;
     }
 
     private boolean insertStaging(String hash, int rowNo, String[] c, String actor) {

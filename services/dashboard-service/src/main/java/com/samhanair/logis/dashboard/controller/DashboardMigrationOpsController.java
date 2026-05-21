@@ -20,7 +20,7 @@ public class DashboardMigrationOpsController {
 
     @Operation(summary = "이카운트 마이그레이션 운영 대시보드")
     @GetMapping("/ecount-mig")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
     public ApiResponse<EcountMigOpsDashboardResponse> ecountMigOps() {
         return ApiResponse.ok(service.load());
     }

@@ -42,4 +42,20 @@
 ## 운영 메모
 
 - Prometheus에 노출되는 counter sample 이름은 `ecount_mig_imported_total`처럼 `_total` suffix가 붙는다.
-- dashboard-service가 accounting-service actuator 조회에 실패하면 빈 지표로 fail-soft 하며 화면은 0/빈 리스트 상태를 표시한다.
+- `/actuator/prometheus`는 `X-Internal-Token`으로 보호한다. dashboard-service는 scrape 시 같은 token을 첨부한다.
+- dashboard-service가 accounting-service actuator 조회에 실패하면 빈 지표로 fail-soft 하며 `dashboard_accounting_scrape_failures_total`을 증가시킨다.
+
+## Cycle 1c 보완
+
+| 항목 | 처리 |
+|---|---|
+| HIGH | Aging materialized view refresh 직후 net receivable/payable gauge 기록, MIG-11 DailyClosing diff gauge 기록, MIG-2~11 accounting importer/transform 결과 counter 기록, accounting Prometheus actuator 내부 토큰 가드 적용 |
+| medium | `/dashboard/ecount-mig` ACCOUNTANT view 허용, Grafana rejected ratio/reimport FAIL alert 표현식 보강, desktop API numeric type 정합, Prometheus parser/recorder/security guard 테스트 추가 |
+| low | `/admin/dashboard/ecount-mig` 중복 controller 제거, dashboard accounting scrape failure counter + error log 추가 |
+
+### Cycle 1c 검증
+
+- `./gradlew :services:accounting-service:test :services:dashboard-service:test --no-daemon` PASS.
+- `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
+- `npm.cmd run typecheck` PASS.
+- `npm.cmd run build` PASS. 기존 Pretendard runtime font resolve warning 유지.

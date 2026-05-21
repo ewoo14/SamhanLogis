@@ -32,6 +32,9 @@ app:
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
       token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
+      # MIG-21 — 재무 migration metrics 는 dashboard-service 내부 scrape 만 허용.
+      path-prefix: /actuator/prometheus
+      allow-missing-token: false
   # Stage 4 local-test seed (JournalSeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만 50건 seed.
   # 운영 / staging 데이터 오염 방지 — default false. 복식부기 invariant 강제 (sum(debit)==sum(credit) per journal).
   accounting:

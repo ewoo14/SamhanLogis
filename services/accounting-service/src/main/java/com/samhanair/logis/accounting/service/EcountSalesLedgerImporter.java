@@ -24,6 +24,7 @@ public class EcountSalesLedgerImporter extends AbstractEcountMig11LedgerImporter
                         0, 3, 4, 5),
                 IMPORT_LOCK_NAMESPACE,
                 "SALES",
+                "SALES_LEDGER",
                 true);
     }
 }

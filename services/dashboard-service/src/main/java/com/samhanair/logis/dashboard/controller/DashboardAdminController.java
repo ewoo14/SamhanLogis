@@ -5,11 +5,9 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dashboard.domain.AggregateInterval;
 import com.samhanair.logis.dashboard.domain.KpiCategory;
-import com.samhanair.logis.dashboard.dto.KpiSnapshotResponse;
-import com.samhanair.logis.dashboard.dto.EcountMigOpsDashboardResponse;
 import com.samhanair.logis.dashboard.dto.RealTimeStockResponse;
 import com.samhanair.logis.dashboard.dto.SalesAggregateResponse;
-import com.samhanair.logis.dashboard.service.EcountMigOpsDashboardService;
+import com.samhanair.logis.dashboard.dto.KpiSnapshotResponse;
 import com.samhanair.logis.dashboard.service.KpiService;
 import com.samhanair.logis.dashboard.service.MaterializedViewRefreshService;
 import com.samhanair.logis.dashboard.service.PartnerCodeResolver;
@@ -46,7 +44,6 @@ public class DashboardAdminController {
     private final SalesAggregateService salesAggregateService;
     private final MaterializedViewRefreshService refreshService;
     private final PartnerCodeResolver partnerCodeResolver;
-    private final EcountMigOpsDashboardService ecountMigOpsDashboardService;
 
     /**
      * KPI 조회 (filter — category 선택). category null 인 경우 전체 카테고리 시계열 반환.
@@ -129,11 +126,4 @@ public class DashboardAdminController {
         return ApiResponse.ok(refreshService.refreshAll());
     }
 
-    /** MIG-21 이카운트 마이그레이션 운영 대시보드. */
-    @Operation(summary = "이카운트 마이그레이션 운영 대시보드")
-    @GetMapping("/ecount-mig")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
-    public ApiResponse<EcountMigOpsDashboardResponse> ecountMigOps() {
-        return ApiResponse.ok(ecountMigOpsDashboardService.load());
-    }
 }

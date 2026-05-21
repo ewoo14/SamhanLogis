@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
@@ -39,6 +40,8 @@ public class Mig8OrderTransformService {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final PartnerLookupClient partnerLookupClient;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig8TransformResult transformFromStaging(int batchSize, String actorUserId) {
@@ -66,7 +69,9 @@ public class Mig8OrderTransformService {
                 rejectGroup(group, duplicate.code().name(), duplicate.message(), result);
             }
         }
-        return result.build();
+        EcountMig8TransformResult built = result.build();
+        EcountMigMetricsSupport.recordTransformResult(metricsRecorder, "mig-8", built);
+        return built;
     }
 
     private Map<String, List<ValidatedRow>> validateAndGroup(List<StagingRow> rows,

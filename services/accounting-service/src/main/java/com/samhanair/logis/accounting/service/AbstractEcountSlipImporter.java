@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.annotation.Isolation;
@@ -26,6 +27,8 @@ abstract class AbstractEcountSlipImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final PartnerLookupClient partnerLookupClient;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     protected abstract UUID namespace();
     protected abstract String[] headers();
@@ -109,7 +112,9 @@ abstract class AbstractEcountSlipImporter {
                 result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), slipNo, sampleRawValue(c, ex));
             }
         }
-        return result.build();
+        EcountVoucherImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-3", built);
+        return built;
     }
 
     private void acquireImportLock(String sourceFileHash) {

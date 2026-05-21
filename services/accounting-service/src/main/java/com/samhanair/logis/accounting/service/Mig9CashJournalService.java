@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,6 +35,8 @@ public class Mig9CashJournalService {
     private static final String ACCOUNT_RECEIVABLE = "외상매출금";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig9JournalResult generateFromDisbursements(int batchSize, String actorUserId) {
@@ -47,7 +50,9 @@ public class Mig9CashJournalService {
         for (CashRow row : rows) {
             processDisbursement(row, normalizeActor(actorUserId), result);
         }
-        return result.build();
+        EcountMig9JournalResult built = result.build();
+        EcountMigMetricsSupport.recordJournalResult(metricsRecorder, "mig-9", built);
+        return built;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
@@ -62,7 +67,9 @@ public class Mig9CashJournalService {
         for (CashRow row : rows) {
             processReceipt(row, normalizeActor(actorUserId), result);
         }
-        return result.build();
+        EcountMig9JournalResult built = result.build();
+        EcountMigMetricsSupport.recordJournalResult(metricsRecorder, "mig-9", built);
+        return built;
     }
 
     private void processDisbursement(CashRow row, String actor, EcountMig9JournalResult.Builder result) {

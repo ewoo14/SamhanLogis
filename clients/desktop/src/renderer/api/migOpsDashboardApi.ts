@@ -2,7 +2,7 @@ import { apiClient, type ApiEnvelope } from './client'
 
 export interface MigOpsMetric {
   slice: string
-  count: string
+  count: number
 }
 
 export interface TransformStatusMetric extends MigOpsMetric {
@@ -16,12 +16,12 @@ export interface RejectedMetric extends MigOpsMetric {
 export interface DailyClosingDiffMetric {
   closingKind: string
   sourceKind: string
-  diffCount: string
+  diffCount: number
 }
 
 export interface AgingNetMetric {
-  netReceivable: string
-  netPayable: string
+  netReceivable: number
+  netPayable: number
 }
 
 export interface ReimportRunMetric extends MigOpsMetric {

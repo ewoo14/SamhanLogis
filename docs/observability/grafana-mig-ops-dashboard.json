@@ -36,6 +36,10 @@
         {
           "expr": "sum by (slice, errorCode) (ecount_mig_rejected_total)",
           "legendFormat": "{{slice}} {{errorCode}}"
+        },
+        {
+          "expr": "sum(ecount_mig_rejected_total) / clamp_min(sum(ecount_mig_imported_total), 1)",
+          "legendFormat": "rejected ratio"
         }
       ],
       "alert": {
@@ -46,7 +50,7 @@
             "type": "query",
             "query": {
               "params": [
-                "A",
+                "B",
                 "5m",
                 "now"
               ]
@@ -130,6 +134,10 @@
         {
           "expr": "sum by (slice, status) (ecount_reimport_runs_total)",
           "legendFormat": "{{slice}} {{status}}"
+        },
+        {
+          "expr": "sum(ecount_reimport_runs_total{status=\"FAIL\"})",
+          "legendFormat": "FAIL total"
         }
       ],
       "alert": {
@@ -140,7 +148,7 @@
             "type": "query",
             "query": {
               "params": [
-                "A",
+                "B",
                 "5m",
                 "now"
               ]

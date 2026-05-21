@@ -9,6 +9,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -29,6 +30,8 @@ public class Mig10OrderEmployeeBackfillService {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final EmployeeLookupClient employeeLookupClient;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig10Result backfill(int batchSize, String actorUserId) {
@@ -60,7 +63,9 @@ public class Mig10OrderEmployeeBackfillService {
                 result.backfilled();
             }
         }
-        return result.build();
+        EcountMig10Result built = result.build();
+        EcountMigMetricsSupport.recordBackfillResult(metricsRecorder, "mig-10", built);
+        return built;
     }
 
     private List<OrderCandidate> candidates(int batchSize) {

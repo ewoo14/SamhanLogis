@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,8 @@ public class EcountSalesPurchaseSummaryImporter {
                     + FOOTER_SPACE + "*(오전|오후).*");
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig4ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -86,7 +89,9 @@ public class EcountSalesPurchaseSummaryImporter {
             }
         }
         validateAgainstDomain(hash, result);
-        return result.build();
+        EcountMig4ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-4", built);
+        return built;
     }
 
     public void validateAgainstDomain(String sourceFileHash, EcountMig4ImportResult.Builder result) {

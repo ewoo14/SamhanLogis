@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -35,6 +36,8 @@ public class EcountSalesSlipLineImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final PartnerLookupClient partnerLookupClient;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig4ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -92,7 +95,9 @@ public class EcountSalesSlipLineImporter {
                         "판매전표 line upsert 충돌: " + ex.getMostSpecificCause().getMessage(), c[0], c[0]);
             }
         }
-        return result.build();
+        EcountMig4ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-4", built);
+        return built;
     }
 
     private PartnerSummary lookupPartner(String partnerCode, String partnerName, int rowNo) {

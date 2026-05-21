@@ -2437,4 +2437,6 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-21-06 | Grafana JSON은 metric 1:1 패널 8개와 rejected 비율, DailyClosing diff, reimport FAIL 알림 기준을 포함한다. |
 | D-MIG-21-07 | PM 자율 연속 마지막 슬라이스로 기록하고, 완료 후 D 단계에서 사용자 결정 대기 상태로 멈춘다. |
 
+**Cycle 1c 보완**: `/actuator/prometheus`는 동일 endpoint를 유지하되 `X-Internal-Token` 내부 scrape로 제한한다. Aging/DailyClosing gauge는 실제 refresh/import call site에서 기록하고, dashboard-service scrape 실패는 `dashboard_accounting_scrape_failures_total`로 별도 관측한다. ACCOUNTANT는 V27 view-only seed와 일관되게 API view도 허용한다.
+
 **산출 예정/진행**: accounting-service `MigOpsMetricsRecorder`, dashboard-service `EcountMigOpsDashboardService`, desktop `MigOpsDashboardPage`, auth-service V27, Grafana JSON/README, dev-report `docs/dev-reports/mig-21-migration-ops-dashboard.md`.

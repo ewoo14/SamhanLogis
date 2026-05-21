@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,8 @@ public class EcountTaxInvoiceImporter {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final PartnerLookupClient partnerLookupClient;
+    @Autowired(required = false)
+    private MigOpsMetricsRecorder metricsRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public EcountMig4ImportResult importCsv(InputStream csv, String actorUserId) {
@@ -92,7 +95,9 @@ public class EcountTaxInvoiceImporter {
                 result.reject(rowNo, ex.getErrorCode().name(), ex.getMessage(), c[2], sampleRawValue(c, ex));
             }
         }
-        return result.build();
+        EcountMig4ImportResult built = result.build();
+        EcountMigMetricsSupport.recordImportResult(metricsRecorder, "mig-4", built);
+        return built;
     }
 
     private PartnerSummary lookupPartner(String partnerCode, String partnerName, int rowNo) {

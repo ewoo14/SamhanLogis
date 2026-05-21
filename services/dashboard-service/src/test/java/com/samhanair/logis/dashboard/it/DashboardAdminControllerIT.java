@@ -66,6 +66,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void cleanup() {
         lenient().when(inventoryClient.findStock(any(), any())).thenReturn(Optional.empty());
         lenient().when(accountingClient.sumSalesByPartner(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        lenient().when(accountingClient.fetchPrometheusMetrics()).thenReturn("");
         lenient().when(partnerOrderClient.countOrdersByPartner(any(), any(), any())).thenReturn(0);
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         kpiRepository.deleteAll();
@@ -159,6 +160,23 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.transformStatus").isArray());
+    }
+
+    @Test
+    void ecount_mig_ops_dashboard_allows_accountant_view() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
+                        .header("X-User-Id", "test-accountant")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void old_admin_ecount_mig_ops_path_is_removed() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/ecount-mig")
+                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
     }
 
     @Test

@@ -24,6 +24,7 @@ public class EcountPurchaseLedgerImporter extends AbstractEcountMig11LedgerImpor
                         0, 1, 4, 5),
                 IMPORT_LOCK_NAMESPACE,
                 "PURCHASE",
+                "PURCHASE_LEDGER",
                 false);
     }
 }
