@@ -52,6 +52,7 @@ public class EcountReimportService {
 
     private final Path rawDirectory;
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final MigOpsMetricsRecorder metricsRecorder;
     private final List<FileTarget> fileTargets;
     private final List<CommandTarget> commandTargets;
 
@@ -80,9 +81,11 @@ public class EcountReimportService {
             Mig8OrderTransformService orderTransformService,
             Mig9CashJournalService cashJournalService,
             Mig9AgingSnapshotRefreshService agingSnapshotRefreshService,
-            Mig10OrderEmployeeBackfillService orderEmployeeBackfillService) {
+            Mig10OrderEmployeeBackfillService orderEmployeeBackfillService,
+            MigOpsMetricsRecorder metricsRecorder) {
         this.rawDirectory = Path.of(rawDirectory);
         this.jdbcTemplate = jdbcTemplate;
+        this.metricsRecorder = metricsRecorder;
         this.fileTargets = fileTargets(remoteImportClient, accountImporter, cardImporter,
                 purchaseSlipImporter, salesSlipImporter, generalVoucherImporter, journalEntryImporter,
                 taxInvoiceImporter, salesSlipLineImporter, salesPurchaseSummaryImporter, orderImporter,
@@ -111,6 +114,7 @@ public class EcountReimportService {
             processCommand(target, userId, totals, details, errors);
         }
 
+        recordMetrics(normalized, totals, errors);
         return new EcountReimportResult(
                 normalized.code,
                 totals.filesScanned,
@@ -120,6 +124,26 @@ public class EcountReimportService {
                 totals.totalRejected,
                 List.copyOf(details),
                 List.copyOf(errors));
+    }
+
+    private void recordMetrics(EcountSlice slice, Totals totals, List<EcountReimportResult.ErrorSample> errors) {
+        metricsRecorder.recordReimportFilesScanned(slice.code, totals.filesScanned);
+        if (errors.isEmpty()) {
+            String status = totals.filesProcessed == 0 && totals.filesSkipped > 0 ? "SKIP" : "SUCCESS";
+            metricsRecorder.recordReimportRun(slice.code, status);
+        } else {
+            metricsRecorder.recordReimportRun(slice.code, "FAIL");
+        }
+        metricsRecorder.recordImport(slice.code, totals.totalImported);
+        metricsRecorder.recordTransformStatus(slice.code, "TRANSFORMED", totals.totalImported);
+        metricsRecorder.recordTransformStatus(slice.code, "REJECTED", totals.totalRejected);
+        for (EcountReimportResult.ErrorSample error : errors) {
+            metricsRecorder.recordRejected(slice.code, error.errorCode(), 1);
+        }
+        int rejectedWithoutErrorSample = totals.totalRejected - errors.size();
+        if (rejectedWithoutErrorSample > 0) {
+            metricsRecorder.recordRejected(slice.code, "UNKNOWN", rejectedWithoutErrorSample);
+        }
     }
 
     private void processFile(EcountSlice slice, FileTarget target, Path file, List<Path> rawFiles,

@@ -103,6 +103,8 @@ export type PageCode =
   | 'ecount.mig14.order-list'
   | 'ecount.mig14.aging-snapshot'
   | 'ecount.mig14.ledger'
+  // MIG-21 migration ops dashboard
+  | 'ecount.mig.ops-dashboard'
 
 /**
  * 개별 역할-페이지 권한 셀.

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.EcountRemoteImportClient;
 import com.samhanair.logis.common.ecount.EcountReimportResult;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -117,6 +118,7 @@ class EcountReimportServiceTest {
                 salesPurchaseSummaryImporter, orderImporter, expenseVoucherImporter, depositReportImporter,
                 bankAccountImporter, fixedAssetTypeImporter, salesLedgerImporter, purchaseLedgerImporter,
                 cashDisbursementTransformService, cashReceiptTransformService, orderTransformService,
-                cashJournalService, agingSnapshotRefreshService, orderEmployeeBackfillService);
+                cashJournalService, agingSnapshotRefreshService, orderEmployeeBackfillService,
+                new MigOpsMetricsRecorder(new SimpleMeterRegistry()));
     }
 }

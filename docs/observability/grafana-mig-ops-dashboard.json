@@ -1,0 +1,173 @@
+{
+  "title": "MIG-21 Ecount Migration Ops",
+  "uid": "mig21-ecount-migration-ops",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Transform status",
+      "targets": [
+        {
+          "expr": "sum by (slice, status) (ecount_mig_transform_status_total)",
+          "legendFormat": "{{slice}} {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Imported total",
+      "targets": [
+        {
+          "expr": "sum by (slice) (ecount_mig_imported_total)",
+          "legendFormat": "{{slice}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Rejected total",
+      "targets": [
+        {
+          "expr": "sum by (slice, errorCode) (ecount_mig_rejected_total)",
+          "legendFormat": "{{slice}} {{errorCode}}"
+        }
+      ],
+      "alert": {
+        "name": "MIG rejected ratio > 5%",
+        "message": "Ecount migration rejected ratio exceeded 5%.",
+        "conditions": [
+          {
+            "type": "query",
+            "query": {
+              "params": [
+                "A",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "type": "last"
+            },
+            "evaluator": {
+              "type": "gt",
+              "params": [
+                0.05
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "DailyClosing diff count",
+      "targets": [
+        {
+          "expr": "ecount_daily_closing_diff_count",
+          "legendFormat": "{{closing_kind}} {{source_kind}}"
+        }
+      ],
+      "alert": {
+        "name": "DailyClosing diff > 100",
+        "message": "DailyClosing mismatch count exceeded 100.",
+        "conditions": [
+          {
+            "type": "query",
+            "query": {
+              "params": [
+                "A",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "type": "max"
+            },
+            "evaluator": {
+              "type": "gt",
+              "params": [
+                100
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Aging net receivable",
+      "targets": [
+        {
+          "expr": "ecount_aging_snapshot_net_receivable_total",
+          "legendFormat": "net receivable"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Aging net payable",
+      "targets": [
+        {
+          "expr": "ecount_aging_snapshot_net_payable_total",
+          "legendFormat": "net payable"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Reimport runs",
+      "targets": [
+        {
+          "expr": "sum by (slice, status) (ecount_reimport_runs_total)",
+          "legendFormat": "{{slice}} {{status}}"
+        }
+      ],
+      "alert": {
+        "name": "Reimport FAIL",
+        "message": "At least one reimport run failed.",
+        "conditions": [
+          {
+            "type": "query",
+            "query": {
+              "params": [
+                "A",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "type": "last"
+            },
+            "evaluator": {
+              "type": "gt",
+              "params": [
+                0
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Reimport files scanned",
+      "targets": [
+        {
+          "expr": "sum by (slice) (ecount_reimport_files_scanned_total)",
+          "legendFormat": "{{slice}}"
+        }
+      ]
+    }
+  ]
+}

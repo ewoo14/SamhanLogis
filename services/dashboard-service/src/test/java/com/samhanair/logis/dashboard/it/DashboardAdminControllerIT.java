@@ -152,6 +152,16 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void ecount_mig_ops_dashboard_returns_200_on_v1_gateway_target_path() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
+                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.transformStatus").isArray());
+    }
+
+    @Test
     void kpi_with_from_after_to_returns_400() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
                         .header("X-User-Id", "test-admin")

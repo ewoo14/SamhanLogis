@@ -22,19 +22,24 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~19 완료 + MIG-20 raw 자동 재import 진행** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 자율 연속 완료 — MIG-1~21 완료, 사용자 결정 대기** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
 
 ### 최신 진행 메모 (2026-05-21)
 
-- MIG-20 (진행 중): 이카운트 raw 자동 재import 스케줄 기반을 추가한다.
+- MIG-21 (완료): 마이그레이션 운영 대시보드를 추가했다.
+  - accounting-service Micrometer 지표를 `/actuator/prometheus`로 노출하고 dashboard-service `/api/v1/dashboard/ecount-mig`가 운영 DTO로 요약한다.
+  - desktop 회계 관리자 그룹에 `운영 대시보드` 6카드 화면을 추가하고 React Query 5분 polling을 적용했다.
+  - Grafana 8패널 JSON과 observability import 가이드는 `docs/observability/`에 둔다.
+
+- MIG-20 (완료): 이카운트 raw 자동 재import 스케줄 기반을 추가했다.
   - `POST /admin/ecount/reimport/{slice}` MASTER 전용 endpoint로 `mig-1`~`mig-11` raw 파일을 slice 단위로 재스캔한다.
   - `source_file_hash`와 `staging.ecount_reimport_file_runs` 기준 멱등 skip을 적용하고, 결과는 `EcountReimportResult`로 files/import/reject/error sample을 반환한다.
   - 운영 절차는 `docs/migration/ECOUNT-CUTOVER-GUIDE.md` §7에 Linux crontab, Windows Task Scheduler, curl, Slack alert 연동 예시로 문서화한다.
 
-- MIG-19 (진행 중): 이카운트 cutover 운영 가이드를 docs-only로 정리한다.
+- MIG-19 (완료): 이카운트 cutover 운영 가이드를 docs-only로 정리했다.
   - `docs/migration/ECOUNT-CUTOVER-GUIDE.md`에 raw 11종 다운로드, DB 백업, `X-Internal-Token`, 권한 검증을 적는다.
   - MIG-1~11 순서별 endpoint, 응답 sample, 로그 위치, admin UI 확인 절차를 운영자용 한국어로 묶는다.
   - soft-delete 복구, `JD-`/`JR-` Journal 접두사 충돌 확인, staging `PENDING` 재실행, DailyClosing 대조 SQL을 포함한다.
@@ -688,6 +693,7 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 | MIG-17 Designer 동기화     | `docs/dev-reports/mig-17-designer-tokens-sync.md`                   |
 | MIG-19 cutover 가이드      | `docs/migration/ECOUNT-CUTOVER-GUIDE.md` / `docs/dev-reports/mig-19-cutover-guide.md` |
 | MIG-20 raw 자동 재import   | `docs/migration/ECOUNT-CUTOVER-GUIDE.md` §7 / `docs/dev-reports/mig-20-scheduled-reimport.md` |
+| MIG-21 운영 대시보드       | `docs/observability/grafana-mig-ops-dashboard.json` / `docs/dev-reports/mig-21-migration-ops-dashboard.md` |
 | Phase 10 readiness (arologis) | `docs/migration/phase10/M-PHASE-10-readiness.md` (renumber, arologis-service 5 슬라이스) |
 | Phase 11 readiness (AWS cutover) | `docs/migration/phase11/M-PHASE-11-readiness.md` (renumber, 기존 phase10) |
 | Phase 11 AWS dry-run plan  | `docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md` (renumber, 기존 phase10) |

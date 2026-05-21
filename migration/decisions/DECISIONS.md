@@ -2422,3 +2422,19 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-20-06 | 실패 알림은 notification-service Slack alert 연동 대상으로 두고, 본 슬라이스는 cron/Task Scheduler/curl 예시와 실패 시 수동 Slack 호출 예시를 운영 가이드에 제공한다. |
 
 **산출 예정/진행**: shared/common `EcountReimportResult`, accounting-service `EcountReimportService`/controller/V33, auth-service V26 `ECOUNT_REIMPORT`, dev-report `docs/dev-reports/mig-20-scheduled-reimport.md`, cutover guide §7.
+
+### D-MIG-21-00. 마이그레이션 운영 대시보드 — Micrometer + dashboard-service + Grafana (MIG-21, 2026-05-21)
+
+**배경**: MIG-20 재import trigger 이후 운영자가 이카운트 마이그레이션 상태를 Prometheus/Grafana와 desktop 관리자 화면에서 동시에 확인할 수 있어야 한다. 본 슬라이스는 PM 자율 연속 마지막 슬라이스로, 완료 후 사용자 결정 대기 상태로 멈춘다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-21-01 | Micrometer counter는 base name으로 등록하고 Prometheus exporter의 `_total` suffix를 actuator 노출명으로 사용한다. |
+| D-MIG-21-02 | accounting-service는 기존 `/actuator/prometheus` endpoint를 재사용하고 별도 metrics API를 만들지 않는다. |
+| D-MIG-21-03 | dashboard-service는 accounting-service Prometheus text를 조회해 `/api/v1/dashboard/ecount-mig` gateway 경로로 운영 DTO를 제공한다. |
+| D-MIG-21-04 | desktop은 회계 관리자 그룹에 `운영 대시보드` 메뉴를 추가하고 6개 카드(transform/import/reject/aging/reimport/DailyClosing)를 5분 polling 한다. |
+| D-MIG-21-05 | auth-service V27은 `ecount.mig.ops-dashboard` PageCode를 추가하고 MASTER/MANAGER view+edit, ACCOUNTANT view-only로 seed 한다. |
+| D-MIG-21-06 | Grafana JSON은 metric 1:1 패널 8개와 rejected 비율, DailyClosing diff, reimport FAIL 알림 기준을 포함한다. |
+| D-MIG-21-07 | PM 자율 연속 마지막 슬라이스로 기록하고, 완료 후 D 단계에서 사용자 결정 대기 상태로 멈춘다. |
+
+**산출 예정/진행**: accounting-service `MigOpsMetricsRecorder`, dashboard-service `EcountMigOpsDashboardService`, desktop `MigOpsDashboardPage`, auth-service V27, Grafana JSON/README, dev-report `docs/dev-reports/mig-21-migration-ops-dashboard.md`.

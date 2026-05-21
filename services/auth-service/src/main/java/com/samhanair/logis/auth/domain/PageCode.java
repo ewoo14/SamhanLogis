@@ -284,7 +284,12 @@ public enum PageCode {
     ECOUNT_MIG14_LEDGER("ecount.mig14.ledger", "이카운트 매출장/매입장 admin 조회"),
 
     /** MIG-20 이카운트 raw 자동 재import 수동 실행 화면/API. */
-    ECOUNT_REIMPORT("ecount.reimport", "이카운트 raw 자동 재import");
+    ECOUNT_REIMPORT("ecount.reimport", "이카운트 raw 자동 재import"),
+
+    /** MIG-21 이카운트 마이그레이션 운영 대시보드. */
+    ECOUNT_MIG_OPS_DASHBOARD(
+            "ecount.mig.ops-dashboard",
+            "이카운트 마이그레이션 운영 대시보드");
 
     /** DB + API 에서 사용하는 식별 코드. */
     private final String code;

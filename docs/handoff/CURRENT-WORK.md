@@ -4,6 +4,44 @@
 
 ---
 
+## ✅ 2026-05-21 최신 진행 — MIG-21 마이그레이션 운영 대시보드
+
+### 현재 브랜치
+- `spec/2026-05-21-mig-21-migration-ops-dashboard`
+
+### 범위
+
+- accounting-service에 `MigOpsMetricsRecorder`를 추가하고 MIG-20 재import 결과를 Micrometer counter/gauge로 기록한다.
+- dashboard-service가 accounting-service `/actuator/prometheus` text를 조회해 `/api/v1/dashboard/ecount-mig` gateway 경로로 운영 DTO를 제공한다.
+- desktop 회계 관리자 그룹에 `운영 대시보드` 메뉴와 6개 카드 화면을 추가하고 React Query 5분 polling으로 갱신한다.
+- auth-service V27 `ecount.mig.ops-dashboard` PageCode를 추가한다. MASTER/MANAGER view+edit, ACCOUNTANT view-only.
+- Grafana dashboard JSON 8패널과 observability README를 추가한다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-21-migration-ops-dashboard-design.md`
+- dev-report: `docs/dev-reports/mig-21-migration-ops-dashboard.md`
+- grafana: `docs/observability/grafana-mig-ops-dashboard.json`
+- decisions: `D-MIG-21-01~07`
+
+### 다음 상태
+
+- **PM 자율 연속 마지막 슬라이스 완료 → D 멈춤.**
+- 다음 작업은 사용자(개발책임자) 결정 대기.
+
+### 검증 메모
+
+- 좁은 RED/GREEN:
+  - 신규 recorder/parser/PageCode 테스트 RED 확인 후 구현.
+  - `./gradlew :services:accounting-service:test --tests com.samhanair.logis.accounting.service.MigOpsMetricsRecorderTest :services:dashboard-service:test --tests com.samhanair.logis.dashboard.service.EcountMigOpsDashboardServiceTest :services:auth-service:test --tests com.samhanair.logis.auth.domain.PageCodeTest --no-daemon` PASS.
+  - `clients/desktop npm.cmd run typecheck` PASS.
+- 최종 통합:
+  - `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
+  - `clients/desktop`: `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd run build` PASS.
+  - lint 기존 warning 2건과 build 기존 Pretendard font runtime warning 유지.
+
+---
+
 ## 🚧 2026-05-21 최신 진행 — MIG-20 이카운트 raw 자동 재import 스케줄
 
 ### 현재 브랜치

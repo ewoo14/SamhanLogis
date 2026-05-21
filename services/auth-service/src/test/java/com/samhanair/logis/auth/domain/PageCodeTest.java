@@ -96,4 +96,13 @@ class PageCodeTest {
         assertThat(PageCode.ECOUNT_REIMPORT.getDisplayName()).isEqualTo("이카운트 raw 자동 재import");
         assertThat(PageCode.isValid("ecount.reimport")).isTrue();
     }
+
+    @Test
+    void mig21_ops_dashboard_pageCode_V27_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_MIG_OPS_DASHBOARD.getCode())
+                .isEqualTo("ecount.mig.ops-dashboard");
+        assertThat(PageCode.ECOUNT_MIG_OPS_DASHBOARD.getDisplayName())
+                .isEqualTo("이카운트 마이그레이션 운영 대시보드");
+        assertThat(PageCode.isValid("ecount.mig.ops-dashboard")).isTrue();
+    }
 }

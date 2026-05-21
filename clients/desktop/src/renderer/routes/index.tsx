@@ -274,6 +274,7 @@ import { OrderDetailPage } from './accounting/admin/OrderDetailPage'
 import { PartnerAgingSnapshotPage } from './accounting/admin/PartnerAgingSnapshotPage'
 import { SalesLedgerPage } from './accounting/admin/SalesLedgerPage'
 import { PurchaseLedgerPage } from './accounting/admin/PurchaseLedgerPage'
+import { MigOpsDashboardPage } from './accounting/admin/MigOpsDashboardPage'
 // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 // 매뉴얼 docs/manual/03-회계/04-월말-마감.md 와 Stage 1 일치.
 import { PeriodCloseListPage } from './PeriodCloseListPage'
@@ -1170,6 +1171,16 @@ const router = createHashRouter([
           <RoleGuard allow={ACCOUNTING_ROLES}>
             <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
               <PurchaseLedgerPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/migration-ops',
+        element: (
+          <RoleGuard allow={ACCOUNTING_ROLES}>
+            <PermissionGuard pageCode="ecount.mig.ops-dashboard" action="view">
+              <MigOpsDashboardPage />
             </PermissionGuard>
           </RoleGuard>
         ),

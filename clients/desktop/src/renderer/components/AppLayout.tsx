@@ -284,9 +284,11 @@ export function AppLayout() {
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminAging = dynamicCanAccess('ecount.mig14.aging-snapshot', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
+  const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
   const showAccountingAdminGroup =
     showAccountingAdminCash || showAccountingAdminOrder
     || showAccountingAdminAging || showAccountingAdminLedger
+    || showAccountingAdminMigOps
   // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
@@ -845,6 +847,14 @@ export function AppLayout() {
                         style={{ paddingLeft: 28, fontSize: 13 }}
                       >
                         매입 원장 대조
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/accounting/admin/migration-ops"
+                        show={showAccountingAdminMigOps}
+                        data-testid="sidebar-accounting-admin-migration-ops"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        운영 대시보드
                       </SidebarLink>
                     </div>
                   ) : null}

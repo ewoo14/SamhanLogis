@@ -82,6 +82,27 @@ public class AccountingClient {
         }
     }
 
+    /**
+     * accounting-service actuator Prometheus text 조회.
+     *
+     * <p>actuator 는 형제 service 내부 통신 전용이며 accounting-service 보안 설정에서 permitAll 이므로
+     * 내부 토큰은 best-effort 로만 첨부한다. 조회 실패 시 대시보드가 빈 지표로 fail-soft 된다.
+     */
+    public String fetchPrometheusMetrics() {
+        try {
+            RestClient client = builder.baseUrl(baseUrl).build();
+            String body = client.get()
+                    .uri("/actuator/prometheus")
+                    .header("X-Internal-Token", internalToken == null ? "" : internalToken)
+                    .retrieve()
+                    .body(String.class);
+            return body == null ? "" : body;
+        } catch (Exception ex) {
+            log.warn("AccountingClient prometheus metric 조회 실패 — msg={}", ex.getMessage());
+            return "";
+        }
+    }
+
     /** Phase 10 활성 대비 — discovery client 보유 검증 (현재 미사용). */
     public ServiceDiscoveryClient getDiscoveryClient() {
         return discoveryClient;
