@@ -11,6 +11,9 @@ import com.samhanair.logis.common.ecount.EcountMig6ImportResult;
 import com.samhanair.logis.common.ecount.EcountMig7TransformResult;
 import com.samhanair.logis.common.ecount.EcountMig8TransformResult;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /** MIG-21 importer/transform 결과를 Micrometer 운영 지표로 변환하는 공통 helper. */
 final class EcountMigMetricsSupport {
@@ -24,9 +27,7 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), 0, result.rejectedNullName());
-        for (EcountAccountImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.reason(), 1);
-        }
+        recordRejected(recorder, slice, List.of("REJECT_NAME_NULL"), result.rejectedNullName());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -35,9 +36,7 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), 0, result.rejectedNullName());
-        for (EcountCardImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.reason(), 1);
-        }
+        recordRejected(recorder, slice, List.of("REJECT_NAME_NULL"), result.rejectedNullName());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -46,9 +45,9 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), result.skipped(), result.rejected());
-        for (EcountVoucherImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountVoucherImportResult.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -59,9 +58,9 @@ final class EcountMigMetricsSupport {
         recordStandard(recorder, slice, result.imported(), result.updated(), result.skipped(), result.rejected());
         recorder.recordTransformStatus(slice, "MISMATCH", result.mismatchCount());
         recorder.recordTransformStatus(slice, "UNKNOWN_STATUS", result.unknownStatusCount());
-        for (EcountMig4ImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountMig4ImportResult.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -71,9 +70,9 @@ final class EcountMigMetricsSupport {
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), result.skipped(), result.rejected());
         recorder.recordTransformStatus(slice, "AGING_MISMATCH", result.agingMismatchCount());
-        for (EcountMig5ImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountMig5ImportResult.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -82,9 +81,9 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), result.skipped(), result.rejected());
-        for (EcountMig6ImportResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountMig6ImportResult.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     static void recordTransformResult(MigOpsMetricsRecorder recorder, String slice,
@@ -98,9 +97,9 @@ final class EcountMigMetricsSupport {
         recorder.recordTransformStatus(slice, "UPDATED", result.updated());
         recorder.recordTransformStatus(slice, "SKIPPED", result.skipped());
         recorder.recordTransformStatus(slice, "REJECTED", result.rejected());
-        for (EcountMig7TransformResult.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountMig7TransformResult.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     static void recordTransformResult(MigOpsMetricsRecorder recorder, String slice,
@@ -115,11 +114,12 @@ final class EcountMigMetricsSupport {
         recorder.recordTransformStatus(slice, "SKIPPED", result.skipped());
         recorder.recordTransformStatus(slice, "REJECTED", result.rejected());
         recorder.recordTransformStatus(slice, "LINKED_SLIP", result.completedLinkedSlipCount());
-        for (EcountMig8TransformResult.Sample row : result.samples()) {
-            if ("ERROR".equals(row.level())) {
-                recorder.recordRejected(slice, row.code(), 1);
-            }
-        }
+        recordRejected(recorder, slice,
+                result.samples().stream()
+                        .filter(row -> "ERROR".equals(row.level()))
+                        .map(EcountMig8TransformResult.Sample::code)
+                        .toList(),
+                result.rejected());
     }
 
     static void recordJournalResult(MigOpsMetricsRecorder recorder, String slice,
@@ -132,11 +132,12 @@ final class EcountMigMetricsSupport {
         recorder.recordTransformStatus(slice, "JOURNAL_CREATED", created);
         recorder.recordTransformStatus(slice, "SKIPPED", result.skipped());
         recorder.recordTransformStatus(slice, "REJECTED", result.rejected());
-        for (EcountMig9JournalResult.Sample row : result.samples()) {
-            if ("ERROR".equals(row.level())) {
-                recorder.recordRejected(slice, row.code(), 1);
-            }
-        }
+        recordRejected(recorder, slice,
+                result.samples().stream()
+                        .filter(row -> "ERROR".equals(row.level()))
+                        .map(EcountMig9JournalResult.Sample::code)
+                        .toList(),
+                result.rejected());
     }
 
     static void recordBackfillResult(MigOpsMetricsRecorder recorder, String slice,
@@ -159,9 +160,9 @@ final class EcountMigMetricsSupport {
         }
         recordStandard(recorder, slice, result.imported(), 0, result.skipped(), result.rejected());
         recorder.recordTransformStatus(slice, "DAILY_CLOSING_MISMATCH", result.dailyClosingMismatchCount());
-        for (EcountMig11Result.RejectedRow row : result.rejectedSample()) {
-            recorder.recordRejected(slice, row.errorCode(), 1);
-        }
+        recordRejected(recorder, slice,
+                result.rejectedSample().stream().map(EcountMig11Result.RejectedRow::errorCode).toList(),
+                result.rejected());
     }
 
     private static void recordStandard(MigOpsMetricsRecorder recorder, String slice, int imported,
@@ -171,5 +172,26 @@ final class EcountMigMetricsSupport {
         recorder.recordTransformStatus(slice, "UPDATED", updated);
         recorder.recordTransformStatus(slice, "SKIPPED", skipped);
         recorder.recordTransformStatus(slice, "REJECTED", rejected);
+    }
+
+    private static void recordRejected(MigOpsMetricsRecorder recorder, String slice,
+                                       List<String> sampledErrorCodes, int totalRejected) {
+        if (totalRejected <= 0) {
+            return;
+        }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        int counted = 0;
+        for (String errorCode : sampledErrorCodes) {
+            if (counted >= totalRejected) {
+                break;
+            }
+            counts.merge(errorCode == null || errorCode.isBlank() ? "UNSPECIFIED" : errorCode, 1, Integer::sum);
+            counted++;
+        }
+        counts.forEach((errorCode, count) -> recorder.recordRejected(slice, errorCode, count));
+        int unspecified = totalRejected - counted;
+        if (unspecified > 0) {
+            recorder.recordRejected(slice, "UNSPECIFIED", unspecified);
+        }
     }
 }

@@ -59,3 +59,18 @@
 - `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
 - `npm.cmd run typecheck` PASS.
 - `npm.cmd run build` PASS. 기존 Pretendard runtime font resolve warning 유지.
+
+## Cycle 1e 보완
+
+| 항목 | 처리 |
+|---|---|
+| C21-CODEX-1D-HIGH-1 | `EcountReimportService`는 `reimport_runs`/`files_scanned`만 기록하고, imported/transform/rejected counter는 위임 importer 기록에 맡긴다. |
+| C21-CODEX-1D-HIGH-2 | `EcountMigMetricsSupport`가 capped sample errorCode를 먼저 기록하고, sample 밖 rejected 잔여분은 `UNSPECIFIED` errorCode로 기록해 rejected 총량을 보존한다. |
+| C21-CODEX-1D-HIGH-3 | rejected counter 합계가 importer result의 rejected 총량과 일치하도록 `EcountMigMetricsSupportTest` 회귀 테스트를 추가했다. |
+
+### Cycle 1e 검증
+
+- RED: `EcountMigMetricsSupportTest`, `EcountReimportServiceTest` 신규 케이스가 기존 구현에서 실패함을 확인.
+- GREEN: `./gradlew :services:accounting-service:test --tests com.samhanair.logis.accounting.service.EcountMigMetricsSupportTest --tests com.samhanair.logis.accounting.service.EcountReimportServiceTest --no-daemon` PASS.
+- 최종: `./gradlew :services:accounting-service:test :services:dashboard-service:test :shared:common:test --no-daemon` PASS.
+- 최종: `npm.cmd run build` PASS. 기존 Pretendard runtime font resolve warning 유지.

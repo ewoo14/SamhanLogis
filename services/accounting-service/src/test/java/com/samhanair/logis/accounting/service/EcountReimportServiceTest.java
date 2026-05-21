@@ -105,6 +105,29 @@ class EcountReimportServiceTest {
         assertThat(secondHash).isNotEqualTo(firstHash);
     }
 
+    @Test
+    void reimport_records_only_reimport_metrics_not_delegated_import_totals() throws Exception {
+        write("품목-Excel다운로드_202605.csv", "item");
+        write("품목관계-Excel다운로드_202605.csv", "relation");
+        write("품목계층그룹-Excel다운로드_202605.csv", "group");
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        when(remoteImportClient.importFile(eq("product-service"), eq("/admin/products/imports/ecount"),
+                any(), eq("tester"))).thenReturn(new EcountRemoteImportClient.RemoteImportResult(3, 2, null));
+
+        service(registry).reimportSlice("mig-2", "tester");
+
+        assertThat(registry.counter("ecount_reimport_files_scanned", "slice", "mig-2").count()).isEqualTo(1);
+        assertThat(registry.counter("ecount_reimport_runs", "slice", "mig-2", "status", "SUCCESS").count())
+                .isEqualTo(1);
+        assertThat(registry.find("ecount_mig_imported").counter()).isNull();
+        assertThat(registry.find("ecount_mig_transform_status").counter()).isNull();
+        assertThat(registry.find("ecount_mig_rejected").counter()).isNull();
+    }
+
     private Path write(String fileName, String content) throws Exception {
         Path file = rawDir.resolve(fileName);
         Files.writeString(file, content);
@@ -112,6 +135,10 @@ class EcountReimportServiceTest {
     }
 
     private EcountReimportService service() {
+        return service(new SimpleMeterRegistry());
+    }
+
+    private EcountReimportService service(SimpleMeterRegistry registry) {
         return new EcountReimportService(rawDir.toString(), jdbcTemplate, remoteImportClient,
                 accountImporter, cardImporter, purchaseSlipImporter, salesSlipImporter,
                 generalVoucherImporter, journalEntryImporter, taxInvoiceImporter, salesSlipLineImporter,
@@ -119,6 +146,6 @@ class EcountReimportServiceTest {
                 bankAccountImporter, fixedAssetTypeImporter, salesLedgerImporter, purchaseLedgerImporter,
                 cashDisbursementTransformService, cashReceiptTransformService, orderTransformService,
                 cashJournalService, agingSnapshotRefreshService, orderEmployeeBackfillService,
-                new MigOpsMetricsRecorder(new SimpleMeterRegistry()));
+                new MigOpsMetricsRecorder(registry));
     }
 }

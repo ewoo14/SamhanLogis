@@ -17,6 +17,7 @@
 - auth-service V27 `ecount.mig.ops-dashboard` PageCode를 추가한다. MASTER/MANAGER view+edit, ACCOUNTANT view-only.
 - Grafana dashboard JSON 8패널과 observability README를 추가한다.
 - Cycle 1c에서 Aging/DailyClosing recorder call site, MIG-2~11 accounting importer/transform 초기 메트릭, `/actuator/prometheus` 내부 토큰 가드, ACCOUNTANT API view, Grafana alert 표현식, FE number 타입, scrape failure counter를 보완했다.
+- Cycle 1e에서 reimport orchestrator의 imported/transform/rejected 중복 기록을 제거하고, capped sample 밖 rejected 행은 `UNSPECIFIED` errorCode로 보존해 rejected_total 누적 일관성을 복구했다.
 
 ### 문서 산출
 
@@ -45,6 +46,11 @@
   - `./gradlew :services:accounting-service:test :services:dashboard-service:test --no-daemon` PASS.
   - `./gradlew :services:accounting-service:test :services:dashboard-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS.
   - `clients/desktop`: `npm.cmd run typecheck`, `npm.cmd run build` PASS.
+- Cycle 1e 부분 검증:
+  - RED 확인: `EcountMigMetricsSupportTest`, `EcountReimportServiceTest` 신규 케이스 기존 구현 실패.
+  - GREEN 확인: `./gradlew :services:accounting-service:test --tests com.samhanair.logis.accounting.service.EcountMigMetricsSupportTest --tests com.samhanair.logis.accounting.service.EcountReimportServiceTest --no-daemon` PASS.
+  - 최종 확인: `./gradlew :services:accounting-service:test :services:dashboard-service:test :shared:common:test --no-daemon` PASS.
+  - 최종 확인: `clients/desktop npm.cmd run build` PASS.
 
 ---
 

@@ -134,16 +134,6 @@ public class EcountReimportService {
         } else {
             metricsRecorder.recordReimportRun(slice.code, "FAIL");
         }
-        metricsRecorder.recordImport(slice.code, totals.totalImported);
-        metricsRecorder.recordTransformStatus(slice.code, "TRANSFORMED", totals.totalImported);
-        metricsRecorder.recordTransformStatus(slice.code, "REJECTED", totals.totalRejected);
-        for (EcountReimportResult.ErrorSample error : errors) {
-            metricsRecorder.recordRejected(slice.code, error.errorCode(), 1);
-        }
-        int rejectedWithoutErrorSample = totals.totalRejected - errors.size();
-        if (rejectedWithoutErrorSample > 0) {
-            metricsRecorder.recordRejected(slice.code, "UNKNOWN", rejectedWithoutErrorSample);
-        }
     }
 
     private void processFile(EcountSlice slice, FileTarget target, Path file, List<Path> rawFiles,
