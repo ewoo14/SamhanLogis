@@ -78,3 +78,16 @@ MIG-19 cutover 가이드 이후 운영자가 매월 이카운트 raw 파일을 �
 - 검증:
   - `./gradlew :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon --offline` PASS
   - `EcountReimportControllerIT`: tests=6, skipped=0, failures=0, errors=0
+
+---
+
+## 7. Cycle 1e 보완 (2026-05-21)
+
+- C20-CODEX-P1-A: MIG-2 product reimport를 `itemFile`, `relationFile`, `groupFile` multipart group으로 통합한다.
+- C20-CODEX-P1-R: relation/group은 raw directory 첫 파일이 아니라 item 파일명에서 추출한 숫자 timestamp key와 동일한 파일만 매칭한다. 매칭 실패 시 optional part를 skip하고 warning log를 남긴다.
+- C20-CODEX-P1-C: product 멱등 hash를 `itemFile`, `relationFile`, `groupFile` 각각의 SHA-256을 part 이름 순서로 합산한 hash로 바꿔 relation/group 변경도 감지한다.
+- 테스트: `EcountReimportServiceTest`에서 timestamp mismatch relation 배제와 relation-only 변경 시 hash 변경을 고정한다.
+- 검증:
+  - `./gradlew :services:accounting-service:test --no-daemon --offline --tests "*EcountReimport*"` PASS
+  - `EcountReimportServiceTest`: tests=2, skipped=0, failures=0, errors=0
+  - `EcountReimportControllerIT`: tests=6, skipped=0, failures=0, errors=0

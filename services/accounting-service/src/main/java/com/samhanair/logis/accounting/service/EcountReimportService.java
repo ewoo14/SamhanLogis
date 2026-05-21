@@ -18,6 +18,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,7 +27,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +45,10 @@ import org.springframework.stereotype.Service;
 public class EcountReimportService {
 
     private static final int DEFAULT_BATCH_SIZE = 500;
+    private static final String PRODUCT_ITEM_PREFIX = "품목-Excel다운로드";
+    private static final String PRODUCT_RELATION_PREFIX = "품목관계-Excel다운로드";
+    private static final String PRODUCT_GROUP_PREFIX = "품목계층그룹-Excel다운로드";
+    private static final Pattern PRODUCT_DUMP_KEY_PATTERN = Pattern.compile("(\\d{6,14})");
 
     private final Path rawDirectory;
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -119,7 +127,7 @@ public class EcountReimportService {
                              List<EcountReimportResult.SliceResult> details,
                              List<EcountReimportResult.ErrorSample> errors) {
         String fileName = file.getFileName().toString();
-        String hash = sourceFileHash(file);
+        String hash = target.sourceHash(file, rawFiles);
         if (sourceHashExists(slice, target, hash)) {
             totals.filesSkipped++;
             details.add(new EcountReimportResult.SliceResult(
@@ -267,6 +275,10 @@ public class EcountReimportService {
         }
     }
 
+    private static String sourceFileHash(Path file, List<Path> ignored) {
+        return sourceFileHash(file);
+    }
+
     private static int rejectedRowsOnFailure(Path file) {
         String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
         if (!fileName.endsWith(".csv")) {
@@ -405,28 +417,23 @@ public class EcountReimportService {
     }
 
     private static FileTarget remoteProduct(EcountRemoteImportClient remoteImportClient) {
-        return new FileTarget(EcountSlice.MIG_2, "product", "품목-Excel다운로드", Set.of(".csv"),
-                List.of(), (file, rawFiles, userId) -> {
+        return new FileTarget(EcountSlice.MIG_2, "product", PRODUCT_ITEM_PREFIX, Set.of(".csv"),
+                List.of(), EcountReimportService::productCombinedHash, (file, rawFiles, userId) -> {
+            ProductFileGroup group = productFileGroup(file, rawFiles);
             Map<String, Path> parts = new LinkedHashMap<>();
-            parts.put("itemFile", file);
-            first(rawFiles, "품목관계-Excel다운로드", ".csv").ifPresent(path -> parts.put("relationFile", path));
-            first(rawFiles, "품목계층그룹-Excel다운로드", ".csv").ifPresent(path -> parts.put("groupFile", path));
+            parts.put("itemFile", group.itemFile);
+            group.relationFile.ifPresent(path -> parts.put("relationFile", path));
+            group.groupFile.ifPresent(path -> parts.put("groupFile", path));
             return summarize(remoteImportClient.importFile("product-service",
                     "/admin/products/imports/ecount", parts, userId));
         });
-    }
-
-    private static java.util.Optional<Path> first(List<Path> rawFiles, String prefix, String extension) {
-        return rawFiles.stream()
-                .filter(path -> startsWith(path.getFileName().toString(), prefix))
-                .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension))
-                .findFirst();
     }
 
     private static FileTarget remote(EcountSlice slice, String key, String prefix, Set<String> extensions,
                                      String serviceName, String endpoint, String partName,
                                      EcountRemoteImportClient remoteImportClient) {
         return new FileTarget(slice, key, prefix, extensions, List.of(),
+                EcountReimportService::sourceFileHash,
                 (file, rawFiles, userId) -> summarize(remoteImportClient.importFile(
                         serviceName, endpoint, Map.of(partName, file), userId)));
     }
@@ -434,7 +441,65 @@ public class EcountReimportService {
     private static FileTarget local(EcountSlice slice, String key, String prefix, Set<String> extensions,
                                     SimpleFileAction action, String... sourceHashTables) {
         return new FileTarget(slice, key, prefix, extensions, List.of(sourceHashTables),
+                EcountReimportService::sourceFileHash,
                 (file, rawFiles, userId) -> action.importFile(file, normalizeUser(userId)));
+    }
+
+    private static ProductFileGroup productFileGroup(Path itemFile, List<Path> rawFiles) {
+        Optional<String> dumpKey = productDumpKey(itemFile);
+        return new ProductFileGroup(
+                itemFile,
+                productCompanion(rawFiles, PRODUCT_RELATION_PREFIX, dumpKey, itemFile),
+                productCompanion(rawFiles, PRODUCT_GROUP_PREFIX, dumpKey, itemFile));
+    }
+
+    private static Optional<Path> productCompanion(
+            List<Path> rawFiles, String prefix, Optional<String> dumpKey, Path itemFile) {
+        List<Path> candidates = rawFiles.stream()
+                .filter(path -> startsWith(path.getFileName().toString(), prefix))
+                .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv"))
+                .toList();
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        if (dumpKey.isPresent()) {
+            List<Path> matched = candidates.stream()
+                    .filter(path -> productDumpKey(path).filter(dumpKey.get()::equals).isPresent())
+                    .toList();
+            if (matched.isEmpty()) {
+                log.warn("[MIG-20] product companion file skip — itemFile={} prefix={} dumpKey={}",
+                        itemFile.getFileName(), prefix, dumpKey.get());
+                return Optional.empty();
+            }
+            if (matched.size() > 1) {
+                log.warn("[MIG-20] product companion file duplicated — itemFile={} prefix={} dumpKey={} count={}",
+                        itemFile.getFileName(), prefix, dumpKey.get(), matched.size());
+            }
+            return Optional.of(matched.get(0));
+        }
+        if (candidates.size() > 1) {
+            log.warn("[MIG-20] product companion file skip — itemFile={} prefix={} reason=timestamp_missing",
+                    itemFile.getFileName(), prefix);
+            return Optional.empty();
+        }
+        return Optional.of(candidates.get(0));
+    }
+
+    private static Optional<String> productDumpKey(Path file) {
+        Matcher matcher = PRODUCT_DUMP_KEY_PATTERN.matcher(file.getFileName().toString());
+        List<String> groups = new ArrayList<>();
+        while (matcher.find()) {
+            groups.add(matcher.group(1));
+        }
+        return groups.isEmpty() ? Optional.empty() : Optional.of(String.join("_", groups));
+    }
+
+    private static String productCombinedHash(Path itemFile, List<Path> rawFiles) {
+        ProductFileGroup group = productFileGroup(itemFile, rawFiles);
+        String material = "itemFile=" + sourceFileHash(group.itemFile) + "\n"
+                + "relationFile=" + group.relationFile.map(EcountReimportService::sourceFileHash).orElse("") + "\n"
+                + "groupFile=" + group.groupFile.map(EcountReimportService::sourceFileHash).orElse("") + "\n";
+        return EcountCsvSupport.computeFileHash(material.getBytes(StandardCharsets.UTF_8));
     }
 
     private static CountSummary withInput(Path file, InputStreamAction action) throws Exception {
@@ -543,11 +608,18 @@ public class EcountReimportService {
 
     private record FileTarget(EcountSlice slice, String key, String prefix,
                               Set<String> extensions, List<String> sourceHashTables,
-                              FileAction action) {
+                              SourceHashAction sourceHashAction, FileAction action) {
         boolean matches(String fileName) {
             String lower = fileName.toLowerCase(Locale.ROOT);
             return startsWith(fileName, prefix) && extensions.stream().anyMatch(lower::endsWith);
         }
+
+        String sourceHash(Path file, List<Path> rawFiles) {
+            return sourceHashAction.hash(file, rawFiles);
+        }
+    }
+
+    private record ProductFileGroup(Path itemFile, Optional<Path> relationFile, Optional<Path> groupFile) {
     }
 
     private record CommandTarget(EcountSlice slice, String key, CommandAction action) {
@@ -567,6 +639,11 @@ public class EcountReimportService {
     @FunctionalInterface
     private interface FileAction {
         CountSummary importFile(Path file, List<Path> rawFiles, String userId) throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface SourceHashAction {
+        String hash(Path file, List<Path> rawFiles);
     }
 
     @FunctionalInterface

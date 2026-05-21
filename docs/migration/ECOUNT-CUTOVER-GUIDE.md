@@ -1191,6 +1191,9 @@ mig-1, mig-2, mig-3, mig-4, mig-5, mig-6, mig-7, mig-8, mig-9, mig-10, mig-11
 - accounting-service staging table에 같은 `source_file_hash`가 있으면 파일 단위로 skip합니다.
 - partner/product/user/inventory처럼 다른 service가 소유한 import는 `staging.ecount_reimport_file_runs`에 성공 기록을 남겨 다음 실행에서 skip합니다.
 - MIG-7~10은 raw 파일이 아니라 staging/domain 변환 단계이므로 `details.fileName`과 `sourceFileHash`가 `null`일 수 있습니다.
+- MIG-2 product는 `품목-Excel다운로드`, `품목관계-Excel다운로드`, `품목계층그룹-Excel다운로드` 3개 파일을 하나의 group으로 처리합니다. 파일명 안의 `YYYYMM`, `YYYYMMDD`, `YYYYMMDD~YYYYMMDD` 같은 숫자 timestamp를 추출해 같은 key끼리만 묶습니다.
+- product group에서 relation/group 파일의 timestamp가 item 파일과 맞지 않으면 해당 optional part는 붙이지 않고 warning log만 남깁니다. 월별 dump가 여러 개 섞인 디렉토리에서는 같은 월/기간 suffix를 유지해야 합니다.
+- product 멱등 hash는 `itemFile`, `relationFile`, `groupFile` 각각의 SHA-256을 part 이름 순서로 합친 뒤 다시 SHA-256한 값입니다. 따라서 item 파일이 같아도 relation/group 파일 내용이 바뀌면 reimport가 다시 실행됩니다.
 
 raw 디렉토리 경로:
 
