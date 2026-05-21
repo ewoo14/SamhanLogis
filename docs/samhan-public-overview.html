@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-14 admin UI 진행 중</span>
+    <span class="nav-badge">Phase 10.6 · MIG-15 POI 분리</span>
   </div>
 </nav>
 
@@ -1356,7 +1356,7 @@ body {
   </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">🛠️</div>
-    <div><strong>MIG-14 admin UI 진행 중:</strong> Cash / Order / AgingSnapshot / Ledger 4 화면군을 desktop admin route로 통합하고, UUID 비공개 DTO와 PermissionGuard, Playwright fixture 자격 평문 금지, DynamicPermissionClient IT mock 청소를 함께 진행한다.</div>
+    <div><strong>MIG-15 POI 분리 진행 중:</strong> `shared/common`의 Apache POI 직접 의존성을 `shared:ecount-io`로 분리하고, EcountXlsxSupport + ExcelExporter 구현을 새 module로 이동한다. accounting/partner는 direct POI 선언을 제거하고, arologis/slip/inventory는 자체 Excel parser/export 검증 때문에 direct POI를 유지한다.</div>
   </div>
 </section>
 

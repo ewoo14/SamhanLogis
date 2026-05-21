@@ -57,6 +57,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     implementation project(':shared:common')
+    implementation project(':shared:ecount-io')
     implementation project(':shared:security')
     // PR-H4a (Phase 12 Step 4a) — shared:realtime-abstraction module. SSE broker / audit overlay /
     // edit-request lock 정책 추출. slip-service 가 시범 활용 사례 (다른 13 service 는 PR-H4b 에서 활성).

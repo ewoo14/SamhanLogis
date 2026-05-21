@@ -1,4 +1,4 @@
-package com.samhanair.logis.common.ecount;
+package com.samhanair.logis.common.ecount.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

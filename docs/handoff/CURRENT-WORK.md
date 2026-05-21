@@ -4,7 +4,30 @@
 
 ---
 
-## 🚧 2026-05-21 최신 진행 — MIG-14 admin UI 4 화면 통합 진행 중
+## 🚧 2026-05-21 최신 진행 — MIG-15 POI shared/common 분리 진행 중
+
+### 현재 브랜치
+
+- `spec/2026-05-21-mig-15-poi-shared-io-module`
+
+### 범위
+
+- `shared/common`의 Apache POI 직접 의존성을 제거하고 `shared:ecount-io` 신규 module로 분리한다.
+- `EcountXlsxSupport`는 `com.samhanair.logis.common.ecount.io` package로 이동한다.
+- POI를 직접 import하는 공통 `ExcelExporter` 구현도 `shared:ecount-io`로 이동한다. `ExcelColumn`/`ExcelExportRequest`는 POI 비의존 DTO라 `shared:common`에 유지한다.
+- `accounting-service`와 `partner-service`의 direct `poi-ooxml` 선언은 제거하고 `shared:ecount-io` 의존으로 연결한다.
+- `arologis-service`, `slip-service`, `inventory-service`는 각각 `VendorExcelParser`, `SlipExcelExportIT`, `DpsExcelParser/DpsCompareService` 자체 사용 때문에 direct POI dependency를 유지한다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-15-poi-shared-io-module-design.md`
+- plan: `docs/superpowers/plans/2026-05-21-mig-15-poi-shared-io-module.md`
+- dev-report: `docs/dev-reports/mig-15-poi-shared-io-module.md`
+- decisions: `D-MIG-15-01~08`
+
+---
+
+## 🚧 2026-05-21 진행 기록 — MIG-14 admin UI 4 화면 통합
 
 ### 현재 브랜치
 

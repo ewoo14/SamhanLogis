@@ -2329,3 +2329,20 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MIG-14-09 | 옵션 A 12단계 + 5-team 병렬 방식으로 PM 자율 연속 진행한다. DevOps/TM 문서는 dev-report, ROADMAP, DECISIONS, README, handoff, overview HTML을 동기화한다. |
 
 **산출 예정/진행**: accounting-service 조회 endpoint 8개, auth V25 PageCode 4종, desktop admin route 7개, Playwright spec 4개 + QA PNG 4장 이상, DynamicPermissionClient IT mock cleanup, dev-report `docs/dev-reports/mig-14-admin-ui-4-screens.md`.
+
+### D-MIG-15-00. POI shared/common → shared/ecount-io module 분리 (MIG-15, 2026-05-21)
+
+**배경**: MIG-11에서 `shared/common`에 Apache POI를 추가하면서 POI가 14 service 공통 classpath로 전이됐다. POI 사용 범위를 Excel IO module로 분리해 SBOM/CVE 관리 범위를 축소한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-MIG-15-01 | `shared:ecount-io` 신규 module을 추가하고 POI 기반 이카운트/Excel IO 구현을 모은다. |
+| D-MIG-15-02 | `EcountXlsxSupport`는 `com.samhanair.logis.common.ecount.io` package로 이동한다. |
+| D-MIG-15-03 | `ExcelExporter` 구현과 테스트도 `shared:ecount-io`로 이동한다. `ExcelColumn`/`ExcelExportRequest`는 POI 비의존 DTO이므로 `shared:common`에 유지한다. |
+| D-MIG-15-04 | `shared/common`의 `poi-ooxml` main/test dependency를 제거한다. |
+| D-MIG-15-05 | `accounting-service`는 direct POI dependency를 제거하고 `shared:ecount-io`를 통해 MIG-11/Hometax/TaxInvoice XLSX 코드를 컴파일한다. |
+| D-MIG-15-06 | `partner-service`는 POI 직접 import가 없으므로 direct POI dependency를 제거하고 Excel export는 `shared:ecount-io` 경유로 유지한다. |
+| D-MIG-15-07 | `arologis-service`, `slip-service`, `inventory-service`는 각각 `VendorExcelParser`, `SlipExcelExportIT`, `DpsExcelParser/DpsCompareService` 자체 POI 사용이 있어 direct POI dependency를 유지한다. |
+| D-MIG-15-08 | 옵션 C 21단계 첫 적용 슬라이스로 진행한다. |
+
+**산출 예정/진행**: settings/root Gradle 갱신, `shared:ecount-io`, `EcountXlsxSupport` 이동, `ExcelExporter` 이동, direct POI dependency 정리, dev-report `docs/dev-reports/mig-15-poi-shared-io-module.md`.

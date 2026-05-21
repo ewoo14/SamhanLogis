@@ -1,4 +1,4 @@
-package com.samhanair.logis.common.ecount;
+package com.samhanair.logis.common.ecount.io;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;

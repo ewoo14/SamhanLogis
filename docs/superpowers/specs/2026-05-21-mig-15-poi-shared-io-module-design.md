@@ -22,21 +22,22 @@ MIG-14 머지 후 PM 자율 연속 진행 — D 이전까지 자동. **C — POI
 
 | 위치 | implementation | 실 사용 |
 |---|---|---|
-| `shared/common/build.gradle` | poi-ooxml:5.4.0 | EcountXlsxSupport (이카운트 xlsx 한정) |
-| `services/accounting-service/build.gradle` | poi-ooxml:5.4.0 | AbstractEcountMig11LedgerImporter (EcountXlsxSupport 통해) |
+| `shared/common/build.gradle` | poi-ooxml:5.4.0 | EcountXlsxSupport + ExcelExporter |
+| `services/accounting-service/build.gradle` | poi-ooxml:5.4.0 | AbstractEcountMig11LedgerImporter + Hometax/TaxInvoice XLSX |
 | `services/arologis-service/build.gradle` | poi-ooxml:5.4.0 | VendorExcelParser (vendor excel, 이카운트 무관) |
 | `services/slip-service/build.gradle` | poi-ooxml:5.4.0 | SlipExcelExportIT (slip export, test only) |
-| `services/partner-service/build.gradle` | poi-ooxml:5.4.0 | **0건** (미사용 — 제거 후보) |
+| `services/partner-service/build.gradle` | poi-ooxml:5.4.0 | direct POI 0건 (ExcelExporter 경유) |
 | `services/inventory-service/build.gradle` | poi-ooxml:5.4.0 | DpsExcelParser (DPS excel, 이카운트 무관) |
 
 ### MIG-15 분리 방안
 
 1. **`shared:ecount-io` 신규 module** — 이카운트 xlsx 전용 (POI 의존)
 2. **`EcountXlsxSupport.java` 이동**: `shared/common/.../ecount/EcountXlsxSupport.java` → `shared/ecount-io/.../ecount/io/EcountXlsxSupport.java`
-3. **`shared/common/build.gradle`** POI 의존성 **제거**
-4. **`accounting-service/build.gradle`** POI implementation 제거 + `implementation project(':shared:ecount-io')` 추가
-5. **`partner-service`** POI 의존성 **제거** (미사용)
-6. **`arologis-service` + `slip-service` + `inventory-service`** POI 의존성 **유지** (이카운트 무관 자체 사용)
+3. **`ExcelExporter.java` 이동**: POI 직접 구현만 `shared/ecount-io`로 이동하고, `ExcelColumn`/`ExcelExportRequest`는 POI 비의존 DTO라 `shared:common` 유지
+4. **`shared/common/build.gradle`** POI 의존성 **제거**
+5. **`accounting-service/build.gradle`** POI implementation 제거 + `implementation project(':shared:ecount-io')` 추가
+6. **`partner-service`** POI direct 의존성 **제거** (POI 직접 import 0건)
+7. **`arologis-service` + `slip-service` + `inventory-service`** POI direct 의존성 **유지** (이카운트 무관 자체 사용)
 
 ### 효과
 
@@ -54,6 +55,8 @@ MIG-14 머지 후 PM 자율 연속 진행 — D 이전까지 자동. **C — POI
 | shared/ecount-io/build.gradle | 신규 (POI 5.4.0 + shared:common 의존) |
 | shared/ecount-io/src/main/java/.../ecount/io/EcountXlsxSupport.java | 이동 |
 | shared/ecount-io/src/test/.../EcountXlsxSupportTest.java | 이동 |
+| shared/ecount-io/src/main/java/.../common/excel/ExcelExporter.java | 이동 |
+| shared/ecount-io/src/test/.../common/excel/ExcelExporterTest.java | 이동 |
 | shared/common/build.gradle | POI 제거 |
 | accounting-service/build.gradle | POI 제거 + shared:ecount-io 추가 |
 | accounting-service/AbstractEcountMig11LedgerImporter.java | import 경로 갱신 |
@@ -63,12 +66,13 @@ MIG-14 머지 후 PM 자율 연속 진행 — D 이전까지 자동. **C — POI
 
 ## 4. 결정 (D-MIG-15-XX)
 
-- D-MIG-15-01 `shared:ecount-io` 신규 module — 이카운트 xlsx 전용 분리
-- D-MIG-15-02 EcountXlsxSupport 만 이동 (EcountCsvSupport, ErrorCode, ImportResult 는 shared:common 유지 — POI 비의존)
-- D-MIG-15-03 partner-service + inventory-service POI 의존성 제거 (미사용)
-- D-MIG-15-04 arologis-service + slip-service POI 의존성 유지 (이카운트 무관 자체 사용)
-- D-MIG-15-05 옵션 C 21단계 첫 적용 ([feedback_cycle_n2_mandatory])
-- D-MIG-15-06 PM 자율 연속 진행 (D 이전까지 자동)
+- D-MIG-15-01 `shared:ecount-io` 신규 module — POI 기반 이카운트/Excel IO 전용 분리
+- D-MIG-15-02 EcountXlsxSupport 를 이동한다 (EcountCsvSupport, ErrorCode, ImportResult 는 shared:common 유지 — POI 비의존)
+- D-MIG-15-03 `ExcelExporter` 구현도 shared:ecount-io로 이동하되 `ExcelColumn`/`ExcelExportRequest`는 shared:common에 유지한다.
+- D-MIG-15-04 partner-service POI direct 의존성 제거 (POI 직접 import 0건, ExcelExporter 경유)
+- D-MIG-15-05 arologis-service + slip-service + inventory-service POI direct 의존성 유지 (이카운트 무관 자체 사용)
+- D-MIG-15-06 옵션 C 21단계 첫 적용 ([feedback_cycle_n2_mandatory])
+- D-MIG-15-07 PM 자율 연속 진행 (D 이전까지 자동)
 
 ---
 

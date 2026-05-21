@@ -3,7 +3,7 @@ package com.samhanair.logis.common.excel;
 /**
  * Excel 컬럼 메타데이터 — 헤더 / 데이터 키 / 열 너비 / 숫자 형식.
  *
- * <p>각 {@link ExcelExporter} 호출 시 컬럼 순서대로 List 로 전달.
+ * <p>각 Excel export 호출 시 컬럼 순서대로 List 로 전달.
  * {@link #dataKey} 는 {@code Map<String, Object>} row 에서 값을 조회할 때 사용하는 키.
  * {@link #width} 는 Apache POI 의 {@code setColumnWidth()} 단위 (1/256 문자 너비).
  * 일반적인 한글 컬럼은 4,000~8,000 사이 권장.

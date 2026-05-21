@@ -22,12 +22,17 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~13 완료 + MIG-14 admin UI 4 화면(Cash/Order/AgingSnapshot/Ledger) 통합 진행** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~14 완료 + MIG-15 POI shared/common 분리 진행** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
 
 ### 최신 진행 메모 (2026-05-21)
+
+- MIG-15 (진행 중): POI 의존성을 `shared/common`에서 `shared/ecount-io`로 분리한다.
+  - `EcountXlsxSupport`와 POI 구현체 `ExcelExporter`를 새 module로 이동하고, `shared/common`에는 POI 비의존 DTO/exception만 남긴다.
+  - `accounting-service`와 `partner-service`의 direct POI 선언을 제거하고 `shared:ecount-io` 의존으로 연결한다.
+  - `arologis-service`, `slip-service`, `inventory-service`는 각각 `VendorExcelParser`, `SlipExcelExportIT`, `DpsExcelParser` 자체 사용 때문에 POI direct dependency를 유지한다.
 
 - MIG-14 (진행 중): Cash / Order / AgingSnapshot / Ledger admin UI 4 화면 통합
   - `clients/desktop/src/renderer/routes/accounting/admin/` 아래 7개 route로 조회 화면을 연결하고, `PermissionGuard` + MIG14 PageCode 4종을 적용한다.

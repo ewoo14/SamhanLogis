@@ -15,7 +15,7 @@
   
   dependencies {
       api project(':shared:common')
-      implementation 'org.apache.poi:poi-ooxml:5.4.0'
+      api 'org.apache.poi:poi-ooxml:5.4.0'
       testImplementation 'org.springframework.boot:spring-boot-starter-test'
       testImplementation 'org.assertj:assertj-core'
   }
@@ -25,8 +25,6 @@
 - `shared/common/src/main/java/com/samhanair/logis/common/ecount/EcountXlsxSupport.java` 
   → `shared/ecount-io/src/main/java/com/samhanair/logis/common/ecount/io/EcountXlsxSupport.java`
 - `shared/common/src/test/.../EcountXlsxSupportTest.java` 동일 이동
-
-(또는 package 유지 — `com.samhanair.logis.common.ecount.EcountXlsxSupport` → `com.samhanair.logis.ecount.io.EcountXlsxSupport`. 패키지 변경 시 accounting import 경로 갱신 필요).
 
 권장: **package `com.samhanair.logis.common.ecount.io`** — `common.ecount` 와 같은 hierarchy 유지.
 
@@ -39,14 +37,14 @@
 - `implementation project(':shared:ecount-io')` 추가
 
 ### Task 6: AbstractEcountMig11LedgerImporter import 경로 갱신
-- `import com.samhanair.logis.common.ecount.EcountXlsxSupport;` 
-  → `import com.samhanair.logis.common.ecount.io.EcountXlsxSupport;`
+- accounting importer import 를 `com.samhanair.logis.common.ecount.io.EcountXlsxSupport` 로 갱신
 
-### Task 7: partner-service + inventory-service POI 제거
-- `implementation 'org.apache.poi:poi-ooxml:5.4.0'` 제거 (미사용 확인 후)
+### Task 7: partner-service POI 제거
+- 미사용 확인 후 `implementation 'org.apache.poi:poi-ooxml:5.4.0'` 제거
+- `PartnerExcelExportService`는 POI 직접 import 없이 `ExcelExporter` 경유이므로 `shared:ecount-io` 의존으로 연결
 
-### Task 8: arologis-service + slip-service POI 유지 확인
-- VendorExcelParser / SlipExcelExportIT 이 자체 POI 직접 사용 — 변경 없음
+### Task 8: arologis-service + slip-service + inventory-service POI 유지 확인
+- VendorExcelParser / SlipExcelExportIT / DpsExcelParser 이 자체 POI 직접 사용 — 변경 없음
 
 ### Task 9: dev-report + 문서 동기화
 - `docs/dev-reports/mig-15-poi-shared-io-module.md` 신규 (POI 의존성 분리 결과)

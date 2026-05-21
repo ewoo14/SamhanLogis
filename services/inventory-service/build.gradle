@@ -50,6 +50,7 @@ dependencies {
     implementation 'org.apache.poi:poi-ooxml:5.4.0'
 
     implementation project(':shared:common')
+    implementation project(':shared:ecount-io')
     implementation project(':shared:security')
     // PR-H4b (Phase 12 Step 4b) — shared:realtime-abstraction module 활성.
     // InventoryAudit / Stock 변경 시 audit overlay + SSE broadcast + Audit COMPLETED 후 잠금.
