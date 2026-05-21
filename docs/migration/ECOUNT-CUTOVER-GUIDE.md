@@ -44,20 +44,24 @@ purchase-ledger-202501-202503.xlsx
 cutover 전 반드시 회계 DB를 백업합니다.
 
 ```powershell
-pg_dump accounting_db > C:\dev\SamhanLogis-backup\accounting_db_20260521_before_ecount.sql
+$env:PGPASSWORD = '<DB 비밀번호>'
+pg_dump -h localhost -p 5432 -U accounting_user -d accounting_db `
+  -f C:\dev\SamhanLogis-backup\accounting_db_20260521_before_ecount.sql
 ```
 
 운영 서버에서는 실제 접속 정보에 맞춰 실행합니다.
 
 ```bash
-pg_dump "$ACCOUNTING_DATABASE_URL" > /backup/accounting_db_$(date +%Y%m%d_%H%M%S)_before_ecount.sql
+export PGPASSWORD='<DB 비밀번호>'
+pg_dump -h "$PGHOST" -p "${PGPORT:-5432}" -U "$PGUSER" -d accounting_db \
+  -f /backup/accounting_db_$(date +%Y%m%d_%H%M%S)_before_ecount.sql
 ```
 
 백업 파일이 0 byte가 아닌지 확인합니다. 백업 실패 상태에서는 MIG-1도 시작하지 않습니다.
 
-### 1.3 X-Internal-Token 발급
+### 1.3 X-Internal-Token 확인
 
-마이그레이션 중 partner-service, product-service, user-service 조회가 필요합니다. 내부 서비스 호출용 `X-Internal-Token`은 auth-service 운영 설정에서 발급하거나 기존 운영 token을 확인합니다.
+마이그레이션 중 accounting-service가 partner-service, product-service, user-service를 조회할 때 내부 서비스 호출용 `X-Internal-Token`을 사용합니다. 운영자가 업로드 버튼을 누를 때 직접 넣는 값이 아니라 서비스 간 통신 설정입니다.
 
 확인 항목:
 
@@ -65,7 +69,7 @@ pg_dump "$ACCOUNTING_DATABASE_URL" > /backup/accounting_db_$(date +%Y%m%d_%H%M%S
 - partner-service / product-service / user-service가 같은 token을 신뢰하는지 확인합니다.
 - token이 비어 있거나 잘못되면 MIG-12 이후 lookup은 `MIG12_INTERNAL_AUTH_MISS`로 실패합니다.
 
-운영자가 보는 증상:
+운영자가 화면이나 로그에서 볼 수 있는 증상:
 
 ```json
 {
@@ -98,19 +102,26 @@ pg_dump "$ACCOUNTING_DATABASE_URL" > /backup/accounting_db_$(date +%Y%m%d_%H%M%S
 
 ## 2. 단계별 절차
 
-공통 요청 헤더:
+운영자 업로드/실행 요청 헤더:
 
 ```http
 X-User-Id: <운영자 사용자 ID>
 X-User-Role: MASTER
+```
+
+서비스 간 내부 호출 헤더:
+
+```http
 X-Internal-Token: <auth-service에서 확인한 내부 token>
 ```
+
+`X-Internal-Token`은 운영자 PC에서 직접 붙이는 헤더가 아닙니다. accounting-service 같은 서버가 partner-service/product-service/user-service를 호출할 때 자동으로 붙어야 합니다.
 
 공통 응답 확인 기준:
 
 - `imported`, `updated`, `transformed`, `created` 숫자가 예상 범위인지 확인합니다.
 - `rejected`가 0이면 정상입니다.
-- `rejected`가 있으면 `rejectedSample`의 `errorCode`, `businessKey`, `rawValue`를 먼저 확인합니다.
+- `rejected`가 있으면 `rejectedSample`의 `errorCode` 또는 `reason`, `message`, `businessKey`, `rawValue`를 먼저 확인합니다. MIG-1 거래처 sample만 별도 record라 `reason/rawPartnerCode/rawName` 형식을 씁니다.
 - 같은 파일 재실행은 멱등 처리됩니다. 단, 원인을 모른 채 여러 번 누르지 않습니다.
 
 공통 로그 위치:
@@ -140,18 +151,19 @@ file=<거래처등록 CSV 또는 XLSX 변환 CSV>
 ```json
 {
   "totalRows": 7200,
-  "inserted": 7100,
+  "imported": 7100,
   "updated": 80,
-  "skipped": 0,
   "rejectedNullName": 20,
+  "skippedPlaceholder": 0,
+  "activeCount": 6800,
+  "suspendedCount": 380,
   "sourceFileHash": "sha256...",
   "rejectedSample": [
     {
       "rowNumber": 35,
-      "errorCode": "PARTNER_NAME_EMPTY",
-      "message": "거래처명이 비어 있습니다.",
-      "businessKey": "row-35",
-      "rawValue": ""
+      "reason": "REJECT_NAME_NULL",
+      "rawPartnerCode": "10035",
+      "rawName": ""
     }
   ]
 }
@@ -160,6 +172,8 @@ file=<거래처등록 CSV 또는 XLSX 변환 CSV>
 확인:
 
 - `rejectedNullName`이 있으면 거래처명 공란입니다.
+- `skippedPlaceholder`는 거래처코드가 placeholder라 staging에만 남긴 건수입니다.
+- MIG-1 `rejectedSample`은 `ErrorCode`가 아니라 `reason` 문자열을 봅니다.
 - 사업자번호가 없는 거래처도 거래처명이 있으면 적재될 수 있습니다.
 - 화면 확인: 거래처 관리에서 대표 거래처 5건을 검색합니다.
 
@@ -177,14 +191,30 @@ POST /admin/warehouses/imports/ecount
 POST /admin/cards/imports/ecount
 ```
 
+품목등록 endpoint는 multipart part 이름이 3개로 나뉩니다.
+
+```http
+POST /admin/products/imports/ecount
+Content-Type: multipart/form-data
+
+itemFile=<품목등록 CSV, 필수>
+relationFile=<품목관계 CSV, 선택>
+groupFile=<품목계층그룹 CSV, 선택>
+```
+
+`itemFile`은 필수입니다. `relationFile`과 `groupFile`은 파일이 있을 때만 붙입니다.
+
 응답 sample:
 
 ```json
 {
   "totalRows": 1200,
-  "inserted": 1180,
+  "imported": 1180,
   "updated": 15,
   "rejectedNullName": 5,
+  "skippedPlaceholder": 0,
+  "skippedRelationOrphan": 0,
+  "aliasImported": 40,
   "sourceFileHash": "sha256...",
   "rejectedSample": []
 }
@@ -232,6 +262,7 @@ POST /admin/accounting/journal-entries/imports/ecount
     {
       "rowNumber": 120,
       "errorCode": "MIG3_LOOKUP_MISS",
+      "message": "거래처/계정/부서 lookup 매핑을 찾지 못했습니다.",
       "businessKey": "2025-01-03-18",
       "rawValue": "거래처A"
     }
@@ -274,6 +305,7 @@ POST /admin/accounting/orders/imports/ecount
     {
       "rowNumber": 44,
       "errorCode": "MIG4_ORDER_STATUS_INVALID",
+      "message": "주문서 진행상태 값이 허용 목록에 없습니다.",
       "businessKey": "ORD-2025-001",
       "rawValue": "보류"
     }
@@ -314,6 +346,7 @@ POST /admin/accounting/deposit-reports/imports/ecount
     {
       "rowNumber": 88,
       "errorCode": "MIG5_WAREHOUSE_LOOKUP_MISS",
+      "message": "창고명 lookup 매핑을 찾지 못했습니다.",
       "businessKey": "WH-2025-001",
       "rawValue": "임시창고"
     }
@@ -394,6 +427,7 @@ Content-Type: application/json
     {
       "rowNumber": 12,
       "errorCode": "MIG7_LOOKUP_MISS",
+      "message": "거래처 lookup 매핑을 찾지 못했습니다.",
       "businessKey": "2025-01-03-8",
       "rawValue": "거래처A"
     }
@@ -439,6 +473,7 @@ Content-Type: application/json
     {
       "rowNumber": 310,
       "errorCode": "MIG8_PROGRESS_STATUS_INVALID",
+      "message": "주문서 진행상태 값이 허용 목록에 없습니다.",
       "businessKey": "ORD-2025-041",
       "rawValue": "보류"
     }
@@ -487,6 +522,7 @@ Content-Type: application/json
     {
       "rowNumber": 77,
       "errorCode": "MIG9_DEFAULT_ACCOUNT_MISSING",
+      "message": "Cash Journal 생성에 필요한 기본 계정과목을 찾지 못했습니다.",
       "businessKey": "2025-01-03-8",
       "rawValue": "보통예금"
     }
@@ -540,6 +576,7 @@ Content-Type: application/json
   "warningSamples": [
     {
       "errorCode": "MIG10_EMPLOYEE_LOOKUP_MISS",
+      "message": "담당자명과 일치하는 직원이 없습니다.",
       "businessKey": "ORD-2025-003",
       "rawValue": "홍길동"
     }
@@ -580,6 +617,7 @@ file=<매출장 또는 매입장 XLSX>
     {
       "rowNumber": 51,
       "errorCode": "MIG11_AMOUNT_INVALID",
+      "message": "금액 형식을 숫자로 해석할 수 없습니다.",
       "businessKey": "2025-01-03/거래처A",
       "rawValue": "문자금액"
     }
@@ -699,17 +737,17 @@ file=<매출장 또는 매입장 XLSX>
 ```sql
 WITH target_rows AS (
     SELECT id
-      FROM accounting.cash_disbursements
+      FROM cash_disbursements
      WHERE is_deleted = TRUE
        AND external_ref LIKE 'ECOUNT:%'
        AND deleted_at >= TIMESTAMP '2026-05-21 00:00:00'
 )
-UPDATE accounting.cash_disbursements t
+UPDATE cash_disbursements t
    SET is_deleted = FALSE,
        deleted_at = NULL,
        deleted_by = NULL,
-       updated_at = now(),
-       updated_by = 'mig-19-rollback'
+       modified_at = now(),
+       modified_by = 'mig-19-rollback'
   FROM target_rows r
  WHERE t.id = r.id;
 ```
@@ -736,7 +774,7 @@ MIG-9 Journal 번호는 출처별 접두사를 나눕니다.
 
 ```sql
 SELECT journal_no, COUNT(*)
-  FROM accounting.journals
+  FROM journals
  WHERE journal_no LIKE 'JD-%'
     OR journal_no LIKE 'JR-%'
  GROUP BY journal_no
@@ -752,10 +790,9 @@ HAVING COUNT(*) > 1;
 ```sql
 UPDATE staging.ecount_order_raw
    SET transform_status = 'PENDING',
-       transform_error_code = NULL,
-       transform_error_message = NULL,
-       updated_at = now(),
-       updated_by = 'mig-19-retry'
+       reject_reason = NULL,
+       modified_at = now(),
+       modified_by = 'mig-19-retry'
  WHERE transform_status = 'REJECTED'
    AND source_file_hash = '<대상 파일 SHA-256>'
    AND source_row_no IN (12, 18, 25);
@@ -784,7 +821,7 @@ SELECT transform_status, COUNT(*)
 
 ### 5.1 DailyClosing 대조
 
-MIG-11 기준 대조 SQL입니다. 날짜별 이카운트 raw 합계와 Samhan Public DailyClosing 합계를 비교합니다.
+MIG-11 기준 대조 SQL입니다. 날짜별 이카운트 raw 합계와 Samhan Public DailyClosing 합계를 비교합니다. 실제 MIG-11 importer는 `closing_kind` 기준으로 합산하므로, 아래 SQL도 `SALES`는 `TAX_INVOICE + SALES_SLIP`, `PURCHASE`는 `PURCHASE_SLIP`을 명시해 V21 unique index(`closing_date, partner_id, closing_kind, source_kind`) 구조를 드러냅니다.
 
 ```sql
 WITH raw_sales AS (
@@ -795,10 +832,11 @@ WITH raw_sales AS (
 ),
 daily_sales AS (
     SELECT closing_date AS transaction_date, SUM(total_amount) AS domain_total
-      FROM accounting.daily_closings
+      FROM daily_closings
      WHERE is_deleted = FALSE
        AND partner_id IS NULL
        AND closing_kind = 'SALES'
+       AND source_kind IN ('TAX_INVOICE', 'SALES_SLIP')
      GROUP BY closing_date
 )
 SELECT r.transaction_date,
@@ -811,27 +849,41 @@ SELECT r.transaction_date,
  ORDER BY r.transaction_date;
 ```
 
-매입장은 `staging.ecount_purchase_ledger_raw`와 `closing_kind = 'PURCHASE'`로 바꿔 실행합니다.
+매입장은 `staging.ecount_purchase_ledger_raw`, `closing_kind = 'PURCHASE'`, `source_kind IN ('PURCHASE_SLIP')`로 바꿔 실행합니다. 세금계산서와 판매전표를 분리 검증하려면 `source_kind`를 SELECT와 GROUP BY에 추가해 날짜+출처별로 비교합니다.
 
 ### 5.2 sample 5건 cross-check
 
-PartnerAgingSnapshot 순잔액과 이카운트 raw를 거래처별로 5건 대조합니다.
+PartnerAgingSnapshot 순잔액과 이카운트 raw를 거래처별로 5건 대조합니다. accounting_db와 partner_db는 service-per-DB라 SQL JOIN을 하지 않습니다. 먼저 accounting_db에서 `partner_id`와 순잔액을 뽑고, 거래처명은 partner-service batch endpoint로 확인합니다.
 
 ```sql
-SELECT p.partner_name,
+SELECT s.partner_id,
        s.net_receivable,
        s.net_payable,
        s.net_cash
-  FROM accounting.partner_aging_snapshot s
-  JOIN partner.partners p ON p.id = s.partner_id
- WHERE p.partner_name IN ('거래처A', '거래처B', '거래처C', '거래처D', '거래처E')
- ORDER BY p.partner_name;
+  FROM partner_aging_snapshot s
+ ORDER BY ABS(s.net_receivable) DESC
+ LIMIT 5;
+```
+
+위 SQL에서 나온 `partner_id` 목록은 partner-service 내부 batch endpoint로 이름을 확인합니다. 이 호출은 운영자 PC가 아니라 service-to-service 점검 권한이 있는 운영/개발 담당자가 실행합니다.
+
+```http
+POST /internal/partners/lookup-by-ids
+Content-Type: application/json
+X-Internal-Token: <service-to-service token>
+
+{
+  "ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222"
+  ]
+}
 ```
 
 운영 확인 방식:
 
 1. 이카운트 매출장/매입장 원본에서 같은 거래처 5건을 찾습니다.
-2. Samhan Public AgingSnapshot 화면에서 같은 거래처명을 조회합니다.
+2. partner-service lookup 결과의 거래처명으로 Samhan Public AgingSnapshot 화면을 조회합니다.
 3. `net_receivable`과 원본 미수 잔액 방향이 같은지 확인합니다.
 4. 금액 차이가 있으면 Cash → Journal 생성 여부와 DailyClosing 차이를 함께 봅니다.
 
@@ -840,10 +892,10 @@ SELECT p.partner_name,
 거부 사유가 한쪽으로 몰리면 원본 파일 또는 lookup 기준 문제입니다.
 
 ```sql
-SELECT transform_error_code, COUNT(*) AS rows
+SELECT reject_reason, COUNT(*) AS rows
   FROM staging.ecount_order_raw
  WHERE transform_status = 'REJECTED'
- GROUP BY transform_error_code
+ GROUP BY reject_reason
  ORDER BY rows DESC;
 ```
 
@@ -877,7 +929,7 @@ SELECT transform_status, COUNT(*)
 
 ### Q1. MIG-N 실행 후 transform_status REJECTED가 많을 때?
 
-먼저 `rejectedSample`의 `errorCode`를 봅니다.
+먼저 `rejectedSample`의 `errorCode` 또는 `reason`과 `message`를 봅니다.
 
 | errorCode | 의미 | 조치 |
 |---|---|---|
@@ -903,7 +955,8 @@ ACCOUNTANT는 조회 권한 중심입니다. import, transform, refresh는 MASTE
 1. 현재 로그인 계정의 역할이 `ACCOUNTANT`인지 확인합니다.
 2. 실행 작업이면 MASTER 또는 MANAGER 계정으로 다시 로그인합니다.
 3. 조회 작업인데 403이면 auth-service의 PageCode 권한 seed를 확인합니다.
-4. desktop 메뉴가 안 보이면 AppLayout 권한 캐시가 false인 상태일 수 있으므로 새로 로그인합니다.
+4. 누락된 경우 auth-service admin UI에서 ACCOUNTANT에 조회 권한을 부여하거나, 운영 DBA가 V25 seed와 같은 형태로 `role_page_permissions`에 `can_view=TRUE`, `can_edit=FALSE`를 추가합니다.
+5. desktop 메뉴가 안 보이면 AppLayout 권한 캐시가 false인 상태일 수 있으므로 새로 로그인합니다.
 
 운영자가 확인할 PageCode:
 
@@ -914,13 +967,26 @@ ACCOUNTANT는 조회 권한 중심입니다. import, transform, refresh는 MASTE
 | AgingSnapshot | `ecount.mig14.aging-snapshot` |
 | Ledger | `ecount.mig14.ledger` |
 
+권한 seed SQL 예시:
+
+```sql
+INSERT INTO role_page_permissions
+    (id, role_code, page_code, can_view, can_edit, created_at, created_by, is_deleted)
+VALUES
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.cash-list', TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.order-list', TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.aging-snapshot', TRUE, FALSE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'ecount.mig14.ledger', TRUE, FALSE, NOW(), 'system', FALSE)
+ON CONFLICT DO NOTHING;
+```
+
 ### Q3. Aging snapshot 새로고침 실패 - MATERIALIZED VIEW REFRESH 트랜잭션 격리
 
 증상:
 
 ```json
 {
-  "status": 500,
+  "status": 422,
   "code": "MIG9_AGING_REFRESH_FAILED",
   "message": "partner_aging_snapshot 새로고침 실패"
 }

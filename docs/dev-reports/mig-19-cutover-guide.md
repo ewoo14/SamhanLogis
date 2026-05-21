@@ -43,19 +43,44 @@ MIG-1~11로 이카운트 raw 적재, 도메인 변환, Cash → Journal, Partner
 | D-MIG-19-02 | MIG-1~11 실행 순서를 그대로 유지하고, 각 단계에 endpoint와 응답 sample을 둔다. |
 | D-MIG-19-03 | admin UI 트레이닝은 MIG-14~18의 Cash / Order / AgingSnapshot / Ledger 화면 기준으로 정리한다. |
 | D-MIG-19-04 | 롤백은 hard delete가 아니라 soft-delete 복구와 staging `PENDING` 재실행 중심으로 안내한다. |
-| D-MIG-19-05 | Journal 번호 충돌 회피는 MIG-13 정정 결과인 CashDisbursement `JD-`, CashReceipt `JR-` 접두사를 명시한다. |
-| D-MIG-19-06 | MIG-19는 docs-only 슬라이스로 유지하고 코드, Flyway, 권한 seed를 변경하지 않는다. |
+| D-MIG-19-05 | cutover 가이드의 ground truth는 spec 초안이 아니라 실 BE 코드/Flyway grep 결과로 둔다. endpoint, record 필드, ErrorCode status, SQL 컬럼은 문서 작성 전 실제 코드에서 확인한다. |
+| D-MIG-19-06 | Journal 번호 충돌 회피는 MIG-13 정정 결과인 CashDisbursement `JD-`, CashReceipt `JR-` 접두사를 명시한다. |
+| D-MIG-19-07 | MIG-19는 docs-only 슬라이스로 유지하고 코드, Flyway, 권한 seed를 변경하지 않는다. |
 
 ---
 
-## 5. 검증
+## 5. Cycle 1c CRITICAL 정정
+
+docs-review에서 운영자 즉시 실패 risk가 확인됐다. 원인은 spec 작성 시 실 BE 코드/Flyway를 먼저 확인하지 않고 sample JSON과 SQL을 가공한 것이다. MIG-17에서 enum 라벨을 실 enum 확인 없이 덮어쓴 패턴이 반복됐으므로, MIG-19 문서 ground truth를 실 코드 grep으로 격상했다.
+
+정정 내용:
+
+| 항목 | 정정 |
+|---|---|
+| C19-P0-1 | 롤백/검증 SQL을 `modified_at`/`modified_by`, `reject_reason` 기준으로 정정 |
+| C19-P0-2 | accounting schema prefix 제거, cross-DB `partner.partners` JOIN 제거, partner-service batch lookup 안내 |
+| C19-P0-3 | MIG-1 응답 sample을 `EcountPartnerImportResult` record 필드와 `reason/rawPartnerCode/rawName` sample로 정정 |
+| C19-P1-1 | MIG-2 product upload multipart를 `itemFile` 필수, `relationFile`/`groupFile` 선택 3-part로 정정 |
+| C19-P1-2 | `MIG9_AGING_REFRESH_FAILED` status를 ErrorCode.java 기준 422로 정정 |
+| C19-P1-3 | DailyClosing SQL에 `source_kind` 의도를 명시하고 V21 unique index 구조와 맞춤 |
+| C19-P2/MIN | `X-Internal-Token`은 운영자 호출이 아닌 service-to-service 헤더로 분리하고, `pg_dump` 인증/ACCOUNTANT seed/Rejection sample message를 보강 |
+
+---
+
+## 6. 검증
 
 - `git diff --check` PASS 예정
 - docs-only 변경이라 Gradle, npm, Playwright 실행 대상 없음
+- 실 BE 코드 grep 확인 대상:
+  - `shared/common/.../ErrorCode.java` — `MIG9_AGING_REFRESH_FAILED(HttpStatus.UNPROCESSABLE_ENTITY)`
+  - `services/product-service/.../EcountProductImportController.java` — `@RequestPart("itemFile")`, `relationFile`, `groupFile`
+  - `services/partner-service/.../EcountPartnerImportResult.java` — MIG-1 record 필드
+  - `services/accounting-service/.../V27/V31` — `modified_at`/`modified_by`, `reject_reason`, default public schema
+  - `services/accounting-service/.../V21` — DailyClosing unique index `closing_date, partner_id, closing_kind, source_kind`
 
 ---
 
-## 6. 운영 메모
+## 7. 운영 메모
 
 - 운영 raw 파일은 `docs/migration/ecount-data/raw/`에 보관하되 Git에는 올리지 않는다.
 - cutover 전 `pg_dump accounting_db` 백업을 완료해야 한다.

@@ -22,7 +22,7 @@
 - spec: `docs/superpowers/specs/2026-05-21-mig-19-cutover-guide-design.md`
 - cutover guide: `docs/migration/ECOUNT-CUTOVER-GUIDE.md`
 - dev-report: `docs/dev-reports/mig-19-cutover-guide.md`
-- decisions: `D-MIG-19-01~06`
+- decisions: `D-MIG-19-01~07`
 
 ### 검증 메모
 
