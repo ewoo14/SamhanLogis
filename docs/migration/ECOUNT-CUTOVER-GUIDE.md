@@ -796,15 +796,6 @@ UPDATE cash_receipts
  WHERE transaction_date BETWEEN :from AND :to
    AND is_deleted = TRUE;
 
-UPDATE orders
-   SET is_deleted = FALSE,
-       deleted_at = NULL,
-       deleted_by = NULL,
-       modified_at = NOW(),
-       modified_by = 'ROLLBACK_OPERATOR'
- WHERE order_date BETWEEN :from AND :to
-   AND is_deleted = TRUE;
-
 UPDATE journals
    SET is_deleted = FALSE,
        deleted_at = NULL,
@@ -815,6 +806,8 @@ UPDATE journals
    AND source_type IN ('CASH_DISBURSEMENT', 'CASH_RECEIPT')
    AND is_deleted = TRUE;
 ```
+
+> ⚠️ `orders` 테이블은 V28 스키마에 일자 컬럼(`order_date`)이 없습니다. 일자 범위 복구가 필요하면 옵션 A 의 `source_file_hash` 기준 복구로만 진행하거나, 부모 staging 테이블 `staging.ecount_order_raw.order_date` 와 join 하여 별도 batch 로 처리합니다 (DBA 협의 필수).
 
 `order_lines`, `journal_lines`에는 `external_ref` 컬럼이 없습니다. child row는 부모 row 기준으로 별도 복구합니다.
 
