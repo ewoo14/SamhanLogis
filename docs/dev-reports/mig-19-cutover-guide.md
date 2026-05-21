@@ -44,8 +44,10 @@ MIG-1~11로 이카운트 raw 적재, 도메인 변환, Cash → Journal, Partner
 | D-MIG-19-03 | admin UI 트레이닝은 MIG-14~18의 Cash / Order / AgingSnapshot / Ledger 화면 기준으로 정리한다. |
 | D-MIG-19-04 | 롤백은 hard delete가 아니라 soft-delete 복구와 staging `PENDING` 재실행 중심으로 안내한다. |
 | D-MIG-19-05 | cutover 가이드의 ground truth는 spec 초안이 아니라 실 BE 코드/Flyway grep 결과로 둔다. endpoint, record 필드, ErrorCode status, SQL 컬럼은 문서 작성 전 실제 코드에서 확인한다. |
-| D-MIG-19-06 | Journal 번호 충돌 회피는 MIG-13 정정 결과인 CashDisbursement `JD-`, CashReceipt `JR-` 접두사를 명시한다. |
-| D-MIG-19-07 | MIG-19는 docs-only 슬라이스로 유지하고 코드, Flyway, 권한 seed를 변경하지 않는다. |
+| D-MIG-19-06 | 사이클 2는 옵션 C의 가치를 입증했다. 사이클 1 1c/1e/1f가 잡지 못한 transform/journal/backfill DTO sample 결함을 재검토 단계에서 잡았다. |
+| D-MIG-19-07 | ground truth 의무를 실 BE record/DTO grep까지 강화한다. 응답 sample은 controller 추정이나 spec 초안이 아니라 shared/common record 정의와 test fixture를 확인한 뒤 작성한다. |
+| D-MIG-19-08 | Journal 번호 충돌 회피는 MIG-13 정정 결과인 CashDisbursement `JD-`, CashReceipt `JR-` 접두사를 명시한다. |
+| D-MIG-19-09 | MIG-19는 docs-only 슬라이스로 유지하고 코드, Flyway, 권한 seed를 변경하지 않는다. |
 
 ---
 
@@ -67,7 +69,28 @@ docs-review에서 운영자 즉시 실패 risk가 확인됐다. 원인은 spec �
 
 ---
 
-## 6. 검증
+## 6. Cycle 2c DTO sample 정정
+
+Claude 2a 5-agent 재실행에서 transform/journal/backfill 결과 DTO 샘플 불일치가 추가 확인됐다. 사이클 1 1c/1e/1f는 SQL, ErrorCode, endpoint, rollback 중심 결함을 잡았지만, MIG-8/9/10/11 응답 sample의 실제 record 필드 대조가 누락됐다.
+
+정정 내용:
+
+| 항목 | 정정 |
+|---|---|
+| C19-CLAUDE-2A-P1-1 | MIG-8 sample을 `EcountMig8TransformResult` 기준 `completedLinkedSlipCount`, `samples`, `level/code/businessKey/rawValue` 구조로 정정 |
+| C19-CLAUDE-2A-P1-2 | MIG-9 sample을 `EcountMig9JournalResult` 기준 `samples`와 `level/code` 포함 구조로 정정 |
+| C19-CLAUDE-2A-P1-3 | MIG-10 sample을 `EcountMig10Result` 기준 `backfilled`, `lookupMissCount`, `ambiguousCount`, `samples` 구조로 정정 |
+| C19-CLAUDE-2A-P2-1 | MIG-11 `dailyClosingMismatchSamples`를 `closingValue`, `diffValue`, `message` 필드 기준으로 정정 |
+
+회고:
+
+- 옵션 C 사이클 2 재검토가 사이클 1에서 놓친 DTO sample 결함을 잡아냈다.
+- cutover 가이드의 endpoint 응답 sample은 반드시 `shared/common/src/main/java/.../ecount/*Result.java` record를 grep한 뒤 작성한다.
+- controller/service 흐름만 확인하면 응답 field name drift를 놓칠 수 있으므로, record 정의와 IT fixture를 함께 확인한다.
+
+---
+
+## 7. 검증
 
 - `git diff --check` PASS 예정
 - docs-only 변경이라 Gradle, npm, Playwright 실행 대상 없음
@@ -77,10 +100,14 @@ docs-review에서 운영자 즉시 실패 risk가 확인됐다. 원인은 spec �
   - `services/partner-service/.../EcountPartnerImportResult.java` — MIG-1 record 필드
   - `services/accounting-service/.../V27/V31` — `modified_at`/`modified_by`, `reject_reason`, default public schema
   - `services/accounting-service/.../V21` — DailyClosing unique index `closing_date, partner_id, closing_kind, source_kind`
+  - `shared/common/.../EcountMig8TransformResult.java` — MIG-8 응답 record와 `Sample`
+  - `shared/common/.../EcountMig9JournalResult.java` — MIG-9 응답 record와 `Sample`
+  - `shared/common/.../EcountMig10Result.java` — MIG-10 backfill 응답 record와 `Sample`
+  - `shared/common/.../EcountMig11Result.java` — `DailyClosingMismatchSample` 필드
 
 ---
 
-## 7. 운영 메모
+## 8. 운영 메모
 
 - 운영 raw 파일은 `docs/migration/ecount-data/raw/`에 보관하되 Git에는 올리지 않는다.
 - cutover 전 `pg_dump accounting_db` 백업을 완료해야 한다.

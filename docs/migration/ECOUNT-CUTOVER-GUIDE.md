@@ -468,17 +468,17 @@ Content-Type: application/json
   "updated": 60,
   "skipped": 20,
   "rejected": 20,
-  "orderLinesImported": 14300,
-  "rejectedSample": [
+  "completedLinkedSlipCount": 1200,
+  "samples": [
     {
       "rowNumber": 310,
-      "errorCode": "MIG8_PROGRESS_STATUS_INVALID",
+      "level": "ERROR",
+      "code": "MIG8_PROGRESS_STATUS_INVALID",
       "message": "주문서 진행상태 값이 허용 목록에 없습니다.",
       "businessKey": "ORD-2025-041",
       "rawValue": "보류"
     }
-  ],
-  "warnings": []
+  ]
 }
 ```
 
@@ -518,10 +518,11 @@ Content-Type: application/json
   "cashReceiptJournalsCreated": 1050,
   "skipped": 30,
   "rejected": 20,
-  "rejectedSample": [
+  "samples": [
     {
       "rowNumber": 77,
-      "errorCode": "MIG9_DEFAULT_ACCOUNT_MISSING",
+      "level": "ERROR",
+      "code": "MIG9_DEFAULT_ACCOUNT_MISSING",
       "message": "Cash Journal 생성에 필요한 기본 계정과목을 찾지 못했습니다.",
       "businessKey": "2025-01-03-8",
       "rawValue": "보통예금"
@@ -570,12 +571,14 @@ Content-Type: application/json
 ```json
 {
   "totalRows": 500,
-  "linked": 470,
-  "skipped": 10,
-  "warningCount": 20,
-  "warningSamples": [
+  "backfilled": 470,
+  "lookupMissCount": 20,
+  "ambiguousCount": 10,
+  "samples": [
     {
-      "errorCode": "MIG10_EMPLOYEE_LOOKUP_MISS",
+      "rowNumber": 240,
+      "level": "WARN",
+      "code": "MIG10_EMPLOYEE_LOOKUP_MISS",
       "message": "담당자명과 일치하는 직원이 없습니다.",
       "businessKey": "ORD-2025-003",
       "rawValue": "홍길동"
@@ -626,8 +629,9 @@ file=<매출장 또는 매입장 XLSX>
     {
       "transactionDate": "2025-01-03",
       "rawValue": "1500000",
-      "domainValue": "1490000",
-      "difference": "10000"
+      "closingValue": "1490000",
+      "diffValue": "10000",
+      "message": "DailyClosing 합계와 이카운트 원장 일별 합계가 다릅니다."
     }
   ]
 }
