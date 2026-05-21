@@ -64,3 +64,17 @@ MIG-19 cutover 가이드 이후 운영자가 매월 이카운트 raw 파일을 �
 
 - 최종 통합 검증:
   - `./gradlew :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon` PASS
+
+---
+
+## 6. Cycle 1c 보완 (2026-05-21)
+
+- C20-P0-1/P0-2: `EcountReimportControllerIT`의 `DynamicPermissionClient` mock을 기존 accounting IT 패턴과 동일하게 deprecated accounting client class로 등록한다.
+- C20-P1-1: 실패 envelope 검증 jsonPath를 `$.errorCode`에서 `$.code`로 수정한다.
+- C20-P2-1: `X-User-Role` 누락/blank 시 임의 `MASTER` fallback을 하지 않고, Mig10/11 패턴처럼 `@PreAuthorize`와 AOP 가드에 위임한다.
+- C20-P2-2: 파일 처리 중 importer `BusinessException`이 발생하면 CSV data row 수를 rejected로 반영해 실패 파일의 라인 수를 보존한다.
+- C20-P2-DevOps: cutover §7에 `ECOUNT_REIMPORT_RAW_DIR` 절대경로 운영 가이드를 추가한다.
+- C20-P3-DevOps: crontab 예시에 `SAMHAN_INTERNAL_TOKEN` 값을 추가하고, wrapper script용 export 라인을 함께 문서화한다.
+- 검증:
+  - `./gradlew :services:accounting-service:test :services:auth-service:test :shared:common:test --no-daemon --offline` PASS
+  - `EcountReimportControllerIT`: tests=6, skipped=0, failures=0, errors=0

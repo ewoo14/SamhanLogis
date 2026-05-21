@@ -137,10 +137,11 @@ public class EcountReimportService {
                     target.key, fileName, hash, "PROCESSED",
                     summary.imported, summary.rejected, summary.message));
         } catch (BusinessException ex) {
-            totals.totalRejected++;
+            int rejectedRows = rejectedRowsOnFailure(file);
+            totals.totalRejected += rejectedRows;
             errors.add(error(target.key, fileName, ex.getErrorCode().name(), ex.getMessage()));
             details.add(new EcountReimportResult.SliceResult(
-                    target.key, fileName, hash, "FAILED", 0, 1, ex.getMessage()));
+                    target.key, fileName, hash, "FAILED", 0, rejectedRows, ex.getMessage()));
         } catch (Exception ex) {
             totals.totalRejected++;
             errors.add(error(target.key, fileName, ErrorCode.MIG20_REIMPORT_FAILED.name(), ex.getMessage()));
@@ -263,6 +264,18 @@ public class EcountReimportService {
         } catch (IOException ex) {
             throw new BusinessException(ErrorCode.MIG20_REIMPORT_FAILED,
                     "raw 파일 hash 계산 실패: " + file.getFileName(), ex);
+        }
+    }
+
+    private static int rejectedRowsOnFailure(Path file) {
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!fileName.endsWith(".csv")) {
+            return 1;
+        }
+        try (InputStream input = Files.newInputStream(file)) {
+            return Math.max(1, EcountCsvSupport.parse(input.readAllBytes()).dataRows().size());
+        } catch (Exception ignored) {
+            return 1;
         }
     }
 

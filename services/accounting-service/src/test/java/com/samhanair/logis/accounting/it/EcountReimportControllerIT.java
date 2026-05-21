@@ -30,9 +30,22 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** MIG-20 이카운트 raw 재import endpoint 권한/오류/멱등 계약 IT. */
-@SpringBootTest(classes = AccountingServiceApplication.class)
+@SpringBootTest(
+        classes = AccountingServiceApplication.class,
+        properties = {
+                "spring.datasource.url=jdbc:h2:mem:ecount_reimport_it;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE",
+                "spring.datasource.driver-class-name=org.h2.Driver",
+                "spring.datasource.username=sa",
+                "spring.datasource.password=",
+                "spring.flyway.enabled=false",
+                "spring.jpa.hibernate.ddl-auto=none",
+                "eureka.client.enabled=false",
+                "eureka.client.register-with-eureka=false",
+                "eureka.client.fetch-registry=false",
+                "app.security.internal.token=test-internal-token"
+        })
 @AutoConfigureMockMvc
-class EcountReimportControllerIT extends AbstractPostgresIT {
+class EcountReimportControllerIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
@@ -44,7 +57,8 @@ class EcountReimportControllerIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean(classes = com.samhanair.logis.accounting.client.DynamicPermissionClient.class)
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
@@ -84,7 +98,7 @@ class EcountReimportControllerIT extends AbstractPostgresIT {
                         .header(ROLE_HEADER, "MASTER")
                         .with(csrf()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errorCode").value("MIG20_SLICE_UNKNOWN"));
+                .andExpect(jsonPath("$.code").value("MIG20_SLICE_UNKNOWN"));
     }
 
     @Test
@@ -98,7 +112,7 @@ class EcountReimportControllerIT extends AbstractPostgresIT {
                         .header(ROLE_HEADER, "MASTER")
                         .with(csrf()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

@@ -1192,12 +1192,21 @@ mig-1, mig-2, mig-3, mig-4, mig-5, mig-6, mig-7, mig-8, mig-9, mig-10, mig-11
 - partner/product/user/inventory처럼 다른 service가 소유한 import는 `staging.ecount_reimport_file_runs`에 성공 기록을 남겨 다음 실행에서 skip합니다.
 - MIG-7~10은 raw 파일이 아니라 staging/domain 변환 단계이므로 `details.fileName`과 `sourceFileHash`가 `null`일 수 있습니다.
 
+raw 디렉토리 경로:
+
+- 기본값은 repo 기준 `docs/migration/ecount-data/raw/`입니다.
+- 운영 서버에서는 repo 상대경로를 쓰지 말고 절대경로를 지정합니다.
+- Spring Boot 환경변수는 `ECOUNT_REIMPORT_RAW_DIR`이며 `ecount.reimport.raw-dir`로 바인딩됩니다.
+- AWS EC2 예시: `ECOUNT_REIMPORT_RAW_DIR=/opt/samhan/ecount-data/raw`
+- Windows 운영 PC 예시: `ECOUNT_REIMPORT_RAW_DIR=C:\SamhanOps\ecount-data\raw`
+
 Linux crontab 예시 (매월 1일 02:00 UTC):
 
 ```bash
 SHELL=/bin/bash
 SAMHAN_API_BASE=https://api.samhan-air.com
 SAMHAN_CRON_USER=system-cron
+SAMHAN_INTERNAL_TOKEN=replace-with-internal-token
 
 0 2 1 * * for slice in mig-1 mig-2 mig-3 mig-4 mig-5 mig-6 mig-7 mig-8 mig-9 mig-10 mig-11; do \
   curl -fsS -X POST "$SAMHAN_API_BASE/admin/ecount/reimport/$slice" \
@@ -1209,6 +1218,12 @@ SAMHAN_CRON_USER=system-cron
     -H "Content-Type: application/json" \
     -d "{\"channel\":\"ops-alerts\",\"text\":\"MIG-20 reimport failed: $slice\"}"; \
 done
+```
+
+wrapper script로 분리하는 경우에는 script 상단에서 다음처럼 export합니다.
+
+```bash
+export SAMHAN_INTERNAL_TOKEN="${SAMHAN_INTERNAL_TOKEN:?missing SAMHAN_INTERNAL_TOKEN}"
 ```
 
 Windows Task Scheduler 예시:

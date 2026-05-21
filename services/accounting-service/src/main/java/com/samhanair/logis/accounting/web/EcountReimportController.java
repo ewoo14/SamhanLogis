@@ -44,9 +44,11 @@ public class EcountReimportController {
     }
 
     private void checkEditPermission(String actorRole) {
-        String role = actorRole == null || actorRole.isBlank() ? "MASTER" : actorRole;
-        if (!dynamicPermissionClient.canEdit(role, PAGE_CODE)) {
-            log.warn("[MIG-20] raw 재import 동적 권한 차단 — roleCode={} pageCode={}", role, PAGE_CODE);
+        if (actorRole == null || actorRole.isBlank()) {
+            return;
+        }
+        if (!dynamicPermissionClient.canEdit(actorRole, PAGE_CODE)) {
+            log.warn("[MIG-20] raw 재import 동적 권한 차단 — roleCode={} pageCode={}", actorRole, PAGE_CODE);
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "동적 권한 설정에 의해 이카운트 raw 재import 권한이 차단되었습니다.");
         }
