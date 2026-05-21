@@ -22,14 +22,23 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~16 완료 + MIG-17 Designer 동기화 진행** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 진행 중 — MIG-1~18 완료 + MIG-19 cutover 가이드 진행** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
 
 ### 최신 진행 메모 (2026-05-21)
 
-- MIG-17 (진행 중): Designer tokens.md와 mock 라벨을 실제 화면 API enum 계약으로 동기화한다.
+- MIG-19 (진행 중): 이카운트 cutover 운영 가이드를 docs-only로 정리한다.
+  - `docs/migration/ECOUNT-CUTOVER-GUIDE.md`에 raw 11종 다운로드, DB 백업, `X-Internal-Token`, 권한 검증을 적는다.
+  - MIG-1~11 순서별 endpoint, 응답 sample, 로그 위치, admin UI 확인 절차를 운영자용 한국어로 묶는다.
+  - soft-delete 복구, `JD-`/`JR-` Journal 접두사 충돌 확인, staging `PENDING` 재실행, DailyClosing 대조 SQL을 포함한다.
+
+- MIG-18 (완료): admin UI 2단계 보강을 완료했다.
+  - Cash / Order / AgingSnapshot / Ledger 목록에 filter chip과 전체 초기화를 적용했다.
+  - AgingSnapshot page size 50/100/200/500과 "회계 관리자" collapse/expand 메뉴 그룹을 연결했다.
+
+- MIG-17 (완료): Designer tokens.md와 mock 라벨을 실제 화면 API enum 계약으로 동기화했다.
   - CashKind 라벨은 `EXPENSE_VOUCHER=지출결의서`, `MANUAL_DISBURSEMENT=수기 지출`로 고정한다.
   - CashReceiptKind 라벨은 `DEPOSIT_REPORT=입금보고서`, `MANUAL_RECEIPT=수기 입금`으로 고정한다.
   - OrderProgressStatus 라벨은 `COMPLETED=완료`, `IN_PROGRESS=진행`, `CANCELED=취소`, `PENDING=대기`로 고정한다.
@@ -672,6 +681,7 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 | Phase 9 회고               | `docs/dev-reports/phase9-retrospective.md`                          |
 | MIG-14 admin UI 4 화면     | `docs/dev-reports/mig-14-admin-ui-4-screens.md`                     |
 | MIG-17 Designer 동기화     | `docs/dev-reports/mig-17-designer-tokens-sync.md`                   |
+| MIG-19 cutover 가이드      | `docs/migration/ECOUNT-CUTOVER-GUIDE.md` / `docs/dev-reports/mig-19-cutover-guide.md` |
 | Phase 10 readiness (arologis) | `docs/migration/phase10/M-PHASE-10-readiness.md` (renumber, arologis-service 5 슬라이스) |
 | Phase 11 readiness (AWS cutover) | `docs/migration/phase11/M-PHASE-11-readiness.md` (renumber, 기존 phase10) |
 | Phase 11 AWS dry-run plan  | `docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md` (renumber, 기존 phase10) |

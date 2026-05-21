@@ -4,6 +4,33 @@
 
 ---
 
+## 🚧 2026-05-21 최신 진행 — MIG-19 이카운트 cutover 가이드 docs-only
+
+### 현재 브랜치
+
+- `spec/2026-05-21-mig-19-cutover-guide`
+
+### 범위
+
+- 운영자 대상 한국어 cutover 가이드를 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`로 신규 작성한다.
+- 가이드는 사전 준비, MIG-1~11 단계별 endpoint/응답 sample/로그 위치, admin UI 트레이닝, 롤백, 사후 검증, FAQ를 포함한다.
+- 롤백은 soft-delete 복구와 staging `transform_status='PENDING'` 재실행으로 안내하고, Journal 번호는 `JD-`/`JR-` 접두사 충돌 회피를 명시한다.
+- docs-only 슬라이스로 코드, Flyway, 권한 seed는 변경하지 않는다.
+
+### 문서 산출
+
+- spec: `docs/superpowers/specs/2026-05-21-mig-19-cutover-guide-design.md`
+- cutover guide: `docs/migration/ECOUNT-CUTOVER-GUIDE.md`
+- dev-report: `docs/dev-reports/mig-19-cutover-guide.md`
+- decisions: `D-MIG-19-01~06`
+
+### 검증 메모
+
+- 최종 검증 대상: `git diff --check`.
+- docs-only 변경이라 Gradle/npm/Playwright 실행 대상 없음.
+
+---
+
 ## 🚧 2026-05-21 최신 진행 — MIG-18 admin UI 2단계 일괄 개발
 
 ### 현재 브랜치

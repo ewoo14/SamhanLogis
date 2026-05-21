@@ -23,7 +23,7 @@
 | 9     | -           | 잔여 도메인 (partner-service / groupware / notification / dashboard) | **4차 진행 (W1 partner #91 + W2 groupware #92 + W3 notification #93 + W4 dashboard skeleton 본 PR)** |
 | 10    | -           | arologis-service (배차 마이크로서비스) + 모바일 어플 driver tab + slip 통합 (renumber, D-P10-05) | **완료 — W10-1 PR #97 + W10-3 PR #98 + W10-4 PR #99 (slip-service 전자서명 LINK+APP source 통합, V10 Flyway, ApiResponse wrapper IT 의무화) — D-P10-11 / D-P10-12** |
 | 10.5  | -           | **아로로지스 독립 분리** (monorepo 유지 + build/배포만 분리 + 자체 auth + 휴대번호 passwordless + arologis.samhan-air.com 도메인 + clients/arologis-desktop + clients/arologis-mobile + 별도 GitHub Actions workflow) + **Phase A 배차 메뉴 + 아로로지스 발송** (PR #188, D-DB-01~09) + **Phase C 배차 수정/취소 요청 흐름** (PR #189, D-DC-01~09) + **Phase F 전자서명 양쪽 저장 + 출고전표 사본 PNG 1회 발송** (TM 통합, D-DF-01~13) | Phase A/C **머지** + Phase F **TM 통합 완료 (QA sequential 진행 중)** + Phase B/D 인성데이타 API 링크 도착 대기 |
-| 10.6  | -           | **이카운트 → Samhan Public 마이그레이션** (MIG-1~16 완료) + **MIG-17 Designer 동기화** (tokens.md / mock 라벨 / chip token) | **MIG-17 진행 중 — 옵션 C 21단계** |
+| 10.6  | -           | **이카운트 → Samhan Public 마이그레이션** (MIG-1~18 완료) + **MIG-19 cutover 운영 가이드** | **MIG-19 진행 중 — docs-only** |
 | 11    | -           | AWS 마이그레이션 + Migration Service + 운영 안정화 (AWS cutover 본격) — dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md` | 대기 |
 | 12    | -           | 실시간 협업 시리즈 (SSE infra + slip 코멘트 / audit overlay / 권한·수락 / 전 15 service 확장) — 총 ~13주 (사용자 결정 옵션 A) | **step-1 (PR #123) + step-2 (PR #124) + step-3 (PR #125) + step-4a (PR #126) 머지 + step-4b 진행 (PR-H4b BE 13 service 일괄 `shared/realtime-abstraction` 적용, 본 PR)** |
 
@@ -62,8 +62,10 @@
 - MIG-14 완료: Cash / Order / AgingSnapshot / Ledger admin UI 4 화면을 `clients/desktop`에 통합하고, 30+ IT의 deprecated `DynamicPermissionClient @MockBean`을 shared/security 통합 인터페이스 mock으로 청소했다.
 - MIG-15 완료: POI 의존성을 `shared/common`에서 `shared:ecount-io`로 분리했다.
 - MIG-16 완료: partner-service batch lookup, accounting admin partnerName batch, aging snapshot pagination, refresh toast, 권한 로딩 flash 방지를 정리했다.
-- MIG-17 진행 중: Designer tokens.md와 7개 mock wireframe의 CashKind / CashReceiptKind / OrderProgressStatus 라벨을 화면 API enum 기준으로 동기화한다.
-- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, MIG-17 완료 후 운영 데이터 실 import 검증.
+- MIG-17 완료: Designer tokens.md와 7개 mock wireframe의 CashKind / CashReceiptKind / OrderProgressStatus 라벨을 화면 API enum 기준으로 동기화했다.
+- MIG-18 완료: admin UI 2단계로 filter chip/reset, AgingSnapshot page size, "회계 관리자" 메뉴 그룹을 연결했다.
+- MIG-19 진행 중: 운영자용 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`를 신규 작성해 raw 다운로드, DB 백업, MIG-1~11 실행, admin UI 확인, rollback, DailyClosing 대조 절차를 묶는다.
+- 다음 후보: SP-08-5-3 매입 soft delete + InboundInspection 정합, SP-08 회계/vendor OCR/Aligo 후속 parity, 운영 데이터 실 import 검증.
 
 ## Phase 0 — 저장소·가드 정립
 
@@ -458,7 +460,9 @@
 - **MIG-6** (완료, PR #274) — **이카운트 잔여 마스터 5종 마이그레이션** — accounting-service V26 통장계좌/고정자산유형 staging + 신규 domain, user-service V8 사원/인사카드/급여관리사원 staging + Employee `ecount_code` 보강 + EmployeeCard/PayrollEmployee 신규 domain, auth-service V19 PageCode 5종, shared/common MIG6 ErrorCode 8종과 `회사명 :` meta row 인식을 추가했다. 인사카드 주민등록번호는 staging 적재 시점부터 `resident_number_masked`만 저장한다.
 - **MIG-11** (진행 중, 본 PR) — **매출장/매입장 XLSX staging + DailyClosing 대조** — shared/common `EcountXlsxSupport` Apache POI parser, accounting-service V31 staging 2표, auth-service V24 PageCode 2종, `MIG11_*` ErrorCode 5종, 매출장/매입장 importer/controller 2종을 추가했다. 실제 raw는 row 0 meta + row 1 header이며 매입장은 합계 컬럼이 없어 공급가액+부가세로 total을 산출한다.
 - **MIG-15** (완료) — **POI shared/common → shared/ecount-io module 분리** — `shared:ecount-io` 신규 module을 추가하고 `EcountXlsxSupport` + `ExcelExporter` POI 구현을 이동했다. `shared/common`은 POI 비의존 DTO/exception 중심으로 되돌리고, accounting/partner는 direct POI 선언을 제거했다. arologis/slip/inventory는 자체 POI 사용(`VendorExcelParser` / `SlipExcelExportIT` / `DpsExcelParser`) 때문에 direct dependency를 유지한다.
-- **MIG-17** (진행 중, 본 PR) — **Designer tokens.md + Mock 라벨 실 enum 동기화** — MIG-14 admin UI `tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus 라벨과 chip token을 정리하고, 7개 mock wireframe을 같은 라벨 계약으로 맞춘다.
+- **MIG-17** (완료) — **Designer tokens.md + Mock 라벨 실 enum 동기화** — MIG-14 admin UI `tokens.md`의 CashKind / CashReceiptKind / OrderProgressStatus 라벨과 chip token을 정리하고, 7개 mock wireframe을 같은 라벨 계약으로 맞췄다.
+- **MIG-18** (완료) — **Admin UI 2단계** — Cash / Order / AgingSnapshot / Ledger 목록에 `FilterChipBar`를 적용하고, AgingSnapshot page size 50/100/200/500 및 "회계 관리자" collapse/expand 메뉴 그룹을 연결했다.
+- **MIG-19** (진행 중, 본 PR) — **이카운트 cutover 운영 가이드** — 운영자가 raw 11종 다운로드, `pg_dump accounting_db`, `X-Internal-Token`, MIG-1~11 endpoint 실행, admin UI 확인, soft-delete 복구, staging `PENDING` 재실행, DailyClosing 대조를 한 문서에서 따라갈 수 있도록 `docs/migration/ECOUNT-CUTOVER-GUIDE.md`를 추가한다.
 - **MIG-7** (완료, PR #275) — **Cash 도메인 신규 + MIG-5 staging 변환** — accounting-service V27 `cash_disbursements` / `cash_receipts` 도메인, 지출결의서/입금보고서 staging transform endpoint 2종, auth-service V20 PageCode 2종, shared/common MIG7 ErrorCode 6종을 추가했다.
 - **MIG-8** (본 PR) — **Order 도메인 신규 + MIG-4 주문서 staging 변환** — accounting-service V28 `orders` / `order_lines` 도메인, 주문서 staging transform endpoint 1종, auth-service V21 PageCode 1종, shared/common MIG8 ErrorCode 7종을 추가한다. 동일 `order_no` 다중 row는 1 Order + N OrderLine으로 grouping하고, 완료 주문은 SalesAccountingSlip cross-link를 시도한다. aging snapshot 갱신과 Journal 자동 생성은 MIG-9+로 이연한다.
 
@@ -769,6 +773,8 @@ W10-3 시점 = 4 weight (`Regular / Medium / SemiBold / Bold`) 의무 + graceful
 - Phase 9 회고 보고서: `docs/dev-reports/phase9-retrospective.md`
 - MIG-14 admin UI 4 화면 dev report: `docs/dev-reports/mig-14-admin-ui-4-screens.md`
 - MIG-17 Designer 동기화 dev report: `docs/dev-reports/mig-17-designer-tokens-sync.md`
+- MIG-19 cutover 운영 가이드: `docs/migration/ECOUNT-CUTOVER-GUIDE.md`
+- MIG-19 dev report: `docs/dev-reports/mig-19-cutover-guide.md`
 - Phase 10 진입 plan: `docs/migration/phase10/M-PHASE-10-readiness.md`
 - Phase 10 dry-run plan: `docs/migration/phase10/M-AWS-MIGRATION-DRY-RUN.md`
 - 본 문서 갱신 보고: `docs/dev-reports/docs-roadmap-update.md`
