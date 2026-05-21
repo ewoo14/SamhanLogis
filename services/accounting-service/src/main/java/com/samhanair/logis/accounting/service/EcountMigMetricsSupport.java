@@ -27,7 +27,7 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), 0, result.rejectedNullName());
-        recordRejected(recorder, slice, List.of("REJECT_NAME_NULL"), result.rejectedNullName());
+        recordRejected(recorder, slice, "REJECT_NAME_NULL", result.rejectedNullName());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -36,7 +36,7 @@ final class EcountMigMetricsSupport {
             return;
         }
         recordStandard(recorder, slice, result.imported(), result.updated(), 0, result.rejectedNullName());
-        recordRejected(recorder, slice, List.of("REJECT_NAME_NULL"), result.rejectedNullName());
+        recordRejected(recorder, slice, "REJECT_NAME_NULL", result.rejectedNullName());
     }
 
     static void recordImportResult(MigOpsMetricsRecorder recorder, String slice,
@@ -192,6 +192,13 @@ final class EcountMigMetricsSupport {
         int unspecified = totalRejected - counted;
         if (unspecified > 0) {
             recorder.recordRejected(slice, "UNSPECIFIED", unspecified);
+        }
+    }
+
+    private static void recordRejected(MigOpsMetricsRecorder recorder, String slice,
+                                       String errorCode, int count) {
+        if (count > 0) {
+            recorder.recordRejected(slice, errorCode, count);
         }
     }
 }
