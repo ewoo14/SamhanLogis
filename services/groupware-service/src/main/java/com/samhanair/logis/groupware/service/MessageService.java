@@ -16,6 +16,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 메신저 service — 발송 / 수신함 / 미열람 카운트 / 읽음 처리.
@@ -39,18 +41,20 @@ public class MessageService {
         }
         try {
             Message msg = Message.send(req.senderId(), req.recipientId(), req.body());
+            String senderDisplayName = resolveSenderDisplayName(req.senderId());
             Message saved = repository.save(msg);
-            notificationPublisher.publish(new NotificationPublishRequest(
+            NotificationPublishRequest notificationRequest = new NotificationPublishRequest(
                     "MESSENGER",
                     NotificationSeverity.INFO,
-                    String.format("새 메시지 (%s)", req.senderId()),
+                    String.format("새 메시지 — %s", senderDisplayName),
                     req.body().length() > 80 ? req.body().substring(0, 80) + "..." : req.body(),
                     null,
                     req.recipientId(),
                     null,
                     saved.getId().toString(),
                     "/messenger"
-            ));
+            );
+            publishAfterCommit(notificationRequest);
             return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
@@ -81,5 +85,33 @@ public class MessageService {
             throw new BusinessException(ErrorCode.FORBIDDEN, ex.getMessage());
         }
         return msg;
+    }
+
+    private String resolveSenderDisplayName(UUID senderId) {
+        try {
+            var displayName = userClient.resolveDisplayName(senderId);
+            if (displayName == null) {
+                return "알 수 없는 발신자";
+            }
+            return displayName
+                    .map(String::trim)
+                    .filter(name -> !name.isBlank())
+                    .orElse("알 수 없는 발신자");
+        } catch (RuntimeException ex) {
+            return "알 수 없는 발신자";
+        }
+    }
+
+    private void publishAfterCommit(NotificationPublishRequest request) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            notificationPublisher.publish(request);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notificationPublisher.publish(request);
+            }
+        });
     }
 }

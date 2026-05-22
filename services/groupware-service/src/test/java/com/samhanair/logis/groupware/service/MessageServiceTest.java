@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +24,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 메신저 도메인 단위 테스트 — 4 case:
@@ -76,13 +80,24 @@ class MessageServiceTest {
         UUID messageId = UUID.randomUUID();
         when(userClient.exists(sender)).thenReturn(true);
         when(userClient.exists(recipient)).thenReturn(true);
+        when(userClient.resolveDisplayName(sender)).thenReturn(Optional.of("오병승"));
         when(repository.save(any(Message.class))).thenAnswer(invocation -> {
             Message saved = invocation.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", messageId);
             return saved;
         });
 
-        Message saved = messageService.send(new MessageSendRequest(sender, recipient, "안녕하세요"));
+        TransactionSynchronizationManager.initSynchronization();
+        Message saved;
+        try {
+            saved = messageService.send(new MessageSendRequest(sender, recipient, "안녕하세요"));
+
+            verify(notificationPublisher, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
 
         assertThat(saved.getId()).isEqualTo(messageId);
         ArgumentCaptor<NotificationPublishRequest> captor = ArgumentCaptor.forClass(NotificationPublishRequest.class);
@@ -90,7 +105,8 @@ class MessageServiceTest {
         NotificationPublishRequest req = captor.getValue();
         assertThat(req.channel()).isEqualTo("MESSENGER");
         assertThat(req.severity()).isEqualTo(NotificationSeverity.INFO);
-        assertThat(req.title()).isEqualTo("새 메시지 (" + sender + ")");
+        assertThat(req.title()).isEqualTo("새 메시지 — 오병승");
+        assertThat(req.title()).doesNotContain(sender.toString(), recipient.toString());
         assertThat(req.body()).isEqualTo("안녕하세요");
         assertThat(req.targetRole()).isNull();
         assertThat(req.targetUserId()).isEqualTo(recipient);

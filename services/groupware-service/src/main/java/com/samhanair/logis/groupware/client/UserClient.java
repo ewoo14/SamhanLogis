@@ -1,15 +1,19 @@
 package com.samhanair.logis.groupware.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.discovery.ServiceDiscoveryClient;
 import com.samhanair.logis.userclient.DefaultUserVerifier;
 import com.samhanair.logis.userclient.UserVerifier;
 import com.samhanair.logis.userclient.UserVerifierProperties;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * user-service 호출 client — groupware-service local wrapper.
@@ -29,12 +33,19 @@ public class UserClient implements UserVerifier {
 
     private final UserVerifier delegate;
     private final ServiceDiscoveryClient discoveryClient;
+    private final RestClient restClient;
+    private final String internalToken;
+    private final ObjectMapper objectMapper;
 
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
                       @Value("${samhan.user-service.url:http://localhost:8083}") String baseUrl,
-                      @Value("${app.security.internal.token:}") String internalToken) {
+                      @Value("${app.security.internal.token:}") String internalToken,
+                      ObjectMapper objectMapper) {
         this.discoveryClient = discoveryClient;
+        this.restClient = builder.baseUrl(baseUrl).build();
+        this.internalToken = internalToken;
+        this.objectMapper = objectMapper;
         UserVerifierProperties p = new UserVerifierProperties();
         p.setBaseUrl(baseUrl);
         p.setInternalToken(internalToken);
@@ -52,6 +63,42 @@ public class UserClient implements UserVerifier {
     @Override
     public Map<UUID, Boolean> verifyBulk(List<UUID> userIds) {
         return delegate.verifyBulk(userIds);
+    }
+
+    /**
+     * 발신자 표시명 조회. 알림 title 에 user UUID 가 노출되지 않도록 fullName 을 fail-soft 로 반환한다.
+     *
+     * @param userId user-service 직원 UUID
+     * @return fullName. 미존재 / 호출 실패 / 응답 누락 시 empty.
+     */
+    public Optional<String> resolveDisplayName(UUID userId) {
+        if (userId == null || internalToken == null || internalToken.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/users/{userId}", userId)
+                    .header("X-Internal-Token", internalToken)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            JsonNode fullNameNode = data.get("fullName");
+            if (fullNameNode == null || fullNameNode.isNull() || fullNameNode.asText().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(fullNameNode.asText().trim());
+        } catch (RestClientResponseException ex) {
+            return Optional.empty();
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
     }
 
     @Override
