@@ -7,6 +7,9 @@ import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.domain.MessageStatus;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
 import com.samhanair.logis.groupware.repository.MessageRepository;
+import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,6 +26,7 @@ public class MessageService {
 
     private final MessageRepository repository;
     private final UserClient userClient;
+    private final NotificationPublisher notificationPublisher;
 
     /** 메신저 발송. 송신자/수신자 사용자 존재 검증 후 row 적재. */
     @Transactional
@@ -35,7 +39,19 @@ public class MessageService {
         }
         try {
             Message msg = Message.send(req.senderId(), req.recipientId(), req.body());
-            return repository.save(msg);
+            Message saved = repository.save(msg);
+            notificationPublisher.publish(new NotificationPublishRequest(
+                    "MESSENGER",
+                    NotificationSeverity.INFO,
+                    String.format("새 메시지 (%s)", req.senderId()),
+                    req.body().length() > 80 ? req.body().substring(0, 80) + "..." : req.body(),
+                    null,
+                    req.recipientId(),
+                    null,
+                    saved.getId().toString(),
+                    "/messenger"
+            ));
+            return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
