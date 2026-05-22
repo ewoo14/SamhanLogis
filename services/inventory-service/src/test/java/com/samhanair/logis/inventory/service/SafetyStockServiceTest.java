@@ -22,6 +22,9 @@ import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.SafetyStockAlertResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockConfigResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockSetRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
@@ -59,6 +62,9 @@ class SafetyStockServiceTest {
 
     @Mock
     private NotificationClient notificationClient;
+
+    @Mock
+    private NotificationPublisher notificationPublisher;
 
     @InjectMocks
     private SafetyStockService safetyStockService;
@@ -402,6 +408,37 @@ class SafetyStockServiceTest {
         safetyStockService.checkAndNotify(productId, warehouseId);
 
         verify(notificationClient).sendSafetyStockAlert(any(), any());
+    }
+
+    @Test
+    @DisplayName("checkAndNotify: 임계 미만이면 NotificationPublisher.publish 호출")
+    void checkAndNotify_belowThreshold_publishesNotificationCenterEvent() {
+        SafetyStockConfig config = SafetyStockConfig.create(productId, warehouseId, 50, null);
+
+        when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+                .thenReturn(Optional.of(Objects.requireNonNull(config)));
+        when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, null))
+                .thenReturn(Optional.empty());
+
+        StockBalance balance = mockBalance(20);
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(
+                productId, warehouseId))
+                .thenReturn(Optional.of(balance));
+
+        safetyStockService.checkAndNotify(productId, warehouseId);
+
+        ArgumentCaptor<NotificationPublishRequest> captor = ArgumentCaptor.forClass(NotificationPublishRequest.class);
+        verify(notificationPublisher).publish(captor.capture());
+        NotificationPublishRequest req = captor.getValue();
+        assertThat(req.channel()).isEqualTo("SAFETY_STOCK");
+        assertThat(req.severity()).isEqualTo(NotificationSeverity.WARNING);
+        assertThat(req.title()).contains("안전재고 부족");
+        assertThat(req.body()).contains("현재 20", "임계 50", "부족 30");
+        assertThat(req.targetRole()).containsExactly("MASTER", "MANAGER", "INVENTORY", "WAREHOUSE");
+        assertThat(req.targetUserId()).isNull();
+        assertThat(req.sourceService()).isNull();
+        assertThat(req.sourceRefId()).isEqualTo(productId + "+" + warehouseId);
+        assertThat(req.deeplink()).isEqualTo("/inventory/safety-stock-alerts");
     }
 
     @Test

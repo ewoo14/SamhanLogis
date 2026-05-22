@@ -1,6 +1,8 @@
 package com.samhanair.logis.inventory.it;
 
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
@@ -21,6 +23,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
+
+    @MockBean
+    @SuppressWarnings("unused")
+    private NotificationPublisher notificationPublisher;
 
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =

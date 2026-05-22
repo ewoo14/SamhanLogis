@@ -11,6 +11,9 @@ import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.SafetyStockAlertResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockConfigResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockSetRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
  * </ol>
  *
  * <p>알림 발송은 {@link NotificationClient#sendSafetyStockAlert} 를 통해 fire-and-forget 방식으로
- * notification-service 에 위임한다. 발송 실패 시 경고 로그만 남기고 트랜잭션에 영향을 주지 않는다.
+ * legacy 채널을 유지하고, {@link NotificationPublisher} 로 통합 알림 센터에도 발송한다.
+ * 발송 실패 시 경고 로그만 남기고 트랜잭션에 영향을 주지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -52,6 +56,7 @@ public class SafetyStockService {
     private final WarehouseRepository warehouseRepository;
     private final ProductClient productClient;
     private final NotificationClient notificationClient;
+    private final NotificationPublisher notificationPublisher;
 
     /**
      * 제품별 안전재고 임계값을 설정하거나 기존 설정을 갱신한다.
@@ -274,5 +279,19 @@ public class SafetyStockService {
                 config.getThreshold() - currentQty
         );
         notificationClient.sendSafetyStockAlert(subject, body);
+        notificationPublisher.publish(new NotificationPublishRequest(
+                "SAFETY_STOCK",
+                NotificationSeverity.WARNING,
+                String.format("안전재고 부족 — 제품 %s", config.getProductId()),
+                String.format("현재 %d / 임계 %d (부족 %d)",
+                        currentQty,
+                        config.getThreshold(),
+                        config.getThreshold() - currentQty),
+                List.of("MASTER", "MANAGER", "INVENTORY", "WAREHOUSE"),
+                null,
+                null,
+                config.getProductId() + (config.getWarehouseId() != null ? "+" + config.getWarehouseId() : ""),
+                "/inventory/safety-stock-alerts"
+        ));
     }
 }
