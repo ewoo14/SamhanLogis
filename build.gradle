@@ -41,6 +41,7 @@ def leafProjects = [
         ':shared:security',
         ':shared:realtime-abstraction',
         ':shared:ecount-io',
+        ':shared:notification-publisher',
         ':services:eureka-server',
         ':services:api-gateway',
         ':services:auth-service',
