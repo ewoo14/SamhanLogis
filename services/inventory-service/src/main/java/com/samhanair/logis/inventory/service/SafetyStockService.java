@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.web.dto.SafetyStockConfigResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockSetRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -279,7 +280,7 @@ public class SafetyStockService {
                 config.getThreshold() - currentQty
         );
         notificationClient.sendSafetyStockAlert(subject, body);
-        notificationPublisher.publish(new NotificationPublishRequest(
+        NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
                 "SAFETY_STOCK",
                 NotificationSeverity.WARNING,
                 String.format("안전재고 부족 — %s", productLabel),

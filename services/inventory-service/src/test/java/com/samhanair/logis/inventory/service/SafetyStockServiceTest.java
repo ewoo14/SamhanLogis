@@ -38,6 +38,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * SafetyStockService 단위 테스트 (P1-3).
@@ -455,6 +457,40 @@ class SafetyStockServiceTest {
         assertThat(req.sourceService()).isNull();
         assertThat(req.sourceRefId()).isEqualTo(productId + "+" + warehouseId);
         assertThat(req.deeplink()).isEqualTo("/inventory/safety-stock-alerts");
+    }
+
+    @Test
+    void checkAndNotify_belowThreshold_defersNotificationCenterPublishUntilAfterCommit() {
+        SafetyStockConfig config = SafetyStockConfig.create(productId, warehouseId, 50, null);
+
+        when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, warehouseId))
+                .thenReturn(Optional.of(Objects.requireNonNull(config)));
+        when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, null))
+                .thenReturn(Optional.empty());
+
+        StockBalance balance = mockBalance(20);
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(
+                productId, warehouseId))
+                .thenReturn(Optional.of(balance));
+        when(productClient.lookup(anyList()))
+                .thenReturn(List.of(new ProductSummary(productId, "Test Product", "MODEL-001",
+                        "CODE-001", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE")));
+        Warehouse warehouse = org.mockito.Mockito.mock(Warehouse.class);
+        org.mockito.Mockito.when(warehouse.getName()).thenReturn("HQ Warehouse");
+        when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            safetyStockService.checkAndNotify(productId, warehouseId);
+
+            verify(notificationPublisher, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        verify(notificationPublisher).publish(any(NotificationPublishRequest.class));
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.samhanair.logis.groupware.dto.MessageSendRequest;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +17,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 메신저 service — 발송 / 수신함 / 미열람 카운트 / 읽음 처리.
@@ -54,7 +53,7 @@ public class MessageService {
                     saved.getId().toString(),
                     "/messenger"
             );
-            publishAfterCommit(notificationRequest);
+            NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest);
             return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
@@ -100,18 +99,5 @@ public class MessageService {
         } catch (RuntimeException ex) {
             return "알 수 없는 발신자";
         }
-    }
-
-    private void publishAfterCommit(NotificationPublishRequest request) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            notificationPublisher.publish(request);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                notificationPublisher.publish(request);
-            }
-        });
     }
 }

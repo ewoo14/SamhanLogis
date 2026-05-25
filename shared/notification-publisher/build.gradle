@@ -17,6 +17,8 @@ dependencies {
     api 'com.fasterxml.jackson.core:jackson-databind'
     api 'org.slf4j:slf4j-api'
 
+    implementation 'org.springframework:spring-tx'
+
     // LB-aware RestClient
     compileOnly 'org.springframework.cloud:spring-cloud-loadbalancer'
 
