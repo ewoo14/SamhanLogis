@@ -110,6 +110,12 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
+                .thenReturn(true);
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(Optional.of("담당자"));
         // ProductClient lenient stub — SlipService.create 가 라인 productId 검증 시 호출
@@ -194,6 +200,8 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
         mockMvc.perform(get("/slips/query")
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("dateFrom", "2026-05-11")
+                        .param("dateTo", "2026-05-11")
                         .param("searchSlipNo", slipNo))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].deliveryAddress", is("배송주소 판교 테스트")))
