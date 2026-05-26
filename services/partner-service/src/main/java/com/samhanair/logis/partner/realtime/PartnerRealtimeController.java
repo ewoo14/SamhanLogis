@@ -1,12 +1,12 @@
 package com.samhanair.logis.partner.realtime;
 
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -45,7 +45,7 @@ public class PartnerRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(path = "/{entityId}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
+    @RequirePermission(page = "partners.edit-requests", action = "VIEW")
     public SseEmitter subscribe(@PathVariable UUID entityId) {
         return broker.subscribe(entityId);
     }

@@ -489,6 +489,7 @@ services:
       SAMHAN_PARTNER_DB_NAME: partner_db
       SAMHAN_PARTNER_DB_USER: samhan
       SAMHAN_PARTNER_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
     ports:
       - "127.0.0.1:8095:8095"
     depends_on: *service-depends
@@ -519,6 +520,7 @@ services:
       SAMHAN_AROLOGIS_DB_NAME: arologis_db
       SAMHAN_AROLOGIS_DB_USER: samhan
       SAMHAN_AROLOGIS_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
       SAMHAN_AROLOGIS_SEED_TEST_DATA: "true"
       SAMHAN_AROLOGIS_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x

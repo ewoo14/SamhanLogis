@@ -10,6 +10,7 @@ import com.samhanair.logis.arologis.web.dto.DispatchSaveHistorySaveResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -19,7 +20,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,8 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class DispatchSaveHistoryController {
 
     private static final String CALLER_HEADER = "X-User-Id";
-    private static final String DISPATCH_HISTORY_ROLES =
-            "hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')";
 
     private final DispatchSaveHistoryService service;
 
@@ -57,7 +55,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 저장",
             description = "배차 4개 화면 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
-    @PreAuthorize(DISPATCH_HISTORY_ROLES)
+    @RequirePermission(page = "arologis.dispatch.ops", action = "EDIT")
     public ApiResponse<DispatchSaveHistorySaveResponse> save(
             @Valid @RequestBody DispatchSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -83,7 +81,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 배차 저장내역을 조회한다.")
     @GetMapping
-    @PreAuthorize(DISPATCH_HISTORY_ROLES)
+    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
     public ApiResponse<Page<DispatchSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -121,7 +119,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
-    @PreAuthorize(DISPATCH_HISTORY_ROLES)
+    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
     public ApiResponse<DispatchSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -142,7 +140,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 최신 자동저장 조회",
             description = "현재 사용자의 프로그램별 최신 AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
-    @PreAuthorize(DISPATCH_HISTORY_ROLES)
+    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
     public ApiResponse<DispatchSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DispatchProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

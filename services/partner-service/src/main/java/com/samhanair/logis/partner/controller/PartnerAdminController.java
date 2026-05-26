@@ -11,6 +11,7 @@ import com.samhanair.logis.partner.service.PartnerAligoExportService;
 import com.samhanair.logis.partner.service.PartnerCreditService;
 import com.samhanair.logis.partner.service.PartnerExcelExportService;
 import com.samhanair.logis.partner.service.PartnerService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -24,7 +25,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -64,7 +64,6 @@ public class PartnerAdminController {
     private final PartnerCreditService creditService;
     private final PartnerAligoExportService aligoExportService;
     private final PartnerExcelExportService excelExportService;
-    private final PartnerPermissionGuard partnerPermissionGuard;
 
     /**
      * 신규 거래처 등록.
@@ -79,11 +78,10 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "partnerCode 또는 bizNo 중복")
     })
     @PostMapping
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "EDIT")
     public ApiResponse<PartnerAdminResponse> create(
             @Valid @RequestBody PartnerAdminRequest req,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.register(req)));
     }
 
@@ -104,11 +102,10 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES')")
+    @RequirePermission(page = "partners.search", action = "VIEW")
     public ApiResponse<Page<PartnerSummaryResponse>> findAll(
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        partnerPermissionGuard.checkView(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         Page<PartnerSummaryResponse> page = partnerService.findAll(pageable)
                 .map(PartnerSummaryResponse::from);
         return ApiResponse.ok(page);
@@ -127,7 +124,7 @@ public class PartnerAdminController {
     @Operation(summary = "거래처 admin 검색 (Phase 10 P0-5)",
             description = "SALES / MANAGER / MASTER 권한. q + type(status) 필터. items / total / page / size 형식 응답.")
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES')")
+    @RequirePermission(page = "partners.search", action = "VIEW")
     public ApiResponse<AdminPartnerListResponse> search(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -154,7 +151,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "다중 매칭 (lookup 모호)")
     })
     @GetMapping("/by-name")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "VIEW")
     public ApiResponse<PartnerAdminResponse> lookupByName(@RequestParam("name") String name) {
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByName(name)));
     }
@@ -169,11 +166,10 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @GetMapping("/{partnerCode}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT')")
+    @RequirePermission(page = "partners.detail", action = "VIEW")
     public ApiResponse<PartnerAdminResponse> findOne(
             @PathVariable String partnerCode,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        partnerPermissionGuard.checkView(roleHeader, PartnerPermissionGuard.PAGE_DETAIL);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByCode(partnerCode)));
     }
 
@@ -184,12 +180,11 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 프로필 수정", description = "name / address / phone 만 변경. creditLimit 변경은 별도 사용")
     @PutMapping("/{partnerCode}")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "EDIT")
     public ApiResponse<PartnerAdminResponse> update(
             @PathVariable String partnerCode,
             @Valid @RequestBody PartnerAdminRequest req,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        partnerPermissionGuard.checkEdit(roleHeader, PartnerPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.updateProfile(partnerCode, req)));
     }
 
@@ -198,7 +193,7 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 soft-delete")
     @DeleteMapping("/{partnerCode}")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasRole('MASTER')")
+    @RequirePermission(page = "partners.delete", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String partnerCode, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
         partnerService.delete(partnerCode, actor);
@@ -225,7 +220,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export/aligo-csv")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "VIEW")
     public ResponseEntity<byte[]> exportAligoCsv() {
         byte[] csv = aligoExportService.exportAligoCsv();
         String filename = "aligo-address-book-" + java.time.LocalDate.now() + ".csv";
@@ -256,7 +251,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "VIEW")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) PartnerStatus status) {
@@ -276,7 +271,7 @@ public class PartnerAdminController {
     @Operation(summary = "신용 거래 이력 페이지 조회",
             description = "SLIP_ISSUED / PAYMENT / CREDIT_LIMIT_CHANGE 시간 역순")
     @GetMapping("/{partnerCode}/credit-history")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
+    @RequirePermission(page = "partners.credit-history", action = "VIEW")
     public ApiResponse<List<CreditHistoryResponse>> findHistory(@PathVariable String partnerCode,
                                                                 Pageable pageable) {
         Page<CreditHistoryResponse> page = creditService.findHistory(partnerCode, pageable)

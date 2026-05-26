@@ -218,6 +218,33 @@ public enum PageCode {
     /** 거래처 편집 결재/목록/승인 화면 (SP-D4) — PartnerEditRequestController. */
     PARTNERS_EDIT_REQUEST("partners.edit-request", "거래처 편집 결재"),
 
+    /** 거래처 검색/목록 조회 API — SP-D6-4. */
+    PARTNERS_SEARCH("partners.search", "거래처 검색"),
+
+    /** 거래처 등록/수정/export/import API — SP-D6-4. */
+    PARTNERS_EDIT("partners.edit", "거래처 편집"),
+
+    /** 거래처 soft-delete API — SP-D6-4. */
+    PARTNERS_DELETE("partners.delete", "거래처 삭제"),
+
+    /** 거래처 신용 거래 이력 API — SP-D6-4. */
+    PARTNERS_CREDIT_HISTORY("partners.credit-history", "거래처 신용 이력"),
+
+    /** 거래처 BLOCK bulk import/delete API — SP-D6-4. */
+    PARTNERS_BLOCK_BULK("partners.block.bulk", "거래처 차단 bulk"),
+
+    /** 거래처 4탭 조회/일괄 등록 API — SP-D6-4. */
+    PARTNERS_4TAB("partners.4tab", "거래처 4탭"),
+
+    /** 거래처 4탭 수정/서브 탭 mutation API — SP-D6-4. */
+    PARTNERS_4TAB_EDIT("partners.4tab.edit", "거래처 4탭 편집"),
+
+    /** 거래처 수정 요청 생성/이력 API — SP-D6-4. */
+    PARTNERS_EDIT_REQUESTS("partners.edit-requests", "거래처 수정 요청"),
+
+    /** 거래처 수정 요청 승인/거절 API — SP-D6-4. */
+    PARTNERS_EDIT_REQUESTS_DECIDE("partners.edit-requests.decide", "거래처 수정 요청 승인"),
+
     // ---- 상품 (products) ----
 
     /** 상품 목록 화면 (SP-D4) — product-service ProductController. */
@@ -245,6 +272,24 @@ public enum PageCode {
 
     /** 아로로지스 지역/구역 관리 화면 (SP-D4) — RegionAdminController. */
     AROLOGIS_REGION("arologis.region", "아로로지스 지역/구역 관리"),
+
+    /** 아로로지스 배차 admin API — SP-D6-4. */
+    AROLOGIS_DISPATCH_ADMIN("arologis.dispatch.admin", "아로로지스 배차 admin"),
+
+    /** 아로로지스 배차 운영 API — SP-D6-4. */
+    AROLOGIS_DISPATCH_OPS("arologis.dispatch.ops", "아로로지스 배차 운영"),
+
+    /** 아로로지스 지역/구역 mutation API — SP-D6-4. */
+    AROLOGIS_REGION_MANAGE("arologis.region.manage", "아로로지스 지역 편집"),
+
+    /** 아로로지스 수정 요청 생성 API — SP-D6-4. */
+    AROLOGIS_EDIT_REQUESTS("arologis.edit-requests", "아로로지스 수정 요청"),
+
+    /** 아로로지스 수정 요청 승인/거절 API — SP-D6-4. */
+    AROLOGIS_EDIT_REQUESTS_DECIDE("arologis.edit-requests.decide", "아로로지스 수정 요청 승인"),
+
+    /** 아로로지스 기사앱 API — SP-D6-4. */
+    AROLOGIS_DRIVER("arologis.driver", "아로로지스 기사앱"),
 
     /** SAS 매출전표 목록 화면 (SP-SAS-1). */
     ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),

@@ -3,6 +3,7 @@ package com.samhanair.logis.arologis.controller;
 import com.samhanair.logis.arologis.dto.DispatchReconcileResponse;
 import com.samhanair.logis.arologis.service.DispatchReconcileService;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.LocalDate;
@@ -10,7 +11,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -64,7 +64,7 @@ public class DispatchReconcileController {
                     responseCode = "403", description = "권한 부족 (MASTER/MANAGER/DISPATCH 외)")
     })
     @PostMapping(value = "/reconcile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.ops", action = "EDIT")
     public ApiResponse<DispatchReconcileResponse> reconcile(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

@@ -44,6 +44,8 @@ eureka:
 samhan:
   discovery:
     provider: ${SAMHAN_DISCOVERY_PROVIDER:eureka}
+  auth-service:
+    url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
 
 app:
   security:

@@ -9,6 +9,7 @@ import com.samhanair.logis.arologis.service.RegionService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -18,7 +19,6 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,17 +55,15 @@ public class RegionAdminController {
 
     private final RegionService regionService;
     private final RegionImportService importService;
-    private final ArologisAdminPermissionGuard arologisAdminPermissionGuard;
 
     private static final String ROLE_HEADER = "X-User-Role";
 
     /** 전체 활성 분류 조회 (sort_order 오름차순). */
     @Operation(summary = "지역 분류 전체 조회 (Admin)")
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")
+    @RequirePermission(page = "arologis.region", action = "VIEW")
     public ApiResponse<List<RegionResponse>> list(
             @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        arologisAdminPermissionGuard.checkView(roleHeader, ArologisAdminPermissionGuard.PAGE_REGION);
         List<RegionDispatchClassification> all = regionService.findAll();
         return ApiResponse.ok(all.stream().map(RegionResponse::from).toList());
     }
@@ -73,11 +71,10 @@ public class RegionAdminController {
     /** 단건 신규 등록 — group_name 활성 행 unique. */
     @Operation(summary = "지역 분류 단건 추가 (Admin)")
     @PostMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
     public ApiResponse<RegionResponse> create(
             @Valid @RequestBody RegionUpsertRequest req,
             @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        arologisAdminPermissionGuard.checkEdit(roleHeader, ArologisAdminPermissionGuard.PAGE_REGION);
         if (req.groupName() == null || req.groupName().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "groupName 필수");
         }
@@ -94,7 +91,7 @@ public class RegionAdminController {
     @Operation(summary = "지역 분류 CSV 일괄 import (Admin)",
             description = "노션 export CSV (UTF-8 BOM, RFC4180 quoted) 우리 DB native upsert")
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
     public ApiResponse<RegionImportService.ImportResult> importCsv(
             @RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -117,7 +114,7 @@ public class RegionAdminController {
     /** 단건 수정 — keywords + sortOrder. group_name 불변. */
     @Operation(summary = "지역 분류 단건 수정 (Admin)")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
     public ApiResponse<RegionResponse> update(
             @PathVariable UUID id, @Valid @RequestBody RegionUpsertRequest req) {
         RegionDispatchClassification updated = regionService.update(id, req.keywords(), req.sortOrder());
@@ -127,7 +124,7 @@ public class RegionAdminController {
     /** Soft Delete — admin 전용. */
     @Operation(summary = "지역 분류 Soft Delete (Admin)")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
     public ApiResponse<Map<String, String>> softDelete(
             @PathVariable UUID id, HttpServletRequest request) {
         String userId = request.getHeader("X-User-Id");

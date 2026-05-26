@@ -30,6 +30,7 @@ import com.samhanair.logis.arologis.web.dto.photo.DriverPhotoUploadResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -51,7 +52,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -94,7 +94,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "오늘의 배정된 dispatch 목록 조회 (Driver-app)")
     @GetMapping("/dispatches/today")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "VIEW")
     public ApiResponse<List<DriverTodayVehicleResponse>> today(HttpServletRequest request) {
         String userIdHeader = request.getHeader("X-User-Id");
         if (userIdHeader == null || userIdHeader.isBlank()) {
@@ -151,7 +151,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "GPS 위치 보고 (Driver-app)")
     @PostMapping("/locations")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "EDIT")
     public ApiResponse<Map<String, Object>> reportLocation(
             HttpServletRequest request, @RequestBody Map<String, String> body) {
         String userIdHeader = request.getHeader("X-User-Id");
@@ -231,7 +231,7 @@ public class ArologisDriverAppController {
     @Deprecated(forRemoval = true)
     @Operation(summary = "[DEPRECATED] 전자서명 등록 (W10-4) — Phase F /sign-and-send-copy 로 대체")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign")
-    @PreAuthorize("hasAnyRole('DRIVER','MASTER','MANAGER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "EDIT")
     public ApiResponse<Map<String, Object>> sign(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
             @RequestBody Map<String, String> body) {
@@ -300,7 +300,7 @@ public class ArologisDriverAppController {
                     + "Aligo 미사용 — 응답 PNG 를 mobile 이 받아 Share Sheet 으로 인수자에게 발송.")
     @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
             produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
-    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "EDIT")
     public ResponseEntity<?> signAndSendCopyToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -342,7 +342,7 @@ public class ArologisDriverAppController {
     @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/photos/{photoType}",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "EDIT")
     public ResponseEntity<ApiResponse<DriverPhotoUploadResponse>> uploadStopPhotoToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -400,7 +400,7 @@ public class ArologisDriverAppController {
             description = "ROLE_AROLOGIS_DRIVER. 오늘 본인 배차 정차 기준으로 읽기 전용 전표 상세를 조회한다.")
     @GetMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/slip-detail",
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "VIEW")
     public ResponseEntity<ApiResponse<DriverSlipDetailResponse>> slipDetailToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -441,7 +441,7 @@ public class ArologisDriverAppController {
      */
     @PostMapping(value = "/dispatches/{dispatchId}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
             produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
-    @PreAuthorize("hasAnyRole('DRIVER','AROLOGIS_DRIVER','AROLOGIS_MASTER','AROLOGIS_MANAGER','MASTER','MANAGER')")
+    @RequirePermission(page = "arologis.driver", action = "EDIT")
     @Deprecated(forRemoval = false)
     public ResponseEntity<?> signAndSendCopy(
             @PathVariable UUID dispatchId,

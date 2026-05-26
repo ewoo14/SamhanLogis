@@ -4,12 +4,12 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
 import com.samhanair.logis.partner.service.EcountPartnerImporter;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,7 +43,7 @@ public class EcountPartnerImportController {
      * @return 분류 결과 (신규/갱신/거부/스킵 + ACTIVE/SUSPENDED 분포 + sample reject)
      */
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = "partners.edit", action = "EDIT")
     @Operation(summary = "이카운트 거래처 CSV 적재",
             description = "MIG-1 PoC — 이카운트 export 17 컬럼 → staging.ecount_partner_raw + partners. "
                     + "동일 파일 재실행 시 멱등 (source_file_hash 기준).")

@@ -157,4 +157,27 @@ class PageCodeTest {
         assertThat(PageCode.isValid("dispatch.sms-save-history")).isTrue();
         assertThat(PageCode.isValid("dispatch.batch")).isTrue();
     }
+
+    @Test
+    void spD64_pageCodes_V34_seed와_동기화() {
+        assertThat(PageCode.PARTNERS_SEARCH.getCode()).isEqualTo("partners.search");
+        assertThat(PageCode.PARTNERS_EDIT.getCode()).isEqualTo("partners.edit");
+        assertThat(PageCode.PARTNERS_DELETE.getCode()).isEqualTo("partners.delete");
+        assertThat(PageCode.PARTNERS_CREDIT_HISTORY.getCode()).isEqualTo("partners.credit-history");
+        assertThat(PageCode.PARTNERS_BLOCK_BULK.getCode()).isEqualTo("partners.block.bulk");
+        assertThat(PageCode.PARTNERS_4TAB.getCode()).isEqualTo("partners.4tab");
+        assertThat(PageCode.PARTNERS_4TAB_EDIT.getCode()).isEqualTo("partners.4tab.edit");
+        assertThat(PageCode.PARTNERS_EDIT_REQUESTS.getCode()).isEqualTo("partners.edit-requests");
+        assertThat(PageCode.PARTNERS_EDIT_REQUESTS_DECIDE.getCode()).isEqualTo("partners.edit-requests.decide");
+        assertThat(PageCode.AROLOGIS_DISPATCH_ADMIN.getCode()).isEqualTo("arologis.dispatch.admin");
+        assertThat(PageCode.AROLOGIS_DISPATCH_OPS.getCode()).isEqualTo("arologis.dispatch.ops");
+        assertThat(PageCode.AROLOGIS_REGION_MANAGE.getCode()).isEqualTo("arologis.region.manage");
+        assertThat(PageCode.AROLOGIS_EDIT_REQUESTS.getCode()).isEqualTo("arologis.edit-requests");
+        assertThat(PageCode.AROLOGIS_EDIT_REQUESTS_DECIDE.getCode()).isEqualTo("arologis.edit-requests.decide");
+        assertThat(PageCode.AROLOGIS_DRIVER.getCode()).isEqualTo("arologis.driver");
+
+        assertThat(PageCode.isValid("partners.edit-requests.decide")).isTrue();
+        assertThat(PageCode.isValid("arologis.edit-requests.decide")).isTrue();
+        assertThat(PageCode.isValid("arologis.driver")).isTrue();
+    }
 }

@@ -9,6 +9,7 @@ import com.samhanair.logis.partner.domain.PartnerAttachment;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.partner.service.PartnerAttachmentService;
 import com.samhanair.logis.partner.web.dto.PartnerAttachmentResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.security.Principal;
@@ -86,7 +87,7 @@ public class PartnerVisitAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "partners.detail", action = "EDIT")
     public ApiResponse<PartnerAttachmentResponse> upload(
             @PathVariable String partnerCode,
             @RequestParam("file") MultipartFile file,
@@ -160,7 +161,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "방문 사진 soft-delete",
             description = "MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "partners.edit", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable String partnerCode,
             @PathVariable UUID attachmentId,

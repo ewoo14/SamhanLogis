@@ -1,6 +1,5 @@
 package com.samhanair.logis.arologis.controller;
 
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.dto.AvailableDriverResponse;
 import com.samhanair.logis.arologis.dto.DispatchPageResponse;
@@ -9,8 +8,7 @@ import com.samhanair.logis.arologis.dto.ManualAssignRequest;
 import com.samhanair.logis.arologis.service.DispatchAdminService;
 import com.samhanair.logis.arologis.service.DispatchService;
 import com.samhanair.logis.common.dto.ApiResponse;
-import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,7 +18,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -60,11 +57,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "P1-5 배차 Admin UI", description = "배차 list / 자동매칭 / 수동배차 / 기사변경 / 가용기사 조회")
 public class DispatchAdminV1Controller {
 
-    /** SP-D3 — 배차 보드 페이지 코드. */
-    private static final String DISPATCH_BOARD_PAGE_CODE = "dispatch.board";
-
     private final DispatchAdminService dispatchAdminService;
-    private final DynamicPermissionClient dynamicPermissionClient;
 
     // ========================================================================
     // 1. 배차 list (페이징 + 기간 / status 필터)
@@ -86,7 +79,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "배차 list 조회 (P1-5 Admin UI)",
             description = "status/fromDate/toDate 필터 + 페이징. fromDate 미지정 시 오늘.")
     @GetMapping("/dispatches")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
     public ApiResponse<DispatchPageResponse> listDispatches(
             @RequestParam(required = false) DispatchType status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -94,8 +87,6 @@ public class DispatchAdminV1Controller {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        // SP-D3 동적 권한 VIEW 가드 — dispatch.board
-        checkViewPermission(roleHeader);
         if (size < 1 || size > 200) {
             size = 20;
         }
@@ -121,12 +112,10 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "자동 매칭 trigger (P1-5 Admin UI, 카카오톡 배차)",
             description = "dispatchId 배차의 PENDING 차량 전체에 DriverMatcher 자동 매칭 호출.")
     @PostMapping("/dispatches/auto-match")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
     public ApiResponse<DispatchService.AutoMatchResult> autoMatch(
             @RequestBody Map<String, String> body,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         String dispatchIdStr = body == null ? null : body.get("dispatchId");
         if (dispatchIdStr == null || dispatchIdStr.isBlank()) {
             throw new com.samhanair.logis.common.exception.BusinessException(
@@ -163,13 +152,11 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "수동 배차 (P1-5 Admin UI)",
             description = "vehicleSeq + driverCode 지정. MatchSource.MANUAL 기록.")
     @PostMapping("/dispatches/{id}/manual-assign")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
     public ApiResponse<Map<String, Object>> manualAssign(
             @PathVariable UUID id,
             @Valid @RequestBody ManualAssignRequest req,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         dispatchAdminService.manualAssign(id, req.vehicleSeq(), req.driverCode());
         return ApiResponse.ok(Map.of(
                 "dispatchId", id.toString(),
@@ -194,13 +181,11 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "기사 변경 (P1-5 Admin UI)",
             description = "vehicleSeq + newDriverCode 지정으로 기존 기사 교체. MatchSource.MANUAL.")
     @PatchMapping("/dispatches/{id}/driver")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
     public ApiResponse<Map<String, Object>> changeDriver(
             @PathVariable UUID id,
             @Valid @RequestBody DriverChangeRequest req,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         dispatchAdminService.changeDriver(id, req.vehicleSeq(), req.newDriverCode());
         return ApiResponse.ok(Map.of(
                 "dispatchId", id.toString(),
@@ -225,61 +210,11 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "가용 기사 list (P1-5 Admin UI)",
             description = "date 기준 배정 기사 제외 + zoneId 필터. UUID 비공개 가드 적용.")
     @GetMapping("/drivers/available")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
     public ApiResponse<AvailableDriverResponse> availableDrivers(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) String zoneId) {
         return ApiResponse.ok(dispatchAdminService.findAvailableDrivers(date, zoneId));
     }
 
-    // =========================================================================
-    // SP-D3 동적 권한 헬퍼
-    // =========================================================================
-
-    /**
-     * SP-D3 동적 VIEW 권한 검증 — dispatch.board 페이지 코드.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canView=false 이면 명시적 deny → 403.
-     *
-     * @param actorRole 요청자 role
-     */
-    private void checkViewPermission(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_BOARD_PAGE_CODE);
-        if (!canView) {
-            log.warn("[SP-D3] 동적 VIEW 권한 차단 — roleCode={} pageCode={}", actorRole, DISPATCH_BOARD_PAGE_CODE);
-            throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "동적 권한 설정에 의해 배차 보드 조회 권한이 차단되었습니다.");
-        }
-    }
-
-    /**
-     * SP-D3 동적 EDIT 권한 검증 — dispatch.board 페이지 코드.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canEdit=false + canView=true 이면 명시적 deny → 403 (view-only override).
-     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
-     *
-     * @param actorRole 요청자 role
-     */
-    private void checkEditPermission(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, DISPATCH_BOARD_PAGE_CODE);
-        if (!canEdit) {
-            boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_BOARD_PAGE_CODE);
-            if (canView) {
-                log.warn("[SP-D3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}",
-                        actorRole, DISPATCH_BOARD_PAGE_CODE);
-                throw new BusinessException(ErrorCode.FORBIDDEN,
-                        "동적 권한 설정에 의해 배차 보드 편집 권한이 차단되었습니다.");
-            }
-            log.debug("[SP-D3] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}",
-                    actorRole, DISPATCH_BOARD_PAGE_CODE);
-        }
-    }
 }

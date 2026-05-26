@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partner.domain.AttachmentType;
 import com.samhanair.logis.partner.service.PartnerAttachmentService;
 import com.samhanair.logis.partner.web.dto.PartnerAttachmentResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.security.Principal;
@@ -59,7 +60,7 @@ public class PartnerAttachmentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @PostMapping(value = "/{partnerId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "partners.detail", action = "EDIT")
     public ApiResponse<PartnerAttachmentResponse> upload(
             @PathVariable UUID partnerId,
             @RequestParam("type") AttachmentType type,
@@ -102,7 +103,7 @@ public class PartnerAttachmentController {
     @Operation(summary = "첨부 soft-delete",
             description = "SALES/MANAGER/MASTER 권한 필요. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/attachments/{attachmentId}")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "partners.detail", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID attachmentId,
                                                     Principal principal) {
         UUID deleter = resolveUserUuid(principal);
