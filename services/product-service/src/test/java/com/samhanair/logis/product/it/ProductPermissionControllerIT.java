@@ -53,6 +53,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -180,6 +181,46 @@ class ProductPermissionControllerIT {
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
     }
 
+    @ParameterizedTest(name = "price update role={0} status={1}")
+    @CsvSource({
+            "ACCOUNTANT, 200",
+            "SALES, 403"
+    })
+    void priceUpdate_usesProductsPricePermission(String role, int expectedStatus) throws Exception {
+        when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.price")).thenReturn(true);
+        when(dynamicPermissionClient.canEdit("SALES", "products.price")).thenReturn(false);
+
+        mockMvc.perform(withActor(patch("/products/{id}/price", PRODUCT_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sellingPrice\":1200,\"purchasePrice\":900,\"currency\":\"KRW\"}"), role))
+                .andExpect(status().is(expectedStatus));
+    }
+
+    @ParameterizedTest(name = "product edit decision {0} role={1} status={2}")
+    @CsvSource({
+            "approve, MANAGER, 200",
+            "approve, MASTER, 200",
+            "approve, SALES, 403",
+            "approve, ACCOUNTANT, 403",
+            "reject, MANAGER, 200",
+            "reject, MASTER, 200",
+            "reject, SALES, 403",
+            "reject, ACCOUNTANT, 403"
+    })
+    void editRequestDecision_usesDecidePermission(String decision, String role, int expectedStatus) throws Exception {
+        when(dynamicPermissionClient.canEdit("MANAGER", "products.edit-requests.decide")).thenReturn(true);
+        when(dynamicPermissionClient.canEdit("MASTER", "products.edit-requests.decide")).thenReturn(true);
+        when(dynamicPermissionClient.canEdit("SALES", "products.edit-requests.decide")).thenReturn(false);
+        when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.edit-requests.decide")).thenReturn(false);
+        String body = "approve".equals(decision) ? "{\"note\":\"ok\"}" : "{\"reason\":\"no\"}";
+
+        mockMvc.perform(withActor(post("/products/{id}/edit-request/{requestId}/{decision}",
+                        PRODUCT_ID, REQUEST_ID, decision)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body), role))
+                .andExpect(status().is(expectedStatus));
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("product search", "products.list", "VIEW", "SALES", 200,
@@ -200,7 +241,7 @@ class ProductPermissionControllerIT {
                         () -> patch("/products/{id}", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"name\":\"Updated\"}")),
-                new EndpointCase("product price update", "products.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("product price update", "products.price", "EDIT", "ACCOUNTANT", 200,
                         () -> patch("/products/{id}/price", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"sellingPrice\":1200,\"purchasePrice\":900,\"currency\":\"KRW\"}")),
@@ -233,15 +274,15 @@ class ProductPermissionControllerIT {
                         () -> post("/products/{id}/edit-request", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
-                new EndpointCase("edit request approve", "products.edit-requests", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request approve", "products.edit-requests.decide", "EDIT", "MANAGER", 200,
                         () -> post("/products/{id}/edit-request/{requestId}/approve", PRODUCT_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"note\":\"ok\"}")),
-                new EndpointCase("edit request reject", "products.edit-requests", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request reject", "products.edit-requests.decide", "EDIT", "MANAGER", 200,
                         () -> post("/products/{id}/edit-request/{requestId}/reject", PRODUCT_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
-                new EndpointCase("edit request list", "products.edit-requests", "VIEW", "MANAGER", 200,
+                new EndpointCase("edit request list", "products.edit-requests.decide", "VIEW", "MANAGER", 200,
                         () -> get("/products/edit-requests").param("targetRole", "MANAGER"))
         );
     }

@@ -140,6 +140,9 @@ public enum PageCode {
     /** 거래처 주문 작성/임시저장/수정/삭제/견적→주문 화면 (SP-D4). */
     SALES_PARTNER_ORDER_DRAFT("sales.partner-order.draft", "거래처주문 작성"),
 
+    /** 거래처 주문 확정 후 수정/삭제 화면 — SP-D6-2 권한 의미 정정. */
+    SALES_PARTNER_ORDER_EDIT("sales.partner-order.edit", "거래처주문 수정"),
+
     /** 주문 확정/편집요청 화면 (SP-D4). */
     SALES_PARTNER_ORDER_CONFIRM("sales.partner-order.confirm", "주문 확정"),
 
@@ -151,6 +154,11 @@ public enum PageCode {
 
     /** 거래처 주문 수정/삭제 요청 처리 대시보드 — SP-D6-2. */
     SALES_PARTNER_ORDER_EDIT_REQUESTS("sales.partner-order.edit-requests", "거래처주문 수정 요청"),
+
+    /** 거래처 주문 수정/삭제 요청 승인/거절 — SP-D6-2. */
+    SALES_PARTNER_ORDER_EDIT_REQUESTS_DECIDE(
+            "sales.partner-order.edit-requests.decide",
+            "거래처주문 수정 요청 승인"),
 
     /** 거래처 주문 튜토리얼 상태 관리 — SP-D6-2. */
     SALES_PARTNER_ORDER_TUTORIAL("sales.partner-order.tutorial", "거래처주문 튜토리얼"),
@@ -205,8 +213,14 @@ public enum PageCode {
     /** 상품 관리(카테고리 편집) 화면 (SP-D4) — CategoryController. */
     PRODUCTS_ADMIN("products.admin", "상품 관리"),
 
+    /** 상품 가격 변경 — SP-D6-2 ACCOUNTANT 가격 수정 권한 보존. */
+    PRODUCTS_PRICE("products.price", "상품 가격 관리"),
+
     /** 상품 수정/삭제 요청 처리 대시보드 — SP-D6-2. */
     PRODUCTS_EDIT_REQUESTS("products.edit-requests", "상품 수정 요청"),
+
+    /** 상품 수정/삭제 요청 승인/거절 — SP-D6-2. */
+    PRODUCTS_EDIT_REQUESTS_DECIDE("products.edit-requests.decide", "상품 수정 요청 승인"),
 
     /** 이카운트 품목 import 화면/API — SP-D6-2. */
     PRODUCTS_ECOUNT_IMPORT("products.ecount-import", "상품 이카운트 import"),

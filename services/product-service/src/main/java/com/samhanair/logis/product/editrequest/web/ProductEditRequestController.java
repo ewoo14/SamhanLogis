@@ -88,7 +88,7 @@ public class ProductEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{productId}/edit-request/{requestId}/approve")
-    @RequirePermission(page = "products.edit-requests", action = "EDIT")
+    @RequirePermission(page = "products.edit-requests.decide", action = "EDIT")
     public ApiResponse<ProductEditRequestResponse> approveRequest(
             @PathVariable UUID productId,
             @PathVariable UUID requestId,
@@ -112,7 +112,7 @@ public class ProductEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{productId}/edit-request/{requestId}/reject")
-    @RequirePermission(page = "products.edit-requests", action = "EDIT")
+    @RequirePermission(page = "products.edit-requests.decide", action = "EDIT")
     public ApiResponse<ProductEditRequestResponse> rejectRequest(
             @PathVariable UUID productId,
             @PathVariable UUID requestId,
@@ -129,7 +129,7 @@ public class ProductEditRequestController {
     @Operation(summary = "권한자 대시보드 — PENDING 요청 목록",
             description = "PR-H4b — MANAGER 그룹의 PENDING 요청 (대시보드)")
     @GetMapping("/edit-requests")
-    @RequirePermission(page = "products.edit-requests", action = "VIEW")
+    @RequirePermission(page = "products.edit-requests.decide", action = "VIEW")
     public ApiResponse<List<ProductEditRequestResponse>> listForRole(
             @RequestParam EditTargetRole targetRole) {
         List<ProductEditRequest> rows = editRequestService.listPendingForRole(targetRole);

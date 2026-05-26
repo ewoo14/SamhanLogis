@@ -22,6 +22,14 @@ VALUES
     (gen_random_uuid(), 'SALES', 'products.edit-requests', TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'ACCOUNTANT', 'products.edit-requests', TRUE, TRUE, NOW(), 'system', FALSE),
 
+    (gen_random_uuid(), 'MASTER', 'products.edit-requests.decide', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'MANAGER', 'products.edit-requests.decide', TRUE, TRUE, NOW(), 'system', FALSE),
+
+    (gen_random_uuid(), 'MASTER', 'products.price', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'MANAGER', 'products.price', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'DEVELOPER', 'products.price', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'ACCOUNTANT', 'products.price', TRUE, TRUE, NOW(), 'system', FALSE),
+
     (gen_random_uuid(), 'MASTER', 'products.ecount-import', TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'MANAGER', 'products.ecount-import', TRUE, TRUE, NOW(), 'system', FALSE),
 
@@ -32,6 +40,13 @@ VALUES
     (gen_random_uuid(), 'MANAGER', 'sales.partner-order.edit-requests', TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'SALES', 'sales.partner-order.edit-requests', TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'PARTNER', 'sales.partner-order.edit-requests', TRUE, TRUE, NOW(), 'system', FALSE),
+
+    (gen_random_uuid(), 'MASTER', 'sales.partner-order.edit-requests.decide', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'MANAGER', 'sales.partner-order.edit-requests.decide', TRUE, TRUE, NOW(), 'system', FALSE),
+
+    (gen_random_uuid(), 'MASTER', 'sales.partner-order.edit', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'MANAGER', 'sales.partner-order.edit', TRUE, TRUE, NOW(), 'system', FALSE),
+    (gen_random_uuid(), 'SALES', 'sales.partner-order.edit', TRUE, TRUE, NOW(), 'system', FALSE),
 
     (gen_random_uuid(), 'MASTER', 'sales.partner-order.tutorial', TRUE, TRUE, NOW(), 'system', FALSE),
     (gen_random_uuid(), 'MANAGER', 'sales.partner-order.tutorial', TRUE, TRUE, NOW(), 'system', FALSE),

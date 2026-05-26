@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -211,21 +212,50 @@ class PartnerOrderPermissionControllerIT {
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
     }
 
+    @ParameterizedTest(name = "partner-order edit decision {0} role={1} status={2}")
+    @CsvSource({
+            "approve, MANAGER, 200",
+            "approve, MASTER, 200",
+            "approve, SALES, 403",
+            "approve, PARTNER, 403",
+            "reject, MANAGER, 200",
+            "reject, MASTER, 200",
+            "reject, SALES, 403",
+            "reject, PARTNER, 403"
+    })
+    void editRequestDecision_usesDecidePermission(String decision, String role, int expectedStatus) throws Exception {
+        when(dynamicPermissionClient.canEdit("MANAGER", "sales.partner-order.edit-requests.decide"))
+                .thenReturn(true);
+        when(dynamicPermissionClient.canEdit("MASTER", "sales.partner-order.edit-requests.decide"))
+                .thenReturn(true);
+        when(dynamicPermissionClient.canEdit("SALES", "sales.partner-order.edit-requests.decide"))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit-requests.decide"))
+                .thenReturn(false);
+        String body = "approve".equals(decision) ? "{\"note\":\"ok\"}" : "{\"reason\":\"no\"}";
+
+        mockMvc.perform(withActor(post("/api/v1/partner-orders/{id}/edit-request/{requestId}/{decision}",
+                        ORDER_ID, REQUEST_ID, decision)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body), role))
+                .andExpect(status().is(expectedStatus));
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("edit request create", "sales.partner-order.edit-requests", "EDIT", "PARTNER", 201,
                         () -> post("/api/v1/partner-orders/{id}/edit-request", ORDER_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
-                new EndpointCase("edit request approve", "sales.partner-order.edit-requests", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request approve", "sales.partner-order.edit-requests.decide", "EDIT", "MANAGER", 200,
                         () -> post("/api/v1/partner-orders/{id}/edit-request/{requestId}/approve", ORDER_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"note\":\"ok\"}")),
-                new EndpointCase("edit request reject", "sales.partner-order.edit-requests", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request reject", "sales.partner-order.edit-requests.decide", "EDIT", "MANAGER", 200,
                         () -> post("/api/v1/partner-orders/{id}/edit-request/{requestId}/reject", ORDER_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
-                new EndpointCase("edit request list", "sales.partner-order.edit-requests", "VIEW", "MANAGER", 200,
+                new EndpointCase("edit request list", "sales.partner-order.edit-requests.decide", "VIEW", "MANAGER", 200,
                         () -> get("/api/v1/partner-orders/edit-requests").param("targetRole", "MANAGER")),
                 new EndpointCase("vendor upload", "sales.vendor-order", "EDIT", "MANAGER", 200,
                         () -> multipart("/api/v1/admin/partner-order/vendor/upload")
@@ -238,7 +268,7 @@ class PartnerOrderPermissionControllerIT {
                         () -> post("/api/v1/partner-orders/{id}/confirm", ORDER_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(confirmBody())),
-                new EndpointCase("order delete", "sales.partner-order.draft", "EDIT", "MANAGER", 204,
+                new EndpointCase("order delete", "sales.partner-order.edit", "EDIT", "MANAGER", 204,
                         () -> delete("/api/v1/partner-orders/PO-1")),
                 new EndpointCase("draft create", "sales.partner-order.draft", "EDIT", "PARTNER", 201,
                         () -> post("/api/v1/partner-orders/drafts")
@@ -248,7 +278,7 @@ class PartnerOrderPermissionControllerIT {
                         () -> get("/api/v1/partner-orders/drafts")),
                 new EndpointCase("draft detail", "sales.partner-order.draft", "VIEW", "PARTNER", 200,
                         () -> get("/api/v1/partner-orders/drafts/{id}", ORDER_ID)),
-                new EndpointCase("order update", "sales.partner-order.draft", "EDIT", "MANAGER", 200,
+                new EndpointCase("order update", "sales.partner-order.edit", "EDIT", "MANAGER", 200,
                         () -> put("/api/v1/partner-orders/PO-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(updateBody())),

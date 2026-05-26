@@ -39,7 +39,7 @@ export type RbacRole =
 export type PermissionAction = 'view' | 'edit'
 
 /**
- * 페이지 코드 41개 — BE PageCode enum dot-separated code 와 1:1 매핑.
+ * 페이지 코드 — BE PageCode enum dot-separated code 와 1:1 매핑.
  *
  * SP-D1 cycle 2 fix: 대문자 상수(DASHBOARD 등)에서 dot-separated 소문자 코드로 교체.
  * SP-D2: 회계 카테고리 7개 신규 추가 (accounts / journals / balances / reports /
@@ -91,10 +91,12 @@ export type PageCode =
   | 'estimates.list'
   | 'sales.partner-order.list'
   | 'sales.partner-order.draft'
+  | 'sales.partner-order.edit'
   | 'sales.partner-order.confirm'
   | 'sales.partner-order.history'
   | 'sales.partner-order.print'
   | 'sales.partner-order.edit-requests'
+  | 'sales.partner-order.edit-requests.decide'
   | 'sales.partner-order.tutorial'
   | 'sales.vendor-order'
   | 'inventory.warehouse'
@@ -110,7 +112,9 @@ export type PageCode =
   | 'partners.edit-request'
   | 'products.list'
   | 'products.admin'
+  | 'products.price'
   | 'products.edit-requests'
+  | 'products.edit-requests.decide'
   | 'products.ecount-import'
   | 'arologis.admin'
   | 'arologis.region'

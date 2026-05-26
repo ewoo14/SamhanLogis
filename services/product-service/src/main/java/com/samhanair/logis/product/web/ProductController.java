@@ -42,8 +42,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>그 외 (SALES / WAREHOUSE / INVENTORY) — 읽기 전용</li>
  * </ul>
  *
- * <p>SP-D6-2 동적 권한 가드: 조회는 {@code products.list} VIEW, 변경은
- * {@code products.admin} EDIT 를 {@code @RequirePermission} AOP 로 검증한다.
+ * <p>SP-D6-2 동적 권한 가드: 조회는 {@code products.list} VIEW, 일반 변경은
+ * {@code products.admin} EDIT, 가격 변경은 {@code products.price} EDIT 를
+ * {@code @RequirePermission} AOP 로 검증한다.
  */
 @RestController
 @RequestMapping("/products")
@@ -122,7 +123,7 @@ public class ProductController {
     }
 
     @PatchMapping("/{id}/price")
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.price", action = "EDIT")
     public ApiResponse<ProductResponse> updatePrice(@PathVariable UUID id,
                                                     @Valid @RequestBody UpdatePriceRequest request,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

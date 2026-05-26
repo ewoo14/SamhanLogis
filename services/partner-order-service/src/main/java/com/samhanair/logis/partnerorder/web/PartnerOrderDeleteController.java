@@ -31,7 +31,7 @@ public class PartnerOrderDeleteController {
             description = "본사 SALES/MANAGER/MASTER 가 주문과 라인을 soft-delete 처리합니다.")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.edit", action = "EDIT")
     public void delete(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,

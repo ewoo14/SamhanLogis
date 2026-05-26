@@ -5,7 +5,7 @@
  * 역할(행) × 페이지(열) 체크박스 그리드로 권한을 시각적으로 관리.
  *
  * 기능:
- * - 7 역할 × 53 페이지 코드 = 최대 371 셀 (view / edit 체크박스 2개)
+ * - 역할 × 페이지 코드 매트릭스 (view / edit 체크박스 2개)
  * - 셀 변경 시 dirty 상태 강조 (노란 배경)
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
@@ -185,10 +185,12 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'sales.partner-order.list',
       'sales.partner-order.draft',
+      'sales.partner-order.edit',
       'sales.partner-order.confirm',
       'sales.partner-order.history',
       'sales.partner-order.print',
       'sales.partner-order.edit-requests',
+      'sales.partner-order.edit-requests.decide',
       'sales.partner-order.tutorial',
       'sales.vendor-order',
     ],
@@ -224,7 +226,9 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'products.list',
       'products.admin',
+      'products.price',
       'products.edit-requests',
+      'products.edit-requests.decide',
       'products.ecount-import',
     ],
   },
@@ -288,10 +292,12 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'estimates.list': '견적 목록',
   'sales.partner-order.list': '주문 목록',
   'sales.partner-order.draft': '주문 작성',
+  'sales.partner-order.edit': '주문 수정',
   'sales.partner-order.confirm': '주문 확정',
   'sales.partner-order.history': '주문 이력',
   'sales.partner-order.print': '주문서 인쇄',
   'sales.partner-order.edit-requests': '주문 수정 요청',
+  'sales.partner-order.edit-requests.decide': '주문 요청 승인',
   'sales.partner-order.tutorial': '주문 튜토리얼',
   'sales.vendor-order': '벤더 주문',
   'inventory.warehouse': '창고관리',
@@ -307,7 +313,9 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'partners.edit-request': '편집 결재',
   'products.list': '상품 목록',
   'products.admin': '상품 관리',
+  'products.price': '상품 가격',
   'products.edit-requests': '상품 수정 요청',
+  'products.edit-requests.decide': '상품 요청 승인',
   'products.ecount-import': '상품 import',
   'arologis.admin': '아로로지스 배차',
   'arologis.region': '지역·구역',
@@ -348,10 +356,12 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'estimates.list',
   'sales.partner-order.list',
   'sales.partner-order.draft',
+  'sales.partner-order.edit',
   'sales.partner-order.confirm',
   'sales.partner-order.history',
   'sales.partner-order.print',
   'sales.partner-order.edit-requests',
+  'sales.partner-order.edit-requests.decide',
   'sales.partner-order.tutorial',
   'sales.vendor-order',
   'inventory.warehouse',
@@ -366,7 +376,9 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'partners.edit-request',
   'products.list',
   'products.admin',
+  'products.price',
   'products.edit-requests',
+  'products.edit-requests.decide',
   'products.ecount-import',
   'arologis.admin',
   'arologis.region',
