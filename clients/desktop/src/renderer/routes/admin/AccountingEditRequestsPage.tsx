@@ -43,7 +43,8 @@ function extractMessage(err: unknown): string | null {
   )
 }
 
-function requestKey(req: AccountingEditRequest): string {
+/** UUID 비공개 가드 — data-testid 전용 짧은 slice (사용자 텍스트 노출 X). */
+function requestTestId(req: AccountingEditRequest): string {
   return req.id.slice(0, 8)
 }
 
@@ -180,11 +181,11 @@ export function AccountingEditRequestsPage() {
             </thead>
             <tbody>
               {list.map((req) => {
-                const key = requestKey(req)
+                const testIdSlice = requestTestId(req)
                 return (
                   <tr
-                    key={key}
-                    data-testid={`admin-accounting-edit-requests-row-${key}`}
+                    key={req.id}
+                    data-testid={`admin-accounting-edit-requests-row-${testIdSlice}`}
                   >
                     <td>{req.requesterName}</td>
                     <td>
@@ -214,7 +215,7 @@ export function AccountingEditRequestsPage() {
                       <Button
                         variant="primary"
                         size="sm"
-                        data-testid={`admin-accounting-edit-requests-approve-${key}`}
+                        data-testid={`admin-accounting-edit-requests-approve-${testIdSlice}`}
                         disabled={approveMutation.isPending}
                         onClick={() => handleApprove(req)}
                       >
@@ -224,7 +225,7 @@ export function AccountingEditRequestsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        data-testid={`admin-accounting-edit-requests-reject-${key}`}
+                        data-testid={`admin-accounting-edit-requests-reject-${testIdSlice}`}
                         disabled={rejectMutation.isPending}
                         onClick={() => handleOpenReject(req)}
                       >
