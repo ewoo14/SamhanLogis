@@ -172,6 +172,11 @@ class InventoryAuditControllerIT extends AbstractPostgresIT {
         body.put("warehouseId", hqId.toString());
         body.put("auditDate", "2026-12-31");
 
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+                .thenReturn(false);
+
         mockMvc.perform(post("/inventory/audits")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "WAREHOUSE")

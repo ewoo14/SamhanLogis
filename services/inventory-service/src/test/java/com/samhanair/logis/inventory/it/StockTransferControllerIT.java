@@ -253,6 +253,11 @@ class StockTransferControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         // WAREHOUSE 가 approve → 403 (MASTER/MANAGER/INVENTORY 만 허용).
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+                .thenReturn(false);
+
         mockMvc.perform(post("/inventory/transfers/" + transferId + "/approve")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "WAREHOUSE"))

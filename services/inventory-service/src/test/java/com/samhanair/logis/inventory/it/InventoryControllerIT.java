@@ -318,6 +318,11 @@ class InventoryControllerIT extends AbstractPostgresIT {
         body.put("unitCost", 100000);
         body.put("lotNo", "SALES-FAIL-001");
 
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+
         mockMvc.perform(post("/inventory/lots/inbound")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")

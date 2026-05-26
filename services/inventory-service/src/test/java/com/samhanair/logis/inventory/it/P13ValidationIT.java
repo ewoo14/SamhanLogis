@@ -209,6 +209,11 @@ class P13ValidationIT extends AbstractPostgresIT {
      */
     @Test
     void listAlerts_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+
         mockMvc.perform(get("/inventory/alerts/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
@@ -222,6 +227,11 @@ class P13ValidationIT extends AbstractPostgresIT {
     void setSafetyStock_salesRole_returns403() throws Exception {
         Map<String, Object> req = Map.of("warehouseId", WH_HQ_001.toString(),
                 "threshold", 50);
+
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
 
         mockMvc.perform(post("/inventory/products/" + PROD_001 + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -440,6 +450,11 @@ class P13ValidationIT extends AbstractPostgresIT {
      */
     @Test
     void alertCount_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+                .thenReturn(false);
+
         mockMvc.perform(get("/inventory/alerts/safety-stock/count")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
