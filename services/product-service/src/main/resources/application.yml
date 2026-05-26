@@ -54,6 +54,10 @@ app:
     edit-request:
       expires-hours: ${SAMHAN_PRODUCT_EDIT_REQUEST_EXPIRES_HOURS:24}
 
+samhan:
+  auth-service:
+    url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
+
 # Google Sheets 연동 (옵션 C-2 sync source-of-truth)
 # 시크릿: GOOGLE_SERVICE_ACCOUNT_KEY 환경변수 → JSON path. 본 코드 placeholder 만 보유 (.env 별도)
 google:

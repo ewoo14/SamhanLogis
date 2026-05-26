@@ -87,6 +87,8 @@ class ProductControllerIT extends AbstractPostgresIT {
 
     @Test
     void salesRole_post_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "products.admin"))
+                .thenReturn(false);
         var body = Map.of(
                 "name", "테스트 제품",
                 "modelName", "TEST-SALES-001",
@@ -172,6 +174,8 @@ class ProductControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
 
         // ACCOUNTANT 의 전체 PATCH → 403 (이름/태그 등 비-가격 필드는 MANAGER 권한 필요)
+        Mockito.when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.admin"))
+                .thenReturn(false);
         var fullPatch = Map.of("name", "이름 바꿔줘", "tags", Map.of("전압", "380V"));
         mockMvc.perform(patch("/products/" + pid)
                         .header("X-User-Id", UUID.randomUUID().toString())

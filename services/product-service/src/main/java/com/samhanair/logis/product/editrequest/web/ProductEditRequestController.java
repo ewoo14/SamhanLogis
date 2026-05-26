@@ -7,6 +7,7 @@ import com.samhanair.logis.product.editrequest.web.dto.ApproveRequest;
 import com.samhanair.logis.product.editrequest.web.dto.CreateEditRequestRequest;
 import com.samhanair.logis.product.editrequest.web.dto.ProductEditRequestResponse;
 import com.samhanair.logis.product.editrequest.web.dto.RejectRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,7 +66,7 @@ public class ProductEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "제품 미존재")
     })
     @PostMapping("/{productId}/edit-request")
-    @PreAuthorize("hasAnyRole('SALES','ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "products.edit-requests", action = "EDIT")
     public ResponseEntity<ApiResponse<ProductEditRequestResponse>> createRequest(
             @PathVariable UUID productId,
             @Valid @RequestBody CreateEditRequestRequest request,
@@ -87,7 +88,7 @@ public class ProductEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{productId}/edit-request/{requestId}/approve")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "products.edit-requests", action = "EDIT")
     public ApiResponse<ProductEditRequestResponse> approveRequest(
             @PathVariable UUID productId,
             @PathVariable UUID requestId,
@@ -111,7 +112,7 @@ public class ProductEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{productId}/edit-request/{requestId}/reject")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "products.edit-requests", action = "EDIT")
     public ApiResponse<ProductEditRequestResponse> rejectRequest(
             @PathVariable UUID productId,
             @PathVariable UUID requestId,
@@ -128,7 +129,7 @@ public class ProductEditRequestController {
     @Operation(summary = "권한자 대시보드 — PENDING 요청 목록",
             description = "PR-H4b — MANAGER 그룹의 PENDING 요청 (대시보드)")
     @GetMapping("/edit-requests")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "products.edit-requests", action = "VIEW")
     public ApiResponse<List<ProductEditRequestResponse>> listForRole(
             @RequestParam EditTargetRole targetRole) {
         List<ProductEditRequest> rows = editRequestService.listPendingForRole(targetRole);

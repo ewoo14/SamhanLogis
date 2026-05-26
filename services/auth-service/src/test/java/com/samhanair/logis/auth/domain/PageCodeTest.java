@@ -118,4 +118,20 @@ class PageCodeTest {
         assertThat(PageCode.isValid("system.permission-admin")).isTrue();
         assertThat(PageCode.isValid("sales.partner-dc-config")).isTrue();
     }
+
+    @Test
+    void spD62_pageCodes_V30_seed와_동기화() {
+        assertThat(PageCode.MESSENGER_ADMIN.getCode()).isEqualTo("messenger.admin");
+        assertThat(PageCode.MESSENGER_SEND.getCode()).isEqualTo("messenger.send");
+        assertThat(PageCode.PRODUCTS_EDIT_REQUESTS.getCode()).isEqualTo("products.edit-requests");
+        assertThat(PageCode.PRODUCTS_ECOUNT_IMPORT.getCode()).isEqualTo("products.ecount-import");
+        assertThat(PageCode.SALES_PARTNER_ORDER_EDIT_REQUESTS.getCode())
+                .isEqualTo("sales.partner-order.edit-requests");
+        assertThat(PageCode.SALES_PARTNER_ORDER_TUTORIAL.getCode())
+                .isEqualTo("sales.partner-order.tutorial");
+
+        assertThat(PageCode.isValid("messenger.admin")).isTrue();
+        assertThat(PageCode.isValid("products.ecount-import")).isTrue();
+        assertThat(PageCode.isValid("sales.partner-order.edit-requests")).isTrue();
+    }
 }

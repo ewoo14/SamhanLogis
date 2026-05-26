@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D2 회계 카테고리 7개 추가 (accounts / journals / balances / reports / period-close / statement-batch / partner-ledger) — 총 19개.
  * <p>SP-D4 잔여 7 도메인 22개 추가 (견적 / 거래처주문 / 재고 / 직원 / 거래처 / 상품 / 아로로지스) — 총 41개.
  * <p>SP-D6-1 system.* / dc-config / dashboard / 거래처 DC 설정 PageCode 추가.
+ * <p>SP-D6-2 groupware / product / partner-order migration 신규 PageCode 추가.
  */
 @Getter
 @RequiredArgsConstructor
@@ -73,6 +74,12 @@ public enum PageCode {
 
     /** Aligo SMS 발송 이력 화면 (SP-09-2). */
     NOTIFICATION_DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차 SMS 발송 이력"),
+
+    /** 메신저/결재/일정 관리자 기능 — SP-D6-2. */
+    MESSENGER_ADMIN("messenger.admin", "메신저 관리"),
+
+    /** 메신저 발송/수신함/일정 일반 기능 — SP-D6-2. */
+    MESSENGER_SEND("messenger.send", "메신저 발송"),
 
     // ---- 매입 (purchases) ----
 
@@ -142,6 +149,12 @@ public enum PageCode {
     /** 주문서 인쇄 화면 (SP-D4). */
     SALES_PARTNER_ORDER_PRINT("sales.partner-order.print", "주문서 인쇄"),
 
+    /** 거래처 주문 수정/삭제 요청 처리 대시보드 — SP-D6-2. */
+    SALES_PARTNER_ORDER_EDIT_REQUESTS("sales.partner-order.edit-requests", "거래처주문 수정 요청"),
+
+    /** 거래처 주문 튜토리얼 상태 관리 — SP-D6-2. */
+    SALES_PARTNER_ORDER_TUTORIAL("sales.partner-order.tutorial", "거래처주문 튜토리얼"),
+
     /** 벤더(외주) 발주서 업로드/확정 화면 (SP-D4) — VendorOrderController. */
     SALES_VENDOR_ORDER("sales.vendor-order", "벤더(외주) 주문"),
 
@@ -191,6 +204,12 @@ public enum PageCode {
 
     /** 상품 관리(카테고리 편집) 화면 (SP-D4) — CategoryController. */
     PRODUCTS_ADMIN("products.admin", "상품 관리"),
+
+    /** 상품 수정/삭제 요청 처리 대시보드 — SP-D6-2. */
+    PRODUCTS_EDIT_REQUESTS("products.edit-requests", "상품 수정 요청"),
+
+    /** 이카운트 품목 import 화면/API — SP-D6-2. */
+    PRODUCTS_ECOUNT_IMPORT("products.ecount-import", "상품 이카운트 import"),
 
     // ---- 아로로지스 (arologis) ----
 

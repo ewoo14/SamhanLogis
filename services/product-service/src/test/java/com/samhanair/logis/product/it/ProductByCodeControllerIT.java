@@ -13,13 +13,16 @@ import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,10 +56,17 @@ class ProductByCodeControllerIT extends AbstractPostgresIT {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     private Category category;
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
         category = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))
                 .findFirst()
@@ -100,6 +110,8 @@ class ProductByCodeControllerIT extends AbstractPostgresIT {
 
     @Test
     void byCode_customerRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canView("CUSTOMER", "products.list"))
+                .thenReturn(false);
         // Phase 7 종합 TM — @PreAuthorize 7-tier 화이트리스트 (MASTER/MANAGER/DEVELOPER/SALES/
         // ACCOUNTANT/WAREHOUSE/INVENTORY) 거부 검증. CUSTOMER role 은 by-code 조회 권한 X.
         // 인증은 통과 (X-User-Id + X-User-Role 헤더 → SecurityContext) 하나 권한 단계에서 거부 → 403.

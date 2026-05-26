@@ -48,6 +48,7 @@ export type PermissionAction = 'view' | 'edit'
  * SP-D4: 잔여 7 도메인 22개 신규 추가 (estimates / sales.partner-order.* /
  *         sales.vendor-order / inventory.* / admin.* / partners.* / products.* / arologis.*).
  * SP-D6-1: system.* / dc-config.import / dashboard.admin + 거래처 DC 설정 권한 추가.
+ * SP-D6-2: messenger.* / product edit-request/import / partner-order edit-request/tutorial 추가.
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
@@ -63,6 +64,8 @@ export type PageCode =
   | 'accounting.daily-closing'
   | 'accounting.general-ledger'
   | 'notification.dispatch-sms.send-audit'
+  | 'messenger.admin'
+  | 'messenger.send'
   | 'purchases.receipt-ocr'
   | 'purchases.slip.list'
   | 'sales.slip.list'
@@ -91,6 +94,8 @@ export type PageCode =
   | 'sales.partner-order.confirm'
   | 'sales.partner-order.history'
   | 'sales.partner-order.print'
+  | 'sales.partner-order.edit-requests'
+  | 'sales.partner-order.tutorial'
   | 'sales.vendor-order'
   | 'inventory.warehouse'
   | 'inventory.stock'
@@ -105,6 +110,8 @@ export type PageCode =
   | 'partners.edit-request'
   | 'products.list'
   | 'products.admin'
+  | 'products.edit-requests'
+  | 'products.ecount-import'
   | 'arologis.admin'
   | 'arologis.region'
   // MIG-14 admin UI 4 groups

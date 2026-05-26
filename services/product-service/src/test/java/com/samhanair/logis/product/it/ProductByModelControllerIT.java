@@ -9,13 +9,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.repository.CategoryRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,11 +52,18 @@ class ProductByModelControllerIT extends AbstractPostgresIT {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     private UUID categoryId;
     private static final String MODEL = "BY-MODEL-TEST-001";
 
     @BeforeEach
     void setUp() throws Exception {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
         Category cat = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))
                 .findFirst()

@@ -14,6 +14,7 @@ import com.samhanair.logis.groupware.dto.ScheduleRequest;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -61,9 +62,13 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @MockBean
     private UserClient userClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void cleanup() {
+        lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
         // Phase 9 W3 — bulk verify 채택. 모든 입력 ID 를 true 매핑하여 통과시킨다.
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {

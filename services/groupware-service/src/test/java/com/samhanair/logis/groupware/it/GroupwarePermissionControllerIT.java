@@ -1,0 +1,241 @@
+package com.samhanair.logis.groupware.it;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.samhanair.logis.groupware.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.groupware.controller.GroupwareAdminController;
+import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.Message;
+import com.samhanair.logis.groupware.domain.Schedule;
+import com.samhanair.logis.groupware.service.ApprovalLineService;
+import com.samhanair.logis.groupware.service.MessageService;
+import com.samhanair.logis.groupware.service.ScheduleService;
+import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionGuardMetrics;
+import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+/** SP-D6-2 groupware-service @RequirePermission slice 테스트. */
+@WebMvcTest(
+        controllers = GroupwareAdminController.class,
+        properties = "spring.application.name=groupware-service")
+@Import({
+        PermissionSecurityAutoConfiguration.class,
+        GroupwarePermissionControllerIT.TestSecurityConfig.class,
+        GroupwarePermissionControllerIT.TestMeterConfig.class
+})
+class GroupwarePermissionControllerIT {
+
+    private static final String SERVICE_NAME = "groupware-service";
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
+    private static final String ADMIN_PAGE = "messenger.admin";
+    private static final String SEND_PAGE = "messenger.send";
+
+    @Autowired private MockMvc mockMvc;
+    @Autowired private MeterRegistry meterRegistry;
+
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean private ApprovalLineService approvalLineService;
+    @MockBean private MessageService messageService;
+    @MockBean private ScheduleService scheduleService;
+    @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+
+        ApprovalLine approval = ApprovalLine.open(UUID.randomUUID(), "SP-D6-2 결재", "테스트");
+        approval.appendStep(UUID.randomUUID());
+        Message message = Message.send(UUID.randomUUID(), UUID.randomUUID(), "테스트 메시지");
+        Schedule schedule = Schedule.create(
+                UUID.randomUUID(),
+                "테스트 일정",
+                "본문",
+                LocalDateTime.of(2026, 5, 26, 9, 0),
+                LocalDateTime.of(2026, 5, 26, 10, 0),
+                null);
+
+        lenient().when(approvalLineService.create(any())).thenReturn(approval);
+        lenient().when(approvalLineService.approve(any(), any())).thenReturn(approval);
+        lenient().when(approvalLineService.reject(any(), any(), any())).thenReturn(approval);
+        lenient().when(messageService.send(any())).thenReturn(message);
+        lenient().when(messageService.inbox(any(), any())).thenReturn(new PageImpl<>(List.of(message), PageRequest.of(0, 50), 1));
+        lenient().when(scheduleService.create(any())).thenReturn(schedule);
+        lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
+        lenient().when(scheduleService.update(any(), any())).thenReturn(schedule);
+    }
+
+    @ParameterizedTest(name = "{0} grant -> 2xx")
+    @MethodSource("endpoints")
+    void migratedEndpoint_withGrant_returns2xx(EndpointCase endpoint) throws Exception {
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
+                .andExpect(status().is2xxSuccessful());
+    }
+
+    @ParameterizedTest(name = "{0} deny -> 403 + counter")
+    @MethodSource("endpoints")
+    void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
+        if ("VIEW".equals(endpoint.action())) {
+            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
+        } else {
+            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
+        }
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+    }
+
+    static Stream<EndpointCase> endpoints() {
+        UUID id = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        return Stream.of(
+                new EndpointCase("create approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                        () -> post("/admin/groupware/approvals")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"requesterId":"00000000-0000-0000-0000-000000000011","title":"결재","content":"본문","approverIds":["00000000-0000-0000-0000-000000000012"]}
+                                        """)),
+                new EndpointCase("approve approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                        () -> put("/admin/groupware/approvals/{id}/approve", id)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"approverId":"00000000-0000-0000-0000-000000000012","reason":null}
+                                        """)),
+                new EndpointCase("reject approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                        () -> put("/admin/groupware/approvals/{id}/reject", id)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"approverId":"00000000-0000-0000-0000-000000000012","reason":"반려"}
+                                        """)),
+                new EndpointCase("send message", SEND_PAGE, "EDIT", "SALES",
+                        () -> post("/admin/groupware/messages")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"senderId":"00000000-0000-0000-0000-000000000021","recipientId":"00000000-0000-0000-0000-000000000022","body":"안녕하세요"}
+                                        """)),
+                new EndpointCase("message inbox", SEND_PAGE, "VIEW", "SALES",
+                        () -> get("/admin/groupware/messages/inbox")
+                                .param("userId", "00000000-0000-0000-0000-000000000022")),
+                new EndpointCase("create schedule", SEND_PAGE, "EDIT", "SALES",
+                        () -> post("/admin/groupware/schedules")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(scheduleBody())),
+                new EndpointCase("find schedule", SEND_PAGE, "VIEW", "SALES",
+                        () -> get("/admin/groupware/schedules")
+                                .param("ownerId", "00000000-0000-0000-0000-000000000031")
+                                .param("from", "2026-05-26T08:00:00")
+                                .param("to", "2026-05-26T18:00:00")),
+                new EndpointCase("update schedule", SEND_PAGE, "EDIT", "SALES",
+                        () -> put("/admin/groupware/schedules/{id}", id)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(scheduleBody())),
+                new EndpointCase("delete schedule", ADMIN_PAGE, "EDIT", "MANAGER",
+                        () -> delete("/admin/groupware/schedules/{id}", id))
+        );
+    }
+
+    private static String scheduleBody() {
+        return """
+                {"ownerId":"00000000-0000-0000-0000-000000000031","title":"일정","description":"본문","startsAt":"2026-05-26T09:00:00","endsAt":"2026-05-26T10:00:00","status":null,"participantIds":[]}
+                """;
+    }
+
+    private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
+        return request
+                .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                .header(ROLE_HEADER, role);
+    }
+
+    private double deniedCount(String page, String role, String action) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", page,
+                "role", role,
+                "action", action
+        ).count();
+    }
+
+    record EndpointCase(
+            String name,
+            String page,
+            String action,
+            String role,
+            Supplier<MockHttpServletRequestBuilder> request) {
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    @TestConfiguration
+    @EnableMethodSecurity
+    static class TestSecurityConfig {
+
+        @Bean("hr")
+        HrAuthorizationHelper hrAuthorizationHelper() {
+            return new HrAuthorizationHelper();
+        }
+
+        @Bean
+        SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
+            http
+                    .csrf(AbstractHttpConfigurer::disable)
+                    .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                    .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                    .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+            return http.build();
+        }
+    }
+
+    @TestConfiguration
+    static class TestMeterConfig {
+
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
+        }
+    }
+}

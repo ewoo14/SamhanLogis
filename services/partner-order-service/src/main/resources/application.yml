@@ -76,6 +76,8 @@ google:
 
 # samhan.* — partner-order-service 전용 옵션 (PartnerOrderProperties / OutboxProperties)
 samhan:
+  auth-service:
+    url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   # legacy 호환 (Phase 11 cutover 시점 제거 가능)
   internal-token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_TOKEN:dev-only-token-replace}}
   draft:

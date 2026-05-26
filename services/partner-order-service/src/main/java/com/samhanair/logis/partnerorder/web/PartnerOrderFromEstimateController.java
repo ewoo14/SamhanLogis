@@ -4,11 +4,11 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -33,7 +33,7 @@ public class PartnerOrderFromEstimateController {
             description = "견적 snapshot 을 partner-order-service 주문 row 로 변환합니다.")
     @PostMapping("/from-estimate/{estimateId}")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MASTER','MANAGER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
     public ApiResponse<PartnerOrderDetailResponse> createFromEstimate(
             @PathVariable UUID estimateId,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,

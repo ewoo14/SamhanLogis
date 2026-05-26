@@ -9,6 +9,7 @@ import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -20,7 +21,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,12 +42,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>그 외 (SALES / WAREHOUSE / INVENTORY) — 읽기 전용</li>
  * </ul>
  *
- * <p>SP-D4 동적 권한 이중 가드:
- * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>GET 조회 → {@link ProductPermissionGuard#checkView(String, String)} (PAGE_LIST)</li>
- *   <li>POST/PATCH/DELETE write → {@link ProductPermissionGuard#checkEdit(String, String)}</li>
- * </ul>
+ * <p>SP-D6-2 동적 권한 가드: 조회는 {@code products.list} VIEW, 변경은
+ * {@code products.admin} EDIT 를 {@code @RequirePermission} AOP 로 검증한다.
  */
 @RestController
 @RequestMapping("/products")
@@ -58,9 +54,9 @@ public class ProductController {
     private static final String ROLE_HEADER   = "X-User-Role";
 
     private final ProductService productService;
-    private final ProductPermissionGuard productPermissionGuard;
 
     @GetMapping
+    @RequirePermission(page = "products.list", action = "VIEW")
     public ApiResponse<Page<ProductSummaryResponse>> search(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) ProductStatus status,
@@ -70,16 +66,15 @@ public class ProductController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkView(roleHeader, ProductPermissionGuard.PAGE_LIST);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(productService.search(categoryId, status, tagKey, tagValue, q, pageable));
     }
 
     @GetMapping("/{id}")
+    @RequirePermission(page = "products.list", action = "VIEW")
     public ApiResponse<ProductResponse> getOne(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkView(roleHeader, ProductPermissionGuard.PAGE_LIST);
         return ApiResponse.ok(productService.getOne(id));
     }
 
@@ -98,78 +93,72 @@ public class ProductController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "모델명에 해당하는 제품이 없습니다")
     })
     @GetMapping("/by-model/{modelName}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "products.list", action = "VIEW")
     public ApiResponse<ProductResponse> getByModelName(@PathVariable String modelName) {
         return ApiResponse.ok(productService.getByModelName(modelName));
     }
 
     @PostMapping("/lookup")
+    @RequirePermission(page = "products.list", action = "VIEW")
     public ApiResponse<List<ProductSummaryResponse>> lookup(@Valid @RequestBody LookupRequest request) {
         return ApiResponse.ok(productService.lookup(request.ids()));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<ProductResponse> create(
             @Valid @RequestBody CreateProductRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(productService.create(request));
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<ProductResponse> update(@PathVariable UUID id,
                                                @Valid @RequestBody UpdateProductRequest request,
                                                @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(productService.update(id, request));
     }
 
     @PatchMapping("/{id}/price")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','ACCOUNTANT')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<ProductResponse> updatePrice(@PathVariable UUID id,
                                                     @Valid @RequestBody UpdatePriceRequest request,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(productService.updatePrice(id, request));
     }
 
     @PutMapping("/{id}/tags")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<ProductResponse> replaceTags(@PathVariable UUID id,
                                                     @RequestBody Map<String, String> tags,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         return ApiResponse.ok(productService.replaceTags(id, tags));
     }
 
     @PostMapping("/{id}/discontinue")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public void discontinue(@PathVariable UUID id,
                             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         productService.discontinue(id);
     }
 
     @PostMapping("/{id}/reactivate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public void reactivate(@PathVariable UUID id,
                            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         productService.reactivate(id);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        productPermissionGuard.checkEdit(roleHeader, ProductPermissionGuard.PAGE_ADMIN);
         productService.delete(id, callerHeader);
     }
 }

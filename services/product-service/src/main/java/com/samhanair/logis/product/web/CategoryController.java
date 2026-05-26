@@ -5,12 +5,12 @@ import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.web.dto.CategoryResponse;
 import com.samhanair.logis.product.web.dto.CreateCategoryRequest;
 import com.samhanair.logis.product.web.dto.UpdateCategoryRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -39,13 +39,13 @@ public class CategoryController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<CategoryResponse> create(@Valid @RequestBody CreateCategoryRequest request) {
         return ApiResponse.ok(categoryService.create(request));
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public ApiResponse<CategoryResponse> update(@PathVariable UUID id,
                                                 @Valid @RequestBody UpdateCategoryRequest request) {
         return ApiResponse.ok(categoryService.update(id, request));
@@ -53,7 +53,7 @@ public class CategoryController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @RequirePermission(page = "products.admin", action = "EDIT")
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         categoryService.delete(id, callerHeader);

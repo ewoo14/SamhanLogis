@@ -11,6 +11,7 @@ import com.samhanair.logis.groupware.dto.ScheduleResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
 import com.samhanair.logis.groupware.service.MessageService;
 import com.samhanair.logis.groupware.service.ScheduleService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -57,7 +58,8 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청자 / 결재자 미존재")
     })
     @PostMapping("/approvals")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ResponseEntity<ApiResponse<ApprovalLineAdminResponse>> createApproval(
             @Valid @RequestBody ApprovalLineCreateRequest req) {
         var line = approvalLineService.create(req);
@@ -68,7 +70,8 @@ public class GroupwareAdminController {
     /** 결재 승인. */
     @Operation(summary = "결재 승인")
     @PutMapping("/approvals/{approvalId}/approve")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ApiResponse<ApprovalLineAdminResponse> approve(@PathVariable UUID approvalId,
                                                           @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.approve(approvalId, req.approverId());
@@ -78,7 +81,8 @@ public class GroupwareAdminController {
     /** 결재 반려. */
     @Operation(summary = "결재 반려")
     @PutMapping("/approvals/{approvalId}/reject")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ApiResponse<ApprovalLineAdminResponse> reject(@PathVariable UUID approvalId,
                                                          @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.reject(approvalId, req.approverId(), req.reason());
@@ -94,7 +98,7 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 실패")
     })
     @PostMapping("/messages")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY','DEVELOPER')")
+    @RequirePermission(page = "messenger.send", action = "EDIT")
     public ResponseEntity<ApiResponse<MessageResponse>> sendMessage(@Valid @RequestBody MessageSendRequest req) {
         var msg = messageService.send(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(MessageResponse.from(msg)));
@@ -103,7 +107,7 @@ public class GroupwareAdminController {
     /** 수신함 — 발송 시각 역순. */
     @Operation(summary = "메신저 수신함")
     @GetMapping("/messages/inbox")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY','DEVELOPER')")
+    @RequirePermission(page = "messenger.send", action = "VIEW")
     public ApiResponse<List<MessageResponse>> inbox(@RequestParam UUID userId) {
         var page = messageService.inbox(userId, org.springframework.data.domain.PageRequest.of(0, 50));
         return ApiResponse.ok(page.map(MessageResponse::from).getContent());
@@ -119,7 +123,7 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "소유자 / 참여자 미존재")
     })
     @PostMapping("/schedules")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY','DEVELOPER')")
+    @RequirePermission(page = "messenger.send", action = "EDIT")
     public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(@Valid @RequestBody ScheduleRequest req) {
         var schedule = scheduleService.create(req);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -129,7 +133,7 @@ public class GroupwareAdminController {
     /** 일정 조회 (소유자 + 기간). */
     @Operation(summary = "일정 조회 (소유자 + 기간)")
     @GetMapping("/schedules")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY','DEVELOPER')")
+    @RequirePermission(page = "messenger.send", action = "VIEW")
     public ApiResponse<List<ScheduleResponse>> findSchedules(
             @RequestParam UUID ownerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
@@ -141,7 +145,7 @@ public class GroupwareAdminController {
     /** 일정 수정. */
     @Operation(summary = "일정 수정")
     @PutMapping("/schedules/{scheduleId}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY','DEVELOPER')")
+    @RequirePermission(page = "messenger.send", action = "EDIT")
     public ApiResponse<ScheduleResponse> updateSchedule(@PathVariable UUID scheduleId,
                                                         @Valid @RequestBody ScheduleRequest req) {
         var schedule = scheduleService.update(scheduleId, req);
@@ -151,7 +155,7 @@ public class GroupwareAdminController {
     /** 일정 삭제 (soft). */
     @Operation(summary = "일정 삭제 (soft)")
     @DeleteMapping("/schedules/{scheduleId}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> deleteSchedule(@PathVariable UUID scheduleId, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
         scheduleService.delete(scheduleId, actor);

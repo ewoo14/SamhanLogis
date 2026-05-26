@@ -7,6 +7,7 @@ import com.samhanair.logis.partnerorder.vendor.service.VendorOrderService;
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmRequest;
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmResponse;
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderUploadResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -17,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -57,14 +57,11 @@ public class VendorOrderController {
 
     private final VendorOrderService vendorOrderService;
     private final ObjectProvider<OcrEngine> ocrEngineProvider;
-    private final com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard permissionGuard;
 
     public VendorOrderController(VendorOrderService vendorOrderService,
-                                 ObjectProvider<OcrEngine> ocrEngineProvider,
-                                 com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard permissionGuard) {
+                                 ObjectProvider<OcrEngine> ocrEngineProvider) {
         this.vendorOrderService = vendorOrderService;
         this.ocrEngineProvider = ocrEngineProvider;
-        this.permissionGuard = permissionGuard;
     }
 
     /**
@@ -83,7 +80,7 @@ public class VendorOrderController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "OCR 미사용 (Tesseract 미설치)")
     })
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "sales.vendor-order", action = "EDIT")
     public ResponseEntity<ApiResponse<VendorOrderUploadResponse>> upload(
             @Parameter(description = "발주서 파일 (PDF / PNG / JPEG)")
             @RequestPart("file") MultipartFile file,
@@ -91,7 +88,6 @@ public class VendorOrderController {
             @RequestParam(value = "partnerCode", required = false) String partnerCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) throws IOException {
-        permissionGuard.checkEdit(roleHeader, com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard.PAGE_VENDOR);
         if (ocrEngineProvider.getIfAvailable() == null) {
             return serviceUnavailable();
         }
@@ -113,12 +109,11 @@ public class VendorOrderController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미발견")
     })
     @PostMapping("/confirm")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "sales.vendor-order", action = "EDIT")
     public ApiResponse<VendorOrderConfirmResponse> confirm(
             @Valid @RequestBody VendorOrderConfirmRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        permissionGuard.checkEdit(roleHeader, com.samhanair.logis.partnerorder.web.PartnerOrderPermissionGuard.PAGE_VENDOR);
         log.info("vendor confirm — actor={}, vendor={}, partnerCode={}, lines={}",
                 fallback(userId), request.vendorName(), request.partnerCode(),
                 request.lines() == null ? 0 : request.lines().size());

@@ -2,11 +2,11 @@ package com.samhanair.logis.partnerorder.web;
 
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDeleteService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -31,7 +31,7 @@ public class PartnerOrderDeleteController {
             description = "본사 SALES/MANAGER/MASTER 가 주문과 라인을 soft-delete 처리합니다.")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('SALES','MASTER','MANAGER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
     public void delete(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,

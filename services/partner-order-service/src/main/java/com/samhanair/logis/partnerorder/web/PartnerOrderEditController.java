@@ -5,11 +5,11 @@ import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,7 +37,7 @@ public class PartnerOrderEditController {
     @Operation(summary = "거래처 주문 즉시 수정",
             description = "본사 SALES/MANAGER/MASTER 가 주문 헤더와 라인을 낙관적 잠금으로 수정합니다.")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SALES','MASTER','MANAGER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
     public ApiResponse<PartnerOrderDetailResponse> update(
             @PathVariable String id,
             @Valid @RequestBody PartnerOrderUpdateRequest request,

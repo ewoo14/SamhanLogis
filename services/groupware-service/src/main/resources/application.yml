@@ -20,6 +20,10 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+      jakarta:
+        persistence:
+          lock:
+            timeout: 3000
     open-in-view: false
   flyway:
     enabled: true
@@ -36,6 +40,8 @@ eureka:
 samhan:
   discovery:
     provider: ${SAMHAN_DISCOVERY_PROVIDER:eureka}
+  auth-service:
+    url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   user-service:
     url: ${SAMHAN_USER_SERVICE_URL:http://localhost:8083}
 

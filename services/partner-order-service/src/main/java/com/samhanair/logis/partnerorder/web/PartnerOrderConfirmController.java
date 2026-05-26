@@ -4,12 +4,12 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,11 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>본 endpoint 는 임시저장 ID (path) 를 받아 → DC + reserve + slip 발행. slipNo 는 응답에서
  * PUBLISHED 시 채워지고 PENDING_RETRY 시 null (FE 는 polling 또는 history 조회로 확인).
  *
- * <p>SP-D4 동적 권한 이중 가드:
- * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>POST 확정 → {@link PartnerOrderPermissionGuard#checkEdit(String, String)} (PAGE_CONFIRM)</li>
- * </ul>
+ * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.confirm} EDIT.
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
@@ -44,7 +40,6 @@ public class PartnerOrderConfirmController {
     private static final String ROLE_HEADER         = "X-User-Role";
 
     private final PartnerOrderConfirmService confirmService;
-    private final PartnerOrderPermissionGuard permissionGuard;
 
     /**
      * 임시저장 → 확정 (path variable = draftId). draftId 없이 confirm 도 향후 슬라이스에서 가능
@@ -60,7 +55,7 @@ public class PartnerOrderConfirmController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 중복 confirm")
     })
     @PostMapping("/{draftId}/confirm")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','PARTNER','SALES')")
+    @RequirePermission(page = "sales.partner-order.confirm", action = "EDIT")
     public ApiResponse<ConfirmResponse> confirm(
             @PathVariable UUID draftId,
             @Valid @RequestBody ConfirmRequest request,
@@ -68,7 +63,6 @@ public class PartnerOrderConfirmController {
             @RequestHeader(value = BIZ_CODE_HEADER, required = false) String bizCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        permissionGuard.checkEdit(roleHeader, PartnerOrderPermissionGuard.PAGE_CONFIRM);
         return ApiResponse.ok(
                 confirmService.confirm(partnerCode, bizCode, fallback(userId), draftId, request));
     }

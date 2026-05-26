@@ -5,6 +5,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -15,7 +16,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,7 +50,7 @@ public class PartnerOrderDraftController {
     @Operation(summary = "임시저장 생성", description = "30일 TTL — 거래처별 draftSeq 자동 부여")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','PARTNER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
     public ApiResponse<DraftResponse> create(
             @Valid @RequestBody DraftCreateRequest request,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
@@ -63,7 +63,7 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 페이지 조회", description = "본인 거래처 createdAt DESC")
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','PARTNER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "VIEW")
     public ApiResponse<Page<DraftResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -79,7 +79,7 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 단건 조회", description = "payload 포함 상세")
     @GetMapping("/{draftId}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','PARTNER')")
+    @RequirePermission(page = "sales.partner-order.draft", action = "VIEW")
     public ApiResponse<DraftDetailResponse> getOne(
             @PathVariable UUID draftId,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {

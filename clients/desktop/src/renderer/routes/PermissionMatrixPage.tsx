@@ -5,7 +5,7 @@
  * 역할(행) × 페이지(열) 체크박스 그리드로 권한을 시각적으로 관리.
  *
  * 기능:
- * - 7 역할 × 47 페이지 코드 = 최대 329 셀 (view / edit 체크박스 2개)
+ * - 7 역할 × 53 페이지 코드 = 최대 371 셀 (view / edit 체크박스 2개)
  * - 셀 변경 시 dirty 상태 강조 (노란 배경)
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
@@ -91,6 +91,7 @@ interface PageGroup {
  * SP-D3: 그룹 수 유지
  * SP-D4: 7 신규 그룹 + 22 코드 추가
  * SP-D6-1: system.* 3종 + dc-config.import/dashboard.admin + sales.partner-dc-config 추가
+ * SP-D6-2: messenger.* + products.* 보강 + partner-order edit-request/tutorial 추가
  */
 const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
@@ -150,6 +151,13 @@ const PAGE_GROUPS: PageGroup[] = [
     ],
   },
   {
+    label: '메신저',
+    pages: [
+      'messenger.admin',
+      'messenger.send',
+    ],
+  },
+  {
     label: '관리',
     pages: [
       'admin.permissions',
@@ -180,6 +188,8 @@ const PAGE_GROUPS: PageGroup[] = [
       'sales.partner-order.confirm',
       'sales.partner-order.history',
       'sales.partner-order.print',
+      'sales.partner-order.edit-requests',
+      'sales.partner-order.tutorial',
       'sales.vendor-order',
     ],
   },
@@ -214,6 +224,8 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'products.list',
       'products.admin',
+      'products.edit-requests',
+      'products.ecount-import',
     ],
   },
   {
@@ -244,6 +256,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.daily-closing': '일마감',
   'accounting.general-ledger': '원장',
   'notification.dispatch-sms.send-audit': 'SMS 이력',
+  'messenger.admin': '메신저 관리',
+  'messenger.send': '메신저 발송',
   'purchases.receipt-ocr': '영수증 OCR',
   'purchases.slip.list': '매입 슬립',
   'sales.slip.list': '매출 슬립',
@@ -277,6 +291,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'sales.partner-order.confirm': '주문 확정',
   'sales.partner-order.history': '주문 이력',
   'sales.partner-order.print': '주문서 인쇄',
+  'sales.partner-order.edit-requests': '주문 수정 요청',
+  'sales.partner-order.tutorial': '주문 튜토리얼',
   'sales.vendor-order': '벤더 주문',
   'inventory.warehouse': '창고관리',
   'inventory.stock': '재고 현황',
@@ -291,6 +307,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'partners.edit-request': '편집 결재',
   'products.list': '상품 목록',
   'products.admin': '상품 관리',
+  'products.edit-requests': '상품 수정 요청',
+  'products.ecount-import': '상품 import',
   'arologis.admin': '아로로지스 배차',
   'arologis.region': '지역·구역',
 }
@@ -306,6 +324,8 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'accounting.deposit-match',
   'accounting.daily-closing',
   'notification.dispatch-sms.send-audit',
+  'messenger.admin',
+  'messenger.send',
   'purchases.receipt-ocr',
   'purchases.slip.list',
   'sales.slip.list',
@@ -331,6 +351,8 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'sales.partner-order.confirm',
   'sales.partner-order.history',
   'sales.partner-order.print',
+  'sales.partner-order.edit-requests',
+  'sales.partner-order.tutorial',
   'sales.vendor-order',
   'inventory.warehouse',
   'inventory.stock',
@@ -344,6 +366,8 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'partners.edit-request',
   'products.list',
   'products.admin',
+  'products.edit-requests',
+  'products.ecount-import',
   'arologis.admin',
   'arologis.region',
 ])
