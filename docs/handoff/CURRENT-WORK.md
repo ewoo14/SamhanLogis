@@ -4,7 +4,53 @@
 
 ---
 
-## 🚧 2026-05-21 최신 진행 — MIG-23 로컬 6 client 직접 검증 환경
+## ✅ 2026-05-26 최신 — Issue 4 통합 알림 센터 시리즈 종료 (3 slice 모두 머지)
+
+### 시리즈 머지 누적
+
+| PR | 슬라이스 | head | merged | 산출 |
+|---|---|---|---|---|
+| #297 | **Slice 1** — notification-service BE 도메인 (Notification entity + REST API 4종 + Flyway V12) | `7ae51fae` | 2026-05-22 | target_role TEXT[] + GIN index + XOR invariant + internal endpoint MASTER 가드 |
+| #298 | **Slice 2** — FE UI (NotificationBellDropdown + NotificationHistoryPage + AppLayout 통합 + mock seed 3건) | `2f306327` | 2026-05-22 | history invalidate + deeplink safety guard |
+| #299 | **Slice 3** — source 통합 (SafetyStockService + MessageService → NotificationPublisher) | `6c862fbd` | 2026-05-26 | shared:notification-publisher 모듈 + LB-aware RestClient + fail-soft + afterCommit helper |
+
+### PR #299 사이클 누적 (option A 12단계, N=1 안 완료)
+
+| 사이클 | head | 결함 | 처리 |
+|---|---|---|---|
+| 1a Claude 5-agent | `945bc00c` | **P1×2** (UUID 노출 — SafetyStock title + Messenger title) + **P2** (MessageService publish @Transactional 내부) = 3건 | 1c fix |
+| 1c Claude fix | `7a16ff8f` | 0 (UUID 노출 → productCode/modelName/warehouseName + sender displayName, MessageService afterCommit) | 1d 진입 |
+| 1d Codex 5-section | — | **P2 1** (SafetyStockService publish 도 afterCommit 통일 + helper 추출) | 1e fix |
+| 1e Codex fix | `c353dcb2` | 0 (NotificationPublisherSupport.publishAfterCommit 단일 helper + SafetyStockService afterCommit) | 9단계 Claude verify |
+| 9 Claude verify | — | **APPROVE** — P0/P1/P2 = 0, Minor 2 (가이드성) | PM 자동 머지 |
+| CI | — | ✅ **25/25 PASS** | PM 자동 머지 실행 |
+
+### Slice 3 산출
+
+- `shared/notification-publisher/` 신규 모듈 (Spring AutoConfiguration + LB-aware RestClient + fail-soft + afterCommit helper)
+- `NotificationPublisher` (publish + fail-soft + X-Internal-Token + X-User-Id/Role 헤더)
+- `NotificationPublisherSupport.publishAfterCommit(publisher, request)` 공유 helper (Tx synchronization 검사 + afterCommit 등록, 비-Tx 환경 fallback)
+- `SafetyStockService.fireAlert` → afterCommit publish (1e), title 에 productCode + modelName + warehouseName 비즈니스 식별자 (1c)
+- `MessageService.send` → afterCommit publish (1c), title 에 sender displayName fallback (1c)
+
+### 다음 단계 — 사용자 결정 대기 (`feedback_pm_auto_continuous.md` 멈춤 조건 = 시리즈 종료)
+
+**후보**:
+1. **Issue 4 후속 확장** — 결재/주문/이카운트 등 추가 채널 통합 (Slice 4+)
+2. **admin UI 화면 (MIG-1~11 잔여)** — Cash/Order/AgingSnapshot/Ledger 운영 화면 후속
+3. **외부 통합 실 연동** — KFTC / NTS / Aligo / Clova (SP-09 shell 완비, vendor key 도착 시)
+4. **Phase 11 AWS migration** — RDS + EC2 + Secrets Manager (최후 순위)
+5. **잔여 SP-08/SP-D 백로그** — P2-6 NTS e-tax, ~475 @PreAuthorize 점진 마이그레이션
+
+---
+
+## ✅ 2026-05-22 진행 — MIG-23 로컬 6 client 직접 검증 환경 (머지 완료)
+
+PR #291 머지 완료 (head `649bba98`). 핸드오프 stale 정리.
+
+기존 작업 기록 (참고용):
+
+## 🚧 2026-05-21 진행 — MIG-23 로컬 6 client 직접 검증 환경 (이전 기록)
 
 ### 현재 브랜치
 - `spec/2026-05-21-mig-23-local-6-client-direct-test`
