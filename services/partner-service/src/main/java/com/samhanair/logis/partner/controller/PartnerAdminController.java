@@ -25,6 +25,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -78,6 +79,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "partnerCode 또는 bizNo 중복")
     })
     @PostMapping
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.edit", action = "EDIT")
     public ApiResponse<PartnerAdminResponse> create(
             @Valid @RequestBody PartnerAdminRequest req,
@@ -151,6 +153,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "다중 매칭 (lookup 모호)")
     })
     @GetMapping("/by-name")
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.edit", action = "VIEW")
     public ApiResponse<PartnerAdminResponse> lookupByName(@RequestParam("name") String name) {
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByName(name)));
@@ -180,6 +183,7 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 프로필 수정", description = "name / address / phone 만 변경. creditLimit 변경은 별도 사용")
     @PutMapping("/{partnerCode}")
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.edit", action = "EDIT")
     public ApiResponse<PartnerAdminResponse> update(
             @PathVariable String partnerCode,
@@ -193,6 +197,7 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 soft-delete")
     @DeleteMapping("/{partnerCode}")
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.delete", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String partnerCode, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
@@ -220,6 +225,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export/aligo-csv")
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.edit", action = "VIEW")
     public ResponseEntity<byte[]> exportAligoCsv() {
         byte[] csv = aligoExportService.exportAligoCsv();
@@ -251,6 +257,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
+    @PreAuthorize("@hr.isExecutiveOffice()")
     @RequirePermission(page = "partners.edit", action = "VIEW")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) String q,

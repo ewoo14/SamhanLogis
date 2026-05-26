@@ -39,6 +39,7 @@ import com.samhanair.logis.partner.service.PartnerService;
 import com.samhanair.logis.partner.tab.service.Partner4TabService;
 import com.samhanair.logis.partner.tab.web.Partner4TabController;
 import com.samhanair.logis.partner.web.PartnerAttachmentController;
+import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
@@ -55,6 +56,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,6 +101,7 @@ class PartnerPermissionControllerIT {
     private static final String SERVICE_NAME = "partner-service";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
+    private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final UUID ENTITY_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");
     private static final UUID ATTACHMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000402");
     private static final UUID REQUEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000403");
@@ -179,6 +182,18 @@ class PartnerPermissionControllerIT {
                 .andExpect(status().isForbidden());
 
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    void partnerAdminCreate_nonExecutiveManagerWithDynamicGrant_returns403ByHrStaticGuard() throws Exception {
+        double before = deniedCount("partners.edit", "MANAGER", "EDIT");
+
+        mockMvc.perform(withActor(post("/admin/partners")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(partnerBody()), "MANAGER", "영업1팀"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount("partners.edit", "MANAGER", "EDIT")).isEqualTo(before);
     }
 
     static Stream<EndpointCase> endpoints() {
@@ -297,9 +312,17 @@ class PartnerPermissionControllerIT {
     }
 
     private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
+        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department) {
         return request
                 .header(USER_ID_HEADER, ENTITY_ID.toString())
-                .header(ROLE_HEADER, role);
+                .header(ROLE_HEADER, role)
+                .header(DEPARTMENT_HEADER, department);
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -328,6 +351,11 @@ class PartnerPermissionControllerIT {
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
+
+        @Bean("hr")
+        HrAuthorizationHelper hrAuthorizationHelper() {
+            return new HrAuthorizationHelper();
+        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
