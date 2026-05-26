@@ -7,11 +7,11 @@ import com.samhanair.logis.notification.dto.DispatchBatchSendRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
 import com.samhanair.logis.notification.service.DispatchBatchPreviewService;
 import com.samhanair.logis.notification.service.DispatchBatchSendService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST /send — 실 발송 (FE 가 수정한 메시지 포함 entry 목록)</li>
  * </ol>
  *
- * <p>권한 가드 — DISPATCH (배차담당) / MANAGER / MASTER 풀네임. 2-step 모두 동일.
+ * <p>권한 가드 — {@code dispatch.batch} EDIT 동적 권한. 2-step 모두 동일.
  */
 @RestController
 @RequestMapping("/admin/notifications/dispatch-batch")
@@ -48,7 +48,7 @@ public class DispatchBatchAdminController {
     @Operation(summary = "배차안내 SMS 미리보기 (Admin)",
             description = "DISPATCH / MANAGER / MASTER 권한. 출고전표 + 단톡방 매핑 + blocked 가드 + 메시지 템플릿 dryRun.")
     @PostMapping("/preview")
-    @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")
+    @RequirePermission(page = "dispatch.batch", action = "EDIT")
     public ApiResponse<DispatchBatchPreviewResponse> preview(
             @Valid @RequestBody DispatchBatchPreviewRequest req) {
         return ApiResponse.ok(previewService.preview(req));
@@ -67,7 +67,7 @@ public class DispatchBatchAdminController {
     @Operation(summary = "배차안내 SMS 실 발송 (Admin)",
             description = "DISPATCH / MANAGER / MASTER 권한. preview 결과 confirm 후 entry 별 SmsAdapter 호출. 발송 완료 후 SEND_AUDIT 자동 저장.")
     @PostMapping("/send")
-    @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")
+    @RequirePermission(page = "dispatch.batch", action = "EDIT")
     public ApiResponse<DispatchBatchSendResponse> send(
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Valid @RequestBody DispatchBatchSendRequest req) {

@@ -8,6 +8,7 @@ import com.samhanair.logis.notification.dto.ChatRoomMappingCreateRequest;
 import com.samhanair.logis.notification.dto.ChatRoomMappingResponse;
 import com.samhanair.logis.notification.service.ChatRoomImportService;
 import com.samhanair.logis.notification.service.ChatRoomMappingService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -18,7 +19,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 단톡방 매핑 admin endpoint (PR-D Part 2-3 — Samhan Public native 이식).
  *
  * <p>경로: {@code /api/v1/notification/admin/chat-rooms}.
- * 인증 = X-User-* 헤더 (gateway 경유) + {@code @PreAuthorize} 권한 가드 (MASTER / MANAGER).
+ * 인증 = X-User-* 헤더 (gateway 경유) + {@code @RequirePermission} 동적 권한 가드.
  *
  * <p>UUID 비공개 가드 — 응답 / path variable 은 partner_code + chat_room_name 위주, id (UUID) 는
  * DELETE path variable 한정 (admin 화면 내부).
@@ -65,7 +65,7 @@ public class ChatRoomMappingAdminController {
     @Operation(summary = "단톡방 매핑 목록 (Admin)",
             description = "MASTER / MANAGER 권한 필요. partnerCode / chatRoomName 필터 지원.")
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "messenger.admin", action = "VIEW")
     public ApiResponse<List<ChatRoomMappingResponse>> list(
             @RequestParam(required = false) String partnerCode,
             @RequestParam(required = false) String partnerBusinessName,
@@ -104,7 +104,7 @@ public class ChatRoomMappingAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "중복 매핑")
     })
     @PostMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ResponseEntity<ApiResponse<ChatRoomMappingResponse>> create(
             @Valid @RequestBody ChatRoomMappingCreateRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -124,7 +124,7 @@ public class ChatRoomMappingAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파일 누락 또는 파싱 실패")
     })
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ApiResponse<ChatRoomImportResult> importCsv(@RequestPart("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일이 비어있습니다");
@@ -141,7 +141,7 @@ public class ChatRoomMappingAdminController {
      */
     @Operation(summary = "단톡방 매핑 soft-delete (Admin)")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "messenger.admin", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
         mappingService.delete(id, actor);

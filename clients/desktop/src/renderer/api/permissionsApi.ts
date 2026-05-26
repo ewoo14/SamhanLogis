@@ -52,6 +52,7 @@ export type PermissionAction = 'view' | 'edit'
  *         sales.vendor-order / inventory.* / admin.* / partners.* / products.* / arologis.*).
  * SP-D6-1: system.* / dc-config.import / dashboard.admin + 거래처 DC 설정 권한 추가.
  * SP-D6-2: messenger.* / product edit-request/import / partner-order edit-request/tutorial 추가.
+ * SP-D6-3: notification admin / aligo address-book / dispatch save-history/batch 추가.
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
@@ -67,6 +68,8 @@ export type PageCode =
   | 'accounting.daily-closing'
   | 'accounting.general-ledger'
   | 'notification.dispatch-sms.send-audit'
+  | 'notifications.admin'
+  | 'aligo.address-book'
   | 'messenger.admin'
   | 'messenger.send'
   | 'purchases.receipt-ocr'
@@ -75,6 +78,8 @@ export type PageCode =
   | 'sales.partner-dc-config'
   | 'inbound.inspection'
   | 'dispatch.board'
+  | 'dispatch.sms-save-history'
+  | 'dispatch.batch'
   | 'admin.permissions'
   | 'system.permission-admin'
   | 'system.password-admin'
@@ -109,6 +114,10 @@ export type PageCode =
   | 'inventory.audit'
   | 'admin.employees'
   | 'admin.users'
+  | 'ecount.mig2.department'
+  | 'ecount.mig6.employee'
+  | 'ecount.mig6.employee-card'
+  | 'ecount.mig6.payroll-employee'
   | 'partners.list'
   | 'partners.detail'
   | 'partners.block'

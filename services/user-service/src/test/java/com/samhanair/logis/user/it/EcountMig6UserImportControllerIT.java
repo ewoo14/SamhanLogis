@@ -62,6 +62,9 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         if ("headerMismatch".equals(label)) {
             stubHeaderMismatch(url);
         }
+        if ("memberForbidden".equals(label)) {
+            when(dynamicPermissionClient.canEdit("MEMBER", pageCode(url))).thenReturn(false);
+        }
 
         var request = multipart(url).file(file);
         if (includeUserId) {
@@ -98,6 +101,16 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         } else {
             when(employeeImporter.importCsv(any(InputStream.class), anyString())).thenThrow(ex);
         }
+    }
+
+    private String pageCode(String url) {
+        if (url.contains("employee-cards")) {
+            return "ecount.mig6.employee-card";
+        }
+        if (url.contains("payroll-employees")) {
+            return "ecount.mig6.payroll-employee";
+        }
+        return "ecount.mig6.employee";
     }
 
     private static Stream<Arguments> cases() {

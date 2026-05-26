@@ -99,6 +99,7 @@ interface PageGroup {
  * SP-D4: 7 신규 그룹 + 22 코드 추가
  * SP-D6-1: system.* 3종 + dc-config.import/dashboard.admin + sales.partner-dc-config 추가
  * SP-D6-2: messenger.* + products.* 보강 + partner-order edit-request/tutorial 추가
+ * SP-D6-3: notifications.admin / aligo.address-book / dispatch.sms-save-history / dispatch.batch 추가
  */
 const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
@@ -149,12 +150,16 @@ const PAGE_GROUPS: PageGroup[] = [
     label: '배차',
     pages: [
       'dispatch.board',
+      'dispatch.sms-save-history',
+      'dispatch.batch',
     ],
   },
   {
     label: '알림',
     pages: [
       'notification.dispatch-sms.send-audit',
+      'notifications.admin',
+      'aligo.address-book',
     ],
   },
   {
@@ -217,6 +222,10 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'admin.employees',
       'admin.users',
+      'ecount.mig2.department',
+      'ecount.mig6.employee',
+      'ecount.mig6.employee-card',
+      'ecount.mig6.payroll-employee',
     ],
   },
   {
@@ -267,6 +276,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.daily-closing': '일마감',
   'accounting.general-ledger': '원장',
   'notification.dispatch-sms.send-audit': 'SMS 이력',
+  'notifications.admin': '알림 발송',
+  'aligo.address-book': '알리고 주소록',
   'messenger.admin': '메신저 관리',
   'messenger.send': '메신저 발송',
   'purchases.receipt-ocr': '영수증 OCR',
@@ -275,6 +286,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'sales.partner-dc-config': '거래처 DC 설정',
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
+  'dispatch.sms-save-history': '배차문자 저장',
+  'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',
   'system.permission-admin': '시스템 권한',
   'system.password-admin': '비밀번호 관리',
@@ -314,6 +327,10 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'inventory.audit': '재고 감사',
   'admin.employees': '직원 관리',
   'admin.users': '계정 관리',
+  'ecount.mig2.department': '부서 import',
+  'ecount.mig6.employee': '사원 import',
+  'ecount.mig6.employee-card': '인사카드 import',
+  'ecount.mig6.payroll-employee': '급여사원 import',
   'partners.list': '거래처 목록',
   'partners.detail': '거래처 상세',
   'partners.block': '거래처 차단',
@@ -339,6 +356,8 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'accounting.deposit-match',
   'accounting.daily-closing',
   'notification.dispatch-sms.send-audit',
+  'notifications.admin',
+  'aligo.address-book',
   'messenger.admin',
   'messenger.send',
   'purchases.receipt-ocr',
@@ -347,6 +366,8 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'sales.partner-dc-config',
   'inbound.inspection',
   'dispatch.board',
+  'dispatch.sms-save-history',
+  'dispatch.batch',
   'admin.permissions',
   'system.permission-admin',
   'system.password-admin',
@@ -377,6 +398,11 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'inventory.dps',
   'inventory.audit',
   'admin.employees',
+  'admin.users',
+  'ecount.mig2.department',
+  'ecount.mig6.employee',
+  'ecount.mig6.employee-card',
+  'ecount.mig6.payroll-employee',
   'partners.list',
   'partners.detail',
   'partners.block',

@@ -15,6 +15,7 @@ import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.repository.DispatchSmsSaveHistoryRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -68,10 +69,13 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
     @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
     @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
     @MockBean private AligoAddressBookClient aligoAddressBookClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
         // blocked 가드 — 기본 false (발송 진행)
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
         Mockito.lenient().when(blockedPartnerLookupClient.isBlocked(Mockito.anyString())).thenReturn(false);
     }
 

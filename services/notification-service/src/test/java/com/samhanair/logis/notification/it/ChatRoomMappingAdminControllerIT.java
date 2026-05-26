@@ -12,6 +12,7 @@ import com.samhanair.logis.notification.client.PartnerLookupClient;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.dto.ChatRoomMappingCreateRequest;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -62,9 +63,13 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
     private UserClient userClient;
     @MockBean
     private PartnerLookupClient partnerLookupClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setup() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
             List<UUID> ids = inv.getArgument(0);

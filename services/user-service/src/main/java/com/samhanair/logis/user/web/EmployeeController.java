@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.Role;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.user.domain.Employee;
 import com.samhanair.logis.user.repository.EmployeeRepository;
 import com.samhanair.logis.user.service.EmployeeProvisioningService;
@@ -35,11 +36,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Employee CRUD + lookup. Authorization is via gateway-injected X-User-Role headers.
  *
- * <p>SP-D4 동적 권한 이중 가드:
+ * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
  *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>GET 조회 → {@link EmployeePermissionGuard#checkView(String, String)} (PAGE_EMPLOYEES)</li>
- *   <li>POST/PATCH write → {@link EmployeePermissionGuard#checkEdit(String, String)}</li>
+ *   <li>POST/PATCH write → {@code @RequirePermission(page="admin.employees", action="EDIT")}</li>
  * </ul>
  */
 @RestController
@@ -58,11 +58,11 @@ public class EmployeeController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "admin.employees", action = "EDIT")
     public ApiResponse<EmployeeResponse> create(
             @Valid @RequestBody CreateEmployeeRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.create(request, parseCaller(callerHeader)));
     }
 
@@ -102,35 +102,35 @@ public class EmployeeController {
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "admin.employees", action = "EDIT")
     public ApiResponse<EmployeeResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEmployeeRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.update(id, request, parseCaller(callerHeader)));
     }
 
     @PatchMapping("/{id}/role")
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "admin.employees", action = "EDIT")
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         return ApiResponse.ok(provisioningService.updateRole(id, request.role(), parseCaller(callerHeader)));
     }
 
     @PostMapping("/{id}/terminate")
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "admin.employees", action = "EDIT")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void terminate(
             @PathVariable UUID id,
             @Valid @RequestBody TerminateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkEdit(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
         provisioningService.terminate(id, request.terminationDate(), parseCaller(callerHeader));
     }
 

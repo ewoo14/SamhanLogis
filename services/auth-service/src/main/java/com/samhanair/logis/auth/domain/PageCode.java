@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D4 잔여 7 도메인 22개 추가 (견적 / 거래처주문 / 재고 / 직원 / 거래처 / 상품 / 아로로지스) — 총 41개.
  * <p>SP-D6-1 system.* / dc-config / dashboard / 거래처 DC 설정 PageCode 추가.
  * <p>SP-D6-2 groupware / product / partner-order migration 신규 PageCode 추가.
+ * <p>SP-D6-3 notification / user migration 신규 PageCode 추가.
  */
 @Getter
 @RequiredArgsConstructor
@@ -75,6 +76,12 @@ public enum PageCode {
     /** Aligo SMS 발송 이력 화면 (SP-09-2). */
     NOTIFICATION_DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차 SMS 발송 이력"),
 
+    /** 알림 발송 admin 화면/API — SP-D6-3. */
+    NOTIFICATIONS_ADMIN("notifications.admin", "알림 발송 관리"),
+
+    /** 알리고 주소록 sync admin 화면/API — SP-D6-3. */
+    ALIGO_ADDRESS_BOOK("aligo.address-book", "알리고 주소록"),
+
     /** 메신저/결재/일정 관리자 기능 — SP-D6-2. */
     MESSENGER_ADMIN("messenger.admin", "메신저 관리"),
 
@@ -106,6 +113,12 @@ public enum PageCode {
 
     /** 배차 보드 화면. */
     DISPATCH_BOARD("dispatch.board", "배차 보드"),
+
+    /** 배차문자 저장내역 화면/API — SP-D6-3. */
+    DISPATCH_SMS_SAVE_HISTORY("dispatch.sms-save-history", "배차문자 저장내역"),
+
+    /** 배차안내 SMS batch preview/send — SP-D6-3. */
+    DISPATCH_BATCH("dispatch.batch", "배차 SMS batch"),
 
     // ---- 관리 (admin) ----
 

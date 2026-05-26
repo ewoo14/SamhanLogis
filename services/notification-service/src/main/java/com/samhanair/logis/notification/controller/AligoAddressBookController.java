@@ -3,10 +3,10 @@ package com.samhanair.logis.notification.controller;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
 import com.samhanair.logis.notification.service.AligoAddressBookSyncService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 운영자가 본 endpoint 호출 시 partner-service 의 활성 거래처 (BE-1 Part A 의 CSV) 를 fetch +
  * parse → 알리고 주소록 API 호출 (현 단계는 mock dryRun, PR-F2 후속에서 실 구현체 교체).
  *
- * <p>인증 = X-User-* 헤더 (gateway 경유) + {@code @PreAuthorize} 권한 가드 (MASTER / MANAGER).
+ * <p>인증 = X-User-* 헤더 (gateway 경유) + {@code @RequirePermission} 동적 권한 가드.
  * SALES / WAREHOUSE 등 일반 사용자는 sync trigger 불가.
  */
 @RestController
@@ -43,7 +43,7 @@ public class AligoAddressBookController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @PostMapping("/sync")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "aligo.address-book", action = "EDIT")
     public ApiResponse<AligoAddressBookSyncResponse> sync() {
         return ApiResponse.ok(syncService.sync());
     }

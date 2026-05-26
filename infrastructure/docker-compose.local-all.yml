@@ -424,6 +424,7 @@ services:
       SAMHAN_NOTIFICATION_DB_NAME: notification_db
       SAMHAN_NOTIFICATION_DB_USER: samhan
       SAMHAN_NOTIFICATION_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SMTP_HOST: localhost
       SMTP_PORT: "2525"
     ports:

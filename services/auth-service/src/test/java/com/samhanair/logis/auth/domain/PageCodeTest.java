@@ -144,4 +144,17 @@ class PageCodeTest {
         assertThat(PageCode.isValid("sales.partner-order.edit-requests")).isTrue();
         assertThat(PageCode.isValid("sales.partner-order.edit-requests.decide")).isTrue();
     }
+
+    @Test
+    void spD63_pageCodes_V33_seed와_동기화() {
+        assertThat(PageCode.NOTIFICATIONS_ADMIN.getCode()).isEqualTo("notifications.admin");
+        assertThat(PageCode.ALIGO_ADDRESS_BOOK.getCode()).isEqualTo("aligo.address-book");
+        assertThat(PageCode.DISPATCH_SMS_SAVE_HISTORY.getCode()).isEqualTo("dispatch.sms-save-history");
+        assertThat(PageCode.DISPATCH_BATCH.getCode()).isEqualTo("dispatch.batch");
+
+        assertThat(PageCode.isValid("notifications.admin")).isTrue();
+        assertThat(PageCode.isValid("aligo.address-book")).isTrue();
+        assertThat(PageCode.isValid("dispatch.sms-save-history")).isTrue();
+        assertThat(PageCode.isValid("dispatch.batch")).isTrue();
+    }
 }

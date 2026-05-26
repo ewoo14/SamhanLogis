@@ -2,6 +2,7 @@ package com.samhanair.logis.notification.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,6 +25,7 @@ import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.RecipientType;
 import com.samhanair.logis.notification.repository.NotificationLogRepository;
 import com.samhanair.logis.notification.repository.NotificationRequestRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -82,10 +84,15 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
     @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
     @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
     @MockBean private AligoAddressBookClient aligoAddressBookClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void stubExternalClients() {
         // lenient stub — 외부 client 가 호출되더라도 NPE/Eureka 오류 방지
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canView(SALES_ROLE, "notifications.admin")).thenReturn(false);
+        lenient().when(dynamicPermissionClient.canEdit(SALES_ROLE, "notifications.admin")).thenReturn(false);
         lenient().when(blockedPartnerLookupClient.isBlocked(any())).thenReturn(false);
     }
 

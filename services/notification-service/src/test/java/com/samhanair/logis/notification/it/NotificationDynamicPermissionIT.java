@@ -43,7 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>canView=false → 저장내역 GET 403</li>
  *   <li>canView=true → 저장내역 GET 200</li>
  *   <li>canEdit=false + canView=true → 저장 POST 403 (view-only override)</li>
- *   <li>canEdit=false + canView=false → 저장 POST fallback 통과</li>
+ *   <li>canEdit=false + canView=false → 저장 POST 403 (SP-D6 @RequirePermission strict deny)</li>
  * </ul>
  *
  * <p>케이스 목록:
@@ -51,7 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>C1: DISPATCH, canView=true → GET history 200 OK</li>
  *   <li>C2: DISPATCH, canView=false → GET history 403 FORBIDDEN</li>
  *   <li>C3: DISPATCH, canEdit=false + canView=true → POST history 403 (view-only override)</li>
- *   <li>C4: DISPATCH, canEdit=false + canView=false → POST history fallback 통과</li>
+ *   <li>C4: DISPATCH, canEdit=false + canView=false → POST history 403</li>
  *   <li>C5: DISPATCH, canView=true → GET /latest 200</li>
  *   <li>C6: MANAGER, canView=false → GET /latest 403</li>
  * </ol>
@@ -160,13 +160,13 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // C4: DISPATCH, canEdit=false + canView=false → POST history fallback 통과
+    // C4: DISPATCH, canEdit=false + canView=false → POST history 403
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C4: DISPATCH canEdit=false + canView=false → POST 저장 fallback 통과")
+    @DisplayName("C4: DISPATCH canEdit=false + canView=false → POST 저장 403")
     @WithMockUser(username = "dispatch-fallback", authorities = {"ROLE_DISPATCH"})
-    void C4_save_canEdit_false_canView_false_fallback() throws Exception {
+    void C4_save_canEdit_false_canView_false_returns_403() throws Exception {
         when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
         when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
 
@@ -176,17 +176,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
                         .header("X-User-Role", "DISPATCH")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // fallback 통과 → 403/500 금지
-                    if (status == 403) {
-                        throw new AssertionError(
-                                "C4 fallback: 403 발생 — canEdit=false+canView=false 시 fallback 통과 필요 (SP-D3 정책)");
-                    }
-                    if (status == 500) {
-                        throw new AssertionError("C4 fallback: 500 발생 — 내부 오류 금지");
-                    }
-                });
+                .andExpect(status().isForbidden());
     }
 
     // -------------------------------------------------------------------------

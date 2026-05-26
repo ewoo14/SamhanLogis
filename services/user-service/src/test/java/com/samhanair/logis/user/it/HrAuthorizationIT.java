@@ -47,9 +47,14 @@ class HrAuthorizationIT extends AbstractPostgresIT {
 
     @MockBean
     private com.samhanair.logis.user.client.AuthClient authClient;
+    @MockBean
+    private com.samhanair.logis.security.permission.DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canView("SALES", "admin.employees")).thenReturn(false);
         lenient().doNothing().when(authClient).createAccount(
                 any(java.util.UUID.class), anyString(), anyString(), anyString(), any(Role.class));
         lenient().doNothing().when(authClient).createAccount(
