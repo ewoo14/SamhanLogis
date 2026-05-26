@@ -4,6 +4,92 @@
 
 ---
 
+## 🚧 2026-05-27 진행 중 — SP-D6-7 (PR #310) accounting 마이그레이션 CI 회귀 cycle 무한 루프
+
+### 현재 상태
+
+- **PR #310** 발행 (`feat/sp-d6-7-accounting-permission-migration`)
+- **헤드**: `bddca90c` (cycle 1g)
+- **CI**: 21 success / 2 failure (반복)
+
+### SP-D6 시리즈 진행 누적 (본 세션, 7 슬라이스 시도)
+
+| 슬라이스 | endpoint | PR | 상태 |
+|---|---|---|---|
+| SP-D6-1 | 15 (auth+dashboard+dc-config) | #304 | ✅ merged `7964d29c` |
+| SP-D6-2 | ~35 (groupware+product+partner-order) | #305 | ✅ merged `a4e1d22a` |
+| SP-D6-3 | ~31 (notification+user) | #306 | ✅ merged `b3838473` |
+| SP-D6-4 | ~91 (partner+arologis) | #307 | ✅ merged `092b3f4c` |
+| SP-D6-5 | ~50 (inventory) | #308 | ✅ merged `688ec730` |
+| SP-D6-6 | ~80 (slip) | #309 | ✅ merged `cc030f67` |
+| **SP-D6-7** | **~100 (accounting)** | **#310** | 🚧 **cycle 1g, CI 2 fail 반복** |
+| **누적** | **~302 endpoint 머지 + ~100 진행** | — | — |
+
+### PR #310 사이클 시도 history
+
+| 사이클 | head | 발견 / fix |
+|---|---|---|
+| 1a Codex 5-section | `29e220c9` | P1 (V37 accounting.edit-requests MANAGER 권한 확대) + P2 (DailyClosing/SupplierProfile legacy DPC) + CI 8 IT fail (AccountingDynamicPermission/Realtime/DailyClosing/DepositMatchShell) |
+| 1c | `b242fc13` | V37 MANAGER edit=FALSE 정정 + legacy DPC 정합 + 4 IT 보강 |
+| 1c CI | — | 5 새 IT fail (EcountMig4/5/6/10/11 import) |
+| 1e | `16393da4` | 5 Ecount Mig IT 보강 |
+| 1e CI | — | 5 새 IT fail (EcountMig7/8/9 + EcountVoucher + HometaxExport) |
+| 1g | `bddca90c` | AbstractPostgresIT base lenient default 추가 + Mig7/8/9 deny case 명시 |
+| 1g CI | — | **7 새 IT fail (Journal/MonthEnd/P04/Phase9/Supplier/TaxInvoice/TaxInvoiceEmitNts)** |
+
+### 핵심 문제: 매 cycle 새 IT 그룹 fail 발견
+
+- accounting-service 가 100 endpoint × ~30 IT 클래스로 매우 큼
+- `@PreAuthorize` → `@RequirePermission` 변환이 광범위 회귀
+- AbstractPostgresIT base lenient default 추가 후에도 일부 IT 가 자체 setUp 또는 다른 base 사용
+- Codex 의 cycle-by-cycle fix 가 점진 — 매번 일부 IT 만 보강
+
+### 새 세션 시 다음 단계 (사용자 결정 2026-05-27)
+
+**옵션 1**: 모든 accounting IT 의 setUp 패턴 전수 grep + 일괄 보강 (큰 작업)
+**옵션 2**: PR #310 scope 분할 — accounting controller 100 endpoint 을 3-4 PR (SP-D6-7a/b/c) 로 sub-slice
+**옵션 3**: Codex cycle 1i 직접 7 IT 명시 (Journal/MonthEnd/P04/Phase9/Supplier/TaxInvoice/TaxInvoiceEmitNts) + 점진 반복
+
+### 진행 위치
+
+- 브랜치: `feat/sp-d6-7-accounting-permission-migration`
+- 마지막 head: `bddca90c` (cycle 1g)
+- working tree: clean (commit 까지 완료)
+- CI Monitor: 본 세션 종료 후 stop
+
+### 본 세션 ✅ 머지된 모든 PR (11건)
+
+PR #299/#300/#301/#302/#303 (Issue 4 + 회고) + PR #304~#309 (SP-D6-1~6) + PR #307 cycle 의 GitHub Actions 인프라 장애 발견 + `feedback_no_backlog_strict.md` 메모리 추가
+
+### 메모리 추가 (본 세션)
+
+- `feedback_no_backlog_strict.md` — "schema 변경 동반", "PR scope 외", "후속 슬라이스 분리" 모두 백로그 정당화 사유 X
+- 6 lessons 누적:
+  1. SP-D6-2 cycle 1c: edit-request `.decide` 분리
+  2. SP-D6-4 cycle 1c: `@hr.isExecutiveOffice()` 정적 가드 보존
+  3. SP-D6-5 cycle 1a: 권한 확대 회귀 금지 — V seed roles 정확 일치
+  4. SP-D6-2 cycle 1e/1f: `@WebMvcTest` 슬라이스 IT (bean ordering 회피)
+  5. SP-D6-5 cycle 1e: IT deny case explicit `false` stub
+  6. SP-D6-6 cycle 1c: deny case = `false` stub + X-User-Role 헤더 모두
+
+### 다음 세션 즉시 진입 절차
+
+```powershell
+# 1. main sync
+git checkout main; git pull origin main
+
+# 2. PR #310 branch 복원
+git checkout feat/sp-d6-7-accounting-permission-migration
+git pull origin feat/sp-d6-7-accounting-permission-migration
+
+# 3. 현재 CI 상태 확인
+gh pr checks 310
+
+# 4. 옵션 선택 (1/2/3) — 사용자 결정에 따라
+```
+
+---
+
 ## ✅ 2026-05-26 최신 — Issue 4 통합 알림 센터 시리즈 종료 (3 slice 모두 머지)
 
 ### 시리즈 머지 누적
