@@ -45,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>UUID 비공개 원칙 — 사용자 노출 식별자는 {@code businessNumber} / {@code companyName}.
  * UUID 는 PUT/PATCH/DELETE 경로 파라미터로만 사용.
  *
- * <p>SP-D2 동적 권한: {@code accounting.partner-ledger} 페이지 코드 (사업자 양식).
+ * <p>SP-D6-7 동적 권한: {@code accounting.supplier-profiles} 페이지 코드.
  */
 @Slf4j
 @RestController
@@ -54,8 +54,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "사업자 프로필", description = "홈택스 세금계산서 공급자 정보 관리 (사업자 양식)")
 public class SupplierProfileController {
 
-    /** SP-D2 — 사업자 양식/거래처 원장 페이지 코드. */
-    private static final String PAGE_CODE = "accounting.partner-ledger";
+    /** SP-D6-7 — 공급자 프로필 페이지 코드. */
+    private static final String PAGE_CODE = "accounting.supplier-profiles";
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final SupplierProfileService service;
@@ -193,7 +193,7 @@ public class SupplierProfileController {
     // =========================================================================
 
     /**
-     * SP-D2 동적 EDIT 권한 검증 — 사업자 양식/거래처 원장 페이지 코드.
+     * SP-D6-7 동적 EDIT 권한 검증 — 공급자 프로필 페이지 코드.
      *
      * @param actorRole 요청자 role
      */

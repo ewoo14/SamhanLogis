@@ -52,7 +52,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>DynamicPermissionClient canView=true → 원장 GET 정상 접근</li>
  *   <li>DynamicPermissionClient canView=false → 원장 GET 차단</li>
  *   <li>DynamicPermissionClient canView=true → 입금 매칭 POST 정상 접근</li>
- *   <li>DynamicPermissionClient auth-service 다운 (RuntimeException) → fallback 허용</li>
+ *   <li>DynamicPermissionClient canEdit=false → 일마감 POST 차단</li>
  * </ol>
  *
  * <p>@MockBean 격리 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}):
@@ -155,9 +155,9 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: DynamicPermissionClient canEdit=false + canView=true → 일마감 POST 403 (SP-D2 명시적 차단)")
     void c4_dailyClosingCreate_canEditFalse_canViewTrue_403() throws Exception {
         // view-only override: canEdit=false, canView=true → 명시적 deny → 403
-        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing")))
+        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
                 .thenReturn(false);
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.daily-closing")))
+        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
                 .thenReturn(true);
 
         Map<String, Object> body = new HashMap<>();
@@ -189,22 +189,20 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.success").value(true));
     }
 
-    // ─── Case 6: canView=false → 원장 GET 통과 (점진 마이그레이션) ─────────
+    // ─── Case 6: canView=false → 원장 GET 차단 ─────────────────────────────
 
     @Test
-    @DisplayName("C6: DynamicPermissionClient canView=false → 원장 GET 200 허용 (점진 마이그레이션 fallback)")
-    void c6_generalLedgerList_canViewFalse_fallbackAllow() throws Exception {
-        // VIEW 전용: canView=false → 점진 마이그레이션 정책으로 통과 (기존 @PreAuthorize 적용)
+    @DisplayName("C6: DynamicPermissionClient canView=false → 원장 GET 403 (VIEW 가드 차단)")
+    void c6_generalLedgerList_canViewFalse_denied() throws Exception {
         when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.general-ledger")))
                 .thenReturn(false);
 
-        // 점진 마이그레이션 정책: canView=false fallback → 기존 @PreAuthorize 가 검증 → ACCOUNTANT는 허용
         mockMvc.perform(get("/api/v1/accounting/ledgers")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("from", LocalDate.now().minusMonths(1).toString())
                         .param("to", LocalDate.now().toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     // ─── Case 7: canView=true → 입금 매칭 POST 정상 ────────────────────────
@@ -236,38 +234,22 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
     }
 
-    // ─── Case 8: canEdit=false + canView=false → fallback 통과 ─────────────
+    // ─── Case 8: canEdit=false → 일마감 POST 차단 ─────────────────────────
 
     @Test
-    @DisplayName("C8: DynamicPermissionClient canEdit=false + canView=false → 일마감 POST fallback 통과 (override row 없음)")
-    void c8_dailyClosingCreate_canEditFalse_canViewFalse_fallback() throws Exception {
-        // canEdit=false + canView=false → override row 없음(fallback) → 기존 @PreAuthorize 통과
-        // ACCOUNTANT 는 @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')") 통과
-        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing")))
-                .thenReturn(false);
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.daily-closing")))
+    @DisplayName("C8: DynamicPermissionClient canEdit=false → 일마감 POST 403 (EDIT 가드 차단)")
+    void c8_dailyClosingCreate_canEditFalse_denied() throws Exception {
+        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
                 .thenReturn(false);
 
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", LocalDate.now().minusDays(1).toString());
 
-        // SP-D2 점진 마이그레이션: canEdit=false + canView=false = row 없음 fallback → 기존 @PreAuthorize 통과
-        // ACCOUNTANT는 일마감 endpoint에 @PreAuthorize로 허용 → 201 또는 409 (이미 존재)
-        // BE-C4 fix: 404 불필요 허용 제거 — fallback 통과 시 201/409 만 허용
         mockMvc.perform(post("/api/v1/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // fallback 통과 → 201 (생성 성공) 또는 409 (이미 존재) — 403/404 금지
-                    boolean isExpected = status == 201 || status == 409;
-                    if (!isExpected) {
-                        throw new AssertionError(
-                                "C8 일마감 POST fallback: 201/409 기대 (403/404 금지), 실제: " + status
-                        );
-                    }
-                });
+                .andExpect(status().isForbidden());
     }
 }

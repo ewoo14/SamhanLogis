@@ -63,8 +63,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class DailyClosingService {
 
-    /** SP-D2 — 일마감 페이지 코드. */
-    static final String PAGE_CODE = "accounting.daily-closing";
+    /** SP-D2 — 일마감 조회 페이지 코드. */
+    static final String VIEW_PAGE_CODE = "accounting.daily-closing";
+    /** SP-D6-7 — 일마감 실행 페이지 코드. */
+    static final String RUN_PAGE_CODE = "accounting.daily-closing.run";
+    /** SP-D6-7 — 일마감 잠금 해제 페이지 코드. */
+    static final String UNLOCK_PAGE_CODE = "accounting.daily-closing.unlock";
 
     private final DailyClosingRepository dailyClosingRepository;
     private final TaxInvoiceRepository taxInvoiceRepository;
@@ -96,7 +100,7 @@ public class DailyClosingService {
      */
     public DailyClosingResponse close(CreateDailyClosingRequest request, String actorUserId,
                                       String actorRole) {
-        checkEditPermission(actorRole, actorUserId);
+        checkEditPermission(actorRole, actorUserId, RUN_PAGE_CODE);
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
@@ -218,7 +222,7 @@ public class DailyClosingService {
                                        DailyClosingKind closingKind,
                                        DailyClosingSourceKind sourceKind,
                                        String actorUserId, String actorRole) {
-        checkEditPermission(actorRole, actorUserId);
+        checkEditPermission(actorRole, actorUserId, UNLOCK_PAGE_CODE);
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
@@ -318,21 +322,21 @@ public class DailyClosingService {
      * @param actorRole   요청자 role
      * @param actorUserId 요청자 user-id (로그용)
      */
-    private void checkEditPermission(String actorRole, String actorUserId) {
+    private void checkEditPermission(String actorRole, String actorUserId, String pageCode) {
         if (actorRole == null || actorRole.isBlank()) {
             return;
         }
-        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
+        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, pageCode);
         if (!canEdit) {
-            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+            boolean canView = dynamicPermissionClient.canView(actorRole, pageCode);
             if (canView) {
                 log.warn("[SP-D2] 동적 권한 차단 (view-only override) — roleCode={} pageCode={} actorUserId={}",
-                        actorRole, PAGE_CODE, actorUserId);
+                        actorRole, pageCode, actorUserId);
                 throw new BusinessException(ErrorCode.FORBIDDEN,
                         "동적 권한 설정에 의해 일마감 편집 권한이 차단되었습니다.");
             }
             log.debug("[SP-D2] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={} actorUserId={}",
-                    actorRole, PAGE_CODE, actorUserId);
+                    actorRole, pageCode, actorUserId);
         }
     }
 
@@ -349,12 +353,12 @@ public class DailyClosingService {
         if (actorRole == null || actorRole.isBlank()) {
             return;
         }
-        boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
+        boolean canView = dynamicPermissionClient.canView(actorRole, VIEW_PAGE_CODE);
         if (!canView) {
             // VIEW=false: fallback(row 없음) 또는 명시적 deny.
             // 점진 마이그레이션 정책: 구분 불가 → 통과 (기존 role guard 가 이미 검증).
             log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
-                    actorRole, PAGE_CODE);
+                    actorRole, VIEW_PAGE_CODE);
         }
     }
 

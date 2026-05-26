@@ -42,9 +42,9 @@ pages(page_code) AS (
 ),
 grants(page_code, role_code, can_view, can_edit) AS (
     VALUES
-        -- 회계 수정 요청: ACCOUNTANT 생성/이력, MASTER/MANAGER 승인/거절 분리.
+        -- 회계 수정 요청: ACCOUNTANT/MASTER 생성, MASTER/MANAGER 승인/거절 분리.
         ('accounting.edit-requests',        'MASTER',     TRUE, TRUE),
-        ('accounting.edit-requests',        'MANAGER',    TRUE, TRUE),
+        ('accounting.edit-requests',        'MANAGER',    TRUE, FALSE),
         ('accounting.edit-requests',        'ACCOUNTANT', TRUE, TRUE),
         ('accounting.edit-requests.decide', 'MASTER',     TRUE, TRUE),
         ('accounting.edit-requests.decide', 'MANAGER',    TRUE, TRUE),
@@ -111,3 +111,10 @@ LEFT JOIN grants g
     ON g.page_code = p.page_code
    AND g.role_code = r.role_code
 ON CONFLICT DO NOTHING;
+
+-- V28 에서 MANAGER edit=true 로 들어간 기존 row 를 V37 권한 분리 계약에 맞춘다.
+UPDATE role_page_permissions
+SET can_edit = FALSE
+WHERE role_code = 'MANAGER'
+  AND page_code = 'accounting.edit-requests'
+  AND is_deleted = FALSE;

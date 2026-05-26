@@ -176,6 +176,9 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("일마감 — SALES role 403 Forbidden")
     void testCreateDailyClosingForbiddenForSales() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "accounting.daily-closing.run"))
+                .thenReturn(false);
+
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-12");
 
@@ -345,6 +348,9 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("ACCOUNTANT 역마감 시도 — 403 Forbidden (MASTER 독점)")
     void testUnlockForbiddenForAccountant() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("ACCOUNTANT", "accounting.daily-closing.unlock"))
+                .thenReturn(false);
+
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
         mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-22/lock")
@@ -360,6 +366,9 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANAGER 역마감 시도 — 403 Forbidden (MASTER 독점)")
     void testUnlockForbiddenForManager() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("MANAGER", "accounting.daily-closing.unlock"))
+                .thenReturn(false);
+
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
         mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-23/lock")

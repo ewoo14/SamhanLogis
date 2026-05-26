@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,8 +89,14 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     @MockBean private ProductClient productClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
-    /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
+    /** SP-D6 동적 권한 client 격리 — 기본 허용, deny 케이스는 테스트별 명시 stub. */
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void setupPermissionDefaults() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+    }
 
     // ─── 1. DRY_RUN 성공 (ACCOUNTANT) — 5건 mock 응답 ──────────────────────
 
@@ -122,6 +130,9 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("SALES 역할 → 403 FORBIDDEN")
     void testSalesForbidden() throws Exception {
+        when(dynamicPermissionClient.canEdit(eq("SALES"), eq("accounting.deposit-match")))
+                .thenReturn(false);
+
         String body = objectMapper.writeValueAsString(Map.of(
                 "from", "2026-05-01",
                 "to", "2026-05-07",
@@ -142,6 +153,9 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("WAREHOUSE 역할 → 403 FORBIDDEN")
     void testWarehouseForbidden() throws Exception {
+        when(dynamicPermissionClient.canEdit(eq("WAREHOUSE"), eq("accounting.deposit-match")))
+                .thenReturn(false);
+
         String body = objectMapper.writeValueAsString(Map.of(
                 "from", "2026-05-01",
                 "to", "2026-05-07",
@@ -162,6 +176,9 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("DRIVER 역할 → 403 FORBIDDEN")
     void testDriverForbidden() throws Exception {
+        when(dynamicPermissionClient.canEdit(eq("DRIVER"), eq("accounting.deposit-match")))
+                .thenReturn(false);
+
         String body = objectMapper.writeValueAsString(Map.of(
                 "from", "2026-05-01",
                 "to", "2026-05-07",
@@ -182,6 +199,9 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("DISPATCH 역할 → 403 FORBIDDEN")
     void testDispatchForbidden() throws Exception {
+        when(dynamicPermissionClient.canEdit(eq("DISPATCH"), eq("accounting.deposit-match")))
+                .thenReturn(false);
+
         String body = objectMapper.writeValueAsString(Map.of(
                 "from", "2026-05-01",
                 "to", "2026-05-07",
