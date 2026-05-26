@@ -44,7 +44,18 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
     private final String callerServiceName;
 
     public DefaultDynamicPermissionClient(RestClient.Builder loadBalancedBuilder, String internalToken, String callerServiceName) {
-        this.restClient = loadBalancedBuilder.baseUrl(AUTH_SERVICE_BASE).build();
+        this(loadBalancedBuilder, AUTH_SERVICE_BASE, internalToken, callerServiceName);
+    }
+
+    public DefaultDynamicPermissionClient(
+            RestClient.Builder builder,
+            String authServiceBaseUrl,
+            String internalToken,
+            String callerServiceName) {
+        String baseUrl = (authServiceBaseUrl == null || authServiceBaseUrl.isBlank())
+                ? AUTH_SERVICE_BASE
+                : authServiceBaseUrl;
+        this.restClient = builder.baseUrl(baseUrl).build();
         this.internalToken = internalToken;
         this.callerServiceName = (callerServiceName == null || callerServiceName.isBlank()) ? "unknown" : callerServiceName;
     }

@@ -1463,12 +1463,12 @@ const router = createHashRouter([
       // [SP-D1] 권한 매트릭스 관리 — MASTER 전용.
       // AdminLayout (대표실 부서 이중 가드) 외부에 단독 라우트로 배치.
       // 접근 시도 시 MASTER 가 아니면 홈 redirect.
-      // [SP-D4] admin.users 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
+      // [SP-D6-1] system.permission-admin 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/admin/permission-matrix',
         element: (
           <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="admin.users" action="view">
+            <PermissionGuard pageCode="system.permission-admin" action="view">
               <PermissionMatrixPage />
             </PermissionGuard>
           </RoleGuard>

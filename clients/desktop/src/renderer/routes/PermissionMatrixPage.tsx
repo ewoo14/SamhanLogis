@@ -348,6 +348,13 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'arologis.region',
 ])
 
+/** 비-MASTER 역할에는 부여할 수 없는 시스템 전용 PageCode. */
+const SYSTEM_ONLY_PAGES: Set<PageCode> = new Set([
+  'system.permission-admin',
+  'system.password-admin',
+  'system.account-admin',
+])
+
 // ---------------------------------------------------------------------------
 // 내부 상태 타입
 // ---------------------------------------------------------------------------
@@ -436,6 +443,7 @@ export function PermissionMatrixPage() {
     (role: RbacRole, page: PageCode, field: 'view' | 'edit') => {
       const base = currentState
       if (!base) return
+      if (role !== 'MASTER' && SYSTEM_ONLY_PAGES.has(page)) return
 
       const k = cellKey(role, page)
       const prev = base[k] ?? { roleCode: role, pageCode: page, view: false, edit: false }
@@ -754,6 +762,7 @@ export function PermissionMatrixPage() {
                   const cell = currentState[k]
                   const isDirty = dirtyKeys.has(k)
                   const hasEdit = PAGES_WITH_EDIT.has(page)
+                  const isSystemOnlyPage = role !== 'MASTER' && SYSTEM_ONLY_PAGES.has(page)
                   // Playwright spec 기준 testid: pageCode 의 '.' 를 '-' 로 normalize
                   const pageNorm = page.replace(/\./g, '-')
 
@@ -779,22 +788,53 @@ export function PermissionMatrixPage() {
                       <div
                         style={{
                           display: 'flex',
+                          flexDirection: isSystemOnlyPage ? 'column' : 'row',
                           justifyContent: 'center',
-                          gap: hasEdit ? 6 : 0,
+                          gap: isSystemOnlyPage ? 4 : hasEdit ? 6 : 0,
                           alignItems: 'center',
                         }}
                       >
+                        {isSystemOnlyPage && (
+                          <span
+                            data-testid={`permission-matrix-cell-${role}-${pageNorm}-readonly`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minHeight: 18,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              border: '1px solid var(--color-neutral-200)',
+                              background: 'var(--color-neutral-50)',
+                              color: 'var(--color-neutral-600)',
+                              fontSize: 10,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            MASTER 전용
+                          </span>
+                        )}
                         {/* view 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-view */}
                         <label
-                          style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
+                          }}
                           title="조회 권한"
                         >
                           <input
                             type="checkbox"
                             data-testid={`permission-matrix-cell-${role}-${pageNorm}-view`}
                             checked={cell?.view ?? false}
+                            disabled={isSystemOnlyPage}
                             onChange={() => handleToggle(role, page, 'view')}
-                            style={{ cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}
+                            style={{
+                              cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
+                              accentColor: 'var(--color-brand-500)',
+                            }}
                           />
                           {hasEdit && (
                             <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>
@@ -805,15 +845,24 @@ export function PermissionMatrixPage() {
                         {/* edit 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-edit */}
                         {hasEdit && (
                           <label
-                            style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 2,
+                              cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
+                            }}
                             title="변경 권한"
                           >
                             <input
                               type="checkbox"
                               data-testid={`permission-matrix-cell-${role}-${pageNorm}-edit`}
                               checked={cell?.edit ?? false}
+                              disabled={isSystemOnlyPage}
                               onChange={() => handleToggle(role, page, 'edit')}
-                              style={{ cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}
+                              style={{
+                                cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
+                                accentColor: 'var(--color-brand-500)',
+                              }}
                             />
                             <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>
                               변경

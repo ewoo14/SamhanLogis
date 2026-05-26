@@ -120,7 +120,7 @@ public class DashboardAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "REFRESH 결과 (각 view 별 성공 여부)")
     })
     @PostMapping("/refresh")
-    @RequirePermission(page = "dashboard.admin", action = "VIEW")
+    @RequirePermission(page = "dashboard.admin", action = "EDIT")
     public ApiResponse<MaterializedViewRefreshService.RefreshResult> refresh() {
         kpiService.invalidateCache();
         return ApiResponse.ok(refreshService.refreshAll());

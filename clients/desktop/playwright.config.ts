@@ -11,6 +11,8 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 
+const skipWebServer = process.env['PLAYWRIGHT_SKIP_WEB_SERVER'] === '1'
+
 export default defineConfig({
   testDir: './playwright',
   timeout: 60_000,
@@ -30,10 +32,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'set VITE_MOCK_MODE=1&& npx vite src/renderer --host 127.0.0.1 --port 5173',
-    url: 'http://127.0.0.1:5173/',
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  webServer: skipWebServer
+    ? undefined
+    : {
+        command: 'set VITE_MOCK_MODE=1&& npx vite src/renderer --host 127.0.0.1 --port 5173',
+        url: 'http://127.0.0.1:5173/',
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
 })

@@ -1,8 +1,13 @@
 package com.samhanair.logis.auth.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.samhanair.logis.auth.AuthServiceApplication;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
@@ -34,6 +39,9 @@ import org.springframework.test.context.TestPropertySource;
 })
 class AuthServiceContextLoadIT {
 
+    @Autowired
+    private ObjectProvider<DynamicPermissionClient> dynamicPermissionClientProvider;
+
     /**
      * ApplicationContext 가 예외 없이 기동되면 PASS.
      *
@@ -44,5 +52,11 @@ class AuthServiceContextLoadIT {
     void contextLoads() {
         // ApplicationContext 가 기동되면 테스트 PASS.
         // 추가 검증 불필요 — 컨텍스트 로드 자체가 목적.
+    }
+
+    @Test
+    @DisplayName("auth-service 실 컨텍스트에 DynamicPermissionClient bean 이 등록된다")
+    void dynamicPermissionClientBeanPresent() {
+        assertThat(dynamicPermissionClientProvider.getIfAvailable()).isNotNull();
     }
 }

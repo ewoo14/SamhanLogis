@@ -39,7 +39,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.account-admin", action = "VIEW")
+    @RequirePermission(page = "system.account-admin", action = "EDIT")
     public ApiResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.ok(authService.register(
                 request.loginId(), request.password(), request.displayName(), request.role()));

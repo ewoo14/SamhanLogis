@@ -151,12 +151,53 @@ class AuthPermissionMigrationIT {
         assertThat(AopUtils.isAopProxy(authController)).isTrue();
     }
 
+    @Test
+    @DisplayName("POST /auth/register 는 VIEW 만 있고 EDIT 이 없으면 403")
+    void register_withViewOnlyMatrixGrant_returns403AndIncrementsCounter() throws Exception {
+        when(dynamicPermissionClient.canView("MASTER", "system.account-admin")).thenReturn(true);
+        when(dynamicPermissionClient.canEdit("MASTER", "system.account-admin")).thenReturn(false);
+
+        double before = deniedCount("system.account-admin", "MASTER", "EDIT");
+
+        mockMvc.perform(withActor(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": "view-only-user",
+                                  "password": "NewPass1!",
+                                  "displayName": "조회 전용 사용자",
+                                  "role": "SALES"
+                                }
+                                """), "MASTER"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount("system.account-admin", "MASTER", "EDIT")).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    @DisplayName("POST /auth/register 는 EDIT 권한이면 200")
+    void register_withEditMatrixGrant_returns200() throws Exception {
+        when(dynamicPermissionClient.canEdit("MASTER", "system.account-admin")).thenReturn(true);
+
+        mockMvc.perform(withActor(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": "edit-user",
+                                  "password": "NewPass1!",
+                                  "displayName": "편집 가능 사용자",
+                                  "role": "SALES"
+                                }
+                                """), "MASTER"))
+                .andExpect(status().isOk());
+    }
+
     private static Stream<Arguments> protectedEndpoints() {
         return Stream.of(
                 Arguments.of(
                         "POST /auth/register",
                         "system.account-admin",
-                        "VIEW",
+                        "EDIT",
                         200,
                         (EndpointRequest) () -> post("/auth/register")
                                 .contentType(MediaType.APPLICATION_JSON)

@@ -204,15 +204,19 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("permissionGuardedEndpoints")
-    void permissionGuardedEndpoints_withoutViewGrant_return403AndIncrementCounter(
-            String name, String role, String pageCode, MockHttpServletRequestBuilder request) throws Exception {
-        when(dynamicPermissionClient.canView(role, pageCode)).thenReturn(false);
-        double before = deniedCount(pageCode, role, "VIEW");
+    void permissionGuardedEndpoints_withoutMatrixGrant_return403AndIncrementCounter(
+            String name, String role, String pageCode, String action, MockHttpServletRequestBuilder request) throws Exception {
+        if ("VIEW".equals(action)) {
+            when(dynamicPermissionClient.canView(role, pageCode)).thenReturn(false);
+        } else {
+            when(dynamicPermissionClient.canEdit(role, pageCode)).thenReturn(false);
+        }
+        double before = deniedCount(pageCode, role, action);
 
         mockMvc.perform(withActor(request, role))
                 .andExpect(MockMvcResultMatchers.status().isForbidden());
 
-        assertThat(deniedCount(pageCode, role, "VIEW")).isEqualTo(before + 1.0);
+        assertThat(deniedCount(pageCode, role, action)).isEqualTo(before + 1.0);
     }
 
     @Test
@@ -229,20 +233,20 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
         LocalDate today = LocalDate.now();
         LocalDate from = today.minusDays(7);
         return Stream.of(
-                Arguments.of("dashboard kpi", "MANAGER", "dashboard.admin",
+                Arguments.of("dashboard kpi", "MANAGER", "dashboard.admin", "VIEW",
                         MockMvcRequestBuilders.get("/admin/dashboard/kpi")
                                 .param("from", from.toString())
                                 .param("to", today.toString())),
-                Arguments.of("dashboard realtime stock", "MANAGER", "dashboard.admin",
+                Arguments.of("dashboard realtime stock", "MANAGER", "dashboard.admin", "VIEW",
                         MockMvcRequestBuilders.get("/admin/dashboard/realtime-stock")),
-                Arguments.of("dashboard sales aggregate", "MANAGER", "dashboard.admin",
+                Arguments.of("dashboard sales aggregate", "MANAGER", "dashboard.admin", "VIEW",
                         MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
                                 .param("from", from.toString())
                                 .param("to", today.toString())
                                 .param("interval", "DAILY")),
-                Arguments.of("dashboard refresh", "MANAGER", "dashboard.admin",
+                Arguments.of("dashboard refresh", "MANAGER", "dashboard.admin", "EDIT",
                         MockMvcRequestBuilders.post("/admin/dashboard/refresh")),
-                Arguments.of("dashboard ecount mig ops", "ACCOUNTANT", "ecount.mig.ops-dashboard",
+                Arguments.of("dashboard ecount mig ops", "ACCOUNTANT", "ecount.mig.ops-dashboard", "VIEW",
                         MockMvcRequestBuilders.get("/dashboard/ecount-mig"))
         );
     }

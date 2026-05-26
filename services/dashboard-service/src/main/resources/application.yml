@@ -48,6 +48,8 @@ samhan:
     url: ${SAMHAN_INVENTORY_SERVICE_URL:http://localhost:8085}
   accounting-service:
     url: ${SAMHAN_ACCOUNTING_SERVICE_URL:http://localhost:8087}
+  auth-service:
+    url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   partner-order-service:
     url: ${SAMHAN_PARTNER_ORDER_SERVICE_URL:http://localhost:8088}
   partner-service:
