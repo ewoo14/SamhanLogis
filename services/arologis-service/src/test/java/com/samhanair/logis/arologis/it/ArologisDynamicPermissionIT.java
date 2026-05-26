@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *   <li>canView=false → 배차 list GET 403</li>
  *   <li>canView=true → 배차 list GET 200</li>
  *   <li>canEdit=false + canView=true → 자동매칭 POST 403 (view-only override)</li>
- *   <li>canEdit=false + canView=false → 자동매칭 POST fallback 통과 (200 또는 비권한 외 오류)</li>
+ *   <li>canEdit=false + canView=false → 자동매칭 POST 403 (SP-D6 fail-closed)</li>
  *   <li>canEdit=false + canView=true → 기사변경 PATCH 403 (view-only override)</li>
  *   <li>canView=true + canEdit=true → 배차 list GET 200 (정상 허용)</li>
  * </ul>
@@ -50,7 +50,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *   <li>C1: MASTER, canView=true → GET /api/v1/arologis/admin/dispatches 200</li>
  *   <li>C2: MASTER, canView=false → GET /api/v1/arologis/admin/dispatches 403</li>
  *   <li>C3: MASTER, canEdit=false + canView=true → POST auto-match 403 (view-only override)</li>
- *   <li>C4: MASTER, canEdit=false + canView=false → POST auto-match fallback 통과</li>
+ *   <li>C4: MASTER, canEdit=false + canView=false → POST auto-match 403 (SP-D6 fail-closed)</li>
  *   <li>C5: MASTER, canEdit=false + canView=true → PATCH driver 403 (view-only override)</li>
  *   <li>C6: AROLOGIS_MANAGER, canView=true + canEdit=true → GET dispatches 200</li>
  * </ol>
@@ -148,14 +148,14 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // C4: MASTER, canEdit=false + canView=false → 자동매칭 POST fallback 통과
+    // C4: MASTER, canEdit=false + canView=false → 자동매칭 POST 403 (SP-D6 fail-closed)
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C4: MASTER canEdit=false + canView=false → 자동매칭 POST fallback 통과 (200 또는 4xx)")
+    @DisplayName("C4: MASTER canEdit=false + canView=false → 자동매칭 POST 403 (SP-D6 fail-closed)")
     @WithMockUser(username = "master-fallback", authorities = {"ROLE_MASTER"})
-    void C4_auto_match_canEdit_false_canView_false_fallback() throws Exception {
-        // canEdit=false + canView=false = override row 없음(fallback) → @PreAuthorize 통과
+    void C4_auto_match_canEdit_false_canView_false_returns_403() throws Exception {
+        // SP-D6 strict policy: canEdit=false + canView=false grant 없음 → fail-closed 403
         when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
         when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
 
@@ -164,18 +164,7 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // fallback 통과 → 403/500 금지 (dispatchId 미존재 시 404 허용)
-                    if (status == 403) {
-                        throw new AssertionError(
-                                "C4 fallback: 403 발생 — canEdit=false+canView=false 시 fallback 통과 필요 (SP-D3 정책)");
-                    }
-                    if (status == 500) {
-                        throw new AssertionError(
-                                "C4 fallback: 500 발생 — 내부 오류 금지");
-                    }
-                });
+                .andExpect(status().isForbidden());
     }
 
     // -------------------------------------------------------------------------
