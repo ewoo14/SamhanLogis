@@ -89,7 +89,7 @@ public class ArologisEditRequestService {
     @Transactional
     public ArologisEditRequest approve(UUID requestId, UUID approverId, String approverName,
                                        String noteOptional) {
-        ArologisEditRequest request = loadOrThrow(requestId);
+        ArologisEditRequest request = loadForDecisionOrThrow(requestId);
         request.approve(approverId, approverName, noteOptional);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] 요청 {} 수락 — approver={} entity={}",
@@ -100,7 +100,7 @@ public class ArologisEditRequestService {
     @Transactional
     public ArologisEditRequest reject(UUID requestId, UUID approverId, String approverName,
                                       String decisionReason) {
-        ArologisEditRequest request = loadOrThrow(requestId);
+        ArologisEditRequest request = loadForDecisionOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] 요청 {} 거절 — approver={} reason={}",
@@ -128,7 +128,7 @@ public class ArologisEditRequestService {
 
     @Transactional
     public void consumeApproval(UUID requestId, String consumerUserId) {
-        ArologisEditRequest request = loadOrThrow(requestId);
+        ArologisEditRequest request = loadForDecisionOrThrow(requestId);
         request.consumeApproval(consumerUserId == null ? "system" : consumerUserId);
         log.info("[PR-H4b] 요청 {} APPROVED 소진 — consumer={}", requestId, consumerUserId);
     }
@@ -177,9 +177,9 @@ public class ArologisEditRequestService {
         log.info("[PR-H4b] 자동 만료 처리 — {} 건 EXPIRED 전환", expired.size());
     }
 
-    private ArologisEditRequest loadOrThrow(UUID requestId) {
+    private ArologisEditRequest loadForDecisionOrThrow(UUID requestId) {
         Objects.requireNonNull(requestId, "requestId 는 필수입니다");
-        return requestRepository.findById(requestId)
+        return requestRepository.findByIdForDecision(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "수정 요청을 찾을 수 없습니다: " + requestId));
     }

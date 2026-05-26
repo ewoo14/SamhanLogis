@@ -3,12 +3,15 @@ package com.samhanair.logis.partner.editrequest.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.editrequest.domain.PartnerEditRequest;
 import com.samhanair.logis.partner.editrequest.repository.PartnerEditRequestRepository;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -71,7 +74,7 @@ class PartnerEditRequestServiceTest {
                 EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         PartnerEditRequest approved = service.approve(requestId, approverId, "관리자A", null);
 
@@ -87,12 +90,46 @@ class PartnerEditRequestServiceTest {
                 EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         PartnerEditRequest rejected = service.reject(requestId, approverId, "관리자A", "정책상 불가");
 
         assertThat(rejected.getStatus()).isEqualTo(EditRequestStatus.REJECTED);
         assertThat(rejected.getDecisionReason()).isEqualTo("정책상 불가");
+    }
+
+    @Test
+    void approve_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        PartnerEditRequest req = PartnerEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        assertThatThrownBy(() -> service.approve(requestId, approverId, "관리자B", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(broker, never())
+                .publish(eq(entityId), eq(PartnerEditRequestService.EVENT_REQUEST_DECIDED), any());
+    }
+
+    @Test
+    void reject_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        PartnerEditRequest req = PartnerEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        assertThatThrownBy(() -> service.reject(requestId, approverId, "관리자B", "정책상 불가"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(broker, never())
+                .publish(eq(entityId), eq(PartnerEditRequestService.EVENT_REQUEST_DECIDED), any());
     }
 
     @Test
@@ -112,9 +149,26 @@ class PartnerEditRequestServiceTest {
     @Test
     void consumeApproval_throwsNotFound_whenRequestMissing() {
         UUID requestId = UUID.randomUUID();
-        when(requestRepository.findById(requestId)).thenReturn(Optional.empty());
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void consumeApproval_throwsConflict_whenAlreadyConsumed() {
+        PartnerEditRequest req = PartnerEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", null);
+        req.consumeApproval("user-1");
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(broker, never()).publish(any(), anyString(), any());
     }
 }

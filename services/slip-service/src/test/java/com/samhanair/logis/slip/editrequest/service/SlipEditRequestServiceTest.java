@@ -202,7 +202,7 @@ class SlipEditRequestServiceTest {
         SlipEditRequest pending = SlipEditRequest.create(slipId, requesterId, "홍길동",
                 SlipEditRequestType.EDIT, "사유", SlipEditTargetRole.WAREHOUSE, null);
         ReflectionTestUtils.setField(pending, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(pending));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(pending));
 
         UUID approverId = UUID.randomUUID();
         SlipEditRequest result = service.approve(requestId, approverId, "창고직원-A", "확인");
@@ -223,7 +223,7 @@ class SlipEditRequestServiceTest {
         SlipEditRequest pending = SlipEditRequest.create(slipId, requesterId, "홍길동",
                 SlipEditRequestType.DELETE, "사유", SlipEditTargetRole.WAREHOUSE, null);
         ReflectionTestUtils.setField(pending, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(pending));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(pending));
 
         UUID approverId = UUID.randomUUID();
         SlipEditRequest result = service.reject(requestId, approverId, "창고직원-B",
@@ -244,7 +244,7 @@ class SlipEditRequestServiceTest {
                 SlipEditRequestType.EDIT, "사유", SlipEditTargetRole.WAREHOUSE, null);
         ReflectionTestUtils.setField(approved, "id", requestId);
         approved.approve(UUID.randomUUID(), "이전 승인자", null);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(approved));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(approved));
 
         assertThatThrownBy(() -> service.approve(requestId, UUID.randomUUID(), "다른 승인자", null))
                 .isInstanceOf(BusinessException.class)
@@ -252,6 +252,60 @@ class SlipEditRequestServiceTest {
                 .isEqualTo(ErrorCode.CONFLICT);
 
         verify(notificationClient, never()).sendUserPush(any(), anyString(), anyString());
+    }
+
+    @Test
+    void approve_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        UUID requestId = UUID.randomUUID();
+        SlipEditRequest approved = SlipEditRequest.create(slipId, requesterId, "홍길동",
+                SlipEditRequestType.EDIT, "사유", SlipEditTargetRole.WAREHOUSE, null);
+        ReflectionTestUtils.setField(approved, "id", requestId);
+        approved.approve(UUID.randomUUID(), "이전 승인자", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.approve(requestId, UUID.randomUUID(), "다른 승인자", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(broker, never()).publish(eq(slipId),
+                eq(SlipEditRequestService.EVENT_REQUEST_DECIDED), any());
+        verify(notificationClient, never()).sendUserPush(any(), anyString(), anyString());
+    }
+
+    @Test
+    void reject_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        UUID requestId = UUID.randomUUID();
+        SlipEditRequest approved = SlipEditRequest.create(slipId, requesterId, "홍길동",
+                SlipEditRequestType.DELETE, "사유", SlipEditTargetRole.WAREHOUSE, null);
+        ReflectionTestUtils.setField(approved, "id", requestId);
+        approved.approve(UUID.randomUUID(), "이전 승인자", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.reject(requestId, UUID.randomUUID(), "다른 승인자", "불가"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(broker, never()).publish(eq(slipId),
+                eq(SlipEditRequestService.EVENT_REQUEST_DECIDED), any());
+        verify(notificationClient, never()).sendUserPush(any(), anyString(), anyString());
+    }
+
+    @Test
+    void consumeApproval_throwsConflict_whenAlreadyConsumed() {
+        UUID requestId = UUID.randomUUID();
+        SlipEditRequest approved = SlipEditRequest.create(slipId, requesterId, "홍길동",
+                SlipEditRequestType.EDIT, "사유", SlipEditTargetRole.WAREHOUSE, null);
+        ReflectionTestUtils.setField(approved, "id", requestId);
+        approved.approve(UUID.randomUUID(), "이전 승인자", null);
+        approved.consumeApproval("user-1");
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
     }
 
     // === scheduled expiry === //

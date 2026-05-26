@@ -3,11 +3,13 @@ package com.samhanair.logis.slip.editrequest.repository;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequestStatus;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditTargetRole;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -55,6 +57,11 @@ public interface SlipEditRequestRepository extends JpaRepository<SlipEditRequest
      */
     List<SlipEditRequest> findByTargetRoleAndStatusOrderByRequestedAtDesc(
             SlipEditTargetRole targetRole, SlipEditRequestStatus status);
+
+    /** approve/reject/consumeApproval 직전 PESSIMISTIC_WRITE 잠금 조회. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from SlipEditRequest r where r.id = :id")
+    Optional<SlipEditRequest> findByIdForDecision(@Param("id") UUID id);
 
     /**
      * 스케줄러 자동 만료 — PENDING + expires_at &lt; now 인 row 전체. soft-delete 자동 제외.

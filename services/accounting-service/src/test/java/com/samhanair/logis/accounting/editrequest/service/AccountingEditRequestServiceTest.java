@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.accounting.editrequest.domain.AccountingEditRequest;
 import com.samhanair.logis.accounting.editrequest.repository.AccountingEditRequestRepository;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
@@ -266,9 +267,25 @@ class AccountingEditRequestServiceTest {
     @Test
     void consumeApproval_throwsNotFound_whenRequestMissing() {
         UUID requestId = UUID.randomUUID();
-        when(requestRepository.findById(requestId)).thenReturn(Optional.empty());
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void consumeApproval_throwsConflict_whenAlreadyConsumed() {
+        AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", null);
+        req.consumeApproval("user-1");
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
     }
 }

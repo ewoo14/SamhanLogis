@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import com.samhanair.logis.inventory.realtime.domain.InventoryEditRequest;
@@ -115,7 +116,7 @@ class InventoryEditRequestServiceTest {
         UUID requestId = UUID.randomUUID();
         InventoryEditRequest request = InventoryEditRequest.create(auditId, requesterId, "요청자",
                 EditRequestType.EDIT, null, EditTargetRole.MANAGER, null);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(request));
 
         InventoryEditRequest approved = service.approve(requestId, UUID.randomUUID(), "관리자", "ok");
 
@@ -129,13 +130,60 @@ class InventoryEditRequestServiceTest {
         UUID requestId = UUID.randomUUID();
         InventoryEditRequest request = InventoryEditRequest.create(auditId, requesterId, "요청자",
                 EditRequestType.EDIT, null, EditTargetRole.MANAGER, null);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(request));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(request));
 
         InventoryEditRequest rejected = service.reject(requestId, UUID.randomUUID(), "관리자",
                 "분개 검토 결과 정정 불필요");
 
         assertThat(rejected.getStatus()).isEqualTo(EditRequestStatus.REJECTED);
         assertThat(rejected.getDecisionReason()).isEqualTo("분개 검토 결과 정정 불필요");
+    }
+
+    @Test
+    void approve_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        UUID requestId = UUID.randomUUID();
+        InventoryEditRequest request = InventoryEditRequest.create(auditId, requesterId, "요청자",
+                EditRequestType.EDIT, null, EditTargetRole.MANAGER, null);
+        request.approve(UUID.randomUUID(), "관리자A", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.approve(requestId, UUID.randomUUID(), "관리자B", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(broker, never()).publish(eq(auditId),
+                eq(InventoryEditRequestService.EVENT_REQUEST_DECIDED), any());
+    }
+
+    @Test
+    void reject_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        UUID requestId = UUID.randomUUID();
+        InventoryEditRequest request = InventoryEditRequest.create(auditId, requesterId, "요청자",
+                EditRequestType.DELETE, "삭제", EditTargetRole.MANAGER, null);
+        request.approve(UUID.randomUUID(), "관리자A", null);
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.reject(requestId, UUID.randomUUID(), "관리자B", "불가"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+        verify(broker, never()).publish(eq(auditId),
+                eq(InventoryEditRequestService.EVENT_REQUEST_DECIDED), any());
+    }
+
+    @Test
+    void consumeApproval_throwsConflict_whenAlreadyConsumed() {
+        UUID requestId = UUID.randomUUID();
+        InventoryEditRequest request = InventoryEditRequest.create(auditId, requesterId, "요청자",
+                EditRequestType.EDIT, null, EditTargetRole.MANAGER, null);
+        request.approve(UUID.randomUUID(), "관리자A", null);
+        request.consumeApproval("user-1");
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.consumeApproval(requestId, "system"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
     }
 
     @Test

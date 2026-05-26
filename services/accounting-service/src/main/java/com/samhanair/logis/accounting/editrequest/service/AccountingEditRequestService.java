@@ -186,20 +186,13 @@ public class AccountingEditRequestService implements EditRequestService {
     @Override
     @Transactional
     public void consumeApproval(UUID requestId, String consumerUserId) {
-        AccountingEditRequest request = loadOrThrow(requestId);
+        AccountingEditRequest request = loadForDecisionOrThrow(requestId);
         request.consumeApproval(consumerUserId == null ? "system" : consumerUserId);
         log.info("[PR-H4b] accounting 요청 {} APPROVED 소진 — consumer={}", requestId, consumerUserId);
     }
 
-    private AccountingEditRequest loadOrThrow(UUID requestId) {
-        Objects.requireNonNull(requestId, "requestId 는 필수입니다");
-        return requestRepository.findById(requestId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "회계 수정 요청을 찾을 수 없습니다: " + requestId));
-    }
-
     /**
-     * approve/reject 전용 — PESSIMISTIC_WRITE 잠금 조회로 동시 결정 race 차단.
+     * approve/reject/consumeApproval 전용 — PESSIMISTIC_WRITE 잠금 조회로 동시 결정/소진 race 차단.
      * 두 번째 트랜잭션은 첫 commit 후 최신 상태를 보고 {@code requirePending()} 가 CONFLICT 던짐.
      */
     private AccountingEditRequest loadForDecisionOrThrow(UUID requestId) {

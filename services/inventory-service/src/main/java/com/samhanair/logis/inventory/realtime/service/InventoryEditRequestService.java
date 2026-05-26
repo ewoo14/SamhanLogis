@@ -106,7 +106,7 @@ public class InventoryEditRequestService {
     @Transactional
     public InventoryEditRequest approve(UUID requestId, UUID approverId, String approverName,
                                         String noteOptional) {
-        InventoryEditRequest request = loadOrThrow(requestId);
+        InventoryEditRequest request = loadForDecisionOrThrow(requestId);
         request.approve(approverId, approverName, noteOptional);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] 요청 {} 수락 — approver={} entity={}",
@@ -118,7 +118,7 @@ public class InventoryEditRequestService {
     @Transactional
     public InventoryEditRequest reject(UUID requestId, UUID approverId, String approverName,
                                        String decisionReason) {
-        InventoryEditRequest request = loadOrThrow(requestId);
+        InventoryEditRequest request = loadForDecisionOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] 요청 {} 거절 — approver={} reason={}",
@@ -152,7 +152,7 @@ public class InventoryEditRequestService {
     /** APPROVED 1회 소진 — mutation 직후 호출. soft-delete 라 다음 lookup 부터 0건. */
     @Transactional
     public void consumeApproval(UUID requestId, String consumerUserId) {
-        InventoryEditRequest request = loadOrThrow(requestId);
+        InventoryEditRequest request = loadForDecisionOrThrow(requestId);
         request.consumeApproval(consumerUserId == null ? "system" : consumerUserId);
         log.info("[PR-H4b] 요청 {} APPROVED 소진 — consumer={}", requestId, consumerUserId);
     }
@@ -189,9 +189,9 @@ public class InventoryEditRequestService {
         log.info("[PR-H4b] 자동 만료 처리 — {} 건 EXPIRED 전환", expired.size());
     }
 
-    private InventoryEditRequest loadOrThrow(UUID requestId) {
+    private InventoryEditRequest loadForDecisionOrThrow(UUID requestId) {
         Objects.requireNonNull(requestId, "requestId 는 필수입니다");
-        return requestRepository.findById(requestId)
+        return requestRepository.findByIdForDecision(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "수정 요청을 찾을 수 없습니다: " + requestId));
     }

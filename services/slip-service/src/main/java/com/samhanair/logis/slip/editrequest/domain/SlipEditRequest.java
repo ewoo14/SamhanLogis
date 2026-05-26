@@ -243,6 +243,9 @@ public class SlipEditRequest extends BaseEntity {
 
     /** APPROVED 요청 1회 소진 마킹 — service 레이어가 mutation 직후 호출 (재사용 차단용). */
     public void consumeApproval(String consumerUserId) {
+        if (Boolean.TRUE.equals(getIsDeleted())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 소진된 요청입니다: " + getId());
+        }
         if (this.status != SlipEditRequestStatus.APPROVED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "APPROVED 상태가 아닌 요청은 소진할 수 없습니다: " + this.status);

@@ -3,11 +3,13 @@ package com.samhanair.logis.partnerorder.editrequest.repository;
 import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditRequest;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -35,6 +37,11 @@ public interface PartnerOrderEditRequestRepository
     /** 권한자 대시보드 — targetRole 의 PENDING 요청 목록. */
     List<PartnerOrderEditRequest> findByTargetRoleAndStatusOrderByRequestedAtDesc(
             EditTargetRole targetRole, EditRequestStatus status);
+
+    /** approve/reject/consumeApproval 직전 PESSIMISTIC_WRITE 잠금 조회. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from PartnerOrderEditRequest r where r.id = :id")
+    Optional<PartnerOrderEditRequest> findByIdForDecision(@Param("id") UUID id);
 
     /** 스케줄러 자동 만료 — PENDING + expires_at &lt; now 인 row. */
     @Query("""

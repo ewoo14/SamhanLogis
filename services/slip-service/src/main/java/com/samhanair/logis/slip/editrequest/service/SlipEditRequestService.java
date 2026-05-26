@@ -153,7 +153,7 @@ public class SlipEditRequestService {
     @Transactional
     public SlipEditRequest approve(UUID requestId, UUID approverId, String approverName,
                                    String noteOptional) {
-        SlipEditRequest request = loadOrThrow(requestId);
+        SlipEditRequest request = loadForDecisionOrThrow(requestId);
         // 도메인 메서드가 status 가드 + audit
         request.approve(approverId, approverName, noteOptional);
 
@@ -183,7 +183,7 @@ public class SlipEditRequestService {
     @Transactional
     public SlipEditRequest reject(UUID requestId, UUID approverId, String approverName,
                                   String decisionReason) {
-        SlipEditRequest request = loadOrThrow(requestId);
+        SlipEditRequest request = loadForDecisionOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
 
         broker.publish(request.getSlipId(), EVENT_REQUEST_DECIDED, buildPayload(request));
@@ -248,7 +248,7 @@ public class SlipEditRequestService {
      */
     @Transactional
     public void consumeApproval(UUID requestId, String consumerUserId) {
-        SlipEditRequest request = loadOrThrow(requestId);
+        SlipEditRequest request = loadForDecisionOrThrow(requestId);
         request.consumeApproval(consumerUserId == null ? "system" : consumerUserId);
         log.info("[PR-H3] 요청 {} APPROVED 소진 — consumer={}", requestId, consumerUserId);
     }
@@ -281,9 +281,9 @@ public class SlipEditRequestService {
 
     // ---------- 내부 helper ----------
 
-    private SlipEditRequest loadOrThrow(UUID requestId) {
+    private SlipEditRequest loadForDecisionOrThrow(UUID requestId) {
         Objects.requireNonNull(requestId, "requestId 는 필수입니다");
-        return requestRepository.findById(requestId)
+        return requestRepository.findByIdForDecision(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "수정 요청을 찾을 수 없습니다: " + requestId));
     }

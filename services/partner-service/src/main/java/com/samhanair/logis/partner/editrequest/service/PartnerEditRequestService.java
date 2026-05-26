@@ -74,7 +74,7 @@ public class PartnerEditRequestService implements EditRequestService {
     @Transactional
     public PartnerEditRequest approve(UUID requestId, UUID approverId, String approverName,
                                       String noteOptional) {
-        PartnerEditRequest request = loadOrThrow(requestId);
+        PartnerEditRequest request = loadForDecisionOrThrow(requestId);
         request.approve(approverId, approverName, noteOptional);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] partner 요청 {} 수락 — approver={} entityId={}",
@@ -85,7 +85,7 @@ public class PartnerEditRequestService implements EditRequestService {
     @Transactional
     public PartnerEditRequest reject(UUID requestId, UUID approverId, String approverName,
                                      String decisionReason) {
-        PartnerEditRequest request = loadOrThrow(requestId);
+        PartnerEditRequest request = loadForDecisionOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         log.info("[PR-H4b] partner 요청 {} 거절 — approver={} reason={}",
@@ -116,14 +116,14 @@ public class PartnerEditRequestService implements EditRequestService {
     @Override
     @Transactional
     public void consumeApproval(UUID requestId, String consumerUserId) {
-        PartnerEditRequest request = loadOrThrow(requestId);
+        PartnerEditRequest request = loadForDecisionOrThrow(requestId);
         request.consumeApproval(consumerUserId == null ? "system" : consumerUserId);
         log.info("[PR-H4b] partner 요청 {} APPROVED 소진 — consumer={}", requestId, consumerUserId);
     }
 
-    private PartnerEditRequest loadOrThrow(UUID requestId) {
+    private PartnerEditRequest loadForDecisionOrThrow(UUID requestId) {
         Objects.requireNonNull(requestId, "requestId 는 필수입니다");
-        return requestRepository.findById(requestId)
+        return requestRepository.findByIdForDecision(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "거래처 수정 요청을 찾을 수 없습니다: " + requestId));
     }

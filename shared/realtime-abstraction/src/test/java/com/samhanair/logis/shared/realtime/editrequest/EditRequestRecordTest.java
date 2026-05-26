@@ -25,6 +25,13 @@ class EditRequestRecordTest {
 
     /** 본 테스트 한정 hidden subclass — abstract @MappedSuperclass 인스턴스화. */
     static class TestableEditRequest extends EditRequestRecord {
+        private final UUID id = UUID.randomUUID();
+
+        @Override
+        public UUID getId() {
+            return id;
+        }
+
         public static TestableEditRequest create(UUID entityId, UUID requesterId,
                                                  String requesterName, EditRequestType type,
                                                  String reason, EditTargetRole targetRole,
@@ -101,5 +108,17 @@ class EditRequestRecordTest {
 
         assertThat(request.getIsDeleted()).isTrue();
         assertThat(request.getDeletedBy()).isEqualTo("user-1");
+    }
+
+    @Test
+    void consumeApproval_alreadyConsumed_throwsConflict() {
+        request.approve(UUID.randomUUID(), "관리자", null);
+        request.consumeApproval("user-1");
+
+        assertThatThrownBy(() -> request.consumeApproval("user-2"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT))
+                .hasMessageContaining("이미 소진된 요청입니다");
     }
 }
