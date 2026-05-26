@@ -22,18 +22,19 @@ import { apiClient, type ApiEnvelope } from './client'
 // ---------------------------------------------------------------------------
 
 /**
- * 7-role ROLE 풀네임 (BE Role enum 과 동일).
+ * 동적 RBAC 매트릭스 ROLE 풀네임.
  * feedback_role_naming_full — UI/PR/문서 모두 풀네임 의무.
- * 참고: DEVELOPER 는 BE getPermissionMatrix allRoles 목록에 미포함 — 향후 추가 예정.
  */
 export type RbacRole =
   | 'MASTER'
+  | 'DEVELOPER'
   | 'MANAGER'
   | 'DISPATCH'
   | 'SALES'
   | 'ACCOUNTANT'
   | 'WAREHOUSE'
   | 'INVENTORY'
+  | 'PARTNER'
 
 /** 페이지 권한 액션 종류 — view(조회) / edit(변경). */
 export type PermissionAction = 'view' | 'edit'

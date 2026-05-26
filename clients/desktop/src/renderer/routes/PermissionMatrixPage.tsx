@@ -42,8 +42,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 // ---------------------------------------------------------------------------
 
 /**
- * 표시 순서 고정 역할 6개 (MASTER 제외 — 항상 전권이므로 편집 불가).
- * SP-D1 cycle 2 fix: BE allRoles 목록 기준 (DEVELOPER 제거 — BE 미지원).
+ * 표시 순서 고정 역할 8개 (MASTER 제외 — 항상 전권이므로 편집 불가).
  */
 const ROLES_ORDER: RbacRole[] = [
   'MANAGER',
@@ -52,17 +51,21 @@ const ROLES_ORDER: RbacRole[] = [
   'ACCOUNTANT',
   'WAREHOUSE',
   'INVENTORY',
+  'DEVELOPER',
+  'PARTNER',
 ]
 
 /** 역할 한국어 라벨. */
 const ROLE_LABEL: Record<RbacRole, string> = {
   MASTER: '마스터',
+  DEVELOPER: '개발자',
   MANAGER: '매니저',
   DISPATCH: '배차담당자',
   SALES: '영업원',
   ACCOUNTANT: '회계원',
   WAREHOUSE: '창고원',
   INVENTORY: '재고원',
+  PARTNER: '파트너',
 }
 
 // ---------------------------------------------------------------------------

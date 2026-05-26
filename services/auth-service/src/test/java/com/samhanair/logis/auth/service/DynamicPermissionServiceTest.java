@@ -226,13 +226,30 @@ class DynamicPermissionServiceTest {
 
         Map<String, Map<String, PermissionDto>> matrix = service.getPermissionMatrix();
 
-        // 7 역할 모두 존재
-        assertThat(matrix).containsKeys("MASTER", "MANAGER", "ACCOUNTANT",
-                "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY");
+        assertThat(matrix).containsKeys("MASTER", "DEVELOPER", "MANAGER", "ACCOUNTANT",
+                "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY", "STAFF", "DRIVER", "PARTNER");
+        assertThat(matrix).hasSize(11);
         // 모든 행 isOverride=false
         matrix.values().forEach(pageMap ->
                 pageMap.values().forEach(dto ->
                         assertThat(dto.isOverride()).isFalse()));
+    }
+
+    @Test
+    @DisplayName("getPermissionMatrix — DEVELOPER/PARTNER 도 GUI 매트릭스 fallback 행을 받는다")
+    void getPermissionMatrix_includesDeveloperAndPartnerFallbackRows() {
+        when(repository.findAllOrderByRoleCodeAndPageCode()).thenReturn(List.of());
+
+        Map<String, Map<String, PermissionDto>> matrix = service.getPermissionMatrix();
+
+        assertThat(matrix.get("DEVELOPER").get("messenger.send"))
+                .extracting(PermissionDto::roleCode, PermissionDto::pageCode,
+                        PermissionDto::canView, PermissionDto::canEdit, PermissionDto::isOverride)
+                .containsExactly("DEVELOPER", "messenger.send", false, false, false);
+        assertThat(matrix.get("PARTNER").get("sales.partner-order.list"))
+                .extracting(PermissionDto::roleCode, PermissionDto::pageCode,
+                        PermissionDto::canView, PermissionDto::canEdit, PermissionDto::isOverride)
+                .containsExactly("PARTNER", "sales.partner-order.list", false, false, false);
     }
 
     @Test

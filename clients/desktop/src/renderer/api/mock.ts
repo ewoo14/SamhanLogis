@@ -4233,8 +4233,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }>> = {}
     for (const cell of _mockPermissionCells) {
       if (!nestedMap[cell.roleCode]) nestedMap[cell.roleCode] = {} as Record<string, { roleCode: string; pageCode: string; displayName: string; canView: boolean; canEdit: boolean; isOverride: boolean }>
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      nestedMap[cell.roleCode]![cell.pageCode] = {
+      const roleMap = nestedMap[cell.roleCode]
+      if (!roleMap) continue
+      roleMap[cell.pageCode] = {
         roleCode: cell.roleCode,
         pageCode: cell.pageCode,
         displayName: cell.pageCode,
@@ -5643,11 +5644,9 @@ const MOCK_BATCH_ROWS = generateMockBatchRows(250)
  *
  * UUID 비공개 가드: roleCode / pageCode 비즈니스 식별자만 사용.
  */
-/**
- * SP-D1 cycle 2 fix: 역할 목록을 BE allRoles 와 일치 (DEVELOPER 제거).
- */
 const SP_D1_ROLES = [
   'MANAGER', 'DISPATCH', 'SALES', 'ACCOUNTANT', 'WAREHOUSE', 'INVENTORY',
+  'DEVELOPER', 'PARTNER',
 ] as const
 
 /**
@@ -5908,8 +5907,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
 }
 
 /**
- * in-memory 매트릭스 — MASTER 포함 287셀 (7 역할 × 41 페이지).
- * SP-D4: V10 seed 22 PageCode × 7 역할 = 154 row 추가.
+ * in-memory 매트릭스 — MASTER 포함 mock 페이지 × role 기본 셀.
  * POST /batch 로 변경 반영.
  */
 let _mockPermissionCells: Array<{
@@ -5922,7 +5920,7 @@ let _mockPermissionCells: Array<{
   ...SP_D1_PAGES.map((page) => ({
     roleCode: 'MASTER', pageCode: page, view: true, edit: true,
   })),
-  // 나머지 6 역할
+  // 나머지 8 역할
   ...SP_D1_ROLES.flatMap((role) =>
     SP_D1_PAGES.map((page) => ({
       roleCode: role,
