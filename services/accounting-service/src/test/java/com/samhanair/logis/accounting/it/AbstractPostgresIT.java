@@ -1,6 +1,13 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
@@ -15,6 +22,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
+
+    @Autowired
+    protected DynamicPermissionClient dynamicPermissionClient;
 
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
@@ -49,6 +59,17 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
         registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
         registry.add("spring.datasource.hikari.connection-timeout", () -> "20000");
+    }
+
+    @BeforeEach
+    void setUpDynamicPermissionDefaults() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+    }
+
+    protected void denyDynamicPermissionFor(String role) {
+        lenient().when(dynamicPermissionClient.canView(eq(role), anyString())).thenReturn(false);
+        lenient().when(dynamicPermissionClient.canEdit(eq(role), anyString())).thenReturn(false);
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */

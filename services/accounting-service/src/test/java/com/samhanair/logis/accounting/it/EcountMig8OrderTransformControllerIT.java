@@ -68,6 +68,9 @@ class EcountMig8OrderTransformControllerIT extends AbstractPostgresIT {
                     .thenThrow(new BusinessException(ErrorCode.MIG8_STAGING_ROW_NOT_FOUND,
                             "MIG8_STAGING_ROW_NOT_FOUND"));
         }
+        if (expectedStatus == 403 && role != null) {
+            denyDynamicPermissionFor(role);
+        }
 
         var request = post(URL).contentType(MediaType.APPLICATION_JSON);
         if (body != null) {

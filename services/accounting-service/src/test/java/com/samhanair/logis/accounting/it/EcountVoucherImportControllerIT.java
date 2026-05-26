@@ -96,6 +96,8 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(authorities = "ROLE_MEMBER")
     void member_cannot_upload_all_mig3_import_files() throws Exception {
+        denyDynamicPermissionFor("MEMBER");
+
         forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
                         .file(file)
                         .header("X-User-Id", "tester")
