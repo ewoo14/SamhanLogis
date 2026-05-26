@@ -105,4 +105,17 @@ class PageCodeTest {
                 .isEqualTo("이카운트 마이그레이션 운영 대시보드");
         assertThat(PageCode.isValid("ecount.mig.ops-dashboard")).isTrue();
     }
+
+    @Test
+    void spD61_pageCodes_V29_seed와_동기화() {
+        assertThat(PageCode.SYSTEM_PERMISSION_ADMIN.getCode()).isEqualTo("system.permission-admin");
+        assertThat(PageCode.SYSTEM_PASSWORD_ADMIN.getCode()).isEqualTo("system.password-admin");
+        assertThat(PageCode.SYSTEM_ACCOUNT_ADMIN.getCode()).isEqualTo("system.account-admin");
+        assertThat(PageCode.DC_CONFIG_IMPORT.getCode()).isEqualTo("dc-config.import");
+        assertThat(PageCode.DASHBOARD_ADMIN.getCode()).isEqualTo("dashboard.admin");
+        assertThat(PageCode.SALES_PARTNER_DC_CONFIG.getCode()).isEqualTo("sales.partner-dc-config");
+
+        assertThat(PageCode.isValid("system.permission-admin")).isTrue();
+        assertThat(PageCode.isValid("sales.partner-dc-config")).isTrue();
+    }
 }

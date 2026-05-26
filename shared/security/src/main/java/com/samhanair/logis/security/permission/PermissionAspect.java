@@ -31,8 +31,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>deny 정책 (action="VIEW" / "EDIT"):
  * <ul>
  *   <li>VIEW: {@link DynamicPermissionClient#canView(String, String)} == false → deny</li>
- *   <li>EDIT: {@link DynamicPermissionClient#canEdit(String, String)} == false +
- *       canView == true → deny (view-only override); canView == false → fallback 통과</li>
+ *   <li>EDIT: {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
  *   <li>미지원 action: WARN 로그 + 권한 검증 건너뜀 (운영 안전 우선)</li>
  * </ul>
  *
@@ -127,13 +126,9 @@ public class PermissionAspect {
         } else if ("EDIT".equals(action)) {
             boolean canEdit = client.canEdit(roleCode, page);
             if (!canEdit) {
-                boolean canView = client.canView(roleCode, page);
-                if (canView) {
-                    denied = true;
-                    log.debug("[SP-D5] EDIT 권한 deny (view-only override) — service={} page={} role={}",
-                            serviceName, page, roleCode);
-                }
-                // canView=false → fallback 통과 (override row 없음 — @PreAuthorize 가 이미 검증)
+                denied = true;
+                log.debug("[SP-D6-1] EDIT 권한 deny — service={} page={} role={}",
+                        serviceName, page, roleCode);
             }
         } else {
             // 미지원 action → 권한 검증 건너뜀 (운영 안전 우선)

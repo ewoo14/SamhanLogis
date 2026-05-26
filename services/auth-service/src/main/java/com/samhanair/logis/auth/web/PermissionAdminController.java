@@ -6,6 +6,7 @@ import com.samhanair.logis.auth.web.dto.PermissionBatchUpdateRequest;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.InternalAuthProperties;
+import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,7 @@ public class PermissionAdminController {
      */
     @GetMapping
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = "VIEW")
     public ApiResponse<Map<String, Map<String, PermissionDto>>> getMatrix() {
         return ApiResponse.ok(permissionService.getPermissionMatrix());
     }
@@ -82,6 +84,7 @@ public class PermissionAdminController {
      */
     @PutMapping
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = "EDIT")
     public ApiResponse<PermissionDto> updatePermission(
             @Valid @RequestBody PermissionUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
@@ -100,6 +103,7 @@ public class PermissionAdminController {
      */
     @PostMapping("/batch")
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = "EDIT")
     public ApiResponse<List<PermissionDto>> batchUpdate(
             @Valid @RequestBody PermissionBatchUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
@@ -120,6 +124,7 @@ public class PermissionAdminController {
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = "EDIT")
     public void deletePermission(
             @RequestParam String roleCode,
             @RequestParam String pageCode,

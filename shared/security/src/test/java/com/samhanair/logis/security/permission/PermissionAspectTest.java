@@ -118,29 +118,16 @@ class PermissionAspectTest {
     }
 
     @Test
-    @DisplayName("EDIT 거부 + VIEW 허용 (view-only override) → AccessDenied + Counter 1")
-    void edit_거부_view_허용_뷰온리_오버라이드() {
+    @DisplayName("EDIT 거부 시 AccessDenied + Counter 1")
+    void edit_거부_AccessDeniedException() {
         attachRoleHeader("SALES");
         given(client.canEdit("SALES", "inventory.warehouse")).willReturn(false);
-        given(client.canView("SALES", "inventory.warehouse")).willReturn(true);
 
         assertThatThrownBy(() -> proxy.editWarehouse("SALES"))
                 .isInstanceOf(AccessDeniedException.class);
 
         assertThat(deniedCount("inventory.warehouse", "SALES", "EDIT")).isEqualTo(1.0);
-    }
-
-    @Test
-    @DisplayName("EDIT 거부 + VIEW 거부 (fallback) → 통과, Counter 증가 없음")
-    void edit_거부_view_거부_fallback_통과() {
-        attachRoleHeader("SALES");
-        given(client.canEdit("SALES", "inventory.warehouse")).willReturn(false);
-        given(client.canView("SALES", "inventory.warehouse")).willReturn(false);
-
-        String result = proxy.editWarehouse("SALES");
-
-        assertThat(result).isEqualTo("ok");
-        assertThat(deniedCount("inventory.warehouse", "SALES", "EDIT")).isEqualTo(0.0);
+        verify(client, never()).canView("SALES", "inventory.warehouse");
     }
 
     // -----------------------------------------------------------------------

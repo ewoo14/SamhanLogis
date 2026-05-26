@@ -6,11 +6,11 @@ import com.samhanair.logis.dcconfig.dto.PartnerDcConfigResponse;
 import com.samhanair.logis.dcconfig.dto.UpdatePartnerDcConfigRequest;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
 import com.samhanair.logis.dcconfig.service.DcConfigService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,7 +45,7 @@ public class PartnerDcConfigsController {
 
     @Operation(summary = "거래처 DC 설정 목록", description = "keyword (거래처명/거래처코드 LIKE) + page/size")
     @GetMapping
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.partner-dc-config", action = "VIEW")
     public ApiResponse<Page<PartnerDcConfigResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
@@ -62,7 +62,7 @@ public class PartnerDcConfigsController {
                     + "null/blank 필드는 변경 없음 (PATCH 시맨틱). DC 미설정 거래처는 자동 생성. "
                     + "Partner 자체가 미존재 시 404.")
     @PatchMapping("/{partnerCode}")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "sales.partner-dc-config", action = "EDIT")
     public ApiResponse<PartnerDcConfigResponse> updateInline(
             @PathVariable String partnerCode,
             @RequestBody UpdatePartnerDcConfigRequest request) {

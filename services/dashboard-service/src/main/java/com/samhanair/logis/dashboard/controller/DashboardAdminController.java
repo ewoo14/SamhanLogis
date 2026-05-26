@@ -13,6 +13,7 @@ import com.samhanair.logis.dashboard.service.MaterializedViewRefreshService;
 import com.samhanair.logis.dashboard.service.PartnerCodeResolver;
 import com.samhanair.logis.dashboard.service.RealTimeStockService;
 import com.samhanair.logis.dashboard.service.SalesAggregateService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.LocalDate;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 대시보드 admin endpoint — KPI 조회 / 실시간 재고 / 매출 집계 / materialized view refresh.
  *
- * <p>인증 = X-User-* 헤더 + {@code @PreAuthorize} 권한 가드 (MASTER / MANAGER).
+ * <p>인증 = X-User-* 헤더 + {@code @RequirePermission} 동적 권한 가드.
  *
  * <p>UUID 비공개 가드 — 모든 응답은 사용자 노출 식별자 (warehouseCode / partnerCode) 기준.
  */
@@ -50,7 +50,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "KPI 조회 (Admin)")
     @GetMapping("/kpi")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "dashboard.admin", action = "VIEW")
     public ApiResponse<List<KpiSnapshotResponse>> listKpi(
             @RequestParam(required = false) KpiCategory category,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -73,7 +73,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "실시간 재고 조회 (Admin)")
     @GetMapping("/realtime-stock")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "dashboard.admin", action = "VIEW")
     public ApiResponse<List<RealTimeStockResponse>> realtimeStock(
             @RequestParam(required = false) String warehouseCode,
             @RequestParam(required = false) String productCode) {
@@ -94,7 +94,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "매출 집계 조회 (Admin)")
     @GetMapping("/sales-aggregate")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "dashboard.admin", action = "VIEW")
     public ApiResponse<List<SalesAggregateResponse>> salesAggregate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -120,7 +120,7 @@ public class DashboardAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "REFRESH 결과 (각 view 별 성공 여부)")
     })
     @PostMapping("/refresh")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
+    @RequirePermission(page = "dashboard.admin", action = "VIEW")
     public ApiResponse<MaterializedViewRefreshService.RefreshResult> refresh() {
         kpiService.invalidateCache();
         return ApiResponse.ok(refreshService.refreshAll());

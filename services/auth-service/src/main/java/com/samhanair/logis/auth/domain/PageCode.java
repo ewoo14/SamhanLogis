@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D1 초기 12개 페이지 등록 (Phase 9 vendor 4 + 회계 5 + 매입 2 + admin 1).
  * <p>SP-D2 회계 카테고리 7개 추가 (accounts / journals / balances / reports / period-close / statement-batch / partner-ledger) — 총 19개.
  * <p>SP-D4 잔여 7 도메인 22개 추가 (견적 / 거래처주문 / 재고 / 직원 / 거래처 / 상품 / 아로로지스) — 총 41개.
+ * <p>SP-D6-1 system.* / dc-config / dashboard / 거래처 DC 설정 PageCode 추가.
  */
 @Getter
 @RequiredArgsConstructor
@@ -86,6 +87,9 @@ public enum PageCode {
     /** 매출 슬립 목록 화면. */
     SALES_SLIP_LIST("sales.slip.list", "매출 슬립 목록"),
 
+    /** 거래처 DC 설정 화면 — dc-config-service PartnerDcConfigsController. */
+    SALES_PARTNER_DC_CONFIG("sales.partner-dc-config", "거래처 DC 설정"),
+
     // ---- 입고 (inbound) ----
 
     /** 입고 검수 화면. */
@@ -100,6 +104,21 @@ public enum PageCode {
 
     /** 동적 RBAC 권한 관리 화면 — MASTER 전용. */
     ADMIN_PERMISSIONS("admin.permissions", "권한 관리"),
+
+    /** 시스템 권한 매트릭스 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
+    SYSTEM_PERMISSION_ADMIN("system.permission-admin", "시스템 권한 관리"),
+
+    /** 시스템 비밀번호 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
+    SYSTEM_PASSWORD_ADMIN("system.password-admin", "비밀번호 관리"),
+
+    /** 시스템 계정 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
+    SYSTEM_ACCOUNT_ADMIN("system.account-admin", "계정 관리"),
+
+    /** DC 설정 import 화면/API — SP-D6-1. */
+    DC_CONFIG_IMPORT("dc-config.import", "DC 설정 import"),
+
+    /** 대시보드 admin 화면/API — SP-D6-1. */
+    DASHBOARD_ADMIN("dashboard.admin", "대시보드 관리"),
 
     // ---- 견적 (estimate) ----
 

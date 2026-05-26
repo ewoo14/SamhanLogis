@@ -2,8 +2,10 @@ package com.samhanair.logis.dashboard.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.dashboard.DashboardServiceApplication;
 import com.samhanair.logis.dashboard.client.AccountingClient;
@@ -14,18 +16,26 @@ import com.samhanair.logis.dashboard.client.PartnerSummary;
 import com.samhanair.logis.dashboard.repository.KpiSnapshotRepository;
 import com.samhanair.logis.dashboard.repository.RealTimeStockRepository;
 import com.samhanair.logis.dashboard.repository.SalesAggregateRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionGuardMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -46,8 +56,12 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @AutoConfigureMockMvc
 class DashboardAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String SERVICE_NAME = "dashboard-service";
+
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private MeterRegistry meterRegistry;
     @Autowired
     private KpiSnapshotRepository kpiRepository;
     @Autowired
@@ -65,9 +79,13 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     private PartnerOrderClient partnerOrderClient;
     @MockBean
     private PartnerClient partnerClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void cleanup() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(inventoryClient.findStock(any(), any())).thenReturn(Optional.empty());
         lenient().when(accountingClient.sumSalesByPartner(any(), any(), any())).thenReturn(BigDecimal.ZERO);
         lenient().when(accountingClient.fetchPrometheusMetrics()).thenReturn("");
@@ -184,6 +202,19 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
         assertThat(mapped).isFalse();
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("permissionGuardedEndpoints")
+    void permissionGuardedEndpoints_withoutViewGrant_return403AndIncrementCounter(
+            String name, String role, String pageCode, MockHttpServletRequestBuilder request) throws Exception {
+        when(dynamicPermissionClient.canView(role, pageCode)).thenReturn(false);
+        double before = deniedCount(pageCode, role, "VIEW");
+
+        mockMvc.perform(withActor(request, role))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
+
+        assertThat(deniedCount(pageCode, role, "VIEW")).isEqualTo(before + 1.0);
+    }
+
     @Test
     void kpi_with_from_after_to_returns_400() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
@@ -192,5 +223,45 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
                         .param("from", LocalDate.now().toString())
                         .param("to", LocalDate.now().minusDays(7).toString()))
                 .andExpect(MockMvcResultMatchers.status().isBadRequest());
+    }
+
+    private static Stream<Arguments> permissionGuardedEndpoints() {
+        LocalDate today = LocalDate.now();
+        LocalDate from = today.minusDays(7);
+        return Stream.of(
+                Arguments.of("dashboard kpi", "MANAGER", "dashboard.admin",
+                        MockMvcRequestBuilders.get("/admin/dashboard/kpi")
+                                .param("from", from.toString())
+                                .param("to", today.toString())),
+                Arguments.of("dashboard realtime stock", "MANAGER", "dashboard.admin",
+                        MockMvcRequestBuilders.get("/admin/dashboard/realtime-stock")),
+                Arguments.of("dashboard sales aggregate", "MANAGER", "dashboard.admin",
+                        MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
+                                .param("from", from.toString())
+                                .param("to", today.toString())
+                                .param("interval", "DAILY")),
+                Arguments.of("dashboard refresh", "MANAGER", "dashboard.admin",
+                        MockMvcRequestBuilders.post("/admin/dashboard/refresh")),
+                Arguments.of("dashboard ecount mig ops", "ACCOUNTANT", "ecount.mig.ops-dashboard",
+                        MockMvcRequestBuilders.get("/dashboard/ecount-mig"))
+        );
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role) {
+        return request
+                .header("X-User-Id", "test-" + role.toLowerCase())
+                .header("X-User-Role", role);
+    }
+
+    private double deniedCount(String page, String role, String action) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", page,
+                "role", role,
+                "action", action
+        ).count();
     }
 }

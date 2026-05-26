@@ -5,7 +5,7 @@
  * 역할(행) × 페이지(열) 체크박스 그리드로 권한을 시각적으로 관리.
  *
  * 기능:
- * - 7 역할 × 41 페이지 코드 = 최대 287 셀 (view / edit 체크박스 2개)
+ * - 7 역할 × 47 페이지 코드 = 최대 329 셀 (view / edit 체크박스 2개)
  * - 셀 변경 시 dirty 상태 강조 (노란 배경)
  * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
  * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
@@ -76,6 +76,7 @@ const ROLE_LABEL: Record<RbacRole, string> = {
  *
  * 그룹 배치 순서 (사용자 업무 흐름 기준):
  *   회계 → 매입 → 매출 → 배차 → 알림 → 관리 (SP-D1~D3 기존)
+ *   → 시스템 관리 (SP-D6-1)
  *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로로지스 (SP-D4 신규)
  */
 interface PageGroup {
@@ -89,6 +90,7 @@ interface PageGroup {
  * SP-D2: 회계 그룹 내 7 코드 추가 (그룹 수 유지)
  * SP-D3: 그룹 수 유지
  * SP-D4: 7 신규 그룹 + 22 코드 추가
+ * SP-D6-1: system.* 3종 + dc-config.import/dashboard.admin + sales.partner-dc-config 추가
  */
 const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
@@ -132,6 +134,7 @@ const PAGE_GROUPS: PageGroup[] = [
     label: '매출',
     pages: [
       'sales.slip.list',
+      'sales.partner-dc-config',
     ],
   },
   {
@@ -150,6 +153,16 @@ const PAGE_GROUPS: PageGroup[] = [
     label: '관리',
     pages: [
       'admin.permissions',
+      'dc-config.import',
+      'dashboard.admin',
+    ],
+  },
+  {
+    label: '시스템 관리',
+    pages: [
+      'system.permission-admin',
+      'system.password-admin',
+      'system.account-admin',
     ],
   },
   // ── SP-D4 신규 그룹 ──────────────────────────────────────────────────────
@@ -234,9 +247,15 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'purchases.receipt-ocr': '영수증 OCR',
   'purchases.slip.list': '매입 슬립',
   'sales.slip.list': '매출 슬립',
+  'sales.partner-dc-config': '거래처 DC 설정',
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
   'admin.permissions': '권한 관리',
+  'system.permission-admin': '시스템 권한',
+  'system.password-admin': '비밀번호 관리',
+  'system.account-admin': '계정 관리',
+  'dc-config.import': 'DC import',
+  'dashboard.admin': '대시보드 관리',
   // SP-D2 회계 7개 신규
   'accounting.accounts': '계정과목',
   'accounting.journals': '분개장',
@@ -290,9 +309,15 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'purchases.receipt-ocr',
   'purchases.slip.list',
   'sales.slip.list',
+  'sales.partner-dc-config',
   'inbound.inspection',
   'dispatch.board',
   'admin.permissions',
+  'system.permission-admin',
+  'system.password-admin',
+  'system.account-admin',
+  'dc-config.import',
+  'dashboard.admin',
   // SP-D2 추가
   'accounting.accounts',
   'accounting.journals',

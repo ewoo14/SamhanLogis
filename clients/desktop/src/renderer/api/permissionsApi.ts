@@ -47,6 +47,7 @@ export type PermissionAction = 'view' | 'edit'
  * Issue 4 Slice 4: 회계 수정/삭제 요청 PageCode 추가.
  * SP-D4: 잔여 7 도메인 22개 신규 추가 (estimates / sales.partner-order.* /
  *         sales.vendor-order / inventory.* / admin.* / partners.* / products.* / arologis.*).
+ * SP-D6-1: system.* / dc-config.import / dashboard.admin + 거래처 DC 설정 권한 추가.
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
@@ -65,9 +66,15 @@ export type PageCode =
   | 'purchases.receipt-ocr'
   | 'purchases.slip.list'
   | 'sales.slip.list'
+  | 'sales.partner-dc-config'
   | 'inbound.inspection'
   | 'dispatch.board'
   | 'admin.permissions'
+  | 'system.permission-admin'
+  | 'system.password-admin'
+  | 'system.account-admin'
+  | 'dc-config.import'
+  | 'dashboard.admin'
   // SP-D2 회계 7개 신규
   | 'accounting.accounts'
   | 'accounting.journals'

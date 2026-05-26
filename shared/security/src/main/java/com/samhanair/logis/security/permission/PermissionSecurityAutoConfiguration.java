@@ -22,11 +22,7 @@ import org.springframework.web.client.RestClient;
  *   <li>{@link PermissionAspect} — {@link RequirePermission} 어노테이션 AOP 인터셉터</li>
  * </ul>
  *
- * <p>조건부 활성화:
- * <ul>
- *   <li>{@link PermissionGuardMetrics} — {@link MeterRegistry} bean 존재 시 (Micrometer 의존 service)</li>
- *   <li>{@link PermissionAspect} — {@link MeterRegistry} bean 존재 시 (metrics 필요)</li>
- * </ul>
+ * <p>{@link MeterRegistry} 는 shared:security 소비 service 의 actuator dependency 에서 제공한다.
  *
  * <p>{@code @EnableAspectJAutoProxy} — Spring AOP 프록시 자동 활성화.
  * 소비자 service 가 이미 {@code @EnableAspectJAutoProxy} 를 선언한 경우 중복 무시된다.
@@ -53,7 +49,6 @@ public class PermissionSecurityAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(MeterRegistry.class)
     public PermissionGuardMetrics permissionGuardMetrics(MeterRegistry meterRegistry) {
         return new PermissionGuardMetrics(meterRegistry);
     }
@@ -70,7 +65,6 @@ public class PermissionSecurityAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(MeterRegistry.class)
     public PermissionAspect permissionAspect(
             ObjectProvider<DynamicPermissionClient> clientProvider,
             PermissionGuardMetrics metrics,

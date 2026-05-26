@@ -11,6 +11,7 @@ import com.samhanair.logis.auth.web.dto.RegisterRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class AuthController {
 
     @PostMapping("/register")
     @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.account-admin", action = "VIEW")
     public ApiResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.ok(authService.register(
                 request.loginId(), request.password(), request.displayName(), request.role()));

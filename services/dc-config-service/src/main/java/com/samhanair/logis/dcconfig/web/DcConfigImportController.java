@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dcconfig.dto.DcConfigImportResult;
 import com.samhanair.logis.dcconfig.service.DcConfigImportService;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.io.IOException;
@@ -52,6 +53,7 @@ public class DcConfigImportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "MASTER role 부재")
     })
     @PreAuthorize("@hr.isExecutiveOffice() and hasRole('MASTER')")
+    @RequirePermission(page = "dc-config.import", action = "EDIT")
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DcConfigImportResult> importCsv(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
