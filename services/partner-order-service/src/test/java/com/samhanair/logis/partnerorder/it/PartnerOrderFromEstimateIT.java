@@ -1,11 +1,14 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.audit.repository.PartnerOrderAuditLogRepository;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
@@ -19,6 +22,7 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -71,6 +75,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
@@ -78,6 +84,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         auditLogRepository.deleteAll();
         jdbcTemplate.update("DELETE FROM partner_order_lines");
         orderRepository.deleteAll();
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -141,8 +149,10 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"PARTNER"})
     void testFromEstimatePartnerRoleForbidden() throws Exception {
         UUID estimateId = UUID.randomUUID();
+        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit")).thenReturn(false);
 
-        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
+        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER"))
                 .andExpect(status().isForbidden());
     }
 

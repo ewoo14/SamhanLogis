@@ -35,6 +35,8 @@ export type RbacRole =
   | 'WAREHOUSE'
   | 'INVENTORY'
   | 'PARTNER'
+  | 'STAFF'
+  | 'DRIVER'
 
 /** 페이지 권한 액션 종류 — view(조회) / edit(변경). */
 export type PermissionAction = 'view' | 'edit'

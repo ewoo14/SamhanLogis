@@ -282,7 +282,7 @@ class PartnerOrderPermissionControllerIT {
                         () -> put("/api/v1/partner-orders/PO-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(updateBody())),
-                new EndpointCase("from estimate", "sales.partner-order.draft", "EDIT", "MANAGER", 201,
+                new EndpointCase("from estimate", "sales.partner-order.edit", "EDIT", "MANAGER", 201,
                         () -> post("/api/v1/partner-orders/from-estimate/{id}", ORDER_ID)),
                 new EndpointCase("history", "sales.partner-order.history", "VIEW", "PARTNER", 200,
                         () -> get("/api/v1/partner-orders/history")

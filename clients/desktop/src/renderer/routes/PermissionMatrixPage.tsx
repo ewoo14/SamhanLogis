@@ -42,7 +42,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 // ---------------------------------------------------------------------------
 
 /**
- * 표시 순서 고정 역할 8개 (MASTER 제외 — 항상 전권이므로 편집 불가).
+ * 표시 순서 고정 역할 10개 (MASTER 제외 — 항상 전권이므로 편집 불가).
  */
 const ROLES_ORDER: RbacRole[] = [
   'MANAGER',
@@ -53,6 +53,8 @@ const ROLES_ORDER: RbacRole[] = [
   'INVENTORY',
   'DEVELOPER',
   'PARTNER',
+  'STAFF',
+  'DRIVER',
 ]
 
 /** 역할 한국어 라벨. */
@@ -66,6 +68,8 @@ const ROLE_LABEL: Record<RbacRole, string> = {
   WAREHOUSE: '창고원',
   INVENTORY: '재고원',
   PARTNER: '파트너',
+  STAFF: '스태프',
+  DRIVER: '운전기사',
 }
 
 // ---------------------------------------------------------------------------

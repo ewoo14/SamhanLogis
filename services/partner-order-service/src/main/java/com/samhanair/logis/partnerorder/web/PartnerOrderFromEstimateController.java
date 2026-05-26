@@ -33,7 +33,7 @@ public class PartnerOrderFromEstimateController {
             description = "견적 snapshot 을 partner-order-service 주문 row 로 변환합니다.")
     @PostMapping("/from-estimate/{estimateId}")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.edit", action = "EDIT")
     public ApiResponse<PartnerOrderDetailResponse> createFromEstimate(
             @PathVariable UUID estimateId,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,
