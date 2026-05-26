@@ -302,6 +302,9 @@ class SlipExcelExportIT extends AbstractPostgresIT {
      */
     @Test
     void tc8_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.print.export"))
+                .thenReturn(false);
+
         mockMvc.perform(get(EXPORT_URL)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))

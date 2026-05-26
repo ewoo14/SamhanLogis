@@ -158,6 +158,8 @@ class SlipControllerIT extends AbstractPostgresIT {
     void warehouseRole_postSlip_returns403() throws Exception {
         // 전표 등록 권한은 SALES/MANAGER/MASTER. WAREHOUSE 는 차단.
         Map<String, Object> body = createOutboundSlipBody();
+        Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "sales.slip.create"))
+                .thenReturn(false);
 
         mockMvc.perform(post("/slips")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -181,6 +183,9 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
+
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.transfer.process"))
+                .thenReturn(false);
 
         mockMvc.perform(post("/slips/" + slipId + "/accept")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -372,6 +377,9 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
 
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.transfer.process"))
+                .thenReturn(false);
+
         mockMvc.perform(post("/slips/" + slipId + "/inspect")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
@@ -444,6 +452,9 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Role", "SALES")).andExpect(status().isOk());
 
         Map<String, Object> rejectBody = Map.of("reason", "WAREHOUSE 가 reject 시도");
+        Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "slip.reject"))
+                .thenReturn(false);
+
         mockMvc.perform(post("/slips/" + slipId + "/reject")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "WAREHOUSE")

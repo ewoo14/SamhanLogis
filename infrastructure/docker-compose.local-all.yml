@@ -239,6 +239,7 @@ services:
       <<: *spring-env
       SERVER_PORT: "8086"
       DB_NAME: slip_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093

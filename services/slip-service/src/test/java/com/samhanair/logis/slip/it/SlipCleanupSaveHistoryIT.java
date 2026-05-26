@@ -294,6 +294,9 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
                             .header("X-User-Role", role))
                     .andExpect(status().isOk());
         }
+        org.mockito.Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "slip.cleanup-history"))
+                .thenReturn(false);
+
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody(1))

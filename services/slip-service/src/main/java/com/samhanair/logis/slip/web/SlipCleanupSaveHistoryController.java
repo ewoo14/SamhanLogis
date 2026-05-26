@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.domain.SlipCleanupSaveMode;
 import com.samhanair.logis.slip.service.SlipCleanupSaveHistoryService;
@@ -19,7 +20,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,8 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class SlipCleanupSaveHistoryController {
 
     private static final String CALLER_HEADER = "X-User-Id";
-    private static final String SLIP_CLEANUP_HISTORY_ROLES =
-            "hasAnyRole('SALES','MANAGER','MASTER')";
 
     private final SlipCleanupSaveHistoryService service;
 
@@ -57,7 +55,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 저장",
             description = "전표정리 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
-    @PreAuthorize(SLIP_CLEANUP_HISTORY_ROLES)
+    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
     public ApiResponse<SlipCleanupSaveHistorySaveResponse> save(
             @Valid @RequestBody SlipCleanupSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -83,7 +81,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 전표정리 저장내역을 조회한다.")
     @GetMapping
-    @PreAuthorize(SLIP_CLEANUP_HISTORY_ROLES)
+    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
     public ApiResponse<Page<SlipCleanupSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -121,7 +119,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
-    @PreAuthorize(SLIP_CLEANUP_HISTORY_ROLES)
+    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
     public ApiResponse<SlipCleanupSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -142,7 +140,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 최신 자동저장 조회",
             description = "현재 사용자의 최신 SLIP_CLEANUP AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
-    @PreAuthorize(SLIP_CLEANUP_HISTORY_ROLES)
+    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
     public ApiResponse<SlipCleanupSaveHistoryDetailResponse> latest(
             @RequestParam("programType") SlipCleanupProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

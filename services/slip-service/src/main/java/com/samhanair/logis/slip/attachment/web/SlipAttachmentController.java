@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.attachment.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
@@ -71,7 +72,7 @@ public class SlipAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('DRIVER','SALES','MANAGER','MASTER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "slip.attachments.upload", action = "EDIT")
     public ApiResponse<SlipAttachmentResponse> upload(
             @PathVariable UUID slipId,
             @RequestParam("type") SlipAttachmentType type,
@@ -114,7 +115,7 @@ public class SlipAttachmentController {
     @Operation(summary = "첨부 soft-delete",
             description = "SALES/MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.attachments.delete", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID slipId,
             @PathVariable UUID attachmentId,

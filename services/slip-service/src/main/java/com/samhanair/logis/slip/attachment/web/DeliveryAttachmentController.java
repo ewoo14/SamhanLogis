@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.attachment.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
@@ -95,7 +96,7 @@ public class DeliveryAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('DRIVER','SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.delivery-attachments.upload", action = "EDIT")
     public ApiResponse<SlipAttachmentResponse> upload(
             @PathVariable UUID slipId,
             @RequestParam("file") MultipartFile file,

@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.dto.AdminSignatureResponse;
 import com.samhanair.logis.slip.web.dto.InvalidateSignatureRequest;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,7 +55,7 @@ public class SlipSignatureController {
                     description = "슬립 미발견")
     })
     @GetMapping("/{id}/signature")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "slip.signature", action = "VIEW")
     public ApiResponse<AdminSignatureResponse> getSignature(@PathVariable UUID id) {
         return ApiResponse.ok(signatureService.getSignature(id));
     }
@@ -80,7 +80,7 @@ public class SlipSignatureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "미서명 슬립 무효화 시도")
     })
     @DeleteMapping("/{id}/signature")
-    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "slip.signature", action = "EDIT")
     public ApiResponse<AdminSignatureResponse> invalidateSignature(
             @PathVariable UUID id,
             @Valid @RequestBody InvalidateSignatureRequest request,

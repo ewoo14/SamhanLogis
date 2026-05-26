@@ -86,13 +86,6 @@ class EstimateControllerIT extends AbstractPostgresIT {
     /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
-    /**
-     * SP-D4 회귀 fix (audit-slice-3) — EstimatePermissionGuard 가 DynamicPermissionClient 를
-     * 주입받으므로 @MockBean 격리 필수. 누락 시 실제 구현체가 auth-service 호출 → 500 오류.
-     * lenient stub 으로 기본 canView=true / canEdit=true 설정.
-     */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
-    private DynamicPermissionClient dynamicPermissionClient;
     /** SP-D4 회귀 fix (audit-slice-3) — ArologisDispatchClient @MockBean 격리. */
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
@@ -243,6 +236,9 @@ class EstimateControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 없는 역할(VIEWER) 견적서 생성 시도 → 403")
     void createEstimate_viewerRole_forbidden() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("VIEWER", "estimates.list"))
+                .thenReturn(false);
+
         mockMvc.perform(post("/slips/estimates")
                         .header("X-User-Id", "viewer-1")
                         .header("X-User-Role", "VIEWER")

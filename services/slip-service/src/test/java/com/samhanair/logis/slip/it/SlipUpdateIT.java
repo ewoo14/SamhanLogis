@@ -266,6 +266,9 @@ class SlipUpdateIT extends AbstractPostgresIT {
     private void assertForbiddenForRole(String role) throws Exception {
         String id = createSlip("INBOUND", "SP0852-" + role);
         String updatedAt = updatedAt(id);
+        Mockito.when(dynamicPermissionClient.canEdit(role, "purchases.slip.edit"))
+                .thenReturn(false);
+
         mockMvc.perform(put(SLIPS_PATH + "/" + id)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_NAME_HEADER, role + "사용자")

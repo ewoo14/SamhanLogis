@@ -125,6 +125,8 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
     @Test
     void getSignature_salesRole_returns403() throws Exception {
         Context ctx = createSignedSlip();
+        Mockito.when(dynamicPermissionClient.canView("SALES", "slip.signature"))
+                .thenReturn(false);
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
                         .header("X-User-Id", "sales-1")
@@ -135,6 +137,8 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
     @Test
     void getSignature_warehouseRole_returns403() throws Exception {
         Context ctx = createSignedSlip();
+        Mockito.when(dynamicPermissionClient.canView("WAREHOUSE", "slip.signature"))
+                .thenReturn(false);
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
                         .header("X-User-Id", "wh-1")
@@ -187,6 +191,8 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
         ObjectNode body = objectMapper.createObjectNode();
         body.put("reason", "사유");
+        Mockito.when(dynamicPermissionClient.canEdit("MANAGER", "slip.signature"))
+                .thenReturn(false);
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
                         .header("X-User-Id", "manager-1")
@@ -201,6 +207,8 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
         ObjectNode body = objectMapper.createObjectNode();
         body.put("reason", "사유");
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.signature"))
+                .thenReturn(false);
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
                         .header("X-User-Id", "s-1")

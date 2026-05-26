@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.publish.PublishFromEstimateRequest;
 import com.samhanair.logis.slip.publish.PublishFromPartnerOrderRequest;
@@ -86,7 +87,7 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패")
     })
     @PostMapping("/from-estimate")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER','INTEGRATION')")
+    @RequirePermission(page = "slip.publish.from-estimate", action = "EDIT")
     public ResponseEntity<ApiResponse<PublishSlipResponse>> publishFromEstimate(
             @Valid @RequestBody PublishFromEstimateRequest request,
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
@@ -113,7 +114,7 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패")
     })
     @PostMapping("/from-partner-order")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER','INTEGRATION','PARTNER_ADMIN')")
+    @RequirePermission(page = "slip.publish.from-partner-order", action = "EDIT")
     public ResponseEntity<ApiResponse<PublishSlipResponse>> publishFromPartnerOrder(
             @Valid @RequestBody PublishFromPartnerOrderRequest request,
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,

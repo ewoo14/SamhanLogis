@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.estimate.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
@@ -43,11 +44,11 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>조회 — 모든 인증 사용자</li>
  * </ul>
  *
- * <p>SP-D4 동적 권한 이중 가드:
+ * <p>SP-D6-6 권한 가드:
  * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>GET 조회 → {@link EstimatePermissionGuard#checkView(String)}</li>
- *   <li>POST/PUT write → {@link EstimatePermissionGuard#checkEdit(String)}</li>
+ *   <li>GET 조회 → {@code isAuthenticated()} + {@link EstimatePermissionGuard#checkView(String)}</li>
+ *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = "EDIT")}
+ *       + {@link EstimatePermissionGuard#checkEdit(String)}</li>
  * </ul>
  */
 @RestController
@@ -100,7 +101,7 @@ public class EstimateController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -112,7 +113,7 @@ public class EstimateController {
     /** 견적서 수정 — DRAFT/SENT 단계만. */
     @Operation(summary = "견적서 수정", description = "DRAFT/SENT 단계만. lines 가 있으면 기존 라인 replace")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
@@ -125,7 +126,7 @@ public class EstimateController {
     /** DRAFT → SENT. */
     @Operation(summary = "견적서 발송", description = "QUOTE_DRAFT → QUOTE_SENT")
     @PostMapping("/{id}/send")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -137,7 +138,7 @@ public class EstimateController {
     /** SENT → ACCEPTED. */
     @Operation(summary = "견적서 수주", description = "QUOTE_SENT → QUOTE_ACCEPTED")
     @PostMapping("/{id}/accept")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -149,7 +150,7 @@ public class EstimateController {
     /** SENT → REJECTED. */
     @Operation(summary = "견적서 거절", description = "QUOTE_SENT → QUOTE_REJECTED")
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -166,7 +167,7 @@ public class EstimateController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ACCEPTED 가 아님")
     })
     @PostMapping("/{id}/convert")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "estimates.list", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

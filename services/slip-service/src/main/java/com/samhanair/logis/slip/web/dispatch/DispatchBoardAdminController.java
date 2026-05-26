@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web.dispatch;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
 import com.samhanair.logis.slip.dto.dispatch.SlipBoardResponse;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskBoardQueryService;
@@ -14,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 배차 메뉴 좌측 패널 — 미배차 출고전표 페이지네이션 (BE Task B11, D-DB-06).
  *
- * <p>인증: ROLE_DISPATCH / ROLE_MANAGER / ROLE_MASTER ({@code @PreAuthorize}).
+ * <p>인증: ROLE_DISPATCH / ROLE_MANAGER / ROLE_MASTER. 사용자-facing GET 은 {@code @RequirePermission} VIEW 가드를 적용한다.
  *
  * <p>SP-D3 동적 권한 이중 가드:
  * <ul>
@@ -37,7 +37,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/dispatch-board")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_DISPATCH','ROLE_MANAGER','ROLE_MASTER')")
 public class DispatchBoardAdminController {
 
     /** SP-D3 — 배차 보드 페이지 코드. */
@@ -55,6 +54,7 @@ public class DispatchBoardAdminController {
      */
     @Operation(summary = "미배차 출고전표 페이지", description = "default: Asia/Seoul today ±1일 + UNDISPATCHED + 50/회")
     @GetMapping("/undispatched-slips")
+    @RequirePermission(page = "dispatch.board", action = "VIEW")
     public Page<SlipBoardResponse> listUnDispatchedSlips(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

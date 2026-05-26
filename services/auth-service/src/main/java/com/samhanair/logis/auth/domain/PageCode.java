@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D6-1 system.* / dc-config / dashboard / 거래처 DC 설정 PageCode 추가.
  * <p>SP-D6-2 groupware / product / partner-order migration 신규 PageCode 추가.
  * <p>SP-D6-3 notification / user migration 신규 PageCode 추가.
+ * <p>SP-D6-6 slip-service migration 신규 PageCode 추가.
  */
 @Getter
 @RequiredArgsConstructor
@@ -96,13 +97,99 @@ public enum PageCode {
     /** 매입 슬립 목록 화면. */
     PURCHASES_SLIP_LIST("purchases.slip.list", "매입 슬립 목록"),
 
+    /** 매입 전표 즉시 수정 API — SP-D6-6. */
+    PURCHASES_SLIP_EDIT("purchases.slip.edit", "매입 전표 수정"),
+
+    /** 매입 전표 삭제 API — SP-D6-6. */
+    PURCHASES_SLIP_DELETE("purchases.slip.delete", "매입 전표 삭제"),
+
     // ---- 매출 (sales) ----
 
     /** 매출 슬립 목록 화면. */
     SALES_SLIP_LIST("sales.slip.list", "매출 슬립 목록"),
 
+    /** 매출/수동 전표 생성 API — SP-D6-6. */
+    SALES_SLIP_CREATE("sales.slip.create", "매출 전표 생성"),
+
+    /** 매출 전표 수정/저장/전송 API — SP-D6-6. */
+    SALES_SLIP_EDIT("sales.slip.edit", "매출 전표 수정"),
+
+    /** 전표 확정 API — SP-D6-6. */
+    SALES_SLIP_CONFIRM("sales.slip.confirm", "전표 확정"),
+
+    /** 전표 취소 API — SP-D6-6. */
+    SALES_SLIP_CANCEL("sales.slip.cancel", "전표 취소"),
+
     /** 거래처 DC 설정 화면 — dc-config-service PartnerDcConfigsController. */
     SALES_PARTNER_DC_CONFIG("sales.partner-dc-config", "거래처 DC 설정"),
+
+    // ---- 전표 공통 (slip) ----
+
+    /** 전표 물류 처리 상태 전이 API — SP-D6-6. */
+    SLIP_TRANSFER_PROCESS("slip.transfer.process", "전표 처리 상태 전이"),
+
+    /** 전표 반려 API — SP-D6-6. */
+    SLIP_REJECT("slip.reject", "전표 반려"),
+
+    /** 기간 마감 전표 lock API — SP-D6-6. */
+    SLIP_PERIOD_LOCK("slip.period-lock", "전표 기간 잠금"),
+
+    /** 내일자 전표 이미지 데이터 API — SP-D6-6. */
+    SLIP_PRINT_NEXT_DAY("slip.print.next-day", "내일자 전표 이미지"),
+
+    /** 전표 목록 Excel export API — SP-D6-6. */
+    SLIP_PRINT_EXPORT("slip.print.export", "전표 Excel export"),
+
+    /** 전표정리 조회 API — SP-D6-6. */
+    SLIP_CLEANUP("slip.cleanup", "전표정리"),
+
+    /** 전표정리 저장내역 API — SP-D6-6. */
+    SLIP_CLEANUP_HISTORY("slip.cleanup-history", "전표정리 저장내역"),
+
+    /** 슬립 첨부 업로드 API — SP-D6-6. */
+    SLIP_ATTACHMENTS_UPLOAD("slip.attachments.upload", "전표 첨부 업로드"),
+
+    /** 슬립 첨부 삭제 API — SP-D6-6. */
+    SLIP_ATTACHMENTS_DELETE("slip.attachments.delete", "전표 첨부 삭제"),
+
+    /** 배송 사진 업로드 API — SP-D6-6. */
+    SLIP_DELIVERY_ATTACHMENTS_UPLOAD("slip.delivery-attachments.upload", "배송 사진 업로드"),
+
+    /** 사진 감사 API — SP-D6-6. */
+    SLIP_PHOTO_AUDIT("slip.photo-audit", "전표 사진 감사"),
+
+    /** 슬립 댓글 등록 API — SP-D6-6. */
+    SLIP_COMMENTS("slip.comments", "전표 댓글"),
+
+    /** audit overlay patch API — SP-D6-6. */
+    SLIP_AUDIT_OVERLAY("slip.audit-overlay", "전표 audit overlay"),
+
+    /** audit revert API — SP-D6-6. */
+    SLIP_AUDIT_REVERT("slip.audit-revert", "전표 audit revert"),
+
+    /** 슬립 수정 요청 생성 API — SP-D6-6. */
+    SLIP_EDIT_REQUESTS("slip.edit-requests", "전표 수정 요청"),
+
+    /** 슬립 수정 요청 승인/거절 API — SP-D6-6. */
+    SLIP_EDIT_REQUESTS_DECIDE("slip.edit-requests.decide", "전표 수정 요청 승인"),
+
+    /** 관리자 서명 API — SP-D6-6. */
+    SLIP_SIGNATURE("slip.signature", "전표 서명"),
+
+    /** 전표 라인 상품 lookup API — SP-D6-6. */
+    SLIP_LOOKUP_PRODUCT("slip.lookup-product", "전표 상품 lookup"),
+
+    /** 배송 배치 admin API — SP-D6-6. */
+    SLIP_DELIVERY_BATCH("slip.delivery-batch", "배송 배치"),
+
+    /** 영업 모바일 API — SP-D6-6. */
+    SLIP_MOBILE_SALES("slip.mobile-sales", "영업 모바일"),
+
+    /** 견적 → 출고전표 발행 API — SP-D6-6. */
+    SLIP_PUBLISH_FROM_ESTIMATE("slip.publish.from-estimate", "견적 전표 발행"),
+
+    /** 거래처 주문 → 출고전표 발행 API — SP-D6-6. */
+    SLIP_PUBLISH_FROM_PARTNER_ORDER("slip.publish.from-partner-order", "거래처 주문 전표 발행"),
 
     // ---- 입고 (inbound) ----
 

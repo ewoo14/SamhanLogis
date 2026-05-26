@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.audit.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.audit.domain.SlipAuditLog;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.audit.web.dto.OverlayPatchRequest;
@@ -82,7 +83,7 @@ public class SlipAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "마감 lock")
     })
     @PatchMapping("/overlay")
-    @PreAuthorize("hasAnyRole('SALES','WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.audit-overlay", action = "EDIT")
     public ApiResponse<SlipDetailResponse> applyOverlayPatch(
             @PathVariable UUID slipId,
             @Valid @RequestBody OverlayPatchRequest request,
@@ -105,7 +106,7 @@ public class SlipAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "마감 lock")
     })
     @PostMapping("/revert/{revisionNo}")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "slip.audit-revert", action = "EDIT")
     public ApiResponse<List<SlipAuditLogResponse>> revertToRevision(
             @PathVariable UUID slipId,
             @PathVariable int revisionNo,

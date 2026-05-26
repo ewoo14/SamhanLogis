@@ -1,6 +1,12 @@
 package com.samhanair.logis.slip.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
@@ -19,22 +25,22 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * <p>Docker 데몬이 호스트에서 사용 불가하면 {@link DockerAvailableCondition} 이
  * 테스트를 fail 이 아닌 skip 으로 처리한다.
  *
- * <p><b>외부 client @MockBean 선언 정책 (audit-slice-3 P1-5):</b><br>
- * 외부 RestClient ({@code PartnerInternalClient}, {@code ProductClient},
- * {@code InventoryClient}, {@code NotificationChatRoomClient}, {@code PartnerBlockClient},
- * {@code ReceiptOcrClient}, {@code UserInternalClient}, {@code WarehouseInternalClient},
- * {@code DynamicPermissionClient}, {@code ArologisDispatchClient} 등) 의 {@code @MockBean} 은
- * 각 IT 클래스가 개별 선언하는 방식을 유지한다 (SP-08-FU1/FU2 패턴 일관).
- *
- * <p>이유: 각 IT 의 {@code @MockBean} 조합이 다르면 Spring Context 캐시가 조합별로 분리되므로
- * AbstractPostgresIT 에서 공통 bean 을 선언하면 컨텍스트 캐시 히트율이 낮아질 수 있다.
- * 점진적 리팩터링은 SP-D6+ 슬라이스에서 검토한다.
- *
- * <p>단, lenient stub 은 {@code @BeforeEach setupLenientStubs()} 메서드에서 일관 설정하여
- * "UnnecessaryStubbingException" 을 방지한다 (Mockito strict stubbing 가드).
+ * <p>SP-D6-6: {@code @RequirePermission} 이 모든 사용자-facing mutation 에 적용되므로
+ * {@code DynamicPermissionClient} 는 공통 {@code @MockBean} 으로 제공한다. 기본값은 기존
+ * role guard 회귀를 피하기 위해 lenient allow 이며, 403 검증 케이스는 요청 직전 명시적으로
+ * false stub 을 둔다.
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
+
+    @MockBean
+    protected DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void setUpDynamicPermissionClient() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+    }
 
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =

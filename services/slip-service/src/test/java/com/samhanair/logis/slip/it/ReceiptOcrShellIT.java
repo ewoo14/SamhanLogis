@@ -110,12 +110,6 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
     @MockBean
     private ArologisDispatchClient arologisDispatchClient;
 
-    /**
-     * SP-D3 동적 권한 client 격리.
-     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
-     */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
-    private DynamicPermissionClient dynamicPermissionClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean
     private UserInternalClient userInternalClient;
@@ -198,6 +192,8 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
     void case2_sales_role_forbidden_403() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "receipt.png", MediaType.IMAGE_PNG_VALUE, TINY_PNG);
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "purchases.receipt-ocr"))
+                .thenReturn(false);
 
         mockMvc.perform(multipart("/slips/receipt-ocr")
                         .file(file)

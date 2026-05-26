@@ -1,12 +1,12 @@
 package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -45,7 +45,7 @@ public class SlipLookupController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "모델명에 해당하는 제품이 없습니다")
     })
     @GetMapping("/lookup-product")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "slip.lookup-product", action = "VIEW")
     public ApiResponse<ProductSummary> lookupProduct(@RequestParam String modelName) {
         return ApiResponse.ok(productClient.lookupByModel(modelName));
     }

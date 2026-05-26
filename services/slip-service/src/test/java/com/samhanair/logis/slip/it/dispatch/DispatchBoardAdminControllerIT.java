@@ -42,8 +42,6 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
 
     // 외부 client @MockBean — [feedback_it_mockbean_external_clients]
-    /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;
@@ -89,6 +87,9 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(username = "sales", authorities = {"ROLE_SALES"})
     void GET_undispatched_slips_rejects_sales_role() throws Exception {
+        org.mockito.Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board"))
+                .thenReturn(false);
+
         mvc.perform(get("/admin/dispatch-board/undispatched-slips"))
                 .andExpect(status().isForbidden());
     }

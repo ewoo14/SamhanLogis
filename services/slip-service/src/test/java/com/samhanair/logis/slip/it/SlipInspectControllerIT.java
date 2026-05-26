@@ -82,13 +82,6 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
 
-    /**
-     * SP-D3 동적 권한 client 격리.
-     * lenient stub 기본값: canView/canEdit 모두 true (기존 IT 회귀 0건 보장).
-     */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
-    private DynamicPermissionClient dynamicPermissionClient;
-
     @BeforeEach
     void mockProductClient() {
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
@@ -240,6 +233,9 @@ class SlipInspectControllerIT extends AbstractPostgresIT {
                 .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
 
         // SALES 가 INSPECTING 단계 검수 시도 → 403.
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.transfer.process"))
+                .thenReturn(false);
+
         mockMvc.perform(post("/slips/" + slipId + "/inspect")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))

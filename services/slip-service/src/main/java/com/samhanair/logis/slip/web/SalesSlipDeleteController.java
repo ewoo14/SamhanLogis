@@ -2,13 +2,13 @@ package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.SalesSlipDeleteService;
 import com.samhanair.logis.slip.web.dto.SlipDeleteRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,7 +53,7 @@ public class SalesSlipDeleteController {
             description = "SALES/MANAGER/MASTER 가 OUTBOUND 전표를 updatedAt 낙관적 잠금으로 삭제합니다. "
                     + "물리 삭제 불가, DRAFT/SAVED 단계만 삭제 허용. 출고 진행(SENT 이후) 시 422.")
     @DeleteMapping("/{id}/sales")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<Void> delete(
             @PathVariable UUID id,
             @Valid @RequestBody SlipDeleteRequest request,

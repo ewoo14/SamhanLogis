@@ -51,8 +51,6 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
-    /** SP-D3 핵심 @MockBean — DynamicPermissionClient 누락 시 Eureka 호출 → 500 트랩 */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;

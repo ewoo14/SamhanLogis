@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.comment.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.comment.domain.SlipComment;
 import com.samhanair.logis.slip.comment.service.SlipCommentService;
 import com.samhanair.logis.slip.comment.web.dto.AddSlipCommentRequest;
@@ -59,7 +60,7 @@ public class SlipCommentController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.comments", action = "EDIT")
     public ApiResponse<SlipCommentResponse> add(
             @PathVariable UUID slipId,
             @Valid @RequestBody AddSlipCommentRequest request,

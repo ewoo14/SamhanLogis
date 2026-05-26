@@ -293,6 +293,9 @@ class SlipSalesDeleteIT extends AbstractPostgresIT {
     private void assertForbiddenForRole(String role) throws Exception {
         String id = createSlip("OUTBOUND", "SP0863-" + role);
         String updatedAt = updatedAt(id);
+        Mockito.when(dynamicPermissionClient.canEdit(role, "sales.slip.edit"))
+                .thenReturn(false);
+
         mockMvc.perform(delete(SLIPS_PATH + "/" + id + SALES_SUFFIX)
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_NAME_HEADER, role + "사용자")

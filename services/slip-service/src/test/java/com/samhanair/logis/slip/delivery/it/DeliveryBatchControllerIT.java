@@ -94,6 +94,9 @@ class DeliveryBatchControllerIT extends AbstractPostgresIT {
 
     @Test
     void autoGroup_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.delivery-batch"))
+                .thenReturn(false);
+
         mockMvc.perform(post("/delivery-batches/auto-group")
                         .param("date", "2026-05-05")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -113,6 +116,9 @@ class DeliveryBatchControllerIT extends AbstractPostgresIT {
 
     @Test
     void list_warehouseRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.canView("WAREHOUSE", "slip.delivery-batch"))
+                .thenReturn(false);
+
         mockMvc.perform(get("/delivery-batches")
                         .param("date", "2026-05-05")
                         .header("X-User-Id", UUID.randomUUID().toString())

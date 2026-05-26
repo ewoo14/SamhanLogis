@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -39,7 +40,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -64,12 +64,12 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>반려 — MANAGER, MASTER</li>
  * </ul>
  *
- * <p>SP-D3 동적 권한 이중 가드:
+ * <p>SP-D6-6 권한 가드:
  * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>사용자-facing write/print/cleanup endpoint 는 {@code @RequirePermission} 으로 보호</li>
  *   <li>매입 슬립 목록 (purchases.slip.list) — GET /slips?slipType=INBOUND 진입 시 checkViewPermission</li>
  *   <li>매출 슬립 목록 (sales.slip.list) — GET /slips?slipType=OUTBOUND 진입 시 checkViewPermission</li>
- *   <li>생성/수정 write 요청 — checkEditPermission (purchases.slip.list / sales.slip.list 구분)</li>
+ *   <li>기존 slipType 기반 동적 가드는 목록/호환 경로의 보조 가드로 유지</li>
  * </ul>
  */
 @Slf4j
@@ -182,7 +182,7 @@ public class SlipController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.create", action = "EDIT")
     public ApiResponse<SlipDetailResponse> create(
             @Valid @RequestBody CreateSlipRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -199,7 +199,7 @@ public class SlipController {
      */
     @Operation(summary = "헤더 수정", description = "DRAFT/SAVED 단계만. null 필드는 보존")
     @PatchMapping("/{id}/header")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> editHeader(
             @PathVariable UUID id,
             @Valid @RequestBody EditHeaderRequest request,
@@ -231,7 +231,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
     })
     @PatchMapping("/{id}/v20")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> updateV20(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSlipRequest request,
@@ -250,7 +250,7 @@ public class SlipController {
     @Operation(summary = "라인 추가", description = "DRAFT/SAVED 단계만")
     @PostMapping("/{id}/lines")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> addLine(
             @PathVariable UUID id,
             @Valid @RequestBody AddLineRequest request,
@@ -269,7 +269,7 @@ public class SlipController {
     @Operation(summary = "라인 제거", description = "DRAFT/SAVED 단계만, orphan removal")
     @DeleteMapping("/{id}/lines/{lineId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public void removeLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
@@ -287,7 +287,7 @@ public class SlipController {
      */
     @Operation(summary = "저장", description = "DRAFT → SAVED")
     @PostMapping("/{id}/save")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> save(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -304,7 +304,7 @@ public class SlipController {
      */
     @Operation(summary = "전송", description = "SAVED → SENT")
     @PostMapping("/{id}/send")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
@@ -320,7 +320,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치 또는 재고 부족")
     })
     @PostMapping("/{id}/accept")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -330,7 +330,7 @@ public class SlipController {
     /** ACCEPTED → PROCESSING. */
     @Operation(summary = "처리 시작", description = "ACCEPTED → PROCESSING")
     @PostMapping("/{id}/process")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> process(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.process(id));
     }
@@ -348,7 +348,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치")
     })
     @PostMapping("/{id}/inspect")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> inspect(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -365,7 +365,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치 또는 재고 부족")
     })
     @PostMapping("/{id}/complete")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> complete(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.complete(id));
     }
@@ -373,7 +373,7 @@ public class SlipController {
     /** COMPLETED → SHIPPING (출고전표 한정). */
     @Operation(summary = "배송 시작", description = "COMPLETED → SHIPPING (OUTBOUND only)")
     @PostMapping("/{id}/ship")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> ship(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.ship(id));
     }
@@ -381,7 +381,7 @@ public class SlipController {
     /** SHIPPING → DELIVERED (출고전표 한정). */
     @Operation(summary = "배송 완료", description = "SHIPPING → DELIVERED (OUTBOUND only)")
     @PostMapping("/{id}/deliver")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','INVENTORY','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
     public ApiResponse<SlipDetailResponse> deliver(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.deliver(id));
     }
@@ -389,7 +389,7 @@ public class SlipController {
     /** 확정 — DELIVERED→CONFIRMED (출고) / COMPLETED→CONFIRMED (입고). */
     @Operation(summary = "확정", description = "출고 DELIVERED→CONFIRMED / 입고 COMPLETED→CONFIRMED")
     @PostMapping("/{id}/confirm")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.confirm", action = "EDIT")
     public ApiResponse<SlipDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -404,7 +404,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "사유 누락")
     })
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "slip.reject", action = "EDIT")
     public ApiResponse<SlipDetailResponse> reject(
             @PathVariable UUID id,
             @Valid @RequestBody RejectRequest request,
@@ -419,7 +419,7 @@ public class SlipController {
      */
     @Operation(summary = "취소", description = "DRAFT/SAVED/SENT → CANCELED")
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "sales.slip.cancel", action = "EDIT")
     public ApiResponse<SlipDetailResponse> cancel(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -444,7 +444,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "기간 누락")
     })
     @PostMapping("/lock-by-period")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.period-lock", action = "EDIT")
     public ApiResponse<LockByPeriodResponse> lockByPeriod(
             @jakarta.validation.Valid @RequestBody LockByPeriodRequest request) {
         int locked = slipService.lockByPeriod(request.startDate(), request.endDate(),
@@ -477,7 +477,7 @@ public class SlipController {
     @Operation(summary = "다음날자 전표 이미지 데이터 (BE-A5)",
             description = "GAS B 이식 — 자체 출고전표 자동 조회 + 단톡방/발송금지/지역 5 way join")
     @GetMapping("/next-day-image-data")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.print.next-day", action = "VIEW")
     public ApiResponse<NextDaySlipImageResponse> nextDayImageData(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate date) {
@@ -508,7 +508,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 to < from")
     })
     @GetMapping("/cleanup")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.cleanup", action = "VIEW")
     public ApiResponse<SlipCleanupResponse> cleanup(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
@@ -538,7 +538,7 @@ public class SlipController {
                     description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "slip.print.export", action = "EDIT")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) SlipType slipType,
             @RequestParam(required = false) SlipStatus status,

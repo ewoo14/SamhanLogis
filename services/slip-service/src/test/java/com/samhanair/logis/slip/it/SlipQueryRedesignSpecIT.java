@@ -85,11 +85,7 @@ class SlipQueryRedesignSpecIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
-    // ---- 외부 client @MockBean 7종 (SP-D3 cycle 3: DynamicPermissionClient 추가) ----
-
-    /** SP-D3 cycle 3 fix — DynamicPermissionClient @MockBean 누락 시 Eureka 호출 → 403 fallback 트랩 */
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
-    private DynamicPermissionClient dynamicPermissionClient;
+    // ---- 외부 client @MockBean 격리 ----
 
     @MockBean
     private InventoryClient inventoryClient;

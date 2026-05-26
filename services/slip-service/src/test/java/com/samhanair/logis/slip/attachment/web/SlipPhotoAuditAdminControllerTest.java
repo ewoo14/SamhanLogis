@@ -1,23 +1,32 @@
 package com.samhanair.logis.slip.attachment.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipPhotoAuditResponse;
 import com.samhanair.logis.slip.config.HeaderAuthenticationFilter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -32,7 +41,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -44,15 +52,22 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * 관리자 사진 감사 endpoint MVC 테스트.
  *
- * <p>{@link HeaderAuthenticationFilter} 와 {@code @PreAuthorize} 를 함께 통과시켜 허용 role,
+ * <p>{@link HeaderAuthenticationFilter} 와 {@code @RequirePermission} 를 함께 통과시켜 허용 role,
  * 차단 role, UUID-free JSON 응답 계약을 고정한다.
  */
 @WebMvcTest(controllers = SlipPhotoAuditAdminController.class)
-@Import(SlipPhotoAuditAdminControllerTest.TestSecurityConfig.class)
+@Import({
+        PermissionSecurityAutoConfiguration.class,
+        SlipPhotoAuditAdminControllerTest.TestSecurityConfig.class,
+        SlipPhotoAuditAdminControllerTest.TestMeterConfig.class
+})
 class SlipPhotoAuditAdminControllerTest {
 
     @MockBean
     private SlipAttachmentService attachmentService;
+
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -62,6 +77,12 @@ class SlipPhotoAuditAdminControllerTest {
     @Autowired
     SlipPhotoAuditAdminControllerTest(MockMvc mockMvc) {
         this.mockMvc = mockMvc;
+    }
+
+    @BeforeEach
+    void setUpDynamicPermissionClient() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -137,6 +158,8 @@ class SlipPhotoAuditAdminControllerTest {
 
     @Test
     void listPhotoAudit_salesRole_returns403() throws Exception {
+        when(dynamicPermissionClient.canView("SALES", "slip.photo-audit")).thenReturn(false);
+
         mockMvc.perform(get("/slips/admin/photo-audit")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")
@@ -152,7 +175,7 @@ class SlipPhotoAuditAdminControllerTest {
     }
 
     @Test
-    void listPhotoAudit_declaresWarehouseManagerMasterGuard() throws Exception {
+    void listPhotoAudit_declaresRequirePermissionGuard() throws Exception {
         Method method = SlipPhotoAuditAdminController.class.getMethod(
                 "list",
                 SlipAttachmentType.class,
@@ -162,11 +185,11 @@ class SlipPhotoAuditAdminControllerTest {
                 int.class,
                 int.class);
 
-        PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
+        RequirePermission annotation = method.getAnnotation(RequirePermission.class);
 
         assertThat(annotation).isNotNull();
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('WAREHOUSE','MANAGER','MASTER')");
-        assertThat(annotation.value()).doesNotContain("SALES");
+        assertThat(annotation.page()).isEqualTo("slip.photo-audit");
+        assertThat(annotation.action()).isEqualTo("VIEW");
     }
 
     @TestConfiguration
@@ -181,6 +204,15 @@ class SlipPhotoAuditAdminControllerTest {
                     .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                     .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
             return http.build();
+        }
+    }
+
+    @TestConfiguration
+    static class TestMeterConfig {
+
+        @Bean
+        MeterRegistry meterRegistry() {
+            return new SimpleMeterRegistry();
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.mobile.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
@@ -21,7 +22,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>매뉴얼 출처: {@code docs/manual/04-모바일/03-영업-앱.md} §4-4 (P1-4 정식 native 앱).
  *
  * <p>권한: SALES / MANAGER / MASTER (모든 endpoint 공통). 게이트웨이에서 X-User-Id / X-User-Role
- * 헤더를 전파하므로 JWT 재검증 없이 {@code @PreAuthorize} 만 적용.
+ * 헤더를 전파하며, endpoint 별 {@code @RequirePermission} 으로 VIEW/EDIT 를 검증한다.
  *
  * <p>endpoint 목록:
  * <ul>
@@ -77,7 +77,7 @@ public class MobileSalesController {
             description = "P1-4 — 기간 내 매출 요약 + 미수금 현황 + 견적 진행(DRAFT/SENT/ACCEPTED) 건수. "
                     + "fromDate/toDate 미입력 시 today-30일 ~ today 기본 적용.")
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.mobile-sales", action = "VIEW")
     public ApiResponse<MobileSalesDashboardResponse> dashboard(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -109,7 +109,7 @@ public class MobileSalesController {
     })
     @PostMapping("/quotations")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.mobile-sales", action = "EDIT")
     public ApiResponse<EstimateDetailResponse> createQuotation(
             @Valid @RequestBody MobileQuotationRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -136,7 +136,7 @@ public class MobileSalesController {
     })
     @PostMapping("/partner-orders")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.mobile-sales", action = "EDIT")
     public ApiResponse<SlipDetailResponse> createPartnerOrder(
             @Valid @RequestBody MobilePartnerOrderRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -157,7 +157,7 @@ public class MobileSalesController {
             description = "당일 등록한 OUTBOUND 슬립 목록. CANCELED/REJECTED 제외. "
                     + "요청자(X-User-Id) 기준 필터 적용.")
     @GetMapping("/visits/today")
-    @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")
+    @RequirePermission(page = "slip.mobile-sales", action = "VIEW")
     public ApiResponse<List<SlipResponse>> visitsToday(
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         String requesterId = callerOrSystem(callerHeader);

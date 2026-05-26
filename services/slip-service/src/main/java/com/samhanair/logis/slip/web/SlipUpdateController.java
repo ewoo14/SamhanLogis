@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.SlipUpdateService;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,7 +36,7 @@ public class SlipUpdateController {
     @Operation(summary = "매입 전표 즉시 수정",
             description = "WAREHOUSE/MANAGER/MASTER 가 INBOUND 전표 헤더와 라인을 updatedAt 낙관적 잠금으로 수정합니다.")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "purchases.slip.edit", action = "EDIT")
     public ApiResponse<SlipDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody SlipUpdateRequest request,

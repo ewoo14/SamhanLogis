@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  *   <li>actorRole null/blank → 건너뜀</li>
  *   <li>canView=false → {@link BusinessException}(FORBIDDEN) 명시적 deny</li>
  *   <li>canEdit=false + canView=true → EDIT 시 403 (view-only override deny)</li>
- *   <li>canEdit=false + canView=false → fallback 통과 (기존 @PreAuthorize 가 이미 검증)</li>
+ *   <li>canEdit=false + canView=false → fallback 통과 (상위 인증/권한 가드가 이미 검증)</li>
  * </ul>
  *
  * <p>IT 에서 {@code @MockBean} 격리 필요 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
@@ -77,7 +77,7 @@ public class EstimatePermissionGuard {
                         actorRole, PAGE_CODE);
                 throw new BusinessException(ErrorCode.FORBIDDEN, "견적 편집 권한이 없습니다.");
             }
-            // canView=false → fallback 통과 (override row 없음 — @PreAuthorize 가 이미 검증)
+            // canView=false → fallback 통과 (override row 없음 — 상위 인증/권한 가드가 이미 검증)
         }
     }
 }

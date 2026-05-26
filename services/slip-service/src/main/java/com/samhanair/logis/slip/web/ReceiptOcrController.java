@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.service.ReceiptOcrParseService;
 import com.samhanair.logis.slip.web.dto.ReceiptParseResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -89,7 +90,7 @@ public class ReceiptOcrController {
      */
     @PostMapping(value = "/receipt-ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('WAREHOUSE','ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "purchases.receipt-ocr", action = "EDIT")
     @Operation(summary = "영수증 OCR 파싱 + 매입 전표 자동 생성",
             description = "영수증 이미지(jpg/png, ≤10MB)를 업로드하면 OCR 로 파싱 후 매입 전표 DRAFT 를 자동 생성합니다. "
                     + "submitMethod=DRY_RUN(기본) 은 즉시 mock 응답, CLOVA 는 Phase 11 실 API 연동 예정. "
