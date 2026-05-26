@@ -67,6 +67,10 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
         if ("headerMismatch".equals(label)) {
             stubHeaderMismatch(url);
         }
+        if ("memberForbidden".equals(label)) {
+            when(dynamicPermissionClient.canEdit(role, pageCode(url))).thenReturn(false);
+            when(dynamicPermissionClient.canView(role, pageCode(url))).thenReturn(true);
+        }
 
         var request = multipart(url).file(file);
         if (includeUserId) {
@@ -117,6 +121,13 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
         return Stream.of(
                 new String[]{"salesLedger", "/admin/accounting/sales-ledger/imports/ecount"},
                 new String[]{"purchaseLedger", "/admin/accounting/purchase-ledger/imports/ecount"});
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("sales-ledger")) {
+            return "ecount.mig11.sales-ledger";
+        }
+        return "ecount.mig11.purchase-ledger";
     }
 
     private static EcountMig11Result result() {

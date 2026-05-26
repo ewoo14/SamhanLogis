@@ -68,6 +68,10 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
                     .thenThrow(new BusinessException(ErrorCode.MIG10_ORDER_NOT_FOUND,
                             "MIG10_ORDER_NOT_FOUND"));
         }
+        if ("memberForbidden".equals(label)) {
+            when(dynamicPermissionClient.canEdit(role, "ecount.mig10.order-employee-backfill")).thenReturn(false);
+            when(dynamicPermissionClient.canView(role, "ecount.mig10.order-employee-backfill")).thenReturn(true);
+        }
 
         var request = post(URL).contentType(MediaType.APPLICATION_JSON);
         if (body != null) {

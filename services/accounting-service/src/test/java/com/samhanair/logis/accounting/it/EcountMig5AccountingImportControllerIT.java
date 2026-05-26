@@ -67,6 +67,10 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
         if ("headerMismatch".equals(label)) {
             stubHeaderMismatch(url);
         }
+        if ("memberForbidden".equals(label)) {
+            when(dynamicPermissionClient.canEdit(role, pageCode(url))).thenReturn(false);
+            when(dynamicPermissionClient.canView(role, pageCode(url))).thenReturn(true);
+        }
 
         var request = multipart(url).file(file).header("X-User-Id", "tester");
         if (role != null) {
@@ -112,6 +116,13 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
         return Stream.of(
                 new String[]{"expenseVoucher", "/admin/accounting/expense-vouchers/imports/ecount"},
                 new String[]{"depositReport", "/admin/accounting/deposit-reports/imports/ecount"});
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("expense-vouchers")) {
+            return "ecount.mig5.expense-voucher";
+        }
+        return "ecount.mig5.deposit-report";
     }
 
     private static EcountMig5ImportResult result() {

@@ -67,6 +67,10 @@ class EcountMig6AccountingImportControllerIT extends AbstractPostgresIT {
         if ("headerMismatch".equals(label)) {
             stubHeaderMismatch(url);
         }
+        if ("memberForbidden".equals(label)) {
+            when(dynamicPermissionClient.canEdit(role, pageCode(url))).thenReturn(false);
+            when(dynamicPermissionClient.canView(role, pageCode(url))).thenReturn(true);
+        }
 
         var request = multipart(url).file(file);
         if (includeUserId) {
@@ -116,6 +120,13 @@ class EcountMig6AccountingImportControllerIT extends AbstractPostgresIT {
         return Stream.of(
                 new String[]{"bankAccount", "/admin/accounting/bank-accounts/imports/ecount"},
                 new String[]{"fixedAssetType", "/admin/accounting/fixed-asset-types/imports/ecount"});
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("bank-accounts")) {
+            return "ecount.mig6.bank-account";
+        }
+        return "ecount.mig6.fixed-asset-type";
     }
 
     private static EcountMig6ImportResult result() {

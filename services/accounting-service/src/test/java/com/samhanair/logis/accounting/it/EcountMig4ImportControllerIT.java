@@ -57,6 +57,7 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
         lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
     }
@@ -79,6 +80,9 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     @MethodSource("endpoints")
     @WithMockUser(authorities = "ROLE_MEMBER")
     void member_cannot_upload(String label, String url) throws Exception {
+        when(dynamicPermissionClient.canEdit("MEMBER", pageCode(url))).thenReturn(false);
+        when(dynamicPermissionClient.canView("MEMBER", pageCode(url))).thenReturn(true);
+
         mockMvc.perform(multipart(url)
                         .file(file())
                         .header("X-User-Id", "tester")
@@ -156,6 +160,19 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
                 Arguments.of("salesSlipLine", "/admin/accounting/sales-slips/imports/ecount-line"),
                 Arguments.of("summary", "/admin/accounting/sales-purchase-summary/imports/ecount"),
                 Arguments.of("order", "/admin/accounting/orders/imports/ecount"));
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("tax-invoices")) {
+            return "ecount.mig4.tax-invoice";
+        }
+        if (url.contains("ecount-line")) {
+            return "ecount.mig4.sales-slip-line";
+        }
+        if (url.contains("sales-purchase-summary")) {
+            return "ecount.mig4.summary";
+        }
+        return "ecount.mig4.order";
     }
 
     private static EcountMig4ImportResult result() {
