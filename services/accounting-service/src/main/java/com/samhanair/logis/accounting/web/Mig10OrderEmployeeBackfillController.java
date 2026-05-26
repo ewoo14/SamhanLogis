@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.Mig10OrderEmployeeBackfillService;
 import com.samhanair.logis.accounting.web.dto.EcountMig10BackfillRequest;
 import com.samhanair.logis.common.ecount.EcountMig10Result;
@@ -10,7 +11,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -32,7 +32,7 @@ public class Mig10OrderEmployeeBackfillController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/backfill-employee-cross-link")
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = PAGE_CODE, action = "EDIT")
     @Operation(summary = "MIG-10 Order.manager_name 을 Employee UUID 로 연결")
     public EcountMig10Result backfill(
             @RequestBody(required = false) EcountMig10BackfillRequest request,

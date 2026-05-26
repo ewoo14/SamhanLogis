@@ -150,8 +150,10 @@ class EcountReimportControllerIT {
 
     @Test
     @WithMockUser(authorities = "ROLE_MANAGER")
-    @DisplayName("정적 권한은 MASTER만 허용한다")
+    @DisplayName("동적 EDIT 권한이 없으면 MANAGER도 403으로 차단한다")
     void managerIsForbidden() throws Exception {
+        when(dynamicPermissionClient.canEdit("MANAGER", PAGE_CODE)).thenReturn(false);
+
         mockMvc.perform(post("/admin/ecount/reimport/mig-3")
                         .header(USER_ID_HEADER, "tester")
                         .header(ROLE_HEADER, "MANAGER")

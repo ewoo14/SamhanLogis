@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipService;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
@@ -9,7 +10,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,7 +20,7 @@ public class PurchaseAccountingSlipController {
     private final PurchaseAccountingSlipService service;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "VIEW")
     public ResponseEntity<List<PurchaseAccountingSlipResponse>> list(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -32,7 +32,7 @@ public class PurchaseAccountingSlipController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "EDIT")
     public ResponseEntity<PurchaseAccountingSlipResponse> createDraft(
             @RequestBody CreatePurchaseAccountingSlipRequest req,
             @RequestHeader("X-User-Id") String userId) {
@@ -40,7 +40,7 @@ public class PurchaseAccountingSlipController {
     }
 
     @PostMapping("/{slipNo}/post")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "EDIT")
     public ResponseEntity<Void> post(@PathVariable String slipNo,
             @RequestHeader("X-User-Id") String userId) {
         service.post(slipNo, userId);

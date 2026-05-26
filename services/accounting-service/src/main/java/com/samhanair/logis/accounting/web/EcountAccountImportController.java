@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.EcountAccountImporter;
 import com.samhanair.logis.accounting.web.dto.EcountAccountImportResult;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,7 +28,7 @@ public class EcountAccountImportController {
     private final EcountAccountImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = "ecount.mig2.account", action = "EDIT")
     @Operation(summary = "이카운트 계정상세내역 CSV 적재")
     public EcountAccountImportResult upload(
             @RequestPart("file") MultipartFile file,

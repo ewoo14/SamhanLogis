@@ -13,7 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Trusts the upstream gateway: when {@code X-User-Id} and {@code X-User-Role} are present,
- * a pre-authenticated token is placed in the SecurityContext so {@code @PreAuthorize} can fire.
+ * a pre-authenticated token is placed in the SecurityContext so permission guards can fire.
  * (slip-service 답습)
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {

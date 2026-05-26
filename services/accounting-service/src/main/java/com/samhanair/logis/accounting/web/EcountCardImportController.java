@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.EcountCardImporter;
 import com.samhanair.logis.accounting.web.dto.EcountCardImportResult;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,7 +28,7 @@ public class EcountCardImportController {
     private final EcountCardImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = "ecount.mig2.card", action = "EDIT")
     @Operation(summary = "이카운트 통장계좌 CSV 적재")
     public EcountCardImportResult upload(
             @RequestPart("file") MultipartFile file,

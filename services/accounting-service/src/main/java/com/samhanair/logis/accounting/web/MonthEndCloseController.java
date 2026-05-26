@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.PeriodType;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
 import com.samhanair.logis.accounting.web.dto.AccountingPeriodResponse;
@@ -16,7 +17,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -69,7 +69,7 @@ public class MonthEndCloseController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = PAGE_CODE, action = "EDIT")
     public ApiResponse<AccountingPeriodResponse> close(
             @Valid @RequestBody CreateClosingRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -81,7 +81,7 @@ public class MonthEndCloseController {
     /** 목록 조회 — period_type / year 필터. */
     @Operation(summary = "마감 목록 조회", description = "period_type / year 필터. MANAGER 는 조회 전용")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = PAGE_CODE, action = "VIEW")
     public ApiResponse<List<AccountingPeriodResponse>> list(
             @RequestParam(required = false) PeriodType periodType,
             @RequestParam(required = false) Integer year) {
@@ -97,7 +97,7 @@ public class MonthEndCloseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CLOSED 가 아닐 때")
     })
     @PostMapping("/{id}/reverse")
-    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "accounting.period-close.reverse", action = "EDIT")
     public ApiResponse<AccountingPeriodResponse> reverse(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

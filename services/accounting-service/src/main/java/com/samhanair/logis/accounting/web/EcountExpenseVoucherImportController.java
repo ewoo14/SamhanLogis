@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.EcountExpenseVoucherImporter;
 import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
@@ -12,7 +13,6 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,7 +35,7 @@ public class EcountExpenseVoucherImportController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = PAGE_CODE, action = "EDIT")
     @Operation(summary = "이카운트 지출결의서 CSV 적재")
     public EcountMig5ImportResult upload(
             @RequestPart("file") MultipartFile file,

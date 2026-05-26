@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.TrialBalanceService;
 import com.samhanair.logis.accounting.web.dto.TrialBalanceResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -10,7 +11,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,7 +51,7 @@ public class TrialBalanceController {
      */
     @Operation(summary = "시산표", description = "POSTED 분개 라인 집계 (yyyyMM)")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = "accounting.balances.trial-balance", action = "VIEW")
     public ApiResponse<TrialBalanceResponse> byPeriod(
             @RequestParam String period,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

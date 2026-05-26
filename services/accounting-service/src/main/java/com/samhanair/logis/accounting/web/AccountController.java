@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.web;
 import com.samhanair.logis.accounting.service.AccountService;
 import com.samhanair.logis.accounting.web.dto.AccountTreeNodeResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class AccountController {
 
     /** 계정과목 트리 전체 조회 — code 오름차순. */
     @Operation(summary = "계정과목 트리", description = "ChartOfAccount 전체를 code asc 로 조회 (FE 가 parentCode 로 nest)")
+    @RequirePermission(page = "accounting.accounts", action = "VIEW")
     @GetMapping
     public ApiResponse<List<AccountTreeNodeResponse>> tree() {
         return ApiResponse.ok(accountService.findTree());

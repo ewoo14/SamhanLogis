@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.DailyClosingService;
@@ -18,7 +19,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,7 +74,7 @@ public class DailyClosingController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.daily-closing.run", action = "EDIT")
     public ApiResponse<DailyClosingResponse> close(
             @Valid @RequestBody CreateDailyClosingRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -97,7 +97,7 @@ public class DailyClosingController {
                     description = "SALES role — 접근 불가")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.daily-closing", action = "VIEW")
     public ApiResponse<Page<DailyClosingResponse>> list(
             @Parameter(description = "조회 시작 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -139,7 +139,7 @@ public class DailyClosingController {
     })
     @PatchMapping("/{closingDate}/lock")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "accounting.daily-closing.unlock", action = "EDIT")
     public ApiResponse<DailyClosingResponse> unlock(
             @Parameter(description = "마감 날짜 (yyyy-MM-dd)", required = true)
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate closingDate,

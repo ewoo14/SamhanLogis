@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.service.TaxInvoiceEmitService;
@@ -29,7 +30,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -88,7 +88,7 @@ public class TaxInvoiceController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "EDIT")
     public ApiResponse<TaxInvoiceDetailResponse> create(
             @Valid @RequestBody CreateTaxInvoiceRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -104,7 +104,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 가 아닐 때")
     })
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "EDIT")
     public ApiResponse<TaxInvoiceDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody CreateTaxInvoiceRequest request,
@@ -122,7 +122,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 가 아니거나 라인 0건/금액 0")
     })
     @PostMapping("/{id}/issue")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "EDIT")
     public ApiResponse<TaxInvoiceDetailResponse> issue(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -143,7 +143,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ISSUED 가 아닐 때")
     })
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.tax-invoice.cancel", action = "EDIT")
     public ApiResponse<TaxInvoiceDetailResponse> cancel(
             @PathVariable UUID id,
             @Valid @RequestBody TaxInvoiceCancelRequest cancelRequest,
@@ -167,7 +167,7 @@ public class TaxInvoiceController {
     })
     @PostMapping("/issue-request")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.tax-invoice.issue-request", action = "EDIT")
     public ApiResponse<TaxInvoiceDetailResponse> createP04(
             @Valid @RequestBody TaxInvoiceCreateRequest request) {
         return ApiResponse.ok(taxInvoiceService.createFromRequest(request));
@@ -186,7 +186,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/history")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "VIEW")
     public ApiResponse<Page<TaxInvoiceSummaryResponse>> history(
             @RequestParam(required = false) TaxInvoiceStatus status,
             @RequestParam(required = false) TaxInvoiceType type,
@@ -216,7 +216,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 상태 — 발행 후 인쇄 가능")
     })
     @GetMapping("/{id}/print")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "VIEW")
     public ApiResponse<TaxInvoicePrintResponse> print(@PathVariable UUID id) {
         return ApiResponse.ok(taxInvoiceService.print(id));
     }
@@ -225,7 +225,7 @@ public class TaxInvoiceController {
     @Operation(summary = "세금계산서 페이지 조회 (기존)",
             description = "status / 공급일자 [from, to] / partnerId 필터. P0-4 이후 /history 권장")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "VIEW")
     public ApiResponse<Page<TaxInvoiceResponse>> list(
             @RequestParam(required = false) TaxInvoiceStatus status,
             @RequestParam(required = false)
@@ -244,7 +244,7 @@ public class TaxInvoiceController {
     /** 단건 조회 (라인 포함). */
     @Operation(summary = "세금계산서 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = "VIEW")
     public ApiResponse<TaxInvoiceDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(taxInvoiceService.getOne(id));
     }
@@ -276,7 +276,7 @@ public class TaxInvoiceController {
                     description = "NTS API 오류")
     })
     @PostMapping("/{id}/emit-nts")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = "accounting.tax-invoice.emit-nts", action = "EDIT")
     public ApiResponse<EmitNtsResponse> emitNts(
             @PathVariable UUID id,
             @Valid @RequestBody EmitNtsRequest request,

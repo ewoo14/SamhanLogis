@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.service.JournalExcelExportService;
 import com.samhanair.logis.accounting.service.JournalService;
@@ -25,7 +26,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,7 +79,7 @@ public class JournalController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
     public ApiResponse<JournalDetailResponse> create(
             @Valid @RequestBody CreateJournalRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -96,7 +96,7 @@ public class JournalController {
      */
     @Operation(summary = "분개 페이지 조회", description = "from/to 일자 범위 + status 필터 페이지")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
     public ApiResponse<Page<JournalResponse>> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -110,7 +110,7 @@ public class JournalController {
     /** 단건 조회 (라인 포함). */
     @Operation(summary = "분개 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
     public ApiResponse<JournalDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(journalService.getOne(id));
     }
@@ -122,7 +122,7 @@ public class JournalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 가 아니거나 합계 mismatch")
     })
     @PostMapping("/{id}/post")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
     public ApiResponse<JournalDetailResponse> post(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -138,7 +138,7 @@ public class JournalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "POSTED 가 아닐 때")
     })
     @PostMapping("/{id}/reverse")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
     public ApiResponse<JournalDetailResponse> reverse(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -168,7 +168,7 @@ public class JournalController {
                     description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

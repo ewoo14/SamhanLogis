@@ -52,9 +52,9 @@ import org.springframework.transaction.annotation.Transactional;
  * ({@code feedback_it_mockbean_external_clients.md})
  *
  * <p>SP-D2 동적 권한 검증:
- * 기존 {@code @PreAuthorize} 가드에 더해 {@link DynamicPermissionClient} 를 통해
+ * 기존 역할 가드에 더해 {@link DynamicPermissionClient} 를 통해
  * auth-service 의 동적 override 권한도 확인한다.
- * override row 미존재 또는 auth-service 장애 시에는 기존 @PreAuthorize 만 적용.
+ * override row 미존재 또는 auth-service 장애 시에는 기존 role guard 만 적용.
  * 명시적 canEdit=false (view-only override) 시 403 반환.
  */
 @Slf4j
@@ -83,7 +83,7 @@ public class DailyClosingService {
      * </ul>
      *
      * <p>SP-D2 동적 권한: actorRole 이 not-null 이면 canEdit 을 검증한다.
-     * override row 없음 (fallback false) 시에는 @PreAuthorize 통과로 충분.
+     * override row 없음 (fallback false) 시에는 기존 역할 가드 통과로 충분.
      * canView=true + canEdit=false 이면 명시적 deny → 403.
      *
      * @param request     일마감 생성 요청 (closingDate + partnerCode)
@@ -156,7 +156,7 @@ public class DailyClosingService {
     /**
      * 일마감 기간 조회 (페이지네이션).
      *
-     * <p>SP-D2 동적 권한: VIEW 권한 검증. override row 없으면 기존 @PreAuthorize 통과로 충분.
+     * <p>SP-D2 동적 권한: VIEW 권한 검증. override row 없으면 기존 role guard 통과로 충분.
      *
      * @param from      조회 시작 날짜 (필수)
      * @param to        조회 종료 날짜 (필수)
@@ -311,7 +311,7 @@ public class DailyClosingService {
     /**
      * SP-D2 동적 EDIT 권한 검증.
      *
-     * <p>actorRole 이 null/blank 이면 검증을 건너뜀 (기존 @PreAuthorize 만 적용).
+     * <p>actorRole 이 null/blank 이면 검증을 건너뜀 (기존 role guard 만 적용).
      * canEdit=false + canView=true 이면 명시적 deny → 403.
      * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
      *
@@ -352,7 +352,7 @@ public class DailyClosingService {
         boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
         if (!canView) {
             // VIEW=false: fallback(row 없음) 또는 명시적 deny.
-            // 점진 마이그레이션 정책: 구분 불가 → 통과 (기존 @PreAuthorize 가 이미 검증).
+            // 점진 마이그레이션 정책: 구분 불가 → 통과 (기존 role guard 가 이미 검증).
             log.debug("[SP-D2] VIEW 동적 권한 false (fallback 또는 deny) — roleCode={} pageCode={}",
                     actorRole, PAGE_CODE);
         }

@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -39,7 +38,7 @@ public class Mig9CashJournalController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/cash-journals/generate-from-disbursements")
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = PAGE_DISBURSEMENT, action = "EDIT")
     @Operation(summary = "MIG-9 지출결의서 CashDisbursement 를 Journal 로 자동 생성")
     public EcountMig9JournalResult generateFromDisbursements(
             @RequestBody(required = false) EcountMig9JournalRequest request,
@@ -50,7 +49,7 @@ public class Mig9CashJournalController {
     }
 
     @PostMapping("/cash-journals/generate-from-receipts")
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = PAGE_RECEIPT, action = "EDIT")
     @Operation(summary = "MIG-9 입금보고서 CashReceipt 를 Journal 로 자동 생성")
     public EcountMig9JournalResult generateFromReceipts(
             @RequestBody(required = false) EcountMig9JournalRequest request,
@@ -62,7 +61,6 @@ public class Mig9CashJournalController {
 
     @PostMapping("/aging-snapshot/refresh")
     @RequirePermission(page = PAGE_AGING_SNAPSHOT, action = "EDIT")
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
     @Operation(summary = "MIG-9 partner_aging_snapshot MATERIALIZED VIEW refresh")
     public AgingSnapshotRefreshResult refreshAgingSnapshot(
             @RequestBody(required = false) EcountMig9JournalRequest ignored,

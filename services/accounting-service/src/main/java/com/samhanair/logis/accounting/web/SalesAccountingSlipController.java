@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.SalesAccountingSlipService;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.web.dto.CreateSalesAccountingSlipRequest;
@@ -9,7 +10,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,7 +20,7 @@ public class SalesAccountingSlipController {
     private final SalesAccountingSlipService service;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = "VIEW")
     public ResponseEntity<List<SalesAccountingSlipResponse>> list(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -32,7 +32,7 @@ public class SalesAccountingSlipController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = "EDIT")
     public ResponseEntity<SalesAccountingSlipResponse> createDraft(
             @RequestBody CreateSalesAccountingSlipRequest req,
             @RequestHeader("X-User-Id") String userId) {
@@ -40,7 +40,7 @@ public class SalesAccountingSlipController {
     }
 
     @PostMapping("/{slipNo}/post")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MASTER')")
+    @RequirePermission(page = "accounting.sales-slip.accounting", action = "EDIT")
     public ResponseEntity<Void> post(@PathVariable String slipNo,
             @RequestHeader("X-User-Id") String userId) {
         service.post(slipNo, userId);

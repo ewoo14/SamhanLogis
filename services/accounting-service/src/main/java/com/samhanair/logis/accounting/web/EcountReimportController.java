@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -33,7 +32,6 @@ public class EcountReimportController {
 
     @PostMapping("/{slice}")
     @RequirePermission(page = PAGE_CODE, action = "EDIT")
-    @PreAuthorize("hasAnyRole('MASTER')")
     @Operation(summary = "MIG-20 slice 단위 raw 재import 실행")
     public EcountReimportResult reimport(
             @PathVariable String slice,

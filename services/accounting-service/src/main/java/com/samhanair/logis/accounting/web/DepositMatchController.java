@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.DepositMatchResult;
 import com.samhanair.logis.accounting.service.DepositMatchService;
 import com.samhanair.logis.accounting.service.DepositMatchStatus;
@@ -13,7 +14,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -59,7 +59,7 @@ public class DepositMatchController {
      * @return 입금 매칭 결과 (totalCount / matchedCount / unmatchedCount / results[])
      */
     @PostMapping("/fetch-and-match")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT', 'MANAGER', 'MASTER')")
+    @RequirePermission(page = "accounting.deposit-match", action = "EDIT")
     public ResponseEntity<ApiResponse<DepositMatchResponse>> fetchAndMatch(
             @Valid @RequestBody DepositFetchRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String userId,

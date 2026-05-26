@@ -50,9 +50,9 @@ import org.springframework.transaction.annotation.Transactional;
  * journalDraftId(UUID) 는 {@link DepositMatchResult} 에만 존재하며 외부 응답 DTO 로 변환 시 제외.
  *
  * <p>SP-D2 동적 권한 검증:
- * 기존 {@code @PreAuthorize} 가드에 더해 {@link DynamicPermissionClient} 를 통해
+ * 기존 역할 가드에 더해 {@link DynamicPermissionClient} 를 통해
  * auth-service 의 동적 override 권한도 확인한다.
- * override row 미존재 또는 auth-service 장애 시에는 기존 @PreAuthorize 만 적용.
+ * override row 미존재 또는 auth-service 장애 시에는 기존 role guard 만 적용.
  * 명시적 canEdit=false (view-only override) 시 403 반환.
  */
 @Slf4j
@@ -84,7 +84,7 @@ public class DepositMatchService {
      * accountFinNo 가 blank 이면 {@code INVALID_INPUT} (400) 반환.
      *
      * <p>SP-D2 동적 권한: actorRole not-null 이면 canEdit 검증.
-     * override row 없으면 기존 @PreAuthorize 통과로 충분.
+     * override row 없으면 기존 role guard 통과로 충분.
      * canView=true + canEdit=false 이면 명시적 deny → 403.
      *
      * @param from         조회 시작 일자 (필수)
@@ -103,7 +103,7 @@ public class DepositMatchService {
     public List<DepositMatchResult> fetchAndMatch(LocalDate from, LocalDate to,
                                                    String accountFinNo, String submitMethod,
                                                    UUID actorId, String actorRole) {
-        // SP-D2 동적 권한 검증 (기존 @PreAuthorize 이후 추가 레이어)
+        // SP-D2 동적 권한 검증 (기존 role guard 이후 추가 레이어)
         checkEditPermission(actorRole, actorId != null ? actorId.toString() : null);
 
         // 1. 날짜 범위 유효성 검증

@@ -43,9 +43,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 사용자 화면에서 UUID raw 형태 표시는 taxInvoiceNo 로 대체.
  *
  * <p>SP-D1 동적 권한 검증:
- * 기존 {@code @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")} 가드에 더해
+ * 기존 역할 가드에 더해
  * {@link DynamicPermissionClient} 를 통해 auth-service 의 동적 override 권한도 확인한다.
- * 동적 권한이 미설정(override row 없음) 또는 auth-service 장애 시에는 기존 @PreAuthorize 만 적용.
+ * 동적 권한이 미설정(override row 없음) 또는 auth-service 장애 시에는 기존 role guard 만 적용.
  * 동적 권한이 명시적으로 canEdit=false 인 경우 403 반환.
  */
 @Slf4j
@@ -81,20 +81,20 @@ public class TaxInvoiceEmitService {
     @Transactional
     public EmitNtsResponse emitNts(UUID id, EmitNtsRequest request,
                                    String actorUserId, String actorRole) {
-        // SP-D1 POC — 동적 권한 검증 (기존 @PreAuthorize 이후 추가 레이어).
+        // SP-D1 POC — 동적 권한 검증 (기존 role guard 이후 추가 레이어).
         // 정책: override row 가 존재하고 canEdit=false 인 경우에만 403.
-        //       override row 없음(fallback false) 또는 auth-service 장애 시 → 기존 @PreAuthorize 통과로 충분.
+        //       override row 없음(fallback false) 또는 auth-service 장애 시 → 기존 role guard 통과로 충분.
         //
         // cycle 2 fix: 2회 별도 HTTP 호출(canView + canEdit) → 단일 canEdit 호출로 통합.
         //   1) canEdit=true  → 허용 (동적 override 통과)
         //   2) canEdit=false → VIEW 도 check 하여 override row 활성 여부 판단
         //      → overrideActive=true 면 명시적 deny → 403
-        //      → overrideActive=false 면 row 없음 fallback → 기존 @PreAuthorize 통과
+        //      → overrideActive=false 면 row 없음 fallback → 기존 role guard 통과
         if (actorRole != null && !actorRole.isBlank()) {
             boolean canEdit = dynamicPermissionClient.canEdit(actorRole, EMIT_NTS_PAGE_CODE);
             if (!canEdit) {
                 // canEdit=false: row 없음(fallback) 또는 명시적 deny 구분 필요.
-                // VIEW 도 false 이면 override row 없음(fallback) → 기존 @PreAuthorize 통과.
+                // VIEW 도 false 이면 override row 없음(fallback) → 기존 role guard 통과.
                 // VIEW가 true 이면 "view-only override row 존재" → canEdit=false 명시적 deny → 403.
                 boolean canView = dynamicPermissionClient.canView(actorRole, EMIT_NTS_PAGE_CODE);
                 if (canView) {
@@ -105,7 +105,7 @@ public class TaxInvoiceEmitService {
                 }
                 // canView=false + canEdit=false → override row 없음 or 양쪽 false override.
                 // 양쪽 false override 는 실질적 차단이므로 403 처리.
-                // 단, row 자체가 없으면(pure fallback) 기존 @PreAuthorize 로 충분 — 여기서는 통과.
+                // 단, row 자체가 없으면(pure fallback) 기존 role guard 로 충분 — 여기서는 통과.
                 // 현재 구현: 구분 불가이므로 보수적으로 통과(점진 마이그레이션 의도 — SP-D1 설계 결정).
                 log.debug("[SP-D1] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={} actorUserId={}",
                         actorRole, EMIT_NTS_PAGE_CODE, actorUserId);

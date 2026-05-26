@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.HometaxExportService;
@@ -36,7 +37,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -107,7 +107,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 역순")
     })
     @GetMapping("/accounting/sales/aggregate")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = REPORTS_PAGE_CODE, action = "VIEW")
     public ApiResponse<List<SalesAggregateRow>> aggregate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -125,7 +125,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "partnerCode 미존재")
     })
     @GetMapping("/accounting/journals/ledger-data")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.partner-ledger", action = "VIEW")
     public ApiResponse<LedgerImageResponse> ledger(
             @RequestParam String partnerCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -137,7 +137,7 @@ public class AccountingReportController {
     @Operation(summary = "거래명세서 batch (BE-A10)",
             description = "기간 ISSUED 세금계산서 → 거래처별 그룹핑 + 라인 snapshot + 단톡방")
     @GetMapping("/accounting/statements/batch-data")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = STATEMENT_BATCH_PAGE_CODE, action = "VIEW")
     public ApiResponse<List<StatementBatchRow>> statementBatch(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -159,7 +159,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "workbook 직렬화 실패")
     })
     @GetMapping("/accounting/tax-invoice/hometax-export")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "VIEW")
     public ResponseEntity<byte[]> hometaxExport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -177,7 +177,7 @@ public class AccountingReportController {
     @Operation(summary = "일별 마감 detail (BE-A12)",
             description = "일별 매출/세금계산서/할인 detail — read-only (마감 OPEN/CLOSED 무관)")
     @GetMapping("/accounting/closings/daily")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = REPORTS_PAGE_CODE, action = "VIEW")
     public ApiResponse<DailyClosingDetailResponse> dailyDetail(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) DailyClosingKind kind,
@@ -213,7 +213,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "slip-service 조회 실패 또는 직렬화 실패")
     })
     @PostMapping("/accounting/hometax-export/preview")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "EDIT")
     public ApiResponse<TaxInvoiceBatchPreviewResponse> hometaxPreview(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody TaxInvoiceBatchPreviewRequest req) {
@@ -241,7 +241,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "fileIndex 범위 초과")
     })
     @GetMapping("/accounting/hometax-export/{batchId}/split")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "VIEW")
     public ResponseEntity<byte[]> hometaxSplitDownload(
             @PathVariable UUID batchId,
             @RequestParam(defaultValue = "0") int fileIndex) {
@@ -265,7 +265,7 @@ public class AccountingReportController {
     @Operation(summary = "제외 거래처 목록 조회",
             description = "일괄발행 시 자동 제외할 거래처 코드 마스터 목록. PR #161 /batch/exclusions 흡수.")
     @GetMapping("/accounting/hometax-export/exclusions")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "VIEW")
     public ApiResponse<List<TaxInvoiceBatchExclusionResponse>> listExclusions() {
         return ApiResponse.ok(hometaxExportService.listExclusions());
     }
@@ -287,7 +287,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 등록된 거래처 코드")
     })
     @PostMapping("/accounting/hometax-export/exclusions")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "EDIT")
     public ApiResponse<TaxInvoiceBatchExclusionResponse> addExclusion(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody TaxInvoiceBatchExclusionRequest req) {
@@ -312,7 +312,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미등록 거래처 코드")
     })
     @DeleteMapping("/accounting/hometax-export/exclusions/{partnerCode}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "EDIT")
     public ResponseEntity<Void> removeExclusion(
             @PathVariable String partnerCode,
             @RequestHeader("X-User-Id") String userId) {
@@ -334,7 +334,7 @@ public class AccountingReportController {
     @Operation(summary = "홈택스 일괄발행 저장 이력 목록",
             description = "일괄발행 저장 이력 목록. fromDate~toDate 범위 필터. PR #161 /batch/history 흡수.")
     @GetMapping("/accounting/hometax-export/history")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "VIEW")
     public ApiResponse<Page<TaxInvoiceBatchHistoryResponse>> listHistory(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -362,7 +362,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "배치 미존재")
     })
     @GetMapping("/accounting/hometax-export/history/{batchId}")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.hometax-export", action = "VIEW")
     public ApiResponse<TaxInvoiceBatchHistoryResponse> getHistoryDetail(
             @PathVariable UUID batchId) {
         return ApiResponse.ok(hometaxExportService.getHistoryDetail(batchId));

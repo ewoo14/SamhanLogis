@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.EcountSalesLedgerImporter;
 import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig11Result;
@@ -12,7 +13,6 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,7 +35,7 @@ public class Mig11SalesLedgerImportController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @RequirePermission(page = PAGE_CODE, action = "EDIT")
     @Operation(summary = "이카운트 매출장 XLSX 적재 + DailyClosing 대조")
     public EcountMig11Result upload(
             @RequestPart("file") MultipartFile file,
@@ -48,7 +48,7 @@ public class Mig11SalesLedgerImportController {
 
     private void checkEditPermission(String actorRole) {
         if (actorRole == null || actorRole.isBlank()) {
-            // actorRole 미주입 시 @PreAuthorize 1차 가드로 차단됨 → dynamic permission skip 안전.
+            // actorRole 미주입 시 기존 역할 가드로 차단됨 → dynamic permission skip 안전.
             // MIG-3~10 controller 일관 패턴이며, dynamic 정책 강제 시 일괄 정정한다.
             return;
         }

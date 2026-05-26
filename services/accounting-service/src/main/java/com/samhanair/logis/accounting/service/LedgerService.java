@@ -41,8 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>read-only service — 도메인 mutation 없음.
  *
  * <p>SP-D2 동적 권한 검증:
- * VIEW 액션 — 기존 @PreAuthorize 이후 추가 레이어.
- * override row 없음(fallback) 시 기존 @PreAuthorize 통과로 충분.
+ * VIEW 액션 — 기존 role guard 이후 추가 레이어.
+ * override row 없음(fallback) 시 기존 role guard 통과로 충분.
  */
 @Slf4j
 @Service
@@ -180,7 +180,7 @@ public class LedgerService {
      *
      * <p>actorRole null/blank 이면 건너뜀.
      * canView=false: fallback(row 없음) 또는 명시적 deny 구분 불가
-     * → 점진 마이그레이션 정책으로 통과 (기존 @PreAuthorize 가 이미 검증).
+     * → 점진 마이그레이션 정책으로 통과 (기존 role guard 가 이미 검증).
      *
      * @param actorRole 요청자 role
      */

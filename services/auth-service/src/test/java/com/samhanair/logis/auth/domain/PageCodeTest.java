@@ -79,6 +79,18 @@ class PageCodeTest {
     }
 
     @Test
+    void mig7_mig11_pageCodes_V37_seed와_동기화() {
+        assertThat(PageCode.ECOUNT_MIG7_CASH_DISBURSEMENT.getCode())
+                .isEqualTo("ecount.mig7.cash-disbursement");
+        assertThat(PageCode.ECOUNT_MIG7_CASH_RECEIPT.getCode())
+                .isEqualTo("ecount.mig7.cash-receipt");
+        assertThat(PageCode.ECOUNT_MIG11_SALES_LEDGER.getCode())
+                .isEqualTo("ecount.mig11.sales-ledger");
+        assertThat(PageCode.ECOUNT_MIG11_PURCHASE_LEDGER.getCode())
+                .isEqualTo("ecount.mig11.purchase-ledger");
+    }
+
+    @Test
     void mig14_adminPageCodes_4종_V25_seed와_동기화() {
         assertThat(PageCode.ECOUNT_MIG14_CASH_LIST.getCode())
                 .isEqualTo("ecount.mig14.cash-list");
@@ -188,5 +200,29 @@ class PageCodeTest {
         assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getDisplayName())
                 .isEqualTo("창고 관리 admin");
         assertThat(PageCode.isValid("inventory.warehouse.admin")).isTrue();
+    }
+
+    @Test
+    void spD67_accountingPageCodes_V37_seed와_동기화() {
+        assertThat(PageCode.ACCOUNTING_EDIT_REQUESTS_DECIDE.getCode())
+                .isEqualTo("accounting.edit-requests.decide");
+        assertThat(PageCode.ACCOUNTING_TAX_INVOICE_CANCEL.getCode())
+                .isEqualTo("accounting.tax-invoice.cancel");
+        assertThat(PageCode.ACCOUNTING_TAX_INVOICE_INBOUND_MANAGE.getCode())
+                .isEqualTo("accounting.tax-invoice.inbound.manage");
+        assertThat(PageCode.ACCOUNTING_HOMETAX_EXPORT.getCode())
+                .isEqualTo("accounting.hometax-export");
+        assertThat(PageCode.ACCOUNTING_DAILY_CLOSING_UNLOCK.getCode())
+                .isEqualTo("accounting.daily-closing.unlock");
+        assertThat(PageCode.ACCOUNTING_PERIOD_CLOSE_REVERSE.getCode())
+                .isEqualTo("accounting.period-close.reverse");
+        assertThat(PageCode.ACCOUNTING_BALANCES_TRIAL_BALANCE.getCode())
+                .isEqualTo("accounting.balances.trial-balance");
+        assertThat(PageCode.ACCOUNTING_SUPPLIER_PROFILES.getCode())
+                .isEqualTo("accounting.supplier-profiles");
+
+        assertThat(PageCode.isValid("accounting.edit-requests.decide")).isTrue();
+        assertThat(PageCode.isValid("accounting.hometax-export")).isTrue();
+        assertThat(PageCode.isValid("accounting.supplier-profiles")).isTrue();
     }
 }

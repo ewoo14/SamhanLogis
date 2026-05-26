@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.editrequest.web;
 
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.editrequest.domain.AccountingEditRequest;
 import com.samhanair.logis.accounting.editrequest.service.AccountingEditRequestService;
 import com.samhanair.logis.accounting.editrequest.web.dto.AccountingEditRequestResponse;
@@ -16,7 +17,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -62,7 +62,7 @@ public class AccountingEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패")
     })
     @PostMapping("/entities/{entityId}/edit-request")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
+    @RequirePermission(page = "accounting.edit-requests", action = "EDIT")
     public ResponseEntity<ApiResponse<AccountingEditRequestResponse>> createRequest(
             @PathVariable UUID entityId,
             @Valid @RequestBody CreateAccountingEditRequestRequest request,
@@ -80,7 +80,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정/삭제 요청 수락",
             description = "PR-H4b — MANAGER 수락 시 작성자가 1회 mutation 가능 + SSE broadcast")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = "EDIT")
     public ApiResponse<AccountingEditRequestResponse> approveRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody(required = false) ApproveAccountingRequest body,
@@ -98,7 +98,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정/삭제 요청 거절",
             description = "PR-H4b — MANAGER 거절 시 사유 SSE broadcast + 종결")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = "EDIT")
     public ApiResponse<AccountingEditRequestResponse> rejectRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody RejectAccountingRequest body,
@@ -115,7 +115,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정 요청 대시보드 — PENDING 목록",
             description = "PR-H4b — MANAGER 권한자 그룹의 PENDING 요청 목록")
     @GetMapping("/edit-requests")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = "VIEW")
     public ApiResponse<List<AccountingEditRequestResponse>> listForRole(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         List<AccountingEditRequest> rows = editRequestService.listPendingForRole(targetRole);
@@ -126,7 +126,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "entity 별 요청 이력",
             description = "PR-H4b — entity 화면의 '수정 요청 이력' 섹션")
     @GetMapping("/entities/{entityId}/edit-requests")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    @RequirePermission(page = "accounting.edit-requests", action = "VIEW")
     public ApiResponse<List<AccountingEditRequestResponse>> listByEntity(
             @PathVariable UUID entityId) {
         List<AccountingEditRequest> rows = editRequestService.listByEntity(entityId);

@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D6-2 groupware / product / partner-order migration 신규 PageCode 추가.
  * <p>SP-D6-3 notification / user migration 신규 PageCode 추가.
  * <p>SP-D6-6 slip-service migration 신규 PageCode 추가.
+ * <p>SP-D6-7 accounting-service migration 신규 PageCode 추가.
  */
 @Getter
 @RequiredArgsConstructor
@@ -71,6 +72,48 @@ public enum PageCode {
 
     /** 회계 수정/삭제 요청 처리 대시보드 (Issue 4 Slice 4). */
     ACCOUNTING_EDIT_REQUESTS("accounting.edit-requests", "회계 수정 요청"),
+
+    /** 회계 수정/삭제 요청 승인/거절 API — SP-D6-7. */
+    ACCOUNTING_EDIT_REQUESTS_DECIDE("accounting.edit-requests.decide", "회계 수정 요청 승인"),
+
+    /** 세금계산서 취소 API — SP-D6-7. */
+    ACCOUNTING_TAX_INVOICE_CANCEL("accounting.tax-invoice.cancel", "세금계산서 취소"),
+
+    /** 세금계산서 P04 발행 요청 API — SP-D6-7. */
+    ACCOUNTING_TAX_INVOICE_ISSUE_REQUEST("accounting.tax-invoice.issue-request", "세금계산서 발행 요청"),
+
+    /** 세금계산서 realtime stream — SP-D6-7. */
+    ACCOUNTING_TAX_INVOICE_REALTIME("accounting.tax-invoice.realtime", "세금계산서 realtime"),
+
+    /** 수신 세금계산서 관리 API — SP-D6-7. */
+    ACCOUNTING_TAX_INVOICE_INBOUND_MANAGE("accounting.tax-invoice.inbound.manage", "수신 세금계산서 관리"),
+
+    /** 홈택스 일괄 export/preview/history API — SP-D6-7. */
+    ACCOUNTING_HOMETAX_EXPORT("accounting.hometax-export", "홈택스 export"),
+
+    /** 일마감 실행 API — SP-D6-7. */
+    ACCOUNTING_DAILY_CLOSING_RUN("accounting.daily-closing.run", "일마감 실행"),
+
+    /** 일마감 unlock API — SP-D6-7. */
+    ACCOUNTING_DAILY_CLOSING_UNLOCK("accounting.daily-closing.unlock", "일마감 unlock"),
+
+    /** 월말 마감 reverse API — SP-D6-7. */
+    ACCOUNTING_PERIOD_CLOSE_REVERSE("accounting.period-close.reverse", "월말 마감 reverse"),
+
+    /** 분개 realtime stream — SP-D6-7. */
+    ACCOUNTING_JOURNALS_REALTIME("accounting.journals.realtime", "분개 realtime"),
+
+    /** 시산표 API — SP-D6-7. */
+    ACCOUNTING_BALANCES_TRIAL_BALANCE("accounting.balances.trial-balance", "시산표"),
+
+    /** 매출전표 회계분개 API — SP-D6-7. */
+    ACCOUNTING_SALES_SLIP_ACCOUNTING("accounting.sales-slip.accounting", "매출전표 회계분개"),
+
+    /** 매입전표 회계분개 API — SP-D6-7. */
+    ACCOUNTING_PURCHASE_SLIP_ACCOUNTING("accounting.purchase-slip.accounting", "매입전표 회계분개"),
+
+    /** 거래처 원장 공급처 프로필 API — SP-D6-7. */
+    ACCOUNTING_SUPPLIER_PROFILES("accounting.supplier-profiles", "공급처 프로필"),
 
     // ---- 알림 / SMS (notification) ----
 
@@ -483,6 +526,12 @@ public enum PageCode {
     /** MIG-6 이카운트 고정자산유형 마이그레이션. */
     ECOUNT_MIG6_FIXED_ASSET_TYPE("ecount.mig6.fixed-asset-type", "이카운트 고정자산유형 마이그레이션"),
 
+    /** MIG-7 이카운트 지출결의서 도메인 변환. */
+    ECOUNT_MIG7_CASH_DISBURSEMENT("ecount.mig7.cash-disbursement", "이카운트 지출결의서 도메인 변환"),
+
+    /** MIG-7 이카운트 입금보고서 도메인 변환. */
+    ECOUNT_MIG7_CASH_RECEIPT("ecount.mig7.cash-receipt", "이카운트 입금보고서 도메인 변환"),
+
     /** MIG-8 이카운트 주문서 도메인 변환. */
     ECOUNT_MIG8_ORDER("ecount.mig8.order", "이카운트 주문서 도메인 변환"),
 
@@ -500,6 +549,12 @@ public enum PageCode {
     ECOUNT_MIG10_ORDER_EMPLOYEE_BACKFILL(
             "ecount.mig10.order-employee-backfill",
             "이카운트 주문 담당자 Employee 연결"),
+
+    /** MIG-11 이카운트 매출장 마이그레이션. */
+    ECOUNT_MIG11_SALES_LEDGER("ecount.mig11.sales-ledger", "이카운트 매출장 마이그레이션"),
+
+    /** MIG-11 이카운트 매입장 마이그레이션. */
+    ECOUNT_MIG11_PURCHASE_LEDGER("ecount.mig11.purchase-ledger", "이카운트 매입장 마이그레이션"),
 
     /** MIG-14 Cash admin 목록 화면. */
     ECOUNT_MIG14_CASH_LIST("ecount.mig14.cash-list", "이카운트 현금 입출금 admin 조회"),
