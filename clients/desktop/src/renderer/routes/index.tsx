@@ -1514,11 +1514,14 @@ const router = createHashRouter([
       // [Issue 4 Slice 4] 회계 수정/삭제 요청 대시보드 — MANAGER / MASTER.
       // AdminLayout (MASTER 전용) 외부에 배치 — 회계 관리자 공용 자체 RoleGuard.
       // BE: accounting-service `GET /api/v1/accounting/edit-requests?targetRole=MANAGER`.
+      // Cycle 1e: PermissionGuard 추가 — 동적 RBAC revoke 시 직접 URL 우회 차단.
       {
         path: '/admin/accounting-edit-requests',
         element: (
           <RoleGuard allow={ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES}>
-            <AccountingEditRequestsPage />
+            <PermissionGuard pageCode="accounting.edit-requests" action="view">
+              <AccountingEditRequestsPage />
+            </PermissionGuard>
           </RoleGuard>
         ),
       },
