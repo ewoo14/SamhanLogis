@@ -118,7 +118,7 @@ class AccountingEditRequestServiceTest {
                 EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         AccountingEditRequest approved = service.approve(requestId, approverId, "관리자A", "OK");
 
@@ -134,7 +134,7 @@ class AccountingEditRequestServiceTest {
                 EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -164,7 +164,7 @@ class AccountingEditRequestServiceTest {
                 EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         AccountingEditRequest rejected = service.reject(requestId, approverId, "관리자A",
                 "정책상 불가");
@@ -179,7 +179,7 @@ class AccountingEditRequestServiceTest {
                 EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
         UUID requestId = UUID.randomUUID();
         ReflectionTestUtils.setField(req, "id", requestId);
-        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -201,6 +201,52 @@ class AccountingEditRequestServiceTest {
         assertThat(request.targetRole()).isNull();
         assertThat(request.targetUserId()).isEqualTo(requesterId);
         assertThat(request.deeplink()).isEqualTo("/admin/accounting-edit-requests");
+    }
+
+    @Test
+    void approve_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        // race 가드 — 첫 트랜잭션이 APPROVED 로 commit 한 직후 두 번째 트랜잭션이
+        // findByIdForDecision (PESSIMISTIC_WRITE) 으로 같은 row 조회 → 이미 APPROVED →
+        // requirePending() 가 BusinessException(CONFLICT) 던짐 → 알림 발송 안 됨.
+        AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", "OK");  // 첫 결정 (이미 APPROVED)
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThatThrownBy(() -> service.approve(requestId, approverId, "관리자B", "재시도"))
+                    .isInstanceOf(BusinessException.class);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        verify(notificationPublisher, never()).publish(any());
+        verify(broker, never())
+                .publish(eq(entityId), eq(AccountingEditRequestService.EVENT_REQUEST_DECIDED), any());
+    }
+
+    @Test
+    void reject_throwsConflict_andSkipsPublish_whenAlreadyDecided() {
+        // race 가드 — reject 도 동일. 이미 APPROVED 된 요청 reject 시도 시 CONFLICT.
+        AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        req.approve(approverId, "관리자A", null);  // 이미 APPROVED
+        when(requestRepository.findByIdForDecision(requestId)).thenReturn(Optional.of(req));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThatThrownBy(() -> service.reject(requestId, approverId, "관리자B", "정책상 불가"))
+                    .isInstanceOf(BusinessException.class);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        verify(notificationPublisher, never()).publish(any());
+        verify(broker, never())
+                .publish(eq(entityId), eq(AccountingEditRequestService.EVENT_REQUEST_DECIDED), any());
     }
 
     @Test

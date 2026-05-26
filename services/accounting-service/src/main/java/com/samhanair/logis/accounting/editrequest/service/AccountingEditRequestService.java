@@ -109,7 +109,7 @@ public class AccountingEditRequestService implements EditRequestService {
     @Transactional
     public AccountingEditRequest approve(UUID requestId, UUID approverId, String approverName,
                                          String noteOptional) {
-        AccountingEditRequest request = loadOrThrow(requestId);
+        AccountingEditRequest request = loadForDecisionOrThrow(requestId);
         request.approve(approverId, approverName, noteOptional);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
@@ -134,7 +134,7 @@ public class AccountingEditRequestService implements EditRequestService {
     @Transactional
     public AccountingEditRequest reject(UUID requestId, UUID approverId, String approverName,
                                         String decisionReason) {
-        AccountingEditRequest request = loadOrThrow(requestId);
+        AccountingEditRequest request = loadForDecisionOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
         NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
@@ -194,6 +194,17 @@ public class AccountingEditRequestService implements EditRequestService {
     private AccountingEditRequest loadOrThrow(UUID requestId) {
         Objects.requireNonNull(requestId, "requestId 는 필수입니다");
         return requestRepository.findById(requestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "회계 수정 요청을 찾을 수 없습니다: " + requestId));
+    }
+
+    /**
+     * approve/reject 전용 — PESSIMISTIC_WRITE 잠금 조회로 동시 결정 race 차단.
+     * 두 번째 트랜잭션은 첫 commit 후 최신 상태를 보고 {@code requirePending()} 가 CONFLICT 던짐.
+     */
+    private AccountingEditRequest loadForDecisionOrThrow(UUID requestId) {
+        Objects.requireNonNull(requestId, "requestId 는 필수입니다");
+        return requestRepository.findByIdForDecision(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "회계 수정 요청을 찾을 수 없습니다: " + requestId));
     }
