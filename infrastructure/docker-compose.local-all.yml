@@ -334,6 +334,7 @@ services:
       SAMHAN_DC_CONFIG_DB_NAME: dc_config_db
       SAMHAN_DC_CONFIG_DB_USER: samhan
       SAMHAN_DC_CONFIG_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
     ports:
       - "127.0.0.1:8089:8089"
     depends_on: *service-depends
@@ -452,6 +453,7 @@ services:
       SAMHAN_DASHBOARD_DB_NAME: dashboard_db
       SAMHAN_DASHBOARD_DB_USER: samhan
       SAMHAN_DASHBOARD_DB_PASSWORD: samhan_dev_pw
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
     ports:
       - "127.0.0.1:8094:8094"

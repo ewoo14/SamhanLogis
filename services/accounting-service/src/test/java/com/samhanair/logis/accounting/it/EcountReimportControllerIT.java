@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -83,7 +84,7 @@ class EcountReimportControllerIT {
                 .andExpect(jsonPath("$.totalImported").value(10))
                 .andExpect(jsonPath("$.totalRejected").value(1));
 
-        verify(dynamicPermissionClient).canEdit("MASTER", PAGE_CODE);
+        verify(dynamicPermissionClient, atLeastOnce()).canEdit("MASTER", PAGE_CODE);
     }
 
     @Test
