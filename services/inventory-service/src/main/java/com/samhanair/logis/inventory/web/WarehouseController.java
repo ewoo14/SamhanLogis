@@ -7,6 +7,7 @@ import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -68,6 +69,7 @@ public class WarehouseController {
      */
     @Operation(summary = "창고 목록 조회", description = "displayOrder 오름차순으로 활성 창고 전체 반환")
     @GetMapping
+    @RequirePermission(page = "inventory.warehouse", action = "VIEW")
     public ApiResponse<List<WarehouseResponse>> listAll(
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         inventoryPermissionGuard.checkView(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
@@ -84,6 +86,7 @@ public class WarehouseController {
     @Operation(summary = "창고 admin 검색 (Phase 10 P0-5)",
             description = "q (code/name/address LIKE) + page/size. items/total/page/size 응답.")
     @GetMapping("/search")
+    @RequirePermission(page = "inventory.warehouse", action = "VIEW")
     public ApiResponse<AdminWarehouseListResponse> search(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -103,6 +106,7 @@ public class WarehouseController {
      */
     @Operation(summary = "창고 단건 조회")
     @GetMapping("/{id}")
+    @RequirePermission(page = "inventory.warehouse", action = "VIEW")
     public ApiResponse<WarehouseResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(warehouseService.getOne(id));
     }
@@ -120,7 +124,8 @@ public class WarehouseController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public ApiResponse<WarehouseResponse> create(
             @Valid @RequestBody CreateWarehouseRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -137,7 +142,8 @@ public class WarehouseController {
      */
     @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용 + audit overlay 기록")
     @PatchMapping("/{id}")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request,
                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -155,6 +161,7 @@ public class WarehouseController {
     @Operation(summary = "창고 변경 이력 조회",
             description = "InventoryAuditLogRecorder 가 PATCH / DELETE 시점에 기록한 audit overlay 를 timeline 형식으로 반환")
     @GetMapping("/{id}/audit-logs")
+    @RequirePermission(page = "inventory.warehouse", action = "VIEW")
     public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
         return ApiResponse.ok(warehouseService.listAuditLogs(id).stream()
                 .map(InventoryAuditLogResponse::from)
@@ -170,6 +177,7 @@ public class WarehouseController {
     @Operation(summary = "창고 audit SSE realtime 구독",
             description = "PATCH/DELETE 시 발생하는 inventory:edit 이벤트를 SSE stream 으로 전달")
     @GetMapping(value = "/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission(page = "inventory.warehouse", action = "VIEW")
     public SseEmitter subscribeRealtime(@PathVariable UUID id) {
         return realtimeBroker.subscribe(id);
     }
@@ -187,7 +195,8 @@ public class WarehouseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "창고/revision 미존재")
     })
     @PostMapping("/{id}/audit/revert/{revisionNo}")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public ApiResponse<WarehouseResponse> revertAudit(
             @PathVariable UUID id,
             @PathVariable int revisionNo,
@@ -206,7 +215,8 @@ public class WarehouseController {
     @Operation(summary = "창고 삭제 (soft)", description = "is_deleted=true 마킹. row 는 보존")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -222,7 +232,8 @@ public class WarehouseController {
     @Operation(summary = "비활성화된 창고 목록",
             description = "soft-deleted 창고 list (modified_at desc). 복구 admin 화면 backing.")
     @GetMapping("/deleted")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public ApiResponse<List<WarehouseResponse>> listDeleted() {
         return ApiResponse.ok(warehouseService.listDeleted());
     }
@@ -239,7 +250,8 @@ public class WarehouseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동일 code 활성 창고 존재")
     })
     @PostMapping("/{id}/restore")
-    @PreAuthorize("@hr.isExecutiveOffice() and hasAnyRole('MASTER','MANAGER','DEVELOPER')")
+    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
     public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
                                                   @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                                                   @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

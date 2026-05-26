@@ -6,6 +6,7 @@ import com.samhanair.logis.inventory.service.InboundInspectionService;
 import com.samhanair.logis.inventory.web.dto.InboundInspectionDetailResponse;
 import com.samhanair.logis.inventory.web.dto.InboundInspectionRequest;
 import com.samhanair.logis.inventory.web.dto.InboundInspectionSummaryResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -79,6 +80,7 @@ public class InboundInspectionController {
     })
     @GetMapping("/{slipId}")
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<InboundInspectionDetailResponse> getInspection(
             @Parameter(description = "slip-service Slip UUID") @PathVariable UUID slipId) {
         return ApiResponse.ok(inspectionService.getOrCreateInspection(slipId));
@@ -107,6 +109,7 @@ public class InboundInspectionController {
     })
     @PostMapping("/{slipId}/inspect")
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<InboundInspectionDetailResponse> saveResult(
             @PathVariable UUID slipId,
             @Valid @RequestBody InboundInspectionRequest request,
@@ -133,6 +136,7 @@ public class InboundInspectionController {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<Page<InboundInspectionSummaryResponse>> listInspections(
             @Parameter(description = "검수 상태 필터 (PENDING/COMPLETED/CANCELED)")
             @RequestParam(required = false) String status,
@@ -163,6 +167,7 @@ public class InboundInspectionController {
     @PostMapping("/{slipId}/complete")
     @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<InboundInspectionDetailResponse> completeInspection(
             @PathVariable UUID slipId,
             @RequestHeader(value = USER_ID_HEADER, required = false) String callerHeader) {

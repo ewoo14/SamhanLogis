@@ -196,6 +196,33 @@ public enum PageCode {
     /** 재고 감사 화면 (SP-D4) — InventoryAuditController. */
     INVENTORY_AUDIT("inventory.audit", "재고 감사"),
 
+    /** 재고 목록/예약/차감 API (SP-D6-5). */
+    INVENTORY_LIST("inventory.list", "재고 목록"),
+
+    /** 재고 상세/감사 조회 API (SP-D6-5). */
+    INVENTORY_DETAIL("inventory.detail", "재고 상세"),
+
+    /** 재고 조정/승인 API (SP-D6-5). */
+    INVENTORY_ADJUST("inventory.adjust", "재고 조정"),
+
+    /** 재고 이동 API (SP-D6-5). */
+    INVENTORY_TRANSFER("inventory.transfer", "재고 이동"),
+
+    /** 재고 잔액/로트/입고 API (SP-D6-5). */
+    INVENTORY_STOCK_BALANCE("inventory.stock-balance", "재고 잔액"),
+
+    /** 안전재고 API (SP-D6-5). */
+    INVENTORY_SAFETY_STOCK("inventory.safety-stock", "안전재고"),
+
+    /** 재고 수정 요청 생성 API (SP-D6-5). */
+    INVENTORY_EDIT_REQUESTS("inventory.edit-requests", "재고 수정 요청"),
+
+    /** 재고 수정 요청 승인/거절 API (SP-D6-5). */
+    INVENTORY_EDIT_REQUESTS_DECIDE("inventory.edit-requests.decide", "재고 수정 요청 승인"),
+
+    /** 이카운트 재고 import API (SP-D6-5). */
+    ECOUNT_IMPORT_INVENTORY("ecount.import.inventory", "이카운트 재고 import"),
+
     // ---- 직원 관리 (admin employees) ----
 
     /** 직원 관리 화면 (SP-D4) — user-service EmployeeController. */

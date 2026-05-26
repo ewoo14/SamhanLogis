@@ -10,6 +10,7 @@ import com.samhanair.logis.inventory.web.dto.DpsSaveHistoryDetailResponse;
 import com.samhanair.logis.inventory.web.dto.DpsSaveHistoryListRow;
 import com.samhanair.logis.inventory.web.dto.DpsSaveHistoryRequest;
 import com.samhanair.logis.inventory.web.dto.DpsSaveHistorySaveResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -56,6 +57,7 @@ public class DpsSaveHistoryController {
             description = "DPS 비교 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistorySaveResponse> save(
             @Valid @RequestBody DpsSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -81,6 +83,7 @@ public class DpsSaveHistoryController {
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 DPS 저장내역을 조회한다.")
     @GetMapping
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<Page<DpsSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -119,6 +122,7 @@ public class DpsSaveHistoryController {
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -140,6 +144,7 @@ public class DpsSaveHistoryController {
             description = "현재 사용자의 프로그램별 최신 AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DpsProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

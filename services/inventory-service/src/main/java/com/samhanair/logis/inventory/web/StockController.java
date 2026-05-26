@@ -18,6 +18,7 @@ import com.samhanair.logis.inventory.web.dto.ReserveRequest;
 import com.samhanair.logis.inventory.web.dto.StockBalanceResponse;
 import com.samhanair.logis.inventory.web.dto.StockLotResponse;
 import com.samhanair.logis.inventory.web.dto.StockMovementResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -31,7 +32,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -78,7 +78,7 @@ public class StockController {
      */
     @Operation(summary = "재고 잔량 조회", description = "productId 의 모든 창고 잔량 페이지")
     @GetMapping("/balances")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<Page<StockBalanceResponse>> balances(
             @RequestParam UUID productId,
             @RequestParam(defaultValue = "0") int page,
@@ -113,7 +113,7 @@ public class StockController {
                     description = "권한 없음 (인증 미설정 등)")
     })
     @PostMapping("/balances/batch")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.list", action = "VIEW")
     public ApiResponse<List<ProductBalanceResponse>> batchBalances(
             @Valid @RequestBody BatchBalanceRequest request) {
         return ApiResponse.ok(stockService.findBalancesByProductIds(request.productIds()));
@@ -130,7 +130,7 @@ public class StockController {
      */
     @Operation(summary = "로트 조회", description = "productId / warehouseId 조합 필터 페이지")
     @GetMapping("/lots")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<Page<StockLotResponse>> lots(
             @RequestParam(required = false) UUID productId,
             @RequestParam(required = false) UUID warehouseId,
@@ -168,7 +168,7 @@ public class StockController {
      */
     @Operation(summary = "이동 이력 조회", description = "occurredAt DESC. lot/product/warehouse 우선순위 필터")
     @GetMapping("/movements")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<Page<StockMovementResponse>> movements(
             @RequestParam(required = false) UUID lotId,
             @RequestParam(required = false) UUID productId,
@@ -212,7 +212,7 @@ public class StockController {
     })
     @PostMapping("/lots/inbound")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<StockLotResponse> inbound(
             @Valid @RequestBody InboundRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -226,7 +226,7 @@ public class StockController {
      */
     @Operation(summary = "재고 예약", description = "availableQty 에서 reservedQty 로 이동")
     @PostMapping("/reserve")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.list", action = "EDIT")
     public ApiResponse<ReservationResponse> reserve(
             @Valid @RequestBody ReserveRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -240,7 +240,7 @@ public class StockController {
      */
     @Operation(summary = "예약 해제", description = "reservedQty 에서 availableQty 로 되돌림")
     @PostMapping("/release")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.list", action = "EDIT")
     public ApiResponse<ReservationResponse> release(
             @Valid @RequestBody ReleaseRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -258,7 +258,7 @@ public class StockController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 version 충돌")
     })
     @PostMapping("/deduct")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.list", action = "EDIT")
     public ApiResponse<DeductionResponse> deduct(
             @Valid @RequestBody DeductRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -272,7 +272,7 @@ public class StockController {
      */
     @Operation(summary = "재고 조정", description = "실사 조정 — delta 부호로 balance 가감")
     @PostMapping("/adjust")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<DeductionResponse> adjust(
             @Valid @RequestBody AdjustRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -298,7 +298,7 @@ public class StockController {
                     description = "권한 없음")
     })
     @GetMapping("/stocks/export.xlsx")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) UUID warehouseId) {
         byte[] xlsx = stockExcelExportService.export(warehouseId);

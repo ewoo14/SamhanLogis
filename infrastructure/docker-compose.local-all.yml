@@ -212,6 +212,7 @@ services:
       <<: *spring-env
       SERVER_PORT: "8085"
       DB_NAME: inventory_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
     ports:
       - "127.0.0.1:8085:8085"
     depends_on: *service-depends

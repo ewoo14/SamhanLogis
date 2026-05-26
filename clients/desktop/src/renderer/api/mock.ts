@@ -5696,6 +5696,15 @@ const SP_D1_PAGES = [
   'inventory.stock-transfer',
   'inventory.dps',
   'inventory.audit',
+  'inventory.list',
+  'inventory.detail',
+  'inventory.adjust',
+  'inventory.transfer',
+  'inventory.stock-balance',
+  'inventory.safety-stock',
+  'inventory.edit-requests',
+  'inventory.edit-requests.decide',
+  'ecount.import.inventory',
   'admin.employees',
   'admin.users',
   'partners.list',
@@ -5757,7 +5766,11 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
     'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
-    'inventory.dps', 'inventory.audit', 'admin.employees',
+    'inventory.dps', 'inventory.audit',
+    'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
+    'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
+    'inventory.edit-requests.decide', 'ecount.import.inventory',
+    'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
@@ -5777,7 +5790,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.stock',
+    'sales.vendor-order', 'inventory.stock', 'inventory.list', 'inventory.transfer',
     'partners.list', 'partners.detail', 'partners.edit-request',
     'products.list', 'products.admin',
   ],
@@ -5794,7 +5807,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.partner-ledger',
     // SP-D4 — ACCOUNTANT: 견적/주문 이력/재고/거래처/상품 view 만
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
-    'inventory.stock', 'inventory.audit',
+    'inventory.stock', 'inventory.list', 'inventory.detail', 'inventory.transfer',
+    'inventory.edit-requests', 'inventory.edit-requests.decide',
     'partners.list', 'partners.detail',
     // MIG-14 admin UI — ACCOUNTANT: view 전용
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
@@ -5807,14 +5821,17 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D4 — WAREHOUSE: 재고/창고/인쇄/벤더주문 view
     'sales.partner-order.print', 'sales.vendor-order',
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
-    'inventory.dps', 'inventory.audit',
+    'inventory.dps', 'inventory.audit', 'inventory.list', 'inventory.detail',
+    'inventory.transfer', 'inventory.stock-balance', 'inventory.safety-stock',
     'products.list',
   ],
   INVENTORY: [
     'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
     // SP-D4 — INVENTORY: 재고/창고 view
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
-    'inventory.dps', 'inventory.audit',
+    'inventory.dps', 'inventory.audit', 'inventory.list', 'inventory.detail',
+    'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
+    'inventory.safety-stock', 'inventory.edit-requests',
     'products.list', 'products.admin',
   ],
 }
@@ -5855,6 +5872,9 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm',
     'sales.vendor-order', 'inventory.warehouse', 'inventory.stock-transfer',
+    'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
+    'inventory.safety-stock', 'inventory.edit-requests',
+    'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -5874,7 +5894,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — SALES: 견적/주문/거래처/상품 edit
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.print',
-    'sales.vendor-order',
+    'sales.vendor-order', 'inventory.list',
     'partners.list', 'partners.detail',
     'products.admin',
   ],
@@ -5889,6 +5909,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.period-close',
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
+    'inventory.edit-requests', 'inventory.edit-requests.decide',
   ],
   // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
   WAREHOUSE: [
@@ -5896,12 +5917,16 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — WAREHOUSE: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock',
     'inventory.stock-transfer', 'inventory.dps',
+    'inventory.list', 'inventory.transfer', 'inventory.stock-balance',
+    'inventory.safety-stock',
   ],
   INVENTORY: [
     'inbound.inspection',
     // SP-D4 — INVENTORY: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps',
+    'inventory.list', 'inventory.adjust', 'inventory.transfer',
+    'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'products.admin',
   ],
 }

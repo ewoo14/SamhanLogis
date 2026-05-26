@@ -8,6 +8,7 @@ import com.samhanair.logis.inventory.web.dto.ReceiveRequest;
 import com.samhanair.logis.inventory.web.dto.RejectRequest;
 import com.samhanair.logis.inventory.web.dto.TransferDetailResponse;
 import com.samhanair.logis.inventory.web.dto.TransferResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -17,7 +18,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,7 +57,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 목록", description = "status 필터 가능")
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.transfer", action = "VIEW")
     public ApiResponse<Page<TransferResponse>> list(
             @RequestParam(required = false) TransferStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -74,7 +74,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 단건 상세")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','SALES','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.transfer", action = "VIEW")
     public ApiResponse<TransferDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(transferService.getOne(id));
     }
@@ -94,7 +94,7 @@ public class StockTransferController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.transfer", action = "EDIT")
     public ApiResponse<TransferDetailResponse> create(
             @Valid @RequestBody CreateTransferRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -108,7 +108,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 승인")
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<TransferDetailResponse> approve(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -122,7 +122,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 반려")
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<TransferDetailResponse> reject(
             @PathVariable UUID id,
             @Valid @RequestBody RejectRequest request,
@@ -137,7 +137,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 출하", description = "APPROVED → SHIPPED. 가상창고면 즉시 RECEIVED")
     @PostMapping("/{id}/ship")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.transfer", action = "EDIT")
     public ApiResponse<TransferDetailResponse> ship(@PathVariable UUID id) {
         return ApiResponse.ok(transferService.ship(id));
     }
@@ -149,7 +149,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 입고")
     @PostMapping("/{id}/receive")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.transfer", action = "EDIT")
     public ApiResponse<TransferDetailResponse> receive(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) ReceiveRequest request) {
@@ -163,7 +163,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 입고 확정")
     @PostMapping("/{id}/confirm")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<TransferDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -177,7 +177,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 취소", description = "REQUESTED/PENDING_APPROVAL/APPROVED 단계까지만 가능")
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<TransferDetailResponse> cancel(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {

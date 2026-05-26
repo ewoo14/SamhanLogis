@@ -2,7 +2,6 @@ package com.samhanair.logis.inventory.it;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -10,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
@@ -18,7 +16,6 @@ import com.samhanair.logis.inventory.service.EcountWarehouseImporter;
 import com.samhanair.logis.inventory.web.dto.EcountWarehouseImportResult;
 import java.io.InputStream;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -37,16 +34,10 @@ class EcountWarehouseImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountWarehouseImporter importer;
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private AccountingClient accountingClient;
     @MockBean private NotificationClient notificationClient;
-
-    @BeforeEach
-    void setUp() {
-        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-    }
 
     @Test
     @WithMockUser(authorities = "ROLE_MANAGER")

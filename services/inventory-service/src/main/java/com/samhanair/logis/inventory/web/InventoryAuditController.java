@@ -11,6 +11,7 @@ import com.samhanair.logis.inventory.web.dto.AuditDetailResponse;
 import com.samhanair.logis.inventory.web.dto.AuditLineRequest;
 import com.samhanair.logis.inventory.web.dto.AuditResponse;
 import com.samhanair.logis.inventory.web.dto.CreateAuditRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
@@ -26,7 +27,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -80,7 +80,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "재고 실사 목록", description = "warehouse/year/status 필터 페이지")
     @GetMapping
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.detail", action = "VIEW")
     public ApiResponse<Page<AuditResponse>> list(
             @RequestParam(required = false) UUID warehouseId,
             @RequestParam(required = false) Integer year,
@@ -99,7 +99,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "재고 실사 단건 상세")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.detail", action = "VIEW")
     public ApiResponse<AuditDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.getOne(id));
     }
@@ -118,7 +118,7 @@ public class InventoryAuditController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<AuditDetailResponse> create(
             @Valid @RequestBody CreateAuditRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -132,7 +132,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "실사 시작", description = "PLANNED → IN_PROGRESS")
     @PostMapping("/{id}/start")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<AuditDetailResponse> start(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.start(id));
     }
@@ -147,7 +147,7 @@ public class InventoryAuditController {
     @Operation(summary = "라인 입력 (바코드/수동)",
             description = "productId 로 snapshot 라인 검색해 actual_qty set. scanned=true 면 바코드 스캔")
     @PostMapping("/{id}/lines")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<AuditDetailResponse> recordLine(
             @PathVariable UUID id,
             @Valid @RequestBody AuditLineRequest request) {
@@ -164,7 +164,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "라인 수정", description = "lineId 직접 수정. productId mismatch 검증")
     @PutMapping("/{id}/lines/{lineId}")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<AuditDetailResponse> updateLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
@@ -180,7 +180,7 @@ public class InventoryAuditController {
     @Operation(summary = "실사 완료",
             description = "IN_PROGRESS → COMPLETED + 차이 자동 분개 (150/919) + Stock 조정")
     @PostMapping("/{id}/complete")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<AuditDetailResponse> complete(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -194,7 +194,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "실사 취소", description = "PLANNED/IN_PROGRESS → CANCELLED")
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY')")
+    @RequirePermission(page = "inventory.adjust", action = "EDIT")
     public ApiResponse<AuditDetailResponse> cancel(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.cancel(id));
     }
@@ -209,7 +209,7 @@ public class InventoryAuditController {
     @Operation(summary = "재고 실사 audit timeline (PR-H4b)",
             description = "InventoryAudit/StockBalance 등 변경 이력 (최신 revision 우선)")
     @GetMapping("/{id}/audit-logs")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.detail", action = "VIEW")
     public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
         return ApiResponse.ok(auditLogRecorder.listByEntity(id).stream()
                 .map(InventoryAuditLogResponse::from).toList());
@@ -223,7 +223,7 @@ public class InventoryAuditController {
     @Operation(summary = "재고 실사 SSE realtime 구독 (PR-H4b)",
             description = "audit/edit-request event SSE stream — heartbeat 30s")
     @GetMapping(value = "/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','DEVELOPER','ACCOUNTANT','WAREHOUSE','INVENTORY')")
+    @RequirePermission(page = "inventory.detail", action = "VIEW")
     public SseEmitter subscribeRealtime(@PathVariable UUID id) {
         return realtimeBroker.subscribe(id);
     }
@@ -239,7 +239,7 @@ public class InventoryAuditController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "실사 미존재")
     })
     @PostMapping("/{id}/edit-requests")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','ACCOUNTANT')")
+    @RequirePermission(page = "inventory.edit-requests", action = "EDIT")
     public ApiResponse<InventoryEditRequestResponse> createEditRequest(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
@@ -256,7 +256,7 @@ public class InventoryAuditController {
     @Operation(summary = "PENDING 요청 대시보드 (PR-H4b)",
             description = "MANAGER 권한자가 수락/거절 대상 요청 목록 조회")
     @GetMapping("/edit-requests/pending")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = "VIEW")
     public ApiResponse<List<InventoryEditRequestResponse>> listPending(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         return ApiResponse.ok(editRequestService.listPendingForRole(targetRole).stream()
@@ -266,7 +266,7 @@ public class InventoryAuditController {
     /** 요청 수락. */
     @Operation(summary = "수정/삭제 요청 수락 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = "EDIT")
     public ApiResponse<InventoryEditRequestResponse> approveEditRequest(
             @PathVariable UUID requestId,
             @RequestBody(required = false) Map<String, String> body,
@@ -281,7 +281,7 @@ public class InventoryAuditController {
     /** 요청 거절. */
     @Operation(summary = "수정/삭제 요청 거절 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','ACCOUNTANT')")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = "EDIT")
     public ApiResponse<InventoryEditRequestResponse> rejectEditRequest(
             @PathVariable UUID requestId,
             @RequestBody Map<String, String> body,

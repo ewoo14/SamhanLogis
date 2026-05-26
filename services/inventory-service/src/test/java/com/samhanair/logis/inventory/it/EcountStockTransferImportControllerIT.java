@@ -13,7 +13,6 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductLookupClient;
@@ -44,7 +43,6 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @MockBean private EcountStockTransferImporter importer;
-    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductClient productClient;
     @MockBean private ProductLookupClient productLookupClient;
     @MockBean private SlipServiceClient slipServiceClient;
@@ -68,6 +66,9 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
             when(importer.importCsv(any(InputStream.class), anyString()))
                     .thenThrow(new BusinessException(ErrorCode.MIG5_CSV_HEADER_MISMATCH,
                             "MIG5_CSV_HEADER_MISMATCH"));
+        }
+        if ("MEMBER".equals(role)) {
+            when(dynamicPermissionClient.canEdit("MEMBER", "ecount.import.inventory")).thenReturn(false);
         }
 
         var request = multipart(URL).file(file).header("X-User-Id", "tester");

@@ -5,6 +5,7 @@ import com.samhanair.logis.inventory.service.SafetyStockService;
 import com.samhanair.logis.inventory.web.dto.SafetyStockAlertResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockConfigResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockSetRequest;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,7 +63,7 @@ public class SafetyStockController {
                     description = "권한 없음")
     })
     @GetMapping("/alerts/safety-stock")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
+    @RequirePermission(page = "inventory.safety-stock", action = "VIEW")
     public ApiResponse<List<SafetyStockAlertResponse>> listAlerts() {
         return ApiResponse.ok(safetyStockService.findAlerts());
     }
@@ -87,7 +87,7 @@ public class SafetyStockController {
                     description = "권한 없음")
     })
     @GetMapping("/alerts/safety-stock/count")
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
+    @RequirePermission(page = "inventory.safety-stock", action = "VIEW")
     public ApiResponse<java.util.Map<String, Integer>> alertCount() {
         return ApiResponse.ok(java.util.Map.of("count", safetyStockService.findAlerts().size()));
     }
@@ -118,7 +118,7 @@ public class SafetyStockController {
     })
     @PostMapping("/products/{productId}/safety-stock")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('MASTER','MANAGER','INVENTORY','WAREHOUSE')")
+    @RequirePermission(page = "inventory.safety-stock", action = "EDIT")
     public ApiResponse<SafetyStockConfigResponse> setSafetyStock(
             @PathVariable UUID productId,
             @Valid @RequestBody SafetyStockSetRequest request) {
