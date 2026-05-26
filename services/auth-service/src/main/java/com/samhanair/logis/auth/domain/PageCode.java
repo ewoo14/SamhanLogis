@@ -65,6 +65,9 @@ public enum PageCode {
     /** 거래처 원장 / 홈택스 일괄 양식 / 사업자 양식 화면 (SP-D2). */
     ACCOUNTING_PARTNER_LEDGER("accounting.partner-ledger", "거래처 원장"),
 
+    /** 회계 수정/삭제 요청 처리 대시보드 (Issue 4 Slice 4). */
+    ACCOUNTING_EDIT_REQUESTS("accounting.edit-requests", "회계 수정 요청"),
+
     // ---- 알림 / SMS (notification) ----
 
     /** Aligo SMS 발송 이력 화면 (SP-09-2). */

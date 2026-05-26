@@ -117,6 +117,7 @@ const PAGE_GROUPS: PageGroup[] = [
       'ecount.mig14.aging-snapshot',
       'ecount.mig14.ledger',
       'ecount.mig.ops-dashboard',
+      'accounting.edit-requests',
     ],
   },
   {
@@ -249,6 +250,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig14.aging-snapshot': 'MIG-14 잔액 스냅샷',
   'ecount.mig14.ledger': 'MIG-14 원장',
   'ecount.mig.ops-dashboard': 'MIG-21 운영 대시보드',
+  'accounting.edit-requests': '회계 수정 요청',
   // SP-D4 신규 22개
   'estimates.list': '견적 목록',
   'sales.partner-order.list': '주문 목록',
@@ -296,6 +298,7 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'accounting.journals',
   'accounting.period-close',
   'accounting.statement-batch',
+  'accounting.edit-requests',
   // SP-D4 신규 (V/E 양쪽 유의미한 코드)
   'estimates.list',
   'sales.partner-order.list',

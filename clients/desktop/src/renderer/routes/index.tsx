@@ -213,6 +213,10 @@ import { PartnerLedgerView } from '../print/PartnerLedgerView'
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
 import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
+// [Issue 4 Slice 4] 회계 수정/삭제 요청 처리 대시보드 — MANAGER/MASTER.
+// BE: accounting-service `GET/POST /api/v1/accounting/edit-requests*`.
+import { AccountingEditRequestsPage } from './admin/AccountingEditRequestsPage'
+import { ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES } from '../api/accountingEditRequest'
 // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
 // Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
 import { PhotoAuditPage } from './admin/PhotoAuditPage'
@@ -1504,6 +1508,17 @@ const router = createHashRouter([
         element: (
           <RoleGuard allow={SLIP_EDIT_REQUEST_REVIEWER_ROLES}>
             <SlipEditRequestsPage />
+          </RoleGuard>
+        ),
+      },
+      // [Issue 4 Slice 4] 회계 수정/삭제 요청 대시보드 — MANAGER / MASTER.
+      // AdminLayout (MASTER 전용) 외부에 배치 — 회계 관리자 공용 자체 RoleGuard.
+      // BE: accounting-service `GET /api/v1/accounting/edit-requests?targetRole=MANAGER`.
+      {
+        path: '/admin/accounting-edit-requests',
+        element: (
+          <RoleGuard allow={ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES}>
+            <AccountingEditRequestsPage />
           </RoleGuard>
         ),
       },

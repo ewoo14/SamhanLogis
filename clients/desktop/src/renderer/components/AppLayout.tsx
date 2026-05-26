@@ -56,6 +56,8 @@ import { canAccessDpsByProduct } from '../api/dpsByProductApi'
 // [PR-E2 FE-9/FE-7] SP-D2: 홈택스 일괄 양식 / 거래처 원장 — 동적 RBAC 연동으로 정적 함수 폐기.
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE / MANAGER / MASTER (BE @PreAuthorize 일치)
 import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
+// [Issue 4 Slice 4] 회계 수정/삭제 요청 처리 대시보드 — MANAGER / MASTER.
+import { ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES } from '../api/accountingEditRequest'
 // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE. 헤더 배지 + 창고 운영 메뉴.
 import {
   canAccessSafetyStock,
@@ -270,10 +272,13 @@ export function AppLayout() {
   const showAccountingAdminAging = dynamicCanAccess('ecount.mig14.aging-snapshot', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
+  const showAccountingEditRequests = dynamicCanAccess('accounting.edit-requests', 'view')
+    || (!!auth?.role
+      && (ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES as readonly string[]).includes(auth.role))
   const showAccountingAdminGroup =
     showAccountingAdminCash || showAccountingAdminOrder
     || showAccountingAdminAging || showAccountingAdminLedger
-    || showAccountingAdminMigOps
+    || showAccountingAdminMigOps || showAccountingEditRequests
   // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
@@ -843,6 +848,14 @@ export function AppLayout() {
                         style={{ paddingLeft: 28, fontSize: 13 }}
                       >
                         운영 대시보드
+                      </SidebarLink>
+                      <SidebarLink
+                        to="/admin/accounting-edit-requests"
+                        show={showAccountingEditRequests}
+                        data-testid="sidebar-accounting-admin-edit-requests"
+                        style={{ paddingLeft: 28, fontSize: 13 }}
+                      >
+                        회계 수정 요청
                       </SidebarLink>
                     </div>
                   ) : null}

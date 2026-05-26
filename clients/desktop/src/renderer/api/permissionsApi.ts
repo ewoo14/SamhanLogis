@@ -44,6 +44,7 @@ export type PermissionAction = 'view' | 'edit'
  * SP-D1 cycle 2 fix: 대문자 상수(DASHBOARD 등)에서 dot-separated 소문자 코드로 교체.
  * SP-D2: 회계 카테고리 7개 신규 추가 (accounts / journals / balances / reports /
  *         period-close / statement-batch / partner-ledger).
+ * Issue 4 Slice 4: 회계 수정/삭제 요청 PageCode 추가.
  * SP-D4: 잔여 7 도메인 22개 신규 추가 (estimates / sales.partner-order.* /
  *         sales.vendor-order / inventory.* / admin.* / partners.* / products.* / arologis.*).
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
@@ -75,6 +76,7 @@ export type PageCode =
   | 'accounting.period-close'
   | 'accounting.statement-batch'
   | 'accounting.partner-ledger'
+  | 'accounting.edit-requests'
   // SP-D4 잔여 7 도메인 22개 신규
   | 'estimates.list'
   | 'sales.partner-order.list'
