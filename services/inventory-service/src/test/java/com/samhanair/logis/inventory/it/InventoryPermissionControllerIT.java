@@ -294,9 +294,9 @@ class InventoryPermissionControllerIT {
                         () -> post("/inventory/transfers/{id}/ship", ID)),
                 endpoint("warehouse list", "inventory.warehouse", "VIEW", "WAREHOUSE",
                         () -> get("/inventory/warehouses")),
-                endpoint("warehouse create", "inventory.warehouse", "EDIT", "MANAGER",
+                endpoint("warehouse create", "inventory.warehouse.admin", "EDIT", "MANAGER",
                         () -> post("/inventory/warehouses").contentType(MediaType.APPLICATION_JSON).content(warehouseBody())),
-                endpoint("warehouse deleted", "inventory.warehouse", "EDIT", "MANAGER",
+                endpoint("warehouse deleted", "inventory.warehouse.admin", "EDIT", "MANAGER",
                         () -> get("/inventory/warehouses/deleted")),
                 endpoint("dps compare", "inventory.dps", "VIEW", "WAREHOUSE",
                         () -> multipart("/warehouse/audit/dps-compare").file(csv("file"))

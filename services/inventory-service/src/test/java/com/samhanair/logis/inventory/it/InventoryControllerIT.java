@@ -69,6 +69,11 @@ class InventoryControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+
         hqWarehouseId = warehouseRepository.findByCode("HQ-001")
                 .orElseThrow(() -> new IllegalStateException(
                         "HQ-001 시드 누락 — V2__seed_inventory_warehouses.sql 확인"))

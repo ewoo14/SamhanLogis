@@ -108,6 +108,7 @@ export type PageCode =
   | 'sales.partner-order.tutorial'
   | 'sales.vendor-order'
   | 'inventory.warehouse'
+  | 'inventory.warehouse.admin'
   | 'inventory.stock'
   | 'inventory.stock-transfer'
   | 'inventory.dps'

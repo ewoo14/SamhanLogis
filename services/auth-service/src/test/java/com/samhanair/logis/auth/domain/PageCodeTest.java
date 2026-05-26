@@ -180,4 +180,13 @@ class PageCodeTest {
         assertThat(PageCode.isValid("arologis.edit-requests.decide")).isTrue();
         assertThat(PageCode.isValid("arologis.driver")).isTrue();
     }
+
+    @Test
+    void spD65_pageCodes_V35_seed와_동기화() {
+        assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getCode())
+                .isEqualTo("inventory.warehouse.admin");
+        assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getDisplayName())
+                .isEqualTo("창고 관리 admin");
+        assertThat(PageCode.isValid("inventory.warehouse.admin")).isTrue();
+    }
 }

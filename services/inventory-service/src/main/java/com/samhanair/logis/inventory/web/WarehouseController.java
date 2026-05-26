@@ -125,11 +125,11 @@ public class WarehouseController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public ApiResponse<WarehouseResponse> create(
             @Valid @RequestBody CreateWarehouseRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.create(request));
     }
 
@@ -143,12 +143,12 @@ public class WarehouseController {
     @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용 + audit overlay 기록")
     @PatchMapping("/{id}")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request,
                                                  @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                                                  @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.update(id, request, callerHeader));
     }
 
@@ -196,13 +196,13 @@ public class WarehouseController {
     })
     @PostMapping("/{id}/audit/revert/{revisionNo}")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public ApiResponse<WarehouseResponse> revertAudit(
             @PathVariable UUID id,
             @PathVariable int revisionNo,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.revertToRevision(id, revisionNo, callerHeader));
     }
 
@@ -216,11 +216,11 @@ public class WarehouseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         warehouseService.delete(id, callerHeader);
     }
 
@@ -233,7 +233,7 @@ public class WarehouseController {
             description = "soft-deleted 창고 list (modified_at desc). 복구 admin 화면 backing.")
     @GetMapping("/deleted")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public ApiResponse<List<WarehouseResponse>> listDeleted() {
         return ApiResponse.ok(warehouseService.listDeleted());
     }
@@ -251,11 +251,11 @@ public class WarehouseController {
     })
     @PostMapping("/{id}/restore")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "inventory.warehouse", action = "EDIT")
+    @RequirePermission(page = "inventory.warehouse.admin", action = "EDIT")
     public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
                                                   @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                                                   @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE);
+        inventoryPermissionGuard.checkEdit(roleHeader, InventoryPermissionGuard.PAGE_WAREHOUSE_ADMIN);
         return ApiResponse.ok(warehouseService.restore(id, callerHeader));
     }
 }

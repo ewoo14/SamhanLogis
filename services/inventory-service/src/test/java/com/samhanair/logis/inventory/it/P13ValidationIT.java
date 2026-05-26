@@ -88,6 +88,11 @@ class P13ValidationIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUpMocks() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+
         // ProductClient — requireExists 는 ProductSummary 반환 (void 아님)
         Mockito.lenient().when(productClient.requireExists(Mockito.any()))
                 .thenAnswer(inv -> new ProductSummary(

@@ -41,6 +41,7 @@ public class InventoryPermissionGuard {
 
     /** 창고 관리 페이지 코드. */
     public static final String PAGE_WAREHOUSE       = "inventory.warehouse";
+    public static final String PAGE_WAREHOUSE_ADMIN = "inventory.warehouse.admin";
     /** 재고 현황 페이지 코드. */
     public static final String PAGE_STOCK           = "inventory.stock";
     /** 재고 이동 페이지 코드. */

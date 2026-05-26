@@ -184,6 +184,9 @@ public enum PageCode {
     /** 창고 관리 화면 (SP-D4) — inventory-service WarehouseController. */
     INVENTORY_WAREHOUSE("inventory.warehouse", "창고 관리"),
 
+    /** 창고 생성/수정/삭제/복구 API (SP-D6-5). */
+    INVENTORY_WAREHOUSE_ADMIN("inventory.warehouse.admin", "창고 관리 admin"),
+
     /** 재고 현황/안전재고 화면 (SP-D4) — StockController / SafetyStockController. */
     INVENTORY_STOCK("inventory.stock", "재고 현황"),
 

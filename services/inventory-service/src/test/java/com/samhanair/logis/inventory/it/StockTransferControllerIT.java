@@ -77,6 +77,11 @@ class StockTransferControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+
         hqId = lookupSeed("HQ-001");
         vehicleId = lookupSeed("VH-001");
         virtualId = lookupSeed("VR-001");

@@ -21,14 +21,14 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * SP-D4 창고 동적 RBAC IT — inventory.warehouse PageCode 이중 가드 검증.
+ * SP-D4 창고 동적 RBAC IT — inventory.warehouse 조회 / inventory.warehouse.admin 변경 가드 검증.
  *
  * <p>케이스 목록:
  * <ol>
  *   <li>C1: WAREHOUSE canView=true → GET /inventory/warehouses 200 OK</li>
  *   <li>C2: WAREHOUSE canView=false → 403 FORBIDDEN</li>
- *   <li>C3: MASTER canEdit=true → POST /inventory/warehouses checkEdit 통과</li>
- *   <li>C4: WAREHOUSE canEdit=false + canView=true → POST 403 (view-only override)</li>
+ *   <li>C3: MASTER inventory.warehouse.admin canEdit=true → POST /inventory/warehouses checkEdit 통과</li>
+ *   <li>C4: WAREHOUSE inventory.warehouse.admin canEdit=false + canView=true → POST 403 (view-only override)</li>
  * </ol>
  */
 @SpringBootTest(classes = InventoryServiceApplication.class)
@@ -82,11 +82,11 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // C3: MASTER canEdit=true → POST 창고 생성 checkEdit 통과
+    // C3: MASTER inventory.warehouse.admin canEdit=true → POST 창고 생성 checkEdit 통과
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C3: MASTER inventory.warehouse canEdit=true → POST checkEdit 통과 (403 아님)")
+    @DisplayName("C3: MASTER inventory.warehouse.admin canEdit=true → POST checkEdit 통과 (403 아님)")
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C3_master_canEdit_true_create_passes() throws Exception {
         mockMvc.perform(post("/inventory/warehouses")
@@ -97,7 +97,7 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // C4: WAREHOUSE canEdit=false + canView=true → POST 403 (view-only override)
+    // C4: WAREHOUSE inventory.warehouse.admin canEdit=false + canView=true → POST 403 (view-only override)
     // -------------------------------------------------------------------------
 
     @Test

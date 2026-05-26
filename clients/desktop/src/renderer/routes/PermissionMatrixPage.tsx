@@ -211,6 +211,7 @@ const PAGE_GROUPS: PageGroup[] = [
     label: '재고',
     pages: [
       'inventory.warehouse',
+      'inventory.warehouse.admin',
       'inventory.stock',
       'inventory.stock-transfer',
       'inventory.dps',
@@ -345,6 +346,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'sales.partner-order.tutorial': '주문 튜토리얼',
   'sales.vendor-order': '벤더 주문',
   'inventory.warehouse': '창고관리',
+  'inventory.warehouse.admin': '창고관리 admin',
   'inventory.stock': '재고 현황',
   'inventory.stock-transfer': '재고 이동',
   'inventory.dps': 'DPS 비교',
@@ -441,6 +443,7 @@ const PAGES_WITH_EDIT: Set<PageCode> = new Set([
   'sales.partner-order.tutorial',
   'sales.vendor-order',
   'inventory.warehouse',
+  'inventory.warehouse.admin',
   'inventory.stock',
   'inventory.stock-transfer',
   'inventory.dps',

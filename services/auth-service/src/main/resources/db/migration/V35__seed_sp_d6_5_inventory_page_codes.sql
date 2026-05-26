@@ -20,6 +20,7 @@ WITH roles(role_code) AS (
 ),
 pages(page_code) AS (
     VALUES
+        ('inventory.warehouse.admin'),
         ('inventory.list'),
         ('inventory.detail'),
         ('inventory.adjust'),
@@ -32,10 +33,13 @@ pages(page_code) AS (
 ),
 grants(page_code, role_code, can_view, can_edit) AS (
     VALUES
+        -- inventory.warehouse.admin: 창고 생성/수정/삭제/복구 전용
+        ('inventory.warehouse.admin', 'MASTER',  TRUE, TRUE),
+        ('inventory.warehouse.admin', 'MANAGER', TRUE, TRUE),
+
         -- inventory.list: batch 조회 + 예약/해제/차감
         ('inventory.list', 'MASTER',     TRUE, TRUE),
         ('inventory.list', 'MANAGER',    TRUE, TRUE),
-        ('inventory.list', 'DEVELOPER',  TRUE, TRUE),
         ('inventory.list', 'SALES',      TRUE, TRUE),
         ('inventory.list', 'ACCOUNTANT', TRUE, FALSE),
         ('inventory.list', 'WAREHOUSE',  TRUE, TRUE),
@@ -44,7 +48,6 @@ grants(page_code, role_code, can_view, can_edit) AS (
         -- inventory.detail: 감사/상세 조회 전용
         ('inventory.detail', 'MASTER',     TRUE, FALSE),
         ('inventory.detail', 'MANAGER',    TRUE, FALSE),
-        ('inventory.detail', 'DEVELOPER',  TRUE, FALSE),
         ('inventory.detail', 'ACCOUNTANT', TRUE, FALSE),
         ('inventory.detail', 'WAREHOUSE',  TRUE, FALSE),
         ('inventory.detail', 'INVENTORY',  TRUE, FALSE),
@@ -57,7 +60,6 @@ grants(page_code, role_code, can_view, can_edit) AS (
         -- inventory.transfer: 재고 이동 조회/생성/출고/입고
         ('inventory.transfer', 'MASTER',     TRUE, TRUE),
         ('inventory.transfer', 'MANAGER',    TRUE, TRUE),
-        ('inventory.transfer', 'DEVELOPER',  TRUE, FALSE),
         ('inventory.transfer', 'SALES',      TRUE, FALSE),
         ('inventory.transfer', 'ACCOUNTANT', TRUE, FALSE),
         ('inventory.transfer', 'WAREHOUSE',  TRUE, TRUE),
@@ -66,7 +68,6 @@ grants(page_code, role_code, can_view, can_edit) AS (
         -- inventory.stock-balance: 잔액/로트/입고/export
         ('inventory.stock-balance', 'MASTER',    TRUE, TRUE),
         ('inventory.stock-balance', 'MANAGER',   TRUE, TRUE),
-        ('inventory.stock-balance', 'DEVELOPER', TRUE, FALSE),
         ('inventory.stock-balance', 'WAREHOUSE', TRUE, TRUE),
         ('inventory.stock-balance', 'INVENTORY', TRUE, TRUE),
 

@@ -65,6 +65,11 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+
         productId = UUID.randomUUID();
 
         hqWarehouseId = warehouseRepository.findByCode("HQ-001")
