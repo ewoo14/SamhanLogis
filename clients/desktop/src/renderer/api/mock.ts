@@ -708,6 +708,16 @@ const MOCK_NOTIFICATION_CENTER: Array<{
     readAt: null,
   },
   {
+    id: 'n0000000-0000-0000-0000-000000000004',
+    channel: 'APPROVAL',
+    severity: 'INFO',
+    title: '회계 수정 요청 — 홍길동',
+    body: '수정 요청: 1월 마감 후 발견된 매입 누락 건 수정',
+    deeplink: '/admin/accounting-edit-requests',
+    createdAt: '2026-05-26T10:00:00',
+    readAt: null,
+  },
+  {
     id: 'n0000000-0000-0000-0000-000000000003',
     channel: 'ECOUNT_IMPORT',
     severity: 'CRITICAL',
@@ -5643,6 +5653,7 @@ const SP_D1_ROLES = [
 /**
  * SP-D1 cycle 2 fix: 페이지 코드를 BE PageCode enum dot-separated code 와 일치.
  * SP-D2: 회계 카테고리 7개 신규 PageCode 추가 (V8 seed 기반).
+ * Issue 4 Slice 4: 회계 수정/삭제 요청 PageCode 추가 (V28 seed 기반).
  * SP-D4: 잔여 7 도메인 22개 신규 PageCode 추가 (V10 seed 기반).
  */
 const SP_D1_PAGES = [
@@ -5671,6 +5682,8 @@ const SP_D1_PAGES = [
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
+  // Issue 4 Slice 4
+  'accounting.edit-requests',
   // SP-D4 잔여 7 도메인 22개 신규 (V10 seed 기반)
   'estimates.list',
   'sales.partner-order.list',
@@ -5751,6 +5764,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // MIG-14 admin UI
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
+    // Issue 4 Slice 4
+    'accounting.edit-requests',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -5847,6 +5862,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // MIG-14 admin UI
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
+    // Issue 4 Slice 4
+    'accounting.edit-requests',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
