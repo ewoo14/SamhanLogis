@@ -4,6 +4,10 @@ import com.samhanair.logis.accounting.editrequest.domain.AccountingEditRequest;
 import com.samhanair.logis.accounting.editrequest.repository.AccountingEditRequestRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
+import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestService;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
@@ -55,6 +59,7 @@ public class AccountingEditRequestService implements EditRequestService {
 
     private final AccountingEditRequestRepository requestRepository;
     private final RealtimeBroker broker;
+    private final NotificationPublisher notificationPublisher;
 
     /**
      * 신규 수정/삭제 요청 생성 + SSE broadcast.
@@ -81,6 +86,17 @@ public class AccountingEditRequestService implements EditRequestService {
         AccountingEditRequest saved = requestRepository.save(request);
 
         broker.publish(entityId, EVENT_REQUEST_CREATED, buildPayload(saved));
+        NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
+                "APPROVAL",
+                NotificationSeverity.INFO,
+                String.format("회계 수정 요청 — %s", requesterName),
+                String.format("%s 요청: %s", typeLabel(requestType), truncateTo80(reason)),
+                List.of("MASTER", "MANAGER"),
+                null,
+                null,
+                saved.getId().toString(),
+                "/admin/accounting-edit-requests"
+        ));
 
         log.info("[PR-H4b] accounting 수정 요청 생성 — entityId={} type={} requester={} targetRole={}",
                 entityId, requestType, requesterName, targetRole);
@@ -96,6 +112,17 @@ public class AccountingEditRequestService implements EditRequestService {
         AccountingEditRequest request = loadOrThrow(requestId);
         request.approve(approverId, approverName, noteOptional);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
+        NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
+                "APPROVAL",
+                NotificationSeverity.INFO,
+                String.format("회계 수정 요청 수락 — %s", approverName),
+                String.format("%s 요청이 수락되었습니다.", typeLabel(request.getRequestType())),
+                null,
+                request.getRequesterId(),
+                null,
+                request.getId().toString(),
+                "/admin/accounting-edit-requests"
+        ));
         log.info("[PR-H4b] accounting 요청 {} 수락 — approver={} entityId={}",
                 requestId, approverName, request.getEntityId());
         return request;
@@ -110,6 +137,18 @@ public class AccountingEditRequestService implements EditRequestService {
         AccountingEditRequest request = loadOrThrow(requestId);
         request.reject(approverId, approverName, decisionReason);
         broker.publish(request.getEntityId(), EVENT_REQUEST_DECIDED, buildPayload(request));
+        NotificationPublisherSupport.publishAfterCommit(notificationPublisher, new NotificationPublishRequest(
+                "APPROVAL",
+                NotificationSeverity.WARNING,
+                String.format("회계 수정 요청 거절 — %s", approverName),
+                String.format("%s 요청이 거절되었습니다: %s",
+                        typeLabel(request.getRequestType()), truncateTo80(decisionReason)),
+                null,
+                request.getRequesterId(),
+                null,
+                request.getId().toString(),
+                "/admin/accounting-edit-requests"
+        ));
         log.info("[PR-H4b] accounting 요청 {} 거절 — approver={} reason={}",
                 requestId, approverName, decisionReason);
         return request;
@@ -157,6 +196,20 @@ public class AccountingEditRequestService implements EditRequestService {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "회계 수정 요청을 찾을 수 없습니다: " + requestId));
+    }
+
+    private static String typeLabel(EditRequestType type) {
+        return switch (type) {
+            case EDIT -> "수정";
+            case DELETE -> "삭제";
+        };
+    }
+
+    private static String truncateTo80(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() > 80 ? value.substring(0, 80) : value;
     }
 
     private Map<String, Object> buildPayload(AccountingEditRequest request) {

@@ -54,6 +54,7 @@ dependencies {
     // edit-request lock 정책 통합. accounting-service 의 TaxInvoice / Journal / AccountingPeriod
     // mutation 시 audit_log 1행 + SSE broadcast + 잠금 가드 (ISSUED/POSTED/CLOSED 후).
     implementation project(':shared:realtime-abstraction')
+    implementation project(':shared:notification-publisher')
 
     runtimeOnly 'org.postgresql:postgresql'
 

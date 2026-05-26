@@ -6,11 +6,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.editrequest.domain.AccountingEditRequest;
 import com.samhanair.logis.accounting.editrequest.repository.AccountingEditRequestRepository;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
+import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
@@ -21,10 +25,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * PR-H4b BE-A — AccountingEditRequestService 단위 테스트 (5 case).
@@ -42,6 +49,7 @@ class AccountingEditRequestServiceTest {
 
     @Mock private AccountingEditRequestRepository requestRepository;
     @Mock private RealtimeBroker broker;
+    @Mock private NotificationPublisher notificationPublisher;
 
     @InjectMocks private AccountingEditRequestService service;
 
@@ -75,6 +83,36 @@ class AccountingEditRequestServiceTest {
     }
 
     @Test
+    void request_publishesApprovalNotificationCenterEvent_afterCommit() {
+        when(requestRepository.save(any(AccountingEditRequest.class))).thenAnswer(inv -> {
+            AccountingEditRequest req = inv.getArgument(0);
+            ReflectionTestUtils.setField(req, "id", UUID.randomUUID());
+            return req;
+        });
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.request(entityId, EditRequestType.EDIT, "발행 후 거래처 정정",
+                    requesterId, "이수민");
+
+            verify(notificationPublisher, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        ArgumentCaptor<NotificationPublishRequest> captor =
+                ArgumentCaptor.forClass(NotificationPublishRequest.class);
+        verify(notificationPublisher).publish(captor.capture());
+        NotificationPublishRequest req = captor.getValue();
+        assertThat(req.channel()).isEqualTo("APPROVAL");
+        assertThat(req.targetRole()).containsExactly("MASTER", "MANAGER");
+        assertThat(req.targetUserId()).isNull();
+        assertThat(req.deeplink()).isEqualTo("/admin/accounting-edit-requests");
+    }
+
+    @Test
     void approve_transitionsToApproved_andBroadcastsDecided() {
         AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
                 EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
@@ -91,6 +129,36 @@ class AccountingEditRequestServiceTest {
     }
 
     @Test
+    void approve_publishesNotificationCenterEvent_toRequester_afterCommit() {
+        AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.EDIT, "사유", EditTargetRole.MANAGER, LocalDateTime.now().plusHours(24));
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.approve(requestId, approverId, "관리자A", "OK");
+
+            verify(notificationPublisher, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        ArgumentCaptor<NotificationPublishRequest> captor =
+                ArgumentCaptor.forClass(NotificationPublishRequest.class);
+        verify(notificationPublisher).publish(captor.capture());
+        NotificationPublishRequest request = captor.getValue();
+        assertThat(request.channel()).isEqualTo("APPROVAL");
+        assertThat(request.severity()).isEqualTo(NotificationSeverity.INFO);
+        assertThat(request.targetRole()).isNull();
+        assertThat(request.targetUserId()).isEqualTo(requesterId);
+        assertThat(request.deeplink()).isEqualTo("/admin/accounting-edit-requests");
+    }
+
+    @Test
     void reject_requiresReason_andTransitionsToRejected() {
         AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
                 EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
@@ -103,6 +171,36 @@ class AccountingEditRequestServiceTest {
 
         assertThat(rejected.getStatus()).isEqualTo(EditRequestStatus.REJECTED);
         assertThat(rejected.getDecisionReason()).isEqualTo("정책상 불가");
+    }
+
+    @Test
+    void reject_publishesNotificationCenterEvent_toRequester_afterCommit() {
+        AccountingEditRequest req = AccountingEditRequest.create(entityId, requesterId, "이수민",
+                EditRequestType.DELETE, "삭제요청", EditTargetRole.MANAGER, null);
+        UUID requestId = UUID.randomUUID();
+        ReflectionTestUtils.setField(req, "id", requestId);
+        when(requestRepository.findById(requestId)).thenReturn(Optional.of(req));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.reject(requestId, approverId, "관리자A", "정책상 불가");
+
+            verify(notificationPublisher, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        ArgumentCaptor<NotificationPublishRequest> captor =
+                ArgumentCaptor.forClass(NotificationPublishRequest.class);
+        verify(notificationPublisher).publish(captor.capture());
+        NotificationPublishRequest request = captor.getValue();
+        assertThat(request.channel()).isEqualTo("APPROVAL");
+        assertThat(request.severity()).isEqualTo(NotificationSeverity.WARNING);
+        assertThat(request.targetRole()).isNull();
+        assertThat(request.targetUserId()).isEqualTo(requesterId);
+        assertThat(request.deeplink()).isEqualTo("/admin/accounting-edit-requests");
     }
 
     @Test
