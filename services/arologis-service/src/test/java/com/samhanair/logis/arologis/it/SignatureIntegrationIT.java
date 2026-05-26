@@ -30,6 +30,7 @@ import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,7 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
     @MockBean private NotificationClient notificationClient;
     /** PR-E1 BE-3 — 출고전표 자동 조회 client 격리. */
     @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
@@ -95,6 +97,8 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
 
         // FK 순서 cleanup
         signatureRepository.deleteAll();

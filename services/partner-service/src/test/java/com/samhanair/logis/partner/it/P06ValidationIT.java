@@ -1,11 +1,15 @@
 package com.samhanair.logis.partner.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.partner.tab.dto.PartnerContactRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerFullRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerPriceDiscountRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressRequest;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.web.servlet.MockMvc;
@@ -60,12 +65,18 @@ class P06ValidationIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     /** 각 테스트에서 고유한 partnerCode 사용 (DB 충돌 회피). */
     private static final String PC_IT = "IT-P06-001";
     private static final String BIZ_IT = "888-88-11001";
 
     @BeforeEach
     void cleanupItData() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+
         // @Transactional + @Rollback 으로 각 테스트 후 자동 롤백 — beforeEach 별도 삭제 불필요.
         // 싱글턴 컨테이너 공유이므로 다른 IT 에서 삽입한 seed 데이터와 충돌하지 않도록
         // 테스트 전용 partnerCode 분리 (IT-P06-xxx).

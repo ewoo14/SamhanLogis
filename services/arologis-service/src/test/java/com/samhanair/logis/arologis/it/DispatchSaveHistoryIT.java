@@ -1,6 +1,8 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,6 +18,7 @@ import com.samhanair.logis.arologis.client.SlipDispatchTaskClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.domain.DispatchProgramType;
 import com.samhanair.logis.arologis.repository.DispatchSaveHistoryRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -60,11 +63,20 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private SlipClient slipClient;
     @MockBean private SlipDispatchTaskClient slipDispatchTaskClient;
     @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     @AfterEach
     void cleanHistory() {
         jdbcTemplate.update("DELETE FROM dispatch_save_history");
+    }
+
+    @BeforeEach
+    void setUpPermissions() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString()))
+                .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
     }
 
     @Test

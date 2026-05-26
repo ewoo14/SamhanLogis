@@ -1,5 +1,8 @@
 package com.samhanair.logis.partner.tab.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
@@ -12,6 +15,7 @@ import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressRequest;
 import com.samhanair.logis.partner.tab.repository.PartnerContactRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerPriceDiscountRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerShippingAddressRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,8 +68,14 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
     @Autowired
     private PartnerContactRepository contactRepository;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @BeforeEach
     void cleanup() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+
         contactRepository.deleteAll();
         shippingAddressRepository.deleteAll();
         priceDiscountRepository.deleteAll();
