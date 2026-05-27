@@ -4,6 +4,26 @@
 
 ---
 
+## 🚀 2026-05-27 신규 대형 initiative — 권한 체계 전면 재편 (brainstorming → 토대 확정, Phase 0 대기)
+
+**사용자 요구**: role 기반(영업원/회계원 등) 폐기 → **계정 단위 × 페이지 × 7 action**(보기/입력/수정/삭제/복원/다운로드/출력) 권한 + MASTER 체크박스 UI(개별/일괄). 다운로드=PDF/PNG/EXCEL. 복원=전표 버전이력+롤백(YYYY/MM/DD-{전표번호}).
+
+- **토대 설계 확정 + 커밋**: `docs/superpowers/specs/2026-05-27-permission-overhaul-foundation-design.md` (PR `docs/permission-overhaul-foundation`).
+- **분해 (사용자 승인)**: **Phase 0 인벤토리 → Phase 1 프레임워크(단일 PR 목표) → Phase 2+ 기능구현(별도 다중 PR)**.
+- **규모**: PageCode 173 / @RequirePermission ~380 / 8 도메인. 인벤토리 = 173페이지 × 7기능 ≈ 1,200셀.
+- **현행→목표**: `role_page_permissions(role×page×view/edit)` → `account_page_permissions(account×page×7action)`, MASTER 전권 bypass.
+
+### 다음 단계 — Phase 0 인벤토리 (fresh 세션 권장)
+1. 도메인별 fan-out audit (Explore/general-purpose): 각 PageCode 의 7기능 구현 현황(있음/없음) — BE endpoint(HTTP→action) + FE 메뉴/버튼. 복원/PDF·PNG/출력 미구현 집계.
+2. 산출: `docs/permission-overhaul/menu-inventory.md`.
+3. 인벤토리 + 토대 → Phase 1 프레임워크 상세 spec → plan → Codex 구현 → dual 리뷰 → PM 머지.
+- 토대 §7 open questions (role 완전제거 여부 / 다운로드 컬럼 분리 / 복원 메커니즘 / 마이그레이션 / 일괄 UX) 는 인벤토리 후 Phase 1 에서 결정.
+
+### 브랜치 정리 (2026-05-27 완료)
+stale `pr-*` 9건 삭제. 남은 `feat/*`·`chore/*`·`docs/*`(squash-merged 추정) + `worktree-agent-*`(harness 워ктree) 는 보존 (사용자 확인 후 prune 가능).
+
+---
+
 ## ✅ 2026-05-27 완료 — SP-D7 (PR #312) 잔여 @PreAuthorize 마이그레이션 머지 (SP-D6 완전 종결)
 
 - **PR #312 머지** (squash `993d7e70`). isAuth→@RequirePermission(VIEW) **23건** + leftover redundant @PreAuthorize 정리 + 신규 PageCode 5(notifications.center + 4 `.view`) + Flyway V38 + AuthFlywayV38SeedIT(실 seed grant 검증).
