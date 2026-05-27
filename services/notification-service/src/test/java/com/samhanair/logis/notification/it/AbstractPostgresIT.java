@@ -1,6 +1,13 @@
 package com.samhanair.logis.notification.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
@@ -15,6 +22,20 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @ExtendWith(AbstractPostgresIT.DockerAvailableCondition.class)
 public abstract class AbstractPostgresIT {
+
+    @MockBean
+    protected DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void setUpDynamicPermissionClient() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+    }
+
+    protected void denyDynamicPermissionFor(String role) {
+        lenient().when(dynamicPermissionClient.canView(eq(role), anyString())).thenReturn(false);
+        lenient().when(dynamicPermissionClient.canEdit(eq(role), anyString())).thenReturn(false);
+    }
 
     @SuppressWarnings("resource")
     protected static final PostgreSQLContainer<?> POSTGRES =
