@@ -29,9 +29,10 @@
 
 ### 최신 진행 메모 (2026-05-27)
 
-- SP-D7 (진행): 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint 25건을 `@RequirePermission(..., VIEW)`로 전환했다.
+- SP-D7 (진행): 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint 23건을 `@RequirePermission(..., VIEW)`로 전환했다.
   - auth-service V38 seed는 `PARTNER`를 제외한 내부 role에만 VIEW grant를 보강한다.
   - 기존 VIEW endpoint가 있던 page는 전용 `.view` page code(`sales.partner-order.history.view`, `products.list.view`, `partners.detail.view`, `inventory.stock-balance.view`)로 분리해 widening을 피한다.
+  - `estimates.list` 조회 2건은 `EstimatePermissionGuard`가 이미 RBAC를 강제하므로 `isAuthenticated()`를 유지하고 V38 widening 대상에서 제외한다.
   - Employee 역할 변경/퇴사와 inventory Type B widening 위험 endpoint는 더 엄격한 `@PreAuthorize`를 유지한다.
   - 대상 서비스는 auth, notification, inventory, partner, product, slip, partner-order, user다.
 

@@ -19,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,7 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D6-6 권한 가드:
  * <ul>
- *   <li>GET 조회 → {@code @RequirePermission(page = "estimates.list", action = "VIEW")}
+ *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
  *       + {@link EstimatePermissionGuard#checkView(String)}</li>
  *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = "EDIT")}
  *       + {@link EstimatePermissionGuard#checkEdit(String)}</li>
@@ -66,7 +67,7 @@ public class EstimateController {
     @Operation(summary = "견적서 페이지 조회",
             description = "status / partnerId / 기간(start-end) 필터 조합")
     @GetMapping
-    @RequirePermission(page = "estimates.list", action = "VIEW")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<EstimateResponse>> list(
             @RequestParam(required = false) EstimateStatus status,
             @RequestParam(required = false) UUID partnerId,
@@ -85,7 +86,7 @@ public class EstimateController {
     /** 견적서 단건 상세 조회. */
     @Operation(summary = "견적서 단건 상세", description = "라인 포함")
     @GetMapping("/{id}")
-    @RequirePermission(page = "estimates.list", action = "VIEW")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<EstimateDetailResponse> getOne(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

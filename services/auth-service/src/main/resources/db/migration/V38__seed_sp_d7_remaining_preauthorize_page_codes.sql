@@ -28,7 +28,6 @@ reusable_pages(page_code) AS (
         ('slip.delivery-attachments.upload'),
         ('slip.publish.from-estimate'),
         ('slip.edit-requests'),
-        ('estimates.list'),
         ('sales.partner-order.edit-requests'),
         ('products.edit-requests')
 )
@@ -64,7 +63,6 @@ reusable_pages(page_code) AS (
         ('slip.delivery-attachments.upload'),
         ('slip.publish.from-estimate'),
         ('slip.edit-requests'),
-        ('estimates.list'),
         ('sales.partner-order.edit-requests'),
         ('products.edit-requests')
 ),
