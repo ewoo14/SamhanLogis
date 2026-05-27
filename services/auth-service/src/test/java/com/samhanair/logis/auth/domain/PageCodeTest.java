@@ -171,6 +171,13 @@ class PageCodeTest {
     }
 
     @Test
+    void spD7_notificationsCenter_pageCode_V38_seed와_동기화() {
+        assertThat(PageCode.NOTIFICATIONS_CENTER.getCode()).isEqualTo("notifications.center");
+        assertThat(PageCode.NOTIFICATIONS_CENTER.getDisplayName()).isEqualTo("알림 센터");
+        assertThat(PageCode.isValid("notifications.center")).isTrue();
+    }
+
+    @Test
     void spD64_pageCodes_V34_seed와_동기화() {
         assertThat(PageCode.PARTNERS_SEARCH.getCode()).isEqualTo("partners.search");
         assertThat(PageCode.PARTNERS_EDIT.getCode()).isEqualTo("partners.edit");

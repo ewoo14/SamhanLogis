@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D6-3 notification / user migration 신규 PageCode 추가.
  * <p>SP-D6-6 slip-service migration 신규 PageCode 추가.
  * <p>SP-D6-7 accounting-service migration 신규 PageCode 추가.
+ * <p>SP-D7 notifications.center + 잔여 authenticated endpoint migration 보강.
  */
 @Getter
 @RequiredArgsConstructor
@@ -122,6 +123,9 @@ public enum PageCode {
 
     /** 알림 발송 admin 화면/API — SP-D6-3. */
     NOTIFICATIONS_ADMIN("notifications.admin", "알림 발송 관리"),
+
+    /** 사용자 통합 알림 센터 — SP-D7. */
+    NOTIFICATIONS_CENTER("notifications.center", "알림 센터"),
 
     /** 알리고 주소록 sync admin 화면/API — SP-D6-3. */
     ALIGO_ADDRESS_BOOK("aligo.address-book", "알리고 주소록"),

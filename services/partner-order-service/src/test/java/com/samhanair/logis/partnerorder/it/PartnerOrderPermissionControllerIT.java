@@ -15,9 +15,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogService;
+import com.samhanair.logis.partnerorder.audit.web.PartnerOrderAuditLogController;
 import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditRequest;
 import com.samhanair.logis.partnerorder.editrequest.service.PartnerOrderEditRequestService;
 import com.samhanair.logis.partnerorder.editrequest.web.PartnerOrderEditRequestController;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderRealtimeBroker;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderRealtimeController;
 import com.samhanair.logis.partnerorder.repository.TutorialStateRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDeleteService;
@@ -84,6 +88,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @WebMvcTest(
         controllers = {
@@ -97,7 +102,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 PartnerOrderHistoryController.class,
                 PartnerOrderListController.class,
                 PartnerOrderPrintController.class,
-                TutorialStateController.class
+                TutorialStateController.class,
+                PartnerOrderAuditLogController.class,
+                PartnerOrderRealtimeController.class
         },
         properties = "spring.application.name=partner-order-service")
 @Import({
@@ -130,6 +137,8 @@ class PartnerOrderPermissionControllerIT {
     @MockBean private PartnerOrderPrintService printService;
     @MockBean private TutorialStateRepository tutorialStateRepository;
     @MockBean private PartnerAuthClient partnerAuthClient;
+    @MockBean private PartnerOrderAuditLogService auditLogService;
+    @MockBean private PartnerOrderRealtimeBroker realtimeBroker;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach
@@ -171,6 +180,7 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(editRequestService.reject(any(), any(), anyString(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.listPendingForRole(any())).thenReturn(List.of(editRequest));
+        lenient().when(editRequestService.listByOrder(any(), any())).thenReturn(List.of(editRequest));
         lenient().when(vendorOrderService.upload(any(), any(), any(), any())).thenReturn(upload);
         lenient().when(vendorOrderService.confirm(any(), anyString())).thenReturn(vendorConfirm);
         lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any())).thenReturn(confirm);
@@ -187,6 +197,8 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(printService.renderPrintHtml(anyString(), any())).thenReturn("<html></html>");
         lenient().when(tutorialStateRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         lenient().when(tutorialStateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(auditLogService.listByOrderIdentifier(anyString())).thenReturn(List.of());
+        lenient().when(realtimeBroker.subscribe(any())).thenReturn(new SseEmitter(100L));
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -257,6 +269,12 @@ class PartnerOrderPermissionControllerIT {
                                 .content("{\"reason\":\"no\"}")),
                 new EndpointCase("edit request list", "sales.partner-order.edit-requests.decide", "VIEW", "MANAGER", 200,
                         () -> get("/api/v1/partner-orders/edit-requests").param("targetRole", "MANAGER")),
+                new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", "VIEW", "STAFF", 200,
+                        () -> get("/api/v1/partner-orders/{id}/edit-requests", ORDER_ID)),
+                new EndpointCase("order audit logs", "sales.partner-order.history", "VIEW", "STAFF", 200,
+                        () -> get("/api/v1/partner-orders/{id}/audit-logs", ORDER_ID)),
+                new EndpointCase("order realtime", "sales.partner-order.history", "VIEW", "STAFF", 200,
+                        () -> get("/api/v1/partner-orders/{id}/realtime", ORDER_ID)),
                 new EndpointCase("vendor upload", "sales.vendor-order", "EDIT", "MANAGER", 200,
                         () -> multipart("/api/v1/admin/partner-order/vendor/upload")
                                 .file(new MockMultipartFile("file", "order.png", "image/png", "x".getBytes()))),

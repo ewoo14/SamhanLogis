@@ -16,7 +16,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -91,7 +90,7 @@ public class SlipAttachmentController {
     /** 슬립별 첨부 목록 (downloadUrl 은 캐시 — 만료 가능, 정확한 URL 은 단건 GET). */
     @Operation(summary = "슬립 첨부 목록 조회")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.attachments.upload", action = "VIEW")
     public ApiResponse<List<SlipAttachmentResponse>> list(@PathVariable UUID slipId) {
         List<SlipAttachmentResponse> items = attachmentService.list(slipId).stream()
                 .map(SlipAttachmentResponse::from)
@@ -103,7 +102,7 @@ public class SlipAttachmentController {
     @Operation(summary = "첨부 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.attachments.upload", action = "VIEW")
     public ApiResponse<SlipAttachmentResponse> detail(@PathVariable UUID slipId,
                                                       @PathVariable UUID attachmentId) {
         SlipAttachmentService.DownloadView view = attachmentService.download(attachmentId);

@@ -615,7 +615,7 @@ body {
         </div>
       </div>
       <div class="svc-card-db">auth_db</div>
-      <div class="svc-card-desc">JWT HS256 발급 및 계정 관리. /auth/login · /auth/register · /auth/me. 로그인 실패 횟수 Caffeine Rate Limiting. SMTP OTP 비밀번호 재설정. 동적 권한(PageCode) 관리 7 endpoint.</div>
+      <div class="svc-card-desc">JWT HS256 발급 및 계정 관리. /auth/login · /auth/register · /auth/me. 로그인 실패 횟수 Caffeine Rate Limiting. SMTP OTP 비밀번호 재설정. 동적 권한(PageCode) 관리 7 endpoint + SP-D7 V38 권한 seed.</div>
       <div class="svc-tags">
         <span class="stag red">Spring Security</span>
         <span class="stag green">JJWT HS256</span>
@@ -893,7 +893,7 @@ body {
         <strong>InternalTokenFilter</strong> — X-Internal-Token 헤더 검증 서블릿 필터<br>
         <strong>InternalTokenGuard</strong> — prod 환경에서 기본 토큰 사용 시 부팅 거부<br>
         <strong>InternalAuthProperties</strong> — 토큰 설정 바인딩<br>
-        <strong>@RequirePermission + PermissionAspect</strong> — AOP 기반 동적 권한 검사<br>
+        <strong>@RequirePermission + PermissionAspect</strong> — AOP 기반 동적 권한 검사 (SP-D7 잔여 인증 조회 25건 전환)<br>
         <strong>PermissionGuardMetrics</strong> — 권한 체크 Micrometer 메트릭<br>
         <strong>DynamicPermissionClient</strong> — auth-service 권한 조회
       </div>
@@ -1171,7 +1171,7 @@ body {
       </table>
       <div class="callout purple" style="margin-top: 14px; font-size:12px;">
         <div class="callout-icon">🛡</div>
-        <div><strong>AOP 동적 권한:</strong> <code>@RequirePermission("SLIP_EDIT")</code> → PermissionAspect Around Advice → auth-service 페이지 코드 단위 권한 확인. Role 기반을 넘어 화면별 세밀한 권한 제어.</div>
+        <div><strong>AOP 동적 권한:</strong> <code>@RequirePermission(page="slip.comments", action="VIEW")</code> → PermissionAspect Around Advice → auth-service 페이지 코드 단위 권한 확인. Role 기반을 넘어 화면별 세밀한 권한 제어.</div>
       </div>
     </div>
   </div>

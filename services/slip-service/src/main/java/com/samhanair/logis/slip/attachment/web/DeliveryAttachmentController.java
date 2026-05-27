@@ -21,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -131,7 +130,7 @@ public class DeliveryAttachmentController {
     @Operation(summary = "배송 사진 목록 조회",
             description = "슬립의 DELIVERY 유형 첨부만 반환. downloadUrl 은 캐시(만료 가능 — 단건 GET 으로 재발급)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.delivery-attachments.upload", action = "VIEW")
     public ApiResponse<List<SlipAttachmentResponse>> list(@PathVariable UUID slipId) {
         List<SlipAttachmentResponse> items =
                 attachmentService.listByType(slipId, SlipAttachmentType.DELIVERY).stream()

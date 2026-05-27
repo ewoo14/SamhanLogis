@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -80,7 +79,7 @@ public class SlipCommentController {
     @Operation(summary = "슬립 최근 댓글 백필",
             description = "SSE 구독 직전 클라이언트 초기 표시. limit 1~100 (기본 20)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.comments", action = "VIEW")
     public ApiResponse<List<SlipCommentResponse>> listRecent(
             @PathVariable UUID slipId,
             @RequestParam(defaultValue = "20") int limit) {

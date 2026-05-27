@@ -15,7 +15,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -90,7 +89,6 @@ public class InspectionAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<InspectionAttachmentResponse> upload(
             @PathVariable UUID slipId,
@@ -118,7 +116,7 @@ public class InspectionAttachmentController {
             description = "slipId 기준 업로드 시각 오름차순. 검수 레코드 없으면 빈 목록. "
                     + "downloadUrl 은 캐시(만료 가능)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<List<InspectionAttachmentResponse>> list(@PathVariable UUID slipId) {
         List<InspectionAttachmentResponse> items = attachmentService.listBySlipId(slipId).stream()
                 .map(InspectionAttachmentResponse::from)
@@ -136,7 +134,7 @@ public class InspectionAttachmentController {
     @Operation(summary = "검수 첨부 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<InspectionAttachmentResponse> detail(
             @PathVariable UUID slipId,
             @PathVariable UUID attachmentId) {
@@ -156,7 +154,6 @@ public class InspectionAttachmentController {
     @Operation(summary = "검수 첨부 soft-delete",
             description = "MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
-    @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID slipId,

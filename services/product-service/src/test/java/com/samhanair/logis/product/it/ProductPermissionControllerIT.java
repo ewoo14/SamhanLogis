@@ -21,9 +21,13 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.audit.service.ProductAuditLogService;
+import com.samhanair.logis.product.audit.web.ProductAuditLogController;
 import com.samhanair.logis.product.editrequest.domain.ProductEditRequest;
 import com.samhanair.logis.product.editrequest.service.ProductEditRequestService;
 import com.samhanair.logis.product.editrequest.web.ProductEditRequestController;
+import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
+import com.samhanair.logis.product.realtime.ProductRealtimeController;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
@@ -75,6 +79,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @WebMvcTest(
         controllers = {
@@ -82,7 +87,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 ProductByCodeController.class,
                 CategoryController.class,
                 EcountProductImportController.class,
-                ProductEditRequestController.class
+                ProductEditRequestController.class,
+                ProductAuditLogController.class,
+                ProductRealtimeController.class
         },
         properties = "spring.application.name=product-service")
 @Import({
@@ -108,6 +115,8 @@ class ProductPermissionControllerIT {
     @MockBean private CategoryService categoryService;
     @MockBean private EcountProductImporter ecountProductImporter;
     @MockBean private ProductEditRequestService editRequestService;
+    @MockBean private ProductAuditLogService auditLogService;
+    @MockBean private ProductRealtimeBroker realtimeBroker;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach
@@ -156,6 +165,9 @@ class ProductPermissionControllerIT {
                 .thenReturn(editRequest);
         lenient().when(editRequestService.listPendingForRole(any()))
                 .thenReturn(List.of(editRequest));
+        lenient().when(editRequestService.listByProduct(any(), any())).thenReturn(List.of(editRequest));
+        lenient().when(auditLogService.listByProduct(any())).thenReturn(List.of());
+        lenient().when(realtimeBroker.subscribe(any())).thenReturn(new SseEmitter(100L));
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -283,7 +295,13 @@ class ProductPermissionControllerIT {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
                 new EndpointCase("edit request list", "products.edit-requests.decide", "VIEW", "MANAGER", 200,
-                        () -> get("/products/edit-requests").param("targetRole", "MANAGER"))
+                        () -> get("/products/edit-requests").param("targetRole", "MANAGER")),
+                new EndpointCase("audit logs", "products.list", "VIEW", "STAFF", 200,
+                        () -> get("/products/{id}/audit-logs", PRODUCT_ID)),
+                new EndpointCase("edit requests by product", "products.edit-requests", "VIEW", "STAFF", 200,
+                        () -> get("/products/{id}/edit-requests", PRODUCT_ID)),
+                new EndpointCase("product realtime", "products.list", "VIEW", "STAFF", 200,
+                        () -> get("/products/{id}/realtime", PRODUCT_ID))
         );
     }
 

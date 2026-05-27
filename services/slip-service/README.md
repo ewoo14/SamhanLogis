@@ -32,6 +32,12 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 
 응답: 201 신규 / 200 replay (동일 idempotency_key 재호출) / 409 idempotency 충돌 / 400 입력 / 403 권한.
 
+### SP-D7 잔여 조회 endpoint 권한 전환 (2026-05-27)
+
+댓글, 감사 이력, 전표 첨부, 배송 첨부, 발행 source 조회, realtime SSE, 수정요청 목록,
+견적 list/detail 10개 endpoint는 `@RequirePermission(..., VIEW)`로 전환했다.
+재사용 page의 VIEW grant는 auth-service V38 seed가 모든 활성 비즈니스 role로 보강한다.
+
 ### 발행 감사 (`SlipPublishAudit`)
 
 영구 보존 (soft-delete 만 허용). 회계 cross-check + supply/vat 합계 round-trip 검증.

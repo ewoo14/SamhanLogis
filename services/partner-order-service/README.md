@@ -60,6 +60,11 @@ Scheduler (5분):
 | SP-08-4-3 | `POST /api/v1/partner-orders/from-estimate/{estimateId}` | SALES / MANAGER / MASTER |
 | SP-08-4-4 | `GET /api/v1/partner-orders/{id}/print` | SALES / MANAGER / MASTER / PARTNER |
 
+## SP-D7 부가 조회 endpoint 권한 전환
+
+주문 realtime SSE와 audit log는 `sales.partner-order.history` VIEW, edit-request 목록은
+`sales.partner-order.edit-requests` VIEW 동적 권한으로 전환했다. 기존 인증 사용자 접근은 auth-service V38 seed가 보존한다.
+
 ## SP-08-4 주문 CRUD parity
 
 - direct PUT: 본사 운영자(`SALES / MANAGER / MASTER`)가 주문 헤더/라인을 낙관적 잠금으로 즉시 수정한다.

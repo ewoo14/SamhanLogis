@@ -18,7 +18,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,7 +78,6 @@ public class InboundInspectionController {
                     description = "입고전표 아님 또는 검수 불가 상태")
     })
     @GetMapping("/{slipId}")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<InboundInspectionDetailResponse> getInspection(
             @Parameter(description = "slip-service Slip UUID") @PathVariable UUID slipId) {
@@ -108,7 +106,6 @@ public class InboundInspectionController {
                     description = "PENDING 이 아닌 상태에서 호출")
     })
     @PostMapping("/{slipId}/inspect")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<InboundInspectionDetailResponse> saveResult(
             @PathVariable UUID slipId,
@@ -135,7 +132,6 @@ public class InboundInspectionController {
                     description = "status 값이 올바르지 않음")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
     public ApiResponse<Page<InboundInspectionSummaryResponse>> listInspections(
             @Parameter(description = "검수 상태 필터 (PENDING/COMPLETED/CANCELED)")
@@ -166,7 +162,6 @@ public class InboundInspectionController {
     })
     @PostMapping("/{slipId}/complete")
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
     public ApiResponse<InboundInspectionDetailResponse> completeInspection(
             @PathVariable UUID slipId,

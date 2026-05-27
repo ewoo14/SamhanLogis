@@ -18,7 +18,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -139,7 +138,7 @@ public class ProductEditRequestController {
     @Operation(summary = "제품별 요청 이력",
             description = "PR-H4b — 제품 화면의 '수정 요청 이력' 섹션. status filter 선택")
     @GetMapping("/{productId}/edit-requests")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "products.edit-requests", action = "VIEW")
     public ApiResponse<List<ProductEditRequestResponse>> listByProduct(
             @PathVariable UUID productId,
             @RequestParam(required = false) EditRequestStatus status) {

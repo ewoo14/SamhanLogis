@@ -14,7 +14,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -141,7 +140,7 @@ public class SlipPublishController {
     @Operation(summary = "발행 출처 기준 조회",
             description = "sourceType + sourceId 로 발행된 슬립 조회 (idempotency 보조).")
     @GetMapping("/by-source")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.publish.from-estimate", action = "VIEW")
     public ApiResponse<List<PublishSlipResponse>> findBySource(
             @RequestParam SlipSourceType sourceType,
             @RequestParam String sourceId) {

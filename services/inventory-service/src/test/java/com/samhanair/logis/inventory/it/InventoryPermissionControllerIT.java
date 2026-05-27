@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.inventory.attachment.domain.InspectionAttachment;
 import com.samhanair.logis.common.ecount.EcountMig5ImportResult;
 import com.samhanair.logis.inventory.attachment.service.InspectionAttachmentService;
 import com.samhanair.logis.inventory.attachment.web.InspectionAttachmentController;
@@ -217,6 +218,14 @@ class InventoryPermissionControllerIT {
         lenient().when(inspectionService.saveInspectionResult(any(), any(), anyString())).thenReturn(null);
         lenient().when(inspectionService.listInspections(any(), any())).thenReturn(new PageImpl<>(List.of()));
         lenient().when(inspectionService.completeInspection(any(), anyString())).thenReturn(null);
+        InspectionAttachment attachment = InspectionAttachment.register(
+                ID, "2026/05/27-001", "photo.png", 1L, "image/png",
+                "inspection/photo.png", null, null, null, "tester", "memo");
+        attachment.refreshStorageUrl("https://example.invalid/inspection/photo.png");
+        lenient().when(attachmentService.listBySlipId(any())).thenReturn(List.of(attachment));
+        lenient().when(attachmentService.download(any()))
+                .thenReturn(new InspectionAttachmentService.DownloadView(
+                        attachment, "https://example.invalid/inspection/fresh.png"));
 
         lenient().when(auditService.list(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of(auditRow())));
         lenient().when(auditService.getOne(any())).thenReturn(auditDetail());
@@ -309,6 +318,10 @@ class InventoryPermissionControllerIT {
                         () -> post("/inventory/inbound-inspections/{id}/complete", ID)),
                 endpoint("attachment upload", "inventory.stock-balance", "EDIT", "WAREHOUSE",
                         () -> multipart("/inventory/inspections/{id}/attachments", ID).file(image("file"))),
+                endpoint("attachment list", "inventory.stock-balance", "VIEW", "STAFF",
+                        () -> get("/inventory/inspections/{id}/attachments", ID)),
+                endpoint("attachment detail", "inventory.stock-balance", "VIEW", "STAFF",
+                        () -> get("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)),
                 endpoint("attachment delete", "inventory.stock-balance", "EDIT", "MANAGER",
                         () -> delete("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)),
                 endpoint("audit list", "inventory.detail", "VIEW", "ACCOUNTANT",

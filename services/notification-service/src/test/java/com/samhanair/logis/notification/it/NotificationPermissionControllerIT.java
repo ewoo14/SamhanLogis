@@ -19,6 +19,7 @@ import com.samhanair.logis.notification.controller.DispatchBatchAdminController;
 import com.samhanair.logis.notification.controller.DispatchSmsSaveHistoryController;
 import com.samhanair.logis.notification.controller.NotificationAdminController;
 import com.samhanair.logis.notification.domain.NotificationChannel;
+import com.samhanair.logis.notification.domain.NotificationSeverity;
 import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.PartnerChatRoomMapping;
 import com.samhanair.logis.notification.domain.RecipientType;
@@ -32,7 +33,11 @@ import com.samhanair.logis.notification.service.ChatRoomMappingService;
 import com.samhanair.logis.notification.service.DispatchBatchPreviewService;
 import com.samhanair.logis.notification.service.DispatchBatchSendService;
 import com.samhanair.logis.notification.service.DispatchSmsSaveHistoryService;
+import com.samhanair.logis.notification.service.NotificationCenterService;
 import com.samhanair.logis.notification.service.NotificationService;
+import com.samhanair.logis.notification.web.NotificationCenterController;
+import com.samhanair.logis.notification.web.dto.NotificationCenterPage;
+import com.samhanair.logis.notification.web.dto.NotificationCenterResponse;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryDetailResponse;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistorySaveResponse;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
@@ -76,7 +81,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 AligoAddressBookController.class,
                 ChatRoomMappingAdminController.class,
                 DispatchBatchAdminController.class,
-                DispatchSmsSaveHistoryController.class
+                DispatchSmsSaveHistoryController.class,
+                NotificationCenterController.class
         },
         properties = "spring.application.name=notification-service")
 @Import({
@@ -103,6 +109,7 @@ class NotificationPermissionControllerIT {
     @MockBean private DispatchBatchPreviewService dispatchBatchPreviewService;
     @MockBean private DispatchBatchSendService dispatchBatchSendService;
     @MockBean private DispatchSmsSaveHistoryService dispatchSmsSaveHistoryService;
+    @MockBean private NotificationCenterService notificationCenterService;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach
@@ -142,6 +149,19 @@ class NotificationPermissionControllerIT {
                 .thenReturn(historyDetail());
         lenient().when(dispatchSmsSaveHistoryService.findLatestAutoLatest(any(), anyString()))
                 .thenReturn(historyDetail());
+        NotificationCenterResponse centerResponse = new NotificationCenterResponse(
+                ID,
+                "PUSH",
+                NotificationSeverity.INFO,
+                "알림",
+                "본문",
+                "/notifications",
+                LocalDateTime.of(2026, 5, 27, 9, 0),
+                null);
+        lenient().when(notificationCenterService.findMyUnread(any(), anyString()))
+                .thenReturn(List.of(centerResponse));
+        lenient().when(notificationCenterService.findMyHistory(any(), anyString(), any()))
+                .thenReturn(new NotificationCenterPage(List.of(centerResponse), 0, 50, 1, 1));
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -212,7 +232,13 @@ class NotificationPermissionControllerIT {
                         () -> get("/admin/notifications/dispatch-sms/history/{id}", ID)),
                 new EndpointCase("sms history latest", "dispatch.sms-save-history", "VIEW", "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/latest")
-                                .param("programType", "DISPATCH_SMS"))
+                                .param("programType", "DISPATCH_SMS")),
+                new EndpointCase("notification center unread", "notifications.center", "VIEW", "STAFF", 200,
+                        () -> get("/notifications/my")),
+                new EndpointCase("notification center history", "notifications.center", "VIEW", "STAFF", 200,
+                        () -> get("/notifications/history")),
+                new EndpointCase("notification center acknowledge", "notifications.center", "VIEW", "STAFF", 200,
+                        () -> post("/notifications/{id}/acknowledge", ID))
         );
     }
 

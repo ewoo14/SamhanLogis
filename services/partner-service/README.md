@@ -66,6 +66,11 @@ dashboard-service `PartnerCodeResolver.resolveAll(List<String>)` 가 본 endpoin
 
 응답 = `ApiResponse<T>` 봉투 (success / code / message / data / timestamp). UUID 비공개 가드 일관 — admin 응답에 partner UUID 미포함, partnerCode 만 노출.
 
+### SP-D7 첨부 조회 권한 전환 (2026-05-27)
+
+거래처 첨부와 방문 첨부 조회 endpoint 4건은 `partners.detail` VIEW 동적 권한으로 전환했다.
+기존 인증 사용자 조회 동작은 auth-service V38 seed의 VIEW 보강으로 유지한다.
+
 ## 환경변수
 
 `infrastructure/env-templates/partner-service.env` 참조.

@@ -3,11 +3,11 @@ package com.samhanair.logis.partnerorder.audit.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogService;
 import com.samhanair.logis.partnerorder.audit.web.dto.PartnerOrderAuditLogResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,7 +42,7 @@ public class PartnerOrderAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/audit-logs")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "sales.partner-order.history", action = "VIEW")
     public ApiResponse<List<PartnerOrderAuditLogResponse>> listAuditLogs(
             @PathVariable String partnerOrderId) {
         List<PartnerOrderAuditLogResponse> items = auditLogService.listByOrderIdentifier(partnerOrderId)

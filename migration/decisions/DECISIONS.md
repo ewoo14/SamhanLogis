@@ -2483,3 +2483,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-ISSUE-4-04 | noise row 차단을 위해 `target_role IS NOT NULL OR target_user_id IS NOT NULL` CHECK 제약을 V5에 포함한다. |
 
 **검증**: `NotificationCenterServiceTest` 9건 PASS, notification-service compile/test PASS. Testcontainers 기반 `NotificationCenterControllerIT` 6건은 로컬 Docker daemon 미가용 조건으로 skip, CI Linux runner에서 실 PostgreSQL 검증 대상.
+
+### D-D7-00. 잔여 PreAuthorize 동적 권한 마이그레이션 (SP-D7, 2026-05-27)
+
+**배경**: SP-D1~D6 후 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint와 redundant 이중 가드가 남아 있어 PageCode 기반 동적 권한 정책을 완성해야 한다.
+
+| 결정 | 내용 |
+|---|---|
+| D-D7-01 | behavior-preserving을 최우선으로 한다. 유형 A endpoint는 기존 인증 사용자 접근을 유지하도록 재사용 page의 VIEW grant를 모든 활성 비즈니스 role로 보강한다. |
+| D-D7-02 | 알림 센터 3개 endpoint는 신규 PageCode `notifications.center` VIEW로 묶는다. |
+| D-D7-03 | 유형 B endpoint는 이미 `@RequirePermission`이 있으므로 redundant `@PreAuthorize`만 삭제한다. |
+| D-D7-04 | UserMe executive-office, SlipSalesQuery, HR/internal/auth-infra 등 SP-D6 KEEP 대상은 본 슬라이스에서 건드리지 않는다. |
+| D-D7-05 | 권한 IT는 allow-all 기본 stub 후 deny case 요청 직전 page/action-aware 명시 deny stub을 사용한다. PR #310 see-saw 교훈을 반영한다. |
+| D-D7-06 | Flyway V38은 `ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING` 패턴과 기존 row `can_view = TRUE` 보강을 함께 사용한다. |
+
+**산출**: 유형 A 25 endpoint `@RequirePermission` 전환, 유형 B 15 endpoint redundant 가드 삭제, auth-service V38 seed, `notifications.center` PageCode, dev-report `docs/dev-reports/sp-d7-remaining-preauthorize-migration.md`.

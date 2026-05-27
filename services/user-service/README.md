@@ -31,6 +31,11 @@ provisioning REST surface for the SamhanLogis MSA.
 All ingress is via the API Gateway, which strips `/api/users` to `/users` and forwards
 `X-User-Id` / `X-User-Role` headers.
 
+## SP-D7 권한 정리
+
+직원 생성, 수정, 역할 변경, 퇴사 처리 endpoint는 기존 `@RequirePermission` 가드를 유지하고
+redundant `@PreAuthorize`만 삭제했다. 동적 권한 행위는 SP-D4 이후와 동일하다.
+
 ## Default seed password
 
 The `OrgChartSeeder` provisions the 16 real employees of Samhan Logis on first boot when

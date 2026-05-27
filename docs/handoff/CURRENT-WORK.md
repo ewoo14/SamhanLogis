@@ -48,7 +48,27 @@
 - **점검 결과 (중요)**: role-based 중 @RequirePermission 미존재 = 0건. 잔여 = (A) isAuthenticated()→@RequirePermission(page,VIEW) **25건** (24건 기존 page 재사용, 신규 page `notifications.center` 1개) + (B) leftover redundant @PreAuthorize 삭제 **15건** (이미 @RequirePermission 공존). @hr(24)/internal/auth-infra/UserMe.is-executive-office/SlipSalesQuery = KEEP.
 - **최우선 설계 D-D7-01**: behavior-preserving — isAuth→page VIEW 전환 시 재사용 page 의 VIEW grant 를 모든 활성 role 로 보강해 접근 회귀 0.
 - **D-D7-05**: IT deny-stub 명시 (PR #310 see-saw 교훈).
-- 다음: Codex 가 plan Task 1~6 구현 → dual 5-agent 리뷰 → CI green → PM 머지.
+- **구현 완료 (Codex, WIP 커밋)**: Task 1 (isAuth→VIEW 25건), Task 2 (PageCode.NOTIFICATIONS_CENTER), Task 3 (V38 seed), Task 4 (유형 B 15건 redundant @PreAuthorize 삭제), Task 5 (IT allow/deny stub + PageCodeTest), Task 6 (dev-report+README+overview+DECISIONS). 8 service compileJava/compileTestJava **PASS**.
+
+#### 🚨 V38 BLOCKER (머지 전 반드시 해소 — Claude inspection 발견 P1)
+
+- Codex 의 `V38__seed_sp_d7_remaining_preauthorize_page_codes.sql` 가 **11개 role 전체(PARTNER 포함)에 14개 page VIEW=TRUE** 부여 + 말미 UPDATE 로 **기존 deliberate FALSE row 까지 강제 TRUE flip**.
+- **문제**: 14 page 는 전부 내부(slip.*/products.*/inventory.stock-balance/estimates.list/sales.partner-order.*/partners.detail/notifications.center)인데 **외부 role PARTNER 에 내부 데이터 VIEW 부여 = 보안 widening**. PARTNER self-service 는 별도 partner-auth endpoint. 또한 force-UPDATE 가 V31/V32 의 의도적 FALSE 를 덮어씀.
+- **page-reuse widening 부작용**: 재사용 page 의 VIEW grant 확대는 그 page 의 **모든 VIEW endpoint** 에 영향 (신규 endpoint 뿐 아니라).
+- **근본**: spec D-D7-01 "모든 활성 role VIEW 부여" 표현이 under-specified → Codex 가 literal 적용. behavior-preserving = "내부 role 의 정당한 접근 회귀 방지" 의도였지 "PARTNER 에 내부 VIEW 부여" 아님.
+
+#### V38 해소 옵션 (다음 세션)
+
+1. **PARTNER 제외 + force-UPDATE 제거/내부 role 한정**: 14 page 모두 내부 role(MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY/DEVELOPER/STAFF/DRIVER) 만 VIEW. PARTNER 행 미생성. (단 PARTNER 가 gateway 로 해당 service 도달 가능한지 확인 — 도달 불가면 무해하나 매트릭스 정확성 위해 제외 권장)
+2. **page-reuse widening 회피**: 신규 isAuth VIEW endpoint 용 **전용 page code** 신설 (예: slip.comments.view) → 기존 page VIEW grant 불변, 신규 page 만 내부 role VIEW. 가장 안전하나 page 수 증가.
+3. **각 page 의 기존 VIEW grant 존중**: 재사용 page 의 현재 VIEW 허용 role 집합 + isAuth 가 실제 도달시킨 내부 role 만 union. (per-page 조사 필요)
+- **권장**: 옵션 1 (PARTNER 제외 + 내부 role 한정 grant, force-UPDATE 는 내부 role 로 scope) 우선, dual 리뷰 BE/보안이 page-reuse widening 부작용(옵션 2 필요 여부) 판정.
+
+#### 다음 단계
+1. V38 BLOCKER 해소 (Codex, 옵션 1 기반).
+2. dual 5-agent 리뷰 (BE 가 V38 role 매트릭스 + page-reuse widening 최우선 검증, D-D7-01 회귀 0 + 과도 grant 0).
+3. CI green → PM 머지.
+- 브랜치 head WIP 커밋됨 (compile PASS, V38 미해소 상태).
 
 ### SP-D7 PR foundation 커밋
 

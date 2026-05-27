@@ -3,12 +3,12 @@ package com.samhanair.logis.product.audit.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.audit.service.ProductAuditLogService;
 import com.samhanair.logis.product.audit.web.dto.ProductAuditLogResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,7 +37,7 @@ public class ProductAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/audit-logs")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "products.list", action = "VIEW")
     public ApiResponse<List<ProductAuditLogResponse>> listAuditLogs(
             @PathVariable UUID productId) {
         List<ProductAuditLogResponse> items = auditLogService.listByProduct(productId).stream()

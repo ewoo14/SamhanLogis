@@ -32,6 +32,13 @@ All responses are wrapped in `ApiResponse<T>`; errors surface as
 
 MIG-5/6 seed는 MASTER/MANAGER edit 허용을 role_page_permissions에 추가한다.
 
+## SP-D7 permission seed
+
+Flyway `V38__seed_sp_d7_remaining_preauthorize_page_codes.sql`은 신규
+`notifications.center` PageCode와 잔여 `isAuthenticated()` 전환 endpoint가 재사용하는
+13개 page의 `VIEW` grant를 모든 활성 비즈니스 role로 보강한다.
+기존 row는 `can_view = TRUE`만 갱신해 SP-D7의 behavior-preserving 원칙을 유지한다.
+
 ## Environment variables
 
 | Variable               | Default                                                   | Description                                       |

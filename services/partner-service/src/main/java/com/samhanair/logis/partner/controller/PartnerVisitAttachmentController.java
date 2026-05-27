@@ -19,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -118,7 +117,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "영업 방문 사진 목록 조회",
             description = "VISIT_PHOTO 유형만 반환. downloadUrl 는 캐시(만료 가능) — 단건 GET 으로 재발급")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "partners.detail", action = "VIEW")
     public ApiResponse<List<PartnerAttachmentResponse>> list(@PathVariable String partnerCode) {
         Partner partner = partnerRepository.findByPartnerCode(partnerCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -141,7 +140,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "방문 사진 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "partners.detail", action = "VIEW")
     public ApiResponse<PartnerAttachmentResponse> detail(
             @PathVariable String partnerCode,
             @PathVariable UUID attachmentId) {

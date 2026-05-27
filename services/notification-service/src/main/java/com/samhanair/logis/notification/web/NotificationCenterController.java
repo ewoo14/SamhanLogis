@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.notification.service.NotificationCenterService;
 import com.samhanair.logis.notification.web.dto.NotificationCenterPage;
 import com.samhanair.logis.notification.web.dto.NotificationCenterResponse;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -11,7 +12,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,7 +33,7 @@ public class NotificationCenterController {
     private final NotificationCenterService service;
 
     @GetMapping("/my")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "notifications.center", action = "VIEW")
     @Operation(summary = "내 미확인 알림 목록")
     public ApiResponse<List<NotificationCenterResponse>> findMyUnread(
             @RequestHeader("X-User-Id") UUID userId,
@@ -42,7 +42,7 @@ public class NotificationCenterController {
     }
 
     @GetMapping("/history")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "notifications.center", action = "VIEW")
     @Operation(summary = "내 전체 알림 history (paged)")
     public ApiResponse<NotificationCenterPage> findMyHistory(
             @RequestHeader("X-User-Id") UUID userId,
@@ -52,7 +52,7 @@ public class NotificationCenterController {
     }
 
     @PostMapping("/{id}/acknowledge")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "notifications.center", action = "VIEW")
     @Operation(summary = "알림 확인 처리 (read_at 설정)")
     public ApiResponse<Void> acknowledge(
             @PathVariable UUID id,

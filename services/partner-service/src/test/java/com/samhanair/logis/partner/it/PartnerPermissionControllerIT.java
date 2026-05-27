@@ -152,6 +152,11 @@ class PartnerPermissionControllerIT {
         lenient().when(blockService.findAll(any())).thenReturn(new PageImpl<>(List.of()));
         lenient().when(blockService.block(anyString(), any())).thenReturn(blocked);
         lenient().when(attachmentService.upload(any(), any(), any(), any(), any())).thenReturn(attachment);
+        lenient().when(attachmentService.list(any())).thenReturn(List.of(attachment));
+        lenient().when(attachmentService.listByType(any(), any())).thenReturn(List.of(attachment));
+        lenient().when(attachmentService.download(any()))
+                .thenReturn(new PartnerAttachmentService.DownloadView(
+                        attachment, "https://example.invalid/partner/fresh.png"));
         lenient().when(partnerRepository.findByPartnerCode(anyString())).thenReturn(Optional.of(partner));
         lenient().when(editRequestService.request(any(), any(), any(), any(), anyString())).thenReturn(editRequest);
         lenient().when(editRequestService.approve(any(), any(), anyString(), any())).thenReturn(editRequest);
@@ -232,10 +237,18 @@ class PartnerPermissionControllerIT {
                         () -> multipart("/api/v1/partners/{partnerId}/attachments", ENTITY_ID)
                                 .file(image("file"))
                                 .param("type", "BIZ_LICENSE")),
+                endpoint("attachment list", "partners.detail", "VIEW", "STAFF",
+                        () -> get("/api/v1/partners/{partnerId}/attachments", ENTITY_ID)),
+                endpoint("attachment detail", "partners.detail", "VIEW", "STAFF",
+                        () -> get("/api/v1/partners/attachments/{attachmentId}", ATTACHMENT_ID)),
                 endpoint("attachment delete", "partners.detail", "EDIT", "SALES",
                         () -> delete("/api/v1/partners/attachments/{attachmentId}", ATTACHMENT_ID)),
                 endpoint("visit photo upload", "partners.detail", "EDIT", "SALES",
                         () -> multipart("/admin/partners/P-001/visit-attachments").file(image("file"))),
+                endpoint("visit photo list", "partners.detail", "VIEW", "STAFF",
+                        () -> get("/admin/partners/P-001/visit-attachments")),
+                endpoint("visit photo detail", "partners.detail", "VIEW", "STAFF",
+                        () -> get("/admin/partners/P-001/visit-attachments/{attachmentId}", ATTACHMENT_ID)),
                 endpoint("visit photo delete", "partners.edit", "EDIT", "MANAGER",
                         () -> delete("/admin/partners/P-001/visit-attachments/{attachmentId}", ATTACHMENT_ID)),
                 endpoint("ecount import", "partners.edit", "EDIT", "MANAGER",

@@ -27,6 +27,13 @@
 
 ---
 
+### 최신 진행 메모 (2026-05-27)
+
+- SP-D7 (진행): 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint 25건을 `@RequirePermission(..., VIEW)`로 전환했다.
+  - auth-service V38 seed로 `notifications.center` 신규 PageCode와 재사용 page 13종의 VIEW grant를 모든 활성 비즈니스 role에 보강한다.
+  - inventory/user의 redundant `@PreAuthorize` 15건은 기존 `@RequirePermission`만 남기도록 정리한다.
+  - 대상 서비스는 auth, notification, inventory, partner, product, slip, partner-order, user다.
+
 ### 최신 진행 메모 (2026-05-21)
 
 - MIG-22 (완료): IDE workspace + PROBLEMS 정리를 완료했다.

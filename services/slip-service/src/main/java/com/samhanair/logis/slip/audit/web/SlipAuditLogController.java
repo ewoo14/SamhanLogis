@@ -14,7 +14,6 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -60,7 +59,7 @@ public class SlipAuditLogController {
     @Operation(summary = "슬립 audit timeline",
             description = "PR-H2 — slip 본문 수정 이력 (최신 revision 우선). soft-deleted 자동 제외")
     @GetMapping("-logs")
-    @PreAuthorize("isAuthenticated()")
+    @RequirePermission(page = "slip.audit-overlay", action = "VIEW")
     public ApiResponse<List<SlipAuditLogResponse>> listAuditLogs(@PathVariable UUID slipId) {
         List<SlipAuditLogResponse> items = auditLogService.listBySlip(slipId).stream()
                 .map(SlipAuditLogResponse::from)

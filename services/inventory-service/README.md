@@ -59,3 +59,8 @@ dashboard-service 는 본 inventory-service 의 stock_balances + stock_movements
 - 저장 정책: `AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하고 이전 row는 soft-delete, `MANUAL_NAMED`는 append-only
 - payload: `request_params`, `response_payload`는 PostgreSQL `JSONB`; `responsePayload`는 100KB 초과 시 422
 - 사용자 격리: 상세/latest/list 모두 `createdBy` 기준으로 현재 사용자 저장내역만 조회
+
+## SP-D7 권한 정리
+
+- 입고검수 첨부 list/detail은 `inventory.stock-balance` VIEW 동적 권한으로 전환했다.
+- DPS 비교, 입고검수, DPS 저장내역, 첨부 upload/delete의 redundant `@PreAuthorize`는 삭제하고 기존 `@RequirePermission`만 유지한다.
