@@ -98,10 +98,16 @@
 4. FE/문서: permission matrix에 `notifications.center`와 전용 `.view` pages 추가, dev-report/README/DECISIONS 실제 V38 동작 동기화.
 5. IT: auth-service `AuthFlywayV38SeedIT` 추가로 V38 실 seed 기준 내부 role VIEW 허용과 `PARTNER` 미부여를 검증.
 
-#### 다음 단계
-1. 로컬/CI 검증: 영향 service compileJava/compileTestJava + auth-service test, `git diff --check`.
-2. Claude+Codex dual 5-agent 리뷰 (새 head) → CI green → PM 머지.
-- 브랜치 head `60617f11`에서 cycle 2 file edit 진행. commit/push는 Claude 대행.
+#### 다음 단계 — Cycle 2 dual 재리뷰 (commit/push 완료, CI 검증 중)
+- **head `01429624` commit+push 완료** (8 service compileJava/compileTestJava PASS). PR #312 CI 검증 중 (특히 AuthFlywayV38SeedIT — 실 grant 검증).
+1. **CI 결과 확인** (AuthFlywayV38SeedIT + 영향 service IT green 여부).
+2. **Cycle 2 dual 5-agent 재리뷰** (Claude + Codex, head `01429624`). BE 재검 체크리스트:
+   - case W/V 분류 정확성 (재사용 page 에 비-SP-D7 VIEW endpoint 정말 없는지 — 특히 estimates.list / sales.partner-order.edit-requests / products.edit-requests).
+   - case W force-UPDATE 가 그 page 의 다른 endpoint widening 안 하는지 (write-only-before 확정).
+   - case V 4 전용 page 교체 controller 가 올바른 code + 기존 page 불변.
+   - escalation/widening revert 정확성 (EmployeeController create/update redundant 맞는지).
+   - AuthFlywayV38SeedIT 커버리지.
+3. 양쪽 APPROVE + CI green → PM 머지.
 
 ### SP-D7 PR foundation 커밋
 
