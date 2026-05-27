@@ -110,11 +110,13 @@ CROSS JOIN roles r
 LEFT JOIN grants g
     ON g.page_code = p.page_code
    AND g.role_code = r.role_code
-ON CONFLICT DO NOTHING;
+ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING;
 
 -- V28 에서 MANAGER edit=true 로 들어간 기존 row 를 V37 권한 분리 계약에 맞춘다.
 UPDATE role_page_permissions
-SET can_edit = FALSE
+SET can_edit = FALSE,
+    modified_at = NOW(),
+    modified_by = 'sp-d6-7-accounting-page-codes'
 WHERE role_code = 'MANAGER'
   AND page_code = 'accounting.edit-requests'
   AND is_deleted = FALSE;
