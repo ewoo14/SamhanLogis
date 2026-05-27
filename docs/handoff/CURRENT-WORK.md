@@ -98,16 +98,27 @@
 4. FE/문서: permission matrix에 `notifications.center`와 전용 `.view` pages 추가, dev-report/README/DECISIONS 실제 V38 동작 동기화.
 5. IT: auth-service `AuthFlywayV38SeedIT` 추가로 V38 실 seed 기준 내부 role VIEW 허용과 `PARTNER` 미부여를 검증.
 
-#### 다음 단계 — Cycle 2 dual 재리뷰 (commit/push 완료, CI 검증 중)
-- **head `01429624` commit+push 완료** (8 service compileJava/compileTestJava PASS). PR #312 CI 검증 중 (특히 AuthFlywayV38SeedIT — 실 grant 검증).
-1. **CI 결과 확인** (AuthFlywayV38SeedIT + 영향 service IT green 여부).
-2. **Cycle 2 dual 5-agent 재리뷰** (Claude + Codex, head `01429624`). BE 재검 체크리스트:
-   - case W/V 분류 정확성 (재사용 page 에 비-SP-D7 VIEW endpoint 정말 없는지 — 특히 estimates.list / sales.partner-order.edit-requests / products.edit-requests).
-   - case W force-UPDATE 가 그 page 의 다른 endpoint widening 안 하는지 (write-only-before 확정).
-   - case V 4 전용 page 교체 controller 가 올바른 code + 기존 page 불변.
-   - escalation/widening revert 정확성 (EmployeeController create/update redundant 맞는지).
-   - AuthFlywayV38SeedIT 커버리지.
-3. 양쪽 APPROVE + CI green → PM 머지.
+#### ✅ Cycle 2/3 완료 + CI 23/23 green (head `a3b6f7d5`) — 🚨 그러나 dual 재리뷰 P1 발견, 머지 보류
+
+- cycle 2(옵션 A) → cycle 3(slip mapping + notification DPC) → cycle 3b(notification 중복 @MockBean revert). **CI 23/23 green** (실 Testcontainers + AuthFlywayV38SeedIT 실 grant 검증).
+- **dual 재리뷰** (PR #312 issuecomment-4553371941): Claude BE/QA/DevOps 3 APPROVE. **Codex BE cross-check 가 P1 권한 확대 적발**.
+
+#### 🚨 cycle 4 BLOCKER — guard-gated page escalation (P1)
+
+- **estimates.list (확정 P1)**: `EstimateController.list/getOne` 은 SP-D7 전부터 `@PreAuthorize("isAuthenticated()")` + **`EstimatePermissionGuard.checkView(estimates.list)`** (canView=false → FORBIDDEN). V10/V31/V32 에서 estimates.list VIEW 가 WAREHOUSE/DISPATCH/INVENTORY/DEVELOPER/STAFF/DRIVER = FALSE → 견적 조회 제한됨. **V38 force-UPDATE 가 estimates.list 를 전 내부 role TRUE 로 → 견적 조회 backend 권한 확대(escalation)**. case W/V 2분법이 "programmatic guard 로 gated 된 page" 케이스를 누락.
+- **scope 확대**: PermissionGuard **3개** 존재 — `EstimatePermissionGuard`(estimates.list), **`ProductPermissionGuard`(product-service)**, **`PartnerOrderPermissionGuard`(partner-order-service)**. product/partner-order guard 도 V38 가 건드린 `products.*`/`sales.partner-order.*` page 를 검증할 가능성 → 동일 escalation + 신규 `.view` page(annotation) vs guard(옛 page) 불일치 우려. **3 service guard-page 전수 분석 필요.**
+- (참고) 다른 case W controller(SlipComment/SlipAuditLog/SlipAttachment/DeliveryAttachment/SlipPublish/SlipEditRequest/ProductEditRequest/PartnerOrderEditRequest)는 programmatic guard 없음 확인 → 그 page 의 force-UPDATE 는 안전(escalation 무관).
+
+#### cycle 4 fix 방향 (개발책임자 검토 후)
+1. **3 PermissionGuard 의 page_code + V38 force-UPDATE/신규 .view page 관계 전수 분석** (ProductPermissionGuard / PartnerOrderPermissionGuard 가 어떤 page 를 checkView 하는지 + V38 가 그 page 를 넓혔는지 + 마이그레이션된 endpoint annotation page 와 guard page 일치/충돌).
+2. **guard-gated page(estimates.list 등)는 V38 force-UPDATE 에서 제외** → 기존 제한 grant 보존(behavior-preserving, escalation 0). annotation page ↔ guard page 정렬.
+3. 또는 guarded endpoint 는 **Option C(descope)** isAuthenticated 유지 재검토 (4 사이클 fragile 회고 — page-reuse 가 guard 와 상호작용해 취약).
+4. fix 후 dual 재리뷰(Codex BE 가 3 guard escalation 0 재확인) → CI → 머지.
+
+#### 비차단 (cycle 4 동반)
+- BE-1: PARTNER 가 sales.partner-order.history.view(audit/realtime) 접근 축소 — 의도적(desktop 전용, self-scope 없음). dev-report 1줄 명시 권고.
+
+- **브랜치 head `a3b6f7d5` (PR #312, CI green, P1 미해소로 머지 금지).**
 
 ### SP-D7 PR foundation 커밋
 
