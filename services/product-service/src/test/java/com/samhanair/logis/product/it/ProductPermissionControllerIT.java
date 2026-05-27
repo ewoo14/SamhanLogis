@@ -296,11 +296,11 @@ class ProductPermissionControllerIT {
                                 .content("{\"reason\":\"no\"}")),
                 new EndpointCase("edit request list", "products.edit-requests.decide", "VIEW", "MANAGER", 200,
                         () -> get("/products/edit-requests").param("targetRole", "MANAGER")),
-                new EndpointCase("audit logs", "products.list", "VIEW", "STAFF", 200,
+                new EndpointCase("audit logs", "products.list.view", "VIEW", "STAFF", 200,
                         () -> get("/products/{id}/audit-logs", PRODUCT_ID)),
                 new EndpointCase("edit requests by product", "products.edit-requests", "VIEW", "STAFF", 200,
                         () -> get("/products/{id}/edit-requests", PRODUCT_ID)),
-                new EndpointCase("product realtime", "products.list", "VIEW", "STAFF", 200,
+                new EndpointCase("product realtime", "products.list.view", "VIEW", "STAFF", 200,
                         () -> get("/products/{id}/realtime", PRODUCT_ID))
         );
     }

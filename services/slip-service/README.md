@@ -36,7 +36,8 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 
 댓글, 감사 이력, 전표 첨부, 배송 첨부, 발행 source 조회, realtime SSE, 수정요청 목록,
 견적 list/detail 10개 endpoint는 `@RequirePermission(..., VIEW)`로 전환했다.
-재사용 page의 VIEW grant는 auth-service V38 seed가 모든 활성 비즈니스 role로 보강한다.
+이 page들은 SP-D7 이전 동일 page의 `@RequirePermission(..., VIEW)` endpoint가 없어 기존 page를 재사용한다.
+auth-service V38 seed가 `PARTNER`를 제외한 내부 role의 기존 `FALSE` row를 `TRUE`로 보강해 기존 내부 인증 사용자 동작을 유지한다.
 
 ### 발행 감사 (`SlipPublishAudit`)
 

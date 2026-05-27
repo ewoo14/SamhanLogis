@@ -37,7 +37,7 @@ public class ProductAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/audit-logs")
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list.view", action = "VIEW")
     public ApiResponse<List<ProductAuditLogResponse>> listAuditLogs(
             @PathVariable UUID productId) {
         List<ProductAuditLogResponse> items = auditLogService.listByProduct(productId).stream()

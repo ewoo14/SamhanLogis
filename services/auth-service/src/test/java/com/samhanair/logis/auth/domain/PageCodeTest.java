@@ -178,6 +178,21 @@ class PageCodeTest {
     }
 
     @Test
+    void spD7_dedicatedViewPageCodes_V38_seed와_동기화() {
+        assertThat(PageCode.SALES_PARTNER_ORDER_HISTORY_VIEW.getCode())
+                .isEqualTo("sales.partner-order.history.view");
+        assertThat(PageCode.PRODUCTS_LIST_VIEW.getCode()).isEqualTo("products.list.view");
+        assertThat(PageCode.PARTNERS_DETAIL_VIEW.getCode()).isEqualTo("partners.detail.view");
+        assertThat(PageCode.INVENTORY_STOCK_BALANCE_VIEW.getCode())
+                .isEqualTo("inventory.stock-balance.view");
+
+        assertThat(PageCode.isValid("sales.partner-order.history.view")).isTrue();
+        assertThat(PageCode.isValid("products.list.view")).isTrue();
+        assertThat(PageCode.isValid("partners.detail.view")).isTrue();
+        assertThat(PageCode.isValid("inventory.stock-balance.view")).isTrue();
+    }
+
+    @Test
     void spD64_pageCodes_V34_seed와_동기화() {
         assertThat(PageCode.PARTNERS_SEARCH.getCode()).isEqualTo("partners.search");
         assertThat(PageCode.PARTNERS_EDIT.getCode()).isEqualTo("partners.edit");

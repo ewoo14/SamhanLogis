@@ -62,8 +62,9 @@ Scheduler (5분):
 
 ## SP-D7 부가 조회 endpoint 권한 전환
 
-주문 realtime SSE와 audit log는 `sales.partner-order.history` VIEW, edit-request 목록은
-`sales.partner-order.edit-requests` VIEW 동적 권한으로 전환했다. 기존 인증 사용자 접근은 auth-service V38 seed가 보존한다.
+주문 realtime SSE와 audit log는 SP-D7 전용 `sales.partner-order.history.view` VIEW, edit-request 목록은
+`sales.partner-order.edit-requests` VIEW 동적 권한으로 전환했다. `sales.partner-order.history` 기존 VIEW endpoint widening을
+피하기 위해 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert하고, edit-request page는 내부 role 기존 row를 보강한다.
 
 ## SP-08-4 주문 CRUD parity
 

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
+ *   <li>역할 변경/퇴사 처리는 기존 {@code @PreAuthorize("hasRole('MASTER')")} 보존</li>
  *   <li>POST/PATCH write → {@code @RequirePermission(page="admin.employees", action="EDIT")}</li>
  * </ul>
  */
@@ -108,6 +110,7 @@ public class EmployeeController {
     }
 
     @PatchMapping("/{id}/role")
+    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "admin.employees", action = "EDIT")
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
@@ -118,6 +121,7 @@ public class EmployeeController {
     }
 
     @PostMapping("/{id}/terminate")
+    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "admin.employees", action = "EDIT")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void terminate(

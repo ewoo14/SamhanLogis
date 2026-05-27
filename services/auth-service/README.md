@@ -35,9 +35,10 @@ MIG-5/6 seed는 MASTER/MANAGER edit 허용을 role_page_permissions에 추가한
 ## SP-D7 permission seed
 
 Flyway `V38__seed_sp_d7_remaining_preauthorize_page_codes.sql`은 신규
-`notifications.center` PageCode와 잔여 `isAuthenticated()` 전환 endpoint가 재사용하는
-13개 page의 `VIEW` grant를 모든 활성 비즈니스 role로 보강한다.
-기존 row는 `can_view = TRUE`만 갱신해 SP-D7의 behavior-preserving 원칙을 유지한다.
+`notifications.center` PageCode, SP-D7 전용 `.view` PageCode 4건, write-only-before 재사용
+page 9건의 `VIEW` grant를 `PARTNER`를 제외한 내부 role에 보강한다.
+재사용 page의 기존 active row는 `can_view IS DISTINCT FROM TRUE`일 때만 `TRUE`로 갱신하고,
+전용 page는 신규 insert만 수행해 기존 VIEW endpoint widening을 피한다.
 
 ## Environment variables
 

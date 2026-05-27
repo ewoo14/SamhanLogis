@@ -33,8 +33,9 @@ All ingress is via the API Gateway, which strips `/api/users` to `/users` and fo
 
 ## SP-D7 권한 정리
 
-직원 생성, 수정, 역할 변경, 퇴사 처리 endpoint는 기존 `@RequirePermission` 가드를 유지하고
-redundant `@PreAuthorize`만 삭제했다. 동적 권한 행위는 SP-D4 이후와 동일하다.
+직원 생성, 수정 endpoint는 `admin.employees` EDIT grant와 기존 role guard가 동일해 `@RequirePermission`만 유지한다.
+역할 변경과 퇴사 처리는 더 엄격한 MASTER 전용 행위이므로 `@PreAuthorize("hasRole('MASTER')")`와
+`@RequirePermission(page = "admin.employees", action = "EDIT")`를 함께 유지한다.
 
 ## Default seed password
 

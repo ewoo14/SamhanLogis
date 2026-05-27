@@ -117,7 +117,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "영업 방문 사진 목록 조회",
             description = "VISIT_PHOTO 유형만 반환. downloadUrl 는 캐시(만료 가능) — 단건 GET 으로 재발급")
     @GetMapping
-    @RequirePermission(page = "partners.detail", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = "VIEW")
     public ApiResponse<List<PartnerAttachmentResponse>> list(@PathVariable String partnerCode) {
         Partner partner = partnerRepository.findByPartnerCode(partnerCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -140,7 +140,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "방문 사진 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @RequirePermission(page = "partners.detail", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = "VIEW")
     public ApiResponse<PartnerAttachmentResponse> detail(
             @PathVariable String partnerCode,
             @PathVariable UUID attachmentId) {

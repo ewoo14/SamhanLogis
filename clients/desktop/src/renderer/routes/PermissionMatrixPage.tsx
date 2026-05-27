@@ -101,6 +101,7 @@ interface PageGroup {
  * SP-D6-1: system.* 3종 + dc-config.import/dashboard.admin + sales.partner-dc-config 추가
  * SP-D6-2: messenger.* + products.* 보강 + partner-order edit-request/tutorial 추가
  * SP-D6-3: notifications.admin / aligo.address-book / dispatch.sms-save-history / dispatch.batch 추가
+ * SP-D7: notifications.center + 전용 *.view PageCode 추가
  */
 const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
@@ -230,6 +231,7 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'notification.dispatch-sms.send-audit',
       'notifications.admin',
+      'notifications.center',
       'aligo.address-book',
     ],
   },
@@ -271,6 +273,7 @@ const PAGE_GROUPS: PageGroup[] = [
       'sales.partner-order.edit',
       'sales.partner-order.confirm',
       'sales.partner-order.history',
+      'sales.partner-order.history.view',
       'sales.partner-order.print',
       'sales.partner-order.edit-requests',
       'sales.partner-order.edit-requests.decide',
@@ -292,6 +295,7 @@ const PAGE_GROUPS: PageGroup[] = [
       'inventory.adjust',
       'inventory.transfer',
       'inventory.stock-balance',
+      'inventory.stock-balance.view',
       'inventory.safety-stock',
       'inventory.edit-requests',
       'inventory.edit-requests.decide',
@@ -314,6 +318,7 @@ const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'partners.list',
       'partners.detail',
+      'partners.detail.view',
       'partners.block',
       'partners.edit-request',
       'partners.search',
@@ -331,6 +336,7 @@ const PAGE_GROUPS: PageGroup[] = [
     label: '상품',
     pages: [
       'products.list',
+      'products.list.view',
       'products.admin',
       'products.price',
       'products.edit-requests',
@@ -382,6 +388,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.hometax-export': '홈택스 export',
   'notification.dispatch-sms.send-audit': 'SMS 이력',
   'notifications.admin': '알림 발송',
+  'notifications.center': '알림 센터',
   'aligo.address-book': '알리고 주소록',
   'messenger.admin': '메신저 관리',
   'messenger.send': '메신저 발송',
@@ -476,6 +483,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'sales.partner-order.edit': '주문 수정',
   'sales.partner-order.confirm': '주문 확정',
   'sales.partner-order.history': '주문 이력',
+  'sales.partner-order.history.view': '주문 이력 조회',
   'sales.partner-order.print': '주문서 인쇄',
   'sales.partner-order.edit-requests': '주문 수정 요청',
   'sales.partner-order.edit-requests.decide': '주문 요청 승인',
@@ -492,6 +500,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'inventory.adjust': '재고 조정',
   'inventory.transfer': '재고 이동 API',
   'inventory.stock-balance': '재고 잔액',
+  'inventory.stock-balance.view': '재고 잔액 조회',
   'inventory.safety-stock': '안전재고',
   'inventory.edit-requests': '재고 수정 요청',
   'inventory.edit-requests.decide': '재고 요청 승인',
@@ -504,6 +513,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig6.payroll-employee': '급여사원 import',
   'partners.list': '거래처 목록',
   'partners.detail': '거래처 상세',
+  'partners.detail.view': '거래처 상세 조회',
   'partners.block': '거래처 차단',
   'partners.edit-request': '편집 결재',
   'partners.search': '거래처 검색',
@@ -516,6 +526,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'partners.edit-requests': '거래처 수정 요청',
   'partners.edit-requests.decide': '거래처 요청 승인',
   'products.list': '상품 목록',
+  'products.list.view': '상품 목록 조회',
   'products.admin': '상품 관리',
   'products.price': '상품 가격',
   'products.edit-requests': '상품 수정 요청',

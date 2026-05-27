@@ -20,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,6 +56,7 @@ public class DpsSaveHistoryController {
     @Operation(summary = "DPS 저장내역 저장",
             description = "DPS 비교 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
+    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistorySaveResponse> save(
             @Valid @RequestBody DpsSaveHistoryRequest request,
@@ -80,6 +82,7 @@ public class DpsSaveHistoryController {
     @Operation(summary = "DPS 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 DPS 저장내역을 조회한다.")
     @GetMapping
+    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<Page<DpsSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
@@ -118,6 +121,7 @@ public class DpsSaveHistoryController {
     @Operation(summary = "DPS 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
@@ -139,6 +143,7 @@ public class DpsSaveHistoryController {
     @Operation(summary = "DPS 최신 자동저장 조회",
             description = "현재 사용자의 프로그램별 최신 AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
+    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.dps", action = "VIEW")
     public ApiResponse<DpsSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DpsProgramType programType,

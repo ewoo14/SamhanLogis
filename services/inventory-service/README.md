@@ -62,5 +62,6 @@ dashboard-service 는 본 inventory-service 의 stock_balances + stock_movements
 
 ## SP-D7 권한 정리
 
-- 입고검수 첨부 list/detail은 `inventory.stock-balance` VIEW 동적 권한으로 전환했다.
-- DPS 비교, 입고검수, DPS 저장내역, 첨부 upload/delete의 redundant `@PreAuthorize`는 삭제하고 기존 `@RequirePermission`만 유지한다.
+- 입고검수 첨부 list/detail은 SP-D7 전용 `inventory.stock-balance.view` VIEW 동적 권한으로 전환했다.
+- `inventory.stock-balance` 기존 VIEW endpoint widening을 피하기 위해 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert한다.
+- DPS 비교, 입고검수, DPS 저장내역, 첨부 upload/delete는 공존 `@RequirePermission` seed grant가 기존 role guard보다 넓어지는 구간이라 기존 `@PreAuthorize`를 유지한다.

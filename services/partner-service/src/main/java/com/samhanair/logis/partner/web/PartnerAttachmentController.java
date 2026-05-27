@@ -75,7 +75,7 @@ public class PartnerAttachmentController {
     /** 거래처별 첨부 목록 (downloadUrl 미포함 — 상세 조회 시 발급). */
     @Operation(summary = "거래처 첨부 목록 조회")
     @GetMapping("/{partnerId}/attachments")
-    @RequirePermission(page = "partners.detail", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = "VIEW")
     public ApiResponse<List<PartnerAttachmentResponse>> list(@PathVariable UUID partnerId) {
         List<PartnerAttachmentResponse> items = attachmentService.list(partnerId).stream()
                 .map(PartnerAttachmentResponse::from)
@@ -91,7 +91,7 @@ public class PartnerAttachmentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "첨부 미존재")
     })
     @GetMapping("/attachments/{attachmentId}")
-    @RequirePermission(page = "partners.detail", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = "VIEW")
     public ApiResponse<PartnerAttachmentResponse> detail(@PathVariable UUID attachmentId) {
         PartnerAttachmentService.DownloadView view = attachmentService.download(attachmentId);
         return ApiResponse.ok(

@@ -61,7 +61,8 @@ legacy GAS `배차안내문자`의 미리보기/명시 저장/발송 감사 흐�
 ### SP-D7 알림 센터 권한 전환 (2026-05-27)
 
 `GET /notifications/my`, `GET /notifications/history`, `POST /notifications/{id}/acknowledge`는
-`notifications.center` VIEW 동적 권한으로 전환했다. 기존 인증 사용자 동작은 auth-service V38 seed가 보강한다.
+`notifications.center` VIEW 동적 권한으로 전환했다. auth-service V38 seed가 `PARTNER`를 제외한 내부 role에만
+VIEW grant를 insert해 기존 내부 인증 사용자 동작을 보존한다.
 
 ## 4. Adapter (3 channel — strategy pattern)
 

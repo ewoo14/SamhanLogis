@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D6-3 notification / user migration 신규 PageCode 추가.
  * <p>SP-D6-6 slip-service migration 신규 PageCode 추가.
  * <p>SP-D6-7 accounting-service migration 신규 PageCode 추가.
- * <p>SP-D7 notifications.center + 잔여 authenticated endpoint migration 보강.
+ * <p>SP-D7 notifications.center + 잔여 authenticated endpoint migration 전용 VIEW PageCode 보강.
  */
 @Getter
 @RequiredArgsConstructor
@@ -296,6 +296,9 @@ public enum PageCode {
     /** 주문 이력/감사로그 화면 (SP-D4). */
     SALES_PARTNER_ORDER_HISTORY("sales.partner-order.history", "주문 이력"),
 
+    /** 거래처 주문 audit/realtime 조회 API — SP-D7 전용 VIEW. */
+    SALES_PARTNER_ORDER_HISTORY_VIEW("sales.partner-order.history.view", "거래처주문 이력 조회"),
+
     /** 주문서 인쇄 화면 (SP-D4). */
     SALES_PARTNER_ORDER_PRINT("sales.partner-order.print", "주문서 인쇄"),
 
@@ -348,6 +351,9 @@ public enum PageCode {
     /** 재고 잔액/로트/입고 API (SP-D6-5). */
     INVENTORY_STOCK_BALANCE("inventory.stock-balance", "재고 잔액"),
 
+    /** 검수 첨부 조회 API — SP-D7 전용 VIEW. */
+    INVENTORY_STOCK_BALANCE_VIEW("inventory.stock-balance.view", "재고 잔액 조회"),
+
     /** 안전재고 API (SP-D6-5). */
     INVENTORY_SAFETY_STOCK("inventory.safety-stock", "안전재고"),
 
@@ -375,6 +381,9 @@ public enum PageCode {
 
     /** 거래처 4탭 상세 화면 (SP-D4) — Partner4TabController. */
     PARTNERS_DETAIL("partners.detail", "거래처 4탭 상세"),
+
+    /** 거래처 첨부 조회 API — SP-D7 전용 VIEW. */
+    PARTNERS_DETAIL_VIEW("partners.detail.view", "거래처 상세 조회"),
 
     /** 거래처 차단 관리 화면 (SP-D4) — PartnerBlockAdminController. */
     PARTNERS_BLOCK("partners.block", "거래처 차단"),
@@ -413,6 +422,9 @@ public enum PageCode {
 
     /** 상품 목록 화면 (SP-D4) — product-service ProductController. */
     PRODUCTS_LIST("products.list", "상품 목록"),
+
+    /** 상품 audit/realtime 조회 API — SP-D7 전용 VIEW. */
+    PRODUCTS_LIST_VIEW("products.list.view", "상품 목록 조회"),
 
     /** 상품 관리(카테고리 편집) 화면 (SP-D4) — CategoryController. */
     PRODUCTS_ADMIN("products.admin", "상품 관리"),

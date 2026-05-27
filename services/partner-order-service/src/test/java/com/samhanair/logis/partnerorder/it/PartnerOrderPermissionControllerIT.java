@@ -271,9 +271,9 @@ class PartnerOrderPermissionControllerIT {
                         () -> get("/api/v1/partner-orders/edit-requests").param("targetRole", "MANAGER")),
                 new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", "VIEW", "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/edit-requests", ORDER_ID)),
-                new EndpointCase("order audit logs", "sales.partner-order.history", "VIEW", "STAFF", 200,
+                new EndpointCase("order audit logs", "sales.partner-order.history.view", "VIEW", "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/audit-logs", ORDER_ID)),
-                new EndpointCase("order realtime", "sales.partner-order.history", "VIEW", "STAFF", 200,
+                new EndpointCase("order realtime", "sales.partner-order.history.view", "VIEW", "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/realtime", ORDER_ID)),
                 new EndpointCase("vendor upload", "sales.vendor-order", "EDIT", "MANAGER", 200,
                         () -> multipart("/api/v1/admin/partner-order/vendor/upload")

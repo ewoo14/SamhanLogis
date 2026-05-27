@@ -45,10 +45,10 @@
 - 브랜치 `feat/sp-d7-remaining-preauthorize-migration` (단일 통합 PR).
 - spec: `docs/superpowers/specs/2026-05-27-sp-d7-remaining-preauthorize-migration-design.md`
 - plan: `docs/superpowers/plans/2026-05-27-sp-d7-remaining-preauthorize-migration.md`
-- **점검 결과 (중요)**: role-based 중 @RequirePermission 미존재 = 0건. 잔여 = (A) isAuthenticated()→@RequirePermission(page,VIEW) **25건** (24건 기존 page 재사용, 신규 page `notifications.center` 1개) + (B) leftover redundant @PreAuthorize 삭제 **15건** (이미 @RequirePermission 공존). @hr(24)/internal/auth-infra/UserMe.is-executive-office/SlipSalesQuery = KEEP.
-- **최우선 설계 D-D7-01**: behavior-preserving — isAuth→page VIEW 전환 시 재사용 page 의 VIEW grant 를 모든 활성 role 로 보강해 접근 회귀 0.
+- **점검 결과 (중요)**: role-based 중 @RequirePermission 미존재 = 0건. 잔여 = (A) isAuthenticated()→@RequirePermission(page,VIEW) **25건** (`notifications.center` 신규, case W 9개 page 재사용, case V 4개 전용 `.view` page 신설) + (B) leftover @PreAuthorize 15건 재대조. @hr(24)/internal/auth-infra/UserMe.is-executive-office/SlipSalesQuery = KEEP.
+- **최우선 설계 D-D7-01**: behavior-preserving — isAuth→page VIEW 전환 시 `PARTNER` 제외 내부 role 접근을 보존하고, 기존 VIEW endpoint가 있던 page는 전용 `.view` page로 분리해 widening 회피.
 - **D-D7-05**: IT deny-stub 명시 (PR #310 see-saw 교훈).
-- **구현 완료 (Codex, WIP 커밋)**: Task 1 (isAuth→VIEW 25건), Task 2 (PageCode.NOTIFICATIONS_CENTER), Task 3 (V38 seed), Task 4 (유형 B 15건 redundant @PreAuthorize 삭제), Task 5 (IT allow/deny stub + PageCodeTest), Task 6 (dev-report+README+overview+DECISIONS). 8 service compileJava/compileTestJava **PASS**.
+- **구현 완료 (Codex, WIP 커밋 + cycle 2 file edit)**: Task 1 (isAuth→VIEW 25건), Task 2 (`notifications.center` + 전용 `.view` PageCode), Task 3 (옵션 A V38 seed), Task 4 (Employee/Inventory strict `@PreAuthorize` 복원), Task 5 (IT allow/deny stub + PageCodeTest + V38 실 grant IT), Task 6 (dev-report+README+DECISIONS 동기화).
 
 #### 🚨 V38 BLOCKER (머지 전 반드시 해소 — Claude inspection 발견 P1)
 
@@ -57,7 +57,7 @@
 - **page-reuse widening 부작용**: 재사용 page 의 VIEW grant 확대는 그 page 의 **모든 VIEW endpoint** 에 영향 (신규 endpoint 뿐 아니라).
 - **근본**: spec D-D7-01 "모든 활성 role VIEW 부여" 표현이 under-specified → Codex 가 literal 적용. behavior-preserving = "내부 role 의 정당한 접근 회귀 방지" 의도였지 "PARTNER 에 내부 VIEW 부여" 아님.
 
-#### V38 해소 옵션 (다음 세션)
+#### V38 해소 옵션 (cycle 1 기록 — 옵션 A 채택 전)
 
 1. **PARTNER 제외 + force-UPDATE 제거/내부 role 한정**: 14 page 모두 내부 role(MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY/DEVELOPER/STAFF/DRIVER) 만 VIEW. PARTNER 행 미생성. (단 PARTNER 가 gateway 로 해당 service 도달 가능한지 확인 — 도달 불가면 무해하나 매트릭스 정확성 위해 제외 권장)
 2. **page-reuse widening 회피**: 신규 isAuth VIEW endpoint 용 **전용 page code** 신설 (예: slip.comments.view) → 기존 page VIEW grant 불변, 신규 page 만 내부 role VIEW. 가장 안전하나 page 수 증가.
@@ -84,11 +84,24 @@
 - **옵션 C (descope)**: isAuth 25건은 의도된 광범 접근(audit/attachment/comment/realtime = 전 직원 조회)이므로 `isAuthenticated()` 유지, **진짜 redundant Type B 만 정리**. 최소·최안전.
 - 공통 확정 fix (정책 무관): EmployeeController escalation revert + Type B widening 건 유지 + 문서 동기화 + FE notifications.center.
 
-#### 다음 단계 (정책 확정 후)
-1. 확정 옵션대로 Codex cycle 2 fix (+ V38 재작성 / 전용 page / descope).
-2. **auth-service V38 실 grant 검증 IT 추가** (DPC mock 한계 보완).
-3. Codex 5-agent 리뷰 (정책 확정 head 기준) → CI green → PM 머지.
-- 브랜치 head `aa416f22` (PR #312, compile PASS, 정책 결정 대기).
+#### ✅ 정책 확정 (2026-05-27): 옵션 A — behavior-preserving 통합
+- isAuth 25건 → @RequirePermission(VIEW). **전 내부 role(PARTNER 제외) VIEW grant 로 광범 접근 보존(narrowing 0)**.
+- **기존 non-SP-D7 VIEW endpoint 가 이미 쓰던 page 는 전용 신규 page code 신설** (그 page 의 기존 VIEW endpoint widening 회피). write-only-before page 는 재사용 + 전 내부 role VIEW grant.
+- 공통 fix: EmployeeController updateRole/terminate @PreAuthorize 유지(escalation revert) + Type B 중 grant 가 넓어지는 건 @PreAuthorize 유지(진짜 redundant 만 삭제) + 문서(dev-report/README/DECISIONS) 실제 V38 동기화 + FE notifications.center 추가.
+
+#### ✅ cycle 2 Codex fix 결과 (옵션 A 적용)
+1. page 판별 완료:
+   - case W 재사용: `slip.comments`, `slip.audit-overlay`, `slip.attachments.upload`, `slip.delivery-attachments.upload`, `slip.publish.from-estimate`, `slip.edit-requests`, `estimates.list`, `sales.partner-order.edit-requests`, `products.edit-requests`
+   - case V 전용 page 신설: `sales.partner-order.history.view`, `products.list.view`, `partners.detail.view`, `inventory.stock-balance.view`
+2. V38 재작성: 내부 role(MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY/DEVELOPER/STAFF/DRIVER)만 대상. case W는 `can_view IS DISTINCT FROM TRUE` active row UPDATE + missing INSERT, 신규/전용 page는 INSERT만 수행. `PARTNER`는 미부여.
+3. P1/P2 revert: `EmployeeController.updateRole/terminate` MASTER 전용 `@PreAuthorize` 복원. InspectionAttachment/InboundInspection/DpsCompare/DpsSaveHistory는 seed grant가 더 넓어지는 endpoint의 기존 `@PreAuthorize` 복원.
+4. FE/문서: permission matrix에 `notifications.center`와 전용 `.view` pages 추가, dev-report/README/DECISIONS 실제 V38 동작 동기화.
+5. IT: auth-service `AuthFlywayV38SeedIT` 추가로 V38 실 seed 기준 내부 role VIEW 허용과 `PARTNER` 미부여를 검증.
+
+#### 다음 단계
+1. 로컬/CI 검증: 영향 service compileJava/compileTestJava + auth-service test, `git diff --check`.
+2. Claude+Codex dual 5-agent 리뷰 (새 head) → CI green → PM 머지.
+- 브랜치 head `60617f11`에서 cycle 2 file edit 진행. commit/push는 Claude 대행.
 
 ### SP-D7 PR foundation 커밋
 

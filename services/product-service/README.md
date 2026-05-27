@@ -38,8 +38,9 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 
 ## SP-D7 조회성 부가 endpoint 권한
 
-상품 audit log와 realtime SSE는 `products.list` VIEW, 상품 edit-request 목록은
-`products.edit-requests` VIEW 동적 권한으로 전환했다. auth-service V38 seed가 기존 인증 사용자 조회 동작을 보존한다.
+상품 audit log와 realtime SSE는 SP-D7 전용 `products.list.view` VIEW, 상품 edit-request 목록은
+`products.edit-requests` VIEW 동적 권한으로 전환했다. `products.list` 기존 VIEW endpoint widening을 피하기 위해
+auth-service V38은 전용 page에만 내부 role VIEW grant를 insert하고, `PARTNER`는 제외한다.
 
 ## Google Sheets 동기화 (Phase 6)
 

@@ -53,6 +53,7 @@ export type PermissionAction = 'view' | 'edit'
  * SP-D6-1: system.* / dc-config.import / dashboard.admin + 거래처 DC 설정 권한 추가.
  * SP-D6-2: messenger.* / product edit-request/import / partner-order edit-request/tutorial 추가.
  * SP-D6-3: notification admin / aligo address-book / dispatch save-history/batch 추가.
+ * SP-D7: notifications.center + SP-D7 전용 *.view PageCode 추가.
  * SP-D6-6: slip-service @RequirePermission migration 신규 PageCode 추가.
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
@@ -79,6 +80,7 @@ export type PageCode =
   | 'accounting.hometax-export'
   | 'notification.dispatch-sms.send-audit'
   | 'notifications.admin'
+  | 'notifications.center'
   | 'aligo.address-book'
   | 'messenger.admin'
   | 'messenger.send'
@@ -168,6 +170,7 @@ export type PageCode =
   | 'sales.partner-order.edit'
   | 'sales.partner-order.confirm'
   | 'sales.partner-order.history'
+  | 'sales.partner-order.history.view'
   | 'sales.partner-order.print'
   | 'sales.partner-order.edit-requests'
   | 'sales.partner-order.edit-requests.decide'
@@ -184,6 +187,7 @@ export type PageCode =
   | 'inventory.adjust'
   | 'inventory.transfer'
   | 'inventory.stock-balance'
+  | 'inventory.stock-balance.view'
   | 'inventory.safety-stock'
   | 'inventory.edit-requests'
   | 'inventory.edit-requests.decide'
@@ -196,6 +200,7 @@ export type PageCode =
   | 'ecount.mig6.payroll-employee'
   | 'partners.list'
   | 'partners.detail'
+  | 'partners.detail.view'
   | 'partners.block'
   | 'partners.edit-request'
   | 'partners.search'
@@ -208,6 +213,7 @@ export type PageCode =
   | 'partners.edit-requests'
   | 'partners.edit-requests.decide'
   | 'products.list'
+  | 'products.list.view'
   | 'products.admin'
   | 'products.price'
   | 'products.edit-requests'

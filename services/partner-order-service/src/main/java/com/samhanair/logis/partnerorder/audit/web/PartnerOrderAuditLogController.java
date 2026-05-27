@@ -42,7 +42,7 @@ public class PartnerOrderAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/audit-logs")
-    @RequirePermission(page = "sales.partner-order.history", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.history.view", action = "VIEW")
     public ApiResponse<List<PartnerOrderAuditLogResponse>> listAuditLogs(
             @PathVariable String partnerOrderId) {
         List<PartnerOrderAuditLogResponse> items = auditLogService.listByOrderIdentifier(partnerOrderId)

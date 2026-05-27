@@ -53,7 +53,7 @@ public class PartnerOrderRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "sales.partner-order.history", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.history.view", action = "VIEW")
     public SseEmitter subscribe(@PathVariable UUID partnerOrderId) {
         return broker.subscribe(partnerOrderId);
     }

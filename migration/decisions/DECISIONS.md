@@ -2490,11 +2490,11 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 
 | 결정 | 내용 |
 |---|---|
-| D-D7-01 | behavior-preserving을 최우선으로 한다. 유형 A endpoint는 기존 인증 사용자 접근을 유지하도록 재사용 page의 VIEW grant를 모든 활성 비즈니스 role로 보강한다. |
+| D-D7-01 | behavior-preserving을 최우선으로 한다. 유형 A endpoint는 기존 내부 인증 사용자 접근을 유지하도록 `PARTNER`를 제외한 내부 role에 VIEW grant를 보강하고, 기존 VIEW endpoint가 있던 page는 SP-D7 전용 `.view` page code로 분리한다. |
 | D-D7-02 | 알림 센터 3개 endpoint는 신규 PageCode `notifications.center` VIEW로 묶는다. |
-| D-D7-03 | 유형 B endpoint는 이미 `@RequirePermission`이 있으므로 redundant `@PreAuthorize`만 삭제한다. |
+| D-D7-03 | 유형 B endpoint는 공존 `@RequirePermission` seed grant와 기존 role guard를 대조한다. grant가 동일한 create/update만 redundant `@PreAuthorize` 삭제를 유지하고, Employee 역할 변경/퇴사 및 inventory widening 위험 endpoint는 더 엄격한 `@PreAuthorize`를 유지한다. |
 | D-D7-04 | UserMe executive-office, SlipSalesQuery, HR/internal/auth-infra 등 SP-D6 KEEP 대상은 본 슬라이스에서 건드리지 않는다. |
 | D-D7-05 | 권한 IT는 allow-all 기본 stub 후 deny case 요청 직전 page/action-aware 명시 deny stub을 사용한다. PR #310 see-saw 교훈을 반영한다. |
-| D-D7-06 | Flyway V38은 `ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING` 패턴과 기존 row `can_view = TRUE` 보강을 함께 사용한다. |
+| D-D7-06 | Flyway V38은 case W 재사용 page의 내부 role active row만 `can_view = TRUE`로 UPDATE하고, 신규/전용 page와 missing row는 `ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING` insert로 멱등 처리한다. |
 
-**산출**: 유형 A 25 endpoint `@RequirePermission` 전환, 유형 B 15 endpoint redundant 가드 삭제, auth-service V38 seed, `notifications.center` PageCode, dev-report `docs/dev-reports/sp-d7-remaining-preauthorize-migration.md`.
+**산출**: 유형 A 25 endpoint `@RequirePermission` 전환, case V 전용 page code 4건, cycle 2 V38 seed, `notifications.center` PageCode, Employee/Inventory strict `@PreAuthorize` 복원, dev-report `docs/dev-reports/sp-d7-remaining-preauthorize-migration.md`.

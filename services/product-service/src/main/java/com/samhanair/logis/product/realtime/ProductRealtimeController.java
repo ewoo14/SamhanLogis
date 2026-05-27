@@ -45,7 +45,7 @@ public class ProductRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list.view", action = "VIEW")
     public SseEmitter subscribe(@PathVariable UUID productId) {
         return broker.subscribe(productId);
     }

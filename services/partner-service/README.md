@@ -68,8 +68,8 @@ dashboard-service `PartnerCodeResolver.resolveAll(List<String>)` 가 본 endpoin
 
 ### SP-D7 첨부 조회 권한 전환 (2026-05-27)
 
-거래처 첨부와 방문 첨부 조회 endpoint 4건은 `partners.detail` VIEW 동적 권한으로 전환했다.
-기존 인증 사용자 조회 동작은 auth-service V38 seed의 VIEW 보강으로 유지한다.
+거래처 첨부와 방문 첨부 조회 endpoint 4건은 SP-D7 전용 `partners.detail.view` VIEW 동적 권한으로 전환했다.
+`partners.detail` 기존 VIEW endpoint widening을 피하기 위해 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert한다.
 
 ## 환경변수
 
