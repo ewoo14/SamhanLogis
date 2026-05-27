@@ -21,6 +21,7 @@ import com.samhanair.logis.notification.domain.NotificationCenter;
 import com.samhanair.logis.notification.domain.NotificationSeverity;
 import com.samhanair.logis.notification.repository.NotificationCenterRepository;
 import com.samhanair.logis.notification.web.dto.NotificationPublishRequest;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,11 +68,13 @@ class NotificationCenterControllerIT extends AbstractPostgresIT {
     @MockBean private BlockedPartnerLookupClient blockedPartnerLookupClient;
     @MockBean private AligoCsvSourceClient aligoCsvSourceClient;
     @MockBean private AligoAddressBookClient aligoAddressBookClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     private UUID masterUserId;
 
     @BeforeEach
     void setUp() {
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         masterUserId = UUID.randomUUID();
         lenient().when(userClient.exists(any())).thenReturn(true);
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
