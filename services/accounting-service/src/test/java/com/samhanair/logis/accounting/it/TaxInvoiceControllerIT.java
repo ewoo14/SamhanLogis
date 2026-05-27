@@ -80,6 +80,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.vatAmount").value(10000.00))
                 .andExpect(jsonPath("$.data.totalAmount").value(110000.00));
 
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")

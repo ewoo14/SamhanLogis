@@ -163,6 +163,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                 List.of(buildLine("운임", "건", "1", "100000", null))
         );
 
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")

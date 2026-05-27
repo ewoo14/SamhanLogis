@@ -275,6 +275,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
 
         String id = createAndIssueTaxInvoice();
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
                         .header("X-User-Id", "sales-user-integration")
                         .header("X-User-Role", "SALES")
@@ -294,6 +295,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("Case 7: SALES — KFTC fetch-and-match 403 FORBIDDEN (권한 매트릭스 cross-check)")
     void testSalesForbiddenForKftc() throws Exception {
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
                         .header("X-User-Id", "sales-user-kftc")
                         .header("X-User-Role", "SALES")

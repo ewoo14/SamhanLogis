@@ -124,6 +124,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
                         .header("X-User-Id", "sales-user-1")
                         .header("X-User-Role", "SALES")
@@ -145,6 +146,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
+        denyDynamicPermissionFor("MANAGER");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
                         .header("X-User-Id", "manager-1")
                         .header("X-User-Role", "MANAGER")

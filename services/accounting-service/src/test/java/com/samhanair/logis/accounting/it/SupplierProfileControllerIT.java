@@ -1,5 +1,8 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -282,6 +285,7 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
         updateBody.put("representativeName", "무단자");
         updateBody.put("businessAddress", "서울시 테스트구");
 
+        lenient().when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), anyString())).thenReturn(false);
         mockMvc.perform(put(BASE_URL + "/" + primaryId)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")

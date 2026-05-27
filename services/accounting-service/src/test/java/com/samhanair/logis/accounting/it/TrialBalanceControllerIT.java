@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -115,6 +116,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 — SALES 시산표 조회 403")
     void salesForbidden() throws Exception {
+        lenient().when(dynamicPermissionClient.canView(eq("SALES"), anyString())).thenReturn(false);
         mockMvc.perform(get("/accounting/balances")
                         .param("period", "202605")
                         .header("X-User-Id", UUID.randomUUID().toString())

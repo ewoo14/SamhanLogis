@@ -1,5 +1,8 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -130,6 +133,7 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].periodDate").value("2026-03-01"))
                 .andExpect(jsonPath("$.data[0].status").value("CLOSED"));
 
+        lenient().when(dynamicPermissionClient.canEdit(eq("MANAGER"), anyString())).thenReturn(false);
         mockMvc.perform(post("/accounting/closings")
                         .header("X-User-Id", "manager-1")
                         .header("X-User-Role", "MANAGER")
@@ -158,6 +162,8 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         // 2) ACCOUNTANT reverse → 403
+        lenient().when(dynamicPermissionClient.canEdit(
+                eq("ACCOUNTANT"), eq("accounting.period-close.reverse"))).thenReturn(false);
         mockMvc.perform(post("/accounting/closings/" + id + "/reverse")
                         .header("X-User-Id", "accountant-1")
                         .header("X-User-Role", "ACCOUNTANT"))

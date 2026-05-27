@@ -103,6 +103,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.totalCredit").value(100000));
 
         // SALES 403
+        denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES")
@@ -111,6 +112,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
 
         // MANAGER 403 (Q9 — MANAGER 제외)
+        denyDynamicPermissionFor("MANAGER");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MANAGER")
@@ -217,6 +219,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         // INVENTORY 403
+        denyDynamicPermissionFor("INVENTORY");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "INVENTORY")
