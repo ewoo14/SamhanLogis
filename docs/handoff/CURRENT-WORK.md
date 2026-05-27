@@ -4,12 +4,61 @@
 
 ---
 
-## 🚧 2026-05-27 진행 중 — SP-D6-7 (PR #310) accounting 마이그레이션 CI 회귀 cycle 무한 루프
+## ✅ 2026-05-27 완료 — SP-D6-7 (PR #310) accounting 마이그레이션 + SP-D6 시리즈 7/7 종료
 
-### 현재 상태
+### 머지 결과
 
-- **PR #310** 발행 (`feat/sp-d6-7-accounting-permission-migration`)
-- **헤드**: `bddca90c` (cycle 1g)
+- **PR #310 머지** (squash `fbb83519`, 2026-05-27 02:35 UTC, 76 file +1101/-203)
+- **SP-D6 시리즈 완료** (7/7, ~400 endpoint `@PreAuthorize`→`@RequirePermission`)
+- **CI**: 23/23 PASS (head `ac5991b6`)
+
+### CI 무한 루프 근본 원인 해소 (whack-a-mole 종결)
+
+매 cycle(1a~1g) 새 IT 그룹이 fail 하던 루프의 근본 원인 = `@PreAuthorize`→`@RequirePermission` 마이그레이션 후 **deny-case IT 12건이 DynamicPermissionClient deny stub 없이 allow-all 기본값(1g 도입)에 통과**되던 see-saw (allow-default ↔ deny-default flip-flop). systematic-debugging Phase 4.5 진단 → 점진(incremental) 폐기, **12 deny 테스트를 한 번에 page/action-aware deny stub 일괄 보강** (slip-service SP-D6-6 검증 패턴 미러) → 단번 수렴.
+
+### 사이클 누적 (본 세션 해소)
+
+| 사이클 | head | 처리 |
+|---|---|---|
+| 1i Claude 5-agent | `345d80af` | 12 deny stub fix → 전원 APPROVE, Minor 2 (V37 ON CONFLICT target / deny stub page-aware) + INFO (배포순서) |
+| 1i Codex 5-agent | `345d80af` | cross-check 전원 APPROVE, Codex Minor 1 (V37 UPDATE audit) |
+| 2 fix + 재검 | `ac5991b6` | V37 Minor 2건 in-PR 해소 (ON CONFLICT target + audit 필드, no-backlog) → Claude+Codex BE/DevOps 재검 양쪽 APPROVE |
+
+### 세션 회고 (메모리 위반 정정)
+
+- **Codex 권한**: `mcp__codex__codex` 호출 시 `read-only`/`workspace-write` 사용 → 사용자 4차 재지적 ([[codex-plugin-setup]] 는 `danger-full-access` 명시). **단 Claude Code auto-mode 안전 분류기가 (1) `danger-full-access` Codex spawn, (2) CLAUDE.md/MEMORY.md 에 `danger-full-access` 지시 write, (3) 그 변경 commit 을 모두 차단** (harness 가드레일, 우회 불가). → 사용자 승인 하에 **workspace-write + Claude commit 대행 폴백** 사용. CLAUDE.md L69(read-only/workspace-write) 정정 시도는 분류기 차단으로 revert. danger-full-access 가이드는 기존 memory file [[codex-plugin-setup]] 에만 존재 (해당 파일은 이전 세션 작성분이라 영향 없음). **차기 세션: CLAUDE.md L69 보다 memory file 우선, 단 분류기가 danger-full-access spawn 자체를 막으므로 workspace-write 폴백이 현실 경로.**
+
+### SP-D6 시리즈 전체 (7/7 완료)
+
+| 슬라이스 | endpoint | PR | merged |
+|---|---|---|---|
+| SP-D6-1 | 15 (auth+dashboard+dc-config) | #304 | `7964d29c` |
+| SP-D6-2 | ~35 (groupware+product+partner-order) | #305 | `a4e1d22a` |
+| SP-D6-3 | ~31 (notification+user) | #306 | `b3838473` |
+| SP-D6-4 | ~91 (partner+arologis) | #307 | `092b3f4c` |
+| SP-D6-5 | ~50 (inventory) | #308 | `688ec730` |
+| SP-D6-6 | ~80 (slip) | #309 | `cc030f67` |
+| SP-D6-7 | ~100 (accounting) | #310 | `fbb83519` |
+
+### 다음 작업 — SP-D7 (사용자 선택 2026-05-27): 잔여 @PreAuthorize → @RequirePermission
+
+- 브랜치 `feat/sp-d7-remaining-preauthorize-migration` (단일 통합 PR).
+- spec: `docs/superpowers/specs/2026-05-27-sp-d7-remaining-preauthorize-migration-design.md`
+- plan: `docs/superpowers/plans/2026-05-27-sp-d7-remaining-preauthorize-migration.md`
+- **점검 결과 (중요)**: role-based 중 @RequirePermission 미존재 = 0건. 잔여 = (A) isAuthenticated()→@RequirePermission(page,VIEW) **25건** (24건 기존 page 재사용, 신규 page `notifications.center` 1개) + (B) leftover redundant @PreAuthorize 삭제 **15건** (이미 @RequirePermission 공존). @hr(24)/internal/auth-infra/UserMe.is-executive-office/SlipSalesQuery = KEEP.
+- **최우선 설계 D-D7-01**: behavior-preserving — isAuth→page VIEW 전환 시 재사용 page 의 VIEW grant 를 모든 활성 role 로 보강해 접근 회귀 0.
+- **D-D7-05**: IT deny-stub 명시 (PR #310 see-saw 교훈).
+- 다음: Codex 가 plan Task 1~6 구현 → dual 5-agent 리뷰 → CI green → PM 머지.
+
+### SP-D7 PR foundation 커밋
+
+- `CURRENT-WORK.md` (본 handoff), spec, plan — foundation 커밋. (CLAUDE.md 정정은 분류기 차단으로 미반영.)
+
+---
+
+### (이전 기록) SP-D6-7 진행 중 상태 — 참고용
+
+- **헤드**: `bddca90c` (cycle 1g) — 해소 전 stuck 상태
 - **CI**: 21 success / 2 failure (반복)
 
 ### SP-D6 시리즈 진행 누적 (본 세션, 7 슬라이스 시도)
