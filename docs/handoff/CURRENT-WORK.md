@@ -64,11 +64,31 @@
 3. **각 page 의 기존 VIEW grant 존중**: 재사용 page 의 현재 VIEW 허용 role 집합 + isAuth 가 실제 도달시킨 내부 role 만 union. (per-page 조사 필요)
 - **권장**: 옵션 1 (PARTNER 제외 + 내부 role 한정 grant, force-UPDATE 는 내부 role 로 scope) 우선, dual 리뷰 BE/보안이 page-reuse widening 부작용(옵션 2 필요 여부) 판정.
 
-#### 다음 단계
-1. V38 BLOCKER 해소 (Codex, 옵션 1 기반).
-2. dual 5-agent 리뷰 (BE 가 V38 role 매트릭스 + page-reuse widening 최우선 검증, D-D7-01 회귀 0 + 과도 grant 0).
-3. CI green → PM 머지.
-- 브랜치 head WIP 커밋됨 (compile PASS, V38 미해소 상태).
+#### PR #312 발행 + 사이클 1 Claude 리뷰 결과 (head `aa416f22`) — 🚨 머지 불가, 정책 결정 대기
+
+- PR #312 발행. CI 23 green **이나 IT 가 DPC mock 이라 V38 실 grant 미검증 (green ≠ 권한 정합)**.
+- V38 1차 over-grant(PARTNER+force-UPDATE) → Claude inspection 으로 `aa416f22` 에서 PARTNER 제외+INSERT-missing-only 로 수정. **그러나 그게 narrowing 회귀 유발** (아래).
+
+**사이클 1 Claude 리뷰 P1 (PR #312 issuecomment-4551035079):**
+1. **권한 확대 P1**: `EmployeeController.updateRole/terminate` 삭제된 `@PreAuthorize("hasRole('MASTER')")` 가 공존 `@RequirePermission(admin.employees,EDIT)` grant(MASTER+MANAGER)보다 엄격 → 삭제 시 MANAGER 가능 = escalation. **→ 삭제 revert (MASTER 전용 유지) 필요.**
+2. **V38 narrowing P1**: 13 재사용 page 는 기존 seed(V10/V31/V32/V35/V36)에 전 role row 존재(다수 can_view=FALSE) → INSERT-missing-only 가 전부 skip → 신규 VIEW endpoint 가 내부 role(ACCOUNTANT/DISPATCH/INVENTORY/DEVELOPER/STAFF/DRIVER 등) deny = isAuth 대비 회귀. **D-D7-01 미충족.**
+3. **문서 모순 P1**: dev-report/README/DECISIONS 가 reverted force-UPDATE/PARTNER포함 서술 → 실제 V38 과 모순. **재동기화 필요.**
+4. **Type B widening P2**: InspectionAttachment/InboundInspection/DpsCompare/DpsSaveHistory 삭제로 EDIT/VIEW +INVENTORY/+WAREHOUSE 확대 (공존 grant 가 넓음). **→ 진짜 redundant(grant 동일)만 삭제, 넓어지는 것은 @PreAuthorize 유지.**
+5. **FE Minor**: notifications.center FE 매트릭스 누락. **Minor IT**: V38 실 grant 미검증 (auth canView 실측 IT 권장).
+
+**근본 구조 문제**: isAuth→page-reuse 전략이 (i) 재사용 page 기존 FALSE → narrowing, (ii) page-reuse VIEW 확장 → 기존 VIEW endpoint widening, (iii) Type B 일부 비-redundant(엄격 가드) 를 동시에 못 피함.
+
+#### 🔑 사용자(개발책임자) 정책 결정 대기 — cycle 2 fix 방향
+- **옵션 A (behavior-preserving)**: isAuth endpoint → 전 내부 role VIEW grant + 기존 VIEW endpoint 있던 ~5 page 는 전용 page code 신설(widening 회피). isAuth 광범 접근 보존 + RBAC 통합.
+- **옵션 B (proper scoping)**: 각 신규 VIEW endpoint 를 도메인 audience 로 정밀 scope (endpoint별 role 정책 결정 필요).
+- **옵션 C (descope)**: isAuth 25건은 의도된 광범 접근(audit/attachment/comment/realtime = 전 직원 조회)이므로 `isAuthenticated()` 유지, **진짜 redundant Type B 만 정리**. 최소·최안전.
+- 공통 확정 fix (정책 무관): EmployeeController escalation revert + Type B widening 건 유지 + 문서 동기화 + FE notifications.center.
+
+#### 다음 단계 (정책 확정 후)
+1. 확정 옵션대로 Codex cycle 2 fix (+ V38 재작성 / 전용 page / descope).
+2. **auth-service V38 실 grant 검증 IT 추가** (DPC mock 한계 보완).
+3. Codex 5-agent 리뷰 (정책 확정 head 기준) → CI green → PM 머지.
+- 브랜치 head `aa416f22` (PR #312, compile PASS, 정책 결정 대기).
 
 ### SP-D7 PR foundation 커밋
 
