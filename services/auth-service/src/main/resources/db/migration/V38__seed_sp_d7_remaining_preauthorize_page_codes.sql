@@ -2,8 +2,9 @@
 -- SP-D7 잔여 @PreAuthorize("isAuthenticated()") -> @RequirePermission VIEW 전환 seed.
 --
 -- D-D7-01 behavior-preserving:
--- 기존 isAuthenticated endpoint 는 인증된 모든 role 이 접근 가능했으므로, 재사용 page 의
--- VIEW grant 를 11-role 활성 매트릭스로 확장한다. can_edit 는 변경하지 않는다.
+-- 내부 role 한정(PARTNER 제외), INSERT-missing only.
+-- 기존 grant 는 보존해 재사용 page 의 deliberate FALSE row 와 VIEW endpoint 권한 widening 을 방지한다.
+-- 내부 role 의 기존 FALSE row 로 인한 잠재 회귀는 dual 리뷰 BE 가 per-page 검증한다.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -17,7 +18,6 @@ WITH roles(role_code) AS (
         ('DISPATCH'),
         ('INVENTORY'),
         ('DEVELOPER'),
-        ('PARTNER'),
         ('STAFF'),
         ('DRIVER')
 ),
@@ -63,45 +63,3 @@ LEFT JOIN grants g
     ON g.page_code = p.page_code
    AND g.role_code = r.role_code
 ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING;
-
-WITH roles(role_code) AS (
-    VALUES
-        ('MASTER'),
-        ('MANAGER'),
-        ('ACCOUNTANT'),
-        ('SALES'),
-        ('WAREHOUSE'),
-        ('DISPATCH'),
-        ('INVENTORY'),
-        ('DEVELOPER'),
-        ('PARTNER'),
-        ('STAFF'),
-        ('DRIVER')
-),
-pages(page_code) AS (
-    VALUES
-        ('notifications.center'),
-        ('slip.comments'),
-        ('slip.audit-overlay'),
-        ('slip.attachments.upload'),
-        ('slip.delivery-attachments.upload'),
-        ('slip.publish.from-estimate'),
-        ('slip.edit-requests'),
-        ('estimates.list'),
-        ('sales.partner-order.history'),
-        ('sales.partner-order.edit-requests'),
-        ('products.list'),
-        ('products.edit-requests'),
-        ('partners.detail'),
-        ('inventory.stock-balance')
-)
-UPDATE role_page_permissions rpp
-SET can_view = TRUE,
-    modified_at = NOW(),
-    modified_by = 'sp-d7-remaining-preauthorize-migration'
-FROM roles r
-CROSS JOIN pages p
-WHERE rpp.role_code = r.role_code
-  AND rpp.page_code = p.page_code
-  AND rpp.is_deleted = FALSE
-  AND rpp.can_view IS DISTINCT FROM TRUE;
