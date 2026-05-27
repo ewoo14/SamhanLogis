@@ -4,6 +4,22 @@
 
 ---
 
+## ✅ 2026-05-27 완료 — SP-D7 (PR #312) 잔여 @PreAuthorize 마이그레이션 머지 (SP-D6 완전 종결)
+
+- **PR #312 머지** (squash `993d7e70`). isAuth→@RequirePermission(VIEW) **23건** + leftover redundant @PreAuthorize 정리 + 신규 PageCode 5(notifications.center + 4 `.view`) + Flyway V38 + AuthFlywayV38SeedIT(실 seed grant 검증).
+- **사이클 1→4 수렴** (dual cross-check 가 P1 차단):
+  - cycle1 Claude 리뷰 P1×3(escalation/narrowing/문서) → cycle2 옵션 A rework(case W force-UPDATE + case V 4 전용 .view page).
+  - cycle3/3b CI fail 해소 (slip audit-logs mapping 정규화 + notification DPC allow-default + 중복 @MockBean revert).
+  - cycle2/3 dual 재리뷰: Claude BE/QA/DevOps APPROVE + **Codex BE 가 estimates.list guard escalation P1 적발** (EstimatePermissionGuard gated page 를 V38 가 넓힘).
+  - **cycle4: estimates.list descope** (guarded endpoint → isAuthenticated 유지, V38 widening 제외) → escalation 0. Codex BE 재검 APPROVE → CI 23/23 green → PM 머지.
+- **보안 결론**: 권한 확대 0 (3 PermissionGuard 전수 분석 — guard-page vs V38-page 겹침 estimates.list 1건뿐, descope 해소). narrowing 0(case W 보강). widening 0(case V 전용 page). PARTNER 내부 page VIEW 미부여.
+- **회고 (page-reuse 취약성)**: isAuth endpoint 중 programmatic PermissionGuard 로 gated 된 것은 page-reuse force-UPDATE 와 충돌(escalation). 차기 유사 작업 시 **guard 사용 endpoint 사전 식별 → descope 또는 전용 page** 필수. estimates.list 가 그 사례.
+
+### 다음 작업 — 사용자 결정 대기 ([[pm-auto-continuous]] 멈춤 조건 = 시리즈/후속 종료)
+SP-D6(7/7) + SP-D7(잔여) 모두 완료 → @PreAuthorize→@RequirePermission 마이그레이션 전체 종결 (KEEP: @hr.isExecutiveOffice 24 / internal / auth-infra / guard-gated estimate / UserMe self-check). **후보**: admin UI 잔여 화면 / 외부 통합 실 연동(KFTC/NTS/Aligo/Clova) / Phase 11 AWS / Issue 4 알림 후속.
+
+---
+
 ## ✅ 2026-05-27 완료 — SP-D6-7 (PR #310) accounting 마이그레이션 + SP-D6 시리즈 7/7 종료
 
 ### 머지 결과
