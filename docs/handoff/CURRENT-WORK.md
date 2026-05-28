@@ -4,9 +4,24 @@
 
 ---
 
-## ✅ 2026-05-28 진행 — 권한 재편 Phase 0 인벤토리 완료 + Phase 1 프레임워크 spec/plan 확정 (구현 대기)
+## 🚧 2026-05-28 진행 — 권한 재편 Phase 1 구현 중 (Stage 1+2a 검증완료 / 2b WIP 미검증 / 세션 재시작)
 
-**브랜치**: `docs/phase-1-permission-overhaul-design` (로컬, push 미실행). commit `f67fce1f`(인벤토리+spec) + `c22a7e17`(plan+spec정정).
+**브랜치 (둘 다 origin push 완료)**:
+- `feat/phase-1-permission-overhaul-framework` — 구현 본체. HEAD `d48a0441`.
+- `docs/phase-1-permission-overhaul-design` — **PR #315** (planning 문서: 인벤토리+spec+plan+Codex memory).
+
+### 🔑 다음 세션 즉시 재개 절차
+1. `git checkout feat/phase-1-permission-overhaul-framework; git pull` → `$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle\codex-home'`
+2. **Stage 2b WIP 검증** (`d48a0441` = Codex gpt-5.5 미검증 산출, 컴파일 미실행): 8 service 컴파일 검증 `:services:{partner,partner-auth,partner-order,dc-config,product,user,dashboard,notification,groupware}-service:compileJava :…:compileTestJava` + slip(EstimateGuard 변경) 재컴파일 + `EstimatePermissionGuardTest`. 결함 fix.
+3. **Stage 3 = FE** (plan Task 11~14): permissionsApi/usePermissions 7-action → PermissionMatrixPage account×page×7action 평탄 매트릭스 재작성 → 다계정 wizard → AppLayout/Playwright.
+4. **Stage 4 = docs**(Task 15) → dual 5-agent 리뷰 → cycle N=2 → CI green → PM 머지.
+- **Codex 디스패치 규칙 (이번 세션 확립)**: model **`gpt-5.5`** (사용자 directive) + `config:{model_reasoning_effort:"high"}`, **`approval-policy:"never"`**, **git 금지(파일만 수정) → Claude commit 대행** ([[codex-sandbox-git]] [[codex-model-auto-switch]]). `gpt-5.2-codex` 미지원.
+
+### 진행 상태 (commit)
+- **Stage 1 ✅ 검증완료**: `01aa4c95`(shared 7-action enum/aspect/client) + `4d9f568e`(auth 엔티티/서비스/API + auth 재주석화) + `5e91624d`(V39 마이그레이션+IT). 컴파일+단위테스트 green. `sub=accounts.id` 확인됨.
+- **Stage 2a ✅ 검증완료**: `18eedd29`(accounting) `0f7d3d9a`(inventory) `53353c76`(slip) `147fab03`(arologis). 4 service 컴파일 green.
+- **Stage 2b ⚠️ WIP 미검증**: `d48a0441` — 나머지 9 service 재주석화 + Task 10(EstimateGuard account 전환, dead guard 3개 삭제). **컴파일 미실행 → 검증 필수**.
+- V39 보존 매핑 (Stage 1 seed): RESTORE=warehouse.admin/slip.audit-revert · DOWNLOAD=journals/hometax-export/slip.print.export/partners.edit · PRINT=tax-invoice.list/statement-batch/partner-ledger/reports/partner-order.print/slip.print.next-day.
 
 ### Phase 0 인벤토리 완료 (8 도메인 fan-out audit)
 - 산출: `docs/permission-overhaul/menu-inventory.md` (마스터) + `docs/permission-overhaul/inventory/{8개}.md`.
@@ -22,11 +37,10 @@
 - 결정: role 비강제 템플릿 유지 / 단일 can_download / 행동보존 자동전개 / 평탄 매트릭스+도메인섹션 UI / MASTER bypass short-circuit / RESTORE 메커니즘 Phase 2 / PARTNER 경계 deny.
 - **구현 조사 정정**: Role enum 에 PARTNER 없음(10값, 외부=partner-auth) / aspect 가 account id 미사용→`X-User-Id`(gateway 주입 JWT sub) 추가가 핵심 / MASTER bypass 신규 / client 캐시 없음 / EstimateGuard 실사용(role→account 전환) + Product·PartnerOrder guard dead(삭제) / Flyway V38→**V39**.
 
-### 다음 단계 — 사용자(개발책임자) 결정 대기
-1. **plan 검토** (Task 0~15, 단일 PR ~14 commit, 거대 변경).
-2. **docs 브랜치 처리**: 토대(PR #314) 선례처럼 planning 문서 PR 머지 후 구현 시작 vs feat 브랜치에 docs 동반.
-3. **구현 착수**: `feat/phase-1-permission-overhaul-framework` 에서 Codex 디스패치 (Task 1부터). [[codex-implements-claude-reviews]] + dual 리뷰 + cycle N=2 + CI green + PM 머지.
-- ⚠️ Task 2(annotation enum) 이후 ~14 service 컴파일 깨짐 → Task 9.1~9.8 순차 복구. 단일 PR 은 전 service 복구 후 CI green.
+### 설계 메모 (Phase 1 spec/plan)
+- spec: `docs/superpowers/specs/2026-05-28-permission-overhaul-phase-1-framework-design.md` (D-PO-01~07)
+- plan: `docs/superpowers/plans/2026-05-28-permission-overhaul-phase-1-framework.md` (Task 0~15, 4 Stage 로 실행 중)
+- ⚠️ 단일 PR 특성: Task 2(annotation enum) 이후 전 service 컴파일이 9.x 재주석화 완료 후에야 green. 따라서 feat 브랜치 CI 는 Stage 2b 검증 완료 후 의미 있음.
 
 ---
 
