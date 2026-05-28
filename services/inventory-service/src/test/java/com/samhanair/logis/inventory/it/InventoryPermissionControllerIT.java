@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -69,6 +70,7 @@ import com.samhanair.logis.inventory.web.dto.TransferResponse;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -167,6 +169,8 @@ class InventoryPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         lenient().when(stockBalanceRepository.findAllByProductIdAndIsDeletedFalse(any(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
@@ -265,11 +269,7 @@ class InventoryPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(false);
         double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
@@ -280,78 +280,84 @@ class InventoryPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                endpoint("stock balances", "inventory.stock-balance", "VIEW", "WAREHOUSE",
+                endpoint("stock balances", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/inventory/balances").param("productId", ID.toString())),
-                endpoint("stock batch balances", "inventory.list", "VIEW", "SALES",
+                endpoint("stock batch balances", "inventory.list", PermissionAction.VIEW, "SALES",
                         () -> post("/inventory/balances/batch").contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"productIds\":[\"" + ID + "\"]}")),
-                endpoint("stock inbound", "inventory.stock-balance", "EDIT", "WAREHOUSE",
+                endpoint("stock inbound", "inventory.stock-balance", PermissionAction.CREATE, "WAREHOUSE",
                         () -> post("/inventory/lots/inbound").contentType(MediaType.APPLICATION_JSON).content(inboundBody())),
-                endpoint("stock reserve", "inventory.list", "EDIT", "SALES",
+                endpoint("stock reserve", "inventory.list", PermissionAction.UPDATE, "SALES",
                         () -> post("/inventory/reserve").contentType(MediaType.APPLICATION_JSON).content(quantityBody())),
-                endpoint("stock adjust", "inventory.adjust", "EDIT", "INVENTORY",
+                endpoint("stock adjust", "inventory.adjust", PermissionAction.UPDATE, "INVENTORY",
                         () -> post("/inventory/adjust").contentType(MediaType.APPLICATION_JSON).content(adjustBody())),
-                endpoint("stock export", "inventory.stock-balance", "EDIT", "WAREHOUSE",
+                endpoint("stock export", "inventory.stock-balance", PermissionAction.DOWNLOAD, "WAREHOUSE",
                         () -> get("/inventory/stocks/export.xlsx")),
-                endpoint("transfer list", "inventory.transfer", "VIEW", "ACCOUNTANT",
+                endpoint("transfer list", "inventory.transfer", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/inventory/transfers")),
-                endpoint("transfer create", "inventory.transfer", "EDIT", "WAREHOUSE",
+                endpoint("transfer create", "inventory.transfer", PermissionAction.CREATE, "WAREHOUSE",
                         () -> post("/inventory/transfers").contentType(MediaType.APPLICATION_JSON).content(transferBody())),
-                endpoint("transfer approve", "inventory.adjust", "EDIT", "INVENTORY",
+                endpoint("transfer approve", "inventory.adjust", PermissionAction.UPDATE, "INVENTORY",
                         () -> post("/inventory/transfers/{id}/approve", ID)),
-                endpoint("transfer ship", "inventory.transfer", "EDIT", "WAREHOUSE",
+                endpoint("transfer ship", "inventory.transfer", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/transfers/{id}/ship", ID)),
-                endpoint("warehouse list", "inventory.warehouse", "VIEW", "WAREHOUSE",
+                endpoint("warehouse list", "inventory.warehouse", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/inventory/warehouses")),
-                endpoint("warehouse create", "inventory.warehouse.admin", "EDIT", "MANAGER",
+                endpoint("warehouse create", "inventory.warehouse.admin", PermissionAction.CREATE, "MANAGER",
                         () -> post("/inventory/warehouses").contentType(MediaType.APPLICATION_JSON).content(warehouseBody())),
-                endpoint("warehouse deleted", "inventory.warehouse.admin", "EDIT", "MANAGER",
+                endpoint("warehouse deleted", "inventory.warehouse.admin", PermissionAction.VIEW, "MANAGER",
                         () -> get("/inventory/warehouses/deleted")),
-                endpoint("dps compare", "inventory.dps", "VIEW", "WAREHOUSE",
+                endpoint("warehouse restore", "inventory.warehouse.admin", PermissionAction.RESTORE, "MANAGER",
+                        () -> post("/inventory/warehouses/{id}/restore", ID)),
+                endpoint("warehouse revert audit", "inventory.warehouse.admin", PermissionAction.RESTORE, "MANAGER",
+                        () -> post("/inventory/warehouses/{id}/audit/revert/{revisionNo}", ID, 1)),
+                endpoint("dps compare", "inventory.dps", PermissionAction.VIEW, "WAREHOUSE",
                         () -> multipart("/warehouse/audit/dps-compare").file(csv("file"))
                                 .param("from", "2026-05-26").param("to", "2026-05-27")),
-                endpoint("dps history save", "inventory.dps", "VIEW", "WAREHOUSE",
+                endpoint("dps template download", "inventory.dps", PermissionAction.DOWNLOAD, "WAREHOUSE",
+                        () -> get("/warehouse/audit/dps-compare/template")),
+                endpoint("dps history save", "inventory.dps", PermissionAction.CREATE, "WAREHOUSE",
                         () -> post("/warehouse/audit/dps-history").contentType(MediaType.APPLICATION_JSON).content(historyBody())),
-                endpoint("inbound inspection get", "inventory.stock-balance", "VIEW", "WAREHOUSE",
+                endpoint("inbound inspection get", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/inventory/inbound-inspections/{id}", ID)),
-                endpoint("inbound inspection complete", "inventory.stock-balance", "EDIT", "WAREHOUSE",
+                endpoint("inbound inspection complete", "inventory.stock-balance", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/inbound-inspections/{id}/complete", ID)),
-                endpoint("attachment upload", "inventory.stock-balance", "EDIT", "WAREHOUSE",
+                endpoint("attachment upload", "inventory.stock-balance", PermissionAction.CREATE, "WAREHOUSE",
                         () -> multipart("/inventory/inspections/{id}/attachments", ID).file(image("file"))),
-                endpoint("attachment list", "inventory.stock-balance.view", "VIEW", "STAFF",
+                endpoint("attachment list", "inventory.stock-balance.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/inventory/inspections/{id}/attachments", ID)),
-                endpoint("attachment detail", "inventory.stock-balance.view", "VIEW", "STAFF",
+                endpoint("attachment detail", "inventory.stock-balance.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)),
-                endpoint("attachment delete", "inventory.stock-balance", "EDIT", "MANAGER",
+                endpoint("attachment delete", "inventory.stock-balance", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)),
-                endpoint("audit list", "inventory.detail", "VIEW", "ACCOUNTANT",
+                endpoint("audit list", "inventory.detail", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/inventory/audits")),
-                endpoint("audit create", "inventory.adjust", "EDIT", "INVENTORY",
+                endpoint("audit create", "inventory.adjust", PermissionAction.CREATE, "INVENTORY",
                         () -> post("/inventory/audits").contentType(MediaType.APPLICATION_JSON).content(auditBody())),
-                endpoint("audit line", "inventory.stock-balance", "EDIT", "WAREHOUSE",
+                endpoint("audit line", "inventory.stock-balance", PermissionAction.CREATE, "WAREHOUSE",
                         () -> post("/inventory/audits/{id}/lines", ID).contentType(MediaType.APPLICATION_JSON).content(auditLineBody())),
-                endpoint("audit edit request create", "inventory.edit-requests", "EDIT", "ACCOUNTANT",
+                endpoint("audit edit request create", "inventory.edit-requests", PermissionAction.CREATE, "ACCOUNTANT",
                         () -> post("/inventory/audits/{id}/edit-requests", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"requestType\":\"EDIT\",\"reason\":\"reason\"}")),
-                endpoint("audit edit request pending", "inventory.edit-requests.decide", "VIEW", "ACCOUNTANT",
+                endpoint("audit edit request pending", "inventory.edit-requests.decide", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/inventory/audits/edit-requests/pending")),
-                endpoint("audit edit request approve", "inventory.edit-requests.decide", "EDIT", "MANAGER",
+                endpoint("audit edit request approve", "inventory.edit-requests.decide", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/inventory/audits/edit-requests/{requestId}/approve", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"ok\"}")),
-                endpoint("safety alerts", "inventory.safety-stock", "VIEW", "WAREHOUSE",
+                endpoint("safety alerts", "inventory.safety-stock", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/inventory/alerts/safety-stock")),
-                endpoint("safety set", "inventory.safety-stock", "EDIT", "WAREHOUSE",
+                endpoint("safety set", "inventory.safety-stock", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/products/{id}/safety-stock", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"threshold\":10,\"note\":\"note\"}")),
-                endpoint("ecount warehouse import", "ecount.import.inventory", "EDIT", "MANAGER",
+                endpoint("ecount warehouse import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/warehouses/imports/ecount").file(csv("file"))),
-                endpoint("ecount transfer import", "ecount.import.inventory", "EDIT", "MANAGER",
+                endpoint("ecount transfer import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/inventory/stock-transfers/imports/ecount").file(csv("file")))
         );
     }
 
     private static EndpointCase endpoint(
-            String name, String page, String action, String role,
+            String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
         return new EndpointCase(name, page, action, role, request);
     }
@@ -407,13 +413,13 @@ class InventoryPermissionControllerIT {
                 .header(DEPARTMENT_HEADER, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
     }
 
-    private double deniedCount(String page, String role, String action) {
+    private double deniedCount(String page, String role, PermissionAction action) {
         return meterRegistry.counter(
                 PermissionGuardMetrics.COUNTER_NAME,
                 "service", SERVICE_NAME,
                 "page", page,
                 "role", role,
-                "action", action
+                "action", action.name()
         ).count();
     }
 
@@ -472,7 +478,7 @@ class InventoryPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             Supplier<MockHttpServletRequestBuilder> request) {
 

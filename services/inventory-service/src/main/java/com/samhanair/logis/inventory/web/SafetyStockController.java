@@ -63,7 +63,7 @@ public class SafetyStockController {
                     description = "권한 없음")
     })
     @GetMapping("/alerts/safety-stock")
-    @RequirePermission(page = "inventory.safety-stock", action = "VIEW")
+    @RequirePermission(page = "inventory.safety-stock", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SafetyStockAlertResponse>> listAlerts() {
         return ApiResponse.ok(safetyStockService.findAlerts());
     }
@@ -87,7 +87,7 @@ public class SafetyStockController {
                     description = "권한 없음")
     })
     @GetMapping("/alerts/safety-stock/count")
-    @RequirePermission(page = "inventory.safety-stock", action = "VIEW")
+    @RequirePermission(page = "inventory.safety-stock", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<java.util.Map<String, Integer>> alertCount() {
         return ApiResponse.ok(java.util.Map.of("count", safetyStockService.findAlerts().size()));
     }
@@ -118,7 +118,7 @@ public class SafetyStockController {
     })
     @PostMapping("/products/{productId}/safety-stock")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "inventory.safety-stock", action = "EDIT")
+    @RequirePermission(page = "inventory.safety-stock", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SafetyStockConfigResponse> setSafetyStock(
             @PathVariable UUID productId,
             @Valid @RequestBody SafetyStockSetRequest request) {

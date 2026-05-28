@@ -4,7 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,10 +33,11 @@ import org.springframework.stereotype.Component;
  *
  * <p>IT 에서 {@code @MockBean} 격리 필요 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class InventoryPermissionGuard {
+
+    private static final Logger log = LoggerFactory.getLogger(InventoryPermissionGuard.class);
 
     // ---- 지원 페이지 코드 상수 ----
 

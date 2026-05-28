@@ -28,7 +28,7 @@ public class EcountWarehouseImportController {
     private final EcountWarehouseImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "ecount.import.inventory", action = "EDIT")
+    @RequirePermission(page = "ecount.import.inventory", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "이카운트 창고 CSV 적재")
     public EcountWarehouseImportResult upload(
             @RequestPart("file") MultipartFile file,

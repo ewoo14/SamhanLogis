@@ -78,7 +78,7 @@ public class StockController {
      */
     @Operation(summary = "재고 잔량 조회", description = "productId 의 모든 창고 잔량 페이지")
     @GetMapping("/balances")
-    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<StockBalanceResponse>> balances(
             @RequestParam UUID productId,
             @RequestParam(defaultValue = "0") int page,
@@ -113,7 +113,7 @@ public class StockController {
                     description = "권한 없음 (인증 미설정 등)")
     })
     @PostMapping("/balances/batch")
-    @RequirePermission(page = "inventory.list", action = "VIEW")
+    @RequirePermission(page = "inventory.list", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<ProductBalanceResponse>> batchBalances(
             @Valid @RequestBody BatchBalanceRequest request) {
         return ApiResponse.ok(stockService.findBalancesByProductIds(request.productIds()));
@@ -130,7 +130,7 @@ public class StockController {
      */
     @Operation(summary = "로트 조회", description = "productId / warehouseId 조합 필터 페이지")
     @GetMapping("/lots")
-    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<StockLotResponse>> lots(
             @RequestParam(required = false) UUID productId,
             @RequestParam(required = false) UUID warehouseId,
@@ -168,7 +168,7 @@ public class StockController {
      */
     @Operation(summary = "이동 이력 조회", description = "occurredAt DESC. lot/product/warehouse 우선순위 필터")
     @GetMapping("/movements")
-    @RequirePermission(page = "inventory.stock-balance", action = "VIEW")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<StockMovementResponse>> movements(
             @RequestParam(required = false) UUID lotId,
             @RequestParam(required = false) UUID productId,
@@ -212,7 +212,7 @@ public class StockController {
     })
     @PostMapping("/lots/inbound")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<StockLotResponse> inbound(
             @Valid @RequestBody InboundRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -226,7 +226,7 @@ public class StockController {
      */
     @Operation(summary = "재고 예약", description = "availableQty 에서 reservedQty 로 이동")
     @PostMapping("/reserve")
-    @RequirePermission(page = "inventory.list", action = "EDIT")
+    @RequirePermission(page = "inventory.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<ReservationResponse> reserve(
             @Valid @RequestBody ReserveRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -240,7 +240,7 @@ public class StockController {
      */
     @Operation(summary = "예약 해제", description = "reservedQty 에서 availableQty 로 되돌림")
     @PostMapping("/release")
-    @RequirePermission(page = "inventory.list", action = "EDIT")
+    @RequirePermission(page = "inventory.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<ReservationResponse> release(
             @Valid @RequestBody ReleaseRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -258,7 +258,7 @@ public class StockController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 version 충돌")
     })
     @PostMapping("/deduct")
-    @RequirePermission(page = "inventory.list", action = "EDIT")
+    @RequirePermission(page = "inventory.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeductionResponse> deduct(
             @Valid @RequestBody DeductRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -272,7 +272,7 @@ public class StockController {
      */
     @Operation(summary = "재고 조정", description = "실사 조정 — delta 부호로 balance 가감")
     @PostMapping("/adjust")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeductionResponse> adjust(
             @Valid @RequestBody AdjustRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -298,7 +298,7 @@ public class StockController {
                     description = "권한 없음")
     })
     @GetMapping("/stocks/export.xlsx")
-    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) UUID warehouseId) {
         byte[] xlsx = stockExcelExportService.export(warehouseId);

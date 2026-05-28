@@ -68,7 +68,7 @@ public class DpsCompareController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "slip-service 호출 실패")
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "inventory.dps", action = "VIEW")
+    @RequirePermission(page = "inventory.dps", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DpsCompareResponse> compare(
             @RequestParam("file") MultipartFile file,
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -89,7 +89,7 @@ public class DpsCompareController {
     @Operation(summary = "DPS 엑셀 양식 다운로드",
             description = "헤더 row 만 있는 빈 .xlsx — 사용자가 채워서 다시 업로드")
     @GetMapping("/template")
-    @RequirePermission(page = "inventory.dps", action = "VIEW")
+    @RequirePermission(page = "inventory.dps", action = com.samhanair.logis.security.permission.PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> downloadTemplate() {
         byte[] body = dpsCompareService.generateTemplate();
         return ResponseEntity.ok()
@@ -123,7 +123,7 @@ public class DpsCompareController {
     })
     @GetMapping("/by-product")
     @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
-    @RequirePermission(page = "inventory.dps", action = "VIEW")
+    @RequirePermission(page = "inventory.dps", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DpsByProductResponse> analyzeByProduct(
             @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
