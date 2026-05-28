@@ -8,6 +8,6 @@
 1. **`approval-policy: "never"`** 로 호출 → Codex 가 승인 팝업을 절대 띄우지 않음.
 2. Codex 프롬프트에 **"git add/commit/branch 등 git 명령 실행 금지 — 파일 수정만 하고 commit 은 Claude 가 대행"** 명시.
 3. Codex 완료 후 Claude 가 `git status` 로 변경 확인 → targeted compile/test 로 검증([[verification-before-completion]]) → plan task 기준 logical commit 으로 Claude 가 commit ([[korean-commits]], Co-Authored-By Codex 명시).
-4. model 주의: 본 ChatGPT 계정 Codex 는 `gpt-5.2-codex` **미지원** (400 error) — `model` 생략(기본) + `config:{model_reasoning_effort:"high"}` 로 보안/migration 시 고강도 ([[codex-model-auto-switch]]).
+4. model: **`gpt-5.5` 최고 버전 상시 사용** (2026-05-28 사용자 directive [[codex-model-auto-switch]]) + `config:{model_reasoning_effort:"high"}` (보안/migration 은 `"xhigh"`). 주의: `gpt-5.2-codex` 는 본 ChatGPT 계정 미지원(400 error).
 
 [[codex-implements-claude-reviews]] 의 "workspace-write + Claude commit 대행 폴백" 을 구체화. [[codex-plugin-setup]] [[codex-mcp-session-limit]] 참조.

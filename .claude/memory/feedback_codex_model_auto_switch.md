@@ -1,18 +1,29 @@
 ---
 name: codex-model-auto-switch
-description: Codex 호출 시 default는 spark+medium (fast), 특정 시나리오에서는 gpt-5.5 + high/xhigh 자동 전환. PM 판단 의무
+description: Codex 는 항상 gpt-5.5 최고 모델 사용 (2026-05-28 사용자 directive). effort 는 시나리오별 high/xhigh
 metadata:
   type: feedback
 ---
 
-# Codex 모델 자동 전환 규칙 (2026-05-17 신규)
+# Codex 모델 규칙
 
-## 기본 규칙
+## 🚨 2026-05-28 사용자 directive — gpt-5.5 최고 모델 상시 사용
 
-- **Default**: `model = "gpt-5.3-codex-spark"` + `model_reasoning_effort = "medium"` (`~/.codex/config.toml` 영구)
-- **자동 전환**: 아래 시나리오 진입 시 PM 이 `--model gpt-5.5 --effort high` 또는 `xhigh` override 자동 추가 (사용자 질문 불필요)
+사용자(개발책임자) 명시: **"코덱스는 gpt 5.5 최고 버전 모델을 사용하도록"**. 따라서 모든 Codex 호출에 **`model = "gpt-5.5"`** (최고 버전) 사용. spark/medium default 폐기.
 
-**Why:** 일상 sliced 작업 (단순 fix, label 변경, 한국어 치환, lint, mock PNG regen) 은 spark + medium 으로 충분. 단 critical 깊이 필요 작업에서 spark 의 얕은 reasoning 으로 결함 놓치면 `feedback_no_conditional_merge.md` 위반.
+**How to apply (`mcp__codex__codex` 호출):**
+- `model: "gpt-5.5"` (최고 버전). `config: {model_reasoning_effort: "high"}` 기본, 보안/migration/architecture/incident 는 `"xhigh"`.
+- **주의**: 본 ChatGPT 계정 Codex 는 `gpt-5.2-codex` 미지원(400 error). `gpt-5.5` 가 거부되면 사용자에 보고 후 대체 변형 시도.
+- 그 외 디스패치 규칙은 [[codex-sandbox-git]] (git 금지 + Claude commit 대행 + approval-policy never).
+
+**Why (구버전):** (history) 과거엔 일상 작업 spark+medium / critical 만 gpt-5.5 전환이었으나, 사용자가 상시 최고 모델로 통일 지시.
+
+---
+
+## (history) 효과(effort) 시나리오 표 — model 은 항상 gpt-5.5, effort 만 분기
+
+- **Default effort**: `high`
+- **xhigh 시나리오**: 아래 표 (보안/migration/architecture/race/incident/AWS sizing/vendor)
 
 **How to apply:** Codex 호출 prompt 작성 시 시나리오 분류 → 아래 표대로 `--model` / `--effort` override 자동 추가.
 
