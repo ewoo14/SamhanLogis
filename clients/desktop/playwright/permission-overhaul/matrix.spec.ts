@@ -25,6 +25,35 @@ async function fulfillJson(route: Route, body: unknown) {
   })
 }
 
+async function installAuthMock(page: Page) {
+  await page.addInitScript(() => {
+    const auth = {
+      token: 'playwright-token',
+      userId: '00000000-0000-0000-0000-000000010001',
+      role: 'MASTER',
+      fullName: '오병승',
+      partnerCode: 'P-MOCK-001',
+    }
+    Object.defineProperty(window, 'samhanAuth', {
+      configurable: true,
+      value: {
+        getToken: async () => auth,
+        setToken: async () => undefined,
+        clearToken: async () => undefined,
+      },
+    })
+  })
+}
+
+async function mockNotifications(page: Page) {
+  await page.route('**/api/notifications/my', async route => {
+    await fulfillJson(route, {
+      success: true,
+      data: [],
+    })
+  })
+}
+
 async function mockPermissionAdmin(page: Page) {
   await page.route('**/permissions/my', async route => {
     await fulfillJson(route, {
@@ -96,6 +125,8 @@ async function mockAccountMatrix(page: Page) {
 
 test.describe('Phase 1 Stage 3 Task 12 permission matrix', () => {
   test('계정 선택 → 7 action 렌더 → 셀 토글 → 변경 카운트 → 저장 호출', async ({ page }) => {
+    await installAuthMock(page)
+    await mockNotifications(page)
     await mockPermissionAdmin(page)
     await mockAccounts(page)
     await mockAccountMatrix(page)
