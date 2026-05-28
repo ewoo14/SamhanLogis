@@ -4,6 +4,42 @@
 
 ---
 
+## 🚧 2026-05-29 진행 — 권한 재편 Phase 1: Stage 2b~4 완료 + PR #316 발행 + 사이클 1 Claude 리뷰 완료 / 🛑 Codex runner 환경 블로커
+
+**브랜치**: `feat/phase-1-permission-overhaul-framework` HEAD `8e863d5a` (origin push 완료). **PR #316** (base main, `[FEAT] Phase 1 권한 프레임워크`).
+
+### 이번 세션 완료
+- **Stage 2b 검증완료**: `d48a0441`(Codex 미검증 WIP) 9 service + slip compileJava/compileTestJava **BUILD SUCCESSFUL** + `EstimatePermissionGuardTest` PASS. 결함 0.
+- **Stage 3 FE 완료** (각 검증+커밋): SP-PO-11 `697363e2`(permissionsApi/usePermissions 7-action + account API + **`/auth/admin/permissions/my` account 7-action 전환** — internal endpoint 403 회피, BE PermissionAdminController 갱신) · SP-PO-12 `96c4174d`(PermissionMatrixPage 평탄 매트릭스 재작성) · SP-PO-13 `229d0fd5`(다계정 wizard + route) · SP-PO-14 `249510ee`(AppLayout 게이트 + Playwright 3 spec). FE typecheck/lint(0 err)/build PASS, Playwright 3 passed(Vite:5174 + SKIP_WEB_SERVER).
+  - ⚠️ desktop unit test runner 없음 → Task 11 vitest 크로스프로젝트 hack + @ts-nocheck 제거(CI lint 깨짐 회피). FE 검증 = Playwright + BE test.
+  - 과도기 shim: `PermissionLookupAction = PermissionAction|'edit'` + `normalizePermissionAction`(edit→update). 라우트 prop 정리는 후속(D-PO-09).
+- **Stage 2a 재검증**: accounting/inventory/arologis/auth compile(main+test) BUILD SUCCESSFUL.
+- **Stage 4 docs 완료**: `8e863d5a` — dev-report `docs/dev-reports/phase-1-permission-overhaul-framework.md` + DECISIONS `migration/decisions/DECISIONS.md` D-PO-00~09 + overview.html(nav-badge/권한 callout 7-action) + README + auth-service README.
+
+### 사이클 1 Claude 5-agent 리뷰 완료 (head `8e863d5a`, TM 통합 PR comment 게시됨)
+- raw: `docs/qa/phase-1-permission-overhaul/claude-{be,fe,designer,qa,devops}-cycle-1.md` (uncommitted 리뷰 산출물).
+- **CI = RED** (backend test 7 job FAIL — 컴파일/assemble 은 PASS, FE/Playwright GREEN).
+- **P0-1**: `V39MigrationParityIT`/`V39PartnerExclusionIT`/`V39GuardGatedPageIT` 가 `@TestPropertySource(spring.profiles.active=local)` 류로 H2+Flyway-off → Spring context 로드 실패(`DriverDataSource:109`). V39 행동보존 검증 근거 0.
+- **P0-2**: `AuthPermissionMigrationIT` 7~8건 stale — 신규 MASTER short-circuit bypass(D-PO-05)와 모순(403 기대→200). 신규 정책으로 갱신 필요.
+- **P1 (see-saw)**: 도메인 권한 IT 다수(Product/Dps/EcountMig6 등) — `X-User-Id`(account UUID) 미전파 → accountId null deny, 또는 2-action stub 잔재. account+action-aware stub 일괄 보강 필요.
+- **P1 (V39 행동보존)**: ① `inventory.dps` DOWNLOAD 보존표 누락(narrowing) ② `inventory.stock-balance` DOWNLOAD 누락(narrowing) ③ `accounting.tax-invoice.list` PRINT SALES widening(V8 의도 FALSE 덮어씀) ④ accounting `report/*Controller` 11 데이터 GET `PRINT`→`VIEW` 오매핑. → V39 보존표를 **post-V8/V31/V32/V38 효과적 grant** 기준 재산출.
+- **P1 (FE)**: `PermissionMatrixPage.tsx:768` 컬럼 토글이 visiblePages 기준(spec 전 page 불일치).
+- **P1 (Designer)**: bulk grants 모드 12 page만(173 필요) / 대량 토글 confirm·미리보기 부재 + native confirm(DS Modal 미사용).
+- **P2**: JournalController 레거시 role 가드(Phase 2 drop 시 mutation 403), V39 active 필터, V39 보존 IT 회귀 미포착.
+
+### 🛑 블로커 — Codex runner pipe timeout (환경)
+- 사이클 1 Codex fix 디스패치 2회 모두 `windows sandbox: timed out after 15000ms connecting runner pipe-in` 으로 **미시작**(파일 미수정). host 자원 경합(24 Docker 컨테이너, WSL vmmem 4.4GB, free ~4GB). Claude 자체 PowerShell 은 느리지만 동작(auto-background). Codex sandbox 의 15s 연결 timeout 이 부족.
+- **회복**: Docker 로컬 스택 일부 down 으로 자원 확보 후 Codex 재시도, 또는 새 세션(메모리 회복).
+
+### 🔑 다음 세션 즉시 재개 (사이클 1 fix → 완주)
+1. `git checkout feat/phase-1-permission-overhaul-framework; git pull` → `$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle\codex-home'`. 자원 확보(불필요 Docker down) 확인.
+2. **Codex fix 디스패치** (gpt-5.5 / effort high / approval-policy never / **sandbox workspace-write** / **git 금지→Claude commit 대행**): 리뷰 파일 3종 read → `gh run view --log-failed` 전수 enumerate → P0-1(V39 IT 하네스 Testcontainers 정렬) + P0-2(AuthPermissionMigrationIT MASTER bypass 갱신) + P1 see-saw(X-User-Id+stub 일괄) + V39 보존표 재산출(narrowing/widening/report 매핑) 일괄 fix. compile 검증.
+3. Claude commit + push → 사이클 1 후반: **Codex 5-agent 리뷰** (5 병렬, head 갱신 기준) → TM Codex 통합 PR comment → Codex fix.
+4. CI watch green → 1f fix 발동 시 **사이클 N=2 의무**([[cycle-n2-mandatory]]) → 양쪽 APPROVE + CI green → PM 자동 머지([[user-merge-authority]]).
+- ⚠️ **CI green 전 PM 마지막 리뷰 게시 금지**([[dual-5agent-review]] 함정). codex-reply 는 sandbox param 없음 → fix 는 fresh `mcp__codex__codex` 호출.
+
+---
+
 ## 🚧 2026-05-28 진행 — 권한 재편 Phase 1 구현 중 (Stage 1+2a 검증완료 / 2b WIP 미검증 / 세션 재시작)
 
 **브랜치 (둘 다 origin push 완료)**:
