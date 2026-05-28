@@ -1,6 +1,8 @@
 package com.samhanair.logis.arologis.it;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,6 +17,7 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +94,8 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     void setupLenientStubs() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -103,7 +108,8 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     void C1_dispatch_board_canView_true_returns_200() throws Exception {
         // canView=true (lenient 기본값 사용)
         mockMvc.perform(get("/api/v1/arologis/admin/dispatches")
-                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .param("page", "0")
                         .param("size", "10"))
                 .andExpect(status().isOk());
@@ -118,10 +124,12 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user-blocked", authorities = {"ROLE_MASTER"})
     void C2_dispatch_board_canView_false_returns_403() throws Exception {
         // canView=false override
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get("/api/v1/arologis/admin/dispatches")
-                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .param("page", "0")
                         .param("size", "10"))
                 .andExpect(status().isForbidden());
@@ -136,12 +144,13 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-view-only", authorities = {"ROLE_MASTER"})
     void C3_auto_match_canEdit_false_canView_true_returns_403() throws Exception {
         // view-only override: canEdit=false, canView=true → 403
-        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
 
         Map<String, String> body = Map.of("dispatchId", UUID.randomUUID().toString());
         mockMvc.perform(post("/api/v1/arologis/admin/dispatches/auto-match")
-                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isForbidden());
@@ -156,12 +165,13 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-fallback", authorities = {"ROLE_MASTER"})
     void C4_auto_match_canEdit_false_canView_false_returns_403() throws Exception {
         // SP-D6 strict policy: canEdit=false + canView=false grant 없음 → fail-closed 403
-        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
 
         Map<String, String> body = Map.of("dispatchId", UUID.randomUUID().toString());
         mockMvc.perform(post("/api/v1/arologis/admin/dispatches/auto-match")
-                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isForbidden());
@@ -175,12 +185,13 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C5: MASTER canEdit=false + canView=true → 기사 변경 PATCH 403 (view-only override)")
     @WithMockUser(username = "master-view-only-driver", authorities = {"ROLE_MASTER"})
     void C5_change_driver_canEdit_false_canView_true_returns_403() throws Exception {
-        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
 
         Map<String, Object> body = Map.of("vehicleSeq", 1, "newDriverCode", "DRV-001");
         mockMvc.perform(patch("/api/v1/arologis/admin/dispatches/" + UUID.randomUUID() + "/driver")
-                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isForbidden());
@@ -196,6 +207,7 @@ class ArologisDynamicPermissionIT extends AbstractPostgresIT {
     void C6_arologis_manager_canView_true_returns_200() throws Exception {
         // canView=true, canEdit=true (lenient 기본값 사용)
         mockMvc.perform(get("/api/v1/arologis/admin/dispatches")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "AROLOGIS_MANAGER")
                         .param("page", "0")
                         .param("size", "10"))

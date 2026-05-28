@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>지원 페이지 코드 (다중 코드):
  * <ul>
- *   <li>{@code arologis.admin} — 아로로지스 배차 관리 (22 endpoint)</li>
+ *   <li>{@code arologis.dispatch.admin} — 아로로지스 배차 관리 (22 endpoint)</li>
  *   <li>{@code arologis.region} — 아로로지스 지역/구역 관리</li>
  * </ul>
  *
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
 public class ArologisAdminPermissionGuard {
 
     /** 아로로지스 배차 관리 페이지 코드. */
-    public static final String PAGE_ADMIN  = "arologis.admin";
+    public static final String PAGE_ADMIN  = "arologis.dispatch.admin";
     /** 아로로지스 지역/구역 관리 페이지 코드. */
     public static final String PAGE_REGION = "arologis.region";
 

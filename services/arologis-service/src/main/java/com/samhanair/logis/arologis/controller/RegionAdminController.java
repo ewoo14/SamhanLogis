@@ -61,7 +61,7 @@ public class RegionAdminController {
     /** 전체 활성 분류 조회 (sort_order 오름차순). */
     @Operation(summary = "지역 분류 전체 조회 (Admin)")
     @GetMapping
-    @RequirePermission(page = "arologis.region", action = "VIEW")
+    @RequirePermission(page = "arologis.region", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<RegionResponse>> list(
             @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         List<RegionDispatchClassification> all = regionService.findAll();
@@ -71,7 +71,7 @@ public class RegionAdminController {
     /** 단건 신규 등록 — group_name 활성 행 unique. */
     @Operation(summary = "지역 분류 단건 추가 (Admin)")
     @PostMapping
-    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
+    @RequirePermission(page = "arologis.region.manage", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<RegionResponse> create(
             @Valid @RequestBody RegionUpsertRequest req,
             @org.springframework.web.bind.annotation.RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -91,7 +91,7 @@ public class RegionAdminController {
     @Operation(summary = "지역 분류 CSV 일괄 import (Admin)",
             description = "노션 export CSV (UTF-8 BOM, RFC4180 quoted) 우리 DB native upsert")
     @PostMapping("/import")
-    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
+    @RequirePermission(page = "arologis.region.manage", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<RegionImportService.ImportResult> importCsv(
             @RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -114,7 +114,7 @@ public class RegionAdminController {
     /** 단건 수정 — keywords + sortOrder. group_name 불변. */
     @Operation(summary = "지역 분류 단건 수정 (Admin)")
     @PutMapping("/{id}")
-    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
+    @RequirePermission(page = "arologis.region.manage", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<RegionResponse> update(
             @PathVariable UUID id, @Valid @RequestBody RegionUpsertRequest req) {
         RegionDispatchClassification updated = regionService.update(id, req.keywords(), req.sortOrder());
@@ -124,7 +124,7 @@ public class RegionAdminController {
     /** Soft Delete — admin 전용. */
     @Operation(summary = "지역 분류 Soft Delete (Admin)")
     @DeleteMapping("/{id}")
-    @RequirePermission(page = "arologis.region.manage", action = "EDIT")
+    @RequirePermission(page = "arologis.region.manage", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<Map<String, String>> softDelete(
             @PathVariable UUID id, HttpServletRequest request) {
         String userId = request.getHeader("X-User-Id");

@@ -94,7 +94,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "오늘의 배정된 dispatch 목록 조회 (Driver-app)")
     @GetMapping("/dispatches/today")
-    @RequirePermission(page = "arologis.driver", action = "VIEW")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<DriverTodayVehicleResponse>> today(HttpServletRequest request) {
         String userIdHeader = request.getHeader("X-User-Id");
         if (userIdHeader == null || userIdHeader.isBlank()) {
@@ -151,7 +151,7 @@ public class ArologisDriverAppController {
      */
     @Operation(summary = "GPS 위치 보고 (Driver-app)")
     @PostMapping("/locations")
-    @RequirePermission(page = "arologis.driver", action = "EDIT")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<Map<String, Object>> reportLocation(
             HttpServletRequest request, @RequestBody Map<String, String> body) {
         String userIdHeader = request.getHeader("X-User-Id");
@@ -231,7 +231,7 @@ public class ArologisDriverAppController {
     @Deprecated(forRemoval = true)
     @Operation(summary = "[DEPRECATED] 전자서명 등록 (W10-4) — Phase F /sign-and-send-copy 로 대체")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign")
-    @RequirePermission(page = "arologis.driver", action = "EDIT")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<Map<String, Object>> sign(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
             @RequestBody Map<String, String> body) {
@@ -300,7 +300,7 @@ public class ArologisDriverAppController {
                     + "Aligo 미사용 — 응답 PNG 를 mobile 이 받아 Share Sheet 으로 인수자에게 발송.")
     @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
             produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
-    @RequirePermission(page = "arologis.driver", action = "EDIT")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<?> signAndSendCopyToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -342,7 +342,7 @@ public class ArologisDriverAppController {
     @PostMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/photos/{photoType}",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @RequirePermission(page = "arologis.driver", action = "EDIT")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<DriverPhotoUploadResponse>> uploadStopPhotoToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -400,7 +400,7 @@ public class ArologisDriverAppController {
             description = "ROLE_AROLOGIS_DRIVER. 오늘 본인 배차 정차 기준으로 읽기 전용 전표 상세를 조회한다.")
     @GetMapping(value = "/dispatches/today/{dispatchType}/vehicles/{vehicleSeq}/stops/{stopSeq}/slip-detail",
             produces = MediaType.APPLICATION_JSON_VALUE)
-    @RequirePermission(page = "arologis.driver", action = "VIEW")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ResponseEntity<ApiResponse<DriverSlipDetailResponse>> slipDetailToday(
             @PathVariable DispatchType dispatchType,
             @PathVariable Integer vehicleSeq,
@@ -441,7 +441,7 @@ public class ArologisDriverAppController {
      */
     @PostMapping(value = "/dispatches/{dispatchId}/vehicles/{vehicleSeq}/stops/{stopSeq}/sign-and-send-copy",
             produces = {MediaType.IMAGE_PNG_VALUE, MediaType.APPLICATION_JSON_VALUE})
-    @RequirePermission(page = "arologis.driver", action = "EDIT")
+    @RequirePermission(page = "arologis.driver", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Deprecated(forRemoval = false)
     public ResponseEntity<?> signAndSendCopy(
             @PathVariable UUID dispatchId,
