@@ -4276,6 +4276,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ])
   }
 
+  // POST /auth/admin/permissions/bulk — Task 13 다계정 일괄 wizard mock.
+  if (method === 'POST' && (url.includes('/auth/admin/permissions/bulk') || url.includes('/admin/permissions/bulk'))) {
+    const body = parseMockBody(config) as {
+      accountIds?: string[]
+      mode?: 'template' | 'grants'
+      roleCode?: string
+      grants?: Array<{ actions?: Record<string, boolean> }>
+    }
+    const accountCount = Array.isArray(body.accountIds) ? body.accountIds.length : 0
+    if (body.mode === 'template' && body.roleCode) {
+      return envelope({ changedCount: accountCount * SP_D1_PAGES.length * 7 })
+    }
+    if (body.mode === 'grants' && Array.isArray(body.grants)) {
+      const actionCount = body.grants.reduce((sum, grant) => {
+        return sum + Object.values(grant.actions ?? {}).filter(Boolean).length
+      }, 0)
+      return envelope({ changedCount: accountCount * actionCount })
+    }
+    return envelope({ changedCount: 0 })
+  }
+
   if (
     (url.includes('/auth/admin/permissions/account/') || url.includes('/admin/permissions/account/')) &&
     !url.includes('/apply-template') &&

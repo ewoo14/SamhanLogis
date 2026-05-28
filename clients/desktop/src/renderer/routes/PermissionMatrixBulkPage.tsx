@@ -1,0 +1,679 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Badge, Button, Spinner } from '@samhan/design-system'
+import {
+  PERMISSION_ACTIONS,
+  bulkApply,
+  fetchAccounts,
+  type BulkPermissionRequest,
+  type PageCode,
+  type PermissionAccount,
+  type PermissionAction,
+  type PermissionActionMatrix,
+  type RbacRole,
+} from '../api/permissionsApi'
+import { usePageTitle } from '../hooks/usePageTitle'
+
+const ROLE_LABEL: Record<RbacRole, string> = {
+  MASTER: '마스터',
+  DEVELOPER: '개발자',
+  MANAGER: '매니저',
+  DISPATCH: '배차담당자',
+  SALES: '영업원',
+  ACCOUNTANT: '회계원',
+  WAREHOUSE: '창고원',
+  INVENTORY: '재고원',
+  PARTNER: '파트너',
+  STAFF: '스태프',
+  DRIVER: '운전기사',
+}
+
+const ACTION_LABEL: Record<PermissionAction, string> = {
+  view: 'VIEW',
+  create: 'CREATE',
+  update: 'UPDATE',
+  delete: 'DELETE',
+  restore: 'RESTORE',
+  download: 'DOWNLOAD',
+  print: 'PRINT',
+}
+
+const PAGE_OPTIONS: Array<{ code: PageCode; label: string; domain: string }> = [
+  { code: 'system.permission-admin', label: '시스템 권한', domain: '시스템 관리' },
+  { code: 'accounting.deposit-match', label: '입금 매칭', domain: '회계' },
+  { code: 'accounting.general-ledger', label: '원장', domain: '회계' },
+  { code: 'purchases.receipt-ocr', label: '영수증 OCR', domain: '매입' },
+  { code: 'sales.slip.list', label: '매출 슬립', domain: '매출' },
+  { code: 'slip.transfer.process', label: '전표 처리', domain: '전표 운영' },
+  { code: 'dispatch.board', label: '배차 보드', domain: '배차' },
+  { code: 'notifications.admin', label: '알림 발송', domain: '알림' },
+  { code: 'inventory.stock', label: '재고 현황', domain: '재고' },
+  { code: 'partners.list', label: '거래처 목록', domain: '거래처' },
+  { code: 'products.list', label: '상품 목록', domain: '상품' },
+  { code: 'arologis.admin', label: '아로로지스 배차', domain: '아로로지스' },
+]
+
+type WizardStep = 1 | 2 | 3 | 4
+type BulkMode = BulkPermissionRequest['mode']
+
+function emptyPermissionActions(): PermissionActionMatrix {
+  return {
+    view: false,
+    create: false,
+    update: false,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+  }
+}
+
+function buildActionMatrix(actions: readonly PermissionAction[]): PermissionActionMatrix {
+  const matrix = emptyPermissionActions()
+  for (const action of actions) {
+    matrix[action] = true
+  }
+  return matrix
+}
+
+function pageOptionLabel(page: PageCode): string {
+  const option = PAGE_OPTIONS.find((item) => item.code === page)
+  return option ? `${option.label} (${option.code})` : page
+}
+
+function selectedAccounts(accounts: PermissionAccount[], selectedIds: Set<string>): PermissionAccount[] {
+  return accounts.filter((account) => selectedIds.has(account.id))
+}
+
+export function PermissionMatrixBulkPage() {
+  usePageTitle('권한 일괄 적용')
+
+  const queryClient = useQueryClient()
+  const accountsQuery = useQuery({
+    queryKey: ['admin', 'permission-accounts'],
+    queryFn: fetchAccounts,
+  })
+
+  const [step, setStep] = useState<WizardStep>(1)
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(() => new Set())
+  const [roleFilter, setRoleFilter] = useState<RbacRole | 'ALL'>('ALL')
+  const [enabledOnly, setEnabledOnly] = useState(true)
+  const [mode, setMode] = useState<BulkMode>('template')
+  const [templateRole, setTemplateRole] = useState<RbacRole>('MANAGER')
+  const [selectedPage, setSelectedPage] = useState<PageCode>('dispatch.board')
+  const [selectedActions, setSelectedActions] = useState<Set<PermissionAction>>(() => new Set(['view']))
+  const [toast, setToast] = useState<string | null>(null)
+  const [changedCount, setChangedCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(null), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  const accounts = accountsQuery.data ?? []
+  const selected = useMemo(() => selectedAccounts(accounts, selectedAccountIds), [accounts, selectedAccountIds])
+  const selectedActionList = useMemo(() => PERMISSION_ACTIONS.filter((action) => selectedActions.has(action)), [selectedActions])
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((account) => {
+      if (enabledOnly && !account.enabled) return false
+      if (roleFilter !== 'ALL' && account.role !== roleFilter) return false
+      return true
+    })
+  }, [accounts, enabledOnly, roleFilter])
+
+  const payload = useMemo<BulkPermissionRequest | null>(() => {
+    const accountIds = Array.from(selectedAccountIds)
+    if (accountIds.length === 0) return null
+    if (mode === 'template') {
+      return { accountIds, mode: 'template', roleCode: templateRole }
+    }
+    if (selectedActionList.length === 0) return null
+    return {
+      accountIds,
+      mode: 'grants',
+      grants: [
+        {
+          pageCode: selectedPage,
+          actions: buildActionMatrix(selectedActionList),
+        },
+      ],
+    }
+  }, [mode, selectedAccountIds, selectedActionList, selectedPage, templateRole])
+
+  const previewActionCount = mode === 'template' ? PERMISSION_ACTIONS.length : selectedActionList.length
+  const previewPageCount = mode === 'template' ? '템플릿 전체' : '1개 페이지'
+  const previewImpactCount = selected.length * (mode === 'template' ? 1 : previewActionCount)
+
+  const applyMutation = useMutation({
+    mutationFn: (request: BulkPermissionRequest) => bulkApply(request),
+    onSuccess: (result) => {
+      setChangedCount(result.changedCount)
+      setStep(4)
+      setToast(`${result.changedCount}건의 권한을 일괄 적용했습니다.`)
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-account-matrix'] })
+      void queryClient.invalidateQueries({ queryKey: ['permissions', 'my'] })
+    },
+    onError: () => setToast('권한 일괄 적용 중 오류가 발생했습니다.'),
+  })
+
+  const toggleAccount = useCallback((accountId: string) => {
+    setSelectedAccountIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(accountId)) next.delete(accountId)
+      else next.add(accountId)
+      return next
+    })
+  }, [])
+
+  const toggleAction = useCallback((action: PermissionAction) => {
+    setSelectedActions((prev) => {
+      const next = new Set(prev)
+      if (next.has(action)) next.delete(action)
+      else next.add(action)
+      return next
+    })
+  }, [])
+
+  const goPreview = useCallback(() => {
+    if (!payload) return
+    setStep(3)
+  }, [payload])
+
+  const applyBulk = useCallback(() => {
+    if (!payload) return
+    applyMutation.mutate(payload)
+  }, [applyMutation, payload])
+
+  if (accountsQuery.isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (accountsQuery.isError) {
+    return (
+      <div style={{ padding: 48, color: 'var(--color-danger-600)' }}>
+        계정 목록을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '0 4px 28px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 12 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>권한 일괄 적용</h3>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            여러 계정에 역할 템플릿 또는 단일 페이지 액션 권한을 한 번에 적용합니다.
+          </p>
+        </div>
+        <Badge variant="brand">MASTER</Badge>
+      </div>
+
+      <StepHeader step={step} />
+
+      <section style={panelStyle}>
+        {step === 1 && (
+          <AccountSelectionStep
+            accounts={filteredAccounts}
+            selectedAccountIds={selectedAccountIds}
+            roleFilter={roleFilter}
+            enabledOnly={enabledOnly}
+            onRoleFilterChange={setRoleFilter}
+            onEnabledOnlyChange={setEnabledOnly}
+            onToggleAccount={toggleAccount}
+            onNext={() => setStep(2)}
+          />
+        )}
+
+        {step === 2 && (
+          <ModeStep
+            mode={mode}
+            templateRole={templateRole}
+            selectedPage={selectedPage}
+            selectedActions={selectedActions}
+            canPreview={payload !== null}
+            onModeChange={(nextMode) => setMode(nextMode)}
+            onTemplateRoleChange={setTemplateRole}
+            onSelectedPageChange={setSelectedPage}
+            onToggleAction={toggleAction}
+            onBack={() => setStep(1)}
+            onPreview={goPreview}
+          />
+        )}
+
+        {step === 3 && (
+          <PreviewStep
+            selectedAccounts={selected}
+            mode={mode}
+            templateRole={templateRole}
+            selectedPage={selectedPage}
+            selectedActions={selectedActionList}
+            previewPageCount={previewPageCount}
+            previewImpactCount={previewImpactCount}
+            isPending={applyMutation.isPending}
+            onBack={() => setStep(2)}
+            onApply={applyBulk}
+          />
+        )}
+
+        {step === 4 && (
+          <ResultStep changedCount={changedCount ?? 0} selectedAccounts={selected} onRestart={() => {
+            setChangedCount(null)
+            setStep(1)
+          }} />
+        )}
+      </section>
+
+      {toast && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            position: 'fixed',
+            right: 24,
+            bottom: 24,
+            zIndex: 100,
+            borderRadius: 8,
+            padding: '10px 14px',
+            background: toast.includes('오류') ? 'var(--color-danger-600)' : 'var(--color-success-600)',
+            color: 'var(--color-neutral-0)',
+            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.18)',
+            fontSize: 13,
+          }}
+        >
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StepHeader({ step }: { step: WizardStep }) {
+  const labels = ['계정 선택', '방식 선택', '미리보기', '적용 결과'] as const
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+      {labels.map((label, index) => {
+        const active = step === index + 1
+        const done = step > index + 1
+        return (
+          <div
+            key={label}
+            style={{
+              border: '1px solid var(--color-neutral-200)',
+              borderRadius: 8,
+              padding: '8px 10px',
+              background: active ? 'var(--color-brand-50)' : done ? 'var(--color-success-50)' : 'var(--color-neutral-0)',
+              color: active ? 'var(--color-brand-700)' : 'var(--color-neutral-700)',
+              fontWeight: active ? 700 : 600,
+              fontSize: 13,
+            }}
+          >
+            {index + 1}. {label}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AccountSelectionStep({
+  accounts,
+  selectedAccountIds,
+  roleFilter,
+  enabledOnly,
+  onRoleFilterChange,
+  onEnabledOnlyChange,
+  onToggleAccount,
+  onNext,
+}: {
+  accounts: PermissionAccount[]
+  selectedAccountIds: Set<string>
+  roleFilter: RbacRole | 'ALL'
+  enabledOnly: boolean
+  onRoleFilterChange: (role: RbacRole | 'ALL') => void
+  onEnabledOnlyChange: (enabledOnly: boolean) => void
+  onToggleAccount: (accountId: string) => void
+  onNext: () => void
+}) {
+  return (
+    <>
+      <div style={toolbarStyle}>
+        <select
+          aria-label="역할 필터"
+          value={roleFilter}
+          onChange={(event) => onRoleFilterChange(event.target.value as RbacRole | 'ALL')}
+          style={selectStyle}
+        >
+          <option value="ALL">전체 역할</option>
+          {Object.keys(ROLE_LABEL).map((role) => (
+            <option key={role} value={role}>
+              {ROLE_LABEL[role as RbacRole]}
+            </option>
+          ))}
+        </select>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={enabledOnly}
+            onChange={(event) => onEnabledOnlyChange(event.target.checked)}
+          />
+          활성 계정만
+        </label>
+        <Badge variant="neutral">선택 {selectedAccountIds.size}개</Badge>
+      </div>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        {accounts.map((account) => (
+          <label key={account.id} style={accountRowStyle}>
+            <input
+              type="checkbox"
+              data-testid={`perm-bulk-account-${account.id}`}
+              checked={selectedAccountIds.has(account.id)}
+              onChange={() => onToggleAccount(account.id)}
+              style={{ accentColor: 'var(--color-brand-500)' }}
+            />
+            <span style={{ fontWeight: 700 }}>{account.displayName}</span>
+            <Badge variant={account.enabled ? 'brand' : 'neutral'}>{ROLE_LABEL[account.role] ?? account.role}</Badge>
+            {!account.enabled && <span style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>비활성</span>}
+          </label>
+        ))}
+      </div>
+
+      <WizardActions>
+        <Button variant="primary" onClick={onNext} disabled={selectedAccountIds.size === 0}>
+          다음
+        </Button>
+      </WizardActions>
+    </>
+  )
+}
+
+function ModeStep({
+  mode,
+  templateRole,
+  selectedPage,
+  selectedActions,
+  canPreview,
+  onModeChange,
+  onTemplateRoleChange,
+  onSelectedPageChange,
+  onToggleAction,
+  onBack,
+  onPreview,
+}: {
+  mode: BulkMode
+  templateRole: RbacRole
+  selectedPage: PageCode
+  selectedActions: Set<PermissionAction>
+  canPreview: boolean
+  onModeChange: (mode: BulkMode) => void
+  onTemplateRoleChange: (role: RbacRole) => void
+  onSelectedPageChange: (page: PageCode) => void
+  onToggleAction: (action: PermissionAction) => void
+  onBack: () => void
+  onPreview: () => void
+}) {
+  return (
+    <>
+      <div style={toolbarStyle}>
+        <select
+          data-testid="perm-bulk-mode"
+          aria-label="적용 방식"
+          value={mode}
+          onChange={(event) => onModeChange(event.target.value as BulkMode)}
+          style={selectStyle}
+        >
+          <option value="template">템플릿</option>
+          <option value="grants">명시</option>
+        </select>
+      </div>
+
+      {mode === 'template' ? (
+        <div style={fieldGridStyle}>
+          <label style={fieldLabelStyle}>
+            템플릿 역할
+            <select
+              value={templateRole}
+              onChange={(event) => onTemplateRoleChange(event.target.value as RbacRole)}
+              style={selectStyle}
+            >
+              {Object.keys(ROLE_LABEL).map((role) => (
+                <option key={role} value={role}>
+                  {ROLE_LABEL[role as RbacRole]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div style={fieldGridStyle}>
+          <label style={fieldLabelStyle}>
+            페이지
+            <select
+              aria-label="페이지"
+              value={selectedPage}
+              onChange={(event) => onSelectedPageChange(event.target.value as PageCode)}
+              style={selectStyle}
+            >
+              {PAGE_OPTIONS.map((page) => (
+                <option key={page.code} value={page.code}>
+                  {page.domain} / {page.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {PERMISSION_ACTIONS.map((action) => (
+              <label key={action} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  aria-label={ACTION_LABEL[action]}
+                  checked={selectedActions.has(action)}
+                  onChange={() => onToggleAction(action)}
+                  style={{ accentColor: 'var(--color-brand-500)' }}
+                />
+                {ACTION_LABEL[action]}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <WizardActions>
+        <Button variant="ghost" onClick={onBack}>이전</Button>
+        <Button variant="primary" onClick={onPreview} disabled={!canPreview}>
+          미리보기
+        </Button>
+      </WizardActions>
+    </>
+  )
+}
+
+function PreviewStep({
+  selectedAccounts,
+  mode,
+  templateRole,
+  selectedPage,
+  selectedActions,
+  previewPageCount,
+  previewImpactCount,
+  isPending,
+  onBack,
+  onApply,
+}: {
+  selectedAccounts: PermissionAccount[]
+  mode: BulkMode
+  templateRole: RbacRole
+  selectedPage: PageCode
+  selectedActions: PermissionAction[]
+  previewPageCount: string
+  previewImpactCount: number
+  isPending: boolean
+  onBack: () => void
+  onApply: () => void
+}) {
+  return (
+    <>
+      <div data-testid="perm-bulk-preview" style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <Badge variant="brand">{selectedAccounts.length}개 계정</Badge>
+          <Badge variant="neutral">{previewPageCount}</Badge>
+          <Badge variant="neutral">예상 {previewImpactCount}건</Badge>
+        </div>
+
+        {mode === 'template' ? (
+          <div style={previewBoxStyle}>
+            <strong>{ROLE_LABEL[templateRole]} 템플릿</strong>을 선택한 계정에 적용합니다.
+          </div>
+        ) : (
+          <div style={previewBoxStyle}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{pageOptionLabel(selectedPage)}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {selectedActions.map((action) => (
+                <Badge key={action} variant="brand">{ACTION_LABEL[action]}</Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={tableHeaderStyle}>계정</th>
+              <th style={tableHeaderStyle}>역할</th>
+              <th style={tableHeaderStyle}>적용 내용</th>
+            </tr>
+          </thead>
+          <tbody>
+            {selectedAccounts.map((account) => (
+              <tr key={account.id}>
+                <td style={tableCellStyle}>{account.displayName}</td>
+                <td style={tableCellStyle}>{ROLE_LABEL[account.role] ?? account.role}</td>
+                <td style={tableCellStyle}>
+                  {mode === 'template'
+                    ? `${ROLE_LABEL[templateRole]} 템플릿`
+                    : `${selectedPage} / ${selectedActions.map((action) => ACTION_LABEL[action]).join(', ')}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <WizardActions>
+        <Button variant="ghost" onClick={onBack} disabled={isPending}>이전</Button>
+        <Button variant="primary" data-testid="perm-bulk-apply" onClick={onApply} disabled={isPending}>
+          {isPending ? '적용 중' : '적용'}
+        </Button>
+      </WizardActions>
+    </>
+  )
+}
+
+function ResultStep({
+  changedCount,
+  selectedAccounts,
+  onRestart,
+}: {
+  changedCount: number
+  selectedAccounts: PermissionAccount[]
+  onRestart: () => void
+}) {
+  return (
+    <>
+      <div style={previewBoxStyle}>
+        <h4 style={{ margin: '0 0 8px' }}>일괄 적용 결과</h4>
+        <p style={{ margin: 0, fontSize: 14 }}>
+          {selectedAccounts.length}개 계정에 {changedCount}건의 권한 변경을 적용했습니다.
+        </p>
+      </div>
+      <WizardActions>
+        <Button variant="secondary" onClick={onRestart}>다시 적용</Button>
+      </WizardActions>
+    </>
+  )
+}
+
+function WizardActions({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+      {children}
+    </div>
+  )
+}
+
+const panelStyle: React.CSSProperties = {
+  border: '1px solid var(--color-neutral-200)',
+  borderRadius: 8,
+  padding: 14,
+  background: 'var(--color-neutral-0)',
+  boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
+}
+
+const toolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 12,
+}
+
+const selectStyle: React.CSSProperties = {
+  height: 34,
+  minWidth: 180,
+  border: '1px solid var(--color-neutral-300)',
+  borderRadius: 6,
+  padding: '0 8px',
+  background: 'var(--color-neutral-0)',
+  color: 'var(--color-neutral-900)',
+  fontSize: 13,
+}
+
+const accountRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  minHeight: 40,
+  border: '1px solid var(--color-neutral-200)',
+  borderRadius: 8,
+  padding: '8px 10px',
+  background: 'var(--color-neutral-50)',
+}
+
+const fieldGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+  maxWidth: 640,
+}
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  fontSize: 13,
+  color: 'var(--color-neutral-700)',
+  fontWeight: 700,
+}
+
+const previewBoxStyle: React.CSSProperties = {
+  border: '1px solid var(--color-neutral-200)',
+  borderRadius: 8,
+  padding: 12,
+  background: 'var(--color-neutral-50)',
+}
+
+const tableHeaderStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  textAlign: 'left',
+  borderBottom: '1px solid var(--color-neutral-300)',
+  background: 'var(--color-neutral-50)',
+  color: 'var(--color-neutral-700)',
+}
+
+const tableCellStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  borderBottom: '1px solid var(--color-neutral-200)',
+}
