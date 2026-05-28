@@ -10,6 +10,7 @@ import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.partner.service.PartnerAttachmentService;
 import com.samhanair.logis.partner.web.dto.PartnerAttachmentResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.security.Principal;
@@ -86,7 +87,7 @@ public class PartnerVisitAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "partners.detail", action = "EDIT")
+    @RequirePermission(page = "partners.detail", action = PermissionAction.CREATE)
     public ApiResponse<PartnerAttachmentResponse> upload(
             @PathVariable String partnerCode,
             @RequestParam("file") MultipartFile file,
@@ -117,7 +118,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "영업 방문 사진 목록 조회",
             description = "VISIT_PHOTO 유형만 반환. downloadUrl 는 캐시(만료 가능) — 단건 GET 으로 재발급")
     @GetMapping
-    @RequirePermission(page = "partners.detail.view", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerAttachmentResponse>> list(@PathVariable String partnerCode) {
         Partner partner = partnerRepository.findByPartnerCode(partnerCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -140,7 +141,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "방문 사진 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @RequirePermission(page = "partners.detail.view", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = PermissionAction.VIEW)
     public ApiResponse<PartnerAttachmentResponse> detail(
             @PathVariable String partnerCode,
             @PathVariable UUID attachmentId) {
@@ -160,7 +161,7 @@ public class PartnerVisitAttachmentController {
     @Operation(summary = "방문 사진 soft-delete",
             description = "MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
-    @RequirePermission(page = "partners.edit", action = "EDIT")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable String partnerCode,
             @PathVariable UUID attachmentId,

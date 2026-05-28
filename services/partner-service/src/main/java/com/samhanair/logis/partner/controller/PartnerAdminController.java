@@ -12,6 +12,7 @@ import com.samhanair.logis.partner.service.PartnerCreditService;
 import com.samhanair.logis.partner.service.PartnerExcelExportService;
 import com.samhanair.logis.partner.service.PartnerService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -47,11 +48,10 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>모든 응답은 {@link PartnerAdminResponse} 사용 — UUID 비공개 가드 (memory feedback_uuid_no_user_visibility)
  * 일관 적용. partnerCode 만 응답에 노출, 후속 조회/수정도 partnerCode path variable.
  *
- * <p>SP-D4 동적 권한 이중 가드:
+ * <p>SP-PO-1 동적 권한 가드:
  * <ul>
  *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
- *   <li>GET 조회 → {@link PartnerPermissionGuard#checkView(String, String)} (PAGE_LIST)</li>
- *   <li>POST/PUT/DELETE write → {@link PartnerPermissionGuard#checkEdit(String, String)}</li>
+ *   <li>{@code @RequirePermission} 으로 endpoint 의미별 7-action 검증</li>
  * </ul>
  */
 @RestController
@@ -80,7 +80,7 @@ public class PartnerAdminController {
     })
     @PostMapping
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.edit", action = "EDIT")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.CREATE)
     public ApiResponse<PartnerAdminResponse> create(
             @Valid @RequestBody PartnerAdminRequest req,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -104,7 +104,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
-    @RequirePermission(page = "partners.search", action = "VIEW")
+    @RequirePermission(page = "partners.search", action = PermissionAction.VIEW)
     public ApiResponse<Page<PartnerSummaryResponse>> findAll(
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -126,7 +126,7 @@ public class PartnerAdminController {
     @Operation(summary = "거래처 admin 검색 (Phase 10 P0-5)",
             description = "SALES / MANAGER / MASTER 권한. q + type(status) 필터. items / total / page / size 형식 응답.")
     @GetMapping("/search")
-    @RequirePermission(page = "partners.search", action = "VIEW")
+    @RequirePermission(page = "partners.search", action = PermissionAction.VIEW)
     public ApiResponse<AdminPartnerListResponse> search(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -154,7 +154,7 @@ public class PartnerAdminController {
     })
     @GetMapping("/by-name")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.edit", action = "VIEW")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.VIEW)
     public ApiResponse<PartnerAdminResponse> lookupByName(@RequestParam("name") String name) {
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByName(name)));
     }
@@ -169,7 +169,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @GetMapping("/{partnerCode}")
-    @RequirePermission(page = "partners.detail", action = "VIEW")
+    @RequirePermission(page = "partners.detail", action = PermissionAction.VIEW)
     public ApiResponse<PartnerAdminResponse> findOne(
             @PathVariable String partnerCode,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -184,7 +184,7 @@ public class PartnerAdminController {
     @Operation(summary = "거래처 프로필 수정", description = "name / address / phone 만 변경. creditLimit 변경은 별도 사용")
     @PutMapping("/{partnerCode}")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.edit", action = "EDIT")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerAdminResponse> update(
             @PathVariable String partnerCode,
             @Valid @RequestBody PartnerAdminRequest req,
@@ -198,7 +198,7 @@ public class PartnerAdminController {
     @Operation(summary = "거래처 soft-delete")
     @DeleteMapping("/{partnerCode}")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.delete", action = "EDIT")
+    @RequirePermission(page = "partners.delete", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String partnerCode, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
         partnerService.delete(partnerCode, actor);
@@ -226,7 +226,7 @@ public class PartnerAdminController {
     })
     @GetMapping("/export/aligo-csv")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.edit", action = "VIEW")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportAligoCsv() {
         byte[] csv = aligoExportService.exportAligoCsv();
         String filename = "aligo-address-book-" + java.time.LocalDate.now() + ".csv";
@@ -258,7 +258,7 @@ public class PartnerAdminController {
     })
     @GetMapping("/export.xlsx")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "partners.edit", action = "VIEW")
+    @RequirePermission(page = "partners.edit", action = PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) PartnerStatus status) {
@@ -278,7 +278,7 @@ public class PartnerAdminController {
     @Operation(summary = "신용 거래 이력 페이지 조회",
             description = "SLIP_ISSUED / PAYMENT / CREDIT_LIMIT_CHANGE 시간 역순")
     @GetMapping("/{partnerCode}/credit-history")
-    @RequirePermission(page = "partners.credit-history", action = "VIEW")
+    @RequirePermission(page = "partners.credit-history", action = PermissionAction.VIEW)
     public ApiResponse<List<CreditHistoryResponse>> findHistory(@PathVariable String partnerCode,
                                                                 Pageable pageable) {
         Page<CreditHistoryResponse> page = creditService.findHistory(partnerCode, pageable)

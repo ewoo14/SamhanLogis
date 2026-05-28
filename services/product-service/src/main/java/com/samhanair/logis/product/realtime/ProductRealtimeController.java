@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.realtime;
 
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.UUID;
@@ -45,7 +46,7 @@ public class ProductRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "products.list.view", action = "VIEW")
+    @RequirePermission(page = "products.list.view", action = PermissionAction.VIEW)
     public SseEmitter subscribe(@PathVariable UUID productId) {
         return broker.subscribe(productId);
     }

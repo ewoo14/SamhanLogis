@@ -6,6 +6,7 @@ import com.samhanair.logis.partnerorder.domain.TutorialState;
 import com.samhanair.logis.partnerorder.repository.TutorialStateRepository;
 import com.samhanair.logis.partnerorder.web.dto.TutorialPatchRequest;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +35,7 @@ public class TutorialStateController {
     @Operation(summary = "튜토리얼 상태 PATCH",
             description = "M2 proxy + local mirror 동시 갱신")
     @PatchMapping
-    @RequirePermission(page = "sales.partner-order.tutorial", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.tutorial", action = PermissionAction.UPDATE)
     @Transactional
     public ApiResponse<Void> patch(
             @RequestBody TutorialPatchRequest request,

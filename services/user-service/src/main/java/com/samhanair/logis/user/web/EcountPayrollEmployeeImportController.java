@@ -3,6 +3,7 @@ package com.samhanair.logis.user.web;
 import com.samhanair.logis.common.ecount.EcountImportFileValidator;
 import com.samhanair.logis.common.ecount.EcountMig6ImportResult;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.service.EcountPayrollEmployeeImporter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,7 +28,7 @@ public class EcountPayrollEmployeeImportController {
     private final EcountPayrollEmployeeImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
     @Operation(summary = "이카운트 급여관리사원 CSV 적재")
     public EcountMig6ImportResult upload(
             @RequestPart("file") MultipartFile file,

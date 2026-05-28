@@ -9,6 +9,7 @@ import com.samhanair.logis.notification.dto.ChatRoomMappingResponse;
 import com.samhanair.logis.notification.service.ChatRoomImportService;
 import com.samhanair.logis.notification.service.ChatRoomMappingService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -65,7 +66,7 @@ public class ChatRoomMappingAdminController {
     @Operation(summary = "단톡방 매핑 목록 (Admin)",
             description = "MASTER / MANAGER 권한 필요. partnerCode / chatRoomName 필터 지원.")
     @GetMapping
-    @RequirePermission(page = "messenger.admin", action = "VIEW")
+    @RequirePermission(page = "messenger.admin", action = PermissionAction.VIEW)
     public ApiResponse<List<ChatRoomMappingResponse>> list(
             @RequestParam(required = false) String partnerCode,
             @RequestParam(required = false) String partnerBusinessName,
@@ -104,7 +105,7 @@ public class ChatRoomMappingAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "중복 매핑")
     })
     @PostMapping
-    @RequirePermission(page = "messenger.admin", action = "EDIT")
+    @RequirePermission(page = "messenger.admin", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ChatRoomMappingResponse>> create(
             @Valid @RequestBody ChatRoomMappingCreateRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -124,7 +125,7 @@ public class ChatRoomMappingAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파일 누락 또는 파싱 실패")
     })
     @PostMapping("/import")
-    @RequirePermission(page = "messenger.admin", action = "EDIT")
+    @RequirePermission(page = "messenger.admin", action = PermissionAction.CREATE)
     public ApiResponse<ChatRoomImportResult> importCsv(@RequestPart("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "CSV 파일이 비어있습니다");
@@ -141,7 +142,7 @@ public class ChatRoomMappingAdminController {
      */
     @Operation(summary = "단톡방 매핑 soft-delete (Admin)")
     @DeleteMapping("/{id}")
-    @RequirePermission(page = "messenger.admin", action = "EDIT")
+    @RequirePermission(page = "messenger.admin", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
         mappingService.delete(id, actor);

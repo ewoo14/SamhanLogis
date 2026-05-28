@@ -6,6 +6,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -37,7 +38,7 @@ public class PartnerOrderEditController {
     @Operation(summary = "거래처 주문 즉시 수정",
             description = "본사 SALES/MANAGER/MASTER 가 주문 헤더와 라인을 낙관적 잠금으로 수정합니다.")
     @PutMapping("/{id}")
-    @RequirePermission(page = "sales.partner-order.edit", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerOrderDetailResponse> update(
             @PathVariable String id,
             @Valid @RequestBody PartnerOrderUpdateRequest request,

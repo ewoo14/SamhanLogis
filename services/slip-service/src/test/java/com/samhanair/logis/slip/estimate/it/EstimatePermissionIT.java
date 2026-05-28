@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.estimate.it;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -16,6 +18,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +31,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import java.util.UUID;
 
 /**
  * SP-D4 견적 동적 RBAC IT — estimates.list PageCode 이중 가드 검증.
@@ -46,6 +50,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 class EstimatePermissionIT extends AbstractPostgresIT {
+
+    private static final UUID ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Autowired
     private MockMvc mockMvc;
@@ -84,10 +90,8 @@ class EstimatePermissionIT extends AbstractPostgresIT {
         Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of("담당자"));
         Mockito.lenient()
-                .when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenReturn(true);
-        Mockito.lenient()
-                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+                .when(dynamicPermissionClient.check(
+                        eq(ACCOUNT_ID), anyString(), org.mockito.ArgumentMatchers.any(PermissionAction.class)))
                 .thenReturn(true);
     }
 
@@ -100,6 +104,7 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-user", authorities = {"ROLE_SALES"})
     void C1_sales_canView_true_returns_200() throws Exception {
         mockMvc.perform(get("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
     }
@@ -112,10 +117,12 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: SALES estimates.list canView=false → 견적 목록 403 FORBIDDEN")
     @WithMockUser(username = "sales-denied", authorities = {"ROLE_SALES"})
     void C2_sales_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -131,6 +138,7 @@ class EstimatePermissionIT extends AbstractPostgresIT {
         // canEdit=true (lenient 기본값)
         // 실제 서비스 로직 오류로 400 이 발생할 수 있지만, 403 이 아닌 것만 확인
         mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerId\":\"00000000-0000-0000-0000-000000000001\","
@@ -146,7 +154,7 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     /**
      * C4: view-only override 정책 검증.
      *
-     * <p>canEdit=false + canView=true → {@link EstimatePermissionGuard#checkEdit} 가
+     * <p>CREATE=false → {@link EstimatePermissionGuard#checkEdit} 가
      * {@code BusinessException(FORBIDDEN)} 을 던지고 응답 403 이어야 한다.
      *
      * <p>audit Slice B#4 결함 2 fix:
@@ -157,17 +165,15 @@ class EstimatePermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: SALES canEdit=false + canView=true → POST 견적 생성 403 (view-only override)")
     @WithMockUser(username = "sales-viewonly", authorities = {"ROLE_SALES"})
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
-        // doReturn 방식: @BeforeEach lenient stub 위에 안전하게 override.
-        // canEdit=false → checkEdit 내부에서 canView 조회 → canView=true → FORBIDDEN throw.
         Mockito.doReturn(false)
-                .when(dynamicPermissionClient).canEdit(anyString(), anyString());
-        Mockito.doReturn(true)
-                .when(dynamicPermissionClient).canView(anyString(), anyString());
+                .when(dynamicPermissionClient)
+                .check(eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.CREATE));
 
         // audit Slice B#4 cycle 2 fix: valid body 필수 — @Valid (lines @NotEmpty) 가
         // controller 메서드 진입 전에 검증되므로 빈 body 는 400 (BadRequest) 회귀.
         // lines 1건 + productId/quantity/unitPrice 필수 채워서 @Valid 통과 → checkEdit 도달 → 403.
         mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerId\":\"00000000-0000-0000-0000-000000000001\","

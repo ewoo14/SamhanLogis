@@ -8,6 +8,7 @@ import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmRequest
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmResponse;
 import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderUploadResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -80,7 +81,7 @@ public class VendorOrderController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "OCR 미사용 (Tesseract 미설치)")
     })
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    @RequirePermission(page = "sales.vendor-order", action = "EDIT")
+    @RequirePermission(page = "sales.vendor-order", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<VendorOrderUploadResponse>> upload(
             @Parameter(description = "발주서 파일 (PDF / PNG / JPEG)")
             @RequestPart("file") MultipartFile file,
@@ -109,7 +110,7 @@ public class VendorOrderController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미발견")
     })
     @PostMapping("/confirm")
-    @RequirePermission(page = "sales.vendor-order", action = "EDIT")
+    @RequirePermission(page = "sales.vendor-order", action = PermissionAction.CREATE)
     public ApiResponse<VendorOrderConfirmResponse> confirm(
             @Valid @RequestBody VendorOrderConfirmRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,

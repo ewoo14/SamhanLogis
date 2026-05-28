@@ -3,6 +3,7 @@ package com.samhanair.logis.user.web;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.service.EcountDepartmentImporter;
 import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +29,7 @@ public class EcountDepartmentImportController {
     private final EcountDepartmentImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "ecount.mig2.department", action = "EDIT")
+    @RequirePermission(page = "ecount.mig2.department", action = PermissionAction.CREATE)
     @Operation(summary = "이카운트 부서코드 CSV 적재")
     public EcountDepartmentImportResult upload(
             @RequestPart("file") MultipartFile file,

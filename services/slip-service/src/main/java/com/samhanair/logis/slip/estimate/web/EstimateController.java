@@ -1,6 +1,9 @@
 package com.samhanair.logis.slip.estimate.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
@@ -47,9 +50,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>SP-D6-6 권한 가드:
  * <ul>
  *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
- *       + {@link EstimatePermissionGuard#checkView(String)}</li>
- *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)}
- *       + {@link EstimatePermissionGuard#checkEdit(String)}</li>
+ *       + {@link EstimatePermissionGuard#checkView(UUID)}</li>
+ *   <li>POST/PUT write → {@code @RequirePermission}
+ *       + {@link EstimatePermissionGuard#checkEdit(UUID, PermissionAction)}</li>
  * </ul>
  */
 @RestController
@@ -77,8 +80,8 @@ public class EstimateController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(roleHeader);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader));
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, pageable));
     }
@@ -89,8 +92,8 @@ public class EstimateController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<EstimateDetailResponse> getOne(
             @PathVariable UUID id,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(roleHeader);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader));
         return ApiResponse.ok(estimateService.getOne(id));
     }
 
@@ -107,7 +110,7 @@ public class EstimateController {
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.CREATE);
         return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader)));
     }
 
@@ -120,7 +123,7 @@ public class EstimateController {
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader)));
     }
 
@@ -132,7 +135,7 @@ public class EstimateController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
     }
 
@@ -144,7 +147,7 @@ public class EstimateController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
     }
 
@@ -156,7 +159,7 @@ public class EstimateController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
@@ -173,8 +176,19 @@ public class EstimateController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
+    }
+
+    private UUID parseAccountId(String header) {
+        if (header == null || header.isBlank()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "계정 권한 식별자가 없습니다.");
+        }
+        try {
+            return UUID.fromString(header);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "계정 권한 식별자가 올바르지 않습니다.");
+        }
     }
 
     private String callerOrSystem(String header) {

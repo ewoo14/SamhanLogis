@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -21,6 +22,7 @@ import com.samhanair.logis.groupware.service.MessageService;
 import com.samhanair.logis.groupware.service.ScheduleService;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -82,6 +84,8 @@ class GroupwarePermissionControllerIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         ApprovalLine approval = ApprovalLine.open(UUID.randomUUID(), "SP-D6-2 결재", "테스트");
         approval.appendStep(UUID.randomUUID());
@@ -114,63 +118,60 @@ class GroupwarePermissionControllerIT {
     @ParameterizedTest(name = "{0} deny -> 403 + counter")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
     static Stream<EndpointCase> endpoints() {
         UUID id = UUID.fromString("00000000-0000-0000-0000-000000000001");
         return Stream.of(
-                new EndpointCase("create approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                new EndpointCase("create approval", ADMIN_PAGE, PermissionAction.CREATE, "MANAGER",
                         () -> post("/admin/groupware/approvals")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"requesterId":"00000000-0000-0000-0000-000000000011","title":"결재","content":"본문","approverIds":["00000000-0000-0000-0000-000000000012"]}
                                         """)),
-                new EndpointCase("approve approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                new EndpointCase("approve approval", ADMIN_PAGE, PermissionAction.UPDATE, "MANAGER",
                         () -> put("/admin/groupware/approvals/{id}/approve", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"approverId":"00000000-0000-0000-0000-000000000012","reason":null}
                                         """)),
-                new EndpointCase("reject approval", ADMIN_PAGE, "EDIT", "MANAGER",
+                new EndpointCase("reject approval", ADMIN_PAGE, PermissionAction.UPDATE, "MANAGER",
                         () -> put("/admin/groupware/approvals/{id}/reject", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"approverId":"00000000-0000-0000-0000-000000000012","reason":"반려"}
                                         """)),
-                new EndpointCase("send message", SEND_PAGE, "EDIT", "SALES",
+                new EndpointCase("send message", SEND_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/messages")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"senderId":"00000000-0000-0000-0000-000000000021","recipientId":"00000000-0000-0000-0000-000000000022","body":"안녕하세요"}
                                         """)),
-                new EndpointCase("message inbox", SEND_PAGE, "VIEW", "SALES",
+                new EndpointCase("message inbox", SEND_PAGE, PermissionAction.VIEW, "SALES",
                         () -> get("/admin/groupware/messages/inbox")
                                 .param("userId", "00000000-0000-0000-0000-000000000022")),
-                new EndpointCase("create schedule", SEND_PAGE, "EDIT", "SALES",
+                new EndpointCase("create schedule", SEND_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/schedules")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(scheduleBody())),
-                new EndpointCase("find schedule", SEND_PAGE, "VIEW", "SALES",
+                new EndpointCase("find schedule", SEND_PAGE, PermissionAction.VIEW, "SALES",
                         () -> get("/admin/groupware/schedules")
                                 .param("ownerId", "00000000-0000-0000-0000-000000000031")
                                 .param("from", "2026-05-26T08:00:00")
                                 .param("to", "2026-05-26T18:00:00")),
-                new EndpointCase("update schedule", SEND_PAGE, "EDIT", "SALES",
+                new EndpointCase("update schedule", SEND_PAGE, PermissionAction.UPDATE, "SALES",
                         () -> put("/admin/groupware/schedules/{id}", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(scheduleBody())),
-                new EndpointCase("delete schedule", ADMIN_PAGE, "EDIT", "MANAGER",
+                new EndpointCase("delete schedule", ADMIN_PAGE, PermissionAction.DELETE, "MANAGER",
                         () -> delete("/admin/groupware/schedules/{id}", id))
         );
     }
@@ -200,7 +201,7 @@ class GroupwarePermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             Supplier<MockHttpServletRequestBuilder> request) {
 

@@ -5,6 +5,7 @@ import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ public class PartnerOrderFromEstimateController {
             description = "견적 snapshot 을 partner-order-service 주문 row 로 변환합니다.")
     @PostMapping("/from-estimate/{estimateId}")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.partner-order.edit", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.edit", action = PermissionAction.CREATE)
     public ApiResponse<PartnerOrderDetailResponse> createFromEstimate(
             @PathVariable UUID estimateId,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,

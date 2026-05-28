@@ -5,6 +5,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.service.PartnerOrderQueryService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderListFilter;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class PartnerOrderListController {
 
     @Operation(summary = "거래처 주문 목록", description = "날짜/거래처/상태/검색어 필터를 적용한 주문 페이지. createdAt DESC")
     @GetMapping
-    @RequirePermission(page = "sales.partner-order.list", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW)
     public ApiResponse<?> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -53,7 +54,7 @@ public class PartnerOrderListController {
 
     @Operation(summary = "거래처 주문 상세", description = "주문번호 또는 내부 식별자로 주문 헤더와 라인을 조회합니다.")
     @GetMapping("/{id}")
-    @RequirePermission(page = "sales.partner-order.list", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW)
     public ApiResponse<?> detail(
             @PathVariable String id) {
         return ApiResponse.ok(partnerOrderQueryService.findDetailById(id));

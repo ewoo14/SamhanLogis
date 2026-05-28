@@ -7,6 +7,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.ProductByCodeResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,7 +47,7 @@ public class ProductByCodeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "code 에 해당하는 제품이 없습니다")
     })
     @GetMapping("/by-code/{code}")
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<ProductByCodeResponse> findByCode(@PathVariable String code) {
         // Phase 7 종합 TM — generic NOT_FOUND 대신 PRODUCT_NOT_FOUND 도메인 specific 코드 사용.
         // HTTP 404 동일하지만 클라이언트/모니터링 필터에서 product 도메인 식별 가능.

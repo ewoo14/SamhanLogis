@@ -14,6 +14,7 @@ import com.samhanair.logis.dashboard.service.PartnerCodeResolver;
 import com.samhanair.logis.dashboard.service.RealTimeStockService;
 import com.samhanair.logis.dashboard.service.SalesAggregateService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.LocalDate;
@@ -50,7 +51,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "KPI 조회 (Admin)")
     @GetMapping("/kpi")
-    @RequirePermission(page = "dashboard.admin", action = "VIEW")
+    @RequirePermission(page = "dashboard.admin", action = PermissionAction.VIEW)
     public ApiResponse<List<KpiSnapshotResponse>> listKpi(
             @RequestParam(required = false) KpiCategory category,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -73,7 +74,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "실시간 재고 조회 (Admin)")
     @GetMapping("/realtime-stock")
-    @RequirePermission(page = "dashboard.admin", action = "VIEW")
+    @RequirePermission(page = "dashboard.admin", action = PermissionAction.VIEW)
     public ApiResponse<List<RealTimeStockResponse>> realtimeStock(
             @RequestParam(required = false) String warehouseCode,
             @RequestParam(required = false) String productCode) {
@@ -94,7 +95,7 @@ public class DashboardAdminController {
      */
     @Operation(summary = "매출 집계 조회 (Admin)")
     @GetMapping("/sales-aggregate")
-    @RequirePermission(page = "dashboard.admin", action = "VIEW")
+    @RequirePermission(page = "dashboard.admin", action = PermissionAction.VIEW)
     public ApiResponse<List<SalesAggregateResponse>> salesAggregate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -120,7 +121,7 @@ public class DashboardAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "REFRESH 결과 (각 view 별 성공 여부)")
     })
     @PostMapping("/refresh")
-    @RequirePermission(page = "dashboard.admin", action = "EDIT")
+    @RequirePermission(page = "dashboard.admin", action = PermissionAction.UPDATE)
     public ApiResponse<MaterializedViewRefreshService.RefreshResult> refresh() {
         kpiService.invalidateCache();
         return ApiResponse.ok(refreshService.refreshAll());

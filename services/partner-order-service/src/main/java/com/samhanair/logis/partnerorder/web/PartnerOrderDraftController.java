@@ -6,6 +6,7 @@ import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -50,7 +51,7 @@ public class PartnerOrderDraftController {
     @Operation(summary = "임시저장 생성", description = "30일 TTL — 거래처별 draftSeq 자동 부여")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.partner-order.draft", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.CREATE)
     public ApiResponse<DraftResponse> create(
             @Valid @RequestBody DraftCreateRequest request,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
@@ -63,7 +64,7 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 페이지 조회", description = "본인 거래처 createdAt DESC")
     @GetMapping
-    @RequirePermission(page = "sales.partner-order.draft", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW)
     public ApiResponse<Page<DraftResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -79,7 +80,7 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 단건 조회", description = "payload 포함 상세")
     @GetMapping("/{draftId}")
-    @RequirePermission(page = "sales.partner-order.draft", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW)
     public ApiResponse<DraftDetailResponse> getOne(
             @PathVariable UUID draftId,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {

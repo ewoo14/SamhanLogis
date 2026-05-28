@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class EcountProductImportController {
     private final EcountProductImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "products.ecount-import", action = "EDIT")
+    @RequirePermission(page = "products.ecount-import", action = PermissionAction.CREATE)
     @Operation(summary = "이카운트 품목/품목관계/품목계층그룹 CSV 적재")
     public EcountProductImportResult upload(
             @RequestPart("itemFile") MultipartFile itemFile,

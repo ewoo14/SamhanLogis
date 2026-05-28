@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.domain.Employee;
 import com.samhanair.logis.user.repository.EmployeeRepository;
 import com.samhanair.logis.user.service.EmployeeProvisioningService;
@@ -57,7 +58,7 @@ public class EmployeeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "admin.employees", action = "EDIT")
+    @RequirePermission(page = "admin.employees", action = PermissionAction.CREATE)
     public ApiResponse<EmployeeResponse> create(
             @Valid @RequestBody CreateEmployeeRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -100,7 +101,7 @@ public class EmployeeController {
     }
 
     @PatchMapping("/{id}")
-    @RequirePermission(page = "admin.employees", action = "EDIT")
+    @RequirePermission(page = "admin.employees", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEmployeeRequest request,
@@ -111,7 +112,7 @@ public class EmployeeController {
 
     @PatchMapping("/{id}/role")
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "admin.employees", action = "EDIT")
+    @RequirePermission(page = "admin.employees", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request,
@@ -122,7 +123,7 @@ public class EmployeeController {
 
     @PostMapping("/{id}/terminate")
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "admin.employees", action = "EDIT")
+    @RequirePermission(page = "admin.employees", action = PermissionAction.DELETE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void terminate(
             @PathVariable UUID id,

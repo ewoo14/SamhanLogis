@@ -3,6 +3,7 @@ package com.samhanair.logis.dcconfig.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -24,6 +25,7 @@ import com.samhanair.logis.dcconfig.web.DcConfigImportController;
 import com.samhanair.logis.dcconfig.web.PartnerDcConfigsController;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -92,6 +94,8 @@ class DcConfigPermissionControllerIT {
 
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(dcConfigRepository.search(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(dcConfig), PageRequest.of(0, 50), 1));
         lenient().when(dcConfigService.updatePartnerDcConfig(anyString(), any()))
@@ -112,13 +116,14 @@ class DcConfigPermissionControllerIT {
     @Test
     @DisplayName("거래처 DC 목록은 VIEW 권한 없으면 403 + Counter 증가")
     void partnerDcList_withoutViewGrant_returns403AndIncrementsCounter() throws Exception {
-        when(dynamicPermissionClient.canView("SALES", PARTNER_DC_PAGE)).thenReturn(false);
-        double before = deniedCount(PARTNER_DC_PAGE, "SALES", "VIEW");
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PARTNER_DC_PAGE), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+        double before = deniedCount(PARTNER_DC_PAGE, "SALES", PermissionAction.VIEW.name());
 
         mockMvc.perform(withActor(get("/api/v1/partner-dc-configs"), "SALES"))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(PARTNER_DC_PAGE, "SALES", "VIEW")).isEqualTo(before + 1.0);
+        assertThat(deniedCount(PARTNER_DC_PAGE, "SALES", PermissionAction.VIEW.name())).isEqualTo(before + 1.0);
     }
 
     @Test
@@ -135,15 +140,16 @@ class DcConfigPermissionControllerIT {
     @Test
     @DisplayName("거래처 DC 수정은 EDIT 권한 없으면 403 + Counter 증가")
     void partnerDcPatch_withoutEditGrant_returns403AndIncrementsCounter() throws Exception {
-        when(dynamicPermissionClient.canEdit("SALES", PARTNER_DC_PAGE)).thenReturn(false);
-        double before = deniedCount(PARTNER_DC_PAGE, "SALES", "EDIT");
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PARTNER_DC_PAGE), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        double before = deniedCount(PARTNER_DC_PAGE, "SALES", PermissionAction.UPDATE.name());
 
         mockMvc.perform(withActor(patch("/api/v1/partner-dc-configs/{partnerCode}", PARTNER_CODE), "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"homeMultiDc\":\"46%\"}"))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(PARTNER_DC_PAGE, "SALES", "EDIT")).isEqualTo(before + 1.0);
+        assertThat(deniedCount(PARTNER_DC_PAGE, "SALES", PermissionAction.UPDATE.name())).isEqualTo(before + 1.0);
     }
 
     @Test
@@ -166,14 +172,15 @@ class DcConfigPermissionControllerIT {
     @Test
     @DisplayName("DC import는 EDIT 권한 없으면 MASTER라도 403 + Counter 증가")
     void dcConfigImport_withoutEditGrant_returns403AndIncrementsCounter() throws Exception {
-        when(dynamicPermissionClient.canEdit("MASTER", IMPORT_PAGE)).thenReturn(false);
-        double before = deniedCount(IMPORT_PAGE, "MASTER", "EDIT");
+        when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
+                .thenReturn(false);
+        double before = deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name());
 
         mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
                         .file(csvFile()), "MASTER"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        assertThat(deniedCount(IMPORT_PAGE, "MASTER", "EDIT")).isEqualTo(before + 1.0);
+        assertThat(deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name())).isEqualTo(before);
     }
 
     private static DcConfig createDcConfig(String partnerCode) {

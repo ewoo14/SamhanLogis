@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.audit.service.ProductAuditLogService;
 import com.samhanair.logis.product.audit.web.dto.ProductAuditLogResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
@@ -37,7 +38,7 @@ public class ProductAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
     })
     @GetMapping("/audit-logs")
-    @RequirePermission(page = "products.list.view", action = "VIEW")
+    @RequirePermission(page = "products.list.view", action = PermissionAction.VIEW)
     public ApiResponse<List<ProductAuditLogResponse>> listAuditLogs(
             @PathVariable UUID productId) {
         List<ProductAuditLogResponse> items = auditLogService.listByProduct(productId).stream()
