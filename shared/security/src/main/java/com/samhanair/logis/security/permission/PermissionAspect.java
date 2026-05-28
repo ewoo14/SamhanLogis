@@ -2,6 +2,7 @@ package com.samhanair.logis.security.permission;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Parameter;
+import java.util.UUID;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -17,22 +18,21 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 /**
  * {@link RequirePermission} 어노테이션 기반 동적 RBAC 권한 검증 AOP — SP-D5 신규.
  *
- * <p>Controller 메서드에 {@code @RequirePermission(page="...", action="VIEW|EDIT")} 를 부착하면
+ * <p>Controller 메서드에 {@code @RequirePermission(page="...", action=PermissionAction.CREATE)} 를 부착하면
  * 본 Aspect 가 메서드 실행 전에 {@link DynamicPermissionClient} 를 통해 동적 권한을 검증한다.
  *
- * <p>X-User-Role 헤더 추출 순서:
+ * <p>X-User-Id / X-User-Role 헤더 추출 순서:
  * <ol>
- *   <li>메서드 파라미터 중 {@code @RequestHeader("X-User-Role")} 또는
- *       {@code @RequestHeader(value="X-User-Role")} 어노테이션이 붙은 첫 번째 String 파라미터</li>
+ *   <li>메서드 파라미터 중 {@code @RequestHeader("X-User-*")} 어노테이션이 붙은 첫 번째 String 파라미터</li>
  *   <li>없으면 {@link RequestContextHolder} → {@link HttpServletRequest} 헤더에서 직접 추출</li>
- *   <li>둘 다 없으면 null 로 처리 (PermissionGuard 와 동일하게 건너뜀)</li>
+ *   <li>계정 UUID 가 없거나 파싱 실패하면 deny</li>
  * </ol>
  *
- * <p>deny 정책 (action="VIEW" / "EDIT"):
+ * <p>deny 정책:
  * <ul>
- *   <li>VIEW: {@link DynamicPermissionClient#canView(String, String)} == false → deny</li>
- *   <li>EDIT: {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
- *   <li>미지원 action: WARN 로그 + 권한 검증 건너뜀 (운영 안전 우선)</li>
+ *   <li>MASTER: 동적 DB 조회 없이 통과</li>
+ *   <li>PARTNER: 내부 서비스 접근 방어 차원에서 항상 deny</li>
+ *   <li>그 외: {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} == false → deny</li>
  * </ul>
  *
  * <p>deny 시: {@link PermissionGuardMetrics#incrementDenied(String, String, String, String)} 호출
@@ -61,6 +61,8 @@ public class PermissionAspect {
 
     /** X-User-Role 헤더 이름 — api-gateway 전파 표준. */
     private static final String ROLE_HEADER = "X-User-Role";
+    /** X-User-Id 헤더 이름 — JWT sub claim(계정 UUID) 전파 표준. */
+    private static final String ACCOUNT_ID_HEADER = "X-User-Id";
 
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
@@ -98,49 +100,34 @@ public class PermissionAspect {
         RequirePermission annotation = signature.getMethod()
                 .getAnnotation(RequirePermission.class);
 
-        String page   = annotation.page();
-        String action = annotation.action().isBlank() ? "VIEW" : annotation.action().toUpperCase();
+        String page = annotation.page();
+        PermissionAction action = annotation.action();
+        String actionName = action.name();
 
-        // DynamicPermissionClient bean 없으면 건너뜀 (서비스 미지원 환경)
+        String roleCode = normalizeHeader(extractHeader(joinPoint, signature, ROLE_HEADER), "UNKNOWN");
+        if ("MASTER".equalsIgnoreCase(roleCode)) {
+            return joinPoint.proceed();
+        }
+
+        if ("PARTNER".equalsIgnoreCase(roleCode)) {
+            deny(page, roleCode, actionName, "PARTNER role");
+        }
+
+        UUID accountId = parseAccountId(extractHeader(joinPoint, signature, ACCOUNT_ID_HEADER));
+        if (accountId == null) {
+            deny(page, roleCode, actionName, "accountId missing or invalid");
+        }
+
         DynamicPermissionClient client = clientProvider.getIfAvailable();
         if (client == null) {
-            log.debug("[SP-D5] DynamicPermissionClient bean 없음 — 권한 검증 건너뜀 (page={} action={})",
-                    page, action);
+            log.debug("[SP-PO-1] DynamicPermissionClient bean 없음 — 권한 검증 건너뜀 (page={} action={})",
+                    page, actionName);
             return joinPoint.proceed();
         }
 
-        // X-User-Role 헤더 추출
-        String roleCode = extractRoleCode(joinPoint, signature);
-        if (roleCode == null || roleCode.isBlank()) {
-            log.debug("[SP-D5] X-User-Role 헤더 없음 — 권한 검증 건너뜀 (page={} action={})", page, action);
-            return joinPoint.proceed();
+        if (!client.check(accountId, page, action)) {
+            deny(page, roleCode, actionName, "account permission missing");
         }
-
-        boolean denied = false;
-        if ("VIEW".equals(action)) {
-            boolean canView = client.canView(roleCode, page);
-            if (!canView) {
-                denied = true;
-                log.debug("[SP-D5] VIEW 권한 deny — service={} page={} role={}", serviceName, page, roleCode);
-            }
-        } else if ("EDIT".equals(action)) {
-            boolean canEdit = client.canEdit(roleCode, page);
-            if (!canEdit) {
-                denied = true;
-                log.debug("[SP-D6-1] EDIT 권한 deny — service={} page={} role={}",
-                        serviceName, page, roleCode);
-            }
-        } else {
-            // 미지원 action → 권한 검증 건너뜀 (운영 안전 우선)
-            log.warn("[SP-D5] 지원하지 않는 action 값 — action={} (page={}) → 권한 검증 건너뜀", action, page);
-        }
-
-        if (denied) {
-            metrics.incrementDenied(serviceName, page, roleCode, action);
-            throw new AccessDeniedException(
-                    String.format("[SP-D5] 동적 권한 deny — page=%s action=%s role=%s", page, action, roleCode));
-        }
-
         return joinPoint.proceed();
     }
 
@@ -155,16 +142,16 @@ public class PermissionAspect {
      * @param signature 메서드 시그니처
      * @return 역할 코드 문자열, 없으면 null
      */
-    private String extractRoleCode(ProceedingJoinPoint joinPoint, MethodSignature signature) {
+    private String extractHeader(ProceedingJoinPoint joinPoint, MethodSignature signature, String targetHeader) {
         Parameter[] parameters = signature.getMethod().getParameters();
         Object[]    args       = joinPoint.getArgs();
 
-        // 1) @RequestHeader("X-User-Role") 파라미터에서 추출
+        // 1) @RequestHeader 파라미터에서 추출
         for (int i = 0; i < parameters.length; i++) {
             RequestHeader rh = parameters[i].getAnnotation(RequestHeader.class);
             if (rh != null) {
                 String headerName = rh.value().isBlank() ? rh.name() : rh.value();
-                if (ROLE_HEADER.equalsIgnoreCase(headerName) && args[i] instanceof String) {
+                if (targetHeader.equalsIgnoreCase(headerName) && args[i] instanceof String) {
                     return (String) args[i];
                 }
             }
@@ -176,12 +163,36 @@ public class PermissionAspect {
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attrs != null) {
                 HttpServletRequest request = attrs.getRequest();
-                return request.getHeader(ROLE_HEADER);
+                return request.getHeader(targetHeader);
             }
         } catch (Exception e) {
-            log.debug("[SP-D5] HttpServletRequest 에서 X-User-Role 추출 실패: {}", e.getMessage());
+            log.debug("[SP-PO-1] HttpServletRequest 에서 {} 추출 실패: {}", targetHeader, e.getMessage());
         }
 
         return null;
+    }
+
+    private UUID parseAccountId(String rawAccountId) {
+        if (rawAccountId == null || rawAccountId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(rawAccountId);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String normalizeHeader(String raw, String fallback) {
+        return raw == null || raw.isBlank() ? fallback : raw.trim();
+    }
+
+    private void deny(String page, String roleCode, String action, String reason) {
+        log.debug("[SP-PO-1] 권한 deny — service={} page={} role={} action={} reason={}",
+                serviceName, page, roleCode, action, reason);
+        metrics.incrementDenied(serviceName, page, roleCode, action);
+        throw new AccessDeniedException(
+                String.format("[SP-PO-1] 동적 권한 deny — page=%s action=%s role=%s reason=%s",
+                        page, action, roleCode, reason));
     }
 }

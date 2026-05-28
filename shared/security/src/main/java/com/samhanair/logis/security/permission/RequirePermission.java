@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * <pre>{@code
  * @GetMapping("/warehouses")
  * @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
- * @RequirePermission(page = "inventory.warehouse", action = "VIEW")
+ * @RequirePermission(page = "inventory.warehouse", action = PermissionAction.VIEW)
  * public ApiResponse<List<WarehouseResponse>> listAll(
  *         @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
  *     return ApiResponse.ok(warehouseService.listAll());
@@ -25,8 +25,13 @@ import java.lang.annotation.Target;
  *
  * <p>action 값:
  * <ul>
- *   <li>{@code "VIEW"} — 조회 권한 검증 ({@link DynamicPermissionClient#canView(String, String)})</li>
- *   <li>{@code "EDIT"} — 편집 권한 검증 ({@link DynamicPermissionClient#canEdit(String, String)})</li>
+ *   <li>{@link PermissionAction#VIEW} — 조회 권한 검증</li>
+ *   <li>{@link PermissionAction#CREATE} — 생성 권한 검증</li>
+ *   <li>{@link PermissionAction#UPDATE} — 수정 권한 검증</li>
+ *   <li>{@link PermissionAction#DELETE} — 삭제 권한 검증</li>
+ *   <li>{@link PermissionAction#RESTORE} — 복원 권한 검증</li>
+ *   <li>{@link PermissionAction#DOWNLOAD} — 다운로드 권한 검증</li>
+ *   <li>{@link PermissionAction#PRINT} — 출력 권한 검증</li>
  * </ul>
  *
  * <p>X-User-Role 헤더 추출 순서:
@@ -57,11 +62,9 @@ public @interface RequirePermission {
     /**
      * 검증할 액션 코드.
      *
-     * <p>지원 값: {@code "VIEW"} (조회), {@code "EDIT"} (편집).
-     * 미지원 값 입력 시 {@link PermissionAspect} 가 WARN 로그를 남기고 권한 검증을 건너뛴다
-     * (운영 안전 우선 — SP-D5 cycle 2 fix P2-1 에서 Javadoc 정정).
+     * <p>지원 값은 {@link PermissionAction} 7개 액션이다.
      *
-     * @return 액션 코드 문자열
+     * @return 액션 enum
      */
-    String action() default "VIEW";
+    PermissionAction action() default PermissionAction.VIEW;
 }
