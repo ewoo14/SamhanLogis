@@ -35,7 +35,7 @@ public class EcountFixedAssetTypeImportController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "이카운트 고정자산유형 CSV 적재")
     public EcountMig6ImportResult upload(
             @RequestPart("file") MultipartFile file,

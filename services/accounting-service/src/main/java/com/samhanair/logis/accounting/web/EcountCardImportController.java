@@ -28,7 +28,7 @@ public class EcountCardImportController {
     private final EcountCardImporter importer;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "ecount.mig2.card", action = "EDIT")
+    @RequirePermission(page = "ecount.mig2.card", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "이카운트 통장계좌 CSV 적재")
     public EcountCardImportResult upload(
             @RequestPart("file") MultipartFile file,

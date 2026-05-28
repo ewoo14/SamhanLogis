@@ -55,7 +55,7 @@ public class AccountingRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(path = "/tax-invoices/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "accounting.tax-invoice.realtime", action = "VIEW")
+    @RequirePermission(page = "accounting.tax-invoice.realtime", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public SseEmitter subscribeTaxInvoice(@PathVariable UUID id) {
         return broker.subscribe(id);
     }
@@ -64,7 +64,7 @@ public class AccountingRealtimeController {
     @Operation(summary = "분개 실시간 SSE 구독",
             description = "text/event-stream. 30s heartbeat keep-alive. event: accounting:edit / accounting:edit-request:*")
     @GetMapping(path = "/journals/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "accounting.journals.realtime", action = "VIEW")
+    @RequirePermission(page = "accounting.journals.realtime", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public SseEmitter subscribeJournal(@PathVariable UUID id) {
         return broker.subscribe(id);
     }
@@ -73,7 +73,7 @@ public class AccountingRealtimeController {
     @Operation(summary = "마감 실시간 SSE 구독",
             description = "text/event-stream. 30s heartbeat keep-alive. event: accounting:edit / accounting:edit-request:*")
     @GetMapping(path = "/closings/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "accounting.period-close", action = "VIEW")
+    @RequirePermission(page = "accounting.period-close", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public SseEmitter subscribeClosing(@PathVariable UUID id) {
         return broker.subscribe(id);
     }

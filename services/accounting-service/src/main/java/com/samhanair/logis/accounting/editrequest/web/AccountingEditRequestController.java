@@ -62,7 +62,7 @@ public class AccountingEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패")
     })
     @PostMapping("/entities/{entityId}/edit-request")
-    @RequirePermission(page = "accounting.edit-requests", action = "EDIT")
+    @RequirePermission(page = "accounting.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<AccountingEditRequestResponse>> createRequest(
             @PathVariable UUID entityId,
             @Valid @RequestBody CreateAccountingEditRequestRequest request,
@@ -80,7 +80,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정/삭제 요청 수락",
             description = "PR-H4b — MANAGER 수락 시 작성자가 1회 mutation 가능 + SSE broadcast")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @RequirePermission(page = "accounting.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AccountingEditRequestResponse> approveRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody(required = false) ApproveAccountingRequest body,
@@ -98,7 +98,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정/삭제 요청 거절",
             description = "PR-H4b — MANAGER 거절 시 사유 SSE broadcast + 종결")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @RequirePermission(page = "accounting.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AccountingEditRequestResponse> rejectRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody RejectAccountingRequest body,
@@ -115,7 +115,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "회계 수정 요청 대시보드 — PENDING 목록",
             description = "PR-H4b — MANAGER 권한자 그룹의 PENDING 요청 목록")
     @GetMapping("/edit-requests")
-    @RequirePermission(page = "accounting.edit-requests.decide", action = "VIEW")
+    @RequirePermission(page = "accounting.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<AccountingEditRequestResponse>> listForRole(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         List<AccountingEditRequest> rows = editRequestService.listPendingForRole(targetRole);
@@ -126,7 +126,7 @@ public class AccountingEditRequestController {
     @Operation(summary = "entity 별 요청 이력",
             description = "PR-H4b — entity 화면의 '수정 요청 이력' 섹션")
     @GetMapping("/entities/{entityId}/edit-requests")
-    @RequirePermission(page = "accounting.edit-requests", action = "VIEW")
+    @RequirePermission(page = "accounting.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<AccountingEditRequestResponse>> listByEntity(
             @PathVariable UUID entityId) {
         List<AccountingEditRequest> rows = editRequestService.listByEntity(entityId);

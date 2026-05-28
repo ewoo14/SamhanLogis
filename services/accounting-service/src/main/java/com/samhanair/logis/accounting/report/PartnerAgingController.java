@@ -69,7 +69,7 @@ public class PartnerAgingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/partner-aging")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
     public ApiResponse<PartnerAgingResponse> partnerAging(
             @Parameter(description = "기준 일자 (YYYY-MM-DD, 예: 2026-05-10)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,

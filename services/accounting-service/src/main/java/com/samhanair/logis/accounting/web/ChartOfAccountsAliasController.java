@@ -24,7 +24,7 @@ public class ChartOfAccountsAliasController {
 
     @Operation(summary = "계정과목 트리 (chart-of-accounts alias)",
             description = "GET /accounting/accounts 와 동등 응답")
-    @RequirePermission(page = "accounting.accounts", action = "VIEW")
+    @RequirePermission(page = "accounting.accounts", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @GetMapping
     public ApiResponse<List<AccountTreeNodeResponse>> tree() {
         return ApiResponse.ok(accountService.findTree());

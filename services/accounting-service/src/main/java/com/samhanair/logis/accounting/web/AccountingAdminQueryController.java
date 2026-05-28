@@ -50,7 +50,7 @@ public class AccountingAdminQueryController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @GetMapping("/cash-disbursements")
-    @RequirePermission(page = CASH_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = CASH_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 지출결의서 admin 목록 조회")
     public ApiResponse<Page<CashDisbursementResponse>> cashDisbursements(
             @RequestParam(required = false) String slipNo,
@@ -66,7 +66,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/cash-receipts")
-    @RequirePermission(page = CASH_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = CASH_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 입금보고서 admin 목록 조회")
     public ApiResponse<Page<CashReceiptResponse>> cashReceipts(
             @RequestParam(required = false) String slipNo,
@@ -82,7 +82,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/orders")
-    @RequirePermission(page = ORDER_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ORDER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 주문서 admin 목록 조회")
     public ApiResponse<Page<OrderSummaryResponse>> orders(
             @RequestParam(required = false) OrderProgressStatus progressStatus,
@@ -96,7 +96,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/orders/{orderNo}")
-    @RequirePermission(page = ORDER_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ORDER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 주문서 admin 상세 조회")
     public ApiResponse<OrderDetailResponse> orderDetail(
             @PathVariable String orderNo,
@@ -106,7 +106,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/aging-snapshot")
-    @RequirePermission(page = AGING_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = AGING_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 거래처 aging snapshot 조회")
     public ApiResponse<Page<PartnerAgingSnapshotResponse>> agingSnapshot(
             @RequestParam(required = false) String partnerName,
@@ -119,7 +119,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/ledger/sales")
-    @RequirePermission(page = LEDGER_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = LEDGER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 이카운트 매출장 staging 조회")
     public ApiResponse<Page<LedgerStagingResponse>> salesLedger(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -134,7 +134,7 @@ public class AccountingAdminQueryController {
     }
 
     @GetMapping("/ledger/purchase")
-    @RequirePermission(page = LEDGER_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = LEDGER_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @Operation(summary = "MIG-14 이카운트 매입장 staging 조회")
     public ApiResponse<Page<LedgerStagingResponse>> purchaseLedger(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

@@ -32,7 +32,7 @@ public class Mig8OrderTransformController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/transform-from-staging")
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "MIG-8 주문서 staging 을 Order/OrderLine 으로 변환")
     public EcountMig8TransformResult transform(
             @RequestBody(required = false) EcountMig8TransformRequest request,

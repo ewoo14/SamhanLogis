@@ -59,7 +59,7 @@ public class TrialBalanceReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "period 형식 오류")
     })
     @GetMapping("/trial-balance")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
     public ApiResponse<TrialBalanceResponse> trialBalance(
             @Parameter(description = "회계 월 (yyyyMM, 예: 202604)")
             @RequestParam String period,

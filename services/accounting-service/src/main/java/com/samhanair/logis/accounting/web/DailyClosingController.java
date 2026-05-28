@@ -74,7 +74,7 @@ public class DailyClosingController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "accounting.daily-closing.run", action = "EDIT")
+    @RequirePermission(page = "accounting.daily-closing.run", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<DailyClosingResponse> close(
             @Valid @RequestBody CreateDailyClosingRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -97,7 +97,7 @@ public class DailyClosingController {
                     description = "SALES role — 접근 불가")
     })
     @GetMapping
-    @RequirePermission(page = "accounting.daily-closing", action = "VIEW")
+    @RequirePermission(page = "accounting.daily-closing", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<DailyClosingResponse>> list(
             @Parameter(description = "조회 시작 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -139,7 +139,7 @@ public class DailyClosingController {
     })
     @PatchMapping("/{closingDate}/lock")
     @ResponseStatus(HttpStatus.OK)
-    @RequirePermission(page = "accounting.daily-closing.unlock", action = "EDIT")
+    @RequirePermission(page = "accounting.daily-closing.unlock", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DailyClosingResponse> unlock(
             @Parameter(description = "마감 날짜 (yyyy-MM-dd)", required = true)
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate closingDate,

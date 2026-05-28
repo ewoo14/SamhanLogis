@@ -54,7 +54,7 @@ public class EquityChangesController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/equity-changes")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
     public ApiResponse<EquityChangesResponse> equityChanges(
             @Parameter(description = "기간 시작 일자 (YYYY-MM-DD)")
             @RequestParam String fromDate,

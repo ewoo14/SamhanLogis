@@ -32,7 +32,7 @@ public class Mig10OrderEmployeeBackfillController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/backfill-employee-cross-link")
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     @Operation(summary = "MIG-10 Order.manager_name 을 Employee UUID 로 연결")
     public EcountMig10Result backfill(
             @RequestBody(required = false) EcountMig10BackfillRequest request,
