@@ -27,9 +27,17 @@
 
 ---
 
-### 최신 진행 메모 (2026-05-27)
+### 최신 진행 메모 (2026-05-28)
 
-- SP-D7 (진행): 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint 23건을 `@RequirePermission(..., VIEW)`로 전환했다.
+- 권한 재편 Phase 1 (진행): role 기반 2-action(VIEW/EDIT) 동적 RBAC을 **계정 × page × 7-action**(VIEW/CREATE/UPDATE/DELETE/RESTORE/DOWNLOAD/PRINT)으로 전환했다.
+  - `PermissionAspect`가 `X-User-Id`(계정 UUID) 기준으로 `account_page_permissions` 7-action을 확인한다. MASTER는 short-circuit bypass, PARTNER는 deny.
+  - role은 enforcement에서 분리되어 비강제 템플릿(`role_page_permission_templates`)으로 잔존하고, MASTER 매트릭스 UI의 "템플릿 적용" 소스로만 쓴다.
+  - Flyway V39가 기존 role grant를 계정별로 **행동보존 자동전개**(VIEW→VIEW, EDIT→CREATE+UPDATE+DELETE, RESTORE/DOWNLOAD/PRINT 보존 매핑)하여 회귀 0.
+  - 14 service ~380 `@RequirePermission` 재주석화 + `EstimatePermissionGuard` account 전환 + dead guard 3개 삭제. desktop `PermissionMatrixPage`를 계정×page×7action 평탄 매트릭스로 재작성 + 다계정 일괄 wizard.
+  - FE 자기-권한은 `GET /auth/admin/permissions/my`를 account 기반 7-action으로 전환(internal endpoint 403 회피). RESTORE 메커니즘과 DOWNLOAD 포맷 분기는 Phase 2 이월.
+  - spec/plan/dev-report: `docs/superpowers/{specs,plans}/2026-05-28-permission-overhaul-phase-1-framework*`, `docs/dev-reports/phase-1-permission-overhaul-framework.md`.
+
+- SP-D7 (완료): 잔여 `@PreAuthorize("isAuthenticated()")` 조회 endpoint 23건을 `@RequirePermission(..., VIEW)`로 전환했다.
   - auth-service V38 seed는 `PARTNER`를 제외한 내부 role에만 VIEW grant를 보강한다.
   - 기존 VIEW endpoint가 있던 page는 전용 `.view` page code(`sales.partner-order.history.view`, `products.list.view`, `partners.detail.view`, `inventory.stock-balance.view`)로 분리해 widening을 피한다.
   - `estimates.list` 조회 2건은 `EstimatePermissionGuard`가 이미 RBAC를 강제하므로 `isAuthenticated()`를 유지하고 V38 widening 대상에서 제외한다.

@@ -2498,3 +2498,23 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-D7-06 | Flyway V38은 case W 재사용 page의 내부 role active row만 `can_view = TRUE`로 UPDATE하고, 신규/전용 page와 missing row는 `ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO NOTHING` insert로 멱등 처리한다. `estimates.list`는 guard-gated page라 V38 UPDATE/INSERT 대상에서 제외해 V10/V31/V32 제한 grant를 보존한다. |
 
 **산출**: 유형 A 23 endpoint `@RequirePermission` 전환, `EstimateController` 조회 2건 descope(`isAuthenticated()` + `EstimatePermissionGuard.checkView` 유지), case V 전용 page code 4건, cycle 4 V38 seed, `notifications.center` PageCode, Employee/Inventory strict `@PreAuthorize` 복원, dev-report `docs/dev-reports/sp-d7-remaining-preauthorize-migration.md`.
+
+---
+
+### D-PO-00. 권한 체계 전면 재편 Phase 1 — 계정 × page × 7-action 프레임워크 (2026-05-28)
+
+**배경**: role 기반(영업원/회계원 등) 2-action(VIEW/EDIT) 동적 RBAC을 폐기하고, **계정(account) 단위 × page × 7-action**(보기/입력/수정/삭제/복원/다운로드/출력) enforcement + MASTER 전용 매트릭스 UI(개별/일괄)로 전환한다. Phase 0 인벤토리(173 PageCode × 7 action) 기반. role은 enforcement에서 분리되어 비강제 템플릿으로만 잔존.
+
+| 결정 | 내용 |
+|---|---|
+| D-PO-01 | role 컬럼은 **비강제 템플릿**으로 유지하고 enforcement는 100% account-level로 한다. role은 (i) 로그인/감사 식별 + (ii) MASTER UI의 "템플릿 적용" 소스로만 사용한다. cold-start 1,200 셀 수동 설정 회피 + "role 기반 그룹화 폐기" 요구의 본질(enforcement 그룹화 폐기) 충족. |
+| D-PO-02 | DOWNLOAD는 **단일 `can_download`** bit로 둔다. 포맷(Excel/PDF/PNG)은 기능 레이어로 분리한다. 인벤토리상 PDF/PNG는 전 codebase 0, Excel 7 endpoint이므로 포맷별 미세제어 필요성 미입증. |
+| D-PO-03 | 마이그레이션은 **행동보존 자동전개**(Flyway V39)로 한다. 기존 `role_page_permissions` → 7-action `role_page_permission_templates` → 각 계정 `account_page_permissions` materialize. VIEW→VIEW, EDIT→CREATE+UPDATE+DELETE, RESTORE/DOWNLOAD/PRINT는 보존 매핑표 기준. 회귀 0. |
+| D-PO-04 | MASTER 매트릭스 UI는 **평탄 매트릭스 + 도메인 섹션 헤더**(단일 계정 view, 173 행)로 한다. 행/열/도메인 일괄 토글 + 검색 + 템플릿 적용 + 다른 계정 복사. 다계정 일괄은 별도 wizard(`/admin/permission-matrix/bulk`). |
+| D-PO-05 | MASTER bypass는 **PermissionAspect short-circuit**으로 한다. role=MASTER는 client.check 미호출 proceed (grant row 0). `/auth/admin/permissions/my`도 MASTER는 전 PageCode × 7-action all-true 반환(FE 메뉴 게이트 보존). |
+| D-PO-06 | RESTORE 메커니즘 구현은 **Phase 2 도메인별 spec**으로 분리한다. Phase 1은 `can_restore` bit 정의 + 기존 2 endpoint(inventory.warehouse.admin, slip.audit-revert) 가드만. |
+| D-PO-07 | PARTNER 경계는 PermissionAspect가 internal page 접근을 자동 deny한다. 내부 Role enum에 PARTNER 없음(외부=partner-auth-service 전용 endpoint). SP-D7 PARTNER widening 회고 반영. |
+| D-PO-08 | FE 자기-권한 로드는 `GET /auth/admin/permissions/my`(`isAuthenticated()`)를 account 기반 7-action map으로 전환하여 사용한다. internal `hasRole('INTERNAL')` endpoint를 데스크톱 토큰으로 호출 시 403이 나므로 admin `/my`로 통일(MASTER all-true / PARTNER deny / X-User-Id 누락·parse 실패 fail-closed). |
+| D-PO-09 | FE `usePermissions`/`PermissionGuard`는 7-action `canAccess`를 쓰되, 기존 라우트의 `action="edit"` 호환을 위해 `PermissionLookupAction = PermissionAction | 'edit'` + `normalizePermissionAction`(edit→update)을 과도기 shim으로 둔다. 라우트 prop의 명시 7-action 정리는 후속(편의상 본 PR의 AppLayout 범위 밖 개별 버튼 fan-out은 미수행). |
+
+**산출(2026-05-28 세션)**: shared/security `PermissionAction` 7-action enum + `@RequirePermission` enum화 + `PermissionAspect`(account-id/MASTER bypass/PARTNER deny) + `DynamicPermissionClient` account+7action(Stage 1); auth-service `account_page_permissions`/`role_page_permission_templates` 엔티티·서비스·admin/internal API + Flyway V39 + `/my` 7-action 전환(Stage 1+SP-PO-11); 14 service ~380 `@RequirePermission` 2→7 재주석화 + `EstimatePermissionGuard` account 전환 + dead guard 3개 삭제(Stage 2); FE `permissionsApi`/`usePermissions` 7-action + account 매트릭스 API + `PermissionMatrixPage` 평탄 매트릭스 재작성 + 다계정 wizard + AppLayout 게이트 + Playwright 3 spec(Stage 3); dev-report `docs/dev-reports/phase-1-permission-overhaul-framework.md`. spec `docs/superpowers/specs/2026-05-28-permission-overhaul-phase-1-framework-design.md`, plan `docs/superpowers/plans/2026-05-28-permission-overhaul-phase-1-framework.md`.
