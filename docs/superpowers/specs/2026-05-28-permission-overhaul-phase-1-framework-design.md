@@ -28,44 +28,55 @@
 
 ### 3-1. 신규 테이블
 
+> **컨벤션 정정 (현재 코드 조사)**: 기존 `role_page_permissions`(V7) 패턴을 정확히 따른다 — `id UUID PK + gen_random_uuid()`, 활성 행 partial UNIQUE index, audit 컬럼은 **`modified_at`/`modified_by`** (NOT `updated_at`), `created_by VARCHAR(50) DEFAULT 'system'`, `role_code VARCHAR(20)`, `page_code VARCHAR(100)`. JPA 엔티티는 `@SQLRestriction("is_deleted = false")` + `@UuidGenerator`.
+
 ```sql
 -- 비강제 템플릿 (MASTER UI 의 "템플릿 적용" 소스, enforcement X)
-CREATE TABLE role_page_permission_templates (
-    role_code      VARCHAR(32) NOT NULL,
-    page_code      VARCHAR(64) NOT NULL,
-    can_view       BOOLEAN NOT NULL DEFAULT FALSE,
-    can_create     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_update     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_delete     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_restore    BOOLEAN NOT NULL DEFAULT FALSE,
-    can_download   BOOLEAN NOT NULL DEFAULT FALSE,
-    can_print      BOOLEAN NOT NULL DEFAULT FALSE,
-    -- BaseEntity 7 audit
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_by UUID,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_by UUID,
-    deleted_at TIMESTAMPTZ,
-    deleted_by UUID,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (role_code, page_code)
+CREATE TABLE IF NOT EXISTS role_page_permission_templates (
+    id              UUID         NOT NULL DEFAULT gen_random_uuid(),
+    role_code       VARCHAR(20)  NOT NULL,
+    page_code       VARCHAR(100) NOT NULL,
+    can_view        BOOLEAN NOT NULL DEFAULT FALSE,
+    can_create      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_update      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_delete      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_restore     BOOLEAN NOT NULL DEFAULT FALSE,
+    can_download    BOOLEAN NOT NULL DEFAULT FALSE,
+    can_print       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP   NOT NULL DEFAULT NOW(),
+    created_by      VARCHAR(50) NOT NULL DEFAULT 'system',
+    modified_at     TIMESTAMP,
+    modified_by     VARCHAR(50),
+    deleted_at      TIMESTAMP,
+    deleted_by      VARCHAR(50),
+    is_deleted      BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT role_page_permission_templates_pk PRIMARY KEY (id)
 );
+CREATE UNIQUE INDEX uq_rppt_active ON role_page_permission_templates (role_code, page_code) WHERE is_deleted = FALSE;
 
--- 유일 enforcement 소스 (비-MASTER, 비-PARTNER)
-CREATE TABLE account_page_permissions (
-    account_id     UUID NOT NULL,
-    page_code      VARCHAR(64) NOT NULL,
-    can_view       BOOLEAN NOT NULL DEFAULT FALSE,
-    can_create     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_update     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_delete     BOOLEAN NOT NULL DEFAULT FALSE,
-    can_restore    BOOLEAN NOT NULL DEFAULT FALSE,
-    can_download   BOOLEAN NOT NULL DEFAULT FALSE,
-    can_print      BOOLEAN NOT NULL DEFAULT FALSE,
-    -- BaseEntity 7 audit (생략, templates 와 동일)
-    PRIMARY KEY (account_id, page_code)
+-- 유일 enforcement 소스 (비-MASTER 내부 계정). accounts.role 은 PARTNER 불가(아래 §6 주석).
+CREATE TABLE IF NOT EXISTS account_page_permissions (
+    id              UUID         NOT NULL DEFAULT gen_random_uuid(),
+    account_id      UUID         NOT NULL,
+    page_code       VARCHAR(100) NOT NULL,
+    can_view        BOOLEAN NOT NULL DEFAULT FALSE,
+    can_create      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_update      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_delete      BOOLEAN NOT NULL DEFAULT FALSE,
+    can_restore     BOOLEAN NOT NULL DEFAULT FALSE,
+    can_download    BOOLEAN NOT NULL DEFAULT FALSE,
+    can_print       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP   NOT NULL DEFAULT NOW(),
+    created_by      VARCHAR(50) NOT NULL DEFAULT 'system',
+    modified_at     TIMESTAMP,
+    modified_by     VARCHAR(50),
+    deleted_at      TIMESTAMP,
+    deleted_by      VARCHAR(50),
+    is_deleted      BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT account_page_permissions_pk PRIMARY KEY (id)
 );
-CREATE INDEX ix_app_account ON account_page_permissions(account_id) WHERE is_deleted = FALSE;
+CREATE UNIQUE INDEX uq_app_active ON account_page_permissions (account_id, page_code) WHERE is_deleted = FALSE;
+CREATE INDEX ix_app_account ON account_page_permissions (account_id) WHERE is_deleted = FALSE;
 ```
 
 ### 3-2. 기존 테이블 처리
@@ -99,35 +110,43 @@ public enum PermissionAction {
 
 ### 4-3. `PermissionAspect`
 
+> **정정 (현재 코드 조사)**: 현행 `PermissionAspect` 는 `X-User-Role` 헤더만 읽고 `client.canView/canEdit(roleCode, page)` 를 role 기준으로 호출 — **account id 미사용**. account-level 전환의 핵심 변경 = 아래 pseudocode 처럼 **`X-User-Id` 헤더(= gateway 가 JWT `sub` claim 에서 주입한 end-user 계정 UUID)** 를 읽어 account 기준 check 로 전환. gateway(`JwtAuthenticationGatewayFilterFactory`)가 이미 `X-User-Id`/`X-User-Role` 을 다운스트림에 주입하므로 gateway 변경 불필요(단 `sub` = `accounts.id` UUID 임을 IT 로 확인). MASTER bypass 는 **신규**(현재는 MASTER 도 동일 DB check, all-true seed).
+
 ```pseudo
 @Around("@annotation(rp)")
 on RequirePermission rp:
-    role = currentRoleFromTokenClaims()       // X-User-Role 헤더는 fallback
-    if role == MASTER:                         // D-PO-05
+    role      = header("X-User-Role")          // gateway 주입 (JWT role claim)
+    accountId = header("X-User-Id")            // gateway 주입 (JWT sub claim = accounts.id)
+    if role == "MASTER":                        // D-PO-05 신규 bypass
         return joinPoint.proceed()
-    if role == PARTNER and rp.page not in PARTNER_ALLOWED_PAGES:
-        throw Forbidden                        // D-PO-07
-    accountId = currentAccountIdFromTokenClaims()
+    if role == "PARTNER":                        // D-PO-07 방어적 deny (내부 Role enum 엔 PARTNER 없음)
+        throw Forbidden                          //   = 내부 service 도달 시 무조건 차단
+    if accountId is null:
+        log.warn(...); throw Forbidden           // 현행 "skip" → account 모델에선 deny (안전측)
     granted = dynamicPermissionClient.check(accountId, rp.page, rp.action)
     if not granted:
         throw Forbidden
     return joinPoint.proceed()
 ```
 
-- `MASTER`/`PARTNER` 식별은 토큰 claims 우선, X-User-Role 헤더는 internal 신뢰 경계 안 fallback.
-- `PARTNER_ALLOWED_PAGES` = 정적 whitelist (현재 PARTNER 자기-서비스 endpoint 의 page 집합, partner-auth-service 측 정의).
+- **PARTNER 주의**: 내부 `Role` enum(shared/common, 10값: MASTER/DEVELOPER/MANAGER/DISPATCH/SALES/ACCOUNTANT/WAREHOUSE/INVENTORY/STAFF/DRIVER)에 **PARTNER 없음**. PARTNER 는 외부(partner-auth-service) 경계 — 내부 `accounts.role` 은 PARTNER 가 될 수 없다. 따라서 aspect 의 PARTNER 분기는 방어적(defense-in-depth): 어떤 경로로든 내부 service 에 `X-User-Role: PARTNER` 가 도달하면 차단. `PARTNER_ALLOWED_PAGES` whitelist 불필요(전면 deny).
+- 현행 "미지원 action → WARN+skip" 동작은 7-action 전환 후 제거(모든 action 이 지원되므로). account id null → deny(현행 role null → skip 보다 엄격, account 모델 안전성).
 
 ### 4-4. `DynamicPermissionClient` (shared/security `DefaultDynamicPermissionClient`)
 
+> **정정 (현재 코드 조사)**: 현행 interface 는 `canView(roleCode, page)` / `canEdit(roleCode, page)` (role 기준). 현행 impl 은 **캐시 없음** (매 호출 fresh HTTP). 현행 endpoint = `GET /auth/internal/permissions/check?roleCode&pageCode&type` (`PermissionInternalController`, `@PreAuthorize("hasRole('INTERNAL')")`). admin 매트릭스 = `/auth/admin/permissions`(GET/PUT/DELETE) + `/auth/admin/permissions/batch`(POST) + `/auth/admin/permissions/my`(GET). 따라서 아래는 **interface/endpoint 시그니처 변경** (role→account, 2→7 action).
+
 ```java
+// shared/security DynamicPermissionClient (신규 시그니처)
 boolean check(UUID accountId, String pageCode, PermissionAction action);
-Map<String, EnumSet<PermissionAction>> bulkLoad(UUID accountId);  // MASTER UI / FE 사이드바
+Map<String, EnumSet<PermissionAction>> bulkLoad(UUID accountId);  // FE 부트 (canAccess map)
 ```
 
-- auth-service `PermissionLookupController`:
-  - `GET /api/v1/permissions/check?accountId&page&action` → boolean
-  - `GET /api/v1/permissions/account/{accountId}` → `{pageCode: [actions...]}` (FE 부트, 15s TTL 캐시 패턴 유지)
-- 캐시 무효화: MASTER UI 가 grant 변경 시 `POST /api/v1/permissions/invalidate?accountId={id}` 호출 (현행 invalidate 패턴 유지).
+- auth-service `PermissionInternalController` (경로 컨벤션 `/auth/internal/...` 유지):
+  - `GET /auth/internal/permissions/check?accountId={uuid}&pageCode={code}&action={ACTION}` → `{allowed: boolean}`
+  - `GET /auth/internal/permissions/account/{accountId}` → `{pageCode: [actions...]}` (FE `fetchMyPermissions` 의 account 기준 대체; 현행 `/auth/admin/permissions/my` 는 role 기준이므로 account 기준으로 전환)
+- **캐시**: 현행처럼 per-call HTTP 유지(parity, Phase 1 신규 캐시 도입 안 함). FE 는 기존 5분 staleTime + module cache 유지. account-keyed per-request 캐시는 Phase 2 성능 백로그.
+- MASTER UI grant 변경 시 FE 가 `fetchMyPermissions`/매트릭스 쿼리 invalidate (TanStack Query). BE 무효화 endpoint 불필요(캐시 없음).
 
 ## 5. 재주석화 정책 (~380 endpoint, 도메인별 8 commit)
 
@@ -142,7 +161,9 @@ Map<String, EnumSet<PermissionAction>> bulkLoad(UUID accountId);  // MASTER UI /
   - 롤백 (`revert`, warehouse `restore`) → `RESTORE`
 - **인벤토리 mis-annotation 동반 정정**: §2-1 의 6 + 3 건은 본 PR 안 별도 정정 commit.
 - **dead/orphan PageCode 정리**: enum 의 6 dead 코드는 Phase 1 PR 안 별도 commit 으로 정리 (또는 별도 작은 PR — 영향 없는 단순 제거).
-- **guard-gated page 사전 식별** (SP-D7 estimates.list 회고): `EstimatePermissionGuard` / `ProductPermissionGuard` / `PartnerOrderPermissionGuard` 가 `checkView` 하는 page 와 V39 의 새 7-action grant 의 교차 영향 사전 검증. 충돌 시 전용 `.view` 코드 분리 (SP-D7 옵션 A 패턴 재사용) 또는 isAuth 유지.
+- **guard-gated page (현재 코드 조사 결과)**:
+  - `EstimatePermissionGuard` (slip-service) = **실사용** — `EstimateController` 의 list/getOne 에 `checkView(actorRole)`, 6 mutating method 에 `checkEdit(actorRole)` + `@RequirePermission(estimates.list, EDIT)` 병용. **role 기준** 가드라 account 모델과 불일치 → Phase 1 에서 **account 기준으로 전환**(guard 가 `DynamicPermissionClient.check(accountId, estimates.list, VIEW/...)` 호출) 또는 @RequirePermission 으로 일원화 후 guard 제거. SP-D7 estimates.list escalation 회고 반영(전용 `.view` 코드 불필요해짐 — account 모델은 page-reuse widening 자체가 없음).
+  - `ProductPermissionGuard` (product-service) / `PartnerOrderPermissionGuard` (partner-order-service) = **call site 0 (dead code)**. Phase 1 에서 **삭제**(dead 코드 정리 commit). 인벤토리 §2-1 의 `PartnerPermissionGuard` 도 동일.
 
 ## 6. 마이그레이션 V39 (행동보존 자동전개, D-PO-03)
 
@@ -198,7 +219,7 @@ WHERE a.is_deleted = FALSE
 
 ### 6-3. 위험 회피 (SP-D7 V38 회고 [[cycle-n2-mandatory]])
 
-- **PARTNER 미부여**: §6-2 step 3 의 `NOT IN ('PARTNER')` 강제. PARTNER 행 0건 보장 IT.
+- **PARTNER 미부여**: §6-2 step 3 의 `NOT IN ('MASTER', 'PARTNER')` 강제. 단 `accounts.role` 은 내부 `Role` enum(PARTNER 없음)이라 PARTNER 계정은 애초에 materialize 대상 아님 — `NOT IN` 은 belt-and-suspenders. (`role_page_permission_templates` 에는 기존 `role_page_permissions` V38 seed 의 `PARTNER` role_code 행이 복사될 수 있으나, 어떤 내부 account 에도 적용되지 않음 — 무해한 dead template). `account_page_permissions` 에 PARTNER 행 0건 보장 IT.
 - **force-UPDATE 금지**: 기존 deliberate FALSE row 를 덮어쓰는 UPDATE 미사용. step 1 은 INSERT, step 2 의 RESTORE/DOWNLOAD/PRINT UPDATE 는 인벤토리 매핑이 명시한 (role × page) 쌍에만 한정.
 - **guard-gated page 사전 분리**: §5 의 3 PermissionGuard 영향 page 는 매트릭스 UI 의 정의된 page (전용 코드) 와 정렬. 행동보존 자동전개가 그 page 의 grant 를 확대하지 않음 IT.
 
