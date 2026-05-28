@@ -4,7 +4,33 @@
 
 ---
 
-## 🚀 2026-05-27 신규 대형 initiative — 권한 체계 전면 재편 (brainstorming → 토대 확정, Phase 0 대기)
+## ✅ 2026-05-28 진행 — 권한 재편 Phase 0 인벤토리 완료 + Phase 1 프레임워크 spec/plan 확정 (구현 대기)
+
+**브랜치**: `docs/phase-1-permission-overhaul-design` (로컬, push 미실행). commit `f67fce1f`(인벤토리+spec) + `c22a7e17`(plan+spec정정).
+
+### Phase 0 인벤토리 완료 (8 도메인 fan-out audit)
+- 산출: `docs/permission-overhaul/menu-inventory.md` (마스터) + `docs/permission-overhaul/inventory/{8개}.md`.
+- 173 PageCode × 7 action 매트릭스. **크로스컷팅 발견**:
+  - 🚨 현행 = **2-action(VIEW/EDIT)** → Phase 1 본체 = ~380 endpoint 재주석화(2→7).
+  - RESTORE 진짜 구현 = 2건(`inventory.warehouse.admin` + `slip.audit-revert`), 나머지 Phase 2.
+  - DOWNLOAD = Excel 7 endpoint 만, **PDF/PNG = 전 codebase 0**. PRINT = HTML view 6 그룹.
+  - mis-annotation 6+ (partners.delete EDIT→DELETE, slip.cleanup-history EDIT→VIEW, admin.users 코드) + dead/orphan 6.
+
+### Phase 1 설계 확정 (brainstorming D-PO-01~07)
+- spec: `docs/superpowers/specs/2026-05-28-permission-overhaul-phase-1-framework-design.md`
+- plan: `docs/superpowers/plans/2026-05-28-permission-overhaul-phase-1-framework.md` (Task 0~15)
+- 결정: role 비강제 템플릿 유지 / 단일 can_download / 행동보존 자동전개 / 평탄 매트릭스+도메인섹션 UI / MASTER bypass short-circuit / RESTORE 메커니즘 Phase 2 / PARTNER 경계 deny.
+- **구현 조사 정정**: Role enum 에 PARTNER 없음(10값, 외부=partner-auth) / aspect 가 account id 미사용→`X-User-Id`(gateway 주입 JWT sub) 추가가 핵심 / MASTER bypass 신규 / client 캐시 없음 / EstimateGuard 실사용(role→account 전환) + Product·PartnerOrder guard dead(삭제) / Flyway V38→**V39**.
+
+### 다음 단계 — 사용자(개발책임자) 결정 대기
+1. **plan 검토** (Task 0~15, 단일 PR ~14 commit, 거대 변경).
+2. **docs 브랜치 처리**: 토대(PR #314) 선례처럼 planning 문서 PR 머지 후 구현 시작 vs feat 브랜치에 docs 동반.
+3. **구현 착수**: `feat/phase-1-permission-overhaul-framework` 에서 Codex 디스패치 (Task 1부터). [[codex-implements-claude-reviews]] + dual 리뷰 + cycle N=2 + CI green + PM 머지.
+- ⚠️ Task 2(annotation enum) 이후 ~14 service 컴파일 깨짐 → Task 9.1~9.8 순차 복구. 단일 PR 은 전 service 복구 후 CI green.
+
+---
+
+## 🚀 2026-05-27 신규 대형 initiative — 권한 체계 전면 재편 (brainstorming → 토대 확정, Phase 0 대기 → ✅ 2026-05-28 완료, 위 참조)
 
 **사용자 요구**: role 기반(영업원/회계원 등) 폐기 → **계정 단위 × 페이지 × 7 action**(보기/입력/수정/삭제/복원/다운로드/출력) 권한 + MASTER 체크박스 UI(개별/일괄). 다운로드=PDF/PNG/EXCEL. 복원=전표 버전이력+롤백(YYYY/MM/DD-{전표번호}).
 
