@@ -13,13 +13,13 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { usePermissions } from '../hooks/usePermissions'
-import type { PageCode, PermissionAction } from '../api/permissionsApi'
+import type { PageCode, PermissionLookupAction } from '../api/permissionsApi'
 
 export interface PermissionGuardProps {
   /** 접근 허용 여부를 판단할 페이지 코드. */
   pageCode: PageCode
   /** 확인할 액션 (기본값: 'view'). */
-  action?: PermissionAction
+  action?: PermissionLookupAction
   /** 가드 통과 시 렌더링. */
   children: ReactNode
 }

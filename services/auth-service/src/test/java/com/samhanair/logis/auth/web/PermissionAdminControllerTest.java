@@ -6,14 +6,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +48,7 @@ class PermissionAdminControllerTest {
     private static final String MASTER_ROLE = "MASTER";
     private static final String ACCOUNTANT_ROLE = "ACCOUNTANT";
     private static final String PAGE_EMIT = "accounting.tax-invoice.emit-nts";
+    private static final String PAGE_JOURNALS = "accounting.journals";
     private static final String INTERNAL_TOKEN = "test-internal-token";
 
     @BeforeEach
@@ -61,6 +66,64 @@ class PermissionAdminControllerTest {
                 .standaloneSetup(adminController, new PermissionInternalController(accountPermissionService))
                 .addFilters(new InternalTokenFilter(internalAuthProperties), new HeaderAuthenticationFilter())
                 .build();
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /auth/admin/permissions/my — 현재 계정 7-action 권한 조회
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("GET /my MASTER — 모든 PageCode 에 7-action 전체 허용 map 반환")
+    void getMyPermissions_withMasterRole_returnsAllPageActions() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.size()).isEqualTo(PageCode.values().length);
+        assertThat(data.get(PAGE_JOURNALS)).isNotNull();
+        assertThat(data.get(PAGE_JOURNALS)).extracting(JsonNode::asText).containsExactlyInAnyOrder(
+                "VIEW", "CREATE", "UPDATE", "DELETE", "RESTORE", "DOWNLOAD", "PRINT");
+    }
+
+    @Test
+    @DisplayName("GET /my 일반 계정 — X-User-Id 기반 bulkLoad 결과를 7-action map 으로 반환")
+    void getMyPermissions_withAccountId_returnsBulkLoadActions() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.bulkLoad(accountId)).thenReturn(Map.of(
+                PAGE_JOURNALS,
+                EnumSet.of(PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.DOWNLOAD)));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Id", accountId.toString())
+                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.get(PAGE_JOURNALS)).extracting(JsonNode::asText).containsExactlyInAnyOrder(
+                "VIEW", "CREATE", "DOWNLOAD");
+        verify(accountPermissionService).bulkLoad(accountId);
+    }
+
+    @Test
+    @DisplayName("GET /my 일반 계정 — X-User-Id 없음이면 fail-closed 빈 map 반환")
+    void getMyPermissions_withoutAccountId_returnsEmptyMap() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.size()).isZero();
     }
 
     // -----------------------------------------------------------------------
