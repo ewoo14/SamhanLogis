@@ -36,7 +36,7 @@ public class SlipUpdateController {
     @Operation(summary = "매입 전표 즉시 수정",
             description = "WAREHOUSE/MANAGER/MASTER 가 INBOUND 전표 헤더와 라인을 updatedAt 낙관적 잠금으로 수정합니다.")
     @PutMapping("/{id}")
-    @RequirePermission(page = "purchases.slip.edit", action = "EDIT")
+    @RequirePermission(page = "purchases.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody SlipUpdateRequest request,

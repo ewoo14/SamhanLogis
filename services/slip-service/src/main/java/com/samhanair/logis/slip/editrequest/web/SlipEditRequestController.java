@@ -71,7 +71,7 @@ public class SlipEditRequestController {
                     description = "INSPECTING/SHIPPING/DELIVERED/CONFIRMED (완전 잠금)")
     })
     @PostMapping("/{slipId}/edit-request")
-    @RequirePermission(page = "slip.edit-requests", action = "EDIT")
+    @RequirePermission(page = "slip.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<SlipEditRequestResponse>> createRequest(
             @PathVariable UUID slipId,
             @Valid @RequestBody CreateEditRequestRequest request,
@@ -96,7 +96,7 @@ public class SlipEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{slipId}/edit-request/{requestId}/approve")
-    @RequirePermission(page = "slip.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "slip.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipEditRequestResponse> approveRequest(
             @PathVariable UUID slipId,
             @PathVariable UUID requestId,
@@ -122,7 +122,7 @@ public class SlipEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 종결된 요청")
     })
     @PostMapping("/{slipId}/edit-request/{requestId}/reject")
-    @RequirePermission(page = "slip.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "slip.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipEditRequestResponse> rejectRequest(
             @PathVariable UUID slipId,
             @PathVariable UUID requestId,
@@ -144,7 +144,7 @@ public class SlipEditRequestController {
     @Operation(summary = "권한자 대시보드 — PENDING 요청 목록",
             description = "PR-H3 — 본인 권한 그룹 (WAREHOUSE/MANAGER) 의 PENDING 요청 목록 (대시보드)")
     @GetMapping("/edit-requests")
-    @RequirePermission(page = "slip.edit-requests.decide", action = "VIEW")
+    @RequirePermission(page = "slip.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipEditRequestResponse>> listForRole(
             @RequestParam SlipEditTargetRole targetRole) {
         // 본 PR 시범 — PENDING 대시보드 한정. APPROVED/REJECTED/EXPIRED 는 slip 화면별 endpoint
@@ -159,7 +159,7 @@ public class SlipEditRequestController {
     @Operation(summary = "슬립별 요청 이력",
             description = "PR-H3 — slip 화면의 '수정 요청 이력' 섹션. status filter 선택")
     @GetMapping("/{slipId}/edit-requests")
-    @RequirePermission(page = "slip.edit-requests", action = "VIEW")
+    @RequirePermission(page = "slip.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipEditRequestResponse>> listBySlip(
             @PathVariable UUID slipId,
             @RequestParam(required = false) SlipEditRequestStatus status) {

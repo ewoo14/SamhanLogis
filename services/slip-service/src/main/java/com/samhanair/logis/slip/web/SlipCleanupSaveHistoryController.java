@@ -55,7 +55,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 저장",
             description = "전표정리 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
-    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
+    @RequirePermission(page = "slip.cleanup-history", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipCleanupSaveHistorySaveResponse> save(
             @Valid @RequestBody SlipCleanupSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -81,7 +81,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 전표정리 저장내역을 조회한다.")
     @GetMapping
-    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
+    @RequirePermission(page = "slip.cleanup-history", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<SlipCleanupSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -119,7 +119,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
-    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
+    @RequirePermission(page = "slip.cleanup-history", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<SlipCleanupSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -140,7 +140,7 @@ public class SlipCleanupSaveHistoryController {
     @Operation(summary = "전표정리 최신 자동저장 조회",
             description = "현재 사용자의 최신 SLIP_CLEANUP AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
-    @RequirePermission(page = "slip.cleanup-history", action = "EDIT")
+    @RequirePermission(page = "slip.cleanup-history", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<SlipCleanupSaveHistoryDetailResponse> latest(
             @RequestParam("programType") SlipCleanupProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

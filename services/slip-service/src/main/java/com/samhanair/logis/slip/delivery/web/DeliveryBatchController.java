@@ -42,7 +42,7 @@ public class DeliveryBatchController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "그룹화 성공")
     })
     @PostMapping("/auto-group")
-    @RequirePermission(page = "slip.delivery-batch", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<List<DeliveryBatchResponse>> autoGroup(
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(batchService.autoGroupByDate(date));
@@ -51,7 +51,7 @@ public class DeliveryBatchController {
     /** 배치 목록 조회 (링크발송 화면). */
     @Operation(summary = "배송 배치 목록", description = "date 필터 필수, sent 필터 옵션")
     @GetMapping
-    @RequirePermission(page = "slip.delivery-batch", action = "VIEW")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<DeliveryBatchResponse>> list(
             @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(value = "sent", required = false) Boolean sent) {
@@ -61,7 +61,7 @@ public class DeliveryBatchController {
     /** 배치 단건 상세 조회. */
     @Operation(summary = "배송 배치 단건 조회", description = "슬립 번호 목록 포함")
     @GetMapping("/{id}")
-    @RequirePermission(page = "slip.delivery-batch", action = "VIEW")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DeliveryBatchResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(batchService.getOne(id));
     }
@@ -75,7 +75,7 @@ public class DeliveryBatchController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Solapi 호출 실패")
     })
     @PostMapping("/{id}/send-sms")
-    @RequirePermission(page = "slip.delivery-batch", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeliveryBatchResponse> sendSms(@PathVariable UUID id) {
         return ApiResponse.ok(batchService.sendSms(id));
     }
@@ -83,7 +83,7 @@ public class DeliveryBatchController {
     /** 슬립 수동 추가. */
     @Operation(summary = "슬립 추가", description = "다른 배치 소속이면 자동 이전")
     @PostMapping("/{id}/slips")
-    @RequirePermission(page = "slip.delivery-batch", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeliveryBatchResponse> addSlip(
             @PathVariable UUID id,
             @Valid @RequestBody AddSlipToBatchRequest req) {
@@ -93,7 +93,7 @@ public class DeliveryBatchController {
     /** 슬립 수동 제거. */
     @Operation(summary = "슬립 제거", description = "본 배치 소속이어야 함")
     @DeleteMapping("/{id}/slips/{slipId}")
-    @RequirePermission(page = "slip.delivery-batch", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeliveryBatchResponse> removeSlip(
             @PathVariable UUID id,
             @PathVariable UUID slipId) {
@@ -103,7 +103,7 @@ public class DeliveryBatchController {
     /** 토큰 재발급 — 만료/유출 시 호출. */
     @Operation(summary = "토큰 재발급", description = "smsSentAt 도 reset 됨 (재발송 가능)")
     @PostMapping("/{id}/regenerate-token")
-    @RequirePermission(page = "slip.delivery-batch", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-batch", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DeliveryBatchResponse> regenerateToken(@PathVariable UUID id) {
         return ApiResponse.ok(batchService.regenerateToken(id));
     }

@@ -51,7 +51,7 @@ public class SlipDeleteController {
             description = "WAREHOUSE/MANAGER/MASTER 가 INBOUND 전표를 updatedAt 낙관적 잠금으로 삭제합니다. "
                     + "물리 삭제 불가, DRAFT/SAVED 단계만 삭제 허용.")
     @DeleteMapping("/{id}")
-    @RequirePermission(page = "purchases.slip.delete", action = "EDIT")
+    @RequirePermission(page = "purchases.slip.delete", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<Void> delete(
             @PathVariable UUID id,
             @Valid @RequestBody SlipDeleteRequest request,

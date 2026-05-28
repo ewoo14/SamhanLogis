@@ -54,7 +54,7 @@ public class DispatchBoardAdminController {
      */
     @Operation(summary = "미배차 출고전표 페이지", description = "default: Asia/Seoul today ±1일 + UNDISPATCHED + 50/회")
     @GetMapping("/undispatched-slips")
-    @RequirePermission(page = "dispatch.board", action = "VIEW")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public Page<SlipBoardResponse> listUnDispatchedSlips(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

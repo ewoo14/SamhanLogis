@@ -90,7 +90,7 @@ public class ReceiptOcrController {
      */
     @PostMapping(value = "/receipt-ocr", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "purchases.receipt-ocr", action = "EDIT")
+    @RequirePermission(page = "purchases.receipt-ocr", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "영수증 OCR 파싱 + 매입 전표 자동 생성",
             description = "영수증 이미지(jpg/png, ≤10MB)를 업로드하면 OCR 로 파싱 후 매입 전표 DRAFT 를 자동 생성합니다. "
                     + "submitMethod=DRY_RUN(기본) 은 즉시 mock 응답, CLOVA 는 Phase 11 실 API 연동 예정. "

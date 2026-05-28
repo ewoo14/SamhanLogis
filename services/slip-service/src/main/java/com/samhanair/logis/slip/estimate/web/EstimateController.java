@@ -48,7 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
  *       + {@link EstimatePermissionGuard#checkView(String)}</li>
- *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = "EDIT")}
+ *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)}
  *       + {@link EstimatePermissionGuard#checkEdit(String)}</li>
  * </ul>
  */
@@ -102,7 +102,7 @@ public class EstimateController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -114,7 +114,7 @@ public class EstimateController {
     /** 견적서 수정 — DRAFT/SENT 단계만. */
     @Operation(summary = "견적서 수정", description = "DRAFT/SENT 단계만. lines 가 있으면 기존 라인 replace")
     @PutMapping("/{id}")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
@@ -127,7 +127,7 @@ public class EstimateController {
     /** DRAFT → SENT. */
     @Operation(summary = "견적서 발송", description = "QUOTE_DRAFT → QUOTE_SENT")
     @PostMapping("/{id}/send")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -139,7 +139,7 @@ public class EstimateController {
     /** SENT → ACCEPTED. */
     @Operation(summary = "견적서 수주", description = "QUOTE_SENT → QUOTE_ACCEPTED")
     @PostMapping("/{id}/accept")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -151,7 +151,7 @@ public class EstimateController {
     /** SENT → REJECTED. */
     @Operation(summary = "견적서 거절", description = "QUOTE_SENT → QUOTE_REJECTED")
     @PostMapping("/{id}/reject")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -168,7 +168,7 @@ public class EstimateController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ACCEPTED 가 아님")
     })
     @PostMapping("/{id}/convert")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
