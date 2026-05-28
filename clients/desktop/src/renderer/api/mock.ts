@@ -4267,34 +4267,89 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // GET /auth/admin/permissions/accounts — Task 12 계정 selector mock.
+  if (method === 'GET' && (url.includes('/auth/admin/permissions/accounts') || url.includes('/admin/permissions/accounts'))) {
+    return envelope([
+      { id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER', enabled: true },
+      { id: 'mock-account-sales', displayName: '이영업', role: 'SALES', enabled: true },
+      { id: 'mock-account-dispatch', displayName: '박배차', role: 'DISPATCH', enabled: true },
+    ])
+  }
+
+  if (
+    (url.includes('/auth/admin/permissions/account/') || url.includes('/admin/permissions/account/')) &&
+    !url.includes('/apply-template') &&
+    !url.includes('/copy-from')
+  ) {
+    if (method === 'GET') {
+      const role =
+        url.includes('mock-account-sales') ? 'SALES'
+          : url.includes('mock-account-dispatch') ? 'DISPATCH'
+            : 'MANAGER'
+      const accountMatrix: Record<string, {
+        view: boolean
+        create: boolean
+        update: boolean
+        delete: boolean
+        restore: boolean
+        download: boolean
+        print: boolean
+      }> = {}
+      for (const page of SP_D1_PAGES) {
+        const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
+        accountMatrix[page] = {
+          view: legacyCell?.view ?? false,
+          create: legacyCell?.edit ?? false,
+          update: legacyCell?.edit ?? false,
+          delete: legacyCell?.edit ?? false,
+          restore: false,
+          download: legacyCell?.view ?? false,
+          print: legacyCell?.view ?? false,
+        }
+      }
+      accountMatrix['system.permission-admin'] = {
+        view: role === 'MANAGER',
+        create: false,
+        update: role === 'MANAGER',
+        delete: false,
+        restore: false,
+        download: false,
+        print: false,
+      }
+      return envelope(accountMatrix)
+    }
+
+    if (method === 'PUT') {
+      const updates = parseMockBody(config)
+      return envelope({ changedCount: Array.isArray(updates) ? updates.length : 0 })
+    }
+  }
+
+  if (method === 'POST' && (url.includes('/apply-template') || url.includes('/copy-from'))) {
+    return envelope({ changedCount: 12 })
+  }
+
   // GET /auth/admin/permissions/my — 현재 사용자 권한 목록
-  // BE 응답: List<PermissionDto> (canView / canEdit 필드)
+  // BE 응답: Map<pageCode, PermissionAction[]>.
   if (method === 'GET' && (url.includes('/auth/admin/permissions/my') || url.includes('/admin/permissions/my'))) {
     const mockRole = MOCK_AUTH.role
+    const allActions = ['view', 'create', 'update', 'delete', 'restore', 'download', 'print']
     if (mockRole === 'MASTER') {
-      // MASTER 는 항상 모든 페이지 view+edit
-      return envelope(
-        SP_D1_PAGES.map((page) => ({
-          roleCode: 'MASTER',
-          pageCode: page,
-          displayName: page,
-          canView: true,
-          canEdit: true,
-          isOverride: true,
-        })),
-      )
+      const permissions: Record<string, string[]> = {}
+      for (const page of SP_D1_PAGES) permissions[page] = allActions
+      permissions['system.permission-admin'] = allActions
+      return envelope(permissions)
     }
     const myCells = _mockPermissionCells.filter((c) => c.roleCode === mockRole)
-    return envelope(
-      myCells.map((c) => ({
-        roleCode: c.roleCode,
-        pageCode: c.pageCode,
-        displayName: c.pageCode,
-        canView: c.view,
-        canEdit: c.edit,
-        isOverride: true,
-      })),
-    )
+    const permissions: Record<string, string[]> = {}
+    for (const cell of myCells) {
+      const actions = []
+      if (cell.view) actions.push('view')
+      if (cell.edit) actions.push('create', 'update', 'delete')
+      if (cell.view) actions.push('download', 'print')
+      permissions[cell.pageCode] = actions
+    }
+    return envelope(permissions)
   }
 
   return null
