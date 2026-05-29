@@ -1,0 +1,369 @@
+package com.samhanair.logis.slip.it;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.ProductClient;
+import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.repository.SlipRepository;
+import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 전표 버전이력/복원 Testcontainers 통합 테스트 — 권한 재편 Phase 2.1 Task 5.
+ *
+ * <p>실 DB (V27 Flyway {@code slip_revisions} + JSONB 스냅샷) 기준으로 Task 2~4 산출
+ * (자동 캡처 / 타임라인 changeSummary / point-in-time 복원 / REST 권한 게이트) 을 종단 검증한다.
+ * {@link AbstractPostgresIT} 의 싱글턴 postgres:16-alpine 컨테이너 + Docker 미가용 시 skip 패턴을 상속한다.
+ *
+ * <p>대상 endpoint (Task 4):
+ * <ul>
+ *   <li>{@code GET  /slips/{slipId}/revisions} — {@code slip.audit-revert} VIEW. 최신 우선 타임라인 +
+ *       changeSummary. {@code actorId} JSON 미노출 (UUID 비공개 가드).</li>
+ *   <li>{@code POST /slips/{slipId}/revisions/{revisionNo}/restore} — {@code slip.audit-revert} RESTORE.
+ *       헤더 X-User-Id/X-User-Name. 마감(lockFlag/FULLY_LOCKED) 시 복원 차단.</li>
+ * </ul>
+ *
+ * <p>전표 seed 방식: 캡처가 일어나는 실 서비스 경로(MockMvc)를 그대로 사용한다 — {@code POST /slips}
+ * (CREATE 캡처), {@code POST /slips/{id}/lines} (라인 변경, 자체 캡처 없음), {@code PATCH /slips/{id}/v20}
+ * (EDIT 캡처 — 캡처 시점의 현 라인 집합을 스냅샷). 즉 "라인 추가 → v20 수정" 순서로 변경된 라인이 EDIT
+ * 스냅샷에 반영된다 (SlipControllerIT 의 CreateSlipRequest 패턴 재사용). 마감 lock 케이스만 도메인
+ * {@link Slip#lock()} 적용을 위해 {@link SlipRepository} 를 직접 사용한다.
+ *
+ * <p>모든 인증 요청에 유효 {@code X-User-Id}(UUID) + 적절 {@code X-User-Role} 헤더를 부여한다
+ * (권한 경로 정합 — account 모드 {@link PermissionAction} 게이트 + role MASTER bypass 검증).
+ *
+ * <p>{@link InventoryClient}/{@link ProductClient} 등 외부 client 는 {@code @MockBean} 격리
+ * (PR #17 회고 — 누락 시 Eureka 비활성 → 500).
+ */
+@SpringBootTest(classes = SlipServiceApplication.class)
+@AutoConfigureMockMvc
+@Transactional
+class SlipRevisionRestoreIT extends AbstractPostgresIT {
+
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_NAME_HEADER = "X-User-Name";
+    private static final String ROLE_HEADER = "X-User-Role";
+    private static final String AUDIT_REVERT_PAGE = "slip.audit-revert";
+
+    @Autowired private MockMvc mockMvc;
+    @Autowired private ObjectMapper objectMapper;
+    @Autowired private SlipRepository slipRepository;
+
+    @MockBean private InventoryClient inventoryClient;
+    @MockBean private ProductClient productClient;
+    @MockBean private UserInternalClient userInternalClient;
+    @MockBean private WarehouseInternalClient warehouseInternalClient;
+
+    @BeforeEach
+    void mockExternalClients() {
+        Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
+                .thenReturn(Optional.of("담당자"));
+        Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
+                .thenAnswer(inv -> {
+                    List<UUID> ids = inv.getArgument(0);
+                    return ids.stream()
+                            .map(id -> new ProductSummary(id, "테스트 제품", "MOD-001",
+                                    UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                            .toList();
+                });
+        Mockito.lenient().when(productClient.requireExists(ArgumentMatchers.any()))
+                .thenAnswer(inv -> new ProductSummary(
+                        inv.getArgument(0), "테스트 제품", "MOD-001",
+                        UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
+    }
+
+    // =========================================================================
+    // 시나리오 1 — 캡처 + 타임라인 (CREATE/EDIT, 최신 우선, changeSummary, actorId 미노출)
+    // =========================================================================
+
+    @Test
+    void timeline_afterCreateAndLineAddEdit_listsRevisionsLatestFirstWithoutActorId() throws Exception {
+        // 1라인 출고전표 생성 → CREATE revision 1 자동 캡처
+        UUID slipId = createOutboundSlipAsSales(1);
+
+        // 라인 1건 추가 (addLine 자체는 캡처 없음) → v20 수정으로 EDIT revision 2 캡처 (현 라인 = 2건)
+        addLine(slipId);
+        patchV20(slipId, "타임라인 검증 프로젝트");
+
+        MvcResult result = mockMvc.perform(get("/slips/{id}/revisions", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                // 최신 우선 — [0] = revision 2 (EDIT), [1] = revision 1 (CREATE)
+                .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                .andExpect(jsonPath("$.data[0].revisionType").value("EDIT"))
+                .andExpect(jsonPath("$.data[1].revisionNo").value(1))
+                .andExpect(jsonPath("$.data[1].revisionType").value("CREATE"))
+                // EDIT 는 직전(rev1, 1라인) 대비 라인 1건 추가
+                .andExpect(jsonPath("$.data[0].changeSummary.lineAdded")
+                        .value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data[0].actorName").value(notNullValue()))
+                .andReturn();
+
+        // UUID 비공개 가드 — 응답 본문 어디에도 actorId 키가 없어야 함
+        String body = result.getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(body).doesNotContain("actorId");
+        JsonNode data = objectMapper.readTree(body).get("data");
+        org.assertj.core.api.Assertions.assertThat(data).hasSizeGreaterThanOrEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(data.get(0).has("actorId")).isFalse();
+    }
+
+    // =========================================================================
+    // 시나리오 2 — 복원 (헤더 + 라인 집합이 대상 revision 시점으로 회귀)
+    // =========================================================================
+
+    @Test
+    void restore_toRevision1_revertsLinesAndCreatesRestoreRevision() throws Exception {
+        // rev1 = 1라인
+        UUID slipId = createOutboundSlipAsSales(1);
+        int linesAtRev1 = lineCount(getDetail(slipId));
+
+        // 라인 추가 + v20 수정 → rev2 (2라인 스냅샷)
+        addLine(slipId);
+        patchV20(slipId, "복원 전 프로젝트");
+        org.assertj.core.api.Assertions.assertThat(lineCount(getDetail(slipId)))
+                .isEqualTo(linesAtRev1 + 1);
+
+        // revision 1 시점으로 복원 → 200, 라인 집합이 rev1 (= 1건) 로 회귀
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(slipId.toString()))
+                .andExpect(jsonPath("$.data.lines.length()").value(linesAtRev1));
+
+        // 복원도 신규 RESTORE revision 3 (sourceRevisionNo=1) 으로 추적 — GET 재확인
+        mockMvc.perform(get("/slips/{id}/revisions", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].revisionNo").value(3))
+                .andExpect(jsonPath("$.data[0].revisionType").value("RESTORE"))
+                .andExpect(jsonPath("$.data[0].sourceRevisionNo").value(1));
+    }
+
+    // =========================================================================
+    // 시나리오 3 — 라인 삭제 후 이전 revision 복원 시 라인 복구
+    // =========================================================================
+
+    @Test
+    void restore_afterLineRemoval_recoversRemovedLine() throws Exception {
+        // rev1 = 2라인
+        UUID slipId = createOutboundSlipAsSales(2);
+        int linesAtRev1 = lineCount(getDetail(slipId));
+        org.assertj.core.api.Assertions.assertThat(linesAtRev1).isEqualTo(2);
+
+        // 라인 1건 제거 + v20 수정 → rev2 (1라인 스냅샷)
+        UUID removableLineId = firstLineId(getDetail(slipId));
+        removeLine(slipId, removableLineId);
+        patchV20(slipId, "라인 제거 후 프로젝트");
+        org.assertj.core.api.Assertions.assertThat(lineCount(getDetail(slipId))).isEqualTo(1);
+
+        // revision 1 복원 → 제거된 라인 복구 (2라인)
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines.length()").value(2));
+    }
+
+    // =========================================================================
+    // 시나리오 4 — 마감 lock 시 복원 차단 (lockFlag=true → 409 CONFLICT)
+    // =========================================================================
+
+    @Test
+    void restore_whenSlipLocked_returnsConflict() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+
+        // 도메인 마감 lock 적용 (회계 마감 — restoreFromSnapshot requireNotLocked 가드 발동 경로)
+        lockSlip(slipId);
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isConflict());
+    }
+
+    // =========================================================================
+    // 시나리오 5 — RESTORE 권한 (deny → 403, MASTER bypass → 200)
+    // =========================================================================
+
+    @Test
+    void restore_whenPermissionDenied_nonMaster_returns403() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+
+        // account 모드 RESTORE 권한 명시 deny + 비-MASTER 역할 → PermissionAspect 가 403
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq(AUDIT_REVERT_PAGE),
+                        ArgumentMatchers.eq(PermissionAction.RESTORE)))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "권한없음")
+                        .header(ROLE_HEADER, "STAFF"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void restore_whenPermissionDenied_masterRole_bypassesAndReturns200() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+
+        // RESTORE deny stub 이어도 MASTER 역할은 aspect bypass → 200
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq(AUDIT_REVERT_PAGE),
+                        ArgumentMatchers.eq(PermissionAction.RESTORE)))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "마스터")
+                        .header(ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(slipId.toString()));
+    }
+
+    // =========================================================================
+    // 헬퍼 — 전표 seed (MockMvc 실 경로) + 상세/라인 조회
+    // =========================================================================
+
+    /**
+     * SALES 권한으로 {@code lineCount} 개 라인을 가진 출고전표 1건 생성 후 slip UUID 반환.
+     * 생성 직후 CREATE revision 1 이 자동 캡처된다.
+     */
+    private UUID createOutboundSlipAsSales(int lineCount) throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", "2026-05-04");
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", "테스트 거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("memo", "테스트");
+        java.util.List<Map<String, Object>> lines = new java.util.ArrayList<>();
+        for (int i = 0; i < lineCount; i++) {
+            Map<String, Object> line = new HashMap<>();
+            line.put("productId", UUID.randomUUID().toString());
+            line.put("productName", "테스트 제품 " + i);
+            line.put("modelName", "MOD-00" + i);
+            line.put("quantity", i + 1);
+            line.put("unitPrice", 100000);
+            line.put("note", "라인 메모 " + i);
+            lines.add(line);
+        }
+        body.put("lines", lines);
+
+        MvcResult result = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("id").asText());
+    }
+
+    /** 라인 1건 추가 (DRAFT 단계, 캡처 없음 — 후속 v20 수정이 현 라인을 EDIT 스냅샷에 반영). */
+    private void addLine(UUID slipId) throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "추가 제품");
+        line.put("modelName", "MOD-ADD");
+        line.put("quantity", 3);
+        line.put("unitPrice", 50000);
+        line.put("note", "추가 라인");
+
+        mockMvc.perform(post("/slips/{id}/lines", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(line)))
+                .andExpect(status().isCreated());
+    }
+
+    /** 라인 1건 제거 (DRAFT 단계). */
+    private void removeLine(UUID slipId, UUID lineId) throws Exception {
+        mockMvc.perform(delete("/slips/{id}/lines/{lineId}", slipId, lineId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "SALES"))
+                .andExpect(status().isNoContent());
+    }
+
+    /** v20 통합 수정 — projectName 변경으로 EDIT revision 캡처 (현 라인 집합 스냅샷). */
+    private void patchV20(UUID slipId, String projectName) throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("projectName", projectName);
+
+        mockMvc.perform(patch("/slips/{id}/v20", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "수정자")
+                        .header(ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+    }
+
+    /** 전표 상세 JSON 의 {@code $.data} 노드 반환. */
+    private JsonNode getDetail(UUID slipId) throws Exception {
+        MvcResult result = mockMvc.perform(get("/slips/{id}", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+    }
+
+    private int lineCount(JsonNode detail) {
+        return detail.get("lines").size();
+    }
+
+    private UUID firstLineId(JsonNode detail) {
+        return UUID.fromString(detail.get("lines").get(0).get("id").asText());
+    }
+
+    /** 도메인 {@link Slip#lock()} 적용 후 저장 (회계 마감 lock 모사). */
+    private void lockSlip(UUID slipId) {
+        Slip slip = slipRepository.findById(slipId).orElseThrow();
+        slip.lock();
+        slipRepository.save(slip);
+    }
+}
