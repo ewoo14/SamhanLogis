@@ -95,4 +95,40 @@ class PermissionInternalControllerTest {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getContentAsString()).contains("\"allowed\":false");
     }
+
+    /** role-form type=EDIT 가 can_edit grant 로 매핑되는지 회귀 가드 (action=UPDATE 와 동치 경로). */
+    @Test
+    void checkPermissionMapsRoleTypeEditToEditPermissionType() throws Exception {
+        given(dynamicPermissionService.canAccess("MANAGER", "admin.employees", "EDIT"))
+                .willReturn(true);
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/internal/permissions/check")
+                                .param("roleCode", "MANAGER")
+                                .param("pageCode", "admin.employees")
+                                .param("type", "EDIT"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("\"allowed\":true");
+    }
+
+    /**
+     * role-form 계약 가드 회귀: roleCode 만 있고 type·action 모두 누락 시 400.
+     *
+     * <p>구버전은 type 에 defaultValue="EDIT" 가 있어 누락 시 EDIT 로 폴백했으나,
+     * 현재는 type·action 모두 optional 이고 동시 누락 시 명시적으로 BAD_REQUEST 를 반환한다
+     * ({@code resolveRolePermissionType}). default 복원/분기 변경 회귀를 잡기 위한 가드.
+     */
+    @Test
+    void checkPermissionRejectsRoleFormWithoutTypeAndAction() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/internal/permissions/check")
+                                .param("roleCode", "MANAGER")
+                                .param("pageCode", "admin.employees"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(400);
+        Mockito.verifyNoInteractions(dynamicPermissionService);
+    }
 }

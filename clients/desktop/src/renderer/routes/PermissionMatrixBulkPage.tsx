@@ -266,7 +266,7 @@ export function PermissionMatrixBulkPage() {
             padding: '10px 14px',
             background: toast.includes('오류') ? 'var(--color-danger-600)' : 'var(--color-success-600)',
             color: 'var(--color-neutral-0)',
-            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.18)',
+            boxShadow: 'var(--shadow-lg)',
             fontSize: 13,
           }}
         >
@@ -517,7 +517,9 @@ function PreviewStep({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <Badge variant="brand">{selectedAccounts.length}개 계정</Badge>
           <Badge variant="neutral">{previewPageCount}</Badge>
-          <Badge variant="neutral">예상 {previewImpactCount}건</Badge>
+          {/* previewImpactCount 는 계정×액션 상한(이미 부여된 권한은 변경 0건이라 실제 changedCount ≤ 이 값).
+              "예상"은 정확값 오인을 유발하므로 보수적 "최대 N건" 으로 표기. */}
+          <Badge variant="neutral">최대 {previewImpactCount}건</Badge>
         </div>
 
         {mode === 'template' ? (
@@ -531,6 +533,12 @@ function PreviewStep({
               {selectedActions.map((action) => (
                 <Badge key={action} variant="brand">{ACTION_LABEL[action]}</Badge>
               ))}
+            </div>
+            {/* grants 모드 = replace 시맨틱: 체크 안 한 액션은 false 로 덮어쓰여 기존 권한이 제거됨.
+                additive 오인 방지를 위해 명시적 경고 표기. */}
+            <div role="note" style={replaceWarningStyle}>
+              선택한 페이지의 기존 권한이 이 설정으로 <strong>대체</strong>됩니다.
+              체크하지 않은 액션은 해제됩니다.
             </div>
           </div>
         )}
@@ -606,7 +614,7 @@ const panelStyle: React.CSSProperties = {
   borderRadius: 8,
   padding: 14,
   background: 'var(--color-neutral-0)',
-  boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
+  boxShadow: 'var(--shadow-md)',
 }
 
 const toolbarStyle: React.CSSProperties = {
@@ -658,6 +666,18 @@ const previewBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   padding: 12,
   background: 'var(--color-neutral-50)',
+}
+
+// grants 모드 replace 경고 — DS warning 토큰(테두리/배경/텍스트) 사용, 하드코딩 색 금지.
+const replaceWarningStyle: React.CSSProperties = {
+  marginTop: 10,
+  border: '1px solid var(--color-warning-300)',
+  borderRadius: 6,
+  padding: '8px 10px',
+  background: 'var(--color-warning-50)',
+  color: 'var(--color-warning-800)',
+  fontSize: 12,
+  lineHeight: 1.5,
 }
 
 const tableHeaderStyle: React.CSSProperties = {

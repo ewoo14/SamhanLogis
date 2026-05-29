@@ -607,6 +607,8 @@ const MATRIX_ACTION_META: Record<PermissionAction, {
 }
 
 const MATRIX_ACTION_GROUP_STARTS = new Set<PermissionAction>(['create', 'restore', 'download'])
+/** 위험(DELETE/RESTORE) 액션 — 173×7 그리드 단일 셀 오클릭 방지 시각 가드 대상. */
+const MATRIX_DANGER_ACTIONS = new Set<PermissionAction>(['delete', 'restore'])
 const MATRIX_LEGEND_ITEMS = [
   { label: '조회', actions: 'VIEW', color: 'var(--color-brand-500)' },
   { label: '변경', actions: 'CREATE · UPDATE', color: 'var(--color-warning-500)' },
@@ -745,10 +747,20 @@ function matrixActionButtonStyle(action: PermissionAction): React.CSSProperties 
 }
 
 function matrixActionCellStyle(action: PermissionAction, dirty: boolean): React.CSSProperties {
+  const isDanger = MATRIX_DANGER_ACTIONS.has(action)
+  // 위험(DELETE/RESTORE) 셀: 단일 오클릭 방지용 시각 가드.
+  // - dirty 상태는 기존 warning-50 우선(변경 추적 우선), 그 외엔 미세 danger-50 배경.
+  // - 셀 내부 점선 danger 테두리로 "위험 셀"임을 한눈에 인지(separator 와 시각 구분).
+  const background = dirty
+    ? 'var(--color-warning-50)'
+    : isDanger
+      ? 'var(--color-danger-50)'
+      : 'var(--color-neutral-0)'
   return {
     textAlign: 'center',
     borderBottom: '1px solid var(--color-neutral-200)',
-    background: dirty ? 'var(--color-warning-50)' : 'var(--color-neutral-0)',
+    background,
+    ...(isDanger ? { outline: '1px dashed var(--color-danger-300)', outlineOffset: '-3px' } : {}),
     ...matrixActionSeparatorStyle(action),
   }
 }
@@ -970,7 +982,7 @@ export function PermissionMatrixPage() {
           border: '1px solid var(--color-neutral-200)',
           borderRadius: 8,
           background: 'var(--color-neutral-0)',
-          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
+          boxShadow: 'var(--shadow-md)',
         }}
       >
         <select
@@ -1137,6 +1149,7 @@ export function PermissionMatrixPage() {
                         onClick={() => toggleColumn(action)}
                         style={matrixActionButtonStyle(action)}
                         title={`${MATRIX_ACTION_META[action].groupLabel} 권한`}
+                        aria-label={`${MATRIX_ACTION_LABEL[action]} 권한 전체 페이지 일괄 토글`}
                       >
                         {MATRIX_ACTION_LABEL[action]}
                       </button>
@@ -1238,7 +1251,7 @@ export function PermissionMatrixPage() {
             padding: '10px 14px',
             background: toast.type === 'success' ? 'var(--color-success-600)' : 'var(--color-danger-600)',
             color: 'var(--color-neutral-0)',
-            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.18)',
+            boxShadow: 'var(--shadow-lg)',
             fontSize: 13,
           }}
         >
@@ -1288,6 +1301,7 @@ function AccountMatrixDomainRows({
                 data-testid={`perm-matrix-domain-all-${domainId}`}
                 onClick={() => onDomainSet(true)}
                 style={matrixButtonStyle}
+                aria-label={`${group.label} 전체 ${group.pages.length}개 페이지 권한 ON`}
               >
                 전체ON
               </button>
@@ -1296,6 +1310,7 @@ function AccountMatrixDomainRows({
                 data-testid={`perm-matrix-domain-all-${domainId}-off`}
                 onClick={() => onDomainSet(false)}
                 style={matrixButtonStyle}
+                aria-label={`${group.label} 전체 ${group.pages.length}개 페이지 권한 OFF`}
               >
                 전체OFF
               </button>
@@ -1353,6 +1368,7 @@ function AccountMatrixDomainRows({
               data-testid={`perm-matrix-row-all-${matrixPageNorm(page)}`}
               onClick={() => onRowToggle(page)}
               style={matrixButtonStyle}
+              aria-label={`${PAGE_LABEL[page] ?? page} 행 7개 권한 일괄 토글`}
             >
               전부
             </button>

@@ -98,3 +98,25 @@ V39 parity/PARTNER/guard IT 및 도메인 권한 IT의 실 Testcontainers 검증
 - RESTORE 메커니즘(전표 버전이력 + 롤백 `YYYY/MM/DD-{전표번호}`) 도메인별 구현 (D-PO-06).
 - DOWNLOAD 포맷 분기(PDF/PNG 생성) — Phase 1은 `can_download` 단일 bit (D-PO-02).
 - 라우트 `action="edit"` → 명시 7-action prop 정리 (D-PO-09 shim 제거).
+
+## 8. 리뷰 사이클 + 머지 (2026-05-29, PR #316 squash `80f4c00e`)
+
+dual 5-agent 리뷰 3사이클로 수렴. **CI green 이 일부 false-green 이었음을 dual cross-check 가 적발**한 것이 핵심.
+
+| 사이클 | 발견 → 해소 |
+|---|---|
+| 1 (Claude 리뷰 → Codex fix 4R) | P0 V39 IT `@TestPropertySource(local)` H2+flyway-off context 실패 / `AuthPermissionMigrationIT` MASTER bypass stale + **권한 IT see-saw 60종**(7-action `check(UUID,page,action)` stub + `X-User-Id` 헤더 + deny 명시 false 일괄) + **V39 보존표 재산출**(`inventory.dps`/`inventory.stock-balance` DOWNLOAD narrowing 복구, `SALES accounting.tax-invoice.list` PRINT widening 제거, 재무보고서 11 GET `PRINT`→`VIEW`) + PARTNER print carve-out → CI green |
+| 1후반 (Codex 5-agent cross-check) | 🔴 CRITICAL 아로로지스 lockout(D-PO-10) + PARTNER self-service 회귀(D-PO-11) 적발 |
+| 2 | 아로로지스 descope + PARTNER carve-out 확대(self-scope 보강) + FE PageCode 173 + PermissionGuard Spinner fail-closed + 실DB `V39AccountPermissionMaterializeIT` + `V39PartnerExclusionIT` PARTNER seed → CI green |
+| N=2 (Claude 5-agent 재리뷰) | 🔴 P0 role-form endpoint 운영 파손(D-PO-12) 적발 — IT @MockBean 으로 CI false-green, BE cross-check 단독 |
+| 3 | role-form `/check` 양식 분기 복구 + 실 HTTP 회귀 IT 3종 + 매트릭스 위험 action 시각화 → CI green → 양쪽 APPROVE → PM 머지 |
+
+### follow-up (cross-check 정리, 별도 PR)
+- BE: role-form `type`·`action` 동시 누락 → 400 계약 가드 회귀 테스트(standalone `PermissionInternalControllerTest`).
+- FE/Designer: 단일 DELETE/RESTORE 셀 시각 가드, 일괄 toggle `aria-label`, boxShadow 토큰화, bulk grants "대체(replace)" 경고, 예상건수 "최대 N건" 보수화, `/my` mock 대문자 정합.
+- Docs: DECISIONS D-PO-10~12, 본 절, 배포 런북.
+
+### 관찰 (범위 외, 후속 검토)
+- **`ResponseStatusException` → 500 변환**: `AuthExceptionHandler` 의 catch-all `@ExceptionHandler(Exception.class)→500` 에 `ResponseStatusException` 전용 핸들러가 없어, full-stack 에서 컨트롤러의 `ResponseStatusException(BAD_REQUEST)` 가 500 으로 뭉개진다. role-form 400 계약 테스트를 standalone(advice 미로드)에 둔 이유. 실 영향 낮음(운영 role-form 호출은 항상 `type` 포함, 내부 client 는 4xx/5xx 모두 deny 처리)이나 auth-service 전 endpoint 의 4xx 오류 응답 정합성 차원의 별개 hardening 후보.
+- **배포 순서 의무**: auth-service(V39 materialize + `/check` 양식 분기) 를 소비 14 service 보다 **선행 배포**해야 한다. 역순 시 소비 service 가 account-form 을 구버전 auth 에 보내 fallback deny → 일시 전면 차단. 코드 fallback 은 안전(보수적 deny)하나 outage 회피 위해 런북 명시 — `docs/runbooks/phase-1-permission-deploy.md`.
+- CI 필수 job 에 `skipped=0` 게이트 추가 권고(Testcontainers silent-skip 위장 green 방지).

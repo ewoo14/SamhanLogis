@@ -4354,7 +4354,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // BE 응답: Map<pageCode, PermissionAction[]>.
   if (method === 'GET' && (url.includes('/auth/admin/permissions/my') || url.includes('/admin/permissions/my'))) {
     const mockRole = MOCK_AUTH.role
-    const allActions = ['view', 'create', 'update', 'delete', 'restore', 'download', 'print']
+    // 실 BE 응답은 대문자 PermissionAction enum (예: "VIEW") → actionsFromRaw 의
+    // toLowerCase() 정규화 경로를 mock 으로도 회귀 포착하기 위해 대문자로 반환한다.
+    const allActions = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT']
     if (mockRole === 'MASTER') {
       const permissions: Record<string, string[]> = {}
       for (const page of SP_D1_PAGES) permissions[page] = allActions
@@ -4365,9 +4367,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const permissions: Record<string, string[]> = {}
     for (const cell of myCells) {
       const actions = []
-      if (cell.view) actions.push('view')
-      if (cell.edit) actions.push('create', 'update', 'delete')
-      if (cell.view) actions.push('download', 'print')
+      if (cell.view) actions.push('VIEW')
+      if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+      if (cell.view) actions.push('DOWNLOAD', 'PRINT')
       permissions[cell.pageCode] = actions
     }
     return envelope(permissions)
