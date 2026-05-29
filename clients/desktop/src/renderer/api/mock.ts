@@ -983,6 +983,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ])
   }
 
+  // ==========================================================================
+  // Phase 2.2: estimate 버전이력/복원/상세 — `/api/v1/slips/estimates/{id}...`
+  //   slip list match (`url.includes('/slips')`, 아래) 가 estimates path 를 가로채므로
+  //   반드시 그 앞단(여기) 에 배치한다. restore(POST) → revisions(GET) → detail(GET) 순
+  //   (더 구체적인 path 우선). slip {id} revisions/detail match 는 estimates 가 사이에
+  //   끼어 잡히지 않아 충돌 없다.
+  // ==========================================================================
+
+  // POST /api/v1/slips/estimates/{id}/revisions/{n}/restore — 특정 시점 복원.
+  const estimateRestoreMatch = url.match(/\/slips\/estimates\/([^/?]+)\/revisions\/(\d+)\/restore$/)
+  if (method === 'POST' && estimateRestoreMatch) {
+    const id = estimateRestoreMatch[1]!
+    return envelope(buildMockEstimateDetail(id))
+  }
+
+  // GET /api/v1/slips/estimates/{id}/revisions — 버전이력 목록 (최신 우선).
+  // 결정적 fixture 2건 (rev2 EDIT lineAdded=1, rev1 CREATE).
+  const estimateRevisionsGetMatch = url.match(/\/slips\/estimates\/([^/?]+)\/revisions(\?.*)?$/)
+  if (method === 'GET' && estimateRevisionsGetMatch) {
+    const id = estimateRevisionsGetMatch[1]!
+    const detail = buildMockEstimateDetail(id)
+    return envelope([
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        estimateNo: detail.estimateNo,
+        estimateDate: detail.estimateDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T14:32:18',
+        changeSummary: { headerChanged: 0, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        estimateNo: detail.estimateNo,
+        estimateDate: detail.estimateDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T09:10:00',
+        changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+      },
+    ])
+  }
+
+  // GET /api/v1/slips/estimates/{id} (단건 상세) — EstimateDetail shape.
+  const estimateSlipsDetailMatch = url.match(/\/slips\/estimates\/([^/?]+)$/)
+  if (method === 'GET' && estimateSlipsDetailMatch && !url.includes('/print')) {
+    const id = estimateSlipsDetailMatch[1]!
+    return envelope(buildMockEstimateDetail(id))
+  }
+
   // PATCH /api/v1/slips/{slipId}/audit/overlay — 단일 필드 수정 + audit row INSERT
   const auditOverlayMatch = url.match(/\/slips\/([^/?]+)\/audit\/overlay$/)
   if (method === 'PATCH' && auditOverlayMatch) {
@@ -1427,6 +1479,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     method === 'GET'
     && url.includes('/slips')
     && !url.includes('/slips/lookup-product')
+    && !url.includes('/slips/estimates') // Phase 2.2: estimate path 는 위 estimate 블록이 처리
     && !url.match(/\/slips\/cleanup/)
     && !slipDetailMatch
   ) {
@@ -3436,10 +3489,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
-  // estimate — list / detail / form (P2-1 견적서)
+  // estimate — list / detail / form (P2-1 견적서) + 버전이력/복원 (Phase 2.2)
   // ==========================================================================
+  // 주: estimate 버전이력/복원/상세 (`/api/v1/slips/estimates/{id}...`) mock 은
+  //     slip list match (`url.includes('/slips')`) 가 가로채므로 그 앞단에 배치했다
+  //     (위쪽 "Phase 2.2: estimate revisions/restore/detail" 블록 참조).
 
-  // GET /api/v1/estimates/{id} (단건 상세)
+  // GET /api/v1/estimates/{id} (legacy 단건 상세 — Phase 6 캡처 시드)
   const estimateDetailMatch = url.match(/\/api\/v1\/estimates\/([^/?]+)$/)
   if (method === 'GET' && estimateDetailMatch && !url.includes('/print')) {
     const id = estimateDetailMatch[1]!
@@ -5345,6 +5401,89 @@ const MOCK_ESTIMATES = [
     lines: SAMPLE_LINES,
   },
 ]
+
+/**
+ * 견적서 상세 (`/api/v1/slips/estimates/{id}`) 응답 — BE {@code EstimateDetailResponse} shape.
+ *
+ * <p>Phase 2.2 버전이력/복원 spec 용. {@code EstimateDetail} (api/estimateApi.ts) 와 1:1:
+ * estimateNo / status(QUOTE_*) / totalSupply,Vat,Amount / lines(lineNo, supplyAmount, vatAmount).
+ *
+ * <p>id 별 status 분기 — est-003(또는 -accepted) 은 QUOTE_ACCEPTED(복원 불가) 로 응답하여
+ * 편집 불가 가드(복원 버튼 비활성) 케이스를 결정적으로 노출한다. 그 외는 QUOTE_DRAFT.
+ */
+const MOCK_ESTIMATE_DETAIL_LINES = [
+  {
+    id: 'eline-001',
+    lineNo: 0,
+    productId: 'p-aj040',
+    productName: '시스템에어컨 4Way 4HP',
+    modelName: 'AJ040RXH4BC1',
+    specification: '4HP',
+    quantity: 2,
+    unitPrice: '1850000',
+    supplyAmount: '3700000',
+    vatAmount: '370000',
+    lineTotal: '4070000',
+    note: null,
+  },
+  {
+    id: 'eline-002',
+    lineNo: 1,
+    productId: 'p-mwr10',
+    productName: '유선 리모컨 (WE10N)',
+    modelName: 'MWR-WE10N',
+    specification: '220V',
+    quantity: 2,
+    unitPrice: '85000',
+    supplyAmount: '170000',
+    vatAmount: '17000',
+    lineTotal: '187000',
+    note: null,
+  },
+]
+
+/**
+ * id → EstimateDetail mock 빌더. 견적 상세 / 버전이력 / 복원 응답이 공유한다.
+ *
+ * @param id 견적 UUID (path 전용 — 화면 노출 X). 'accepted' 포함 또는 est-003 이면 복원 불가 상태.
+ */
+function buildMockEstimateDetail(id: string) {
+  // 편집 불가(복원 버튼 비활성) 케이스: id 에 'accepted' 가 들어가거나 est-003.
+  const isAccepted = id.includes('accepted') || id === 'est-003'
+  const status: EstimateStatusMock = isAccepted ? 'QUOTE_ACCEPTED' : 'QUOTE_DRAFT'
+  return {
+    id,
+    estimateNo: isAccepted ? '2026/04/28-99' : '2026/05/04-1',
+    estimateDate: isAccepted ? '2026-04-28' : '2026-05-04',
+    seqNo: 1,
+    status,
+    partnerId: 'pt-mock-001',
+    partnerName: isAccepted ? '대박종합건설' : '엘에이시스템에어',
+    partnerBusinessNo: isAccepted ? '5678901234' : '1234567890',
+    partnerAddress: '서울시 강남구 테헤란로 1',
+    validUntil: '2026-05-31',
+    totalSupply: '3870000',
+    totalVat: '387000',
+    totalAmount: '4257000',
+    convertedSlipId: null,
+    sentAt: null,
+    acceptedAt: isAccepted ? '2026-04-29T10:00:00' : null,
+    convertedAt: null,
+    rejectedAt: null,
+    requesterId: null,
+    version: 2,
+    memo: isAccepted ? '대박빌딩 신축 — 채택' : '시스템에어컨 4Way 4HP 2EA 견적',
+    lines: MOCK_ESTIMATE_DETAIL_LINES,
+  }
+}
+
+/** EstimateDetail status — api/estimateApi.ts EstimateStatus 미러 (mock 전용 타입 별칭). */
+type EstimateStatusMock =
+  | 'QUOTE_DRAFT'
+  | 'QUOTE_SENT'
+  | 'QUOTE_ACCEPTED'
+  | 'QUOTE_REJECTED'
+  | 'QUOTE_CONVERTED'
 
 /**
  * 전표 수정/삭제 요청 (`/admin/slip-edit-requests`) — 2건 PENDING.
