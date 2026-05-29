@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -1763,5 +1764,50 @@ public class Slip extends BaseEntity {
      */
     public void markDispatchCancelled() {
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
+    }
+
+    /**
+     * 현 전표 상태를 버전이력용 full-snapshot 으로 변환한다 (권한 재편 Phase 2.1 Task 2).
+     *
+     * <p>헤더 필드(거래처/배송지/프로젝트 등)와 미삭제 라인 전체를 한 시점의 불변
+     * {@link SlipSnapshot} 으로 캡처한다. {@code slip_revisions.snapshot} (JSONB) 직렬화 대상이며,
+     * point-in-time 복원 시 이 스냅샷을 역직렬화해 헤더를 덮어쓰고 라인을 전량 교체한다.
+     *
+     * <p>{@code deliveryTag} 는 enum {@code name()} (미지정 시 null) 문자열로 보관한다
+     * ({@link SlipSnapshot} 이 String 보관). 라인은 soft-deleted 행을 제외한다
+     * — {@code @SQLRestriction} 으로 이미 DB 레벨에서 걸러지지만 명시적으로 한 번 더 가드한다.
+     *
+     * @return 현 전표의 헤더+라인 스냅샷 (라인 없으면 빈 리스트)
+     */
+    public SlipSnapshot toSnapshot() {
+        List<SlipSnapshot.Line> snapshotLines = this.lines.stream()
+                .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
+                .map(line -> new SlipSnapshot.Line(
+                        line.getProductId(),
+                        line.getProductName(),
+                        line.getModelName(),
+                        line.getSpecification(),
+                        line.getQuantity(),
+                        line.getUnitPrice(),
+                        line.getLineTotal(),
+                        line.getNote()))
+                .toList();
+        return new SlipSnapshot(
+                this.slipNo,
+                this.slipDate,
+                this.partnerId,
+                this.partnerName,
+                this.partnerCode,
+                this.businessNumber,
+                this.memo,
+                this.deliveryTag == null ? null : this.deliveryTag.name(),
+                this.deliveryAddress,
+                this.supervisionAddress,
+                this.projectName,
+                this.recipientPhone,
+                this.paymentDueDate,
+                this.destinationWarehouseId,
+                this.destinationWarehouseName,
+                snapshotLines);
     }
 }

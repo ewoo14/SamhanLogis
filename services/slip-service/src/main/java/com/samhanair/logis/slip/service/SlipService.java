@@ -17,6 +17,8 @@ import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
@@ -85,6 +87,11 @@ public class SlipService {
      * 호출 실패 시 null 유지 (fail-soft).
      */
     private final WarehouseInternalClient warehouseInternalClient;
+    /**
+     * 권한 재편 Phase 2.1 Task 2 — 전표 버전이력 스냅샷 캡처.
+     * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
+     */
+    private final SlipRevisionService slipRevisionService;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -191,6 +198,9 @@ public class SlipService {
         }
 
         Slip saved = slipRepository.save(slip);
+        // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
+        slipRevisionService.capture(saved, SlipRevisionType.CREATE, null,
+                parseActorId(requesterId), requesterId, null);
         return SlipDetailResponse.from(saved);
     }
 
@@ -263,6 +273,9 @@ public class SlipService {
                 req.recipientPhone(),
                 req.paymentDueDate());
 
+        // 권한 재편 Phase 2.1 Task 2 — 수정 성공 직후 EDIT 스냅샷 캡처
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -302,6 +315,13 @@ public class SlipService {
         // PR-H3 — APPROVED 요청 소진 (재사용 차단)
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
+        // 권한 재편 Phase 2.1 Task 2 — overlay patch 성공 직후 EDIT 스냅샷 캡처
+        // actorName 은 callerName 우선 (UUID 비공개 가드), 없으면 callerId 폴백
+        String revisionActorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), revisionActorName, null);
         return SlipDetailResponse.from(slip);
     }
 

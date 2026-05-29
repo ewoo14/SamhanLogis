@@ -63,6 +63,8 @@ class SlipServiceTest {
      * 단위 테스트에서는 mock 격리 (empty 반환) — IT 에서만 실제 연결 검증.
      */
     @Mock private WarehouseInternalClient warehouseInternalClient;
+    /** 권한 재편 Phase 2.1 Task 2 — mutation 스냅샷 캡처. 본 테스트에서는 mock 격리. */
+    @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
 
     @InjectMocks private SlipService service;
 
