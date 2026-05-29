@@ -4,6 +4,20 @@
 
 ---
 
+## 🚧 2026-05-30 진행 — 권한 재편 Phase 2.3 거래처(Partner) RESTORE (PR #320, **Docker 실 QA + F4/F5 fix 완료, CI 대기 → 머지 게이트만 남음**)
+
+RESTORE 4번째 도메인(partners). brainstorming→spec→plan→subagent-driven(T1~7a) + cycle1 ObjectProvider fix 까지 완료(이전 세션). 본 세션: **Docker 실 QA(사용자 "C로 부탁해") + 발견 결함 수정**.
+
+- **Docker 실 QA(commit `0d998d56`)**: partner-service 를 본 브랜치로 **재빌드**(기존 실행 이미지가 2026-05-22 stale 이었음)한 컨테이너(:8095) 대상. desktop renderer(web :5173)를 헤드리스 chromium 으로 구동, 등록→편집→버전이력→복원 10단계 촬영(`docs/qa/phase-2-3-partner-restore/01~10.png` + README). 게이트웨이 격차(아래 F1~3) 때문에 FE→:8095 직접 프록시(X-User 헤더 주입) + 권한매트릭스/검색 stub 으로 우회. **복원 기능은 실 partner-service + 실 Postgres V12(partner_revisions) JSONB 에 100% 적중**(create 201→rev1, edit 200→rev2, restore 200→rev1 시점 원복, rev3 RESTORE src=1).
+- **실 QA 발견 결함 2건 수정 + 재검증**:
+  - **F4 [P1, UUID 노출]**: `Partner4TabController#updateFull` 이 헤더인증 `principal.getName()`(=X-User-Id=계정 UUID)을 revision actorName 으로 전달 → 버전이력 EDIT 행에 raw UUID 노출(게이트웨이가 X-User-Name 미전파). UUID 비공개 위반. → BE `displayNameOrNull()` 가드(UUID→null) + FE 패널 UUID 마스킹 + 단위테스트 `Partner4TabControllerActorNameTest`(BUILD SUCCESSFUL).
+  - **F5 [P2, FE stale]**: `PartnerDetailDialog` 저장이 `['partnerRevisions']` 무효화 누락 → 버전이력 stale. → onSuccess invalidate 추가. 리로드 없이 즉시 반영 재검증.
+- **PR #320 코멘트**: QA 요약 + 인라인 스크린샷 4장 + findings 게시(issuecomment-4580257874).
+- **남은 단계**: ① CI green 확인(push `0d998d56` 후 `gh pr checks 320 --watch` 백그라운드 실행 중) → ② dual 리뷰(Codex 다운 → Claude 5-agent 대체) → ③ PM 종합 + 머지. **F4 가 UUID 비공개 위반이라 머지 전 본 fix 필수**(이미 반영됨).
+- **별도 트랙(인프라, 본 PR 무관 — stale 스택 + 게이트웨이 격차)**: F1 게이트웨이 `/api/v1/partners/**` StripPrefix=2 ↔ 4tab/revision 풀패스 매핑 불일치(404, no-strip 라우트 필요) / F2 `/auth/**` 라우트 `JwtAuthentication` 미적용 → 권한매트릭스 403 / F3 `/admin/partners/search` `lower(bytea)` SQL 500. → 게이트웨이/partner DB 트랙에서 별도 처리. **운영 로컬 스택 전체가 05-22 이미지(PR #316/#320 미반영)이므로 차기 QA 전 전체 재빌드 필요**.
+
+---
+
 ## ✅ 2026-05-29 완료 — 권한 재편 Phase 2.2 견적(Estimate) 버전이력 + 복원 **머지** (PR #319, squash `57f51af5`)
 
 RESTORE 3번째 적용 도메인. brainstorming(grounding)→spec→plan→subagent-driven(Task1~7) 전부 **Claude 에이전트**(Codex 크레딧 소진 6/1). slip(2.1) 패턴 이식.
