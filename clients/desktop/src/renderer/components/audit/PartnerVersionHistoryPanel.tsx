@@ -50,6 +50,21 @@ function isRestorableStatus(status: PartnerStatus): boolean {
   return status === 'ACTIVE' || status === 'SUSPENDED'
 }
 
+/** UUID 형태 문자열 판별 — actorName 에 계정 UUID 가 섞여 들어와도 화면 노출을 차단(방어). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isUuidLike(v: string | null | undefined): boolean {
+  return !!v && UUID_RE.test(v.trim())
+}
+
+/**
+ * actorName 을 화면 표시용으로 정제 — UUID 형태면 노출하지 않는다([[uuid-no-user-visibility]]).
+ * BE 가 표시명을 채우지 못해 UUID 가 들어오는 경우의 방어선(주 수정은 BE actorName=null).
+ */
+function displayActor(actorName: string | null | undefined): string | null {
+  if (!actorName || isUuidLike(actorName)) return null
+  return actorName
+}
+
 /**
  * "2026-05-29T14:32:18" → "2026-05-29 14:32" — 로컬 표시 포맷.
  * (BE LocalDateTime 문자열을 추가 파싱 없이 안전 절단.)
@@ -247,9 +262,11 @@ export function PartnerVersionHistoryPanel({
                         ? ` (rev ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
-                    <span style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                      {rev.actorName}
-                    </span>
+                    {displayActor(rev.actorName) ? (
+                      <span style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                        {displayActor(rev.actorName)}
+                      </span>
+                    ) : null}
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
                       {formatLocalDateTime(rev.createdAt)}
                     </span>

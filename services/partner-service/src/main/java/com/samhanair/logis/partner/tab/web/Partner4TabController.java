@@ -121,11 +121,31 @@ public class Partner4TabController {
     public ApiResponse<PartnerFullResponse> updateFull(@PathVariable String partnerCode,
                                                         @Valid @RequestBody PartnerFullRequest req,
                                                         Principal principal) {
-        // 권한 재편 Phase 2.3 — 4탭 일괄 수정 시 revision actor (표시명) 전달. UUID 비공개 가드:
-        // Principal.getName() 은 표시명/식별자 문자열이므로 actorName 으로만 사용하고 actorId 는 service
-        // 가 system 폴백한다 (UUID 헤더는 본 endpoint 미수신).
-        String actorName = principal != null ? principal.getName() : null;
+        // 권한 재편 Phase 2.3 — 4탭 일괄 수정 시 revision actor(표시명) 전달.
+        // [UUID 비공개 가드] header 인증 환경에서 Principal.getName() 은 X-User-Id(계정 UUID)가
+        // 들어온다(게이트웨이가 X-User-Name 을 전파하지 않음). UUID 를 actorName 으로 노출하면
+        // 버전이력 화면에 raw UUID 가 새어나가므로([[uuid-no-user-visibility]]), UUID 형태이면
+        // null 로 전달한다(CREATE 경로와 일관 — service 가 actorId 를 system 으로 폴백).
+        String actorName = displayNameOrNull(principal != null ? principal.getName() : null);
         return ApiResponse.ok(partner4TabService.updateFull(partnerCode, req, null, actorName));
+    }
+
+    /**
+     * Principal 식별자를 사용자 표시명으로 안전 변환 — UUID 형태면 {@code null}.
+     *
+     * <p>UUID 비공개 원칙상 계정 UUID 가 actorName 으로 노출되지 않도록 차단한다. 실제 표시명이
+     * 전파되는 경우(비-UUID 문자열)에만 그대로 사용한다.
+     */
+    static String displayNameOrNull(String principalName) {
+        if (principalName == null || principalName.isBlank()) {
+            return null;
+        }
+        try {
+            java.util.UUID.fromString(principalName.trim());
+            return null; // UUID → 비공개
+        } catch (IllegalArgumentException notUuid) {
+            return principalName;
+        }
     }
 
     // ================================================================

@@ -110,6 +110,9 @@ export function PartnerDetailDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['partner', 'full', partnerId] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
+      // [Phase 2.3 F5] 편집은 EDIT revision 을 새로 캡처하므로 버전이력 캐시도 무효화해야
+      // '버전 이력' 탭이 stale(편집 전) 목록을 보이지 않는다. (partnerId === partnerCode)
+      queryClient.invalidateQueries({ queryKey: ['partnerRevisions', partnerId] })
       setEditing(false)
       setSaveError(null)
     },
