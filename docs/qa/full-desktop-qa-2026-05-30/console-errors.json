@@ -1,0 +1,119 @@
+{
+  "partners-list": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "permission-matrix": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+  ],
+  "permission-matrix-bulk": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+  ],
+  "regions": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/regions' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-Origin' header contains multip",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/regions' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-Origin' header contains multip",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "sheet-sync": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "slip-edit-requests": [
+    "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+    "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  "photo-audit": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "estimates-list": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+  ],
+  "partner-dc-config": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "slip-cleanup": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "acc-journals": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-income-statement": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-balance-sheet": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-vat": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-daily-closing": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-cash-disbursements": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "acc-orders": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "arologis-pre-classify": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/pre-classify?from=2026-05-29&to=2026-05-29' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Acces",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/pre-classify?from=2026-05-29&to=2026-05-29' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Acces",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "arologis-unassigned": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/unassigned?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/unassigned?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "arologis-manual-dispatch": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "arologis-driver-assignment": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/drivers/available?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-All",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/drivers/available?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-All",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "arologis-auto-dispatch": [
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/unassigned?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/admin/arologis/dispatches/unassigned?date=2026-05-30' from origin 'http://127.0.0.1:5173' has been blocked by CORS policy: The 'Access-Control-Allow-",
+    "Failed to load resource: net::ERR_FAILED",
+    "Access to XMLHttpRequest at 'http://localhost:8080/api/v1/arologis/admin/dispatches?fromDate=2026-05-30&toDate=2026-05-30&page=0&size=50' from origin 'http://127.0.0.1:5173' has been blocked by CORS p",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "arologis-dispatch-sms": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "dispatch-board": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
