@@ -191,6 +191,36 @@ public class EstimateService {
         return EstimateDetailResponse.from(estimate);
     }
 
+    /**
+     * 견적을 특정 revision 시점으로 복원한다 (권한 재편 Phase 2.2 Task 3).
+     *
+     * <p>처리 순서: 견적 조회(404) → {@link EstimateRevisionService#restore}(편집 가능 가드 +
+     * 헤더/라인 복원 + RESTORE revision 캡처) → 라인 전량 교체 영속화 → 상세 응답.
+     *
+     * <p>{@link com.samhanair.logis.slip.service.SlipService#restoreToRevision} 미러 —
+     * 단 견적은 SSE broadcast 가 없다 (동시 편집 broker 미적용).
+     *
+     * @param estimateId 복원 대상 견적 UUID
+     * @param revisionNo 복원할 시점의 revisionNo
+     * @param callerId 복원 주체 user-id (gateway X-User-Id, 감사용)
+     * @param callerName 복원 주체 표시명 (UUID 비공개 가드, 없으면 callerId 폴백)
+     * @return 복원 후 견적 상세 (lines 포함)
+     * @throws BusinessException(NOT_FOUND) 견적 또는 복원 대상 revision 미존재
+     * @throws BusinessException(CONFLICT) 편집 불가 단계의 견적
+     */
+    public EstimateDetailResponse restoreToRevision(UUID estimateId, int revisionNo,
+                                                    String callerId, String callerName) {
+        Estimate estimate = loadOrThrow(estimateId);
+        String actorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        applyMutation(() -> estimateRevisionService.restore(estimate, revisionNo,
+                parseActorId(callerId), actorName, null));
+        // 라인 전량 교체(clear + 신규 라인 add) 영속화
+        estimateRepository.save(estimate);
+        return EstimateDetailResponse.from(estimate);
+    }
+
     /** 단건 조회. */
     @Transactional(readOnly = true)
     public EstimateDetailResponse getOne(UUID id) {
