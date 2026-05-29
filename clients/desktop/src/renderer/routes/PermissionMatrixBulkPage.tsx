@@ -13,6 +13,7 @@ import {
   type RbacRole,
 } from '../api/permissionsApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PAGE_GROUPS, PAGE_LABEL } from './permissionPageCatalog'
 
 const ROLE_LABEL: Record<RbacRole, string> = {
   MASTER: '마스터',
@@ -38,21 +39,6 @@ const ACTION_LABEL: Record<PermissionAction, string> = {
   print: 'PRINT',
 }
 
-const PAGE_OPTIONS: Array<{ code: PageCode; label: string; domain: string }> = [
-  { code: 'system.permission-admin', label: '시스템 권한', domain: '시스템 관리' },
-  { code: 'accounting.deposit-match', label: '입금 매칭', domain: '회계' },
-  { code: 'accounting.general-ledger', label: '원장', domain: '회계' },
-  { code: 'purchases.receipt-ocr', label: '영수증 OCR', domain: '매입' },
-  { code: 'sales.slip.list', label: '매출 슬립', domain: '매출' },
-  { code: 'slip.transfer.process', label: '전표 처리', domain: '전표 운영' },
-  { code: 'dispatch.board', label: '배차 보드', domain: '배차' },
-  { code: 'notifications.admin', label: '알림 발송', domain: '알림' },
-  { code: 'inventory.stock', label: '재고 현황', domain: '재고' },
-  { code: 'partners.list', label: '거래처 목록', domain: '거래처' },
-  { code: 'products.list', label: '상품 목록', domain: '상품' },
-  { code: 'arologis.admin', label: '아로로지스 배차', domain: '아로로지스' },
-]
-
 type WizardStep = 1 | 2 | 3 | 4
 type BulkMode = BulkPermissionRequest['mode']
 
@@ -77,8 +63,7 @@ function buildActionMatrix(actions: readonly PermissionAction[]): PermissionActi
 }
 
 function pageOptionLabel(page: PageCode): string {
-  const option = PAGE_OPTIONS.find((item) => item.code === page)
-  return option ? `${option.label} (${option.code})` : page
+  return `${PAGE_LABEL[page] ?? page} (${page})`
 }
 
 function selectedAccounts(accounts: PermissionAccount[], selectedIds: Set<string>): PermissionAccount[] {
@@ -459,13 +444,22 @@ function ModeStep({
               onChange={(event) => onSelectedPageChange(event.target.value as PageCode)}
               style={selectStyle}
             >
-              {PAGE_OPTIONS.map((page) => (
-                <option key={page.code} value={page.code}>
-                  {page.domain} / {page.label}
-                </option>
+              {PAGE_GROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.pages.map((page) => (
+                    <option key={page} value={page}>
+                      {PAGE_LABEL[page] ?? page}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
+          {selectedActions.size === 0 && (
+            <div style={{ color: 'var(--color-danger-600)', fontSize: 12 }}>
+              액션을 1개 이상 선택하세요.
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {PERMISSION_ACTIONS.map((action) => (
               <label key={action} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>

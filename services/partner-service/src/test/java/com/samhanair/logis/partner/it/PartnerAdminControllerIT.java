@@ -5,9 +5,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import java.math.BigDecimal;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -37,6 +39,10 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @AutoConfigureMockMvc
 class PartnerAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000101";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000102";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000103";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -57,6 +63,10 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         partnerRepository.deleteAll();
     }
 
@@ -74,7 +84,7 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void create_with_sales_role_returns_403() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0011", "999-88-77778");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -85,7 +95,7 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void create_with_manager_role_returns_200_and_persists_active_partner() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0012", "999-88-77779");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -99,14 +109,14 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void find_all_with_sales_role_returns_partner_code_list_without_uuid() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0015", "999-88-77782");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .param("page", "0")
                         .param("size", "20")
@@ -120,14 +130,14 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void search_with_sales_role_returns_partner_code_items_without_uuid() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0016", "999-88-77783");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .param("q", "P-2026-0016")
                         .param("page", "0")
@@ -141,14 +151,14 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void find_one_with_sales_role_returns_partner_code_detail_without_uuid() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0017", "999-88-77784");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/P-2026-0017")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0017"))
@@ -159,7 +169,7 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void create_duplicate_partner_code_returns_409() throws Exception {
         PartnerAdminRequest first = sampleRequest("P-2026-0013", "999-88-77780");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
@@ -168,7 +178,7 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
         PartnerAdminRequest dup = new PartnerAdminRequest("P-2026-0013", "999-88-99999",
                 "(주)다른상호", null, null, BigDecimal.ZERO);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dup)))
@@ -180,20 +190,20 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     void delete_with_master_role_returns_200_and_soft_deletes() throws Exception {
         PartnerAdminRequest req = sampleRequest("P-2026-0014", "999-88-77781");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-2026-0014")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
         // soft-delete 후 SQLRestriction 으로 미조회 → 후속 GET 은 404
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/P-2026-0014")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
     }

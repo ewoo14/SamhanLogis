@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -302,7 +303,10 @@ class SlipExcelExportIT extends AbstractPostgresIT {
      */
     @Test
     void tc8_salesRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.print.export"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.print.export"),
+                        ArgumentMatchers.eq(PermissionAction.DOWNLOAD)))
                 .thenReturn(false);
 
         mockMvc.perform(get(EXPORT_URL)

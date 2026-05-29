@@ -14,6 +14,7 @@ import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +68,9 @@ class ProductByCodeControllerIT extends AbstractPostgresIT {
                 .thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         category = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))
                 .findFirst()
@@ -110,7 +114,8 @@ class ProductByCodeControllerIT extends AbstractPostgresIT {
 
     @Test
     void byCode_customerRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView("CUSTOMER", "products.list"))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("products.list"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
         // Phase 7 종합 TM — @PreAuthorize 7-tier 화이트리스트 (MASTER/MANAGER/DEVELOPER/SALES/
         // ACCOUNTANT/WAREHOUSE/INVENTORY) 거부 검증. CUSTOMER role 은 by-code 조회 권한 X.

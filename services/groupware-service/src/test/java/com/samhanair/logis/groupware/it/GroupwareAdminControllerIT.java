@@ -15,6 +15,7 @@ import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -49,6 +50,9 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @AutoConfigureMockMvc
 class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000301";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000302";
+
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -69,6 +73,10 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     void cleanup() {
         lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
         // Phase 9 W3 — bulk verify 채택. 모든 입력 ID 를 true 매핑하여 통과시킨다.
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
@@ -90,7 +98,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 UUID.randomUUID(), "휴가 신청", "연차 1일",
                 List.of(UUID.randomUUID(), UUID.randomUUID()));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -107,7 +115,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         ApprovalLineCreateRequest createReq = new ApprovalLineCreateRequest(
                 requester, "결재 진행 case", null, List.of(approver1, approver2));
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
@@ -118,7 +126,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
         ApprovalDecisionRequest decision = new ApprovalDecisionRequest(approver1, null);
         mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/" + approvalId + "/approve")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(decision)))
@@ -133,7 +141,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         ApprovalLineCreateRequest createReq = new ApprovalLineCreateRequest(
                 requester, "반려 case", null, List.of(approver1));
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
@@ -143,7 +151,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
         ApprovalDecisionRequest decision = new ApprovalDecisionRequest(approver1, "사유 부족");
         mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/" + approvalId + "/reject")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(decision)))
@@ -155,7 +163,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     void send_message_returns_201() throws Exception {
         MessageSendRequest req = new MessageSendRequest(UUID.randomUUID(), UUID.randomUUID(), "안녕하세요");
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/messages")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -173,7 +181,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 null,
                 List.of(UUID.randomUUID()));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -192,7 +200,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 base.plusDays(1).plusHours(2),
                 null, null);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -205,7 +213,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .param("ownerId", owner.toString())
                         .param("from", from)
                         .param("to", to)
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))

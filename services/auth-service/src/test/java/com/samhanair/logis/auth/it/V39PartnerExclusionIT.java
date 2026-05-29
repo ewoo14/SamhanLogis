@@ -8,11 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.TestPropertySource;
 
 /** V39 account materialize 단계의 PARTNER 제외 검증. */
 @SpringBootTest(classes = AuthServiceApplication.class)
-@TestPropertySource(properties = "spring.profiles.active=local")
 class V39PartnerExclusionIT extends AbstractPostgresIT {
 
     @Autowired

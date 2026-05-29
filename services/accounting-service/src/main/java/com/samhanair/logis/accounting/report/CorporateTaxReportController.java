@@ -59,7 +59,7 @@ public class CorporateTaxReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "fiscalYear 파라미터 오류")
     })
     @GetMapping("/corporate-tax")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<CorporateTaxReportResponse> corporateTax(
             @Parameter(description = "사업연도 (YYYY, 예: 2026)")
             @RequestParam int fiscalYear,

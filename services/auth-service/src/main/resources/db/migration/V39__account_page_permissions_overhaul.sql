@@ -14,11 +14,13 @@
 -- DOWNLOAD preservation:
 --   accounting.journals:       VIEW -> MASTER, MANAGER, ACCOUNTANT
 --   accounting.hometax-export: VIEW -> MASTER, MANAGER, ACCOUNTANT
+--   inventory.dps:             VIEW -> MASTER, MANAGER, WAREHOUSE, INVENTORY
+--   inventory.stock-balance:   EDIT -> MASTER, MANAGER, WAREHOUSE, INVENTORY
 --   slip.print.export:         EDIT -> MASTER, MANAGER
 --   partners.edit:             VIEW -> MASTER, MANAGER
 --
 -- PRINT preservation:
---   accounting.tax-invoice.list: VIEW -> MASTER, MANAGER, ACCOUNTANT, SALES
+--   accounting.tax-invoice.list: VIEW -> MASTER, MANAGER, ACCOUNTANT
 --   accounting.statement-batch:  VIEW -> MASTER, MANAGER, ACCOUNTANT
 --   accounting.partner-ledger:   VIEW -> MASTER, MANAGER, ACCOUNTANT
 --   accounting.reports:          VIEW -> MASTER, MANAGER, ACCOUNTANT
@@ -139,6 +141,14 @@ WHERE  t.is_deleted = FALSE
         ('MASTER',     'accounting.hometax-export'),
         ('MANAGER',    'accounting.hometax-export'),
         ('ACCOUNTANT', 'accounting.hometax-export'),
+        ('MASTER',     'inventory.dps'),
+        ('MANAGER',    'inventory.dps'),
+        ('WAREHOUSE',  'inventory.dps'),
+        ('INVENTORY',  'inventory.dps'),
+        ('MASTER',     'inventory.stock-balance'),
+        ('MANAGER',    'inventory.stock-balance'),
+        ('WAREHOUSE',  'inventory.stock-balance'),
+        ('INVENTORY',  'inventory.stock-balance'),
         ('MASTER',     'slip.print.export'),
         ('MANAGER',    'slip.print.export'),
         ('MASTER',     'partners.edit'),
@@ -155,7 +165,6 @@ WHERE  t.is_deleted = FALSE
         ('MASTER',     'accounting.tax-invoice.list'),
         ('MANAGER',    'accounting.tax-invoice.list'),
         ('ACCOUNTANT', 'accounting.tax-invoice.list'),
-        ('SALES',      'accounting.tax-invoice.list'),
         ('MASTER',     'accounting.statement-batch'),
         ('MANAGER',    'accounting.statement-batch'),
         ('ACCOUNTANT', 'accounting.statement-batch'),

@@ -53,7 +53,7 @@ public class DailySummaryController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/daily-summary")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DailySummaryResponse> dailySummary(
             @Parameter(description = "집계 일자 (ISO 날짜, 예: 2026-01-15)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,

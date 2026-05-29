@@ -216,7 +216,7 @@ public class TaxInvoiceController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 상태 — 발행 후 인쇄 가능")
     })
     @GetMapping("/{id}/print")
-    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = TAX_INVOICE_LIST_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<TaxInvoicePrintResponse> print(@PathVariable UUID id) {
         return ApiResponse.ok(taxInvoiceService.print(id));
     }

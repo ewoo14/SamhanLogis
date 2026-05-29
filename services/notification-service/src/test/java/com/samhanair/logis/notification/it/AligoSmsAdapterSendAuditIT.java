@@ -16,9 +16,11 @@ import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.repository.DispatchSmsSaveHistoryRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +57,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
 
     private static final String SEND_URL = "/admin/notifications/dispatch-batch/send";
-    private static final String USER_DISPATCH = "dispatch-audit-user";
+    private static final String USER_DISPATCH = "10000000-0000-0000-0000-000000000231";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -76,6 +78,9 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
         // blocked 가드 — 기본 false (발송 진행)
         Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         Mockito.lenient().when(blockedPartnerLookupClient.isBlocked(Mockito.anyString())).thenReturn(false);
     }
 

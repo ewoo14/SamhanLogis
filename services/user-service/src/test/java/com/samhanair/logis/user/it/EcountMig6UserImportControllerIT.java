@@ -14,11 +14,13 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.service.EcountEmployeeCardImporter;
 import com.samhanair.logis.user.service.EcountEmployeeImporter;
 import com.samhanair.logis.user.service.EcountPayrollEmployeeImporter;
 import java.io.InputStream;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -49,6 +51,8 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @ParameterizedTest(name = "{0} {2}")
@@ -63,12 +67,14 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
             stubHeaderMismatch(url);
         }
         if ("memberForbidden".equals(label)) {
-            when(dynamicPermissionClient.canEdit("MEMBER", pageCode(url))).thenReturn(false);
+            when(dynamicPermissionClient.check(
+                    any(UUID.class), org.mockito.ArgumentMatchers.eq(pageCode(url)),
+                    org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE))).thenReturn(false);
         }
 
         var request = multipart(url).file(file);
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "10000000-0000-0000-0000-000000000006");
         }
         if (role != null) {
             request.header("X-User-Role", role);

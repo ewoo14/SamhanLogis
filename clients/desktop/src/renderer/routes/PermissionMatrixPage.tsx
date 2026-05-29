@@ -77,7 +77,7 @@ const ROLE_LABEL: Record<RbacRole, string> = {
  *   → 전표 운영 (SP-D6-6)
  *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로로지스 (SP-D4 신규)
  */
-interface PageGroup {
+export interface PageGroup {
   label: string
   pages: PageCode[]
 }
@@ -93,7 +93,7 @@ interface PageGroup {
  * SP-D6-3: notifications.admin / aligo.address-book / dispatch.sms-save-history / dispatch.batch 추가
  * SP-D7: notifications.center + 전용 *.view PageCode 추가
  */
-const PAGE_GROUPS: PageGroup[] = [
+export const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
   {
     label: '회계',
@@ -353,10 +353,10 @@ const PAGE_GROUPS: PageGroup[] = [
  * PAGE_GROUPS 에서 파생된 전체 페이지 코드 순서 배열.
  * 그룹 순서 × 그룹 내 순서가 최종 열 순서.
  */
-const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
+export const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
 
 /** 페이지 코드 한국어 라벨. */
-const PAGE_LABEL: Record<PageCode, string> = {
+export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.tax-invoice.batch-issue': '세금계산서 발행 묶음',
   'accounting.tax-invoice.inbound': '수신 세금계산서',
   'accounting.tax-invoice.cancel': '세금계산서 취소',
@@ -766,13 +766,20 @@ export function PermissionMatrixPage() {
   }, [currentState, setPageActions])
 
   const toggleColumn = useCallback((action: PermissionAction) => {
-    const pages = visiblePages.length > 0 ? visiblePages : PAGES_ORDER
+    const pages = PAGES_ORDER
     const shouldEnable = pages.some((page) => !(currentState?.[page]?.[action] ?? false))
-    if (!window.confirm(`${MATRIX_ACTION_LABEL[action]} 권한을 현재 표시된 ${pages.length}개 페이지에 일괄 적용할까요?`)) {
+    if (!window.confirm(`${MATRIX_ACTION_LABEL[action]} 권한을 전체 ${pages.length}개 페이지에 일괄 적용할까요?`)) {
       return
     }
     setPageActions(pages, [action], shouldEnable)
-  }, [currentState, setPageActions, visiblePages])
+  }, [currentState, setPageActions])
+
+  const setAllPages = useCallback((allowed: boolean) => {
+    if (!window.confirm(`전체 ${PAGES_ORDER.length}개 페이지의 모든 권한을 ${allowed ? 'ON' : 'OFF'} 처리할까요?`)) {
+      return
+    }
+    setPageActions(PAGES_ORDER, PERMISSION_ACTIONS, allowed)
+  }, [setPageActions])
 
   const saveChanges = useCallback(() => {
     if (!selectedAccountId || !currentState || dirtyKeys.size === 0) return
@@ -893,15 +900,15 @@ export function PermissionMatrixPage() {
 
         <Button
           variant="ghost"
-          onClick={() => setPageActions(visiblePages, PERMISSION_ACTIONS, true)}
-          disabled={!currentState || visiblePages.length === 0}
+          onClick={() => setAllPages(true)}
+          disabled={!currentState}
         >
           전체ON
         </Button>
         <Button
           variant="ghost"
-          onClick={() => setPageActions(visiblePages, PERMISSION_ACTIONS, false)}
-          disabled={!currentState || visiblePages.length === 0}
+          onClick={() => setAllPages(false)}
+          disabled={!currentState}
         >
           전체OFF
         </Button>
@@ -1003,6 +1010,21 @@ export function PermissionMatrixPage() {
                 </tr>
               </thead>
               <tbody>
+                {visibleGroups.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={PERMISSION_ACTIONS.length + 2}
+                      style={{
+                        padding: 24,
+                        textAlign: 'center',
+                        color: 'var(--color-neutral-500)',
+                        borderBottom: '1px solid var(--color-neutral-200)',
+                      }}
+                    >
+                      검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                )}
                 {visibleGroups.map((group) => {
                   const domainId = MATRIX_DOMAIN_ID_BY_LABEL[group.label] ?? group.label
                   return (
@@ -1014,7 +1036,12 @@ export function PermissionMatrixPage() {
                       dirtyKeys={dirtyKeys}
                       onCellToggle={toggleCell}
                       onRowToggle={toggleRow}
-                      onDomainSet={(allowed) => setPageActions(group.pages, PERMISSION_ACTIONS, allowed)}
+                      onDomainSet={(allowed) => {
+                        if (!window.confirm(`${group.label} ${group.pages.length}개 페이지의 모든 권한을 ${allowed ? 'ON' : 'OFF'} 처리할까요?`)) {
+                          return
+                        }
+                        setPageActions(group.pages, PERMISSION_ACTIONS, allowed)
+                      }}
                     />
                   )
                 })}

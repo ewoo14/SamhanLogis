@@ -21,7 +21,9 @@ import com.samhanair.logis.arologis.dto.AdminLoginRequest;
 import com.samhanair.logis.arologis.dto.AuthTokenResponse;
 import com.samhanair.logis.arologis.dto.MeResponse;
 import com.samhanair.logis.arologis.repository.AdminUserRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class ArologisAdminAuthIT extends AbstractPostgresIT {
 
+    private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000402";
+
     @Autowired private MockMvc mvc;
     @Autowired private AdminUserRepository userRepo;
     @Autowired private PasswordEncoder encoder;
@@ -66,6 +70,10 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
 
         userRepo.findByLoginIdAndIsDeletedFalse("itadmin")
                 .orElseGet(() -> userRepo.save(AdminUser.create(
@@ -98,7 +106,9 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
 
         // JWT bearer 로 /admin/arologis/dispatches 호출 가능 (AROLOGIS_MASTER 권한 매핑)
         mvc.perform(get("/admin/arologis/dispatches?date=2026-05-08")
-                        .header("Authorization", "Bearer " + tokens.accessToken()))
+                        .header("Authorization", "Bearer " + tokens.accessToken())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isOk());
     }
 

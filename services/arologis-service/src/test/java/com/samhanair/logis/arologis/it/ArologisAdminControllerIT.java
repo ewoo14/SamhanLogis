@@ -21,6 +21,7 @@ import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import com.samhanair.logis.security.permission.PermissionAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
 class ArologisAdminControllerIT extends AbstractPostgresIT {
+
+    private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000401";
 
     @Autowired
     private MockMvc mockMvc;
@@ -96,6 +99,10 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         // PR-E1 BE-3 — 기본 빈 리스트 (graceful empty). 개별 테스트가 override 가능.
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
@@ -112,7 +119,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     void parseKakao_returns_200() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches/parse-kakao")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(body))
@@ -126,7 +133,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     void parseKakao_with_invalid_text_returns_400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of("kakaoText", "잘못된 메시지"));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches/parse-kakao")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(body))
@@ -137,7 +144,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     void create_dispatch_returns_200_with_id() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(body))
@@ -148,7 +155,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     @Test
     void list_dispatches_returns_200_array() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray());
@@ -157,7 +164,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     @Test
     void find_missing_dispatch_returns_404() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/" + UUID.randomUUID())
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
     }
@@ -167,7 +174,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         // 우선 dispatch 생성
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResponse = mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(createBody))
@@ -177,7 +184,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                 .get("data").get("dispatchId").asText();
 
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches/" + dispatchId + "/auto-match")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.totalVehicles").exists())
@@ -189,7 +196,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         // dispatch 생성
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResponse = mockMvc.perform(MockMvcRequestBuilders.post("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(createBody))
@@ -200,7 +207,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         String body = objectMapper.writeValueAsString(Map.of("driverCode", "UNKNOWN-999"));
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(body))
@@ -213,7 +220,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         String body = objectMapper.writeValueAsString(Map.of("status", "ARRIVED"));
         mockMvc.perform(MockMvcRequestBuilders.put(
                         "/admin/arologis/dispatches/" + id + "/vehicles/1/stops/1/status")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(body))
@@ -223,7 +230,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     @Test
     void list_drivers_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/drivers")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray());
@@ -244,7 +251,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/pre-classify")
                         .param("from", "2026-05-10")
                         .param("to", "2026-05-10")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
@@ -264,7 +271,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/unassigned")
                         .param("date", "2026-05-10")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.totalOutbound").value(1))
@@ -284,7 +291,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/regional")
                         .param("date", "2026-05-10")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.sidoGroups").exists())

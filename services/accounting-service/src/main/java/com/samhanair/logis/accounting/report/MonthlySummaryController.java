@@ -55,7 +55,7 @@ public class MonthlySummaryController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/monthly-summary")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<MonthlySummaryResponse> monthlySummary(
             @Parameter(description = "집계 월 (yyyyMM, 예: 202601)")
             @RequestParam String period,

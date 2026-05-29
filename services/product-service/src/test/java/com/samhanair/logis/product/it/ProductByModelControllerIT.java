@@ -10,6 +10,7 @@ import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +64,9 @@ class ProductByModelControllerIT extends AbstractPostgresIT {
         Mockito.lenient().when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
                 .thenReturn(true);
         Category cat = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))

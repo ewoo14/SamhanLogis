@@ -1,10 +1,13 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +68,8 @@ public abstract class AbstractPostgresIT {
     void setUpDynamicPermissionDefaults() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     protected void denyDynamicPermissionFor(String role) {

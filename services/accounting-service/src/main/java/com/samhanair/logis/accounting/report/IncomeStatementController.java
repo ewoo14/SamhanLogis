@@ -61,7 +61,7 @@ public class IncomeStatementController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")
     })
     @GetMapping("/income-statement")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<IncomeStatementResponse> incomeStatement(
             @Parameter(description = "단월 기간 (yyyyMM)")
             @RequestParam(required = false) String period,

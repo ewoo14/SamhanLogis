@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
@@ -158,7 +159,10 @@ class SlipControllerIT extends AbstractPostgresIT {
     void warehouseRole_postSlip_returns403() throws Exception {
         // 전표 등록 권한은 SALES/MANAGER/MASTER. WAREHOUSE 는 차단.
         Map<String, Object> body = createOutboundSlipBody();
-        Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "sales.slip.create"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("sales.slip.create"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/slips")
@@ -184,7 +188,10 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
 
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.transfer.process"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.transfer.process"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/slips/" + slipId + "/accept")
@@ -377,7 +384,10 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "WAREHOUSE")).andExpect(status().isOk());
 
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.transfer.process"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.transfer.process"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/slips/" + slipId + "/inspect")
@@ -452,7 +462,10 @@ class SlipControllerIT extends AbstractPostgresIT {
                 .header("X-User-Role", "SALES")).andExpect(status().isOk());
 
         Map<String, Object> rejectBody = Map.of("reason", "WAREHOUSE 가 reject 시도");
-        Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "slip.reject"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.reject"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/slips/" + slipId + "/reject")

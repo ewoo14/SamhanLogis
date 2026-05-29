@@ -107,7 +107,7 @@ public class AccountingReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 역순")
     })
     @GetMapping("/accounting/sales/aggregate")
-    @RequirePermission(page = REPORTS_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = REPORTS_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SalesAggregateRow>> aggregate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -177,7 +177,7 @@ public class AccountingReportController {
     @Operation(summary = "일별 마감 detail (BE-A12)",
             description = "일별 매출/세금계산서/할인 detail — read-only (마감 OPEN/CLOSED 무관)")
     @GetMapping("/accounting/closings/daily")
-    @RequirePermission(page = REPORTS_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    @RequirePermission(page = REPORTS_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DailyClosingDetailResponse> dailyDetail(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) DailyClosingKind kind,

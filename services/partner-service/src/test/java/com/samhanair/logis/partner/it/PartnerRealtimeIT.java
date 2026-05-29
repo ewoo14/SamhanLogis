@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.partner.editrequest.repository.PartnerEditRequestRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +52,10 @@ class PartnerRealtimeIT extends AbstractPostgresIT {
     void setUpPermissions() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
