@@ -38,8 +38,9 @@
 - **F4 [P1, UUID 노출] → 수정됨** 버전이력의 EDIT revision actorName 이 계정 UUID 로 표시되던 문제.
   원인: `Partner4TabController#updateFull` 이 `principal.getName()`(헤더인증 principal = X-User-Id =
   **UUID**)을 actorName 으로 전달(게이트웨이가 X-User-Name 미전파). → **[[uuid-no-user-visibility]] 위반**.
-  - 수정(BE): `Partner4TabController` 에 `displayNameOrNull()` 가드 추가 — actorName 이 UUID 형태면
-    `null` 전달(CREATE 경로와 일관, service 가 actorId=system 폴백).
+  - 수정(BE): `Partner4TabController#updateFull` 이 **X-User-Name 헤더를 우선** actorName 으로 사용
+    (RESTORE 컨트롤러와 일관) + 헤더 부재 시 `displayNameOrNull()` 가드(principal 이 UUID 면 null →
+    service 가 actorId=system 폴백). 게이트웨이가 X-User-Name 미전파 → 운영에선 actorName 미표시(누출 0).
   - 수정(FE 방어): `PartnerVersionHistoryPanel` 이 UUID 형태 actorName 을 렌더하지 않음.
   - 재검증: 재빌드 후 `08`/`10` 의 rev2 "수정" 에 **UUID 미노출**(actor 칸 비움) 확인.
 - **F5 [P2, FE stale] → 수정됨** `PartnerDetailDialog` 편집 저장이 `['partnerRevisions', code]` 를

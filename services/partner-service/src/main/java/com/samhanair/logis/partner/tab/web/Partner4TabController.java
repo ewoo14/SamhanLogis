@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -120,13 +121,16 @@ public class Partner4TabController {
     @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerFullResponse> updateFull(@PathVariable String partnerCode,
                                                         @Valid @RequestBody PartnerFullRequest req,
+                                                        @RequestHeader(value = "X-User-Name", required = false) String userName,
                                                         Principal principal) {
         // 권한 재편 Phase 2.3 — 4탭 일괄 수정 시 revision actor(표시명) 전달.
         // [UUID 비공개 가드] header 인증 환경에서 Principal.getName() 은 X-User-Id(계정 UUID)가
-        // 들어온다(게이트웨이가 X-User-Name 을 전파하지 않음). UUID 를 actorName 으로 노출하면
-        // 버전이력 화면에 raw UUID 가 새어나가므로([[uuid-no-user-visibility]]), UUID 형태이면
-        // null 로 전달한다(CREATE 경로와 일관 — service 가 actorId 를 system 으로 폴백).
-        String actorName = displayNameOrNull(principal != null ? principal.getName() : null);
+        // 들어온다. UUID 를 actorName 으로 노출하면 버전이력 화면에 raw UUID 가 새어나가므로
+        // ([[uuid-no-user-visibility]]), 표시명은 X-User-Name 헤더(RESTORE 경로와 일관)를 우선 사용하고,
+        // 없으면 Principal 식별자가 UUID 가 아닐 때만 사용한다(UUID 면 null → service 가 system 폴백).
+        String actorName = (userName != null && !userName.isBlank())
+                ? userName
+                : displayNameOrNull(principal != null ? principal.getName() : null);
         return ApiResponse.ok(partner4TabService.updateFull(partnerCode, req, null, actorName));
     }
 
