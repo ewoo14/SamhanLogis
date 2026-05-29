@@ -209,26 +209,10 @@ public class Partner4TabService {
             partner.updateProfile(req.name(), partner.getAddress(), partner.getPhone());
         }
 
-        // 단가/할인 정책 UPSERT
-        if (req.priceDiscount() != null) {
-            upsertPriceDiscount(partnerId, req.priceDiscount());
-        }
-
-        // 배송지 soft-delete 후 재등록
-        if (req.shippingAddresses() != null) {
-            softDeleteAllShippingAddresses(partnerId, "system");
-            if (!req.shippingAddresses().isEmpty()) {
-                saveShippingAddressList(partnerId, req.shippingAddresses());
-            }
-        }
-
-        // 담당자 soft-delete 후 재등록
-        if (req.contacts() != null) {
-            softDeleteAllContacts(partnerId, "system");
-            if (!req.contacts().isEmpty()) {
-                saveContactList(partnerId, req.contacts());
-            }
-        }
+        // 4탭 자식 전량교체 (단가/할인 UPSERT + 배송지/담당자 soft-delete 후 재등록).
+        // 복원(PartnerRevisionService#restore)이 같은 로직을 재사용하도록 공통 helper 로 추출됨.
+        replaceChildrenFromFull(partnerId, req.priceDiscount(),
+                req.shippingAddresses(), req.contacts());
 
         PartnerFullResponse response = buildFullResponse(partner, partnerId);
         // 권한 재편 Phase 2.3 — 4탭 일괄 수정 후 EDIT 스냅샷 캡처. buildFullResponse 가 자식을 재조회해
@@ -414,6 +398,56 @@ public class Partner4TabService {
         contact.softDelete(actorUserId);
         // 권한 재편 Phase 2.3 — 담당자 삭제 (탭4) → EDIT 스냅샷 캡처 (삭제 후 잔여 자식 조립).
         captureEdit(partner.getId(), parseActorId(actorUserId), null);
+    }
+
+    // ================================================================
+    // 4탭 자식 전량교체 공통 helper (updateFull + restore 공유)
+    // ================================================================
+
+    /**
+     * 거래처 4탭 자식(단가/할인 1:1, 배송지 1:N, 담당자 1:N)을 요청 기준으로 전량교체한다
+     * (권한 재편 Phase 2.3 Task 3 — {@link #updateFull} 과 복원이 공유하는 공통 로직).
+     *
+     * <p>각 자식의 의미 규칙 ({@code null = skip}, {@code non-null = replace}):
+     * <ul>
+     *   <li><b>priceDiscount</b>: null 이면 정책 미변경, non-null 이면 UPSERT (존재 시 update,
+     *       미존재 시 create).</li>
+     *   <li><b>shippingAddresses</b>: null 이면 배송지 미변경, non-null 이면 기존 전량 soft-delete 후
+     *       재등록 (빈 리스트면 전량 삭제만 수행 — 복원 시점에 배송지가 없으면 현재 자식을 비운다).</li>
+     *   <li><b>contacts</b>: 배송지와 동일 규칙.</li>
+     * </ul>
+     *
+     * <p>{@code @Transactional} 경계는 호출자({@link #updateFull} / {@code restore})가 책임진다.
+     * 복원이 호출할 때는 스냅샷의 자식을 각 Request DTO 로 변환해 전달한다.
+     *
+     * @param partnerId         대상 거래처 UUID
+     * @param priceDiscount     단가/할인 정책 요청 (null = 미변경)
+     * @param shippingAddresses 배송지 요청 목록 (null = 미변경, 빈 리스트 = 전량 삭제)
+     * @param contacts          담당자 요청 목록 (null = 미변경, 빈 리스트 = 전량 삭제)
+     */
+    public void replaceChildrenFromFull(UUID partnerId, PartnerPriceDiscountRequest priceDiscount,
+                                        List<PartnerShippingAddressRequest> shippingAddresses,
+                                        List<PartnerContactRequest> contacts) {
+        // 단가/할인 정책 UPSERT
+        if (priceDiscount != null) {
+            upsertPriceDiscount(partnerId, priceDiscount);
+        }
+
+        // 배송지 soft-delete 후 재등록
+        if (shippingAddresses != null) {
+            softDeleteAllShippingAddresses(partnerId, "system");
+            if (!shippingAddresses.isEmpty()) {
+                saveShippingAddressList(partnerId, shippingAddresses);
+            }
+        }
+
+        // 담당자 soft-delete 후 재등록
+        if (contacts != null) {
+            softDeleteAllContacts(partnerId, "system");
+            if (!contacts.isEmpty()) {
+                saveContactList(partnerId, contacts);
+            }
+        }
     }
 
     // ================================================================

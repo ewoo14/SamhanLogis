@@ -1,6 +1,8 @@
 package com.samhanair.logis.partner.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -315,6 +317,34 @@ public class Partner extends BaseEntity {
     /** 거래 종료 (계약 해지). 조회만 허용 — soft-delete 와 구분, 정산 / 회계 목적 보관. */
     public void terminate() {
         this.status = PartnerStatus.TERMINATED;
+    }
+
+    /**
+     * 거래처가 편집/복원 가능한 상태인지 판정한다 (권한 재편 Phase 2.3 Task 3).
+     *
+     * <p>거래종료(TERMINATED) 거래처는 정산/회계 목적 보관 상태이므로 헤더/자식 변경 및
+     * point-in-time 복원이 금지된다. ACTIVE/SUSPENDED 는 편집 가능 (SUSPENDED 는 신규 슬립
+     * 발행만 차단되고 거래처 정보 편집 자체는 허용).
+     *
+     * @return TERMINATED 가 아니면 {@code true}
+     */
+    public boolean isEditable() {
+        return this.status != PartnerStatus.TERMINATED;
+    }
+
+    /**
+     * 편집/복원 가능 상태를 강제한다 — TERMINATED 면 거부 (권한 재편 Phase 2.3 Task 3).
+     *
+     * <p>{@code EstimateService} 의 {@code requireEditable} 도메인 가드 미러. 복원 진입점
+     * ({@code PartnerRevisionService#restore})이 스냅샷 역적용 전에 호출해 거래종료 거래처의
+     * 복원을 사전 차단한다.
+     *
+     * @throws BusinessException(CONFLICT) 거래종료(TERMINATED) 거래처인 경우
+     */
+    public void requireEditable() {
+        if (!isEditable()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "거래종료 거래처는 복원 불가");
+        }
     }
 
     /**

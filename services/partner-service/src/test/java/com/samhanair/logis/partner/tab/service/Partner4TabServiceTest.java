@@ -248,6 +248,61 @@ class Partner4TabServiceTest {
     }
 
     // ----------------------------------------------------------------
+    // 9. replaceChildrenFromFull — non-null = 전량교체 (softDeleteAll 후 재등록)
+    // ----------------------------------------------------------------
+
+    @Test
+    void replaceChildrenFromFull_replaces_all_children_when_non_null() {
+        UUID partnerId = UUID.randomUUID();
+
+        // 기존 배송지 1건 / 담당자 1건 존재 → softDeleteAll 대상
+        PartnerShippingAddress existingAddr = PartnerShippingAddress.create(
+                partnerId, "구주소", "00000", "옛 주소", null, null, true, null);
+        PartnerContact existingContact = PartnerContact.create(
+                partnerId, "구담당", null, null, null, true, null);
+        when(shippingAddressRepository.findAllByPartnerId(partnerId))
+                .thenReturn(List.of(existingAddr));
+        when(contactRepository.findAllByPartnerId(partnerId))
+                .thenReturn(List.of(existingContact));
+        when(priceDiscountRepository.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+        when(priceDiscountRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(shippingAddressRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.replaceChildrenFromFull(partnerId,
+                new PartnerPriceDiscountRequest(new BigDecimal("7.00"), 45, "복원"),
+                List.of(new PartnerShippingAddressRequest(
+                        "신주소", "06234", "서울 강남", "02-1", "수령", true, null)),
+                List.of(new PartnerContactRequest(
+                        "신담당", "팀장", "010-1", null, true, null)));
+
+        // 기존 자식 soft-delete + 신규 재등록 + priceDiscount 신규 생성
+        assertThat(existingAddr.getIsDeleted()).isTrue();
+        assertThat(existingContact.getIsDeleted()).isTrue();
+        verify(shippingAddressRepository).save(any(PartnerShippingAddress.class));
+        verify(contactRepository).save(any(PartnerContact.class));
+        verify(priceDiscountRepository).save(any(PartnerPriceDiscount.class));
+    }
+
+    // ----------------------------------------------------------------
+    // 10. replaceChildrenFromFull — null = 미변경 (skip)
+    // ----------------------------------------------------------------
+
+    @Test
+    void replaceChildrenFromFull_skips_when_null() {
+        UUID partnerId = UUID.randomUUID();
+
+        service.replaceChildrenFromFull(partnerId, null, null, null);
+
+        // 어떤 자식도 조회/삭제/저장하지 않음 (미변경)
+        verify(shippingAddressRepository, org.mockito.Mockito.never()).findAllByPartnerId(any());
+        verify(contactRepository, org.mockito.Mockito.never()).findAllByPartnerId(any());
+        verify(priceDiscountRepository, org.mockito.Mockito.never()).findByPartnerId(any());
+        verify(shippingAddressRepository, org.mockito.Mockito.never()).save(any());
+        verify(contactRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
 
