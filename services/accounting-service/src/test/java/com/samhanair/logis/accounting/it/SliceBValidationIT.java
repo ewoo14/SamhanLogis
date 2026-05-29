@@ -201,7 +201,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     void vatReportEndpointReturns200WithPositivePayable() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/vat")
                         .param("period", "202604")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.period").value("2026-04"))
@@ -229,7 +229,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     void corporateTaxReportEndpointReturns200() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/corporate-tax")
                         .param("fiscalYear", "2026")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fiscalYear").value(2026))

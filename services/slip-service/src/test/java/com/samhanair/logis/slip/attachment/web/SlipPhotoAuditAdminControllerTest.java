@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.attachment.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
@@ -83,6 +85,8 @@ class SlipPhotoAuditAdminControllerTest {
     void setUpDynamicPermissionClient() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -158,7 +162,8 @@ class SlipPhotoAuditAdminControllerTest {
 
     @Test
     void listPhotoAudit_salesRole_returns403() throws Exception {
-        when(dynamicPermissionClient.canView("SALES", "slip.photo-audit")).thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("slip.photo-audit"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get("/slips/admin/photo-audit")
                         .header("X-User-Id", UUID.randomUUID().toString())

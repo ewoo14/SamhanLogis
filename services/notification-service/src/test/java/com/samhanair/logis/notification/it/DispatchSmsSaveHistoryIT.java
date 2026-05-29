@@ -340,7 +340,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
             mockMvc.perform(post(BASE_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(autoBody(1))
-                            .header("X-User-Id", USER_A + "-" + role)
+                            .header("X-User-Id", accountIdForRole(role))
                             .header("X-User-Role", role))
                     .andExpect(status().isOk());
         }
@@ -430,7 +430,16 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 "saveMode", "SEND_AUDIT",
                 "topic", topic,
                 "requestParams", Map.of("date", "2026-05-17", "rowCount", sent + failed),
-                "responsePayload", Map.of("sent", sent, "failed", failed, "blocked", 0)));
+                        "responsePayload", Map.of("sent", sent, "failed", failed, "blocked", 0)));
+    }
+
+    private String accountIdForRole(String role) {
+        return switch (role) {
+            case "DISPATCH" -> "10000000-0000-0000-0000-000000000203";
+            case "MANAGER" -> "10000000-0000-0000-0000-000000000204";
+            case "MASTER" -> "10000000-0000-0000-0000-000000000205";
+            default -> USER_A;
+        };
     }
 
     private int postAutoAfterBarrier(CyclicBarrier barrier, int rowCount) {

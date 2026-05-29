@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.it.dispatch;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +20,8 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -40,6 +44,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
 
     private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000321";
+    private static final String DISPATCH_ACCOUNT_ID = "10000000-0000-0000-0000-000000000322";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000323";
     private static final String DISPATCH_BOARD_PAGE_CODE = "dispatch.board";
 
     @Autowired MockMvc mvc;
@@ -74,6 +82,7 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void GET_undispatched_slips_returns_empty_page_with_defaults() throws Exception {
         mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
@@ -84,6 +93,7 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @WithMockUser(username = "dispatcher", authorities = {"ROLE_DISPATCH"})
     void GET_undispatched_slips_allows_dispatch_role() throws Exception {
         mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, DISPATCH_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "DISPATCH"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());
@@ -92,10 +102,12 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(username = "sales", authorities = {"ROLE_SALES"})
     void GET_undispatched_slips_rejects_sales_role() throws Exception {
-        org.mockito.Mockito.when(dynamicPermissionClient.canView("SALES", DISPATCH_BOARD_PAGE_CODE))
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq(DISPATCH_BOARD_PAGE_CODE), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, SALES_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -103,6 +115,7 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void GET_undispatched_slips_with_custom_filters() throws Exception {
         mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER")
                         .param("from", "2026-05-10")
                         .param("to", "2026-05-20")

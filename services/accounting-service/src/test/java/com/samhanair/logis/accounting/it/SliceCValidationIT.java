@@ -100,7 +100,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     void cashFlowReportReturns200ForPeriod202701() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
                         .param("period", "202701")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.period").isString())
@@ -120,7 +120,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     void cashFlowInvestingActivitiesNotEmpty() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
                         .param("period", "202701")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.investingActivities").isArray())
@@ -146,7 +146,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
                         .param("fromDate", "2027-01-01")
                         .param("toDate", "2027-01-31")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fromDate").value("2027-01-01"))
@@ -175,7 +175,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
                         .param("fromDate", "2027-01-01")
                         .param("toDate", "2027-01-31")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 // 유상증자: capitalStockIncrease > 0 (SEED-EQ-001: 301 credit 20,000,000, V1 자본금 코드)
@@ -203,7 +203,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     void dailySummaryReturns200ForJan15() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/daily-summary")
                         .param("date", "2026-01-15")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.date").value("2026-01-15"))
@@ -231,7 +231,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     void monthlySummaryReturns200ForJan2026() throws Exception {
         mockMvc.perform(get("/api/v1/accounting/reports/monthly-summary")
                         .param("period", "202601")
-                        .header("X-User-Id", "accountant-seed-test")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.period").isString())

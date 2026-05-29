@@ -19,6 +19,7 @@ import com.samhanair.logis.notification.dto.NotificationSendRequest;
 import com.samhanair.logis.notification.repository.NotificationLogRepository;
 import com.samhanair.logis.notification.repository.NotificationRequestRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @AutoConfigureMockMvc
 class NotificationAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000221";
+
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -81,6 +84,11 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
     void cleanup() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
             List<UUID> ids = inv.getArgument(0);
@@ -104,7 +112,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                 RecipientType.EXTERNAL_PHONE, null, "010-1111-2222",
                 NotificationChannel.SMS, null, null, "테스트 SMS", null);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/send")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -120,7 +128,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                 RecipientType.USER, UUID.randomUUID(), null,
                 NotificationChannel.PUSH, null, "list 테스트", "본문", null);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/send")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -128,7 +136,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/notifications")
                         .param("channel", "PUSH")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1));
@@ -140,7 +148,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                 RecipientType.EXTERNAL_PHONE, null, "010-2222-3333",
                 NotificationChannel.SMS, null, null, "단건", null);
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/send")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -149,7 +157,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
         String requestId = objectMapper.readTree(created.getResponse().getContentAsString())
                 .path("data").path("requestId").asText();
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/notifications/" + requestId)
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.requestId").value(requestId));
@@ -162,7 +170,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                 RecipientType.EXTERNAL_PHONE, null, "010-3333-4444",
                 NotificationChannel.SMS, null, null, "retry case", null);
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/send")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -178,7 +186,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
 
         // 3) retry 호출 → 200, status=SENT 또는 RETRYING (FCM stub-success 라 SENT 가능)
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/" + requestId + "/retry")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
@@ -188,7 +196,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
     void find_one_missing_returns_404() throws Exception {
         UUID missing = UUID.randomUUID();
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/notifications/" + missing)
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("NOT_FOUND"));
@@ -213,7 +221,7 @@ class NotificationAdminControllerIT extends AbstractPostgresIT {
                 NotificationChannel.SMS, null, null, "payload size case", oversize);
 
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/notifications/send")
-                        .header("X-User-Id", "user-mgr")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))

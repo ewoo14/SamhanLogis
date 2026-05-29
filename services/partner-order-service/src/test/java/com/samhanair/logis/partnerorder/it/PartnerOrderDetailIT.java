@@ -1,5 +1,8 @@
 package com.samhanair.logis.partnerorder.it;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +19,8 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +40,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderDetailIT extends AbstractPostgresIT {
+
+    private static final String ACCOUNT_ID = "10000000-0000-0000-0000-000000000301";
 
     @Autowired
     private MockMvc mockMvc;
@@ -59,12 +66,18 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
         // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
         outboxRepository.deleteAll();
         orderRepository.deleteAll();
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -72,7 +85,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     void detail_by_order_number_returns_header_and_lines() throws Exception {
         saveOrder("2026/05/07-1", "P-DETAIL-A", "1010101010", false);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-1"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-1")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-1"))
                 .andExpect(jsonPath("$.data.partnerCode").value("P-DETAIL-A"))
@@ -85,7 +100,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(roles = {"SALES"})
     void detail_not_found_returns_404_catalog_code() throws Exception {
-        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-404"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-404")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_NOT_FOUND"));
     }
@@ -95,7 +112,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     void detail_soft_deleted_order_is_excluded() throws Exception {
         saveOrder("2026/05/07-2", "P-DETAIL-B", "2020202020", true);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-2"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-2")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_NOT_FOUND"));
     }
@@ -105,7 +124,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     void detail_sales_role_can_read_other_user_order_for_internal_operations() throws Exception {
         saveOrder("2026/05/07-3", "P-DETAIL-C", "3030303030", false);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-3"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-3")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-3"));
     }

@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.service.EcountSalesPurchaseSummaryImporter
 import com.samhanair.logis.accounting.service.EcountSalesSlipLineImporter;
 import com.samhanair.logis.accounting.service.EcountTaxInvoiceImporter;
 import com.samhanair.logis.accounting.web.dto.EcountMig4ImportResult;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.io.InputStream;
@@ -70,7 +71,7 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(multipart(url)
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isOk());
@@ -80,12 +81,13 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     @MethodSource("endpoints")
     @WithMockUser(authorities = "ROLE_MEMBER")
     void member_cannot_upload(String label, String url) throws Exception {
+        denyRequirePermission(pageCode(url), PermissionAction.CREATE);
         when(dynamicPermissionClient.canEdit("MEMBER", pageCode(url))).thenReturn(false);
         when(dynamicPermissionClient.canView("MEMBER", pageCode(url))).thenReturn(true);
 
         mockMvc.perform(multipart(url)
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MEMBER")
                         .with(csrf()))
                 .andExpect(status().isForbidden());
@@ -96,7 +98,7 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     void anonymous_cannot_upload(String label, String url) throws Exception {
         mockMvc.perform(multipart(url)
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .with(csrf()))
                 .andExpect(status().isForbidden());
     }
@@ -107,7 +109,7 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     void invalid_mime_returns_400(String label, String url) throws Exception {
         mockMvc.perform(multipart(url)
                         .file(new MockMultipartFile("file", "sample.txt", "text/plain", "x".getBytes()))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isBadRequest());
@@ -122,7 +124,7 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
         mockMvc.perform(multipart(url)
                         .file(new MockMultipartFile("file", "broken.csv", "text/csv",
                                 "\"bad\"\n\"row\"\n".getBytes()))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isUnprocessableEntity())

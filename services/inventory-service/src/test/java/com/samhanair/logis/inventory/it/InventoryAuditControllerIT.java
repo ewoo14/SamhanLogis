@@ -12,6 +12,7 @@ import com.samhanair.logis.inventory.client.AccountingClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -172,9 +173,8 @@ class InventoryAuditControllerIT extends AbstractPostgresIT {
         body.put("warehouseId", hqId.toString());
         body.put("auditDate", "2026-12-31");
 
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("inventory.adjust"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/inventory/audits")

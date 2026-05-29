@@ -11,10 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.service.EcountDepartmentImporter;
 import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import java.io.InputStream;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,8 @@ class EcountDepartmentImportControllerIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -50,7 +54,7 @@ class EcountDepartmentImportControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(multipart("/admin/departments/imports/ecount")
                         .file(new MockMultipartFile("file", "sample.csv", "text/csv", "x".getBytes()))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "MASTER")
                         .with(csrf()))
                 .andExpect(status().isOk());

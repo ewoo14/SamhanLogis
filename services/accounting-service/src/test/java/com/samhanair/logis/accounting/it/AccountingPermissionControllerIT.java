@@ -205,7 +205,7 @@ class AccountingPermissionControllerIT {
                         () -> get("/accounting/balances").param("period", "202605")),
                 endpoint("tax invoice list", "accounting.tax-invoice.list", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/tax-invoices")),
-                endpoint("tax invoice print", "accounting.tax-invoice.list", PermissionAction.PRINT, "ACCOUNTANT",
+                endpoint("tax invoice print", "accounting.tax-invoice.list", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/tax-invoices/{id}/print", ID)),
                 endpoint("tax invoice cancel", "accounting.tax-invoice.cancel", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/accounting/tax-invoices/{id}/cancel", ID)
@@ -221,7 +221,7 @@ class AccountingPermissionControllerIT {
                         () -> get("/accounting/tax-invoice/hometax-export")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
-                endpoint("accounting reports sales aggregate", "accounting.reports", PermissionAction.PRINT, "ACCOUNTANT",
+                endpoint("accounting reports sales aggregate", "accounting.reports", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/sales/aggregate")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),

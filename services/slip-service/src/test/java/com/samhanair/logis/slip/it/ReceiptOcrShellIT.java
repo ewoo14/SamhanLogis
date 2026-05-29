@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -141,6 +142,8 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
         // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
         Mockito.lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         // ReceiptOcrClient DRY_RUN mock 응답 — lenient (모든 케이스 공통 셋업)
         Mockito.lenient().when(receiptOcrClient.submit(any(), anyString(), eq("DRY_RUN")))
@@ -192,7 +195,8 @@ class ReceiptOcrShellIT extends AbstractPostgresIT {
     void case2_sales_role_forbidden_403() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "receipt.png", MediaType.IMAGE_PNG_VALUE, TINY_PNG);
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "purchases.receipt-ocr"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("purchases.receipt-ocr"), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(multipart("/slips/receipt-ocr")

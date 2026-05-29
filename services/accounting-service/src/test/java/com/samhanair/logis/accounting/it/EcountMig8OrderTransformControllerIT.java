@@ -18,6 +18,7 @@ import com.samhanair.logis.accounting.service.Mig8OrderTransformService;
 import com.samhanair.logis.common.ecount.EcountMig8TransformResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -69,6 +70,7 @@ class EcountMig8OrderTransformControllerIT extends AbstractPostgresIT {
                             "MIG8_STAGING_ROW_NOT_FOUND"));
         }
         if (expectedStatus == 403 && role != null) {
+            denyRequirePermission("ecount.mig8.order", PermissionAction.CREATE);
             denyDynamicPermissionFor(role);
         }
 
@@ -77,7 +79,7 @@ class EcountMig8OrderTransformControllerIT extends AbstractPostgresIT {
             request.content(body);
         }
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
         }
         if (role != null) {
             request.header("X-User-Role", role);

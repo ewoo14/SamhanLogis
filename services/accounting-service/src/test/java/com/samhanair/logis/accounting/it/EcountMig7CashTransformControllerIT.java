@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.service.Mig7CashReceiptTransformService;
 import com.samhanair.logis.common.ecount.EcountMig7TransformResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -68,6 +69,7 @@ class EcountMig7CashTransformControllerIT extends AbstractPostgresIT {
             stubNoPendingRows(url);
         }
         if (expectedStatus == 403 && role != null) {
+            denyRequirePermission(pageCode(url), PermissionAction.CREATE);
             denyDynamicPermissionFor(role);
         }
 
@@ -76,7 +78,7 @@ class EcountMig7CashTransformControllerIT extends AbstractPostgresIT {
             request.content(body);
         }
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
         }
         if (role != null) {
             request.header("X-User-Role", role);
@@ -121,6 +123,13 @@ class EcountMig7CashTransformControllerIT extends AbstractPostgresIT {
         return Stream.of(
                 new String[]{"cashDisbursement", "/admin/accounting/cash-disbursements/transform-from-staging"},
                 new String[]{"cashReceipt", "/admin/accounting/cash-receipts/transform-from-staging"});
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("cash-disbursements")) {
+            return "ecount.mig7.cash-disbursement";
+        }
+        return "ecount.mig7.cash-receipt";
     }
 
     private static EcountMig7TransformResult result() {

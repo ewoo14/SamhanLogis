@@ -1,7 +1,10 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,7 +24,10 @@ import com.samhanair.logis.arologis.dto.DriverLoginRequest;
 import com.samhanair.logis.arologis.repository.AdminUserRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.service.auth.JwtIssuer;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +59,7 @@ class ArologisAuthSecurityIT extends AbstractPostgresIT {
     @MockBean private SlipClient slipClient;
     @MockBean private NotificationClient notificationClient;
     @MockBean private SlipServiceClient slipServiceClient;
+    @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void seed() {
@@ -61,6 +68,10 @@ class ArologisAuthSecurityIT extends AbstractPostgresIT {
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         adminRepo.findByLoginIdAndIsDeletedFalse("secadmin")
                 .orElseGet(() -> adminRepo.save(AdminUser.create(
@@ -114,6 +125,9 @@ class ArologisAuthSecurityIT extends AbstractPostgresIT {
         Driver saved = driverRepo.findByPhoneNumberAndIsDeletedFalse("01066667777").orElseThrow();
         String driverJwt = issuer.issueAccessForDriver(
                 saved.getId(), saved.getDriverCode(), saved.getPhoneNumber());
+        when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         // /admin/arologis/dispatches 는 AROLOGIS_MASTER/MANAGER 만 허용 → AROLOGIS_DRIVER 거부
         mvc.perform(get("/admin/arologis/dispatches")

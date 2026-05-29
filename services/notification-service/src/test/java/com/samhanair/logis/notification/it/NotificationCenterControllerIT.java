@@ -22,6 +22,7 @@ import com.samhanair.logis.notification.domain.NotificationSeverity;
 import com.samhanair.logis.notification.repository.NotificationCenterRepository;
 import com.samhanair.logis.notification.web.dto.NotificationPublishRequest;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,9 @@ class NotificationCenterControllerIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         masterUserId = UUID.randomUUID();
         lenient().when(userClient.exists(any())).thenReturn(true);
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {

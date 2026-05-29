@@ -18,8 +18,10 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductLookupClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.service.EcountStockTransferImporter;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.InputStream;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,10 +70,15 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
                             "MIG5_CSV_HEADER_MISMATCH"));
         }
         if ("MEMBER".equals(role)) {
-            when(dynamicPermissionClient.canEdit("MEMBER", "ecount.import.inventory")).thenReturn(false);
+            when(dynamicPermissionClient.check(
+                            org.mockito.ArgumentMatchers.any(UUID.class),
+                            org.mockito.ArgumentMatchers.eq("ecount.import.inventory"),
+                            org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
+                    .thenReturn(false);
         }
 
-        var request = multipart(URL).file(file).header("X-User-Id", "tester");
+        var request = multipart(URL).file(file)
+                .header("X-User-Id", "10000000-0000-0000-0000-000000000213");
         if (role != null) {
             request.header("X-User-Role", role);
         }

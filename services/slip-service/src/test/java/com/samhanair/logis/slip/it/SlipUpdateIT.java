@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -25,6 +27,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -266,7 +269,8 @@ class SlipUpdateIT extends AbstractPostgresIT {
     private void assertForbiddenForRole(String role) throws Exception {
         String id = createSlip("INBOUND", "SP0852-" + role);
         String updatedAt = updatedAt(id);
-        Mockito.when(dynamicPermissionClient.canEdit(role, "purchases.slip.edit"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("purchases.slip.edit"), eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(put(SLIPS_PATH + "/" + id)

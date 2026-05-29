@@ -49,6 +49,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @WithMockUser(username = "ewoo", authorities = {"ROLE_MASTER"})
 class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000325";
+
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
@@ -76,6 +80,12 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // ---------- Admin endpoint ----------
@@ -86,6 +96,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
         String body = objectMapper.writeValueAsString(Map.of("reason", "슬립 추가 필요"));
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/modification-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -99,6 +111,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
         String body = objectMapper.writeValueAsString(Map.of("reason", "거래처 일정 변경"));
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/cancellation-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -109,6 +123,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
     void modification_request_from_DRAFT_returns_409() throws Exception {
         // DRAFT (dispatched 안 함)
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"))))
                 .andReturn().getResponse().getContentAsString();
@@ -116,6 +132,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
         String body = objectMapper.writeValueAsString(Map.of("reason", "x"));
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/modification-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isConflict());
@@ -128,6 +146,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
         UUID taskId = dispatchedTask();
         // DISPATCHED → MODIFICATION_REQUESTED 먼저
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/modification-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reason", "수정 필요"))))
                 .andExpect(status().isOk());
@@ -146,6 +166,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
     void internal_modification_rejected_stores_rejection_reason() throws Exception {
         UUID taskId = dispatchedTask();
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/modification-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reason", "수정"))))
                 .andExpect(status().isOk());
@@ -163,6 +185,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
     void internal_cancellation_accepted_transitions_to_CANCELLED() throws Exception {
         UUID taskId = dispatchedTask();
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/cancellation-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reason", "취소"))))
                 .andExpect(status().isOk());
@@ -187,6 +211,8 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
         // task 생성
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"))))
                 .andReturn().getResponse().getContentAsString();
@@ -194,11 +220,15 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
 
         // 차량 그룹 추가
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
 
         // dispatch (DRAFT → DISPATCHING)
-        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId))
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk());
 
         // confirm (DISPATCHING → DISPATCHED)

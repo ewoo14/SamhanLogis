@@ -17,6 +17,7 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -163,6 +164,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                 List.of(buildLine("운임", "건", "1", "100000", null))
         );
 
+        denyRequirePermission("accounting.tax-invoice.list", PermissionAction.CREATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -221,11 +223,11 @@ class P04ValidationIT extends AbstractPostgresIT {
 
         // issue 호출
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/issue")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
-                .andExpect(jsonPath("$.data.issuedBy").value("accountant-p04"))
+                .andExpect(jsonPath("$.data.issuedBy").value("00000000-0000-0000-0000-000000000104"))
                 .andExpect(jsonPath("$.data.taxInvoiceNo").isString())
                 .andExpect(jsonPath("$.data.journalId").isString());
     }
@@ -246,13 +248,13 @@ class P04ValidationIT extends AbstractPostgresIT {
 
         // 첫 번째 발행
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/issue")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
         // 두 번째 발행 시도 → 409
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/issue")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isConflict());
     }
@@ -281,19 +283,19 @@ class P04ValidationIT extends AbstractPostgresIT {
         // DRAFT → ISSUED
         String draftId = createNewDraft();
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/issue")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
         // ISSUED → CANCELLED (취소 사유 5자 이상 의무 — TaxInvoiceCancelRequest.reason)
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"P04ValidationIT 취소 사유 — 단위 테스트 검증용\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.data.cancelledBy").value("accountant-p04"))
+                .andExpect(jsonPath("$.data.cancelledBy").value("00000000-0000-0000-0000-000000000104"))
                 .andExpect(jsonPath("$.data.reverseJournalId").isString());
     }
 
@@ -313,7 +315,7 @@ class P04ValidationIT extends AbstractPostgresIT {
 
         // DRAFT 상태에서 cancel 시도 → 409 (취소 사유 body 포함, 상태 가드가 더 우선)
         mockMvc.perform(post("/accounting/tax-invoices/" + draftId + "/cancel")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"P04ValidationIT DRAFT 취소 시도 — 상태 가드 검증\"}"))
@@ -340,7 +342,7 @@ class P04ValidationIT extends AbstractPostgresIT {
     @DisplayName("GET /tax-invoices/{id} — V12 seed ISSUED-001 단건 조회 (인쇄 응답, 라인 3건)")
     void getOneSeedIssuedReturnsDetailWithLines() throws Exception {
         mockMvc.perform(get("/accounting/tax-invoices/" + ID_ISSUED_001)
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I001"))
@@ -363,7 +365,7 @@ class P04ValidationIT extends AbstractPostgresIT {
     @DisplayName("GET /tax-invoices/{id} — V12 seed DRAFT-001 단건 조회 (taxInvoiceNo null, 라인 2건)")
     void getOneSeedDraftReturnsDetailWithNullTaxInvoiceNo() throws Exception {
         mockMvc.perform(get("/accounting/tax-invoices/" + ID_DRAFT_001)
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
@@ -386,7 +388,7 @@ class P04ValidationIT extends AbstractPostgresIT {
     @DisplayName("GET /tax-invoices/{id} — V12 seed CANCELLED-001 단건 조회 (CANCELLED + 라인 3건)")
     void getOneSeedCancelledReturnsDetailWithLines() throws Exception {
         mockMvc.perform(get("/accounting/tax-invoices/" + ID_CANCELLED_001)
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-C001"))
@@ -407,7 +409,7 @@ class P04ValidationIT extends AbstractPostgresIT {
     @DisplayName("GET /tax-invoices/{id} — 존재하지 않는 UUID 404 Not Found")
     void getOneNotFoundReturns404() throws Exception {
         mockMvc.perform(get("/accounting/tax-invoices/" + UUID.randomUUID())
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isNotFound());
     }
@@ -430,7 +432,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .param("status", "ISSUED")
                         .param("page", "0")
                         .param("size", "50")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isArray())
@@ -475,7 +477,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .param("status", "DRAFT")
                         .param("page", "0")
                         .param("size", "50")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").isNumber())
@@ -501,7 +503,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .param("to", "2026-05-09")
                         .param("page", "0")
                         .param("size", "50")
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isArray())
@@ -533,7 +535,7 @@ class P04ValidationIT extends AbstractPostgresIT {
     void getOneSeedIssuedTwoAndThreeReturnCorrectDetail() throws Exception {
         // ISSUED-002: 롯데글로벌로지스(주), SALES, 라인 2건
         mockMvc.perform(get("/accounting/tax-invoices/" + ID_ISSUED_002)
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I002"))
@@ -547,7 +549,7 @@ class P04ValidationIT extends AbstractPostgresIT {
 
         // ISSUED-003: (주)SK에너지, PURCHASE(매입), 라인 2건
         mockMvc.perform(get("/accounting/tax-invoices/" + ID_ISSUED_003)
-                        .header("X-User-Id", "accountant-p04")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I003"))

@@ -18,6 +18,7 @@ import com.samhanair.logis.accounting.service.EcountSalesLedgerImporter;
 import com.samhanair.logis.common.ecount.EcountMig11Result;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
@@ -68,13 +69,14 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
             stubHeaderMismatch(url);
         }
         if ("memberForbidden".equals(label)) {
+            denyRequirePermission(pageCode(url), PermissionAction.CREATE);
             when(dynamicPermissionClient.canEdit(role, pageCode(url))).thenReturn(false);
             when(dynamicPermissionClient.canView(role, pageCode(url))).thenReturn(true);
         }
 
         var request = multipart(url).file(file);
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
         }
         if (role != null) {
             request.header("X-User-Role", role);

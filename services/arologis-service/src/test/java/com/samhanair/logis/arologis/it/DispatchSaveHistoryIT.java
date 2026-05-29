@@ -1,8 +1,11 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -19,6 +22,7 @@ import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.domain.DispatchProgramType;
 import com.samhanair.logis.arologis.repository.DispatchSaveHistoryRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -49,8 +53,8 @@ import org.springframework.test.web.servlet.MvcResult;
 class DispatchSaveHistoryIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/admin/arologis/dispatches/history";
-    private static final String USER_A = "dispatch-user-a";
-    private static final String USER_B = "dispatch-user-b";
+    private static final String USER_A = "10000000-0000-0000-0000-000000000407";
+    private static final String USER_B = "10000000-0000-0000-0000-000000000408";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -77,6 +81,8 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                 .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -292,6 +298,10 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 미달 role 은 403")
     void insufficientRoleReturns403() throws Exception {
+        when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("arologis.dispatch.ops"), eq(PermissionAction.CREATE)))
+                .thenReturn(false);
+
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody("PRE_CLASSIFY", 1))

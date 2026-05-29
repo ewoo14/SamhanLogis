@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -75,6 +76,10 @@ public abstract class AbstractPostgresIT {
     protected void denyDynamicPermissionFor(String role) {
         lenient().when(dynamicPermissionClient.canView(eq(role), anyString())).thenReturn(false);
         lenient().when(dynamicPermissionClient.canEdit(eq(role), anyString())).thenReturn(false);
+    }
+
+    protected void denyRequirePermission(String pageCode, PermissionAction action) {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(pageCode), eq(action))).thenReturn(false);
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */

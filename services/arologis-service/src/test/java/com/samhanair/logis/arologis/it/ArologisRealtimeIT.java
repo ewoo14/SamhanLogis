@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -44,6 +45,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
 class ArologisRealtimeIT extends AbstractPostgresIT {
+
+    private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000405";
 
     private static final String SAMPLE_KAKAO = """
             8일착 야상입니다
@@ -91,6 +94,10 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(java.util.UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
 
         signatureRepository.deleteAll();
         locationRepository.deleteAll();
@@ -106,7 +113,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         // 1) dispatch 생성
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResp = mockMvc.perform(post("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(createBody))
@@ -118,7 +125,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         String statusBody = objectMapper.writeValueAsString(Map.of("status", "ARRIVED"));
         mockMvc.perform(put("/admin/arologis/dispatches/" + dispatchId
                         + "/vehicles/1/stops/1/status")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(statusBody))
@@ -126,7 +133,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
 
         // 3) audit timeline 조회 — 1행 이상
         mockMvc.perform(get("/admin/arologis/dispatches/" + dispatchId + "/audit-logs")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].fieldName").value("stops[1].status"))
@@ -139,7 +146,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
     void createEditRequest_onPlannedDispatch_returns400() throws Exception {
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResp = mockMvc.perform(post("/admin/arologis/dispatches")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(createBody))
@@ -150,7 +157,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         // 모든 stop = PENDING (방금 생성) → derived = PLANNED → 요청 거부
         String editReqBody = objectMapper.writeValueAsString(Map.of("requestType", "EDIT"));
         mockMvc.perform(post("/admin/arologis/dispatches/" + dispatchId + "/edit-requests")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType("application/json")
                         .content(editReqBody))

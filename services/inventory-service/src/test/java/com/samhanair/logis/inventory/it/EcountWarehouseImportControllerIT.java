@@ -47,7 +47,7 @@ class EcountWarehouseImportControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(multipart("/admin/warehouses/imports/ecount")
                         .file(new MockMultipartFile("file", "sample.csv", "text/csv", "x".getBytes()))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000214")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isOk());

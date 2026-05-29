@@ -11,6 +11,7 @@ import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -318,9 +319,10 @@ class InventoryControllerIT extends AbstractPostgresIT {
         body.put("unitCost", 100000);
         body.put("lotNo", "SALES-FAIL-001");
 
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.stock-balance"),
+                        Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/inventory/lots/inbound")

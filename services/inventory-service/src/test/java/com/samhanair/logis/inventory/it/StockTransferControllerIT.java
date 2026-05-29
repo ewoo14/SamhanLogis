@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.domain.StockTransfer;
 import com.samhanair.logis.inventory.domain.TransferReason;
 import com.samhanair.logis.inventory.repository.StockTransferRepository;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -253,9 +254,8 @@ class StockTransferControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         // WAREHOUSE 가 approve → 403 (MASTER/MANAGER/INVENTORY 만 허용).
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("WAREHOUSE"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("inventory.adjust"), Mockito.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/inventory/transfers/" + transferId + "/approve")

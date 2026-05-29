@@ -27,6 +27,7 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
@@ -97,6 +98,10 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
 
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());

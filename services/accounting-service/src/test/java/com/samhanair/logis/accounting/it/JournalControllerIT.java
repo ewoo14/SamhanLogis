@@ -11,6 +11,7 @@ import static org.mockito.Mockito.lenient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -103,6 +104,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.totalCredit").value(100000));
 
         // SALES 403
+        denyRequirePermission("accounting.journals", PermissionAction.CREATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -112,6 +114,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
 
         // MANAGER 403 (Q9 — MANAGER 제외)
+        denyRequirePermission("accounting.journals", PermissionAction.CREATE);
         denyDynamicPermissionFor("MANAGER");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -145,15 +148,15 @@ class JournalControllerIT extends AbstractPostgresIT {
 
         // DRAFT → POSTED
         mockMvc.perform(post("/accounting/journals/" + id + "/post")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("POSTED"))
-                .andExpect(jsonPath("$.data.postedBy").value("accountant-1"));
+                .andExpect(jsonPath("$.data.postedBy").value("00000000-0000-0000-0000-000000000101"));
 
         // POSTED → reverse → 신규 역분개 POSTED
         mockMvc.perform(post("/accounting/journals/" + id + "/reverse")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("POSTED"))
@@ -163,7 +166,7 @@ class JournalControllerIT extends AbstractPostgresIT {
 
         // 원분개 상태 검증
         mockMvc.perform(get("/accounting/journals/" + id)
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REVERSED"))
@@ -190,7 +193,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         mockMvc.perform(post("/accounting/journals/" + id + "/post")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isConflict());
     }
@@ -200,7 +203,7 @@ class JournalControllerIT extends AbstractPostgresIT {
     void reverseDraftConflict() throws Exception {
         String id = createJournalAsAccountant("50000");
         mockMvc.perform(post("/accounting/journals/" + id + "/reverse")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isConflict());
     }
@@ -219,6 +222,7 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         // INVENTORY 403
+        denyRequirePermission("accounting.journals", PermissionAction.CREATE);
         denyDynamicPermissionFor("INVENTORY");
         mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())

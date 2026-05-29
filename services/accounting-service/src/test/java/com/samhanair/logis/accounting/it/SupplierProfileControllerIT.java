@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -285,6 +286,7 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
         updateBody.put("representativeName", "무단자");
         updateBody.put("businessAddress", "서울시 테스트구");
 
+        denyRequirePermission("accounting.supplier-profiles", PermissionAction.UPDATE);
         lenient().when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), anyString())).thenReturn(false);
         mockMvc.perform(put(BASE_URL + "/" + primaryId)
                         .header("X-User-Id", UUID.randomUUID().toString())

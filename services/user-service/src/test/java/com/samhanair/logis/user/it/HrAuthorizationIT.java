@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.user.UserServiceApplication;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +56,11 @@ class HrAuthorizationIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.canView("SALES", "admin.employees")).thenReturn(false);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().doNothing().when(authClient).createAccount(
                 any(java.util.UUID.class), anyString(), anyString(), anyString(), any(Role.class));
         lenient().doNothing().when(authClient).createAccount(
@@ -128,6 +134,12 @@ class HrAuthorizationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("TC-3: 대표실+SALES → /admin/users 403")
     void tc3_executiveOfficeSales_forbidden() throws Exception {
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("admin.users"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("X-User-Id", "a0000000-0000-0000-0000-000000000004")
                         .header("X-User-Role", "SALES")

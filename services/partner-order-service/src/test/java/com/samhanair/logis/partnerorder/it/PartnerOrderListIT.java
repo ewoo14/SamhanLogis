@@ -1,5 +1,8 @@
 package com.samhanair.logis.partnerorder.it;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +19,8 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -37,6 +42,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderListIT extends AbstractPostgresIT {
+
+    private static final String ACCOUNT_ID = "10000000-0000-0000-0000-000000000302";
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,12 +68,18 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
 
     @BeforeEach
     void setUp() {
         // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
         outboxRepository.deleteAll();
         orderRepository.deleteAll();
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         saveOrder("2026/05/01-1", "P-SP0841-A", "1010101010", "실외기", "AJ040RXH4BC1", "CONFIRMED");
         saveOrder("2026/05/03-1", "P-SP0841-B", "2020202020", "천장형 실내기", "AC060TN4PBH1", "CONFIRMING");
         saveOrder("2026/05/05-1", "P-SP0841-C", "3030303030", "벽걸이 실내기", "AR09B9150HZ", "CANCELED");
@@ -76,6 +89,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_filters_by_date_range() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("dateFrom", "2026-05-02")
                         .param("dateTo", "2026-05-04"))
                 .andExpect(status().isOk())
@@ -87,6 +102,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_filters_by_partner_code() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("partnerId", "P-SP0841-B"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -97,6 +114,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_filters_by_status() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("status", "CONFIRMING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -107,6 +126,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_filters_by_search_keyword() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("searchKeyword", "천장형"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -117,6 +138,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_swaps_reversed_date_range() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("dateFrom", "2026-05-04")
                         .param("dateTo", "2026-05-02"))
                 .andExpect(status().isOk())
@@ -128,6 +151,8 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"SALES"})
     void list_returns_empty_page_when_filter_has_no_match() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .param("searchKeyword", "없는품목"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0))

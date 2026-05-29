@@ -60,7 +60,7 @@ class EcountImportControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(multipart("/admin/accounts/imports/ecount")
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isOk());
@@ -74,7 +74,7 @@ class EcountImportControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(multipart("/admin/cards/imports/ecount")
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isOk());

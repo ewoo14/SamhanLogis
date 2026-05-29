@@ -85,7 +85,7 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-denied", authorities = {"ROLE_SALES"})
     void C2_sales_canView_false_returns_403() throws Exception {
         Mockito.when(dynamicPermissionClient.check(
-                        Mockito.any(UUID.class), Mockito.eq("partners.list"), Mockito.eq(PermissionAction.VIEW)))
+                        Mockito.any(UUID.class), Mockito.eq("partners.search"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/admin/partners")
@@ -121,7 +121,7 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-viewonly", authorities = {"ROLE_SALES"})
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
         Mockito.when(dynamicPermissionClient.check(
-                        Mockito.any(UUID.class), Mockito.eq("partners.list"), Mockito.eq(PermissionAction.CREATE)))
+                        Mockito.any(UUID.class), Mockito.eq("partners.edit"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/admin/partners")

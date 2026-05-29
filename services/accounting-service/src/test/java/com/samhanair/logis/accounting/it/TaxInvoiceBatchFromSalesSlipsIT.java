@@ -80,7 +80,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
 
         String response = mvc.perform(post("/admin/tax-invoices/batch-from-sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -104,7 +104,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
                 .orElseThrow();
 
         assertThat(taxInvoice.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
-        assertThat(taxInvoice.getIssuedBy()).isEqualTo("it-tester");
+        assertThat(taxInvoice.getIssuedBy()).isEqualTo("00000000-0000-0000-0000-000000000114");
         assertThat(taxInvoice.getSupplyAmount()).isEqualByComparingTo("600000.00");
         assertThat(taxInvoice.getVatAmount()).isEqualByComparingTo("60000.00");
         assertThat(taxInvoice.getTotalAmount()).isEqualByComparingTo("660000.00");
@@ -127,7 +127,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/tax-invoices/batch-from-sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity())
@@ -146,7 +146,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/tax-invoices/batch-from-sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -157,7 +157,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
     void POST_admin_tax_invoices_batch_from_VOIDED_slip_거부() throws Exception {
         SalesAccountingSlip slip = postedSlip("SAS-IT-VOIDED",
                 LocalDate.of(2026, 5, 1), UUID.randomUUID(), "P-001", "A", "100000.00", "10000.00");
-        slip.voidSlip("it-tester");
+        slip.voidSlip("00000000-0000-0000-0000-000000000114");
         SalesAccountingSlip saved = salesSlipRepository.save(slip);
 
         CreateTaxInvoiceFromSalesSlipsRequest request = new CreateTaxInvoiceFromSalesSlipsRequest(
@@ -165,7 +165,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/tax-invoices/batch-from-sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity())
@@ -186,7 +186,7 @@ class TaxInvoiceBatchFromSalesSlipsIT extends AbstractPostgresIT {
                 UUID.randomUUID(), "OUT-" + slipNo, UUID.randomUUID(), 1, BigDecimal.ONE, total));
         slip.getLines().add(line);
         slip.recalcTotals();
-        slip.post("it-tester");
+        slip.post("00000000-0000-0000-0000-000000000114");
         return slip;
     }
 }

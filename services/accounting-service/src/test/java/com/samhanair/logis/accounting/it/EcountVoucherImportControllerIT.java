@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.service.EcountJournalEntryImporter;
 import com.samhanair.logis.accounting.service.EcountPurchaseSlipImporter;
 import com.samhanair.logis.accounting.service.EcountSalesSlipImporter;
 import com.samhanair.logis.accounting.web.dto.EcountVoucherImportResult;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
@@ -98,12 +99,15 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
     void member_cannot_upload_all_mig3_import_files() throws Exception {
         denyDynamicPermissionFor("MEMBER");
 
-        forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
-                        .file(file)
-                        .header("X-User-Id", "tester")
-                        .header("X-User-Role", "MEMBER")
-                        .with(csrf()))
-                .andExpect(status().isForbidden()));
+        forEachEndpoint((url, file) -> {
+            denyRequirePermission(pageCode(url), PermissionAction.CREATE);
+            mockMvc.perform(multipart(url)
+                            .file(file)
+                            .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
+                            .header("X-User-Role", "MEMBER")
+                            .with(csrf()))
+                    .andExpect(status().isForbidden());
+        });
     }
 
     @Test
@@ -112,7 +116,7 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
         // 익명 상태가 된다. Spring Security 기본 entry point (Http403ForbiddenEntryPoint) 가 403 반환.
         forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
                         .file(file)
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .with(csrf()))
                 .andExpect(status().isForbidden()));
     }
@@ -122,7 +126,7 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
     void invalid_mime_returns_400_for_all_mig3_import_files() throws Exception {
         forEachEndpoint((url, ignored) -> mockMvc.perform(multipart(url)
                         .file(new MockMultipartFile("file", "sample.txt", "text/plain", "x".getBytes()))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isBadRequest()));
@@ -133,7 +137,7 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
     void empty_file_returns_400_for_all_mig3_import_files() throws Exception {
         forEachEndpoint((url, ignored) -> mockMvc.perform(multipart(url)
                         .file(new MockMultipartFile("file", "empty.csv", "text/csv", new byte[0]))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isBadRequest()));
@@ -142,7 +146,7 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
     private void assertOk(String url) throws Exception {
         mockMvc.perform(multipart(url)
                         .file(file())
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER")
                         .with(csrf()))
                 .andExpect(status().isOk());
@@ -164,6 +168,19 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
                 "/admin/accounting/journal-entries/imports/ecount")) {
             assertion.verify(url, file());
         }
+    }
+
+    private static String pageCode(String url) {
+        if (url.contains("purchase-slips")) {
+            return "ecount.mig3.purchase-slip";
+        }
+        if (url.contains("sales-slips")) {
+            return "ecount.mig3.sales-slip";
+        }
+        if (url.contains("general-vouchers")) {
+            return "ecount.mig3.general-voucher";
+        }
+        return "ecount.mig3.journal-entry";
     }
 
     @FunctionalInterface

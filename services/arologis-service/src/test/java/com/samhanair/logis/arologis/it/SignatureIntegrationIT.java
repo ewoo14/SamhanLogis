@@ -31,6 +31,7 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +100,8 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         // FK 순서 cleanup
         signatureRepository.deleteAll();

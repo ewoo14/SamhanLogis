@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
@@ -71,13 +72,13 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
         body.put("description", "5월 9일 일별 마감");
 
         mockMvc.perform(post("/accounting/closings")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("CLOSED"))
-                .andExpect(jsonPath("$.data.closedBy").value("accountant-1"))
+                .andExpect(jsonPath("$.data.closedBy").value("00000000-0000-0000-0000-000000000101"))
                 .andExpect(jsonPath("$.data.lockedSlipCount").value(10));
     }
 
@@ -91,7 +92,7 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
         closingBody.put("periodType", "DAILY");
         closingBody.put("periodDate", "2026-05-08");
         mockMvc.perform(post("/accounting/closings")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(closingBody)))
@@ -99,7 +100,7 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
 
         // 2) 같은 일자 분개 POST → guard 가 409
         mockMvc.perform(post("/accounting/journals")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(balancedJournal("2026-05-08"))))
@@ -117,14 +118,14 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
         closingBody.put("description", "3월 월말 마감");
 
         mockMvc.perform(post("/accounting/closings")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(closingBody)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/accounting/closings")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MANAGER")
                         .param("periodType", "MONTHLY")
                         .param("year", "2026"))
@@ -133,9 +134,10 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].periodDate").value("2026-03-01"))
                 .andExpect(jsonPath("$.data[0].status").value("CLOSED"));
 
+        denyRequirePermission("accounting.period-close", PermissionAction.CREATE);
         lenient().when(dynamicPermissionClient.canEdit(eq("MANAGER"), anyString())).thenReturn(false);
         mockMvc.perform(post("/accounting/closings")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(closingBody)))
@@ -152,7 +154,7 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
         closingBody.put("periodType", "MONTHLY");
         closingBody.put("periodDate", "2026-04-01");
         MvcResult cr = mockMvc.perform(post("/accounting/closings")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(closingBody)))
@@ -162,20 +164,21 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         // 2) ACCOUNTANT reverse → 403
+        denyRequirePermission("accounting.period-close.reverse", PermissionAction.UPDATE);
         lenient().when(dynamicPermissionClient.canEdit(
                 eq("ACCOUNTANT"), eq("accounting.period-close.reverse"))).thenReturn(false);
         mockMvc.perform(post("/accounting/closings/" + id + "/reverse")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isForbidden());
 
         // 3) MASTER reverse → 200, status OPEN
         mockMvc.perform(post("/accounting/closings/" + id + "/reverse")
-                        .header("X-User-Id", "master-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000100")
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("OPEN"))
-                .andExpect(jsonPath("$.data.reversedBy").value("master-1"));
+                .andExpect(jsonPath("$.data.reversedBy").value("00000000-0000-0000-0000-000000000100"));
     }
 
     private Map<String, Object> balancedJournal(String date) {

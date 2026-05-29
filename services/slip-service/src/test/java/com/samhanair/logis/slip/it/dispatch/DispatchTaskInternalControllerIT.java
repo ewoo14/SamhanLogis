@@ -43,6 +43,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @WithMockUser(username = "arologis-service", authorities = {"ROLE_MASTER"})
 class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
 
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000326";
+
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
@@ -76,16 +80,22 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
 
         // task 생성 → group 추가 → dispatch → confirm
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"))))
                 .andReturn().getResponse().getContentAsString();
         UUID taskId = UUID.fromString((String) objectMapper.readValue(taskRes, Map.class).get("id"));
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
 
-        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId))
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk());
 
         // confirm
@@ -116,16 +126,22 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
                         Instant.now(), Instant.now()));
 
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"))))
                 .andReturn().getResponse().getContentAsString();
         UUID taskId = UUID.fromString((String) objectMapper.readValue(taskRes, Map.class).get("id"));
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
 
-        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId));
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                .header(USER_ROLE_HEADER, "MASTER"));
 
         Map<String, Object> unavailBody = Map.of(
                 "arologisDispatchId", arologisId.toString(),

@@ -3,7 +3,9 @@ package com.samhanair.logis.partnerorder.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -26,6 +28,7 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
@@ -53,6 +56,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderUpdateIT extends AbstractPostgresIT {
+
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000311";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000312";
+    private static final String PARTNER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000313";
 
     @Autowired
     private MockMvc mockMvc;
@@ -101,6 +108,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         orderRepository.deleteAll();
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -110,7 +119,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         String updatedAt = currentModifiedAt(order.getId());
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
-                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .header("X-User-Name", "영업담당자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(updatedAt, 3)))
@@ -144,6 +154,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
                 .allMatch(value -> value.toString().contains("AR09B9150HZ/벽걸이 실내기/1/310000"));
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .header("X-User-Name", "영업담당자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(order.getId()), 3)))
@@ -160,6 +172,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-2", false);
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(LocalDateTime.parse("2020-01-01T00:00:00").toString(), 2)))
                 .andExpect(status().isConflict())
@@ -176,6 +190,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         assertThat(orderRepository.findById(allowed.getId()).orElseThrow().getModifiedAt()).isNull();
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", allowed.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(createdAt.toString(), 2)))
                 .andExpect(status().isOk());
@@ -184,6 +200,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         clearModifiedAt(rejected.getId());
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", rejected.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(LocalDateTime.parse("2020-01-01T00:00:00").toString(), 2)))
                 .andExpect(status().isConflict())
@@ -196,6 +214,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-3", true);
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(LocalDateTime.now().toString(), 2)))
                 .andExpect(status().isNotFound())
@@ -206,9 +226,12 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"PARTNER"})
     void update_partner_role_is_forbidden() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-4", false);
-        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit")).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("sales.partner-order.edit"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(order.getId()), 2)))
@@ -221,6 +244,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-5", false);
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(order.getId()), -1)))
                 .andExpect(status().isUnprocessableEntity())
@@ -233,6 +258,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-6", false);
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", "2026-05-17-6")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(order.getId()), 1)))
                 .andExpect(status().isOk())
@@ -269,6 +296,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         UUID orderId = order.getId();
 
         mockMvc.perform(put("/api/v1/partner-orders/{id}", orderId)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(orderId), 2)))
                 .andExpect(status().isOk());
