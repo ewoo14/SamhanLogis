@@ -12,10 +12,14 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
+import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
+import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -175,5 +179,135 @@ class SlipRevisionServiceTest {
         assertThatThrownBy(() -> service.restore(slip, 99, UUID.randomUUID(), "관리자", null))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
+    }
+
+    // ---------------------------------------------------------------------
+    // Task 4: changeSummary 계산 단위 테스트
+    // ---------------------------------------------------------------------
+
+    /**
+     * 라인 1건 스냅샷을 만든다 (productId 매칭 키 보존).
+     */
+    private SlipSnapshot.Line line(UUID productId, int quantity, String unitPrice) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격",
+                quantity, new BigDecimal(unitPrice),
+                new BigDecimal(unitPrice).multiply(BigDecimal.valueOf(quantity)), null);
+    }
+
+    // 스냅샷 헤더의 partnerId/destinationWarehouseId 를 고정해 memo 외 헤더가 우연히 달라지지 않게 한다.
+    private static final UUID FIXED_PARTNER_ID = UUID.randomUUID();
+    private static final UUID FIXED_WAREHOUSE_ID = UUID.randomUUID();
+
+    /**
+     * 헤더 + 라인 리스트를 가진 스냅샷을 만든다 (UUID 헤더는 고정값 — memo 만 가변).
+     */
+    private SlipSnapshot snapshot(String memo, List<SlipSnapshot.Line> lines) {
+        return new SlipSnapshot("2026/05/29-3", LocalDate.of(2026, 5, 29),
+                FIXED_PARTNER_ID, "삼한물산", "P001", "123-45-67890",
+                memo, "DAY", "서울시", null, "프로젝트A", "010", null,
+                FIXED_WAREHOUSE_ID, "본사창고", lines);
+    }
+
+    @Test
+    @DisplayName("summarize: prev==null (최초 revision) 이면 headerChanged=0, lineAdded=현 라인 수, 나머지 0")
+    void summarizeFirstRevisionCountsAllLinesAsAdded() {
+        SlipSnapshot cur = snapshot("memo", List.of(
+                line(UUID.randomUUID(), 1, "1000"),
+                line(UUID.randomUUID(), 2, "2000")));
+
+        ChangeSummary summary = service.summarize(null, cur);
+
+        assertThat(summary.headerChanged()).isZero();
+        assertThat(summary.lineAdded()).isEqualTo(2);
+        assertThat(summary.lineRemoved()).isZero();
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 헤더 1필드 변경 + 라인 add1/remove1/modify1 → ChangeSummary 정합")
+    void summarizeCountsHeaderAndLineDeltas() {
+        UUID keep = UUID.randomUUID();      // 양쪽 존재 — modify 대상
+        UUID removed = UUID.randomUUID();   // prev 에만 — removed
+        UUID added = UUID.randomUUID();     // cur 에만 — added
+
+        // prev: keep(qty1) + removed, memo "원본"
+        SlipSnapshot prev = snapshot("원본", List.of(
+                line(keep, 1, "1000"),
+                line(removed, 5, "500")));
+        // cur: keep(qty3 — 수정) + added, memo "변경" (헤더 1필드 변경)
+        SlipSnapshot cur = snapshot("변경", List.of(
+                line(keep, 3, "1000"),
+                line(added, 9, "900")));
+
+        ChangeSummary summary = service.summarize(prev, cur);
+
+        assertThat(summary.headerChanged()).isEqualTo(1);   // memo 만 변경
+        assertThat(summary.lineAdded()).isEqualTo(1);       // added
+        assertThat(summary.lineRemoved()).isEqualTo(1);     // removed
+        assertThat(summary.lineModified()).isEqualTo(1);    // keep qty 1→3
+    }
+
+    @Test
+    @DisplayName("summarize: 동일 productId·동일 필드값이면 modified 로 집계하지 않는다 (no-op)")
+    void summarizeNoChangeWhenLinesIdentical() {
+        UUID p = UUID.randomUUID();
+        SlipSnapshot prev = snapshot("memo", List.of(line(p, 2, "1500")));
+        SlipSnapshot cur = snapshot("memo", List.of(line(p, 2, "1500")));
+
+        ChangeSummary summary = service.summarize(prev, cur);
+
+        assertThat(summary.headerChanged()).isZero();
+        assertThat(summary.lineAdded()).isZero();
+        assertThat(summary.lineRemoved()).isZero();
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("listWithSummary: 최신 우선 정렬 + 각 항목이 직전 revisionNo 대비 changeSummary 를 가지며 "
+            + "actorId 는 노출하지 않는다")
+    void listWithSummaryBuildsAdjacentSummariesNewestFirst() {
+        UUID slipId = UUID.randomUUID();
+        UUID p1 = UUID.randomUUID();
+
+        // rev1 (최초): 라인 1건
+        SlipRevision rev1 = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of(line(p1, 1, "1000"))),
+                UUID.randomUUID(), "홍길동", null);
+        // rev2: 동일 라인 수정 (qty 1→4) — modify 1
+        SlipRevision rev2 = SlipRevision.of(slipId, 2, SlipRevisionType.EDIT, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of(line(p1, 4, "1000"))),
+                UUID.randomUUID(), "관리자", null);
+
+        // list 는 내림차순(rev2, rev1) 반환
+        when(repository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        List<SlipRevisionResponse> result = service.listWithSummary(slipId);
+
+        // 최신 우선 (rev2 먼저)
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).revisionNo()).isEqualTo(2);
+        assertThat(result.get(1).revisionNo()).isEqualTo(1);
+
+        // rev2 changeSummary = rev1 대비 라인 modify 1
+        ChangeSummary rev2Summary = result.get(0).changeSummary();
+        assertThat(rev2Summary.lineModified()).isEqualTo(1);
+        assertThat(rev2Summary.lineAdded()).isZero();
+        assertThat(rev2Summary.lineRemoved()).isZero();
+        assertThat(rev2Summary.headerChanged()).isZero();
+
+        // rev1 = 최초 → lineAdded 1
+        ChangeSummary rev1Summary = result.get(1).changeSummary();
+        assertThat(rev1Summary.lineAdded()).isEqualTo(1);
+        assertThat(rev1Summary.headerChanged()).isZero();
+
+        // 표시 필드 정합 + actorId 미노출 (응답 record 에 actorId 필드 부재)
+        assertThat(result.get(0).actorName()).isEqualTo("관리자");
+        assertThat(result.get(0).revisionType()).isEqualTo("EDIT");
+        assertThat(java.util.Arrays.stream(SlipRevisionResponse.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("actorId");
     }
 }
