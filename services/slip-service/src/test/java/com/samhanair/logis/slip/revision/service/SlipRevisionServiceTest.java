@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.revision.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
@@ -116,6 +118,56 @@ class SlipRevisionServiceTest {
         assertThat(restored.getRevisionNo()).isEqualTo(4);
         assertThat(restored.getSourceRevisionNo()).isEqualTo(2);
         assertThat(restored.getRevisionType()).isEqualTo(SlipRevisionType.RESTORE);
+    }
+
+    @Test
+    @DisplayName("capture: saveAndFlush 1회차 DataIntegrityViolationException → 1회 재채번 재시도 후 "
+            + "정상 반환 (saveAndFlush 2회 + maxRevisionNo 재조회 2회)")
+    void captureRetriesOnceWhenFirstSaveConflicts() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+        UUID actorId = UUID.randomUUID();
+
+        // maxRevisionNo: 1회차 채번 시 1(→next=2), 재시도 채번 시 갱신된 2(→next=3)
+        when(repository.maxRevisionNo(slipId)).thenReturn(1, 2);
+        // saveAndFlush: 1회차 unique 위반, 2회차 정상 반환
+        when(repository.saveAndFlush(any(SlipRevision.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "uq_slip_revisions_active 위반 (race)"))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SlipRevision result = service.capture(slip, SlipRevisionType.EDIT, null,
+                actorId, "홍길동", null);
+
+        // 예외 없이 재채번된 revisionNo(=3) 로 반환
+        assertThat(result).isNotNull();
+        assertThat(result.getRevisionNo()).isEqualTo(3);
+        assertThat(result.getRevisionType()).isEqualTo(SlipRevisionType.EDIT);
+        // saveAndFlush 2회 호출 (1회차 실패 + 재시도) + maxRevisionNo 2회 재조회
+        verify(repository, times(2)).saveAndFlush(any(SlipRevision.class));
+        verify(repository, times(2)).maxRevisionNo(slipId);
+    }
+
+    @Test
+    @DisplayName("capture: saveAndFlush 가 2회 모두 DataIntegrityViolationException → "
+            + "BusinessException(CONFLICT) 로 변환한다")
+    void captureThrowsConflictWhenRetryAlsoConflicts() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+
+        when(repository.maxRevisionNo(slipId)).thenReturn(1, 2);
+        // saveAndFlush: 1회차·2회차 모두 unique 위반
+        when(repository.saveAndFlush(any(SlipRevision.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "uq_slip_revisions_active 위반 (race)"));
+
+        assertThatThrownBy(() -> service.capture(slip, SlipRevisionType.EDIT, null,
+                UUID.randomUUID(), "홍길동", null))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+
+        // 2회 모두 시도 후 포기
+        verify(repository, times(2)).saveAndFlush(any(SlipRevision.class));
     }
 
     /**
