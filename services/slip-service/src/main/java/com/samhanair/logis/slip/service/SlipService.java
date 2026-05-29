@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
+import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
@@ -92,6 +93,12 @@ public class SlipService {
      * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
      */
     private final SlipRevisionService slipRevisionService;
+    /**
+     * 권한 재편 Phase 2.1 Task 3 — 복원 SSE broadcast 용 실시간 브로커.
+     * point-in-time 복원 성공 직후 {@code slip:restored} 이벤트를 publish 한다
+     * ({@link SlipAuditLogService} 의 broker 주입 패턴과 동일 — InMemoryRealtimeBroker facade bean).
+     */
+    private final SlipRealtimeBroker broker;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -342,6 +349,50 @@ public class SlipService {
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
+    }
+
+    /**
+     * 전표를 특정 revision 시점으로 point-in-time 복원한다 (권한 재편 Phase 2.1 Task 3).
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>전표 조회 — 미존재 시 {@link ErrorCode#NOT_FOUND}</li>
+     *   <li>{@link #guardLockPolicy} — status 별 마감 정책 가드 (FULLY_LOCKED/종결 단계 차단,
+     *       LOCKED_REQUIRES_APPROVAL 단계는 APPROVED 요청 1건 필요, mutation 후 소진)</li>
+     *   <li>{@link SlipRevisionService#restore} — 대상 스냅샷 로드 + 헤더/라인 통째 복원 +
+     *       신규 RESTORE revision 캡처 (마감 lock 가드는 도메인이 책임)</li>
+     *   <li>라인 전량 교체 영속화를 위한 명시 save</li>
+     *   <li>{@code slip:restored} SSE broadcast (slipId + 복원 출처 revisionNo)</li>
+     * </ol>
+     *
+     * @param slipId 복원 대상 전표 UUID
+     * @param revisionNo 복원할 시점의 revisionNo (복원 출처)
+     * @param callerId 복원 수행자 user-id (감사용 actor)
+     * @param callerName 복원 수행자 표시명 (UUID 비공개 가드, null 이면 callerId 폴백)
+     * @return 복원된 전표의 상세 응답
+     * @throws BusinessException(NOT_FOUND) 전표 또는 대상 revision 미발견
+     * @throws BusinessException(CONFLICT) 마감 정책 위반 또는 lock_flag=true 슬립
+     */
+    public SlipDetailResponse restoreToRevision(UUID slipId, int revisionNo,
+                                                String callerId, String callerName) {
+        Slip slip = loadOrThrow(slipId);
+        // status 별 마감 정책 가드 (applyOverlayPatch/softDelete 와 동일 정책)
+        Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
+        String actorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        applyMutation(() -> slipRevisionService.restore(slip, revisionNo,
+                parseActorId(callerId), actorName, null));
+        // 라인 전량 교체(markDeleted + 신규 라인 add) 영속화
+        slipRepository.save(slip);
+        consumedApproval.ifPresent(approval ->
+                editRequestService.consumeApproval(approval.getId(), callerId));
+        // 복원 SSE broadcast — 동일 슬립 동시 편집자 화면 갱신 트리거
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("slipId", slipId.toString());
+        payload.put("revisionNo", revisionNo);
+        broker.publish(slipId, "slip:restored", payload);
+        return SlipDetailResponse.from(slip);
     }
 
     /**

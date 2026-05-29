@@ -1,8 +1,11 @@
 package com.samhanair.logis.slip.revision.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import java.util.List;
 import java.util.UUID;
@@ -61,5 +64,41 @@ public class SlipRevisionService {
     @Transactional(readOnly = true)
     public List<SlipRevision> list(UUID slipId) {
         return repository.findBySlipIdOrderByRevisionNoDesc(slipId);
+    }
+
+    /**
+     * 전표를 특정 revision 시점 스냅샷으로 복원한다 (권한 재편 Phase 2.1 Task 3).
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>복원 대상 revision 스냅샷 로드 — 없으면 {@link ErrorCode#NOT_FOUND}</li>
+     *   <li>{@link Slip#restoreFromSnapshot(SlipSnapshot)} 로 헤더+라인 통째 복원
+     *       (마감 lock 가드는 도메인이 책임)</li>
+     *   <li>복원 자체를 신규 {@link SlipRevisionType#RESTORE} revision 1건으로 캡처 —
+     *       {@code sourceRevisionNo = targetRevisionNo} 로 복원 출처를 기록</li>
+     * </ol>
+     *
+     * <p>{@link #capture}가 채번하는 신규 revisionNo 는 항상 {@code maxRevisionNo+1} 이므로 복원 후
+     * 타임라인의 최신 항목이 된다 (복원 이력도 되돌릴 수 있는 정방향 누적).
+     *
+     * @param slip 복원 대상 전표 (영속 상태, id 필수)
+     * @param targetRevisionNo 복원할 시점의 revisionNo
+     * @param actorId 복원 주체 UUID (감사용, 화면 노출 금지)
+     * @param actorName 복원 주체 표시명 (UUID 비공개 가드, 없으면 null)
+     * @param actorColor FE userIdToColor 결과 backup (선택, 없으면 null)
+     * @return 영속화된 RESTORE SlipRevision
+     * @throws BusinessException(NOT_FOUND) 복원 대상 revision 미존재
+     * @throws BusinessException(CONFLICT) 마감 lock 적용 슬립 (도메인 가드)
+     */
+    public SlipRevision restore(Slip slip, int targetRevisionNo,
+                                UUID actorId, String actorName, String actorColor) {
+        SlipRevision target = repository
+                .findBySlipIdAndRevisionNo(slip.getId(), targetRevisionNo)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "복원 대상 revision 없음 (slipId=" + slip.getId()
+                                + ", revisionNo=" + targetRevisionNo + ")"));
+        slip.restoreFromSnapshot(target.getSnapshot());
+        return capture(slip, SlipRevisionType.RESTORE, targetRevisionNo,
+                actorId, actorName, actorColor);
     }
 }
