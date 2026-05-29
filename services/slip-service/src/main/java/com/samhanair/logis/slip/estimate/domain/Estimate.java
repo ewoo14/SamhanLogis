@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.estimate.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -330,6 +331,47 @@ public class Estimate extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수정 가능한 상태가 아닙니다: " + this.status);
         }
+    }
+
+    /**
+     * 현 견적 상태를 버전이력용 full-snapshot 으로 변환한다 (권한 재편 Phase 2.2 Task 2).
+     *
+     * <p>헤더 8필드(estimateNo/estimateDate/partner 3필드/validUntil/memo)와 미삭제 라인 전체를 한
+     * 시점의 불변 {@link EstimateSnapshot} 으로 캡처한다. {@code estimate_revisions.snapshot}
+     * (JSONB) 직렬화 대상이며, point-in-time 복원 시 이 스냅샷을 역직렬화해 헤더를 덮어쓰고 라인을
+     * 전량 교체한다. 라인은 soft-deleted 행을 제외한다 — {@code @SQLRestriction} 으로 이미 DB
+     * 레벨에서 걸러지지만 명시적으로 한 번 더 가드한다.
+     *
+     * <p>{@link com.samhanair.logis.slip.domain.Slip#toSnapshot()} 미러
+     * (slipNo→estimateNo, slipDate→estimateDate).
+     *
+     * @return 현 견적의 헤더+라인 스냅샷 (라인 없으면 빈 리스트)
+     */
+    public EstimateSnapshot toSnapshot() {
+        List<EstimateSnapshot.Line> snapshotLines = this.lines.stream()
+                .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
+                .map(line -> new EstimateSnapshot.Line(
+                        line.getProductId(),
+                        line.getProductName(),
+                        line.getModelName(),
+                        line.getSpecification(),
+                        line.getQuantity(),
+                        line.getUnitPrice(),
+                        line.getSupplyAmount(),
+                        line.getVatAmount(),
+                        line.getLineTotal(),
+                        line.getNote()))
+                .toList();
+        return new EstimateSnapshot(
+                this.estimateNo,
+                this.estimateDate,
+                this.partnerId,
+                this.partnerName,
+                this.partnerBusinessNo,
+                this.partnerAddress,
+                this.validUntil,
+                this.memo,
+                snapshotLines);
     }
 
     private void requireStatus(EstimateStatus expected) {

@@ -9,6 +9,8 @@ import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
+import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
+import com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
@@ -49,6 +51,7 @@ public class EstimateService {
     private final EstimateNumberService estimateNumberService;
     private final ProductClient productClient;
     private final EstimateToSlipConverter slipConverter;
+    private final EstimateRevisionService estimateRevisionService;
 
     /**
      * 견적서 신규 생성 — DRAFT 상태로 출발.
@@ -96,6 +99,9 @@ public class EstimateService {
         }
 
         Estimate saved = estimateRepository.save(estimate);
+        // 권한 재편 Phase 2.2 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
+        estimateRevisionService.capture(saved, EstimateRevisionType.CREATE, null,
+                parseActorId(requesterId), requesterId, null);
         return EstimateDetailResponse.from(saved);
     }
 
@@ -141,6 +147,9 @@ public class EstimateService {
             }
         }
 
+        // 권한 재편 Phase 2.2 — 헤더/라인 변경 후 EDIT 스냅샷 캡처. 도메인 가드를 통과한 성공 경로에서만 도달한다.
+        estimateRevisionService.capture(estimate, EstimateRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -212,6 +221,21 @@ public class EstimateService {
             page = estimateRepository.findAllByIsDeletedFalse(pageable);
         }
         return page.map(EstimateResponse::from);
+    }
+
+    /**
+     * 감사용 actor UUID 파싱 (SlipService 동형). X-User-Id 가 UUID 가 아닌 legacy employeeCode 등이면
+     * 가상 system UUID(0,0) 로 폴백한다 (revision actorId 컬럼은 nullable 이나 일관성 위해 비-null 유지).
+     */
+    private UUID parseActorId(String callerId) {
+        if (callerId == null || callerId.isBlank()) {
+            return new UUID(0L, 0L);
+        }
+        try {
+            return UUID.fromString(callerId);
+        } catch (IllegalArgumentException ex) {
+            return new UUID(0L, 0L);
+        }
     }
 
     private Estimate loadOrThrow(UUID id) {
