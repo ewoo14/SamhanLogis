@@ -32,6 +32,13 @@ const BASE = 'http://127.0.0.1:5173'
 const PARTNER_HOST = 'localhost'
 const PARTNER_PORT = 8095
 const MASTER_ID = 'a0000000-0000-0000-0000-000000000001'
+// 로그인 자격은 환경변수로 주입(시드 dev master). 평문 자격 하드코딩 금지(GitGuardian).
+const LOGIN_ID = process.env.QA_MASTER_ID || 'dev_master'
+const LOGIN_PW = process.env.QA_MASTER_PW
+if (!LOGIN_PW) {
+  console.error('QA_MASTER_PW 환경변수를 설정하세요 (seed dev master 비밀번호). 예: $env:QA_MASTER_PW=...')
+  process.exit(2)
+}
 
 const SHIM = `
 (() => {
@@ -133,8 +140,8 @@ async function main() {
   console.log('1) 로그인')
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 30000 })
-  await page.fill('[data-testid=login-id-input]', 'dev_master')
-  await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
+  await page.fill('[data-testid=login-id-input]', LOGIN_ID)
+  await page.fill('[data-testid=login-password-input]', LOGIN_PW)
   await shot(page, 'login')
   await page.click('[data-testid=login-submit-button]')
   await page.waitForFunction(() => !location.hash.includes('login'), { timeout: 30000 })
