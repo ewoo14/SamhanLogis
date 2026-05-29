@@ -121,9 +121,13 @@ public class JwtAuthenticationGatewayFilterFactory
             ServerHttpRequest.Builder requestBuilder = request.mutate()
                     .header(HEADER_USER_ID, userId)
                     .header(HEADER_USER_ROLE, roleName);
-            // departmentName 이 존재할 때만 헤더 추가 — 미배정 계정은 헤더 미전송
+            // departmentName 이 존재할 때만 헤더 추가 — 미배정 계정은 헤더 미전송.
+            // [RC7] HTTP 헤더는 ISO-8859-1 인코딩이라 한글 부서명("대표실")을 그대로 넣으면 다운스트림
+            // Tomcat 이 모지바케로 역디코딩 → @hr.isExecutiveOffice() 비교 실패. UTF-8 URL-encode 하여
+            // 전파하고, 수신 측(HrAuthorizationHelper)이 URL-decode 한다.
             if (departmentName != null && !departmentName.isBlank()) {
-                requestBuilder.header(HEADER_USER_DEPARTMENT, departmentName);
+                requestBuilder.header(HEADER_USER_DEPARTMENT,
+                        java.net.URLEncoder.encode(departmentName, java.nio.charset.StandardCharsets.UTF_8));
             }
 
             return chain.filter(exchange.mutate().request(requestBuilder.build()).build());

@@ -64,7 +64,15 @@ public class HrAuthorizationHelper {
             HttpServletRequest request = attrs.getRequest();
             String departmentName = request.getHeader(HEADER_USER_DEPARTMENT);
             if (departmentName != null) {
-                return EXECUTIVE_OFFICE_NAME.equals(departmentName);
+                // [RC7] 게이트웨이가 한글 부서명을 UTF-8 URL-encode 하여 전파(HTTP 헤더 ISO-8859-1
+                // 모지바케 회피). URL-decode 후 비교. 인코딩 안 된 legacy 값도 그대로 처리되도록 try.
+                String decoded = departmentName;
+                try {
+                    decoded = java.net.URLDecoder.decode(departmentName, java.nio.charset.StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException ignore) {
+                    // % 가 포함된 비인코딩 값 → 원본 사용
+                }
+                return EXECUTIVE_OFFICE_NAME.equals(decoded) || EXECUTIVE_OFFICE_NAME.equals(departmentName);
             }
             // Legacy backward compat — X-User-Department claim 없는 token 은
             // MASTER 또는 MANAGER ROLE 일 때 허용 (기존 admin endpoint 가드 (M/M) 호환)

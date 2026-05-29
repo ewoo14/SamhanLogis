@@ -146,6 +146,17 @@ spring:
           filters:
             - StripPrefix=2
 
+        # [RC1] 인증 필요 auth-service endpoint(권한 admin / 비밀번호 변경) — JwtAuthentication 필터로
+        # X-User-Id/Role 헤더를 주입해야 auth-service HeaderAuthenticationFilter 가 인증을 세운다.
+        # /auth/** catch-all(아래 auth-service-legacy)보다 먼저 선언(더 구체적 경로 우선 매칭).
+        # login/password/policy/password-reset 등 public 은 catch-all 이 필터 없이 처리.
+        - id: auth-service-admin-authenticated
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/admin/**,/auth/password/change
+          filters:
+            - JwtAuthentication
+
         # Legacy /auth/** routing — desktop renderer 의 axios 가 baseURL=http://localhost:8080
         # + path=/auth/login (PR #100 BE controller @RequestMapping("/auth")) 호출 시 매핑.
         # PR #110 (manual Stage 2) capture-desktop.js 의 auth 자동 로그인 navigation fix 의무.
@@ -173,13 +184,23 @@ spring:
           filters:
             - JwtAuthentication
 
-        # partner-service — Phase 10 W10-6 신규 GET /admin/partners 검증 entry
+        # [RC2] partner-service 의 /api/v1/partners 컨트롤러(4tab/revision/attachment/blocks)는 전부
+        # 풀패스 @RequestMapping("/api/v1/partners...") 라 StripPrefix 를 적용하면 안 된다(strip 시
+        # /partners/... 로 변형되어 "No static resource" 404/500). no-strip 으로 그대로 전달.
         - id: partner-service-v1
           uri: lb://partner-service
           predicates:
             - Path=/api/v1/partners/**
           filters:
-            - StripPrefix=2
+            - JwtAuthentication
+
+        # [RC2] product-service — admin(/api/v1/products/admin) 은 풀패스 컨트롤러라 no-strip 필요.
+        # generic product-service-v1(strip=2, 카탈로그 /products 컨트롤러용)보다 먼저 선언.
+        - id: product-admin-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/admin/**
+          filters:
             - JwtAuthentication
 
         - id: product-service-v1
@@ -247,6 +268,21 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # [RC2] arologis admin 컨트롤러는 풀패스 @RequestMapping("/api/v1/arologis/admin") → no-strip 필요.
+        # generic arologis-service-v1(strip=2)보다 먼저 선언. 인증 동일(JWT 주입 + Authorization 제거).
+        - id: arologis-admin-v1
+          uri: lb://arologis-service
+          predicates:
+            - Path=/api/v1/arologis/admin/**
+          filters:
+            - JwtAuthentication
+            - RemoveRequestHeader=Authorization
+
+        # [RC6] arologis 는 자체 ArologisJwtFilter(arologis 전용 secret, 모바일 직접 접근용)가
+        # HeaderAuthenticationFilter 보다 먼저 실행된다. 게이트웨이가 auth-service 토큰(다른 secret)을
+        # Authorization 으로 그대로 전달하면 ArologisJwtFilter 가 검증 실패로 403. JwtAuthentication 이
+        # X-User-* 를 주입한 뒤 Authorization 을 제거하면, ArologisJwtFilter 는 토큰 없음으로 skip 하고
+        # HeaderAuthenticationFilter 가 X-User-* 로 인증한다(모바일 직접 경로는 게이트웨이 미경유라 영향 없음).
         - id: arologis-service-v1
           uri: lb://arologis-service
           predicates:
@@ -254,6 +290,7 @@ spring:
           filters:
             - StripPrefix=2
             - JwtAuthentication
+            - RemoveRequestHeader=Authorization
 
         # partner-order-service — controller 측 `/api/v1/partner-orders` 풀패스 보유 → StripPrefix=0
         - id: partner-order-service-v1
@@ -340,6 +377,7 @@ spring:
             - Path=/admin/arologis/**,/arologis/**
           filters:
             - JwtAuthentication
+            - RemoveRequestHeader=Authorization
 
         - id: notification-service-noprefix
           uri: lb://notification-service
