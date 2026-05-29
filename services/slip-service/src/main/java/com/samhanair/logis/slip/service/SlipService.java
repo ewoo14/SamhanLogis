@@ -239,6 +239,11 @@ public class SlipService {
             auditLogService.recordOverlayPatch(id, actorId, actorName, null,
                     "memo", oldMemo, newMemo);
         }
+        // 권한 재편 Phase 2.1 — 헤더 batch 수정(partnerId/partnerName/deliveryTag/memo 모두 toSnapshot 필드)도
+        // 버전이력에 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
+        // (editHeader 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -620,12 +625,20 @@ public class SlipService {
     public SlipDetailResponse reject(UUID id, String callerId, String reasonText) {
         Slip slip = loadOrThrow(id);
         SlipStatus previous = slip.getStatus();
+        // 권한 재편 Phase 2.1 — 반려 사유 prepend 로 memo(toSnapshot 필드) 변경 여부 감지용 사전 snapshot
+        String oldMemo = slip.getMemo();
         applyMutation(() -> slip.reject(reasonText));
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {
             for (SlipLine line : slip.getLines()) {
                 inventoryClient.release(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), SLIP_REF_TYPE, slip.getId());
             }
+        }
+        // 권한 재편 Phase 2.1 — reasonText 가 memo 앞에 prepend 되어 실제 변경된 경우에만 EDIT 캡처
+        // (상태전이 reject 자체는 content 아님 — memo 변경분만 content-mutation 으로 본다)
+        if (!java.util.Objects.equals(oldMemo, slip.getMemo())) {
+            slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                    parseActorId(callerId), callerId, null);
         }
         return SlipDetailResponse.from(slip);
     }

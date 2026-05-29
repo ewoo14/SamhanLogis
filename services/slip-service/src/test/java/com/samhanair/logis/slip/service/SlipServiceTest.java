@@ -340,6 +340,49 @@ class SlipServiceTest {
                         .isEqualTo(ErrorCode.CONFLICT));
     }
 
+    @Test
+    void editHeader_capturesEditRevision() {
+        // 헤더 batch 수정(partnerName/memo 등 toSnapshot 필드)도 버전이력에 잡혀야 한다 (캡처 완전성).
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    // ---------- reject memo 변경 revision 캡처 (Phase 2.1) ----------
+
+    @Test
+    void reject_withReason_capturesEditRevision() {
+        // 반려 사유가 memo 앞에 prepend 되어 toSnapshot 필드(memo)가 실제 변경 → EDIT 캡처.
+        Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.reject(slipId, "user-1", "재고 없음");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    @Test
+    void reject_withoutReason_doesNotCaptureRevision() {
+        // reasonText 가 null 이면 memo 변경 없음 → 상태전이만 → 캡처 안 함.
+        Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.reject(slipId, "user-1", null);
+
+        verify(slipRevisionService, never()).capture(
+                any(), any(), any(), any(), any(), any());
+    }
+
     // ---------- 라인 mutation revision 캡처 (Phase 2.1 — addLine/removeLine) ----------
 
     @Test
