@@ -20,6 +20,7 @@ import com.samhanair.logis.partner.revision.domain.PartnerRevision;
 import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
 import com.samhanair.logis.partner.revision.domain.PartnerSnapshot;
 import com.samhanair.logis.partner.revision.repository.PartnerRevisionRepository;
+import com.samhanair.logis.partner.revision.web.dto.PartnerRevisionResponse;
 import com.samhanair.logis.partner.tab.dto.PartnerFullResponse;
 import com.samhanair.logis.partner.tab.repository.PartnerContactRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerPriceDiscountRepository;
@@ -385,5 +386,215 @@ class PartnerRevisionServiceTest {
 
         // SSE 발행 (partner:edit)
         verify(broker).publish(eq(partnerId), eq("partner:edit"), any());
+    }
+
+    // ================================================================
+    // summarize — 직전 스냅샷 대비 changeSummary (권한 재편 Phase 2.3 Task 4)
+    // ================================================================
+
+    /** 헤더 40필드 전부 null + 자식 null 인 최소 스냅샷 (개별 케이스에서 필요한 필드만 override). */
+    private PartnerSnapshot emptySnapshot() {
+        return new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, List.of(), List.of());
+    }
+
+    private PartnerSnapshot.ShippingAddress addr(String alias, String address, boolean isDefault) {
+        return new PartnerSnapshot.ShippingAddress(alias, "06234", address, "02-0000-0000",
+                "수령인", isDefault, "메모");
+    }
+
+    private PartnerSnapshot.Contact contact(String name, String phone) {
+        return new PartnerSnapshot.Contact(name, "팀장", phone, "x@samhan.com", true, "메모");
+    }
+
+    @Test
+    @DisplayName("summarize: prev==null (최초 revision) → headerChanged=0, childAdded=단가1+배송지2+담당자1=4")
+    void summarizeInitialRevisionCountsAllChildrenAsAdded() {
+        UUID pid = UUID.randomUUID();
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                samplePriceDiscountSnapshot(),
+                List.of(addr("본사", "서울 강남", true), addr("강남센터", "서울 역삼", false)),
+                List.of(contact("홍길동", "010-1111-2222")));
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(null, cur);
+
+        assertThat(s.headerChanged()).isZero();
+        assertThat(s.childAdded()).isEqualTo(4); // 단가1 + 배송지2 + 담당자1
+        assertThat(s.childRemoved()).isZero();
+        assertThat(s.childModified()).isZero();
+    }
+
+    private PartnerSnapshot.PriceDiscount samplePriceDiscountSnapshot() {
+        return new PartnerSnapshot.PriceDiscount(new BigDecimal("5.00"), 30, "VIP");
+    }
+
+    @Test
+    @DisplayName("summarize: 헤더 name/representative 2필드 변경 → headerChanged=2, 자식 변동 없음")
+    void summarizeCountsHeaderFieldChanges() {
+        PartnerSnapshot prev = emptySnapshot();
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산(수정)", null, null, null, null, null,
+                null, "신규대표", null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, List.of(), List.of());
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(prev, cur);
+
+        assertThat(s.headerChanged()).isEqualTo(2); // name + representative
+        assertThat(s.childAdded()).isZero();
+        assertThat(s.childRemoved()).isZero();
+        assertThat(s.childModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 단가/할인 add(null→존재) — childAdded=1")
+    void summarizePriceDiscountAdded() {
+        PartnerSnapshot prev = emptySnapshot(); // priceDiscount null
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                samplePriceDiscountSnapshot(), List.of(), List.of());
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(prev, cur);
+
+        assertThat(s.headerChanged()).isZero();
+        assertThat(s.childAdded()).isEqualTo(1);
+        assertThat(s.childRemoved()).isZero();
+        assertThat(s.childModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 단가/할인 modify(할인율 5→7) — childModified=1")
+    void summarizePriceDiscountModified() {
+        PartnerSnapshot prev = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                new PartnerSnapshot.PriceDiscount(new BigDecimal("5.00"), 30, "VIP"),
+                List.of(), List.of());
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                new PartnerSnapshot.PriceDiscount(new BigDecimal("7.00"), 30, "VIP"),
+                List.of(), List.of());
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(prev, cur);
+
+        assertThat(s.childModified()).isEqualTo(1);
+        assertThat(s.childAdded()).isZero();
+        assertThat(s.childRemoved()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 배송지/담당자 add+remove+modify 동시 — alias/contactName 식별자 기준 정합")
+    void summarizeChildAddRemoveModify() {
+        // prev: 배송지 [본사, 구센터], 담당자 [홍길동]
+        PartnerSnapshot prev = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null,
+                List.of(addr("본사", "서울 강남", true), addr("구센터", "서울 마포", false)),
+                List.of(contact("홍길동", "010-1111-2222")));
+        // cur: 배송지 [본사(주소변경→modify), 신센터(add)] 구센터 제거(remove),
+        //      담당자 [홍길동(전화변경→modify), 김신규(add)]
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null,
+                List.of(addr("본사", "서울 서초", true), addr("신센터", "서울 송파", false)),
+                List.of(contact("홍길동", "010-9999-8888"), contact("김신규", "010-2222-3333")));
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(prev, cur);
+
+        assertThat(s.headerChanged()).isZero();
+        // 배송지: 신센터 add(1) + 신규담당자 add(1) = 2
+        assertThat(s.childAdded()).isEqualTo(2);
+        // 배송지: 구센터 remove(1)
+        assertThat(s.childRemoved()).isEqualTo(1);
+        // 배송지: 본사 modify(1) + 담당자: 홍길동 modify(1) = 2
+        assertThat(s.childModified()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("summarize: 변경 없음(동일 스냅샷) → 전부 0")
+    void summarizeNoChange() {
+        PartnerSnapshot prev = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                samplePriceDiscountSnapshot(),
+                List.of(addr("본사", "서울 강남", true)),
+                List.of(contact("홍길동", "010-1111-2222")));
+        PartnerSnapshot cur = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                samplePriceDiscountSnapshot(),
+                List.of(addr("본사", "서울 강남", true)),
+                List.of(contact("홍길동", "010-1111-2222")));
+
+        PartnerRevisionResponse.ChangeSummary s = service.summarize(prev, cur);
+
+        assertThat(s.headerChanged()).isZero();
+        assertThat(s.childAdded()).isZero();
+        assertThat(s.childRemoved()).isZero();
+        assertThat(s.childModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("listWithSummary: 최신 우선 정렬 + 첫 revision 은 summarize(null,cur), 인접 비교")
+    void listWithSummaryOrdersDescAndComputesAdjacentSummary() {
+        UUID partnerId = UUID.randomUUID();
+        // rev1: 자식 없음 (CREATE)
+        PartnerRevision rev1 = PartnerRevision.of(partnerId, 1, PartnerRevisionType.CREATE, null,
+                "P-2026-0001", emptySnapshot(), UUID.randomUUID(), "작성자", null);
+        // rev2: 배송지 1건 추가 (EDIT)
+        PartnerSnapshot snap2 = new PartnerSnapshot(
+                "P-2026-0001", "123-45-67890", "삼한물산", null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, List.of(addr("본사", "서울 강남", true)), List.of());
+        PartnerRevision rev2 = PartnerRevision.of(partnerId, 2, PartnerRevisionType.EDIT, null,
+                "P-2026-0001", snap2, UUID.randomUUID(), "수정자", null);
+
+        // list 는 내림차순 반환 (rev2, rev1)
+        when(repository.findByPartnerIdOrderByRevisionNoDesc(partnerId))
+                .thenReturn(List.of(rev2, rev1));
+
+        List<PartnerRevisionResponse> result = service.listWithSummary(partnerId);
+
+        assertThat(result).hasSize(2);
+        // 최신 우선 → 첫 원소 = rev2
+        assertThat(result.get(0).revisionNo()).isEqualTo(2);
+        assertThat(result.get(0).revisionType()).isEqualTo("EDIT");
+        // rev2 는 rev1 대비 배송지 1건 추가
+        assertThat(result.get(0).changeSummary().childAdded()).isEqualTo(1);
+        assertThat(result.get(0).changeSummary().headerChanged()).isZero();
+        // rev1 = 최초 → summarize(null, cur), 자식 없으므로 childAdded=0
+        assertThat(result.get(1).revisionNo()).isEqualTo(1);
+        assertThat(result.get(1).changeSummary().childAdded()).isZero();
+        // actorId 미노출 검증 — DTO 에 actorId 필드 자체가 없음 (record component 확인)
+        assertThat(result.get(0).actorName()).isEqualTo("수정자");
     }
 }

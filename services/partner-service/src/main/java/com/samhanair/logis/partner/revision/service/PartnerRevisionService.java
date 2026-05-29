@@ -11,6 +11,8 @@ import com.samhanair.logis.partner.revision.domain.PartnerRevision;
 import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
 import com.samhanair.logis.partner.revision.domain.PartnerSnapshot;
 import com.samhanair.logis.partner.revision.repository.PartnerRevisionRepository;
+import com.samhanair.logis.partner.revision.web.dto.PartnerRevisionResponse;
+import com.samhanair.logis.partner.revision.web.dto.PartnerRevisionResponse.ChangeSummary;
 import com.samhanair.logis.partner.tab.dto.PartnerContactRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerFullResponse;
 import com.samhanair.logis.partner.tab.dto.PartnerPriceDiscountRequest;
@@ -22,7 +24,13 @@ import com.samhanair.logis.partner.tab.service.Partner4TabService;
 import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
@@ -256,6 +264,387 @@ public class PartnerRevisionService {
     @Transactional(readOnly = true)
     public List<PartnerRevision> list(UUID partnerId) {
         return repository.findByPartnerIdOrderByRevisionNoDesc(partnerId);
+    }
+
+    /**
+     * 버전 타임라인을 changeSummary 가 포함된 응답 DTO 로 조회한다 (권한 재편 Phase 2.3 Task 4).
+     *
+     * <p>{@link #list}(repository) 는 revisionNo 내림차순 raw entity 만 반환한다. 본 메서드는 그
+     * 결과를 받아 각 revision 의 {@link ChangeSummary} 를 그 <b>직전 revisionNo</b> 스냅샷과
+     * 비교해 계산한다 — 인접 비교를 위해 revisionNo 오름차순으로 정렬한 뒤 인접쌍을 훑고,
+     * 최종 반환은 다시 최신(revisionNo 내림차순) 우선으로 뒤집어 FE 타임라인 표시 순서와 맞춘다.
+     *
+     * <p>"직전 revisionNo" 는 단조 증가 채번이므로 정렬된 목록상 바로 이전 원소이며, 첫 원소
+     * (가장 오래된 revision) 는 비교 대상이 없어 {@code summarize(null, cur)} 로 처리된다.
+     *
+     * <p>{@code EstimateRevisionService#listWithSummary} 미러 (estimateId→partnerId,
+     * estimateNo→partnerCode, estimateDate 컬럼 없음).
+     *
+     * @param partnerId 대상 거래처 UUID
+     * @return revisionNo 내림차순 정렬 + changeSummary 포함 응답 목록 (없으면 빈 리스트)
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerRevisionResponse> listWithSummary(UUID partnerId) {
+        List<PartnerRevision> revisions = new ArrayList<>(list(partnerId));
+        // 인접 비교를 위해 revisionNo 오름차순으로 정렬 (list 는 내림차순 반환)
+        revisions.sort(Comparator.comparingInt(PartnerRevision::getRevisionNo));
+
+        List<PartnerRevisionResponse> responses = new ArrayList<>(revisions.size());
+        PartnerSnapshot prev = null;
+        for (PartnerRevision revision : revisions) {
+            PartnerSnapshot cur = revision.getSnapshot();
+            ChangeSummary summary = summarize(prev, cur);
+            responses.add(new PartnerRevisionResponse(
+                    revision.getRevisionNo(),
+                    revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
+                    revision.getSourceRevisionNo(),
+                    revision.getPartnerCode(),
+                    revision.getActorName(),
+                    revision.getCreatedAt(),
+                    summary));
+            prev = cur;
+        }
+        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
+        java.util.Collections.reverse(responses);
+        return responses;
+    }
+
+    /**
+     * 두 스냅샷 간 변경 규모를 {@link ChangeSummary} 로 집계한다 (권한 재편 Phase 2.3 Task 4).
+     *
+     * <p>비교 규칙 ({@code EstimateRevisionService#summarize} 미러 + 거래처 4탭 자식 보강):
+     * <ul>
+     *   <li><b>prev == null</b> (최초 revision): headerChanged=0, childRemoved=0, childModified=0,
+     *       childAdded = 현 자식 총수 (단가/할인 1 + 배송지 N + 담당자 M).</li>
+     *   <li><b>헤더</b>: 두 스냅샷의 헤더 40필드 값을 {@link Objects#equals}로 비교해 다른 필드 수를
+     *       센다 (BigDecimal 은 compareTo — scale 차이 무시). 자식 3종 컬렉션은 헤더 카운트에서 제외.</li>
+     *   <li><b>단가/할인 (1:1)</b>: cur 에만 있으면 added, prev 에만 있으면 removed, 양쪽 존재하나
+     *       필드값(할인율·결제일수·메모) 다르면 modified.</li>
+     *   <li><b>배송지 (1:N)</b>: 식별자 = {@code alias} (id 가 스냅샷에 없음) 기준 매칭. cur 에만
+     *       있으면 added, prev 에만 있으면 removed, 양쪽 존재하나 필드값 다르면 modified.</li>
+     *   <li><b>담당자 (1:N)</b>: 식별자 = {@code contactName} 기준 매칭. 동일 규칙으로 add/remove/modify.</li>
+     * </ul>
+     *
+     * <p>식별자(alias/contactName)가 null/blank 인 자식은 매칭 키가 없어 added/removed 로만 집계된다
+     * (modified 미판정). estimate 의 productId-null 라인 처리와 동형이다.
+     *
+     * @param prev 직전 시점 스냅샷 (최초 revision 이면 null)
+     * @param cur 현 시점 스냅샷 (필수)
+     * @return 변경 규모 요약
+     */
+    public ChangeSummary summarize(PartnerSnapshot prev, PartnerSnapshot cur) {
+        List<PartnerSnapshot.ShippingAddress> curAddrs =
+                cur.shippingAddresses() == null ? List.of() : cur.shippingAddresses();
+        List<PartnerSnapshot.Contact> curContacts =
+                cur.contacts() == null ? List.of() : cur.contacts();
+
+        if (prev == null) {
+            // 직전 없음 = 전 자식이 신규. 단가/할인(있으면 1) + 배송지 + 담당자
+            int childAdded = (cur.priceDiscount() == null ? 0 : 1)
+                    + curAddrs.size() + curContacts.size();
+            return new ChangeSummary(0, childAdded, 0, 0);
+        }
+
+        int headerChanged = countHeaderChanges(prev, cur);
+
+        int childAdded = 0;
+        int childRemoved = 0;
+        int childModified = 0;
+
+        // 단가/할인 (1:1) — 존재 여부 + 필드 비교
+        if (prev.priceDiscount() == null && cur.priceDiscount() != null) {
+            childAdded++;
+        } else if (prev.priceDiscount() != null && cur.priceDiscount() == null) {
+            childRemoved++;
+        } else if (prev.priceDiscount() != null && cur.priceDiscount() != null
+                && priceDiscountDiffers(prev.priceDiscount(), cur.priceDiscount())) {
+            childModified++;
+        }
+
+        // 배송지 (1:N) — alias 식별자 기준
+        int[] addrDiff = diffShippingAddresses(
+                prev.shippingAddresses() == null ? List.of() : prev.shippingAddresses(),
+                curAddrs);
+        childAdded += addrDiff[0];
+        childRemoved += addrDiff[1];
+        childModified += addrDiff[2];
+
+        // 담당자 (1:N) — contactName 식별자 기준
+        int[] contactDiff = diffContacts(
+                prev.contacts() == null ? List.of() : prev.contacts(),
+                curContacts);
+        childAdded += contactDiff[0];
+        childRemoved += contactDiff[1];
+        childModified += contactDiff[2];
+
+        return new ChangeSummary(headerChanged, childAdded, childRemoved, childModified);
+    }
+
+    /**
+     * 두 스냅샷의 헤더 40필드를 1:1 비교해 값이 달라진 필드 수를 센다 (자식 3종 컬렉션 제외).
+     *
+     * <p>BigDecimal (creditLimit/outstandingBalance/조정률) 은 {@link #bigDecimalEquals} 로 scale 차이를
+     * 무시하고, 그 외는 {@link Objects#equals} 로 비교한다.
+     */
+    private int countHeaderChanges(PartnerSnapshot a, PartnerSnapshot b) {
+        int changed = 0;
+        if (!Objects.equals(a.partnerCode(), b.partnerCode())) {
+            changed++;
+        }
+        if (!Objects.equals(a.bizNo(), b.bizNo())) {
+            changed++;
+        }
+        if (!Objects.equals(a.name(), b.name())) {
+            changed++;
+        }
+        if (!Objects.equals(a.address(), b.address())) {
+            changed++;
+        }
+        if (!Objects.equals(a.phone(), b.phone())) {
+            changed++;
+        }
+        if (!bigDecimalEquals(a.creditLimit(), b.creditLimit())) {
+            changed++;
+        }
+        if (!bigDecimalEquals(a.outstandingBalance(), b.outstandingBalance())) {
+            changed++;
+        }
+        if (!Objects.equals(a.status(), b.status())) {
+            changed++;
+        }
+        if (!Objects.equals(a.subBizNo(), b.subBizNo())) {
+            changed++;
+        }
+        if (!Objects.equals(a.representative(), b.representative())) {
+            changed++;
+        }
+        if (!Objects.equals(a.businessType(), b.businessType())) {
+            changed++;
+        }
+        if (!Objects.equals(a.industry(), b.industry())) {
+            changed++;
+        }
+        if (!Objects.equals(a.fax(), b.fax())) {
+            changed++;
+        }
+        if (!Objects.equals(a.email(), b.email())) {
+            changed++;
+        }
+        if (!Objects.equals(a.email2(), b.email2())) {
+            changed++;
+        }
+        if (!Objects.equals(a.mobile(), b.mobile())) {
+            changed++;
+        }
+        if (!Objects.equals(a.zipCode1(), b.zipCode1())) {
+            changed++;
+        }
+        if (!Objects.equals(a.address1(), b.address1())) {
+            changed++;
+        }
+        if (!Objects.equals(a.zipCode2(), b.zipCode2())) {
+            changed++;
+        }
+        if (!Objects.equals(a.address2(), b.address2())) {
+            changed++;
+        }
+        if (!Objects.equals(a.searchKeyword(), b.searchKeyword())) {
+            changed++;
+        }
+        if (!Objects.equals(a.partnerGroup1(), b.partnerGroup1())) {
+            changed++;
+        }
+        if (!Objects.equals(a.partnerGroup2(), b.partnerGroup2())) {
+            changed++;
+        }
+        if (!Objects.equals(a.website(), b.website())) {
+            changed++;
+        }
+        if (!Objects.equals(a.currency(), b.currency())) {
+            changed++;
+        }
+        if (!Objects.equals(a.shipmentTarget(), b.shipmentTarget())) {
+            changed++;
+        }
+        if (!Objects.equals(a.salesType(), b.salesType())) {
+            changed++;
+        }
+        if (!Objects.equals(a.purchaseType(), b.purchaseType())) {
+            changed++;
+        }
+        if (!Objects.equals(a.receivableNoMgmt(), b.receivableNoMgmt())) {
+            changed++;
+        }
+        if (!Objects.equals(a.payableNoMgmt(), b.payableNoMgmt())) {
+            changed++;
+        }
+        if (!bigDecimalEquals(a.outboundAdjustmentRate(), b.outboundAdjustmentRate())) {
+            changed++;
+        }
+        if (!bigDecimalEquals(a.inboundAdjustmentRate(), b.inboundAdjustmentRate())) {
+            changed++;
+        }
+        if (!Objects.equals(a.salesPriceGroup(), b.salesPriceGroup())) {
+            changed++;
+        }
+        if (!Objects.equals(a.purchasePriceGroup(), b.purchasePriceGroup())) {
+            changed++;
+        }
+        if (!Objects.equals(a.creditPeriodDays(), b.creditPeriodDays())) {
+            changed++;
+        }
+        if (!Objects.equals(a.paymentDueDays(), b.paymentDueDays())) {
+            changed++;
+        }
+        if (!Objects.equals(a.registrationDate(), b.registrationDate())) {
+            changed++;
+        }
+        if (!Objects.equals(a.transferInfo(), b.transferInfo())) {
+            changed++;
+        }
+        if (!Objects.equals(a.note(), b.note())) {
+            changed++;
+        }
+        if (!Objects.equals(a.managerName(), b.managerName())) {
+            changed++;
+        }
+        return changed;
+    }
+
+    /**
+     * 단가/할인 정책 2건의 필드값(할인율·결제일수·메모)이 하나라도 다른지 판정한다.
+     */
+    private boolean priceDiscountDiffers(PartnerSnapshot.PriceDiscount a,
+                                         PartnerSnapshot.PriceDiscount b) {
+        return !bigDecimalEquals(a.basicDiscountRate(), b.basicDiscountRate())
+                || !Objects.equals(a.paymentTermDays(), b.paymentTermDays())
+                || !Objects.equals(a.discountMemo(), b.discountMemo());
+    }
+
+    /**
+     * 배송지 리스트 2개를 alias 식별자 기준으로 비교해 {added, removed, modified} 를 반환한다.
+     *
+     * <p>alias 가 null/blank 인 배송지는 매칭 키가 없어 cur=added, prev=removed 로만 집계된다.
+     */
+    private int[] diffShippingAddresses(List<PartnerSnapshot.ShippingAddress> prev,
+                                        List<PartnerSnapshot.ShippingAddress> cur) {
+        int added = 0;
+        int removed = 0;
+        int modified = 0;
+
+        Map<String, PartnerSnapshot.ShippingAddress> prevByKey = new LinkedHashMap<>();
+        for (PartnerSnapshot.ShippingAddress a : prev) {
+            if (isBlank(a.alias())) {
+                removed++; // 키 없음 → 직전엔 있었으나 매칭 불가 = 제거로 간주
+            } else {
+                prevByKey.put(a.alias(), a);
+            }
+        }
+        Map<String, PartnerSnapshot.ShippingAddress> curByKey = new LinkedHashMap<>();
+        for (PartnerSnapshot.ShippingAddress a : cur) {
+            if (isBlank(a.alias())) {
+                added++; // 키 없음 → 현재만 존재 매칭 불가 = 추가로 간주
+            } else {
+                curByKey.put(a.alias(), a);
+            }
+        }
+
+        for (Map.Entry<String, PartnerSnapshot.ShippingAddress> e : curByKey.entrySet()) {
+            PartnerSnapshot.ShippingAddress prevAddr = prevByKey.get(e.getKey());
+            if (prevAddr == null) {
+                added++;
+            } else if (shippingAddressDiffers(prevAddr, e.getValue())) {
+                modified++;
+            }
+        }
+        for (String prevKey : prevByKey.keySet()) {
+            if (!curByKey.containsKey(prevKey)) {
+                removed++;
+            }
+        }
+        return new int[] {added, removed, modified};
+    }
+
+    /**
+     * 담당자 리스트 2개를 contactName 식별자 기준으로 비교해 {added, removed, modified} 를 반환한다.
+     *
+     * <p>contactName 이 null/blank 인 담당자는 매칭 키가 없어 cur=added, prev=removed 로만 집계된다.
+     */
+    private int[] diffContacts(List<PartnerSnapshot.Contact> prev,
+                               List<PartnerSnapshot.Contact> cur) {
+        int added = 0;
+        int removed = 0;
+        int modified = 0;
+
+        Map<String, PartnerSnapshot.Contact> prevByKey = new LinkedHashMap<>();
+        for (PartnerSnapshot.Contact c : prev) {
+            if (isBlank(c.contactName())) {
+                removed++;
+            } else {
+                prevByKey.put(c.contactName(), c);
+            }
+        }
+        Map<String, PartnerSnapshot.Contact> curByKey = new LinkedHashMap<>();
+        for (PartnerSnapshot.Contact c : cur) {
+            if (isBlank(c.contactName())) {
+                added++;
+            } else {
+                curByKey.put(c.contactName(), c);
+            }
+        }
+
+        for (Map.Entry<String, PartnerSnapshot.Contact> e : curByKey.entrySet()) {
+            PartnerSnapshot.Contact prevContact = prevByKey.get(e.getKey());
+            if (prevContact == null) {
+                added++;
+            } else if (contactDiffers(prevContact, e.getValue())) {
+                modified++;
+            }
+        }
+        for (String prevKey : prevByKey.keySet()) {
+            if (!curByKey.containsKey(prevKey)) {
+                removed++;
+            }
+        }
+        return new int[] {added, removed, modified};
+    }
+
+    /**
+     * 동일 alias 배송지 2건의 필드값이 하나라도 다른지 판정한다 (alias 자체는 매칭 키라 비교 제외).
+     */
+    private boolean shippingAddressDiffers(PartnerSnapshot.ShippingAddress a,
+                                           PartnerSnapshot.ShippingAddress b) {
+        return !Objects.equals(a.zipCode(), b.zipCode())
+                || !Objects.equals(a.address(), b.address())
+                || !Objects.equals(a.phone(), b.phone())
+                || !Objects.equals(a.receiverName(), b.receiverName())
+                || !Objects.equals(a.isDefault(), b.isDefault())
+                || !Objects.equals(a.memo(), b.memo());
+    }
+
+    /**
+     * 동일 contactName 담당자 2건의 필드값이 하나라도 다른지 판정한다 (contactName 은 매칭 키라 비교 제외).
+     */
+    private boolean contactDiffers(PartnerSnapshot.Contact a, PartnerSnapshot.Contact b) {
+        return !Objects.equals(a.position(), b.position())
+                || !Objects.equals(a.phone(), b.phone())
+                || !Objects.equals(a.email(), b.email())
+                || !Objects.equals(a.isPrimary(), b.isPrimary())
+                || !Objects.equals(a.memo(), b.memo());
+    }
+
+    /**
+     * BigDecimal 동등 비교 — scale 차이 무시 (compareTo). null 안전.
+     */
+    private boolean bigDecimalEquals(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.compareTo(b) == 0;
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /**
