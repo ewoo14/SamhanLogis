@@ -56,7 +56,8 @@ public class PartnerOrderConfirmController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 중복 confirm")
     })
     @PostMapping("/{draftId}/confirm")
-    @RequirePermission(page = "sales.partner-order.confirm", action = PermissionAction.CREATE)
+    @RequirePermission(page = "sales.partner-order.confirm", action = PermissionAction.CREATE,
+            partnerSelfService = true)
     public ApiResponse<ConfirmResponse> confirm(
             @PathVariable UUID draftId,
             @Valid @RequestBody ConfirmRequest request,

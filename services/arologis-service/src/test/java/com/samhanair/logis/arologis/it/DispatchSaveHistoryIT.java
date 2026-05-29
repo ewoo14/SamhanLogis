@@ -22,7 +22,6 @@ import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.domain.DispatchProgramType;
 import com.samhanair.logis.arologis.repository.DispatchSaveHistoryRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -78,11 +77,9 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @BeforeEach
     void setUpPermissions() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
+                .thenAnswer(invocation -> !"AROLOGIS_DRIVER".equals(invocation.getArgument(0)));
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString()))
-                .thenAnswer(invocation -> !"DRIVER".equals(invocation.getArgument(0)));
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
+                .thenAnswer(invocation -> !"AROLOGIS_DRIVER".equals(invocation.getArgument(0)));
     }
 
     @Test
@@ -92,7 +89,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("PRE_CLASSIFY", "오전 마감 점검", 2))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.savedAt").exists())
@@ -107,7 +104,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].topic").value("오전 마감 점검"))
@@ -115,7 +112,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
 
         mockMvc.perform(get(BASE_URL + "/" + historyId)
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.topic").value("오전 마감 점검"))
                 .andExpect(jsonPath("$.data.responsePayload.rowCount").value(2));
@@ -128,13 +125,13 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody("PRE_CLASSIFY", 1))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk());
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody("PRE_CLASSIFY", 4))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk());
 
         assertThat(repository.countActiveAutoLatest(USER_A, DispatchProgramType.PRE_CLASSIFY)).isEqualTo(1);
@@ -142,7 +139,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL + "/latest")
                         .param("programType", "PRE_CLASSIFY")
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.saveMode").value("AUTO_LATEST"))
                 .andExpect(jsonPath("$.data.topic").value("자동저장"))
@@ -201,7 +198,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL + "/latest")
                         .param("programType", "PRE_CLASSIFY")
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.responsePayload.rowCount").value(latestRowCount));
     }
@@ -212,7 +209,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL + "/latest")
                         .param("programType", "REGIONAL")
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isNotFound());
     }
 
@@ -223,7 +220,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody("UNASSIGNED", 1))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andReturn();
         UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
@@ -231,7 +228,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
 
         mockMvc.perform(get(BASE_URL + "/" + id)
                         .header("X-User-Id", USER_B)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -243,7 +240,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("PRE_CLASSIFY", "  ", 1))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("저장주제")));
@@ -256,7 +253,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("UNASSIGNED", "삭제 row", 1))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andReturn();
         UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
@@ -269,7 +266,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
 
         mockMvc.perform(get(BASE_URL + "/" + id)
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -289,7 +286,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body)
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("DISPATCH_HISTORY_PAYLOAD_TOO_LARGE"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("너무 큽니다")));
@@ -298,15 +295,11 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 미달 role 은 403")
     void insufficientRoleReturns403() throws Exception {
-        when(dynamicPermissionClient.check(
-                        any(UUID.class), eq("arologis.dispatch.ops"), eq(PermissionAction.CREATE)))
-                .thenReturn(false);
-
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(autoBody("PRE_CLASSIFY", 1))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DRIVER"))
+                        .header("X-User-Role", "AROLOGIS_DRIVER"))
                 .andExpect(status().isForbidden());
     }
 
@@ -317,7 +310,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("UNASSIGNED", "동일일 점검", 3))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk());
 
         String today = java.time.LocalDate.now().toString();
@@ -327,7 +320,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .param("from", today)
                         .param("to", today)
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1));
     }
@@ -339,14 +332,14 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("RECONCILE", "전체 기간 점검", 5))
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "RECONCILE")
                         .param("mode", "MANUAL_NAMED")
                         .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1));
     }
@@ -375,7 +368,7 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(autoBody("PRE_CLASSIFY", rowCount))
                             .header("X-User-Id", USER_A)
-                            .header("X-User-Role", "MANAGER"))
+                            .header("X-User-Role", "AROLOGIS_MANAGER"))
                     .andReturn()
                     .getResponse()
                     .getStatus();

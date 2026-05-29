@@ -101,7 +101,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 DispatchSaveHistoryController.class,
                 ArologisDriverAppController.class
         },
-        properties = "spring.application.name=arologis-service")
+        properties = {
+                "spring.application.name=arologis-service",
+                "samhan.security.permission.enforcement-mode=role"
+        })
 @Import({
         PermissionSecurityAutoConfiguration.class,
         ArologisPermissionControllerIT.TestSecurityConfig.class,
@@ -149,8 +152,6 @@ class ArologisPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
 
         Driver driver = Driver.of("DRV-001", "010-0000-0000", "1톤", DriverSource.INTERNAL, false, ID);
         ParsedDispatch parsed = new ParsedDispatch(
@@ -217,7 +218,11 @@ class ArologisPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(false);
+        if (endpoint.action() == PermissionAction.VIEW) {
+            when(dynamicPermissionClient.canView(eq(endpoint.role()), eq(endpoint.page()))).thenReturn(false);
+        } else {
+            when(dynamicPermissionClient.canEdit(eq(endpoint.role()), eq(endpoint.page()))).thenReturn(false);
+        }
         double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
@@ -228,120 +233,120 @@ class ArologisPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                endpoint("parse kakao", "arologis.dispatch.admin", PermissionAction.CREATE, "MANAGER",
+                endpoint("parse kakao", "arologis.dispatch.admin", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/parse-kakao")
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"kakaoText\":\"text\"}")),
-                endpoint("dispatch create", "arologis.dispatch.admin", PermissionAction.CREATE, "MANAGER",
+                endpoint("dispatch create", "arologis.dispatch.admin", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches")
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"kakaoText\":\"text\"}")),
-                endpoint("manual create", "arologis.dispatch.admin", PermissionAction.CREATE, "MANAGER",
+                endpoint("manual create", "arologis.dispatch.admin", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/manual")
                                 .contentType(MediaType.APPLICATION_JSON).content(manualBody())),
-                endpoint("manual preview", "arologis.dispatch.admin", PermissionAction.CREATE, "MANAGER",
+                endpoint("manual preview", "arologis.dispatch.admin", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/manual/preview")
                                 .contentType(MediaType.APPLICATION_JSON).content(manualBody())),
-                endpoint("dispatch list", "arologis.dispatch.admin", PermissionAction.VIEW, "MANAGER",
+                endpoint("dispatch list", "arologis.dispatch.admin", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches")),
-                endpoint("dispatch detail", "arologis.dispatch.admin", PermissionAction.VIEW, "MANAGER",
+                endpoint("dispatch detail", "arologis.dispatch.admin", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/{id}", ID)),
-                endpoint("dispatch auto match", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("dispatch auto match", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/{id}/auto-match", ID)),
-                endpoint("vehicle match external", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("vehicle match external", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/{id}/vehicles/1/match-external", ID)),
-                endpoint("assign driver", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("assign driver", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/{id}/vehicles/1/assign-driver", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"driverCode\":\"DRV-001\"}")),
-                endpoint("update stop status", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("update stop status", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> put("/admin/arologis/dispatches/{id}/vehicles/1/stops/1/status", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ARRIVED\"}")),
-                endpoint("driver list", "arologis.dispatch.admin", PermissionAction.VIEW, "MANAGER",
+                endpoint("driver list", "arologis.dispatch.admin", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/drivers")),
-                endpoint("soft delete", "arologis.dispatch.admin", PermissionAction.DELETE, "MANAGER",
+                endpoint("soft delete", "arologis.dispatch.admin", PermissionAction.DELETE, "AROLOGIS_MANAGER",
                         () -> put("/admin/arologis/dispatches/{id}/delete", ID)),
-                endpoint("pre classify", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("pre classify", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/pre-classify")
                                 .param("from", "2026-05-26").param("to", "2026-05-27")),
-                endpoint("unassigned", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("unassigned", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/unassigned").param("date", "2026-05-26")),
-                endpoint("regional", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("regional", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/regional").param("date", "2026-05-26")),
-                endpoint("audit logs", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("audit logs", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/{id}/audit-logs", ID)),
-                endpoint("dispatch realtime", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("dispatch realtime", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/{id}/realtime", ID)),
-                endpoint("edit request create", "arologis.edit-requests", PermissionAction.CREATE, "DISPATCH",
+                endpoint("edit request create", "arologis.edit-requests", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/{id}/edit-requests", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"requestType\":\"EDIT\",\"reason\":\"reason\"}")),
-                endpoint("edit pending", "arologis.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
+                endpoint("edit pending", "arologis.edit-requests.decide", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/edit-requests/pending")),
-                endpoint("edit approve", "arologis.edit-requests.decide", PermissionAction.UPDATE, "MANAGER",
+                endpoint("edit approve", "arologis.edit-requests.decide", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/edit-requests/{requestId}/approve", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"ok\"}")),
-                endpoint("edit reject", "arologis.edit-requests.decide", PermissionAction.UPDATE, "MANAGER",
+                endpoint("edit reject", "arologis.edit-requests.decide", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/edit-requests/{requestId}/reject", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"decisionReason\":\"no\"}")),
-                endpoint("admin v1 list", "arologis.dispatch.admin", PermissionAction.VIEW, "MANAGER",
+                endpoint("admin v1 list", "arologis.dispatch.admin", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/api/v1/arologis/admin/dispatches")),
-                endpoint("admin v1 auto match", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("admin v1 auto match", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/api/v1/arologis/admin/dispatches/auto-match")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"dispatchId\":\"" + ID + "\"}")),
-                endpoint("admin v1 manual assign", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("admin v1 manual assign", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/api/v1/arologis/admin/dispatches/{id}/manual-assign", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"vehicleSeq\":1,\"driverCode\":\"DRV-001\"}")),
-                endpoint("admin v1 change driver", "arologis.dispatch.admin", PermissionAction.UPDATE, "MANAGER",
+                endpoint("admin v1 change driver", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> patch("/api/v1/arologis/admin/dispatches/{id}/driver", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"vehicleSeq\":1,\"newDriverCode\":\"DRV-002\"}")),
-                endpoint("admin v1 available drivers", "arologis.dispatch.admin", PermissionAction.VIEW, "MANAGER",
+                endpoint("admin v1 available drivers", "arologis.dispatch.admin", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/api/v1/arologis/admin/drivers/available")),
-                endpoint("region list", "arologis.region", PermissionAction.VIEW, "DISPATCH",
+                endpoint("region list", "arologis.region", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/regions")),
-                endpoint("region create", "arologis.region.manage", PermissionAction.CREATE, "MANAGER",
+                endpoint("region create", "arologis.region.manage", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/regions")
                                 .contentType(MediaType.APPLICATION_JSON).content(regionBody())),
-                endpoint("region import", "arologis.region.manage", PermissionAction.CREATE, "MANAGER",
+                endpoint("region import", "arologis.region.manage", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> multipart("/admin/arologis/regions/import").file(csv("file"))),
-                endpoint("region update", "arologis.region.manage", PermissionAction.UPDATE, "MANAGER",
+                endpoint("region update", "arologis.region.manage", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> put("/admin/arologis/regions/{id}", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content(regionBody())),
-                endpoint("region delete", "arologis.region.manage", PermissionAction.DELETE, "MANAGER",
+                endpoint("region delete", "arologis.region.manage", PermissionAction.DELETE, "AROLOGIS_MANAGER",
                         () -> delete("/admin/arologis/regions/{id}", ID)),
-                endpoint("reconcile", "arologis.dispatch.ops", PermissionAction.CREATE, "DISPATCH",
+                endpoint("reconcile", "arologis.dispatch.ops", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> multipart("/admin/arologis/dispatch/reconcile")
                                 .file(csv("files"))
                                 .param("from", "2026-05-26")
                                 .param("to", "2026-05-27")),
-                endpoint("history save", "arologis.dispatch.ops", PermissionAction.CREATE, "DISPATCH",
+                endpoint("history save", "arologis.dispatch.ops", PermissionAction.CREATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/history")
                                 .contentType(MediaType.APPLICATION_JSON).content(historyBody())),
-                endpoint("history list", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("history list", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/history")),
-                endpoint("history detail", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("history detail", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/history/{id}", ID)),
-                endpoint("history latest", "arologis.dispatch.ops", PermissionAction.VIEW, "DISPATCH",
+                endpoint("history latest", "arologis.dispatch.ops", PermissionAction.VIEW, "AROLOGIS_MANAGER",
                         () -> get("/admin/arologis/dispatches/history/latest").param("programType", "PRE_CLASSIFY")),
-                endpoint("driver today", "arologis.driver", PermissionAction.VIEW, "DRIVER",
+                endpoint("driver today", "arologis.driver", PermissionAction.VIEW, "AROLOGIS_DRIVER",
                         () -> get("/driver-app/arologis/dispatches/today")),
-                endpoint("driver location", "arologis.driver", PermissionAction.CREATE, "DRIVER",
+                endpoint("driver location", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> post("/driver-app/arologis/locations")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"latitude\":\"37.1\",\"longitude\":\"127.1\"}")),
-                endpoint("driver sign", "arologis.driver", PermissionAction.CREATE, "DRIVER",
+                endpoint("driver sign", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> post("/driver-app/arologis/dispatches/{id}/vehicles/1/stops/1/sign", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"imageRef\":\"s3://x\",\"driverCode\":\"DRV-001\"}")),
-                endpoint("driver sign copy today", "arologis.driver", PermissionAction.CREATE, "DRIVER",
+                endpoint("driver sign copy today", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> post("/driver-app/arologis/dispatches/today/DAY/vehicles/1/stops/1/sign-and-send-copy")
                                 .contentType(MediaType.APPLICATION_JSON).content(signBody())),
-                endpoint("driver photo today", "arologis.driver", PermissionAction.CREATE, "DRIVER",
+                endpoint("driver photo today", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> multipart("/driver-app/arologis/dispatches/today/DAY/vehicles/1/stops/1/photos/DELIVERY")
                                 .file(image("file"))),
-                endpoint("driver slip detail", "arologis.driver", PermissionAction.VIEW, "DRIVER",
+                endpoint("driver slip detail", "arologis.driver", PermissionAction.VIEW, "AROLOGIS_DRIVER",
                         () -> get("/driver-app/arologis/dispatches/today/DAY/vehicles/1/stops/1/slip-detail")),
-                endpoint("driver legacy sign copy", "arologis.driver", PermissionAction.CREATE, "DRIVER",
+                endpoint("driver legacy sign copy", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> post("/driver-app/arologis/dispatches/{id}/vehicles/1/stops/1/sign-and-send-copy", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content(signBody()))
         );

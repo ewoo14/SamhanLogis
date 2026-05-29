@@ -54,6 +54,7 @@ public class PartnerOrderEditRequestController {
 
     private static final String CALLER_ID_HEADER = "X-User-Id";
     private static final String CALLER_NAME_HEADER = "X-User-Name";
+    private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
     private final PartnerOrderEditRequestService editRequestService;
 
@@ -70,16 +71,18 @@ public class PartnerOrderEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "완전 잠금 단계")
     })
     @PostMapping("/{partnerOrderId}/edit-request")
-    @RequirePermission(page = "sales.partner-order.edit-requests", action = PermissionAction.CREATE)
+    @RequirePermission(page = "sales.partner-order.edit-requests", action = PermissionAction.CREATE,
+            partnerSelfService = true)
     public ResponseEntity<ApiResponse<PartnerOrderEditRequestResponse>> createRequest(
             @PathVariable UUID partnerOrderId,
             @Valid @RequestBody CreateEditRequestRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
+            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
         UUID requesterId = parseActorId(callerId);
         String requesterName = resolveName(callerId, callerName);
         PartnerOrderEditRequest saved = editRequestService.request(partnerOrderId, request.type(),
-                request.reason(), requesterId, requesterName);
+                request.reason(), requesterId, requesterName, partnerCode);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(PartnerOrderEditRequestResponse.from(saved)));
     }
@@ -155,11 +158,13 @@ public class PartnerOrderEditRequestController {
     @Operation(summary = "주문별 요청 이력",
             description = "PR-H4b — 주문 화면의 '수정 요청 이력' 섹션. status filter 선택")
     @GetMapping("/{partnerOrderId}/edit-requests")
-    @RequirePermission(page = "sales.partner-order.edit-requests", action = PermissionAction.VIEW)
+    @RequirePermission(page = "sales.partner-order.edit-requests", action = PermissionAction.VIEW,
+            partnerSelfService = true)
     public ApiResponse<List<PartnerOrderEditRequestResponse>> listByOrder(
             @PathVariable UUID partnerOrderId,
-            @RequestParam(required = false) EditRequestStatus status) {
-        List<PartnerOrderEditRequest> rows = editRequestService.listByOrder(partnerOrderId, status);
+            @RequestParam(required = false) EditRequestStatus status,
+            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
+        List<PartnerOrderEditRequest> rows = editRequestService.listByOrder(partnerOrderId, status, partnerCode);
         return ApiResponse.ok(rows.stream().map(PartnerOrderEditRequestResponse::from).toList());
     }
 

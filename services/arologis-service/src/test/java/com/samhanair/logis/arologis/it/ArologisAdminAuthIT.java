@@ -21,9 +21,7 @@ import com.samhanair.logis.arologis.dto.AdminLoginRequest;
 import com.samhanair.logis.arologis.dto.AuthTokenResponse;
 import com.samhanair.logis.arologis.dto.MeResponse;
 import com.samhanair.logis.arologis.repository.AdminUserRepository;
-import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,10 +68,6 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(
-                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
-                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
-                .thenReturn(true);
 
         userRepo.findByLoginIdAndIsDeletedFalse("itadmin")
                 .orElseGet(() -> userRepo.save(AdminUser.create(
@@ -108,7 +102,7 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
         mvc.perform(get("/admin/arologis/dispatches?date=2026-05-08")
                         .header("Authorization", "Bearer " + tokens.accessToken())
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MASTER"))
                 .andExpect(status().isOk());
     }
 

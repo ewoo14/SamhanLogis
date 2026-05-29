@@ -42,6 +42,11 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 samhan:
+  security:
+    permission:
+      # 아로로지스는 auth-service accounts 를 사용하지 않는 독립 auth 이므로
+      # Phase 1 account-based 전환에서 제외하고 기존 role_page_permissions 기반 enforcement 를 유지한다.
+      enforcement-mode: role
   discovery:
     provider: ${SAMHAN_DISCOVERY_PROVIDER:eureka}
   auth-service:

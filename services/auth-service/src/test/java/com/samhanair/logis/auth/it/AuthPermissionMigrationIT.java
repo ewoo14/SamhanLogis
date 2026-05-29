@@ -53,14 +53,13 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 )
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "spring.profiles.active=local",
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
         "app.security.jwt.secret=test-secret-key-32-chars-min-aaaaaa",
         "app.security.internal.token=test-internal-token"
 })
-class AuthPermissionMigrationIT {
+class AuthPermissionMigrationIT extends AbstractPostgresIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";

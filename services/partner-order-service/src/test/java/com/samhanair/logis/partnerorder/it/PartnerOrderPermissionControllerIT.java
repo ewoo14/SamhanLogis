@@ -31,6 +31,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderHistoryService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderPrintService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderQueryService;
+import com.samhanair.logis.partnerorder.service.TutorialStateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
 import com.samhanair.logis.partnerorder.vendor.ocr.OcrEngine;
 import com.samhanair.logis.partnerorder.vendor.service.VendorOrderService;
@@ -137,6 +138,7 @@ class PartnerOrderPermissionControllerIT {
     @MockBean private PartnerOrderHistoryService historyService;
     @MockBean private PartnerOrderQueryService queryService;
     @MockBean private PartnerOrderPrintService printService;
+    @MockBean private TutorialStateService tutorialStateService;
     @MockBean private TutorialStateRepository tutorialStateRepository;
     @MockBean private PartnerAuthClient partnerAuthClient;
     @MockBean private PartnerOrderAuditLogService auditLogService;
@@ -179,12 +181,15 @@ class PartnerOrderPermissionControllerIT {
 
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
+        lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString(), any()))
+                .thenReturn(editRequest);
         lenient().when(editRequestService.approve(any(), any(), anyString(), any()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.reject(any(), any(), anyString(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.listPendingForRole(any())).thenReturn(List.of(editRequest));
         lenient().when(editRequestService.listByOrder(any(), any())).thenReturn(List.of(editRequest));
+        lenient().when(editRequestService.listByOrder(any(), any(), any())).thenReturn(List.of(editRequest));
         lenient().when(vendorOrderService.upload(any(), any(), any(), any())).thenReturn(upload);
         lenient().when(vendorOrderService.confirm(any(), anyString())).thenReturn(vendorConfirm);
         lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any())).thenReturn(confirm);
@@ -195,9 +200,14 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(fromEstimateService.createFromEstimate(any(), any(), anyString())).thenReturn(detail);
         lenient().when(historyService.findHistory(anyString(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
+        lenient().when(historyService.findHistory(anyString(), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
         lenient().when(queryService.list(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+        lenient().when(queryService.list(any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
         lenient().when(queryService.findDetailById(anyString())).thenReturn(detail);
+        lenient().when(queryService.findDetailById(anyString(), any())).thenReturn(detail);
         lenient().when(printService.renderPrintHtml(anyString(), any())).thenReturn("<html></html>");
         lenient().when(tutorialStateRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         lenient().when(tutorialStateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -223,6 +233,17 @@ class PartnerOrderPermissionControllerIT {
                 .andExpect(status().isForbidden());
 
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+    }
+
+    @ParameterizedTest(name = "PARTNER self-service {0}")
+    @MethodSource("partnerSelfServiceEndpoints")
+    void partnerSelfServiceEndpoint_withPartnerRole_bypassesDynamicPermissionAndReturnsSuccess(
+            EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+
+        mockMvc.perform(withActor(endpoint.request().get(), "PARTNER"))
+                .andExpect(status().is(endpoint.successStatus()));
     }
 
     @ParameterizedTest(name = "partner-order edit decision {0} role={1} status={2}")
@@ -309,6 +330,44 @@ class PartnerOrderPermissionControllerIT {
                 new EndpointCase("print", "sales.partner-order.print", PermissionAction.PRINT, "SALES", 200,
                         () -> get("/api/v1/partner-orders/PO-1/print")),
                 new EndpointCase("tutorial", "sales.partner-order.tutorial", PermissionAction.UPDATE, "SALES", 200,
+                        () -> patch("/api/v1/auth/partner-tutorial")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"completed\":true}"))
+        );
+    }
+
+    static Stream<EndpointCase> partnerSelfServiceEndpoints() {
+        return Stream.of(
+                new EndpointCase("edit request create", "sales.partner-order.edit-requests", PermissionAction.CREATE, "PARTNER", 201,
+                        () -> post("/api/v1/partner-orders/{id}/edit-request", ORDER_ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
+                new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/{id}/edit-requests", ORDER_ID)),
+                new EndpointCase("order confirm", "sales.partner-order.confirm", PermissionAction.CREATE, "PARTNER", 200,
+                        () -> post("/api/v1/partner-orders/{id}/confirm", ORDER_ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(confirmBody())),
+                new EndpointCase("draft create", "sales.partner-order.draft", PermissionAction.CREATE, "PARTNER", 201,
+                        () -> post("/api/v1/partner-orders/drafts")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"label\":\"draft\",\"payloadJson\":\"{}\"}")),
+                new EndpointCase("draft list", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/drafts")),
+                new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/drafts/{id}", ORDER_ID)),
+                new EndpointCase("history", "sales.partner-order.history", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/history")
+                                .param("bizCode", "B001")
+                                .param("from", "2026-05-26T00:00:00")
+                                .param("to", "2026-05-27T00:00:00")),
+                new EndpointCase("order list", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders")),
+                new EndpointCase("order detail", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/PO-1")),
+                new EndpointCase("print", "sales.partner-order.print", PermissionAction.PRINT, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/PO-1/print")),
+                new EndpointCase("tutorial", "sales.partner-order.tutorial", PermissionAction.UPDATE, "PARTNER", 200,
                         () -> patch("/api/v1/auth/partner-tutorial")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"completed\":true}"))

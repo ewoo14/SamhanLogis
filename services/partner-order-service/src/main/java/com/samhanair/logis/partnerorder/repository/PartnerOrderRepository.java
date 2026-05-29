@@ -21,6 +21,13 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
     Page<PartnerOrder> findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
             String bizCode, LocalDateTime from, LocalDateTime to, Pageable pageable);
 
+    /** PARTNER self-service history 조회 — 본인 거래처 코드와 사업자번호를 함께 강제한다. */
+    Page<PartnerOrder> findAllByPartnerCodeAndBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(
+            String partnerCode, String bizCode, LocalDateTime from, LocalDateTime to, Pageable pageable);
+
+    /** PARTNER 가 다른 거래처 사업자번호로 history 조회를 시도했는지 식별한다. */
+    boolean existsByBizCodeAndPartnerCodeNot(String bizCode, String partnerCode);
+
     /** Idempotency-Key 로 기존 주문 조회 (재호출 시 중복 차단). */
     Optional<PartnerOrder> findByIdempotencyKey(String idempotencyKey);
 

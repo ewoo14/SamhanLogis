@@ -290,6 +290,8 @@ export const PAGE_GROUPS: PageGroup[] = [
       'inventory.edit-requests',
       'inventory.edit-requests.decide',
       'ecount.import.inventory',
+      'ecount.mig2.warehouse',
+      'ecount.mig5.stock-transfer',
     ],
   },
   {
@@ -332,6 +334,7 @@ export const PAGE_GROUPS: PageGroup[] = [
       'products.edit-requests',
       'products.edit-requests.decide',
       'products.ecount-import',
+      'ecount.mig2.product',
     ],
   },
   {
@@ -465,6 +468,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig.ops-dashboard': 'MIG-21 운영 대시보드',
   'accounting.edit-requests': '회계 수정 요청',
   'accounting.edit-requests.decide': '회계 수정 요청 승인',
+  'ecount.mig2.product': 'MIG-2 품목',
   'ecount.reimport': '이카운트 재import',
   // SP-D4 신규 22개
   'estimates.list': '견적 목록',
@@ -495,6 +499,8 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'inventory.edit-requests': '재고 수정 요청',
   'inventory.edit-requests.decide': '재고 요청 승인',
   'ecount.import.inventory': '이카운트 재고',
+  'ecount.mig2.warehouse': 'MIG-2 창고',
+  'ecount.mig5.stock-transfer': 'MIG-5 창고이동',
   'admin.employees': '직원 관리',
   'admin.users': '계정 관리',
   'ecount.mig2.department': '부서 import',

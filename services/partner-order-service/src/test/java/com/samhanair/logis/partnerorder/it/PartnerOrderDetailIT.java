@@ -42,6 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class PartnerOrderDetailIT extends AbstractPostgresIT {
 
     private static final String ACCOUNT_ID = "10000000-0000-0000-0000-000000000301";
+    private static final String PARTNER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000302";
 
     @Autowired
     private MockMvc mockMvc;
@@ -129,6 +130,78 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-3"));
+    }
+
+    @Test
+    @WithMockUser(username = "partner-owner", roles = {"PARTNER"})
+    void detail_partner_role_can_read_own_order_only() throws Exception {
+        saveOrder("2026/05/07-4", "P-DETAIL-OWN", "4040404040", false);
+        saveOrder("2026/05/07-5", "P-DETAIL-OTHER", "5050505050", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-4")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-DETAIL-OWN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-4"));
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-5")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-DETAIL-OWN"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @WithMockUser(username = "partner-owner", roles = {"PARTNER"})
+    void list_partner_role_is_scoped_to_own_partner() throws Exception {
+        saveOrder("2026/05/07-6", "P-LIST-OWN", "6060606060", false);
+        saveOrder("2026/05/07-7", "P-LIST-OTHER", "7070707070", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-LIST-OWN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/07-6"));
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("partnerId", "P-LIST-OTHER")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-LIST-OWN"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @WithMockUser(username = "partner-owner", roles = {"PARTNER"})
+    void history_partner_role_is_scoped_to_own_partner() throws Exception {
+        saveOrder("2026/05/07-8", "P-HISTORY-OWN", "8080808080", false);
+        saveOrder("2026/05/07-9", "P-HISTORY-OTHER", "9090909090", false);
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "8080808080")
+                        .param("from", "2026-01-01T00:00:00")
+                        .param("to", "2027-01-01T00:00:00")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-HISTORY-OWN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNo").value("2026/05/07-8"));
+
+        mockMvc.perform(get("/api/v1/partner-orders/history")
+                        .param("bizCode", "9090909090")
+                        .param("from", "2026-01-01T00:00:00")
+                        .param("to", "2027-01-01T00:00:00")
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Partner-Code", "P-HISTORY-OWN"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private void saveOrder(String orderNo, String partnerCode, String bizCode, boolean deleted) {

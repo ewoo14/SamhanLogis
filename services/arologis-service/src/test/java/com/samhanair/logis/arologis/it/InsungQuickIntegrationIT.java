@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.arologis.client.InsungQuickClient;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
@@ -145,8 +144,6 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
         // InsungQuickClient sandbox mock
         lenient().when(insungQuickClient.requestOrder(any(), anyList())).thenReturn("SANDBOX-IT-001");
         lenient().when(insungQuickClient.requestMatch(anyString()))

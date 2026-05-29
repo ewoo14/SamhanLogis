@@ -51,7 +51,8 @@ public class PartnerOrderDraftController {
     @Operation(summary = "임시저장 생성", description = "30일 TTL — 거래처별 draftSeq 자동 부여")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.CREATE)
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.CREATE,
+            partnerSelfService = true)
     public ApiResponse<DraftResponse> create(
             @Valid @RequestBody DraftCreateRequest request,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
@@ -64,7 +65,8 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 페이지 조회", description = "본인 거래처 createdAt DESC")
     @GetMapping
-    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW)
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW,
+            partnerSelfService = true)
     public ApiResponse<Page<DraftResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -80,7 +82,8 @@ public class PartnerOrderDraftController {
      */
     @Operation(summary = "임시저장 단건 조회", description = "payload 포함 상세")
     @GetMapping("/{draftId}")
-    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW)
+    @RequirePermission(page = "sales.partner-order.draft", action = PermissionAction.VIEW,
+            partnerSelfService = true)
     public ApiResponse<DraftDetailResponse> getOne(
             @PathVariable UUID draftId,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {

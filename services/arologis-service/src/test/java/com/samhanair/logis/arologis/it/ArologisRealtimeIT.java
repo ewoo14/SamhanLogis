@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
@@ -94,10 +93,6 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(
-                        org.mockito.ArgumentMatchers.any(java.util.UUID.class), anyString(),
-                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
-                .thenReturn(true);
 
         signatureRepository.deleteAll();
         locationRepository.deleteAll();
@@ -114,7 +109,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResp = mockMvc.perform(post("/admin/arologis/dispatches")
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(createBody))
                 .andExpect(status().isOk())
@@ -126,7 +121,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         mockMvc.perform(put("/admin/arologis/dispatches/" + dispatchId
                         + "/vehicles/1/stops/1/status")
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(statusBody))
                 .andExpect(status().isOk());
@@ -134,7 +129,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         // 3) audit timeline 조회 — 1행 이상
         mockMvc.perform(get("/admin/arologis/dispatches/" + dispatchId + "/audit-logs")
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].fieldName").value("stops[1].status"))
                 .andExpect(jsonPath("$.data[0].oldValue").value("PENDING"))
@@ -147,7 +142,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         String createBody = objectMapper.writeValueAsString(Map.of("kakaoText", SAMPLE_KAKAO));
         String createResp = mockMvc.perform(post("/admin/arologis/dispatches")
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(createBody))
                 .andExpect(status().isOk())
@@ -158,7 +153,7 @@ class ArologisRealtimeIT extends AbstractPostgresIT {
         String editReqBody = objectMapper.writeValueAsString(Map.of("requestType", "EDIT"));
         mockMvc.perform(post("/admin/arologis/dispatches/" + dispatchId + "/edit-requests")
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(editReqBody))
                 .andExpect(status().isBadRequest());

@@ -25,9 +25,7 @@ import com.samhanair.logis.arologis.repository.AdminUserRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.service.auth.JwtIssuer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,8 +68,6 @@ class ArologisAuthSecurityIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
 
         adminRepo.findByLoginIdAndIsDeletedFalse("secadmin")
                 .orElseGet(() -> adminRepo.save(AdminUser.create(
@@ -125,8 +121,7 @@ class ArologisAuthSecurityIT extends AbstractPostgresIT {
         Driver saved = driverRepo.findByPhoneNumberAndIsDeletedFalse("01066667777").orElseThrow();
         String driverJwt = issuer.issueAccessForDriver(
                 saved.getId(), saved.getDriverCode(), saved.getPhoneNumber());
-        when(dynamicPermissionClient.check(
-                        any(UUID.class), eq("arologis.dispatch.admin"), eq(PermissionAction.VIEW)))
+        when(dynamicPermissionClient.canView(eq("AROLOGIS_DRIVER"), eq("arologis.dispatch.admin")))
                 .thenReturn(false);
 
         // /admin/arologis/dispatches 는 AROLOGIS_MASTER/MANAGER 만 허용 → AROLOGIS_DRIVER 거부

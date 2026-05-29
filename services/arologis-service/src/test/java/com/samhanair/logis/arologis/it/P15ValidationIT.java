@@ -30,7 +30,6 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.UnassignedService;
-import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -145,8 +144,6 @@ class P15ValidationIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
 
         // FK 역순 cleanup
         signatureRepository.deleteAll();
@@ -257,7 +254,7 @@ class P15ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -276,7 +273,7 @@ class P15ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk());
@@ -308,7 +305,7 @@ class P15ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk());
@@ -337,7 +334,7 @@ class P15ValidationIT extends AbstractPostgresIT {
     void tc7_list_drivers_returns_3_available() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/drivers")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray())
@@ -355,7 +352,7 @@ class P15ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
@@ -372,7 +369,7 @@ class P15ValidationIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + UUID.randomUUID() + "/vehicles/1/assign-driver")
                         .header("X-User-Id", P15_ACCOUNT_ID)
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());

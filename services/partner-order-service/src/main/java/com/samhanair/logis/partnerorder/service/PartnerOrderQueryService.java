@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOrderQueryService {
 
     private final PartnerOrderRepository partnerOrderRepository;
+    private final PartnerSelfScopeGuard partnerSelfScopeGuard;
 
     /**
      * 주문 목록을 필터와 페이지 조건으로 조회한다.
@@ -43,7 +44,27 @@ public class PartnerOrderQueryService {
      * @return 사용자 표시값만 포함한 주문 목록
      */
     public Page<PartnerOrderSummaryResponse> list(PartnerOrderListFilter filter, Pageable pageable) {
-        return partnerOrderRepository.findAll(toSpec(normalize(filter)), pageable)
+        return list(filter, pageable, null);
+    }
+
+    /**
+     * 주문 목록을 조회하되, PARTNER 호출이면 {@code X-Partner-Code} 로 본인 거래처 주문만 강제한다.
+     *
+     * @param filter legacy 목록 필터
+     * @param pageable 페이지 조건
+     * @param callerPartnerCode {@code X-Partner-Code}
+     * @return 사용자 표시값만 포함한 주문 목록
+     */
+    public Page<PartnerOrderSummaryResponse> list(
+            PartnerOrderListFilter filter, Pageable pageable, String callerPartnerCode) {
+        PartnerOrderListFilter normalized = normalize(filter);
+        Specification<PartnerOrder> spec = toSpec(normalized);
+        String partnerScope = partnerSelfScopeGuard.partnerScopeOrNull(callerPartnerCode);
+        if (partnerScope != null) {
+            partnerSelfScopeGuard.restrictRequestedPartnerCode(normalized.partnerId(), callerPartnerCode);
+            spec = spec.and(ownPartnerSpec(partnerScope));
+        }
+        return partnerOrderRepository.findAll(spec, pageable)
                 .map(PartnerOrderSummaryResponse::from);
     }
 
@@ -57,10 +78,24 @@ public class PartnerOrderQueryService {
      * @throws BusinessException 주문이 없거나 soft-delete 된 경우
      */
     public PartnerOrderDetailResponse findDetailById(String id) {
+        return findDetailById(id, null);
+    }
+
+    /**
+     * 주문번호 또는 내부 UUID 문자열로 단건 상세를 조회한다. PARTNER 호출이면 대상 주문의 거래처 코드와
+     * {@code X-Partner-Code} 를 대조한다.
+     *
+     * @param id 주문번호 또는 내부 UUID 문자열
+     * @param callerPartnerCode {@code X-Partner-Code}
+     * @return 주문 상세 DTO
+     */
+    public PartnerOrderDetailResponse findDetailById(String id, String callerPartnerCode) {
         PartnerOrder order = PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
+        partnerSelfScopeGuard.assertOwnPartner(
+                order.getPartnerCode(), callerPartnerCode, "본인 거래처 주문만 조회할 수 있습니다.");
         return PartnerOrderDetailResponse.from(order);
     }
 
@@ -132,6 +167,10 @@ public class PartnerOrderQueryService {
 
     private String like(String value) {
         return "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
+    }
+
+    private Specification<PartnerOrder> ownPartnerSpec(String partnerCode) {
+        return (root, query, cb) -> cb.equal(root.get("partnerCode"), partnerCode);
     }
 
 }

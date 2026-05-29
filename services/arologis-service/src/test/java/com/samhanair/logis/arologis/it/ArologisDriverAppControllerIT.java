@@ -27,7 +27,6 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
@@ -48,7 +47,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  *
  * <ol>
  *   <li>X-User-Id / X-User-Role 헤더 누락 → 403 (Spring Security)</li>
- *   <li>X-User-Role = MANAGER (DRIVER 아님 + DRIVER 권한 적용 안 됨) — endpoint 가 DRIVER/MASTER/MANAGER 허용이라 200 — 본 case 는 본 어플 미등록 driver UUID → 404 (별 case 검증)</li>
+ *   <li>X-User-Role 만 있고 X-User-Id 없음 → 403</li>
  *   <li>GET /driver-app/arologis/dispatches/today 200 (정상 driver, appUserId 매칭)</li>
  *   <li>POST /driver-app/arologis/locations 201/200 (source: APP_GPS_BACKGROUND 송신 → server 가 enum 변환 검증)</li>
  *   <li>POST /driver-app/arologis/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/sign 201/200</li>
@@ -98,10 +97,6 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(
-                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
-                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
-                .thenReturn(true);
 
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
@@ -129,7 +124,7 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
     @Test
     void today_with_role_only_returns_403() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/driver-app/arologis/dispatches/today")
-                        .header("X-User-Role", "DRIVER"))
+                        .header("X-User-Role", "AROLOGIS_DRIVER"))
                 .andExpect(MockMvcResultMatchers.status().isForbidden());
     }
 
@@ -166,7 +161,7 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.get("/driver-app/arologis/dispatches/today")
                         .header("X-User-Id", userId.toString())
-                        .header("X-User-Role", "DRIVER"))
+                        .header("X-User-Role", "AROLOGIS_DRIVER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray())
@@ -203,7 +198,7 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.post("/driver-app/arologis/locations")
                         .header("X-User-Id", userId.toString())
-                        .header("X-User-Role", "DRIVER")
+                        .header("X-User-Role", "AROLOGIS_DRIVER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -242,7 +237,7 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
                         "/driver-app/arologis/dispatches/" + dispatch.getId()
                                 + "/vehicles/1/stops/1/sign")
                         .header("X-User-Id", userId.toString())
-                        .header("X-User-Role", "DRIVER")
+                        .header("X-User-Role", "AROLOGIS_DRIVER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -264,7 +259,7 @@ class ArologisDriverAppControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.post("/driver-app/arologis/locations")
                         .header("X-User-Id", unknownUserId.toString())
-                        .header("X-User-Role", "DRIVER")
+                        .header("X-User-Role", "AROLOGIS_DRIVER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());

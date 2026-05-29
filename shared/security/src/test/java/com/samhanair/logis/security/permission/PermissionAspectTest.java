@@ -51,11 +51,7 @@ class PermissionAspectTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         PermissionGuardMetrics metrics = new PermissionGuardMetrics(meterRegistry);
-        PermissionAspect aspect = new PermissionAspect(clientProvider, metrics, SERVICE_NAME);
-
-        AspectJProxyFactory factory = new AspectJProxyFactory(new TestProtectedTarget());
-        factory.addAspect(aspect);
-        proxy = factory.getProxy();
+        proxy = createProxy(new PermissionAspect(clientProvider, metrics, SERVICE_NAME));
 
         given(clientProvider.getIfAvailable()).willReturn(client);
         RequestContextHolder.resetRequestAttributes();
@@ -117,6 +113,74 @@ class PermissionAspectTest {
         assertThat(deniedCount("accounting.journals", "ACCOUNTANT", "CREATE")).isEqualTo(1.0);
     }
 
+    @Test
+    void roleModeUsesCanEditWithoutAccountId() {
+        TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                SERVICE_NAME,
+                true));
+        attachHeaders(null, "AROLOGIS_MANAGER");
+        given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(true);
+
+        String result = roleProxy.createJournal(null, "AROLOGIS_MANAGER");
+
+        assertThat(result).isEqualTo("ok");
+        verify(client).canEdit("AROLOGIS_MANAGER", "accounting.journals");
+        verify(client, never()).check(null, "accounting.journals", PermissionAction.CREATE);
+    }
+
+    @Test
+    void roleModeUsesCanViewForViewAction() {
+        TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                SERVICE_NAME,
+                true));
+        attachHeaders(null, "AROLOGIS_DRIVER");
+        given(client.canView("AROLOGIS_DRIVER", "arologis.driver")).willReturn(true);
+
+        String result = roleProxy.viewDriverPage(null, "AROLOGIS_DRIVER");
+
+        assertThat(result).isEqualTo("view-ok");
+        verify(client).canView("AROLOGIS_DRIVER", "arologis.driver");
+        verify(client, never()).check(null, "arologis.driver", PermissionAction.VIEW);
+    }
+
+    @Test
+    void roleModeArologisMasterBypassesWithoutClientCall() {
+        TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                SERVICE_NAME,
+                true));
+        attachHeaders(null, "AROLOGIS_MASTER");
+
+        String result = roleProxy.createJournal(null, "AROLOGIS_MASTER");
+
+        assertThat(result).isEqualTo("ok");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void roleModeDeniesWhenCanEditFalse() {
+        TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
+                clientProvider,
+                new PermissionGuardMetrics(meterRegistry),
+                SERVICE_NAME,
+                true));
+        attachHeaders(null, "AROLOGIS_MANAGER");
+        given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(false);
+
+        assertThatThrownBy(() -> roleProxy.createJournal(null, "AROLOGIS_MANAGER"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("role permission missing");
+
+        verify(client).canEdit("AROLOGIS_MANAGER", "accounting.journals");
+        verify(client, never()).check(null, "accounting.journals", PermissionAction.CREATE);
+        assertThat(deniedCount("accounting.journals", "AROLOGIS_MANAGER", "CREATE")).isEqualTo(1.0);
+    }
+
     private double deniedCount(String page, String role, String action) {
         return meterRegistry.counter(
                 PermissionGuardMetrics.COUNTER_NAME,
@@ -133,6 +197,12 @@ class PermissionAspectTest {
             req.addHeader("X-User-Role", role);
         }
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
+    }
+
+    private TestProtectedTarget createProxy(PermissionAspect aspect) {
+        AspectJProxyFactory factory = new AspectJProxyFactory(new TestProtectedTarget());
+        factory.addAspect(aspect);
+        return factory.getProxy();
     }
 
     /**
@@ -156,6 +226,13 @@ class PermissionAspectTest {
                 @RequestHeader(value = "X-User-Id", required = false) String accountId,
                 @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
             return "print-ok";
+        }
+
+        @RequirePermission(page = "arologis.driver", action = PermissionAction.VIEW)
+        public String viewDriverPage(
+                @RequestHeader(value = "X-User-Id", required = false) String accountId,
+                @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            return "view-ok";
         }
     }
 }
