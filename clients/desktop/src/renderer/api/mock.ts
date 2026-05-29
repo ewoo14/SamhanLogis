@@ -83,6 +83,8 @@ function buildMockPartnerFull(body: Record<string, unknown>) {
   const partnerCode = String(body['partnerCode'] ?? 'P-SP01-0001')
   const bizNo = String(body['bizNo'] ?? '123-45-67890')
   const name = String(body['name'] ?? '(주)SP01검증공조')
+  // 거래 상태 — 버전이력 패널의 TERMINATED 복원 가드 검증용 (지정 시 row status 반영).
+  const status = String(body['status'] ?? 'ACTIVE')
   const priceDiscount = body['priceDiscount'] as Record<string, unknown> | undefined
   const shippingAddresses = Array.isArray(body['shippingAddresses'])
     ? body['shippingAddresses'] as Record<string, unknown>[]
@@ -110,7 +112,7 @@ function buildMockPartnerFull(body: Record<string, unknown>) {
       partnerGroup2: null,
       creditLimit: 0,
       outstandingBalance: 0,
-      status: 'ACTIVE',
+      status,
       registrationDate: new Date().toISOString().slice(0, 10),
     },
     priceDiscount: {
@@ -2535,6 +2537,54 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(full)
   }
 
+  // ==========================================================================
+  // Phase 2.3: 거래처 버전이력/복원 — `/api/v1/partners/{partnerCode}/revisions...`
+  //   아래 `/full$` match 및 generic `/admin/partners` match 와 suffix 가 달라 충돌은
+  //   없으나, estimate 패턴(most-specific path 우선) 을 미러하여 restore(POST) →
+  //   revisions(GET) 순으로 `/full` 보다 앞단에 배치한다.
+  // ==========================================================================
+
+  // POST /api/v1/partners/{partnerCode}/revisions/{n}/restore — 특정 시점 복원.
+  // 복원 결과는 4탭 풀(PartnerFullResponse) — ACTIVE 상태로 응답.
+  const partnerRestoreMatch = url.match(/\/api\/v1\/partners\/([^/]+)\/revisions\/(\d+)\/restore$/)
+  if (method === 'POST' && partnerRestoreMatch) {
+    const code = decodeURIComponent(partnerRestoreMatch[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((partner) => partner.partnerCode === code)
+    return envelope(buildMockPartnerFull({
+      partnerCode: row?.partnerCode ?? code,
+      bizNo: (row as Record<string, unknown> | undefined)?.['businessNumber'] ?? '123-45-67890',
+      name: (row as Record<string, unknown> | undefined)?.['partnerName'] ?? '(주)SP01검증공조',
+      status: 'ACTIVE',
+    }))
+  }
+
+  // GET /api/v1/partners/{partnerCode}/revisions — 버전이력 목록 (최신 우선).
+  // 결정적 fixture 2건 (rev2 EDIT 자식+1, rev1 CREATE) — estimate fixture 미러.
+  const partnerRevisionsGetMatch = url.match(/\/api\/v1\/partners\/([^/]+)\/revisions(\?.*)?$/)
+  if (method === 'GET' && partnerRevisionsGetMatch) {
+    const code = decodeURIComponent(partnerRevisionsGetMatch[1] ?? '')
+    return envelope([
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        partnerCode: code,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T14:32:18',
+        changeSummary: { headerChanged: 1, childAdded: 1, childRemoved: 0, childModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        partnerCode: code,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T09:10:00',
+        changeSummary: { headerChanged: 0, childAdded: 0, childRemoved: 0, childModified: 0 },
+      },
+    ])
+  }
+
   // GET/PATCH /api/v1/partners/{partnerCode}/full — PartnerDetailDialog mock.
   const partnerFullMatch = url.match(/\/api\/v1\/partners\/([^/]+)\/full$/)
   if ((method === 'GET' || method === 'PATCH') && partnerFullMatch) {
@@ -2547,6 +2597,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       name: (row as Record<string, unknown> | undefined)?.['name']
         ?? (row as Record<string, unknown> | undefined)?.['partnerName']
         ?? '(주)SP01검증공조',
+      // row 의 거래 상태 반영 — 버전이력 패널 TERMINATED 복원 가드 검증용.
+      status: (row as Record<string, unknown> | undefined)?.['status'] ?? 'ACTIVE',
     }))
   }
 

@@ -71,6 +71,10 @@ dashboard-service `PartnerCodeResolver.resolveAll(List<String>)` 가 본 endpoin
 거래처 첨부와 방문 첨부 조회 endpoint 4건은 SP-D7 전용 `partners.detail.view` VIEW 동적 권한으로 전환했다.
 `partners.detail` 기존 VIEW endpoint widening을 피하기 위해 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert한다.
 
+### Phase 2.3 RESTORE — 거래처 버전이력 + 복원 (2026-05-29)
+
+`partner_revisions` (V12, partner-service 첫 JSONB full-snapshot) 에 거래처 헤더 40+필드 + 4탭 자식(단가/할인·배송지·담당자) 시점 스냅샷을 캡처하고, `GET /api/v1/partners/{partnerCode}/revisions`(VIEW) + `POST .../{n}/restore`(RESTORE, `partners.4tab.edit` page) 로 point-in-time 복원한다. 복원은 4탭 자식을 service-layer 에서 전량교체하며 TERMINATED 거래처는 409 거부(creditLimit/outstandingBalance·partnerCode/bizNo 복원 제외). SSE `partner:edit` 재사용. 상세 = `docs/dev-reports/phase-2-3-partner-restore-version-history.md`, DECISIONS D-RST-06.
+
 ## 환경변수
 
 `infrastructure/env-templates/partner-service.env` 참조.
