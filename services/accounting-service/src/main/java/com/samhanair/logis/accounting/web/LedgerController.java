@@ -63,7 +63,7 @@ public class LedgerController {
                     description = "partnerCode 지정 시 미존재")
     })
     @GetMapping
-    @RequirePermission(page = "accounting.general-ledger", action = "VIEW")
+    @RequirePermission(page = "accounting.general-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<LedgerResponse> getLedger(
             @Parameter(description = "조회 시작 날짜 (yyyy-MM-dd)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

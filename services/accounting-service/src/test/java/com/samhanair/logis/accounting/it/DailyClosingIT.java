@@ -20,6 +20,7 @@ import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.DailyClosing;
 import com.samhanair.logis.accounting.repository.DailyClosingRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
@@ -83,9 +84,9 @@ class DailyClosingIT extends AbstractPostgresIT {
      */
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
-    private static final String ACCOUNTANT_ID = "accountant-user";
-    private static final String SALES_ID = "sales-user";
-    private static final String MASTER_ID = "master-user";
+    private static final String ACCOUNTANT_ID = "00000000-0000-0000-0000-000000000101";
+    private static final String SALES_ID = "00000000-0000-0000-0000-000000000102";
+    private static final String MASTER_ID = "00000000-0000-0000-0000-000000000100";
     private static final String PARTNER_CODE = "PC001";
     private static final UUID PARTNER_UUID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
@@ -176,6 +177,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("일마감 — SALES role 403 Forbidden")
     void testCreateDailyClosingForbiddenForSales() throws Exception {
+        denyRequirePermission("accounting.daily-closing.run", PermissionAction.CREATE);
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "accounting.daily-closing.run"))
                 .thenReturn(false);
 
@@ -348,6 +350,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("ACCOUNTANT 역마감 시도 — 403 Forbidden (MASTER 독점)")
     void testUnlockForbiddenForAccountant() throws Exception {
+        denyRequirePermission("accounting.daily-closing.unlock", PermissionAction.UPDATE);
         Mockito.when(dynamicPermissionClient.canEdit("ACCOUNTANT", "accounting.daily-closing.unlock"))
                 .thenReturn(false);
 
@@ -366,13 +369,14 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANAGER 역마감 시도 — 403 Forbidden (MASTER 독점)")
     void testUnlockForbiddenForManager() throws Exception {
+        denyRequirePermission("accounting.daily-closing.unlock", PermissionAction.UPDATE);
         Mockito.when(dynamicPermissionClient.canEdit("MANAGER", "accounting.daily-closing.unlock"))
                 .thenReturn(false);
 
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
         mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-23/lock")
-                        .header("X-User-Id", "manager-user")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(unlockBody)))

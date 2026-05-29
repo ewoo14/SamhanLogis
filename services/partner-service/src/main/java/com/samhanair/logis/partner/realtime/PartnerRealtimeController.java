@@ -2,6 +2,7 @@ package com.samhanair.logis.partner.realtime;
 
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.UUID;
@@ -45,7 +46,7 @@ public class PartnerRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(path = "/{entityId}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "partners.edit-requests", action = "VIEW")
+    @RequirePermission(page = "partners.edit-requests", action = PermissionAction.VIEW)
     public SseEmitter subscribe(@PathVariable UUID entityId) {
         return broker.subscribe(entityId);
     }

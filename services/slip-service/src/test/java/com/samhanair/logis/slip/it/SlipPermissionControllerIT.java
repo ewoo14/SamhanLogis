@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -13,6 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachment;
@@ -41,10 +43,12 @@ import com.samhanair.logis.slip.realtime.SlipRealtimeController;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.NextDaySlipImageService;
 import com.samhanair.logis.slip.service.SlipCleanupService;
+import com.samhanair.logis.slip.service.SlipCleanupSaveHistoryService;
 import com.samhanair.logis.slip.service.SlipExcelExportService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.web.SlipController;
+import com.samhanair.logis.slip.web.SlipCleanupSaveHistoryController;
 import com.samhanair.logis.slip.web.SlipLookupController;
 import com.samhanair.logis.slip.web.SlipPublishController;
 import com.samhanair.logis.slip.web.SlipSignatureController;
@@ -93,6 +97,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 DeliveryAttachmentController.class,
                 SlipPublishController.class,
                 SlipRealtimeController.class,
+                SlipCleanupSaveHistoryController.class,
                 EstimateController.class
         },
         properties = "spring.application.name=slip-service")
@@ -116,6 +121,7 @@ class SlipPermissionControllerIT {
     @MockBean private SlipService slipService;
     @MockBean private NextDaySlipImageService nextDaySlipImageService;
     @MockBean private SlipCleanupService slipCleanupService;
+    @MockBean private SlipCleanupSaveHistoryService slipCleanupSaveHistoryService;
     @MockBean private SlipExcelExportService slipExcelExportService;
     @MockBean private ProductClient productClient;
     @MockBean private SlipSignatureService signatureService;
@@ -135,6 +141,8 @@ class SlipPermissionControllerIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(productClient.lookupByModel(anyString()))
                 .thenReturn(new ProductSummary(ID, "테스트 제품", "MOD-001", ID, BigDecimal.ONE, "ACTIVE"));
         lenient().when(batchService.list(any(), any())).thenReturn(List.of());
@@ -178,11 +186,7 @@ class SlipPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(false);
         double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
@@ -193,51 +197,61 @@ class SlipPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                endpoint("lookup product", "slip.lookup-product", "VIEW", "SALES",
+                endpoint("lookup product", "slip.lookup-product", PermissionAction.VIEW, "SALES",
                         () -> get("/slips/lookup-product").param("modelName", "MOD-001")),
-                endpoint("delivery batch list", "slip.delivery-batch", "VIEW", "MANAGER",
+                endpoint("delivery batch list", "slip.delivery-batch", PermissionAction.VIEW, "MANAGER",
                         () -> get("/delivery-batches").param("date", "2026-05-27")),
-                endpoint("delivery batch auto group", "slip.delivery-batch", "EDIT", "MANAGER",
+                endpoint("delivery batch auto group", "slip.delivery-batch", PermissionAction.CREATE, "MANAGER",
                         () -> post("/delivery-batches/auto-group").param("date", "2026-05-27")),
-                endpoint("photo audit", "slip.photo-audit", "VIEW", "WAREHOUSE",
+                endpoint("photo audit", "slip.photo-audit", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/slips/admin/photo-audit")),
-                endpoint("signature view", "slip.signature", "VIEW", "MANAGER",
+                endpoint("signature view", "slip.signature", PermissionAction.VIEW, "MANAGER",
                         () -> get("/slips/{id}/signature", ID)),
-                endpoint("signature invalidate", "slip.signature", "EDIT", "MASTER",
+                endpoint("signature invalidate", "slip.signature", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/slips/{id}/signature", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"재서명\"}")),
-                endpoint("edit request pending", "slip.edit-requests.decide", "VIEW", "MANAGER",
+                endpoint("audit revert", "slip.audit-revert", PermissionAction.RESTORE, "MANAGER",
+                        () -> post("/slips/{id}/audit/revert/{revisionNo}", ID, 1)),
+                endpoint("edit request pending", "slip.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
                         () -> get("/slips/edit-requests").param("targetRole", "MANAGER")),
-                endpoint("edit request by slip", "slip.edit-requests", "VIEW", "STAFF",
+                endpoint("edit request by slip", "slip.edit-requests", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/edit-requests", ID)),
-                endpoint("comment list", "slip.comments", "VIEW", "STAFF",
+                endpoint("comment list", "slip.comments", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/comments", ID)),
-                endpoint("audit logs", "slip.audit-overlay", "VIEW", "STAFF",
+                endpoint("audit logs", "slip.audit-overlay", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/audit-logs", ID)),
-                endpoint("attachment list", "slip.attachments.upload", "VIEW", "STAFF",
+                endpoint("attachment list", "slip.attachments.upload", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/attachments", ID)),
-                endpoint("attachment detail", "slip.attachments.upload", "VIEW", "STAFF",
+                endpoint("attachment detail", "slip.attachments.upload", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/attachments/{attachmentId}", ID, ID)),
-                endpoint("delivery attachment list", "slip.delivery-attachments.upload", "VIEW", "STAFF",
+                endpoint("delivery attachment list", "slip.delivery-attachments.upload", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/delivery-attachments", ID)),
-                endpoint("publish by source", "slip.publish.from-estimate", "VIEW", "STAFF",
+                endpoint("publish by source", "slip.publish.from-estimate", PermissionAction.VIEW, "STAFF",
                         () -> get("/api/v1/slips/by-source")
                                 .param("sourceType", "ESTIMATE")
                                 .param("sourceId", "EST-001")),
-                endpoint("slip realtime", "slip.comments", "VIEW", "STAFF",
+                endpoint("slip realtime", "slip.comments", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/realtime", ID)),
-                endpoint("next day print data", "slip.print.next-day", "VIEW", "SALES",
+                endpoint("next day print data", "slip.print.next-day", PermissionAction.PRINT, "SALES",
                         () -> get("/slips/next-day-image-data")),
-                endpoint("cleanup report", "slip.cleanup", "VIEW", "SALES",
+                endpoint("cleanup report", "slip.cleanup", PermissionAction.VIEW, "SALES",
                         () -> get("/slips/cleanup").param("from", "2026-05-01").param("to", "2026-05-27")),
-                endpoint("export xlsx", "slip.print.export", "EDIT", "MANAGER",
+                endpoint("cleanup history save", "slip.cleanup-history", PermissionAction.CREATE, "SALES",
+                        () -> post("/slips/cleanup/history")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"programType\":\"SLIP_CLEANUP\",\"saveMode\":\"MANUAL_NAMED\",\"topic\":\"저장\",\"requestParams\":{},\"responsePayload\":{}}")),
+                endpoint("cleanup history list", "slip.cleanup-history", PermissionAction.VIEW, "SALES",
+                        () -> get("/slips/cleanup/history")),
+                endpoint("cleanup history detail", "slip.cleanup-history", PermissionAction.VIEW, "SALES",
+                        () -> get("/slips/cleanup/history/{id}", ID)),
+                endpoint("export xlsx", "slip.print.export", PermissionAction.DOWNLOAD, "MANAGER",
                         () -> get("/slips/export.xlsx"))
         );
     }
 
     private static EndpointCase endpoint(
-            String name, String page, String action, String role,
+            String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
         return new EndpointCase(name, page, action, role, request);
     }
@@ -249,20 +263,20 @@ class SlipPermissionControllerIT {
                 .header(ROLE_HEADER, role);
     }
 
-    private double deniedCount(String page, String role, String action) {
+    private double deniedCount(String page, String role, PermissionAction action) {
         return meterRegistry.counter(
                 PermissionGuardMetrics.COUNTER_NAME,
                 "service", SERVICE_NAME,
                 "page", page,
                 "role", role,
-                "action", action
+                "action", action.name()
         ).count();
     }
 
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             Supplier<MockHttpServletRequestBuilder> request) {
 

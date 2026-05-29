@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class PartnerAdminPermissionIT extends AbstractPostgresIT {
 
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000131";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000132";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -51,6 +56,10 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -62,6 +71,7 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-user", authorities = {"ROLE_SALES"})
     void C1_sales_canView_true_returns_200() throws Exception {
         mockMvc.perform(get("/admin/partners")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
     }
@@ -74,10 +84,12 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: SALES partners.list canView=false → 거래처 목록 403 FORBIDDEN")
     @WithMockUser(username = "sales-denied", authorities = {"ROLE_SALES"})
     void C2_sales_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("partners.search"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/admin/partners")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -91,6 +103,7 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C3_master_canEdit_true_create_passes() throws Exception {
         mockMvc.perform(post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerCode\":\"P-TEST\","
@@ -107,10 +120,12 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: SALES canEdit=false + canView=true → POST 거래처 등록 403 (view-only override)")
     @WithMockUser(username = "sales-viewonly", authorities = {"ROLE_SALES"})
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("partners.edit"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/admin/partners")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerCode\":\"P-TEST\","
@@ -123,10 +138,12 @@ class PartnerAdminPermissionIT extends AbstractPostgresIT {
     @DisplayName("C5: SALES partners.block canView=false → BLOCK 목록 403")
     @WithMockUser(username = "sales-block-denied", authorities = {"ROLE_SALES"})
     void C5_sales_partners_block_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("partners.block"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/api/v1/partners/admin/blocks")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }

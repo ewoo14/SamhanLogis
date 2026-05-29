@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * <pre>{@code
  * @GetMapping("/warehouses")
  * @PreAuthorize("hasAnyRole('MASTER','MANAGER')")
- * @RequirePermission(page = "inventory.warehouse", action = "VIEW")
+ * @RequirePermission(page = "inventory.warehouse", action = PermissionAction.VIEW)
  * public ApiResponse<List<WarehouseResponse>> listAll(
  *         @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
  *     return ApiResponse.ok(warehouseService.listAll());
@@ -25,8 +25,13 @@ import java.lang.annotation.Target;
  *
  * <p>action 값:
  * <ul>
- *   <li>{@code "VIEW"} — 조회 권한 검증 ({@link DynamicPermissionClient#canView(String, String)})</li>
- *   <li>{@code "EDIT"} — 편집 권한 검증 ({@link DynamicPermissionClient#canEdit(String, String)})</li>
+ *   <li>{@link PermissionAction#VIEW} — 조회 권한 검증</li>
+ *   <li>{@link PermissionAction#CREATE} — 생성 권한 검증</li>
+ *   <li>{@link PermissionAction#UPDATE} — 수정 권한 검증</li>
+ *   <li>{@link PermissionAction#DELETE} — 삭제 권한 검증</li>
+ *   <li>{@link PermissionAction#RESTORE} — 복원 권한 검증</li>
+ *   <li>{@link PermissionAction#DOWNLOAD} — 다운로드 권한 검증</li>
+ *   <li>{@link PermissionAction#PRINT} — 출력 권한 검증</li>
  * </ul>
  *
  * <p>X-User-Role 헤더 추출 순서:
@@ -57,11 +62,23 @@ public @interface RequirePermission {
     /**
      * 검증할 액션 코드.
      *
-     * <p>지원 값: {@code "VIEW"} (조회), {@code "EDIT"} (편집).
-     * 미지원 값 입력 시 {@link PermissionAspect} 가 WARN 로그를 남기고 권한 검증을 건너뛴다
-     * (운영 안전 우선 — SP-D5 cycle 2 fix P2-1 에서 Javadoc 정정).
+     * <p>지원 값은 {@link PermissionAction} 7개 액션이다.
      *
-     * @return 액션 코드 문자열
+     * @return 액션 enum
      */
-    String action() default "VIEW";
+    PermissionAction action() default PermissionAction.VIEW;
+
+    /**
+     * PARTNER 자기범위 self-service endpoint 여부.
+     *
+     * <p>{@code true} 인 경우 {@link PermissionAspect} 의 PARTNER 무조건 deny 를 면제한다.
+     * 자기범위 검증은 service 계층 책임이며, 예를 들어 {@code PARTNER_CODE_HEADER} 로 전달된
+     * 거래처 코드와 대상 리소스의 소유 거래처를 service 에서 반드시 대조해야 한다.
+     *
+     * <p>기본값은 {@code false} 이므로 명시적으로 opt-in 하지 않은 endpoint 의 기존 PARTNER
+     * deny 정책은 변하지 않는다.
+     *
+     * @return PARTNER 자기범위 self-service endpoint 이면 true
+     */
+    boolean partnerSelfService() default false;
 }

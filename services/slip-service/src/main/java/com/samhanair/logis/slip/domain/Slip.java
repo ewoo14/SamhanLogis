@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -1763,5 +1764,138 @@ public class Slip extends BaseEntity {
      */
     public void markDispatchCancelled() {
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
+    }
+
+    /**
+     * 현 전표 상태를 버전이력용 full-snapshot 으로 변환한다 (권한 재편 Phase 2.1 Task 2).
+     *
+     * <p>헤더 필드(거래처/배송지/프로젝트 등)와 미삭제 라인 전체를 한 시점의 불변
+     * {@link SlipSnapshot} 으로 캡처한다. {@code slip_revisions.snapshot} (JSONB) 직렬화 대상이며,
+     * point-in-time 복원 시 이 스냅샷을 역직렬화해 헤더를 덮어쓰고 라인을 전량 교체한다.
+     *
+     * <p>{@code deliveryTag} 는 enum {@code name()} (미지정 시 null) 문자열로 보관한다
+     * ({@link SlipSnapshot} 이 String 보관). 라인은 soft-deleted 행을 제외한다
+     * — {@code @SQLRestriction} 으로 이미 DB 레벨에서 걸러지지만 명시적으로 한 번 더 가드한다.
+     *
+     * @return 현 전표의 헤더+라인 스냅샷 (라인 없으면 빈 리스트)
+     */
+    public SlipSnapshot toSnapshot() {
+        List<SlipSnapshot.Line> snapshotLines = this.lines.stream()
+                .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
+                .map(line -> new SlipSnapshot.Line(
+                        line.getProductId(),
+                        line.getProductName(),
+                        line.getModelName(),
+                        line.getSpecification(),
+                        line.getQuantity(),
+                        line.getUnitPrice(),
+                        line.getLineTotal(),
+                        line.getNote()))
+                .toList();
+        return new SlipSnapshot(
+                this.slipNo,
+                this.slipDate,
+                this.partnerId,
+                this.partnerName,
+                this.partnerCode,
+                this.businessNumber,
+                this.memo,
+                this.deliveryTag == null ? null : this.deliveryTag.name(),
+                this.deliveryAddress,
+                this.supervisionAddress,
+                this.projectName,
+                this.recipientPhone,
+                this.paymentDueDate,
+                this.destinationWarehouseId,
+                this.destinationWarehouseName,
+                // audit overlay 필드 10개 (PR #318 cycle1 P1-1) — restoreFromSnapshot 과 대칭
+                this.shippingAddress,
+                this.inspectionAddress,
+                this.receiverPhone,
+                this.customerTel,
+                this.customerAddress,
+                this.customerRepresentative,
+                this.paymentDueLabel,
+                this.discountInfo,
+                this.collectTerm,
+                this.agreeTerm,
+                snapshotLines);
+    }
+
+    /**
+     * point-in-time 스냅샷으로 헤더+라인을 통째 복원한다 (권한 재편 Phase 2.1 Task 3).
+     *
+     * <p>{@link #toSnapshot()} 이 캡처한 동일 필드 집합을 역적용한다 — 헤더 필드를 스냅샷 값으로
+     * 덮어쓰고 라인을 전량 교체한다. 라인 추가/삭제/수정이 모두 스냅샷 기준으로 정확히 반영되도록
+     * 기존 라인을 {@code markDeleted} 후 컬렉션에서 제거하고, 스냅샷 라인을 {@link SlipLine#create}
+     * 로 재생성해 새로 추가한다 ({@code orphanRemoval=false} 정책 일관).
+     *
+     * <p>{@code deliveryTag} 는 스냅샷의 enum name 문자열을 {@link DeliveryTag#valueOf(String)} 로
+     * 역매핑한다 (null 안전). status / version / revisionCount 등 라이프사이클 메타는 복원 대상이
+     * 아니며 — 복원도 신규 RESTORE revision 으로 별도 기록되므로 본 메서드는 헤더/라인 상태만 되돌린다.
+     *
+     * <p>마감 lock 가드: {@link #requireNotLocked()} 를 가장 먼저 호출한다 — lock_flag=true 슬립은
+     * 복원도 CONFLICT 로 거부한다 (마감 후 매출 정정 차단 정책과 일관). status 기반 마감 정책
+     * (CONFIRMED/PROCESSING 등) 가드는 서비스 레이어 {@code guardLockPolicy} 가 책임진다.
+     *
+     * @param snapshot 복원 대상 시점의 full-snapshot (null 불가)
+     * @throws BusinessException(CONFLICT) lock_flag = true 일 때
+     */
+    public void restoreFromSnapshot(SlipSnapshot snapshot) {
+        requireNotLocked();
+        if (snapshot == null) {
+            throw new IllegalArgumentException("복원 스냅샷은 null 일 수 없습니다");
+        }
+        // 헤더 필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
+        this.slipNo = snapshot.slipNo();
+        this.slipDate = snapshot.slipDate();
+        this.partnerId = snapshot.partnerId();
+        this.partnerName = snapshot.partnerName();
+        this.partnerCode = snapshot.partnerCode();
+        this.businessNumber = snapshot.businessNumber();
+        this.memo = snapshot.memo();
+        this.deliveryTag = snapshot.deliveryTag() == null
+                ? null
+                : DeliveryTag.valueOf(snapshot.deliveryTag());
+        this.deliveryAddress = snapshot.deliveryAddress();
+        this.supervisionAddress = snapshot.supervisionAddress();
+        this.projectName = snapshot.projectName();
+        this.recipientPhone = snapshot.recipientPhone();
+        this.paymentDueDate = snapshot.paymentDueDate();
+        this.destinationWarehouseId = snapshot.destinationWarehouseId();
+        this.destinationWarehouseName = snapshot.destinationWarehouseName();
+        // audit overlay 필드 10개 역적용 (PR #318 cycle1 P1-1) — toSnapshot 과 대칭.
+        // applyOverlayPatch 가 수정하는 필드가 복원 시 정확히 당시 값으로 롤백되도록 직접 set.
+        this.shippingAddress = snapshot.shippingAddress();
+        this.inspectionAddress = snapshot.inspectionAddress();
+        this.receiverPhone = snapshot.receiverPhone();
+        this.customerTel = snapshot.customerTel();
+        this.customerAddress = snapshot.customerAddress();
+        this.customerRepresentative = snapshot.customerRepresentative();
+        this.paymentDueLabel = snapshot.paymentDueLabel();
+        this.discountInfo = snapshot.discountInfo();
+        this.collectTerm = snapshot.collectTerm();
+        this.agreeTerm = snapshot.agreeTerm();
+
+        // 라인 전량 교체 — 기존 라인 markDeleted → clear → 스냅샷 라인 재생성 addAll
+        // (replaceLines/replaceSalesLines 와 동일한 패턴이나, status DRAFT/SAVED 가드는 거치지 않는다
+        //  — 복원은 서비스 레이어 guardLockPolicy 가 status 정책을 책임지므로 라인 상태만 되돌린다.)
+        for (SlipLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted("system");
+        }
+        this.lines.clear();
+        List<SlipSnapshot.Line> snapshotLines = snapshot.lines();
+        if (snapshotLines != null) {
+            for (SlipSnapshot.Line snapLine : snapshotLines) {
+                this.lines.add(SlipLine.create(this,
+                        snapLine.productId(),
+                        snapLine.productName(),
+                        snapLine.modelName(),
+                        snapLine.specification(),
+                        snapLine.quantity(),
+                        snapLine.unitPrice(),
+                        snapLine.note()));
+            }
+        }
     }
 }

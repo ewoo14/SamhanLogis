@@ -79,7 +79,7 @@ public class JournalController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<JournalDetailResponse> create(
             @Valid @RequestBody CreateJournalRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -96,7 +96,7 @@ public class JournalController {
      */
     @Operation(summary = "분개 페이지 조회", description = "from/to 일자 범위 + status 필터 페이지")
     @GetMapping
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<JournalResponse>> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -110,7 +110,7 @@ public class JournalController {
     /** 단건 조회 (라인 포함). */
     @Operation(summary = "분개 단건 조회", description = "라인 포함 상세")
     @GetMapping("/{id}")
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<JournalDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(journalService.getOne(id));
     }
@@ -122,7 +122,7 @@ public class JournalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT 가 아니거나 합계 mismatch")
     })
     @PostMapping("/{id}/post")
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<JournalDetailResponse> post(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -138,7 +138,7 @@ public class JournalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "POSTED 가 아닐 때")
     })
     @PostMapping("/{id}/reverse")
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<JournalDetailResponse> reverse(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -168,7 +168,7 @@ public class JournalController {
                     description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @RequirePermission(page = JOURNAL_PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,

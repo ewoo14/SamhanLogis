@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.repository.SlipCleanupSaveHistoryRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,8 +53,8 @@ import org.springframework.test.web.servlet.MvcResult;
 class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/slips/cleanup/history";
-    private static final String USER_A = "sales-user-a";
-    private static final String USER_B = "sales-user-b";
+    private static final String USER_A = "00000000-0000-0000-0000-000000000071";
+    private static final String USER_B = "00000000-0000-0000-0000-000000000072";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -290,11 +292,14 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
             mockMvc.perform(post(BASE_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(autoBody(1))
-                            .header("X-User-Id", USER_A + "-" + role)
+                            .header("X-User-Id", USER_A)
                             .header("X-User-Role", role))
                     .andExpect(status().isOk());
         }
-        org.mockito.Mockito.when(dynamicPermissionClient.canEdit("WAREHOUSE", "slip.cleanup-history"))
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.cleanup-history"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post(BASE_URL)

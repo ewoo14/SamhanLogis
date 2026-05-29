@@ -14,6 +14,7 @@ import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditReque
 import com.samhanair.logis.partnerorder.editrequest.repository.PartnerOrderEditRequestRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderRealtimeBroker;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.service.PartnerSelfScopeGuard;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import java.util.Optional;
@@ -31,6 +32,7 @@ class PartnerOrderEditRequestServiceTest {
     @Mock private PartnerOrderEditRequestRepository requestRepository;
     @Mock private PartnerOrderRepository partnerOrderRepository;
     @Mock private PartnerOrderRealtimeBroker broker;
+    @Mock private PartnerSelfScopeGuard partnerSelfScopeGuard;
 
     private PartnerOrderEditRequestService service;
     private UUID orderId;
@@ -40,7 +42,7 @@ class PartnerOrderEditRequestServiceTest {
     @BeforeEach
     void setUp() {
         service = new PartnerOrderEditRequestService(requestRepository, partnerOrderRepository,
-                broker, new PartnerOrderEditRequestProperties());
+                broker, new PartnerOrderEditRequestProperties(), partnerSelfScopeGuard);
         orderId = UUID.randomUUID();
         requesterId = UUID.randomUUID();
         approverId = UUID.randomUUID();

@@ -64,7 +64,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(req)))
                 .andExpect(status().isOk())
@@ -83,7 +83,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(request(
                                 sourceSlipId, sourceLineId, SalesTaxType.ZERO_RATED,
@@ -104,7 +104,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(request(
                                 sourceSlipId, sourceLineId, SalesTaxType.EXEMPT,
@@ -125,7 +125,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(request(
                                 sourceSlipId, sourceLineId, SalesTaxType.TAXABLE,
@@ -135,7 +135,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(request(
                                 sourceSlipId, sourceLineId, SalesTaxType.TAXABLE,
@@ -157,7 +157,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(req)))
                 .andExpect(status().isUnprocessableEntity())
@@ -175,7 +175,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
         mvc.perform(post("/admin/sales-slips")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-User-Id", "it-tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
                         .header("X-User-Role", "MASTER")
                         .content(om.writeValueAsString(request(
                                 sourceSlipId, sourceLineId, SalesTaxType.TAXABLE,

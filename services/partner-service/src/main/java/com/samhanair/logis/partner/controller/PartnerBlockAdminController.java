@@ -7,6 +7,7 @@ import com.samhanair.logis.partner.dto.BlockedPartnerResponse;
 import com.samhanair.logis.partner.service.PartnerBlockImportService;
 import com.samhanair.logis.partner.service.PartnerBlockService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -63,7 +64,7 @@ public class PartnerBlockAdminController {
     @Operation(summary = "BLOCK 발송금지 목록 페이지 조회",
             description = "MASTER / MANAGER 권한. blocked_at 역순 정렬.")
     @GetMapping
-    @RequirePermission(page = "partners.block", action = "VIEW")
+    @RequirePermission(page = "partners.block", action = PermissionAction.VIEW)
     public ApiResponse<Page<BlockedPartnerResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -85,7 +86,7 @@ public class PartnerBlockAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 차단됨")
     })
     @PostMapping
-    @RequirePermission(page = "partners.block", action = "EDIT")
+    @RequirePermission(page = "partners.block", action = PermissionAction.CREATE)
     public ApiResponse<BlockedPartnerResponse> create(
             @Valid @RequestBody BlockedPartnerCreateRequest req) {
         return ApiResponse.ok(BlockedPartnerResponse.from(
@@ -106,7 +107,7 @@ public class PartnerBlockAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "CSV 형식 오류")
     })
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "partners.block.bulk", action = "EDIT")
+    @RequirePermission(page = "partners.block.bulk", action = PermissionAction.CREATE)
     public ApiResponse<BlockedPartnerImportResult> importCsv(
             @RequestParam("file") MultipartFile file,
             Principal principal) throws IOException {
@@ -119,7 +120,7 @@ public class PartnerBlockAdminController {
      */
     @Operation(summary = "BLOCK 해제 (soft-delete)", description = "MASTER 권한. id = BLOCK row UUID.")
     @DeleteMapping("/{id}")
-    @RequirePermission(page = "partners.block.bulk", action = "EDIT")
+    @RequirePermission(page = "partners.block.bulk", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> unblock(
             @PathVariable UUID id,
             Principal principal) {

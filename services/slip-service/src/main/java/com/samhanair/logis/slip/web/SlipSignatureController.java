@@ -55,7 +55,7 @@ public class SlipSignatureController {
                     description = "슬립 미발견")
     })
     @GetMapping("/{id}/signature")
-    @RequirePermission(page = "slip.signature", action = "VIEW")
+    @RequirePermission(page = "slip.signature", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<AdminSignatureResponse> getSignature(@PathVariable UUID id) {
         return ApiResponse.ok(signatureService.getSignature(id));
     }
@@ -80,7 +80,7 @@ public class SlipSignatureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "미서명 슬립 무효화 시도")
     })
     @DeleteMapping("/{id}/signature")
-    @RequirePermission(page = "slip.signature", action = "EDIT")
+    @RequirePermission(page = "slip.signature", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<AdminSignatureResponse> invalidateSignature(
             @PathVariable UUID id,
             @Valid @RequestBody InvalidateSignatureRequest request,

@@ -23,6 +23,7 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -123,7 +124,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
         // ── NTS emit-nts 호출
         String taxInvoiceId = createAndIssueTaxInvoice();
         mockMvc.perform(post("/accounting/tax-invoices/" + taxInvoiceId + "/emit-nts")
-                        .header("X-User-Id", "accountant-integration")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000105")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("submitMethod", "DRY_RUN"))))
@@ -133,7 +134,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
 
         // ── KFTC fetch-and-match 호출
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
-                        .header("X-User-Id", "accountant-integration")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000105")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -163,7 +164,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
 
         String id = createAndIssueTaxInvoice();
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-pattern")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000106")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("submitMethod", "DRY_RUN"))))
@@ -190,7 +191,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
                 .thenReturn(mockDeposits5());
 
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
-                        .header("X-User-Id", "accountant-kftc-pattern")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000107")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -225,7 +226,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
 
         String id = createAndIssueTaxInvoice();
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-nts-guard")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000108")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("submitMethod", "NTS"))))
@@ -248,7 +249,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
                         "KFTC_API_KEY 가 placeholder 입니다. Phase 11 sandbox 연동 전까지 DRY_RUN 모드만 사용 가능합니다."));
 
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
-                        .header("X-User-Id", "accountant-kftc-guard")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000109")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -275,9 +276,10 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
 
         String id = createAndIssueTaxInvoice();
+        denyRequirePermission("accounting.tax-invoice.emit-nts", PermissionAction.UPDATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "sales-user-integration")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000112")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("submitMethod", "DRY_RUN"))))
@@ -295,9 +297,10 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("Case 7: SALES — KFTC fetch-and-match 403 FORBIDDEN (권한 매트릭스 cross-check)")
     void testSalesForbiddenForKftc() throws Exception {
+        denyRequirePermission("accounting.deposit-match", PermissionAction.UPDATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/deposits/fetch-and-match")
-                        .header("X-User-Id", "sales-user-kftc")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000113")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -392,7 +395,7 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
 
         // ISSUED 전이
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-integration")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000105")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 

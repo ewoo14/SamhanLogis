@@ -4,7 +4,8 @@
  * BE endpoint (auth-service, api-gateway prefix /auth 제거 후 routing):
  * - GET  /auth/admin/permissions          — 전체 역할 × 페이지 매트릭스 조회 (MASTER 전용)
  * - POST /auth/admin/permissions/batch    — 체크박스 다중 토글 batch update (MASTER 전용)
- * - GET  /auth/admin/permissions/my       — 현재 로그인 사용자 권한 목록 조회 (인증된 모든 역할)
+ * - GET  /auth/admin/permissions/account/{accountId} — 계정 × 페이지 × 7-action 매트릭스
+ * - GET  /auth/admin/permissions/my      — 현재 계정 권한 캐시용 7-action map
  *
  * UUID 비공개 가드: 매트릭스 응답에 UUID 미포함 — roleCode / pageCode 비즈니스 식별자만 사용.
  *
@@ -38,8 +39,31 @@ export type RbacRole =
   | 'STAFF'
   | 'DRIVER'
 
-/** 페이지 권한 액션 종류 — view(조회) / edit(변경). */
-export type PermissionAction = 'view' | 'edit'
+/** 페이지 권한 액션 종류 — BE PermissionAction enum 의 소문자 표현. */
+export const PERMISSION_ACTIONS = [
+  'view',
+  'create',
+  'update',
+  'delete',
+  'restore',
+  'download',
+  'print',
+] as const
+
+export type PermissionAction = (typeof PERMISSION_ACTIONS)[number]
+
+/** 기존 2-action 화면의 edit 액션은 Phase 1 신규 update 와 동일하게 전송한다. */
+export type PermissionLookupAction = PermissionAction | 'edit'
+
+export interface PermissionActionMatrix {
+  view: boolean
+  create: boolean
+  update: boolean
+  delete: boolean
+  restore: boolean
+  download: boolean
+  print: boolean
+}
 
 /**
  * 페이지 코드 — BE PageCode enum dot-separated code 와 1:1 매핑.
@@ -140,7 +164,9 @@ export type PageCode =
   | 'accounting.supplier-profiles'
   | 'accounting.edit-requests'
   | 'accounting.edit-requests.decide'
+  | 'ecount.mig2.product'
   | 'ecount.mig2.account'
+  | 'ecount.mig2.warehouse'
   | 'ecount.mig2.card'
   | 'ecount.mig3.purchase-slip'
   | 'ecount.mig3.sales-slip'
@@ -150,6 +176,7 @@ export type PageCode =
   | 'ecount.mig4.sales-slip-line'
   | 'ecount.mig4.summary'
   | 'ecount.mig4.order'
+  | 'ecount.mig5.stock-transfer'
   | 'ecount.mig5.expense-voucher'
   | 'ecount.mig5.deposit-report'
   | 'ecount.mig6.bank-account'
@@ -243,6 +270,13 @@ export interface PermissionCell {
   roleCode: RbacRole
   pageCode: PageCode
   view: boolean
+  create?: boolean
+  update?: boolean
+  delete?: boolean
+  restore?: boolean
+  download?: boolean
+  print?: boolean
+  /** @deprecated 기존 PermissionMatrixPage 2-action 호환. 신규 코드는 update 를 사용한다. */
   edit: boolean
 }
 
@@ -265,7 +299,7 @@ export interface PermissionMatrix {
 export interface PermissionUpdateItem {
   roleCode: RbacRole
   pageCode: PageCode
-  action: PermissionAction
+  action: PermissionLookupAction
   allowed: boolean
 }
 
@@ -277,12 +311,44 @@ export interface PermissionBatchUpdateRequest {
 }
 
 /**
- * 현재 사용자 권한 목록 — GET /admin/permissions/my 응답.
+ * 현재 사용자 권한 목록 — account bulk-load 응답.
  * pageCode + 허용된 액션 배열.
  */
 export interface MyPermission {
   pageCode: PageCode
   actions: PermissionAction[]
+}
+
+export interface PermissionAccount {
+  id: string
+  displayName: string
+  role: RbacRole
+  enabled: boolean
+}
+
+export interface AccountPermissionCell extends PermissionActionMatrix {
+  pageCode: PageCode
+}
+
+export interface AccountPermissionMatrix {
+  cells: AccountPermissionCell[]
+  generatedAt: string
+}
+
+export interface AccountPermissionUpdate {
+  pageCode: PageCode
+  actions: PermissionActionMatrix
+}
+
+export interface ChangedCountResponse {
+  changedCount: number
+}
+
+export interface BulkPermissionRequest {
+  accountIds: string[]
+  mode: 'template' | 'grants'
+  roleCode?: RbacRole
+  grants?: AccountPermissionUpdate[]
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +368,62 @@ type PermissionDtoRaw = {
   roleCode: string; pageCode: string; canView: boolean; canEdit: boolean; isOverride: boolean
 }
 
+function emptyActionMatrix(): PermissionActionMatrix {
+  return {
+    view: false,
+    create: false,
+    update: false,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+  }
+}
+
+export function normalizePermissionAction(action: PermissionLookupAction): PermissionAction {
+  return action === 'edit' ? 'update' : action
+}
+
+function permissionCellFromLegacyDto(dto: PermissionDtoRaw): PermissionCell {
+  return {
+    roleCode: dto.roleCode as RbacRole,
+    pageCode: dto.pageCode as PageCode,
+    view: dto.canView,
+    create: false,
+    update: dto.canEdit,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+    edit: dto.canEdit,
+  }
+}
+
+function actionMatrixFromRaw(raw: Partial<PermissionActionMatrix> | undefined): PermissionActionMatrix {
+  return {
+    ...emptyActionMatrix(),
+    ...(raw ?? {}),
+  }
+}
+
+function actionsFromRaw(value: unknown): PermissionAction[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((raw) => String(raw).toLowerCase())
+      .map((raw) => (raw === 'edit' ? 'update' : raw))
+      .filter((raw): raw is PermissionAction =>
+        (PERMISSION_ACTIONS as readonly string[]).includes(raw),
+      )
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const matrix = actionMatrixFromRaw(value as Partial<PermissionActionMatrix>)
+    return PERMISSION_ACTIONS.filter((action) => matrix[action])
+  }
+
+  return []
+}
+
 export async function fetchPermissionMatrix(): Promise<PermissionMatrix> {
   const res = await apiClient.get<ApiEnvelope<Record<string, Record<string, PermissionDtoRaw>>>>(
     '/auth/admin/permissions',
@@ -314,12 +436,7 @@ export async function fetchPermissionMatrix(): Promise<PermissionMatrix> {
     for (const pageCode of Object.keys(pageMap)) {
       const dto = pageMap[pageCode]
       if (!dto) continue
-      cells.push({
-        roleCode: dto.roleCode as RbacRole,
-        pageCode: dto.pageCode as PageCode,
-        view: dto.canView,
-        edit: dto.canEdit,
-      })
+      cells.push(permissionCellFromLegacyDto(dto))
     }
   }
   return { cells, generatedAt: new Date().toISOString() }
@@ -342,32 +459,90 @@ export async function updatePermissionBatch(
   for (const u of updates) {
     const key = `${u.roleCode}__${u.pageCode}`
     const existing = mergeMap.get(key) ?? { roleCode: u.roleCode, pageCode: u.pageCode, canView: false, canEdit: false }
-    if (u.action === 'view') existing.canView = u.allowed
-    if (u.action === 'edit') existing.canEdit = u.allowed
+    const action = normalizePermissionAction(u.action)
+    if (action === 'view') existing.canView = u.allowed
+    if (action === 'update') existing.canEdit = u.allowed
     mergeMap.set(key, existing)
   }
   const permissions = Array.from(mergeMap.values())
   await apiClient.post<ApiEnvelope<void>>('/auth/admin/permissions/batch', { permissions })
 }
 
+export async function fetchAccounts(): Promise<PermissionAccount[]> {
+  const res = await apiClient.get<ApiEnvelope<PermissionAccount[]>>(
+    '/auth/admin/permissions/accounts',
+  )
+  return res.data.data
+}
+
+export async function fetchAccountMatrix(accountId: string): Promise<AccountPermissionMatrix> {
+  const res = await apiClient.get<ApiEnvelope<Record<string, PermissionActionMatrix>>>(
+    `/auth/admin/permissions/account/${encodeURIComponent(accountId)}`,
+  )
+  const cells = Object.entries(res.data.data ?? {}).map(([pageCode, actions]) => ({
+    pageCode: pageCode as PageCode,
+    ...actionMatrixFromRaw(actions),
+  }))
+  return { cells, generatedAt: new Date().toISOString() }
+}
+
+export async function updateAccountMatrix(
+  accountId: string,
+  updates: AccountPermissionUpdate[],
+): Promise<ChangedCountResponse> {
+  const res = await apiClient.put<ApiEnvelope<ChangedCountResponse>>(
+    `/auth/admin/permissions/account/${encodeURIComponent(accountId)}`,
+    updates,
+  )
+  return res.data.data
+}
+
+export async function applyTemplate(
+  accountId: string,
+  roleCode: RbacRole,
+): Promise<ChangedCountResponse> {
+  const res = await apiClient.post<ApiEnvelope<ChangedCountResponse>>(
+    `/auth/admin/permissions/account/${encodeURIComponent(accountId)}/apply-template`,
+    null,
+    { params: { roleCode } },
+  )
+  return res.data.data
+}
+
+export async function copyFromAccount(
+  accountId: string,
+  sourceAccountId: string,
+): Promise<ChangedCountResponse> {
+  const res = await apiClient.post<ApiEnvelope<ChangedCountResponse>>(
+    `/auth/admin/permissions/account/${encodeURIComponent(accountId)}/copy-from`,
+    null,
+    { params: { sourceAccountId } },
+  )
+  return res.data.data
+}
+
+export async function bulkApply(payload: BulkPermissionRequest): Promise<ChangedCountResponse> {
+  const res = await apiClient.post<ApiEnvelope<ChangedCountResponse>>(
+    '/auth/admin/permissions/bulk',
+    payload,
+  )
+  return res.data.data
+}
+
 /**
- * 현재 로그인 사용자 권한 목록 조회 — `GET /auth/admin/permissions/my`.
- * 인증된 모든 역할 접근 가능. usePermissions hook 이 캐시.
+ * 현재 로그인 사용자 권한 목록 조회.
  *
- * BE 응답: {@code List<PermissionDto>} (canView / canEdit 필드)
- * FE 변환: PermissionDto → MyPermission (actions 배열)
+ * BE 응답: {@code Map<pageCode, EnumSet<PermissionAction>>}
+ * FE 변환: 대문자 enum 배열 → 소문자 7-action 배열.
  *
  * @return MyPermission[]
  */
 export async function fetchMyPermissions(): Promise<MyPermission[]> {
-  const res = await apiClient.get<ApiEnvelope<Array<{
-    roleCode: string; pageCode: string; canView: boolean; canEdit: boolean
-  }>>>('/auth/admin/permissions/my')
-  return res.data.data.map((dto) => {
-    const actions: PermissionAction[] = []
-    if (dto.canView) actions.push('view')
-    if (dto.canEdit) actions.push('edit')
-    return { pageCode: dto.pageCode as PageCode, actions }
+  const res = await apiClient.get<ApiEnvelope<Record<string, unknown>>>(
+    '/auth/admin/permissions/my',
+  )
+  return Object.entries(res.data.data ?? {}).map(([pageCode, rawActions]) => {
+    return { pageCode: pageCode as PageCode, actions: actionsFromRaw(rawActions) }
   })
 }
 
@@ -389,8 +564,7 @@ export function setPermissionsCache(perms: MyPermission[]): void {
 /**
  * 현재 사용자가 특정 페이지-액션 권한을 보유하는지 동기 확인.
  *
- * <p>캐시가 없으면 (초기 로딩 중) true 를 반환하여 깜박임 방지 (보수적 허용).
- * 서버 응답 후 usePermissions hook 이 캐시를 채우면 정확히 재평가된다.
+ * <p>캐시가 없으면 false 를 반환한다. 권한 캐시 미로드/미부여 시 fail-closed.
  *
  * @param pageCode  확인할 페이지 코드
  * @param action    확인할 액션 (기본값: 'view')
@@ -398,10 +572,10 @@ export function setPermissionsCache(perms: MyPermission[]): void {
  */
 export function canAccess(
   pageCode: PageCode,
-  action: PermissionAction = 'view',
+  action: PermissionLookupAction = 'view',
 ): boolean {
-  if (_permissionsCache === null) return true // 로딩 중 — 보수적 허용
+  if (_permissionsCache === null) return false
   const entry = _permissionsCache.find((p) => p.pageCode === pageCode)
   if (!entry) return false
-  return entry.actions.includes(action)
+  return entry.actions.includes(normalizePermissionAction(action))
 }

@@ -3,27 +3,19 @@ package com.samhanair.logis.slip.estimate.web;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * SP-D4 견적 동적 권한 가드 (공유 컴포넌트).
+ * 견적 계정 단위 동적 권한 가드.
  *
- * <p>EstimateController 가 사용하는 동적 RBAC VIEW/EDIT 검증 컴포넌트.
+ * <p>EstimateController 가 사용하는 동적 RBAC 7-action 검증 컴포넌트.
  * {@link DynamicPermissionClient} 를 통해 auth-service 의 override row 를 확인한다.
  *
  * <p>페이지 코드: {@code estimates.list}
- *
- * <p>점진 마이그레이션 정책:
- * <ul>
- *   <li>actorRole null/blank → 건너뜀</li>
- *   <li>canView=false → {@link BusinessException}(FORBIDDEN) 명시적 deny</li>
- *   <li>canEdit=false + canView=true → EDIT 시 403 (view-only override deny)</li>
- *   <li>canEdit=false + canView=false → fallback 통과 (상위 인증/권한 가드가 이미 검증)</li>
- * </ul>
- *
- * <p>IT 에서 {@code @MockBean} 격리 필요 (메모리 가드 {@code feedback_it_mockbean_external_clients.md}).
  */
 @Slf4j
 @Component
@@ -36,48 +28,32 @@ public class EstimatePermissionGuard {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
-     * SP-D4 견적 동적 VIEW 권한 검증.
+     * 견적 동적 VIEW 권한 검증.
      *
-     * <p>canView=false 이면 {@link BusinessException}(FORBIDDEN) 던짐.
-     * actorRole null/blank 이면 건너뜀.
-     *
-     * @param actorRole 요청자 역할 (X-User-Role 헤더)
-     * @throws BusinessException canView=false 인 경우 FORBIDDEN
+     * @param accountId 요청자 계정 UUID (X-User-Id 헤더)
+     * @throws BusinessException 계정 권한이 없거나 accountId 가 없으면 FORBIDDEN
      */
-    public void checkView(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
-        if (!canView) {
-            log.debug("[SP-D4] 견적 VIEW 동적 권한 deny — roleCode={} pageCode={}", actorRole, PAGE_CODE);
-            throw new BusinessException(ErrorCode.FORBIDDEN, "견적 목록 조회 권한이 없습니다.");
-        }
+    public void checkView(UUID accountId) {
+        check(accountId, PermissionAction.VIEW, "견적 목록 조회 권한이 없습니다.");
     }
 
     /**
-     * SP-D4 견적 동적 EDIT 권한 검증.
+     * 견적 mutation 권한 검증.
      *
-     * <p>canEdit=false + canView=true → 403 (view-only override deny).
-     * canEdit=false + canView=false → fallback 통과.
-     * actorRole null/blank → 건너뜀.
-     *
-     * @param actorRole 요청자 역할 (X-User-Role 헤더)
-     * @throws BusinessException canEdit=false + canView=true 인 경우 FORBIDDEN
+     * @param accountId 요청자 계정 UUID (X-User-Id 헤더)
+     * @param action    CREATE / UPDATE 등 endpoint 의미 action
+     * @throws BusinessException 계정 권한이 없거나 accountId 가 없으면 FORBIDDEN
      */
-    public void checkEdit(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, PAGE_CODE);
-        if (!canEdit) {
-            boolean canView = dynamicPermissionClient.canView(actorRole, PAGE_CODE);
-            if (canView) {
-                log.debug("[SP-D4] 견적 EDIT 동적 권한 deny (view-only override) — roleCode={} pageCode={}",
-                        actorRole, PAGE_CODE);
-                throw new BusinessException(ErrorCode.FORBIDDEN, "견적 편집 권한이 없습니다.");
-            }
-            // canView=false → fallback 통과 (override row 없음 — 상위 인증/권한 가드가 이미 검증)
+    public void checkEdit(UUID accountId, PermissionAction action) {
+        PermissionAction effectiveAction = action == null ? PermissionAction.UPDATE : action;
+        check(accountId, effectiveAction, "견적 편집 권한이 없습니다.");
+    }
+
+    private void check(UUID accountId, PermissionAction action, String message) {
+        if (accountId == null || !dynamicPermissionClient.check(accountId, PAGE_CODE, action)) {
+            log.debug("[SP-PO-10] 견적 동적 권한 deny — accountId={} pageCode={} action={}",
+                    accountId, PAGE_CODE, action);
+            throw new BusinessException(ErrorCode.FORBIDDEN, message);
         }
     }
 }

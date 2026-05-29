@@ -1,5 +1,8 @@
 package com.samhanair.logis.slip.estimate.it;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -9,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -20,6 +22,8 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +35,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
-import static org.mockito.ArgumentMatchers.anyString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -61,6 +64,9 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @Transactional
 class EstimateControllerIT extends AbstractPostgresIT {
+
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000331";
+    private static final String VIEWER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000332";
 
     @Autowired
     private MockMvc mockMvc;
@@ -101,6 +107,8 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .thenReturn(true);
         Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         productId = UUID.randomUUID();
         ProductSummary summary = new ProductSummary(productId, "에어컨 220V 실외기", "AC-220",
                 null, new BigDecimal("550000.00"), null);
@@ -118,7 +126,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
     void createEstimate_and_getOne() throws Exception {
         // 1) 생성
         MvcResult result = mockMvc.perform(post("/slips/estimates")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(buildCreateRequest())))
@@ -133,7 +141,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         mockMvc.perform(get("/slips/estimates/" + id)
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(id))
@@ -149,7 +157,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
     void fullLifecycle_draftToConverted() throws Exception {
         // 생성 (DRAFT)
         MvcResult created = mockMvc.perform(post("/slips/estimates")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(buildCreateRequest())))
@@ -160,21 +168,21 @@ class EstimateControllerIT extends AbstractPostgresIT {
 
         // DRAFT → SENT
         mockMvc.perform(post("/slips/estimates/" + id + "/send")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUOTE_SENT"));
 
         // SENT → ACCEPTED
         mockMvc.perform(post("/slips/estimates/" + id + "/accept")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUOTE_ACCEPTED"));
 
         // ACCEPTED → CONVERTED (슬립 자동 발행)
         mockMvc.perform(post("/slips/estimates/" + id + "/convert")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
@@ -189,7 +197,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
     @DisplayName("견적서 수정 — DRAFT 단계 헤더 + 라인 replace 200")
     void updateEstimate_draftStage() throws Exception {
         MvcResult created = mockMvc.perform(post("/slips/estimates")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(buildCreateRequest())))
@@ -209,7 +217,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
         updateBody.put("lines", List.of(newLine));
 
         mockMvc.perform(put("/slips/estimates/" + id)
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateBody)))
@@ -224,7 +232,7 @@ class EstimateControllerIT extends AbstractPostgresIT {
     @DisplayName("견적서 목록 조회 200")
     void listEstimates() throws Exception {
         mockMvc.perform(get("/slips/estimates")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isArray());
@@ -236,11 +244,12 @@ class EstimateControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 없는 역할(VIEWER) 견적서 생성 시도 → 403")
     void createEstimate_viewerRole_forbidden() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit("VIEWER", "estimates.list"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("estimates.list"), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/slips/estimates")
-                        .header("X-User-Id", "viewer-1")
+                        .header("X-User-Id", VIEWER_ACCOUNT_ID)
                         .header("X-User-Role", "VIEWER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(buildCreateRequest())))

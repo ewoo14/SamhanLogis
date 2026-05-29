@@ -5,6 +5,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -55,7 +56,8 @@ public class PartnerOrderConfirmController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 중복 confirm")
     })
     @PostMapping("/{draftId}/confirm")
-    @RequirePermission(page = "sales.partner-order.confirm", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.confirm", action = PermissionAction.CREATE,
+            partnerSelfService = true)
     public ApiResponse<ConfirmResponse> confirm(
             @PathVariable UUID draftId,
             @Valid @RequestBody ConfirmRequest request,

@@ -79,7 +79,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "배차 list 조회 (P1-5 Admin UI)",
             description = "status/fromDate/toDate 필터 + 페이징. fromDate 미지정 시 오늘.")
     @GetMapping("/dispatches")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DispatchPageResponse> listDispatches(
             @RequestParam(required = false) DispatchType status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -112,7 +112,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "자동 매칭 trigger (P1-5 Admin UI, 카카오톡 배차)",
             description = "dispatchId 배차의 PENDING 차량 전체에 DriverMatcher 자동 매칭 호출.")
     @PostMapping("/dispatches/auto-match")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchService.AutoMatchResult> autoMatch(
             @RequestBody Map<String, String> body,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
@@ -152,7 +152,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "수동 배차 (P1-5 Admin UI)",
             description = "vehicleSeq + driverCode 지정. MatchSource.MANUAL 기록.")
     @PostMapping("/dispatches/{id}/manual-assign")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<Map<String, Object>> manualAssign(
             @PathVariable UUID id,
             @Valid @RequestBody ManualAssignRequest req,
@@ -181,7 +181,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "기사 변경 (P1-5 Admin UI)",
             description = "vehicleSeq + newDriverCode 지정으로 기존 기사 교체. MatchSource.MANUAL.")
     @PatchMapping("/dispatches/{id}/driver")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<Map<String, Object>> changeDriver(
             @PathVariable UUID id,
             @Valid @RequestBody DriverChangeRequest req,
@@ -210,7 +210,7 @@ public class DispatchAdminV1Controller {
     @Operation(summary = "가용 기사 list (P1-5 Admin UI)",
             description = "date 기준 배정 기사 제외 + zoneId 필터. UUID 비공개 가드 적용.")
     @GetMapping("/drivers/available")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<AvailableDriverResponse> availableDrivers(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) String zoneId) {

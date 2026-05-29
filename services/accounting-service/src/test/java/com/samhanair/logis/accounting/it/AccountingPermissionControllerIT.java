@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -54,6 +55,7 @@ import com.samhanair.logis.accounting.web.TaxInvoiceController;
 import com.samhanair.logis.accounting.web.TaxInvoiceInboundController;
 import com.samhanair.logis.accounting.web.TrialBalanceController;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -154,6 +156,8 @@ class AccountingPermissionControllerIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(editRequestService.listPendingForRole(any())).thenReturn(List.of());
         lenient().when(editRequestService.listByEntity(any())).thenReturn(List.of());
         lenient().when(hometaxExportService.export(any(), any())).thenReturn("xlsx".getBytes());
@@ -174,11 +178,7 @@ class AccountingPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(false);
         double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
@@ -189,63 +189,86 @@ class AccountingPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                endpoint("accounts tree", "accounting.accounts", "VIEW", "ACCOUNTANT",
+                endpoint("accounts tree", "accounting.accounts", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/accounts")),
-                endpoint("journal list", "accounting.journals", "VIEW", "ACCOUNTANT",
+                endpoint("journal list", "accounting.journals", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/journals")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
-                endpoint("journal realtime", "accounting.journals.realtime", "VIEW", "ACCOUNTANT",
+                endpoint("journal realtime", "accounting.journals.realtime", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/journals/{id}/realtime", ID)),
-                endpoint("trial balance", "accounting.balances.trial-balance", "VIEW", "ACCOUNTANT",
+                endpoint("journal export", "accounting.journals", PermissionAction.DOWNLOAD, "ACCOUNTANT",
+                        () -> get("/accounting/journals/export.xlsx")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("trial balance", "accounting.balances.trial-balance", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/balances").param("period", "202605")),
-                endpoint("tax invoice list", "accounting.tax-invoice.list", "VIEW", "ACCOUNTANT",
+                endpoint("tax invoice list", "accounting.tax-invoice.list", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/tax-invoices")),
-                endpoint("tax invoice cancel", "accounting.tax-invoice.cancel", "EDIT", "MANAGER",
+                endpoint("tax invoice print", "accounting.tax-invoice.list", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/tax-invoices/{id}/print", ID)),
+                endpoint("tax invoice cancel", "accounting.tax-invoice.cancel", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/accounting/tax-invoices/{id}/cancel", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"취소 사유 충분\"}")),
-                endpoint("tax invoice realtime", "accounting.tax-invoice.realtime", "VIEW", "ACCOUNTANT",
+                endpoint("tax invoice realtime", "accounting.tax-invoice.realtime", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/accounting/tax-invoices/{id}/realtime", ID)),
-                endpoint("tax invoice inbound", "accounting.tax-invoice.inbound.manage", "VIEW", "ACCOUNTANT",
+                endpoint("tax invoice inbound", "accounting.tax-invoice.inbound.manage", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/tax-invoices/inbound")),
-                endpoint("hometax export history", "accounting.hometax-export", "VIEW", "MANAGER",
+                endpoint("hometax export history", "accounting.hometax-export", PermissionAction.VIEW, "MANAGER",
                         () -> get("/accounting/hometax-export/history")),
-                endpoint("daily closing list", "accounting.daily-closing", "VIEW", "MANAGER",
+                endpoint("hometax export xlsx", "accounting.hometax-export", PermissionAction.DOWNLOAD, "MANAGER",
+                        () -> get("/accounting/tax-invoice/hometax-export")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("accounting reports sales aggregate", "accounting.reports", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/sales/aggregate")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("accounting partner ledger", "accounting.partner-ledger", PermissionAction.PRINT, "ACCOUNTANT",
+                        () -> get("/accounting/journals/ledger-data")
+                                .param("partnerCode", "P-001")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("accounting statement batch", "accounting.statement-batch", PermissionAction.PRINT, "ACCOUNTANT",
+                        () -> get("/accounting/statements/batch-data")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("daily closing list", "accounting.daily-closing", PermissionAction.VIEW, "MANAGER",
                         () -> get("/api/v1/accounting/daily-closings")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
-                endpoint("daily closing unlock", "accounting.daily-closing.unlock", "EDIT", "MASTER",
+                endpoint("daily closing unlock", "accounting.daily-closing.unlock", PermissionAction.UPDATE, "MANAGER",
                         () -> patch("/api/v1/accounting/daily-closings/{date}/lock", "2026-05-27")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"locked\":false}")),
-                endpoint("period close list", "accounting.period-close", "VIEW", "MANAGER",
+                endpoint("period close list", "accounting.period-close", PermissionAction.VIEW, "MANAGER",
                         () -> get("/accounting/closings")),
-                endpoint("period close reverse", "accounting.period-close.reverse", "EDIT", "MASTER",
+                endpoint("period close reverse", "accounting.period-close.reverse", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/accounting/closings/{id}/reverse", ID)),
-                endpoint("sales accounting slip", "accounting.sales-slip.accounting", "VIEW", "ACCOUNTANT",
+                endpoint("sales accounting slip", "accounting.sales-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/sales-slips")),
-                endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", "VIEW", "ACCOUNTANT",
+                endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/purchase-slips")),
-                endpoint("supplier profile list", "accounting.supplier-profiles", "VIEW", "ACCOUNTANT",
+                endpoint("supplier profile list", "accounting.supplier-profiles", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/api/v1/accounting/supplier-profiles")),
-                endpoint("edit request dashboard", "accounting.edit-requests.decide", "VIEW", "MANAGER",
+                endpoint("edit request dashboard", "accounting.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
                         () -> get("/accounting/edit-requests").param("targetRole", "MANAGER")),
-                endpoint("ecount account import", "ecount.mig2.account", "EDIT", "MANAGER",
+                endpoint("ecount account import", "ecount.mig2.account", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/accounts/imports/ecount")
                                 .file("file", "code,name\n100,현금\n".getBytes())),
-                endpoint("mig7 cash disbursement transform", "ecount.mig7.cash-disbursement", "EDIT", "MANAGER",
+                endpoint("mig7 cash disbursement transform", "ecount.mig7.cash-disbursement", PermissionAction.CREATE, "MANAGER",
                         () -> post("/admin/accounting/cash-disbursements/transform-from-staging")),
-                endpoint("mig11 sales ledger import", "ecount.mig11.sales-ledger", "EDIT", "MANAGER",
+                endpoint("mig11 sales ledger import", "ecount.mig11.sales-ledger", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/accounting/sales-ledger/imports/ecount")
                                 .file("file", "xlsx".getBytes())),
-                endpoint("ecount reimport", "ecount.reimport", "EDIT", "MASTER",
+                endpoint("ecount reimport", "ecount.reimport", PermissionAction.CREATE, "MANAGER",
                         () -> post("/admin/ecount/reimport/{slice}", "mig2-account"))
         );
     }
 
     private static EndpointCase endpoint(
-            String name, String page, String action, String role,
+            String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
         return new EndpointCase(name, page, action, role, request);
     }
@@ -257,20 +280,20 @@ class AccountingPermissionControllerIT {
                 .header(ROLE_HEADER, role);
     }
 
-    private double deniedCount(String page, String role, String action) {
+    private double deniedCount(String page, String role, PermissionAction action) {
         return meterRegistry.counter(
                 PermissionGuardMetrics.COUNTER_NAME,
                 "service", SERVICE_NAME,
                 "page", page,
                 "role", role,
-                "action", action
+                "action", action.name()
         ).count();
     }
 
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             Supplier<MockHttpServletRequestBuilder> request) {
 

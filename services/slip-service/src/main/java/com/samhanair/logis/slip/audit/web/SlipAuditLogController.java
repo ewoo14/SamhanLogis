@@ -59,7 +59,7 @@ public class SlipAuditLogController {
     @Operation(summary = "슬립 audit timeline",
             description = "PR-H2 — slip 본문 수정 이력 (최신 revision 우선). soft-deleted 자동 제외")
     @GetMapping("/audit-logs")
-    @RequirePermission(page = "slip.audit-overlay", action = "VIEW")
+    @RequirePermission(page = "slip.audit-overlay", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipAuditLogResponse>> listAuditLogs(@PathVariable UUID slipId) {
         List<SlipAuditLogResponse> items = auditLogService.listBySlip(slipId).stream()
                 .map(SlipAuditLogResponse::from)
@@ -82,7 +82,7 @@ public class SlipAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "마감 lock")
     })
     @PatchMapping("/audit/overlay")
-    @RequirePermission(page = "slip.audit-overlay", action = "EDIT")
+    @RequirePermission(page = "slip.audit-overlay", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> applyOverlayPatch(
             @PathVariable UUID slipId,
             @Valid @RequestBody OverlayPatchRequest request,
@@ -105,7 +105,7 @@ public class SlipAuditLogController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "마감 lock")
     })
     @PostMapping("/audit/revert/{revisionNo}")
-    @RequirePermission(page = "slip.audit-revert", action = "EDIT")
+    @RequirePermission(page = "slip.audit-revert", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
     public ApiResponse<List<SlipAuditLogResponse>> revertToRevision(
             @PathVariable UUID slipId,
             @PathVariable int revisionNo,

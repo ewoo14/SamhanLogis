@@ -86,7 +86,7 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패")
     })
     @PostMapping("/from-estimate")
-    @RequirePermission(page = "slip.publish.from-estimate", action = "EDIT")
+    @RequirePermission(page = "slip.publish.from-estimate", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PublishSlipResponse>> publishFromEstimate(
             @Valid @RequestBody PublishFromEstimateRequest request,
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
@@ -113,7 +113,7 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패")
     })
     @PostMapping("/from-partner-order")
-    @RequirePermission(page = "slip.publish.from-partner-order", action = "EDIT")
+    @RequirePermission(page = "slip.publish.from-partner-order", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PublishSlipResponse>> publishFromPartnerOrder(
             @Valid @RequestBody PublishFromPartnerOrderRequest request,
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
@@ -140,7 +140,7 @@ public class SlipPublishController {
     @Operation(summary = "발행 출처 기준 조회",
             description = "sourceType + sourceId 로 발행된 슬립 조회 (idempotency 보조).")
     @GetMapping("/by-source")
-    @RequirePermission(page = "slip.publish.from-estimate", action = "VIEW")
+    @RequirePermission(page = "slip.publish.from-estimate", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<PublishSlipResponse>> findBySource(
             @RequestParam SlipSourceType sourceType,
             @RequestParam String sourceId) {

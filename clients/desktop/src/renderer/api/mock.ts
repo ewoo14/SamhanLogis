@@ -938,6 +938,103 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(list)
   }
 
+  // Phase 2.1: POST /api/v1/slips/{slipId}/revisions/{revisionNo}/restore — 특정 시점 복원.
+  // restore POST 가 revisions GET 보다 먼저 (더 구체적인 path) 매칭되어야 함.
+  const revisionRestoreMatch = url.match(/\/slips\/([^/?]+)\/revisions\/(\d+)\/restore$/)
+  if (method === 'POST' && revisionRestoreMatch) {
+    const slipId = revisionRestoreMatch[1]!
+    const found = (MOCK_SLIPS.find((s) => s.id === slipId) ?? MOCK_SLIPS[0]!) as Record<string, unknown>
+    // 복원 결과는 SlipDetail — 현재 mock slip 을 SAVED 로 되돌린 스냅샷으로 응답.
+    return envelope({
+      ...found,
+      status: 'SAVED',
+      lines: SAMPLE_LINES,
+    })
+  }
+
+  // Phase 2.1: GET /api/v1/slips/{slipId}/revisions — 버전이력 목록 (최신 우선).
+  // 결정적 fixture 2건 (rev2 EDIT lineAdded=1, rev1 CREATE).
+  const revisionsGetMatch = url.match(/\/slips\/([^/?]+)\/revisions(\?.*)?$/)
+  if (method === 'GET' && revisionsGetMatch) {
+    const slipId = revisionsGetMatch[1]!
+    const slip = MOCK_SLIPS.find((s) => s.id === slipId) ?? MOCK_SLIPS[0]!
+    const slipNo = slip.slipNo
+    return envelope([
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        slipNo,
+        slipDate: slip.slipDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T14:32:18',
+        changeSummary: { headerChanged: 0, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        slipNo,
+        slipDate: slip.slipDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T09:10:00',
+        changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+      },
+    ])
+  }
+
+  // ==========================================================================
+  // Phase 2.2: estimate 버전이력/복원/상세 — `/api/v1/slips/estimates/{id}...`
+  //   slip list match (`url.includes('/slips')`, 아래) 가 estimates path 를 가로채므로
+  //   반드시 그 앞단(여기) 에 배치한다. restore(POST) → revisions(GET) → detail(GET) 순
+  //   (더 구체적인 path 우선). slip {id} revisions/detail match 는 estimates 가 사이에
+  //   끼어 잡히지 않아 충돌 없다.
+  // ==========================================================================
+
+  // POST /api/v1/slips/estimates/{id}/revisions/{n}/restore — 특정 시점 복원.
+  const estimateRestoreMatch = url.match(/\/slips\/estimates\/([^/?]+)\/revisions\/(\d+)\/restore$/)
+  if (method === 'POST' && estimateRestoreMatch) {
+    const id = estimateRestoreMatch[1]!
+    return envelope(buildMockEstimateDetail(id))
+  }
+
+  // GET /api/v1/slips/estimates/{id}/revisions — 버전이력 목록 (최신 우선).
+  // 결정적 fixture 2건 (rev2 EDIT lineAdded=1, rev1 CREATE).
+  const estimateRevisionsGetMatch = url.match(/\/slips\/estimates\/([^/?]+)\/revisions(\?.*)?$/)
+  if (method === 'GET' && estimateRevisionsGetMatch) {
+    const id = estimateRevisionsGetMatch[1]!
+    const detail = buildMockEstimateDetail(id)
+    return envelope([
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        estimateNo: detail.estimateNo,
+        estimateDate: detail.estimateDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T14:32:18',
+        changeSummary: { headerChanged: 0, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        estimateNo: detail.estimateNo,
+        estimateDate: detail.estimateDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T09:10:00',
+        changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+      },
+    ])
+  }
+
+  // GET /api/v1/slips/estimates/{id} (단건 상세) — EstimateDetail shape.
+  const estimateSlipsDetailMatch = url.match(/\/slips\/estimates\/([^/?]+)$/)
+  if (method === 'GET' && estimateSlipsDetailMatch && !url.includes('/print')) {
+    const id = estimateSlipsDetailMatch[1]!
+    return envelope(buildMockEstimateDetail(id))
+  }
+
   // PATCH /api/v1/slips/{slipId}/audit/overlay — 단일 필드 수정 + audit row INSERT
   const auditOverlayMatch = url.match(/\/slips\/([^/?]+)\/audit\/overlay$/)
   if (method === 'PATCH' && auditOverlayMatch) {
@@ -1382,6 +1479,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     method === 'GET'
     && url.includes('/slips')
     && !url.includes('/slips/lookup-product')
+    && !url.includes('/slips/estimates') // Phase 2.2: estimate path 는 위 estimate 블록이 처리
     && !url.match(/\/slips\/cleanup/)
     && !slipDetailMatch
   ) {
@@ -3391,10 +3489,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
-  // estimate — list / detail / form (P2-1 견적서)
+  // estimate — list / detail / form (P2-1 견적서) + 버전이력/복원 (Phase 2.2)
   // ==========================================================================
+  // 주: estimate 버전이력/복원/상세 (`/api/v1/slips/estimates/{id}...`) mock 은
+  //     slip list match (`url.includes('/slips')`) 가 가로채므로 그 앞단에 배치했다
+  //     (위쪽 "Phase 2.2: estimate revisions/restore/detail" 블록 참조).
 
-  // GET /api/v1/estimates/{id} (단건 상세)
+  // GET /api/v1/estimates/{id} (legacy 단건 상세 — Phase 6 캡처 시드)
   const estimateDetailMatch = url.match(/\/api\/v1\/estimates\/([^/?]+)$/)
   if (method === 'GET' && estimateDetailMatch && !url.includes('/print')) {
     const id = estimateDetailMatch[1]!
@@ -4267,34 +4368,112 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // GET /auth/admin/permissions/accounts — Task 12 계정 selector mock.
+  if (method === 'GET' && (url.includes('/auth/admin/permissions/accounts') || url.includes('/admin/permissions/accounts'))) {
+    return envelope([
+      { id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER', enabled: true },
+      { id: 'mock-account-sales', displayName: '이영업', role: 'SALES', enabled: true },
+      { id: 'mock-account-dispatch', displayName: '박배차', role: 'DISPATCH', enabled: true },
+    ])
+  }
+
+  // POST /auth/admin/permissions/bulk — Task 13 다계정 일괄 wizard mock.
+  if (method === 'POST' && (url.includes('/auth/admin/permissions/bulk') || url.includes('/admin/permissions/bulk'))) {
+    const body = parseMockBody(config) as {
+      accountIds?: string[]
+      mode?: 'template' | 'grants'
+      roleCode?: string
+      grants?: Array<{ actions?: Record<string, boolean> }>
+    }
+    const accountCount = Array.isArray(body.accountIds) ? body.accountIds.length : 0
+    if (body.mode === 'template' && body.roleCode) {
+      return envelope({ changedCount: accountCount * SP_D1_PAGES.length * 7 })
+    }
+    if (body.mode === 'grants' && Array.isArray(body.grants)) {
+      const actionCount = body.grants.reduce((sum, grant) => {
+        return sum + Object.values(grant.actions ?? {}).filter(Boolean).length
+      }, 0)
+      return envelope({ changedCount: accountCount * actionCount })
+    }
+    return envelope({ changedCount: 0 })
+  }
+
+  if (
+    (url.includes('/auth/admin/permissions/account/') || url.includes('/admin/permissions/account/')) &&
+    !url.includes('/apply-template') &&
+    !url.includes('/copy-from')
+  ) {
+    if (method === 'GET') {
+      const role =
+        url.includes('mock-account-sales') ? 'SALES'
+          : url.includes('mock-account-dispatch') ? 'DISPATCH'
+            : 'MANAGER'
+      const accountMatrix: Record<string, {
+        view: boolean
+        create: boolean
+        update: boolean
+        delete: boolean
+        restore: boolean
+        download: boolean
+        print: boolean
+      }> = {}
+      for (const page of SP_D1_PAGES) {
+        const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
+        accountMatrix[page] = {
+          view: legacyCell?.view ?? false,
+          create: legacyCell?.edit ?? false,
+          update: legacyCell?.edit ?? false,
+          delete: legacyCell?.edit ?? false,
+          restore: false,
+          download: legacyCell?.view ?? false,
+          print: legacyCell?.view ?? false,
+        }
+      }
+      accountMatrix['system.permission-admin'] = {
+        view: role === 'MANAGER',
+        create: false,
+        update: role === 'MANAGER',
+        delete: false,
+        restore: false,
+        download: false,
+        print: false,
+      }
+      return envelope(accountMatrix)
+    }
+
+    if (method === 'PUT') {
+      const updates = parseMockBody(config)
+      return envelope({ changedCount: Array.isArray(updates) ? updates.length : 0 })
+    }
+  }
+
+  if (method === 'POST' && (url.includes('/apply-template') || url.includes('/copy-from'))) {
+    return envelope({ changedCount: 12 })
+  }
+
   // GET /auth/admin/permissions/my — 현재 사용자 권한 목록
-  // BE 응답: List<PermissionDto> (canView / canEdit 필드)
+  // BE 응답: Map<pageCode, PermissionAction[]>.
   if (method === 'GET' && (url.includes('/auth/admin/permissions/my') || url.includes('/admin/permissions/my'))) {
     const mockRole = MOCK_AUTH.role
+    // 실 BE 응답은 대문자 PermissionAction enum (예: "VIEW") → actionsFromRaw 의
+    // toLowerCase() 정규화 경로를 mock 으로도 회귀 포착하기 위해 대문자로 반환한다.
+    const allActions = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT']
     if (mockRole === 'MASTER') {
-      // MASTER 는 항상 모든 페이지 view+edit
-      return envelope(
-        SP_D1_PAGES.map((page) => ({
-          roleCode: 'MASTER',
-          pageCode: page,
-          displayName: page,
-          canView: true,
-          canEdit: true,
-          isOverride: true,
-        })),
-      )
+      const permissions: Record<string, string[]> = {}
+      for (const page of SP_D1_PAGES) permissions[page] = allActions
+      permissions['system.permission-admin'] = allActions
+      return envelope(permissions)
     }
     const myCells = _mockPermissionCells.filter((c) => c.roleCode === mockRole)
-    return envelope(
-      myCells.map((c) => ({
-        roleCode: c.roleCode,
-        pageCode: c.pageCode,
-        displayName: c.pageCode,
-        canView: c.view,
-        canEdit: c.edit,
-        isOverride: true,
-      })),
-    )
+    const permissions: Record<string, string[]> = {}
+    for (const cell of myCells) {
+      const actions = []
+      if (cell.view) actions.push('VIEW')
+      if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+      if (cell.view) actions.push('DOWNLOAD', 'PRINT')
+      permissions[cell.pageCode] = actions
+    }
+    return envelope(permissions)
   }
 
   return null
@@ -5222,6 +5401,89 @@ const MOCK_ESTIMATES = [
     lines: SAMPLE_LINES,
   },
 ]
+
+/**
+ * 견적서 상세 (`/api/v1/slips/estimates/{id}`) 응답 — BE {@code EstimateDetailResponse} shape.
+ *
+ * <p>Phase 2.2 버전이력/복원 spec 용. {@code EstimateDetail} (api/estimateApi.ts) 와 1:1:
+ * estimateNo / status(QUOTE_*) / totalSupply,Vat,Amount / lines(lineNo, supplyAmount, vatAmount).
+ *
+ * <p>id 별 status 분기 — est-003(또는 -accepted) 은 QUOTE_ACCEPTED(복원 불가) 로 응답하여
+ * 편집 불가 가드(복원 버튼 비활성) 케이스를 결정적으로 노출한다. 그 외는 QUOTE_DRAFT.
+ */
+const MOCK_ESTIMATE_DETAIL_LINES = [
+  {
+    id: 'eline-001',
+    lineNo: 0,
+    productId: 'p-aj040',
+    productName: '시스템에어컨 4Way 4HP',
+    modelName: 'AJ040RXH4BC1',
+    specification: '4HP',
+    quantity: 2,
+    unitPrice: '1850000',
+    supplyAmount: '3700000',
+    vatAmount: '370000',
+    lineTotal: '4070000',
+    note: null,
+  },
+  {
+    id: 'eline-002',
+    lineNo: 1,
+    productId: 'p-mwr10',
+    productName: '유선 리모컨 (WE10N)',
+    modelName: 'MWR-WE10N',
+    specification: '220V',
+    quantity: 2,
+    unitPrice: '85000',
+    supplyAmount: '170000',
+    vatAmount: '17000',
+    lineTotal: '187000',
+    note: null,
+  },
+]
+
+/**
+ * id → EstimateDetail mock 빌더. 견적 상세 / 버전이력 / 복원 응답이 공유한다.
+ *
+ * @param id 견적 UUID (path 전용 — 화면 노출 X). 'accepted' 포함 또는 est-003 이면 복원 불가 상태.
+ */
+function buildMockEstimateDetail(id: string) {
+  // 편집 불가(복원 버튼 비활성) 케이스: id 에 'accepted' 가 들어가거나 est-003.
+  const isAccepted = id.includes('accepted') || id === 'est-003'
+  const status: EstimateStatusMock = isAccepted ? 'QUOTE_ACCEPTED' : 'QUOTE_DRAFT'
+  return {
+    id,
+    estimateNo: isAccepted ? '2026/04/28-99' : '2026/05/04-1',
+    estimateDate: isAccepted ? '2026-04-28' : '2026-05-04',
+    seqNo: 1,
+    status,
+    partnerId: 'pt-mock-001',
+    partnerName: isAccepted ? '대박종합건설' : '엘에이시스템에어',
+    partnerBusinessNo: isAccepted ? '5678901234' : '1234567890',
+    partnerAddress: '서울시 강남구 테헤란로 1',
+    validUntil: '2026-05-31',
+    totalSupply: '3870000',
+    totalVat: '387000',
+    totalAmount: '4257000',
+    convertedSlipId: null,
+    sentAt: null,
+    acceptedAt: isAccepted ? '2026-04-29T10:00:00' : null,
+    convertedAt: null,
+    rejectedAt: null,
+    requesterId: null,
+    version: 2,
+    memo: isAccepted ? '대박빌딩 신축 — 채택' : '시스템에어컨 4Way 4HP 2EA 견적',
+    lines: MOCK_ESTIMATE_DETAIL_LINES,
+  }
+}
+
+/** EstimateDetail status — api/estimateApi.ts EstimateStatus 미러 (mock 전용 타입 별칭). */
+type EstimateStatusMock =
+  | 'QUOTE_DRAFT'
+  | 'QUOTE_SENT'
+  | 'QUOTE_ACCEPTED'
+  | 'QUOTE_REJECTED'
+  | 'QUOTE_CONVERTED'
 
 /**
  * 전표 수정/삭제 요청 (`/admin/slip-edit-requests`) — 2건 PENDING.

@@ -23,39 +23,29 @@
  * - permission-matrix-change-count                 — 변경 건수 배지
  * - sidebar-purchases-receipt-ocr (AppLayout)      — 영수증 OCR 사이드바 링크 (SP-D1 동적 권한 연동)
  */
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button, Badge, Spinner } from '@samhan/design-system'
 import {
-  fetchPermissionMatrix,
-  updatePermissionBatch,
-  type PermissionCell,
-  type PermissionMatrix,
-  type PermissionUpdateItem,
-  type RbacRole,
+  PERMISSION_ACTIONS,
+  applyTemplate,
+  copyFromAccount,
+  fetchAccountMatrix,
+  fetchAccounts,
+  updateAccountMatrix,
+  type AccountPermissionMatrix,
+  type AccountPermissionUpdate,
   type PageCode,
+  type PermissionAccount,
+  type PermissionAction,
+  type PermissionActionMatrix,
+  type RbacRole,
 } from '../api/permissionsApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 // ---------------------------------------------------------------------------
 // 상수
 // ---------------------------------------------------------------------------
-
-/**
- * 표시 순서 고정 역할 10개 (MASTER 제외 — 항상 전권이므로 편집 불가).
- */
-const ROLES_ORDER: RbacRole[] = [
-  'MANAGER',
-  'DISPATCH',
-  'SALES',
-  'ACCOUNTANT',
-  'WAREHOUSE',
-  'INVENTORY',
-  'DEVELOPER',
-  'PARTNER',
-  'STAFF',
-  'DRIVER',
-]
 
 /** 역할 한국어 라벨. */
 const ROLE_LABEL: Record<RbacRole, string> = {
@@ -87,7 +77,7 @@ const ROLE_LABEL: Record<RbacRole, string> = {
  *   → 전표 운영 (SP-D6-6)
  *   → 견적 → 거래처주문 → 재고 → 직원·계정 → 거래처 → 상품 → 아로로지스 (SP-D4 신규)
  */
-interface PageGroup {
+export interface PageGroup {
   label: string
   pages: PageCode[]
 }
@@ -103,7 +93,7 @@ interface PageGroup {
  * SP-D6-3: notifications.admin / aligo.address-book / dispatch.sms-save-history / dispatch.batch 추가
  * SP-D7: notifications.center + 전용 *.view PageCode 추가
  */
-const PAGE_GROUPS: PageGroup[] = [
+export const PAGE_GROUPS: PageGroup[] = [
   // ── SP-D1~D3 기존 그룹 ──────────────────────────────────────────────────
   {
     label: '회계',
@@ -300,6 +290,8 @@ const PAGE_GROUPS: PageGroup[] = [
       'inventory.edit-requests',
       'inventory.edit-requests.decide',
       'ecount.import.inventory',
+      'ecount.mig2.warehouse',
+      'ecount.mig5.stock-transfer',
     ],
   },
   {
@@ -342,6 +334,7 @@ const PAGE_GROUPS: PageGroup[] = [
       'products.edit-requests',
       'products.edit-requests.decide',
       'products.ecount-import',
+      'ecount.mig2.product',
     ],
   },
   {
@@ -363,10 +356,10 @@ const PAGE_GROUPS: PageGroup[] = [
  * PAGE_GROUPS 에서 파생된 전체 페이지 코드 순서 배열.
  * 그룹 순서 × 그룹 내 순서가 최종 열 순서.
  */
-const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
+export const PAGES_ORDER: PageCode[] = PAGE_GROUPS.flatMap((g) => g.pages)
 
 /** 페이지 코드 한국어 라벨. */
-const PAGE_LABEL: Record<PageCode, string> = {
+export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.tax-invoice.batch-issue': '세금계산서 발행 묶음',
   'accounting.tax-invoice.inbound': '수신 세금계산서',
   'accounting.tax-invoice.cancel': '세금계산서 취소',
@@ -475,6 +468,7 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'ecount.mig.ops-dashboard': 'MIG-21 운영 대시보드',
   'accounting.edit-requests': '회계 수정 요청',
   'accounting.edit-requests.decide': '회계 수정 요청 승인',
+  'ecount.mig2.product': 'MIG-2 품목',
   'ecount.reimport': '이카운트 재import',
   // SP-D4 신규 22개
   'estimates.list': '견적 목록',
@@ -505,6 +499,8 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'inventory.edit-requests': '재고 수정 요청',
   'inventory.edit-requests.decide': '재고 요청 승인',
   'ecount.import.inventory': '이카운트 재고',
+  'ecount.mig2.warehouse': 'MIG-2 창고',
+  'ecount.mig5.stock-transfer': 'MIG-5 창고이동',
   'admin.employees': '직원 관리',
   'admin.users': '계정 관리',
   'ecount.mig2.department': '부서 import',
@@ -542,327 +538,404 @@ const PAGE_LABEL: Record<PageCode, string> = {
   'arologis.driver': '기사앱',
 }
 
-/** edit 액션이 의미 있는 페이지 코드 목록. 나머지는 view 만 표시. */
-const PAGES_WITH_EDIT: Set<PageCode> = new Set([
-  'accounting.tax-invoice.batch-issue',
-  'accounting.tax-invoice.inbound',
-  'accounting.tax-invoice.cancel',
-  'accounting.tax-invoice.issue-request',
-  'accounting.tax-invoice.inbound.manage',
-  'accounting.sales-slip.list',
-  'accounting.sales-slip.accounting',
-  'accounting.purchase-slip.list',
-  'accounting.purchase-slip.accounting',
-  // SP-D1~D3
-  'accounting.tax-invoice.emit-nts',
-  'accounting.deposit-match',
-  'accounting.daily-closing',
-  'accounting.daily-closing.run',
-  'accounting.daily-closing.unlock',
-  'accounting.hometax-export',
-  'notification.dispatch-sms.send-audit',
-  'notifications.admin',
-  'aligo.address-book',
-  'messenger.admin',
-  'messenger.send',
-  'purchases.receipt-ocr',
-  'purchases.slip.list',
-  'purchases.slip.edit',
-  'purchases.slip.delete',
-  'sales.slip.list',
-  'sales.slip.create',
-  'sales.slip.edit',
-  'sales.slip.confirm',
-  'sales.slip.cancel',
-  'sales.partner-dc-config',
-  'slip.transfer.process',
-  'slip.reject',
-  'slip.period-lock',
-  'slip.print.next-day',
-  'slip.print.export',
-  'slip.cleanup',
-  'slip.cleanup-history',
-  'slip.attachments.upload',
-  'slip.attachments.delete',
-  'slip.delivery-attachments.upload',
-  'slip.comments',
-  'slip.audit-overlay',
-  'slip.audit-revert',
-  'slip.edit-requests',
-  'slip.edit-requests.decide',
-  'slip.signature',
-  'slip.delivery-batch',
-  'slip.mobile-sales',
-  'slip.publish.from-estimate',
-  'slip.publish.from-partner-order',
-  'inbound.inspection',
-  'dispatch.board',
-  'dispatch.sms-save-history',
-  'dispatch.batch',
-  'admin.permissions',
-  'system.permission-admin',
-  'system.password-admin',
-  'system.account-admin',
-  'dc-config.import',
-  'dashboard.admin',
-  // SP-D2 추가
-  'accounting.accounts',
-  'accounting.journals',
-  'accounting.period-close',
-  'accounting.period-close.reverse',
-  'accounting.statement-batch',
-  'accounting.edit-requests',
-  'accounting.edit-requests.decide',
-  'accounting.supplier-profiles',
-  'ecount.mig2.account',
-  'ecount.mig2.card',
-  'ecount.mig3.purchase-slip',
-  'ecount.mig3.sales-slip',
-  'ecount.mig3.general-voucher',
-  'ecount.mig3.journal-entry',
-  'ecount.mig4.tax-invoice',
-  'ecount.mig4.sales-slip-line',
-  'ecount.mig4.summary',
-  'ecount.mig4.order',
-  'ecount.mig5.expense-voucher',
-  'ecount.mig5.deposit-report',
-  'ecount.mig6.bank-account',
-  'ecount.mig6.fixed-asset-type',
-  'ecount.mig7.cash-disbursement',
-  'ecount.mig7.cash-receipt',
-  'ecount.mig8.order',
-  'ecount.mig9.cash-journal.disbursement',
-  'ecount.mig9.cash-journal.receipt',
-  'ecount.mig10.order-employee-backfill',
-  'ecount.mig11.sales-ledger',
-  'ecount.mig11.purchase-ledger',
-  'ecount.reimport',
-  // SP-D4 신규 (V/E 양쪽 유의미한 코드)
-  'estimates.list',
-  'sales.partner-order.list',
-  'sales.partner-order.draft',
-  'sales.partner-order.edit',
-  'sales.partner-order.confirm',
-  'sales.partner-order.history',
-  'sales.partner-order.print',
-  'sales.partner-order.edit-requests',
-  'sales.partner-order.edit-requests.decide',
-  'sales.partner-order.tutorial',
-  'sales.vendor-order',
-  'inventory.warehouse',
-  'inventory.warehouse.admin',
-  'inventory.stock',
-  'inventory.stock-transfer',
-  'inventory.dps',
-  'inventory.audit',
-  'inventory.list',
-  'inventory.adjust',
-  'inventory.transfer',
-  'inventory.stock-balance',
-  'inventory.safety-stock',
-  'inventory.edit-requests',
-  'inventory.edit-requests.decide',
-  'ecount.import.inventory',
-  'admin.employees',
-  'admin.users',
-  'ecount.mig2.department',
-  'ecount.mig6.employee',
-  'ecount.mig6.employee-card',
-  'ecount.mig6.payroll-employee',
-  'partners.list',
-  'partners.detail',
-  'partners.block',
-  'partners.edit-request',
-  'partners.edit',
-  'partners.delete',
-  'partners.block.bulk',
-  'partners.4tab',
-  'partners.4tab.edit',
-  'partners.edit-requests',
-  'partners.edit-requests.decide',
-  'products.list',
-  'products.admin',
-  'products.price',
-  'products.edit-requests',
-  'products.edit-requests.decide',
-  'products.ecount-import',
-  'arologis.admin',
-  'arologis.region',
-  'arologis.dispatch.admin',
-  'arologis.dispatch.ops',
-  'arologis.region.manage',
-  'arologis.edit-requests',
-  'arologis.edit-requests.decide',
-  'arologis.driver',
-])
-
-/** 비-MASTER 역할에는 부여할 수 없는 시스템 전용 PageCode. */
-const SYSTEM_ONLY_PAGES: Set<PageCode> = new Set([
-  'system.permission-admin',
-  'system.password-admin',
-  'system.account-admin',
-])
-
-// ---------------------------------------------------------------------------
-// 내부 상태 타입
-// ---------------------------------------------------------------------------
-
-/** 셀 편집 상태 키. */
-type CellKey = `${RbacRole}__${PageCode}`
-
-function cellKey(role: RbacRole, page: PageCode): CellKey {
-  return `${role}__${page}`
+const MATRIX_ACTION_LABEL: Record<PermissionAction, string> = {
+  view: 'VIEW',
+  create: 'CREATE',
+  update: 'UPDATE',
+  delete: 'DELETE',
+  restore: 'RESTORE',
+  download: 'DOWNLOAD',
+  print: 'PRINT',
 }
 
-/** 편집 중인 매트릭스 상태 (서버 데이터 + 로컬 변경 오버레이). */
-type EditState = Record<CellKey, PermissionCell>
+const MATRIX_ACTION_META: Record<PermissionAction, {
+  groupLabel: string
+  headerBg: string
+  headerBorder: string
+  headerColor: string
+  accentColor: string
+}> = {
+  view: {
+    groupLabel: '조회',
+    headerBg: 'var(--color-neutral-0)',
+    headerBorder: 'var(--color-neutral-300)',
+    headerColor: 'var(--color-neutral-700)',
+    accentColor: 'var(--color-brand-500)',
+  },
+  create: {
+    groupLabel: '변경',
+    headerBg: 'var(--color-warning-50)',
+    headerBorder: 'var(--color-warning-300)',
+    headerColor: 'var(--color-warning-700)',
+    accentColor: 'var(--color-warning-500)',
+  },
+  update: {
+    groupLabel: '변경',
+    headerBg: 'var(--color-warning-50)',
+    headerBorder: 'var(--color-warning-300)',
+    headerColor: 'var(--color-warning-700)',
+    accentColor: 'var(--color-warning-500)',
+  },
+  delete: {
+    groupLabel: '위험',
+    headerBg: 'var(--color-danger-50)',
+    headerBorder: 'var(--color-danger-300)',
+    headerColor: 'var(--color-danger-700)',
+    accentColor: 'var(--color-danger-500)',
+  },
+  restore: {
+    groupLabel: '위험',
+    headerBg: 'var(--color-danger-50)',
+    headerBorder: 'var(--color-danger-300)',
+    headerColor: 'var(--color-danger-700)',
+    accentColor: 'var(--color-danger-500)',
+  },
+  download: {
+    groupLabel: '출력',
+    headerBg: 'var(--color-success-50)',
+    headerBorder: 'var(--color-success-200)',
+    headerColor: 'var(--color-success-700)',
+    accentColor: 'var(--color-success-500)',
+  },
+  print: {
+    groupLabel: '출력',
+    headerBg: 'var(--color-success-50)',
+    headerBorder: 'var(--color-success-200)',
+    headerColor: 'var(--color-success-700)',
+    accentColor: 'var(--color-success-500)',
+  },
+}
 
-/** 서버 응답을 EditState 로 변환. */
-function matrixToEditState(matrix: PermissionMatrix): EditState {
-  const state: EditState = {} as EditState
-  for (const cell of matrix.cells) {
-    state[cellKey(cell.roleCode, cell.pageCode)] = cell
+const MATRIX_ACTION_GROUP_STARTS = new Set<PermissionAction>(['create', 'restore', 'download'])
+/** 위험(DELETE/RESTORE) 액션 — 173×7 그리드 단일 셀 오클릭 방지 시각 가드 대상. */
+const MATRIX_DANGER_ACTIONS = new Set<PermissionAction>(['delete', 'restore'])
+const MATRIX_LEGEND_ITEMS = [
+  { label: '조회', actions: 'VIEW', color: 'var(--color-brand-500)' },
+  { label: '변경', actions: 'CREATE · UPDATE', color: 'var(--color-warning-500)' },
+  { label: '위험', actions: 'DELETE · RESTORE', color: 'var(--color-danger-500)' },
+  { label: '출력', actions: 'DOWNLOAD · PRINT', color: 'var(--color-success-500)' },
+]
+
+const MATRIX_DOMAIN_ID_BY_LABEL: Record<string, string> = {
+  회계: 'accounting',
+  매입: 'purchases',
+  매출: 'sales',
+  '전표 운영': 'slip',
+  배차: 'dispatch',
+  알림: 'notifications',
+  메신저: 'messenger',
+  관리: 'admin',
+  '시스템 관리': 'system',
+  견적: 'estimates',
+  거래처주문: 'partner-order',
+  재고: 'inventory',
+  '직원·계정': 'employees',
+  거래처: 'partners',
+  상품: 'products',
+  아로로지스: 'arologis',
+}
+
+type AccountMatrixState = Record<PageCode, PermissionActionMatrix>
+type AccountDirtyKey = `${PageCode}__${PermissionAction}`
+
+const matrixDirtyKey = (page: PageCode, action: PermissionAction): AccountDirtyKey => `${page}__${action}`
+const matrixPageNorm = (page: PageCode): string => page.replace(/\./g, '-')
+
+function emptyPermissionActions(): PermissionActionMatrix {
+  return {
+    view: false,
+    create: false,
+    update: false,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
   }
-  // 매트릭스에 없는 셀은 기본값 false 로 채움.
-  for (const role of ROLES_ORDER) {
-    for (const page of PAGES_ORDER) {
-      const k = cellKey(role, page)
-      if (!state[k]) {
-        state[k] = { roleCode: role, pageCode: page, view: false, edit: false }
-      }
+}
+
+function accountMatrixToState(matrix: AccountPermissionMatrix | undefined): AccountMatrixState {
+  const state = {} as AccountMatrixState
+  for (const page of PAGES_ORDER) {
+    state[page] = emptyPermissionActions()
+  }
+  for (const cell of matrix?.cells ?? []) {
+    state[cell.pageCode] = {
+      view: cell.view,
+      create: cell.create,
+      update: cell.update,
+      delete: cell.delete,
+      restore: cell.restore,
+      download: cell.download,
+      print: cell.print,
     }
   }
   return state
 }
 
-// ---------------------------------------------------------------------------
-// 컴포넌트
-// ---------------------------------------------------------------------------
+function accountDirtyKeys(
+  server: AccountMatrixState | null,
+  current: AccountMatrixState | null,
+): Set<AccountDirtyKey> {
+  const dirty = new Set<AccountDirtyKey>()
+  if (!server || !current) return dirty
+  for (const page of PAGES_ORDER) {
+    for (const action of PERMISSION_ACTIONS) {
+      if (server[page]?.[action] !== current[page]?.[action]) {
+        dirty.add(matrixDirtyKey(page, action))
+      }
+    }
+  }
+  return dirty
+}
+
+function accountOptionLabel(account: PermissionAccount): string {
+  return `${account.displayName} / ${ROLE_LABEL[account.role] ?? account.role}${account.enabled ? '' : ' / 비활성'}`
+}
+
+function filteredPageGroups(search: string): PageGroup[] {
+  const query = search.trim().toLowerCase()
+  if (!query) return PAGE_GROUPS
+  return PAGE_GROUPS
+    .map((group) => ({
+      ...group,
+      pages: group.pages.filter((page) => {
+        const label = PAGE_LABEL[page] ?? page
+        return page.toLowerCase().includes(query) || label.toLowerCase().includes(query)
+      }),
+    }))
+    .filter((group) => group.pages.length > 0)
+}
+
+const matrixSelectStyle: React.CSSProperties = {
+  height: 34,
+  minWidth: 180,
+  border: '1px solid var(--color-neutral-300)',
+  borderRadius: 6,
+  padding: '0 8px',
+  background: 'var(--color-neutral-0)',
+  color: 'var(--color-neutral-900)',
+  fontSize: 13,
+}
+
+const matrixButtonStyle: React.CSSProperties = {
+  border: '1px solid var(--color-neutral-300)',
+  borderRadius: 6,
+  padding: '3px 7px',
+  background: 'var(--color-neutral-0)',
+  color: 'var(--color-neutral-700)',
+  fontSize: 11,
+  cursor: 'pointer',
+}
+
+function matrixActionSeparatorStyle(action: PermissionAction): React.CSSProperties {
+  return MATRIX_ACTION_GROUP_STARTS.has(action)
+    ? { borderLeft: '2px solid var(--color-neutral-300)' }
+    : {}
+}
+
+function matrixActionButtonStyle(action: PermissionAction): React.CSSProperties {
+  const meta = MATRIX_ACTION_META[action]
+  return {
+    ...matrixButtonStyle,
+    width: '100%',
+    padding: '5px 4px',
+    background: meta.headerBg,
+    borderColor: meta.headerBorder,
+    color: meta.headerColor,
+    fontWeight: 700,
+  }
+}
+
+function matrixActionCellStyle(action: PermissionAction, dirty: boolean): React.CSSProperties {
+  const isDanger = MATRIX_DANGER_ACTIONS.has(action)
+  // 위험(DELETE/RESTORE) 셀: 단일 오클릭 방지용 시각 가드.
+  // - dirty 상태는 기존 warning-50 우선(변경 추적 우선), 그 외엔 미세 danger-50 배경.
+  // - 셀 내부 점선 danger 테두리로 "위험 셀"임을 한눈에 인지(separator 와 시각 구분).
+  const background = dirty
+    ? 'var(--color-warning-50)'
+    : isDanger
+      ? 'var(--color-danger-50)'
+      : 'var(--color-neutral-0)'
+  return {
+    textAlign: 'center',
+    borderBottom: '1px solid var(--color-neutral-200)',
+    background,
+    ...(isDanger ? { outline: '1px dashed var(--color-danger-300)', outlineOffset: '-3px' } : {}),
+    ...matrixActionSeparatorStyle(action),
+  }
+}
+
+function matrixActionCheckboxStyle(action: PermissionAction): React.CSSProperties {
+  return {
+    accentColor: MATRIX_ACTION_META[action].accentColor,
+    cursor: 'pointer',
+  }
+}
 
 export function PermissionMatrixPage() {
   usePageTitle('권한 매트릭스 관리')
 
   const queryClient = useQueryClient()
-
-  const matrixQuery = useQuery({
-    queryKey: ['admin', 'permission-matrix'],
-    queryFn: fetchPermissionMatrix,
-  })
-
-  /** 로컬 편집 상태 (서버 데이터 기반, 변경사항 오버레이). */
-  const [editState, setEditState] = useState<EditState | null>(null)
-
-  /** 변경된 셀 key 집합 — dirty 강조 + batch 전송에 사용. */
-  const [dirtyKeys, setDirtyKeys] = useState<Set<CellKey>>(new Set())
-
-  /** 저장 toast 메시지. */
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [templateRole, setTemplateRole] = useState<RbacRole>('MANAGER')
+  const [copySourceAccountId, setCopySourceAccountId] = useState('')
+  const [search, setSearch] = useState('')
+  const [editState, setEditState] = useState<AccountMatrixState | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  /** 서버 데이터가 로드되면 editState 초기화 (한 번만). */
-  const serverState = useMemo(() => {
-    if (!matrixQuery.data) return null
-    return matrixToEditState(matrixQuery.data)
-  }, [matrixQuery.data])
-
-  /** 현재 표시 상태 — editState 우선, 없으면 serverState. */
-  const currentState = editState ?? serverState
-
-  const saveMutation = useMutation({
-    mutationFn: (updates: PermissionUpdateItem[]) => updatePermissionBatch(updates),
-    onSuccess: () => {
-      setDirtyKeys(new Set())
-      setEditState(null)
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-matrix'] })
-      void queryClient.invalidateQueries({ queryKey: ['permissions', 'my'] })
-      showToast('success', '권한 매트릭스가 저장되었습니다.')
-    },
-    onError: () => {
-      showToast('error', '저장 중 오류가 발생했습니다. 다시 시도해 주세요.')
-    },
+  const accountsQuery = useQuery({
+    queryKey: ['admin', 'permission-accounts'],
+    queryFn: fetchAccounts,
   })
 
-  function showToast(type: 'success' | 'error', message: string) {
-    setToast({ type, message })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const matrixQuery = useQuery({
+    queryKey: ['admin', 'permission-account-matrix', selectedAccountId],
+    queryFn: () => fetchAccountMatrix(selectedAccountId),
+    enabled: selectedAccountId.length > 0,
+  })
 
-  /** 체크박스 토글 핸들러. */
-  const handleToggle = useCallback(
-    (role: RbacRole, page: PageCode, field: 'view' | 'edit') => {
-      const base = currentState
-      if (!base) return
-      if (role !== 'MASTER' && SYSTEM_ONLY_PAGES.has(page)) return
+  const selectedAccount = accountsQuery.data?.find((account) => account.id === selectedAccountId)
+  const serverState = useMemo(() => accountMatrixToState(matrixQuery.data), [matrixQuery.data])
+  const currentState = editState ?? serverState
+  const dirtyKeys = useMemo(() => accountDirtyKeys(serverState, currentState), [serverState, currentState])
+  const visibleGroups = useMemo(() => filteredPageGroups(search), [search])
+  const visiblePages = useMemo(() => visibleGroups.flatMap((group) => group.pages), [visibleGroups])
 
-      const k = cellKey(role, page)
-      const prev = base[k] ?? { roleCode: role, pageCode: page, view: false, edit: false }
-      const updated: PermissionCell = { ...prev, [field]: !prev[field] }
-
-      // view 를 끄면 edit 도 강제로 끔 (edit 은 view 의 상위 집합).
-      if (field === 'view' && !updated.view) {
-        updated.edit = false
-      }
-      // edit 을 켜면 view 도 강제 활성.
-      if (field === 'edit' && updated.edit) {
-        updated.view = true
-      }
-
-      setEditState((prev) => {
-        const next: EditState = { ...(prev ?? base) }
-        next[k] = updated
-        return next
-      })
-
-      setDirtyKeys((prev) => {
-        const next = new Set(prev)
-        next.add(k)
-        return next
-      })
-    },
-    [currentState],
-  )
-
-  /** 저장 — dirty 셀만 batch update. */
-  const handleSave = useCallback(() => {
-    if (!currentState || dirtyKeys.size === 0) return
-
-    const updates: PermissionUpdateItem[] = []
-    for (const k of dirtyKeys) {
-      const cell = currentState[k]
-      if (!cell) continue
-      const serverCell = serverState?.[k]
-
-      // view 변경 여부
-      if (!serverCell || cell.view !== serverCell.view) {
-        updates.push({
-          roleCode: cell.roleCode,
-          pageCode: cell.pageCode,
-          action: 'view',
-          allowed: cell.view,
-        })
-      }
-      // edit 변경 여부
-      if (!serverCell || cell.edit !== serverCell.edit) {
-        updates.push({
-          roleCode: cell.roleCode,
-          pageCode: cell.pageCode,
-          action: 'edit',
-          allowed: cell.edit,
-        })
-      }
+  useEffect(() => {
+    const firstAccount = accountsQuery.data?.[0]
+    if (!selectedAccountId && firstAccount) {
+      setSelectedAccountId(firstAccount.id)
     }
+  }, [accountsQuery.data, selectedAccountId])
 
-    if (updates.length > 0) {
-      saveMutation.mutate(updates)
-    }
-  }, [currentState, dirtyKeys, serverState, saveMutation])
-
-  /** 초기화 — 서버 상태로 롤백. */
-  const handleReset = useCallback(() => {
+  useEffect(() => {
     setEditState(null)
-    setDirtyKeys(new Set())
-  }, [])
+  }, [selectedAccountId, matrixQuery.dataUpdatedAt])
 
-  if (matrixQuery.isLoading) {
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(null), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  const invalidateMatrix = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-account-matrix', selectedAccountId] })
+    void queryClient.invalidateQueries({ queryKey: ['permissions', 'my'] })
+  }, [queryClient, selectedAccountId])
+
+  const saveMutation = useMutation({
+    mutationFn: (updates: AccountPermissionUpdate[]) => updateAccountMatrix(selectedAccountId, updates),
+    onSuccess: (result) => {
+      setEditState(null)
+      invalidateMatrix()
+      setToast({ type: 'success', message: `${result.changedCount}건의 권한 변경을 저장했습니다.` })
+    },
+    onError: () => setToast({ type: 'error', message: '권한 저장 중 오류가 발생했습니다.' }),
+  })
+
+  const templateMutation = useMutation({
+    mutationFn: () => applyTemplate(selectedAccountId, templateRole),
+    onSuccess: (result) => {
+      setEditState(null)
+      invalidateMatrix()
+      setToast({ type: 'success', message: `${ROLE_LABEL[templateRole]} 템플릿을 적용했습니다. (${result.changedCount}건)` })
+    },
+    onError: () => setToast({ type: 'error', message: '템플릿 적용 중 오류가 발생했습니다.' }),
+  })
+
+  const copyMutation = useMutation({
+    mutationFn: () => copyFromAccount(selectedAccountId, copySourceAccountId),
+    onSuccess: (result) => {
+      setEditState(null)
+      invalidateMatrix()
+      setToast({ type: 'success', message: `다른 계정 권한을 복사했습니다. (${result.changedCount}건)` })
+    },
+    onError: () => setToast({ type: 'error', message: '계정 권한 복사 중 오류가 발생했습니다.' }),
+  })
+
+  const setPageActions = useCallback((
+    pages: readonly PageCode[],
+    actions: readonly PermissionAction[],
+    allowed: boolean,
+  ) => {
+    setEditState((prev) => {
+      const base = prev ?? currentState
+      if (!base) return prev
+      const next: AccountMatrixState = { ...base }
+      for (const page of pages) {
+        const row = { ...(next[page] ?? emptyPermissionActions()) }
+        for (const action of actions) {
+          row[action] = allowed
+        }
+        next[page] = row
+      }
+      return next
+    })
+  }, [currentState])
+
+  const toggleCell = useCallback((page: PageCode, action: PermissionAction) => {
+    const allowed = !(currentState?.[page]?.[action] ?? false)
+    setPageActions([page], [action], allowed)
+  }, [currentState, setPageActions])
+
+  const toggleRow = useCallback((page: PageCode) => {
+    const row = currentState?.[page] ?? emptyPermissionActions()
+    const shouldEnable = PERMISSION_ACTIONS.some((action) => !row[action])
+    if (!window.confirm(`${PAGE_LABEL[page] ?? page} 1개 행의 7개 권한을 ${shouldEnable ? 'ON' : 'OFF'} 처리할까요?`)) {
+      return
+    }
+    setPageActions([page], PERMISSION_ACTIONS, shouldEnable)
+  }, [currentState, setPageActions])
+
+  const toggleColumn = useCallback((action: PermissionAction) => {
+    const pages = PAGES_ORDER
+    const shouldEnable = pages.some((page) => !(currentState?.[page]?.[action] ?? false))
+    if (!window.confirm(`${MATRIX_ACTION_LABEL[action]} 권한을 전체 ${pages.length}개 페이지에 일괄 적용할까요?`)) {
+      return
+    }
+    setPageActions(pages, [action], shouldEnable)
+  }, [currentState, setPageActions])
+
+  const setAllPages = useCallback((allowed: boolean) => {
+    if (!window.confirm(`전체 ${PAGES_ORDER.length}개 페이지의 모든 권한을 ${allowed ? 'ON' : 'OFF'} 처리할까요?`)) {
+      return
+    }
+    setPageActions(PAGES_ORDER, PERMISSION_ACTIONS, allowed)
+  }, [setPageActions])
+
+  const saveChanges = useCallback(() => {
+    if (!selectedAccountId || !currentState || dirtyKeys.size === 0) return
+    const dirtyPages = new Set<PageCode>()
+    for (const key of dirtyKeys) {
+      const [page] = key.split('__') as [PageCode, PermissionAction]
+      dirtyPages.add(page)
+    }
+    const updates = Array.from(dirtyPages).map((page) => ({
+      pageCode: page,
+      actions: currentState[page] ?? emptyPermissionActions(),
+    }))
+    saveMutation.mutate(updates)
+  }, [currentState, dirtyKeys, saveMutation, selectedAccountId])
+
+  const changeAccount = useCallback((accountId: string) => {
+    if (dirtyKeys.size > 0 && !window.confirm('저장하지 않은 변경이 있습니다. 계정을 변경할까요?')) return
+    setSelectedAccountId(accountId)
+  }, [dirtyKeys.size])
+
+  const applySelectedTemplate = useCallback(() => {
+    if (!selectedAccountId) return
+    if (dirtyKeys.size > 0 && !window.confirm('미저장 변경을 버리고 템플릿을 적용할까요?')) return
+    if (!window.confirm(`${ROLE_LABEL[templateRole]} 템플릿을 현재 계정에 적용할까요?`)) return
+    templateMutation.mutate()
+  }, [dirtyKeys.size, selectedAccountId, templateMutation, templateRole])
+
+  const copySelectedAccount = useCallback(() => {
+    if (!selectedAccountId || !copySourceAccountId) return
+    if (dirtyKeys.size > 0 && !window.confirm('미저장 변경을 버리고 다른 계정 권한을 복사할까요?')) return
+    copyMutation.mutate()
+  }, [copyMutation, copySourceAccountId, dirtyKeys.size, selectedAccountId])
+
+  if (accountsQuery.isLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
         <Spinner />
@@ -870,433 +943,452 @@ export function PermissionMatrixPage() {
     )
   }
 
-  if (matrixQuery.isError || !currentState) {
+  if (accountsQuery.isError) {
     return (
       <div style={{ padding: 48, color: 'var(--color-danger-600)' }}>
-        권한 매트릭스를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.
+        계정 목록을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.
       </div>
     )
   }
 
   return (
-    <div style={{ padding: '0 4px' }}>
-      {/* 헤더 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 12,
-          gap: 8,
-        }}
-      >
+    <div style={{ padding: '0 4px 28px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 12 }}>
         <div>
           <h3 style={{ margin: 0 }}>권한 매트릭스 관리</h3>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            역할별 페이지 접근 권한을 체크박스로 관리합니다. MASTER 역할은 항상 전 권한입니다.
+            계정별 페이지 권한을 7개 액션 단위로 관리합니다.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          <Button
-            variant="ghost"
-            onClick={handleReset}
-            disabled={dirtyKeys.size === 0}
-            data-testid="permission-matrix-reset-btn"
-          >
-            초기화
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSave}
-            disabled={dirtyKeys.size === 0 || saveMutation.isPending}
-            data-testid="permission-matrix-save-btn"
-          >
-            {saveMutation.isPending
-              ? '저장 중…'
-              : (
-                <>
-                  저장
-                  {dirtyKeys.size > 0 && (
-                    <span data-testid="permission-matrix-change-count">
-                      {' '}({dirtyKeys.size}건)
-                    </span>
-                  )}
-                </>
-              )}
-          </Button>
-        </div>
+        {selectedAccount && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Badge variant="brand">{ROLE_LABEL[selectedAccount.role] ?? selectedAccount.role}</Badge>
+            <span style={{ fontSize: 13 }}>{selectedAccount.displayName}</span>
+          </div>
+        )}
       </div>
 
-      {/* dirty 경고 배너 — role="alert" aria-live="assertive" (D-4 접근성) */}
-      {dirtyKeys.size > 0 && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          style={{
-            background: 'var(--color-warning-50)',
-            border: '1px solid var(--color-warning-200)',
-            borderRadius: 6,
-            padding: '8px 12px',
-            marginBottom: 12,
-            fontSize: 13,
-            color: 'var(--color-warning-800)',
-          }}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 8,
+          padding: 10,
+          marginBottom: 10,
+          border: '1px solid var(--color-neutral-200)',
+          borderRadius: 8,
+          background: 'var(--color-neutral-0)',
+          boxShadow: 'var(--shadow-md)',
+        }}
+      >
+        <select
+          data-testid="perm-matrix-account-select"
+          aria-label="권한을 편집할 계정"
+          value={selectedAccountId}
+          onChange={(event) => changeAccount(event.target.value)}
+          style={{ ...matrixSelectStyle, minWidth: 220 }}
         >
-          {dirtyKeys.size}개 셀이 변경되었습니다. 저장하지 않으면 변경이 유실됩니다.
+          {(accountsQuery.data ?? []).map((account) => (
+            <option key={account.id} value={account.id}>
+              {accountOptionLabel(account)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="적용할 역할 템플릿"
+          value={templateRole}
+          onChange={(event) => setTemplateRole(event.target.value as RbacRole)}
+          style={{ ...matrixSelectStyle, minWidth: 150 }}
+        >
+          {Object.keys(ROLE_LABEL).map((role) => (
+            <option key={role} value={role}>
+              {ROLE_LABEL[role as RbacRole]}
+            </option>
+          ))}
+        </select>
+        <Button
+          variant="secondary"
+          onClick={applySelectedTemplate}
+          disabled={!selectedAccountId || templateMutation.isPending}
+          data-testid="perm-matrix-apply-template"
+        >
+          템플릿 적용
+        </Button>
+
+        <Button
+          variant="ghost"
+          onClick={() => setAllPages(true)}
+          disabled={!currentState}
+        >
+          전체ON
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => setAllPages(false)}
+          disabled={!currentState}
+        >
+          전체OFF
+        </Button>
+
+        <select
+          aria-label="복사할 원본 계정"
+          value={copySourceAccountId}
+          onChange={(event) => setCopySourceAccountId(event.target.value)}
+          style={{ ...matrixSelectStyle, minWidth: 190 }}
+        >
+          <option value="">다른 계정 선택</option>
+          {(accountsQuery.data ?? [])
+            .filter((account) => account.id !== selectedAccountId)
+            .map((account) => (
+              <option key={account.id} value={account.id}>
+                {accountOptionLabel(account)}
+              </option>
+            ))}
+        </select>
+        <Button
+          variant="secondary"
+          onClick={copySelectedAccount}
+          disabled={!selectedAccountId || !copySourceAccountId || copyMutation.isPending}
+          data-testid="perm-matrix-copy-account"
+        >
+          다른 계정 복사
+        </Button>
+
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="페이지 검색"
+          aria-label="페이지 검색"
+          style={{
+            height: 34,
+            width: 220,
+            border: '1px solid var(--color-neutral-300)',
+            borderRadius: 6,
+            padding: '0 10px',
+            fontSize: 13,
+          }}
+        />
+      </div>
+
+      {matrixQuery.isLoading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+          <Spinner />
         </div>
       )}
 
-      {/* 변경 카운트 live region — role="status" aria-live="polite" (D-4 접근성) */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
-      >
-        {dirtyKeys.size > 0 ? `${dirtyKeys.size}개 항목 변경됨` : '변경 사항 없음'}
-      </div>
+      {matrixQuery.isError && (
+        <div style={{ padding: 24, color: 'var(--color-danger-600)' }}>
+          계정 권한 매트릭스를 불러오지 못했습니다.
+        </div>
+      )}
 
-      {/* toast — role="alert" (D-4 접근성) */}
+      {!matrixQuery.isLoading && !matrixQuery.isError && currentState && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12 }}>
+          <div
+            data-testid="permission-matrix-table"
+            style={{
+              overflow: 'auto',
+              maxHeight: 'calc(100vh - 230px)',
+              border: '1px solid var(--color-neutral-200)',
+              borderRadius: 8,
+              background: 'var(--color-neutral-0)',
+            }}
+          >
+            <div
+              aria-label="권한 액션 색상 범례"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                alignItems: 'center',
+                padding: '8px 10px',
+                borderBottom: '1px solid var(--color-neutral-200)',
+                background: 'var(--color-neutral-50)',
+                color: 'var(--color-neutral-700)',
+                fontSize: 11,
+              }}
+            >
+              {MATRIX_LEGEND_ITEMS.map((item) => (
+                <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: item.color,
+                    }}
+                  />
+                  <span style={{ fontWeight: 700 }}>{item.label}</span>
+                  <span>{item.actions}</span>
+                </span>
+              ))}
+            </div>
+            <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 980, fontSize: 12 }}>
+              <colgroup>
+                <col style={{ width: 300 }} />
+                {PERMISSION_ACTIONS.map((action) => (
+                  <col key={action} style={{ width: 88, ...matrixActionSeparatorStyle(action) }} />
+                ))}
+                <col style={{ width: 74 }} />
+              </colgroup>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 30 }}>
+                <tr>
+                  <th style={matrixHeaderStyle('left')}>페이지 ({visiblePages.length})</th>
+                  {PERMISSION_ACTIONS.map((action) => (
+                    <th key={action} style={{ ...matrixHeaderStyle('center'), ...matrixActionSeparatorStyle(action) }}>
+                      <button
+                        type="button"
+                        data-testid={`perm-matrix-col-all-${action}`}
+                        onClick={() => toggleColumn(action)}
+                        style={matrixActionButtonStyle(action)}
+                        title={`${MATRIX_ACTION_META[action].groupLabel} 권한`}
+                        aria-label={`${MATRIX_ACTION_LABEL[action]} 권한 전체 페이지 일괄 토글`}
+                      >
+                        {MATRIX_ACTION_LABEL[action]}
+                      </button>
+                    </th>
+                  ))}
+                  <th style={matrixHeaderStyle('center')}>행전체</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleGroups.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={PERMISSION_ACTIONS.length + 2}
+                      style={{
+                        padding: 24,
+                        textAlign: 'center',
+                        color: 'var(--color-neutral-500)',
+                        borderBottom: '1px solid var(--color-neutral-200)',
+                      }}
+                    >
+                      검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                )}
+                {visibleGroups.map((group) => {
+                  const domainId = MATRIX_DOMAIN_ID_BY_LABEL[group.label] ?? group.label
+                  return (
+                    <AccountMatrixDomainRows
+                      key={group.label}
+                      group={group}
+                      domainId={domainId}
+                      currentState={currentState}
+                      dirtyKeys={dirtyKeys}
+                      onCellToggle={toggleCell}
+                      onRowToggle={toggleRow}
+                      onDomainSet={(allowed) => {
+                        if (!window.confirm(`${group.label} ${group.pages.length}개 페이지의 모든 권한을 ${allowed ? 'ON' : 'OFF'} 처리할까요?`)) {
+                          return
+                        }
+                        setPageActions(group.pages, PERMISSION_ACTIONS, allowed)
+                      }}
+                    />
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <aside
+            style={{
+              position: 'sticky',
+              top: 70,
+              alignSelf: 'start',
+              border: '1px solid var(--color-neutral-200)',
+              borderRadius: 8,
+              padding: 12,
+              background: dirtyKeys.size > 0 ? 'var(--color-warning-50)' : 'var(--color-neutral-50)',
+            }}
+          >
+            <div
+              data-testid="perm-matrix-change-count"
+              role="status"
+              aria-live="polite"
+              style={{ fontWeight: 700, marginBottom: 10, color: 'var(--color-neutral-900)' }}
+            >
+              변경 {dirtyKeys.size}건
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Button
+                variant="primary"
+                onClick={saveChanges}
+                disabled={dirtyKeys.size === 0 || saveMutation.isPending}
+                data-testid="perm-matrix-save-btn"
+              >
+                {saveMutation.isPending ? '저장 중' : '저장'}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setEditState(null)}
+                disabled={dirtyKeys.size === 0 || saveMutation.isPending}
+              >
+                취소
+              </Button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       {toast && (
         <div
           role="alert"
           aria-live="assertive"
           style={{
             position: 'fixed',
-            bottom: 24,
             right: 24,
-            zIndex: 9999,
+            bottom: 24,
+            zIndex: 100,
+            borderRadius: 8,
+            padding: '10px 14px',
             background: toast.type === 'success' ? 'var(--color-success-600)' : 'var(--color-danger-600)',
             color: 'var(--color-neutral-0)',
-            padding: '10px 16px',
-            borderRadius: 8,
+            boxShadow: 'var(--shadow-lg)',
             fontSize: 13,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           }}
         >
           {toast.message}
         </div>
       )}
-
-      {/* 매트릭스 표 */}
-      <div
-        data-testid="permission-matrix-table"
-        style={{ overflowX: 'auto' }}
-      >
-        <table
-          style={{
-            borderCollapse: 'collapse',
-            width: '100%',
-            fontSize: 'var(--font-size-xs)',
-            tableLayout: 'fixed',
-          }}
-        >
-          <colgroup>
-            <col style={{ width: 100 }} />
-            {PAGES_ORDER.map((page) => (
-              <col key={page} style={{ width: PAGES_WITH_EDIT.has(page) ? 88 : 60 }} />
-            ))}
-          </colgroup>
-          {/* D-3: thead sticky top:0 z-index:30, 교차 th z-index:40 */}
-          <thead style={{ position: 'sticky', top: 0, zIndex: 30 }}>
-            {/* ── 카테고리 그룹 헤더 행 (SP-D4 추가) ── */}
-            <tr>
-              {/* 역할 열 교차 셀 — rowSpan=3 으로 그룹/페이지/액션 3행 커버 */}
-              <th
-                scope="col"
-                rowSpan={3}
-                style={{
-                  padding: '6px 8px',
-                  textAlign: 'left',
-                  background: 'var(--color-neutral-50)',
-                  border: '1px solid var(--color-neutral-200)',
-                  fontWeight: 600,
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 40,
-                  verticalAlign: 'middle',
-                }}
-              >
-                역할 \ 페이지
-              </th>
-              {PAGE_GROUPS.map((group) => (
-                <th
-                  key={group.label}
-                  scope="colgroup"
-                  colSpan={group.pages.length}
-                  style={{
-                    padding: '5px 6px',
-                    textAlign: 'center',
-                    background: 'var(--color-brand-50)',
-                    border: '1px solid var(--color-brand-200)',
-                    fontSize: 'var(--font-size-xs)',
-                    fontWeight: 600,
-                    color: 'var(--color-brand-700)',
-                    letterSpacing: '0.02em',
-                    whiteSpace: 'nowrap',
-                  }}
-                  data-testid={`permission-matrix-group-${group.label}`}
-                >
-                  {group.label}
-                </th>
-              ))}
-            </tr>
-            {/* ── 페이지 코드 라벨 헤더 행 ── */}
-            <tr>
-              {PAGES_ORDER.map((page) => (
-                <th
-                  key={page}
-                  scope="col"
-                  style={{
-                    padding: '6px 4px',
-                    textAlign: 'center',
-                    background: 'var(--color-neutral-50)',
-                    border: '1px solid var(--color-neutral-200)',
-                    fontWeight: 600,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'keep-all',
-                  }}
-                >
-                  {PAGE_LABEL[page]}
-                </th>
-              ))}
-            </tr>
-            {/* ── 액션 서브헤더 행 ── */}
-            <tr>
-              {PAGES_ORDER.map((page) => (
-                <th
-                  key={page}
-                  scope="col"
-                  style={{
-                    padding: '4px 2px',
-                    background: 'var(--color-neutral-50)',
-                    border: '1px solid var(--color-neutral-200)',
-                    fontSize: 11,
-                    color: 'var(--color-neutral-400)',
-                    textAlign: 'center',
-                  }}
-                >
-                  {PAGES_WITH_EDIT.has(page) ? '조회/변경' : '조회'}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {ROLES_ORDER.map((role) => (
-              <tr key={role}>
-                {/* D-4: scope="row" 역할 열 헤더, D-3: z-index:20
-                    SP-D1 cycle 2: data-testid="permission-matrix-role-{role}" 추가 (Playwright spec 정합) */}
-                <td
-                  scope="row"
-                  data-testid={`permission-matrix-role-${role}`}
-                  style={{
-                    padding: '6px 8px',
-                    border: '1px solid var(--color-neutral-200)',
-                    fontWeight: 600,
-                    background: 'var(--color-neutral-50)',
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 20,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>{role}</span>
-                    <span>{ROLE_LABEL[role]}</span>
-                  </div>
-                </td>
-                {PAGES_ORDER.map((page) => {
-                  const k = cellKey(role, page)
-                  const cell = currentState[k]
-                  const isDirty = dirtyKeys.has(k)
-                  const hasEdit = PAGES_WITH_EDIT.has(page)
-                  const isSystemOnlyPage = role !== 'MASTER' && SYSTEM_ONLY_PAGES.has(page)
-                  // Playwright spec 기준 testid: pageCode 의 '.' 를 '-' 로 normalize
-                  const pageNorm = page.replace(/\./g, '-')
-
-                  return (
-                    <td
-                      key={page}
-                      data-testid={`permission-matrix-cell-${role}-${pageNorm}`}
-                      style={{
-                        padding: '6px 4px',
-                        border: '1px solid var(--color-neutral-200)',
-                        textAlign: 'center',
-                        position: 'relative',
-                        /* D-1: dirty 셀 amber 배경 + 좌측 3px 마커 (::before 는 CSS-in-JS 미지원 → borderLeft 직접) */
-                        background: isDirty
-                          ? 'var(--color-warning-50)'
-                          : 'var(--color-neutral-0)',
-                        borderLeft: isDirty
-                          ? '3px solid var(--color-warning-400)'
-                          : '1px solid var(--color-neutral-200)',
-                        transition: 'background 0.15s',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: isSystemOnlyPage ? 'column' : 'row',
-                          justifyContent: 'center',
-                          gap: isSystemOnlyPage ? 4 : hasEdit ? 6 : 0,
-                          alignItems: 'center',
-                        }}
-                      >
-                        {isSystemOnlyPage && (
-                          <span
-                            data-testid={`permission-matrix-cell-${role}-${pageNorm}-readonly`}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              minHeight: 18,
-                              padding: '1px 5px',
-                              borderRadius: 4,
-                              border: '1px solid var(--color-neutral-200)',
-                              background: 'var(--color-neutral-50)',
-                              color: 'var(--color-neutral-600)',
-                              fontSize: 10,
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            MASTER 전용
-                          </span>
-                        )}
-                        {/* view 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-view */}
-                        <label
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2,
-                            cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
-                          }}
-                          title="조회 권한"
-                        >
-                          <input
-                            type="checkbox"
-                            data-testid={`permission-matrix-cell-${role}-${pageNorm}-view`}
-                            checked={cell?.view ?? false}
-                            disabled={isSystemOnlyPage}
-                            onChange={() => handleToggle(role, page, 'view')}
-                            style={{
-                              cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
-                              accentColor: 'var(--color-brand-500)',
-                            }}
-                          />
-                          {hasEdit && (
-                            <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>
-                              조회
-                            </span>
-                          )}
-                        </label>
-                        {/* edit 체크박스 — data-testid: permission-matrix-cell-{role}-{page}-edit */}
-                        {hasEdit && (
-                          <label
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 2,
-                              cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
-                            }}
-                            title="변경 권한"
-                          >
-                            <input
-                              type="checkbox"
-                              data-testid={`permission-matrix-cell-${role}-${pageNorm}-edit`}
-                              checked={cell?.edit ?? false}
-                              disabled={isSystemOnlyPage}
-                              onChange={() => handleToggle(role, page, 'edit')}
-                              style={{
-                                cursor: isSystemOnlyPage ? 'not-allowed' : 'pointer',
-                                accentColor: 'var(--color-brand-500)',
-                              }}
-                            />
-                            <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>
-                              변경
-                            </span>
-                          </label>
-                        )}
-                      </div>
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-            {/* MASTER 행 — 항상 전권, 편집 불가 */}
-            <tr>
-              <td
-                style={{
-                  padding: '6px 8px',
-                  border: '1px solid var(--color-neutral-200)',
-                  fontWeight: 600,
-                  background: 'var(--color-brand-50)',
-                  position: 'sticky',
-                  left: 0,
-                  zIndex: 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>MASTER</span>
-                  <Badge variant="brand">마스터</Badge>
-                </div>
-              </td>
-              {PAGES_ORDER.map((page) => (
-                <td
-                  key={page}
-                  style={{
-                    padding: '6px 4px',
-                    border: '1px solid var(--color-neutral-200)',
-                    textAlign: 'center',
-                    background: 'var(--color-brand-50)',
-                  }}
-                  title="MASTER는 항상 전 권한"
-                >
-                  <span style={{ fontSize: 16, color: 'var(--color-brand-600)' }}>●</span>
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* 범례 */}
-      <div
-        style={{
-          marginTop: 12,
-          display: 'flex',
-          gap: 16,
-          fontSize: 'var(--font-size-xs)',
-          color: 'var(--color-neutral-500)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div
-            style={{
-              width: 14,
-              height: 14,
-              background: 'var(--color-warning-50)',
-              border: '1px solid var(--color-warning-200)',
-              borderRadius: 2,
-            }}
-          />
-          변경된 셀
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div
-            style={{
-              width: 14,
-              height: 14,
-              background: 'var(--color-brand-50)',
-              border: '1px solid var(--color-brand-200)',
-              borderRadius: 2,
-            }}
-          />
-          MASTER (편집 불가)
-        </div>
-        <span>조회: 화면 접근 허용 / 변경: 등록·수정·삭제 허용</span>
-      </div>
     </div>
   )
+}
+
+function AccountMatrixDomainRows({
+  group,
+  domainId,
+  currentState,
+  dirtyKeys,
+  onCellToggle,
+  onRowToggle,
+  onDomainSet,
+}: {
+  group: PageGroup
+  domainId: string
+  currentState: AccountMatrixState
+  dirtyKeys: Set<AccountDirtyKey>
+  onCellToggle: (page: PageCode, action: PermissionAction) => void
+  onRowToggle: (page: PageCode) => void
+  onDomainSet: (allowed: boolean) => void
+}) {
+  return (
+    <>
+      <tr>
+        <td
+          colSpan={PERMISSION_ACTIONS.length + 2}
+          style={{
+            padding: '7px 10px',
+            background: 'var(--color-brand-50)',
+            borderTop: '1px solid var(--color-brand-200)',
+            borderBottom: '1px solid var(--color-brand-200)',
+            color: 'var(--color-brand-700)',
+            fontWeight: 700,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span>{group.label} ({group.pages.length})</span>
+            <span style={{ display: 'inline-flex', gap: 6 }}>
+              <button
+                type="button"
+                data-testid={`perm-matrix-domain-all-${domainId}`}
+                onClick={() => onDomainSet(true)}
+                style={matrixButtonStyle}
+                aria-label={`${group.label} 전체 ${group.pages.length}개 페이지 권한 ON`}
+              >
+                전체ON
+              </button>
+              <button
+                type="button"
+                data-testid={`perm-matrix-domain-all-${domainId}-off`}
+                onClick={() => onDomainSet(false)}
+                style={matrixButtonStyle}
+                aria-label={`${group.label} 전체 ${group.pages.length}개 페이지 권한 OFF`}
+              >
+                전체OFF
+              </button>
+            </span>
+          </div>
+        </td>
+      </tr>
+      {group.pages.map((page) => (
+        <tr key={page}>
+          <th
+            scope="row"
+            style={{
+              position: 'sticky',
+              left: 0,
+              zIndex: 10,
+              padding: '7px 10px',
+              textAlign: 'left',
+              background: 'var(--color-neutral-0)',
+              borderBottom: '1px solid var(--color-neutral-200)',
+              fontWeight: 600,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span>{PAGE_LABEL[page] ?? page}</span>
+              <span style={{ color: 'var(--color-neutral-500)', fontSize: 11, fontWeight: 400 }}>{page}</span>
+            </div>
+          </th>
+          {PERMISSION_ACTIONS.map((action) => {
+            const dirty = dirtyKeys.has(matrixDirtyKey(page, action))
+            return (
+              <td
+                key={action}
+                style={matrixActionCellStyle(action, dirty)}
+              >
+                <input
+                  type="checkbox"
+                  data-testid={`perm-matrix-cell-${matrixPageNorm(page)}-${action}`}
+                  checked={currentState[page]?.[action] ?? false}
+                  onChange={() => onCellToggle(page, action)}
+                  style={matrixActionCheckboxStyle(action)}
+                  aria-label={`${PAGE_LABEL[page] ?? page} ${MATRIX_ACTION_LABEL[action]}`}
+                />
+              </td>
+            )
+          })}
+          <td
+            style={{
+              textAlign: 'center',
+              borderBottom: '1px solid var(--color-neutral-200)',
+              background: 'var(--color-neutral-0)',
+            }}
+          >
+            <button
+              type="button"
+              data-testid={`perm-matrix-row-all-${matrixPageNorm(page)}`}
+              onClick={() => onRowToggle(page)}
+              style={matrixButtonStyle}
+              aria-label={`${PAGE_LABEL[page] ?? page} 행 7개 권한 일괄 토글`}
+            >
+              전부
+            </button>
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
+function matrixHeaderStyle(align: 'left' | 'center'): React.CSSProperties {
+  return {
+    position: 'sticky',
+    top: 0,
+    zIndex: 30,
+    padding: '8px 10px',
+    textAlign: align,
+    background: 'var(--color-neutral-50)',
+    borderBottom: '1px solid var(--color-neutral-300)',
+    color: 'var(--color-neutral-700)',
+    fontWeight: 700,
+  }
 }

@@ -59,7 +59,7 @@ public class SlipCommentController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "slip.comments", action = "EDIT")
+    @RequirePermission(page = "slip.comments", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipCommentResponse> add(
             @PathVariable UUID slipId,
             @Valid @RequestBody AddSlipCommentRequest request,
@@ -79,7 +79,7 @@ public class SlipCommentController {
     @Operation(summary = "슬립 최근 댓글 백필",
             description = "SSE 구독 직전 클라이언트 초기 표시. limit 1~100 (기본 20)")
     @GetMapping
-    @RequirePermission(page = "slip.comments", action = "VIEW")
+    @RequirePermission(page = "slip.comments", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipCommentResponse>> listRecent(
             @PathVariable UUID slipId,
             @RequestParam(defaultValue = "20") int limit) {

@@ -11,6 +11,7 @@ import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressResponse;
 import com.samhanair.logis.partner.tab.service.Partner4TabService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -70,7 +71,7 @@ public class Partner4TabController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @GetMapping("/{partnerCode}/full")
-    @RequirePermission(page = "partners.4tab", action = "VIEW")
+    @RequirePermission(page = "partners.4tab", action = PermissionAction.VIEW)
     public ApiResponse<PartnerFullResponse> getFull(@PathVariable String partnerCode) {
         return ApiResponse.ok(partner4TabService.getFull(partnerCode));
     }
@@ -92,7 +93,7 @@ public class Partner4TabController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "partnerCode 또는 bizNo 중복")
     })
     @PostMapping("/full")
-    @RequirePermission(page = "partners.4tab", action = "EDIT")
+    @RequirePermission(page = "partners.4tab", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PartnerFullResponse>> registerFull(
             @Valid @RequestBody PartnerFullRequest req) {
         PartnerFullResponse resp = partner4TabService.registerFull(req);
@@ -116,7 +117,7 @@ public class Partner4TabController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @PatchMapping("/{partnerCode}/full")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerFullResponse> updateFull(@PathVariable String partnerCode,
                                                         @Valid @RequestBody PartnerFullRequest req) {
         return ApiResponse.ok(partner4TabService.updateFull(partnerCode, req));
@@ -134,7 +135,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 단가/할인 정책 조회", description = "SALES / MANAGER / MASTER 권한 필요.")
     @GetMapping("/{partnerCode}/price-discount")
-    @RequirePermission(page = "partners.4tab", action = "VIEW")
+    @RequirePermission(page = "partners.4tab", action = PermissionAction.VIEW)
     public ApiResponse<PartnerPriceDiscountResponse> getPriceDiscount(
             @PathVariable String partnerCode) {
         return ApiResponse.ok(partner4TabService.getPriceDiscount(partnerCode));
@@ -151,7 +152,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 단가/할인 정책 UPSERT", description = "MANAGER / MASTER 권한 필요.")
     @PutMapping("/{partnerCode}/price-discount")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerPriceDiscountResponse> upsertPriceDiscount(
             @PathVariable String partnerCode,
             @Valid @RequestBody PartnerPriceDiscountRequest req) {
@@ -170,7 +171,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 배송지 목록 조회", description = "SALES / MANAGER / MASTER 권한 필요.")
     @GetMapping("/{partnerCode}/shipping-addresses")
-    @RequirePermission(page = "partners.4tab", action = "VIEW")
+    @RequirePermission(page = "partners.4tab", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerShippingAddressResponse>> getShippingAddresses(
             @PathVariable String partnerCode) {
         return ApiResponse.ok(partner4TabService.getShippingAddresses(partnerCode));
@@ -187,7 +188,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 배송지 추가", description = "MANAGER / MASTER 권한 필요. isDefault=true 시 기존 기본 배송지 자동 해제.")
     @PostMapping("/{partnerCode}/shipping-addresses")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PartnerShippingAddressResponse>> addShippingAddress(
             @PathVariable String partnerCode,
             @Valid @RequestBody PartnerShippingAddressRequest req) {
@@ -205,7 +206,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 배송지 삭제 (soft-delete)", description = "MANAGER / MASTER 권한 필요.")
     @DeleteMapping("/{partnerCode}/shipping-addresses/{addrId}")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.DELETE)
     public ResponseEntity<Void> deleteShippingAddress(@PathVariable String partnerCode,
                                                        @PathVariable UUID addrId,
                                                        Principal principal) {
@@ -226,7 +227,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 담당자 목록 조회", description = "SALES / MANAGER / MASTER 권한 필요.")
     @GetMapping("/{partnerCode}/contacts")
-    @RequirePermission(page = "partners.4tab", action = "VIEW")
+    @RequirePermission(page = "partners.4tab", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerContactResponse>> getContacts(@PathVariable String partnerCode) {
         return ApiResponse.ok(partner4TabService.getContacts(partnerCode));
     }
@@ -242,7 +243,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 담당자 추가", description = "MANAGER / MASTER 권한 필요. isPrimary=true 시 기존 주 담당자 자동 해제.")
     @PostMapping("/{partnerCode}/contacts")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PartnerContactResponse>> addContact(
             @PathVariable String partnerCode,
             @Valid @RequestBody PartnerContactRequest req) {
@@ -260,7 +261,7 @@ public class Partner4TabController {
      */
     @Operation(summary = "거래처 담당자 삭제 (soft-delete)", description = "MANAGER / MASTER 권한 필요.")
     @DeleteMapping("/{partnerCode}/contacts/{contactId}")
-    @RequirePermission(page = "partners.4tab.edit", action = "EDIT")
+    @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.DELETE)
     public ResponseEntity<Void> deleteContact(@PathVariable String partnerCode,
                                                @PathVariable UUID contactId,
                                                Principal principal) {

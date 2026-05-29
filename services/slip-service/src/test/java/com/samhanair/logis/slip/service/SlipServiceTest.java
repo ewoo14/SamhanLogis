@@ -63,6 +63,8 @@ class SlipServiceTest {
      * 단위 테스트에서는 mock 격리 (empty 반환) — IT 에서만 실제 연결 검증.
      */
     @Mock private WarehouseInternalClient warehouseInternalClient;
+    /** 권한 재편 Phase 2.1 Task 2 — mutation 스냅샷 캡처. 본 테스트에서는 mock 격리. */
+    @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
 
     @InjectMocks private SlipService service;
 
@@ -336,6 +338,84 @@ class SlipServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void editHeader_capturesEditRevision() {
+        // 헤더 batch 수정(partnerName/memo 등 toSnapshot 필드)도 버전이력에 잡혀야 한다 (캡처 완전성).
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    // ---------- reject memo 변경 revision 캡처 (Phase 2.1) ----------
+
+    @Test
+    void reject_withReason_capturesEditRevision() {
+        // 반려 사유가 memo 앞에 prepend 되어 toSnapshot 필드(memo)가 실제 변경 → EDIT 캡처.
+        Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.reject(slipId, "user-1", "재고 없음");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    @Test
+    void reject_withoutReason_doesNotCaptureRevision() {
+        // reasonText 가 null 이면 memo 변경 없음 → 상태전이만 → 캡처 안 함.
+        Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.reject(slipId, "user-1", null);
+
+        verify(slipRevisionService, never()).capture(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    // ---------- 라인 mutation revision 캡처 (Phase 2.1 — addLine/removeLine) ----------
+
+    @Test
+    void addLine_capturesEditRevision() {
+        // 라인 추가도 헤더+라인 전체 버전이력 스냅샷에 잡혀야 한다 (Q3 요구).
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.addLine(slipId,
+                new com.samhanair.logis.slip.web.dto.AddLineRequest(
+                        productId, "에어컨", "M-1", null, 2, new BigDecimal("100.00"), null),
+                "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    @Test
+    void removeLine_capturesEditRevision() {
+        // 라인 삭제도 롤백 가능해야 하므로 revision 으로 캡처되어야 한다.
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        UUID lineId = UUID.randomUUID();
+        ReflectionTestUtils.setField(slip.getLines().get(0), "id", lineId);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.removeLine(slipId, lineId, "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
     }
 
     // ---------- read ----------

@@ -3,6 +3,7 @@ package com.samhanair.logis.product.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -41,6 +42,7 @@ import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
@@ -123,6 +125,8 @@ class ProductPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         ProductSummaryResponse summary = new ProductSummaryResponse(
                 PRODUCT_ID, "Product", "MODEL-1", "MODEL-1", CATEGORY_ID,
@@ -180,17 +184,14 @@ class ProductPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
     @ParameterizedTest(name = "price update role={0} status={1}")
@@ -199,8 +200,8 @@ class ProductPermissionControllerIT {
             "SALES, 403"
     })
     void priceUpdate_usesProductsPricePermission(String role, int expectedStatus) throws Exception {
-        when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.price")).thenReturn(true);
-        when(dynamicPermissionClient.canEdit("SALES", "products.price")).thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("products.price"), eq(PermissionAction.UPDATE)))
+                .thenReturn(expectedStatus < 400);
 
         mockMvc.perform(withActor(patch("/products/{id}/price", PRODUCT_ID)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -220,10 +221,8 @@ class ProductPermissionControllerIT {
             "reject, ACCOUNTANT, 403"
     })
     void editRequestDecision_usesDecidePermission(String decision, String role, int expectedStatus) throws Exception {
-        when(dynamicPermissionClient.canEdit("MANAGER", "products.edit-requests.decide")).thenReturn(true);
-        when(dynamicPermissionClient.canEdit("MASTER", "products.edit-requests.decide")).thenReturn(true);
-        when(dynamicPermissionClient.canEdit("SALES", "products.edit-requests.decide")).thenReturn(false);
-        when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.edit-requests.decide")).thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("products.edit-requests.decide"), eq(PermissionAction.UPDATE)))
+                .thenReturn(expectedStatus < 400);
         String body = "approve".equals(decision) ? "{\"note\":\"ok\"}" : "{\"reason\":\"no\"}";
 
         mockMvc.perform(withActor(post("/products/{id}/edit-request/{requestId}/{decision}",
@@ -235,72 +234,72 @@ class ProductPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                new EndpointCase("product search", "products.list", "VIEW", "SALES", 200,
+                new EndpointCase("product search", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/products")),
-                new EndpointCase("product detail", "products.list", "VIEW", "SALES", 200,
+                new EndpointCase("product detail", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/products/{id}", PRODUCT_ID)),
-                new EndpointCase("product by model", "products.list", "VIEW", "SALES", 200,
+                new EndpointCase("product by model", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/products/by-model/MODEL-1")),
-                new EndpointCase("product lookup", "products.list", "VIEW", "SALES", 200,
+                new EndpointCase("product lookup", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> post("/products/lookup")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"ids\":[\"" + PRODUCT_ID + "\"]}")),
-                new EndpointCase("product by code", "products.list", "VIEW", "SALES", 200,
+                new EndpointCase("product by code", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/products/by-code/MODEL-1")),
-                new EndpointCase("product create", "products.admin", "EDIT", "MANAGER", 201,
+                new EndpointCase("product create", "products.admin", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/products").contentType(MediaType.APPLICATION_JSON).content(productCreateBody())),
-                new EndpointCase("product update", "products.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("product update", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/products/{id}", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"name\":\"Updated\"}")),
-                new EndpointCase("product price update", "products.price", "EDIT", "ACCOUNTANT", 200,
+                new EndpointCase("product price update", "products.price", PermissionAction.UPDATE, "ACCOUNTANT", 200,
                         () -> patch("/products/{id}/price", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"sellingPrice\":1200,\"purchasePrice\":900,\"currency\":\"KRW\"}")),
-                new EndpointCase("product tag replace", "products.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("product tag replace", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> put("/products/{id}/tags", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"hp\":\"1.5\"}")),
-                new EndpointCase("product discontinue", "products.admin", "EDIT", "MANAGER", 204,
+                new EndpointCase("product discontinue", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
                         () -> post("/products/{id}/discontinue", PRODUCT_ID)),
-                new EndpointCase("product reactivate", "products.admin", "EDIT", "MANAGER", 204,
+                new EndpointCase("product reactivate", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
                         () -> post("/products/{id}/reactivate", PRODUCT_ID)),
-                new EndpointCase("product delete", "products.admin", "EDIT", "MANAGER", 204,
+                new EndpointCase("product delete", "products.admin", PermissionAction.DELETE, "MANAGER", 204,
                         () -> delete("/products/{id}", PRODUCT_ID)),
-                new EndpointCase("category create", "products.admin", "EDIT", "MANAGER", 201,
+                new EndpointCase("category create", "products.admin", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/products/categories")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"code\":\"CAT\",\"name\":\"Category\",\"displayOrder\":1}")),
-                new EndpointCase("category update", "products.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("category update", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/products/categories/{id}", CATEGORY_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"name\":\"Category 2\",\"displayOrder\":2}")),
-                new EndpointCase("category delete", "products.admin", "EDIT", "MANAGER", 204,
+                new EndpointCase("category delete", "products.admin", PermissionAction.DELETE, "MANAGER", 204,
                         () -> delete("/products/categories/{id}", CATEGORY_ID)),
-                new EndpointCase("ecount import", "products.ecount-import", "EDIT", "MANAGER", 200,
+                new EndpointCase("ecount import", "products.ecount-import", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/products/imports/ecount")
                                 .file(csv("itemFile"))
                                 .file(csv("relationFile"))
                                 .file(csv("groupFile"))),
-                new EndpointCase("edit request create", "products.edit-requests", "EDIT", "SALES", 201,
+                new EndpointCase("edit request create", "products.edit-requests", PermissionAction.CREATE, "SALES", 201,
                         () -> post("/products/{id}/edit-request", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
-                new EndpointCase("edit request approve", "products.edit-requests.decide", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request approve", "products.edit-requests.decide", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/products/{id}/edit-request/{requestId}/approve", PRODUCT_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"note\":\"ok\"}")),
-                new EndpointCase("edit request reject", "products.edit-requests.decide", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request reject", "products.edit-requests.decide", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/products/{id}/edit-request/{requestId}/reject", PRODUCT_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
-                new EndpointCase("edit request list", "products.edit-requests.decide", "VIEW", "MANAGER", 200,
+                new EndpointCase("edit request list", "products.edit-requests.decide", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/products/edit-requests").param("targetRole", "MANAGER")),
-                new EndpointCase("audit logs", "products.list.view", "VIEW", "STAFF", 200,
+                new EndpointCase("audit logs", "products.list.view", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/products/{id}/audit-logs", PRODUCT_ID)),
-                new EndpointCase("edit requests by product", "products.edit-requests", "VIEW", "STAFF", 200,
+                new EndpointCase("edit requests by product", "products.edit-requests", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/products/{id}/edit-requests", PRODUCT_ID)),
-                new EndpointCase("product realtime", "products.list.view", "VIEW", "STAFF", 200,
+                new EndpointCase("product realtime", "products.list.view", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/products/{id}/realtime", PRODUCT_ID))
         );
     }
@@ -334,7 +333,7 @@ class ProductPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             int successStatus,
             Supplier<MockHttpServletRequestBuilder> request) {

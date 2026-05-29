@@ -3,6 +3,7 @@ package com.samhanair.logis.user.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,6 +16,7 @@ import com.samhanair.logis.common.ecount.EcountMig6ImportResult;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.user.config.HeaderAuthenticationFilter;
@@ -113,6 +115,8 @@ class UserPermissionControllerIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         Department department = Department.create("EXEC", "대표실", 1);
         ReflectionTestUtils.setField(department, "id", DEPARTMENT_ID);
@@ -153,64 +157,64 @@ class UserPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
+        if ("MASTER".equals(endpoint.role())) {
+            return;
         }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                new EndpointCase("admin user list", "admin.employees", "VIEW", "MANAGER", 200,
+                new EndpointCase("admin user list", "admin.users", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/admin/users")),
-                new EndpointCase("admin user roles", "admin.employees", "VIEW", "MANAGER", 200,
+                new EndpointCase("admin user roles", "admin.users", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/admin/users/roles")),
-                new EndpointCase("admin user create", "admin.users", "EDIT", "MASTER", 201,
+                new EndpointCase("admin user create", "admin.users", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/api/v1/admin/users")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(adminCreateBody())),
-                new EndpointCase("admin user update", "admin.users", "EDIT", "MASTER", 200,
+                new EndpointCase("admin user update", "admin.users", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/api/v1/admin/users/{id}", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(adminUpdateBody())),
-                new EndpointCase("admin user role", "admin.users", "EDIT", "MASTER", 200,
+                new EndpointCase("admin user role", "admin.users", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/api/v1/admin/users/{id}/role", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"newRole\":\"MANAGER\",\"reason\":\"승진\"}")),
-                new EndpointCase("admin user disable", "admin.users", "EDIT", "MASTER", 204,
+                new EndpointCase("admin user disable", "admin.users", PermissionAction.DELETE, "MANAGER", 204,
                         () -> post("/api/v1/admin/users/{id}/disable", ID)),
-                new EndpointCase("admin user unlock", "admin.users", "EDIT", "MASTER", 204,
+                new EndpointCase("admin user unlock", "admin.users", PermissionAction.UPDATE, "MANAGER", 204,
                         () -> post("/api/v1/admin/users/{id}/unlock", ID)),
-                new EndpointCase("admin role history", "admin.employees", "VIEW", "MANAGER", 200,
+                new EndpointCase("admin role history", "admin.users", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/admin/users/{id}/role-history", ID)),
-                new EndpointCase("department import", "ecount.mig2.department", "EDIT", "MANAGER", 200,
+                new EndpointCase("department import", "ecount.mig2.department", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/departments/imports/ecount").file(csv())),
-                new EndpointCase("employee import", "ecount.mig6.employee", "EDIT", "MANAGER", 200,
+                new EndpointCase("employee import", "ecount.mig6.employee", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/user/employees/imports/ecount").file(csv())),
-                new EndpointCase("employee-card import", "ecount.mig6.employee-card", "EDIT", "MANAGER", 200,
+                new EndpointCase("employee-card import", "ecount.mig6.employee-card", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/user/employee-cards/imports/ecount").file(csv())),
-                new EndpointCase("payroll employee import", "ecount.mig6.payroll-employee", "EDIT", "MANAGER", 200,
+                new EndpointCase("payroll employee import", "ecount.mig6.payroll-employee", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/user/payroll-employees/imports/ecount").file(csv())),
-                new EndpointCase("employee create", "admin.employees", "EDIT", "MANAGER", 201,
+                new EndpointCase("employee create", "admin.employees", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/users/employees")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(employeeCreateBody())),
-                new EndpointCase("employee update", "admin.employees", "EDIT", "MANAGER", 200,
+                new EndpointCase("employee update", "admin.employees", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/users/employees/{id}", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"fullName\":\"수정\"}")),
-                new EndpointCase("employee role", "admin.employees", "EDIT", "MASTER", 200,
+                new EndpointCase("employee role", "admin.employees", PermissionAction.UPDATE, "MASTER", 200,
                         () -> patch("/users/employees/{id}/role", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"role\":\"MANAGER\",\"reason\":\"승진\"}")),
-                new EndpointCase("employee terminate", "admin.employees", "EDIT", "MASTER", 204,
+                new EndpointCase("employee terminate", "admin.employees", PermissionAction.DELETE, "MASTER", 204,
                         () -> post("/users/employees/{id}/terminate", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"terminationDate\":\"2026-05-26\"}"))
@@ -263,7 +267,7 @@ class UserPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             int successStatus,
             Supplier<MockHttpServletRequestBuilder> request) {

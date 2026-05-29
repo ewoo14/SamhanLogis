@@ -9,9 +9,11 @@ import com.samhanair.logis.notification.client.AligoAddressBookClient;
 import com.samhanair.logis.notification.client.AligoCsvSourceClient;
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.notification.client.PartnerLookupClient;
 import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
 
     private static final String HISTORY_URL = "/admin/notifications/dispatch-sms/history";
+    private static final String DISPATCH_ACCOUNT_ID = "10000000-0000-0000-0000-000000000221";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000222";
 
     @Autowired
     private MockMvc mockMvc;
@@ -85,6 +89,10 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -99,7 +107,9 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
         mockMvc.perform(get(HISTORY_URL)
                         .param("mode", "SEND_AUDIT")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Id", DISPATCH_ACCOUNT_ID)
+                        .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk());
     }
 
@@ -112,7 +122,10 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "dispatch-blocked", authorities = {"ROLE_DISPATCH"})
     void C2_dispatch_send_audit_canView_false_returns_403() throws Exception {
         // canView=false override
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("dispatch.sms-save-history"),
+                        Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         // X-User-Role 헤더로 동적 가드 실행 → checkViewPermission(DISPATCH) → canView=false → 403 (cycle 3 fix)
@@ -120,6 +133,7 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
                         .param("mode", "SEND_AUDIT")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", DISPATCH_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isForbidden());
     }
@@ -141,7 +155,9 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
         mockMvc.perform(get(HISTORY_URL)
                         .param("mode", "SEND_AUDIT")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
                     // 200 (PermissionGuard 단독) 또는 403 (RoleGuard 이중 가드) 모두 허용
@@ -159,24 +175,27 @@ class DispatchSmsAuditDynamicPermissionIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("C4: DynamicPermissionClient RuntimeException → fallback 통과 (500 아님)")
+    @DisplayName("C4: DynamicPermissionClient deny → 403 (500 아님)")
     @WithMockUser(username = "dispatch-fallback", authorities = {"ROLE_DISPATCH"})
     void C4_dynamic_permission_client_exception_not_500() throws Exception {
-        // RuntimeException → auth-service 다운 fallback
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenThrow(new RuntimeException("auth-service 연결 불가 (테스트)"));
+        // 7-action client deny → AccessDeniedException 이 403 으로 변환되어야 한다.
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("dispatch.sms-save-history"),
+                        Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get(HISTORY_URL)
                         .param("mode", "SEND_AUDIT")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Id", DISPATCH_ACCOUNT_ID)
+                        .header("X-User-Role", "DISPATCH"))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    // 500 발생 금지 — fallback 정상 동작 검증
-                    if (status == 500) {
+                    if (status != 403) {
                         throw new AssertionError(
-                                "DynamicPermissionClient RuntimeException 시 500 발생 — " +
-                                "notification-service fallback 로직 미구현. 500 금지 (SP-D3 요구사항)."
+                                "DynamicPermissionClient deny 시 " + status + " 반환 — 403 필요."
                         );
                     }
                 });

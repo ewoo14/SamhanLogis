@@ -26,7 +26,9 @@ import com.samhanair.logis.notification.domain.RecipientType;
 import com.samhanair.logis.notification.repository.NotificationLogRepository;
 import com.samhanair.logis.notification.repository.NotificationRequestRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,6 +71,8 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
     private static final String ADMIN_LIST_URL = "/admin/notifications";
     private static final String MANAGER_ROLE = "MANAGER";
     private static final String SALES_ROLE   = "SALES";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000241";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000242";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -91,8 +95,17 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         // lenient stub — 외부 client 가 호출되더라도 NPE/Eureka 오류 방지
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(dynamicPermissionClient.canView(SALES_ROLE, "notifications.admin")).thenReturn(false);
         lenient().when(dynamicPermissionClient.canEdit(SALES_ROLE, "notifications.admin")).thenReturn(false);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("notifications.admin"),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenAnswer(inv -> !SALES_ACCOUNT_ID.equals(inv.getArgument(0).toString()));
         lenient().when(blockedPartnerLookupClient.isBlocked(any())).thenReturn(false);
     }
 
@@ -221,7 +234,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         mockMvc.perform(post(ADMIN_SEND_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body1)
-                        .header("X-User-Id", "test-manager-a")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", MANAGER_ROLE))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.requestId").exists());
@@ -229,7 +242,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         mockMvc.perform(post(ADMIN_SEND_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body2)
-                        .header("X-User-Id", "test-manager-a")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", MANAGER_ROLE))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.requestId").exists());
@@ -247,7 +260,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         // ── 5) API 조회 — GET /admin/notifications?channel=SMS
         mockMvc.perform(get(ADMIN_LIST_URL)
                         .param("channel", "SMS")
-                        .header("X-User-Id", "test-manager-a")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", MANAGER_ROLE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
@@ -255,7 +268,7 @@ class AligoSmsAdapterPlaceholderRuntimeGuardIT extends AbstractPostgresIT {
         // ── 6) SALES 권한 — 403 확인
         mockMvc.perform(get(ADMIN_LIST_URL)
                         .param("channel", "SMS")
-                        .header("X-User-Id", "test-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", SALES_ROLE))
                 .andExpect(status().isForbidden());
     }

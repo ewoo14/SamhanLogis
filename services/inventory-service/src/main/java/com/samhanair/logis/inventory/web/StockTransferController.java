@@ -57,7 +57,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 목록", description = "status 필터 가능")
     @GetMapping
-    @RequirePermission(page = "inventory.transfer", action = "VIEW")
+    @RequirePermission(page = "inventory.transfer", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<TransferResponse>> list(
             @RequestParam(required = false) TransferStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -74,7 +74,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 단건 상세")
     @GetMapping("/{id}")
-    @RequirePermission(page = "inventory.transfer", action = "VIEW")
+    @RequirePermission(page = "inventory.transfer", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<TransferDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(transferService.getOne(id));
     }
@@ -94,7 +94,7 @@ public class StockTransferController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "inventory.transfer", action = "EDIT")
+    @RequirePermission(page = "inventory.transfer", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<TransferDetailResponse> create(
             @Valid @RequestBody CreateTransferRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -108,7 +108,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 승인")
     @PostMapping("/{id}/approve")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> approve(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -122,7 +122,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 반려")
     @PostMapping("/{id}/reject")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> reject(
             @PathVariable UUID id,
             @Valid @RequestBody RejectRequest request,
@@ -137,7 +137,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 출하", description = "APPROVED → SHIPPED. 가상창고면 즉시 RECEIVED")
     @PostMapping("/{id}/ship")
-    @RequirePermission(page = "inventory.transfer", action = "EDIT")
+    @RequirePermission(page = "inventory.transfer", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> ship(@PathVariable UUID id) {
         return ApiResponse.ok(transferService.ship(id));
     }
@@ -149,7 +149,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 입고")
     @PostMapping("/{id}/receive")
-    @RequirePermission(page = "inventory.transfer", action = "EDIT")
+    @RequirePermission(page = "inventory.transfer", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> receive(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) ReceiveRequest request) {
@@ -163,7 +163,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 입고 확정")
     @PostMapping("/{id}/confirm")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -177,7 +177,7 @@ public class StockTransferController {
      */
     @Operation(summary = "이동전표 취소", description = "REQUESTED/PENDING_APPROVAL/APPROVED 단계까지만 가능")
     @PostMapping("/{id}/cancel")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<TransferDetailResponse> cancel(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {

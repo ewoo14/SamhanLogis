@@ -95,7 +95,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "카톡 배차 메시지 파싱 미리보기 (Admin)")
     @PostMapping("/dispatches/parse-kakao")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<ParsedDispatchResponse> parseKakao(
             @RequestBody Map<String, String> body,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -113,7 +113,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 저장 (Admin)")
     @PostMapping("/dispatches")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<Map<String, String>> create(
             @RequestBody Map<String, String> body,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -136,7 +136,7 @@ public class ArologisAdminController {
     @Operation(summary = "수동 배차 저장 (Admin)",
             description = "카톡 우회 외 admin UI 직접 입력. driverCode 미지정 시 자동 매칭.")
     @PostMapping("/dispatches/manual")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<Map<String, String>> manualCreate(
             @Valid @RequestBody ManualDispatchRequest req,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -152,7 +152,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "수동 배차 미리보기 (Admin)", description = "검증만 + echo, 저장 X")
     @PostMapping("/dispatches/manual/preview")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<ManualDispatchPreviewResponse> manualPreview(
             @Valid @RequestBody ManualDispatchRequest req,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -164,7 +164,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 목록 조회 (Admin)")
     @GetMapping("/dispatches")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<DispatchResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) DispatchType type,
@@ -179,7 +179,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "Dispatch 상세 조회 (Admin)")
     @GetMapping("/dispatches/{id}")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DispatchDetailResponse> findById(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -201,7 +201,7 @@ public class ArologisAdminController {
     /** 자동 매칭 — 모든 vehicle 에 대해 활성 DriverMatcher 호출. */
     @Operation(summary = "Dispatch 자동 매칭 (Admin)")
     @PostMapping("/dispatches/{id}/auto-match")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchService.AutoMatchResult> autoMatch(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -213,7 +213,7 @@ public class ArologisAdminController {
      */
     @Operation(summary = "특정 차량 외부 매칭 trigger (Admin)")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/match-external")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchService.AutoMatchResult> matchExternal(
             @PathVariable UUID id, @PathVariable Integer seq,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -225,7 +225,7 @@ public class ArologisAdminController {
     /** 수동 기사 배정. */
     @Operation(summary = "수동 기사 배정 (Admin)")
     @PostMapping("/dispatches/{id}/vehicles/{seq}/assign-driver")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<Map<String, String>> assignDriver(
             @PathVariable UUID id, @PathVariable Integer seq,
             @RequestBody Map<String, String> body,
@@ -238,7 +238,7 @@ public class ArologisAdminController {
     /** 정차 상태 갱신. */
     @Operation(summary = "정차 상태 갱신 (Admin)")
     @PutMapping("/dispatches/{id}/vehicles/{seq}/stops/{stopSeq}/status")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<Map<String, String>> updateStopStatus(
             @PathVariable UUID id, @PathVariable Integer seq, @PathVariable Integer stopSeq,
             @RequestBody Map<String, String> body,
@@ -260,7 +260,7 @@ public class ArologisAdminController {
     /** Driver 목록 조회 — source / phoneNumber / appInstalled 필터. */
     @Operation(summary = "기사 목록 조회 (Admin)")
     @GetMapping("/drivers")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<DriverResponse>> listDrivers(
             @RequestParam(required = false) com.samhanair.logis.arologis.domain.DriverSource source,
             @RequestParam(required = false) String phoneNumber,
@@ -273,7 +273,7 @@ public class ArologisAdminController {
     /** Soft Delete — admin 전용. */
     @Operation(summary = "Dispatch Soft Delete (Admin)")
     @PutMapping("/dispatches/{id}/delete")
-    @RequirePermission(page = "arologis.dispatch.admin", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.admin", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<Map<String, String>> softDelete(
             @PathVariable UUID id,
             HttpServletRequest request,
@@ -303,7 +303,7 @@ public class ArologisAdminController {
     @Operation(summary = "가배차 분류 리스트 (Admin, PR-E1 BE-A2)",
             description = "출고전표 → 주소 → REGION 매칭 → 권역 그룹핑")
     @GetMapping("/dispatches/pre-classify")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<PreClassifyResponse> preClassify(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -325,7 +325,7 @@ public class ArologisAdminController {
     @Operation(summary = "미배차 출고전표 리스트 (Admin, PR-E1 BE-A3)",
             description = "출고전표 - dispatch left join 미할당 슬립")
     @GetMapping("/dispatches/unassigned")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<UnassignedSlipResponse> unassigned(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -343,7 +343,7 @@ public class ArologisAdminController {
     @Operation(summary = "지방 가배차 시도별 분류 (Admin, PR-E1 BE-A4)",
             description = "출고전표 → 광역 prefix 시도 분류 (REGION 마스터 의존 X)")
     @GetMapping("/dispatches/regional")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<RegionalDispatchResponse> regional(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -360,7 +360,7 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch audit timeline (PR-H4b)",
             description = "Dispatch/VehicleStop 변경 이력 (최신 revision 우선)")
     @GetMapping("/dispatches/{id}/audit-logs")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<ArologisAuditLogResponse>> listAuditLogs(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -374,7 +374,7 @@ public class ArologisAdminController {
     @Operation(summary = "Dispatch SSE realtime 구독 (PR-H4b)",
             description = "audit/edit-request event SSE stream — heartbeat 30s")
     @GetMapping(value = "/dispatches/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public SseEmitter subscribeRealtime(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -392,7 +392,7 @@ public class ArologisAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Dispatch 미존재")
     })
     @PostMapping("/dispatches/{id}/edit-requests")
-    @RequirePermission(page = "arologis.edit-requests", action = "EDIT")
+    @RequirePermission(page = "arologis.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<ArologisEditRequestResponse> createEditRequest(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
@@ -409,7 +409,7 @@ public class ArologisAdminController {
     /** 권한자 그룹 PENDING 대시보드. */
     @Operation(summary = "PENDING 요청 대시보드 (PR-H4b)")
     @GetMapping("/edit-requests/pending")
-    @RequirePermission(page = "arologis.edit-requests.decide", action = "VIEW")
+    @RequirePermission(page = "arologis.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<ArologisEditRequestResponse>> listPending(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -420,7 +420,7 @@ public class ArologisAdminController {
     /** 요청 수락. */
     @Operation(summary = "수정/삭제 요청 수락 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @RequirePermission(page = "arologis.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "arologis.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<ArologisEditRequestResponse> approveEditRequest(
             @PathVariable UUID requestId,
             @RequestBody(required = false) Map<String, String> body,
@@ -436,7 +436,7 @@ public class ArologisAdminController {
     /** 요청 거절. */
     @Operation(summary = "수정/삭제 요청 거절 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @RequirePermission(page = "arologis.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "arologis.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<ArologisEditRequestResponse> rejectEditRequest(
             @PathVariable UUID requestId,
             @RequestBody Map<String, String> body,

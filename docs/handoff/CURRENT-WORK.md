@@ -4,9 +4,143 @@
 
 ---
 
-## ✅ 2026-05-28 진행 — 권한 재편 Phase 0 인벤토리 완료 + Phase 1 프레임워크 spec/plan 확정 (구현 대기)
+## 🚧 진행 중 — 권한 재편 Phase 2.3 거래처(Partner) RESTORE (PR #320, **Docker QA 스크린샷 게이트만 남음**)
 
-**브랜치**: `docs/phase-1-permission-overhaul-design` (로컬, push 미실행). commit `f67fce1f`(인벤토리+spec) + `c22a7e17`(plan+spec정정).
+브랜치 `feat/phase-2-3-partner-restore`. RESTORE 4번째 도메인. **구현·CI·리뷰·TM 종합 완료, 머지 전 단 1개 게이트(Docker 실 QA 스크린샷) 남음.**
+
+### 완료 (PR #320 에 누적·push)
+- T1~7a: `partner_revisions`(V12 JSONB) + PartnerSnapshot(헤더40+priceDiscount+shippingAddresses[]+contacts[], **service-layer 조립** — 4탭 자식 @OneToMany 아님) + 캡처 7훅 + 복원(**TERMINATED 가드 requireEditable 신설** + 자식 전량교체 replaceChildrenFromFull 재사용 + RESTORE revision + SSE partner:edit) + API(partners.4tab.edit VIEW/RESTORE) + FE(PartnerDetailDialog "버전이력" 탭) + IT + Playwright + dev-report + DECISIONS **D-RST-06** + overview.
+- **cycle1 fix**: 순환 의존(Partner4TabService⇄PartnerRevisionService) → **ObjectProvider** 해소(@Lazy Lombok 미전파). 
+- dual 리뷰(Claude 대체) 양쪽 APPROVE. CI 23/23 green, accounting+partner 1256 run/0 fail, **PartnerRevisionRestoreIT 6건 실 Testcontainers 실행 확인**. TM 종합 PR 게시(issuecomment-4576363435).
+
+### 🔑 재개 = 머지 전 마지막 게이트: **Docker 실 QA 스크린샷** ([[feedback_early_pr_docker_qa_screenshots]])
+1. `.\scripts\launch-local-stack.ps1` 로 풀스택 기동(빌드+24컨테이너+health). ⚠️ Docker 스택은 본 세션 중 자원확보로 down 됐을 수 있음.
+2. 데스크톱 앱(또는 Playwright electron/gstack)으로 **거래처 목록 → 상세 다이얼로그 → 4탭 편집 → "버전 이력" 탭 → 이 시점으로 복원 confirm → 결과** 단계별 실사용 촬영.
+3. `docs/qa/phase-2-3-partner-restore/*.png` 저장 + PR #320 본문에 인라인(잘 보이게).
+4. → PM 최종 머지. (BE P2×3: priceDiscount 복원 비대칭/탭편집 actorName 유실/updateCreditPolicy null 비대칭 — 머지 후 후속 또는 동반.)
+
+### ⚠️ Codex 회복(6/1) 시: 사용자에게 즉시 알림 후 Codex 구현/리뷰 체제 복귀. 그 전까지 Claude 에이전트 전면 대체.
+
+---
+
+## ✅ 2026-05-29 완료 — 권한 재편 Phase 2.2 견적(Estimate) 버전이력 + 복원 **머지** (PR #319, squash `57f51af5`)
+
+RESTORE 3번째 적용 도메인. brainstorming(grounding)→spec→plan→subagent-driven(Task1~7) 전부 **Claude 에이전트**(Codex 크레딧 소진 6/1). slip(2.1) 패턴 이식.
+
+- **산출**: 견적 헤더+라인 full-snapshot(`estimate_revisions` V28 JSONB) + 편집가능-상태 point-in-time 복원. 캡처(create/update) + 복원(`requireEditable()` 가드 — QUOTE_DRAFT/SENT만, ACCEPTED/CONVERTED/REJECTED 409) + REST API(`/slips/estimates/{id}/revisions` VIEW, `.../{n}/restore` RESTORE, changeSummary) + FE `EstimateVersionHistoryPanel`(편집불가 상태 복원버튼 비활성) + Testcontainers IT + Playwright. estimate=slip-service `slip.estimate.*`.
+- **slip 대비 차이**: 라인 전량교체 `lines.clear()`(orphanRemoval=true), SSE 생략(estimate broker 부재), 기존 audit/overlay 없어 단일 revision 채널(더 단순), estimates.list page에 RESTORE action 추가.
+- **dual 리뷰(Claude 대체) APPROVE**: 스냅샷 8필드 ⊇ editHeader 6필드(slip P1 갭 회피), 경로 double-prefix 없음 확인, requireEditable 가드 도메인+IT. CI **slip-it-core 288 tests 0 skipped 0 failed**(EstimateRevisionRestoreIT 실 Testcontainers 실행). 
+- **결정**: DECISIONS D-RST-05. spec/plan: docs/superpowers/{specs,plans}/2026-05-29-estimate-restore-*. dev-report: docs/dev-reports/phase-2-2-estimate-restore-version-history.md.
+- 배포: estimates.list RESTORE 비-MASTER grant 시드(P2, 운영). overview.html estimate 반영은 후속(slip RESTORE로 Phase2 이미 표기됨).
+
+---
+
+## ✅ 2026-05-29 완료 — 권한 재편 Phase 2.1 slip 전표 버전이력 + 복원 **머지** (PR #318, squash `b4d4eb94`)
+
+RESTORE 메커니즘 첫 도메인(D-PO-06 이행). brainstorming→spec→plan→subagent-driven(Task1~7) 전부 **Claude 에이전트**(Codex 크레딧 소진 6/1, 임시 대체).
+
+- **산출**: slip 헤더+라인 full-snapshot(`slip_revisions` V27 JSONB) 버전이력 + point-in-time 복원. 전 content-mutation 7경로 캡처(create/editHeader/updateSlip/applyOverlayPatch/addLine/removeLine/reject-with-reason) + 복원(라인 전량교체+마감가드+SSE `slip:restored`) + REST API(`GET /slips/{id}/revisions` VIEW, `POST .../{n}/restore` RESTORE, changeSummary) + FE 버전이력 패널 + Testcontainers IT + Playwright.
+- **dual 리뷰 cycle1 수렴**: BE 가 P1-1(SlipSnapshot overlay 10필드 누락→복원 롤백 누락) + P2-1(채번 race→500) 적발 → overlay 필드 대칭 보강 + saveAndFlush 재시도→409 + IT 흐름 정합 + race 단위테스트. CI 23/23 green.
+- **결정**: DECISIONS D-RST-01(full-snapshot+point-in-time) / D-RST-02(slip 첫 도메인 + 도메인별 분해) / D-RST-03(slip.audit-revert page 재사용 + overlay 공존). spec/plan: docs/superpowers/{specs,plans}/2026-05-29-slip-restore-*. dev-report: docs/dev-reports/phase-2-1-slip-restore-version-history.md. 배포런북 패턴: 없음(slip 단독).
+
+### 다음 — Phase 2 후보 (사용자 "1부터 순서대로" 진행 중, #1 RESTORE 첫 도메인 완료)
+1. **RESTORE** — **slip(2.1, PR #318) + estimate(2.2, PR #319) 완료.** inventory 보류(D-RST-04). RESTORE 로드맵(D-RST-02): 차기 도메인 후보 = 거래처 마스터(partners) / 주문(partner-order) 등 **편집되는 도메인**. slip+estimate 2개로는 형태차(slip=overlay 공존, estimate=단순)로 shared 추출 보류 중(D-RST-05) — 4번째 도메인에서 공통부 추출 재평가. 배포 체크리스트: 각 도메인 RESTORE action(slip.audit-revert / estimates.list)에 비-MASTER 계정 grant 시드 필요(Phase1 동적권한 운영).
+2. **DOWNLOAD 실구현** (PDF/PNG — 현 can_download bit만, 생성 0).
+3. **PRINT view 실구현** (HTML 인쇄 view).
+4. **아로로지스 독립 권한 슬라이스** (descope된 arologis 자체 account×page×action).
+5. **future-hardening** (ResponseStatusException→500 정정 / CI skipped=0 gate / partner-facing 경계 audit).
+- ⚠️ **Codex 회복(6/1) 전까지 구현·dual리뷰 = Claude 에이전트 대체** (사용자 지시).
+
+---
+
+## ✅ 2026-05-29 완료 — 권한 재편 Phase 1 프레임워크 **머지** (PR #316, squash `80f4c00e`)
+
+**결과**: 계정×page×7-action 권한 프레임워크 main 머지 완료. CI 28/28 green. dual 5-agent 리뷰 3사이클 수렴.
+
+### 사이클 이력 (dual review 가 false-green 결함 차단)
+- **사이클 1** (Claude 리뷰→Codex fix 4R): P0 V39 IT local profile / AuthPermissionMigrationIT MASTER bypass stale + 권한 IT **see-saw 60종**(7-action stub + X-User-Id 헤더 + deny override 일괄) + V39 보존표 재산출(inventory.dps/stock-balance DOWNLOAD narrowing 복구, SALES tax-invoice.list PRINT widening 제거, 재무보고서 11 GET PRINT→VIEW) + PARTNER print carve-out → CI green.
+- **사이클 1후반** (Codex 5-agent cross-check): 🔴 arologis lockout + PARTNER self-service 회귀 적발.
+- **사이클 2**: 아로로지스 descope + PARTNER carve-out 확대 + FE 173 + Spinner fail-closed + 실DB materialize IT.
+- **사이클 N=2** (Claude 5-agent 재리뷰): 🔴 **P0 role-form endpoint 운영 파손** 적발(account-form 교체로 canView/canEdit 400→deny; IT mock 으로 CI false-green; BE 단독). → [[feedback_enforcement_real_http_test]] 메모리화.
+- **사이클 3**: role-form `/check` 양식 분기 복구 + 실 HTTP 회귀 IT 3종 + 매트릭스 위험 action 시각화 → CI green → Claude 전원+Codex BE/QA APPROVE → PM 머지.
+
+### 신규 결정 (DECISIONS 정식화 필요 — D-PO-10~12)
+- **D-PO-10 아로로지스 descope**: `samhan.security.permission.enforcement-mode` opt-in(default account, **arologis=role**). 아로로지스 독립 auth(자체 UUID+AROLOGIS_* role)는 account materialize 대상 외 → role-based 유지. 아로로지스 독립 권한은 별도 슬라이스.
+- **D-PO-11 PARTNER self-service carve-out**: `@RequirePermission.partnerSelfService` flag — PARTNER 자기범위(PARTNER_CODE_HEADER, service 계층) endpoint 만 aspect deny 면제. print/draft/confirm/list/detail/history/edit-requests/tutorial 적용, admin성 미적용.
+- **D-PO-12 role-form 권한 endpoint 양식 분기**: `/auth/internal/permissions/check` account-form(accountId+action)·role-form(roleCode+type) 동시 지원.
+
+### 다음 작업 — 사용자(개발책임자) 결정 대기 ([[pm-auto-continuous]] 멈춤=시리즈/프레임워크 마일스톤 종료)
+Phase 1 프레임워크 완료 → **Phase 2 기능구현(별도 다중 PR)** 후보:
+1. **RESTORE 메커니즘** (전표 버전이력+롤백 YYYY/MM/DD-{전표번호}) — Phase 2 핵심.
+2. **DOWNLOAD 실구현** (PDF/PNG 생성 — 현 codebase 0, Excel 7 endpoint 만 존재).
+3. **PRINT view 실구현** (HTML print-view — 현 GET 은 VIEW 로 매핑됨, 실 인쇄 view 미존재).
+4. **아로로지스 독립 권한 슬라이스** (descope 된 arologis 자체 account×page×action 권한 체계).
+5. **partner-facing endpoint PARTNER 경계 정식 검토** (carve-out 적용분 외 잔여 + V30 grant 정합 audit).
+
+### ✅ follow-up 정리 완료 (PR #317 squash `eaf7eec3`, 2026-05-29)
+cross-check P2/Minor 정리: role-form 400 계약 테스트 + 매트릭스 UX 가드(danger 셀/aria/shadow 토큰/replace 경고) + **DECISIONS D-PO-10~12 정식화** + dev-report §8 + **배포 런북** `docs/runbooks/phase-1-permission-deploy.md`. Claude 에이전트 구현·리뷰(Codex 크레딧 소진 임시 대체, 6/1 리셋). CI 23/23 green.
+
+### 미해소 future-hardening (별개 후속, 비차단)
+- **`ResponseStatusException`→500**: auth-service `AuthExceptionHandler` catch-all 이 4xx 를 500 으로 뭉갬(전 endpoint 4xx 정합성). 실 영향 낮음.
+- **CI `skipped=0` gate**: Testcontainers silent-skip 위장 green 방지.
+- ⚠️ **Codex 회복(6/1) 전까지 dual 리뷰의 Codex 측 = Claude 에이전트 대체** (사용자 지시).
+
+---
+
+## 🗄️ (이전) 2026-05-29 진행 — 권한 재편 Phase 1: Stage 2b~4 완료 + PR #316 발행 + 사이클 1 Claude 리뷰 완료 / 🛑 Codex runner 환경 블로커
+
+**브랜치**: `feat/phase-1-permission-overhaul-framework` HEAD `8e863d5a` (origin push 완료). **PR #316** (base main, `[FEAT] Phase 1 권한 프레임워크`).
+
+### 이번 세션 완료
+- **Stage 2b 검증완료**: `d48a0441`(Codex 미검증 WIP) 9 service + slip compileJava/compileTestJava **BUILD SUCCESSFUL** + `EstimatePermissionGuardTest` PASS. 결함 0.
+- **Stage 3 FE 완료** (각 검증+커밋): SP-PO-11 `697363e2`(permissionsApi/usePermissions 7-action + account API + **`/auth/admin/permissions/my` account 7-action 전환** — internal endpoint 403 회피, BE PermissionAdminController 갱신) · SP-PO-12 `96c4174d`(PermissionMatrixPage 평탄 매트릭스 재작성) · SP-PO-13 `229d0fd5`(다계정 wizard + route) · SP-PO-14 `249510ee`(AppLayout 게이트 + Playwright 3 spec). FE typecheck/lint(0 err)/build PASS, Playwright 3 passed(Vite:5174 + SKIP_WEB_SERVER).
+  - ⚠️ desktop unit test runner 없음 → Task 11 vitest 크로스프로젝트 hack + @ts-nocheck 제거(CI lint 깨짐 회피). FE 검증 = Playwright + BE test.
+  - 과도기 shim: `PermissionLookupAction = PermissionAction|'edit'` + `normalizePermissionAction`(edit→update). 라우트 prop 정리는 후속(D-PO-09).
+- **Stage 2a 재검증**: accounting/inventory/arologis/auth compile(main+test) BUILD SUCCESSFUL.
+- **Stage 4 docs 완료**: `8e863d5a` — dev-report `docs/dev-reports/phase-1-permission-overhaul-framework.md` + DECISIONS `migration/decisions/DECISIONS.md` D-PO-00~09 + overview.html(nav-badge/권한 callout 7-action) + README + auth-service README.
+
+### 사이클 1 Claude 5-agent 리뷰 완료 (head `8e863d5a`, TM 통합 PR comment 게시됨)
+- raw: `docs/qa/phase-1-permission-overhaul/claude-{be,fe,designer,qa,devops}-cycle-1.md` (uncommitted 리뷰 산출물).
+- **CI = RED** (backend test 7 job FAIL — 컴파일/assemble 은 PASS, FE/Playwright GREEN).
+- **P0-1**: `V39MigrationParityIT`/`V39PartnerExclusionIT`/`V39GuardGatedPageIT` 가 `@TestPropertySource(spring.profiles.active=local)` 류로 H2+Flyway-off → Spring context 로드 실패(`DriverDataSource:109`). V39 행동보존 검증 근거 0.
+- **P0-2**: `AuthPermissionMigrationIT` 7~8건 stale — 신규 MASTER short-circuit bypass(D-PO-05)와 모순(403 기대→200). 신규 정책으로 갱신 필요.
+- **P1 (see-saw)**: 도메인 권한 IT 다수(Product/Dps/EcountMig6 등) — `X-User-Id`(account UUID) 미전파 → accountId null deny, 또는 2-action stub 잔재. account+action-aware stub 일괄 보강 필요.
+- **P1 (V39 행동보존)**: ① `inventory.dps` DOWNLOAD 보존표 누락(narrowing) ② `inventory.stock-balance` DOWNLOAD 누락(narrowing) ③ `accounting.tax-invoice.list` PRINT SALES widening(V8 의도 FALSE 덮어씀) ④ accounting `report/*Controller` 11 데이터 GET `PRINT`→`VIEW` 오매핑. → V39 보존표를 **post-V8/V31/V32/V38 효과적 grant** 기준 재산출.
+- **P1 (FE)**: `PermissionMatrixPage.tsx:768` 컬럼 토글이 visiblePages 기준(spec 전 page 불일치).
+- **P1 (Designer)**: bulk grants 모드 12 page만(173 필요) / 대량 토글 confirm·미리보기 부재 + native confirm(DS Modal 미사용).
+- **P2**: JournalController 레거시 role 가드(Phase 2 drop 시 mutation 403), V39 active 필터, V39 보존 IT 회귀 미포착.
+
+### 🛑 블로커 — Codex runner pipe timeout (환경)
+- 사이클 1 Codex fix 디스패치 2회 모두 `windows sandbox: timed out after 15000ms connecting runner pipe-in` 으로 **미시작**(파일 미수정). host 자원 경합(24 Docker 컨테이너, WSL vmmem 4.4GB, free ~4GB). Claude 자체 PowerShell 은 느리지만 동작(auto-background). Codex sandbox 의 15s 연결 timeout 이 부족.
+- **회복**: Docker 로컬 스택 일부 down 으로 자원 확보 후 Codex 재시도, 또는 새 세션(메모리 회복).
+
+### 🔑 다음 세션 즉시 재개 (사이클 1 fix → 완주)
+1. `git checkout feat/phase-1-permission-overhaul-framework; git pull` → `$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle\codex-home'`. 자원 확보(불필요 Docker down) 확인.
+2. **Codex fix 디스패치** (gpt-5.5 / effort high / approval-policy never / **sandbox workspace-write** / **git 금지→Claude commit 대행**): 리뷰 파일 3종 read → `gh run view --log-failed` 전수 enumerate → P0-1(V39 IT 하네스 Testcontainers 정렬) + P0-2(AuthPermissionMigrationIT MASTER bypass 갱신) + P1 see-saw(X-User-Id+stub 일괄) + V39 보존표 재산출(narrowing/widening/report 매핑) 일괄 fix. compile 검증.
+3. Claude commit + push → 사이클 1 후반: **Codex 5-agent 리뷰** (5 병렬, head 갱신 기준) → TM Codex 통합 PR comment → Codex fix.
+4. CI watch green → 1f fix 발동 시 **사이클 N=2 의무**([[cycle-n2-mandatory]]) → 양쪽 APPROVE + CI green → PM 자동 머지([[user-merge-authority]]).
+- ⚠️ **CI green 전 PM 마지막 리뷰 게시 금지**([[dual-5agent-review]] 함정). codex-reply 는 sandbox param 없음 → fix 는 fresh `mcp__codex__codex` 호출.
+
+---
+
+## 🚧 2026-05-28 진행 — 권한 재편 Phase 1 구현 중 (Stage 1+2a 검증완료 / 2b WIP 미검증 / 세션 재시작)
+
+**브랜치 (둘 다 origin push 완료)**:
+- `feat/phase-1-permission-overhaul-framework` — 구현 본체. HEAD `d48a0441`.
+- `docs/phase-1-permission-overhaul-design` — **PR #315** (planning 문서: 인벤토리+spec+plan+Codex memory).
+
+### 🔑 다음 세션 즉시 재개 절차
+1. `git checkout feat/phase-1-permission-overhaul-framework; git pull` → `$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle\codex-home'`
+2. **Stage 2b WIP 검증** (`d48a0441` = Codex gpt-5.5 미검증 산출, 컴파일 미실행): 8 service 컴파일 검증 `:services:{partner,partner-auth,partner-order,dc-config,product,user,dashboard,notification,groupware}-service:compileJava :…:compileTestJava` + slip(EstimateGuard 변경) 재컴파일 + `EstimatePermissionGuardTest`. 결함 fix.
+3. **Stage 3 = FE** (plan Task 11~14): permissionsApi/usePermissions 7-action → PermissionMatrixPage account×page×7action 평탄 매트릭스 재작성 → 다계정 wizard → AppLayout/Playwright.
+4. **Stage 4 = docs**(Task 15) → dual 5-agent 리뷰 → cycle N=2 → CI green → PM 머지.
+- **Codex 디스패치 규칙 (이번 세션 확립)**: model **`gpt-5.5`** (사용자 directive) + `config:{model_reasoning_effort:"high"}`, **`approval-policy:"never"`**, **git 금지(파일만 수정) → Claude commit 대행** ([[codex-sandbox-git]] [[codex-model-auto-switch]]). `gpt-5.2-codex` 미지원.
+
+### 진행 상태 (commit)
+- **Stage 1 ✅ 검증완료**: `01aa4c95`(shared 7-action enum/aspect/client) + `4d9f568e`(auth 엔티티/서비스/API + auth 재주석화) + `5e91624d`(V39 마이그레이션+IT). 컴파일+단위테스트 green. `sub=accounts.id` 확인됨.
+- **Stage 2a ✅ 검증완료**: `18eedd29`(accounting) `0f7d3d9a`(inventory) `53353c76`(slip) `147fab03`(arologis). 4 service 컴파일 green.
+- **Stage 2b ⚠️ WIP 미검증**: `d48a0441` — 나머지 9 service 재주석화 + Task 10(EstimateGuard account 전환, dead guard 3개 삭제). **컴파일 미실행 → 검증 필수**.
+- V39 보존 매핑 (Stage 1 seed): RESTORE=warehouse.admin/slip.audit-revert · DOWNLOAD=journals/hometax-export/slip.print.export/partners.edit · PRINT=tax-invoice.list/statement-batch/partner-ledger/reports/partner-order.print/slip.print.next-day.
 
 ### Phase 0 인벤토리 완료 (8 도메인 fan-out audit)
 - 산출: `docs/permission-overhaul/menu-inventory.md` (마스터) + `docs/permission-overhaul/inventory/{8개}.md`.
@@ -22,11 +156,10 @@
 - 결정: role 비강제 템플릿 유지 / 단일 can_download / 행동보존 자동전개 / 평탄 매트릭스+도메인섹션 UI / MASTER bypass short-circuit / RESTORE 메커니즘 Phase 2 / PARTNER 경계 deny.
 - **구현 조사 정정**: Role enum 에 PARTNER 없음(10값, 외부=partner-auth) / aspect 가 account id 미사용→`X-User-Id`(gateway 주입 JWT sub) 추가가 핵심 / MASTER bypass 신규 / client 캐시 없음 / EstimateGuard 실사용(role→account 전환) + Product·PartnerOrder guard dead(삭제) / Flyway V38→**V39**.
 
-### 다음 단계 — 사용자(개발책임자) 결정 대기
-1. **plan 검토** (Task 0~15, 단일 PR ~14 commit, 거대 변경).
-2. **docs 브랜치 처리**: 토대(PR #314) 선례처럼 planning 문서 PR 머지 후 구현 시작 vs feat 브랜치에 docs 동반.
-3. **구현 착수**: `feat/phase-1-permission-overhaul-framework` 에서 Codex 디스패치 (Task 1부터). [[codex-implements-claude-reviews]] + dual 리뷰 + cycle N=2 + CI green + PM 머지.
-- ⚠️ Task 2(annotation enum) 이후 ~14 service 컴파일 깨짐 → Task 9.1~9.8 순차 복구. 단일 PR 은 전 service 복구 후 CI green.
+### 설계 메모 (Phase 1 spec/plan)
+- spec: `docs/superpowers/specs/2026-05-28-permission-overhaul-phase-1-framework-design.md` (D-PO-01~07)
+- plan: `docs/superpowers/plans/2026-05-28-permission-overhaul-phase-1-framework.md` (Task 0~15, 4 Stage 로 실행 중)
+- ⚠️ 단일 PR 특성: Task 2(annotation enum) 이후 전 service 컴파일이 9.x 재주석화 완료 후에야 green. 따라서 feat 브랜치 CI 는 Stage 2b 검증 완료 후 의미 있음.
 
 ---
 

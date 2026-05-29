@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import java.math.BigDecimal;
@@ -69,6 +70,10 @@ class ProductControllerIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         Category cat = categoryRepository.findAll().stream()
                 .filter(c -> "INDOOR_WALL".equals(c.getCode()))
                 .findFirst()
@@ -87,7 +92,8 @@ class ProductControllerIT extends AbstractPostgresIT {
 
     @Test
     void salesRole_post_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "products.admin"))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("products.admin"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
         var body = Map.of(
                 "name", "테스트 제품",
@@ -174,7 +180,8 @@ class ProductControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk());
 
         // ACCOUNTANT 의 전체 PATCH → 403 (이름/태그 등 비-가격 필드는 MANAGER 권한 필요)
-        Mockito.when(dynamicPermissionClient.canEdit("ACCOUNTANT", "products.admin"))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("products.admin"), Mockito.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
         var fullPatch = Map.of("name", "이름 바꿔줘", "tags", Map.of("전압", "380V"));
         mockMvc.perform(patch("/products/" + pid)

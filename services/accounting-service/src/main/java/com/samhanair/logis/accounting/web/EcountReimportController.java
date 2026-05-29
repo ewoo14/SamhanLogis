@@ -31,7 +31,7 @@ public class EcountReimportController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/{slice}")
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "MIG-20 slice 단위 raw 재import 실행")
     public EcountReimportResult reimport(
             @PathVariable String slice,

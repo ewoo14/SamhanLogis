@@ -55,7 +55,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 저장",
             description = "배차 4개 화면 결과를 AUTO_LATEST 또는 MANUAL_NAMED 저장내역으로 기록한다.")
     @PostMapping
-    @RequirePermission(page = "arologis.dispatch.ops", action = "EDIT")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<DispatchSaveHistorySaveResponse> save(
             @Valid @RequestBody DispatchSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -81,7 +81,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 배차 저장내역을 조회한다.")
     @GetMapping
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<DispatchSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -119,7 +119,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원한다.")
     @GetMapping("/{id}")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DispatchSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -140,7 +140,7 @@ public class DispatchSaveHistoryController {
     @Operation(summary = "아로로지스 배차 최신 자동저장 조회",
             description = "현재 사용자의 프로그램별 최신 AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
-    @RequirePermission(page = "arologis.dispatch.ops", action = "VIEW")
+    @RequirePermission(page = "arologis.dispatch.ops", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DispatchSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DispatchProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

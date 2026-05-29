@@ -10,6 +10,7 @@ import com.samhanair.logis.auth.web.dto.PasswordResetRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -96,7 +97,7 @@ public class PasswordController {
     /** MASTER 권한 잠금 해제. */
     @PatchMapping("/admin/accounts/{id}/unlock")
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.password-admin", action = "EDIT")
+    @RequirePermission(page = "system.password-admin", action = PermissionAction.UPDATE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unlock(@PathVariable UUID id) {
         passwordResetService.unlockAccount(id);

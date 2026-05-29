@@ -12,6 +12,7 @@ import static org.mockito.Mockito.lenient;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import java.math.BigDecimal;
@@ -77,14 +78,14 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
 
         // POST
         mockMvc.perform(post("/accounting/journals/" + id + "/post")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
         // 시산표 조회 (202605)
         mockMvc.perform(get("/accounting/balances")
                         .param("period", "202605")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalDebit").value(123000))
@@ -106,7 +107,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
         // 시산표 — POSTED 가 아닌 DRAFT 만 있으므로 0 합계
         mockMvc.perform(get("/accounting/balances")
                         .param("period", "202605")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalDebit").value(0))
@@ -116,6 +117,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("권한 — SALES 시산표 조회 403")
     void salesForbidden() throws Exception {
+        denyRequirePermission("accounting.balances.trial-balance", PermissionAction.VIEW);
         lenient().when(dynamicPermissionClient.canView(eq("SALES"), anyString())).thenReturn(false);
         mockMvc.perform(get("/accounting/balances")
                         .param("period", "202605")
@@ -129,7 +131,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     void invalidPeriodReturns400() throws Exception {
         mockMvc.perform(get("/accounting/balances")
                         .param("period", "2026-05")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isBadRequest());
     }

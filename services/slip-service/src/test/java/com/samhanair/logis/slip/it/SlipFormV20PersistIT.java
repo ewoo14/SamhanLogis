@@ -116,6 +116,12 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(java.util.UUID.class),
+                        ArgumentMatchers.anyString(),
+                        ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(Optional.of("담당자"));
         // ProductClient lenient stub — SlipService.create 가 라인 productId 검증 시 호출

@@ -303,6 +303,8 @@ export function AppLayout() {
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
   const showAdminUsersMgmt         = dynamicCanAccess('admin.users',                  'view')
+  const showPermissionAdmin        = auth?.role === 'MASTER'
+    && dynamicCanAccess('system.permission-admin', 'view')
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
   const showPartnersEditRequest    = dynamicCanAccess('partners.edit-request',        'view')
@@ -317,7 +319,7 @@ export function AppLayout() {
     || showInventoryDps || showInventoryAuditPage
   const showPartnersGroup  =
     showPartnersList || showPartnersBlock || showPartnersEditRequest
-  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt
+  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin
 
   // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH / MANAGER / MASTER 가드
   const showArologisManual = !!auth?.role
@@ -1162,9 +1164,10 @@ export function AppLayout() {
             disabled 시 tooltip: "대표실 부서 권한자만 접근 가능".
             활성 시 AdminLayout (/admin/users) 로 진입.
           */}
-          {/* SP-D1: 인사 카테고리 — MASTER 만 가시. 권한 없으면 완전 미노출.
-              SP-D4: admin.employees / admin.users 동적 RBAC 연동 — showAdminHrGroup 추가. */}
-          {(showAdmin || showAdminHrGroup) ? (
+          {/* SP-D1: 인사 카테고리 — 권한 캐시 미로드 시 완전 미노출.
+              SP-D4: admin.employees / admin.users 동적 RBAC 연동 — showAdminHrGroup 추가.
+              Phase 1 Task 14: 권한 관리 진입점은 MASTER + system.permission-admin(view) 로 fail-closed. */}
+          {showAdminHrGroup ? (
             <>
               <div
                 className="app-sidebar-group"
@@ -1184,18 +1187,25 @@ export function AppLayout() {
               {/* admin.employees — MASTER/MANAGER (SP-D4 §2). */}
               <SidebarLink
                 to="/admin/users"
-                show={showAdmin || showAdminEmployees}
+                show={showAdminEmployees}
                 data-testid="sidebar-hr-users"
               >
                 인사 관리
               </SidebarLink>
-              {/* admin.users — MASTER 전용 (SP-D4 §2). */}
+              {/* 권한 관리 — MASTER 전용. route 도 RoleGuard + system.permission-admin(view) 로 이중 가드. */}
               <SidebarLink
                 to="/admin/permission-matrix"
-                show={showAdmin || showAdminUsersMgmt}
+                show={showPermissionAdmin}
                 data-testid="sidebar-hr-permission-matrix"
               >
                 권한 매트릭스
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/permission-matrix/bulk"
+                show={showPermissionAdmin}
+                data-testid="sidebar-hr-permission-bulk"
+              >
+                권한 일괄 적용
               </SidebarLink>
             </>
           ) : null}

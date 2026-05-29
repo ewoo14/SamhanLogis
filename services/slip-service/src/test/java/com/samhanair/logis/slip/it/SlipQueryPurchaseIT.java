@@ -134,6 +134,12 @@ class SlipQueryPurchaseIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(ArgumentMatchers.anyString(), ArgumentMatchers.anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(java.util.UUID.class),
+                        ArgumentMatchers.anyString(),
+                        ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test

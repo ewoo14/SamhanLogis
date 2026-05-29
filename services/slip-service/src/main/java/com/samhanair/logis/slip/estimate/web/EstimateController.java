@@ -1,6 +1,9 @@
 package com.samhanair.logis.slip.estimate.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
@@ -47,9 +50,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>SP-D6-6 권한 가드:
  * <ul>
  *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
- *       + {@link EstimatePermissionGuard#checkView(String)}</li>
- *   <li>POST/PUT write → {@code @RequirePermission(page = "estimates.list", action = "EDIT")}
- *       + {@link EstimatePermissionGuard#checkEdit(String)}</li>
+ *       + {@link EstimatePermissionGuard#checkView(UUID)}</li>
+ *   <li>POST/PUT write → {@code @RequirePermission}
+ *       + {@link EstimatePermissionGuard#checkEdit(UUID, PermissionAction)}</li>
  * </ul>
  */
 @RestController
@@ -77,8 +80,8 @@ public class EstimateController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(roleHeader);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader));
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, pageable));
     }
@@ -89,8 +92,8 @@ public class EstimateController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<EstimateDetailResponse> getOne(
             @PathVariable UUID id,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(roleHeader);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader));
         return ApiResponse.ok(estimateService.getOne(id));
     }
 
@@ -102,61 +105,61 @@ public class EstimateController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.CREATE);
         return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader)));
     }
 
     /** 견적서 수정 — DRAFT/SENT 단계만. */
     @Operation(summary = "견적서 수정", description = "DRAFT/SENT 단계만. lines 가 있으면 기존 라인 replace")
     @PutMapping("/{id}")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader)));
     }
 
     /** DRAFT → SENT. */
     @Operation(summary = "견적서 발송", description = "QUOTE_DRAFT → QUOTE_SENT")
     @PostMapping("/{id}/send")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
     }
 
     /** SENT → ACCEPTED. */
     @Operation(summary = "견적서 수주", description = "QUOTE_SENT → QUOTE_ACCEPTED")
     @PostMapping("/{id}/accept")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
     }
 
     /** SENT → REJECTED. */
     @Operation(summary = "견적서 거절", description = "QUOTE_SENT → QUOTE_REJECTED")
     @PostMapping("/{id}/reject")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
@@ -168,13 +171,24 @@ public class EstimateController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ACCEPTED 가 아님")
     })
     @PostMapping("/{id}/convert")
-    @RequirePermission(page = "estimates.list", action = "EDIT")
+    @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(roleHeader);
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
+    }
+
+    private UUID parseAccountId(String header) {
+        if (header == null || header.isBlank()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "계정 권한 식별자가 없습니다.");
+        }
+        try {
+            return UUID.fromString(header);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "계정 권한 식별자가 올바르지 않습니다.");
+        }
     }
 
     private String callerOrSystem(String header) {

@@ -9,6 +9,8 @@ import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
+import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
+import com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
@@ -49,6 +51,7 @@ public class EstimateService {
     private final EstimateNumberService estimateNumberService;
     private final ProductClient productClient;
     private final EstimateToSlipConverter slipConverter;
+    private final EstimateRevisionService estimateRevisionService;
 
     /**
      * 견적서 신규 생성 — DRAFT 상태로 출발.
@@ -96,6 +99,9 @@ public class EstimateService {
         }
 
         Estimate saved = estimateRepository.save(estimate);
+        // 권한 재편 Phase 2.2 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
+        estimateRevisionService.capture(saved, EstimateRevisionType.CREATE, null,
+                parseActorId(requesterId), requesterId, null);
         return EstimateDetailResponse.from(saved);
     }
 
@@ -141,6 +147,9 @@ public class EstimateService {
             }
         }
 
+        // 권한 재편 Phase 2.2 — 헤더/라인 변경 후 EDIT 스냅샷 캡처. 도메인 가드를 통과한 성공 경로에서만 도달한다.
+        estimateRevisionService.capture(estimate, EstimateRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -182,6 +191,36 @@ public class EstimateService {
         return EstimateDetailResponse.from(estimate);
     }
 
+    /**
+     * 견적을 특정 revision 시점으로 복원한다 (권한 재편 Phase 2.2 Task 3).
+     *
+     * <p>처리 순서: 견적 조회(404) → {@link EstimateRevisionService#restore}(편집 가능 가드 +
+     * 헤더/라인 복원 + RESTORE revision 캡처) → 라인 전량 교체 영속화 → 상세 응답.
+     *
+     * <p>{@link com.samhanair.logis.slip.service.SlipService#restoreToRevision} 미러 —
+     * 단 견적은 SSE broadcast 가 없다 (동시 편집 broker 미적용).
+     *
+     * @param estimateId 복원 대상 견적 UUID
+     * @param revisionNo 복원할 시점의 revisionNo
+     * @param callerId 복원 주체 user-id (gateway X-User-Id, 감사용)
+     * @param callerName 복원 주체 표시명 (UUID 비공개 가드, 없으면 callerId 폴백)
+     * @return 복원 후 견적 상세 (lines 포함)
+     * @throws BusinessException(NOT_FOUND) 견적 또는 복원 대상 revision 미존재
+     * @throws BusinessException(CONFLICT) 편집 불가 단계의 견적
+     */
+    public EstimateDetailResponse restoreToRevision(UUID estimateId, int revisionNo,
+                                                    String callerId, String callerName) {
+        Estimate estimate = loadOrThrow(estimateId);
+        String actorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        applyMutation(() -> estimateRevisionService.restore(estimate, revisionNo,
+                parseActorId(callerId), actorName, null));
+        // 라인 전량 교체(clear + 신규 라인 add) 영속화
+        estimateRepository.save(estimate);
+        return EstimateDetailResponse.from(estimate);
+    }
+
     /** 단건 조회. */
     @Transactional(readOnly = true)
     public EstimateDetailResponse getOne(UUID id) {
@@ -212,6 +251,21 @@ public class EstimateService {
             page = estimateRepository.findAllByIsDeletedFalse(pageable);
         }
         return page.map(EstimateResponse::from);
+    }
+
+    /**
+     * 감사용 actor UUID 파싱 (SlipService 동형). X-User-Id 가 UUID 가 아닌 legacy employeeCode 등이면
+     * 가상 system UUID(0,0) 로 폴백한다 (revision actorId 컬럼은 nullable 이나 일관성 위해 비-null 유지).
+     */
+    private UUID parseActorId(String callerId) {
+        if (callerId == null || callerId.isBlank()) {
+            return new UUID(0L, 0L);
+        }
+        try {
+            return UUID.fromString(callerId);
+        } catch (IllegalArgumentException ex) {
+            return new UUID(0L, 0L);
+        }
     }
 
     private Estimate loadOrThrow(UUID id) {

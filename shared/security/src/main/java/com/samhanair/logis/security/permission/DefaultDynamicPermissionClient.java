@@ -1,6 +1,10 @@
 package com.samhanair.logis.security.permission;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestClient;
@@ -58,6 +62,86 @@ public class DefaultDynamicPermissionClient implements DynamicPermissionClient {
         this.restClient = builder.baseUrl(baseUrl).build();
         this.internalToken = internalToken;
         this.callerServiceName = (callerServiceName == null || callerServiceName.isBlank()) ? "unknown" : callerServiceName;
+    }
+
+    @Override
+    public boolean check(UUID accountId, String pageCode, PermissionAction action) {
+        if (accountId == null || pageCode == null || pageCode.isBlank() || action == null) {
+            return false;
+        }
+        try {
+            JsonNode root = restClient.get()
+                    .uri("/auth/internal/permissions/check?accountId={accountId}&pageCode={page}&action={action}",
+                            accountId, pageCode, action.name())
+                    .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
+                    .header("X-User-Id", "system-internal:" + callerServiceName)
+                    .header("X-User-Role", callerServiceName)
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError(), (req, res) -> {
+                        log.debug("[SP-PO-1] 계정 권한 조회 4xx — accountId={} pageCode={} action={} status={}",
+                                accountId, pageCode, action, res.getStatusCode());
+                    })
+                    .body(JsonNode.class);
+
+            JsonNode allowedNode = root == null ? null : root.path("data").path("allowed");
+            return allowedNode != null && !allowedNode.isMissingNode() && allowedNode.asBoolean(false);
+        } catch (RestClientException ex) {
+            log.warn("[SP-PO-1] auth-service 계정 권한 조회 실패 (fallback=false) — accountId={} pageCode={} action={} error={}",
+                    accountId, pageCode, action, ex.getMessage());
+            return false;
+        } catch (Exception ex) {
+            log.error("[SP-PO-1] 계정 권한 조회 예외 (fallback=false) — accountId={} pageCode={} action={} error={}",
+                    accountId, pageCode, action, ex.getMessage(), ex);
+            return false;
+        }
+    }
+
+    @Override
+    public Map<String, EnumSet<PermissionAction>> bulkLoad(UUID accountId) {
+        if (accountId == null) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = restClient.get()
+                    .uri("/auth/internal/permissions/account/{accountId}", accountId)
+                    .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
+                    .header("X-User-Id", "system-internal:" + callerServiceName)
+                    .header("X-User-Role", callerServiceName)
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError(), (req, res) -> {
+                        log.debug("[SP-PO-1] 계정 권한 bulk 조회 4xx — accountId={} status={}",
+                                accountId, res.getStatusCode());
+                    })
+                    .body(JsonNode.class);
+
+            JsonNode dataNode = root == null ? null : root.path("data");
+            if (dataNode == null || !dataNode.isObject()) {
+                return Map.of();
+            }
+
+            Map<String, EnumSet<PermissionAction>> result = new LinkedHashMap<>();
+            dataNode.fields().forEachRemaining(entry -> {
+                EnumSet<PermissionAction> actions = EnumSet.noneOf(PermissionAction.class);
+                if (entry.getValue().isArray()) {
+                    entry.getValue().forEach(node -> {
+                        PermissionAction action = PermissionAction.fromOrNull(node.asText());
+                        if (action != null) {
+                            actions.add(action);
+                        }
+                    });
+                }
+                result.put(entry.getKey(), actions);
+            });
+            return result;
+        } catch (RestClientException ex) {
+            log.warn("[SP-PO-1] auth-service 계정 권한 bulk 조회 실패 (fallback=empty) — accountId={} error={}",
+                    accountId, ex.getMessage());
+            return Map.of();
+        } catch (Exception ex) {
+            log.error("[SP-PO-1] 계정 권한 bulk 조회 예외 (fallback=empty) — accountId={} error={}",
+                    accountId, ex.getMessage(), ex);
+            return Map.of();
+        }
     }
 
     @Override

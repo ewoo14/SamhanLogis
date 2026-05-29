@@ -8,6 +8,7 @@ import com.samhanair.logis.partner.editrequest.web.dto.CreatePartnerEditRequestR
 import com.samhanair.logis.partner.editrequest.web.dto.PartnerEditRequestResponse;
 import com.samhanair.logis.partner.editrequest.web.dto.RejectPartnerRequest;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -56,7 +57,7 @@ public class PartnerEditRequestController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "요청 생성 성공")
     })
     @PostMapping("/entities/{entityId}/edit-request")
-    @RequirePermission(page = "partners.edit-requests", action = "EDIT")
+    @RequirePermission(page = "partners.edit-requests", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PartnerEditRequestResponse>> createRequest(
             @PathVariable UUID entityId,
             @Valid @RequestBody CreatePartnerEditRequestRequest request,
@@ -72,7 +73,7 @@ public class PartnerEditRequestController {
 
     @Operation(summary = "거래처 수정/삭제 요청 수락")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @RequirePermission(page = "partners.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "partners.edit-requests.decide", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerEditRequestResponse> approveRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody(required = false) ApprovePartnerRequest body,
@@ -87,7 +88,7 @@ public class PartnerEditRequestController {
 
     @Operation(summary = "거래처 수정/삭제 요청 거절")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @RequirePermission(page = "partners.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "partners.edit-requests.decide", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerEditRequestResponse> rejectRequest(
             @PathVariable UUID requestId,
             @Valid @RequestBody RejectPartnerRequest body,
@@ -102,7 +103,7 @@ public class PartnerEditRequestController {
 
     @Operation(summary = "거래처 수정 요청 대시보드 — PENDING 목록")
     @GetMapping("/edit-requests")
-    @RequirePermission(page = "partners.edit-requests.decide", action = "VIEW")
+    @RequirePermission(page = "partners.edit-requests.decide", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerEditRequestResponse>> listForRole(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         List<PartnerEditRequest> rows = editRequestService.listPendingForRole(targetRole);
@@ -111,7 +112,7 @@ public class PartnerEditRequestController {
 
     @Operation(summary = "entity 별 요청 이력")
     @GetMapping("/entities/{entityId}/edit-requests")
-    @RequirePermission(page = "partners.edit-requests", action = "VIEW")
+    @RequirePermission(page = "partners.edit-requests", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerEditRequestResponse>> listByEntity(
             @PathVariable UUID entityId) {
         List<PartnerEditRequest> rows = editRequestService.listByEntity(entityId);

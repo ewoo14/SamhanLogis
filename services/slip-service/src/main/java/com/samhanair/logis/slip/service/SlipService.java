@@ -16,7 +16,10 @@ import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.editrequest.domain.SlipEditRequest;
 import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
+import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
@@ -85,6 +88,17 @@ public class SlipService {
      * 호출 실패 시 null 유지 (fail-soft).
      */
     private final WarehouseInternalClient warehouseInternalClient;
+    /**
+     * 권한 재편 Phase 2.1 Task 2 — 전표 버전이력 스냅샷 캡처.
+     * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
+     */
+    private final SlipRevisionService slipRevisionService;
+    /**
+     * 권한 재편 Phase 2.1 Task 3 — 복원 SSE broadcast 용 실시간 브로커.
+     * point-in-time 복원 성공 직후 {@code slip:restored} 이벤트를 publish 한다
+     * ({@link SlipAuditLogService} 의 broker 주입 패턴과 동일 — InMemoryRealtimeBroker facade bean).
+     */
+    private final SlipRealtimeBroker broker;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -191,6 +205,9 @@ public class SlipService {
         }
 
         Slip saved = slipRepository.save(slip);
+        // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
+        slipRevisionService.capture(saved, SlipRevisionType.CREATE, null,
+                parseActorId(requesterId), requesterId, null);
         return SlipDetailResponse.from(saved);
     }
 
@@ -222,6 +239,11 @@ public class SlipService {
             auditLogService.recordOverlayPatch(id, actorId, actorName, null,
                     "memo", oldMemo, newMemo);
         }
+        // 권한 재편 Phase 2.1 — 헤더 batch 수정(partnerId/partnerName/deliveryTag/memo 모두 toSnapshot 필드)도
+        // 버전이력에 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
+        // (editHeader 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -263,6 +285,9 @@ public class SlipService {
                 req.recipientPhone(),
                 req.paymentDueDate());
 
+        // 권한 재편 Phase 2.1 Task 2 — 수정 성공 직후 EDIT 스냅샷 캡처
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -302,6 +327,13 @@ public class SlipService {
         // PR-H3 — APPROVED 요청 소진 (재사용 차단)
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
+        // 권한 재편 Phase 2.1 Task 2 — overlay patch 성공 직후 EDIT 스냅샷 캡처
+        // actorName 은 callerName 우선 (UUID 비공개 가드), 없으면 callerId 폴백
+        String revisionActorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), revisionActorName, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -322,6 +354,50 @@ public class SlipService {
         applyMutation(() -> slip.markDeleted(callerId == null ? "system" : callerId));
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
+    }
+
+    /**
+     * 전표를 특정 revision 시점으로 point-in-time 복원한다 (권한 재편 Phase 2.1 Task 3).
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>전표 조회 — 미존재 시 {@link ErrorCode#NOT_FOUND}</li>
+     *   <li>{@link #guardLockPolicy} — status 별 마감 정책 가드 (FULLY_LOCKED/종결 단계 차단,
+     *       LOCKED_REQUIRES_APPROVAL 단계는 APPROVED 요청 1건 필요, mutation 후 소진)</li>
+     *   <li>{@link SlipRevisionService#restore} — 대상 스냅샷 로드 + 헤더/라인 통째 복원 +
+     *       신규 RESTORE revision 캡처 (마감 lock 가드는 도메인이 책임)</li>
+     *   <li>라인 전량 교체 영속화를 위한 명시 save</li>
+     *   <li>{@code slip:restored} SSE broadcast (slipId + 복원 출처 revisionNo)</li>
+     * </ol>
+     *
+     * @param slipId 복원 대상 전표 UUID
+     * @param revisionNo 복원할 시점의 revisionNo (복원 출처)
+     * @param callerId 복원 수행자 user-id (감사용 actor)
+     * @param callerName 복원 수행자 표시명 (UUID 비공개 가드, null 이면 callerId 폴백)
+     * @return 복원된 전표의 상세 응답
+     * @throws BusinessException(NOT_FOUND) 전표 또는 대상 revision 미발견
+     * @throws BusinessException(CONFLICT) 마감 정책 위반 또는 lock_flag=true 슬립
+     */
+    public SlipDetailResponse restoreToRevision(UUID slipId, int revisionNo,
+                                                String callerId, String callerName) {
+        Slip slip = loadOrThrow(slipId);
+        // status 별 마감 정책 가드 (applyOverlayPatch/softDelete 와 동일 정책)
+        Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
+        String actorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : callerId;
+        applyMutation(() -> slipRevisionService.restore(slip, revisionNo,
+                parseActorId(callerId), actorName, null));
+        // 라인 전량 교체(markDeleted + 신규 라인 add) 영속화
+        slipRepository.save(slip);
+        consumedApproval.ifPresent(approval ->
+                editRequestService.consumeApproval(approval.getId(), callerId));
+        // 복원 SSE broadcast — 동일 슬립 동시 편집자 화면 갱신 트리거
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("slipId", slipId.toString());
+        payload.put("revisionNo", revisionNo);
+        broker.publish(slipId, "slip:restored", payload);
+        return SlipDetailResponse.from(slip);
     }
 
     /**
@@ -398,6 +474,10 @@ public class SlipService {
         applyMutation(() -> slip.addLine(SlipLine.create(slip, req.productId(),
                 productName, modelName, req.specification(),
                 req.quantity(), req.unitPrice(), req.note())));
+        // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
+        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -418,6 +498,10 @@ public class SlipService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "라인을 찾을 수 없습니다"));
         applyMutation(() -> slip.removeLine(line));
+        // 권한 재편 Phase 2.1 — 라인 삭제도 롤백 가능하도록 EDIT 스냅샷 캡처
+        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
     }
 
     /** 작성중 → 저장완료. */
@@ -541,12 +625,20 @@ public class SlipService {
     public SlipDetailResponse reject(UUID id, String callerId, String reasonText) {
         Slip slip = loadOrThrow(id);
         SlipStatus previous = slip.getStatus();
+        // 권한 재편 Phase 2.1 — 반려 사유 prepend 로 memo(toSnapshot 필드) 변경 여부 감지용 사전 snapshot
+        String oldMemo = slip.getMemo();
         applyMutation(() -> slip.reject(reasonText));
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {
             for (SlipLine line : slip.getLines()) {
                 inventoryClient.release(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), SLIP_REF_TYPE, slip.getId());
             }
+        }
+        // 권한 재편 Phase 2.1 — reasonText 가 memo 앞에 prepend 되어 실제 변경된 경우에만 EDIT 캡처
+        // (상태전이 reject 자체는 content 아님 — memo 변경분만 content-mutation 으로 본다)
+        if (!java.util.Objects.equals(oldMemo, slip.getMemo())) {
+            slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                    parseActorId(callerId), callerId, null);
         }
         return SlipDetailResponse.from(slip);
     }

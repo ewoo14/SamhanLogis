@@ -25,6 +25,7 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.service.DepositMatchAuditRecorder;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -130,6 +131,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("SALES 역할 → 403 FORBIDDEN")
     void testSalesForbidden() throws Exception {
+        denyRequirePermission("accounting.deposit-match", PermissionAction.UPDATE);
         when(dynamicPermissionClient.canEdit(eq("SALES"), eq("accounting.deposit-match")))
                 .thenReturn(false);
 
@@ -153,6 +155,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("WAREHOUSE 역할 → 403 FORBIDDEN")
     void testWarehouseForbidden() throws Exception {
+        denyRequirePermission("accounting.deposit-match", PermissionAction.UPDATE);
         when(dynamicPermissionClient.canEdit(eq("WAREHOUSE"), eq("accounting.deposit-match")))
                 .thenReturn(false);
 
@@ -176,6 +179,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("DRIVER 역할 → 403 FORBIDDEN")
     void testDriverForbidden() throws Exception {
+        denyRequirePermission("accounting.deposit-match", PermissionAction.UPDATE);
         when(dynamicPermissionClient.canEdit(eq("DRIVER"), eq("accounting.deposit-match")))
                 .thenReturn(false);
 
@@ -199,6 +203,7 @@ class DepositMatchShellIT extends AbstractPostgresIT {
     @Test
     @DisplayName("DISPATCH 역할 → 403 FORBIDDEN")
     void testDispatchForbidden() throws Exception {
+        denyRequirePermission("accounting.deposit-match", PermissionAction.UPDATE);
         when(dynamicPermissionClient.canEdit(eq("DISPATCH"), eq("accounting.deposit-match")))
                 .thenReturn(false);
 

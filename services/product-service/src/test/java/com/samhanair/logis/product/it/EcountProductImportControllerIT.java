@@ -9,10 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import java.io.InputStream;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +43,9 @@ class EcountProductImportControllerIT extends AbstractPostgresIT {
     @WithMockUser(authorities = "ROLE_MASTER")
     void master_can_upload_product_import_files() throws Exception {
         Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
         when(importer.importCsv(any(InputStream.class), any(InputStream.class), any(InputStream.class), anyString()))
                 .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of()));
 
@@ -48,7 +53,7 @@ class EcountProductImportControllerIT extends AbstractPostgresIT {
                         .file(file("itemFile"))
                         .file(file("relationFile"))
                         .file(file("groupFile"))
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000105")
                         .header("X-User-Role", "MASTER")
                         .with(csrf()))
                 .andExpect(status().isOk());

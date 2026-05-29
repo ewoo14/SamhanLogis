@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.user.UserServiceApplication;
 import com.samhanair.logis.user.client.AuthClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,10 @@ class EmployeePermissionIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -78,7 +84,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: MANAGER admin.employees canView=false → 직원 목록 403 FORBIDDEN")
     @WithMockUser(username = "manager-denied", authorities = {"ROLE_MANAGER"})
     void C2_manager_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.canView("MANAGER", "admin.employees"))
                 .thenReturn(false);
 
         mockMvc.perform(get("/users/employees")
@@ -113,10 +119,9 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: MANAGER canEdit=false + canView=true → POST 직원 생성 403 (view-only override)")
     @WithMockUser(username = "manager-viewonly", authorities = {"ROLE_MANAGER"})
     void C4_manager_canEdit_false_canView_true_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenReturn(true);
 
         mockMvc.perform(post("/users/employees")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000020")

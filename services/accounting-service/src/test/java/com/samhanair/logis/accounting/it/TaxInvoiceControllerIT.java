@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
@@ -80,6 +81,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.vatAmount").value(10000.00))
                 .andExpect(jsonPath("$.data.totalAmount").value(110000.00));
 
+        denyRequirePermission("accounting.tax-invoice.list", PermissionAction.CREATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -97,11 +99,11 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
         String id = createDraft();
 
         MvcResult issueRes = mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
-                .andExpect(jsonPath("$.data.issuedBy").value("accountant-1"))
+                .andExpect(jsonPath("$.data.issuedBy").value("00000000-0000-0000-0000-000000000101"))
                 .andExpect(jsonPath("$.data.taxInvoiceNo").exists())
                 .andExpect(jsonPath("$.data.journalId").exists())
                 .andReturn();
@@ -111,7 +113,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
         // 자동 분개 검증 — 차/대 합계 일치 (110 외상매출금 110000 / 255 부가세 10000 + 401 매출 100000)
         mockMvc.perform(get("/accounting/journals/" + journalId)
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("POSTED"))
@@ -127,7 +129,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
         String id = createDraft();
         // issue
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
@@ -135,13 +137,13 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
         Map<String, Object> cancelBody = new HashMap<>();
         cancelBody.put("reason", "고객 요청으로 인한 취소");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/cancel")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cancelBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.data.cancelledBy").value("accountant-1"))
+                .andExpect(jsonPath("$.data.cancelledBy").value("00000000-0000-0000-0000-000000000101"))
                 .andExpect(jsonPath("$.data.cancelReason").value("고객 요청으로 인한 취소"))
                 .andExpect(jsonPath("$.data.reverseJournalId").exists());
     }
@@ -155,14 +157,14 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
         // 최초 발행 성공
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ISSUED"));
 
         // 동일 세금계산서 재발행 → DRAFT 아니므로 CONFLICT
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isConflict());
     }
@@ -180,7 +182,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
         List<Map<String, Object>> lines = (List<Map<String, Object>>) updated.get("lines");
         lines.get(0).put("unitPrice", new BigDecimal("2000")); // 2000 * 100 = 200000 supply
         mockMvc.perform(put("/accounting/tax-invoices/" + id)
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updated)))
@@ -189,13 +191,13 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
         // issue
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
         // ISSUED update → CONFLICT
         mockMvc.perform(put("/accounting/tax-invoices/" + id)
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updated)))

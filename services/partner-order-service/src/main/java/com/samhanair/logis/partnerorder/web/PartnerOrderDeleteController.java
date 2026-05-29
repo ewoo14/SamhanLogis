@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.web;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDeleteService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class PartnerOrderDeleteController {
             description = "본사 SALES/MANAGER/MASTER 가 주문과 라인을 soft-delete 처리합니다.")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "sales.partner-order.edit", action = "EDIT")
+    @RequirePermission(page = "sales.partner-order.edit", action = PermissionAction.DELETE)
     public void delete(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaderConstants.CALLER_ID_HEADER, required = false) String callerId,

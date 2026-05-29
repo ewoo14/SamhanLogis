@@ -1,5 +1,9 @@
 package com.samhanair.logis.security.permission;
 
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.UUID;
+
 /**
  * 동적 RBAC 권한 조회 클라이언트 공통 인터페이스 — SP-D5 통합 + SP-D6 (MIG-23) 단일 구현 통합.
  *
@@ -19,6 +23,28 @@ package com.samhanair.logis.security.permission;
  * @since SP-D5
  */
 public interface DynamicPermissionClient {
+
+    /**
+     * 특정 계정이 특정 페이지의 액션 권한을 보유하는지 확인한다.
+     *
+     * @param accountId 계정 UUID
+     * @param pageCode  페이지 코드
+     * @param action    7-action 권한 액션
+     * @return 권한이 있으면 {@code true}, 조회 실패 또는 미부여 시 {@code false}
+     */
+    default boolean check(UUID accountId, String pageCode, PermissionAction action) {
+        return false;
+    }
+
+    /**
+     * 특정 계정의 전체 권한 맵을 조회한다.
+     *
+     * @param accountId 계정 UUID
+     * @return pageCode → 허용 action 집합. 실패 시 빈 map
+     */
+    default Map<String, EnumSet<PermissionAction>> bulkLoad(UUID accountId) {
+        return Map.of();
+    }
 
     /**
      * 특정 역할이 특정 페이지에 대한 조회(VIEW) 권한이 있는지 확인.

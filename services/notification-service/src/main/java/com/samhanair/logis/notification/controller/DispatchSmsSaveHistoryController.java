@@ -11,6 +11,7 @@ import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryListRow;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryRequest;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistorySaveResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -63,7 +64,7 @@ public class DispatchSmsSaveHistoryController {
     @Operation(summary = "배차문자 저장내역 저장",
             description = "배차문자 미리보기 결과를 AUTO_LATEST/MANUAL_NAMED 로, 발송 결과를 SEND_AUDIT 로 기록한다.")
     @PostMapping
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
     public ApiResponse<DispatchSmsSaveHistorySaveResponse> save(
             @Valid @RequestBody DispatchSmsSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -90,7 +91,7 @@ public class DispatchSmsSaveHistoryController {
     @Operation(summary = "배차문자 저장내역 목록 조회",
             description = "기간, 프로그램, 저장 방식으로 현재 사용자의 배차문자 저장내역을 조회한다.")
     @GetMapping
-    @RequirePermission(page = PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Page<DispatchSmsSaveHistoryListRow>> list(
             @RequestParam(value = "programType", defaultValue = "ALL") String programTypeValue,
             @RequestParam(value = "from", required = false)
@@ -129,7 +130,7 @@ public class DispatchSmsSaveHistoryController {
     @Operation(summary = "배차문자 저장내역 상세 조회",
             description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원하거나 발송 감사를 확인한다.")
     @GetMapping("/{id}")
-    @RequirePermission(page = PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -151,7 +152,7 @@ public class DispatchSmsSaveHistoryController {
     @Operation(summary = "배차문자 최신 자동저장 조회",
             description = "현재 사용자의 최신 DISPATCH_SMS AUTO_LATEST 저장내역을 조회한다. SEND_AUDIT 는 제외된다.")
     @GetMapping("/latest")
-    @RequirePermission(page = PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DispatchSmsProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

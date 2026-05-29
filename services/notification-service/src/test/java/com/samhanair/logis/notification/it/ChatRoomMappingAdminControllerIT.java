@@ -13,6 +13,7 @@ import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.dto.ChatRoomMappingCreateRequest;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @AutoConfigureMockMvc
 class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000211";
+
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -70,6 +73,8 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
     void setup() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
             List<UUID> ids = inv.getArgument(0);
@@ -93,7 +98,7 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
                 "P-001", "에어디자이너 주식회사", "에어디자이너 발주방");
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -109,14 +114,14 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
         ChatRoomMappingCreateRequest req = new ChatRoomMappingCreateRequest(
                 "P-002", "제이시스템 주식회사", "제이시스템 발주방");
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
@@ -128,14 +133,14 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
         ChatRoomMappingCreateRequest req = new ChatRoomMappingCreateRequest(
                 "P-003", "중복테스트 주식회사", "중복 발주방");
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated());
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -159,7 +164,7 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/notification/admin/chat-rooms/import")
                         .file(file)
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.inserted").value(3))
@@ -173,7 +178,7 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
         ChatRoomMappingCreateRequest req = new ChatRoomMappingCreateRequest(
                 "P-DEL", "삭제테스트 주식회사", "삭제 발주방");
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -184,7 +189,7 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
                 .path("data").path("id").asText();
 
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/notification/admin/chat-rooms/" + id)
-                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));

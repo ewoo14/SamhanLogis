@@ -95,7 +95,7 @@ public class DeliveryAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "slip.delivery-attachments.upload", action = "EDIT")
+    @RequirePermission(page = "slip.delivery-attachments.upload", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipAttachmentResponse> upload(
             @PathVariable UUID slipId,
             @RequestParam("file") MultipartFile file,
@@ -130,7 +130,7 @@ public class DeliveryAttachmentController {
     @Operation(summary = "배송 사진 목록 조회",
             description = "슬립의 DELIVERY 유형 첨부만 반환. downloadUrl 은 캐시(만료 가능 — 단건 GET 으로 재발급)")
     @GetMapping
-    @RequirePermission(page = "slip.delivery-attachments.upload", action = "VIEW")
+    @RequirePermission(page = "slip.delivery-attachments.upload", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipAttachmentResponse>> list(@PathVariable UUID slipId) {
         List<SlipAttachmentResponse> items =
                 attachmentService.listByType(slipId, SlipAttachmentType.DELIVERY).stream()

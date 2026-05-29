@@ -55,7 +55,7 @@ public class SlipPhotoAuditAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
-    @RequirePermission(page = "slip.photo-audit", action = "VIEW")
+    @RequirePermission(page = "slip.photo-audit", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<SlipPhotoAuditResponse>> list(
             @RequestParam(required = false) SlipAttachmentType type,
             @RequestParam(required = false)

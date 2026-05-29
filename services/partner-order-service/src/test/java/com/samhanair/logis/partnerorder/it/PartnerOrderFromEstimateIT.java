@@ -1,12 +1,14 @@
 package com.samhanair.logis.partnerorder.it;
 
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
@@ -23,6 +25,7 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +46,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
+
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000303";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000304";
+    private static final String PARTNER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000305";
 
     @Autowired
     private MockMvc mockMvc;
@@ -86,6 +93,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         orderRepository.deleteAll();
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -95,6 +104,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         when(estimateClient.findById(estimateId)).thenReturn(Optional.of(snapshot(estimateId)));
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.orderNumber").exists())
@@ -122,7 +133,9 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         UUID estimateId = UUID.randomUUID();
         when(estimateClient.findById(estimateId)).thenReturn(Optional.empty());
 
-        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
+        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND"));
     }
@@ -133,14 +146,18 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         UUID estimateId = UUID.randomUUID();
         when(estimateClient.findById(estimateId)).thenReturn(Optional.of(snapshot(estimateId)));
 
-        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
+        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.orderNumber").exists())
                 .andExpect(jsonPath("$.data.lines").isArray())
                 .andExpect(jsonPath("$.data.lines.length()").value(2))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"));
 
-        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId))
+        mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED"));
     }
@@ -149,9 +166,12 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"PARTNER"})
     void testFromEstimatePartnerRoleForbidden() throws Exception {
         UUID estimateId = UUID.randomUUID();
-        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit")).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("sales.partner-order.edit"), eq(PermissionAction.CREATE)))
+                .thenReturn(false);
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER"))
                 .andExpect(status().isForbidden());
     }
@@ -163,6 +183,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         when(estimateClient.findById(estimateId)).thenReturn(Optional.of(snapshot(estimateId)));
 
         mockMvc.perform(post("/api/v1/partner-orders/from-estimate/{estimateId}", estimateId)
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER")
                         .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isCreated());
 

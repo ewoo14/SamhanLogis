@@ -17,6 +17,7 @@ import com.samhanair.logis.accounting.service.Mig10OrderEmployeeBackfillService;
 import com.samhanair.logis.common.ecount.EcountMig10Result;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -69,6 +70,7 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
                             "MIG10_ORDER_NOT_FOUND"));
         }
         if ("memberForbidden".equals(label)) {
+            denyRequirePermission("ecount.mig10.order-employee-backfill", PermissionAction.UPDATE);
             when(dynamicPermissionClient.canEdit(role, "ecount.mig10.order-employee-backfill")).thenReturn(false);
             when(dynamicPermissionClient.canView(role, "ecount.mig10.order-employee-backfill")).thenReturn(true);
         }
@@ -78,7 +80,7 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
             request.content(body);
         }
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
         }
         if (role != null) {
             request.header("X-User-Role", role);

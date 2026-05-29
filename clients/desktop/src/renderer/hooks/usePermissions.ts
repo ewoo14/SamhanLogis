@@ -17,15 +17,16 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   fetchMyPermissions,
+  normalizePermissionAction,
   setPermissionsCache,
   type MyPermission,
   type PageCode,
-  type PermissionAction,
+  type PermissionLookupAction,
 } from '../api/permissionsApi'
 
 export interface UsePermissionsResult {
   /** 권한 보유 여부 동기 확인. 로딩 중이면 false (보수적 deny). */
-  canAccess: (pageCode: PageCode, action?: PermissionAction) => boolean
+  canAccess: (pageCode: PageCode, action?: PermissionLookupAction) => boolean
   /** 현재 사용자 권한 목록. 로딩 중이면 undefined. */
   permissions: MyPermission[] | undefined
   /** 최초 로딩 중 여부. */
@@ -57,12 +58,12 @@ export function usePermissions(): UsePermissionsResult {
 
   function canAccess(
     pageCode: PageCode,
-    action: PermissionAction = 'view',
+    action: PermissionLookupAction = 'view',
   ): boolean {
     if (!query.data) return false // 로딩 중 — 보수적 deny (admin 메뉴 flash 방지)
     const entry = query.data.find((p) => p.pageCode === pageCode)
     if (!entry) return false
-    return entry.actions.includes(action)
+    return entry.actions.includes(normalizePermissionAction(action))
   }
 
   return {

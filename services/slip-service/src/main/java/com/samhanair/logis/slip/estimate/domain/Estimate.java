@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.estimate.domain;
 import com.samhanair.logis.common.entity.BaseEntity;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -330,6 +331,112 @@ public class Estimate extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수정 가능한 상태가 아닙니다: " + this.status);
         }
+    }
+
+    /**
+     * 현 견적 상태를 버전이력용 full-snapshot 으로 변환한다 (권한 재편 Phase 2.2 Task 2).
+     *
+     * <p>헤더 8필드(estimateNo/estimateDate/partner 3필드/validUntil/memo)와 미삭제 라인 전체를 한
+     * 시점의 불변 {@link EstimateSnapshot} 으로 캡처한다. {@code estimate_revisions.snapshot}
+     * (JSONB) 직렬화 대상이며, point-in-time 복원 시 이 스냅샷을 역직렬화해 헤더를 덮어쓰고 라인을
+     * 전량 교체한다. 라인은 soft-deleted 행을 제외한다 — {@code @SQLRestriction} 으로 이미 DB
+     * 레벨에서 걸러지지만 명시적으로 한 번 더 가드한다.
+     *
+     * <p>{@link com.samhanair.logis.slip.domain.Slip#toSnapshot()} 미러
+     * (slipNo→estimateNo, slipDate→estimateDate).
+     *
+     * @return 현 견적의 헤더+라인 스냅샷 (라인 없으면 빈 리스트)
+     */
+    public EstimateSnapshot toSnapshot() {
+        List<EstimateSnapshot.Line> snapshotLines = this.lines.stream()
+                .filter(line -> !Boolean.TRUE.equals(line.getIsDeleted()))
+                .map(line -> new EstimateSnapshot.Line(
+                        line.getProductId(),
+                        line.getProductName(),
+                        line.getModelName(),
+                        line.getSpecification(),
+                        line.getQuantity(),
+                        line.getUnitPrice(),
+                        line.getSupplyAmount(),
+                        line.getVatAmount(),
+                        line.getLineTotal(),
+                        line.getNote()))
+                .toList();
+        return new EstimateSnapshot(
+                this.estimateNo,
+                this.estimateDate,
+                this.partnerId,
+                this.partnerName,
+                this.partnerBusinessNo,
+                this.partnerAddress,
+                this.validUntil,
+                this.memo,
+                snapshotLines);
+    }
+
+    /**
+     * point-in-time 스냅샷으로 헤더+라인을 통째 복원한다 (권한 재편 Phase 2.2 Task 3).
+     *
+     * <p>{@link #toSnapshot()} 이 캡처한 동일 헤더 8필드를 스냅샷 값으로 덮어쓰고, 라인을 전량
+     * 교체한다. 라인 추가/삭제/수정이 모두 스냅샷 기준으로 정확히 반영되도록 기존 라인을
+     * {@code orphanRemoval=true} 정책에 따라 컬렉션에서 제거하고, 스냅샷 라인을
+     * {@link EstimateLine#create} 로 재생성해 새로 추가한다 ({@link EstimateService#update} 의
+     * 라인 교체 선례와 동일 — removeLine loop → addLine).
+     *
+     * <p>편집 가능 가드: {@link #requireEditable()} 를 가장 먼저 호출한다 — QUOTE_ACCEPTED /
+     * QUOTE_CONVERTED / QUOTE_REJECTED 등 잠긴 단계의 견적은 복원도 CONFLICT 로 거부한다
+     * (회계 일관성 — 확정 후 매출 정정 차단).
+     *
+     * <p>합계는 스냅샷의 totalSupply/totalVat 값을 신뢰하지 않고 {@link #recalculateTotals()} 로
+     * 재계산한다 (라인 기준). lineTotal/supplyAmount/vatAmount 는 {@link EstimateLine} 이 생성 시
+     * recompute 한 결과를 사용한다.
+     *
+     * <p>status / version 등 라이프사이클 메타는 복원 대상이 아니며 — 복원도 신규 RESTORE revision
+     * 으로 별도 기록되므로 본 메서드는 헤더/라인 상태만 되돌린다.
+     *
+     * <p>{@link com.samhanair.logis.slip.domain.Slip#restoreFromSnapshot} 미러
+     * ({@code requireNotLocked} → {@code requireEditable}).
+     *
+     * @param snapshot 복원 대상 시점의 full-snapshot (null 불가)
+     * @throws BusinessException(CONFLICT) 편집 불가 단계의 견적일 때
+     * @throws IllegalArgumentException snapshot 이 null 일 때
+     */
+    public void restoreFromSnapshot(EstimateSnapshot snapshot) {
+        requireEditable();
+        if (snapshot == null) {
+            throw new IllegalArgumentException("복원 스냅샷은 null 일 수 없습니다");
+        }
+        // 헤더 8필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
+        this.estimateNo = snapshot.estimateNo();
+        this.estimateDate = snapshot.estimateDate();
+        this.partnerId = snapshot.partnerId();
+        this.partnerName = snapshot.partnerName();
+        this.partnerBusinessNo = snapshot.partnerBusinessNo();
+        this.partnerAddress = snapshot.partnerAddress();
+        this.validUntil = snapshot.validUntil();
+        this.memo = snapshot.memo();
+
+        // 라인 전량 교체 — 기존 라인 제거(orphanRemoval=true) → 스냅샷 라인 재생성 add
+        // (EstimateService.update 의 removeLine loop → addLine 선례 미러. 단 add/remove 의
+        //  요소별 requireEditable/recalculateTotals 중복을 피하려고 컬렉션을 직접 조작한 뒤
+        //  마지막에 recalculateTotals() 1회만 호출한다.)
+        this.lines.clear();
+        List<EstimateSnapshot.Line> snapshotLines = snapshot.lines();
+        if (snapshotLines != null) {
+            int lineNo = 1;
+            for (EstimateSnapshot.Line snapLine : snapshotLines) {
+                this.lines.add(EstimateLine.create(this, lineNo++,
+                        snapLine.productId(),
+                        snapLine.productName(),
+                        snapLine.modelName(),
+                        snapLine.specification(),
+                        snapLine.quantity(),
+                        snapLine.unitPrice(),
+                        snapLine.note()));
+            }
+        }
+        // 합계는 스냅샷 totalXxx 무시 — 라인 기준 재계산 (라인 recompute 결과 사용)
+        recalculateTotals();
     }
 
     private void requireStatus(EstimateStatus expected) {

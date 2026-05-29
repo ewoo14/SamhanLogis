@@ -10,6 +10,7 @@ import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -57,7 +58,7 @@ public class ProductController {
     private final ProductService productService;
 
     @GetMapping
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<Page<ProductSummaryResponse>> search(
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) ProductStatus status,
@@ -72,7 +73,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<ProductResponse> getOne(
             @PathVariable UUID id,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -94,20 +95,20 @@ public class ProductController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "모델명에 해당하는 제품이 없습니다")
     })
     @GetMapping("/by-model/{modelName}")
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<ProductResponse> getByModelName(@PathVariable String modelName) {
         return ApiResponse.ok(productService.getByModelName(modelName));
     }
 
     @PostMapping("/lookup")
-    @RequirePermission(page = "products.list", action = "VIEW")
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<List<ProductSummaryResponse>> lookup(@Valid @RequestBody LookupRequest request) {
         return ApiResponse.ok(productService.lookup(request.ids()));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.CREATE)
     public ApiResponse<ProductResponse> create(
             @Valid @RequestBody CreateProductRequest request,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -115,7 +116,7 @@ public class ProductController {
     }
 
     @PatchMapping("/{id}")
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ApiResponse<ProductResponse> update(@PathVariable UUID id,
                                                @Valid @RequestBody UpdateProductRequest request,
                                                @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -123,7 +124,7 @@ public class ProductController {
     }
 
     @PatchMapping("/{id}/price")
-    @RequirePermission(page = "products.price", action = "EDIT")
+    @RequirePermission(page = "products.price", action = PermissionAction.UPDATE)
     public ApiResponse<ProductResponse> updatePrice(@PathVariable UUID id,
                                                     @Valid @RequestBody UpdatePriceRequest request,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -131,7 +132,7 @@ public class ProductController {
     }
 
     @PutMapping("/{id}/tags")
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ApiResponse<ProductResponse> replaceTags(@PathVariable UUID id,
                                                     @RequestBody Map<String, String> tags,
                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
@@ -140,7 +141,7 @@ public class ProductController {
 
     @PostMapping("/{id}/discontinue")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public void discontinue(@PathVariable UUID id,
                             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         productService.discontinue(id);
@@ -148,7 +149,7 @@ public class ProductController {
 
     @PostMapping("/{id}/reactivate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public void reactivate(@PathVariable UUID id,
                            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         productService.reactivate(id);
@@ -156,7 +157,7 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.DELETE)
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
                        @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

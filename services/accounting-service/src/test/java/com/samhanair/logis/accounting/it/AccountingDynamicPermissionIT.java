@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import com.samhanair.logis.security.permission.PermissionAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,8 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         // 기본 lenient stub — canView=true, canEdit=true (기존 IT 회귀 0건 보장)
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         // 외부 client lenient stub
         lenient().when(slipServiceClient.lockByPeriod(any(), any())).thenReturn(0);
         lenient().when(partnerLookupClient.findByPartnerCode(anyString()))
@@ -104,7 +107,8 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C1: DynamicPermissionClient canView=true → 세금계산서 목록 GET 200 (ACCOUNTANT)")
     void c1_taxInvoiceList_canViewTrue_200() throws Exception {
         // canView=true 명시 (lenient 기본값 이미 true — 명시적 재선언으로 의도 표현)
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), anyString())).thenReturn(true);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.tax-invoice.list"), eq(PermissionAction.VIEW)))
+                .thenReturn(true);
 
         mockMvc.perform(get("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -121,7 +125,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: DynamicPermissionClient canView=false → 세금계산서 목록 GET 403 (VIEW 가드 차단)")
     void c2_taxInvoiceList_canViewFalse_denied() throws Exception {
         // SP-D2 BE-C2 fix: VIEW 가드 구현 완료 — canView=false 시 반드시 403
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.tax-invoice.list")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.tax-invoice.list"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/accounting/tax-invoices")
@@ -137,7 +141,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("C3: DynamicPermissionClient canView=true → 일마감 목록 GET 200 (ACCOUNTANT)")
     void c3_dailyClosingList_canViewTrue_200() throws Exception {
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.daily-closing")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.daily-closing"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
         mockMvc.perform(get("/api/v1/accounting/daily-closings")
@@ -155,10 +159,8 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: DynamicPermissionClient canEdit=false + canView=true → 일마감 POST 403 (SP-D2 명시적 차단)")
     void c4_dailyClosingCreate_canEditFalse_canViewTrue_403() throws Exception {
         // view-only override: canEdit=false, canView=true → 명시적 deny → 403
-        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.daily-closing.run"), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
-                .thenReturn(true);
 
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", LocalDate.now().toString());
@@ -177,7 +179,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("C5: DynamicPermissionClient canView=true → 원장 GET 200 (ACCOUNTANT)")
     void c5_generalLedgerList_canViewTrue_200() throws Exception {
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.general-ledger")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.general-ledger"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
         mockMvc.perform(get("/api/v1/accounting/ledgers")
@@ -194,7 +196,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("C6: DynamicPermissionClient canView=false → 원장 GET 403 (VIEW 가드 차단)")
     void c6_generalLedgerList_canViewFalse_denied() throws Exception {
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.general-ledger")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.general-ledger"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/api/v1/accounting/ledgers")
@@ -210,9 +212,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("C7: DynamicPermissionClient canView=true → 입금 매칭 POST DRY_RUN 200 (ACCOUNTANT)")
     void c7_depositMatchDryRun_canViewTrue_200() throws Exception {
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("accounting.deposit-match")))
-                .thenReturn(true);
-        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.deposit-match")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.deposit-match"), eq(PermissionAction.UPDATE)))
                 .thenReturn(true);
         // KftcClient lenient stub — DRY_RUN 모드에서 4개 파라미터
         lenient().when(kftcClient.fetchDeposits(any(), any(), anyString(), anyString()))
@@ -239,7 +239,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("C8: DynamicPermissionClient canEdit=false → 일마감 POST 403 (EDIT 가드 차단)")
     void c8_dailyClosingCreate_canEditFalse_denied() throws Exception {
-        when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), eq("accounting.daily-closing.run")))
+        when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.daily-closing.run"), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         Map<String, Object> body = new HashMap<>();

@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.realtime;
 
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.UUID;
@@ -53,7 +54,7 @@ public class PartnerOrderRealtimeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "SSE stream 시작")
     })
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "sales.partner-order.history.view", action = "VIEW")
+    @RequirePermission(page = "sales.partner-order.history.view", action = PermissionAction.VIEW)
     public SseEmitter subscribe(@PathVariable UUID partnerOrderId) {
         return broker.subscribe(partnerOrderId);
     }

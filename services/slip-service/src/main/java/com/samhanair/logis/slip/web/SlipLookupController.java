@@ -45,7 +45,7 @@ public class SlipLookupController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "모델명에 해당하는 제품이 없습니다")
     })
     @GetMapping("/lookup-product")
-    @RequirePermission(page = "slip.lookup-product", action = "VIEW")
+    @RequirePermission(page = "slip.lookup-product", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<ProductSummary> lookupProduct(@RequestParam String modelName) {
         return ApiResponse.ok(productClient.lookupByModel(modelName));
     }

@@ -38,7 +38,7 @@ public class Mig9CashJournalController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/cash-journals/generate-from-disbursements")
-    @RequirePermission(page = PAGE_DISBURSEMENT, action = "EDIT")
+    @RequirePermission(page = PAGE_DISBURSEMENT, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "MIG-9 지출결의서 CashDisbursement 를 Journal 로 자동 생성")
     public EcountMig9JournalResult generateFromDisbursements(
             @RequestBody(required = false) EcountMig9JournalRequest request,
@@ -49,7 +49,7 @@ public class Mig9CashJournalController {
     }
 
     @PostMapping("/cash-journals/generate-from-receipts")
-    @RequirePermission(page = PAGE_RECEIPT, action = "EDIT")
+    @RequirePermission(page = PAGE_RECEIPT, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "MIG-9 입금보고서 CashReceipt 를 Journal 로 자동 생성")
     public EcountMig9JournalResult generateFromReceipts(
             @RequestBody(required = false) EcountMig9JournalRequest request,
@@ -60,7 +60,7 @@ public class Mig9CashJournalController {
     }
 
     @PostMapping("/aging-snapshot/refresh")
-    @RequirePermission(page = PAGE_AGING_SNAPSHOT, action = "EDIT")
+    @RequirePermission(page = PAGE_AGING_SNAPSHOT, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     @Operation(summary = "MIG-9 partner_aging_snapshot MATERIALIZED VIEW refresh")
     public AgingSnapshotRefreshResult refreshAgingSnapshot(
             @RequestBody(required = false) EcountMig9JournalRequest ignored,

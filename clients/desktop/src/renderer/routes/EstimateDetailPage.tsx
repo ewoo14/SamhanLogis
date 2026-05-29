@@ -46,6 +46,7 @@ import {
 } from '../api/estimateApi'
 import { estimateAuditApi } from '../api/createAuditApi'
 import { EstimateRealtimeClient } from '../realtime/EstimateRealtimeClient'
+import { EstimateVersionHistoryPanel } from '../components/audit/EstimateVersionHistoryPanel'
 import {
   AuditLockedBanner,
   AuditRevisionBadge,
@@ -509,6 +510,9 @@ export function EstimateDetailPage() {
           </div>
         </div>
       </Card>
+
+      {/* Phase 2.2 Task 6: 버전이력 패널 + 복원 (편집 불가 상태면 복원 버튼 비활성) */}
+      <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
 
       {topError ? (
         <div

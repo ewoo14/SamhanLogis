@@ -1,0 +1,368 @@
+package com.samhanair.logis.slip.revision.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.domain.DeliveryTag;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.revision.domain.SlipRevision;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
+import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
+import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
+import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+/**
+ * {@link SlipRevisionService} 스냅샷 캡처 단위 테스트 (권한 재편 Phase 2.1 Task 2).
+ *
+ * <p>{@code maxRevisionNo+1} 채번 정합 (1 → 2), {@link Slip#toSnapshot()} 매핑된 스냅샷의
+ * 라인 수 / slipNo / slipDate 정합을 Mockito mock repository 로 검증한다.
+ */
+@ExtendWith(MockitoExtension.class)
+class SlipRevisionServiceTest {
+
+    @Mock
+    private SlipRevisionRepository repository;
+
+    @InjectMocks
+    private SlipRevisionService service;
+
+    /**
+     * id 가 @GeneratedValue 라 영속화 전엔 null 이므로, 단위 테스트에서는 reflection 으로 주입한다.
+     */
+    private static void injectId(Slip slip, UUID id) throws Exception {
+        Field f = Slip.class.getDeclaredField("id");
+        f.setAccessible(true);
+        f.set(slip, id);
+    }
+
+    private Slip sampleSlip(UUID slipId) throws Exception {
+        Slip slip = Slip.createOutbound("2026/05/29-3", LocalDate.of(2026, 5, 29), 3,
+                UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "삼한물산",
+                DeliveryTag.DAY, "긴급 출고", "user-1");
+        injectId(slip, slipId);
+        slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
+                2, new BigDecimal("15000.00"), "라인메모"));
+        slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "밸브", null, null,
+                5, new BigDecimal("3000.00"), null));
+        return slip;
+    }
+
+    @Test
+    @DisplayName("capture 2회 호출 시 revisionNo 가 1 → 2 로 채번되고 스냅샷이 헤더/라인과 정합한다")
+    void captureAssignsSequentialRevisionNos() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+        UUID actorId = UUID.randomUUID();
+
+        // 1회차: 기존 스냅샷 없음 (maxRevisionNo == null → next = 1)
+        when(repository.maxRevisionNo(slipId)).thenReturn(null);
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SlipRevision first = service.capture(slip, SlipRevisionType.CREATE, null,
+                actorId, "홍길동", null);
+
+        assertThat(first.getRevisionNo()).isEqualTo(1);
+        assertThat(first.getRevisionType()).isEqualTo(SlipRevisionType.CREATE);
+        assertThat(first.getSlipId()).isEqualTo(slipId);
+        assertThat(first.getSlipNo()).isEqualTo("2026/05/29-3");
+        assertThat(first.getSlipDate()).isEqualTo(LocalDate.of(2026, 5, 29));
+        assertThat(first.getActorId()).isEqualTo(actorId);
+        assertThat(first.getActorName()).isEqualTo("홍길동");
+        assertThat(first.getSnapshot().lines()).hasSize(2);
+        assertThat(first.getSnapshot().partnerName()).isEqualTo("삼한물산");
+        assertThat(first.getSnapshot().lines().get(0).lineTotal()).isEqualByComparingTo("30000.00");
+
+        // 2회차: 직전 revision 1 존재 (maxRevisionNo == 1 → next = 2)
+        when(repository.maxRevisionNo(slipId)).thenReturn(1);
+
+        SlipRevision second = service.capture(slip, SlipRevisionType.EDIT, null,
+                actorId, "홍길동", null);
+
+        assertThat(second.getRevisionNo()).isEqualTo(2);
+        assertThat(second.getRevisionType()).isEqualTo(SlipRevisionType.EDIT);
+    }
+
+    @Test
+    @DisplayName("RESTORE 캡처는 sourceRevisionNo 를 보존한다")
+    void captureRestorePreservesSourceRevision() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+
+        when(repository.maxRevisionNo(slipId)).thenReturn(3);
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SlipRevision restored = service.capture(slip, SlipRevisionType.RESTORE, 2,
+                UUID.randomUUID(), "관리자", null);
+
+        assertThat(restored.getRevisionNo()).isEqualTo(4);
+        assertThat(restored.getSourceRevisionNo()).isEqualTo(2);
+        assertThat(restored.getRevisionType()).isEqualTo(SlipRevisionType.RESTORE);
+    }
+
+    @Test
+    @DisplayName("capture: saveAndFlush 1회차 DataIntegrityViolationException → 1회 재채번 재시도 후 "
+            + "정상 반환 (saveAndFlush 2회 + maxRevisionNo 재조회 2회)")
+    void captureRetriesOnceWhenFirstSaveConflicts() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+        UUID actorId = UUID.randomUUID();
+
+        // maxRevisionNo: 1회차 채번 시 1(→next=2), 재시도 채번 시 갱신된 2(→next=3)
+        when(repository.maxRevisionNo(slipId)).thenReturn(1, 2);
+        // saveAndFlush: 1회차 unique 위반, 2회차 정상 반환
+        when(repository.saveAndFlush(any(SlipRevision.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "uq_slip_revisions_active 위반 (race)"))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SlipRevision result = service.capture(slip, SlipRevisionType.EDIT, null,
+                actorId, "홍길동", null);
+
+        // 예외 없이 재채번된 revisionNo(=3) 로 반환
+        assertThat(result).isNotNull();
+        assertThat(result.getRevisionNo()).isEqualTo(3);
+        assertThat(result.getRevisionType()).isEqualTo(SlipRevisionType.EDIT);
+        // saveAndFlush 2회 호출 (1회차 실패 + 재시도) + maxRevisionNo 2회 재조회
+        verify(repository, times(2)).saveAndFlush(any(SlipRevision.class));
+        verify(repository, times(2)).maxRevisionNo(slipId);
+    }
+
+    @Test
+    @DisplayName("capture: saveAndFlush 가 2회 모두 DataIntegrityViolationException → "
+            + "BusinessException(CONFLICT) 로 변환한다")
+    void captureThrowsConflictWhenRetryAlsoConflicts() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+
+        when(repository.maxRevisionNo(slipId)).thenReturn(1, 2);
+        // saveAndFlush: 1회차·2회차 모두 unique 위반
+        when(repository.saveAndFlush(any(SlipRevision.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "uq_slip_revisions_active 위반 (race)"));
+
+        assertThatThrownBy(() -> service.capture(slip, SlipRevisionType.EDIT, null,
+                UUID.randomUUID(), "홍길동", null))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+
+        // 2회 모두 시도 후 포기
+        verify(repository, times(2)).saveAndFlush(any(SlipRevision.class));
+    }
+
+    /**
+     * 메모를 변경하고 라인을 1건 추가한다 (rev2 의 변형 상태 시뮬레이션).
+     */
+    private void mutateToRev2State(Slip slip) {
+        // rev1=memo "긴급 출고" + 라인 2건 → rev2=memo 변경 + 라인 3건
+        slip.editHeader(null, null, null, "수정된 메모", null, null);
+        slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "호스", null, null,
+                1, new BigDecimal("1000.00"), null));
+    }
+
+    @Test
+    @DisplayName("restore: rev1(라인2/memo원본) → 변형(라인3/memo변경) → restore(rev1) 시 "
+            + "memo·라인이 rev1 로 복원되고 신규 RESTORE revision(source=1) 이 캡처된다")
+    void restoreRevertsHeaderAndLinesAndCapturesRestoreRevision() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+        UUID actorId = UUID.randomUUID();
+
+        // rev1 스냅샷 = 원본 상태 (라인 2건, memo "긴급 출고")
+        SlipRevision rev1 = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                slip.getSlipNo(), slip.getSlipDate(), slip.toSnapshot(),
+                actorId, "홍길동", null);
+
+        // 변형 — memo 변경 + 라인 1건 추가 (현 슬립 상태가 라인 3건/memo "수정된 메모" 가 됨)
+        mutateToRev2State(slip);
+        assertThat(slip.getMemo()).isEqualTo("수정된 메모");
+        assertThat(slip.getLines().stream()
+                .filter(l -> !Boolean.TRUE.equals(l.getIsDeleted())).count()).isEqualTo(3);
+
+        // restore(rev1) — rev1 스냅샷 로드 + 신규 revisionNo=3 채번
+        when(repository.findBySlipIdAndRevisionNo(slipId, 1)).thenReturn(Optional.of(rev1));
+        when(repository.maxRevisionNo(slipId)).thenReturn(2);
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SlipRevision restored = service.restore(slip, 1, actorId, "관리자", null);
+
+        // 슬립 헤더/라인이 rev1 로 복원
+        assertThat(slip.getMemo()).isEqualTo("긴급 출고");
+        assertThat(slip.getLines().stream()
+                .filter(l -> !Boolean.TRUE.equals(l.getIsDeleted())).count()).isEqualTo(2);
+        // 신규 RESTORE revision: type=RESTORE, source=1, revisionNo=3
+        assertThat(restored.getRevisionType()).isEqualTo(SlipRevisionType.RESTORE);
+        assertThat(restored.getSourceRevisionNo()).isEqualTo(1);
+        assertThat(restored.getRevisionNo()).isEqualTo(3);
+        assertThat(restored.getActorName()).isEqualTo("관리자");
+        // 캡처된 스냅샷도 복원 후 상태(라인 2건)와 정합
+        assertThat(restored.getSnapshot().lines()).hasSize(2);
+        assertThat(restored.getSnapshot().memo()).isEqualTo("긴급 출고");
+    }
+
+    @Test
+    @DisplayName("restore: 대상 revisionNo 가 없으면 NOT_FOUND 를 던진다")
+    void restoreThrowsWhenTargetRevisionMissing() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+
+        when(repository.findBySlipIdAndRevisionNo(slipId, 99)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.restore(slip, 99, UUID.randomUUID(), "관리자", null))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_FOUND);
+    }
+
+    // ---------------------------------------------------------------------
+    // Task 4: changeSummary 계산 단위 테스트
+    // ---------------------------------------------------------------------
+
+    /**
+     * 라인 1건 스냅샷을 만든다 (productId 매칭 키 보존).
+     */
+    private SlipSnapshot.Line line(UUID productId, int quantity, String unitPrice) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격",
+                quantity, new BigDecimal(unitPrice),
+                new BigDecimal(unitPrice).multiply(BigDecimal.valueOf(quantity)), null);
+    }
+
+    // 스냅샷 헤더의 partnerId/destinationWarehouseId 를 고정해 memo 외 헤더가 우연히 달라지지 않게 한다.
+    private static final UUID FIXED_PARTNER_ID = UUID.randomUUID();
+    private static final UUID FIXED_WAREHOUSE_ID = UUID.randomUUID();
+
+    /**
+     * 헤더 + 라인 리스트를 가진 스냅샷을 만든다 (UUID 헤더는 고정값 — memo 만 가변).
+     */
+    private SlipSnapshot snapshot(String memo, List<SlipSnapshot.Line> lines) {
+        return new SlipSnapshot("2026/05/29-3", LocalDate.of(2026, 5, 29),
+                FIXED_PARTNER_ID, "삼한물산", "P001", "123-45-67890",
+                memo, "DAY", "서울시", null, "프로젝트A", "010", null,
+                FIXED_WAREHOUSE_ID, "본사창고",
+                // audit overlay 필드 10개 — 고정 null (memo 외 헤더가 우연히 달라지지 않게)
+                null, null, null, null, null, null, null, null, null, null,
+                lines);
+    }
+
+    @Test
+    @DisplayName("summarize: prev==null (최초 revision) 이면 headerChanged=0, lineAdded=현 라인 수, 나머지 0")
+    void summarizeFirstRevisionCountsAllLinesAsAdded() {
+        SlipSnapshot cur = snapshot("memo", List.of(
+                line(UUID.randomUUID(), 1, "1000"),
+                line(UUID.randomUUID(), 2, "2000")));
+
+        ChangeSummary summary = service.summarize(null, cur);
+
+        assertThat(summary.headerChanged()).isZero();
+        assertThat(summary.lineAdded()).isEqualTo(2);
+        assertThat(summary.lineRemoved()).isZero();
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 헤더 1필드 변경 + 라인 add1/remove1/modify1 → ChangeSummary 정합")
+    void summarizeCountsHeaderAndLineDeltas() {
+        UUID keep = UUID.randomUUID();      // 양쪽 존재 — modify 대상
+        UUID removed = UUID.randomUUID();   // prev 에만 — removed
+        UUID added = UUID.randomUUID();     // cur 에만 — added
+
+        // prev: keep(qty1) + removed, memo "원본"
+        SlipSnapshot prev = snapshot("원본", List.of(
+                line(keep, 1, "1000"),
+                line(removed, 5, "500")));
+        // cur: keep(qty3 — 수정) + added, memo "변경" (헤더 1필드 변경)
+        SlipSnapshot cur = snapshot("변경", List.of(
+                line(keep, 3, "1000"),
+                line(added, 9, "900")));
+
+        ChangeSummary summary = service.summarize(prev, cur);
+
+        assertThat(summary.headerChanged()).isEqualTo(1);   // memo 만 변경
+        assertThat(summary.lineAdded()).isEqualTo(1);       // added
+        assertThat(summary.lineRemoved()).isEqualTo(1);     // removed
+        assertThat(summary.lineModified()).isEqualTo(1);    // keep qty 1→3
+    }
+
+    @Test
+    @DisplayName("summarize: 동일 productId·동일 필드값이면 modified 로 집계하지 않는다 (no-op)")
+    void summarizeNoChangeWhenLinesIdentical() {
+        UUID p = UUID.randomUUID();
+        SlipSnapshot prev = snapshot("memo", List.of(line(p, 2, "1500")));
+        SlipSnapshot cur = snapshot("memo", List.of(line(p, 2, "1500")));
+
+        ChangeSummary summary = service.summarize(prev, cur);
+
+        assertThat(summary.headerChanged()).isZero();
+        assertThat(summary.lineAdded()).isZero();
+        assertThat(summary.lineRemoved()).isZero();
+        assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("listWithSummary: 최신 우선 정렬 + 각 항목이 직전 revisionNo 대비 changeSummary 를 가지며 "
+            + "actorId 는 노출하지 않는다")
+    void listWithSummaryBuildsAdjacentSummariesNewestFirst() {
+        UUID slipId = UUID.randomUUID();
+        UUID p1 = UUID.randomUUID();
+
+        // rev1 (최초): 라인 1건
+        SlipRevision rev1 = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of(line(p1, 1, "1000"))),
+                UUID.randomUUID(), "홍길동", null);
+        // rev2: 동일 라인 수정 (qty 1→4) — modify 1
+        SlipRevision rev2 = SlipRevision.of(slipId, 2, SlipRevisionType.EDIT, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본", List.of(line(p1, 4, "1000"))),
+                UUID.randomUUID(), "관리자", null);
+
+        // list 는 내림차순(rev2, rev1) 반환
+        when(repository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        List<SlipRevisionResponse> result = service.listWithSummary(slipId);
+
+        // 최신 우선 (rev2 먼저)
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).revisionNo()).isEqualTo(2);
+        assertThat(result.get(1).revisionNo()).isEqualTo(1);
+
+        // rev2 changeSummary = rev1 대비 라인 modify 1
+        ChangeSummary rev2Summary = result.get(0).changeSummary();
+        assertThat(rev2Summary.lineModified()).isEqualTo(1);
+        assertThat(rev2Summary.lineAdded()).isZero();
+        assertThat(rev2Summary.lineRemoved()).isZero();
+        assertThat(rev2Summary.headerChanged()).isZero();
+
+        // rev1 = 최초 → lineAdded 1
+        ChangeSummary rev1Summary = result.get(1).changeSummary();
+        assertThat(rev1Summary.lineAdded()).isEqualTo(1);
+        assertThat(rev1Summary.headerChanged()).isZero();
+
+        // 표시 필드 정합 + actorId 미노출 (응답 record 에 actorId 필드 부재)
+        assertThat(result.get(0).actorName()).isEqualTo("관리자");
+        assertThat(result.get(0).revisionType()).isEqualTo("EDIT");
+        assertThat(java.util.Arrays.stream(SlipRevisionResponse.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("actorId");
+    }
+}

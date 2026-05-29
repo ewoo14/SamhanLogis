@@ -9,6 +9,7 @@ import com.samhanair.logis.partnerorder.editrequest.domain.PartnerOrderEditReque
 import com.samhanair.logis.partnerorder.editrequest.repository.PartnerOrderEditRequestRepository;
 import com.samhanair.logis.partnerorder.realtime.PartnerOrderRealtimeBroker;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.service.PartnerSelfScopeGuard;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestService;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestStatus;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
@@ -79,6 +80,7 @@ public class PartnerOrderEditRequestService implements EditRequestService {
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderRealtimeBroker broker;
     private final PartnerOrderEditRequestProperties properties;
+    private final PartnerSelfScopeGuard partnerSelfScopeGuard;
 
     /**
      * 신규 수정/삭제 요청 생성 + SSE broadcast.
@@ -102,11 +104,32 @@ public class PartnerOrderEditRequestService implements EditRequestService {
     @Transactional
     public PartnerOrderEditRequest request(UUID partnerOrderId, EditRequestType requestType,
                                            String reason, UUID requesterId, String requesterName) {
+        return request(partnerOrderId, requestType, reason, requesterId, requesterName, null);
+    }
+
+    /**
+     * 신규 수정/삭제 요청 생성 + SSE broadcast. PARTNER 호출이면 대상 주문의 partnerCode 와
+     * {@code X-Partner-Code} 를 대조한다.
+     *
+     * @param partnerOrderId 대상 주문
+     * @param requestType EDIT / DELETE
+     * @param reason 요청 사유
+     * @param requesterId 요청자 UUID
+     * @param requesterName 요청자 표시명
+     * @param callerPartnerCode {@code X-Partner-Code}
+     * @return 영속화된 PartnerOrderEditRequest
+     */
+    @Transactional
+    public PartnerOrderEditRequest request(UUID partnerOrderId, EditRequestType requestType,
+                                           String reason, UUID requesterId, String requesterName,
+                                           String callerPartnerCode) {
         Objects.requireNonNull(partnerOrderId, "partnerOrderId 는 필수입니다");
         Objects.requireNonNull(requestType, "requestType 은 필수입니다");
         PartnerOrder order = partnerOrderRepository.findById(partnerOrderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "거래처 주문을 찾을 수 없습니다: " + partnerOrderId));
+        partnerSelfScopeGuard.assertOwnPartner(
+                order.getPartnerCode(), callerPartnerCode, "본인 거래처 주문만 수정 요청할 수 있습니다.");
 
         guardRequestableStatus(order);
 
@@ -173,7 +196,29 @@ public class PartnerOrderEditRequestService implements EditRequestService {
     @Transactional(readOnly = true)
     public List<PartnerOrderEditRequest> listByOrder(UUID partnerOrderId,
                                                      EditRequestStatus statusFilter) {
+        return listByOrder(partnerOrderId, statusFilter, null);
+    }
+
+    /**
+     * 주문별 요청 이력 — PARTNER 호출이면 대상 주문의 partnerCode 와 {@code X-Partner-Code} 를 대조한다.
+     *
+     * @param partnerOrderId 대상 주문
+     * @param statusFilter 상태 필터
+     * @param callerPartnerCode {@code X-Partner-Code}
+     * @return 요청 이력
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerOrderEditRequest> listByOrder(UUID partnerOrderId,
+                                                     EditRequestStatus statusFilter,
+                                                     String callerPartnerCode) {
         Objects.requireNonNull(partnerOrderId, "partnerOrderId 는 필수입니다");
+        if (partnerSelfScopeGuard.isPartnerAuthority()) {
+            PartnerOrder order = partnerOrderRepository.findById(partnerOrderId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "거래처 주문을 찾을 수 없습니다: " + partnerOrderId));
+            partnerSelfScopeGuard.assertOwnPartner(
+                    order.getPartnerCode(), callerPartnerCode, "본인 거래처 주문 요청 이력만 조회할 수 있습니다.");
+        }
         if (statusFilter == null) {
             return requestRepository.findByEntityIdOrderByRequestedAtDesc(partnerOrderId);
         }

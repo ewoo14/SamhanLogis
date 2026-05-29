@@ -5,6 +5,7 @@ import com.samhanair.logis.partner.domain.AttachmentType;
 import com.samhanair.logis.partner.service.PartnerAttachmentService;
 import com.samhanair.logis.partner.web.dto.PartnerAttachmentResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.security.Principal;
@@ -59,7 +60,7 @@ public class PartnerAttachmentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "거래처 미존재")
     })
     @PostMapping(value = "/{partnerId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = "partners.detail", action = "EDIT")
+    @RequirePermission(page = "partners.detail", action = PermissionAction.CREATE)
     public ApiResponse<PartnerAttachmentResponse> upload(
             @PathVariable UUID partnerId,
             @RequestParam("type") AttachmentType type,
@@ -75,7 +76,7 @@ public class PartnerAttachmentController {
     /** 거래처별 첨부 목록 (downloadUrl 미포함 — 상세 조회 시 발급). */
     @Operation(summary = "거래처 첨부 목록 조회")
     @GetMapping("/{partnerId}/attachments")
-    @RequirePermission(page = "partners.detail.view", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerAttachmentResponse>> list(@PathVariable UUID partnerId) {
         List<PartnerAttachmentResponse> items = attachmentService.list(partnerId).stream()
                 .map(PartnerAttachmentResponse::from)
@@ -91,7 +92,7 @@ public class PartnerAttachmentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "첨부 미존재")
     })
     @GetMapping("/attachments/{attachmentId}")
-    @RequirePermission(page = "partners.detail.view", action = "VIEW")
+    @RequirePermission(page = "partners.detail.view", action = PermissionAction.VIEW)
     public ApiResponse<PartnerAttachmentResponse> detail(@PathVariable UUID attachmentId) {
         PartnerAttachmentService.DownloadView view = attachmentService.download(attachmentId);
         return ApiResponse.ok(
@@ -102,7 +103,7 @@ public class PartnerAttachmentController {
     @Operation(summary = "첨부 soft-delete",
             description = "SALES/MANAGER/MASTER 권한 필요. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/attachments/{attachmentId}")
-    @RequirePermission(page = "partners.detail", action = "EDIT")
+    @RequirePermission(page = "partners.detail", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID attachmentId,
                                                     Principal principal) {
         UUID deleter = resolveUserUuid(principal);

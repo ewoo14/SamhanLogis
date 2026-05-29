@@ -59,7 +59,7 @@ public class DepositMatchController {
      * @return 입금 매칭 결과 (totalCount / matchedCount / unmatchedCount / results[])
      */
     @PostMapping("/fetch-and-match")
-    @RequirePermission(page = "accounting.deposit-match", action = "EDIT")
+    @RequirePermission(page = "accounting.deposit-match", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ResponseEntity<ApiResponse<DepositMatchResponse>> fetchAndMatch(
             @Valid @RequestBody DepositFetchRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String userId,

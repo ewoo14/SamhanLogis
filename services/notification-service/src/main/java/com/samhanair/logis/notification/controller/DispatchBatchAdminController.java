@@ -8,6 +8,7 @@ import com.samhanair.logis.notification.dto.DispatchBatchSendResponse;
 import com.samhanair.logis.notification.service.DispatchBatchPreviewService;
 import com.samhanair.logis.notification.service.DispatchBatchSendService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -48,7 +49,7 @@ public class DispatchBatchAdminController {
     @Operation(summary = "배차안내 SMS 미리보기 (Admin)",
             description = "DISPATCH / MANAGER / MASTER 권한. 출고전표 + 단톡방 매핑 + blocked 가드 + 메시지 템플릿 dryRun.")
     @PostMapping("/preview")
-    @RequirePermission(page = "dispatch.batch", action = "EDIT")
+    @RequirePermission(page = "dispatch.batch", action = PermissionAction.CREATE)
     public ApiResponse<DispatchBatchPreviewResponse> preview(
             @Valid @RequestBody DispatchBatchPreviewRequest req) {
         return ApiResponse.ok(previewService.preview(req));
@@ -67,7 +68,7 @@ public class DispatchBatchAdminController {
     @Operation(summary = "배차안내 SMS 실 발송 (Admin)",
             description = "DISPATCH / MANAGER / MASTER 권한. preview 결과 confirm 후 entry 별 SmsAdapter 호출. 발송 완료 후 SEND_AUDIT 자동 저장.")
     @PostMapping("/send")
-    @RequirePermission(page = "dispatch.batch", action = "EDIT")
+    @RequirePermission(page = "dispatch.batch", action = PermissionAction.CREATE)
     public ApiResponse<DispatchBatchSendResponse> send(
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Valid @RequestBody DispatchBatchSendRequest req) {

@@ -71,7 +71,7 @@ public class SlipAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "slip.attachments.upload", action = "EDIT")
+    @RequirePermission(page = "slip.attachments.upload", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipAttachmentResponse> upload(
             @PathVariable UUID slipId,
             @RequestParam("type") SlipAttachmentType type,
@@ -90,7 +90,7 @@ public class SlipAttachmentController {
     /** 슬립별 첨부 목록 (downloadUrl 은 캐시 — 만료 가능, 정확한 URL 은 단건 GET). */
     @Operation(summary = "슬립 첨부 목록 조회")
     @GetMapping
-    @RequirePermission(page = "slip.attachments.upload", action = "VIEW")
+    @RequirePermission(page = "slip.attachments.upload", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipAttachmentResponse>> list(@PathVariable UUID slipId) {
         List<SlipAttachmentResponse> items = attachmentService.list(slipId).stream()
                 .map(SlipAttachmentResponse::from)
@@ -102,7 +102,7 @@ public class SlipAttachmentController {
     @Operation(summary = "첨부 단건 + presigned 다운로드 URL 발급",
             description = "downloadUrl 은 1시간 유효 — 만료 시 본 endpoint 재호출")
     @GetMapping("/{attachmentId}")
-    @RequirePermission(page = "slip.attachments.upload", action = "VIEW")
+    @RequirePermission(page = "slip.attachments.upload", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<SlipAttachmentResponse> detail(@PathVariable UUID slipId,
                                                       @PathVariable UUID attachmentId) {
         SlipAttachmentService.DownloadView view = attachmentService.download(attachmentId);
@@ -114,7 +114,7 @@ public class SlipAttachmentController {
     @Operation(summary = "첨부 soft-delete",
             description = "SALES/MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
-    @RequirePermission(page = "slip.attachments.delete", action = "EDIT")
+    @RequirePermission(page = "slip.attachments.delete", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID slipId,
             @PathVariable UUID attachmentId,

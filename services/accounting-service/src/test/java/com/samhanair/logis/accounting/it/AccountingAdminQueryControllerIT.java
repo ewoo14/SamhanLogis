@@ -20,6 +20,7 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.service.AccountingAdminQueryService;
 import com.samhanair.logis.accounting.web.dto.CashDisbursementResponse;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,10 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(adminQueryService.listCashDisbursements(
                         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
@@ -89,7 +94,9 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MIG-14 ACCOUNTANT는 정적 role을 통과하고 CASH_LIST VIEW 권한으로 조회한다")
     void accountantCanViewCashList() throws Exception {
-        when(dynamicPermissionClient.canView(eq("ACCOUNTANT"), eq("ecount.mig14.cash-list")))
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        eq("ecount.mig14.cash-list"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
         mockMvc.perform(withActor(get("/api/v1/accounting/cash-disbursements"), "ACCOUNTANT"))
@@ -119,7 +126,9 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     @MethodSource("mig14ViewEndpoints")
     @DisplayName("MIG-14 canView=false이면 PageCode별 조회를 403으로 차단한다")
     void canViewFalseDenied(String url, String pageCode) throws Exception {
-        when(dynamicPermissionClient.canView(eq("MANAGER"), eq(pageCode))).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        eq(pageCode), eq(PermissionAction.VIEW))).thenReturn(false);
 
         mockMvc.perform(withActor(get(url), "MANAGER"))
                 .andExpect(status().isForbidden());

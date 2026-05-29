@@ -48,6 +48,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @WithMockUser(username = "ewoo", authorities = {"ROLE_MASTER"})
 class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
 
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000324";
+
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper objectMapper;
 
@@ -75,12 +79,20 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
     void POST_creates_DRAFT_task_with_daily_counter_code() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"));
         mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -93,6 +105,8 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         // 1) DispatchTask 생성
         String taskBody = objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"));
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(taskBody))
                 .andExpect(status().isCreated())
@@ -103,6 +117,8 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         // 2) 차량 그룹 추가
         String groupBody = objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"));
         String groupRes = mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(groupBody))
                 .andExpect(status().isCreated())
@@ -113,7 +129,9 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         UUID groupId = UUID.fromString((String) groupJson.get("id"));
 
         // 3) 차량 그룹 삭제
-        mvc.perform(delete("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}", taskId, groupId))
+        mvc.perform(delete("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isNoContent());
     }
 
@@ -121,6 +139,8 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     void POST_dispatch_with_no_groups_returns_400() throws Exception {
         String taskBody = objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"));
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(taskBody))
                 .andReturn().getResponse().getContentAsString();
@@ -128,7 +148,9 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         UUID taskId = UUID.fromString((String) taskJson.get("id"));
 
         // 차량 그룹 없이 dispatch
-        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId))
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().is4xxClientError());
     }
 
@@ -143,17 +165,23 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
 
         // 1) Task + group 생성
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"))))
                 .andReturn().getResponse().getContentAsString();
         UUID taskId = UUID.fromString((String) objectMapper.readValue(taskRes, Map.class).get("id"));
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
 
         // 2) dispatch
-        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId))
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DISPATCHING"));
 

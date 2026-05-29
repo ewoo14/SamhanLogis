@@ -3,6 +3,7 @@ package com.samhanair.logis.notification.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -41,6 +42,7 @@ import com.samhanair.logis.notification.web.dto.NotificationCenterResponse;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryDetailResponse;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistorySaveResponse;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -116,6 +118,8 @@ class NotificationPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         NotificationRequest request = NotificationRequest.open(
                 RecipientType.EXTERNAL_PHONE, null, "010-1111-2222",
@@ -174,70 +178,67 @@ class NotificationPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                new EndpointCase("notification send", "notifications.admin", "EDIT", "MANAGER", 201,
+                new EndpointCase("notification send", "notifications.admin", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/admin/notifications/send")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(notificationBody())),
-                new EndpointCase("notification list", "notifications.admin", "VIEW", "MANAGER", 200,
+                new EndpointCase("notification list", "notifications.admin", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/admin/notifications")),
-                new EndpointCase("notification detail", "notifications.admin", "VIEW", "MANAGER", 200,
+                new EndpointCase("notification detail", "notifications.admin", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/admin/notifications/{id}", ID)),
-                new EndpointCase("notification retry", "notifications.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("notification retry", "notifications.admin", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/admin/notifications/{id}/retry", ID)),
-                new EndpointCase("aligo address sync", "aligo.address-book", "EDIT", "MANAGER", 200,
+                new EndpointCase("aligo address sync", "aligo.address-book", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/admin/notification/aligo/address-book/sync")),
-                new EndpointCase("chat-room list", "messenger.admin", "VIEW", "MANAGER", 200,
+                new EndpointCase("chat-room list", "messenger.admin", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/notification/admin/chat-rooms")),
-                new EndpointCase("chat-room create", "messenger.admin", "EDIT", "MANAGER", 201,
+                new EndpointCase("chat-room create", "messenger.admin", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/api/v1/notification/admin/chat-rooms")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"partnerCode":"P001","partnerBusinessName":"거래처","chatRoomName":"발주방"}
                                         """)),
-                new EndpointCase("chat-room import", "messenger.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("chat-room import", "messenger.admin", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/api/v1/notification/admin/chat-rooms/import")
                                 .file(new MockMultipartFile("file", "rooms.csv", "text/csv", "x".getBytes()))),
-                new EndpointCase("chat-room delete", "messenger.admin", "EDIT", "MANAGER", 200,
+                new EndpointCase("chat-room delete", "messenger.admin", PermissionAction.DELETE, "MANAGER", 200,
                         () -> delete("/api/v1/notification/admin/chat-rooms/{id}", ID)),
-                new EndpointCase("dispatch batch preview", "dispatch.batch", "EDIT", "DISPATCH", 200,
+                new EndpointCase("dispatch batch preview", "dispatch.batch", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-batch/preview")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"date\":\"2026-05-26\"}")),
-                new EndpointCase("dispatch batch send", "dispatch.batch", "EDIT", "DISPATCH", 200,
+                new EndpointCase("dispatch batch send", "dispatch.batch", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-batch/send")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(dispatchSendBody())),
-                new EndpointCase("sms history save", "dispatch.sms-save-history", "EDIT", "DISPATCH", 200,
+                new EndpointCase("sms history save", "dispatch.sms-save-history", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-sms/history")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(historyBody())),
-                new EndpointCase("sms history list", "dispatch.sms-save-history", "VIEW", "DISPATCH", 200,
+                new EndpointCase("sms history list", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history")),
-                new EndpointCase("sms history detail", "dispatch.sms-save-history", "VIEW", "DISPATCH", 200,
+                new EndpointCase("sms history detail", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/{id}", ID)),
-                new EndpointCase("sms history latest", "dispatch.sms-save-history", "VIEW", "DISPATCH", 200,
+                new EndpointCase("sms history latest", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/latest")
                                 .param("programType", "DISPATCH_SMS")),
-                new EndpointCase("notification center unread", "notifications.center", "VIEW", "STAFF", 200,
+                new EndpointCase("notification center unread", "notifications.center", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/notifications/my")),
-                new EndpointCase("notification center history", "notifications.center", "VIEW", "STAFF", 200,
+                new EndpointCase("notification center history", "notifications.center", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/notifications/history")),
-                new EndpointCase("notification center acknowledge", "notifications.center", "VIEW", "STAFF", 200,
+                new EndpointCase("notification center acknowledge", "notifications.center", PermissionAction.VIEW, "STAFF", 200,
                         () -> post("/notifications/{id}/acknowledge", ID))
         );
     }
@@ -290,7 +291,7 @@ class NotificationPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             int successStatus,
             Supplier<MockHttpServletRequestBuilder> request) {

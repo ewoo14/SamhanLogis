@@ -1,15 +1,22 @@
 package com.samhanair.logis.auth.web;
 
+import com.samhanair.logis.auth.domain.PageCode;
+import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionBatchUpdateRequest;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.InternalAuthProperties;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -53,9 +60,89 @@ public class PermissionAdminController {
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final List<String> ALL_ACTION_NAMES = Arrays.stream(PermissionAction.values())
+            .map(Enum::name)
+            .toList();
 
     private final DynamicPermissionService permissionService;
+    private final AccountPermissionService accountPermissionService;
     private final InternalAuthProperties internalAuthProperties;
+
+    @GetMapping("/accounts")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
+    public ApiResponse<List<AccountPermissionService.AccountSummary>> getAccounts() {
+        return ApiResponse.ok(accountPermissionService.listAccounts());
+    }
+
+    @GetMapping("/account/{accountId}")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
+    public ApiResponse<Map<String, AccountPermissionService.ActionMatrix>> getAccountMatrix(
+            @org.springframework.web.bind.annotation.PathVariable UUID accountId) {
+        return ApiResponse.ok(accountPermissionService.getAccountMatrix(accountId));
+    }
+
+    @PutMapping("/account/{accountId}")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<ChangedCountResponse> updateAccountMatrix(
+            @org.springframework.web.bind.annotation.PathVariable UUID accountId,
+            @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = accountPermissionService.updateAccountMatrix(accountId, request, callerOrSystem(actorId));
+        return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
+
+    @PostMapping("/account/{accountId}/apply-template")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<ChangedCountResponse> applyTemplate(
+            @org.springframework.web.bind.annotation.PathVariable UUID accountId,
+            @RequestParam String roleCode,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = accountPermissionService.applyTemplate(accountId, roleCode, callerOrSystem(actorId));
+        return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
+
+    @PostMapping("/account/{accountId}/copy-from")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<ChangedCountResponse> copyFrom(
+            @org.springframework.web.bind.annotation.PathVariable UUID accountId,
+            @RequestParam UUID sourceAccountId,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = accountPermissionService.copyFromAccount(accountId, sourceAccountId, callerOrSystem(actorId));
+        return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
+
+    @GetMapping("/templates")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
+    public ApiResponse<Map<String, Map<String, AccountPermissionService.ActionMatrix>>> getTemplates() {
+        return ApiResponse.ok(accountPermissionService.getTemplates());
+    }
+
+    @PutMapping("/templates/{roleCode}")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<ChangedCountResponse> updateTemplate(
+            @org.springframework.web.bind.annotation.PathVariable String roleCode,
+            @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = accountPermissionService.updateTemplate(roleCode, request, callerOrSystem(actorId));
+        return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
+
+    @PostMapping("/bulk")
+    @PreAuthorize("hasRole('MASTER')")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<ChangedCountResponse> bulkApply(
+            @RequestBody AccountPermissionService.BulkPermissionRequest request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+        int changed = accountPermissionService.bulkApply(request, callerOrSystem(actorId));
+        return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
 
     /**
      * 전체 권한 매트릭스 조회 — 역할 × 페이지 (MASTER 전용).
@@ -67,7 +154,7 @@ public class PermissionAdminController {
      */
     @GetMapping
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.permission-admin", action = "VIEW")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
     public ApiResponse<Map<String, Map<String, PermissionDto>>> getMatrix() {
         return ApiResponse.ok(permissionService.getPermissionMatrix());
     }
@@ -84,7 +171,7 @@ public class PermissionAdminController {
      */
     @PutMapping
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.permission-admin", action = "EDIT")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<PermissionDto> updatePermission(
             @Valid @RequestBody PermissionUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
@@ -103,7 +190,7 @@ public class PermissionAdminController {
      */
     @PostMapping("/batch")
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.permission-admin", action = "EDIT")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<List<PermissionDto>> batchUpdate(
             @Valid @RequestBody PermissionBatchUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
@@ -124,7 +211,7 @@ public class PermissionAdminController {
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "system.permission-admin", action = "EDIT")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.DELETE)
     public void deletePermission(
             @RequestParam String roleCode,
             @RequestParam String pageCode,
@@ -133,23 +220,35 @@ public class PermissionAdminController {
     }
 
     /**
-     * 현재 사용자 역할의 활성 권한 목록 조회 — 인증된 모든 사용자 접근 가능.
+     * 현재 계정의 활성 권한 목록 조회 — 인증된 모든 사용자 접근 가능.
      *
      * <p>FE {@code GET /admin/permissions/my} 호출 대응 endpoint.
-     * X-User-Role 헤더로 역할을 수신하여 해당 역할의 활성 override row 를 반환한다.
+     * X-User-Id 헤더의 account UUID 로 account_page_permissions 를 조회한다.
      *
-     * <p>MASTER 역할의 경우 DB row 유무에 관계없이 모든 PageCode 에 대해 view+edit true 반환.
-     * 비MASTER 역할은 DB override row 가 존재하는 항목만 반환 (row 없음 = fallback false — 점진 마이그레이션 안전).
+     * <p>MASTER 역할의 경우 DB row 유무에 관계없이 모든 PageCode 에 대해 7-action true 반환.
+     * PARTNER/누락/잘못된 account UUID 는 빈 map 으로 fail-closed 한다.
      *
+     * @param userId   요청자 계정 UUID (X-User-Id 헤더, api-gateway 에서 JWT sub 전파)
      * @param userRole 요청자 역할 (X-User-Role 헤더, api-gateway 에서 전파)
-     * @return 활성 권한 목록 {@code List<PermissionDto>}
+     * @return pageCode → 허용 action enum name 목록
      */
     @GetMapping("/my")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<List<PermissionDto>> getMyPermissions(
+    public ApiResponse<Map<String, List<String>>> getMyPermissions(
+            @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
             @RequestHeader(value = USER_ROLE_HEADER, required = false) String userRole) {
         String roleCode = (userRole == null || userRole.isBlank()) ? "UNKNOWN" : userRole;
-        return ApiResponse.ok(permissionService.getMyPermissions(roleCode));
+        if ("MASTER".equalsIgnoreCase(roleCode)) {
+            return ApiResponse.ok(allPageActions());
+        }
+        if ("PARTNER".equalsIgnoreCase(roleCode)) {
+            return ApiResponse.ok(Map.of());
+        }
+        UUID accountId = parseUuid(userId);
+        if (accountId == null) {
+            return ApiResponse.ok(Map.of());
+        }
+        return ApiResponse.ok(toActionNameMap(accountPermissionService.bulkLoad(accountId)));
     }
 
     /**
@@ -186,6 +285,9 @@ public class PermissionAdminController {
     public record PermissionCheckResponse(boolean allowed) {
     }
 
+    public record ChangedCountResponse(int changedCount) {
+    }
+
     private void assertInternalToken(String supplied) {
         String expected = internalAuthProperties.getToken();
         if (expected == null || expected.isBlank()
@@ -197,5 +299,34 @@ public class PermissionAdminController {
 
     private String callerOrSystem(String header) {
         return (header == null || header.isBlank()) ? "system" : header;
+    }
+
+    private Map<String, List<String>> allPageActions() {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (PageCode pageCode : PageCode.values()) {
+            result.put(pageCode.getCode(), ALL_ACTION_NAMES);
+        }
+        return result;
+    }
+
+    private Map<String, List<String>> toActionNameMap(Map<String, EnumSet<PermissionAction>> permissions) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, EnumSet<PermissionAction>> entry : permissions.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().stream()
+                    .map(Enum::name)
+                    .toList());
+        }
+        return result;
+    }
+
+    private UUID parseUuid(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

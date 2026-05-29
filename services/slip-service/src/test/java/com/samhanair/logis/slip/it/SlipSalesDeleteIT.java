@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
@@ -293,7 +294,10 @@ class SlipSalesDeleteIT extends AbstractPostgresIT {
     private void assertForbiddenForRole(String role) throws Exception {
         String id = createSlip("OUTBOUND", "SP0863-" + role);
         String updatedAt = updatedAt(id);
-        Mockito.when(dynamicPermissionClient.canEdit(role, "sales.slip.edit"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("sales.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.DELETE)))
                 .thenReturn(false);
 
         mockMvc.perform(delete(SLIPS_PATH + "/" + id + SALES_SUFFIX)

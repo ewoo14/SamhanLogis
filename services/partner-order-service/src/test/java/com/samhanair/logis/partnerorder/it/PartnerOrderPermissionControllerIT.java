@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -30,6 +31,7 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderFromEstimateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderHistoryService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderPrintService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderQueryService;
+import com.samhanair.logis.partnerorder.service.TutorialStateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
 import com.samhanair.logis.partnerorder.vendor.ocr.OcrEngine;
 import com.samhanair.logis.partnerorder.vendor.service.VendorOrderService;
@@ -52,6 +54,7 @@ import com.samhanair.logis.partnerorder.web.dto.HistoryResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderSummaryResponse;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
@@ -135,6 +138,7 @@ class PartnerOrderPermissionControllerIT {
     @MockBean private PartnerOrderHistoryService historyService;
     @MockBean private PartnerOrderQueryService queryService;
     @MockBean private PartnerOrderPrintService printService;
+    @MockBean private TutorialStateService tutorialStateService;
     @MockBean private TutorialStateRepository tutorialStateRepository;
     @MockBean private PartnerAuthClient partnerAuthClient;
     @MockBean private PartnerOrderAuditLogService auditLogService;
@@ -145,6 +149,8 @@ class PartnerOrderPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         PartnerOrderEditRequest editRequest = PartnerOrderEditRequest.create(
                 ORDER_ID, UUID.randomUUID(), "tester", EditRequestType.EDIT,
@@ -175,12 +181,15 @@ class PartnerOrderPermissionControllerIT {
 
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
+        lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString(), any()))
+                .thenReturn(editRequest);
         lenient().when(editRequestService.approve(any(), any(), anyString(), any()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.reject(any(), any(), anyString(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.listPendingForRole(any())).thenReturn(List.of(editRequest));
         lenient().when(editRequestService.listByOrder(any(), any())).thenReturn(List.of(editRequest));
+        lenient().when(editRequestService.listByOrder(any(), any(), any())).thenReturn(List.of(editRequest));
         lenient().when(vendorOrderService.upload(any(), any(), any(), any())).thenReturn(upload);
         lenient().when(vendorOrderService.confirm(any(), anyString())).thenReturn(vendorConfirm);
         lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any())).thenReturn(confirm);
@@ -191,9 +200,14 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(fromEstimateService.createFromEstimate(any(), any(), anyString())).thenReturn(detail);
         lenient().when(historyService.findHistory(anyString(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
+        lenient().when(historyService.findHistory(anyString(), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
         lenient().when(queryService.list(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+        lenient().when(queryService.list(any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
         lenient().when(queryService.findDetailById(anyString())).thenReturn(detail);
+        lenient().when(queryService.findDetailById(anyString(), any())).thenReturn(detail);
         lenient().when(printService.renderPrintHtml(anyString(), any())).thenReturn("<html></html>");
         lenient().when(tutorialStateRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         lenient().when(tutorialStateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -211,17 +225,25 @@ class PartnerOrderPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+    }
+
+    @ParameterizedTest(name = "PARTNER self-service {0}")
+    @MethodSource("partnerSelfServiceEndpoints")
+    void partnerSelfServiceEndpoint_withPartnerRole_bypassesDynamicPermissionAndReturnsSuccess(
+            EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+
+        mockMvc.perform(withActor(endpoint.request().get(), "PARTNER"))
+                .andExpect(status().is(endpoint.successStatus()));
     }
 
     @ParameterizedTest(name = "partner-order edit decision {0} role={1} status={2}")
@@ -236,14 +258,8 @@ class PartnerOrderPermissionControllerIT {
             "reject, PARTNER, 403"
     })
     void editRequestDecision_usesDecidePermission(String decision, String role, int expectedStatus) throws Exception {
-        when(dynamicPermissionClient.canEdit("MANAGER", "sales.partner-order.edit-requests.decide"))
-                .thenReturn(true);
-        when(dynamicPermissionClient.canEdit("MASTER", "sales.partner-order.edit-requests.decide"))
-                .thenReturn(true);
-        when(dynamicPermissionClient.canEdit("SALES", "sales.partner-order.edit-requests.decide"))
-                .thenReturn(false);
-        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit-requests.decide"))
-                .thenReturn(false);
+        when(dynamicPermissionClient.check(any(UUID.class), eq("sales.partner-order.edit-requests.decide"), eq(PermissionAction.UPDATE)))
+                .thenReturn(expectedStatus < 400);
         String body = "approve".equals(decision) ? "{\"note\":\"ok\"}" : "{\"reason\":\"no\"}";
 
         mockMvc.perform(withActor(post("/api/v1/partner-orders/{id}/edit-request/{requestId}/{decision}",
@@ -255,65 +271,103 @@ class PartnerOrderPermissionControllerIT {
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                new EndpointCase("edit request create", "sales.partner-order.edit-requests", "EDIT", "PARTNER", 201,
+                new EndpointCase("edit request create", "sales.partner-order.edit-requests", PermissionAction.CREATE, "SALES", 201,
                         () -> post("/api/v1/partner-orders/{id}/edit-request", ORDER_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
-                new EndpointCase("edit request approve", "sales.partner-order.edit-requests.decide", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request approve", "sales.partner-order.edit-requests.decide", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/api/v1/partner-orders/{id}/edit-request/{requestId}/approve", ORDER_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"note\":\"ok\"}")),
-                new EndpointCase("edit request reject", "sales.partner-order.edit-requests.decide", "EDIT", "MANAGER", 200,
+                new EndpointCase("edit request reject", "sales.partner-order.edit-requests.decide", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> post("/api/v1/partner-orders/{id}/edit-request/{requestId}/reject", ORDER_ID, REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
-                new EndpointCase("edit request list", "sales.partner-order.edit-requests.decide", "VIEW", "MANAGER", 200,
+                new EndpointCase("edit request list", "sales.partner-order.edit-requests.decide", PermissionAction.VIEW, "MANAGER", 200,
                         () -> get("/api/v1/partner-orders/edit-requests").param("targetRole", "MANAGER")),
-                new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", "VIEW", "STAFF", 200,
+                new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/edit-requests", ORDER_ID)),
-                new EndpointCase("order audit logs", "sales.partner-order.history.view", "VIEW", "STAFF", 200,
+                new EndpointCase("order audit logs", "sales.partner-order.history.view", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/audit-logs", ORDER_ID)),
-                new EndpointCase("order realtime", "sales.partner-order.history.view", "VIEW", "STAFF", 200,
+                new EndpointCase("order realtime", "sales.partner-order.history.view", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/realtime", ORDER_ID)),
-                new EndpointCase("vendor upload", "sales.vendor-order", "EDIT", "MANAGER", 200,
+                new EndpointCase("vendor upload", "sales.vendor-order", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/api/v1/admin/partner-order/vendor/upload")
                                 .file(new MockMultipartFile("file", "order.png", "image/png", "x".getBytes()))),
-                new EndpointCase("vendor confirm", "sales.vendor-order", "EDIT", "MANAGER", 200,
+                new EndpointCase("vendor confirm", "sales.vendor-order", PermissionAction.CREATE, "MANAGER", 200,
                         () -> post("/api/v1/admin/partner-order/vendor/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(vendorConfirmBody())),
-                new EndpointCase("order confirm", "sales.partner-order.confirm", "EDIT", "PARTNER", 200,
+                new EndpointCase("order confirm", "sales.partner-order.confirm", PermissionAction.CREATE, "SALES", 200,
                         () -> post("/api/v1/partner-orders/{id}/confirm", ORDER_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(confirmBody())),
-                new EndpointCase("order delete", "sales.partner-order.edit", "EDIT", "MANAGER", 204,
+                new EndpointCase("order delete", "sales.partner-order.edit", PermissionAction.DELETE, "MANAGER", 204,
                         () -> delete("/api/v1/partner-orders/PO-1")),
-                new EndpointCase("draft create", "sales.partner-order.draft", "EDIT", "PARTNER", 201,
+                new EndpointCase("draft create", "sales.partner-order.draft", PermissionAction.CREATE, "SALES", 201,
                         () -> post("/api/v1/partner-orders/drafts")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"label\":\"draft\",\"payloadJson\":\"{}\"}")),
-                new EndpointCase("draft list", "sales.partner-order.draft", "VIEW", "PARTNER", 200,
+                new EndpointCase("draft list", "sales.partner-order.draft", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders/drafts")),
-                new EndpointCase("draft detail", "sales.partner-order.draft", "VIEW", "PARTNER", 200,
+                new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders/drafts/{id}", ORDER_ID)),
-                new EndpointCase("order update", "sales.partner-order.edit", "EDIT", "MANAGER", 200,
+                new EndpointCase("order update", "sales.partner-order.edit", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> put("/api/v1/partner-orders/PO-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(updateBody())),
-                new EndpointCase("from estimate", "sales.partner-order.edit", "EDIT", "MANAGER", 201,
+                new EndpointCase("from estimate", "sales.partner-order.edit", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/api/v1/partner-orders/from-estimate/{id}", ORDER_ID)),
-                new EndpointCase("history", "sales.partner-order.history", "VIEW", "PARTNER", 200,
+                new EndpointCase("history", "sales.partner-order.history", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders/history")
                                 .param("bizCode", "B001")
                                 .param("from", "2026-05-26T00:00:00")
                                 .param("to", "2026-05-27T00:00:00")),
-                new EndpointCase("order list", "sales.partner-order.list", "VIEW", "PARTNER", 200,
+                new EndpointCase("order list", "sales.partner-order.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders")),
-                new EndpointCase("order detail", "sales.partner-order.list", "VIEW", "PARTNER", 200,
+                new EndpointCase("order detail", "sales.partner-order.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/partner-orders/PO-1")),
-                new EndpointCase("print", "sales.partner-order.print", "VIEW", "PARTNER", 200,
+                new EndpointCase("print", "sales.partner-order.print", PermissionAction.PRINT, "SALES", 200,
                         () -> get("/api/v1/partner-orders/PO-1/print")),
-                new EndpointCase("tutorial", "sales.partner-order.tutorial", "EDIT", "PARTNER", 200,
+                new EndpointCase("tutorial", "sales.partner-order.tutorial", PermissionAction.UPDATE, "SALES", 200,
+                        () -> patch("/api/v1/auth/partner-tutorial")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"completed\":true}"))
+        );
+    }
+
+    static Stream<EndpointCase> partnerSelfServiceEndpoints() {
+        return Stream.of(
+                new EndpointCase("edit request create", "sales.partner-order.edit-requests", PermissionAction.CREATE, "PARTNER", 201,
+                        () -> post("/api/v1/partner-orders/{id}/edit-request", ORDER_ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
+                new EndpointCase("edit requests by order", "sales.partner-order.edit-requests", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/{id}/edit-requests", ORDER_ID)),
+                new EndpointCase("order confirm", "sales.partner-order.confirm", PermissionAction.CREATE, "PARTNER", 200,
+                        () -> post("/api/v1/partner-orders/{id}/confirm", ORDER_ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(confirmBody())),
+                new EndpointCase("draft create", "sales.partner-order.draft", PermissionAction.CREATE, "PARTNER", 201,
+                        () -> post("/api/v1/partner-orders/drafts")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"label\":\"draft\",\"payloadJson\":\"{}\"}")),
+                new EndpointCase("draft list", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/drafts")),
+                new EndpointCase("draft detail", "sales.partner-order.draft", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/drafts/{id}", ORDER_ID)),
+                new EndpointCase("history", "sales.partner-order.history", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/history")
+                                .param("bizCode", "B001")
+                                .param("from", "2026-05-26T00:00:00")
+                                .param("to", "2026-05-27T00:00:00")),
+                new EndpointCase("order list", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders")),
+                new EndpointCase("order detail", "sales.partner-order.list", PermissionAction.VIEW, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/PO-1")),
+                new EndpointCase("print", "sales.partner-order.print", PermissionAction.PRINT, "PARTNER", 200,
+                        () -> get("/api/v1/partner-orders/PO-1/print")),
+                new EndpointCase("tutorial", "sales.partner-order.tutorial", PermissionAction.UPDATE, "PARTNER", 200,
                         () -> patch("/api/v1/auth/partner-tutorial")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"completed\":true}"))
@@ -359,7 +413,7 @@ class PartnerOrderPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             int successStatus,
             Supplier<MockHttpServletRequestBuilder> request) {

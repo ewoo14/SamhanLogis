@@ -77,6 +77,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @AutoConfigureMockMvc
 class P15ValidationIT extends AbstractPostgresIT {
 
+    private static final String P15_ACCOUNT_ID = "10000000-0000-0000-0000-000000000409";
+
     // ---- 상수 — 결정적 fixture driverCode (사용자 노출 식별자, UUID 비공개 가드) ----
     private static final String DRV_P15_001 = "DRV-P15-T001";
     private static final String DRV_P15_002 = "DRV-P15-T002";
@@ -251,8 +253,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         String body = "{\"driverCode\":\"" + DRV_P15_001 + "\"}";
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -270,8 +272,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         String body = "{\"driverCode\":\"" + DRV_P15_001 + "\"}";
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk());
@@ -302,8 +304,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         String body = "{\"driverCode\":\"" + DRV_P15_001 + "\"}";
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk());
@@ -331,8 +333,8 @@ class P15ValidationIT extends AbstractPostgresIT {
     @DisplayName("TC-7: GET /admin/arologis/drivers → 200, 기사 3명 포함")
     void tc7_list_drivers_returns_3_available() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/drivers")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER"))
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray())
@@ -349,8 +351,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         String body = "{\"driverCode\":\"DRV-P15-UNKNOWN-9999\"}";
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + dispatchId1 + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
@@ -366,8 +368,8 @@ class P15ValidationIT extends AbstractPostgresIT {
         String body = "{\"driverCode\":\"" + DRV_P15_001 + "\"}";
         mockMvc.perform(MockMvcRequestBuilders.post(
                         "/admin/arologis/dispatches/" + UUID.randomUUID() + "/vehicles/1/assign-driver")
-                        .header("X-User-Id", "test-p15")
-                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Id", P15_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());

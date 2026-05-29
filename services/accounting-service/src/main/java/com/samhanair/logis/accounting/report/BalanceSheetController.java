@@ -60,7 +60,7 @@ public class BalanceSheetController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "asOfDate 파라미터 오류")
     })
     @GetMapping("/balance-sheet")
-    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = ReportPermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<BalanceSheetResponse> balanceSheet(
             @Parameter(description = "기준 일자 (YYYY-MM-DD)")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,

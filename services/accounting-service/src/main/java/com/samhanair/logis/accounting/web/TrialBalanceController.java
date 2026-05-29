@@ -51,7 +51,7 @@ public class TrialBalanceController {
      */
     @Operation(summary = "시산표", description = "POSTED 분개 라인 집계 (yyyyMM)")
     @GetMapping
-    @RequirePermission(page = "accounting.balances.trial-balance", action = "VIEW")
+    @RequirePermission(page = "accounting.balances.trial-balance", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<TrialBalanceResponse> byPeriod(
             @RequestParam String period,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {

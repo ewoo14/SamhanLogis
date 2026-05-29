@@ -37,7 +37,7 @@ public class TaxInvoiceInboundController {
 
     @Operation(summary = "수신 세금계산서 목록 조회",
             description = "INBOUND 세금계산서를 공급일자 기간과 거래처 코드로 필터링합니다.")
-    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = "VIEW")
+    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     @GetMapping
     public ResponseEntity<List<TaxInvoiceSummaryResponse>> listInbound(
             @RequestParam(required = false)
@@ -50,7 +50,7 @@ public class TaxInvoiceInboundController {
 
     @Operation(summary = "수신 세금계산서 등록",
             description = "POSTED 매입전표 N장을 동일 거래처·동일월 기준으로 INBOUND 세금계산서 1장에 연결합니다.")
-    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = "EDIT")
+    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @PostMapping
     public ResponseEntity<InboundTaxInvoiceResponse> registerInbound(
             @Valid @RequestBody RegisterInboundTaxInvoiceRequest request,
@@ -60,7 +60,7 @@ public class TaxInvoiceInboundController {
 
     @Operation(summary = "수신 세금계산서 첨부 등록",
             description = "수신 세금계산서 PDF/이미지 메타데이터를 저장합니다. 실 MinIO 업로드는 후속 통합 대상입니다.")
-    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = "EDIT")
+    @RequirePermission(page = "accounting.tax-invoice.inbound.manage", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<InboundTaxInvoiceResponse.AttachmentResponse> uploadAttachment(
             @PathVariable UUID id,

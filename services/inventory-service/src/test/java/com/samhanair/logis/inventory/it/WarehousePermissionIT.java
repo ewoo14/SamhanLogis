@@ -1,6 +1,5 @@
 package com.samhanair.logis.inventory.it;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +9,8 @@ import com.samhanair.logis.inventory.client.AccountingClient;
 import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -61,6 +62,7 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "warehouse-user", authorities = {"ROLE_WAREHOUSE"})
     void C1_warehouse_canView_true_returns_200() throws Exception {
         mockMvc.perform(get("/inventory/warehouses")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000215")
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk());
     }
@@ -73,10 +75,12 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: WAREHOUSE inventory.warehouse canView=false → 창고 목록 403 FORBIDDEN")
     @WithMockUser(username = "warehouse-denied", authorities = {"ROLE_WAREHOUSE"})
     void C2_warehouse_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("inventory.warehouse"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/inventory/warehouses")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000216")
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isForbidden());
     }
@@ -90,6 +94,7 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C3_master_canEdit_true_create_passes() throws Exception {
         mockMvc.perform(post("/inventory/warehouses")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000217")
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"VEHICLE\"}"))
@@ -104,12 +109,14 @@ class WarehousePermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: WAREHOUSE canEdit=false + canView=true → POST 창고 생성 403 (view-only override)")
     @WithMockUser(username = "warehouse-viewonly", authorities = {"ROLE_WAREHOUSE"})
     void C4_warehouse_canEdit_false_canView_true_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.warehouse.admin"),
+                        Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenReturn(true);
 
         mockMvc.perform(post("/inventory/warehouses")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000218")
                         .header("X-User-Role", "WAREHOUSE")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"WH-TEST\",\"name\":\"테스트창고\",\"type\":\"VEHICLE\"}"))

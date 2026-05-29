@@ -35,7 +35,7 @@ public class Mig11SalesLedgerImportController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping(value = "/ecount", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "이카운트 매출장 XLSX 적재 + DailyClosing 대조")
     public EcountMig11Result upload(
             @RequestPart("file") MultipartFile file,

@@ -18,6 +18,7 @@ import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.repository.DispatchSmsSaveHistoryRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -48,8 +49,8 @@ import org.springframework.test.web.servlet.MvcResult;
 class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/admin/notifications/dispatch-sms/history";
-    private static final String USER_A = "dispatch-user-a";
-    private static final String USER_B = "dispatch-user-b";
+    private static final String USER_A = "10000000-0000-0000-0000-000000000201";
+    private static final String USER_B = "10000000-0000-0000-0000-000000000202";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -80,6 +81,10 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
         org.mockito.Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        org.mockito.Mockito.lenient()
+                .when(dynamicPermissionClient.check(org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class))).thenReturn(true);
     }
 
     @Test
@@ -335,11 +340,14 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
             mockMvc.perform(post(BASE_URL)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(autoBody(1))
-                            .header("X-User-Id", USER_A + "-" + role)
+                            .header("X-User-Id", accountIdForRole(role))
                             .header("X-User-Role", role))
                     .andExpect(status().isOk());
         }
-        org.mockito.Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.sms-save-history"))
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -422,7 +430,16 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 "saveMode", "SEND_AUDIT",
                 "topic", topic,
                 "requestParams", Map.of("date", "2026-05-17", "rowCount", sent + failed),
-                "responsePayload", Map.of("sent", sent, "failed", failed, "blocked", 0)));
+                        "responsePayload", Map.of("sent", sent, "failed", failed, "blocked", 0)));
+    }
+
+    private String accountIdForRole(String role) {
+        return switch (role) {
+            case "DISPATCH" -> "10000000-0000-0000-0000-000000000203";
+            case "MANAGER" -> "10000000-0000-0000-0000-000000000204";
+            case "MASTER" -> "10000000-0000-0000-0000-000000000205";
+            default -> USER_A;
+        };
     }
 
     private int postAutoAfterBarrier(CyclicBarrier barrier, int rowCount) {

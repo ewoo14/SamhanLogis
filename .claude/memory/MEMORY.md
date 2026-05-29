@@ -24,6 +24,8 @@
 - [QA Docker 실서버 테스트 의무](feedback_qa_docker_real_test.md) — 2026-05-20 재강조. QA agent 는 반드시 Docker 통해 실서버 (Testcontainers Postgres) 에서 테스트 완료. code read 만 PASS 절대 금지. Docker 미가용 시 P2 이상 defect 명시 + Linux CI 결과 fetch 첨부 의무
 - [옵션 A — Codex fix → Claude verify (폐기)](feedback_codex_fix_claude_verify.md) — 2026-05-21 폐기. MIG-14 사례에서 약점 발견 후 옵션 C 로 대체. history 참조용.
 - [옵션 C — 사이클 N=2 의무 (현행)](feedback_cycle_n2_mandatory.md) — 2026-05-21 사용자 결정. **1f Claude fix 발동 시 사이클 N=2 의무** (Claude 5-agent 재실행 + Codex 5-section 재실행). 양쪽 cross-check 완전성. **MIG-15+ 의무 적용**. 12 → 21단계 확장.
+- [권한 enforcement 실 HTTP 회귀 테스트 의무](feedback_enforcement_real_http_test.md) — 2026-05-29 PR #316 회고. 권한 IT 가 DynamicPermissionClient @MockBean 으로 권한 경로 mock 시 endpoint 계약 변경이 CI green 으로 위장(false-green). role-form/account-form 양식 변경은 MockRestServiceServer/Testcontainers 실 HTTP 회귀 테스트 필수. 사이클 N=2 BE cross-check 가 운영 lockout 단독 적발.
+- [조기 PR + Docker 실 QA 스크린샷 + Codex-다운 Claude 전면 대체](feedback_early_pr_docker_qa_screenshots.md) — 2026-05-29. PR 을 spec/plan 문서화 단계에서 조기 생성 후 구현 누적. Codex 다운 동안 구현+dual리뷰 모두 Claude 에이전트 대체(회복 시 즉시 알림). 머지 전 Docker 실서버 기동 + 실사용 장면 단계별 스크린샷 PR 인라인 첨부 의무. TM 종합.
 - [인쇄 양식 디자인 반복 정정](feedback_print_design_iteration.md) — 인쇄 양식은 단번 완성 가정 금지, 사용자 이미지 → mock → Edge 캡처 → CSS-only 미세 조정 3~5회 iteration (PR #21 회고)
 - [gradlew 실행 권한](feedback_gradlew_exec_bit.md) — Windows 커밋 시 `git update-index --chmod=+x gradlew` 필수 (Linux CI Permission denied 방지)
 - [멀티 에이전트 팀 디스패치 패턴](feedback_multi_agent_team_pattern.md) — 모든 슬라이스에 Plan + **5-team(BE/FE/Designer/QA/DevOps)** parallel + TM 검토 (PR #19 회고 후 Designer 추가)

@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.notification.dto.AligoAddressBookSyncResponse;
 import com.samhanair.logis.notification.service.AligoAddressBookSyncService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +44,7 @@ public class AligoAddressBookController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @PostMapping("/sync")
-    @RequirePermission(page = "aligo.address-book", action = "EDIT")
+    @RequirePermission(page = "aligo.address-book", action = PermissionAction.UPDATE)
     public ApiResponse<AligoAddressBookSyncResponse> sync() {
         return ApiResponse.ok(syncService.sync());
     }

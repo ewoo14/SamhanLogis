@@ -57,6 +57,8 @@ public class PermissionSecurityAutoConfiguration {
      * {@link RequirePermission} AOP 인터셉터.
      *
      * <p>{@code spring.application.name} property 가 비어 있으면 {@code "unknown"} 으로 정규화한다.
+     * {@code samhan.security.permission.enforcement-mode} 기본값은 {@code account} 이며,
+     * {@code role} 은 아로로지스 독립 auth descope 전용 opt-in 이다.
      *
      * @param clientProvider DynamicPermissionClient lazy provider
      * @param metrics        deny 횟수 카운터
@@ -68,8 +70,13 @@ public class PermissionSecurityAutoConfiguration {
     public PermissionAspect permissionAspect(
             ObjectProvider<DynamicPermissionClient> clientProvider,
             PermissionGuardMetrics metrics,
-            @Value("${spring.application.name:unknown}") String applicationName) {
-        return new PermissionAspect(clientProvider, metrics, applicationName);
+            @Value("${spring.application.name:unknown}") String applicationName,
+            @Value("${samhan.security.permission.enforcement-mode:account}") String enforcementMode) {
+        return new PermissionAspect(
+                clientProvider,
+                metrics,
+                applicationName,
+                "role".equalsIgnoreCase(enforcementMode));
     }
 
     /**

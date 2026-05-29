@@ -25,6 +25,7 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -44,6 +45,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderDeleteIT extends AbstractPostgresIT {
+
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000501";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000502";
+    private static final String PARTNER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000503";
 
     @Autowired
     private MockMvc mockMvc;
@@ -87,6 +92,10 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         orderRepository.deleteAll();
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     @Test
@@ -95,6 +104,8 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-31", false, false);
 
         mockMvc.perform(delete("/api/v1/partner-orders/{id}", "2026-05-17-31")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
                         .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isNoContent());
 
@@ -125,7 +136,9 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     void testDeleteSoftDeletedAlreadyReturns404() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-32", true, false);
 
-        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId()))
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_NOT_FOUND"));
     }
@@ -134,9 +147,14 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     @WithMockUser(roles = {"PARTNER"})
     void testDeletePartnerRoleForbidden() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-33", false, false);
-        when(dynamicPermissionClient.canEdit("PARTNER", "sales.partner-order.edit")).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("sales.partner-order.edit"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.DELETE)))
+                .thenReturn(false);
 
         mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER"))
                 .andExpect(status().isForbidden());
     }
@@ -146,7 +164,9 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
     void testDeleteConfirmedOrderReturns422() throws Exception {
         PartnerOrder order = saveOrder("2026/05/17-34", false, true);
 
-        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId()))
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_DELETE_FORBIDDEN_STATUS"));
     }
@@ -158,7 +178,9 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         order.cancel();
         orderRepository.saveAndFlush(order);
 
-        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId()))
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_DELETE_FORBIDDEN_STATUS"));
 
@@ -178,7 +200,8 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         PartnerOrder order = saveOrder("2026/05/17-35", false, false);
 
         mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
-                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
                         .header("X-User-Name", "관리자"))
                 .andExpect(status().isNoContent());
 

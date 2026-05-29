@@ -8,6 +8,7 @@ import com.samhanair.logis.notification.dto.NotificationAdminResponse;
 import com.samhanair.logis.notification.dto.NotificationSendRequest;
 import com.samhanair.logis.notification.service.NotificationService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -44,7 +45,7 @@ public class NotificationAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "수신자 미존재")
     })
     @PostMapping("/send")
-    @RequirePermission(page = "notifications.admin", action = "EDIT")
+    @RequirePermission(page = "notifications.admin", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<NotificationAdminResponse>> send(@Valid @RequestBody NotificationSendRequest req) {
         NotificationRequest entity = notificationService.send(req);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -54,7 +55,7 @@ public class NotificationAdminController {
     /** 발송 이력 페이지 — channel / status / 기간 필터. */
     @Operation(summary = "발송 이력 조회 (Admin)")
     @GetMapping
-    @RequirePermission(page = "notifications.admin", action = "VIEW")
+    @RequirePermission(page = "notifications.admin", action = PermissionAction.VIEW)
     public ApiResponse<List<NotificationAdminResponse>> list(
             @RequestParam(required = false) NotificationChannel channel,
             @RequestParam(required = false) NotificationStatus status,
@@ -68,7 +69,7 @@ public class NotificationAdminController {
     /** 발송 단건 조회. */
     @Operation(summary = "발송 단건 조회 (Admin)")
     @GetMapping("/{requestId}")
-    @RequirePermission(page = "notifications.admin", action = "VIEW")
+    @RequirePermission(page = "notifications.admin", action = PermissionAction.VIEW)
     public ApiResponse<NotificationAdminResponse> findOne(@PathVariable UUID requestId) {
         return ApiResponse.ok(NotificationAdminResponse.from(notificationService.findById(requestId)));
     }
@@ -81,7 +82,7 @@ public class NotificationAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재시도 불가능 상태")
     })
     @PostMapping("/{requestId}/retry")
-    @RequirePermission(page = "notifications.admin", action = "EDIT")
+    @RequirePermission(page = "notifications.admin", action = PermissionAction.UPDATE)
     public ApiResponse<NotificationAdminResponse> retry(@PathVariable UUID requestId) {
         return ApiResponse.ok(NotificationAdminResponse.from(notificationService.retry(requestId)));
     }

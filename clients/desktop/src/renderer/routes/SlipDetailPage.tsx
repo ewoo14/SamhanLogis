@@ -83,6 +83,7 @@ import {
   type SlipEditRequest,
   type SlipEditRequestType,
 } from '../api/slipEditRequest'
+import { SlipVersionHistoryPanel } from '../components/audit/SlipVersionHistoryPanel'
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
 import { useSessionStore, canTransitionSlip } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -313,6 +314,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       // PR-H2: slip:edit event → audit-logs 재조회 (수정 횟수 + overlay 갱신)
       if (evt.event === 'slip:edit' || evt.event === 'message') {
         void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+      }
+      // Phase 2.1 Task 6: slip:restored / slip:edit / slip:reverted → 버전이력 재조회.
+      // (전표 본체 ['slip', id] 는 위에서 이미 무효화 — 여기서는 버전이력만 추가)
+      if (
+        evt.event === 'slip:restored'
+        || evt.event === 'slip:reverted'
+        || evt.event === 'slip:edit'
+        || evt.event === 'message'
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['slipRevisions', id] })
       }
       // PR-H3: 수정/삭제 요청 결정 SSE — 작성자에게 toast + latestEditRequest 갱신.
       if (evt.event === 'slip:edit-request:decided') {
@@ -1320,6 +1331,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           ) : null}
         </div>
       </Card>
+
+      {/*
+        Phase 2.1 Task 6: 전표 버전이력 패널 + 복원 — AuditOverlay 인접 배치.
+        UUID 비공개 가드: slipId 는 path/key 전용, 화면 노출 X.
+      */}
+      <SlipVersionHistoryPanel slipId={id} />
 
       {/*
         V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일

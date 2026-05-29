@@ -10,8 +10,10 @@ import com.samhanair.logis.partner.tab.dto.PartnerFullRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerPriceDiscountRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressRequest;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,11 +73,18 @@ class P06ValidationIT extends AbstractPostgresIT {
     /** 각 테스트에서 고유한 partnerCode 사용 (DB 충돌 회피). */
     private static final String PC_IT = "IT-P06-001";
     private static final String BIZ_IT = "888-88-11001";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000111";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000112";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000113";
 
     @BeforeEach
     void cleanupItData() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
 
         // @Transactional + @Rollback 으로 각 테스트 후 자동 롤백 — beforeEach 별도 삭제 불필요.
         // 싱글턴 컨테이너 공유이므로 다른 IT 에서 삽입한 seed 데이터와 충돌하지 않도록
@@ -92,7 +101,7 @@ class P06ValidationIT extends AbstractPostgresIT {
         PartnerFullRequest req = buildFullRequest(PC_IT, BIZ_IT, "(주)IT검증거래처");
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -126,7 +135,7 @@ class P06ValidationIT extends AbstractPostgresIT {
     void registerFull_duplicate_partnerCode_returns_409() throws Exception {
         PartnerFullRequest first = buildFullRequest(PC_IT, BIZ_IT, "(주)첫번째");
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
@@ -134,7 +143,7 @@ class P06ValidationIT extends AbstractPostgresIT {
 
         PartnerFullRequest dup = buildFullRequest(PC_IT, "999-88-99001", "(주)중복코드");
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dup)))
@@ -152,7 +161,7 @@ class P06ValidationIT extends AbstractPostgresIT {
         // 선 등록
         PartnerFullRequest req = buildFullRequest(PC_IT, BIZ_IT, "(주)IT검증거래처");
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -160,7 +169,7 @@ class P06ValidationIT extends AbstractPostgresIT {
 
         // 4탭 조회
         mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + PC_IT + "/full")
-                        .header("X-User-Id", "it-user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 // 기본정보
@@ -193,7 +202,7 @@ class P06ValidationIT extends AbstractPostgresIT {
         // 선 등록
         PartnerFullRequest createReq = buildFullRequest(PC_IT, BIZ_IT, "(주)IT검증거래처");
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
@@ -217,7 +226,7 @@ class P06ValidationIT extends AbstractPostgresIT {
         );
 
         mockMvc.perform(MockMvcRequestBuilders.patch(BASE_URL + "/" + PC_IT + "/full")
-                        .header("X-User-Id", "it-user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(patchReq)))
@@ -234,7 +243,7 @@ class P06ValidationIT extends AbstractPostgresIT {
 
         // GET 으로 재확인
         mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + PC_IT + "/full")
-                        .header("X-User-Id", "it-user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.basic.name").value("(주)IT수정거래처"))
@@ -253,7 +262,7 @@ class P06ValidationIT extends AbstractPostgresIT {
     void registerFull_with_sales_role_returns_201_and_partner_code() throws Exception {
         PartnerFullRequest req = buildFullRequest("IT-P06-SALES", "777-88-11001", "(주)IT세일즈");
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/full")
-                        .header("X-User-Id", "it-user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -270,7 +279,7 @@ class P06ValidationIT extends AbstractPostgresIT {
     @DisplayName("GET /api/v1/partners/{partnerCode}/full — 미존재 코드 404")
     void getFull_nonexistent_returns_404() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/NOT-EXIST/full")
-                        .header("X-User-Id", "it-user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
     }

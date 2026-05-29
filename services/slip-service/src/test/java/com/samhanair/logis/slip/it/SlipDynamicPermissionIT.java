@@ -47,6 +47,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class SlipDynamicPermissionIT extends AbstractPostgresIT {
 
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000333";
+    private static final String WAREHOUSE_ACCOUNT_ID = "10000000-0000-0000-0000-000000000334";
+    private static final String DISPATCH_ACCOUNT_ID = "10000000-0000-0000-0000-000000000335";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -93,6 +97,12 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(java.util.UUID.class),
+                        anyString(),
+                        org.mockito.ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -109,6 +119,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
     }
@@ -130,6 +141,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -148,6 +160,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                         .param("slipType", "INBOUND")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", WAREHOUSE_ACCOUNT_ID)
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk());
     }
@@ -169,6 +182,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                         .param("slipType", "INBOUND")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", WAREHOUSE_ACCOUNT_ID)
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isForbidden());
     }
@@ -194,6 +208,7 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
                         .param("size", "10")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -211,7 +226,9 @@ class SlipDynamicPermissionIT extends AbstractPostgresIT {
         mockMvc.perform(get("/slips")
                         .param("slipType", "OUTBOUND")
                         .param("page", "0")
-                        .param("size", "10"))
+                        .param("size", "10")
+                        .header("X-User-Id", DISPATCH_ACCOUNT_ID)
+                        .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isForbidden());
     }
 }

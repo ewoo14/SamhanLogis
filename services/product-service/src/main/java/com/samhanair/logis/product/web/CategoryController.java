@@ -6,6 +6,7 @@ import com.samhanair.logis.product.web.dto.CategoryResponse;
 import com.samhanair.logis.product.web.dto.CreateCategoryRequest;
 import com.samhanair.logis.product.web.dto.UpdateCategoryRequest;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -39,13 +40,13 @@ public class CategoryController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.CREATE)
     public ApiResponse<CategoryResponse> create(@Valid @RequestBody CreateCategoryRequest request) {
         return ApiResponse.ok(categoryService.create(request));
     }
 
     @PatchMapping("/{id}")
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ApiResponse<CategoryResponse> update(@PathVariable UUID id,
                                                 @Valid @RequestBody UpdateCategoryRequest request) {
         return ApiResponse.ok(categoryService.update(id, request));
@@ -53,7 +54,7 @@ public class CategoryController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "products.admin", action = "EDIT")
+    @RequirePermission(page = "products.admin", action = PermissionAction.DELETE)
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         categoryService.delete(id, callerHeader);

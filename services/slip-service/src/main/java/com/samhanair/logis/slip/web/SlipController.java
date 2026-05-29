@@ -182,7 +182,7 @@ public class SlipController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.slip.create", action = "EDIT")
+    @RequirePermission(page = "sales.slip.create", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipDetailResponse> create(
             @Valid @RequestBody CreateSlipRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -199,7 +199,7 @@ public class SlipController {
      */
     @Operation(summary = "헤더 수정", description = "DRAFT/SAVED 단계만. null 필드는 보존")
     @PatchMapping("/{id}/header")
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> editHeader(
             @PathVariable UUID id,
             @Valid @RequestBody EditHeaderRequest request,
@@ -231,7 +231,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
     })
     @PatchMapping("/{id}/v20")
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> updateV20(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSlipRequest request,
@@ -250,7 +250,7 @@ public class SlipController {
     @Operation(summary = "라인 추가", description = "DRAFT/SAVED 단계만")
     @PostMapping("/{id}/lines")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipDetailResponse> addLine(
             @PathVariable UUID id,
             @Valid @RequestBody AddLineRequest request,
@@ -269,7 +269,7 @@ public class SlipController {
     @Operation(summary = "라인 제거", description = "DRAFT/SAVED 단계만, orphan removal")
     @DeleteMapping("/{id}/lines/{lineId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public void removeLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
@@ -287,7 +287,7 @@ public class SlipController {
      */
     @Operation(summary = "저장", description = "DRAFT → SAVED")
     @PostMapping("/{id}/save")
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> save(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -304,7 +304,7 @@ public class SlipController {
      */
     @Operation(summary = "전송", description = "SAVED → SENT")
     @PostMapping("/{id}/send")
-    @RequirePermission(page = "sales.slip.edit", action = "EDIT")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
@@ -320,7 +320,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치 또는 재고 부족")
     })
     @PostMapping("/{id}/accept")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -330,7 +330,7 @@ public class SlipController {
     /** ACCEPTED → PROCESSING. */
     @Operation(summary = "처리 시작", description = "ACCEPTED → PROCESSING")
     @PostMapping("/{id}/process")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> process(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.process(id));
     }
@@ -348,7 +348,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치")
     })
     @PostMapping("/{id}/inspect")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> inspect(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -365,7 +365,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치 또는 재고 부족")
     })
     @PostMapping("/{id}/complete")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> complete(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.complete(id));
     }
@@ -373,7 +373,7 @@ public class SlipController {
     /** COMPLETED → SHIPPING (출고전표 한정). */
     @Operation(summary = "배송 시작", description = "COMPLETED → SHIPPING (OUTBOUND only)")
     @PostMapping("/{id}/ship")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> ship(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.ship(id));
     }
@@ -381,7 +381,7 @@ public class SlipController {
     /** SHIPPING → DELIVERED (출고전표 한정). */
     @Operation(summary = "배송 완료", description = "SHIPPING → DELIVERED (OUTBOUND only)")
     @PostMapping("/{id}/deliver")
-    @RequirePermission(page = "slip.transfer.process", action = "EDIT")
+    @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> deliver(@PathVariable UUID id) {
         return ApiResponse.ok(slipService.deliver(id));
     }
@@ -389,7 +389,7 @@ public class SlipController {
     /** 확정 — DELIVERED→CONFIRMED (출고) / COMPLETED→CONFIRMED (입고). */
     @Operation(summary = "확정", description = "출고 DELIVERED→CONFIRMED / 입고 COMPLETED→CONFIRMED")
     @PostMapping("/{id}/confirm")
-    @RequirePermission(page = "sales.slip.confirm", action = "EDIT")
+    @RequirePermission(page = "sales.slip.confirm", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -404,7 +404,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "사유 누락")
     })
     @PostMapping("/{id}/reject")
-    @RequirePermission(page = "slip.reject", action = "EDIT")
+    @RequirePermission(page = "slip.reject", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> reject(
             @PathVariable UUID id,
             @Valid @RequestBody RejectRequest request,
@@ -419,7 +419,7 @@ public class SlipController {
      */
     @Operation(summary = "취소", description = "DRAFT/SAVED/SENT → CANCELED")
     @PostMapping("/{id}/cancel")
-    @RequirePermission(page = "sales.slip.cancel", action = "EDIT")
+    @RequirePermission(page = "sales.slip.cancel", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> cancel(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -444,7 +444,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "기간 누락")
     })
     @PostMapping("/lock-by-period")
-    @RequirePermission(page = "slip.period-lock", action = "EDIT")
+    @RequirePermission(page = "slip.period-lock", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<LockByPeriodResponse> lockByPeriod(
             @jakarta.validation.Valid @RequestBody LockByPeriodRequest request) {
         int locked = slipService.lockByPeriod(request.startDate(), request.endDate(),
@@ -477,7 +477,7 @@ public class SlipController {
     @Operation(summary = "다음날자 전표 이미지 데이터 (BE-A5)",
             description = "GAS B 이식 — 자체 출고전표 자동 조회 + 단톡방/발송금지/지역 5 way join")
     @GetMapping("/next-day-image-data")
-    @RequirePermission(page = "slip.print.next-day", action = "VIEW")
+    @RequirePermission(page = "slip.print.next-day", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
     public ApiResponse<NextDaySlipImageResponse> nextDayImageData(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate date) {
@@ -508,7 +508,7 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 to < from")
     })
     @GetMapping("/cleanup")
-    @RequirePermission(page = "slip.cleanup", action = "VIEW")
+    @RequirePermission(page = "slip.cleanup", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<SlipCleanupResponse> cleanup(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
@@ -538,7 +538,7 @@ public class SlipController {
                     description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @RequirePermission(page = "slip.print.export", action = "EDIT")
+    @RequirePermission(page = "slip.print.export", action = com.samhanair.logis.security.permission.PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) SlipType slipType,
             @RequestParam(required = false) SlipStatus status,

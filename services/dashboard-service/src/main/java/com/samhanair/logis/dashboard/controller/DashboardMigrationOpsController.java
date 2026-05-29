@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.dashboard.dto.EcountMigOpsDashboardResponse;
 import com.samhanair.logis.dashboard.service.EcountMigOpsDashboardService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +21,7 @@ public class DashboardMigrationOpsController {
 
     @Operation(summary = "이카운트 마이그레이션 운영 대시보드")
     @GetMapping("/ecount-mig")
-    @RequirePermission(page = "ecount.mig.ops-dashboard", action = "VIEW")
+    @RequirePermission(page = "ecount.mig.ops-dashboard", action = PermissionAction.VIEW)
     public ApiResponse<EcountMigOpsDashboardResponse> ecountMigOps() {
         return ApiResponse.ok(service.load());
     }

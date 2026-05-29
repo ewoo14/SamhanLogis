@@ -15,6 +15,7 @@ import com.samhanair.logis.user.web.dto.AdminUserUpdateRequest;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import com.samhanair.logis.user.web.dto.RoleHistoryResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -91,7 +92,7 @@ public class AdminUserController {
      */
     @GetMapping
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.employees", action = "VIEW")
+    @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<AdminUserListResponse> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -112,7 +113,7 @@ public class AdminUserController {
      */
     @GetMapping("/roles")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.employees", action = "VIEW")
+    @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<List<Role>> listRoles() {
         return ApiResponse.ok(List.of(Role.values()));
     }
@@ -133,7 +134,7 @@ public class AdminUserController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.users", action = "EDIT")
+    @RequirePermission(page = "admin.users", action = PermissionAction.CREATE)
     public ApiResponse<AdminUserCreateResponse> create(
             @Valid @RequestBody AdminUserCreateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -156,7 +157,7 @@ public class AdminUserController {
      */
     @PatchMapping("/{id}")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.users", action = "EDIT")
+    @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody AdminUserUpdateRequest request,
@@ -176,7 +177,7 @@ public class AdminUserController {
      */
     @PatchMapping("/{id}/role")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.users", action = "EDIT")
+    @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody AdminUserRoleChangeRequest request,
@@ -201,7 +202,7 @@ public class AdminUserController {
     @PostMapping("/{id}/disable")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.users", action = "EDIT")
+    @RequirePermission(page = "admin.users", action = PermissionAction.DELETE)
     public void disable(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -220,7 +221,7 @@ public class AdminUserController {
     @PostMapping("/{id}/unlock")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.users", action = "EDIT")
+    @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public void unlock(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -238,7 +239,7 @@ public class AdminUserController {
      */
     @GetMapping("/{id}/role-history")
     @PreAuthorize("@hr.isExecutiveOffice()")
-    @RequirePermission(page = "admin.employees", action = "VIEW")
+    @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<List<RoleHistoryResponse>> roleHistory(@PathVariable UUID id) {
         List<RoleChangeHistory> rows =
                 roleHistoryRepository.findAllByEmployeeIdOrderByCreatedAtDesc(id);

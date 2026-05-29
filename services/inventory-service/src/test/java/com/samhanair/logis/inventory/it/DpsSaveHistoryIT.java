@@ -15,7 +15,9 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.repository.DpsSaveHistoryRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.UUID;
+import org.mockito.Mockito;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,8 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
 class DpsSaveHistoryIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/warehouse/audit/dps-history";
-    private static final String USER_A = "warehouse-user-a";
-    private static final String USER_B = "warehouse-user-b";
+    private static final String USER_A = "10000000-0000-0000-0000-000000000211";
+    private static final String USER_B = "10000000-0000-0000-0000-000000000212";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -154,6 +156,10 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
                 .andReturn();
         UUID id = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
                 .path("data").path("id").asText());
+
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("inventory.dps"), Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get(BASE_URL + "/" + id)
                         .header("X-User-Id", USER_B)

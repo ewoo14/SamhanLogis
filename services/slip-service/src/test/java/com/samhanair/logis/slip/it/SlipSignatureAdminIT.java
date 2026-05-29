@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,6 +21,7 @@ import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.domain.SignatureAuditAction;
 import com.samhanair.logis.slip.repository.SlipSignatureAuditRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.time.LocalDate;
@@ -58,6 +61,11 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @Transactional
 class SlipSignatureAdminIT extends AbstractPostgresIT {
+
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000327";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000328";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000329";
+    private static final String WAREHOUSE_ACCOUNT_ID = "10000000-0000-0000-0000-000000000330";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -100,7 +108,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.signed").value(true))
@@ -117,7 +125,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "master-1")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk());
     }
@@ -125,11 +133,12 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
     @Test
     void getSignature_salesRole_returns403() throws Exception {
         Context ctx = createSignedSlip();
-        Mockito.when(dynamicPermissionClient.canView("SALES", "slip.signature"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("slip.signature"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "sales-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
     }
@@ -137,11 +146,12 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
     @Test
     void getSignature_warehouseRole_returns403() throws Exception {
         Context ctx = createSignedSlip();
-        Mockito.when(dynamicPermissionClient.canView("WAREHOUSE", "slip.signature"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("slip.signature"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "wh-1")
+                        .header("X-User-Id", WAREHOUSE_ACCOUNT_ID)
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isForbidden());
     }
@@ -151,7 +161,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createInspectingSlip();   // 서명 없음
 
         mockMvc.perform(get("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.signed").value(false))
@@ -169,7 +179,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         body.put("reason", "관리자 무효화 테스트");
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "master-1")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -183,7 +193,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         assertThat(audits).isNotEmpty();
         assertThat(audits.get(0).getAction()).isEqualTo(SignatureAuditAction.INVALIDATE);
         assertThat(audits.get(0).getReason()).isEqualTo("관리자 무효화 테스트");
-        assertThat(audits.get(0).getActorUserId()).isEqualTo("master-1");
+        assertThat(audits.get(0).getActorUserId()).isEqualTo(MASTER_ACCOUNT_ID);
     }
 
     @Test
@@ -191,11 +201,12 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
         ObjectNode body = objectMapper.createObjectNode();
         body.put("reason", "사유");
-        Mockito.when(dynamicPermissionClient.canEdit("MANAGER", "slip.signature"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("slip.signature"), eq(PermissionAction.DELETE)))
                 .thenReturn(false);
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -207,11 +218,12 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         Context ctx = createSignedSlip();
         ObjectNode body = objectMapper.createObjectNode();
         body.put("reason", "사유");
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.signature"))
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("slip.signature"), eq(PermissionAction.DELETE)))
                 .thenReturn(false);
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "s-1")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -225,7 +237,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         body.put("reason", "사유");
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "master-1")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -239,7 +251,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
         body.put("reason", "");
 
         mockMvc.perform(delete("/slips/" + ctx.slipId + "/signature")
-                        .header("X-User-Id", "master-1")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -302,7 +314,7 @@ class SlipSignatureAdminIT extends AbstractPostgresIT {
 
         // slipNo 조회
         MvcResult slipRes = mockMvc.perform(get("/slips/" + ctx.slipId)
-                        .header("X-User-Id", "u")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isOk())
                 .andReturn();

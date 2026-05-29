@@ -17,6 +17,7 @@ import com.samhanair.logis.dashboard.repository.KpiSnapshotRepository;
 import com.samhanair.logis.dashboard.repository.RealTimeStockRepository;
 import com.samhanair.logis.dashboard.repository.SalesAggregateRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
@@ -57,6 +58,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class DashboardAdminControllerIT extends AbstractPostgresIT {
 
     private static final String SERVICE_NAME = "dashboard-service";
+    private static final String ACCOUNT_ID = "00000000-0000-0000-0000-000000000501";
 
     @Autowired
     private MockMvc mockMvc;
@@ -86,6 +88,8 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void cleanup() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(inventoryClient.findStock(any(), any())).thenReturn(Optional.empty());
         lenient().when(accountingClient.sumSalesByPartner(any(), any(), any())).thenReturn(BigDecimal.ZERO);
         lenient().when(accountingClient.fetchPrometheusMetrics()).thenReturn("");
@@ -99,7 +103,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void kpi_list_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString()))
@@ -110,7 +114,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void realtime_stock_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/realtime-stock")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
@@ -120,7 +124,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void sales_aggregate_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -139,7 +143,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
                 .thenReturn(Optional.of(new PartnerSummary(resolvedId, "PA-0001", "테스트거래처")));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -156,7 +160,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     void sales_aggregate_with_unknown_partner_code_returns_400() throws Exception {
         // mock default = Optional.empty (BeforeEach 에서 설정)
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().minusDays(7).toString())
                         .param("to", LocalDate.now().toString())
@@ -168,7 +172,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void refresh_returns_200() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/dashboard/refresh")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
@@ -177,7 +181,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void ecount_mig_ops_dashboard_returns_200_on_v1_gateway_target_path() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
@@ -187,7 +191,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @Test
     void ecount_mig_ops_dashboard_allows_accountant_view() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/dashboard/ecount-mig")
-                        .header("X-User-Id", "test-accountant")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
@@ -205,24 +209,20 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
     @ParameterizedTest(name = "{0}")
     @MethodSource("permissionGuardedEndpoints")
     void permissionGuardedEndpoints_withoutMatrixGrant_return403AndIncrementCounter(
-            String name, String role, String pageCode, String action, MockHttpServletRequestBuilder request) throws Exception {
-        if ("VIEW".equals(action)) {
-            when(dynamicPermissionClient.canView(role, pageCode)).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(role, pageCode)).thenReturn(false);
-        }
-        double before = deniedCount(pageCode, role, action);
+            String name, String role, String pageCode, PermissionAction action, MockHttpServletRequestBuilder request) throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(pageCode), eq(action))).thenReturn(false);
+        double before = deniedCount(pageCode, role, action.name());
 
         mockMvc.perform(withActor(request, role))
                 .andExpect(MockMvcResultMatchers.status().isForbidden());
 
-        assertThat(deniedCount(pageCode, role, action)).isEqualTo(before + 1.0);
+        assertThat(deniedCount(pageCode, role, action.name())).isEqualTo(before + 1.0);
     }
 
     @Test
     void kpi_with_from_after_to_returns_400() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/dashboard/kpi")
-                        .header("X-User-Id", "test-admin")
+                        .header("X-User-Id", ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("from", LocalDate.now().toString())
                         .param("to", LocalDate.now().minusDays(7).toString()))
@@ -233,20 +233,20 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
         LocalDate today = LocalDate.now();
         LocalDate from = today.minusDays(7);
         return Stream.of(
-                Arguments.of("dashboard kpi", "MANAGER", "dashboard.admin", "VIEW",
+                Arguments.of("dashboard kpi", "MANAGER", "dashboard.admin", PermissionAction.VIEW,
                         MockMvcRequestBuilders.get("/admin/dashboard/kpi")
                                 .param("from", from.toString())
                                 .param("to", today.toString())),
-                Arguments.of("dashboard realtime stock", "MANAGER", "dashboard.admin", "VIEW",
+                Arguments.of("dashboard realtime stock", "MANAGER", "dashboard.admin", PermissionAction.VIEW,
                         MockMvcRequestBuilders.get("/admin/dashboard/realtime-stock")),
-                Arguments.of("dashboard sales aggregate", "MANAGER", "dashboard.admin", "VIEW",
+                Arguments.of("dashboard sales aggregate", "MANAGER", "dashboard.admin", PermissionAction.VIEW,
                         MockMvcRequestBuilders.get("/admin/dashboard/sales-aggregate")
                                 .param("from", from.toString())
                                 .param("to", today.toString())
                                 .param("interval", "DAILY")),
-                Arguments.of("dashboard refresh", "MANAGER", "dashboard.admin", "EDIT",
+                Arguments.of("dashboard refresh", "MANAGER", "dashboard.admin", PermissionAction.UPDATE,
                         MockMvcRequestBuilders.post("/admin/dashboard/refresh")),
-                Arguments.of("dashboard ecount mig ops", "ACCOUNTANT", "ecount.mig.ops-dashboard", "VIEW",
+                Arguments.of("dashboard ecount mig ops", "ACCOUNTANT", "ecount.mig.ops-dashboard", PermissionAction.VIEW,
                         MockMvcRequestBuilders.get("/dashboard/ecount-mig"))
         );
     }
@@ -255,7 +255,7 @@ class DashboardAdminControllerIT extends AbstractPostgresIT {
             MockHttpServletRequestBuilder request,
             String role) {
         return request
-                .header("X-User-Id", "test-" + role.toLowerCase())
+                .header("X-User-Id", ACCOUNT_ID)
                 .header("X-User-Role", role);
     }
 

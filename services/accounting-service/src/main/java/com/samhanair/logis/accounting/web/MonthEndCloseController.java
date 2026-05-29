@@ -69,7 +69,7 @@ public class MonthEndCloseController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<AccountingPeriodResponse> close(
             @Valid @RequestBody CreateClosingRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -81,7 +81,7 @@ public class MonthEndCloseController {
     /** 목록 조회 — period_type / year 필터. */
     @Operation(summary = "마감 목록 조회", description = "period_type / year 필터. MANAGER 는 조회 전용")
     @GetMapping
-    @RequirePermission(page = PAGE_CODE, action = "VIEW")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<AccountingPeriodResponse>> list(
             @RequestParam(required = false) PeriodType periodType,
             @RequestParam(required = false) Integer year) {
@@ -97,7 +97,7 @@ public class MonthEndCloseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CLOSED 가 아닐 때")
     })
     @PostMapping("/{id}/reverse")
-    @RequirePermission(page = "accounting.period-close.reverse", action = "EDIT")
+    @RequirePermission(page = "accounting.period-close.reverse", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AccountingPeriodResponse> reverse(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

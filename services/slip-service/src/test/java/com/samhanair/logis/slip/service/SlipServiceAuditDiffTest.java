@@ -47,6 +47,8 @@ class SlipServiceAuditDiffTest {
     @Mock private ProductClient productClient;
     @Mock private InventoryClient inventoryClient;
     @Mock private SlipAuditLogService auditLogService;
+    /** 권한 재편 Phase 2.1 Task 2 — overlay patch 성공 시 capture 호출. mock 격리. */
+    @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
 
     @InjectMocks private SlipService service;
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -41,6 +42,7 @@ import com.samhanair.logis.partner.tab.web.Partner4TabController;
 import com.samhanair.logis.partner.web.PartnerAttachmentController;
 import com.samhanair.logis.security.HrAuthorizationHelper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -128,6 +130,8 @@ class PartnerPermissionControllerIT {
     void setUp() throws Exception {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
 
         Partner partner = Partner.register("P-001", "123-45-67890", "테스트거래처",
                 "서울", "010-0000-0000", BigDecimal.ZERO);
@@ -176,134 +180,131 @@ class PartnerPermissionControllerIT {
     @ParameterizedTest(name = "{0} deny")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        if ("VIEW".equals(endpoint.action())) {
-            when(dynamicPermissionClient.canView(endpoint.role(), endpoint.page())).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit(endpoint.role(), endpoint.page())).thenReturn(false);
-        }
-        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
     @Test
     void partnerAdminCreate_nonExecutiveManagerWithDynamicGrant_returns403ByHrStaticGuard() throws Exception {
-        double before = deniedCount("partners.edit", "MANAGER", "EDIT");
+        double before = deniedCount("partners.edit", "MANAGER", PermissionAction.CREATE.name());
 
         mockMvc.perform(withActor(post("/admin/partners")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(partnerBody()), "MANAGER", "영업1팀"))
                 .andExpect(status().isForbidden());
 
-        assertThat(deniedCount("partners.edit", "MANAGER", "EDIT")).isEqualTo(before);
+        assertThat(deniedCount("partners.edit", "MANAGER", PermissionAction.CREATE.name())).isEqualTo(before);
     }
 
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
-                endpoint("partner create", "partners.edit", "EDIT", "MANAGER",
+                endpoint("partner create", "partners.edit", PermissionAction.CREATE, "MANAGER",
                         () -> post("/admin/partners").contentType(MediaType.APPLICATION_JSON).content(partnerBody())),
-                endpoint("partner list", "partners.search", "VIEW", "SALES",
+                endpoint("partner list", "partners.search", PermissionAction.VIEW, "SALES",
                         () -> get("/admin/partners")),
-                endpoint("partner search", "partners.search", "VIEW", "SALES",
+                endpoint("partner search", "partners.search", PermissionAction.VIEW, "SALES",
                         () -> get("/admin/partners/search")),
-                endpoint("partner by name", "partners.edit", "VIEW", "MANAGER",
+                endpoint("partner by name", "partners.edit", PermissionAction.VIEW, "MANAGER",
                         () -> get("/admin/partners/by-name").param("name", "테스트거래처")),
-                endpoint("partner detail", "partners.detail", "VIEW", "ACCOUNTANT",
+                endpoint("partner detail", "partners.detail", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/partners/P-001")),
-                endpoint("partner update", "partners.edit", "EDIT", "MANAGER",
+                endpoint("partner update", "partners.edit", PermissionAction.UPDATE, "MANAGER",
                         () -> put("/admin/partners/P-001").contentType(MediaType.APPLICATION_JSON).content(partnerBody())),
-                endpoint("partner delete", "partners.delete", "EDIT", "MASTER",
+                endpoint("partner delete", "partners.delete", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/admin/partners/P-001")),
-                endpoint("partner aligo export", "partners.edit", "VIEW", "MANAGER",
+                endpoint("partner aligo export", "partners.edit", PermissionAction.DOWNLOAD, "MANAGER",
                         () -> get("/admin/partners/export/aligo-csv")),
-                endpoint("partner xlsx export", "partners.edit", "VIEW", "MANAGER",
+                endpoint("partner xlsx export", "partners.edit", PermissionAction.DOWNLOAD, "MANAGER",
                         () -> get("/admin/partners/export.xlsx")),
-                endpoint("partner credit history", "partners.credit-history", "VIEW", "ACCOUNTANT",
+                endpoint("partner credit history", "partners.credit-history", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/partners/P-001/credit-history")),
-                endpoint("block list", "partners.block", "VIEW", "MANAGER",
+                endpoint("block list", "partners.block", PermissionAction.VIEW, "MANAGER",
                         () -> get("/api/v1/partners/admin/blocks")),
-                endpoint("block create", "partners.block", "EDIT", "MANAGER",
+                endpoint("block create", "partners.block", PermissionAction.CREATE, "MANAGER",
                         () -> post("/api/v1/partners/admin/blocks")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"partnerCode\":\"P-001\",\"blockReason\":\"reason\"}")),
-                endpoint("block import", "partners.block.bulk", "EDIT", "MASTER",
+                endpoint("block import", "partners.block.bulk", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/api/v1/partners/admin/blocks/import").file(csv("file"))),
-                endpoint("block delete", "partners.block.bulk", "EDIT", "MASTER",
+                endpoint("block delete", "partners.block.bulk", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/api/v1/partners/admin/blocks/{id}", ENTITY_ID)),
-                endpoint("attachment upload", "partners.detail", "EDIT", "SALES",
+                endpoint("attachment upload", "partners.detail", PermissionAction.CREATE, "SALES",
                         () -> multipart("/api/v1/partners/{partnerId}/attachments", ENTITY_ID)
                                 .file(image("file"))
                                 .param("type", "BIZ_LICENSE")),
-                endpoint("attachment list", "partners.detail.view", "VIEW", "STAFF",
+                endpoint("attachment list", "partners.detail.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/api/v1/partners/{partnerId}/attachments", ENTITY_ID)),
-                endpoint("attachment detail", "partners.detail.view", "VIEW", "STAFF",
+                endpoint("attachment detail", "partners.detail.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/api/v1/partners/attachments/{attachmentId}", ATTACHMENT_ID)),
-                endpoint("attachment delete", "partners.detail", "EDIT", "SALES",
+                endpoint("attachment delete", "partners.detail", PermissionAction.DELETE, "SALES",
                         () -> delete("/api/v1/partners/attachments/{attachmentId}", ATTACHMENT_ID)),
-                endpoint("visit photo upload", "partners.detail", "EDIT", "SALES",
+                endpoint("visit photo upload", "partners.detail", PermissionAction.CREATE, "SALES",
                         () -> multipart("/admin/partners/P-001/visit-attachments").file(image("file"))),
-                endpoint("visit photo list", "partners.detail.view", "VIEW", "STAFF",
+                endpoint("visit photo list", "partners.detail.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/admin/partners/P-001/visit-attachments")),
-                endpoint("visit photo detail", "partners.detail.view", "VIEW", "STAFF",
+                endpoint("visit photo detail", "partners.detail.view", PermissionAction.VIEW, "STAFF",
                         () -> get("/admin/partners/P-001/visit-attachments/{attachmentId}", ATTACHMENT_ID)),
-                endpoint("visit photo delete", "partners.edit", "EDIT", "MANAGER",
+                endpoint("visit photo delete", "partners.edit", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/admin/partners/P-001/visit-attachments/{attachmentId}", ATTACHMENT_ID)),
-                endpoint("ecount import", "partners.edit", "EDIT", "MANAGER",
+                endpoint("ecount import", "partners.edit", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/partners/imports/ecount").file(csv("file"))),
-                endpoint("edit request create", "partners.edit-requests", "EDIT", "ACCOUNTANT",
+                endpoint("edit request create", "partners.edit-requests", PermissionAction.CREATE, "ACCOUNTANT",
                         () -> post("/admin/partners/entities/{entityId}/edit-request", ENTITY_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"type\":\"EDIT\",\"reason\":\"reason\"}")),
-                endpoint("edit request approve", "partners.edit-requests.decide", "EDIT", "MANAGER",
+                endpoint("edit request approve", "partners.edit-requests.decide", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/admin/partners/edit-requests/{requestId}/approve", REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"note\":\"ok\"}")),
-                endpoint("edit request reject", "partners.edit-requests.decide", "EDIT", "MANAGER",
+                endpoint("edit request reject", "partners.edit-requests.decide", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/admin/partners/edit-requests/{requestId}/reject", REQUEST_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"no\"}")),
-                endpoint("edit request pending", "partners.edit-requests.decide", "VIEW", "MANAGER",
+                endpoint("edit request pending", "partners.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
                         () -> get("/admin/partners/edit-requests")),
-                endpoint("edit request by entity", "partners.edit-requests", "VIEW", "ACCOUNTANT",
+                endpoint("edit request by entity", "partners.edit-requests", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/partners/entities/{entityId}/edit-requests", ENTITY_ID)),
-                endpoint("partner realtime", "partners.edit-requests", "VIEW", "ACCOUNTANT",
+                endpoint("partner realtime", "partners.edit-requests", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/partners/{entityId}/realtime", ENTITY_ID)),
-                endpoint("4tab full get", "partners.4tab", "VIEW", "SALES",
+                endpoint("4tab full get", "partners.4tab", PermissionAction.VIEW, "SALES",
                         () -> get("/api/v1/partners/P-001/full")),
-                endpoint("4tab full create", "partners.4tab", "EDIT", "SALES",
+                endpoint("4tab full create", "partners.4tab", PermissionAction.CREATE, "SALES",
                         () -> post("/api/v1/partners/full").contentType(MediaType.APPLICATION_JSON).content(tabBody())),
-                endpoint("4tab full update", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab full update", "partners.4tab.edit", PermissionAction.UPDATE, "MANAGER",
                         () -> patch("/api/v1/partners/P-001/full").contentType(MediaType.APPLICATION_JSON).content(tabBody())),
-                endpoint("4tab price get", "partners.4tab", "VIEW", "SALES",
+                endpoint("4tab price get", "partners.4tab", PermissionAction.VIEW, "SALES",
                         () -> get("/api/v1/partners/P-001/price-discount")),
-                endpoint("4tab price upsert", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab price upsert", "partners.4tab.edit", PermissionAction.UPDATE, "MANAGER",
                         () -> put("/api/v1/partners/P-001/price-discount")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"basicDiscountRate\":0,\"paymentTermDays\":30}")),
-                endpoint("4tab shipping get", "partners.4tab", "VIEW", "SALES",
+                endpoint("4tab shipping get", "partners.4tab", PermissionAction.VIEW, "SALES",
                         () -> get("/api/v1/partners/P-001/shipping-addresses")),
-                endpoint("4tab shipping add", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab shipping add", "partners.4tab.edit", PermissionAction.CREATE, "MANAGER",
                         () -> post("/api/v1/partners/P-001/shipping-addresses")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"alias\":\"본사\",\"address\":\"서울\"}")),
-                endpoint("4tab shipping delete", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab shipping delete", "partners.4tab.edit", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/api/v1/partners/P-001/shipping-addresses/{addrId}", ENTITY_ID)),
-                endpoint("4tab contact get", "partners.4tab", "VIEW", "SALES",
+                endpoint("4tab contact get", "partners.4tab", PermissionAction.VIEW, "SALES",
                         () -> get("/api/v1/partners/P-001/contacts")),
-                endpoint("4tab contact add", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab contact add", "partners.4tab.edit", PermissionAction.CREATE, "MANAGER",
                         () -> post("/api/v1/partners/P-001/contacts")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"contactName\":\"담당자\",\"phone\":\"010\"}")),
-                endpoint("4tab contact delete", "partners.4tab.edit", "EDIT", "MANAGER",
+                endpoint("4tab contact delete", "partners.4tab.edit", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/api/v1/partners/P-001/contacts/{contactId}", ENTITY_ID))
         );
     }
 
     private static EndpointCase endpoint(
-            String name, String page, String action, String role,
+            String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
         return new EndpointCase(name, page, action, role, request);
     }
@@ -351,7 +352,7 @@ class PartnerPermissionControllerIT {
     record EndpointCase(
             String name,
             String page,
-            String action,
+            PermissionAction action,
             String role,
             Supplier<MockHttpServletRequestBuilder> request) {
 

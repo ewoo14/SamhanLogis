@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.service.Mig9CashJournalService;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -72,6 +73,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
             whenRefreshFailed();
         }
         if (expectedStatus == 403 && role != null) {
+            denyRequirePermission(pageCode(url), action(url));
             denyDynamicPermissionFor(role);
         }
 
@@ -80,7 +82,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
             request.content(body);
         }
         if (includeUserId) {
-            request.header("X-User-Id", "tester");
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
         }
         if (role != null) {
             request.header("X-User-Role", role);
@@ -103,6 +105,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MIG-14 AgingSnapshot refresh는 canEdit=false + canView=true이면 403")
     void refreshAgingSnapshot_viewOnlyDynamicPermissionDenied() throws Exception {
+        denyRequirePermission("ecount.mig14.aging-snapshot", PermissionAction.UPDATE);
         when(dynamicPermissionClient.canEdit("MANAGER", "ecount.mig14.aging-snapshot"))
                 .thenReturn(false);
         when(dynamicPermissionClient.canView("MANAGER", "ecount.mig14.aging-snapshot"))
@@ -111,7 +114,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         mockMvc.perform(post("/admin/accounting/aging-snapshot/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
-                        .header("X-User-Id", "tester")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .header("X-User-Role", "MANAGER"))
                 .andExpect(status().isForbidden());
     }
@@ -143,6 +146,23 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
                 Arguments.of("refreshBadBody", url, "MANAGER", true, "{", 400),
                 Arguments.of("refreshFailed", url, "MANAGER", true, "{}", 422)
         );
+    }
+
+    private static String pageCode(String url) {
+        if (url.endsWith("disbursements")) {
+            return "ecount.mig9.cash-journal.disbursement";
+        }
+        if (url.endsWith("receipts")) {
+            return "ecount.mig9.cash-journal.receipt";
+        }
+        return "ecount.mig14.aging-snapshot";
+    }
+
+    private static PermissionAction action(String url) {
+        if (url.endsWith("aging-snapshot/refresh")) {
+            return PermissionAction.UPDATE;
+        }
+        return PermissionAction.CREATE;
     }
 
     private void whenSuccess(String url) {

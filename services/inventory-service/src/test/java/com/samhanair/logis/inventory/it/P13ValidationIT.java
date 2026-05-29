@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -209,9 +210,10 @@ class P13ValidationIT extends AbstractPostgresIT {
      */
     @Test
     void listAlerts_salesRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.safety-stock"),
+                        Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/inventory/alerts/safety-stock")
@@ -228,9 +230,10 @@ class P13ValidationIT extends AbstractPostgresIT {
         Map<String, Object> req = Map.of("warehouseId", WH_HQ_001.toString(),
                 "threshold", 50);
 
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.safety-stock"),
+                        Mockito.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/inventory/products/" + PROD_001 + "/safety-stock")
@@ -450,9 +453,10 @@ class P13ValidationIT extends AbstractPostgresIT {
      */
     @Test
     void alertCount_salesRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(Mockito.eq("SALES"), Mockito.anyString()))
-                .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canEdit(Mockito.eq("SALES"), Mockito.anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.safety-stock"),
+                        Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/inventory/alerts/safety-stock/count")

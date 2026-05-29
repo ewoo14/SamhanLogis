@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
@@ -94,7 +95,10 @@ class DeliveryBatchControllerIT extends AbstractPostgresIT {
 
     @Test
     void autoGroup_salesRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit("SALES", "slip.delivery-batch"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.delivery-batch"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mockMvc.perform(post("/delivery-batches/auto-group")
@@ -116,7 +120,10 @@ class DeliveryBatchControllerIT extends AbstractPostgresIT {
 
     @Test
     void list_warehouseRole_returns403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView("WAREHOUSE", "slip.delivery-batch"))
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.any(UUID.class),
+                        ArgumentMatchers.eq("slip.delivery-batch"),
+                        ArgumentMatchers.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/delivery-batches")

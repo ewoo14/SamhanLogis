@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
@@ -17,6 +18,8 @@ import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient.CatalogEntry;
 import com.samhanair.logis.partnerorder.vendor.ocr.MockOcrEngine;
 import com.samhanair.logis.partnerorder.vendor.ocr.OcrEngine;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -54,6 +57,9 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 class VendorOrderControllerIT extends AbstractPostgresIT {
 
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000401";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000402";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -74,6 +80,8 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
     private PartnerLookupClient partnerLookupClient;
     @MockBean
     private ProductCatalogLookupClient catalogLookupClient;
+    @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
+    private DynamicPermissionClient dynamicPermissionClient;
 
     /** TestConfiguration — MockOcrEngine 을 OcrEngine 으로 노출. OcrEngineConfig 의 conditional bean 보다 우선. */
     @TestConfiguration
@@ -87,6 +95,11 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
+
         // OcrEngine 은 MockOcrEngine 인스턴스 — preset 등록.
         if (ocrEngine instanceof MockOcrEngine mock) {
             mock.setPresetText("AIRD", """
@@ -134,7 +147,9 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "ad.png", "image/png", "AIRD".getBytes(StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/admin/partner-order/vendor/upload")
-                        .file(file))
+                        .file(file)
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.vendorName").value("에어디자이너"))
                 .andExpect(jsonPath("$.data.partnerCode").value("P-A001"))
@@ -149,7 +164,9 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "j.png", "image/png", "JSYS".getBytes(StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/admin/partner-order/vendor/upload")
-                        .file(file))
+                        .file(file)
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, MANAGER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.vendorName").value("제이시스템"))
                 .andExpect(jsonPath("$.data.parsedLines[0].modelCode").value("HM-7000"));
@@ -161,7 +178,9 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "x.png", "image/png", "RANDOM".getBytes(StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/api/v1/admin/partner-order/vendor/upload")
-                        .file(file))
+                        .file(file)
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -174,6 +193,8 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
                 ]}
                 """;
         mockMvc.perform(post("/api/v1/admin/partner-order/vendor/confirm")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
                         .contentType("application/json")
                         .content(body))
                 .andExpect(status().isNotFound());

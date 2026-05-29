@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.web;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderPrintService;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 거래처 주문 인쇄 HTML endpoint.
  *
- * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.print} VIEW.
+ * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.print} PRINT.
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
@@ -30,7 +31,11 @@ public class PartnerOrderPrintController {
     @Operation(summary = "거래처 주문 인쇄 HTML",
             description = "브라우저 새 탭에서 바로 인쇄 가능한 A4 주문서 HTML 을 반환합니다.")
     @GetMapping(value = "/{id}/print", produces = MediaType.TEXT_HTML_VALUE + ";charset=UTF-8")
-    @RequirePermission(page = "sales.partner-order.print", action = "VIEW")
+    @RequirePermission(
+            page = "sales.partner-order.print",
+            action = PermissionAction.PRINT,
+            partnerSelfService = true
+    )
     public String print(
             @PathVariable String id,
             @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {

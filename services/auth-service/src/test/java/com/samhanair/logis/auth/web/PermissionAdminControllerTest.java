@@ -6,14 +6,21 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.auth.domain.PageCode;
+import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
+import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +40,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class PermissionAdminControllerTest {
 
     private DynamicPermissionService permissionService;
+    private AccountPermissionService accountPermissionService;
     private MockMvc mockMvc;
     private InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -40,22 +48,185 @@ class PermissionAdminControllerTest {
     private static final String MASTER_ROLE = "MASTER";
     private static final String ACCOUNTANT_ROLE = "ACCOUNTANT";
     private static final String PAGE_EMIT = "accounting.tax-invoice.emit-nts";
+    private static final String PAGE_JOURNALS = "accounting.journals";
     private static final String INTERNAL_TOKEN = "test-internal-token";
 
     @BeforeEach
     void setUp() {
         permissionService = Mockito.mock(DynamicPermissionService.class);
+        accountPermissionService = Mockito.mock(AccountPermissionService.class);
         internalAuthProperties = new InternalAuthProperties();
         internalAuthProperties.setToken(INTERNAL_TOKEN);
         internalAuthProperties.setPathPrefix("/auth/internal/");
         internalAuthProperties.setRole("INTERNAL");
         internalAuthProperties.setAllowMissingToken(false);
         PermissionAdminController adminController =
-                new PermissionAdminController(permissionService, internalAuthProperties);
+                new PermissionAdminController(permissionService, accountPermissionService, internalAuthProperties);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(adminController, new PermissionInternalController(permissionService))
+                .standaloneSetup(adminController,
+                        new PermissionInternalController(accountPermissionService, permissionService))
                 .addFilters(new InternalTokenFilter(internalAuthProperties), new HeaderAuthenticationFilter())
                 .build();
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /auth/admin/permissions/my — 현재 계정 7-action 권한 조회
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("GET /my MASTER — 모든 PageCode 에 7-action 전체 허용 map 반환")
+    void getMyPermissions_withMasterRole_returnsAllPageActions() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.size()).isEqualTo(PageCode.values().length);
+        assertThat(data.get(PAGE_JOURNALS)).isNotNull();
+        assertThat(data.get(PAGE_JOURNALS)).extracting(JsonNode::asText).containsExactlyInAnyOrder(
+                "VIEW", "CREATE", "UPDATE", "DELETE", "RESTORE", "DOWNLOAD", "PRINT");
+    }
+
+    @Test
+    @DisplayName("GET /my 일반 계정 — X-User-Id 기반 bulkLoad 결과를 7-action map 으로 반환")
+    void getMyPermissions_withAccountId_returnsBulkLoadActions() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.bulkLoad(accountId)).thenReturn(Map.of(
+                PAGE_JOURNALS,
+                EnumSet.of(PermissionAction.VIEW, PermissionAction.CREATE, PermissionAction.DOWNLOAD)));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Id", accountId.toString())
+                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.get(PAGE_JOURNALS)).extracting(JsonNode::asText).containsExactlyInAnyOrder(
+                "VIEW", "CREATE", "DOWNLOAD");
+        verify(accountPermissionService).bulkLoad(accountId);
+    }
+
+    @Test
+    @DisplayName("GET /my 일반 계정 — X-User-Id 없음이면 fail-closed 빈 map 반환")
+    void getMyPermissions_withoutAccountId_returnsEmptyMap() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my")
+                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.size()).isZero();
+    }
+
+    // -----------------------------------------------------------------------
+    // 신규 account×page×7-action endpoint
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("GET /accounts — 계정 목록 반환")
+    void getAccounts_returnsAccountSummaries() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.listAccounts()).thenReturn(List.of(
+                new AccountPermissionService.AccountSummary(accountId, "회계 담당", "ACCOUNTANT", true)));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/accounts")
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains(accountId.toString(), "ACCOUNTANT");
+    }
+
+    @Test
+    @DisplayName("GET /account/{accountId} — 계정 권한 매트릭스 반환")
+    void getAccountMatrix_returnsActionMatrix() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.getAccountMatrix(accountId)).thenReturn(Map.of(
+                PAGE_EMIT,
+                new AccountPermissionService.ActionMatrix(true, true, false, false, false, true, false)));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/account/{accountId}", accountId)
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains(PAGE_EMIT, "\"download\":true");
+    }
+
+    @Test
+    @DisplayName("PUT /account/{accountId} — 계정 권한 일괄 upsert")
+    void updateAccountMatrix_returnsChangedCount() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.updateAccountMatrix(eq(accountId), any(), any())).thenReturn(1);
+        String body = """
+                [
+                  {
+                    "pageCode":"accounting.tax-invoice.emit-nts",
+                    "actions":{"view":true,"create":true,"update":false,"delete":false,"restore":false,"download":true,"print":false}
+                  }
+                ]
+                """;
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.put("/auth/admin/permissions/account/{accountId}", accountId)
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("\"changedCount\":1");
+    }
+
+    @Test
+    @DisplayName("POST /account/{accountId}/apply-template — 템플릿 적용")
+    void applyTemplate_returnsChangedCount() throws Exception {
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
+        when(accountPermissionService.applyTemplate(eq(accountId), eq("SALES"), any())).thenReturn(12);
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.post("/auth/admin/permissions/account/{accountId}/apply-template", accountId)
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE)
+                                .param("roleCode", "SALES"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("\"changedCount\":12");
+    }
+
+    @Test
+    @DisplayName("POST /bulk — 다계정 일괄 적용")
+    void bulkApply_returnsChangedCount() throws Exception {
+        when(accountPermissionService.bulkApply(any(), any())).thenReturn(2);
+        String body = """
+                {"accountIds":["a0000000-0000-0000-0000-000000000010"],"mode":"template","roleCode":"SALES"}
+                """;
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.post("/auth/admin/permissions/bulk")
+                                .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
+                                .header("X-User-Role", MASTER_ROLE)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("\"changedCount\":2");
     }
 
     // -----------------------------------------------------------------------
@@ -168,15 +339,16 @@ class PermissionAdminControllerTest {
     @Test
     @DisplayName("internal 권한 체크 endpoint — X-Internal-Token 일치 → 200 반환")
     void checkPermission_internalEndpointWithToken_returns200() throws Exception {
-        when(permissionService.canAccess(eq(ACCOUNTANT_ROLE), eq(PAGE_EMIT), eq("EDIT")))
+        UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000005");
+        when(accountPermissionService.check(eq(accountId), eq(PAGE_EMIT), eq(com.samhanair.logis.security.permission.PermissionAction.UPDATE)))
                 .thenReturn(true);
 
         MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.get("/auth/internal/permissions/check")
                                 .header("X-Internal-Token", INTERNAL_TOKEN)
-                                .param("roleCode", ACCOUNTANT_ROLE)
+                                .param("accountId", accountId.toString())
                                 .param("pageCode", PAGE_EMIT)
-                                .param("type", "EDIT"))
+                                .param("action", "UPDATE"))
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(200);

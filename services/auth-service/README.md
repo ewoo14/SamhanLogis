@@ -40,6 +40,17 @@ page 9건의 `VIEW` grant를 `PARTNER`를 제외한 내부 role에 보강한다.
 재사용 page의 기존 active row는 `can_view IS DISTINCT FROM TRUE`일 때만 `TRUE`로 갱신하고,
 전용 page는 신규 insert만 수행해 기존 VIEW endpoint widening을 피한다.
 
+## Phase 1 권한 재편 — 계정 × page × 7-action (V39)
+
+role 기반 2-action(`role_page_permissions`)을 **계정 단위 × page × 7-action**으로 재편했다.
+
+- 신규 테이블: `role_page_permission_templates`(role별 7-action 템플릿, 비강제), `account_page_permissions`(계정 UUID × page × 7 boolean, enforcement source).
+- 7-action: VIEW / CREATE / UPDATE / DELETE / RESTORE / DOWNLOAD / PRINT.
+- internal: `GET /auth/internal/permissions/check?accountId&pageCode&action`, `GET /auth/internal/permissions/account/{accountId}`(map).
+- admin(MASTER 매트릭스): `GET /auth/admin/permissions/accounts`, `GET|PUT /auth/admin/permissions/account/{accountId}`, `POST .../apply-template`, `POST .../copy-from`, `GET|PUT /auth/admin/permissions/templates`, `POST /auth/admin/permissions/bulk`.
+- 자기-권한: `GET /auth/admin/permissions/my`는 `X-User-Id` 기준 account 7-action map을 반환한다(MASTER 전 page all-true / PARTNER deny / 누락·parse 실패 fail-closed).
+- `V39__account_page_permissions_overhaul.sql`이 기존 `role_page_permissions`를 templates로 분해(VIEW→VIEW, EDIT→CREATE+UPDATE+DELETE, RESTORE/DOWNLOAD/PRINT 보존 매핑)한 뒤, `accounts JOIN templates`(role NOT IN MASTER/PARTNER)로 계정별 행을 materialize한다. 행동보존(회귀 0). `role_page_permissions`는 deprecated 코멘트만 남기고 drop하지 않는다.
+
 ## Environment variables
 
 | Variable               | Default                                                   | Description                                       |

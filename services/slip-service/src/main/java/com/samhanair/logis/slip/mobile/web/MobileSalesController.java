@@ -77,7 +77,7 @@ public class MobileSalesController {
             description = "P1-4 — 기간 내 매출 요약 + 미수금 현황 + 견적 진행(DRAFT/SENT/ACCEPTED) 건수. "
                     + "fromDate/toDate 미입력 시 today-30일 ~ today 기본 적용.")
     @GetMapping("/dashboard")
-    @RequirePermission(page = "slip.mobile-sales", action = "VIEW")
+    @RequirePermission(page = "slip.mobile-sales", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<MobileSalesDashboardResponse> dashboard(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -109,7 +109,7 @@ public class MobileSalesController {
     })
     @PostMapping("/quotations")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "slip.mobile-sales", action = "EDIT")
+    @RequirePermission(page = "slip.mobile-sales", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<EstimateDetailResponse> createQuotation(
             @Valid @RequestBody MobileQuotationRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -136,7 +136,7 @@ public class MobileSalesController {
     })
     @PostMapping("/partner-orders")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "slip.mobile-sales", action = "EDIT")
+    @RequirePermission(page = "slip.mobile-sales", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipDetailResponse> createPartnerOrder(
             @Valid @RequestBody MobilePartnerOrderRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -157,7 +157,7 @@ public class MobileSalesController {
             description = "당일 등록한 OUTBOUND 슬립 목록. CANCELED/REJECTED 제외. "
                     + "요청자(X-User-Id) 기준 필터 적용.")
     @GetMapping("/visits/today")
-    @RequirePermission(page = "slip.mobile-sales", action = "VIEW")
+    @RequirePermission(page = "slip.mobile-sales", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<SlipResponse>> visitsToday(
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         String requesterId = callerOrSystem(callerHeader);

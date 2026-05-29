@@ -80,7 +80,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "재고 실사 목록", description = "warehouse/year/status 필터 페이지")
     @GetMapping
-    @RequirePermission(page = "inventory.detail", action = "VIEW")
+    @RequirePermission(page = "inventory.detail", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<AuditResponse>> list(
             @RequestParam(required = false) UUID warehouseId,
             @RequestParam(required = false) Integer year,
@@ -99,7 +99,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "재고 실사 단건 상세")
     @GetMapping("/{id}")
-    @RequirePermission(page = "inventory.detail", action = "VIEW")
+    @RequirePermission(page = "inventory.detail", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<AuditDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.getOne(id));
     }
@@ -118,7 +118,7 @@ public class InventoryAuditController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<AuditDetailResponse> create(
             @Valid @RequestBody CreateAuditRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -132,7 +132,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "실사 시작", description = "PLANNED → IN_PROGRESS")
     @PostMapping("/{id}/start")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AuditDetailResponse> start(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.start(id));
     }
@@ -147,7 +147,7 @@ public class InventoryAuditController {
     @Operation(summary = "라인 입력 (바코드/수동)",
             description = "productId 로 snapshot 라인 검색해 actual_qty set. scanned=true 면 바코드 스캔")
     @PostMapping("/{id}/lines")
-    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<AuditDetailResponse> recordLine(
             @PathVariable UUID id,
             @Valid @RequestBody AuditLineRequest request) {
@@ -164,7 +164,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "라인 수정", description = "lineId 직접 수정. productId mismatch 검증")
     @PutMapping("/{id}/lines/{lineId}")
-    @RequirePermission(page = "inventory.stock-balance", action = "EDIT")
+    @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AuditDetailResponse> updateLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
@@ -180,7 +180,7 @@ public class InventoryAuditController {
     @Operation(summary = "실사 완료",
             description = "IN_PROGRESS → COMPLETED + 차이 자동 분개 (150/919) + Stock 조정")
     @PostMapping("/{id}/complete")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AuditDetailResponse> complete(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
@@ -194,7 +194,7 @@ public class InventoryAuditController {
      */
     @Operation(summary = "실사 취소", description = "PLANNED/IN_PROGRESS → CANCELLED")
     @PostMapping("/{id}/cancel")
-    @RequirePermission(page = "inventory.adjust", action = "EDIT")
+    @RequirePermission(page = "inventory.adjust", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<AuditDetailResponse> cancel(@PathVariable UUID id) {
         return ApiResponse.ok(auditService.cancel(id));
     }
@@ -209,7 +209,7 @@ public class InventoryAuditController {
     @Operation(summary = "재고 실사 audit timeline (PR-H4b)",
             description = "InventoryAudit/StockBalance 등 변경 이력 (최신 revision 우선)")
     @GetMapping("/{id}/audit-logs")
-    @RequirePermission(page = "inventory.detail", action = "VIEW")
+    @RequirePermission(page = "inventory.detail", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<InventoryAuditLogResponse>> listAuditLogs(@PathVariable UUID id) {
         return ApiResponse.ok(auditLogRecorder.listByEntity(id).stream()
                 .map(InventoryAuditLogResponse::from).toList());
@@ -223,7 +223,7 @@ public class InventoryAuditController {
     @Operation(summary = "재고 실사 SSE realtime 구독 (PR-H4b)",
             description = "audit/edit-request event SSE stream — heartbeat 30s")
     @GetMapping(value = "/{id}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @RequirePermission(page = "inventory.detail", action = "VIEW")
+    @RequirePermission(page = "inventory.detail", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public SseEmitter subscribeRealtime(@PathVariable UUID id) {
         return realtimeBroker.subscribe(id);
     }
@@ -239,7 +239,7 @@ public class InventoryAuditController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "실사 미존재")
     })
     @PostMapping("/{id}/edit-requests")
-    @RequirePermission(page = "inventory.edit-requests", action = "EDIT")
+    @RequirePermission(page = "inventory.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<InventoryEditRequestResponse> createEditRequest(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
@@ -256,7 +256,7 @@ public class InventoryAuditController {
     @Operation(summary = "PENDING 요청 대시보드 (PR-H4b)",
             description = "MANAGER 권한자가 수락/거절 대상 요청 목록 조회")
     @GetMapping("/edit-requests/pending")
-    @RequirePermission(page = "inventory.edit-requests.decide", action = "VIEW")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<InventoryEditRequestResponse>> listPending(
             @RequestParam(defaultValue = "MANAGER") EditTargetRole targetRole) {
         return ApiResponse.ok(editRequestService.listPendingForRole(targetRole).stream()
@@ -266,7 +266,7 @@ public class InventoryAuditController {
     /** 요청 수락. */
     @Operation(summary = "수정/삭제 요청 수락 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/approve")
-    @RequirePermission(page = "inventory.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<InventoryEditRequestResponse> approveEditRequest(
             @PathVariable UUID requestId,
             @RequestBody(required = false) Map<String, String> body,
@@ -281,7 +281,7 @@ public class InventoryAuditController {
     /** 요청 거절. */
     @Operation(summary = "수정/삭제 요청 거절 (PR-H4b)")
     @PostMapping("/edit-requests/{requestId}/reject")
-    @RequirePermission(page = "inventory.edit-requests.decide", action = "EDIT")
+    @RequirePermission(page = "inventory.edit-requests.decide", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<InventoryEditRequestResponse> rejectEditRequest(
             @PathVariable UUID requestId,
             @RequestBody Map<String, String> body,

@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 10.6 · MIG-23 로컬 검증 환경</span>
+    <span class="nav-badge">Phase 2 · RESTORE 메커니즘 (전표 버전이력·복원)</span>
   </div>
 </nav>
 
@@ -615,7 +615,7 @@ body {
         </div>
       </div>
       <div class="svc-card-db">auth_db</div>
-      <div class="svc-card-desc">JWT HS256 발급 및 계정 관리. /auth/login · /auth/register · /auth/me. 로그인 실패 횟수 Caffeine Rate Limiting. SMTP OTP 비밀번호 재설정. 동적 권한(PageCode) 관리 7 endpoint + SP-D7 V38 권한 seed.</div>
+      <div class="svc-card-desc">JWT HS256 발급 및 계정 관리. /auth/login · /auth/register · /auth/me. 로그인 실패 횟수 Caffeine Rate Limiting. SMTP OTP 비밀번호 재설정. 계정×page×7-action 권한(account_page_permissions + role 템플릿) + MASTER 매트릭스 admin API + Flyway V39 행동보존 자동전개.</div>
       <div class="svc-tags">
         <span class="stag red">Spring Security</span>
         <span class="stag green">JJWT HS256</span>
@@ -893,7 +893,7 @@ body {
         <strong>InternalTokenFilter</strong> — X-Internal-Token 헤더 검증 서블릿 필터<br>
         <strong>InternalTokenGuard</strong> — prod 환경에서 기본 토큰 사용 시 부팅 거부<br>
         <strong>InternalAuthProperties</strong> — 토큰 설정 바인딩<br>
-        <strong>@RequirePermission + PermissionAspect</strong> — AOP 기반 동적 권한 검사 (SP-D7 잔여 인증 조회 25건 전환)<br>
+        <strong>@RequirePermission + PermissionAspect</strong> — 계정(X-User-Id) × page × 7-action 동적 권한 검사 (Phase 1 재편, MASTER bypass / PARTNER deny)<br>
         <strong>PermissionGuardMetrics</strong> — 권한 체크 Micrometer 메트릭<br>
         <strong>DynamicPermissionClient</strong> — auth-service 권한 조회
       </div>
@@ -1158,20 +1158,24 @@ body {
       </div>
     </div>
     <div>
-      <h3 style="color:#fff;font-size:15px;margin-bottom:14px;">권한 체계 — 7단계 Role</h3>
+      <h3 style="color:#fff;font-size:15px;margin-bottom:14px;">권한 체계 — 계정 × page × 7-action (Phase 1 재편)</h3>
       <table class="data-table" style="font-size:12px;">
-        <tr><th>Role</th><th>주요 권한 범위</th></tr>
-        <tr><td>MASTER</td><td>전체 관리자 · 모든 기능 접근</td></tr>
-        <tr><td>MANAGER</td><td>팀장급 · 승인 권한 · 보고서 조회</td></tr>
-        <tr><td>DEVELOPER</td><td>개발자 · 시스템 설정</td></tr>
-        <tr><td>SALES</td><td>영업 · 전표 발행 · 거래처 관리</td></tr>
-        <tr><td>ACCOUNTANT</td><td>회계 · 입금/출금 · 결산</td></tr>
-        <tr><td>WAREHOUSE</td><td>창고 · 입고/출고 · 재고 조회</td></tr>
-        <tr><td>INVENTORY</td><td>재고 조회 전용 (읽기 권한)</td></tr>
+        <tr><th>Action</th><th>의미</th></tr>
+        <tr><td>VIEW</td><td>조회 · list · detail · realtime</td></tr>
+        <tr><td>CREATE</td><td>생성 (POST)</td></tr>
+        <tr><td>UPDATE</td><td>수정 (PUT/PATCH)</td></tr>
+        <tr><td>DELETE</td><td>삭제 (soft-delete)</td></tr>
+        <tr><td>RESTORE</td><td>복원 · 롤백 (Phase 2 메커니즘 — <strong>전표 버전이력·복원 구현 중</strong>)</td></tr>
+        <tr><td>DOWNLOAD</td><td>다운로드 (Excel 등)</td></tr>
+        <tr><td>PRINT</td><td>인쇄 view</td></tr>
       </table>
       <div class="callout purple" style="margin-top: 14px; font-size:12px;">
         <div class="callout-icon">🛡</div>
-        <div><strong>AOP 동적 권한:</strong> <code>@RequirePermission(page="slip.comments", action="VIEW")</code> → PermissionAspect Around Advice → auth-service 페이지 코드 단위 권한 확인. Role 기반을 넘어 화면별 세밀한 권한 제어.</div>
+        <div><strong>계정 단위 동적 권한:</strong> <code>@RequirePermission(page="slip.comments", action=PermissionAction.VIEW)</code> → PermissionAspect가 <code>X-User-Id</code>(계정 UUID) 기준으로 <code>account_page_permissions</code> 7-action 확인. MASTER는 short-circuit bypass, PARTNER는 deny. Role(MASTER/MANAGER/SALES/ACCOUNTANT/WAREHOUSE/INVENTORY/DEVELOPER/DISPATCH/STAFF/DRIVER 10종)은 enforcement에서 분리되어 MASTER 매트릭스 UI의 "템플릿 적용" 소스로만 잔존. Flyway V39가 기존 role grant를 계정별로 행동보존 자동전개.</div>
+      </div>
+      <div class="callout green" style="margin-top: 12px; font-size:12px;">
+        <div class="callout-icon">↺</div>
+        <div><strong>Phase 2.1 — RESTORE 메커니즘 (전표 첫 도메인):</strong> <code>slip_revisions</code> (V27, JSONB <strong>full-snapshot + point-in-time</strong>)에 모든 content-mutation(create/editHeader/updateSlip/overlay/addLine/removeLine/restore) 시점 스냅샷 캡처. <code>GET /api/v1/slips/{id}/revisions</code> + <code>POST .../revisions/{n}/restore</code> (기존 <code>slip.audit-revert</code> page · VIEW/RESTORE action 재사용, 마감 lock 409 가드). FE <code>SlipVersionHistoryPanel</code>이 AuditOverlay(field diff 표시) 옆에 공존 — 배지·변경요약·"이 시점으로 복원" confirm. SSE <code>slip:restored</code>. field-diff replay는 캡처 누락 silent-skew·O(N) 재생 비용으로 기각(D-RST-01~03). 잔여 RESTORE 도메인은 후속 슬라이스에서 본 패턴 차용.</div>
       </div>
     </div>
   </div>

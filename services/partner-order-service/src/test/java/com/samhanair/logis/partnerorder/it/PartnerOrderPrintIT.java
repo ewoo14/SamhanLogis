@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -24,6 +25,7 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -47,6 +49,10 @@ import org.mockito.Mockito;
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
 @AutoConfigureMockMvc
 class PartnerOrderPrintIT extends AbstractPostgresIT {
+
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000308";
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000309";
+    private static final String PARTNER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000310";
 
     @Autowired
     private MockMvc mockMvc;
@@ -88,6 +94,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         Mockito.lenient().when(partnerLookupClient.findByPartnerCode("P-PRINT-A"))
                 .thenReturn(Optional.of(new PartnerSummary(
                         UUID.randomUUID(), "P-PRINT-A", "삼한테스트공조", "1010101010")));
@@ -101,7 +110,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     void testPrintSuccessHtmlReturns200() throws Exception {
         saveOrder("2026/05/17-41", "P-PRINT-A", "1010101010", false);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-41"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-41")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", containsString("charset=UTF-8")))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML));
@@ -110,7 +121,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(username = "sales", roles = {"SALES"})
     void testPrintNotFoundReturns404() throws Exception {
-        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-404"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-404")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_NOT_FOUND"));
     }
@@ -120,7 +133,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     void testPrintSoftDeletedReturns404() throws Exception {
         saveOrder("2026/05/17-42", "P-PRINT-B", "2020202020", true);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-42"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-42")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, SALES_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PARTNER_ORDER_NOT_FOUND"));
     }
@@ -132,13 +147,13 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         saveOrder("2026/05/17-44", "P-PRINT-OTHER", "4040404040", false);
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-43")
-                        .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
                         .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-44")
-                        .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
                         .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isForbidden())
@@ -156,7 +171,7 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         saveOrder("2026/05/17-46", "P-PRINT-OWN", "3030303030", false);
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-46")
-                        .header(HttpHeaderConstants.CALLER_ID_HEADER, "partner-user")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
                         .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-OTHER"))
                 .andExpect(status().isForbidden())
@@ -168,7 +183,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
     void testPrintHtmlContentContainsOrderNumber() throws Exception {
         saveOrder("2026/05/17-45", "P-PRINT-C", "5050505050", false);
 
-        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-45"))
+        mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-45")
+                        .header(HttpHeaderConstants.CALLER_ID_HEADER, MANAGER_ACCOUNT_ID)
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2026/05/17-45")))
                 .andExpect(content().string(containsString("P-PRINT-C")))

@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,10 @@ class ProductPermissionIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
                 .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -65,6 +71,7 @@ class ProductPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-user", authorities = {"ROLE_SALES"})
     void C1_sales_canView_true_returns_200() throws Exception {
         mockMvc.perform(get("/products")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk());
     }
@@ -77,10 +84,12 @@ class ProductPermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: DISPATCH products.list canView=false → 상품 목록 403 FORBIDDEN")
     @WithMockUser(username = "dispatch-denied", authorities = {"ROLE_DISPATCH"})
     void C2_dispatch_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("products.list"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/products")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000102")
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isForbidden());
     }
@@ -94,6 +103,7 @@ class ProductPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "master-user", authorities = {"ROLE_MASTER"})
     void C3_master_canEdit_true_create_passes() throws Exception {
         mockMvc.perform(post("/products")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"modelName\":\"TEST-MODEL\","
@@ -110,12 +120,12 @@ class ProductPermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: SALES canEdit=false + canView=true → POST 상품 생성 403 (view-only override)")
     @WithMockUser(username = "sales-viewonly", authorities = {"ROLE_SALES"})
     void C4_sales_canEdit_false_canView_true_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.canEdit(anyString(), anyString()))
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("products.admin"), Mockito.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        Mockito.when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenReturn(true);
 
         mockMvc.perform(post("/products")
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"modelName\":\"TEST-MODEL\","

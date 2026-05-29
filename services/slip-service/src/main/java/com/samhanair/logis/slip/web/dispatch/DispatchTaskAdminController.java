@@ -67,7 +67,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "DispatchTask 생성 (DRAFT)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchTaskResponse create(@Valid @RequestBody CreateDispatchTaskRequest req,
                                        @RequestHeader(value = "X-User-Id", required = false) String actor,
                                        @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
@@ -84,7 +84,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "차량 그룹 추가")
     @PostMapping("/{taskId}/vehicle-groups")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchVehicleGroupResponse addGroup(
             @PathVariable UUID taskId,
             @Valid @RequestBody AddVehicleGroupRequest req,
@@ -103,7 +103,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "차량 그룹 삭제")
     @DeleteMapping("/{taskId}/vehicle-groups/{groupId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public void removeGroup(@PathVariable UUID taskId,
                             @PathVariable UUID groupId,
                             @RequestHeader(value = "X-User-Id", required = false) String actor,
@@ -121,7 +121,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "그룹에 slip 추가")
     @PostMapping("/{taskId}/vehicle-groups/{groupId}/slips")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchVehicleGroupSlipResponse assignSlip(
             @PathVariable UUID taskId,
             @PathVariable UUID groupId,
@@ -141,7 +141,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "그룹 내 slip 순서 재정렬")
     @PutMapping("/{taskId}/vehicle-groups/{groupId}/slips/order")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public void reorderSlips(@PathVariable UUID taskId,
                              @PathVariable UUID groupId,
                              @Valid @RequestBody ReorderSlipsRequest req,
@@ -160,7 +160,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "그룹에서 slip 제거")
     @DeleteMapping("/{taskId}/vehicle-groups/{groupId}/slips/{slipId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public void removeSlip(@PathVariable UUID taskId,
                            @PathVariable UUID groupId,
                            @PathVariable UUID slipId,
@@ -178,7 +178,7 @@ public class DispatchTaskAdminController {
      */
     @Operation(summary = "배차 완료 trigger (DRAFT → DISPATCHING → arologis 발송)")
     @PostMapping("/{taskId}/dispatch")
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchTaskResponse dispatch(@PathVariable UUID taskId,
                                          @RequestHeader(value = "X-User-Id", required = false) String actor,
                                          @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
@@ -198,7 +198,7 @@ public class DispatchTaskAdminController {
             description = "DISPATCHED 상태의 DispatchTask 에 대해 아로로지스로 수정 요청을 발송. " +
                     "권한 = ROLE_DISPATCH / ROLE_MANAGER / ROLE_MASTER (D-DC-07).")
     @PostMapping("/{taskId}/modification-request")
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchTaskResponse requestModification(
             @PathVariable UUID taskId,
             @Valid @RequestBody ModificationRequestBody req,
@@ -219,7 +219,7 @@ public class DispatchTaskAdminController {
     @Operation(summary = "배차 취소 요청 발송 (DISPATCHED → CANCEL_REQUESTED)",
             description = "DISPATCHED 상태의 DispatchTask 에 대해 아로로지스로 취소 요청을 발송.")
     @PostMapping("/{taskId}/cancellation-request")
-    @RequirePermission(page = "dispatch.board", action = "EDIT")
+    @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public DispatchTaskResponse requestCancellation(
             @PathVariable UUID taskId,
             @Valid @RequestBody CancellationRequestBody req,

@@ -32,7 +32,7 @@ public class Mig7CashDisbursementTransformController {
     private final DynamicPermissionClient dynamicPermissionClient;
 
     @PostMapping("/transform-from-staging")
-    @RequirePermission(page = PAGE_CODE, action = "EDIT")
+    @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     @Operation(summary = "MIG-7 지출결의서 staging 을 CashDisbursement 로 변환")
     public EcountMig7TransformResult transform(
             @RequestBody(required = false) EcountMig7TransformRequest request,

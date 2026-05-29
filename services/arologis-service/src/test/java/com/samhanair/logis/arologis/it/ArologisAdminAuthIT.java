@@ -46,6 +46,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class ArologisAdminAuthIT extends AbstractPostgresIT {
 
+    private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000402";
+
     @Autowired private MockMvc mvc;
     @Autowired private AdminUserRepository userRepo;
     @Autowired private PasswordEncoder encoder;
@@ -98,7 +100,9 @@ class ArologisAdminAuthIT extends AbstractPostgresIT {
 
         // JWT bearer 로 /admin/arologis/dispatches 호출 가능 (AROLOGIS_MASTER 권한 매핑)
         mvc.perform(get("/admin/arologis/dispatches?date=2026-05-08")
-                        .header("Authorization", "Bearer " + tokens.accessToken()))
+                        .header("Authorization", "Bearer " + tokens.accessToken())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MASTER"))
                 .andExpect(status().isOk());
     }
 

@@ -16,8 +16,10 @@ import com.samhanair.logis.partner.tab.repository.PartnerContactRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerPriceDiscountRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerShippingAddressRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,10 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class Partner4TabControllerIT extends AbstractPostgresIT {
 
+    private static final String MANAGER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000121";
+    private static final String MASTER_ACCOUNT_ID = "10000000-0000-0000-0000-000000000122";
+    private static final String SALES_ACCOUNT_ID = "10000000-0000-0000-0000-000000000123";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -75,6 +81,10 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
     void cleanup() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class), anyString(),
+                        org.mockito.ArgumentMatchers.any(PermissionAction.class)))
+                .thenReturn(true);
 
         contactRepository.deleteAll();
         shippingAddressRepository.deleteAll();
@@ -99,7 +109,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
         );
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/partners/full")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -124,14 +134,14 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 List.of()
         );
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/partners/full")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/partners/P-4TAB-002/full")
-                        .header("X-User-Id", "user-sales")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.basic.partnerCode").value("P-4TAB-002"))
@@ -152,7 +162,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 "P-4TAB-003", "333-33-33333", "(주)단가테스트",
                 "서울 종로구", "02-3333-0000", BigDecimal.ZERO);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(adminReq)))
@@ -162,7 +172,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 new BigDecimal("7.00"), 60, "대량 할인");
 
         mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/partners/P-4TAB-003/price-discount")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(discountReq)))
@@ -182,7 +192,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 "P-4TAB-004", "444-44-44444", "(주)배송테스트",
                 "서울 마포구", "02-4444-0000", BigDecimal.ZERO);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(adminReq)))
@@ -193,7 +203,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 "02-5555-0000", "이수신", true, "메인 배송지");
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/partners/P-4TAB-004/shipping-addresses")
-                        .header("X-User-Id", "user-manager")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(addrReq)))
@@ -213,7 +223,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
                 "P-4TAB-005", "555-55-55555", "(주)삭제테스트",
                 "서울 영등포구", "02-5555-1111", BigDecimal.ZERO);
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(adminReq)))
@@ -226,7 +236,7 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
         // 배송지 추가 후 id 추출
         String addResult = mockMvc.perform(
                         MockMvcRequestBuilders.post("/api/v1/partners/P-4TAB-005/shipping-addresses")
-                                .header("X-User-Id", "user-master")
+                                .header("X-User-Id", MASTER_ACCOUNT_ID)
                                 .header("X-User-Role", "MASTER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(addrReq)))
@@ -238,13 +248,13 @@ class Partner4TabControllerIT extends AbstractPostgresIT {
         // 배송지 삭제
         mockMvc.perform(MockMvcRequestBuilders.delete(
                                 "/api/v1/partners/P-4TAB-005/shipping-addresses/" + addrId)
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(MockMvcResultMatchers.status().isNoContent());
 
         // 삭제 후 목록 조회 → 빈 배열
         mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/partners/P-4TAB-005/shipping-addresses")
-                        .header("X-User-Id", "user-master")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").isArray())

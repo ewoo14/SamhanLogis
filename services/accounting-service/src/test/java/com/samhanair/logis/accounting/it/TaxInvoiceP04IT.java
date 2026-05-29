@@ -113,7 +113,7 @@ class TaxInvoiceP04IT extends AbstractPostgresIT {
         String id = createP04DraftAndIssue();
 
         mockMvc.perform(get("/accounting/tax-invoices/" + id + "/print")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.supplierName").exists())
@@ -137,7 +137,7 @@ class TaxInvoiceP04IT extends AbstractPostgresIT {
         createP04DraftAndIssue();
 
         mockMvc.perform(get("/accounting/tax-invoices/history")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("status", "ISSUED")
                         .param("type", "SALES")
@@ -186,7 +186,7 @@ class TaxInvoiceP04IT extends AbstractPostgresIT {
                 .get("data").get("id").asText();
 
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 

@@ -5,6 +5,7 @@ import com.samhanair.logis.notification.service.NotificationCenterService;
 import com.samhanair.logis.notification.web.dto.NotificationCenterPage;
 import com.samhanair.logis.notification.web.dto.NotificationCenterResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -33,7 +34,7 @@ public class NotificationCenterController {
     private final NotificationCenterService service;
 
     @GetMapping("/my")
-    @RequirePermission(page = "notifications.center", action = "VIEW")
+    @RequirePermission(page = "notifications.center", action = PermissionAction.VIEW)
     @Operation(summary = "내 미확인 알림 목록")
     public ApiResponse<List<NotificationCenterResponse>> findMyUnread(
             @RequestHeader("X-User-Id") UUID userId,
@@ -42,7 +43,7 @@ public class NotificationCenterController {
     }
 
     @GetMapping("/history")
-    @RequirePermission(page = "notifications.center", action = "VIEW")
+    @RequirePermission(page = "notifications.center", action = PermissionAction.VIEW)
     @Operation(summary = "내 전체 알림 history (paged)")
     public ApiResponse<NotificationCenterPage> findMyHistory(
             @RequestHeader("X-User-Id") UUID userId,
@@ -52,7 +53,7 @@ public class NotificationCenterController {
     }
 
     @PostMapping("/{id}/acknowledge")
-    @RequirePermission(page = "notifications.center", action = "VIEW")
+    @RequirePermission(page = "notifications.center", action = PermissionAction.VIEW)
     @Operation(summary = "알림 확인 처리 (read_at 설정)")
     public ApiResponse<Void> acknowledge(
             @PathVariable UUID id,

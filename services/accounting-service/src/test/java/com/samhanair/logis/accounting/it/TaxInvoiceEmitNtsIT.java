@@ -20,6 +20,7 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -99,7 +100,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -124,9 +125,10 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
+        denyRequirePermission("accounting.tax-invoice.emit-nts", PermissionAction.UPDATE);
         denyDynamicPermissionFor("SALES");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "sales-user-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000102")
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -146,9 +148,10 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
+        denyRequirePermission("accounting.tax-invoice.emit-nts", PermissionAction.UPDATE);
         denyDynamicPermissionFor("MANAGER");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "manager-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -170,7 +173,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
 
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -192,7 +195,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         // 취소
         Map<String, Object> cancelBody = Map.of("reason", "테스트 취소 사유 (5자 이상)");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/cancel")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cancelBody)))
@@ -201,7 +204,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         // CANCELLED 상태 emit-nts → 422
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -225,7 +228,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         // 최초 발행 성공
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -233,7 +236,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         // 중복 발행 → 409
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -257,7 +260,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         // emit-nts 성공
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-audit")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000110")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -293,7 +296,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
 
         // 동일 세금계산서 재발행 시도 → 409 (eTaxExternalId 설정 확인)
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-audit")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000110")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -316,7 +319,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         Map<String, Object> emitBody = Map.of("submitMethod", "NTS");
 
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/emit-nts")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emitBody)))
@@ -344,7 +347,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
     private String createAndIssueDraft() throws Exception {
         String id = createDraft();
         mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
-                        .header("X-User-Id", "accountant-1")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
         return id;

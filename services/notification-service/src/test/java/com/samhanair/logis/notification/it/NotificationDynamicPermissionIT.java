@@ -1,5 +1,6 @@
 package com.samhanair.logis.notification.it;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -18,7 +19,9 @@ import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +65,12 @@ import org.springframework.transaction.annotation.Transactional;
 class NotificationDynamicPermissionIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/admin/notifications/dispatch-sms/history";
+    private static final String DISPATCH_ACCOUNT_ID = "10000000-0000-0000-0000-000000000231";
+    private static final String DISPATCH_BLOCKED_ACCOUNT_ID = "10000000-0000-0000-0000-000000000232";
+    private static final String DISPATCH_VIEW_ONLY_ACCOUNT_ID = "10000000-0000-0000-0000-000000000233";
+    private static final String DISPATCH_FALLBACK_ACCOUNT_ID = "10000000-0000-0000-0000-000000000234";
+    private static final String DISPATCH_LATEST_ACCOUNT_ID = "10000000-0000-0000-0000-000000000235";
+    private static final String MANAGER_BLOCKED_ACCOUNT_ID = "10000000-0000-0000-0000-000000000236";
 
     @Autowired
     private MockMvc mockMvc;
@@ -101,6 +110,8 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void setupLenientStubs() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -113,7 +124,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void C1_dispatch_sms_history_canView_true_returns_200() throws Exception {
         // canView=true (lenient 기본값 사용)
         mockMvc.perform(get(BASE_URL)
-                        .header("X-User-Id", "dispatch-user")
+                        .header("X-User-Id", DISPATCH_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH")
                         .param("page", "0")
                         .param("size", "10"))
@@ -129,10 +140,14 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     @WithMockUser(username = "dispatch-user-blocked", authorities = {"ROLE_DISPATCH"})
     void C2_dispatch_sms_history_canView_false_returns_403() throws Exception {
         // canView=false override
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get(BASE_URL)
-                        .header("X-User-Id", "dispatch-user-blocked")
+                        .header("X-User-Id", DISPATCH_BLOCKED_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH")
                         .param("page", "0")
                         .param("size", "10"))
@@ -147,12 +162,15 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C3: DISPATCH canEdit=false + canView=true → POST 저장 403 (view-only override)")
     @WithMockUser(username = "dispatch-view-only", authorities = {"ROLE_DISPATCH"})
     void C3_save_canEdit_false_canView_true_returns_403() throws Exception {
-        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(false);
 
         Map<String, Object> body = buildSaveBody("view-only 테스트", DispatchSmsSaveMode.MANUAL_NAMED);
         mockMvc.perform(post(BASE_URL)
-                        .header("X-User-Id", "dispatch-view-only")
+                        .header("X-User-Id", DISPATCH_VIEW_ONLY_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -167,12 +185,15 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C4: DISPATCH canEdit=false + canView=false → POST 저장 403")
     @WithMockUser(username = "dispatch-fallback", authorities = {"ROLE_DISPATCH"})
     void C4_save_canEdit_false_canView_false_returns_403() throws Exception {
-        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(false);
 
         Map<String, Object> body = buildSaveBody("fallback 테스트", DispatchSmsSaveMode.MANUAL_NAMED);
         mockMvc.perform(post(BASE_URL)
-                        .header("X-User-Id", "dispatch-fallback")
+                        .header("X-User-Id", DISPATCH_FALLBACK_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
@@ -189,7 +210,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void C5_latest_canView_true_returns_non_403() throws Exception {
         // canView=true (lenient 기본값 사용)
         mockMvc.perform(get(BASE_URL + "/latest")
-                        .header("X-User-Id", "dispatch-latest")
+                        .header("X-User-Id", DISPATCH_LATEST_ACCOUNT_ID)
                         .header("X-User-Role", "DISPATCH")
                         .param("programType", DispatchSmsProgramType.DISPATCH_SMS.name()))
                 .andExpect(result -> {
@@ -209,10 +230,14 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     @DisplayName("C6: MANAGER canView=false → GET /latest 403 FORBIDDEN")
     @WithMockUser(username = "manager-blocked", authorities = {"ROLE_MANAGER"})
     void C6_latest_canView_false_returns_403() throws Exception {
-        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
 
         mockMvc.perform(get(BASE_URL + "/latest")
-                        .header("X-User-Id", "manager-blocked")
+                        .header("X-User-Id", MANAGER_BLOCKED_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .param("programType", DispatchSmsProgramType.DISPATCH_SMS.name()))
                 .andExpect(status().isForbidden());

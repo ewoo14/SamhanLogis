@@ -20,7 +20,7 @@ public class PurchaseAccountingSlipController {
     private final PurchaseAccountingSlipService service;
 
     @GetMapping
-    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "VIEW")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ResponseEntity<List<PurchaseAccountingSlipResponse>> list(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -32,7 +32,7 @@ public class PurchaseAccountingSlipController {
     }
 
     @PostMapping
-    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "EDIT")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<PurchaseAccountingSlipResponse> createDraft(
             @RequestBody CreatePurchaseAccountingSlipRequest req,
             @RequestHeader("X-User-Id") String userId) {
@@ -40,7 +40,7 @@ public class PurchaseAccountingSlipController {
     }
 
     @PostMapping("/{slipNo}/post")
-    @RequirePermission(page = "accounting.purchase-slip.accounting", action = "EDIT")
+    @RequirePermission(page = "accounting.purchase-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ResponseEntity<Void> post(@PathVariable String slipNo,
             @RequestHeader("X-User-Id") String userId) {
         service.post(slipNo, userId);

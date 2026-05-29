@@ -3,8 +3,8 @@ package com.samhanair.logis.auth.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -22,8 +22,7 @@ import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionGuardMetrics;
-import io.micrometer.core.instrument.MeterRegistry;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -54,21 +53,20 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 )
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "spring.profiles.active=local",
         "eureka.client.enabled=false",
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
         "app.security.jwt.secret=test-secret-key-32-chars-min-aaaaaa",
         "app.security.internal.token=test-internal-token"
 })
-class AuthPermissionMigrationIT {
+class AuthPermissionMigrationIT extends AbstractPostgresIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
-    private static final String SERVICE_NAME = "auth-service";
+    private static final UUID MANAGER_ACCOUNT_ID =
+            UUID.fromString("10000000-0000-0000-0000-000000000001");
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private MeterRegistry meterRegistry;
     @Autowired private AuthController authController;
 
     @MockBean private AuthService authService;
@@ -82,6 +80,8 @@ class AuthPermissionMigrationIT {
     void setUp() {
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(true);
         lenient().when(authService.register(anyString(), anyString(), anyString(), any(Role.class)))
                 .thenReturn(new RegisterResponse(UUID.randomUUID().toString(), "new-user", "SALES"));
         lenient().when(permissionService.getPermissionMatrix()).thenReturn(Map.of(
@@ -97,7 +97,7 @@ class AuthPermissionMigrationIT {
     @MethodSource("protectedEndpoints")
     @DisplayName("system.* endpoint는 MASTER + 매트릭스 권한이면 통과한다")
     void systemEndpoint_masterWithMatrixGrant_returnsSuccess(
-            String name, String page, String action, int expectedStatus, EndpointRequest request) throws Exception {
+            String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
         mockMvc.perform(withActor(request.builder(), "MASTER"))
                 .andExpect(status().is(expectedStatus));
     }
@@ -106,28 +106,19 @@ class AuthPermissionMigrationIT {
     @MethodSource("protectedEndpoints")
     @DisplayName("system.* endpoint는 비MASTER이면 정적 @PreAuthorize가 403으로 차단한다")
     void systemEndpoint_nonMaster_staticGuardReturns403(
-            String name, String page, String action, int expectedStatus, EndpointRequest request) throws Exception {
-        mockMvc.perform(withActor(request.builder(), "MANAGER"))
+            String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
+        mockMvc.perform(withActor(request.builder(), MANAGER_ACCOUNT_ID, "MANAGER"))
                 .andExpect(status().isForbidden());
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("protectedEndpoints")
-    @DisplayName("system.* endpoint는 MASTER라도 매트릭스 권한이 없으면 403 + Counter 증가")
-    void systemEndpoint_masterWithoutMatrixGrant_returns403AndIncrementsCounter(
-            String name, String page, String action, int expectedStatus, EndpointRequest request) throws Exception {
-        if ("VIEW".equals(action)) {
-            when(dynamicPermissionClient.canView("MASTER", page)).thenReturn(false);
-        } else {
-            when(dynamicPermissionClient.canEdit("MASTER", page)).thenReturn(false);
-        }
-
-        double before = deniedCount(page, "MASTER", action);
-
+    @DisplayName("system.* endpoint는 MASTER이면 account×7-action grant 없이도 D-PO-05 bypass 로 통과한다")
+    void systemEndpoint_masterWithoutMatrixGrant_bypassesDynamicMatrix(
+            String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
+        lenient().when(dynamicPermissionClient.check(any(UUID.class), eq(page), eq(action))).thenReturn(false);
         mockMvc.perform(withActor(request.builder(), "MASTER"))
-                .andExpect(status().isForbidden());
-
-        assertThat(deniedCount(page, "MASTER", action)).isEqualTo(before + 1.0);
+                .andExpect(status().is(expectedStatus));
     }
 
     @Test
@@ -152,13 +143,11 @@ class AuthPermissionMigrationIT {
     }
 
     @Test
-    @DisplayName("POST /auth/register 는 VIEW 만 있고 EDIT 이 없으면 403")
-    void register_withViewOnlyMatrixGrant_returns403AndIncrementsCounter() throws Exception {
-        when(dynamicPermissionClient.canView("MASTER", "system.account-admin")).thenReturn(true);
-        when(dynamicPermissionClient.canEdit("MASTER", "system.account-admin")).thenReturn(false);
-
-        double before = deniedCount("system.account-admin", "MASTER", "EDIT");
-
+    @DisplayName("POST /auth/register 는 MASTER이면 CREATE grant 없이도 D-PO-05 bypass 로 200")
+    void register_masterWithoutCreateGrant_bypassesDynamicMatrix() throws Exception {
+        lenient().when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("system.account-admin"), eq(PermissionAction.CREATE)))
+                .thenReturn(false);
         mockMvc.perform(withActor(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -169,16 +158,12 @@ class AuthPermissionMigrationIT {
                                   "role": "SALES"
                                 }
                                 """), "MASTER"))
-                .andExpect(status().isForbidden());
-
-        assertThat(deniedCount("system.account-admin", "MASTER", "EDIT")).isEqualTo(before + 1.0);
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("POST /auth/register 는 EDIT 권한이면 200")
-    void register_withEditMatrixGrant_returns200() throws Exception {
-        when(dynamicPermissionClient.canEdit("MASTER", "system.account-admin")).thenReturn(true);
-
+    @DisplayName("POST /auth/register 는 MASTER bypass 로 200")
+    void register_masterBypass_returns200() throws Exception {
         mockMvc.perform(withActor(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -197,7 +182,7 @@ class AuthPermissionMigrationIT {
                 Arguments.of(
                         "POST /auth/register",
                         "system.account-admin",
-                        "EDIT",
+                        PermissionAction.CREATE,
                         200,
                         (EndpointRequest) () -> post("/auth/register")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -212,19 +197,19 @@ class AuthPermissionMigrationIT {
                 Arguments.of(
                         "PATCH /auth/admin/accounts/{id}/unlock",
                         "system.password-admin",
-                        "EDIT",
+                        PermissionAction.UPDATE,
                         204,
                         (EndpointRequest) () -> patch("/auth/admin/accounts/{id}/unlock", UUID.randomUUID())),
                 Arguments.of(
                         "GET /auth/admin/permissions",
                         "system.permission-admin",
-                        "VIEW",
+                        PermissionAction.VIEW,
                         200,
                         (EndpointRequest) () -> get("/auth/admin/permissions")),
                 Arguments.of(
                         "PUT /auth/admin/permissions",
                         "system.permission-admin",
-                        "EDIT",
+                        PermissionAction.UPDATE,
                         200,
                         (EndpointRequest) () -> put("/auth/admin/permissions")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -239,7 +224,7 @@ class AuthPermissionMigrationIT {
                 Arguments.of(
                         "POST /auth/admin/permissions/batch",
                         "system.permission-admin",
-                        "EDIT",
+                        PermissionAction.UPDATE,
                         200,
                         (EndpointRequest) () -> post("/auth/admin/permissions/batch")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -258,7 +243,7 @@ class AuthPermissionMigrationIT {
                 Arguments.of(
                         "DELETE /auth/admin/permissions",
                         "system.permission-admin",
-                        "EDIT",
+                        PermissionAction.DELETE,
                         204,
                         (EndpointRequest) () -> delete("/auth/admin/permissions")
                                 .param("roleCode", "MANAGER")
@@ -269,19 +254,16 @@ class AuthPermissionMigrationIT {
     private static MockHttpServletRequestBuilder withActor(
             MockHttpServletRequestBuilder request,
             String role) {
-        return request
-                .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                .header(ROLE_HEADER, role);
+        return withActor(request, UUID.randomUUID(), role);
     }
 
-    private double deniedCount(String page, String role, String action) {
-        return meterRegistry.counter(
-                PermissionGuardMetrics.COUNTER_NAME,
-                "service", SERVICE_NAME,
-                "page", page,
-                "role", role,
-                "action", action
-        ).count();
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            UUID accountId,
+            String role) {
+        return request
+                .header(USER_ID_HEADER, accountId.toString())
+                .header(ROLE_HEADER, role);
     }
 
     private static PermissionDto permissionDto() {
