@@ -195,7 +195,7 @@ export function PermissionMatrixBulkPage() {
             여러 계정에 역할 템플릿 또는 단일 페이지 액션 권한을 한 번에 적용합니다.
           </p>
         </div>
-        <Badge variant="brand">MASTER</Badge>
+        <Badge variant="brand">{ROLE_LABEL.MASTER}</Badge>
       </div>
 
       <StepHeader step={step} />
@@ -287,6 +287,7 @@ function StepHeader({ step }: { step: WizardStep }) {
         return (
           <div
             key={label}
+            aria-current={active ? 'step' : undefined}
             style={{
               border: '1px solid var(--color-neutral-200)',
               borderRadius: 8,

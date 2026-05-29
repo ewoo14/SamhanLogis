@@ -63,7 +63,8 @@ class PermissionAdminControllerTest {
         PermissionAdminController adminController =
                 new PermissionAdminController(permissionService, accountPermissionService, internalAuthProperties);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(adminController, new PermissionInternalController(accountPermissionService))
+                .standaloneSetup(adminController,
+                        new PermissionInternalController(accountPermissionService, permissionService))
                 .addFilters(new InternalTokenFilter(internalAuthProperties), new HeaderAuthenticationFilter())
                 .build();
     }

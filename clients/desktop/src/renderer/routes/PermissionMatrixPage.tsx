@@ -548,6 +548,72 @@ const MATRIX_ACTION_LABEL: Record<PermissionAction, string> = {
   print: 'PRINT',
 }
 
+const MATRIX_ACTION_META: Record<PermissionAction, {
+  groupLabel: string
+  headerBg: string
+  headerBorder: string
+  headerColor: string
+  accentColor: string
+}> = {
+  view: {
+    groupLabel: '조회',
+    headerBg: 'var(--color-neutral-0)',
+    headerBorder: 'var(--color-neutral-300)',
+    headerColor: 'var(--color-neutral-700)',
+    accentColor: 'var(--color-brand-500)',
+  },
+  create: {
+    groupLabel: '변경',
+    headerBg: 'var(--color-warning-50)',
+    headerBorder: 'var(--color-warning-300)',
+    headerColor: 'var(--color-warning-700)',
+    accentColor: 'var(--color-warning-500)',
+  },
+  update: {
+    groupLabel: '변경',
+    headerBg: 'var(--color-warning-50)',
+    headerBorder: 'var(--color-warning-300)',
+    headerColor: 'var(--color-warning-700)',
+    accentColor: 'var(--color-warning-500)',
+  },
+  delete: {
+    groupLabel: '위험',
+    headerBg: 'var(--color-danger-50)',
+    headerBorder: 'var(--color-danger-300)',
+    headerColor: 'var(--color-danger-700)',
+    accentColor: 'var(--color-danger-500)',
+  },
+  restore: {
+    groupLabel: '위험',
+    headerBg: 'var(--color-danger-50)',
+    headerBorder: 'var(--color-danger-300)',
+    headerColor: 'var(--color-danger-700)',
+    accentColor: 'var(--color-danger-500)',
+  },
+  download: {
+    groupLabel: '출력',
+    headerBg: 'var(--color-success-50)',
+    headerBorder: 'var(--color-success-200)',
+    headerColor: 'var(--color-success-700)',
+    accentColor: 'var(--color-success-500)',
+  },
+  print: {
+    groupLabel: '출력',
+    headerBg: 'var(--color-success-50)',
+    headerBorder: 'var(--color-success-200)',
+    headerColor: 'var(--color-success-700)',
+    accentColor: 'var(--color-success-500)',
+  },
+}
+
+const MATRIX_ACTION_GROUP_STARTS = new Set<PermissionAction>(['create', 'restore', 'download'])
+const MATRIX_LEGEND_ITEMS = [
+  { label: '조회', actions: 'VIEW', color: 'var(--color-brand-500)' },
+  { label: '변경', actions: 'CREATE · UPDATE', color: 'var(--color-warning-500)' },
+  { label: '위험', actions: 'DELETE · RESTORE', color: 'var(--color-danger-500)' },
+  { label: '출력', actions: 'DOWNLOAD · PRINT', color: 'var(--color-success-500)' },
+]
+
 const MATRIX_DOMAIN_ID_BY_LABEL: Record<string, string> = {
   회계: 'accounting',
   매입: 'purchases',
@@ -659,6 +725,41 @@ const matrixButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+function matrixActionSeparatorStyle(action: PermissionAction): React.CSSProperties {
+  return MATRIX_ACTION_GROUP_STARTS.has(action)
+    ? { borderLeft: '2px solid var(--color-neutral-300)' }
+    : {}
+}
+
+function matrixActionButtonStyle(action: PermissionAction): React.CSSProperties {
+  const meta = MATRIX_ACTION_META[action]
+  return {
+    ...matrixButtonStyle,
+    width: '100%',
+    padding: '5px 4px',
+    background: meta.headerBg,
+    borderColor: meta.headerBorder,
+    color: meta.headerColor,
+    fontWeight: 700,
+  }
+}
+
+function matrixActionCellStyle(action: PermissionAction, dirty: boolean): React.CSSProperties {
+  return {
+    textAlign: 'center',
+    borderBottom: '1px solid var(--color-neutral-200)',
+    background: dirty ? 'var(--color-warning-50)' : 'var(--color-neutral-0)',
+    ...matrixActionSeparatorStyle(action),
+  }
+}
+
+function matrixActionCheckboxStyle(action: PermissionAction): React.CSSProperties {
+  return {
+    accentColor: MATRIX_ACTION_META[action].accentColor,
+    cursor: 'pointer',
+  }
+}
+
 export function PermissionMatrixPage() {
   usePageTitle('권한 매트릭스 관리')
 
@@ -768,6 +869,9 @@ export function PermissionMatrixPage() {
   const toggleRow = useCallback((page: PageCode) => {
     const row = currentState?.[page] ?? emptyPermissionActions()
     const shouldEnable = PERMISSION_ACTIONS.some((action) => !row[action])
+    if (!window.confirm(`${PAGE_LABEL[page] ?? page} 1개 행의 7개 권한을 ${shouldEnable ? 'ON' : 'OFF'} 처리할까요?`)) {
+      return
+    }
     setPageActions([page], PERMISSION_ACTIONS, shouldEnable)
   }, [currentState, setPageActions])
 
@@ -846,7 +950,7 @@ export function PermissionMatrixPage() {
         </div>
         {selectedAccount && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Badge variant="brand">{selectedAccount.role}</Badge>
+            <Badge variant="brand">{ROLE_LABEL[selectedAccount.role] ?? selectedAccount.role}</Badge>
             <span style={{ fontSize: 13 }}>{selectedAccount.displayName}</span>
           </div>
         )}
@@ -984,11 +1088,41 @@ export function PermissionMatrixPage() {
               background: 'var(--color-neutral-0)',
             }}
           >
+            <div
+              aria-label="권한 액션 색상 범례"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                alignItems: 'center',
+                padding: '8px 10px',
+                borderBottom: '1px solid var(--color-neutral-200)',
+                background: 'var(--color-neutral-50)',
+                color: 'var(--color-neutral-700)',
+                fontSize: 11,
+              }}
+            >
+              {MATRIX_LEGEND_ITEMS.map((item) => (
+                <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: item.color,
+                    }}
+                  />
+                  <span style={{ fontWeight: 700 }}>{item.label}</span>
+                  <span>{item.actions}</span>
+                </span>
+              ))}
+            </div>
             <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 980, fontSize: 12 }}>
               <colgroup>
                 <col style={{ width: 300 }} />
                 {PERMISSION_ACTIONS.map((action) => (
-                  <col key={action} style={{ width: 88 }} />
+                  <col key={action} style={{ width: 88, ...matrixActionSeparatorStyle(action) }} />
                 ))}
                 <col style={{ width: 74 }} />
               </colgroup>
@@ -996,17 +1130,13 @@ export function PermissionMatrixPage() {
                 <tr>
                   <th style={matrixHeaderStyle('left')}>페이지 ({visiblePages.length})</th>
                   {PERMISSION_ACTIONS.map((action) => (
-                    <th key={action} style={matrixHeaderStyle('center')}>
+                    <th key={action} style={{ ...matrixHeaderStyle('center'), ...matrixActionSeparatorStyle(action) }}>
                       <button
                         type="button"
                         data-testid={`perm-matrix-col-all-${action}`}
                         onClick={() => toggleColumn(action)}
-                        style={{
-                          ...matrixButtonStyle,
-                          width: '100%',
-                          padding: '5px 4px',
-                          fontWeight: 700,
-                        }}
+                        style={matrixActionButtonStyle(action)}
+                        title={`${MATRIX_ACTION_META[action].groupLabel} 권한`}
                       >
                         {MATRIX_ACTION_LABEL[action]}
                       </button>
@@ -1198,18 +1328,14 @@ function AccountMatrixDomainRows({
             return (
               <td
                 key={action}
-                style={{
-                  textAlign: 'center',
-                  borderBottom: '1px solid var(--color-neutral-200)',
-                  background: dirty ? 'var(--color-warning-50)' : 'var(--color-neutral-0)',
-                }}
+                style={matrixActionCellStyle(action, dirty)}
               >
                 <input
                   type="checkbox"
                   data-testid={`perm-matrix-cell-${matrixPageNorm(page)}-${action}`}
                   checked={currentState[page]?.[action] ?? false}
                   onChange={() => onCellToggle(page, action)}
-                  style={{ accentColor: 'var(--color-brand-500)', cursor: 'pointer' }}
+                  style={matrixActionCheckboxStyle(action)}
                   aria-label={`${PAGE_LABEL[page] ?? page} ${MATRIX_ACTION_LABEL[action]}`}
                 />
               </td>

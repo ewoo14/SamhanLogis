@@ -56,4 +56,44 @@ class DefaultDynamicPermissionClientTest {
                 EnumSet.of(PermissionAction.VIEW, PermissionAction.DOWNLOAD));
         server.verify();
     }
+
+    @Test
+    void canView_calls_role_endpoint_with_internal_token_and_type() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DefaultDynamicPermissionClient client =
+                new DefaultDynamicPermissionClient(builder, "test-internal-token", "user-service");
+
+        server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
+                        + "?roleCode=MANAGER&pageCode=admin.employees&type=VIEW"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-User-Role", "MANAGER"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":true}}",
+                        MediaType.APPLICATION_JSON));
+
+        boolean allowed = client.canView("MANAGER", "admin.employees");
+
+        assertThat(allowed).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void canEdit_calls_role_endpoint_with_internal_token_and_type() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DefaultDynamicPermissionClient client =
+                new DefaultDynamicPermissionClient(builder, "test-internal-token", "accounting-service");
+
+        server.expect(requestTo("http://auth-service/auth/internal/permissions/check"
+                        + "?roleCode=ACCOUNTANT&pageCode=accounting.journals&type=EDIT"))
+                .andExpect(header("X-Internal-Token", "test-internal-token"))
+                .andExpect(header("X-User-Role", "ACCOUNTANT"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"allowed\":false}}",
+                        MediaType.APPLICATION_JSON));
+
+        boolean allowed = client.canEdit("ACCOUNTANT", "accounting.journals");
+
+        assertThat(allowed).isFalse();
+        server.verify();
+    }
 }
