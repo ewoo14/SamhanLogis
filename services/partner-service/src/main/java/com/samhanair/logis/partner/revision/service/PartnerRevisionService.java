@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,10 +74,16 @@ public class PartnerRevisionService {
      * 4탭 자식 전량교체 helper 재사용 ({@link Partner4TabService#replaceChildrenFromFull}). 복원 시
      * 단가/할인 UPSERT + 배송지/담당자 soft-delete 후 재등록 로직을 4탭 수정과 공유한다.
      *
-     * <p>{@code @Lazy} — {@link Partner4TabService}가 본 service 를 의존하고 본 service 도
-     * {@link Partner4TabService}를 의존하는 순환 의존을 끊기 위해 지연 주입한다.
+     * <p><b>순환 의존 차단 — {@link ObjectProvider} 지연 조회.</b> {@link Partner4TabService}가 본
+     * service 를 즉시 주입(capture 훅)하고 본 service 도 {@link Partner4TabService}를 의존하는 양방향
+     * 순환을 끊는다. 과거 {@code @Lazy} 필드 주입을 썼으나 <b>Lombok {@code @RequiredArgsConstructor}가
+     * {@code @Lazy} 를 생성자 파라미터로 전파하지 못해</b>(repo 에 lombok.config 의 {@code copyableAnnotations}
+     * 미설정) {@code @Lazy} 가 무효화 → 실 순환(BeanCurrentlyInCreationException)이 재현됐다.
+     * {@code ObjectProvider} 는 bean 생성 시점에 {@link Partner4TabService} 실 인스턴스를 require 하지
+     * 않는 단순 factory 핸들이라 Lombok 과 무관하게 즉시 의존을 제거한다 — 실제 호출 시점
+     * ({@code getObject()})에야 조회된다.
      */
-    private final @Lazy Partner4TabService partner4TabService;
+    private final ObjectProvider<Partner4TabService> partner4TabServiceProvider;
 
     /** 실시간 협업 SSE 브로커 (PR-H4a). 복원 완료 후 구독자에게 partner:edit 이벤트를 발행한다. */
     private final RealtimeBroker broker;
@@ -696,7 +702,8 @@ public class PartnerRevisionService {
 
         // 복원 결과를 RESTORE revision 으로 캡처. captureFor 가 자식 교체 flush 후 갱신본을 조립하도록,
         // 그에 앞서 getFull 재조회로 영속성 컨텍스트 flush 를 유발하고 응답을 구성한다.
-        PartnerFullResponse response = partner4TabService.getFull(partner.getPartnerCode());
+        PartnerFullResponse response = partner4TabServiceProvider.getObject()
+                .getFull(partner.getPartnerCode());
         PartnerRevision restored = captureFor(partnerId, PartnerRevisionType.RESTORE,
                 targetRevisionNo, actorId, actorName, actorColor);
 
@@ -775,7 +782,8 @@ public class PartnerRevisionService {
                                 c.email(), c.isPrimary(), c.memo()))
                         .toList();
 
-        partner4TabService.replaceChildrenFromFull(partnerId, priceDiscount, addresses, contacts);
+        partner4TabServiceProvider.getObject()
+                .replaceChildrenFromFull(partnerId, priceDiscount, addresses, contacts);
     }
 
     private Partner loadPartnerOrThrow(UUID partnerId) {

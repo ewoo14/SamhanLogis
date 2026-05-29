@@ -63,11 +63,29 @@ class PartnerRevisionServiceTest {
     private PartnerContactRepository contactRepository;
     @Mock
     private com.samhanair.logis.partner.tab.service.Partner4TabService partner4TabService;
+    /**
+     * 순환 의존 차단용 {@link org.springframework.beans.factory.ObjectProvider} 지연 조회 mock.
+     * {@code getObject()} 호출 시 {@link #partner4TabService} mock 을 반환하도록 lenient 스텁한다
+     * (restore 케이스에서만 실제 사용 — 비-restore 케이스 UnnecessaryStubbingException 회피).
+     */
+    @Mock
+    private org.springframework.beans.factory.ObjectProvider<
+            com.samhanair.logis.partner.tab.service.Partner4TabService> partner4TabServiceProvider;
     @Mock
     private com.samhanair.logis.shared.realtime.broker.RealtimeBroker broker;
 
     @InjectMocks
     private PartnerRevisionService service;
+
+    /**
+     * ObjectProvider#getObject() → Partner4TabService mock 위임 스텁. restore 경로에서만 호출되므로
+     * lenient 로 등록해 비-restore 테스트의 strict stubbing 검사에 걸리지 않게 한다.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void wireObjectProvider() {
+        org.mockito.Mockito.lenient().when(partner4TabServiceProvider.getObject())
+                .thenReturn(partner4TabService);
+    }
 
     /**
      * id 가 @GeneratedValue 라 영속화 전엔 null 이므로, 단위 테스트에서는 reflection 으로 주입한다.
