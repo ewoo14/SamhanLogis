@@ -75,7 +75,7 @@ class SlipRevisionServiceTest {
 
         // 1회차: 기존 스냅샷 없음 (maxRevisionNo == null → next = 1)
         when(repository.maxRevisionNo(slipId)).thenReturn(null);
-        when(repository.save(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
 
         SlipRevision first = service.capture(slip, SlipRevisionType.CREATE, null,
                 actorId, "홍길동", null);
@@ -108,7 +108,7 @@ class SlipRevisionServiceTest {
         Slip slip = sampleSlip(slipId);
 
         when(repository.maxRevisionNo(slipId)).thenReturn(3);
-        when(repository.save(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
 
         SlipRevision restored = service.capture(slip, SlipRevisionType.RESTORE, 2,
                 UUID.randomUUID(), "관리자", null);
@@ -150,7 +150,7 @@ class SlipRevisionServiceTest {
         // restore(rev1) — rev1 스냅샷 로드 + 신규 revisionNo=3 채번
         when(repository.findBySlipIdAndRevisionNo(slipId, 1)).thenReturn(Optional.of(rev1));
         when(repository.maxRevisionNo(slipId)).thenReturn(2);
-        when(repository.save(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.saveAndFlush(any(SlipRevision.class))).thenAnswer(inv -> inv.getArgument(0));
 
         SlipRevision restored = service.restore(slip, 1, actorId, "관리자", null);
 
@@ -205,7 +205,10 @@ class SlipRevisionServiceTest {
         return new SlipSnapshot("2026/05/29-3", LocalDate.of(2026, 5, 29),
                 FIXED_PARTNER_ID, "삼한물산", "P001", "123-45-67890",
                 memo, "DAY", "서울시", null, "프로젝트A", "010", null,
-                FIXED_WAREHOUSE_ID, "본사창고", lines);
+                FIXED_WAREHOUSE_ID, "본사창고",
+                // audit overlay 필드 10개 — 고정 null (memo 외 헤더가 우연히 달라지지 않게)
+                null, null, null, null, null, null, null, null, null, null,
+                lines);
     }
 
     @Test

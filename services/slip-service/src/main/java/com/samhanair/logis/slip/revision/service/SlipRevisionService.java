@@ -53,13 +53,43 @@ public class SlipRevisionService {
      */
     public SlipRevision capture(Slip slip, SlipRevisionType type, Integer sourceRevisionNo,
                                 UUID actorId, String actorName, String actorColor) {
+        // 채번 race 가드 (PR #318 cycle1 P2-1):
+        // maxRevisionNo+1 read-then-insert 가 동시 mutation 시 uq_slip_revisions_active(slip_id,
+        // revision_no) 를 위반하면 DataIntegrityViolationException 이 발생한다. 이를 그대로 흘리면
+        // 500 이 되므로, 1회 재채번 재시도 후에도 충돌하면 409 CONFLICT 로 변환한다 (사용자 재시도 안내).
+        SlipSnapshot snapshot = slip.toSnapshot();
+        try {
+            return saveWithNextRevisionNo(slip, type, sourceRevisionNo, snapshot,
+                    actorId, actorName, actorColor);
+        } catch (org.springframework.dao.DataIntegrityViolationException firstConflict) {
+            try {
+                // 1회 재채번 — 직전 insert 가 채간 revision_no 다음 번호로 재시도
+                return saveWithNextRevisionNo(slip, type, sourceRevisionNo, snapshot,
+                        actorId, actorName, actorColor);
+            } catch (org.springframework.dao.DataIntegrityViolationException retryConflict) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "동시 수정 충돌 — 잠시 후 다시 시도해 주세요");
+            }
+        }
+    }
+
+    /**
+     * 현 시점 {@code maxRevisionNo+1} 로 채번해 SlipRevision 1건을 저장한다 (capture 의 채번 단위).
+     *
+     * <p>분리 목적: 채번 read 와 insert 가 한 호출에 묶여 있어야 재시도 시 갱신된 maxRevisionNo 로
+     * 다시 채번된다. 스냅샷은 호출자가 1회만 만들어 재시도 간 재사용한다 (불변 — 재계산 불필요).
+     */
+    private SlipRevision saveWithNextRevisionNo(Slip slip, SlipRevisionType type,
+                                                Integer sourceRevisionNo, SlipSnapshot snapshot,
+                                                UUID actorId, String actorName, String actorColor) {
         Integer max = repository.maxRevisionNo(slip.getId());
         int next = (max == null ? 0 : max) + 1;
         SlipRevision revision = SlipRevision.of(
                 slip.getId(), next, type, sourceRevisionNo,
-                slip.getSlipNo(), slip.getSlipDate(), slip.toSnapshot(),
+                slip.getSlipNo(), slip.getSlipDate(), snapshot,
                 actorId, actorName, actorColor);
-        return repository.save(revision);
+        // saveAndFlush — unique 제약 위반을 commit 이 아닌 이 시점에 동기 노출시켜 catch/재시도 가능하게 한다.
+        return repository.saveAndFlush(revision);
     }
 
     /**
@@ -276,6 +306,37 @@ public class SlipRevisionService {
             changed++;
         }
         if (!Objects.equals(prev.destinationWarehouseName(), cur.destinationWarehouseName())) {
+            changed++;
+        }
+        // audit overlay 필드 10개 (PR #318 cycle1 P1-1) — overlay 수정도 헤더 변경으로 집계
+        if (!Objects.equals(prev.shippingAddress(), cur.shippingAddress())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.inspectionAddress(), cur.inspectionAddress())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.receiverPhone(), cur.receiverPhone())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.customerTel(), cur.customerTel())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.customerAddress(), cur.customerAddress())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.customerRepresentative(), cur.customerRepresentative())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.paymentDueLabel(), cur.paymentDueLabel())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.discountInfo(), cur.discountInfo())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.collectTerm(), cur.collectTerm())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.agreeTerm(), cur.agreeTerm())) {
             changed++;
         }
         return changed;

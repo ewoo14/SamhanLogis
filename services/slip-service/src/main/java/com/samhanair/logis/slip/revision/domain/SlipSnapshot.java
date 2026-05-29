@@ -34,6 +34,16 @@ import java.util.UUID;
  * @param paymentDueDate 입금예정일
  * @param destinationWarehouseId 도착지 창고 UUID (복원용)
  * @param destinationWarehouseName 도착지 창고명 스냅샷
+ * @param shippingAddress 배송지 주소 (audit overlay 필드, V16)
+ * @param inspectionAddress 검수지 주소 (audit overlay 필드, V16)
+ * @param receiverPhone 수령자 연락처 (audit overlay 필드, V16)
+ * @param customerTel 거래처 연락처 (audit overlay 필드, V16)
+ * @param customerAddress 거래처 사업장 주소 (audit overlay 필드, V16)
+ * @param customerRepresentative 거래처 대표자명 (audit overlay 필드, V16)
+ * @param paymentDueLabel 결제 만기 라벨 (audit overlay 필드, V16)
+ * @param discountInfo 할인 정보 (audit overlay 필드, V16)
+ * @param collectTerm 대금 회수 조건 (audit overlay 필드, V16)
+ * @param agreeTerm 거래 약정 조건 (audit overlay 필드, V16)
  * @param lines 라인 스냅샷 배열
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -53,6 +63,19 @@ public record SlipSnapshot(
         LocalDate paymentDueDate,
         UUID destinationWarehouseId,
         String destinationWarehouseName,
+        // ---------- audit overlay 필드 (PR #318 cycle1 P1-1 보강) ----------
+        // applyOverlayPatch/readOverlayField 가 편집/조회하는 11개 필드 중 memo 를 제외한 10개.
+        // 누락 시 overlay 로 수정된 헤더가 스냅샷에 안 담겨 복원 시 롤백되지 않는다 (spec §4 "통째 복원" 위반).
+        String shippingAddress,
+        String inspectionAddress,
+        String receiverPhone,
+        String customerTel,
+        String customerAddress,
+        String customerRepresentative,
+        String paymentDueLabel,
+        String discountInfo,
+        String collectTerm,
+        String agreeTerm,
         List<Line> lines) {
 
     /**

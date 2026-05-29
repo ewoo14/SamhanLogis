@@ -45,6 +45,9 @@ class SlipRevisionSnapshotTest {
                 LocalDate.of(2026, 6, 30),
                 warehouseId,
                 "본사창고",
+                // audit overlay 필드 10개 (PR #318 cycle1 P1-1)
+                "배송지 주소", "검수지 주소", "010-9999-0000", "010-1111-2222",
+                "거래처 사업장 주소", "김대표", "익월말", "5% 할인", "월말", "운송비 별도",
                 List.of(
                         new SlipSnapshot.Line(productId, "펌프", "MX-100", "220V", 2,
                                 new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모"),
@@ -68,6 +71,7 @@ class SlipRevisionSnapshotTest {
         UUID actorId = UUID.randomUUID();
         SlipSnapshot snapshot = new SlipSnapshot("2026/05/29-3", LocalDate.of(2026, 5, 29),
                 null, "삼한물산", null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 List.of());
 
         SlipRevision revision = SlipRevision.of(slipId, 4, SlipRevisionType.RESTORE, 2,
@@ -85,7 +89,8 @@ class SlipRevisionSnapshotTest {
     @DisplayName("SlipRevision.of 는 필수 인자(slipId/revisionNo/revisionType/snapshot) 누락 시 거부한다")
     void factoryRejectsMissingRequiredArgs() {
         SlipSnapshot snapshot = new SlipSnapshot(null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, List.of());
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, List.of());
         UUID slipId = UUID.randomUUID();
 
         assertThatThrownBy(() -> SlipRevision.of(null, 1, SlipRevisionType.CREATE, null,

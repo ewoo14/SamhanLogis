@@ -1808,6 +1808,17 @@ public class Slip extends BaseEntity {
                 this.paymentDueDate,
                 this.destinationWarehouseId,
                 this.destinationWarehouseName,
+                // audit overlay 필드 10개 (PR #318 cycle1 P1-1) — restoreFromSnapshot 과 대칭
+                this.shippingAddress,
+                this.inspectionAddress,
+                this.receiverPhone,
+                this.customerTel,
+                this.customerAddress,
+                this.customerRepresentative,
+                this.paymentDueLabel,
+                this.discountInfo,
+                this.collectTerm,
+                this.agreeTerm,
                 snapshotLines);
     }
 
@@ -1853,6 +1864,18 @@ public class Slip extends BaseEntity {
         this.paymentDueDate = snapshot.paymentDueDate();
         this.destinationWarehouseId = snapshot.destinationWarehouseId();
         this.destinationWarehouseName = snapshot.destinationWarehouseName();
+        // audit overlay 필드 10개 역적용 (PR #318 cycle1 P1-1) — toSnapshot 과 대칭.
+        // applyOverlayPatch 가 수정하는 필드가 복원 시 정확히 당시 값으로 롤백되도록 직접 set.
+        this.shippingAddress = snapshot.shippingAddress();
+        this.inspectionAddress = snapshot.inspectionAddress();
+        this.receiverPhone = snapshot.receiverPhone();
+        this.customerTel = snapshot.customerTel();
+        this.customerAddress = snapshot.customerAddress();
+        this.customerRepresentative = snapshot.customerRepresentative();
+        this.paymentDueLabel = snapshot.paymentDueLabel();
+        this.discountInfo = snapshot.discountInfo();
+        this.collectTerm = snapshot.collectTerm();
+        this.agreeTerm = snapshot.agreeTerm();
 
         // 라인 전량 교체 — 기존 라인 markDeleted → clear → 스냅샷 라인 재생성 addAll
         // (replaceLines/replaceSalesLines 와 동일한 패턴이나, status DRAFT/SAVED 가드는 거치지 않는다

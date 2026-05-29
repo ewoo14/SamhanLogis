@@ -55,6 +55,10 @@ class SlipRestoreTest {
                 "복원배송지", "복원감리지", "복원프로젝트", "010-0000-0000",
                 LocalDate.of(2026, 6, 30),
                 UUID.randomUUID(), "복원창고",
+                // audit overlay 필드 10개 (PR #318 cycle1 P1-1)
+                "복원shippingAddress", "복원inspectionAddress", "010-1111-1111",
+                "02-222-2222", "복원customerAddress", "복원대표자",
+                "복원paymentDueLabel", "복원discountInfo", "복원collectTerm", "복원agreeTerm",
                 List.of());
 
         slip.restoreFromSnapshot(snapshot);
@@ -70,6 +74,41 @@ class SlipRestoreTest {
         assertThat(slip.getRecipientPhone()).isEqualTo("010-0000-0000");
         assertThat(slip.getPaymentDueDate()).isEqualTo(LocalDate.of(2026, 6, 30));
         assertThat(slip.getDestinationWarehouseName()).isEqualTo("복원창고");
+        // audit overlay 필드 10개 역적용 검증
+        assertThat(slip.getShippingAddress()).isEqualTo("복원shippingAddress");
+        assertThat(slip.getInspectionAddress()).isEqualTo("복원inspectionAddress");
+        assertThat(slip.getReceiverPhone()).isEqualTo("010-1111-1111");
+        assertThat(slip.getCustomerTel()).isEqualTo("02-222-2222");
+        assertThat(slip.getCustomerAddress()).isEqualTo("복원customerAddress");
+        assertThat(slip.getCustomerRepresentative()).isEqualTo("복원대표자");
+        assertThat(slip.getPaymentDueLabel()).isEqualTo("복원paymentDueLabel");
+        assertThat(slip.getDiscountInfo()).isEqualTo("복원discountInfo");
+        assertThat(slip.getCollectTerm()).isEqualTo("복원collectTerm");
+        assertThat(slip.getAgreeTerm()).isEqualTo("복원agreeTerm");
+    }
+
+    @Test
+    @DisplayName("toSnapshot ↔ restoreFromSnapshot 대칭: overlay 필드 수정 후 과거 스냅샷 복원 시 원값 롤백")
+    void restoreRollsBackOverlayFields() {
+        // 원본 슬립의 overlay 필드를 캡처 → 과거 스냅샷 확보
+        Slip slip = sampleSlip();
+        slip.applyOverlayPatch("shippingAddress", "원본배송지");
+        slip.applyOverlayPatch("customerRepresentative", "원본대표자");
+        slip.applyOverlayPatch("collectTerm", "월말");
+        SlipSnapshot past = slip.toSnapshot();
+
+        // overlay 필드 수정 (사용자가 PATCH /audit/overlay 로 변경한 상황 모사)
+        slip.applyOverlayPatch("shippingAddress", "변경배송지");
+        slip.applyOverlayPatch("customerRepresentative", "변경대표자");
+        slip.applyOverlayPatch("collectTerm", "현금");
+        assertThat(slip.getShippingAddress()).isEqualTo("변경배송지");
+
+        // 과거 스냅샷 복원 → overlay 필드가 원값으로 롤백
+        slip.restoreFromSnapshot(past);
+
+        assertThat(slip.getShippingAddress()).isEqualTo("원본배송지");
+        assertThat(slip.getCustomerRepresentative()).isEqualTo("원본대표자");
+        assertThat(slip.getCollectTerm()).isEqualTo("월말");
     }
 
     @Test
@@ -80,6 +119,7 @@ class SlipRestoreTest {
                 "2026/05/29-1", LocalDate.of(2026, 5, 29),
                 PARTNER, "삼한물산", null, null,
                 "메모", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 List.of());
 
         slip.restoreFromSnapshot(snapshot);
@@ -96,6 +136,7 @@ class SlipRestoreTest {
                 "2026/05/29-1", LocalDate.of(2026, 5, 29),
                 PARTNER, "삼한물산", null, null, "메모", null,
                 null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 List.of(new SlipSnapshot.Line(UUID.randomUUID(), "펌프", "MX-100", "220V",
                         2, new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모")));
 
@@ -113,6 +154,7 @@ class SlipRestoreTest {
                 "2026/05/29-1", LocalDate.of(2026, 5, 29),
                 PARTNER, "삼한물산", null, null, "메모", null,
                 null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 List.of(
                         new SlipSnapshot.Line(UUID.randomUUID(), "A", null, null,
                                 1, new BigDecimal("100.00"), new BigDecimal("100.00"), null),
@@ -136,6 +178,7 @@ class SlipRestoreTest {
                 "2026/05/29-1", LocalDate.of(2026, 5, 29),
                 PARTNER, "삼한물산", null, null, "메모", null,
                 null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 List.of(new SlipSnapshot.Line(UUID.randomUUID(), "펌프", "MX-100", "220V",
                         10, new BigDecimal("15000.00"), new BigDecimal("150000.00"), "라인메모")));
 
@@ -156,7 +199,8 @@ class SlipRestoreTest {
         SlipSnapshot snapshot = new SlipSnapshot(
                 "2026/05/29-1", LocalDate.of(2026, 5, 29),
                 PARTNER, "삼한물산", null, null, "메모", null,
-                null, null, null, null, null, null, null, List.of());
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, List.of());
 
         assertThatThrownBy(() -> slip.restoreFromSnapshot(snapshot))
                 .isInstanceOf(BusinessException.class)

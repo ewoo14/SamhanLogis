@@ -112,7 +112,10 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         // 1라인 출고전표 생성 → CREATE revision 1 자동 캡처
         UUID slipId = createOutboundSlipAsSales(1);
 
-        // 라인 1건 추가 (addLine 자체는 캡처 없음) → v20 수정으로 EDIT revision 2 캡처 (현 라인 = 2건)
+        // 캡처-갭 fix(commit 62cd558d) 이후 현행 캡처 흐름:
+        //   create(1라인) = rev1 CREATE
+        //   addLine        = rev2 EDIT (이 시점 라인 2건 — 직전 rev1 대비 라인 1건 추가)
+        //   patchV20       = rev3 EDIT (projectName 변경 — 라인 변화 없음, 헤더 변경)
         addLine(slipId);
         patchV20(slipId, "타임라인 검증 프로젝트");
 
@@ -121,13 +124,15 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_NAME_HEADER, "감사자")
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
-                // 최신 우선 — [0] = revision 2 (EDIT), [1] = revision 1 (CREATE)
-                .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                // 최신 우선 — [0]=rev3 EDIT(v20), [1]=rev2 EDIT(addLine), [2]=rev1 CREATE
+                .andExpect(jsonPath("$.data[0].revisionNo").value(3))
                 .andExpect(jsonPath("$.data[0].revisionType").value("EDIT"))
-                .andExpect(jsonPath("$.data[1].revisionNo").value(1))
-                .andExpect(jsonPath("$.data[1].revisionType").value("CREATE"))
-                // EDIT 는 직전(rev1, 1라인) 대비 라인 1건 추가
-                .andExpect(jsonPath("$.data[0].changeSummary.lineAdded")
+                .andExpect(jsonPath("$.data[1].revisionNo").value(2))
+                .andExpect(jsonPath("$.data[1].revisionType").value("EDIT"))
+                .andExpect(jsonPath("$.data[2].revisionNo").value(1))
+                .andExpect(jsonPath("$.data[2].revisionType").value("CREATE"))
+                // rev2(addLine) 는 직전(rev1, 1라인) 대비 라인 1건 추가
+                .andExpect(jsonPath("$.data[1].changeSummary.lineAdded")
                         .value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data[0].actorName").value(notNullValue()))
                 .andReturn();
@@ -136,7 +141,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         String body = result.getResponse().getContentAsString();
         org.assertj.core.api.Assertions.assertThat(body).doesNotContain("actorId");
         JsonNode data = objectMapper.readTree(body).get("data");
-        org.assertj.core.api.Assertions.assertThat(data).hasSizeGreaterThanOrEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(data).hasSizeGreaterThanOrEqualTo(3);
         org.assertj.core.api.Assertions.assertThat(data.get(0).has("actorId")).isFalse();
     }
 
@@ -156,7 +161,9 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(lineCount(getDetail(slipId)))
                 .isEqualTo(linesAtRev1 + 1);
 
-        // revision 1 시점으로 복원 → 200, 라인 집합이 rev1 (= 1건) 로 회귀
+        // 캡처-갭 fix(commit 62cd558d) 이후: create=rev1, addLine=rev2, patchV20=rev3.
+        // revision 1 시점으로 복원 → 200, 라인 집합이 rev1 (= 1건) 로 회귀하고
+        // 복원 자체가 신규 RESTORE rev4 (sourceRevisionNo=1) 로 누적된다.
         mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_NAME_HEADER, "복원자")
@@ -165,12 +172,14 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id").value(slipId.toString()))
                 .andExpect(jsonPath("$.data.lines.length()").value(linesAtRev1));
 
-        // 복원도 신규 RESTORE revision 3 (sourceRevisionNo=1) 으로 추적 — GET 재확인
+        // 복원도 신규 RESTORE revision (sourceRevisionNo=1) 으로 추적 — 타임라인 최신 항목이 RESTORE.
+        // 하드코딩 의존을 줄이기 위해 정확한 revisionNo 는 현행 캡처 흐름(rev4)으로 단언하되,
+        // 핵심 계약(타임라인 최신=RESTORE + 복원 출처=1)에 집중한다.
         mockMvc.perform(get("/slips/{id}/revisions", slipId)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].revisionNo").value(3))
+                .andExpect(jsonPath("$.data[0].revisionNo").value(4))
                 .andExpect(jsonPath("$.data[0].revisionType").value("RESTORE"))
                 .andExpect(jsonPath("$.data[0].sourceRevisionNo").value(1));
     }
