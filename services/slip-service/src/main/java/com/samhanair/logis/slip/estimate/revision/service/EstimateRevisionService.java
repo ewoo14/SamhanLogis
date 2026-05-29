@@ -7,7 +7,14 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
+import com.samhanair.logis.slip.estimate.revision.web.dto.EstimateRevisionResponse;
+import com.samhanair.logis.slip.estimate.revision.web.dto.EstimateRevisionResponse.ChangeSummary;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -137,5 +144,194 @@ public class EstimateRevisionService {
         estimate.restoreFromSnapshot(target.getSnapshot());
         return capture(estimate, EstimateRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
+    }
+
+    /**
+     * 버전 타임라인을 changeSummary 가 포함된 응답 DTO 로 조회한다 (권한 재편 Phase 2.2 Task 4).
+     *
+     * <p>{@link #list}(repository) 는 revisionNo 내림차순 raw entity 만 반환한다. 본 메서드는 그
+     * 결과를 받아 각 revision 의 {@link ChangeSummary} 를 그 <b>직전 revisionNo</b> 스냅샷과
+     * 비교해 계산한다 — 인접 비교를 위해 revisionNo 오름차순으로 정렬한 뒤 인접쌍을 훑고,
+     * 최종 반환은 다시 최신(revisionNo 내림차순) 우선으로 뒤집어 FE 타임라인 표시 순서와 맞춘다.
+     *
+     * <p>"직전 revisionNo" 는 단조 증가 채번이므로 정렬된 목록상 바로 이전 원소이며, 첫 원소
+     * (가장 오래된 revision) 는 비교 대상이 없어 {@code summarize(null, cur)} 로 처리된다.
+     *
+     * <p>{@link com.samhanair.logis.slip.revision.service.SlipRevisionService#listWithSummary} 미러.
+     *
+     * @param estimateId 대상 견적 UUID
+     * @return revisionNo 내림차순 정렬 + changeSummary 포함 응답 목록 (없으면 빈 리스트)
+     */
+    @Transactional(readOnly = true)
+    public List<EstimateRevisionResponse> listWithSummary(UUID estimateId) {
+        List<EstimateRevision> revisions = new ArrayList<>(list(estimateId));
+        // 인접 비교를 위해 revisionNo 오름차순으로 정렬 (list 는 내림차순 반환)
+        revisions.sort(Comparator.comparingInt(EstimateRevision::getRevisionNo));
+
+        List<EstimateRevisionResponse> responses = new ArrayList<>(revisions.size());
+        EstimateSnapshot prev = null;
+        for (EstimateRevision revision : revisions) {
+            EstimateSnapshot cur = revision.getSnapshot();
+            ChangeSummary summary = summarize(prev, cur);
+            responses.add(new EstimateRevisionResponse(
+                    revision.getRevisionNo(),
+                    revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
+                    revision.getSourceRevisionNo(),
+                    revision.getEstimateNo(),
+                    revision.getEstimateDate(),
+                    revision.getActorName(),
+                    revision.getCreatedAt(),
+                    summary));
+            prev = cur;
+        }
+        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
+        java.util.Collections.reverse(responses);
+        return responses;
+    }
+
+    /**
+     * 두 스냅샷 간 변경 규모를 {@link ChangeSummary} 로 집계한다 (권한 재편 Phase 2.2 Task 4).
+     *
+     * <p>비교 규칙:
+     * <ul>
+     *   <li><b>prev == null</b> (최초 revision): headerChanged=0, lineRemoved=0, lineModified=0,
+     *       lineAdded = cur 라인 수 (직전 없음 = 전 라인이 신규).</li>
+     *   <li><b>헤더</b>: 두 스냅샷의 헤더 필드값을 {@link Objects#equals}로 비교해 다른 필드 수를
+     *       센다 (estimateNo, estimateDate, partner 계열, validUntil, memo — UUID 포함 복원
+     *       식별자 전부). 라인 리스트는 헤더 카운트에서 제외.</li>
+     *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
+     *       양쪽 존재하나 라인 필드(quantity, unitPrice, supplyAmount, vatAmount, lineTotal,
+     *       productName, modelName, specification, note) 중 하나라도 다르면 modified.</li>
+     * </ul>
+     *
+     * <p>productId 가 null 인 라인은 매칭 키가 없어 added/removed 로만 집계된다 (modified 미판정).
+     *
+     * <p>{@link com.samhanair.logis.slip.revision.service.SlipRevisionService#summarize} 미러.
+     *
+     * @param prev 직전 시점 스냅샷 (최초 revision 이면 null)
+     * @param cur 현 시점 스냅샷 (필수)
+     * @return 변경 규모 요약
+     */
+    public ChangeSummary summarize(EstimateSnapshot prev, EstimateSnapshot cur) {
+        List<EstimateSnapshot.Line> curLines = cur.lines() == null ? List.of() : cur.lines();
+        if (prev == null) {
+            return new ChangeSummary(0, curLines.size(), 0, 0);
+        }
+        List<EstimateSnapshot.Line> prevLines = prev.lines() == null ? List.of() : prev.lines();
+
+        int headerChanged = countHeaderChanges(prev, cur);
+
+        // productId 기준 매칭 맵 (null productId 는 added/removed 로만 잡히도록 맵 제외)
+        Map<UUID, EstimateSnapshot.Line> prevById = new LinkedHashMap<>();
+        for (EstimateSnapshot.Line line : prevLines) {
+            if (line.productId() != null) {
+                prevById.put(line.productId(), line);
+            }
+        }
+        Map<UUID, EstimateSnapshot.Line> curById = new LinkedHashMap<>();
+        for (EstimateSnapshot.Line line : curLines) {
+            if (line.productId() != null) {
+                curById.put(line.productId(), line);
+            }
+        }
+
+        int lineAdded = 0;
+        int lineRemoved = 0;
+        int lineModified = 0;
+
+        // productId 가 null 인 라인은 키 매칭 불가 → cur=added, prev=removed
+        for (EstimateSnapshot.Line line : curLines) {
+            if (line.productId() == null) {
+                lineAdded++;
+            }
+        }
+        for (EstimateSnapshot.Line line : prevLines) {
+            if (line.productId() == null) {
+                lineRemoved++;
+            }
+        }
+
+        for (Map.Entry<UUID, EstimateSnapshot.Line> entry : curById.entrySet()) {
+            EstimateSnapshot.Line prevLine = prevById.get(entry.getKey());
+            if (prevLine == null) {
+                lineAdded++;
+            } else if (lineDiffers(prevLine, entry.getValue())) {
+                lineModified++;
+            }
+        }
+        for (UUID prevKey : prevById.keySet()) {
+            if (!curById.containsKey(prevKey)) {
+                lineRemoved++;
+            }
+        }
+
+        return new ChangeSummary(headerChanged, lineAdded, lineRemoved, lineModified);
+    }
+
+    /**
+     * 두 스냅샷의 헤더 필드를 1:1 비교해 값이 달라진 필드 수를 센다 (라인 리스트 제외).
+     */
+    private int countHeaderChanges(EstimateSnapshot prev, EstimateSnapshot cur) {
+        int changed = 0;
+        if (!Objects.equals(prev.estimateNo(), cur.estimateNo())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.estimateDate(), cur.estimateDate())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.partnerId(), cur.partnerId())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.partnerName(), cur.partnerName())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.partnerBusinessNo(), cur.partnerBusinessNo())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.partnerAddress(), cur.partnerAddress())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.validUntil(), cur.validUntil())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.memo(), cur.memo())) {
+            changed++;
+        }
+        return changed;
+    }
+
+    /**
+     * 동일 productId 라인 2건의 필드값이 하나라도 다른지 판정한다 (BigDecimal 은 compareTo).
+     */
+    private boolean lineDiffers(EstimateSnapshot.Line a, EstimateSnapshot.Line b) {
+        if (a.quantity() != b.quantity()) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.unitPrice(), b.unitPrice())) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.supplyAmount(), b.supplyAmount())) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.vatAmount(), b.vatAmount())) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.lineTotal(), b.lineTotal())) {
+            return true;
+        }
+        return !Objects.equals(a.productName(), b.productName())
+                || !Objects.equals(a.modelName(), b.modelName())
+                || !Objects.equals(a.specification(), b.specification())
+                || !Objects.equals(a.note(), b.note());
+    }
+
+    /**
+     * BigDecimal 동등 비교 — scale 차이 무시 (compareTo). null 안전.
+     */
+    private boolean bigDecimalEquals(java.math.BigDecimal a, java.math.BigDecimal b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.compareTo(b) == 0;
     }
 }
