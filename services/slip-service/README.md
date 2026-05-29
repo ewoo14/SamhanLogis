@@ -39,6 +39,10 @@ SamhanLogis 출고/입고 전표 (STI) 서비스 — 10단계 라이프사이클
 이 page들은 SP-D7 이전 동일 page의 `@RequirePermission(..., VIEW)` endpoint가 없어 기존 page를 재사용한다.
 auth-service V38 seed가 `PARTNER`를 제외한 내부 role의 기존 `FALSE` row를 `TRUE`로 보강해 기존 내부 인증 사용자 동작을 유지한다.
 
+### Phase 2.1 — 전표 버전이력 + 복원 (RESTORE 첫 도메인, 2026-05-29)
+
+`slip_revisions`(V27, JSONB full-snapshot)에 모든 content-mutation 시점의 헤더+라인 완전 스냅샷을 캡처하고, `GET /api/v1/slips/{id}/revisions`(버전이력, `slip.audit-revert`·VIEW) + `POST /api/v1/slips/{id}/revisions/{n}/restore`(point-in-time 복원, `slip.audit-revert`·RESTORE, 마감 lock 409)로 임의 시점 복원을 제공한다. 복원도 새 `RESTORE` revision을 발급해 이력을 보존한다. 상세는 `docs/dev-reports/phase-2-1-slip-restore-version-history.md` 참조.
+
 ### 발행 감사 (`SlipPublishAudit`)
 
 영구 보존 (soft-delete 만 허용). 회계 cross-check + supply/vat 합계 round-trip 검증.
@@ -145,6 +149,7 @@ legacy GAS `전표정리리스트`의 저장/복원 흐름을 `slip_cleanup_save
 | V8 | slip_publish_audit 테이블 + jsonb 컬럼 |
 | V9 | slip_publish_audit fingerprint 컬럼 추가 |
 | V10 | (Phase 10 W10-4) signature_source 컬럼 3개 — slips 인수자 + 기사 + slip_signature_audit, NOT NULL DEFAULT 'LINK' backfill, APP partial index 2종 |
+| V27 | (Phase 2.1) `slip_revisions` 테이블 — JSONB full-snapshot 버전이력 + 복원, `(slip_id, revision_no)` unique, BaseEntity 7 audit + Soft Delete |
 
 ## Environment variables
 

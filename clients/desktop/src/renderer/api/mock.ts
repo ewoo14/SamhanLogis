@@ -938,6 +938,51 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(list)
   }
 
+  // Phase 2.1: POST /api/v1/slips/{slipId}/revisions/{revisionNo}/restore — 특정 시점 복원.
+  // restore POST 가 revisions GET 보다 먼저 (더 구체적인 path) 매칭되어야 함.
+  const revisionRestoreMatch = url.match(/\/slips\/([^/?]+)\/revisions\/(\d+)\/restore$/)
+  if (method === 'POST' && revisionRestoreMatch) {
+    const slipId = revisionRestoreMatch[1]!
+    const found = (MOCK_SLIPS.find((s) => s.id === slipId) ?? MOCK_SLIPS[0]!) as Record<string, unknown>
+    // 복원 결과는 SlipDetail — 현재 mock slip 을 SAVED 로 되돌린 스냅샷으로 응답.
+    return envelope({
+      ...found,
+      status: 'SAVED',
+      lines: SAMPLE_LINES,
+    })
+  }
+
+  // Phase 2.1: GET /api/v1/slips/{slipId}/revisions — 버전이력 목록 (최신 우선).
+  // 결정적 fixture 2건 (rev2 EDIT lineAdded=1, rev1 CREATE).
+  const revisionsGetMatch = url.match(/\/slips\/([^/?]+)\/revisions(\?.*)?$/)
+  if (method === 'GET' && revisionsGetMatch) {
+    const slipId = revisionsGetMatch[1]!
+    const slip = MOCK_SLIPS.find((s) => s.id === slipId) ?? MOCK_SLIPS[0]!
+    const slipNo = slip.slipNo
+    return envelope([
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        slipNo,
+        slipDate: slip.slipDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T14:32:18',
+        changeSummary: { headerChanged: 0, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        slipNo,
+        slipDate: slip.slipDate,
+        actorName: MOCK_AUTH.fullName,
+        createdAt: '2026-05-29T09:10:00',
+        changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+      },
+    ])
+  }
+
   // PATCH /api/v1/slips/{slipId}/audit/overlay — 단일 필드 수정 + audit row INSERT
   const auditOverlayMatch = url.match(/\/slips\/([^/?]+)\/audit\/overlay$/)
   if (method === 'PATCH' && auditOverlayMatch) {
