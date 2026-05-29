@@ -84,6 +84,17 @@ class PermissionAspectTest {
     }
 
     @Test
+    void partnerSelfServiceProceedsWithoutClientCheck() {
+        attachHeaders(ACCOUNT_ID.toString(), "PARTNER");
+
+        String result = proxy.printOwnOrder(ACCOUNT_ID.toString(), "PARTNER");
+
+        assertThat(result).isEqualTo("print-ok");
+        verifyNoInteractions(client);
+        assertThat(deniedCount("sales.partner-order.print", "PARTNER", "PRINT")).isZero();
+    }
+
+    @Test
     void accountGrantAllows() {
         attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT");
         given(client.check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE)).willReturn(true);
@@ -134,6 +145,17 @@ class PermissionAspectTest {
                 @RequestHeader(value = "X-User-Id", required = false) String accountId,
                 @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
             return "ok";
+        }
+
+        @RequirePermission(
+                page = "sales.partner-order.print",
+                action = PermissionAction.PRINT,
+                partnerSelfService = true
+        )
+        public String printOwnOrder(
+                @RequestHeader(value = "X-User-Id", required = false) String accountId,
+                @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            return "print-ok";
         }
     }
 }

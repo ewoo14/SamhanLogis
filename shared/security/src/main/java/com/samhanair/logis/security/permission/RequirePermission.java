@@ -67,4 +67,18 @@ public @interface RequirePermission {
      * @return 액션 enum
      */
     PermissionAction action() default PermissionAction.VIEW;
+
+    /**
+     * PARTNER 자기범위 self-service endpoint 여부.
+     *
+     * <p>{@code true} 인 경우 {@link PermissionAspect} 의 PARTNER 무조건 deny 를 면제한다.
+     * 자기범위 검증은 service 계층 책임이며, 예를 들어 {@code PARTNER_CODE_HEADER} 로 전달된
+     * 거래처 코드와 대상 리소스의 소유 거래처를 service 에서 반드시 대조해야 한다.
+     *
+     * <p>기본값은 {@code false} 이므로 명시적으로 opt-in 하지 않은 endpoint 의 기존 PARTNER
+     * deny 정책은 변하지 않는다.
+     *
+     * @return PARTNER 자기범위 self-service endpoint 이면 true
+     */
+    boolean partnerSelfService() default false;
 }

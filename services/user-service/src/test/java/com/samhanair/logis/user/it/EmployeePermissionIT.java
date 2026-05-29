@@ -84,8 +84,7 @@ class EmployeePermissionIT extends AbstractPostgresIT {
     @DisplayName("C2: MANAGER admin.employees canView=false → 직원 목록 403 FORBIDDEN")
     @WithMockUser(username = "manager-denied", authorities = {"ROLE_MANAGER"})
     void C2_manager_canView_false_returns_403() throws Exception {
-        Mockito.when(dynamicPermissionClient.check(
-                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.VIEW)))
+        Mockito.when(dynamicPermissionClient.canView("MANAGER", "admin.employees"))
                 .thenReturn(false);
 
         mockMvc.perform(get("/users/employees")

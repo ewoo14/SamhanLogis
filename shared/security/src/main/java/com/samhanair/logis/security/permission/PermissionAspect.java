@@ -31,7 +31,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>deny 정책:
  * <ul>
  *   <li>MASTER: 동적 DB 조회 없이 통과</li>
- *   <li>PARTNER: 내부 서비스 접근 방어 차원에서 항상 deny</li>
+ *   <li>PARTNER: 내부 서비스 접근 방어 차원에서 항상 deny.
+ *       단, {@link RequirePermission#partnerSelfService()} 명시 opt-in endpoint 는 service 계층
+ *       자기범위 검증을 전제로 통과</li>
  *   <li>그 외: {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} == false → deny</li>
  * </ul>
  *
@@ -110,6 +112,9 @@ public class PermissionAspect {
         }
 
         if ("PARTNER".equalsIgnoreCase(roleCode)) {
+            if (annotation.partnerSelfService()) {
+                return joinPoint.proceed();
+            }
             deny(page, roleCode, actionName, "PARTNER role");
         }
 

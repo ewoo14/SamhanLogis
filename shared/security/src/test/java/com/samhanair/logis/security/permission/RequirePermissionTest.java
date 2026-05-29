@@ -14,9 +14,29 @@ class RequirePermissionTest {
         assertThat(annotation.action()).isEqualTo(PermissionAction.CREATE);
     }
 
+    @Test
+    void partnerSelfServiceDefaultsFalse() throws Exception {
+        var method = Sample.class.getMethod("op");
+        RequirePermission annotation = method.getAnnotation(RequirePermission.class);
+
+        assertThat(annotation.partnerSelfService()).isFalse();
+    }
+
+    @Test
+    void partnerSelfServiceCanBeEnabledExplicitly() throws Exception {
+        var method = Sample.class.getMethod("partnerSelfServiceOp");
+        RequirePermission annotation = method.getAnnotation(RequirePermission.class);
+
+        assertThat(annotation.partnerSelfService()).isTrue();
+    }
+
     static class Sample {
         @RequirePermission(page = "x.y", action = PermissionAction.CREATE)
         public void op() {
+        }
+
+        @RequirePermission(page = "x.partner", partnerSelfService = true)
+        public void partnerSelfServiceOp() {
         }
     }
 }
