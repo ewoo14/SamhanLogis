@@ -469,6 +469,10 @@ public class SlipService {
         applyMutation(() -> slip.addLine(SlipLine.create(slip, req.productId(),
                 productName, modelName, req.specification(),
                 req.quantity(), req.unitPrice(), req.note())));
+        // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
+        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -489,6 +493,10 @@ public class SlipService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "라인을 찾을 수 없습니다"));
         applyMutation(() -> slip.removeLine(line));
+        // 권한 재편 Phase 2.1 — 라인 삭제도 롤백 가능하도록 EDIT 스냅샷 캡처
+        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
     }
 
     /** 작성중 → 저장완료. */

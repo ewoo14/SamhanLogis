@@ -340,6 +340,41 @@ class SlipServiceTest {
                         .isEqualTo(ErrorCode.CONFLICT));
     }
 
+    // ---------- 라인 mutation revision 캡처 (Phase 2.1 — addLine/removeLine) ----------
+
+    @Test
+    void addLine_capturesEditRevision() {
+        // 라인 추가도 헤더+라인 전체 버전이력 스냅샷에 잡혀야 한다 (Q3 요구).
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.addLine(slipId,
+                new com.samhanair.logis.slip.web.dto.AddLineRequest(
+                        productId, "에어컨", "M-1", null, 2, new BigDecimal("100.00"), null),
+                "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
+    @Test
+    void removeLine_capturesEditRevision() {
+        // 라인 삭제도 롤백 가능해야 하므로 revision 으로 캡처되어야 한다.
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        UUID lineId = UUID.randomUUID();
+        ReflectionTestUtils.setField(slip.getLines().get(0), "id", lineId);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.removeLine(slipId, lineId, "user-1");
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq("user-1"), eq(null));
+    }
+
     // ---------- read ----------
 
     @Test
