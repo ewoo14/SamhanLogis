@@ -119,8 +119,13 @@ public class Partner4TabController {
     @PatchMapping("/{partnerCode}/full")
     @RequirePermission(page = "partners.4tab.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerFullResponse> updateFull(@PathVariable String partnerCode,
-                                                        @Valid @RequestBody PartnerFullRequest req) {
-        return ApiResponse.ok(partner4TabService.updateFull(partnerCode, req));
+                                                        @Valid @RequestBody PartnerFullRequest req,
+                                                        Principal principal) {
+        // 권한 재편 Phase 2.3 — 4탭 일괄 수정 시 revision actor (표시명) 전달. UUID 비공개 가드:
+        // Principal.getName() 은 표시명/식별자 문자열이므로 actorName 으로만 사용하고 actorId 는 service
+        // 가 system 폴백한다 (UUID 헤더는 본 endpoint 미수신).
+        String actorName = principal != null ? principal.getName() : null;
+        return ApiResponse.ok(partner4TabService.updateFull(partnerCode, req, null, actorName));
     }
 
     // ================================================================

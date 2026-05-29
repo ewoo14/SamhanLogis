@@ -7,6 +7,8 @@ import com.samhanair.logis.partner.domain.PartnerContact;
 import com.samhanair.logis.partner.domain.PartnerPriceDiscount;
 import com.samhanair.logis.partner.domain.PartnerShippingAddress;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
+import com.samhanair.logis.partner.revision.service.PartnerRevisionService;
 import com.samhanair.logis.partner.tab.dto.PartnerBasicResponse;
 import com.samhanair.logis.partner.tab.dto.PartnerContactRequest;
 import com.samhanair.logis.partner.tab.dto.PartnerContactResponse;
@@ -45,10 +47,18 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class Partner4TabService {
 
+    /** actor 미상 경로 (헤더 무전달) 의 revision actorId 폴백 — UUID(0,0) = system. */
+    private static final UUID SYSTEM_ACTOR_ID = new UUID(0L, 0L);
+
     private final PartnerRepository partnerRepository;
     private final PartnerPriceDiscountRepository priceDiscountRepository;
     private final PartnerShippingAddressRepository shippingAddressRepository;
     private final PartnerContactRepository contactRepository;
+    /**
+     * 거래처 버전이력 캡처 서비스 (권한 재편 Phase 2.3 Task 2). 4탭 content-mutation 성공 후 같은 TX 에서
+     * 거래처 헤더 + 4탭 자식 현재값을 full-snapshot 1건으로 적재한다 (자식 교체가 flush 된 뒤 조립).
+     */
+    private final PartnerRevisionService partnerRevisionService;
 
     // ================================================================
     // 4탭 일괄 조회
@@ -146,6 +156,11 @@ public class Partner4TabService {
             saveContactList(partnerId, req.contacts());
         }
 
+        // 권한 재편 Phase 2.3 — 4탭 일괄 등록 직후 CREATE 스냅샷 1건 캡처 (revision 1).
+        // 진입 경로 (Partner4TabController.registerFull) 는 actor 정보를 전달하지 않으므로 system actor.
+        partnerRevisionService.captureFor(partnerId, PartnerRevisionType.CREATE, null,
+                SYSTEM_ACTOR_ID, null, null);
+
         return buildFullResponse(partner, partnerId);
     }
 
@@ -167,6 +182,25 @@ public class Partner4TabService {
      */
     @Transactional
     public PartnerFullResponse updateFull(String partnerCode, PartnerFullRequest req) {
+        return updateFull(partnerCode, req, null, null);
+    }
+
+    /**
+     * 거래처 4탭 일괄 수정 — revision actor 명시 overload (권한 재편 Phase 2.3 Task 2).
+     *
+     * <p>{@link Partner4TabController} 가 {@link java.security.Principal} 에서 추출한 actor 정보를
+     * 전달한다. 수정 성공 후 거래처 헤더 + 4탭 자식 현재값(교체 flush 후)을 EDIT 스냅샷 1건으로 캡처한다.
+     *
+     * @param partnerCode 거래처 코드 (path variable)
+     * @param req         4탭 수정 요청
+     * @param actorId     수정자 UUID (감사용, null 이면 system 폴백)
+     * @param actorName   수정자 표시명 (UUID 비공개 가드, null 가능)
+     * @return 수정된 4탭 응답
+     * @throws BusinessException NOT_FOUND — 거래처 미존재
+     */
+    @Transactional
+    public PartnerFullResponse updateFull(String partnerCode, PartnerFullRequest req,
+                                          UUID actorId, String actorName) {
         Partner partner = findPartnerByCode(partnerCode);
         UUID partnerId = partner.getId();
 
@@ -196,7 +230,11 @@ public class Partner4TabService {
             }
         }
 
-        return buildFullResponse(partner, partnerId);
+        PartnerFullResponse response = buildFullResponse(partner, partnerId);
+        // 권한 재편 Phase 2.3 — 4탭 일괄 수정 후 EDIT 스냅샷 캡처. buildFullResponse 가 자식을 재조회해
+        // flush 를 유발하므로 capture 의 assemble 는 교체된 자식을 읽는다.
+        captureEdit(partnerId, actorId, actorName);
+        return response;
     }
 
     // ================================================================
@@ -231,7 +269,10 @@ public class Partner4TabService {
                                                                 PartnerPriceDiscountRequest req) {
         Partner partner = findPartnerByCode(partnerCode);
         PartnerPriceDiscount discount = upsertPriceDiscount(partner.getId(), req);
-        return PartnerPriceDiscountResponse.from(discount);
+        PartnerPriceDiscountResponse response = PartnerPriceDiscountResponse.from(discount);
+        // 권한 재편 Phase 2.3 — 단가/할인 정책 변경 (탭2) 도 거래처 content-mutation → EDIT 스냅샷 캡처.
+        captureEdit(partner.getId(), null, null);
+        return response;
     }
 
     // ================================================================
@@ -279,7 +320,10 @@ public class Partner4TabService {
                 partnerId, req.alias(), req.zipCode(), req.address(),
                 req.phone(), req.receiverName(), isDefault, req.memo());
         address = shippingAddressRepository.save(address);
-        return PartnerShippingAddressResponse.from(address);
+        PartnerShippingAddressResponse response = PartnerShippingAddressResponse.from(address);
+        // 권한 재편 Phase 2.3 — 배송지 추가 (탭3) → EDIT 스냅샷 캡처.
+        captureEdit(partnerId, null, null);
+        return response;
     }
 
     /**
@@ -298,6 +342,8 @@ public class Partner4TabService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "배송지를 찾을 수 없습니다: " + addrId));
         address.softDelete(actorUserId);
+        // 권한 재편 Phase 2.3 — 배송지 삭제 (탭3) → EDIT 스냅샷 캡처 (삭제 후 잔여 자식 조립).
+        captureEdit(partner.getId(), parseActorId(actorUserId), null);
     }
 
     // ================================================================
@@ -344,7 +390,10 @@ public class Partner4TabService {
                 partnerId, req.contactName(), req.position(),
                 req.phone(), req.email(), isPrimary, req.memo());
         contact = contactRepository.save(contact);
-        return PartnerContactResponse.from(contact);
+        PartnerContactResponse response = PartnerContactResponse.from(contact);
+        // 권한 재편 Phase 2.3 — 담당자 추가 (탭4) → EDIT 스냅샷 캡처.
+        captureEdit(partnerId, null, null);
+        return response;
     }
 
     /**
@@ -363,11 +412,39 @@ public class Partner4TabService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "담당자를 찾을 수 없습니다: " + contactId));
         contact.softDelete(actorUserId);
+        // 권한 재편 Phase 2.3 — 담당자 삭제 (탭4) → EDIT 스냅샷 캡처 (삭제 후 잔여 자식 조립).
+        captureEdit(partner.getId(), parseActorId(actorUserId), null);
     }
 
     // ================================================================
     // Private helpers
     // ================================================================
+
+    /**
+     * 거래처 EDIT 스냅샷 1건을 캡처한다 (4탭 content-mutation 공통 훅).
+     *
+     * <p>같은 트랜잭션 내에서 {@link PartnerRevisionService#captureFor}가 거래처 + 4탭 자식의 갱신본을
+     * 조립한다. actor 미상 경로는 {@link #SYSTEM_ACTOR_ID} 로 폴백한다.
+     */
+    private void captureEdit(UUID partnerId, UUID actorId, String actorName) {
+        partnerRevisionService.captureFor(partnerId, PartnerRevisionType.EDIT, null,
+                actorId == null ? SYSTEM_ACTOR_ID : actorId, actorName, null);
+    }
+
+    /**
+     * 감사용 actor UUID 파싱. X-User-Id 가 UUID 가 아닌 legacy employeeCode 등이면 system UUID(0,0)
+     * 로 폴백한다 (revision actorId 일관성).
+     */
+    private UUID parseActorId(String actorUserId) {
+        if (actorUserId == null || actorUserId.isBlank()) {
+            return SYSTEM_ACTOR_ID;
+        }
+        try {
+            return UUID.fromString(actorUserId);
+        } catch (IllegalArgumentException ex) {
+            return SYSTEM_ACTOR_ID;
+        }
+    }
 
     private Partner findPartnerByCode(String partnerCode) {
         return partnerRepository.findByPartnerCode(partnerCode)

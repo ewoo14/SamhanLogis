@@ -65,6 +65,8 @@ class Partner4TabServiceTest {
     private PartnerShippingAddressRepository shippingAddressRepository;
     @Mock
     private PartnerContactRepository contactRepository;
+    @Mock
+    private com.samhanair.logis.partner.revision.service.PartnerRevisionService partnerRevisionService;
 
     @InjectMocks
     private Partner4TabService service;

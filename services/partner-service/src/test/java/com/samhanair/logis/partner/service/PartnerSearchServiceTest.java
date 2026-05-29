@@ -28,7 +28,9 @@ import org.springframework.data.domain.Pageable;
 class PartnerSearchServiceTest {
 
     private final PartnerRepository repo = mock(PartnerRepository.class);
-    private final PartnerService service = new PartnerService(repo);
+    private final com.samhanair.logis.partner.revision.service.PartnerRevisionService revisionService =
+            mock(com.samhanair.logis.partner.revision.service.PartnerRevisionService.class);
+    private final PartnerService service = new PartnerService(repo, revisionService);
 
     @Test
     @DisplayName("searchAdmin — q blank → repo 에 null 전달 (필터 미적용)")

@@ -7,6 +7,8 @@ import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.dto.PartnerInternalResponse;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
+import com.samhanair.logis.partner.revision.service.PartnerRevisionService;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import java.util.Collection;
 import java.util.HashSet;
@@ -32,7 +34,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PartnerService {
 
+    /** actor 미상 경로 (헤더 무전달) 의 revision actorId 폴백 — UUID(0,0) = system. */
+    private static final UUID SYSTEM_ACTOR_ID = new UUID(0L, 0L);
+
     private final PartnerRepository partnerRepository;
+    /**
+     * 거래처 버전이력 캡처 서비스 (권한 재편 Phase 2.3 Task 2). content-mutation 성공 후 현 상태를
+     * full-snapshot 1건으로 적재해 point-in-time RESTORE 의 source-of-truth 를 구축한다.
+     */
+    private final PartnerRevisionService partnerRevisionService;
     /**
      * shared:realtime-abstraction audit recorder — PR-H4b. PartnerAuditLogService 가 본 interface
      * 를 구현. {@code @Autowired(required=false)} setter 주입 — 기존 단위 테스트 (constructor mock)
@@ -62,7 +72,12 @@ public class PartnerService {
         });
         Partner partner = Partner.register(req.partnerCode(), req.bizNo(), req.name(),
                 req.address(), req.phone(), req.creditLimit());
-        return partnerRepository.save(partner);
+        Partner saved = partnerRepository.save(partner);
+        // 권한 재편 Phase 2.3 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1). register 진입 경로
+        // (PartnerAdminController.create) 는 actor 정보를 전달하지 않으므로 system actor 로 기록한다.
+        partnerRevisionService.captureFor(saved.getId(), PartnerRevisionType.CREATE, null,
+                SYSTEM_ACTOR_ID, null, null);
+        return saved;
     }
 
     /**
@@ -296,6 +311,10 @@ public class PartnerService {
             recordIfChanged(partner.getId(), actorUserId, actorName, "partner.address", oldAddress, partner.getAddress());
             recordIfChanged(partner.getId(), actorUserId, actorName, "partner.phone", oldPhone, partner.getPhone());
         }
+        // 권한 재편 Phase 2.3 — 헤더 변경 후 EDIT 스냅샷 캡처 (4탭 자식 현재값 포함). actor 는 overload
+        // 로 전달된 X-User-* 정보를 사용하며, 미전달 시 system actor 로 폴백한다.
+        partnerRevisionService.captureFor(partner.getId(), PartnerRevisionType.EDIT, null,
+                actorUserId == null ? SYSTEM_ACTOR_ID : actorUserId, actorName, null);
         return partner;
     }
 
