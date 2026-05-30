@@ -56,6 +56,8 @@ const CONFIRMED_ORDER_ID = 'ord-confirmed'
 const CONFIRMING_ORDER_ID = 'ord-confirming'
 /** CANCELED 주문 — 복원 버튼 비활성 + 안내 문구. */
 const CANCELED_ORDER_ID = 'ord-canceled'
+/** DELETE 이력 포함 주문 — DELETE 배지('삭제') 표시 검증용. */
+const DELETE_HISTORY_ORDER_ID = 'ord-delete-history'
 
 /** 주문 상세 URL — hash router, mockRole=MASTER 로 동적 권한 bypass. */
 const detailUrl = (id: string) =>
@@ -261,6 +263,24 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     const restoreBtn1 = page.getByTestId('partner-order-version-history-restore-button-1')
     await expect(restoreBtn1).toBeVisible()
     await expect(restoreBtn1).toBeDisabled()
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 6: DELETE revision — '삭제' 배지(danger variant) 표시
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 6: DELETE revision — 버전이력 목록에 "삭제" 배지 표시', async ({ page }) => {
+    await installAuthMock(page)
+    // ord-delete-history orderId → mock.ts 가 DELETE revision 포함 fixture 반환.
+    // (mock.ts Phase 2.4 블록 내 orderId==='ord-delete-history' 분기로 DELETE rev 추가)
+    await gotoDetailAndWaitForPanel(page, DELETE_HISTORY_ORDER_ID)
+
+    const historyList = page.getByTestId('partner-order-version-history-list')
+    await expect(historyList).toBeVisible()
+
+    // rev4 행이 존재하고 '삭제' 텍스트를 포함해야 한다.
+    const row4 = page.getByTestId('partner-order-version-history-row-4')
+    await expect(row4).toBeVisible()
+    await expect(row4).toContainText('삭제')
   })
 
   // ──────────────────────────────────────────────────────────

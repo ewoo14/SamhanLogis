@@ -26,6 +26,7 @@ metadata:
 - 복원 허용 = **진행중(DRAFT) + 완료(CONFIRMED) + (추후)보류(ON_HOLD)**.
 - 거부(409) = **CONFIRMING·CANCELED 만** (제외 목록 방식 → 보류 추가 시 자동 호환).
 - CONFIRMED 복원 시 slip 자동 재발행 안 함 + `slipResyncRequired` 경고. slip 연동 필드(slipNo/slipPublishStatus/confirmedAt/slipPublishedAt) 역적용 제외.
+- **삭제된 주문도 복원 가능** (개발책임자 2026-05-30): delete = DELETE revision 캡처(soft-delete 직전). 복원 조회는 soft-deleted 포함(@SQLRestriction 우회) → undelete + 시점 내용 적용. 권한은 기존 RESTORE 동일. revision_type 에 DELETE 추가.
 
 ## 별도 슬라이스 (Phase 2.4 RESTORE 와 분리 — 개발책임자 결정)
 1. **보류(ON_HOLD) 상태 추가** + 전이 메서드 + 마이그레이션

@@ -3630,9 +3630,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   )
   if (method === 'GET' && partnerOrderRevisionsGetMatch) {
     const orderId = partnerOrderRevisionsGetMatch[1]!
-    // revisions fixture: 3건 (rev3 RESTORE, rev2 EDIT, rev1 CREATE) — orderId 불문 동일 응답.
+    // revisions fixture: 기본 3건 (rev3 RESTORE, rev2 EDIT, rev1 CREATE).
+    // ord-delete-history: DELETE revision(rev4) 추가 — DELETE 배지 시나리오 6 용.
     // actorName: '오병승' (MOCK_AUTH.fullName), UUID 형태 아님 → 화면 노출.
-    return envelope([
+    const baseRevisions = [
       {
         revisionNo: 3,
         revisionType: 'RESTORE',
@@ -3663,7 +3664,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         createdAt: '2026-05-04T10:30:00',
         changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
       },
-    ])
+    ]
+    if (orderId === 'ord-delete-history') {
+      // DELETE revision(rev4) 을 최신으로 prepend — 삭제 이력 배지 표시 검증용.
+      return envelope([
+        {
+          revisionNo: 4,
+          revisionType: 'DELETE',
+          sourceRevisionNo: null,
+          orderNo: '2026/05/04-1',
+          actorName: '오병승',
+          actorColor: null,
+          createdAt: '2026-05-30T14:00:00',
+          changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+        },
+        ...baseRevisions,
+      ])
+    }
+    return envelope(baseRevisions)
   }
 
   // ==========================================================================

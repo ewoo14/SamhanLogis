@@ -91,6 +91,17 @@ CREATE INDEX idx_partner_order_revisions_order
   - slipNo/slipPublishStatus/confirmedAt/slipPublishedAt 등 **slip 연동 필드는 복원 대상에서 제외**(스냅샷에는 담되 역적용하지 않음 — 발행 사실 보존). 복원은 편집 가능 내용(라인, memo, dueDate 등)만 역적용.
 - 복원 대상 revision 의 라인 스냅샷으로 현재 라인 전량교체(soft-delete 후 재생성, 기존 update 패턴 재사용).
 
+### 3.3a 삭제된 주문 복원 (개발책임자 결정 2026-05-30)
+
+> **요구**: "주문서 삭제한 경우에도 복원은 가능해야 함."
+
+- **delete = 되돌릴 수 있는 한 번의 변경**으로 취급. `PartnerOrderDeleteService.delete`(soft delete) 시 **DELETE revision 캡처**(이전 "delete 캡처 제외" 정책 폐기). 캡처는 soft-delete **직전** 상태 스냅샷.
+- **복원 대상 조회는 soft-deleted 주문 포함**: restore 의 order 로드는 `findById`(soft-delete 필터로 못 찾음) 대신 **`@SQLRestriction` 우회 조회**(native 또는 `includeDeleted` 쿼리)로 삭제된 주문도 로드. 복원 시 `is_deleted=false` 로 **undelete** + 해당 시점 내용 적용.
+- 복원 가드(`requireRestorable`): 삭제 여부와 무관하게 status 만 검사(CONFIRMING/CANCELED 거부). soft-deleted 주문은 삭제 직전 status 보존 → 그 status 기준 가드.
+- 권한 = **기존 RESTORE 권한 동일**(sales.partner-order.revisions, 별도 분리 없음 — 개발책임자 결정).
+- 복원 후 라인도 undelete/재생성하여 활성 상태로 복구.
+- revision_type DELETE 추가 (CREATE/EDIT/STATUS/RESTORE/**DELETE**).
+
 ### 3.4 API
 
 | Method | Path | Action | 설명 |

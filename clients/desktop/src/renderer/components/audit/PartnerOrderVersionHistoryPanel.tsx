@@ -55,6 +55,7 @@ const REVISION_TYPE_META: Record<
   EDIT: { label: '수정', variant: 'brand' },
   STATUS: { label: '상태변경', variant: 'success' },
   RESTORE: { label: '복원', variant: 'warning' },
+  DELETE: { label: '삭제', variant: 'danger' },
 }
 
 /**

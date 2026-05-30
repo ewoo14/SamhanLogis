@@ -34,7 +34,7 @@ export interface PartnerOrderChangeSummary {
 }
 
 /** 주문 revision 발생 유형 — BE {@code PartnerOrderRevisionType} 과 1:1. */
-export type PartnerOrderRevisionType = 'CREATE' | 'EDIT' | 'STATUS' | 'RESTORE'
+export type PartnerOrderRevisionType = 'CREATE' | 'EDIT' | 'STATUS' | 'RESTORE' | 'DELETE'
 
 /**
  * BE {@code PartnerOrderRevisionResponse} 와 1:1 (Phase 2.4 Task 7 DTO).
@@ -44,7 +44,7 @@ export type PartnerOrderRevisionType = 'CREATE' | 'EDIT' | 'STATUS' | 'RESTORE'
 export interface PartnerOrderRevision {
   /** revision 번호 (1, 2, 3, ... — 큰 수록 최근). */
   revisionNo: number
-  /** revision 유형 — CREATE(생성) / EDIT(수정) / STATUS(상태전이) / RESTORE(복원). */
+  /** revision 유형 — CREATE(생성) / EDIT(수정) / STATUS(상태전이) / RESTORE(복원) / DELETE(삭제). */
   revisionType: PartnerOrderRevisionType
   /** RESTORE 일 때 원본 revision 번호 (그 외 null). */
   sourceRevisionNo: number | null
