@@ -22,6 +22,7 @@ import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { useSessionStore } from '../stores/session'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
+import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrderVersionHistoryPanel'
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
@@ -391,6 +392,11 @@ export function SalesPartnerOrderDetailPage() {
                 </table>
               </div>
             </div>
+
+            <PartnerOrderVersionHistoryPanel
+              orderId={orderId}
+              status={query.data.status}
+            />
 
             <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
               <div className={styles['cardHead']}>
