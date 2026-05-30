@@ -6,6 +6,8 @@ import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogServic
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
+import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderUpdateRequest;
@@ -36,14 +38,18 @@ public class PartnerOrderUpdateService {
 
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
+    private final PartnerOrderRevisionService revisionService;
 
     /**
      * 주문 헤더와 라인을 즉시 수정한다.
      *
+     * <p>변경 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 EDIT 유형 revision 을
+     * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅). 변경이 없는 경우에는 캡처하지 않는다.
+     *
      * @param id 주문번호 또는 내부 식별자 문자열
      * @param request 수정 요청
      * @param actorId 수정자 UUID
-     * @param actorName 수정자 표시명
+     * @param actorName 수정자 표시명 (UUID 비공개 가드 적용 전 원본)
      * @return 수정 후 상세 응답
      */
     @Transactional
@@ -63,6 +69,11 @@ public class PartnerOrderUpdateService {
             PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
             auditLogService.recordBatch(saved, actorId, actorName, null, changes);
+
+            // Phase 2.4 버전이력 훅 — 본사 직결 수정 후 스냅샷 캡처 (EDIT)
+            revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
+                    actorId, actorName, null);
+
             return PartnerOrderDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
             throw optimisticLockConflict();

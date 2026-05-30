@@ -7,6 +7,8 @@ import com.samhanair.logis.partnerorder.client.EstimateClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
+import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import jakarta.persistence.EntityManager;
@@ -32,10 +34,19 @@ public class PartnerOrderFromEstimateService {
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
     private final EstimateClient estimateClient;
+    private final PartnerOrderRevisionService revisionService;
     private final EntityManager entityManager;
 
     /**
      * 견적 UUID 를 주문으로 변환한다. 동일 estimateId 는 active 주문 1건만 허용한다.
+     *
+     * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
+     * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
+     *
+     * @param estimateId 변환 대상 견적 UUID
+     * @param actorId    요청자 UUID (X-User-Id)
+     * @param actorName  요청자 표시명 (X-User-Name, UUID 비공개 가드 적용 전 원본)
+     * @return 생성된 주문 상세 응답
      */
     @Transactional
     public PartnerOrderDetailResponse createFromEstimate(UUID estimateId, UUID actorId, String actorName) {
@@ -70,6 +81,11 @@ public class PartnerOrderFromEstimateService {
         PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
         auditLogService.recordBatch(saved, actorId, actorName, null,
                 List.of(new ChangeEntry("FROM_ESTIMATE", null, snapshot.estimateNumber())));
+
+        // Phase 2.4 버전이력 훅 — 견적→주문 변환 시 첫 스냅샷 캡처 (CREATE)
+        revisionService.capture(saved, PartnerOrderRevisionType.CREATE, null,
+                actorId, actorName, null);
+
         return PartnerOrderDetailResponse.from(saved);
     }
 

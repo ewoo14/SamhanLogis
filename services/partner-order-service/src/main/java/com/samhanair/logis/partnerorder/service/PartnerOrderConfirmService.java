@@ -20,6 +20,8 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
+import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
+import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
@@ -79,22 +81,28 @@ public class PartnerOrderConfirmService {
     private final InventoryClient inventoryClient;
     private final SlipServiceClient slipServiceClient;
 
+    private final PartnerOrderRevisionService revisionService;
+
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
 
     /**
      * 임시저장 → 확정 흐름. draftId 가 있으면 draft 의 draftSeq 를 idempotencyKey 시드로 사용.
      *
+     * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
+     * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
+     *
      * @param partnerCode 거래처 코드 (JWT)
      * @param bizCode 사업자번호
-     * @param actorUserId X-User-Id
+     * @param actorUserId X-User-Id (헤더)
+     * @param actorName X-User-Name (헤더, UUID 비공개 가드 적용 전 원본)
      * @param draftId 임시저장 UUID (legacy 흐름 — saveOrderSnapshot 후 sendOrderFromUi)
      * @param request 라인 (가격은 무시 — server-side DC 적용)
      * @return ConfirmResponse — slipNo 또는 PENDING_RETRY 상태
      */
     @Transactional
     public ConfirmResponse confirm(String partnerCode, String bizCode, String actorUserId,
-                                   UUID draftId, ConfirmRequest request) {
+                                   String actorName, UUID draftId, ConfirmRequest request) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
         }
@@ -184,6 +192,11 @@ public class PartnerOrderConfirmService {
                 throw ex;
             }
         }
+
+        // Phase 2.4 버전이력 훅 — slip 발행 결과 반영 후 최종 상태(CONFIRMED/PENDING_RETRY) milestone 캡처 (STATUS)
+        UUID actorId = parseActorId(actorUserId);
+        revisionService.capture(order, PartnerOrderRevisionType.STATUS, null,
+                actorId, actorName, null);
 
         return ConfirmResponse.from(order);
     }
@@ -304,6 +317,23 @@ public class PartnerOrderConfirmService {
         } catch (JsonProcessingException ex) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "outbox payload 직렬화 실패", ex);
+        }
+    }
+
+    /**
+     * actorUserId 문자열을 UUID 로 변환한다. 파싱 실패 시 zero UUID 를 반환한다.
+     *
+     * @param actorUserId X-User-Id 헤더 문자열 (null 허용)
+     * @return 파싱된 UUID 또는 zero UUID
+     */
+    private UUID parseActorId(String actorUserId) {
+        if (actorUserId == null || actorUserId.isBlank()) {
+            return new UUID(0L, 0L);
+        }
+        try {
+            return UUID.fromString(actorUserId);
+        } catch (IllegalArgumentException ex) {
+            return new UUID(0L, 0L);
         }
     }
 }

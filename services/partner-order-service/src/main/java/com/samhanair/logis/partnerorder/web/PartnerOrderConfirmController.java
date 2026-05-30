@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartnerOrderConfirmController {
 
     private static final String USER_ID_HEADER      = "X-User-Id";
+    private static final String USER_NAME_HEADER    = "X-User-Name";
     private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
     private static final String BIZ_CODE_HEADER     = "X-Biz-Code";
     private static final String ROLE_HEADER         = "X-User-Role";
@@ -64,9 +65,11 @@ public class PartnerOrderConfirmController {
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
             @RequestHeader(value = BIZ_CODE_HEADER, required = false) String bizCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
+            @RequestHeader(value = USER_NAME_HEADER, required = false) String userName,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         return ApiResponse.ok(
-                confirmService.confirm(partnerCode, bizCode, fallback(userId), draftId, request));
+                confirmService.confirm(partnerCode, bizCode, fallback(userId), userName,
+                        draftId, request));
     }
 
     private String fallback(String header) {
