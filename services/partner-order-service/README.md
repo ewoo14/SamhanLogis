@@ -167,6 +167,88 @@ dev-report: `docs/dev-reports/phase-2-4-partner-order-restore-version-history.md
 - **env-template** — `infrastructure/env-templates/partner-order-service.env` 보유 (`SAMHAN_DC_CONFIG_SERVICE_URL` / `SAMHAN_PRODUCT_SERVICE_URL` / `SAMHAN_INVENTORY_SERVICE_URL` / `SAMHAN_SLIP_SERVICE_URL` / `SAMHAN_PARTNER_AUTH_SERVICE_URL` 5종)
 - **ServiceDiscoveryClient (Phase 11 활성 대비)** — `shared:discovery-abstraction` 의존성 도입은 Phase 11 cutover 시점 (현재는 Eureka 직접 등록)
 
+## Phase 2.6a — 주문→출고전표 부분전환 인프라 (D-2.6a)
+
+### 개요
+
+거래처 주문의 라인별 부분전환을 지원한다. slip 미발행 주문(DRAFT/ON_HOLD)에서 선택 라인과 수량을 지정하여 출고전표를 발행하고, 잔여 수량을 추적한다.
+
+기존 confirm 자동 1:1 발행(outbox 패턴)은 변경하지 않는다. 병합 + confirm 폐지는 2.6b, 재고·회계 정합은 2.6c.
+
+### 전환 대상 화이트리스트
+
+`requireConvertible()` — `status ∈ {DRAFT, ON_HOLD}` 만 허용. CONFIRMED(PENDING_RETRY 포함)/CONVERTED/CONFIRMING/CANCELED 는 409 차단(이중 출고전표 방지).
+
+### 데이터 변경
+
+| 마이그레이션 | 서비스 | 내용 |
+|---|---|---|
+| V8 | partner-order-service | `partner_order_lines.converted_quantity INT NOT NULL DEFAULT 0` + `CHECK (0 ≤ c ≤ quantity)` |
+| V29 | slip-service | `slip_lines.source_order_line_id UUID` nullable |
+| V41 | auth-service | `sales.partner-order.convert` CREATE 권한 시드 |
+
+### PartnerOrderLine 도메인 메서드 (Phase 2.6a 신규)
+
+| 메서드 | 역할 |
+|---|---|
+| `remainingQuantity()` | `quantity - convertedQuantity` |
+| `isFullyConverted()` | `convertedQuantity >= quantity` |
+| `convert(int qty)` | 잔여 초과·비양수 시 409. **반드시 slip 발행 성공 후에만 호출.** |
+
+### PartnerOrder 도메인 메서드 (Phase 2.6a 신규)
+
+| 메서드 | 역할 |
+|---|---|
+| `requireConvertible()` | DRAFT/ON_HOLD 가 아니면 409 |
+| `markConvertedIfComplete()` | 모든 라인 `isFullyConverted()` 시 status → CONVERTED |
+
+### convert API
+
+| Method | Path | 권한 |
+|---|---|---|
+| POST | `/api/v1/partner-orders/{id}/convert-to-slip` | `sales.partner-order.convert` CREATE |
+
+요청: `{ items: [{orderLineId, quantity}], warehouseCode }`.
+응답: `ApiResponse<ConvertResultResponse>` — `{ slipNo, status, fullyConverted }`.
+
+### 트랜잭션 경계 + 잔여 위험
+
+처리 순서: 사전검증 → slip 발행(외부 REST) → **발행 성공 후** `convert()` 누적 → `saveAndFlush`.
+
+- slip 5xx → `BusinessException` → 롤백 → `converted_quantity` 미변경.
+- slip 발행 성공 후 `saveAndFlush` 실패 → slip 존재하나 `converted_quantity` 롤백. idempotencyKey(convertedBefore 스냅샷)로 재요청 시 slip 이중발행 차단. 수동 `converted_quantity` 보정 필요. 근본 해결은 2.6c outbox 통합.
+
+**inventory 미차감 경고**: 부분전환 출고전표는 재고 차감 없음. 과다출고 위험 → 2.6c 범위.
+
+### idempotencyKey
+
+형식: `PO-CONV-{orderId}-{SHA-256[:16]}`.
+입력: `orderId + 정렬된 "lineId:convertedBefore:qty"`.
+`convertedBefore` 포함 → 같은 라인 2차 전환 시 다른 키(정상 2회 부분전환) / 재시도 시 동일 키(409-dup 안전).
+
+### 배포 순서 (필수 준수)
+
+```
+Step 1. auth-service (V41 — sales.partner-order.convert 권한 시드)
+Step 2. slip-service (V29 — slip_lines.source_order_line_id 컬럼)
+Step 3. partner-order-service (V8 — converted_quantity 컬럼 + CHECK)
+```
+
+역순 시 권한 403 또는 slip-service 500 발생. 상세: `docs/operational-validation/phase-2-6a-deploy-order.md`.
+
+### 관련 파일
+
+- `domain/PartnerOrderStatus.java` — CONVERTED enum 추가
+- `domain/PartnerOrder.java` — requireConvertible() + markConvertedIfComplete()
+- `domain/PartnerOrderLine.java` — convertedQuantity + convert/remainingQuantity/isFullyConverted
+- `service/PartnerOrderConvertService.java` — 부분전환 오케스트레이션
+- `web/PartnerOrderConvertController.java` — POST /{id}/convert-to-slip
+- `db/migration/V8__add_partner_order_line_converted_quantity.sql`
+
+dev-report: `docs/dev-reports/phase-2-6a-order-to-slip-conversion.md`
+
+---
+
 ## Phase 2.5 — 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터 (D-PO-25)
 
 ### 보류 상태 모델

@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 2 · RESTORE 메커니즘 (전표·견적·거래처·거래처주문 버전이력·복원)</span>
+    <span class="nav-badge">Phase 2.6a · 주문→출고전표 부분전환 인프라 (사이클 N=2 APPROVE)</span>
   </div>
 </nav>
 
@@ -850,13 +850,14 @@ body {
         </div>
       </div>
       <div class="svc-card-db">partner_order_db</div>
-      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. ON_HOLD(보류) 상태 — 진행중↔보류 양방향 전이, 완료 보류 불가(slip 정합성). 리스트 상태 필터(진행중/보류/완료). 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택).</div>
+      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. ON_HOLD(보류) 상태 — 진행중↔보류 양방향 전이, 완료 보류 불가(slip 정합성). <strong>Phase 2.6a 부분전환</strong> — DRAFT/ON_HOLD 주문 라인별 수량 선택 출고전표 전환. converted_quantity(V8) + CONVERTED status + idempotencyKey. 리스트 상태 필터(진행중/보류/완료). 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택).</div>
       <div class="svc-tags">
         <span class="stag green">Outbox 패턴</span>
         <span class="stag blue">낙관적 잠금</span>
         <span class="stag yellow">Tesseract OCR</span>
         <span class="stag cyan">견적→주문 변환</span>
         <span class="stag purple">ON_HOLD 보류 상태</span>
+        <span class="stag red">부분전환 2.6a</span>
       </div>
     </div>
 
@@ -1189,6 +1190,10 @@ body {
       <div class="callout green" style="margin-top: 12px; font-size:12px;">
         <div class="callout-icon">⏸</div>
         <div><strong>Phase 2.5 — 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터:</strong> <code>PartnerOrderStatus.ON_HOLD</code> 신규 enum. <strong>전이 규칙</strong>: 진행중(DRAFT) ↔ 보류(ON_HOLD) 양방향만 허용. 완료(CONFIRMED)는 출고전표 발행 완료 상태이므로 보류 불가(slip 정합성 보호). 보류 주문도 confirm(출고전표 전환)은 가능 — ON_HOLD → CONFIRMING → CONFIRMED 경로 지원. <strong>PartnerOrderDraft confirm과 무관</strong>: 보류 상태는 <code>PartnerOrderDraft</code> INSERT 경로가 아닌 <code>createFromEstimate</code> 견적전환분의 status 전이. <code>POST /{id}/hold</code> / <code>POST /{id}/release</code> API — <code>sales.partner-order.edit</code> UPDATE 권한 재사용(신규 page 불필요). Phase 2.4 예약 STATUS revision 유형 <strong>첫 실사용</strong>. <strong>리스트 필터 인프라 기완성</strong>(grounding 결과): Controller/Specification/Repository 모두 완성 — ON_HOLD enum 추가만으로 즉시 동작. 기간필터 기준: DRAFT·ON_HOLD → <code>createdAt</code>(confirmedAt=null이므로), 그 외 → <code>confirmedAt</code>. <strong>FE 업무용어 통일</strong>: DRAFT='진행중'(기존 '작성중'), CONFIRMED='완료'(기존 '확정'), ON_HOLD='보류'(신규). <strong>Flyway 마이그레이션 불필요</strong>: <code>status VARCHAR(20)</code> CHECK 제약 없음(D-PO-25). 단위 4·IT 8·Playwright 3케이스(skipped=0).</div>
+      </div>
+      <div class="callout green" style="margin-top: 12px; font-size:12px;">
+        <div class="callout-icon">⇄</div>
+        <div><strong>Phase 2.6a — 주문→출고전표 부분전환 인프라:</strong> <strong>전환 대상 화이트리스트</strong> — status ∈ {DRAFT, ON_HOLD} 만 허용. CONFIRMED(PENDING_RETRY 포함)·CONVERTED·CONFIRMING·CANCELED 는 이중 출고전표 방지를 위해 차단. <strong>데이터</strong> — <code>partner_order_lines.converted_quantity INT NOT NULL DEFAULT 0</code>(V8, CHECK 0≤c≤quantity) + <code>slip_lines.source_order_line_id UUID</code> nullable(V29). <strong>부분전환 API</strong> — <code>POST /{id}/convert-to-slip</code> (items: [{orderLineId, quantity}], warehouseCode). 처리순서: 사전검증 → slip 발행(외부 REST) → 발행 성공 후 <code>convert()</code> 누적 → saveAndFlush. <strong>idempotencyKey</strong> — PO-CONV-{orderId}-{SHA-256[:16]}, convertedBefore 스냅샷 포함으로 이중 slip 발행 차단. <strong>CONVERTED status</strong> 신규 — 모든 라인 전량 전환 완료 시 주문 status 전환. <strong>권한</strong> — <code>sales.partner-order.convert</code> CREATE(auth-service V41 시드). <strong>배포 순서 필수</strong> — auth(V41) → slip(V29) → partner-order(V8). <strong>잔여 위험</strong> — inventory 미차감(2.6c 범위, 과다출고 주의) / saveAndFlush 실패 시 converted_quantity 롤백(2.6c outbox 통합 전까지 수동 복구). <strong>FE</strong> — 전환 버튼(DRAFT/ON_HOLD만) + 비가역 경고 모달 + CONVERTED 별색 뱃지 + 전환됨/잔여 컬럼. 단위 4·IT 10·사이클 N=2 APPROVE(skipped=0). 후속: 2.6b(병합+confirm 폐지)·2.6c(재고·회계 정합+outbox).</div>
       </div>
     </div>
   </div>

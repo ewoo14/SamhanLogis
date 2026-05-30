@@ -4,6 +4,25 @@
 
 ---
 
+## Phase 2.6a 주문→출고전표 부분전환 인프라 결정 (2026-05-30)
+
+**배경**: 거래처 주문서를 출고전표로 전환하는 기존 경로(confirm 자동 1:1 발행)가 부분 전환을 지원하지 않았다. 품목별 부분전환 + 라인 단위 잔여수량 추적 신규 구현.
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-2.6a-01 | 전환 대상 = `status ∈ {DRAFT, ON_HOLD}` 화이트리스트로 한정. CONFIRMED(PENDING_RETRY 포함)/CONVERTED/CONFIRMING/CANCELED 는 전환 불가(이중 출고전표 방지). |
+| D-2.6a-02 | `partner_order_lines.converted_quantity INT NOT NULL DEFAULT 0` V8 migration. `CHECK (0 ≤ converted_quantity ≤ quantity)` DB 레벨 안전망 추가. |
+| D-2.6a-03 | `slip_lines.source_order_line_id UUID` nullable 컬럼 V29 migration(slip-service). 비 부분전환 경로는 null 유지 — 레거시 호환. |
+| D-2.6a-04 | idempotencyKey 에 `convertedBefore` 스냅샷 포함(`PO-CONV-{orderId}-{SHA-256[:16]}`). 같은 라인 같은 수량 2회 요청 시 다른 키 생성 → 정상 2회 부분전환 허용. 동일 트랜잭션 재시도 시 동일 키 → 409-dup → 안전. |
+| D-2.6a-05 | 트랜잭션 경계: 사전검증 → slip 발행(외부 REST) → **발행 성공 후에만** `convert()` 호출 → saveAndFlush. 발행 후 saveAndFlush 실패 시 slip 발행됐으나 converted_quantity 롤백되는 드문 상황은 2.6c outbox 통합 전까지 수동 복구 대상(운영 경고). |
+| D-2.6a-06 | 배포 순서 필수: auth(V41) → slip(V29) → partner-order(V8). 역순 시 권한 403 또는 slip 500 발생. |
+| D-2.6a-07 | inventory 미차감 = 2.6c 범위로 분리. 본 슬라이스의 부분전환 출고전표는 재고 차감 없음 — 과다출고 위험 있으므로 운영 시 수동 출고 처리 필요. |
+| D-2.6a-08 | confirm 자동 1:1 발행 경로(outbox 패턴) 는 변경하지 않음. 병합 + confirm 폐지는 2.6b 범위. |
+
+영향: partner-order-service V8, slip-service V29, auth-service V41, CONVERTED status 신규 enum.
+
+---
+
 ## SP-08-5 매입 CRUD + 입고 검수 CTA parity 결정 (2026-05-17)
 
 **배경**: SP-08-4 주문 CRUD parity가 PR #216~#219로 완료된 뒤, legacy GAS 구매/매입 시트의 CRUD 및 입고 검수 CTA 흐름을 `slip-service`와 `inventory-service`에 잠그기 위해 SP-08-5를 시작한다. SP-03에서 복구한 구매관리 검수 CTA 권한/표시 정책은 회귀 금지 대상이다.

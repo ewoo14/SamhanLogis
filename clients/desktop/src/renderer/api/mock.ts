@@ -3722,6 +3722,34 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // Phase 2.6a: 주문 부분전환 — POST /api/v1/partner-orders/{id}/convert-to-slip
+  //
+  // 중요: partnerOrderDetailMatch(`/([^/?]+)$`) 보다 앞단에 배치 (path suffix 가 더 구체적).
+  // 성공 — { slipNo, orderStatus, fullyConverted } 반환.
+  //   mockConvertFully=1   → fullyConverted=true (전량 전환)
+  //   기본                 → fullyConverted=false (부분 전환)
+  // 오류 — mockConvert409=1 → 409 (잔여 수량 초과)
+  // ==========================================================================
+
+  const partnerOrderConvertMatch = url.match(/\/api\/v1\/partner-orders\/([^/]+)\/convert-to-slip$/)
+  if (method === 'POST' && partnerOrderConvertMatch) {
+    const params = mockLocationParams()
+    if (params.get('mockConvert409')) {
+      return mockError(
+        409,
+        'PARTNER_ORDER_CONVERT_QUANTITY_EXCEEDED',
+        '전환 수량이 잔여 수량을 초과하거나 이미 전환된 주문입니다.',
+      )
+    }
+    const fullyConverted = params.get('mockConvertFully') === '1'
+    return envelope({
+      slipNo: 'SL-20260530-001',
+      orderStatus: fullyConverted ? 'CONVERTED' : 'DRAFT',
+      fullyConverted,
+    })
+  }
+
+  // ==========================================================================
   // Phase 2.5: 주문 보류/해제 — POST /api/v1/partner-orders/{id}/hold|release
   //
   // 중요: partnerOrderDetailMatch(`/([^/?]+)$`) 보다 앞단에 배치 (path suffix 가 더 구체적).
@@ -3809,15 +3837,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     const poId = partnerOrderDetailMatch[1]!
-    // Phase 2.4/2.5 spec 용: orderId 별 status 분기
-    // ord-draft      → DRAFT     (Phase 2.4 복원 + Phase 2.5 보류 진입점)
-    // ord-hold       → ON_HOLD   (Phase 2.5 보류 해제 진입점)
-    // ord-confirmed  → CONFIRMED (Phase 2.4 복원 slipResyncRequired=true)
-    // ord-confirming → CONFIRMING
-    // ord-canceled   → CANCELED
-    // 그 외 기존 fixture → CONFIRMED (하위 호환)
+    // Phase 2.4/2.5/2.6a spec 용: orderId 별 status 분기
+    // ord-draft               → DRAFT     (Phase 2.4 복원 + Phase 2.5 보류 + Phase 2.6a 전환 진입점)
+    // ord-hold                → ON_HOLD   (Phase 2.5 보류 해제 진입점 + Phase 2.6a 전환 가능)
+    // ord-confirmed           → CONFIRMED (Phase 2.4 복원 slipResyncRequired=true) — 전환 버튼 미노출
+    // ord-confirming          → CONFIRMING — 전환 버튼 미노출
+    // ord-canceled            → CANCELED  — 전환 버튼 미노출
+    // ord-linked-slip         → DRAFT + linkedSlipNo 있음 — 전환 버튼 미노출
+    // ord-partially-converted → DRAFT + line 0 convertedQuantity=1 (부분 전환 후 잔여 1 남음)
+    // 그 외 기존 fixture      → CONFIRMED (하위 호환)
     const poStatus: string =
-      poId === 'ord-draft'
+      poId === 'ord-draft' || poId === 'ord-partially-converted' || poId === 'ord-linked-slip'
         ? 'DRAFT'
         : poId === 'ord-hold'
           ? 'ON_HOLD'
@@ -3826,7 +3856,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             : poId === 'ord-canceled'
               ? 'CANCELED'
               : 'CONFIRMED'
-    const poLinkedSlip = poStatus === 'CONFIRMED' ? 'SL-20260504-001' : null
+    const poLinkedSlip =
+      poId === 'ord-linked-slip'
+        ? 'SL-20260504-001'
+        : poStatus === 'CONFIRMED'
+          ? 'SL-20260504-001'
+          : null
+    // Phase 2.6a: 라인별 convertedQuantity 분기
+    //   ord-partially-converted → line-po-001: quantity=2, convertedQuantity=1 (잔여 1)
+    //                             line-po-002: quantity=3, convertedQuantity=3 (전환완료, 잔여 0)
+    //   그 외 DRAFT/ON_HOLD 전환 가능 fixture → convertedQuantity=0
+    const poLines =
+      poId === 'ord-partially-converted'
+        ? [
+            {
+              lineId: 'line-po-001',
+              modelCode: 'AJ040RXH4BC1',
+              productName: '실외기',
+              categoryKey: 'homemulti',
+              quantity: 2,
+              convertedQuantity: 1,
+              deliveryPrice: 120000,
+              subtotal: 240000,
+              bundleMode: null,
+              expandedComponents: [],
+            },
+            {
+              lineId: 'line-po-002',
+              modelCode: 'MWR-WE10N',
+              productName: '유선 리모컨',
+              categoryKey: 'homemulti',
+              quantity: 3,
+              convertedQuantity: 3,
+              deliveryPrice: 85000,
+              subtotal: 255000,
+              bundleMode: null,
+              expandedComponents: [],
+            },
+          ]
+        : [
+            {
+              lineId: 'line-po-001',
+              modelCode: 'AJ040RXH4BC1',
+              productName: '실외기',
+              categoryKey: 'homemulti',
+              quantity: 2,
+              convertedQuantity: 0,
+              deliveryPrice: 120000,
+              subtotal: 240000,
+              bundleMode: null,
+              expandedComponents: [],
+            },
+          ]
     return envelope({
       orderNumber: '2026/05/04-1',
       partnerCode: '1234567890',
@@ -3842,18 +3923,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       contactPhone: '010-1234-5678',
       dueDate: '2026-05-30',
       memo: '5/5 오전 배송 부탁드립니다',
-      lines: [
-        {
-          modelCode: 'AJ040RXH4BC1',
-          productName: '실외기',
-          categoryKey: 'homemulti',
-          quantity: 2,
-          deliveryPrice: 120000,
-          subtotal: 240000,
-          bundleMode: null,
-          expandedComponents: [],
-        },
-      ],
+      lines: poLines,
     })
   }
 
