@@ -232,7 +232,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -270,7 +270,7 @@ class PartnerOrderRevisionServiceTest {
             String snapshotJson = objectMapper.writeValueAsString(snapshot);
             PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
 
-            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(targetRevision));
             when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -293,7 +293,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = confirmingOrder(orderId);
 
-            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -311,7 +311,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = canceledOrder(orderId);
 
-            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
                     .thenReturn(Optional.of(mockRevision(orderId, 1)));
 
@@ -326,7 +326,7 @@ class PartnerOrderRevisionServiceTest {
         @DisplayName("orderId 미존재 → 404 NOT_FOUND")
         void restore_orderNotFound_throws404() {
             UUID orderId = UUID.randomUUID();
-            when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
                     .isInstanceOf(ResponseStatusException.class)
@@ -340,7 +340,7 @@ class PartnerOrderRevisionServiceTest {
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = draftOrder(orderId);
 
-            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 99))
                     .thenReturn(Optional.empty());
 
@@ -348,6 +348,51 @@ class PartnerOrderRevisionServiceTest {
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                             .isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("soft-deleted(is_deleted=true) 주문도 findByIdIncludingDeleted 로 로드 후 복원 가능")
+        void restore_softDeletedOrder_undeleteAndRestoreContent() throws Exception {
+            // given
+            UUID orderId = UUID.randomUUID();
+            PartnerOrder order = draftOrder(orderId);
+            // soft-delete 상태 모의 (BaseEntity.markDeleted 호출)
+            order.markDeleted("삭제자");
+            assertThat(order.getIsDeleted()).isTrue();
+
+            PartnerOrderLine snapLine = PartnerOrderLine.create(
+                    UUID.randomUUID(), "MODEL-DEL", "삭제전상품", "homemulti",
+                    1, new BigDecimal("80000.00"), "복원비고");
+            PartnerOrderSnapshot snapshot = new PartnerOrderSnapshot(
+                    order.getOrderNo(), "DEL-PC", "DEL-BIZ",
+                    PartnerOrderStatus.DRAFT, null, null,
+                    new BigDecimal("80000.00"), null, null,
+                    null, "삭제전메모", null, 0,
+                    java.util.List.of(PartnerOrderSnapshot.LineSnapshot.from(snapLine)));
+
+            String snapshotJson = objectMapper.writeValueAsString(snapshot);
+            PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
+
+            // findByIdIncludingDeleted — soft-deleted 주문 반환
+            when(orderRepository.findByIdIncludingDeleted(orderId)).thenReturn(Optional.of(order));
+            when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
+                    .thenReturn(Optional.of(targetRevision));
+            when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(revisionRepository.findMaxRevisionNo(orderId)).thenReturn(1);
+            when(revisionRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            // when
+            PartnerOrderRestoreResult result = service.restore(orderId, 1, UUID.randomUUID(), "복원자", null);
+
+            // then
+            // undelete 확인 — is_deleted=false 로 복구
+            assertThat(result.order().getIsDeleted()).isFalse();
+            assertThat(result.order().getDeletedAt()).isNull();
+            // 헤더 복원 확인
+            assertThat(result.order().getPartnerCode()).isEqualTo("DEL-PC");
+            assertThat(result.order().getMemo()).isEqualTo("삭제전메모");
+            // DRAFT 복원 → slipResyncRequired=false
+            assertThat(result.slipResyncRequired()).isFalse();
         }
     }
 

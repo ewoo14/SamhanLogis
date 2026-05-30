@@ -310,6 +310,25 @@ public class PartnerOrder extends BaseEntity {
     }
 
     /**
+     * soft-delete 된 주문을 활성 상태로 복구한다 (undelete).
+     *
+     * <p>삭제된 주문도 복원 대상이 됨에 따라 (설계서 §3.3a) undelete 가 필요하다.
+     * {@link com.samhanair.logis.common.entity.BaseEntity#markRestored()} 를 통해
+     * {@code is_deleted=false} 로 전환하고 {@code deletedAt}/{@code deletedBy} 를 클리어한다.
+     *
+     * <p>헤더/라인 내용 역적용은 별도 {@link #restoreHeader} + {@link #replaceLines} 로 수행한다.
+     * 본 메서드는 undelete(활성화) 만 담당한다.
+     *
+     * <p>이미 활성(is_deleted=false) 상태인 주문에 호출해도 멱등하게 동작한다.
+     *
+     * <p>연결된 라인은 {@link #replaceLines(List)} 에서 soft-delete 후 재생성되므로
+     * 별도 라인 undelete 처리가 불필요하다.
+     */
+    public void restoreFromDeleted() {
+        markRestored();
+    }
+
+    /**
      * point-in-time 복원 가능 상태인지 검사한다 (Phase 2.4 버전이력 + 복원).
      *
      * <p><b>제외목록 방식</b>: 복원은 CONFIRMING · CANCELED 를 제외한 모든 상태에서 허용한다.

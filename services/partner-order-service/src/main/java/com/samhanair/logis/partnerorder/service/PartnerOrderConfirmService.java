@@ -193,9 +193,12 @@ public class PartnerOrderConfirmService {
             }
         }
 
-        // Phase 2.4 버전이력 훅 — slip 발행 결과 반영 후 최종 상태(CONFIRMED/PENDING_RETRY) milestone 캡처 (STATUS)
+        // Phase 2.4 버전이력 훅 — confirm 은 PartnerOrder 를 신규 INSERT 하는 경로이므로 CREATE 캡처.
+        // STATUS 를 사용하면 이 주문의 타임라인에 CREATE 베이스라인이 없어 복원 시작점이 부재한다.
+        // from-estimate 경로(PartnerOrderFromEstimateService) 도 CREATE 를 사용하여
+        // 주문 생성 2경로 모두 revision_no=1 이 CREATE 타입으로 일관된다.
         UUID actorId = parseActorId(actorUserId);
-        revisionService.capture(order, PartnerOrderRevisionType.STATUS, null,
+        revisionService.capture(order, PartnerOrderRevisionType.CREATE, null,
                 actorId, actorName, null);
 
         return ConfirmResponse.from(order);

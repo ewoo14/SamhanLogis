@@ -10,12 +10,27 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /** 거래처 확정 주문 조회 + history. */
 @Repository
 public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID>,
         JpaSpecificationExecutor<PartnerOrder> {
+
+    /**
+     * soft-deleted 주문을 포함해 UUID 로 조회한다.
+     *
+     * <p>{@link com.samhanair.logis.partnerorder.domain.PartnerOrder} 의 {@code @SQLRestriction("is_deleted = false")} 는
+     * JPQL/Criteria 에만 적용되며, 네이티브 쿼리는 이 제약을 우회한다.
+     * 삭제된 주문 복원(undelete) 시 사용한다 (설계서 §3.3a — 삭제된 주문도 복원 가능).
+     *
+     * @param id 주문 UUID
+     * @return 활성 + soft-deleted 주문 포함 Optional
+     */
+    @Query(value = "SELECT * FROM partner_orders WHERE id = :id", nativeQuery = true)
+    Optional<PartnerOrder> findByIdIncludingDeleted(@Param("id") UUID id);
 
     /** 거래처 history 페이지 조회 (UUID 미노출 — bizCode 만 사용자 노출). */
     Page<PartnerOrder> findAllByBizCodeAndConfirmedAtBetweenOrderByConfirmedAtDesc(

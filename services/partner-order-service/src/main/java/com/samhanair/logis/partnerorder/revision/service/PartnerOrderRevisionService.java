@@ -89,7 +89,7 @@ public class PartnerOrderRevisionService {
      * 위반을 즉시 노출시켜 재시도 가드를 작동시킨다.
      *
      * @param order           캡처 대상 주문 (영속 상태, id 필수)
-     * @param type            캡처 유형 CREATE/EDIT/STATUS/RESTORE
+     * @param type            캡처 유형 CREATE/EDIT/STATUS/RESTORE/DELETE
      * @param sourceRevisionNo RESTORE 시 복원 출처 revision (그 외 null)
      * @param actorId         변경 주체 UUID (감사용, 화면 노출 금지)
      * @param actorName       변경 주체 표시명 (UUID 비공개 가드 적용 전 원본)
@@ -163,8 +163,9 @@ public class PartnerOrderRevisionService {
                                              UUID actorId,
                                              String actorName,
                                              String actorColor) {
-        // 1. 주문 로드
-        PartnerOrder order = orderRepository.findById(orderId)
+        // 1. 주문 로드 — soft-deleted 주문도 복원 대상이므로 @SQLRestriction 우회 조회 사용
+        //    (설계서 §3.3a: 삭제된 주문도 복원 가능)
+        PartnerOrder order = orderRepository.findByIdIncludingDeleted(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "주문을 찾을 수 없습니다. orderId=" + orderId));
@@ -177,14 +178,22 @@ public class PartnerOrderRevisionService {
                         "복원 대상 revision 이 없습니다. orderId=" + orderId
                                 + ", revisionNo=" + targetRevisionNo));
 
-        // 3. 복원 가드 (CONFIRMING · CANCELED 만 거부)
+        // 3. 복원 가드 (CONFIRMING · CANCELED 만 거부 — soft-deleted 여부 무관, status 기준 검사)
         order.requireRestorable();
 
-        // 4. 복원 직전 CONFIRMED 여부 캡처 — restoreHeader 는 status 를 변경하지 않으므로
+        // 4. soft-deleted 주문 undelete — is_deleted=false + deletedAt/deletedBy 클리어
+        //    (설계서 §3.3a: 복원 시 undelete + 시점 내용 적용)
+        boolean wasDeleted = Boolean.TRUE.equals(order.getIsDeleted());
+        if (wasDeleted) {
+            order.restoreFromDeleted();
+            log.info("[PartnerOrderRevisionService] soft-deleted 주문 undelete — orderId={}", orderId);
+        }
+
+        // 5. 복원 직전 CONFIRMED 여부 캡처 — restoreHeader 는 status 를 변경하지 않으므로
         //    가드 통과 직후에 캡처해야 의미가 명확하다.
         boolean wasConfirmed = order.getStatus() == PartnerOrderStatus.CONFIRMED;
 
-        // 5. 스냅샷 역직렬화 → 헤더 역적용 + 라인 전량교체
+        // 6. 스냅샷 역직렬화 → 헤더 역적용 + 라인 전량교체
         PartnerOrderSnapshot snapshot = deserialize(target.getSnapshot());
 
         // 헤더 도메인 메서드로 역적용 (직접 setter 금지)
@@ -195,6 +204,7 @@ public class PartnerOrderRevisionService {
                 snapshot.memo());
 
         // 라인 전량교체 — 기존 draft update 의 soft-delete 후 재생성 패턴 재사용
+        //   undelete 후 lines 컬렉션은 soft-deleted 라인만 있으므로 replaceLines 가 모두 교체
         List<PartnerOrderLine> newLines = snapshot.lines().stream()
                 .map(ls -> PartnerOrderLine.create(
                         ls.productId(),
@@ -210,7 +220,7 @@ public class PartnerOrderRevisionService {
         // 영속화 (낙관적 락 충돌은 호출자가 처리)
         PartnerOrder saved = orderRepository.saveAndFlush(order);
 
-        // 6. 복원 결과를 RESTORE revision 으로 캡처
+        // 7. 복원 결과를 RESTORE revision 으로 캡처
         capture(saved, PartnerOrderRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
 

@@ -621,6 +621,107 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 7 — 삭제 후 복원: DELETE revision 캡처 + soft-deleted 주문 복원(undelete)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * DRAFT 주문 → delete (DELETE revision 캡처 확인) → 삭제된 주문을 과거 rev 로 복원
+     * → is_deleted=false + 내용 복구 + RESTORE revision 생성.
+     *
+     * <p>검증 사항:
+     * <ul>
+     *   <li>delete 호출 후 revision_type=DELETE 인 revision 1건 생성</li>
+     *   <li>delete 후 주문이 soft-deleted (is_deleted=true) 상태</li>
+     *   <li>삭제된 주문에 대해 restore(rev1) 호출 → 200 OK</li>
+     *   <li>복원 후 is_deleted=false (undelete)</li>
+     *   <li>복원 후 헤더 + 라인이 rev1 시점으로 복구</li>
+     *   <li>RESTORE revision 생성 (DELETE revision 포함 총 3건: CREATE→DELETE→RESTORE)</li>
+     * </ul>
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스7: DRAFT 삭제 → DELETE revision 캡처 → 삭제된 주문 복원(undelete + 내용 복구) → RESTORE revision 생성")
+    void case7_deleteAndRestore_undeleteAndContentRestored() throws Exception {
+        // (1) DRAFT 주문 생성 (rev1=CREATE) — from-estimate 경로
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andReturn();
+
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        // rev1 CREATE 생성 확인
+        assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId)).hasSize(1);
+
+        // (2) delete 호출 — DELETE revision 캡처 + soft-delete
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .delete("/api/v1/partner-orders/{id}", orderId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "삭제담당자"))
+                .andExpect(status().isNoContent());
+
+        // delete 후 revision 2건 (CREATE + DELETE)
+        var revisionsAfterDelete = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId);
+        assertThat(revisionsAfterDelete).hasSize(2);
+        var deleteRev = revisionsAfterDelete.stream()
+                .filter(r -> "DELETE".equals(r.getRevisionType().name()))
+                .findFirst();
+        assertThat(deleteRev).isPresent();
+        assertThat(deleteRev.get().getRevisionNo()).isEqualTo(2);
+
+        // delete 후 DB 에서 주문이 soft-deleted 상태인지 확인
+        Integer deletedCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_orders WHERE id = ? AND is_deleted = TRUE",
+                Integer.class, orderId);
+        assertThat(deletedCount).isEqualTo(1);
+
+        // (3) 삭제된 주문을 rev1 로 복원 → undelete + 내용 복구
+        mockMvc.perform(
+                        post("/api/v1/partner-orders/{id}/revisions/{no}/restore", orderId, 1)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "복원담당자"))
+                .andExpect(status().isOk())
+                // 복원 후 rev1 시점의 partnerCode 복구 (estimateSnapshot 기준 "P-RST-IT-001")
+                .andExpect(jsonPath("$.data.order.partnerCode").value("P-RST-IT-001"))
+                .andExpect(jsonPath("$.data.order.bizCode").value("1234567890"))
+                // DRAFT 복원 → slipResyncRequired=false
+                .andExpect(jsonPath("$.data.slipResyncRequired").value(false))
+                // 라인 2개 복구
+                .andExpect(jsonPath("$.data.order.lines.length()").value(2));
+
+        // (4) 복원 후 is_deleted=false (undelete 확인)
+        Integer activateCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_orders WHERE id = ? AND is_deleted = FALSE",
+                Integer.class, orderId);
+        assertThat(activateCount).isEqualTo(1);
+
+        // (5) 복원 후 revision 3건 (CREATE→DELETE→RESTORE), 단조증가 확인
+        var revisionsAfterRestore = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId);
+        assertThat(revisionsAfterRestore).hasSize(3);
+
+        var sorted = revisionsAfterRestore.stream()
+                .sorted(java.util.Comparator.comparingInt(r -> r.getRevisionNo()))
+                .toList();
+        assertThat(sorted.get(0).getRevisionType().name()).isEqualTo("CREATE");
+        assertThat(sorted.get(1).getRevisionType().name()).isEqualTo("DELETE");
+        assertThat(sorted.get(2).getRevisionType().name()).isEqualTo("RESTORE");
+
+        // RESTORE revision 의 sourceRevisionNo=1 확인
+        var restoreRev = sorted.get(2);
+        assertThat(restoreRev.getSourceRevisionNo()).isEqualTo(1);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 헬퍼 메서드
     // ══════════════════════════════════════════════════════════════════════════
 
