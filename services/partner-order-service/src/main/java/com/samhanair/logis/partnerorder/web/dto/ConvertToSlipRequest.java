@@ -12,7 +12,8 @@ import java.util.UUID;
  *
  * <p>{@code POST /api/v1/partner-orders/{id}/convert-to-slip} 요청 본문.
  * items 는 선택할 주문 라인 + 이번 전환 수량 목록이며 1개 이상 필수.
- * warehouseCode 는 slip-service 창고 코드 (null 허용 — slip-service 기본값 적용).
+ * warehouseCode 는 slip-service 창고 코드 — 명시적 값 필수
+ * (null/blank 시 서비스에서 409 CONFLICT 반환. "DEFAULT" 폴백 금지).
  */
 public record ConvertToSlipRequest(
         @NotNull @NotEmpty @Valid List<Item> items,

@@ -39,8 +39,14 @@ const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 const PRINT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 /** 출고전표 전환 허용 역할 — sales.partner-order.convert CREATE 와 동일 매트릭스. */
 const CONVERT_ROLES = ['SALES', 'MANAGER', 'MASTER']
-/** 출고전표 전환 불가 status — BE requireConvertible 과 동기화. */
-const NON_CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['CANCELED', 'CONFIRMING', 'CONVERTED'])
+/**
+ * 출고전표 전환 가능 status 화이트리스트 — BE requireConvertible(DRAFT/ON_HOLD 한정) 과 정합.
+ * CONFIRMED 포함 나머지 상태는 전환 불가(BE 409 또는 business rule 위반).
+ * CONVERTED: slipNo=null 이어도 이미 전량 전환 완료이므로 FE 에서 차단.
+ * NOTE: BE requireConvertible 이 CONVERTED 상태를 slipNo!=null 로만 검사하는 결함이 있어
+ *       (slipNo=null + status=CONVERTED 가 BE 를 통과할 수 있음) FE 에서 화이트리스트로 방어.
+ */
+const CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['DRAFT', 'ON_HOLD'])
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -185,7 +191,9 @@ export function SalesPartnerOrderDetailPage() {
       setConvertQtyMap({})
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
-      const msg = `출고전표 ${result.slipNo} 발행`
+      const msg = result.fullyConverted
+        ? `출고전표 ${result.slipNo} 발행 — 전체 수량 전환 완료`
+        : `출고전표 ${result.slipNo} 발행 — 잔여 수량이 남아 있습니다`
       setConvertSuccessMessage(msg)
       if (convertSuccessTimerRef.current) clearTimeout(convertSuccessTimerRef.current)
       convertSuccessTimerRef.current = setTimeout(() => {
@@ -406,7 +414,7 @@ export function SalesPartnerOrderDetailPage() {
             {query.data &&
               canConvert &&
               query.data.linkedSlipNo == null &&
-              !NON_CONVERTIBLE_STATUS.has(query.data.status) ? (
+              CONVERTIBLE_STATUS.has(query.data.status) ? (
               <Button
                 type="button"
                 variant="primary"
@@ -414,10 +422,10 @@ export function SalesPartnerOrderDetailPage() {
                 disabled={convertMutation.isPending}
                 onClick={() => {
                   setConvertErrorMessage(null)
-                  // 모달 열 때 전환 수량 초기값 = 잔여 전량
+                  // 모달 열 때 전환 수량 초기값 = 잔여 전량 (convertedQuantity null 방어 — BE int 기본 0)
                   const initQty: Record<string, number> = {}
                   for (const line of query.data!.lines) {
-                    const remaining = line.quantity - line.convertedQuantity
+                    const remaining = line.quantity - (line.convertedQuantity ?? 0)
                     if (remaining > 0) {
                       initQty[line.lineId] = remaining
                     }
@@ -543,36 +551,52 @@ export function SalesPartnerOrderDetailPage() {
                       <th>수량</th>
                       <th>납품가</th>
                       <th>소계</th>
+                      <th>전환됨</th>
+                      <th>잔여</th>
                       <th>묶음 처리</th>
                       <th>구성품 펼침</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(query.data.lines ?? []).map((line, index) => (
-                      <tr key={`${line.modelCode}-${line.productName}-${index}`}>
-                        <td className={styles['tdLeft']}>{line.productName}</td>
-                        <td>{line.modelCode}</td>
-                        <td>{line.quantity}</td>
-                        <td className={styles['numericCol']}>{krw(line.deliveryPrice)}</td>
-                        <td className={styles['numericCol']}>{krw(line.subtotal)}</td>
-                        <td>
-                          {bundleModeLabel(line.bundleMode) ? (
-                            <span className={styles['badge']}>{bundleModeLabel(line.bundleMode)}</span>
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                        <td className={styles['expandedComponentText']}>
-                          {line.expandedComponents.length === 0
-                            ? '-'
-                            : line.expandedComponents.map((c) => (
-                                <div key={c.modelCode}>
-                                  {c.productName} ({c.modelCode}) × {c.quantity}
-                                </div>
-                              ))}
-                        </td>
-                      </tr>
-                    ))}
+                    {(query.data.lines ?? []).map((line, index) => {
+                      const converted = line.convertedQuantity ?? 0
+                      const remaining = line.quantity - converted
+                      return (
+                        <tr key={`${line.modelCode}-${line.productName}-${index}`}>
+                          <td className={styles['tdLeft']}>{line.productName}</td>
+                          <td>{line.modelCode}</td>
+                          <td className={styles['numericCol']}>{line.quantity}</td>
+                          <td className={styles['numericCol']}>{krw(line.deliveryPrice)}</td>
+                          <td className={styles['numericCol']}>{krw(line.subtotal)}</td>
+                          <td className={styles['numericCol']}>
+                            {converted > 0 ? (
+                              <span className={styles['convertedQtyBadge']}>{converted}</span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className={styles['numericCol']}>
+                            {converted > 0 ? remaining : '-'}
+                          </td>
+                          <td>
+                            {bundleModeLabel(line.bundleMode) ? (
+                              <span className={styles['badge']}>{bundleModeLabel(line.bundleMode)}</span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className={styles['expandedComponentText']}>
+                            {line.expandedComponents.length === 0
+                              ? '-'
+                              : line.expandedComponents.map((c) => (
+                                  <div key={c.modelCode}>
+                                    {c.productName} ({c.modelCode}) × {c.quantity}
+                                  </div>
+                                ))}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -860,7 +884,7 @@ export function SalesPartnerOrderDetailPage() {
                 convertMutation.mutate(items)
               }}
             >
-              {convertMutation.isPending ? '전환 중…' : '전환'}
+              {convertMutation.isPending ? '전환 중…' : '출고전표로 전환'}
             </Button>
           </>
         )}
@@ -875,32 +899,52 @@ export function SalesPartnerOrderDetailPage() {
               {convertErrorMessage}
             </div>
           ) : null}
+          {/* 비가역 경고 — 출고전표 발행 후 취소 불가 */}
+          <div className={styles['convertWarningBanner']} role="note">
+            <strong>주의:</strong> 전환 시 출고전표가 즉시 발행됩니다. 이 작업은 되돌릴 수 없습니다.
+            {(() => {
+              const convertibleLines = (query.data?.lines ?? []).filter(
+                (l) => (l.quantity - (l.convertedQuantity ?? 0)) > 0,
+              )
+              const selectedItems = convertibleLines.filter(
+                (l) => (convertQtyMap[l.lineId] ?? 0) > 0,
+              )
+              return selectedItems.length > 0
+                ? ` (${selectedItems.length}개 품목 전환 예정)`
+                : null
+            })()}
+          </div>
           <div className={styles['tableWrap']}>
             <table className={styles['estTable']}>
               <thead>
                 <tr>
                   <th>품목명</th>
                   <th>모델명</th>
-                  <th style={{ textAlign: 'right' }}>주문수량</th>
-                  <th style={{ textAlign: 'right' }}>전환됨</th>
-                  <th style={{ textAlign: 'right' }}>잔여</th>
-                  <th style={{ textAlign: 'right', minWidth: '100px' }}>전환수량</th>
+                  <th className={styles['numericTh']}>주문수량</th>
+                  <th className={styles['numericTh']}>전환됨</th>
+                  <th className={styles['numericTh']}>잔여</th>
+                  <th className={`${styles['numericTh']} ${styles['convertQtyTh']}`}>전환수량</th>
                 </tr>
               </thead>
               <tbody>
                 {(query.data?.lines ?? []).map((line, index) => {
-                  const remaining = line.quantity - line.convertedQuantity
+                  const remaining = line.quantity - (line.convertedQuantity ?? 0)
                   const currentQty = convertQtyMap[line.lineId] ?? 0
                   const disabled = remaining <= 0
                   return (
                     <tr
                       key={line.lineId}
-                      style={{ opacity: disabled ? 0.45 : 1 }}
+                      className={disabled ? styles['convertLineDisabled'] : undefined}
                     >
-                      <td className={styles['tdLeft']}>{line.productName}</td>
+                      <td className={styles['tdLeft']}>
+                        {line.productName}
+                        {disabled ? (
+                          <span className={styles['convertedLabel']}> 전환완료</span>
+                        ) : null}
+                      </td>
                       <td>{line.modelCode}</td>
                       <td className={styles['numericCol']}>{line.quantity}</td>
-                      <td className={styles['numericCol']}>{line.convertedQuantity}</td>
+                      <td className={styles['numericCol']}>{line.convertedQuantity ?? 0}</td>
                       <td className={styles['numericCol']}>{remaining}</td>
                       <td>
                         <Input

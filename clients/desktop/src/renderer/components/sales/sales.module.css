@@ -1031,3 +1031,51 @@
   color: var(--ink-secondary);
   font-size: 13px;
 }
+
+/* ====== Phase 2.6a — 부분전환 전용 스타일 ====== */
+
+/* 전환 모달: th 오른쪽 정렬 (숫자 컬럼). numericCol(td 전용) 와 대칭. */
+.numericTh {
+  text-align: right !important;
+}
+
+/* 전환 모달: 전환수량 th 최소 너비 */
+.convertQtyTh {
+  min-width: 100px;
+}
+
+/* 전환 모달: 잔여=0 (이미 전환완료) 라인 — opacity + 배경 tint 보조 큐 */
+.convertLineDisabled {
+  opacity: 0.45;
+  background: var(--state-neutral-bg, #f3f4f6);
+}
+
+/* 전환 모달: 잔여=0 행 "전환완료" 보조 텍스트 */
+.convertedLabel {
+  font-size: 11px;
+  color: var(--state-success, #065f46);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* 조회 라인 테이블: 전환된 수량 뱃지 (부분전환 진행상태 표시) */
+.convertedQtyBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+/* 전환 모달: 비가역 경고 배너 */
+.convertWarningBanner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--state-warning, #92400e);
+  border-radius: 8px;
+  background: var(--state-warning-bg, #fef3c7);
+  color: var(--state-warning, #92400e);
+  font-size: 13px;
+}

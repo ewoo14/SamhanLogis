@@ -419,20 +419,24 @@ public class PartnerOrder extends BaseEntity {
     /**
      * 출고전표 전환 가능 상태인지 검사한다 (Phase 2.6a).
      *
-     * <p>이미 출고전표가 발행된 주문(slipNo != null) 은 전환 불가.
-     * CANCELED / CONFIRMING 상태도 전환 불가.
+     * <p><b>화이트리스트 방식</b>: 전환 대상은 {@link PartnerOrderStatus#DRAFT}(진행중) 또는
+     * {@link PartnerOrderStatus#ON_HOLD}(보류) 상태인 주문만 허용한다.
+     * 그 외 모든 상태(CONFIRMING / CONFIRMED / CANCELED / CONVERTED) 는 전환 불가.
      *
-     * @throws ResponseStatusException(409) 전환 불가 상태일 때
+     * <p>추가로, slipNo 가 이미 있는 경우(confirm 흐름으로 발행 완료)도 전환 불가.
+     * 이 가드가 CONFIRMED + slipNo=null (PENDING_RETRY 재시도 대기) 주문의
+     * 이중발행을 원천 차단한다.
+     *
+     * @throws ResponseStatusException(409) 전환 불가 상태 또는 slipNo 이미 존재 시
      */
     public void requireConvertible() {
         if (this.slipNo != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "이미 출고전표가 발행된 주문은 전환할 수 없습니다. slipNo=" + this.slipNo);
         }
-        if (this.status == PartnerOrderStatus.CANCELED
-                || this.status == PartnerOrderStatus.CONFIRMING) {
+        if (this.status != PartnerOrderStatus.DRAFT && this.status != PartnerOrderStatus.ON_HOLD) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "전환할 수 없는 상태입니다: " + this.status);
+                    "출고전표로 전환 가능한 상태가 아닙니다(진행중/보류만 가능). 현재: " + this.status);
         }
     }
 

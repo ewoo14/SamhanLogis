@@ -432,6 +432,301 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 7 — 같은 라인 2회 연속 부분전환 → converted_quantity 누적 + idempotencyKey 상이
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 같은 주문 라인에 대해 2회 연속 부분전환(3 + 4 = 7) — converted_quantity 정확히 누적,
+     * 1차와 2차 idempotencyKey 가 다름(convertedBefore 스냅샷이 다르므로 SHA-256 달라짐).
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스7: 같은 라인 2회 연속 부분전환 → converted_quantity=7 누적, idempotencyKey 상이")
+    @SuppressWarnings("unchecked")
+    void case7_twoPartialConverts_sameLineAccumulate_differentIdempotencyKeys() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        // quantity=10, 1차=3, 2차=4 → 총 converted=7, 잔여=3
+        insertOrderWithLine(orderId, lineId, "P-CONV-007", "7777777777",
+                "2026/05/30-CONV-7", "DRAFT", null, 10, BigDecimal.valueOf(50000));
+
+        // 1차 전환 (qty=3)
+        ArgumentCaptor<Map<String, Object>> payloadCaptor1 = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<String> keyCaptor1 = ArgumentCaptor.forClass(String.class);
+
+        String body1 = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 3}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body1)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fullyConverted").value(false));
+
+        verify(slipServiceClient).publishFromPartnerOrder(
+                payloadCaptor1.capture(), keyCaptor1.capture());
+        String key1 = keyCaptor1.getValue();
+
+        // DB: converted_quantity = 3
+        Integer convertedAfter1 = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(convertedAfter1).isEqualTo(3);
+
+        // 2차 전환 (qty=4) — SlipServiceClient 재설정
+        org.mockito.Mockito.reset(slipServiceClient);
+        lenient().when(slipServiceClient.publishFromPartnerOrder(any(), anyString()))
+                .thenReturn(PublishResult.published("2026/05/30-2"));
+
+        ArgumentCaptor<Map<String, Object>> payloadCaptor2 = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<String> keyCaptor2 = ArgumentCaptor.forClass(String.class);
+
+        String body2 = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 4}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body2)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.data.fullyConverted").value(false));
+
+        verify(slipServiceClient).publishFromPartnerOrder(
+                payloadCaptor2.capture(), keyCaptor2.capture());
+        String key2 = keyCaptor2.getValue();
+
+        // DB: converted_quantity = 7 (3 + 4 누적)
+        Integer convertedAfter2 = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(convertedAfter2).isEqualTo(7);
+
+        // 두 idempotencyKey 는 반드시 달라야 함 (convertedBefore 스냅샷이 다르므로)
+        assertThat(key1).isNotEqualTo(key2);
+        assertThat(key1).startsWith("PO-CONV-");
+        assertThat(key2).startsWith("PO-CONV-");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 8 — 전량전환(CONVERTED) 후 추가 전환 → 409
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 전량 전환으로 status=CONVERTED 된 주문에 추가 전환 시도 → 409 CONFLICT.
+     * requireConvertible() 화이트리스트(DRAFT/ON_HOLD 만 허용) 에 의해 차단.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스8: 전량전환(CONVERTED) 후 추가 전환 시도 → 409 CONFLICT (requireConvertible 화이트리스트)")
+    void case8_convertedOrderAdditionalConvert_returns409() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        // converted_quantity = quantity = 5 → status=CONVERTED 상태로 직접 INSERT
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, 'P-CONV-008', '8888888888', '2026/05/30-CONV-8', NULL, 'CONVERTED',
+                   'NOT_REQUIRED', 0, NULL, NULL,
+                   NULL, NULL, NULL, 0,
+                   ?, 0,
+                   NOW(), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """, orderId, "idem-conv-2026/05/30-CONV-8");
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_order_lines
+                  (id, partner_order_id, product_id, model_name, product_name,
+                   category_key, quantity, price_vat, subtotal, remark,
+                   converted_quantity,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, 'MODEL-X', '상품X', 'homemulti', 5, 50000, 250000, NULL, 5,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
+                """, lineId, orderId, UUID.randomUUID());
+
+        String body = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 1}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isConflict());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 9 — CONFIRMED(slipNo=null, PENDING_RETRY) 주문 전환 → 409 (이중발행 차단)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * CONFIRMED + slipNo=null + slipPublishStatus=PENDING_RETRY 주문 전환 시도 → 409 CONFLICT.
+     * requireConvertible() 화이트리스트(DRAFT/ON_HOLD 만) 에 의해 CONFIRMED 상태 원천 차단.
+     * outbox 재발행 대기 중인 주문의 이중발행 위험 방어.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스9: CONFIRMED+slipNo=null(PENDING_RETRY) 전환 시도 → 409 (이중발행 차단)")
+    void case9_confirmedPendingRetryOrder_returns409() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        // CONFIRMED + slipNo=null + PENDING_RETRY — outbox 재발행 대기 상태
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, 'P-CONV-009', '9999999999', '2026/05/30-CONV-9', NULL, 'CONFIRMED',
+                   'PENDING_RETRY', 0, NOW(), NULL,
+                   NULL, NULL, NULL, 0,
+                   ?, 0,
+                   NOW(), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """, orderId, "idem-conv-2026/05/30-CONV-9");
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_order_lines
+                  (id, partner_order_id, product_id, model_name, product_name,
+                   category_key, quantity, price_vat, subtotal, remark,
+                   converted_quantity,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, 'MODEL-X', '상품X', 'homemulti', 5, 50000, 250000, NULL, 0,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
+                """, lineId, orderId, UUID.randomUUID());
+
+        String body = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 2}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isConflict());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 10 — 부분 라인만 전환 후 주문 status DRAFT 유지 (2라인 중 1라인 전량)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 2라인 주문에서 1라인만 전량 전환 → 나머지 라인이 남아 있으므로 주문 status DRAFT 유지.
+     * markConvertedIfComplete() 가 모든 활성 라인 완료 시에만 CONVERTED 로 변경함을 검증.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스10: 2라인 중 1라인 전량 전환 → 주문 status DRAFT 유지")
+    void case10_partialLineFull_statusRemainingDraft() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId1 = UUID.randomUUID();
+        UUID lineId2 = UUID.randomUUID();
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, 'P-CONV-010', '1010101010', '2026/05/30-CONV-10', NULL, 'DRAFT',
+                   'NOT_REQUIRED', 100000, NULL, NULL,
+                   NULL, NULL, NULL, 0,
+                   ?, 0,
+                   NOW(), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """, orderId, "idem-conv-2026/05/30-CONV-10");
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_order_lines
+                  (id, partner_order_id, product_id, model_name, product_name,
+                   category_key, quantity, price_vat, subtotal, remark,
+                   converted_quantity,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, 'MODEL-A', '상품A', 'homemulti', 5, 10000, 50000, NULL, 0,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL),
+                  (?, ?, ?, 'MODEL-B', '상품B', 'homemulti', 3, 10000, 30000, NULL, 0,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
+                """,
+                lineId1, orderId, UUID.randomUUID(),
+                lineId2, orderId, UUID.randomUUID());
+
+        // lineId1 만 전량(5) 전환
+        String body = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 5}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId1);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.data.fullyConverted").value(false));
+
+        // DB: 주문 status DRAFT 유지
+        String dbStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM partner_orders WHERE id = ?", String.class, orderId);
+        assertThat(dbStatus).isEqualTo("DRAFT");
+
+        // lineId1 converted_quantity=5, lineId2 converted_quantity=0
+        Integer line1Converted = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId1);
+        assertThat(line1Converted).isEqualTo(5);
+
+        Integer line2Converted = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId2);
+        assertThat(line2Converted).isEqualTo(0);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 헬퍼 메서드
     // ══════════════════════════════════════════════════════════════════════════
 

@@ -25,7 +25,7 @@ const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
   CONFIRMING: styles['statusSent']!,
   CONFIRMED: styles['statusConfirmed']!,
   CANCELED: styles['statusCanceled']!,
-  CONVERTED: styles['statusConfirmed']!,
+  CONVERTED: styles['statusConverted']!,
 }
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
