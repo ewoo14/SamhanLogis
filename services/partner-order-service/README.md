@@ -108,6 +108,51 @@ Scheduler (5분):
 - 단위 테스트 — Draft TTL / DC fail-soft / Outbox retry 백오프
 - IT — Testcontainers PostgreSQL + 외부 client `@MockBean` (DcConfig / Product / Inventory / Slip / PartnerAuth) 격리
 
+## Phase 2.4 — 버전이력 + RESTORE (D-RST-07)
+
+`partner_order_revisions` 테이블(V7, JSONB)로 주문 헤더+라인 full-snapshot 버전이력 + point-in-time 복원을 제공한다.
+
+### revision_type
+
+| 유형 | 캡처 경로 |
+|---|---|
+| CREATE | from-estimate 전환(`createFromEstimate`) + confirm(`confirm`) |
+| EDIT | draft update(`PartnerOrderDraftService.update`) + 본사 직결 수정(`PartnerOrderUpdateService.update`) |
+| DELETE | soft-delete 직전 스냅샷 캡처 (`PartnerOrderDeleteService.delete`) |
+| STATUS | 향후 취소·보류 전이 예약 (현재 미사용) |
+| RESTORE | 복원 작업 자체 (RESTORE revision 생성) |
+
+### 복원 가드 (제외목록 방식)
+
+- **허용**: DRAFT(진행중) / CONFIRMED(완료) / 추후 ON_HOLD — 가드 수정 없이 자동 포함.
+- **거부(409)**: CONFIRMING(발행 중 transient) / CANCELED(취소).
+- **CONFIRMED 복원 시 slip 연동 정책**: 편집 가능 필드(memo, dueDate, partnerCode, bizCode, 라인)만 역적용. slipNo/slipPublishStatus/confirmedAt/slipPublishedAt/status 는 복원 제외 (발행 사실 보존). 응답에 `slipResyncRequired=true` 경고 플래그.
+- **삭제 주문 복원**: `findByIdIncludingDeleted` native query로 soft-deleted 주문 로드 → `restoreFromDeleted()` undelete + 시점 내용 적용.
+
+### 새 REST endpoint
+
+| Method | Path | 권한 |
+|---|---|---|
+| GET | `/api/v1/partner-orders/{id}/revisions` | `sales.partner-order.history.view` VIEW |
+| GET | `/api/v1/partner-orders/{id}/revisions/{no}` | `sales.partner-order.history.view` VIEW |
+| POST | `/api/v1/partner-orders/{id}/revisions/{no}/restore` | `sales.partner-order.revisions` RESTORE |
+
+### 배포 순서 (필수)
+
+**`auth-service` 먼저 배포** (V40 시드: `sales.partner-order.revisions` page + MASTER/MANAGER/SALES RESTORE grant 추가) → `partner-order-service` 배포. 역순 시 RESTORE 엔드포인트가 전원 deny됨.
+
+### 관련 파일
+
+- `revision/domain/PartnerOrderRevision.java` — 엔티티
+- `revision/domain/PartnerOrderRevisionType.java` — CREATE/EDIT/STATUS/RESTORE/DELETE enum
+- `revision/repository/PartnerOrderRevisionRepository.java` — `findByIdIncludingDeleted` native query 포함
+- `revision/snapshot/PartnerOrderSnapshot.java` — 헤더+라인 record
+- `revision/service/PartnerOrderRevisionService.java` — capture/restore/listWithSummary
+- `revision/web/PartnerOrderRevisionController.java` — 3 endpoint
+- `db/migration/V7__add_partner_order_revisions.sql`
+
+dev-report: `docs/dev-reports/phase-2-4-partner-order-restore-version-history.md`
+
 ## 후속 작업
 
 - Phase 7 — `qa/playwright/confirm/` (3 spec, 6 case) 가 본 서비스의 confirm 흐름을 e2e 검증

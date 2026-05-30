@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">Phase 2 · RESTORE 메커니즘 (전표·견적·거래처 버전이력·복원)</span>
+    <span class="nav-badge">Phase 2 · RESTORE 메커니즘 (전표·견적·거래처·거래처주문 버전이력·복원)</span>
   </div>
 </nav>
 
@@ -1165,7 +1165,7 @@ body {
         <tr><td>CREATE</td><td>생성 (POST)</td></tr>
         <tr><td>UPDATE</td><td>수정 (PUT/PATCH)</td></tr>
         <tr><td>DELETE</td><td>삭제 (soft-delete)</td></tr>
-        <tr><td>RESTORE</td><td>복원 · 롤백 (Phase 2 메커니즘 — <strong>전표·견적·거래처 버전이력·복원 구현</strong>)</td></tr>
+        <tr><td>RESTORE</td><td>복원 · 롤백 (Phase 2 메커니즘 — <strong>전표·견적·거래처·거래처주문 버전이력·복원 구현</strong>)</td></tr>
         <tr><td>DOWNLOAD</td><td>다운로드 (Excel 등)</td></tr>
         <tr><td>PRINT</td><td>인쇄 view</td></tr>
       </table>
@@ -1180,6 +1180,10 @@ body {
       <div class="callout green" style="margin-top: 12px; font-size:12px;">
         <div class="callout-icon">↺</div>
         <div><strong>Phase 2.2~2.3 — RESTORE 도메인 확장 (견적 · 거래처):</strong> slip 패턴을 "활발히 편집되는 도메인"으로 이식(inventory는 적합 대상 부재로 보류, D-RST-04). <strong>견적(2.2)</strong> — <code>estimate_revisions</code>(V28) 헤더+라인 스냅샷, <code>estimates.list</code> page RESTORE action, <code>requireEditable()</code> 가드(ACCEPTED/CONVERTED 차단), SSE 생략(broker 부재). <strong>거래처(2.3)</strong> — <code>partner_revisions</code>(V12, partner-service 첫 JSONB) 헤더 40+필드 + 4탭 이종 자식(단가/할인·배송지·담당자) 스냅샷. 자식이 단일 <code>@OneToMany</code>가 아니라 <strong>service-layer 조립/전량교체</strong>, <code>partners.4tab.edit</code> page RESTORE action, <strong>TERMINATED 가드 신설</strong>(거래종료 거래처 부활 방지), SSE <code>partner:edit</code> 재사용. creditLimit/outstandingBalance(신용 누적 일관)·partnerCode/bizNo(불변 식별자) 복원 제외. shared 추출은 slip·estimate·partner 3형태차로 보류(D-RST-05/06).</div>
+      </div>
+      <div class="callout green" style="margin-top: 12px; font-size:12px;">
+        <div class="callout-icon">↺</div>
+        <div><strong>Phase 2.4 — RESTORE 도메인 확장 (거래처 주문):</strong> <code>partner_order_revisions</code>(V7, partner-order-service) 헤더+라인(<code>@OneToMany</code> soft-delete) full-snapshot. 캡처 범위: from-estimate 전환(CREATE) + confirm(CREATE) + draft update·본사 직결 수정(EDIT) + <strong>soft-delete 직전(DELETE)</strong>. <strong>제외목록 복원 가드</strong> — CONFIRMING·CANCELED 만 409, DRAFT·CONFIRMED 허용. <strong>CONFIRMED 복원 시 slip 연동 정책</strong>: 주문 내용(편집 가능 헤더 필드+라인)만 역적용, slipNo/slipPublishStatus/confirmedAt/slipPublishedAt 복원 제외(발행 사실 보존), <code>slipResyncRequired=true</code> 경고. <strong>삭제 주문 복원</strong>: <code>findByIdIncludingDeleted</code> native query로 soft-deleted 주문 로드 → <code>restoreFromDeleted()</code> undelete + 시점 내용 적용. 권한: VIEW=<code>sales.partner-order.history.view</code>(기존 재사용) / RESTORE=<code>sales.partner-order.revisions</code>(신규, V40 시드, auth-service 먼저 배포). FE <code>PartnerOrderVersionHistoryPanel</code>: DELETE 배지(danger) + CONFIRMED 복원 경고 토스트 + DS Modal confirm + 3쿼리 무효화. IT 9케이스·Playwright 6케이스(skipped=0). <strong>D-RST-05 재평가</strong>: 엔티티 골격·채번 race·changeSummary·UUID 가드는 공통 추출 후보, 스냅샷 조립·복원·가드는 도메인별 유지 타당 — 실제 추출은 별도 슬라이스(D-RST-07).</div>
       </div>
     </div>
   </div>
