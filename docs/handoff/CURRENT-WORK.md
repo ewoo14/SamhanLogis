@@ -4,6 +4,19 @@
 
 ---
 
+## 🚧 2026-05-31 재개 예정 — 권한 재편 Phase 2.5 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터 (spec 초안 완료, plan 부터)
+
+⚠️ 자정 중단. 내일 재개. ⚠️ Codex 6/1 12:00 복구 전 → Claude 에이전트 전면 대체.
+
+- **브랜치**: `feat/phase-2-5-partner-order-hold-status-filter` (base main `bbe45bf6`, 생성됨)
+- **spec 초안**: `docs/superpowers/specs/2026-05-31-partner-order-hold-status-filter-design.md` (grounding + 결정 반영 완료)
+- **개발책임자 확정 결정**: ① 보류 전이 = **진행중↔보류만**(DRAFT↔ON_HOLD, 완료는 보류 불가) ② 보류/해제 권한 = **기존 `sales.partner-order.edit` UPDATE 재사용**(신규 page X)
+- **핵심 작업**: ON_HOLD enum 추가 / markOnHold·releaseHold 도메인 메서드 / hold·release API / **리스트 status 필터(최대 난점 — 현 목록쿼리가 confirmedAt 기반이라 DRAFT/ON_HOLD 조회 재설계 필요)** / FE 상태필터 UI(기본 진행중)+한글라벨 ON_HOLD=보류+보류/해제 버튼. ON_HOLD 는 Phase 2.4 복원 제외목록 가드에 자동 포함(수정 불필요).
+- **내일 재개 절차**: ① `git checkout feat/phase-2-5-partner-order-hold-status-filter` ② spec 검토 → writing-plans 로 plan 작성 ③ Claude 에이전트 구현 → 사이클 N=2 → Docker 실 QA → 머지.
+- **내일 확인할 미정**: hold/release 시 STATUS revision 캡처 여부(Phase 2.4 STATUS type 첫 실사용 후보).
+
+---
+
 ## ✅ 2026-05-30 완료 — 권한 재편 Phase 2.4 주문(Partner-Order) RESTORE **머지** (PR #323 squash `54a8ca0f`) + PR #321 QA 문서 머지 (`a6f04e84`)
 
 RESTORE **5번째 도메인**(slip 2.1 / estimate 2.2 / partner 2.3 / **partner-order 2.4**). ⚠️ Codex 토큰 소진(6/1 12:00 복구 전) → 구현+dual리뷰 모두 **Claude 에이전트 전면 대체**.
