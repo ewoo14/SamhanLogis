@@ -312,19 +312,27 @@ public class PartnerOrder extends BaseEntity {
     /**
      * point-in-time 복원 가능 상태인지 검사한다 (Phase 2.4 버전이력 + 복원).
      *
-     * <p>복원은 {@link PartnerOrderStatus#DRAFT} 상태에서만 허용한다.
-     * CONFIRMING(발행 중 transient) / CONFIRMED(slip 연동, 복원 시 정합성 붕괴) /
-     * CANCELED 상태에서는 409 CONFLICT 로 즉시 거부한다.
+     * <p><b>제외목록 방식</b>: 복원은 CONFIRMING · CANCELED 를 제외한 모든 상태에서 허용한다.
+     * <ul>
+     *   <li>{@link PartnerOrderStatus#CONFIRMING} — 출고전표 전환 중(transient) 상태: 거부</li>
+     *   <li>{@link PartnerOrderStatus#CANCELED} — 취소 완료 상태: 거부</li>
+     *   <li>{@link PartnerOrderStatus#DRAFT} — 진행중: 허용</li>
+     *   <li>{@link PartnerOrderStatus#CONFIRMED} — 완료(출고전표 발행): 허용
+     *       (복원 후 slip 재동기화 필요 여부는 호출자가 {@code slipResyncRequired} 플래그로 판단)</li>
+     *   <li>추후 ON_HOLD 추가 시 이 가드 수정 불필요 (허용 기본)</li>
+     * </ul>
      *
      * <p>설계서 §3.3 복원 가드 참조.
      *
-     * @throws ResponseStatusException(409) DRAFT 가 아닌 상태에서 호출 시
+     * @throws org.springframework.web.server.ResponseStatusException(409)
+     *         CONFIRMING 또는 CANCELED 상태에서 호출 시
      */
     public void requireRestorable() {
-        if (this.status != PartnerOrderStatus.DRAFT) {
+        if (this.status == PartnerOrderStatus.CONFIRMING
+                || this.status == PartnerOrderStatus.CANCELED) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "DRAFT 상태에서만 복원 가능합니다. 현재 상태: " + this.status);
+                    "진행 중(전환)이거나 취소된 주문은 복원할 수 없습니다. 현재 상태: " + this.status);
         }
     }
 
@@ -333,7 +341,13 @@ public class PartnerOrder extends BaseEntity {
      *
      * <p>복원 가능 상태 가드({@link #requireRestorable()})는 호출자가 선행 호출해야 한다.
      * 직접 필드 setter 금지 — 도메인 메서드를 통해서만 변경한다.
-     * dueDate / memo / partnerCode / bizCode 만 복원 대상 (status / slipNo 등 slip 연동 필드 제외).
+     *
+     * <p><b>복원 대상</b>: partnerCode / bizCode / dueDate / memo 만 역적용한다.
+     *
+     * <p><b>복원 제외 (slip 연동 필드)</b>: status / slipNo / slipPublishStatus /
+     * confirmedAt / slipPublishedAt 은 역적용하지 않는다.
+     * CONFIRMED 상태 주문을 복원하더라도 출고전표 발행 사실은 보존된다 — 컨트롤러가
+     * {@code slipResyncRequired} 플래그를 응답에 포함하여 재발행 필요 여부를 호출자에게 알린다.
      *
      * @param partnerCode 복원할 거래처 코드
      * @param bizCode     복원할 사업자번호

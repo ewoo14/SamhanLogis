@@ -192,7 +192,7 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(editRequestService.listByOrder(any(), any(), any())).thenReturn(List.of(editRequest));
         lenient().when(vendorOrderService.upload(any(), any(), any(), any())).thenReturn(upload);
         lenient().when(vendorOrderService.confirm(any(), anyString())).thenReturn(vendorConfirm);
-        lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any())).thenReturn(confirm);
+        lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any(), any())).thenReturn(confirm);
         lenient().when(draftService.create(any(), anyString(), any())).thenReturn(draft);
         lenient().when(draftService.list(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of(draft)));
         lenient().when(draftService.getOne(any(), any())).thenReturn(draftDetail);

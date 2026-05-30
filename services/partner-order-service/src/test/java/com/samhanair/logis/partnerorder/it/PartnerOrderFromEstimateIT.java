@@ -89,6 +89,8 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
     void setUp() {
         outboxRepository.deleteAll();
         auditLogRepository.deleteAll();
+        // Phase 2.4 버전이력 — FK 미강제이므로 orderRepository.deleteAll() 전에 cleanup
+        jdbcTemplate.update("DELETE FROM partner_order_revisions");
         jdbcTemplate.update("DELETE FROM partner_order_lines");
         orderRepository.deleteAll();
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);

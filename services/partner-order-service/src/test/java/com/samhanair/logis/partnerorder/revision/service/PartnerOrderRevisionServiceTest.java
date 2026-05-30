@@ -14,6 +14,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
+import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRestoreResult;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
@@ -44,8 +45,10 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li>actorName=UUID → null 저장 (UUID 비공개 가드)</li>
  *   <li>DataIntegrityViolation 1회 재시도 후 성공</li>
  *   <li>DataIntegrityViolation 2회 → 409 CONFLICT</li>
- *   <li>restore: DRAFT 주문 — 헤더+라인 원복 + RESTORE revision 캡처(sourceRevisionNo 기록)</li>
- *   <li>restore: CONFIRMED/CONFIRMING/CANCELED → 409 CONFLICT</li>
+ *   <li>restore: DRAFT 주문 — 헤더+라인 원복 + RESTORE revision 캡처(sourceRevisionNo 기록) + slipResyncRequired=false</li>
+ *   <li>restore: CONFIRMED 주문 — 복원 성공 + slipResyncRequired=true (Phase 2.4 정책 변경)</li>
+ *   <li>restore: CONFIRMING → 409 CONFLICT</li>
+ *   <li>restore: CANCELED → 409 CONFLICT</li>
  *   <li>restore: orderId 미존재 → 404</li>
  *   <li>restore: revisionNo 미존재 → 404</li>
  * </ul>
@@ -205,11 +208,11 @@ class PartnerOrderRevisionServiceTest {
     // ── restore ──────────────────────────────────────────────────────────────
 
     @Nested
-    @DisplayName("restore() — DRAFT 복원 + 상태 가드")
+    @DisplayName("restore() — 복원 성공 + 상태 가드 (Phase 2.4 정책 변경: 제외목록 방식)")
     class RestoreTests {
 
         @Test
-        @DisplayName("DRAFT 주문 restore 시 헤더+라인 원복 + RESTORE revision(sourceRevisionNo 기록)")
+        @DisplayName("DRAFT 주문 restore 시 헤더+라인 원복 + RESTORE revision(sourceRevisionNo 기록) + slipResyncRequired=false")
         void restore_draftOrder_headerAndLinesRestored() throws Exception {
             // given
             UUID orderId = UUID.randomUUID();
@@ -237,30 +240,50 @@ class PartnerOrderRevisionServiceTest {
             when(revisionRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
             // when
-            PartnerOrder result = service.restore(orderId, 1, UUID.randomUUID(), "복원자", null);
+            PartnerOrderRestoreResult result = service.restore(orderId, 1, UUID.randomUUID(), "복원자", null);
 
             // then — 헤더 복원 확인
-            assertThat(result.getPartnerCode()).isEqualTo("ORIG-PC");
-            assertThat(result.getBizCode()).isEqualTo("ORIG-BIZ");
-            assertThat(result.getMemo()).isEqualTo("원본메모");
+            assertThat(result.order().getPartnerCode()).isEqualTo("ORIG-PC");
+            assertThat(result.order().getBizCode()).isEqualTo("ORIG-BIZ");
+            assertThat(result.order().getMemo()).isEqualTo("원본메모");
+            // DRAFT 복원은 slipResyncRequired=false
+            assertThat(result.slipResyncRequired()).isFalse();
         }
 
         @Test
-        @DisplayName("CONFIRMED 상태 주문 restore → 409 CONFLICT")
-        void restore_confirmedOrder_throws409() {
+        @DisplayName("CONFIRMED 주문 restore → 복원 성공 + slipResyncRequired=true (Phase 2.4 정책 변경)")
+        void restore_confirmedOrder_successWithSlipResyncRequired() throws Exception {
             // given
             UUID orderId = UUID.randomUUID();
             PartnerOrder order = confirmedOrder(orderId);
 
+            PartnerOrderLine snapLine = PartnerOrderLine.create(
+                    UUID.randomUUID(), "MODEL-CONF", "완료상품", "homemulti",
+                    1, new BigDecimal("50000.00"), null);
+            PartnerOrderSnapshot snapshot = new PartnerOrderSnapshot(
+                    order.getOrderNo(), "CONF-PC", "CONF-BIZ",
+                    PartnerOrderStatus.CONFIRMED, null, null,
+                    new BigDecimal("50000.00"), null, null,
+                    null, "완료메모", null, 0,
+                    java.util.List.of(PartnerOrderSnapshot.LineSnapshot.from(snapLine)));
+
+            String snapshotJson = objectMapper.writeValueAsString(snapshot);
+            PartnerOrderRevision targetRevision = mockRevisionWithSnapshot(orderId, 1, snapshotJson);
+
             when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
             when(revisionRepository.findByPartnerOrderIdAndRevisionNo(orderId, 1))
-                    .thenReturn(Optional.of(mockRevision(orderId, 1)));
+                    .thenReturn(Optional.of(targetRevision));
+            when(orderRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(revisionRepository.findMaxRevisionNo(orderId)).thenReturn(1);
+            when(revisionRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            // when + then
-            assertThatThrownBy(() -> service.restore(orderId, 1, UUID.randomUUID(), "복원자", null))
-                    .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
-                            .isEqualTo(HttpStatus.CONFLICT));
+            // when
+            PartnerOrderRestoreResult result = service.restore(orderId, 1, UUID.randomUUID(), "복원자", null);
+
+            // then — 복원 성공
+            assertThat(result.order().getPartnerCode()).isEqualTo("CONF-PC");
+            // CONFIRMED 복원은 slipResyncRequired=true
+            assertThat(result.slipResyncRequired()).isTrue();
         }
 
         @Test

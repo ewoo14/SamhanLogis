@@ -13,6 +13,7 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
+import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.math.BigDecimal;
@@ -52,6 +53,8 @@ class PartnerOrderConfirmServiceTest {
     private InventoryClient inventoryClient;
     @Mock
     private SlipServiceClient slipServiceClient;
+    @Mock
+    private PartnerOrderRevisionService revisionService;
     @Mock
     private ObjectMapper objectMapper;
     @Mock

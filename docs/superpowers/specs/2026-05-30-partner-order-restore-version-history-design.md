@@ -77,12 +77,19 @@ CREATE INDEX idx_partner_order_revisions_order
 - revision_no 채번: `MAX(revision_no)+1` per order, `saveAndFlush` + `DataIntegrityViolation` 1회 재시도 → 충돌 시 409 (slip race 교훈)
 - 기존 `revisionCount` 필드와의 관계: revisionCount 는 audit 채번용 단조증가 → revision_no 와 별개 채널. (혼선 방지 위해 partner_order_revisions.revision_no 는 본 테이블 독립 채번)
 
-### 3.3 복원 가드 (신규)
+### 3.3 복원 가드 (개발책임자 결정 2026-05-30: CONFIRMED 복원 허용)
 
-- **복원 허용 상태 = DRAFT 만** (`status == DRAFT`). CONFIRMING(발행 중 transient) / CONFIRMED / CANCELED → 409 CONFLICT.
-  - 근거: CONFIRMED 는 slipNo·slipPublishStatus 가 slip-service 와 연동되어 과거 스냅샷 원복 시 정합성 깨짐. 본사 직결 수정(PUT /{id})은 별도 트랙으로 유지하고, 복원은 확정 전 DRAFT 편집 되돌리기로 한정.
-  - **결정 포인트**: CONFIRMED 복원까지 확장할지는 OUT(후속). 본 슬라이스 DRAFT-only.
-- 복원 대상 revision 의 라인 스냅샷으로 현재 라인 전량교체(soft-delete 후 재생성, 기존 draft update 패턴 재사용).
+> **라이프사이클 grounding 정정**: PartnerOrder 는 `createFromEstimate`→**DRAFT** / `confirm`→CONFIRMING→**CONFIRMED** 두 경로로 생성. DRAFT(견적전환분)와 CONFIRMED(확정분) 모두 실재. (당초 spec 의 "DRAFT-only" 전제는 라이프사이클 오해였음.)
+
+- **복원 허용 = 제외목록 방식**: `CONFIRMING(전환 순간 transient, advisory lock) / CANCELED` **만 409**. 그 외(DRAFT, CONFIRMED, 추후 ON_HOLD)는 허용. → 추후 '보류(ON_HOLD)' 상태 추가 시 가드 수정 없이 자동 복원 대상 포함 ([[project-partner-order-status-model]]).
+  - **업무용어 매핑**(개발책임자 확정 2026-05-30): 진행중=DRAFT / 완료=CONFIRMED(출고전표 전환 시점) / 보류=신규 ON_HOLD(별도 슬라이스). CONFIRMING·CANCELED 는 사용자 비노출/취소.
+  - DRAFT(진행중): 확정 전 주문의 편집 되돌리기.
+  - CONFIRMED(완료): 본사가 `PartnerOrderUpdateService.update`(PUT /{id})로 수정한 완료 주문을 과거 버전으로 되돌리기 — RESTORE 시리즈의 핵심 의도.
+- **⚠️ CONFIRMED 복원 시 slip(출고전표) 재동기화 = 별도 항목**:
+  - CONFIRMED 주문은 `slipNo`/`slipPublishStatus` 로 slip-service 출고전표가 이미 발행된 상태. 주문 내용을 과거로 되돌리면 발행된 slip 과 불일치.
+  - **본 슬라이스 정책**: 복원은 **주문 내용(헤더+라인)만** 되돌리고 slip 은 **자동 재발행하지 않음**. 대신 복원 응답/이력에 **"연결된 출고전표 재발행 필요" 경고 플래그**(예: `slipResyncRequired=true`)를 노출. 실제 slip 재발행은 차기 [[project-order-slip-conversion]] 전환 슬라이스 영역.
+  - slipNo/slipPublishStatus/confirmedAt/slipPublishedAt 등 **slip 연동 필드는 복원 대상에서 제외**(스냅샷에는 담되 역적용하지 않음 — 발행 사실 보존). 복원은 편집 가능 내용(라인, memo, dueDate 등)만 역적용.
+- 복원 대상 revision 의 라인 스냅샷으로 현재 라인 전량교체(soft-delete 후 재생성, 기존 update 패턴 재사용).
 
 ### 3.4 API
 
@@ -90,7 +97,7 @@ CREATE INDEX idx_partner_order_revisions_order
 |---|---|---|---|
 | GET | `/api/v1/partner-orders/{id}/revisions` | VIEW | 버전이력 목록 (revision_no desc, changeSummary) |
 | GET | `/api/v1/partner-orders/{id}/revisions/{no}` | VIEW | 단일 스냅샷 상세 |
-| POST | `/api/v1/partner-orders/{id}/revisions/{no}/restore` | RESTORE | 복원 (DRAFT 상태만) |
+| POST | `/api/v1/partner-orders/{id}/revisions/{no}/restore` | RESTORE | 복원 (DRAFT/CONFIRMED, CONFIRMED 는 slipResyncRequired 경고) |
 
 - page code: 신규 `sales.partner-order.revisions` (VIEW/RESTORE) **또는** 기존 `sales.partner-order.history.view` 확장 — 구현 시 권한 매트릭스 일관성 기준 확정. RESTORE action 은 `PermissionAction` enum 에 이미 존재.
 - 비-MASTER 계정 grant 시드 (Phase 1 동적권한 운영) — 배포 체크리스트.
@@ -128,12 +135,12 @@ slip(overlay+@OneToMany) / estimate(단순 @OneToMany) / partner(service-layer �
 
 ## 7. 결정 (DECISIONS 정식화 필요)
 
-- **D-RST-06 partner-order RESTORE**: 헤더+라인 full-snapshot, 내용변경 전체+상태전이(STATUS type) 캡처, 복원=DRAFT 상태만(신규 가드), 별도 partner-order-service V7 partner_order_revisions.
+- **D-RST-06 partner-order RESTORE**: 헤더+라인 full-snapshot, 내용변경 전체+상태전이(STATUS type) 캡처, 복원=DRAFT+CONFIRMED(CONFIRMING/CANCELED 409), CONFIRMED 복원 시 slip 자동 재발행 안 함 + `slipResyncRequired` 경고(slip 연동 필드 역적용 제외), 별도 partner-order-service V7 partner_order_revisions.
 
 ## 8. 범위 / 미해결
 
-- IN: 주문(헤더+라인) full-snapshot 버전이력 + DRAFT point-in-time 복원.
-- OUT: CONFIRMED 복원 확장 / partner_order_audit_log·history 통합 / soft-delete un-delete / shared 추출(본 도메인 후 평가).
+- IN: 주문(헤더+라인) full-snapshot 버전이력 + DRAFT/CONFIRMED point-in-time 복원(내용만, slip 재발행 제외).
+- OUT: CONFIRMED 복원 시 slip 자동 재발행/동기화(차기 전환 슬라이스) / partner_order_audit_log·history 통합 / soft-delete un-delete / shared 추출(본 도메인 후 평가).
 - 후속: DOWNLOAD/PRINT 실구현, shared revision 추출(D-RST-05 결론), **주문→출고전표 전환 고도화(품목별 부분전환 + 다중주문 병합)** = 본 RESTORE 다음 슬라이스 ([[project-order-slip-conversion]]).
 - **DRAFT-only 복원 근거 보강**: CONFIRMED 전이 시 `PartnerOrderConfirmService` 가 slip-service 로 1:1 발행(slipNo/slipPublishStatus 연동) → CONFIRMED 주문을 과거 스냅샷으로 복원하면 이미 발행된 출고전표와 정합성 붕괴. 따라서 복원은 발행 전 DRAFT 한정.
 - 구현 시 확정: page code 선택(신규 revisions vs history.view 확장), FE 패널 정확한 배치, confirm/cancel STATUS 캡처 세부.

@@ -4,12 +4,23 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
 import com.samhanair.logis.partnerorder.revision.snapshot.PartnerOrderSnapshot;
+import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionDetailResponse;
+import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse;
+import com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse.ChangeSummary;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -120,7 +131,8 @@ public class PartnerOrderRevisionService {
      * <ol>
      *   <li>order 로드 — 없으면 404</li>
      *   <li>target revision 로드 — 없으면 404</li>
-     *   <li>{@link PartnerOrder#requireRestorable()} — DRAFT 아니면 409</li>
+     *   <li>{@link PartnerOrder#requireRestorable()} — CONFIRMING/CANCELED 이면 409</li>
+     *   <li>복원 직전 상태가 CONFIRMED 인지 캡처 ({@code wasConfirmed}) — slip 재동기화 플래그 산출용</li>
      *   <li>스냅샷 역직렬화 → 헤더 도메인 메서드로 역적용 + 라인 전량교체(soft-delete 후 재생성)</li>
      *   <li>복원 결과를 RESTORE type revision 으로 capture</li>
      * </ol>
@@ -131,20 +143,26 @@ public class PartnerOrderRevisionService {
      * <p>라인 전량교체는 {@link PartnerOrder#replaceLines(List)} 를 재사용한다 —
      * 기존 draft update 의 soft-delete 후 재생성 패턴과 동일하다.
      *
-     * @param orderId        복원 대상 주문 UUID
+     * <p>{@code slipResyncRequired} 플래그 의미:
+     * 복원 직전 주문이 {@link com.samhanair.logis.partnerorder.domain.PartnerOrderStatus#CONFIRMED} 상태였을 때
+     * {@code true} 로 설정된다. restoreHeader 가 status 를 변경하지 않으므로 복원 후에도
+     * 주문은 CONFIRMED 상태를 유지하지만, 헤더/라인이 과거 스냅샷으로 원복되었으므로
+     * 연결 출고전표의 재발행 여부를 담당자가 확인해야 한다.
+     *
+     * @param orderId          복원 대상 주문 UUID
      * @param targetRevisionNo 복원할 시점의 revision_no
-     * @param actorId        복원 주체 UUID (감사용)
-     * @param actorName      복원 주체 표시명 (UUID 비공개 가드 적용 전 원본)
-     * @param actorColor     FE userIdToColor 결과 backup (선택, null 허용)
-     * @return 갱신된 PartnerOrder (헤더+라인 원복 완료 후 영속 상태)
+     * @param actorId          복원 주체 UUID (감사용)
+     * @param actorName        복원 주체 표시명 (UUID 비공개 가드 적용 전 원본)
+     * @param actorColor       FE userIdToColor 결과 backup (선택, null 허용)
+     * @return {@link PartnerOrderRestoreResult} — 갱신된 주문 + slipResyncRequired 플래그
      * @throws ResponseStatusException(404) orderId 또는 targetRevisionNo 미존재
-     * @throws ResponseStatusException(409) DRAFT 아닌 상태에서 복원 시도
+     * @throws ResponseStatusException(409) CONFIRMING/CANCELED 상태에서 복원 시도
      */
-    public PartnerOrder restore(UUID orderId,
-                                int targetRevisionNo,
-                                UUID actorId,
-                                String actorName,
-                                String actorColor) {
+    public PartnerOrderRestoreResult restore(UUID orderId,
+                                             int targetRevisionNo,
+                                             UUID actorId,
+                                             String actorName,
+                                             String actorColor) {
         // 1. 주문 로드
         PartnerOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -159,10 +177,14 @@ public class PartnerOrderRevisionService {
                         "복원 대상 revision 이 없습니다. orderId=" + orderId
                                 + ", revisionNo=" + targetRevisionNo));
 
-        // 3. DRAFT 상태 가드
+        // 3. 복원 가드 (CONFIRMING · CANCELED 만 거부)
         order.requireRestorable();
 
-        // 4. 스냅샷 역직렬화 → 헤더 역적용 + 라인 전량교체
+        // 4. 복원 직전 CONFIRMED 여부 캡처 — restoreHeader 는 status 를 변경하지 않으므로
+        //    가드 통과 직후에 캡처해야 의미가 명확하다.
+        boolean wasConfirmed = order.getStatus() == PartnerOrderStatus.CONFIRMED;
+
+        // 5. 스냅샷 역직렬화 → 헤더 역적용 + 라인 전량교체
         PartnerOrderSnapshot snapshot = deserialize(target.getSnapshot());
 
         // 헤더 도메인 메서드로 역적용 (직접 setter 금지)
@@ -173,7 +195,6 @@ public class PartnerOrderRevisionService {
                 snapshot.memo());
 
         // 라인 전량교체 — 기존 draft update 의 soft-delete 후 재생성 패턴 재사용
-        String actorIdStr = actorId != null ? actorId.toString() : "system-restore";
         List<PartnerOrderLine> newLines = snapshot.lines().stream()
                 .map(ls -> PartnerOrderLine.create(
                         ls.productId(),
@@ -189,11 +210,228 @@ public class PartnerOrderRevisionService {
         // 영속화 (낙관적 락 충돌은 호출자가 처리)
         PartnerOrder saved = orderRepository.saveAndFlush(order);
 
-        // 5. 복원 결과를 RESTORE revision 으로 캡처
+        // 6. 복원 결과를 RESTORE revision 으로 캡처
         capture(saved, PartnerOrderRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
 
-        return saved;
+        return new PartnerOrderRestoreResult(saved, wasConfirmed);
+    }
+
+    // ── 조회 API 지원 ─────────────────────────────────────────────────────────
+
+    /**
+     * 거래처 주문의 버전 타임라인을 최신(revisionNo 내림차순) 우선으로 조회한다.
+     *
+     * @param partnerOrderId 대상 거래처 주문 UUID
+     * @return revisionNo 내림차순 정렬된 버전 목록 (없으면 빈 리스트)
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerOrderRevision> list(UUID partnerOrderId) {
+        return revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(partnerOrderId);
+    }
+
+    /**
+     * 버전 타임라인을 changeSummary 가 포함된 응답 DTO 로 조회한다 (Phase 2.4 Task 7).
+     *
+     * <p>인접 revision 스냅샷을 비교해 각 revision 의 {@link ChangeSummary} 를 계산한다 —
+     * revisionNo 오름차순으로 정렬한 뒤 인접쌍을 훑고, 최종 반환은 다시 최신(내림차순) 우선으로 뒤집는다.
+     *
+     * <p>{@link com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService#listWithSummary} 미러.
+     *
+     * @param partnerOrderId 대상 거래처 주문 UUID
+     * @return revisionNo 내림차순 정렬 + changeSummary 포함 응답 목록 (없으면 빈 리스트)
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerOrderRevisionResponse> listWithSummary(UUID partnerOrderId) {
+        List<PartnerOrderRevision> revisions = new ArrayList<>(list(partnerOrderId));
+        // 인접 비교를 위해 revisionNo 오름차순으로 정렬 (list 는 내림차순 반환)
+        revisions.sort(Comparator.comparingInt(PartnerOrderRevision::getRevisionNo));
+
+        List<PartnerOrderRevisionResponse> responses = new ArrayList<>(revisions.size());
+        PartnerOrderSnapshot prev = null;
+        for (PartnerOrderRevision revision : revisions) {
+            PartnerOrderSnapshot cur = deserialize(revision.getSnapshot());
+            ChangeSummary summary = summarize(prev, cur);
+            responses.add(new PartnerOrderRevisionResponse(
+                    revision.getRevisionNo(),
+                    revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
+                    revision.getSourceRevisionNo(),
+                    revision.getOrderNo(),
+                    revision.getActorName(),
+                    revision.getActorColor(),
+                    revision.getCreatedAt(),
+                    summary));
+            prev = cur;
+        }
+        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
+        Collections.reverse(responses);
+        return responses;
+    }
+
+    /**
+     * 거래처 주문의 특정 revision 단일 스냅샷 상세를 조회한다 (Phase 2.4 Task 7).
+     *
+     * @param partnerOrderId 대상 거래처 주문 UUID
+     * @param revisionNo     조회할 버전 번호
+     * @return 단일 스냅샷 상세 응답 DTO
+     * @throws org.springframework.web.server.ResponseStatusException(404) revision 미존재 시
+     */
+    @Transactional(readOnly = true)
+    public PartnerOrderRevisionDetailResponse getRevisionDetail(UUID partnerOrderId, int revisionNo) {
+        PartnerOrderRevision revision = revisionRepository
+                .findByPartnerOrderIdAndRevisionNo(partnerOrderId, revisionNo)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "revision 을 찾을 수 없습니다. partnerOrderId=" + partnerOrderId
+                                + ", revisionNo=" + revisionNo));
+        PartnerOrderSnapshot snapshot = deserialize(revision.getSnapshot());
+        return PartnerOrderRevisionDetailResponse.of(
+                revision.getRevisionNo(),
+                revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
+                revision.getSourceRevisionNo(),
+                revision.getOrderNo(),
+                revision.getActorName(),
+                revision.getActorColor(),
+                revision.getCreatedAt(),
+                snapshot);
+    }
+
+    /**
+     * 두 스냅샷 간 변경 규모를 {@link ChangeSummary} 로 집계한다 (Phase 2.4 Task 7).
+     *
+     * <p>비교 규칙:
+     * <ul>
+     *   <li><b>prev == null</b> (최초 revision): headerChanged=0, lineRemoved=0, lineModified=0,
+     *       lineAdded = cur 라인 수 (직전 없음 = 전 라인이 신규).</li>
+     *   <li><b>헤더</b>: partnerCode, bizCode, status, slipNo, totalAmount, dueDate, memo 등
+     *       핵심 필드를 {@link Objects#equals}로 비교해 다른 필드 수를 센다.</li>
+     *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
+     *       양쪽 존재하나 라인 필드 중 하나라도 다르면 modified.</li>
+     * </ul>
+     *
+     * <p>{@link com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService#summarize} 미러.
+     *
+     * @param prev 직전 시점 스냅샷 (최초 revision 이면 null)
+     * @param cur  현 시점 스냅샷 (필수)
+     * @return 변경 규모 요약
+     */
+    public ChangeSummary summarize(PartnerOrderSnapshot prev, PartnerOrderSnapshot cur) {
+        List<PartnerOrderSnapshot.LineSnapshot> curLines =
+                cur.lines() == null ? List.of() : cur.lines();
+        if (prev == null) {
+            return new ChangeSummary(0, curLines.size(), 0, 0);
+        }
+        List<PartnerOrderSnapshot.LineSnapshot> prevLines =
+                prev.lines() == null ? List.of() : prev.lines();
+
+        int headerChanged = countHeaderChanges(prev, cur);
+
+        // productId 기준 매칭 맵 (null productId 는 added/removed 로만 집계)
+        Map<UUID, PartnerOrderSnapshot.LineSnapshot> prevById = new LinkedHashMap<>();
+        for (PartnerOrderSnapshot.LineSnapshot line : prevLines) {
+            if (line.productId() != null) {
+                prevById.put(line.productId(), line);
+            }
+        }
+        Map<UUID, PartnerOrderSnapshot.LineSnapshot> curById = new LinkedHashMap<>();
+        for (PartnerOrderSnapshot.LineSnapshot line : curLines) {
+            if (line.productId() != null) {
+                curById.put(line.productId(), line);
+            }
+        }
+
+        int lineAdded = 0;
+        int lineRemoved = 0;
+        int lineModified = 0;
+
+        // productId 가 null 인 라인은 키 매칭 불가 → cur=added, prev=removed
+        for (PartnerOrderSnapshot.LineSnapshot line : curLines) {
+            if (line.productId() == null) {
+                lineAdded++;
+            }
+        }
+        for (PartnerOrderSnapshot.LineSnapshot line : prevLines) {
+            if (line.productId() == null) {
+                lineRemoved++;
+            }
+        }
+
+        for (Map.Entry<UUID, PartnerOrderSnapshot.LineSnapshot> entry : curById.entrySet()) {
+            PartnerOrderSnapshot.LineSnapshot prevLine = prevById.get(entry.getKey());
+            if (prevLine == null) {
+                lineAdded++;
+            } else if (lineDiffers(prevLine, entry.getValue())) {
+                lineModified++;
+            }
+        }
+        for (UUID prevKey : prevById.keySet()) {
+            if (!curById.containsKey(prevKey)) {
+                lineRemoved++;
+            }
+        }
+
+        return new ChangeSummary(headerChanged, lineAdded, lineRemoved, lineModified);
+    }
+
+    /**
+     * 두 스냅샷의 헤더 핵심 필드를 1:1 비교해 값이 달라진 필드 수를 센다 (라인 리스트 제외).
+     *
+     * <p>비교 대상: partnerCode, bizCode, status, slipNo, totalAmount, dueDate, memo.
+     */
+    private int countHeaderChanges(PartnerOrderSnapshot prev, PartnerOrderSnapshot cur) {
+        int changed = 0;
+        if (!Objects.equals(prev.partnerCode(), cur.partnerCode())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.bizCode(), cur.bizCode())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.status(), cur.status())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.slipNo(), cur.slipNo())) {
+            changed++;
+        }
+        if (!bigDecimalEquals(prev.totalAmount(), cur.totalAmount())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.dueDate(), cur.dueDate())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.memo(), cur.memo())) {
+            changed++;
+        }
+        return changed;
+    }
+
+    /**
+     * 동일 productId 라인 2건의 필드값이 하나라도 다른지 판정한다 (BigDecimal 은 compareTo).
+     */
+    private boolean lineDiffers(PartnerOrderSnapshot.LineSnapshot a,
+                                 PartnerOrderSnapshot.LineSnapshot b) {
+        if (a.quantity() != b.quantity()) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.priceVat(), b.priceVat())) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.subtotal(), b.subtotal())) {
+            return true;
+        }
+        return !Objects.equals(a.modelName(), b.modelName())
+                || !Objects.equals(a.productName(), b.productName())
+                || !Objects.equals(a.categoryKey(), b.categoryKey())
+                || !Objects.equals(a.remark(), b.remark());
+    }
+
+    /**
+     * BigDecimal 동등 비교 — scale 차이 무시 (compareTo). null 안전.
+     */
+    private boolean bigDecimalEquals(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return Objects.equals(a, b);
+        }
+        return a.compareTo(b) == 0;
     }
 
     // ── 내부 헬퍼 ──────────────────────────────────────────────────────────────

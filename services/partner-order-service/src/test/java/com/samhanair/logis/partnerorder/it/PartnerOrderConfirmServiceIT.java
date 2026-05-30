@@ -79,7 +79,7 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         ConfirmRequest request = new ConfirmRequest(List.of(
                 new ConfirmLineRequest(productId, "homemulti", 1, "remark-1")));
         ConfirmResponse response = confirmService.confirm(
-                "P-HAPPY", "1234567890", "user-happy", null, request);
+                "P-HAPPY", "1234567890", "user-happy", null, null, request);
 
         assertThat(response.slipNo()).isEqualTo("S-2025-0001");
         assertThat(response.slipPublishStatus()).isEqualTo(SlipPublishStatus.PUBLISHED.name());
@@ -103,7 +103,7 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         ConfirmRequest request = new ConfirmRequest(List.of(
                 new ConfirmLineRequest(productId, "homemulti", 1, null)));
         ConfirmResponse response = confirmService.confirm(
-                "P-RETRY", "9876543210", "user-retry", null, request);
+                "P-RETRY", "9876543210", "user-retry", null, null, request);
 
         assertThat(response.slipNo()).isNull();
         assertThat(response.slipPublishStatus()).isEqualTo(SlipPublishStatus.PENDING_RETRY.name());
