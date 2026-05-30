@@ -8,9 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 /**
  * arologis-service 도메인 예외 → {@link ApiResponse} 봉투 매핑.
@@ -42,6 +44,34 @@ public class ArologisExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, ex.getMessage()));
+    }
+
+    /**
+     * multipart 필수 파트({@code files} 등) 누락 → 400 INVALID_INPUT.
+     *
+     * <p>운송사 실배차 비교({@code POST /admin/arologis/dispatch/reconcile}) 가 {@code files}
+     * 파트 없이 호출되면 Spring 이 {@link MissingServletRequestPartException} 을 던진다. 전용
+     * 핸들러가 없으면 catch-all {@link #handleUnknown} 로 떨어져 500 이 반환되던 결함을 수정한다
+     * (QA defect — 필수 파트 누락 시 400 기대).
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingPart(MissingServletRequestPartException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
+                        "필수 업로드 파트가 누락되었습니다: " + ex.getRequestPartName()));
+    }
+
+    /**
+     * 필수 {@code @RequestParam} 누락 → 400 INVALID_INPUT.
+     *
+     * <p>{@code files} 가 {@code @RequestParam} 으로 선언되어 있어 multipart 컨테이너 구성에 따라
+     * {@link MissingServletRequestParameterException} 으로 표면화될 수도 있다. 동일하게 400 으로 매핑한다.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
+                        "필수 요청 파라미터가 누락되었습니다: " + ex.getParameterName()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

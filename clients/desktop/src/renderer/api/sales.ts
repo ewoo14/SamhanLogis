@@ -12,20 +12,22 @@
  *       카탈로그 모달 검색. 견적/주문 카드 grid 의 라인 추가 source.</li>
  *   <li>{@link getProductSpecs} — `GET /api/v1/products/{modelCode}/specs` (M1a) — 라인
  *       클릭 시 동적 specKey 카드 표시 (DOMAIN-EXTENSIONS §4).</li>
- *   <li>{@link listSpecKeyTemplates} — `GET /api/v1/spec-key-templates` (M1a) —
- *       카테고리별 추천 specKey (Spec 추가 모달 source).</li>
- *   <li>{@link listMaterialPrices} — `GET /api/v1/material-prices` (M1a) — D4/D7/D8 자재.</li>
- *   <li>{@link listOduRecommendations} — `GET /api/v1/odu-recommendations` (M1a) —
- *       추천 실외기 lookup (홈멀티 자동 권장 표시).</li>
- *   <li>{@link lookupBranchPipe} — `GET /api/v1/branch-pipes/lookup` (M1a) — 분기관 lookup
- *       (M3 EstimateBranchCalcService 통합 시 활용).</li>
- *   <li>{@link listEstimates} / {@link createEstimate} — `GET/POST /api/v1/estimates`
- *       (M3 estimate-service, 본 슬라이스에서는 mock 우선).</li>
+ *   <li>{@link listSpecKeyTemplates} — `GET /api/v1/spec-key-templates`
+ *       (product-service `ProductCatalogController`) — 카테고리별 추천 specKey.</li>
+ *   <li>{@link getEstimate} — `GET /slips/estimates/{id}` (slip-service
+ *       `EstimateController`) — 견적서 인쇄 미리보기 view-model.</li>
  *   <li>{@link listPartnerOrders} / {@link getPartnerOrder} — `GET /api/v1/partner-orders`
- *       (M4 partner-order-service, 본 슬라이스에서는 read-only mock).</li>
- *   <li>{@link listLongPendingPartners} — `GET /api/v1/partners/long-pending` (M5
- *       LongPendingScheduler).</li>
+ *       (partner-order-service, read-only).</li>
+ *   <li>{@link searchPartners} — `GET /admin/partners/search` (partner-service
+ *       `PartnerAdminController`) — 거래처 검색 자동완성.</li>
+ *   <li>{@link listLongPendingPartners} — `GET /api/v1/partners/long-pending`
+ *       (**미구현** — 대응 BE 컨트롤러 부재. 배포 전 빈 목록 반환).</li>
  * </ul>
+ *
+ * <p>**미구현 lookup 주의**: 자재단가(`/api/v1/material-prices`) / 추천 실외기
+ * (`/api/v1/odu-recommendations`) / 분기관(`/api/v1/branch-pipes/lookup`) lookup 은
+ * product-service 에 repository / domain 만 존재하고 노출 컨트롤러가 없어 본 모듈에
+ * 함수가 구현되어 있지 않다 (컨트롤러 구현 후 추가 예정).
  *
  * <p>내부 식별자 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}): 모든 응답에서 화면
  * 노출 식별자는 {@code modelCode}, {@code estimateNumber}, {@code partnerCode} 만 사용한다.
@@ -240,30 +242,79 @@ export interface EstimateDetail {
 }
 
 /**
- * 견적 페이지 조회.
+ * 견적 단건 조회 — 견적서 인쇄 미리보기({@link QuoteView}) 전용 view-model.
  *
- * <p>**Note** — M3 estimate-service 가 미배포 상태일 경우 본 호출은 404 를 반환할 수
- * 있다. 화면은 빈 목록 + 안내 메시지 표시.
- */
-export async function listEstimates(
-  page = 0,
-  size = 20,
-): Promise<PageResponse<EstimateSummary>> {
-  const res = await apiClient.get<ApiEnvelope<PageResponse<EstimateSummary>>>(
-    '/api/v1/estimates',
-    { params: { page, size } },
-  )
-  return res.data.data
-}
-
-/**
- * 견적 단건 조회.
+ * <p>**path 결함 수정** — 기존 데드 경로 `/api/v1/estimates/{id}` 는 estimate-service
+ * 가 slip-service 로 통합되며 폐기되었다. 현행 endpoint 는 slip-service
+ * `EstimateController @RequestMapping("/slips/estimates")` (gateway
+ * `slip-service-noprefix` route `/slips/**`). 본 함수는 현행 `/slips/estimates/{id}`
+ * 응답({@code EstimateDetailResponse})을 인쇄 양식이 기대하는 {@link EstimateDetail}
+ * view-model 로 매핑한다. 데드 `listEstimates`(`/api/v1/estimates`)는 목록 화면이
+ * `estimateApi.listEstimates`(`/slips/estimates`)를 사용하므로 본 모듈에서 제거했다.
+ *
+ * @param estimateNumber 라우트 path param. 현행 BE 는 UUID `id` 를 path 로 받는다
+ *        (인쇄 라우트가 estimateNumber 자리에 id 를 전달).
  */
 export async function getEstimate(estimateNumber: string): Promise<EstimateDetail> {
-  const res = await apiClient.get<ApiEnvelope<EstimateDetail>>(
-    `/api/v1/estimates/${encodeURIComponent(estimateNumber)}`,
+  const res = await apiClient.get<ApiEnvelope<LiveEstimateDetailResponse>>(
+    `/slips/estimates/${encodeURIComponent(estimateNumber)}`,
   )
-  return res.data.data
+  const e = res.data.data
+  return {
+    estimateNumber: e.estimateNo,
+    partnerCode: e.partnerBusinessNo ?? '',
+    partnerName: e.partnerName,
+    category: 'OTHER',
+    status: 'DRAFT',
+    createdAt: e.estimateDate,
+    authorName: '',
+    deliveryAddress: e.partnerAddress,
+    siteAddress: e.partnerAddress,
+    contactPhone: null,
+    dueDate: e.validUntil,
+    paymentDueDate: null,
+    memo: e.memo,
+    totalAmount: Number(e.totalAmount ?? 0),
+    lines: e.lines.map((l) => {
+      const unitPrice = Number(l.unitPrice ?? 0)
+      const supplyAmount = Number(l.supplyAmount ?? 0)
+      return {
+        id: l.id,
+        category: 'OTHER',
+        modelCode: l.modelName ?? '',
+        productName: l.productName ?? '',
+        quantity: l.quantity,
+        releasePrice: unitPrice,
+        deliveryPrice: unitPrice,
+        subtotal: supplyAmount,
+        hasVariableDiscount: false,
+        bundleMode: null,
+      }
+    }),
+  }
+}
+
+/** slip-service `EstimateLineResponse` 부분 — 인쇄 매핑에 필요한 필드만. */
+interface LiveEstimateLineResponse {
+  id: string
+  productName: string | null
+  modelName: string | null
+  quantity: number
+  unitPrice: string | null
+  supplyAmount: string | null
+}
+
+/** slip-service `EstimateDetailResponse` 부분 — 인쇄 매핑에 필요한 필드만. */
+interface LiveEstimateDetailResponse {
+  estimateNo: string
+  estimateDate: string
+  partnerName: string
+  partnerBusinessNo: string | null
+  partnerAddress: string | null
+  validUntil: string | null
+  totalAmount: string | null
+  memo: string | null
+  lines: LiveEstimateLineResponse[]
 }
 
 // ---------------------------------------------------------------------------
@@ -443,34 +494,59 @@ export async function listLongPendingPartners(
 /**
  * PartnerSummary — 거래처 검색 자동완성 row.
  *
- * <p>legacy `fillCustomer(c)` (estimate index.html line 15283) 가 사용하는 fields 를 모두
- * 포함. 선택 즉시 `cardOrderInfo` 의 거래처명/거래처코드/대표/연락처/주소/그룹/메모 자동
- * 채움 (v2 §정정 16).
+ * <p>선택 즉시 `cardOrderInfo` 의 거래처명/거래처코드/연락처 자동 채움.
+ *
+ * <p>**BE 계약 정합 (path 결함 수정)** — 실제 backend 거래처 검색 endpoint 는
+ * partner-service `PartnerAdminController @GetMapping("/search")` =
+ * `/admin/partners/search` (gateway `partner-service-noprefix` route `/admin/partners/**`).
+ * 응답은 {@code ApiResponse<AdminPartnerListResponse{ items: PartnerSummaryResponse[],
+ * total, page, size }>} 이며 PartnerSummaryResponse 는 {@code partnerCode / name / bizNo /
+ * phone / status / creditLimit / outstandingBalance} 만 노출한다. 따라서
+ * 대표자명({@code representativeName}) / 주소({@code address}) / 그룹({@code groupName}) /
+ * 비고({@code note}) 는 본 검색 endpoint 가 제공하지 않으므로 항상 {@code null} 이다
+ * (단건 상세 `/admin/partners/{partnerCode}` 조회 시 별도 확보).
  */
 export interface PartnerSummary {
-  /** 사업자등록번호 (사용자 노출 식별자). */
+  /** 사업자등록번호 (= BE `bizNo`, 사용자 노출 식별자). */
   businessRegistrationNumber: string
-  /** 거래처명 (= legacy `c.name`). */
+  /** 거래처명 (= BE `name`). */
   companyName: string
-  /** 대표자명 (= legacy `c.rep`). */
+  /** 대표자명 — 검색 endpoint 미제공 (항상 null). */
   representativeName: string | null
-  /** 연락처 (= legacy `c.tel`). */
+  /** 연락처 (= BE `phone`). */
   contactPhone: string | null
-  /** 주소 (= legacy `c.addr`). */
+  /** 주소 — 검색 endpoint 미제공 (항상 null). */
   address: string | null
-  /** 그룹 (= legacy `c.group`). */
+  /** 그룹 — 검색 endpoint 미제공 (항상 null). */
   groupName: string | null
-  /** 비고 (= legacy `c.note`). */
+  /** 비고 — 검색 endpoint 미제공 (항상 null). */
   note: string | null
+}
+
+/** BE `PartnerSummaryResponse` — `/admin/partners/search` items row (raw). */
+interface AdminPartnerSummaryRow {
+  partnerCode: string
+  name: string | null
+  bizNo: string | null
+  phone: string | null
+}
+
+/** BE `AdminPartnerListResponse` — `/admin/partners/search` envelope payload. */
+interface AdminPartnerListPayload {
+  items: AdminPartnerSummaryRow[]
+  total: number
+  page: number
+  size: number
 }
 
 /**
  * 거래처 검색 (자동완성).
  *
  * <p>견적서 작성 화면의 `cardOrderInfo` 거래처 검색 input → 한글/사업자번호 부분 매칭.
- * backend M5 `/api/v1/partners/search?keyword=` 로 호출. mock 미배포 시 빈 배열 반환.
+ * backend partner-service `/admin/partners/search?q=` 로 호출 (path 결함 수정 — 기존
+ * `/api/v1/partners/search` 는 매핑 부재로 404). mock 미배포 시 빈 배열 반환.
  *
- * @param keyword 거래처명/사업자번호 부분 매칭 키워드. 2자 이상 권장.
+ * @param keyword 거래처명/사업자번호 부분 매칭 키워드 (BE `q` 파라미터). 2자 이상 권장.
  * @param size 최대 결과 수 (기본 10).
  */
 export async function searchPartners(
@@ -478,11 +554,19 @@ export async function searchPartners(
   size = 10,
 ): Promise<PartnerSummary[]> {
   if (!keyword || keyword.trim().length < 1) return []
-  const res = await apiClient.get<ApiEnvelope<PartnerSummary[]>>(
-    '/api/v1/partners/search',
-    { params: { keyword: keyword.trim(), size } },
+  const res = await apiClient.get<ApiEnvelope<AdminPartnerListPayload>>(
+    '/admin/partners/search',
+    { params: { q: keyword.trim(), page: 0, size } },
   )
-  return res.data.data
+  return res.data.data.items.map((row) => ({
+    businessRegistrationNumber: row.bizNo ?? row.partnerCode,
+    companyName: row.name ?? '',
+    representativeName: null,
+    contactPhone: row.phone,
+    address: null,
+    groupName: null,
+    note: null,
+  }))
 }
 
 // ---------------------------------------------------------------------------

@@ -221,6 +221,15 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [잔여] ProductCatalogController 풀패스(@RequestMapping("/api/v1") + /products/{code}/specs,
+        # /spec-key-templates). strip=2 면 깨지므로 표적 no-strip(카탈로그 GET 은 기존 strip route 유지).
+        - id: product-specs-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/specs,/api/v1/products/*/specs/**,/api/v1/spec-key-templates,/api/v1/spec-key-templates/**
+          filters:
+            - JwtAuthentication
+
         - id: product-service-v1
           uri: lb://product-service
           predicates:
@@ -315,6 +324,15 @@ spring:
           uri: lb://partner-order-service
           predicates:
             - Path=/api/v1/partner-orders/**
+          filters:
+            - JwtAuthentication
+
+        # [잔여] vendor 발주 OCR — VendorOrderController 풀패스 @RequestMapping("/api/v1/admin/partner-order/vendor").
+        # /api/v1/partner-orders/** predicate 와 세그먼트가 달라 미매칭이었음 → no-strip 라우트 추가.
+        - id: partner-order-admin-v1
+          uri: lb://partner-order-service
+          predicates:
+            - Path=/api/v1/admin/partner-order/**
           filters:
             - JwtAuthentication
 

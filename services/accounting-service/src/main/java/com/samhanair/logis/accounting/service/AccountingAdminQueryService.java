@@ -146,14 +146,14 @@ public class AccountingAdminQueryService {
         long total = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
                   FROM partner_aging_snapshot
-                 WHERE (:partnerName IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE :partnerName)
+                 WHERE (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text))
                 """, params, Long.class);
         List<PartnerAgingSnapshotResponse> rows = jdbcTemplate.query("""
                 SELECT partner_name, total_receivable, total_payable, total_receipt,
                        total_disbursement, net_receivable, net_payable, net_cash,
                        last_refreshed_at
                   FROM partner_aging_snapshot
-                 WHERE (:partnerName IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE :partnerName)
+                 WHERE (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text))
                  ORDER BY %s
                  LIMIT :limit OFFSET :offset
                 """.formatted(orderBy), params, this::mapAging);
@@ -227,10 +227,10 @@ public class AccountingAdminQueryService {
     private static String ledgerWhereClause() {
         return """
                 WHERE is_deleted = FALSE
-                  AND (:from IS NULL OR transaction_date >= :from)
-                  AND (:to IS NULL OR transaction_date <= :to)
-                  AND (:partnerName IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE :partnerName)
-                  AND (:transformStatus IS NULL OR transform_status = :transformStatus)
+                  AND (CAST(:from AS date) IS NULL OR transaction_date >= CAST(:from AS date))
+                  AND (CAST(:to AS date) IS NULL OR transaction_date <= CAST(:to AS date))
+                  AND (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text))
+                  AND (CAST(:transformStatus AS text) IS NULL OR transform_status = CAST(:transformStatus AS text))
                 """;
     }
 
