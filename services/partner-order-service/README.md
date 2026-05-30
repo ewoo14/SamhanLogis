@@ -167,6 +167,70 @@ dev-report: `docs/dev-reports/phase-2-4-partner-order-restore-version-history.md
 - **env-template** — `infrastructure/env-templates/partner-order-service.env` 보유 (`SAMHAN_DC_CONFIG_SERVICE_URL` / `SAMHAN_PRODUCT_SERVICE_URL` / `SAMHAN_INVENTORY_SERVICE_URL` / `SAMHAN_SLIP_SERVICE_URL` / `SAMHAN_PARTNER_AUTH_SERVICE_URL` 5종)
 - **ServiceDiscoveryClient (Phase 11 활성 대비)** — `shared:discovery-abstraction` 의존성 도입은 Phase 11 cutover 시점 (현재는 Eureka 직접 등록)
 
+## Phase 2.5 — 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터 (D-PO-25)
+
+### 보류 상태 모델
+
+| 업무 용어 | enum | 전이 규칙 |
+|---|---|---|
+| 진행중 | DRAFT | → ON_HOLD(보류) / → CONFIRMING → CONFIRMED |
+| 보류 | **ON_HOLD** (신규) | → DRAFT(해제) / → CONFIRMING → CONFIRMED |
+| 완료 | CONFIRMED | 보류 불가 (slip 발행됨) |
+| (전환중) | CONFIRMING | 사용자 비노출 |
+| 취소 | CANCELED | 사용자 비노출 |
+
+**완료(CONFIRMED) 보류 불가 근거**: 출고전표가 이미 발행된 상태에서 보류 전환하면 slip 정합성이 파괴된다. 완료된 주문의 내용 조정은 복원(Phase 2.4 RESTORE) 또는 차기 취소/재발행 슬라이스 영역이다.
+
+**PartnerOrderDraft confirm과 무관**: ON_HOLD는 `createFromEstimate` 견적전환분의 `PartnerOrder` 엔티티 상태 전이이며, `PartnerOrderDraft` confirm(→ INSERT CONFIRMING → CONFIRMED) 경로와는 별개다.
+
+### 보류/해제 도메인 메서드
+
+- `PartnerOrder.markOnHold()` — DRAFT 아니면 409. DRAFT → ON_HOLD.
+- `PartnerOrder.releaseHold()` — ON_HOLD 아니면 409. ON_HOLD → DRAFT.
+- `markConfirming()` 가드 확대: DRAFT 또는 ON_HOLD → CONFIRMING 허용.
+
+### hold/release REST endpoint
+
+| Method | Path | 권한 |
+|---|---|---|
+| POST | `/api/v1/partner-orders/{id}/hold` | `sales.partner-order.edit` UPDATE |
+| POST | `/api/v1/partner-orders/{id}/release` | `sales.partner-order.edit` UPDATE |
+
+- 응답: `ApiResponse<PartnerOrderDetailResponse>` (전이 후 주문 상세)
+- 성공 시 Phase 2.4 STATUS revision 유형으로 캡처 (`partner_order_revisions`)
+
+### 리스트 상태 필터 + 기간 기준 분기
+
+리스트 필터 인프라(Controller/Specification/Repository)는 기완성. ON_HOLD enum 추가만으로 `status=ON_HOLD` 조회 자동 동작.
+
+기간 필터 기준 분기 (`PartnerOrderQueryService.toSpec()`):
+- `DRAFT / ON_HOLD` → `createdAt` 기준 (confirmedAt=null이므로)
+- 그 외 (CONFIRMED / CONFIRMING / CANCELED / 미지정) → `confirmedAt` 기준
+
+리스트 기본 필터: `DRAFT`(진행중). 보류(ON_HOLD)는 기본 보기에서 분리.
+
+### FE 업무용어 라벨 통일
+
+| enum | 변경 전 | 변경 후 |
+|---|---|---|
+| DRAFT | 작성중 | **진행중** |
+| ON_HOLD | (없음) | **보류** |
+| CONFIRMED | 확정 | **완료** |
+
+### Flyway 마이그레이션 불필요
+
+`partner_orders.status VARCHAR(20)` 컬럼에 CHECK 제약 없음 → enum 추가만으로 즉시 적용. V8 불필요.
+
+### 관련 파일
+
+- `domain/PartnerOrderStatus.java` — ON_HOLD 추가
+- `domain/PartnerOrder.java` — markOnHold() / releaseHold() + markConfirming() 가드
+- `service/PartnerOrderHoldService.java` — hold/release + AuditLog + STATUS revision
+- `web/PartnerOrderHoldController.java` — POST /{id}/hold, POST /{id}/release
+- `service/PartnerOrderQueryService.java` — toSpec() DRAFT/ON_HOLD createdAt 분기
+
+dev-report: `docs/dev-reports/phase-2-5-partner-order-hold-status-filter.md`
+
 ## Phase 9 신규 service 매트릭스 (참조)
 
 | Service                | Port | DB                | 도메인                              | 본 service 와의 관계                                            |

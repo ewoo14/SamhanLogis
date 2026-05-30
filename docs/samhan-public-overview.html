@@ -850,12 +850,13 @@ body {
         </div>
       </div>
       <div class="svc-card-db">partner_order_db</div>
-      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택).</div>
+      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. ON_HOLD(보류) 상태 — 진행중↔보류 양방향 전이, 완료 보류 불가(slip 정합성). 리스트 상태 필터(진행중/보류/완료). 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택).</div>
       <div class="svc-tags">
         <span class="stag green">Outbox 패턴</span>
         <span class="stag blue">낙관적 잠금</span>
         <span class="stag yellow">Tesseract OCR</span>
         <span class="stag cyan">견적→주문 변환</span>
+        <span class="stag purple">ON_HOLD 보류 상태</span>
       </div>
     </div>
 
@@ -1184,6 +1185,10 @@ body {
       <div class="callout green" style="margin-top: 12px; font-size:12px;">
         <div class="callout-icon">↺</div>
         <div><strong>Phase 2.4 — RESTORE 도메인 확장 (거래처 주문):</strong> <code>partner_order_revisions</code>(V7, partner-order-service) 헤더+라인(<code>@OneToMany</code> soft-delete) full-snapshot. 캡처 범위: from-estimate 전환(CREATE) + confirm(CREATE) + draft update·본사 직결 수정(EDIT) + <strong>soft-delete 직전(DELETE)</strong>. <strong>제외목록 복원 가드</strong> — CONFIRMING·CANCELED 만 409, DRAFT·CONFIRMED 허용. <strong>CONFIRMED 복원 시 slip 연동 정책</strong>: 주문 내용(편집 가능 헤더 필드+라인)만 역적용, slipNo/slipPublishStatus/confirmedAt/slipPublishedAt 복원 제외(발행 사실 보존), <code>slipResyncRequired=true</code> 경고. <strong>삭제 주문 복원</strong>: <code>findByIdIncludingDeleted</code> native query로 soft-deleted 주문 로드 → <code>restoreFromDeleted()</code> undelete + 시점 내용 적용. 권한: VIEW=<code>sales.partner-order.history.view</code>(기존 재사용) / RESTORE=<code>sales.partner-order.revisions</code>(신규, V40 시드, auth-service 먼저 배포). FE <code>PartnerOrderVersionHistoryPanel</code>: DELETE 배지(danger) + CONFIRMED 복원 경고 토스트 + DS Modal confirm + 3쿼리 무효화. IT 9케이스·Playwright 6케이스(skipped=0). <strong>D-RST-05 재평가</strong>: 엔티티 골격·채번 race·changeSummary·UUID 가드는 공통 추출 후보, 스냅샷 조립·복원·가드는 도메인별 유지 타당 — 실제 추출은 별도 슬라이스(D-RST-07).</div>
+      </div>
+      <div class="callout green" style="margin-top: 12px; font-size:12px;">
+        <div class="callout-icon">⏸</div>
+        <div><strong>Phase 2.5 — 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터:</strong> <code>PartnerOrderStatus.ON_HOLD</code> 신규 enum. <strong>전이 규칙</strong>: 진행중(DRAFT) ↔ 보류(ON_HOLD) 양방향만 허용. 완료(CONFIRMED)는 출고전표 발행 완료 상태이므로 보류 불가(slip 정합성 보호). 보류 주문도 confirm(출고전표 전환)은 가능 — ON_HOLD → CONFIRMING → CONFIRMED 경로 지원. <strong>PartnerOrderDraft confirm과 무관</strong>: 보류 상태는 <code>PartnerOrderDraft</code> INSERT 경로가 아닌 <code>createFromEstimate</code> 견적전환분의 status 전이. <code>POST /{id}/hold</code> / <code>POST /{id}/release</code> API — <code>sales.partner-order.edit</code> UPDATE 권한 재사용(신규 page 불필요). Phase 2.4 예약 STATUS revision 유형 <strong>첫 실사용</strong>. <strong>리스트 필터 인프라 기완성</strong>(grounding 결과): Controller/Specification/Repository 모두 완성 — ON_HOLD enum 추가만으로 즉시 동작. 기간필터 기준: DRAFT·ON_HOLD → <code>createdAt</code>(confirmedAt=null이므로), 그 외 → <code>confirmedAt</code>. <strong>FE 업무용어 통일</strong>: DRAFT='진행중'(기존 '작성중'), CONFIRMED='완료'(기존 '확정'), ON_HOLD='보류'(신규). <strong>Flyway 마이그레이션 불필요</strong>: <code>status VARCHAR(20)</code> CHECK 제약 없음(D-PO-25). 단위 4·IT 8·Playwright 3케이스(skipped=0).</div>
       </div>
     </div>
   </div>

@@ -2229,19 +2229,56 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /api/v1/partner-orders — 주문서 관리
+  // GET /api/v1/partner-orders — 주문서 관리 (Phase 2.5: status 필터 분기 추가)
   if (method === 'GET' && /\/api\/v1\/partner-orders(?:\?.*)?$/.test(url)) {
+    // status 쿼리 파라미터 추출 (URL 또는 config.params 에서)
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
+
+    // Phase 2.5 — status 별 fixture rows
+    const DRAFT_ROW = {
+      orderNumber: '2026/05/04-1',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-04T10:30:00',
+      status: 'DRAFT' as const,
+      totalAmount: 3700000,
+      linkedSlipNo: null,
+    }
+    const ON_HOLD_ROW = {
+      orderNumber: '2026/05/05-2',
+      partnerCode: '2345678901',
+      partnerName: '강남에어솔루션',
+      submittedAt: '2026-05-05T09:00:00',
+      status: 'ON_HOLD' as const,
+      totalAmount: 1850000,
+      linkedSlipNo: null,
+    }
+    const CONFIRMED_ROW = {
+      orderNumber: '2026/05/03-1',
+      partnerCode: '3456789012',
+      partnerName: '한빛쾌적',
+      submittedAt: '2026-05-03T14:00:00',
+      status: 'CONFIRMED' as const,
+      totalAmount: 5200000,
+      linkedSlipNo: 'SL-20260503-001',
+    }
+
+    let content: typeof DRAFT_ROW[] | typeof ON_HOLD_ROW[] | typeof CONFIRMED_ROW[]
+    if (statusParam === 'DRAFT') {
+      content = [DRAFT_ROW]
+    } else if (statusParam === 'ON_HOLD') {
+      content = [ON_HOLD_ROW]
+    } else if (statusParam === 'CONFIRMED') {
+      content = [CONFIRMED_ROW]
+    } else {
+      // 전체 또는 기타 — 세 건 모두 반환 (하위 호환 유지)
+      content = [DRAFT_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
+    }
+
     return envelope({
-      content: [{
-        orderNumber: '2026/05/04-1',
-        partnerCode: '1234567890',
-        partnerName: '엘에이시스템에어',
-        submittedAt: '2026-05-04T10:30:00',
-        status: 'CONFIRMED',
-        totalAmount: 3700000,
-        linkedSlipNo: 'SL-20260504-001',
-      }],
-      totalElements: 1,
+      content,
+      totalElements: content.length,
       totalPages: 1,
       number: 0,
       size: 50,
@@ -3685,22 +3722,110 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // Phase 2.5: 주문 보류/해제 — POST /api/v1/partner-orders/{id}/hold|release
+  //
+  // 중요: partnerOrderDetailMatch(`/([^/?]+)$`) 보다 앞단에 배치 (path suffix 가 더 구체적).
+  // hold   — DRAFT 주문 → ON_HOLD 반환. 비-DRAFT 시 409 (mockHold409 쿼리 파라미터로 시뮬레이션).
+  // release — ON_HOLD 주문 → DRAFT 반환. 비-ON_HOLD 시 409 (mockRelease409 쿼리 파라미터로 시뮬레이션).
+  // ==========================================================================
+
+  const partnerOrderHoldMatch = url.match(/\/api\/v1\/partner-orders\/([^/]+)\/hold$/)
+  if (method === 'POST' && partnerOrderHoldMatch) {
+    const params = mockLocationParams()
+    if (params.get('mockHold409')) {
+      return mockError(409, 'PARTNER_ORDER_HOLD_INVALID_STATUS', '진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
+    }
+    const orderId = partnerOrderHoldMatch[1]!
+    return envelope({
+      orderNumber: '2026/05/04-1',
+      partnerCode: '1234567890',
+      bizCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-04T10:30:00',
+      updatedAt: new Date().toISOString(),
+      status: 'ON_HOLD',
+      totalAmount: 3700000,
+      linkedSlipNo: null,
+      deliveryAddress: '서울시 강남구 테헤란로 1',
+      siteAddress: '현장 A동',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-30',
+      memo: `hold mock — orderId=${orderId}`,
+      lines: [
+        {
+          modelCode: 'AJ040RXH4BC1',
+          productName: '실외기',
+          categoryKey: 'homemulti',
+          quantity: 2,
+          deliveryPrice: 120000,
+          subtotal: 240000,
+          bundleMode: null,
+          expandedComponents: [],
+        },
+      ],
+    })
+  }
+
+  const partnerOrderReleaseMatch = url.match(/\/api\/v1\/partner-orders\/([^/]+)\/release$/)
+  if (method === 'POST' && partnerOrderReleaseMatch) {
+    const params = mockLocationParams()
+    if (params.get('mockRelease409')) {
+      return mockError(409, 'PARTNER_ORDER_RELEASE_INVALID_STATUS', '보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
+    }
+    const orderId = partnerOrderReleaseMatch[1]!
+    return envelope({
+      orderNumber: '2026/05/04-1',
+      partnerCode: '1234567890',
+      bizCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-04T10:30:00',
+      updatedAt: new Date().toISOString(),
+      status: 'DRAFT',
+      totalAmount: 3700000,
+      linkedSlipNo: null,
+      deliveryAddress: '서울시 강남구 테헤란로 1',
+      siteAddress: '현장 A동',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-30',
+      memo: `release mock — orderId=${orderId}`,
+      lines: [
+        {
+          modelCode: 'AJ040RXH4BC1',
+          productName: '실외기',
+          categoryKey: 'homemulti',
+          quantity: 2,
+          deliveryPrice: 120000,
+          subtotal: 240000,
+          bundleMode: null,
+          expandedComponents: [],
+        },
+      ],
+    })
+  }
+
+  // ==========================================================================
   // partner-orders detail (기존 빈 list 옆에 detail mock)
   // ==========================================================================
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     const poId = partnerOrderDetailMatch[1]!
-    // Phase 2.4 spec 용: orderId 별 status 분기
-    // ord-draft → DRAFT, ord-confirmed → CONFIRMED, ord-confirming → CONFIRMING, ord-canceled → CANCELED
+    // Phase 2.4/2.5 spec 용: orderId 별 status 분기
+    // ord-draft      → DRAFT     (Phase 2.4 복원 + Phase 2.5 보류 진입점)
+    // ord-hold       → ON_HOLD   (Phase 2.5 보류 해제 진입점)
+    // ord-confirmed  → CONFIRMED (Phase 2.4 복원 slipResyncRequired=true)
+    // ord-confirming → CONFIRMING
+    // ord-canceled   → CANCELED
     // 그 외 기존 fixture → CONFIRMED (하위 호환)
     const poStatus: string =
       poId === 'ord-draft'
         ? 'DRAFT'
-        : poId === 'ord-confirming'
-          ? 'CONFIRMING'
-          : poId === 'ord-canceled'
-            ? 'CANCELED'
-            : 'CONFIRMED'
+        : poId === 'ord-hold'
+          ? 'ON_HOLD'
+          : poId === 'ord-confirming'
+            ? 'CONFIRMING'
+            : poId === 'ord-canceled'
+              ? 'CANCELED'
+              : 'CONFIRMED'
     const poLinkedSlip = poStatus === 'CONFIRMED' ? 'SL-20260504-001' : null
     return envelope({
       orderNumber: '2026/05/04-1',
