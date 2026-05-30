@@ -78,12 +78,15 @@ class Phase26cReserveIT extends AbstractPostgresIT {
         warehouseCode = warehouse.getCode();
         productId = UUID.randomUUID();
 
-        // ProductClient mock — requireExists no-op
-        Mockito.lenient().doNothing().when(productClient).requireExists(Mockito.any());
+        // ProductClient mock — requireExists 는 ProductSummary 반환 메서드(void 아님).
+        // doNothing() 대신 thenReturn 으로 stub 해야 MockitoException 방지.
+        ProductSummary stubProduct = new ProductSummary(
+                productId, "테스트 제품", "TEST-MODEL",
+                null, BigDecimal.valueOf(10000), "ACTIVE"); // 6-arg 호환 생성자 사용
+        Mockito.lenient().when(productClient.requireExists(Mockito.any()))
+                .thenReturn(stubProduct);
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
-                .thenReturn(java.util.List.of(
-                        new ProductSummary(productId, "테스트 제품", "TEST-MODEL",
-                                null, null, BigDecimal.valueOf(10000), "ACTIVE")));
+                .thenReturn(java.util.List.of(stubProduct));
     }
 
     // ─────────────────────────────────────────────────

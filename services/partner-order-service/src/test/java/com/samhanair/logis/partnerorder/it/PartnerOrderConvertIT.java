@@ -17,6 +17,7 @@ import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.EstimateClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
+import com.samhanair.logis.partnerorder.client.InventoryClient.ReservationResult;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
@@ -121,7 +122,7 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
         lenient().when(inventoryClient.reserve(
                 any(UUID.class), any(UUID.class), any(int.class),
                 anyString(), any(UUID.class)))
-                .thenReturn(Map.of());
+                .thenReturn(ReservationResult.reserved());
         // release: void (보상 트랜잭션용)
         lenient().doNothing().when(inventoryClient).release(
                 any(UUID.class), any(UUID.class), any(int.class),

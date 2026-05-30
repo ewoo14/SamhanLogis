@@ -111,13 +111,20 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         Slip slip = slipRepository.findBySlipNo(slipNo).orElseThrow();
         UUID slipId = slip.getId();
 
-        // 매출 전표 수정 endpoint
+        // 매출 전표 수정 endpoint — 실제 URL: PUT /slips/{id}/sales
+        // SlipUpdateRequest 는 updatedAt + lines(@NotEmpty) 필수
+        Map<String, Object> lineItem = new LinkedHashMap<>();
+        lineItem.put("productName", "테스트 상품");
+        lineItem.put("modelName", MODEL_CODE);
+        lineItem.put("quantity", 1);
+        lineItem.put("unitPrice", 10000);
         Map<String, Object> updateReq = new LinkedHashMap<>();
         updateReq.put("partnerName", "수정 시도 거래처명");
         updateReq.put("updatedAt", slip.getModifiedAt() != null
                 ? slip.getModifiedAt().toString() : java.time.LocalDateTime.now().toString());
+        updateReq.put("lines", List.of(lineItem));
 
-        mockMvc.perform(put("/api/v1/slips/sales/{id}", slipId)
+        mockMvc.perform(put("/slips/{id}/sales", slipId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateReq))
                         .header("X-User-Id", MASTER_ID)
@@ -136,7 +143,15 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         Slip slip = slipRepository.findBySlipNo(slipNo).orElseThrow();
         UUID slipId = slip.getId();
 
-        mockMvc.perform(delete("/api/v1/slips/sales/{id}", slipId)
+        // 매출 전표 삭제 endpoint — 실제 URL: DELETE /slips/{id}/sales
+        // SlipDeleteRequest 는 updatedAt 필수 (request body)
+        Map<String, Object> deleteReq = new LinkedHashMap<>();
+        deleteReq.put("updatedAt", slip.getModifiedAt() != null
+                ? slip.getModifiedAt().toString() : java.time.LocalDateTime.now().toString());
+
+        mockMvc.perform(delete("/slips/{id}/sales", slipId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(deleteReq))
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(result ->
@@ -168,6 +183,42 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         Slip saved = slipRepository.findBySlipNo(slipNo).orElseThrow();
         // ESTIMATE 전표는 DRAFT 상태 유지 (불변 전이 미적용)
         assertThat(saved.getStatus()).isEqualTo(SlipStatus.DRAFT);
+    }
+
+    // ════════════════════════════════════════════════════
+    // S5: PARTNER_ORDER 전환 전표(SENT) cancel 시도 → 409 CONFLICT
+    // ════════════════════════════════════════════════════
+
+    /**
+     * S5 — PARTNER_ORDER 전환 전표(sourceType=PARTNER_ORDER, status=SENT) 에 대한
+     * cancel API 호출이 409 CONFLICT 를 반환하는지 검증한다.
+     *
+     * <p>Slip.cancel() 내부의 sourceType == PARTNER_ORDER 가드가 동작하면
+     * inventory reserve 를 해제하지 않고 CONFLICT 를 반환한다.
+     * 이로써 재고가 영구 잠기는 문제를 방지한다 (Phase 2.6c P1-2 수정).
+     *
+     * <p>회귀 체크: 비-PARTNER_ORDER 전표(ESTIMATE, MANUAL)의 SENT 단계 cancel 은
+     * 이 케이스에서 검증하지 않는다 (S4 참조 — ESTIMATE 전표는 DRAFT 유지).
+     */
+    @Test
+    @DisplayName("S5: PARTNER_ORDER 전환 전표(SENT) cancel 시도 → 409 CONFLICT (불변 가드)")
+    void s5_partnerOrderSlip_cancelBlocked() throws Exception {
+        String slipNo = publishPartnerOrderSlip("PO-26C-S5");
+        Slip slip = slipRepository.findBySlipNo(slipNo).orElseThrow();
+        UUID slipId = slip.getId();
+
+        // SENT 상태 확인 (불변 가드가 SENT 이전에 발동되더라도 cancel API 는 409 반환)
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
+
+        // cancel API: POST /api/v1/slips/{id}/cancel
+        mockMvc.perform(post("/api/v1/slips/{id}/cancel", slipId)
+                        .header("X-User-Id", MASTER_ID)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isConflict());
+
+        // slip 상태 여전히 SENT (취소 안 됨)
+        Slip afterCancel = slipRepository.findBySlipNo(slipNo).orElseThrow();
+        assertThat(afterCancel.getStatus()).isEqualTo(SlipStatus.SENT);
     }
 
     // ════════════════════════════════════════════════════

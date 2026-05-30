@@ -23,12 +23,33 @@ import org.springframework.web.client.RestClient;
  *   <li>가용 부족 409 → {@link BusinessException}(CONFLICT) 전파 → convert 사전차단.</li>
  *   <li>release 는 보상 트랜잭션용 — 실패 시 alert 로그만 (상위 흐름이 별도 처리).</li>
  *   <li>resolveWarehouseIdByCode — inventory DB 단일 출처로 warehouseCode → UUID 변환.</li>
+ *   <li>{@link ReservationResult} — reserve 응답에서 {@code alreadyReserved} 추출.
+ *       멱등 no-op(true) 이면 PartnerOrderConvertService 가 보상 대상에서 제외한다.</li>
  * </ul>
  *
  * <p>회로 차단기 인스턴스: {@code inventoryClient}.
  */
 @Component
 public class InventoryClient {
+
+    /**
+     * reserve 호출 결과 — alreadyReserved 플래그 포함.
+     *
+     * <p>{@code alreadyReserved=true}: 멱등 no-op. 실제 reservedQty 변동 없음.
+     * 보상(compensateReserved) 대상에서 제외해야 double-release 를 방지할 수 있다.
+     * {@code alreadyReserved=false}: 실제 예약 movement 발생.
+     */
+    public record ReservationResult(boolean alreadyReserved) {
+        /** 실제 예약 발생. */
+        public static ReservationResult reserved() {
+            return new ReservationResult(false);
+        }
+
+        /** 멱등 no-op — 이미 예약된 상태. */
+        public static ReservationResult noop() {
+            return new ReservationResult(true);
+        }
+    }
 
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
@@ -50,18 +71,21 @@ public class InventoryClient {
      * (referenceType, referenceId, productId, RESERVE) 중복 시 no-op 응답을 받는다.
      * 동일 convertKey 로 재시도해도 이중 예약이 발생하지 않는다.
      *
+     * <p>응답의 {@code alreadyReserved} 필드가 {@code true} 이면 멱등 no-op.
+     * 호출자는 해당 라인을 보상(reservedLines) 에서 제외하여 double-release 를 방지해야 한다.
+     *
      * @param productId     제품 UUID
      * @param warehouseId   창고 UUID
      * @param quantity      예약 수량 (1 이상)
      * @param referenceType 참조 유형 (예: "PARTNER_ORDER_CONVERT")
      * @param referenceId   참조 ID UUID (예: convertKey를 UUID 변환한 값)
-     * @return inventory-service ReservationResponse raw Map (wire-format)
+     * @return {@link ReservationResult} — alreadyReserved 플래그 포함
      * @throws BusinessException(CONFLICT)       가용 부족 (409) — 전환 사전차단
      * @throws BusinessException(INVALID_INPUT)  파라미터 오류
      * @throws BusinessException(INTERNAL_ERROR) 5xx 또는 token 미설정
      */
-    public Map<String, Object> reserve(UUID productId, UUID warehouseId, int quantity,
-                                       String referenceType, UUID referenceId) {
+    public ReservationResult reserve(UUID productId, UUID warehouseId, int quantity,
+                                     String referenceType, UUID referenceId) {
         if (productId == null || warehouseId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "productId, warehouseId 필수");
         }
@@ -101,7 +125,19 @@ public class InventoryClient {
                                 "inventory-service 5xx: " + res.getStatusCode());
                     })
                     .body(Map.class);
-            return envelope == null ? Map.of() : envelope;
+
+            // alreadyReserved 플래그 추출 — inventory-service 가 true 를 반환하면 멱등 no-op
+            boolean alreadyReserved = false;
+            if (envelope != null) {
+                Object data = envelope.get("data");
+                if (data instanceof Map<?, ?> dataMap) {
+                    Object flag = dataMap.get("alreadyReserved");
+                    if (Boolean.TRUE.equals(flag)) {
+                        alreadyReserved = true;
+                    }
+                }
+            }
+            return alreadyReserved ? ReservationResult.noop() : ReservationResult.reserved();
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -114,13 +150,14 @@ public class InventoryClient {
      * 재고 reserve (기존 시그니처 유지 — confirm 경로 호환).
      *
      * <p>referenceType / referenceId 없이 호출하는 레거시 경로용. 멱등 가드 미적용.
+     * 반환값의 {@code alreadyReserved} 는 항상 {@code false} (멱등 가드 비활성).
      *
      * @param productId   제품 UUID
      * @param warehouseId 창고 UUID
      * @param quantity    예약 수량 (1 이상)
-     * @return inventory-service ReservationResponse raw Map
+     * @return {@link ReservationResult} — alreadyReserved=false 고정
      */
-    public Map<String, Object> reserve(UUID productId, UUID warehouseId, int quantity) {
+    public ReservationResult reserve(UUID productId, UUID warehouseId, int quantity) {
         return reserve(productId, warehouseId, quantity, null, null);
     }
 

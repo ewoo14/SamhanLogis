@@ -7,6 +7,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
+import com.samhanair.logis.partnerorder.client.InventoryClient.ReservationResult;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
@@ -71,7 +72,7 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                         productId, "헬로멀티 5kW", "HM-5000", null,
                         new BigDecimal("1000000"), "ACTIVE")));
         Mockito.when(inventoryClient.reserve(Mockito.any(), Mockito.any(), Mockito.anyInt()))
-                .thenReturn(Map.of("status", "OK"));
+                .thenReturn(ReservationResult.reserved());
         Mockito.when(slipServiceClient.publishFromPartnerOrder(
                         Mockito.anyMap(), Mockito.anyString()))
                 .thenReturn(PublishResult.published("S-2025-0001"));
@@ -95,7 +96,7 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                         productId, "헬로멀티 7kW", "HM-7000", null,
                         new BigDecimal("1500000"), "ACTIVE")));
         Mockito.when(inventoryClient.reserve(Mockito.any(), Mockito.any(), Mockito.anyInt()))
-                .thenReturn(Map.of("status", "OK"));
+                .thenReturn(ReservationResult.reserved());
         Mockito.when(slipServiceClient.publishFromPartnerOrder(
                         Mockito.anyMap(), Mockito.anyString()))
                 .thenThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "slip-service 5xx"));

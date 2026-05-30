@@ -30,6 +30,10 @@
  *   <li>{@code inventory-balance-grid} — DataGrid wrapper</li>
  *   <li>{@code inventory-balance-summary} — 하단 요약</li>
  * </ul>
+ *
+ * <h2>페이지네이션</h2>
+ * <p>서버 page/size 파라미터 연동. 기본 50건/페이지. 대량 데이터 대비.
+ * 총 페이지 하단 페이지 버튼으로 이동.
  */
 import { useState, useCallback, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -41,6 +45,11 @@ import {
   type WarehouseType,
 } from '../../api/inventory'
 import { usePageTitle } from '../../hooks/usePageTitle'
+
+// ---------------------------------------------------------------------------
+// 페이지당 행 수 (서버 page/size 파라미터 연동)
+// ---------------------------------------------------------------------------
+const PAGE_SIZE = 50
 
 // ---------------------------------------------------------------------------
 // 창고 타입 → 뱃지 variant
@@ -132,7 +141,12 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
         <span
           style={{
             fontWeight: isZero && !isVirtual ? 600 : undefined,
-            color: isZero && !isVirtual ? '#B91C1C' : isVirtual ? '#9CA3AF' : undefined,
+            // design-system 토큰: --color-danger-700(#991B1B) 가용 0 강조 / --color-neutral-400(#8E97A4) 가상창고
+            color: isZero && !isVirtual
+              ? 'var(--color-danger-700, #991B1B)'
+              : isVirtual
+                ? 'var(--color-neutral-400, #8E97A4)'
+                : undefined,
           }}
         >
           {isVirtual ? '—' : fmtQty(row.availableQty)}
@@ -149,7 +163,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     render: (row) => {
       const isVirtual = row.warehouseType === 'VIRTUAL'
       return (
-        <span style={{ color: isVirtual ? '#9CA3AF' : undefined }}>
+        <span style={{ color: isVirtual ? 'var(--color-neutral-400, #8E97A4)' : undefined }}>
           {isVirtual ? '—' : fmtQty(row.reservedQty)}
         </span>
       )
@@ -164,7 +178,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     render: (row) => {
       const isVirtual = row.warehouseType === 'VIRTUAL'
       return (
-        <span style={{ color: isVirtual ? '#9CA3AF' : undefined }}>
+        <span style={{ color: isVirtual ? 'var(--color-neutral-400, #8E97A4)' : undefined }}>
           {isVirtual ? '—' : fmtQty(row.totalQty)}
         </span>
       )
@@ -197,6 +211,8 @@ export function InventoryStockBalancePage() {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('')
   const [queryWarehouseId, setQueryWarehouseId] = useState<string | undefined>(undefined)
   const [queried, setQueried] = useState(false)
+  /** 현재 페이지 (0-based, 서버 page 파라미터 연동) */
+  const [currentPage, setCurrentPage] = useState(0)
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -204,23 +220,25 @@ export function InventoryStockBalancePage() {
   })
 
   const balancesQuery = useQuery({
-    queryKey: ['inventory-balances', queryWarehouseId],
+    queryKey: ['inventory-balances', queryWarehouseId, currentPage],
     queryFn: () =>
       listStockBalances({
         warehouseId: queryWarehouseId || undefined,
-        page: 0,
-        size: 200,
+        page: currentPage,
+        size: PAGE_SIZE,
       }),
     enabled: queried,
   })
 
   const handleQuery = useCallback(() => {
+    setCurrentPage(0)
     setQueryWarehouseId(selectedWarehouseId || undefined)
     setQueried(true)
   }, [selectedWarehouseId])
 
   const rows = balancesQuery.data?.content ?? []
   const totalElements = balancesQuery.data?.totalElements ?? 0
+  const totalPages = balancesQuery.data?.totalPages ?? 1
   const zeroAvailableCount = rows.filter(
     (r) => r.availableQty === 0 && r.warehouseType !== 'VIRTUAL',
   ).length
@@ -238,19 +256,25 @@ export function InventoryStockBalancePage() {
       {/* ── 범례 ─────────────────────────────────────────── */}
       <div style={legendStyle} aria-label="수량 구분 안내">
         <span style={legendItemStyle}>
-          <span style={legendDotStyle('#2563EB')} />
+          {/* 가용재고 도트: brand-500(#2D77A8) — 실제 가용재고 기본 텍스트와 일관 */}
+          <span style={legendDotStyle('var(--color-brand-500, #2D77A8)')} />
           <strong>가용재고</strong> = 실재고 &minus; 예약재고 (전환 가능)
         </span>
         <span style={legendItemStyle}>
-          <span style={legendDotStyle('#6B7280')} />
+          {/* 예약재고 도트: neutral-500(#6B7280) */}
+          <span style={legendDotStyle('var(--color-neutral-500, #6B7280)')} />
           <strong>예약재고</strong> = 전환(전표 발행) 으로 잠긴 수량
         </span>
         <span style={legendItemStyle}>
-          <span style={legendDotStyle('#374151')} />
+          {/* 실재고 도트: neutral-700(#363D49) */}
+          <span style={legendDotStyle('var(--color-neutral-700, #363D49)')} />
           <strong>실재고</strong> = 물리 보유 수량
         </span>
-        <span style={{ ...legendItemStyle, color: '#B91C1C', fontWeight: 500 }}>
+        <span style={{ ...legendItemStyle, color: 'var(--color-danger-700, #991B1B)', fontWeight: 500 }}>
           가용 0 → 빨강 강조 (전환 불가)
+        </span>
+        <span style={{ ...legendItemStyle, color: 'var(--color-neutral-500, #6B7280)' }}>
+          가상 창고(VIRTUAL): 수량 개념 없음 (— 표시)
         </span>
       </div>
 
@@ -308,16 +332,46 @@ export function InventoryStockBalancePage() {
         />
       </section>
 
-      {/* ── 하단 요약 ─────────────────────────────────────── */}
+      {/* ── 하단 요약 + 페이지네이션 ─────────────────────── */}
       {queried && !balancesQuery.isFetching && rows.length > 0 ? (
         <div style={summaryStyle} data-testid="inventory-balance-summary">
           <span>
             총 <strong>{totalElements.toLocaleString('ko-KR')}</strong>건
           </span>
           {zeroAvailableCount > 0 ? (
-            <span style={{ marginLeft: 16, color: '#B91C1C', fontWeight: 500 }}>
+            <span
+              style={{
+                marginLeft: 16,
+                color: 'var(--color-danger-700, #991B1B)',
+                fontWeight: 500,
+              }}
+            >
               가용재고 0 품목: <strong>{zeroAvailableCount}</strong>건 (전환 불가)
             </span>
+          ) : null}
+          {/* 페이지네이션 — 총 페이지 > 1 시 노출 */}
+          {totalPages > 1 ? (
+            <div style={paginationStyle}>
+              <button
+                style={pageButtonStyle}
+                disabled={currentPage === 0 || balancesQuery.isFetching}
+                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                aria-label="이전 페이지"
+              >
+                이전
+              </button>
+              <span style={pageInfoStyle}>
+                {currentPage + 1} / {totalPages}
+              </span>
+              <button
+                style={pageButtonStyle}
+                disabled={currentPage >= totalPages - 1 || balancesQuery.isFetching}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                aria-label="다음 페이지"
+              >
+                다음
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -345,7 +399,7 @@ const headerRowStyle: CSSProperties = {
 
 const subtitleStyle: CSSProperties = {
   fontSize: 12,
-  color: '#6B7280',
+  color: 'var(--color-neutral-500, #6B7280)',
 }
 
 const legendStyle: CSSProperties = {
@@ -353,10 +407,10 @@ const legendStyle: CSSProperties = {
   gap: 16,
   flexWrap: 'wrap',
   fontSize: 12,
-  color: '#374151',
+  color: 'var(--color-neutral-700, #363D49)',
   padding: '8px 12px',
-  background: '#F9FAFB',
-  border: '1px solid #E5E7EB',
+  background: 'var(--color-neutral-50, #F7F8FA)',
+  border: '1px solid var(--color-border, #E5E7EB)',
   borderRadius: 6,
 }
 
@@ -383,8 +437,8 @@ const toolbarStyle: CSSProperties = {
   flexWrap: 'wrap',
   alignItems: 'flex-end',
   padding: '12px 16px',
-  background: '#FFFFFF',
-  border: '1px solid #E5E7EB',
+  background: 'var(--color-bg, #FFFFFF)',
+  border: '1px solid var(--color-border, #E5E7EB)',
   borderRadius: 8,
 }
 
@@ -396,7 +450,7 @@ const fieldStyle: CSSProperties = {
 
 const fieldLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: '#374151',
+  color: 'var(--color-neutral-700, #363D49)',
   fontWeight: 500,
 }
 
@@ -409,11 +463,12 @@ const inputStyle: CSSProperties = {
   outline: 'none',
 }
 
+// 인라인 에러 배너 (조회 버튼 옆) — WCAG AA 대비 7.8:1 (--color-danger-700 on #FEF2F2)
 const errorBannerStyle: CSSProperties = {
   fontSize: 12,
-  color: '#B91C1C',
+  color: 'var(--color-danger-700, #991B1B)',
   background: '#FEF2F2',
-  border: '1px solid #FECACA',
+  border: '1px solid var(--color-danger-200, #FECACA)',
   borderRadius: 4,
   padding: '4px 8px',
 }
@@ -426,9 +481,38 @@ const gridSectionStyle: CSSProperties = {
 
 const summaryStyle: CSSProperties = {
   padding: '8px 12px',
-  background: '#F9FAFB',
-  border: '1px solid #E5E7EB',
+  background: 'var(--color-neutral-50, #F7F8FA)',
+  border: '1px solid var(--color-border, #E5E7EB)',
   borderRadius: 6,
   fontSize: 13,
-  color: '#374151',
+  color: 'var(--color-neutral-700, #363D49)',
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 8,
+}
+
+const paginationStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginLeft: 'auto',
+}
+
+const pageButtonStyle: CSSProperties = {
+  appearance: 'none',
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 4,
+  background: 'var(--color-bg, #FFFFFF)',
+  color: 'var(--color-neutral-700, #363D49)',
+  padding: '2px 10px',
+  fontSize: 12,
+  cursor: 'pointer',
+}
+
+const pageInfoStyle: CSSProperties = {
+  fontSize: 12,
+  color: 'var(--color-neutral-500, #6B7280)',
+  minWidth: 48,
+  textAlign: 'center',
 }

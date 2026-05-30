@@ -1046,9 +1046,23 @@ public class Slip extends BaseEntity {
     /**
      * 취소 — DRAFT/SAVED/SENT 에서만 허용. 그 외 단계는 운영 절차 별도 (현 슬라이스 미구현).
      *
-     * @throws BusinessException(CONFLICT) 현재 상태가 취소 가능 단계 밖일 때
+     * <p><b>Phase 2.6c 불변 가드</b>: {@code sourceType == PARTNER_ORDER} 전환 전표는
+     * 발행 즉시 SENT 상태로 고정되며 취소할 수 없다. 취소 시 inventory reserve 가 해제되지 않아
+     * 재고가 영구 예약 상태로 잠기는 문제를 방지하기 위해 CONFLICT 예외를 던진다.
+     *
+     * <p>비-PARTNER_ORDER 전표(DRAFT/SAVED/SENT)의 취소는 기존과 동일하게 동작한다 (회귀 0).
+     *
+     * @throws BusinessException(CONFLICT) 현재 상태가 취소 가능 단계 밖이거나
+     *                                     sourceType 이 PARTNER_ORDER 일 때
      */
     public void cancel() {
+        // PARTNER_ORDER 전환 전표 불변 가드 — Phase 2.6c
+        // inventory reserve 해제 없이 취소 시 재고가 영구 잠기므로 차단.
+        if (SlipSourceType.PARTNER_ORDER.equals(this.sourceType)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "주문 전환 출고전표는 취소할 수 없습니다. "
+                            + "재고 예약 해제가 자동으로 수행되지 않으므로 운영 절차를 따르세요.");
+        }
         if (!CANCELABLE_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "취소 가능한 상태가 아닙니다: " + this.status);

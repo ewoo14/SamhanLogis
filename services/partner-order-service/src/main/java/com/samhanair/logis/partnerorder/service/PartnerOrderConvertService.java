@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
+import com.samhanair.logis.partnerorder.client.InventoryClient.ReservationResult;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
@@ -151,18 +152,24 @@ public class PartnerOrderConvertService {
         UUID warehouseId = inventoryClient.resolveWarehouseIdByCode(req.warehouseCode());
 
         // 5. 라인별 재고 예약 — 가용 부족 409 시 전체 중단(slip 미발행 = 사전차단)
+        // 멱등 no-op(alreadyReserved=true) 라인은 reservedLines 에 추가하지 않는다.
+        // → 이후 다른 라인 409 시 compensateReserved 가 no-op 라인에 대해
+        //   release 를 호출하지 않아 double-release(reservedQty 음수) 를 방지한다.
         List<ReservedLine> reservedLines = new ArrayList<>();
         try {
             for (ConvertToSlipRequest.Item item : validatedItems) {
                 PartnerOrderLine line = lineMap.get(item.orderLineId());
                 UUID productId = line.getProductId();
-                inventoryClient.reserve(productId, warehouseId, item.quantity(),
+                ReservationResult result = inventoryClient.reserve(
+                        productId, warehouseId, item.quantity(),
                         RESERVE_REF_TYPE, convertKeyUuid);
-                reservedLines.add(new ReservedLine(productId, warehouseId, item.quantity()));
+                if (!result.alreadyReserved()) {
+                    // 실제 예약 발생 라인만 보상 대상에 추가
+                    reservedLines.add(new ReservedLine(productId, warehouseId, item.quantity()));
+                }
             }
         } catch (BusinessException ex) {
-            // 가용 부족(CONFLICT) → 예약 성공한 라인들 release 보상 후 예외 전파
-            // (가용 부족 시점까지 성공한 라인이 있으면 보상. 멱등 no-op 라인은 double-release 방지됨)
+            // 가용 부족(CONFLICT) → 실제 예약 성공 라인만 release 보상 후 예외 전파
             compensateReserved(reservedLines, convertKeyUuid);
             throw ex;
         }

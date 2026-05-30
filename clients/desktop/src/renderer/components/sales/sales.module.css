@@ -993,7 +993,9 @@
   border: 1px solid var(--state-danger);
   border-radius: 8px;
   background: var(--state-danger-bg);
-  color: var(--state-danger);
+  /* WCAG AA 수정: --state-danger(#EF4444, 배경 #FEE2E2 대비 ~3.0:1 AA 미달) →
+   * --color-danger-700(#991B1B, 배경 #FEE2E2 대비 7.8:1 AA 통과) */
+  color: var(--color-danger-700, #991B1B);
   font-size: 13px;
   font-weight: 600;
 }

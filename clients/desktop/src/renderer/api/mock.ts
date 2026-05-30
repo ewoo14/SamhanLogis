@@ -1798,17 +1798,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /inventory/balances — 재고 현황 목록 (Phase 2.6c 신규)
   // warehouseId 필터 + page/size 지원. 화면 노출: productCode/productName/warehouseCode/warehouseName (UUID 비공개).
+  // VITE_MOCK_MODE 한정 테스트용 — QA 증빙 캡처에는 미사용.
+  // reservedQty: 주문 전환(reserve) 으로 잠긴 수량 — 일부 행 현실적 예약값 포함(0 고정 해소).
   if (method === 'GET' && url.includes('/inventory/balances') && !url.includes('/batch')) {
     const mockRows = [
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 10, reservedQty: 2, totalQty: 12 },
-      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 3, reservedQty: 0, totalQty: 3 },
+      // 본사창고 HQ: AJ040 — 예약 3건 (주문 전환 중)
+      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 9, reservedQty: 3, totalQty: 12 },
+      // 차량창고 VH: AJ040 — 예약 1건 (당일 출고 전환 중)
+      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 1, totalQty: 3 },
+      // 본사창고 HQ: AJ052 — 예약 1건
       { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 4, reservedQty: 1, totalQty: 5 },
-      { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 0, totalQty: 2 },
-      { productId: 'p-aj036', productCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 8, reservedQty: 0, totalQty: 8 },
+      // 차량창고 VH: AJ052 — 예약 2건 (전환 대기)
+      { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 0, reservedQty: 2, totalQty: 2 },
+      // 본사창고 HQ: AJ036 — 예약 2건
+      { productId: 'p-aj036', productCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 6, reservedQty: 2, totalQty: 8 },
+      // 위탁창고 CS: AJ036 — 예약 없음 (위탁 재고 특성상 예약 미발생)
       { productId: 'p-aj036', productCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', warehouseId: 'wh-cs', warehouseCode: 'CS-001', warehouseName: '거래처 위탁창고', warehouseType: 'CONSIGNMENT', availableQty: 1, reservedQty: 0, totalQty: 1 },
+      // 본사창고 HQ: AJ100 — 가용 0 강조 케이스 (예약 2건, 전환 불가)
       { productId: 'p-aj100', productCode: 'AJ100NCDKH', productName: '실외기 10HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 0, reservedQty: 2, totalQty: 2 },
+      // 본사창고 HQ: MWR-WE10N — 예약 5건
       { productId: 'p-mwr10', productCode: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 40, reservedQty: 5, totalQty: 45 },
-      { productId: 'p-mwr10', productCode: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 10, reservedQty: 0, totalQty: 10 },
+      // 차량창고 VH: MWR-WE10N — 예약 3건 (당일 출고 묶음)
+      { productId: 'p-mwr10', productCode: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 7, reservedQty: 3, totalQty: 10 },
+      // 가상창고 VR: PC1NWSK3NW — VIRTUAL 수량 개념 없음 (— 표시 검증)
+      { productId: 'p-pc1nw', productCode: 'PC1NWSK3NW', productName: 'WIFI 판넬', warehouseId: 'wh-vr', warehouseCode: 'VR-001', warehouseName: '가상창고', warehouseType: 'VIRTUAL', availableQty: 0, reservedQty: 0, totalQty: 0 },
     ]
     const params = mockLocationParams()
     const warehouseIdFilter = params.get('warehouseId')
