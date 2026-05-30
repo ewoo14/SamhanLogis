@@ -11,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -305,5 +307,40 @@ public class PartnerOrder extends BaseEntity {
     public int incrementRevision() {
         this.revisionCount += 1;
         return this.revisionCount;
+    }
+
+    /**
+     * point-in-time 복원 가능 상태인지 검사한다 (Phase 2.4 버전이력 + 복원).
+     *
+     * <p>복원은 {@link PartnerOrderStatus#DRAFT} 상태에서만 허용한다.
+     * CONFIRMING(발행 중 transient) / CONFIRMED(slip 연동, 복원 시 정합성 붕괴) /
+     * CANCELED 상태에서는 409 CONFLICT 로 즉시 거부한다.
+     *
+     * <p>설계서 §3.3 복원 가드 참조.
+     *
+     * @throws ResponseStatusException(409) DRAFT 가 아닌 상태에서 호출 시
+     */
+    public void requireRestorable() {
+        if (this.status != PartnerOrderStatus.DRAFT) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "DRAFT 상태에서만 복원 가능합니다. 현재 상태: " + this.status);
+        }
+    }
+
+    /**
+     * 복원 스냅샷의 헤더 필드를 현재 주문에 역적용한다 (Phase 2.4 point-in-time 복원).
+     *
+     * <p>복원 가능 상태 가드({@link #requireRestorable()})는 호출자가 선행 호출해야 한다.
+     * 직접 필드 setter 금지 — 도메인 메서드를 통해서만 변경한다.
+     * dueDate / memo / partnerCode / bizCode 만 복원 대상 (status / slipNo 등 slip 연동 필드 제외).
+     *
+     * @param partnerCode 복원할 거래처 코드
+     * @param bizCode     복원할 사업자번호
+     * @param dueDate     복원할 납기일
+     * @param memo        복원할 메모/요청사항
+     */
+    public void restoreHeader(String partnerCode, String bizCode, LocalDate dueDate, String memo) {
+        this.updateHeader(partnerCode, bizCode, dueDate, memo);
     }
 }
