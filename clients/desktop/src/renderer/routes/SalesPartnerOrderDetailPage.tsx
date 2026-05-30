@@ -144,9 +144,15 @@ export function SalesPartnerOrderDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
-        setHoldErrorMessage('진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
-        return
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 409) {
+          setHoldErrorMessage('진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
+          return
+        }
+        if (error.response?.status === 403) {
+          setHoldErrorMessage('주문서 보류 처리 권한이 없습니다. 관리자에게 문의해 주세요.')
+          return
+        }
       }
       setHoldErrorMessage('보류 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     },
@@ -165,9 +171,15 @@ export function SalesPartnerOrderDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
-        setHoldErrorMessage('보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
-        return
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 409) {
+          setHoldErrorMessage('보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
+          return
+        }
+        if (error.response?.status === 403) {
+          setHoldErrorMessage('주문서 보류 해제 권한이 없습니다. 관리자에게 문의해 주세요.')
+          return
+        }
       }
       setHoldErrorMessage('보류 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     },
@@ -295,10 +307,23 @@ export function SalesPartnerOrderDetailPage() {
                 인쇄
               </Button>
             ) : null}
+            {query.data && canEdit ? (
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="partner-order-edit-open"
+                onClick={() => {
+                  syncFormFromData(query.data!)
+                  setEditOpen(true)
+                }}
+              >
+                수정
+              </Button>
+            ) : null}
             {query.data && canEdit && query.data.status === 'DRAFT' ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="warning"
                 data-testid="partner-order-hold"
                 disabled={holdMutation.isPending}
                 onClick={() => {
@@ -321,19 +346,6 @@ export function SalesPartnerOrderDetailPage() {
                 }}
               >
                 보류 해제
-              </Button>
-            ) : null}
-            {query.data && canEdit ? (
-              <Button
-                type="button"
-                variant="primary"
-                data-testid="partner-order-edit-open"
-                onClick={() => {
-                  syncFormFromData(query.data!)
-                  setEditOpen(true)
-                }}
-              >
-                수정
               </Button>
             ) : null}
             {query.data && canEdit ? (

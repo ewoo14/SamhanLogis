@@ -458,17 +458,19 @@
   color: var(--state-neutral, #4b5563);
 }
 .statusOnHold {
-  /* 보류(ON_HOLD) — 주황 계열로 주의 표시. */
-  background: #ffedd5;
-  color: #9a3412;
+  /* 보류(ON_HOLD) — warning 토큰 참조 (주황 계열, 주의 표시). */
+  background: var(--state-warning-bg, #fef3c7);
+  color: var(--state-warning, #92400e);
 }
 .statusConfirmed {
-  background: var(--state-info-bg, #dbeafe);
-  color: var(--state-info, #1e40af);
-}
-.statusSent {
+  /* 완료(CONFIRMED) — success 계열 (최종 긍정 상태). */
   background: var(--state-success-bg, #d1fae5);
   color: var(--state-success, #065f46);
+}
+.statusSent {
+  /* 확인중(CONFIRMING) — info 계열 (진행 중 중간 상태). */
+  background: var(--state-info-bg, #dbeafe);
+  color: var(--state-info, #1e40af);
 }
 .statusConverted {
   /* CONVERTED 는 brand-violet 계열 — info(blue) 와 의미상 분리. fallback 보라 hex 유지. */
@@ -480,8 +482,9 @@
   color: var(--state-danger, #991b1b);
 }
 .statusLongPending {
-  background: #fef3c7;
-  color: #92400e;
+  /* warning 토큰 참조 — statusOnHold 와 동일 계열 (주황/주의). */
+  background: var(--state-warning-bg, #fef3c7);
+  color: var(--state-warning, #92400e);
 }
 
 /* ====== empty state ====== */

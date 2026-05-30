@@ -333,7 +333,7 @@ export type PartnerOrderStatus =
 export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
   DRAFT: '진행중',
   ON_HOLD: '보류',
-  CONFIRMING: '확정 처리중',
+  CONFIRMING: '확인중',
   CONFIRMED: '완료',
   CANCELED: '취소',
 }

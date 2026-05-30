@@ -2264,7 +2264,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       linkedSlipNo: 'SL-20260503-001',
     }
 
-    let content: typeof DRAFT_ROW[] | typeof ON_HOLD_ROW[] | typeof CONFIRMED_ROW[]
+    let content: (typeof DRAFT_ROW | typeof ON_HOLD_ROW | typeof CONFIRMED_ROW)[]
     if (statusParam === 'DRAFT') {
       content = [DRAFT_ROW]
     } else if (statusParam === 'ON_HOLD') {

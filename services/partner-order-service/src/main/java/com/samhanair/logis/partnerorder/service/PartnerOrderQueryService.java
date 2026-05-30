@@ -4,12 +4,12 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
-import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderListFilter;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderSummaryResponse;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -125,33 +125,34 @@ public class PartnerOrderQueryService {
     /**
      * 목록 필터를 JPA Specification 으로 변환한다.
      *
-     * <p>기간 필터(dateFrom/dateTo) 기준 필드 분기 (Phase 2.5 ON_HOLD 보정):
+     * <p>기간 필터(dateFrom/dateTo) 기준 필드 — COALESCE(confirmedAt, createdAt) 통일 (Phase 2.5 Cycle 1 fix):
      * <ul>
-     *   <li>status = DRAFT 또는 ON_HOLD (confirm 이전 상태) → {@code createdAt} 기준</li>
-     *   <li>status = CONFIRMED / CONFIRMING / CANCELED 또는 필터 없음 → {@code confirmedAt} 기준</li>
+     *   <li>CONFIRMED / CONFIRMING / CANCELED → confirmedAt 이 채워져 있으므로 COALESCE 결과 = confirmedAt</li>
+     *   <li>DRAFT / ON_HOLD → confirmedAt = null 이므로 COALESCE 결과 = createdAt (fallback)</li>
+     *   <li>status = null (전체 조회) → 각 row 에 맞는 날짜가 자동 선택되므로 status 분기 불필요</li>
      * </ul>
-     * DRAFT/ON_HOLD 는 confirmedAt=null 이므로 confirmedAt 기반 기간필터 적용 시 전부 제외된다.
-     * createdAt 기준으로 분기하여 정확한 기간 조회를 보장한다.
+     * 기존 preConfirm 분기(CONFIRMING 미포함) 및 status=null 전체조회 DRAFT/ON_HOLD 누락 문제를
+     * COALESCE 로 일관 처리하여 해소한다.
      *
      * @param filter 목록 필터
      * @return JPA Specification
      */
     private Specification<PartnerOrder> toSpec(PartnerOrderListFilter filter) {
-        // DRAFT/ON_HOLD 는 confirmedAt=null → createdAt 기준으로 기간필터 적용
-        boolean preConfirm = filter.status() == PartnerOrderStatus.DRAFT
-                || filter.status() == PartnerOrderStatus.ON_HOLD;
-        String dateField = preConfirm ? "createdAt" : "confirmedAt";
-
         return (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
+
+            // COALESCE(confirmedAt, createdAt) — status 에 무관하게 의미 있는 날짜를 자동 선택
+            Expression<LocalDateTime> effectiveDate =
+                    cb.coalesce(root.get("confirmedAt"), root.get("createdAt"));
+
             if (filter.dateFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(
-                        root.get(dateField),
+                        effectiveDate,
                         filter.dateFrom().atStartOfDay()));
             }
             if (filter.dateTo() != null) {
                 LocalDateTime exclusiveTo = filter.dateTo().plusDays(1).atStartOfDay();
-                predicates.add(cb.lessThan(root.get(dateField), exclusiveTo));
+                predicates.add(cb.lessThan(effectiveDate, exclusiveTo));
             }
             if (filter.partnerId() != null) {
                 String partner = like(filter.partnerId());

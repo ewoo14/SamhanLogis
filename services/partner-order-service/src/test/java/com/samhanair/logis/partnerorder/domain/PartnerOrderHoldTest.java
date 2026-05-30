@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
  * <ol>
  *   <li>DRAFT → markOnHold() → ON_HOLD</li>
  *   <li>CONFIRMED → markOnHold() → 409 CONFLICT</li>
+ *   <li>CONFIRMING → markOnHold() → 409 CONFLICT (Cycle 1 추가 — QA-2.5-02)</li>
  *   <li>ON_HOLD → releaseHold() → DRAFT</li>
  *   <li>DRAFT → releaseHold() → 409 CONFLICT</li>
  * </ol>
@@ -52,6 +53,19 @@ class PartnerOrderHoldTest {
     void markOnHold_fromConfirmed_throws409() {
         PartnerOrder o = draftOrder();
         ReflectionTestUtils.setField(o, "status", PartnerOrderStatus.CONFIRMED);
+        assertThatThrownBy(o::markOnHold)
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("409");
+    }
+
+    /**
+     * CONFIRMING(출고전표 전환 중) 주문에 markOnHold() 호출 시 409 CONFLICT.
+     * 운영 중 race condition 시나리오 — transient 상태 보호 (Cycle 1, QA-2.5-02).
+     */
+    @Test
+    void markOnHold_fromConfirming_throws409() {
+        PartnerOrder o = draftOrder();
+        ReflectionTestUtils.setField(o, "status", PartnerOrderStatus.CONFIRMING);
         assertThatThrownBy(o::markOnHold)
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("409");

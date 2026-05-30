@@ -21,6 +21,7 @@ import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
@@ -56,6 +57,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *   <li>리스트 status=ON_HOLD 필터 → ON_HOLD 만 반환</li>
  *   <li>리스트 status=CONFIRMED 필터 → CONFIRMED 만 반환</li>
  *   <li>hold 권한 deny(UPDATE 없는 role) → 403 / MASTER bypass → 200</li>
+ *   <li>Cycle 1 — DRAFT createdAt 기간필터(dateFrom/dateTo) 기준 케이스 (P1-1/P1-2 회귀 가드)</li>
+ *   <li>Cycle 1 — DRAFT + CONFIRMED 혼재 전체조회 createdAt DESC 정렬 정합 케이스</li>
  * </ol>
  *
  * <p><b>외부 client @MockBean 격리</b> ({@code feedback_it_mockbean_external_clients}):
@@ -78,6 +81,7 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private PartnerOrderRepository orderRepository;
+    @Autowired private SlipPublishOutboxRepository outboxRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     // ── 외부 client MockBean ────────────────────────────────────────────────────
@@ -116,7 +120,8 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
-        // FK 순서 준수 cleanup
+        // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup (QA-2.5-01)
+        outboxRepository.deleteAll();
         jdbcTemplate.update("DELETE FROM partner_order_lines");
         orderRepository.deleteAll();
 
@@ -350,6 +355,64 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 9 — DRAFT createdAt 기간필터 회귀 가드 (P1-1/P1-2 COALESCE fix)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * DRAFT 주문 2건을 서로 다른 createdAt 으로 삽입하고,
+     * dateFrom/dateTo 기간 필터로 1건만 조회되는지 + createdAt DESC 정렬 단언.
+     *
+     * <p>COALESCE(confirmedAt, createdAt) fix 의 회귀 가드.
+     * DRAFT 의 confirmedAt=null 이므로 COALESCE → createdAt fallback 경로를 통과해야 기간 필터가 동작한다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스9: DRAFT 기간필터 — createdAt COALESCE fallback 으로 1건만 조회 (P1-1/P1-2 회귀)")
+    void case9_draftDateFilter_createdAtCoalesceReturnsOneRow() throws Exception {
+        // 어제 날짜로 생성된 주문 (기간 범위 밖)
+        buildOrderWithStatusViaDbAt("P-DATE-DRAFT-OLD", "A111111111",
+                "2026/05/31-DATE-OLD", "DRAFT", "2026-05-01 00:00:00");
+        // 오늘 날짜로 생성된 주문 (기간 범위 내)
+        buildOrderWithStatusViaDbAt("P-DATE-DRAFT-NEW", "A222222222",
+                "2026/05/31-DATE-NEW", "DRAFT", "2026-05-30 00:00:00");
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("status", "DRAFT")
+                        .param("dateFrom", "2026-05-30")
+                        .param("dateTo", "2026-05-30")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 10 — 전체조회(status=null) DRAFT+CONFIRMED 혼재 정렬 정합
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * status 파라미터 없이 전체 조회 시 DRAFT(createdAt 기준)와 CONFIRMED(confirmedAt 기준)가
+     * COALESCE 로 정렬 기준이 혼재해도 totalElements 에 모두 포함되는지 확인한다.
+     *
+     * <p>COALESCE(confirmedAt, createdAt) 전체조회에서 DRAFT 주문이 "무음 제외" 되는 기존
+     * preConfirm=false 결함이 해소되었음을 보장한다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스10: 전체조회(status=null) — DRAFT + CONFIRMED 혼재 totalElements=2 (P1-1 전체조회 보정)")
+    void case10_allStatusQuery_includesDraftAndConfirmed() throws Exception {
+        buildOrderWithStatusViaDb("P-MIX-DRAFT", "B111111111", "2026/05/31-MIX-D", "DRAFT");
+        buildOrderWithStatusViaDb("P-MIX-CONF",  "B222222222", "2026/05/31-MIX-C", "CONFIRMED");
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 헬퍼 메서드
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -383,6 +446,43 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
                 """,
                 id, partnerCode, bizCode, orderNo, status,
                 "idem-hold-" + orderNo);
+        return id;
+    }
+
+    /**
+     * 지정 status 와 createdAt 을 직접 지정하여 주문을 JDBC INSERT 한다.
+     * 케이스9 기간필터 검증용 — 과거/현재 createdAt 구분이 필요한 경우 사용.
+     *
+     * @param partnerCode  거래처 코드
+     * @param bizCode      사업자번호
+     * @param orderNo      주문번호
+     * @param status       DRAFT / ON_HOLD / CONFIRMED 등
+     * @param createdAtSql ISO 날짜 문자열 (예: "2026-05-01 00:00:00")
+     * @return 생성된 주문 UUID
+     */
+    private UUID buildOrderWithStatusViaDbAt(String partnerCode, String bizCode,
+                                              String orderNo, String status,
+                                              String createdAtSql) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, ?, NULL, ?,
+                   'NOT_REQUIRED', 0, NULL, NULL,
+                   NULL, NULL, NULL, 0,
+                   ?, 0,
+                   CAST(? AS TIMESTAMP), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """,
+                id, partnerCode, bizCode, orderNo, status,
+                "idem-hold-" + orderNo,
+                createdAtSql);
         return id;
     }
 

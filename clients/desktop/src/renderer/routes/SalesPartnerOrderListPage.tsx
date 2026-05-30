@@ -32,6 +32,16 @@ const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
 const toOrderPathId = (orderNumber: string) => orderNumber.replace(/\//g, '-')
 
+/**
+ * P1-3: confirmedAt 없는 status(DRAFT/ON_HOLD/CONFIRMING) 는 BE 가 createdAt 기준으로
+ * 기간필터를 적용한다. 기간 입력 영역에 컨텍스트 힌트를 제공하여 사용자 혼란 방지.
+ */
+const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
+  'DRAFT',
+  'ON_HOLD',
+  'CONFIRMING',
+])
+
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
@@ -40,6 +50,21 @@ export function SalesPartnerOrderListPage() {
   const [partnerId, setPartnerId] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
   const [searchKeyword, setSearchKeyword] = useState('')
+
+  /**
+   * P1-3: status 변경 시 기간 필터 초기화 + 컨텍스트 힌트 표시.
+   * DRAFT/ON_HOLD/CONFIRMING → confirmedAt NULL, 기간 기본 미설정(전체 조회) 으로 유도.
+   */
+  const handleStatusFilterChange = (next: PartnerOrderStatus | '') => {
+    setStatusFilter(next)
+    // 확정(CONFIRMED)→미확정(DRAFT/ON_HOLD/CONFIRMING) 또는 반대 전환 시 기간 초기화.
+    // 기간 의미(confirmedAt vs createdAt)가 달라지므로 기존 값을 유지하면 결과가 달라질 수 있음.
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  const isPreConfirmStatus =
+    statusFilter !== '' && PRE_CONFIRM_STATUSES.has(statusFilter as PartnerOrderStatus)
 
   useEffect(() => {
     setPageTitle({ title: '주문서 관리', meta: '영업' })
@@ -100,7 +125,8 @@ export function SalesPartnerOrderListPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              aria-label="시작일"
+              aria-label={isPreConfirmStatus ? '시작일 (발송일 기준)' : '시작일 (확정일 기준)'}
+              title={isPreConfirmStatus ? '진행중·보류·확인중 상태는 발송일(createdAt) 기준으로 조회됩니다' : undefined}
               data-testid="partner-order-list-date-from"
               inputSize="sm"
             />
@@ -108,7 +134,8 @@ export function SalesPartnerOrderListPage() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              aria-label="종료일"
+              aria-label={isPreConfirmStatus ? '종료일 (발송일 기준)' : '종료일 (확정일 기준)'}
+              title={isPreConfirmStatus ? '진행중·보류·확인중 상태는 발송일(createdAt) 기준으로 조회됩니다' : undefined}
               data-testid="partner-order-list-date-to"
               inputSize="sm"
             />
@@ -122,7 +149,7 @@ export function SalesPartnerOrderListPage() {
             />
             <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as PartnerOrderStatus | '')}
+              onChange={(e) => handleStatusFilterChange(e.target.value as PartnerOrderStatus | '')}
               aria-label="상태 필터"
               data-testid="partner-order-list-status-filter"
               selectSize="sm"
