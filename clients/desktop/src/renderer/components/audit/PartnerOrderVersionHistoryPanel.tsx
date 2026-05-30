@@ -48,7 +48,8 @@ export interface PartnerOrderVersionHistoryPanelProps {
 
 /**
  * revision 유형별 한국어 라벨 + Badge 변형.
- * STATUS 는 긍정/부정 혼재 이벤트이므로 중립 brand 사용 (success=초록은 완료 오해 유발).
+ * STATUS 는 긍정/부정 혼재 이벤트이므로 neutral 사용 — EDIT(brand) 색 중복 방지 (cycle2 비차단-2).
+ * CREATE 도 neutral 이나 라벨('생성' vs '상태변경')로 시각 구분됨.
  */
 const REVISION_TYPE_META: Record<
   PartnerOrderRevisionType,
@@ -56,7 +57,7 @@ const REVISION_TYPE_META: Record<
 > = {
   CREATE: { label: '생성', variant: 'neutral' },
   EDIT: { label: '수정', variant: 'brand' },
-  STATUS: { label: '상태변경', variant: 'brand' },
+  STATUS: { label: '상태변경', variant: 'neutral' },
   RESTORE: { label: '복원', variant: 'warning' },
   DELETE: { label: '삭제', variant: 'danger' },
 }
@@ -224,22 +225,22 @@ export function PartnerOrderVersionHistoryPanel({
             border: '1px solid',
             borderColor:
               toast.kind === 'success'
-                ? 'var(--color-success-300, #6EE7B7)'
+                ? 'var(--color-success-200, #a7f3d0)'
                 : toast.kind === 'warning'
-                  ? 'var(--color-warning-300, #FCD34D)'
+                  ? 'var(--color-warning-300, #F1C268)'
                   : 'var(--color-danger-300, #FCA5A5)',
             background:
               toast.kind === 'success'
-                ? 'var(--color-success-50, #ECFDF5)'
+                ? 'var(--color-success-50, #ecfdf5)'
                 : toast.kind === 'warning'
-                  ? 'var(--color-warning-50, #FFFBEB)'
-                  : 'var(--color-danger-50, #FEF2F2)',
+                  ? 'var(--color-warning-50, #FEF6E7)'
+                  : 'var(--color-danger-50, #FFF1F1)',
             color:
               toast.kind === 'success'
-                ? 'var(--color-success-800, #065F46)'
+                ? 'var(--color-success-700, #047857)'
                 : toast.kind === 'warning'
-                  ? 'var(--color-warning-800, #92400E)'
-                  : 'var(--color-danger-800, #991B1B)',
+                  ? 'var(--color-warning-800, #8C5C13)'
+                  : 'var(--color-danger-800, #7F1D1D)',
             fontSize: 13,
           }}
         >

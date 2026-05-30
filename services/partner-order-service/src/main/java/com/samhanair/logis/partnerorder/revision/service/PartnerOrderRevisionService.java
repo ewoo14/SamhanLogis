@@ -142,8 +142,13 @@ public class PartnerOrderRevisionService {
      * <p>헤더 역적용은 {@link PartnerOrder#restoreHeader(String, String, java.time.LocalDate, String)} 를 통해
      * 도메인 메서드를 사용하며, 직접 setter 호출은 금지한다.
      *
-     * <p>라인 전량교체는 {@link PartnerOrder#replaceLines(List)} 를 재사용한다 —
-     * 기존 draft update 의 soft-delete 후 재생성 패턴과 동일하다.
+     * <p>라인 전량교체는 {@link PartnerOrder#replaceLines(List)} 를 재사용한다.
+     * <b>경로 분기 (cycle2c)</b>: soft-deleted 주문({@code wasDeleted=true}) 복원 시에만
+     * native query({@code findAllIncludingDeletedByPartnerOrderId}) 로 전체 라인을 조회해
+     * 선(先) markDeleted 전처리를 수행한다. 이미 soft-deleted 라인이 @SQLRestriction 컬렉션에서
+     * 빠져 있어 replaceLines() 내부 루프가 처리하지 못하기 때문이다.
+     * 일반 복원({@code wasDeleted=false}, DRAFT/CONFIRMED)은 불필요한 전처리 없이
+     * replaceLines() 단독 경로로 처리한다.
      *
      * <p>{@code slipResyncRequired} 플래그 의미:
      * 복원 직전 주문이 {@link com.samhanair.logis.partnerorder.domain.PartnerOrderStatus#CONFIRMED} 상태였을 때
@@ -205,32 +210,45 @@ public class PartnerOrderRevisionService {
                 snapshot.dueDate(),
                 snapshot.memo());
 
-        // [P1-1 lines 정합 보장] PartnerOrder.lines 는 @SQLRestriction("is_deleted = false") 가
-        // 걸린 Hibernate 컬렉션이다. soft-deleted 주문을 nativeQuery 로 undelete 한 후에도
-        // 기존에 soft-delete 된 라인들은 @SQLRestriction 필터로 인해 this.lines 컬렉션에
-        // 포함되지 않는다. 따라서 replaceLines() 내부의 markDeleted 루프가 이 라인들을
-        // 처리하지 못하고 DB 에 중복 잔존할 수 있다.
+        // [P1-1 lines 정합 보장 + cycle2c 경로 분기]
         //
-        // 해법: replaceLines() 호출 전 native query 로 soft-deleted 라인까지 포함한 전체 라인을
-        // 조회하여 명시적으로 markDeleted 처리한다. 이후 replaceLines() 내부 루프는
-        // 이미 모두 markDeleted 된 상태이므로 새 라인 INSERT 만 수행한다.
+        // 삭제주문 복원(wasDeleted=true) 경로:
+        //   PartnerOrder.lines 는 @SQLRestriction("is_deleted = false") 컬렉션이다.
+        //   soft-deleted 주문을 undelete 한 후에도 이전에 soft-delete 된 라인들은
+        //   @SQLRestriction 필터로 인해 this.lines 에 포함되지 않는다. 따라서
+        //   replaceLines() 내부 markDeleted 루프가 이 라인들을 처리하지 못하고
+        //   DB 에 중복 활성 라인으로 잔존할 수 있다.
+        //   해법: native query 로 soft-deleted 포함 전체 라인을 조회하여 선(先) markDeleted 후
+        //   replaceLines() 를 호출한다 (이중 처리 방지는 replaceLines 내부 deletedAt != null 가드).
+        //   검증: IT case7(삭제→복원), case8(create→edit→delete→restore) 참조.
         //
-        // create→edit(라인 변경)→delete→restore 흐름 검증: IT case8 참조.
-        List<PartnerOrderLine> allLinesIncludingDeleted =
-                lineRepository.findAllIncludingDeletedByPartnerOrderId(orderId);
-        for (PartnerOrderLine line : allLinesIncludingDeleted) {
-            if (line.getDeletedAt() == null) {
-                line.markDeleted("system-restore-pre-replace");
+        // 일반 복원(wasDeleted=false, DRAFT/CONFIRMED) 경로:
+        //   삭제주문 전처리가 불필요하다. this.lines 컬렉션이 이미 활성 라인 전체를 포함하므로
+        //   replaceLines() 내부 루프만으로 정확하게 처리된다(기존 draft update 패턴과 동일).
+        //   불필요한 native 쿼리/전처리를 제거해 효율·명료성을 높인다.
+        //   검증: IT case9(create→edit→restore, 비삭제 흐름) 참조.
+        if (wasDeleted) {
+            // 삭제주문 복원 전처리: native query 로 soft-deleted 라인 포함 전량 조회 → 활성 라인만 markDeleted
+            List<PartnerOrderLine> allLinesIncludingDeleted =
+                    lineRepository.findAllIncludingDeletedByPartnerOrderId(orderId);
+            for (PartnerOrderLine line : allLinesIncludingDeleted) {
+                if (line.getDeletedAt() == null) {
+                    line.markDeleted("system-restore-pre-replace");
+                }
             }
+            log.debug("[PartnerOrderRevisionService] 삭제주문 복원 전처리 — orderId={}, totalLines={}, markedDeleted={}",
+                    orderId,
+                    allLinesIncludingDeleted.size(),
+                    allLinesIncludingDeleted.stream().filter(l -> l.getDeletedAt() != null).count());
+        } else {
+            // 일반 복원: 전처리 불필요 — replaceLines() 가 this.lines(활성 라인) 만 markDeleted 처리
+            log.debug("[PartnerOrderRevisionService] 일반 복원(비삭제 흐름) — replaceLines 단독 경로 — orderId={}", orderId);
         }
-        log.debug("[PartnerOrderRevisionService] restore 전 라인 전처리 — orderId={}, totalLines={}, markedDeleted={}",
-                orderId,
-                allLinesIncludingDeleted.size(),
-                allLinesIncludingDeleted.stream().filter(l -> l.getDeletedAt() != null).count());
 
-        // 라인 전량교체 — 기존 draft update 의 soft-delete 후 재생성 패턴 재사용
-        //   위 전처리에서 모든 라인(soft-deleted 포함)을 markDeleted 했으므로
-        //   replaceLines() 내부 루프는 아무것도 추가 처리하지 않고 새 라인만 addLine() 한다.
+        // 라인 전량교체 — 기존 draft update 의 soft-delete 후 재생성 패턴 재사용.
+        //   삭제주문 복원 시: 위 전처리에서 모든 라인(soft-deleted 포함) markDeleted 완료 →
+        //     replaceLines() 내부 루프는 deletedAt != null 가드로 스킵하고 새 라인만 addLine().
+        //   일반 복원 시: replaceLines() 가 this.lines(활성 라인)을 markDeleted 후 새 라인 addLine().
         List<PartnerOrderLine> newLines = snapshot.lines().stream()
                 .map(ls -> PartnerOrderLine.create(
                         ls.productId(),
