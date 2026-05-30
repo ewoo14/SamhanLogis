@@ -3572,10 +3572,118 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // Phase 2.4: 거래처 주문 버전이력/복원 — `/api/v1/partner-orders/{id}/revisions...`
+  //
+  // 중요: restore(POST) 가 revisions(GET) 보다 앞단 배치 (더 구체적인 path 우선).
+  //       detail(GET) 보다도 앞단 배치 (/revisions path 가 detail `$` 에 미해당이므로
+  //       순서는 안전하지만 명시적 앞단 권장).
+  // ==========================================================================
+
+  // POST /api/v1/partner-orders/{id}/revisions/{n}/restore — 특정 시점 복원.
+  const partnerOrderRestoreMatch = url.match(
+    /\/api\/v1\/partner-orders\/([^/]+)\/revisions\/(\d+)\/restore$/,
+  )
+  if (method === 'POST' && partnerOrderRestoreMatch) {
+    const orderId = partnerOrderRestoreMatch[1]!
+    // CONFIRMING / CANCELED 는 409 응답 (FE 는 버튼 비활성으로 예방하지만 BE 는 이중 가드).
+    if (orderId === 'ord-confirming' || orderId === 'ord-canceled') {
+      return mockError(409, 'PARTNER_ORDER_NOT_RESTORABLE', '이 상태의 주문은 복원할 수 없습니다.')
+    }
+    // CONFIRMED 복원 → slipResyncRequired=true.
+    const slipResyncRequired = orderId === 'ord-confirmed'
+    return envelope({
+      order: {
+        orderNumber: '2026/05/04-1',
+        partnerCode: '1234567890',
+        bizCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        submittedAt: '2026-05-04T10:30:00',
+        updatedAt: '2026-05-30T11:00:00',
+        status: slipResyncRequired ? 'CONFIRMED' : 'DRAFT',
+        totalAmount: 240000,
+        linkedSlipNo: slipResyncRequired ? 'SL-20260504-001' : null,
+        deliveryAddress: '서울시 강남구 테헤란로 1',
+        siteAddress: '현장 A동',
+        contactPhone: '010-1234-5678',
+        dueDate: '2026-05-30',
+        memo: 'rev1 시점 복원본',
+        lines: [
+          {
+            modelCode: 'AJ040RXH4BC1',
+            productName: '실외기',
+            categoryKey: 'homemulti',
+            quantity: 2,
+            deliveryPrice: 120000,
+            subtotal: 240000,
+            bundleMode: null,
+            expandedComponents: [],
+          },
+        ],
+      },
+      slipResyncRequired,
+    })
+  }
+
+  // GET /api/v1/partner-orders/{id}/revisions — 버전이력 목록 (최신 우선).
+  const partnerOrderRevisionsGetMatch = url.match(
+    /\/api\/v1\/partner-orders\/([^/]+)\/revisions(\?.*)?$/,
+  )
+  if (method === 'GET' && partnerOrderRevisionsGetMatch) {
+    const orderId = partnerOrderRevisionsGetMatch[1]!
+    // revisions fixture: 3건 (rev3 RESTORE, rev2 EDIT, rev1 CREATE) — orderId 불문 동일 응답.
+    // actorName: '오병승' (MOCK_AUTH.fullName), UUID 형태 아님 → 화면 노출.
+    return envelope([
+      {
+        revisionNo: 3,
+        revisionType: 'RESTORE',
+        sourceRevisionNo: 1,
+        orderNo: '2026/05/04-1',
+        actorName: '오병승',
+        actorColor: null,
+        createdAt: '2026-05-30T11:00:00',
+        changeSummary: { headerChanged: 1, lineAdded: 0, lineRemoved: 1, lineModified: 0 },
+      },
+      {
+        revisionNo: 2,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        orderNo: '2026/05/04-1',
+        actorName: '오병승',
+        actorColor: null,
+        createdAt: '2026-05-17T10:05:00',
+        changeSummary: { headerChanged: 1, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+      },
+      {
+        revisionNo: 1,
+        revisionType: 'CREATE',
+        sourceRevisionNo: null,
+        orderNo: '2026/05/04-1',
+        actorName: '오병승',
+        actorColor: null,
+        createdAt: '2026-05-04T10:30:00',
+        changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+      },
+    ])
+  }
+
+  // ==========================================================================
   // partner-orders detail (기존 빈 list 옆에 detail mock)
   // ==========================================================================
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
+    const poId = partnerOrderDetailMatch[1]!
+    // Phase 2.4 spec 용: orderId 별 status 분기
+    // ord-draft → DRAFT, ord-confirmed → CONFIRMED, ord-confirming → CONFIRMING, ord-canceled → CANCELED
+    // 그 외 기존 fixture → CONFIRMED (하위 호환)
+    const poStatus: string =
+      poId === 'ord-draft'
+        ? 'DRAFT'
+        : poId === 'ord-confirming'
+          ? 'CONFIRMING'
+          : poId === 'ord-canceled'
+            ? 'CANCELED'
+            : 'CONFIRMED'
+    const poLinkedSlip = poStatus === 'CONFIRMED' ? 'SL-20260504-001' : null
     return envelope({
       orderNumber: '2026/05/04-1',
       partnerCode: '1234567890',
@@ -3583,9 +3691,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       partnerName: '엘에이시스템에어',
       submittedAt: '2026-05-04T10:30:00',
       updatedAt: '2026-05-17T10:00:00',
-      status: 'CONFIRMED',
+      status: poStatus,
       totalAmount: 3700000,
-      linkedSlipNo: 'SL-20260504-001',
+      linkedSlipNo: poLinkedSlip,
       deliveryAddress: '서울시 강남구 테헤란로 1',
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
