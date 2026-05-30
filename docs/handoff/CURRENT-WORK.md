@@ -4,6 +4,20 @@
 
 ---
 
+## 🚧 2026-05-30 진행 — 권한 재편 Phase 2.4 주문(Partner-Order) RESTORE (기획 완료, 구현 진입)
+
+RESTORE 4번째 도메인. slip(2.1)/estimate(2.2)/partner(2.3) 머지 완료 후 연속. 자택→회사 핸드오프(d4bda209 main pull).
+
+- **⚠️ Codex 토큰 소진 → 2026-06-01(월) 12:00 복구**. 그 전까지 **구현+dual리뷰 모두 Claude 에이전트 전면 대체** (개발책임자 회사 지시).
+- **브랜치**: `feat/phase-2-4-partner-order-restore` (base main `d4bda209`)
+- **spec**: `docs/superpowers/specs/2026-05-30-partner-order-restore-version-history-design.md`
+- **plan**: `docs/superpowers/plans/2026-05-30-partner-order-restore-version-history.md` (Task 1~13)
+- **대상**: `partner-order-service` `PartnerOrder`+`PartnerOrderLine`(1:N) full-snapshot. Flyway **V7** `partner_order_revisions`. 캡처=draft create/update·from-estimate·본사 edit(EDIT)·confirm/cancel(STATUS), delete 제외. **복원=DRAFT 상태만**(CONFIRMED 는 slip 발행 연동 → 정합성). page code=`sales.partner-order.history.view` 확장 권장. UUID 비공개(F4)+invalidate(F5) 가드.
+- **차기 슬라이스 예약**: 주문→출고전표 전환 고도화(품목별 부분전환 + 다중주문 병합) — `project_order_slip_conversion.md` ([[project-order-slip-conversion]]). 견적→슬립·주문→슬립 1:1 은 기구현.
+- **다음 단계**: spec/plan/memory commit+push → 조기 draft PR → Claude 에이전트 Task 1~13 구현 → 5-team 리뷰(사이클 N=2) → Docker 실 QA → CI green → 머지.
+
+---
+
 ## 🚧 2026-05-30 진행 — 권한 재편 Phase 2.3 거래처(Partner) RESTORE (PR #320, **Docker 실 QA + F4/F5 fix 완료, CI 대기 → 머지 게이트만 남음**)
 
 RESTORE 4번째 도메인(partners). brainstorming→spec→plan→subagent-driven(T1~7a) + cycle1 ObjectProvider fix 까지 완료(이전 세션). 본 세션: **Docker 실 QA(사용자 "C로 부탁해") + 발견 결함 수정**.
