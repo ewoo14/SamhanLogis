@@ -134,6 +134,11 @@ public class PartnerOrderQueryService {
      * 기존 preConfirm 분기(CONFIRMING 미포함) 및 status=null 전체조회 DRAFT/ON_HOLD 누락 문제를
      * COALESCE 로 일관 처리하여 해소한다.
      *
+     * <p><b>count 쿼리 가드 (Cycle 2c P1-NEW)</b>: Spring Data {@code findAll(Specification, Pageable)} 는
+     * 동일 Specification 을 데이터 쿼리와 count 쿼리 양쪽에 적용한다. count 쿼리에 {@code orderBy} 를
+     * 포함하면 일부 JPA 구현체(Hibernate 6+)에서 경고·오류가 발생하므로,
+     * {@code query.getResultType()} 으로 결과 타입을 확인하여 count 쿼리일 때 정렬을 건너뛴다.
+     *
      * @param filter 목록 필터
      * @return JPA Specification
      */
@@ -175,6 +180,15 @@ public class PartnerOrderQueryService {
                         cb.like(cb.lower(line.get("modelName")), keyword),
                         cb.like(cb.lower(line.get("remark")), keyword)));
             }
+
+            // count 쿼리 가드 — count 쿼리에 orderBy 를 적용하면 Hibernate 6+ 에서 오류/경고 발생.
+            // query.getResultType() 이 Long/long 이면 count 쿼리이므로 정렬을 건너뛴다.
+            Class<?> resultType = query.getResultType();
+            if (resultType != Long.class && resultType != long.class) {
+                query.orderBy(cb.desc(
+                        cb.coalesce(root.get("confirmedAt"), root.get("createdAt"))));
+            }
+
             return cb.and(predicates.toArray(Predicate[]::new));
         };
     }

@@ -138,23 +138,33 @@ grounding 결과 리스트 status 필터 인프라는 **이미 완성**되어 �
 
 ON_HOLD enum 추가만으로 `status=ON_HOLD` 필터가 자동 동작한다.
 
-### 6.2 기간 필터 기준 필드 분기
+### 6.2 기간 필터 기준 필드 분기 (Cycle 1 COALESCE fix)
 
-DRAFT와 ON_HOLD는 `confirmedAt = null`이다. confirmedAt 기준으로 날짜 필터를 적용하면 이 두 상태의 주문이 항상 제외된다. Phase 2.5에서 `toSpec()` 내부에 분기를 추가했다.
+DRAFT와 ON_HOLD는 `confirmedAt = null`이다. 초기 구현은 `preConfirm = DRAFT || ON_HOLD` 분기로
+CONFIRMING(transient, confirmedAt이 채워짐) 및 status=null(전체조회) 시 DRAFT/ON_HOLD 주문이
+기간 필터에서 무음 제외되는 결함이 있었다 (TM P1-1 / P1-2).
+
+**Cycle 1 수정**: `COALESCE(confirmedAt, createdAt)` 표현식으로 통일. status 분기를 제거했다.
 
 ```java
-// DRAFT/ON_HOLD 는 confirmedAt=null → createdAt 기준으로 기간필터 적용
-boolean preConfirm = filter.status() == PartnerOrderStatus.DRAFT
-        || filter.status() == PartnerOrderStatus.ON_HOLD;
-String dateField = preConfirm ? "createdAt" : "confirmedAt";
+// COALESCE(confirmedAt, createdAt) — status 에 무관하게 의미 있는 날짜를 자동 선택
+Expression<LocalDateTime> effectiveDate =
+        cb.coalesce(root.get("confirmedAt"), root.get("createdAt"));
 ```
 
-| status 필터 | 기간 기준 필드 | 근거 |
-|---|---|---|
-| DRAFT (진행중) | `createdAt` | confirmedAt=null이므로 생성일 기준이 자연스러움 |
-| ON_HOLD (보류) | `createdAt` | 동일. confirmedAt=null |
-| CONFIRMED (완료) | `confirmedAt` | 출고전표 전환 확정 시각이 업무 기준 |
-| CONFIRMING / CANCELED / 미지정 | `confirmedAt` | 기본값 |
+| status | confirmedAt | COALESCE 결과 | 기간 필터 기준 |
+|---|---|---|---|
+| DRAFT (진행중) | null | → createdAt | 생성일 기준 (정합) |
+| ON_HOLD (보류) | null | → createdAt | 생성일 기준 (정합) |
+| CONFIRMING (transient) | now() | → confirmedAt | 확정 진입 시각 기준 |
+| CONFIRMED (완료) | not null | → confirmedAt | 출고전표 전환 확정 시각 기준 |
+| CANCELED | not null | → confirmedAt | 동일 |
+| null (전체조회) | 각 row 다름 | → 각 row 에 맞는 날짜 자동 | DRAFT/ON_HOLD 무음 제외 해소 |
+
+#### 선택 근거 (preConfirm 분기 vs COALESCE)
+
+- preConfirm 분기: status=null(전체조회) 또는 CONFIRMING 추가 시마다 분기 로직 수정 필요. 취약.
+- **COALESCE**: 새 status 추가 시 toSpec() 수정 불필요. status 분기 자체를 제거하여 전체조회/CONFIRMING 자동 정합.
 
 ### 6.3 리스트 기본 필터
 
@@ -245,7 +255,82 @@ export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
 
 ---
 
-## 9. 마이그레이션 불필요 근거
+## 9. Cycle 1 fix 사항 (TM 리뷰 반영)
+
+### 9.1 낙관적 락 (동시성) — @Version 확인
+
+`PartnerOrder.java:100-102` 에 `@Version @Column(name = "lock_version") private Long lockVersion;` 이 존재한다.
+`markOnHold()` / `releaseHold()` 호출 후 `saveAndFlush()` 는 낙관적 락으로 보호된다.
+두 사용자가 동시에 동일 주문을 보류 시도할 때 후자는 `OptimisticLockingFailureException`(409로 변환)을 받는다.
+**P2 동시성 미조치 결함 없음 — 이미 보호됨.**
+
+### 9.2 보류/해제 전이 이력 미기록 (향후 STATUS revision 연계)
+
+`PartnerOrderHoldService.hold()` / `release()` 의 `actorId` / `actorName` 파라미터는 현재
+전이 이력 기록에 사용되지 않는다. Javadoc에 "향후 STATUS revision 캡처 연결 대비 시그니처 유지" 가 명시되어 있다.
+
+**현재 상태**: 보류/해제 전이 이력이 `partner_order_audit_logs` 또는 revision 테이블에 기록되지 않는다.
+**미래 연계**: STATUS revision 캡처(설계서 §4.2 선택사항) 슬라이스에서 `actorId`/`actorName` 을 활용한
+`revisionService.capture(order, STATUS, ...)` 호출을 추가할 예정.
+이 슬라이스에서 해당 구현을 선행하는 것은 scope 초과이므로 보류한다.
+
+### 9.3 기간 필터 COALESCE fix (toSpec() 수정)
+
+위 §6.2 참조. preConfirm 분기 → `COALESCE(confirmedAt, createdAt)` 교체.
+영향 범위:
+- status=null(전체조회) + 기간 필터 시 DRAFT/ON_HOLD 주문 무음 제외 해소.
+- CONFIRMING preConfirm 미포함 결함 해소.
+- 향후 신규 status 추가 시 toSpec() 수정 불필요.
+
+### 9.4 IT Cycle 1 추가 케이스
+
+| 추가 케이스 | 파일 | 내용 |
+|---|---|---|
+| `markOnHold_fromConfirming_throws409()` | `PartnerOrderHoldTest.java` | CONFIRMING → hold 409 단위 테스트 (QA-2.5-02) |
+| `case9_draftDateFilter_createdAtCoalesceReturnsOneRow()` | `HoldStatusFilterIT.java` | DRAFT createdAt 기간필터 1건 조회 (P1-1 회귀 가드) |
+| `case10_allStatusQuery_includesDraftAndConfirmed()` | `HoldStatusFilterIT.java` | 전체조회 DRAFT+CONFIRMED totalElements=2 (P1-1 전체조회 보정) |
+| outboxRepository.deleteAll() BeforeEach 선행 | `HoldStatusFilterIT.java` | FK 위반 방지 (QA-2.5-01) |
+
+---
+
+## 10. Cycle 2c fix 사항 (사이클 2 재리뷰 반영)
+
+### 10.1 count 쿼리 COALESCE orderBy 가드 (P1-NEW)
+
+`toSpec()` 내 COALESCE 정렬 적용 시 Specification 이 count 쿼리에도 동일하게 사용되는 문제.
+
+**원인**: Spring Data `findAll(Specification, Pageable)` 는 데이터 쿼리와 count 쿼리에 같은 Specification 을 적용한다.
+count 쿼리에서 `query.orderBy()` 가 실행되면 Hibernate 6+ 에서 `HHH90003001` 경고 및 일부 DB 에서 오류가 발생한다.
+
+**수정**: `query.getResultType()` 으로 결과 타입을 확인하여 count 쿼리(`Long.class` / `long.class`)일 때 `orderBy` 를 건너뛰는 분기 추가.
+
+```java
+// count 쿼리 가드
+Class<?> resultType = query.getResultType();
+if (resultType != Long.class && resultType != long.class) {
+    query.orderBy(cb.desc(
+            cb.coalesce(root.get("confirmedAt"), root.get("createdAt"))));
+}
+```
+
+**효과**: 페이지네이션 데이터 쿼리에는 COALESCE DESC 정렬이 적용되고, count 쿼리에는 정렬이 생략되어 경고·오류 없이 `totalElements` 가 정확히 계산된다.
+
+### 10.2 기간 필터 timezone 경계 (P2 — 비차단)
+
+`effectiveDateGoe/Loe` 의 timezone 경계(자정 직전 createdAt) off-by-one 가능성:
+- **비차단 — 기간 필터 경계는 서버 LocalDate 기준으로 동작한다.** IT 통과 확인됨.
+- `dateTo.plusDays(1).atStartOfDay()` 로 당일 자정까지 포함하는 exclusive upper bound 를 사용하므로 서버 타임존 기준 정합성은 보장된다.
+- 클라이언트 타임존과 서버 타임존이 다를 경우 경계 off-by-one 가능성이 있으나, 현재 운영 환경(서버 + 클라이언트 모두 KST)에서는 문제 없음.
+
+### 10.3 IT Cycle 2c 추가 케이스
+
+| 추가 케이스 | 파일 | 내용 |
+|---|---|---|
+| `case11_countQueryCoalesceOrderByGuard_totalElementsAccurate()` | `HoldStatusFilterIT.java` | DRAFT 3 + ON_HOLD 2 삽입 후 page=0&size=2 → totalElements=5, content.length=2 단언 (count 쿼리 가드 회귀) |
+
+---
+
+## 11. 마이그레이션 불필요 근거
 
 `partner_orders` 테이블 V1 DDL:
 
@@ -259,7 +344,7 @@ status VARCHAR(20) NOT NULL
 
 ---
 
-## 10. 관련 파일
+## 11. 관련 파일
 
 | 파일 | 변경 유형 | 내용 |
 |---|---|---|
@@ -267,11 +352,12 @@ status VARCHAR(20) NOT NULL
 | `domain/PartnerOrder.java` | 수정 | markOnHold() / releaseHold() 도메인 메서드 + markConfirming() 가드 확대 |
 | `service/PartnerOrderHoldService.java` | 신규 | hold/release 처리 + AuditLog + STATUS revision 캡처 |
 | `web/PartnerOrderHoldController.java` | 신규 | POST /{id}/hold, POST /{id}/release |
-| `service/PartnerOrderQueryService.java` | 수정 | toSpec() DRAFT/ON_HOLD → createdAt 기간 분기 |
+| `service/PartnerOrderQueryService.java` | 수정 | toSpec() COALESCE(confirmedAt, createdAt) 통일 (Cycle 1) + count 쿼리 orderBy 가드 (Cycle 2c P1-NEW) |
 | `clients/desktop/src/renderer/api/sales.ts` | 수정 | PARTNER_ORDER_STATUS_LABEL 라벨 통일 + ON_HOLD 추가 |
 | `clients/desktop/src/renderer/pages/SalesPartnerOrderListPage.tsx` | 수정 | ON_HOLD 필터 옵션 추가 |
 | `clients/desktop/src/renderer/pages/SalesPartnerOrderDetailPage.tsx` | 수정 | 보류/해제 버튼 |
-| `src/test/java/.../PartnerOrderHoldStatusFilterIT.java` | 신규 | IT 8케이스 |
+| `src/test/java/.../HoldStatusFilterIT.java` | 신규+수정 | IT 11케이스 (Cycle 1: case9/10, Cycle 2c: case11 count 쿼리 가드 회귀) |
+| `src/test/java/.../PartnerOrderHoldTest.java` | 수정 | markOnHold_fromConfirming_throws409() 추가 (Cycle 1, QA-2.5-02) |
 | `playwright/specs/partner-order-hold-status-filter.spec.ts` | 신규 | Playwright 3케이스 |
 
 dev-report: `docs/dev-reports/phase-2-5-partner-order-hold-status-filter.md` (본 파일)

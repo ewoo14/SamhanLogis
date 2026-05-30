@@ -413,6 +413,48 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 11 — count 쿼리 COALESCE orderBy 가드 회귀 (Cycle 2c P1-NEW)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * COALESCE 정렬이 포함된 Specification 을 페이지네이션으로 조회할 때
+     * count 쿼리가 정상 동작하여 {@code totalElements} 가 정확히 반환됨을 검증한다.
+     *
+     * <p>Spring Data {@code findAll(Specification, Pageable)} 는 동일 Specification 을
+     * 데이터 쿼리와 count 쿼리 양쪽에 사용한다. Specification 내 {@code query.orderBy()} 호출이
+     * count 쿼리에서도 실행되면 Hibernate 6+ 에서 오류/경고가 발생한다.
+     *
+     * <p>이 케이스는 count 쿼리 가드({@code query.getResultType() != Long.class} 분기)가
+     * 동작함을 보장하는 회귀 가드다.
+     *
+     * <p><b>검증 방식</b>: DRAFT 3건 + ON_HOLD 2건 삽입 후 {@code page=0&size=2} 로 조회하면
+     * {@code totalElements=5} (count 쿼리 결과)이고 {@code content.length=2} (데이터 쿼리 결과)임을 단언한다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스11: count 쿼리 COALESCE orderBy 가드 — totalElements 정확 + content 2건 (Cycle 2c P1-NEW)")
+    void case11_countQueryCoalesceOrderByGuard_totalElementsAccurate() throws Exception {
+        // DRAFT 3건
+        buildDraftOrderViaDb("P-CNT-D1", "C111111111", "2026/05/31-CNT-D1");
+        buildDraftOrderViaDb("P-CNT-D2", "C222222222", "2026/05/31-CNT-D2");
+        buildDraftOrderViaDb("P-CNT-D3", "C333333333", "2026/05/31-CNT-D3");
+        // ON_HOLD 2건
+        buildOrderWithStatusViaDb("P-CNT-H1", "C444444444", "2026/05/31-CNT-H1", "ON_HOLD");
+        buildOrderWithStatusViaDb("P-CNT-H2", "C555555555", "2026/05/31-CNT-H2", "ON_HOLD");
+
+        // page=0, size=2 — count 쿼리(totalElements=5) + 데이터 쿼리(content.length=2) 분리 검증
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(5))
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(3));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 헬퍼 메서드
     // ══════════════════════════════════════════════════════════════════════════
 
