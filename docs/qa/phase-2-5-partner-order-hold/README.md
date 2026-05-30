@@ -36,7 +36,7 @@ GET http://localhost:8288/actuator/health  ->  {"status":"UP"}
 캡처 환경:
 - **Vite dev server**: `http://localhost:5175` (VITE_MOCK_MODE 미설정 — 실 모드)
 - **Gateway API base**: `http://localhost:8080` (실 JWT, 실 DB)
-- **인증**: `window.samhanAuth` IPC stub — 실 JWT (`dev_master / dev_p05_pass!`) 주입
+- **인증**: `window.samhanAuth` IPC stub — 실 JWT (`dev_master` / V5 시드 DEV 비번, 환경변수 `QA_LOGIN_PW` 주입) 주입
 - **캡처 도구**: Playwright headless Chromium, viewport 1440x900
 - **실 API 적중 확인**: network interceptor 로 `GET http://localhost:8080/api/v1/partner-orders?page=0&size=50&status=DRAFT` 요청 확인
 

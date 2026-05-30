@@ -34,7 +34,7 @@ P0-5 는 SamhanLogis 사용자/권한 CRUD 관리 기능 전체를 커버한다.
 - MASTER / DEVELOPER / MANAGER / SALES / ACCOUNTANT / WAREHOUSE / INVENTORY 각 1명
 - LOCKED 상태 1명 (failed_login_attempts=5, locked_at 설정)
 - DISABLED (Soft Delete) 1명 (is_deleted=TRUE, enabled=FALSE)
-- 비밀번호: BCrypt 해시 ("dev_p05_pass!" 평문 — GitGuardian DEV-ONLY 허용)
+- 비밀번호: BCrypt 해시 (평문은 `V5__seed_p0_5_test_accounts.sql` 주석 + `.gitguardian.yaml` 화이트리스트에만 보관, DEV-ONLY)
 - password_change_required=TRUE — 첫 로그인 시 변경 의무
 
 ### 2-2. Flyway 마이그레이션 (user-service)

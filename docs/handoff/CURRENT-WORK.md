@@ -16,7 +16,7 @@
 - **미정/후속**: hold/release STATUS revision 캡처(Phase 2.4 STATUS type 첫 실사용 후보) — 현재 전이 이력 미기록(dev-report 명시).
 
 ### ⚠️ 로컬 환경 메모 (차기 실 QA 재사용)
-- **dev_master 비번 = `dev_p05_pass!`** 로 재설정됨(V5 시드 해시가 주석과 불일치했던 문제 해소). password_change_required=TRUE 시드 원복. 차기 실 QA 시 플래그만 FALSE 로 풀면 즉시 실 로그인 가능. (DEV 시드 계정, 운영 무관)
+- **dev_master 비번 = V5 시드 DEV 값**(`V5__seed_p0_5_test_accounts.sql` 주석 참조)으로 재설정됨(시드 해시가 주석과 불일치했던 문제 해소). password_change_required=TRUE 시드 원복. 차기 실 QA 시 플래그만 FALSE 로 풀면 즉시 실 로그인 가능. (DEV 시드 계정, 운영 무관 — 평문은 V5 시드/`.gitguardian.yaml` 화이트리스트에만 보관, 본 문서/스크립트엔 평문 미기재)
 - influxd(호스트 PID 1956)가 8088 점유 → partner-order-service compose 포트 8288 우회 필요.
 - **가짜 데이터·합성 이미지 영구 금지** ([[no-fake-data-ever]]) — 실 캡처만.
 

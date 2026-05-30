@@ -35,7 +35,11 @@ const SCREENSHOT_DIR = path.join(__dirname, '../../../docs/qa/phase-2-5-partner-
 // ──────────────────────────────────────────────────────────────────────────
 function loginReal() {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' })
+    // 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). QA_LOGIN_ID/QA_LOGIN_PW.
+    const body = JSON.stringify({
+      loginId: process.env.QA_LOGIN_ID || 'dev_master',
+      password: process.env.QA_LOGIN_PW || '',
+    })
     const req = http.request(
       `${GATEWAY}/auth/login`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
