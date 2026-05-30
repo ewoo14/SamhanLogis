@@ -113,7 +113,10 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
 
         // 매출 전표 수정 endpoint — 실제 URL: PUT /slips/{id}/sales
         // SlipUpdateRequest 는 updatedAt + lines(@NotEmpty) 필수
+        // lines 내 productId 가 없으면 validateLines()에서 422 반환 → SENT 상태 가드(409)에 도달 불가
+        // PRODUCT_ID 를 포함하여 validateLines() 통과 후 requireEditable()→409 경로 확보
         Map<String, Object> lineItem = new LinkedHashMap<>();
+        lineItem.put("productId", PRODUCT_ID.toString());
         lineItem.put("productName", "테스트 상품");
         lineItem.put("modelName", MODEL_CODE);
         lineItem.put("quantity", 1);
@@ -210,8 +213,9 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
         // SENT 상태 확인 (불변 가드가 SENT 이전에 발동되더라도 cancel API 는 409 반환)
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
 
-        // cancel API: POST /api/v1/slips/{id}/cancel
-        mockMvc.perform(post("/api/v1/slips/{id}/cancel", slipId)
+        // cancel API: POST /slips/{id}/cancel (SlipController @RequestMapping("/slips") 기준)
+        // SlipPublishController(/api/v1/slips)에는 cancel endpoint 없음
+        mockMvc.perform(post("/slips/{id}/cancel", slipId)
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(status().isConflict());

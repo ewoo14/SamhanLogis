@@ -272,7 +272,7 @@ class Phase26cReserveIT extends AbstractPostgresIT {
         body.put("warehouseId", warehouseId.toString());
         body.put("quantity", qty);
         body.put("lotNo", "LOT-" + UUID.randomUUID().toString().substring(0, 8));
-        body.put("receivedAt", "2026-01-01");
+        body.put("receivedAt", "2026-01-01T00:00:00");
         body.put("unitCost", "1000");
         body.put("note", "IT 테스트 입고");
 

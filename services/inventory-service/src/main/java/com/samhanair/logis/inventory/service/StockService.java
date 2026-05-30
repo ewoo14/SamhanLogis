@@ -97,7 +97,12 @@ public class StockService {
      */
     public ReservationResponse reserve(ReserveRequest req, String actorUserId) {
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
-        StockBalance balance = loadBalanceOrThrow(req.productId(), req.warehouseId());
+        // 가용 재고가 없거나(balance 미존재) 부족한 경우 모두 CONFLICT(409) 사전차단 —
+        // Phase 2.6c §0 도메인 규칙: 입고된 적 없는 제품에 대한 예약도 동일하게 차단.
+        StockBalance balance = stockBalanceRepository
+                .findByProductIdAndWarehouse_IdAndIsDeletedFalse(req.productId(), req.warehouseId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
+                        "가용 재고가 없습니다: 해당 제품의 입고 이력이 없습니다"));
 
         // 멱등 가드 — (referenceType, referenceId, productId, RESERVE) 중복 시 no-op 반환
         // alreadyReserved=true 를 반환하여 호출자(PartnerOrderConvertService)가
