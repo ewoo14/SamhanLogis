@@ -11,11 +11,13 @@ import axios from 'axios'
 import { Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
+  convertPartnerOrderToSlip,
   deletePartnerOrder,
   getPartnerOrder,
   holdPartnerOrder,
   releasePartnerOrder,
   updatePartnerOrder,
+  type ConvertToSlipItem,
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
 } from '../api/sales'
@@ -35,6 +37,10 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
 }
 const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 const PRINT_ROLES = ['SALES', 'MANAGER', 'MASTER']
+/** 출고전표 전환 허용 역할 — sales.partner-order.convert CREATE 와 동일 매트릭스. */
+const CONVERT_ROLES = ['SALES', 'MANAGER', 'MASTER']
+/** 출고전표 전환 불가 status — BE requireConvertible 과 동기화. */
+const NON_CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['CANCELED', 'CONFIRMING', 'CONVERTED'])
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -68,18 +74,25 @@ export function SalesPartnerOrderDetailPage() {
   const orderId = id!
   const canEdit = !!auth?.role && EDIT_ROLES.includes(auth.role)
   const canPrint = !!auth?.role && PRINT_ROLES.includes(auth.role)
+  const canConvert = !!auth?.role && CONVERT_ROLES.includes(auth.role)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [convertOpen, setConvertOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
   const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null)
   const [holdErrorMessage, setHoldErrorMessage] = useState<string | null>(null)
+  const [convertErrorMessage, setConvertErrorMessage] = useState<string | null>(null)
+  const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
+  /** 부분전환 모달: 라인별 전환 수량 (lineId → qty). */
+  const [convertQtyMap, setConvertQtyMap] = useState<Record<string, number>>({})
   const [partnerCode, setPartnerCode] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
   const [lines, setLines] = useState<EditLine[]>([])
   const reloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const convertSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const query = useQuery({
     queryKey: ['partner-order', id],
@@ -155,6 +168,45 @@ export function SalesPartnerOrderDetailPage() {
         }
       }
       setHoldErrorMessage('보류 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    },
+  })
+
+  /**
+   * 부분전환 — 선택 라인/수량을 출고전표로 전환한다 (Phase 2.6a).
+   * canConvert 권한 게이트는 버튼 표시 조건으로 보호.
+   * 성공 시 목록 + 상세 쿼리 무효화 + 성공 토스트.
+   */
+  const convertMutation = useMutation({
+    mutationFn: (items: ConvertToSlipItem[]) =>
+      convertPartnerOrderToSlip(orderId, { items }),
+    onSuccess: async (result) => {
+      setConvertErrorMessage(null)
+      setConvertOpen(false)
+      setConvertQtyMap({})
+      await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+      const msg = `출고전표 ${result.slipNo} 발행`
+      setConvertSuccessMessage(msg)
+      if (convertSuccessTimerRef.current) clearTimeout(convertSuccessTimerRef.current)
+      convertSuccessTimerRef.current = setTimeout(() => {
+        setConvertSuccessMessage(null)
+        convertSuccessTimerRef.current = null
+      }, 4000)
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 409) {
+          setConvertErrorMessage(
+            error.response.data?.message ?? '전환 수량이 잔여 수량을 초과하거나 이미 전환된 주문입니다.',
+          )
+          return
+        }
+        if (error.response?.status === 403) {
+          setConvertErrorMessage('출고전표 전환 권한이 없습니다. 관리자에게 문의해 주세요.')
+          return
+        }
+      }
+      setConvertErrorMessage('전환에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     },
   })
 
@@ -267,6 +319,9 @@ export function SalesPartnerOrderDetailPage() {
       if (reloadSuccessTimerRef.current) {
         clearTimeout(reloadSuccessTimerRef.current)
       }
+      if (convertSuccessTimerRef.current) {
+        clearTimeout(convertSuccessTimerRef.current)
+      }
     }
   }, [])
 
@@ -348,6 +403,32 @@ export function SalesPartnerOrderDetailPage() {
                 보류 해제
               </Button>
             ) : null}
+            {query.data &&
+              canConvert &&
+              query.data.linkedSlipNo == null &&
+              !NON_CONVERTIBLE_STATUS.has(query.data.status) ? (
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="partner-order-convert-open"
+                disabled={convertMutation.isPending}
+                onClick={() => {
+                  setConvertErrorMessage(null)
+                  // 모달 열 때 전환 수량 초기값 = 잔여 전량
+                  const initQty: Record<string, number> = {}
+                  for (const line of query.data!.lines) {
+                    const remaining = line.quantity - line.convertedQuantity
+                    if (remaining > 0) {
+                      initQty[line.lineId] = remaining
+                    }
+                  }
+                  setConvertQtyMap(initQty)
+                  setConvertOpen(true)
+                }}
+              >
+                출고전표 전환
+              </Button>
+            ) : null}
             {query.data && canEdit ? (
               <Button
                 type="button"
@@ -374,6 +455,20 @@ export function SalesPartnerOrderDetailPage() {
         {holdErrorMessage ? (
           <div className={styles['errorBanner']} role="alert" data-testid="partner-order-hold-error">
             {holdErrorMessage}
+          </div>
+        ) : null}
+        {convertErrorMessage ? (
+          <div className={styles['errorBanner']} role="alert" data-testid="partner-order-convert-error">
+            {convertErrorMessage}
+          </div>
+        ) : null}
+        {convertSuccessMessage ? (
+          <div
+            className={styles['successBanner']}
+            role="status"
+            data-testid="partner-order-convert-toast"
+          >
+            {convertSuccessMessage}
           </div>
         ) : null}
 
@@ -710,6 +805,128 @@ export function SalesPartnerOrderDetailPage() {
               {deleteErrorMessage}
             </div>
           ) : null}
+        </div>
+      </Modal>
+      {/* 출고전표 전환 모달 (Phase 2.6a) */}
+      <Modal
+        open={convertOpen}
+        onClose={() => {
+          if (!convertMutation.isPending) {
+            setConvertOpen(false)
+            setConvertErrorMessage(null)
+          }
+        }}
+        title="출고전표 전환"
+        size="lg"
+        closeOnBackdropClick={!convertMutation.isPending}
+        closeOnEsc={!convertMutation.isPending}
+        data-testid="partner-order-convert-modal"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={convertMutation.isPending}
+              onClick={() => {
+                setConvertOpen(false)
+                setConvertErrorMessage(null)
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="partner-order-convert-submit"
+              disabled={
+                convertMutation.isPending ||
+                !query.data ||
+                Object.values(convertQtyMap).every((q) => q <= 0)
+              }
+              onClick={() => {
+                if (!query.data) return
+                const items = query.data.lines
+                  .filter((line) => {
+                    const remaining = line.quantity - line.convertedQuantity
+                    const qty = convertQtyMap[line.lineId] ?? 0
+                    return remaining > 0 && qty > 0
+                  })
+                  .map((line) => ({
+                    orderLineId: line.lineId,
+                    quantity: convertQtyMap[line.lineId]!,
+                  }))
+                if (items.length === 0) return
+                setConvertErrorMessage(null)
+                convertMutation.mutate(items)
+              }}
+            >
+              {convertMutation.isPending ? '전환 중…' : '전환'}
+            </Button>
+          </>
+        )}
+      >
+        <div data-testid="partner-order-convert-modal-body">
+          {convertErrorMessage ? (
+            <div
+              className={styles['errorBanner']}
+              role="alert"
+              data-testid="partner-order-convert-modal-error"
+            >
+              {convertErrorMessage}
+            </div>
+          ) : null}
+          <div className={styles['tableWrap']}>
+            <table className={styles['estTable']}>
+              <thead>
+                <tr>
+                  <th>품목명</th>
+                  <th>모델명</th>
+                  <th style={{ textAlign: 'right' }}>주문수량</th>
+                  <th style={{ textAlign: 'right' }}>전환됨</th>
+                  <th style={{ textAlign: 'right' }}>잔여</th>
+                  <th style={{ textAlign: 'right', minWidth: '100px' }}>전환수량</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(query.data?.lines ?? []).map((line, index) => {
+                  const remaining = line.quantity - line.convertedQuantity
+                  const currentQty = convertQtyMap[line.lineId] ?? 0
+                  const disabled = remaining <= 0
+                  return (
+                    <tr
+                      key={line.lineId}
+                      style={{ opacity: disabled ? 0.45 : 1 }}
+                    >
+                      <td className={styles['tdLeft']}>{line.productName}</td>
+                      <td>{line.modelCode}</td>
+                      <td className={styles['numericCol']}>{line.quantity}</td>
+                      <td className={styles['numericCol']}>{line.convertedQuantity}</td>
+                      <td className={styles['numericCol']}>{remaining}</td>
+                      <td>
+                        <Input
+                          aria-label={`${line.productName} 전환수량`}
+                          type="number"
+                          min={0}
+                          max={remaining}
+                          value={disabled ? 0 : currentQty}
+                          disabled={disabled}
+                          data-testid={`partner-order-convert-qty-${index}`}
+                          onChange={(e) => {
+                            const raw = Number(e.target.value)
+                            const clamped = Math.max(0, Math.min(remaining, raw))
+                            setConvertQtyMap((prev) => ({
+                              ...prev,
+                              [line.lineId]: clamped,
+                            }))
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Modal>
     </div>

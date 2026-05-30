@@ -63,33 +63,39 @@ public record PartnerOrderDetailResponse(
     /**
      * 주문 상세 라인.
      *
+     * @param lineId 라인 UUID — FE 부분전환 요청(orderLineId) 에 사용. 사용자 화면 미노출.
      * @param modelCode 사용자 표시 모델명.
      * @param productName 품목명.
      * @param categoryKey legacy 품목 카테고리 key.
      * @param quantity 수량.
      * @param deliveryPrice 납품 단가.
      * @param subtotal 라인 소계.
+     * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
      * @param expandedComponents 번들 펼침 구성품. 현재 저장 컬럼이 없어 빈 배열.
      */
     public record LineResponse(
+            String lineId,
             String modelCode,
             String productName,
             String categoryKey,
             int quantity,
             BigDecimal deliveryPrice,
             BigDecimal subtotal,
+            int convertedQuantity,
             String bundleMode,
             List<ComponentResponse> expandedComponents
     ) {
         static LineResponse from(PartnerOrderLine line) {
             return new LineResponse(
+                    line.getId().toString(),
                     line.getModelName(),
                     line.getProductName(),
                     line.getCategoryKey(),
                     line.getQuantity(),
                     line.getPriceVat(),
                     line.getSubtotal(),
+                    line.getConvertedQuantity(),
                     null,
                     List.of());
         }

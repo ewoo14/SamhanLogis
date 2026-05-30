@@ -321,13 +321,14 @@ interface LiveEstimateDetailResponse {
 // partner-order-service M4 — 주문서 관리 (read-only)
 // ---------------------------------------------------------------------------
 
-/** PartnerOrderStatus — partner-order-service 가정. Phase 2.5: ON_HOLD 추가. */
+/** PartnerOrderStatus — partner-order-service 가정. Phase 2.5: ON_HOLD 추가. Phase 2.6a: CONVERTED 추가. */
 export type PartnerOrderStatus =
   | 'DRAFT'
   | 'ON_HOLD'
   | 'CONFIRMING'
   | 'CONFIRMED'
   | 'CANCELED'
+  | 'CONVERTED'
 
 /** PartnerOrderStatus → 한국어. 업무용어 통일: DRAFT=진행중, CONFIRMED=완료. */
 export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
@@ -336,6 +337,7 @@ export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
   CONFIRMING: '확인중',
   CONFIRMED: '완료',
   CANCELED: '취소',
+  CONVERTED: '전환완료',
 }
 
 /** 주문 목록 row. */
@@ -351,14 +353,21 @@ export interface PartnerOrderSummary {
   linkedSlipNo: string | null
 }
 
-/** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. */
+/** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. Phase 2.6a: lineId/convertedQuantity 추가. */
 export interface PartnerOrderLine {
+  /**
+   * 라인 UUID — BE PartnerOrderDetailResponse.LineResponse.lineId.
+   * 사용자 화면 미노출; 부분전환 요청의 orderLineId 로만 사용.
+   */
+  lineId: string
   modelCode: string
   productName: string
   categoryKey?: string
   quantity: number
   deliveryPrice: number
   subtotal: number
+  /** 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0. */
+  convertedQuantity: number
   bundleMode: 'EXPAND' | 'KEEP' | null
   /** Bundle EXPAND 시 펼친 component 라인 (read-only 표시). */
   expandedComponents: Array<{
@@ -366,6 +375,59 @@ export interface PartnerOrderLine {
     productName: string
     quantity: number
   }>
+}
+
+// ---------------------------------------------------------------------------
+// partner-order-service — 부분전환 (Phase 2.6a)
+// ---------------------------------------------------------------------------
+
+/** 부분전환 요청 라인 항목. */
+export interface ConvertToSlipItem {
+  /** 주문 라인 UUID (PartnerOrderLine.lineId). 사용자 화면 미노출. */
+  orderLineId: string
+  /** 이번 전환할 수량 (1 이상). */
+  quantity: number
+}
+
+/** POST /api/v1/partner-orders/{id}/convert-to-slip 요청 본문. */
+export interface ConvertToSlipRequest {
+  items: ConvertToSlipItem[]
+  /** 창고 코드 (nullable — slip-service 기본값 적용). */
+  warehouseCode?: string | null
+}
+
+/**
+ * 부분전환 결과 — BE ConvertResultResponse 와 1:1.
+ *
+ * @param slipNo 발행된 출고전표 번호 (사용자 노출).
+ * @param orderStatus 전환 후 주문 status 이름 (DRAFT 유지 또는 CONVERTED).
+ * @param fullyConverted 모든 라인이 전량 전환되었는지 여부.
+ */
+export interface ConvertResult {
+  slipNo: string
+  orderStatus: string
+  fullyConverted: boolean
+}
+
+/**
+ * 주문 부분전환 — 선택 라인/수량을 출고전표로 전환한다 (Phase 2.6a).
+ *
+ * <p>BE: {@code POST /api/v1/partner-orders/{id}/convert-to-slip}. 권한: sales.partner-order.convert CREATE.
+ * slipNo==null && 전환 가능 상태(DRAFT/ON_HOLD/CONFIRMED 이외 CANCELED·CONFIRMING 제외) 주문만 허용.
+ * 잔여 초과 수량 지정 시 BE 가 409 반환.
+ *
+ * @param orderNumber 주문번호 (URL-safe encode 적용) — UUID 비노출.
+ * @param request 전환 요청 (items: 수량>0 라인만, warehouseCode optional).
+ */
+export async function convertPartnerOrderToSlip(
+  orderNumber: string,
+  request: ConvertToSlipRequest,
+): Promise<ConvertResult> {
+  const res = await apiClient.post<ApiEnvelope<ConvertResult>>(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/convert-to-slip`,
+    request,
+  )
+  return res.data.data
 }
 
 /** 주문 상세. */
