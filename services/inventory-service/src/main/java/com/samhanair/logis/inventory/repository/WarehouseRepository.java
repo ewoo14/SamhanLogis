@@ -26,10 +26,10 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, UUID> {
      * is_deleted=false 활성 행만 반환 (entity {@code @SQLRestriction} 의존).
      */
     @Query("SELECT w FROM Warehouse w WHERE "
-            + "(:q IS NULL "
-            + " OR LOWER(w.code) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + " OR LOWER(w.name) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + " OR LOWER(COALESCE(w.address, '')) LIKE LOWER(CONCAT('%', :q, '%')) )")
+            + "(CAST(:q AS string) IS NULL "
+            + " OR LOWER(w.code) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + " OR LOWER(w.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + " OR LOWER(COALESCE(w.address, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) )")
     Page<Warehouse> searchAdmin(@Param("q") String q, Pageable pageable);
 
     /**

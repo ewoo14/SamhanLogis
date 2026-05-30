@@ -144,7 +144,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.daily-closing"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
-        mockMvc.perform(get("/api/v1/accounting/daily-closings")
+        mockMvc.perform(get("/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("from", LocalDate.now().minusDays(7).toString())
@@ -166,7 +166,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         body.put("closingDate", LocalDate.now().toString());
 
         // view-only override → 403 FORBIDDEN
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -182,7 +182,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.general-ledger"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("from", LocalDate.now().minusMonths(1).toString())
@@ -199,7 +199,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         when(dynamicPermissionClient.check(any(UUID.class), eq("accounting.general-ledger"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("from", LocalDate.now().minusMonths(1).toString())
@@ -245,7 +245,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", LocalDate.now().minusDays(1).toString());
 
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)

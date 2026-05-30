@@ -45,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>SALES role 은 일마감 endpoint 에 접근 불가 (매뉴얼 §4 권한표).
  */
 @RestController
-@RequestMapping("/api/v1/accounting/daily-closings")
+@RequestMapping("/accounting/daily-closings")
 @RequiredArgsConstructor
 public class DailyClosingController {
 

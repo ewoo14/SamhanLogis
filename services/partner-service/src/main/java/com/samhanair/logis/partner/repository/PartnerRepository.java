@@ -78,11 +78,11 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
      * status 필터도 null 시 미적용. UUID 비공개 가드 — 응답 변환은 controller 책임.
      */
     @Query("SELECT p FROM Partner p WHERE "
-            + "(:q IS NULL "
-            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + " OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', :q, '%')) ) "
+            + "(CAST(:q AS string) IS NULL "
+            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + " OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ) "
             + "AND (:status IS NULL OR p.status = :status)")
     Page<Partner> searchAdmin(@Param("q") String q,
                               @Param("status") PartnerStatus status,

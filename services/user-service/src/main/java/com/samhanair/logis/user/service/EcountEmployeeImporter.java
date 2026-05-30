@@ -139,7 +139,7 @@ public class EcountEmployeeImporter {
                       created_at, created_by, modified_at, modified_by, is_deleted
                     )
                     SELECT (SELECT id FROM new_employee), NULL,
-                           'ecount-' || :code, :name, '사원', 'MEMBER',
+                           'ecount-' || :code, :name, '사원', 'STAFF',
                            (SELECT id FROM dept_id), FALSE, DATE '2026-01-01',
                            CASE WHEN :active THEN NULL ELSE CURRENT_DATE END,
                            :email, :phone, :code, NOW(), :actor, NOW(), :actor, FALSE

@@ -76,7 +76,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
         createPostedJournal("100000");
 
         // 원장 조회 (2026-05-01 ~ 2026-05-31, 전체 거래처)
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -98,7 +98,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
         // (LedgerService.toLines 가 nameByCode.get(code) → null 일 때 null 으로 전달하는지)
         createPostedJournal("50000");
 
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -113,7 +113,7 @@ class LedgerControllerIT extends AbstractPostgresIT {
     void ledgerWithoutPartnerCodeRegression() throws Exception {
         createPostedJournal("75000");
 
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", UUID.randomUUID().toString())

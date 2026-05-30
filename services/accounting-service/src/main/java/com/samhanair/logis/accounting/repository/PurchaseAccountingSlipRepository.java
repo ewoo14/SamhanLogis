@@ -31,12 +31,13 @@ public interface PurchaseAccountingSlipRepository extends JpaRepository<Purchase
     List<PurchaseAccountingSlip> findByPartnerIdAndSlipDateBetween(UUID partnerId, LocalDate from, LocalDate to);
     List<PurchaseAccountingSlip> findByTaxInvoiceId(UUID taxInvoiceId);
 
+    // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
     @EntityGraph(attributePaths = {"lines", "lines.allocations"})
     @Query("""
             SELECT DISTINCT s FROM PurchaseAccountingSlip s
             WHERE s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (:partnerCode IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', :partnerCode, '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
               AND (:status IS NULL OR s.status = :status)
             ORDER BY s.slipDate DESC, s.slipNo DESC
             """)

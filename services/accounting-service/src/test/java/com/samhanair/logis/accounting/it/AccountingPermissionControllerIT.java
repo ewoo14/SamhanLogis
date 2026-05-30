@@ -235,11 +235,11 @@ class AccountingPermissionControllerIT {
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
                 endpoint("daily closing list", "accounting.daily-closing", PermissionAction.VIEW, "MANAGER",
-                        () -> get("/api/v1/accounting/daily-closings")
+                        () -> get("/accounting/daily-closings")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
                 endpoint("daily closing unlock", "accounting.daily-closing.unlock", PermissionAction.UPDATE, "MANAGER",
-                        () -> patch("/api/v1/accounting/daily-closings/{date}/lock", "2026-05-27")
+                        () -> patch("/accounting/daily-closings/{date}/lock", "2026-05-27")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"locked\":false}")),
                 endpoint("period close list", "accounting.period-close", PermissionAction.VIEW, "MANAGER",
@@ -251,7 +251,7 @@ class AccountingPermissionControllerIT {
                 endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/purchase-slips")),
                 endpoint("supplier profile list", "accounting.supplier-profiles", PermissionAction.VIEW, "ACCOUNTANT",
-                        () -> get("/api/v1/accounting/supplier-profiles")),
+                        () -> get("/accounting/supplier-profiles")),
                 endpoint("edit request dashboard", "accounting.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
                         () -> get("/accounting/edit-requests").param("targetRole", "MANAGER")),
                 endpoint("ecount account import", "ecount.mig2.account", PermissionAction.CREATE, "MANAGER",

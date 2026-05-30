@@ -31,12 +31,13 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
     List<SalesAccountingSlip> findByPartnerIdAndSlipDateBetween(UUID partnerId, LocalDate from, LocalDate to);
     List<SalesAccountingSlip> findByTaxInvoiceId(UUID taxInvoiceId);
 
+    // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
     @EntityGraph(attributePaths = {"lines", "lines.allocations"})
     @Query("""
             SELECT DISTINCT s FROM SalesAccountingSlip s
             WHERE s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (:partnerCode IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', :partnerCode, '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
               AND (:status IS NULL OR s.status = :status)
             ORDER BY s.slipDate DESC, s.slipNo DESC
             """)
@@ -45,6 +46,7 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
                                             @Param("partnerCode") String partnerCode,
                                             @Param("status") SalesSlipStatus status);
 
+    // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
     @EntityGraph(attributePaths = {"lines", "lines.allocations"})
     @Query("""
             SELECT DISTINCT s FROM SalesAccountingSlip s
@@ -52,7 +54,7 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
               AND s.taxInvoiceId IS NULL
               AND s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (:partnerCode IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', :partnerCode, '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
             ORDER BY s.partnerCode ASC, s.slipDate ASC, s.slipNo ASC
             """)
     List<SalesAccountingSlip> findPostedUnlinkedForBatchCandidates(

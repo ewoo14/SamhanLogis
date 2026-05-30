@@ -49,13 +49,14 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      * 단일 native 쿼리로 합쳐 처리. {@code :tagFilter} 는 jsonb 형태의 문자열
      * (예: '{"hp":"1.5"}') 또는 NULL.
      */
+    // [RC4] null→bytea 방지: CAST(:q AS text) (nativeQuery 이므로 PostgreSQL text 캐스트)
     @Query(value = """
             SELECT * FROM products p
             WHERE p.is_deleted = false
               AND (:categoryId IS NULL OR p.category_id = :categoryId)
               AND (:status      IS NULL OR p.status     = :status)
-              AND (:q           IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
-                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
+                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
             """,
            countQuery = """
@@ -63,8 +64,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             WHERE p.is_deleted = false
               AND (:categoryId IS NULL OR p.category_id = :categoryId)
               AND (:status      IS NULL OR p.status     = :status)
-              AND (:q           IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
-                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
+                                        OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
             """,
            nativeQuery = true)

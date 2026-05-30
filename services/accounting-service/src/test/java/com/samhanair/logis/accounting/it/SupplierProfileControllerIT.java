@@ -62,7 +62,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SupplierProfileControllerIT extends AbstractPostgresIT {
 
-    private static final String BASE_URL = "/api/v1/accounting/supplier-profiles";
+    private static final String BASE_URL = "/accounting/supplier-profiles";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;

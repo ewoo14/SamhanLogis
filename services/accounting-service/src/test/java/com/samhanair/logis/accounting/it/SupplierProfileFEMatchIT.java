@@ -139,7 +139,7 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
     @Transactional
     void spFe1_primarySchema() throws Exception {
         MvcResult result = mockMvc.perform(
-                        get("/api/v1/accounting/supplier-profiles/primary")
+                        get("/accounting/supplier-profiles/primary")
                                 .header("X-User-Id", testUserId)
                                 .header("X-User-Role", "MASTER")
                                 .contentType(MediaType.APPLICATION_JSON))
@@ -206,7 +206,7 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
     void spFe2_updateAndRefetch() throws Exception {
         // Step 1: GET primary → id + version 확보
         MvcResult getResult = mockMvc.perform(
-                        get("/api/v1/accounting/supplier-profiles/primary")
+                        get("/accounting/supplier-profiles/primary")
                                 .header("X-User-Id", testUserId)
                                 .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
@@ -244,7 +244,7 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
         updatePayload.put("email", getData.path("email").asText(""));
 
         MvcResult putResult = mockMvc.perform(
-                        put("/api/v1/accounting/supplier-profiles/" + profileId)
+                        put("/accounting/supplier-profiles/" + profileId)
                                 .header("X-User-Id", testUserId)
                                 .header("X-User-Role", "MASTER")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -263,7 +263,7 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
 
         // Step 3: GET primary 재조회 → 신규 주소 반영 확인
         MvcResult refetchResult = mockMvc.perform(
-                        get("/api/v1/accounting/supplier-profiles/primary")
+                        get("/accounting/supplier-profiles/primary")
                                 .header("X-User-Id", testUserId)
                                 .header("X-User-Role", "MASTER"))
                 .andExpect(status().isOk())
@@ -299,7 +299,7 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
     void spFe3_batchPreviewUsesPrimarySupplier() throws Exception {
         // Step 1: GET primary supplier 정보 확보
         MvcResult primaryResult = mockMvc.perform(
-                        get("/api/v1/accounting/supplier-profiles/primary")
+                        get("/accounting/supplier-profiles/primary")
                                 .header("X-User-Id", testUserId)
                                 .header("X-User-Role", "ACCOUNTANT"))
                 .andReturn();

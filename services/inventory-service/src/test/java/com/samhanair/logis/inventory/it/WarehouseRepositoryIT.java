@@ -13,6 +13,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,5 +104,25 @@ class WarehouseRepositoryIT extends AbstractPostgresIT {
 
         assertThat(reborn.getId()).isNotNull();
         assertThat(reborn.getId()).isNotEqualTo(original.getId());
+    }
+
+    @Test
+    void searchAdmin_nullKeyword_returnsAll_noLowerByteaError() {
+        // RC4 회귀 — q=null 시 PostgreSQL 이 파라미터를 bytea 로 바인딩 → "function lower(bytea)
+        // does not exist" 500 이 나던 결함. CAST(:q AS string) 로 타입 고정 후 전체 목록 반환돼야 한다.
+        Page<Warehouse> all = warehouseRepository.searchAdmin(null, PageRequest.of(0, 50));
+
+        assertThat(all.getContent()).extracting(Warehouse::getCode)
+                .contains("HQ-001", "VH-001", "CS-001", "VR-001");
+        assertThat(all.getTotalElements()).isGreaterThanOrEqualTo(4);
+    }
+
+    @Test
+    void searchAdmin_withKeyword_filtersByCodeOrName() {
+        // 키워드 지정 시 code/name/address LIKE 부분 일치 (대소문자 무시) 가 동작해야 한다.
+        Page<Warehouse> hq = warehouseRepository.searchAdmin("hq-001", PageRequest.of(0, 50));
+
+        assertThat(hq.getContent()).extracting(Warehouse::getCode).contains("HQ-001");
+        assertThat(hq.getContent()).extracting(Warehouse::getCode).doesNotContain("VR-001");
     }
 }

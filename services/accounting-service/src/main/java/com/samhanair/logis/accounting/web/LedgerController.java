@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>데이터 소스: {@code journal_lines} (POSTED 분개) — 별도 테이블 없음.
  */
 @RestController
-@RequestMapping("/api/v1/accounting/ledgers")
+@RequestMapping("/accounting/ledgers")
 @RequiredArgsConstructor
 public class LedgerController {
 

@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "현금흐름표", description = "현금흐름표 (영업/투자/재무 활동)")
 @RestController
-@RequestMapping("/api/v1/accounting/reports")
+@RequestMapping("/accounting/reports")
 @RequiredArgsConstructor
 public class CashFlowStatementController {
 

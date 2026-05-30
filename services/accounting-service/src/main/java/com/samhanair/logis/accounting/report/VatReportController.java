@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "세금 보고서", description = "부가세신고서 / 법인세신고서 / 거래처 미수미지급")
 @RestController
-@RequestMapping("/api/v1/accounting/reports")
+@RequestMapping("/accounting/reports")
 @RequiredArgsConstructor
 public class VatReportController {
 

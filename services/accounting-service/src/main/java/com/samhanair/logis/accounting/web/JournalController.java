@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +64,11 @@ public class JournalController {
     /** SP-D2 — 분개장 전용 페이지 코드 (accounting.journals). */
     private static final String JOURNAL_PAGE_CODE = "accounting.journals";
 
+    /** 기간 미지정(개방 구간) 조회 시 하한 일자. */
+    private static final LocalDate OPEN_RANGE_MIN = LocalDate.of(1900, 1, 1);
+    /** 기간 미지정(개방 구간) 조회 시 상한 일자. */
+    private static final LocalDate OPEN_RANGE_MAX = LocalDate.of(9999, 12, 31);
+
     private static final String CALLER_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
 
@@ -88,23 +94,66 @@ public class JournalController {
     }
 
     /**
-     * 페이지 조회 — from/to 일자 범위 + status 필터.
+     * 페이지 조회 — 기간 + status 필터.
      *
-     * @param from 시작 일자 (필수)
-     * @param to 종료 일자 (필수, inclusive)
+     * <p>FE(`listJournals`) 계약 우선: {@code period}(YYYYMM) / {@code status} /
+     * {@code page} / {@code size} 만으로도 진입 시 500 이 나지 않도록 한다.
+     * 기간은 다음 우선순위로 해석한다.
+     * <ol>
+     *   <li>{@code from}/{@code to} 가 명시되면 그대로 사용</li>
+     *   <li>{@code period}(YYYYMM) 가 명시되면 해당 월 1일~말일로 환산</li>
+     *   <li>아무것도 없으면 전체 범위(개방 구간)로 조회</li>
+     * </ol>
+     *
+     * @param period 회계 월 (YYYYMM, 선택) — FE 기본 필터
+     * @param from 시작 일자 (선택)
+     * @param to 종료 일자 (선택, inclusive)
      * @param status 상태 필터 (null 이면 전체)
      */
-    @Operation(summary = "분개 페이지 조회", description = "from/to 일자 범위 + status 필터 페이지")
+    @Operation(summary = "분개 페이지 조회",
+            description = "period(YYYYMM) 또는 from/to 일자 범위 + status 필터 페이지. "
+                    + "기간 미지정 시 전체 조회.")
     @GetMapping
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<JournalResponse>> list(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) JournalStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        LocalDate resolvedFrom = from;
+        LocalDate resolvedTo = to;
+        if (resolvedFrom == null && resolvedTo == null && period != null && !period.isBlank()) {
+            YearMonth ym = parsePeriod(period);
+            resolvedFrom = ym.atDay(1);
+            resolvedTo = ym.atEndOfMonth();
+        }
+        if (resolvedFrom == null) {
+            resolvedFrom = OPEN_RANGE_MIN;
+        }
+        if (resolvedTo == null) {
+            resolvedTo = OPEN_RANGE_MAX;
+        }
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(journalService.list(from, to, status, pageable));
+        return ApiResponse.ok(journalService.list(resolvedFrom, resolvedTo, status, pageable));
+    }
+
+    /** YYYYMM(또는 YYYY-MM) 문자열을 {@link YearMonth} 로 파싱. 형식 오류 시 400. */
+    private static YearMonth parsePeriod(String period) {
+        String normalized = period.trim().replace("-", "");
+        if (normalized.length() != 6) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "period 는 YYYYMM 형식이어야 합니다: " + period);
+        }
+        try {
+            int year = Integer.parseInt(normalized.substring(0, 4));
+            int month = Integer.parseInt(normalized.substring(4, 6));
+            return YearMonth.of(year, month);
+        } catch (NumberFormatException | java.time.DateTimeException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "period 는 YYYYMM 형식이어야 합니다: " + period);
+        }
     }
 
     /** 단건 조회 (라인 포함). */

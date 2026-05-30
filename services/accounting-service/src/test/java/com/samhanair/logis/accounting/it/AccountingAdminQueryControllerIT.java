@@ -82,7 +82,7 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MIG-14 Cash 조회는 partnerName 필터를 서비스로 전달한다")
     void cashListPassesPartnerNameFilterToService() throws Exception {
-        mockMvc.perform(withActor(get("/api/v1/accounting/cash-disbursements")
+        mockMvc.perform(withActor(get("/accounting/cash-disbursements")
                         .param("partnerName", "삼한상사"), "MANAGER"))
                 .andExpect(status().isOk());
 
@@ -99,7 +99,7 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
                         eq("ecount.mig14.cash-list"), eq(PermissionAction.VIEW)))
                 .thenReturn(true);
 
-        mockMvc.perform(withActor(get("/api/v1/accounting/cash-disbursements"), "ACCOUNTANT"))
+        mockMvc.perform(withActor(get("/accounting/cash-disbursements"), "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
@@ -107,7 +107,7 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MIG-16 AgingSnapshot 조회 size는 최대 500으로 clamp 한다")
     void agingSnapshotPageSizeIsClampedToFiveHundred() throws Exception {
-        mockMvc.perform(withActor(get("/api/v1/accounting/aging-snapshot")
+        mockMvc.perform(withActor(get("/accounting/aging-snapshot")
                         .param("page", "1")
                         .param("size", "700"), "MANAGER"))
                 .andExpect(status().isOk());
@@ -136,13 +136,13 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
 
     private static Stream<Arguments> mig14ViewEndpoints() {
         return Stream.of(
-                Arguments.of("/api/v1/accounting/cash-disbursements", "ecount.mig14.cash-list"),
-                Arguments.of("/api/v1/accounting/cash-receipts", "ecount.mig14.cash-list"),
-                Arguments.of("/api/v1/accounting/orders", "ecount.mig14.order-list"),
-                Arguments.of("/api/v1/accounting/orders/ORD-001", "ecount.mig14.order-list"),
-                Arguments.of("/api/v1/accounting/aging-snapshot", "ecount.mig14.aging-snapshot"),
-                Arguments.of("/api/v1/accounting/ledger/sales", "ecount.mig14.ledger"),
-                Arguments.of("/api/v1/accounting/ledger/purchase", "ecount.mig14.ledger")
+                Arguments.of("/accounting/cash-disbursements", "ecount.mig14.cash-list"),
+                Arguments.of("/accounting/cash-receipts", "ecount.mig14.cash-list"),
+                Arguments.of("/accounting/orders", "ecount.mig14.order-list"),
+                Arguments.of("/accounting/orders/ORD-001", "ecount.mig14.order-list"),
+                Arguments.of("/accounting/aging-snapshot", "ecount.mig14.aging-snapshot"),
+                Arguments.of("/accounting/ledger/sales", "ecount.mig14.ledger"),
+                Arguments.of("/accounting/ledger/purchase", "ecount.mig14.ledger")
         );
     }
 

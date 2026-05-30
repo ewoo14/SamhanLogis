@@ -79,12 +79,13 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
                                            @Param("partnerId") UUID partnerId,
                                            Pageable pageable);
 
+    // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
     @Query("""
             SELECT t FROM TaxInvoice t
             WHERE t.direction = com.samhanair.logis.accounting.domain.TaxInvoiceDirection.INBOUND
               AND t.supplyDate >= :from
               AND t.supplyDate <= :to
-              AND (:partnerCode IS NULL OR LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', :partnerCode, '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
             ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
             """)
     List<TaxInvoice> findInboundByFilters(@Param("from") LocalDate from,

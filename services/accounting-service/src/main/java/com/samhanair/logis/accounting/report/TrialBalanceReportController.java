@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "재무 보고서", description = "손익계산서 / 재무상태표 / 시산표")
 @RestController
-@RequestMapping("/api/v1/accounting/reports")
+@RequestMapping("/accounting/reports")
 @RequiredArgsConstructor
 public class TrialBalanceReportController {
 

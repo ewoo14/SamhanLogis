@@ -20,9 +20,9 @@ public interface DcConfigRepository extends JpaRepository<DcConfig, UUID> {
     @EntityGraph(attributePaths = "partner")
     @Query("""
             SELECT dc FROM DcConfig dc
-              WHERE (:keyword IS NULL
-                     OR LOWER(dc.partner.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                     OR LOWER(dc.partner.partnerCode) LIKE LOWER(CONCAT('%', :keyword, '%')))
+              WHERE (CAST(:keyword AS string) IS NULL
+                     OR LOWER(dc.partner.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                     OR LOWER(dc.partner.partnerCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
             """)
     Page<DcConfig> search(String keyword, Pageable pageable);
 }

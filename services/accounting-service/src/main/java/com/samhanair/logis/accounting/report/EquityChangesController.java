@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "자본변동표", description = "자본변동표 (자본금 / 이익잉여금 변동 내역)")
 @RestController
-@RequestMapping("/api/v1/accounting/reports")
+@RequestMapping("/accounting/reports")
 @RequiredArgsConstructor
 public class EquityChangesController {
 

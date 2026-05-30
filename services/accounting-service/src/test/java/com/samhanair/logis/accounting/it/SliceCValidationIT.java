@@ -38,12 +38,12 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>검증 목적:
  * <ul>
- *   <li>GET /api/v1/accounting/reports/cash-flow?period=202701 — V10 seed 5건 반영 확인</li>
- *   <li>GET /api/v1/accounting/reports/equity-changes?fromDate=2027-01-01&amp;toDate=2027-01-31
+ *   <li>GET /accounting/reports/cash-flow?period=202701 — V10 seed 5건 반영 확인</li>
+ *   <li>GET /accounting/reports/equity-changes?fromDate=2027-01-01&amp;toDate=2027-01-31
  *       — SEED-EQ-001(유상증자) / SEED-EQ-002(배당) 검증</li>
- *   <li>GET /api/v1/accounting/reports/daily-summary?date=2026-01-15
+ *   <li>GET /accounting/reports/daily-summary?date=2026-01-15
  *       — V6 SEED-RPT-001 / SEED-RPT-003 2건 적재 일계표 확인</li>
- *   <li>GET /api/v1/accounting/reports/monthly-summary?period=202601
+ *   <li>GET /accounting/reports/monthly-summary?period=202601
  *       — 2026-01 월계표 journalCount &ge; 2 확인 (V6 seed 활용)</li>
  * </ul>
  *
@@ -98,7 +98,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("현금흐름표 — 202701 조회 200 OK + period/cashReconciled 필드 검증")
     void cashFlowReportReturns200ForPeriod202701() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
+        mockMvc.perform(get("/accounting/reports/cash-flow")
                         .param("period", "202701")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -118,7 +118,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("현금흐름표 — CFI 투자활동 (차량운반구 취득) 항목 존재 확인")
     void cashFlowInvestingActivitiesNotEmpty() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/cash-flow")
+        mockMvc.perform(get("/accounting/reports/cash-flow")
                         .param("period", "202701")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -143,7 +143,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("자본변동표 — 2027-01 조회 200 OK + flat 구조 필드 검증")
     void equityChangesReportReturns200ForJan2027() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
+        mockMvc.perform(get("/accounting/reports/equity-changes")
                         .param("fromDate", "2027-01-01")
                         .param("toDate", "2027-01-31")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
@@ -172,7 +172,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("자본변동표 — 유상증자(capitalStockIncrease > 0) + 배당(dividends < 0) 반영 확인")
     void equityChangesHasCapitalIncreaseAndDividend() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/equity-changes")
+        mockMvc.perform(get("/accounting/reports/equity-changes")
                         .param("fromDate", "2027-01-01")
                         .param("toDate", "2027-01-31")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
@@ -201,7 +201,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("일계표 — 2026-01-15 조회 200 OK + date/balanced/accountSummary 필드 검증")
     void dailySummaryReturns200ForJan15() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/daily-summary")
+        mockMvc.perform(get("/accounting/reports/daily-summary")
                         .param("date", "2026-01-15")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -229,7 +229,7 @@ class SliceCValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("월계표 — 202601 조회 200 OK + journalCount >= 2 + balanced + accountSummary 확인")
     void monthlySummaryReturns200ForJan2026() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/monthly-summary")
+        mockMvc.perform(get("/accounting/reports/monthly-summary")
                         .param("period", "202601")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))

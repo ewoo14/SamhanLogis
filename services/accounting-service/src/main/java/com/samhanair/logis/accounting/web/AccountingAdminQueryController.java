@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** MIG-14 admin UI 4 화면용 회계 읽기 endpoint. */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/accounting")
+@RequestMapping("/accounting")
 @RequiredArgsConstructor
 
 public class AccountingAdminQueryController {

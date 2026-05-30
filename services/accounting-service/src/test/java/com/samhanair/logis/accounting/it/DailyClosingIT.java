@@ -136,7 +136,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-10");
 
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         body.put("closingDate", "2026-05-11");
 
         // 첫 번째 마감
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,7 +164,7 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         // 동일 날짜 재시도 → 409
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -184,7 +184,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-12");
 
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", SALES_ID)
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -200,7 +200,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // 마감 1건 생성
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-13");
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -208,7 +208,7 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         // 기간 조회
-        mockMvc.perform(get("/api/v1/accounting/daily-closings")
+        mockMvc.perform(get("/accounting/daily-closings")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -227,7 +227,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         body.put("closingDate", "2026-05-14");
         body.put("partnerCode", PARTNER_CODE);
 
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -246,7 +246,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         body.put("closingDate", "2026-05-15");
         body.put("partnerCode", "NOTEXIST");
 
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -259,7 +259,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("원장 조회 전체 거래처 — 200")
     void testGetLedgersAllPartners() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -275,7 +275,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     @Test
     @DisplayName("원장 조회 거래처 필터 — 200 (partner-service stub)")
     void testGetLedgersWithPartnerFilter() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/ledgers")
+        mockMvc.perform(get("/accounting/ledgers")
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .param("partnerCode", PARTNER_CODE)
@@ -294,7 +294,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // (a) 마감 생성
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-20");
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -309,7 +309,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         dailyClosingRepository.saveAndFlush(dc);
 
         // (c) 동일 날짜 재마감 — @SQLRestriction 으로 삭제된 row 비표시 → 신규 생성 성공
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -326,7 +326,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // (a) 마감 생성 (잠금됨)
         Map<String, Object> closeBody = new HashMap<>();
         closeBody.put("closingDate", "2026-05-21");
-        mockMvc.perform(post("/api/v1/accounting/daily-closings")
+        mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -336,7 +336,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // (b) MASTER 역마감
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
-        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-21/lock")
+        mockMvc.perform(patch("/accounting/daily-closings/2026-05-21/lock")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -356,7 +356,7 @@ class DailyClosingIT extends AbstractPostgresIT {
 
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
-        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-22/lock")
+        mockMvc.perform(patch("/accounting/daily-closings/2026-05-22/lock")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -375,7 +375,7 @@ class DailyClosingIT extends AbstractPostgresIT {
 
         Map<String, Object> unlockBody = new HashMap<>();
         unlockBody.put("locked", false);
-        mockMvc.perform(patch("/api/v1/accounting/daily-closings/2026-05-23/lock")
+        mockMvc.perform(patch("/accounting/daily-closings/2026-05-23/lock")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000103")
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)

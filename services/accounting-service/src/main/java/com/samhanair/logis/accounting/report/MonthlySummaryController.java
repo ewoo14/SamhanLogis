@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "일계표 / 월계표", description = "일계표 / 월계표 (P0-1 Slice C)")
 @RestController
-@RequestMapping("/api/v1/accounting/reports")
+@RequestMapping("/accounting/reports")
 @RequiredArgsConstructor
 public class MonthlySummaryController {
 

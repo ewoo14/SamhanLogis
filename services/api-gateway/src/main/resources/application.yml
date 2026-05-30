@@ -166,12 +166,30 @@ spring:
           predicates:
             - Path=/auth/**
 
+        # [RC3] UserMeController 는 풀패스 @RequestMapping("/api/v1/users/me") → strip=2 면 불일치.
+        # generic user-service-v1(/api/v1/users/**, strip=2)보다 먼저 no-strip 으로 선언.
+        - id: user-me-v1
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/users/me,/api/v1/users/me/**
+          filters:
+            - JwtAuthentication
+
         - id: user-service-v1
           uri: lb://user-service
           predicates:
             - Path=/api/v1/users/**
           filters:
             - StripPrefix=2
+            - JwtAuthentication
+
+        # [RC3] user-service AdminUserController 는 풀패스 @RequestMapping("/api/v1/admin/users")
+        # 라 generic /api/v1/users/** (strip=2) 로는 도달 불가. no-strip 으로 그대로 전달.
+        - id: user-admin-v1
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/admin/users,/api/v1/admin/users/**
+          filters:
             - JwtAuthentication
 
         # partner-service — 발송금지리스트는 Notion 원본 CSV 를 partner DB 로 이관한 뒤
@@ -368,6 +386,14 @@ spring:
           uri: lb://accounting-service
           predicates:
             - Path=/accounting/**
+          filters:
+            - JwtAuthentication
+
+        # [RC2] 회계 admin(현금출납 snapshot refresh 등) BE 컨트롤러는 /admin/accounting 풀패스 보유.
+        - id: accounting-admin-noprefix
+          uri: lb://accounting-service
+          predicates:
+            - Path=/admin/accounting/**
           filters:
             - JwtAuthentication
 

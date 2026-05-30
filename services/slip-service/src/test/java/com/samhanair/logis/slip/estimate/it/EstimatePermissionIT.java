@@ -45,6 +45,8 @@ import java.util.UUID;
  *   <li>C2: SALES, estimates.list canView=false → 403 FORBIDDEN</li>
  *   <li>C3: MASTER, estimates.list canEdit=true → POST /slips/estimates 통과 (checkEdit)</li>
  *   <li>C4: SALES, canEdit=false + canView=true → POST 403 (view-only override)</li>
+ *   <li>C5 (RC5): MASTER, check=false (override row 미존재) → GET /slips/estimates 200 (MASTER bypass)</li>
+ *   <li>C6 (RC5): MASTER, check=false (override row 미존재) → POST /slips/estimates !403 (MASTER bypass)</li>
  * </ol>
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
@@ -184,5 +186,62 @@ class EstimatePermissionIT extends AbstractPostgresIT {
                                 + "\"unitPrice\":1000.00"
                                 + "}]}"))
                 .andExpect(status().isForbidden());
+    }
+
+    // -------------------------------------------------------------------------
+    // C5 (RC5): MASTER + check=false (override row 미존재) → GET /slips/estimates 200
+    // -------------------------------------------------------------------------
+
+    /**
+     * RC5 회귀 — MASTER 는 estimates.list override row 가 없어도 (check=false) 견적 목록을 조회한다.
+     *
+     * <p>이전 결함: GET 조회 endpoint 가 {@code @RequirePermission} 없이 programmatic guard 만 호출했고,
+     * guard 가 MASTER 우회 없이 {@code dynamicPermissionClient.check()} 결과(=false)로 403 을 던졌다.
+     */
+    @Test
+    @DisplayName("C5(RC5): MASTER check=false → 견적 목록 200 (MASTER bypass)")
+    @WithMockUser(username = "master-no-override", authorities = {"ROLE_MASTER"})
+    void C5_master_check_false_list_returns_200() throws Exception {
+        Mockito.doReturn(false)
+                .when(dynamicPermissionClient)
+                .check(eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), org.mockito.ArgumentMatchers.any(PermissionAction.class));
+
+        mockMvc.perform(get("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk());
+    }
+
+    // -------------------------------------------------------------------------
+    // C6 (RC5): MASTER + check=false (override row 미존재) → POST !403
+    // -------------------------------------------------------------------------
+
+    /**
+     * RC5 회귀 — MASTER 는 estimates.list override row 가 없어도 (check=false) 견적 write 가 403 이 아니다.
+     *
+     * <p>이전 결함: write endpoint 는 aspect 의 MASTER bypass 통과 후에도 controller 본문의
+     * {@code estimatePermissionGuard.checkEdit()} 가 {@code check()=false} 로 403 을 던졌다.
+     * 서비스 로직 오류로 400 이 날 수 있으므로 403 이 아님만 확인한다.
+     */
+    @Test
+    @DisplayName("C6(RC5): MASTER check=false → 견적 생성 !403 (MASTER bypass)")
+    @WithMockUser(username = "master-no-override", authorities = {"ROLE_MASTER"})
+    void C6_master_check_false_create_not_403() throws Exception {
+        Mockito.doReturn(false)
+                .when(dynamicPermissionClient)
+                .check(eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), org.mockito.ArgumentMatchers.any(PermissionAction.class));
+
+        mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"partnerId\":\"00000000-0000-0000-0000-000000000001\","
+                                + "\"validUntil\":\"2026-12-31\","
+                                + "\"lines\":[{"
+                                + "\"productId\":\"00000000-0000-0000-0000-000000000002\","
+                                + "\"quantity\":1,"
+                                + "\"unitPrice\":1000.00"
+                                + "}]}"))
+                .andExpect(status().is(org.hamcrest.Matchers.not(403)));
     }
 }

@@ -65,10 +65,12 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
      *   <li>{@code null} — 필터 미적용 (전체)</li>
      * </ul>
      */
+    // [RC4] :q 가 null 일 때 PostgreSQL 이 파라미터를 bytea 로 추론해 lower(bytea) 500 → CAST(:q AS string)
+    // 으로 text 바인딩 강제. CAST(null AS string) IS NULL → true 로 null 분기(전체 조회) 동작.
     @Query("SELECT e FROM Employee e JOIN FETCH e.department d "
-            + "WHERE (:q IS NULL OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + "       OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + "       OR LOWER(COALESCE(e.email, '')) LIKE LOWER(CONCAT('%', :q, '%'))) "
+            + "WHERE (CAST(:q AS string) IS NULL OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + "       OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
+            + "       OR LOWER(COALESCE(e.email, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))) "
             + "AND (:role IS NULL OR e.roleSnapshot = :role) "
             + "AND (:departmentId IS NULL OR d.id = :departmentId) "
             + "AND (:status IS NULL "

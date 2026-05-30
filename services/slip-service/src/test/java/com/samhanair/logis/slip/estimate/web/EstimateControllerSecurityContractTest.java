@@ -23,10 +23,12 @@ class EstimateControllerSecurityContractTest {
                 LocalDate.class,
                 int.class,
                 int.class,
+                String.class,
                 String.class));
         assertReadMethodContract(EstimateController.class.getMethod(
                 "getOne",
                 UUID.class,
+                String.class,
                 String.class));
     }
 

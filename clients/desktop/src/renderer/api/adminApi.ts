@@ -1,15 +1,16 @@
 /**
  * 관리자 통합 admin API 클라이언트 — Phase 10 P0-5 슬라이스 4.
  *
- * BE endpoint (commit e9ad461):
- * - user-service
- *   - GET    /admin/users               — q/role/dept 필터 + 페이지네이션
- *   - GET    /admin/users/roles         — 전체 ROLE 목록
- *   - PATCH  /admin/users/{id}/disable  — 사용자 비활성화 (MASTER 만)
- *   - PATCH  /admin/users/{id}/enable   — 사용자 재활성화 (MASTER 만)
- *   - PATCH  /admin/users/{id}/role     — 역할 변경 + 이력 적재 (MASTER 만)
- *   - GET    /admin/users/{id}/role-history — 역할 변경 이력 조회
- *   - GET    /users/departments         — 부서 목록 (read-only, 인증된 모든 역할)
+ * BE endpoint (commit e9ad461 / RC3 prefix 정합):
+ * - user-service (AdminUserController @RequestMapping("/api/v1/admin/users"))
+ *   - GET    /api/v1/admin/users               — q/role/dept 필터 + 페이지네이션
+ *   - GET    /api/v1/admin/users/roles         — 전체 ROLE 목록
+ *   - POST   /api/v1/admin/users/{id}/disable  — 사용자 비활성화 (MASTER 만)
+ *   - POST   /api/v1/admin/users/{id}/unlock   — 잠금 해제 (MASTER 만)
+ *   - PATCH  /api/v1/admin/users/{id}          — 사용자 정보 수정 (MASTER 만)
+ *   - PATCH  /api/v1/admin/users/{id}/role     — 역할 변경 + 이력 적재 (MASTER 만)
+ *   - GET    /api/v1/admin/users/{id}/role-history — 역할 변경 이력 조회
+ *   - GET    /api/v1/users/departments         — 부서 목록 (read-only, 인증된 모든 역할)
  * - partner-service
  *   - GET    /admin/partners/search     — q + status 필터 + 페이지네이션
  *   - POST   /admin/partners            — 신규 등록
@@ -152,7 +153,7 @@ export interface UpdateAdminUserRequest {
 }
 
 /**
- * 사용자 목록 조회 — `/admin/users`.
+ * 사용자 목록 조회 — `/api/v1/admin/users`.
  *
  * @return AdminPage<AdminUser>
  */
@@ -169,26 +170,26 @@ export async function listAdminUsers(
   if (options.departmentId) params['departmentId'] = options.departmentId
 
   const res = await apiClient.get<ApiEnvelope<AdminPage<AdminUser>>>(
-    '/admin/users',
+    '/api/v1/admin/users',
     { params },
   )
   return res.data.data
 }
 
 /**
- * 전체 ROLE 목록 — `/admin/users/roles`.
+ * 전체 ROLE 목록 — `/api/v1/admin/users/roles`.
  *
  * @return AdminRole[]
  */
 export async function listAdminRoles(): Promise<AdminRole[]> {
   const res = await apiClient.get<ApiEnvelope<AdminRole[]>>(
-    '/admin/users/roles',
+    '/api/v1/admin/users/roles',
   )
   return res.data.data
 }
 
 /**
- * 신규 사용자 등록 — `POST /admin/users`. MASTER 만 호출 가능.
+ * 신규 사용자 등록 — `POST /api/v1/admin/users`. MASTER 만 호출 가능.
  *
  * @return CreateAdminUserResponse (user + temporaryPassword)
  */
@@ -196,14 +197,14 @@ export async function createAdminUser(
   body: CreateAdminUserRequest,
 ): Promise<CreateAdminUserResponse> {
   const res = await apiClient.post<ApiEnvelope<CreateAdminUserResponse>>(
-    '/admin/users',
+    '/api/v1/admin/users',
     body,
   )
   return res.data.data
 }
 
 /**
- * 사용자 정보 수정 — `PATCH /admin/users/{id}`. MASTER 만 호출 가능.
+ * 사용자 정보 수정 — `PATCH /api/v1/admin/users/{id}`. MASTER 만 호출 가능.
  *
  * @return AdminUser (updated)
  */
@@ -212,14 +213,14 @@ export async function updateAdminUser(
   body: UpdateAdminUserRequest,
 ): Promise<AdminUser> {
   const res = await apiClient.patch<ApiEnvelope<AdminUser>>(
-    `/admin/users/${id}`,
+    `/api/v1/admin/users/${id}`,
     body,
   )
   return res.data.data
 }
 
 /**
- * 사용자 탈퇴(영구 퇴사 처리) — `POST /admin/users/{id}/disable`. MASTER 만 호출 가능.
+ * 사용자 탈퇴(영구 퇴사 처리) — `POST /api/v1/admin/users/{id}/disable`. MASTER 만 호출 가능.
  *
  * <p>BE 응답: HTTP 204 No Content (body 없음). 사유는 본 슬라이스에서 미적재 —
  * UX 검증 (사용자 사유 입력 UX) 만 frontend 측에서 강제. 추후 audit 로그 슬라이스에서
@@ -228,18 +229,18 @@ export async function updateAdminUser(
  * @return Promise<void>
  */
 export async function disableAdminUser(id: string): Promise<void> {
-  await apiClient.post<void>(`/admin/users/${id}/disable`)
+  await apiClient.post<void>(`/api/v1/admin/users/${id}/disable`)
 }
 
 /**
- * 사용자 잠금 해제 — `POST /admin/users/{id}/unlock`. MASTER 만 호출 가능.
+ * 사용자 잠금 해제 — `POST /api/v1/admin/users/{id}/unlock`. MASTER 만 호출 가능.
  *
  * <p>BE 응답: HTTP 204 No Content (body 없음). 호출 후 query invalidate 로 목록 재조회.
  *
  * @return Promise<void>
  */
 export async function unlockAdminUser(id: string): Promise<void> {
-  await apiClient.post<void>(`/admin/users/${id}/unlock`)
+  await apiClient.post<void>(`/api/v1/admin/users/${id}/unlock`)
 }
 
 /** 역할 변경 요청 body — BE `UpdateRoleRequest` 와 1:1. */
@@ -254,7 +255,7 @@ export async function updateAdminUserRole(
   body: UpdateAdminUserRoleRequest,
 ): Promise<AdminUser> {
   const res = await apiClient.patch<ApiEnvelope<AdminUser>>(
-    `/admin/users/${id}/role`,
+    `/api/v1/admin/users/${id}/role`,
     body,
   )
   return res.data.data
@@ -275,7 +276,7 @@ export async function listRoleHistory(
   id: string,
 ): Promise<RoleHistoryEntry[]> {
   const res = await apiClient.get<ApiEnvelope<RoleHistoryEntry[]>>(
-    `/admin/users/${id}/role-history`,
+    `/api/v1/admin/users/${id}/role-history`,
   )
   return res.data.data
 }
@@ -292,10 +293,10 @@ export interface Department {
   displayOrder: number
 }
 
-/** 부서 목록 조회 — `/users/departments` (read-only). */
+/** 부서 목록 조회 — `/api/v1/users/departments` (read-only). */
 export async function listDepartments(): Promise<Department[]> {
   const res = await apiClient.get<ApiEnvelope<Department[]>>(
-    '/users/departments',
+    '/api/v1/users/departments',
   )
   return res.data.data
 }
@@ -547,7 +548,7 @@ export interface IsExecutiveOfficeResponse {
  */
 export async function fetchIsExecutiveOffice(): Promise<IsExecutiveOfficeResponse> {
   const res = await apiClient.get<ApiEnvelope<IsExecutiveOfficeResponse>>(
-    '/users/me/is-executive-office',
+    '/api/v1/users/me/is-executive-office',
   )
   return res.data.data
 }

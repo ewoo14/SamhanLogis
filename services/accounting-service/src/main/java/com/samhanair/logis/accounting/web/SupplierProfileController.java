@@ -49,7 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/accounting/supplier-profiles")
+@RequestMapping("/accounting/supplier-profiles")
 @RequiredArgsConstructor
 @Tag(name = "사업자 프로필", description = "홈택스 세금계산서 공급자 정보 관리 (사업자 양식)")
 public class SupplierProfileController {

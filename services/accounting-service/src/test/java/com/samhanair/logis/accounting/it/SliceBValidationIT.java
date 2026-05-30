@@ -42,8 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>검증 목적:
  * <ul>
  *   <li>V8 Flyway seed (SEED-VAT-S001~S003, SEED-VAT-P001~P002) 5건 TaxInvoice 적재 확인</li>
- *   <li>VAT report endpoint GET /api/v1/accounting/reports/vat?period=202604 — 2Q 집계 검증</li>
- *   <li>법인세 report endpoint GET /api/v1/accounting/reports/corporate-tax?year=2026 — 법인세 집계 검증</li>
+ *   <li>VAT report endpoint GET /accounting/reports/vat?period=202604 — 2Q 집계 검증</li>
+ *   <li>법인세 report endpoint GET /accounting/reports/corporate-tax?year=2026 — 법인세 집계 검증</li>
  *   <li>V9 partner_aging seed 5건 — 110(외상매출금) 차변 / 201(외상매입금) 대변 잔액 검증</li>
  * </ul>
  *
@@ -191,7 +191,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     }
 
     /**
-     * VAT report endpoint — GET /api/v1/accounting/reports/vat?period=202604.
+     * VAT report endpoint — GET /accounting/reports/vat?period=202604.
      *
      * <p>2026-04 기준 납부세액 = 매출VAT(1,000,000+) - 매입VAT(370,000+) = 양수 확인.
      * 신고 기한: 2Q(4~6월) → 2026-07-25.
@@ -199,7 +199,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("VAT report endpoint — 202604 기간 조회 200 OK + 납부세액 양수 + 신고기한 확인")
     void vatReportEndpointReturns200WithPositivePayable() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/vat")
+        mockMvc.perform(get("/accounting/reports/vat")
                         .param("period", "202604")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -216,7 +216,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
 
     /**
-     * Corporate Tax report endpoint — GET /api/v1/accounting/reports/corporate-tax?fiscalYear=2026.
+     * Corporate Tax report endpoint — GET /accounting/reports/corporate-tax?fiscalYear=2026.
      *
      * <p>V6 seed 분개 (SEED-RPT-007 법인세비용 700,000) 가 포함된 2026 사업연도 신고서.
      * 신고 기한: 결산일(2026-12-31) + 3개월 = 2027-03-31.
@@ -227,7 +227,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     @Test
     @DisplayName("Corporate Tax report endpoint — 2026 사업연도 조회 200 OK + 신고기한 2027-03-31 확인")
     void corporateTaxReportEndpointReturns200() throws Exception {
-        mockMvc.perform(get("/api/v1/accounting/reports/corporate-tax")
+        mockMvc.perform(get("/accounting/reports/corporate-tax")
                         .param("fiscalYear", "2026")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000111")
                         .header("X-User-Role", "ACCOUNTANT"))
