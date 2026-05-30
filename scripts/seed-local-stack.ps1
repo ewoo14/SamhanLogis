@@ -51,9 +51,12 @@ Wait-Http "gateway" "$GatewayUrl/actuator/health"
 Wait-Http "auth-service" "http://localhost:8081/actuator/health"
 Wait-Http "accounting-service" "$AccountingBaseUrl/actuator/health"
 
+# 자격은 환경변수로 주입 (평문 커밋 금지 — GitGuardian). 미설정 시 V5 시드 DEV 값.
+$seedLoginId = if ($env:SEED_LOGIN_ID) { $env:SEED_LOGIN_ID } else { "dev_master" }
+$seedLoginPw = if ($env:SEED_LOGIN_PW) { $env:SEED_LOGIN_PW } else { "" }
 $masterLogin = Invoke-Json -Method "POST" -Uri "$AuthBaseUrl/login" -Body @{
-    loginId = "dev_master"
-    password = "dev_p05_pass!"
+    loginId = $seedLoginId
+    password = $seedLoginPw
 }
 $token = $masterLogin.data.token
 $masterUserId = $masterLogin.data.userId

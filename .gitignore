@@ -31,113 +31,53 @@ nbdist/
 Thumbs.db
 desktop.ini
 
-# ----- Java / Spring -----
-*.class
-hs_err_pid*
-replay_pid*
-HELP.md
-application-local.yml
-application-local.properties
+# ----- Logs -----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# ----- Build outputs -----
-dist/
-*.war
-*.ear
-*.nar
-
-# ----- Node / Frontend -----
+# ----- Node -----
 node_modules/
+dist/
 dist-ssr/
-.cache/
-.parcel-cache/
-.next/
-.nuxt/
-.vite/
+*.local
 .turbo/
-coverage/
-.nyc_output/
-*.tsbuildinfo
+.parcel-cache/
 
 # ----- Env -----
 .env
 .env.local
 .env.*.local
+!.env.example
+!.env.dev-seed
 
-# ----- 임시 파일 -----
-commit-msg.txt
+# ----- Test outputs -----
+coverage/
+*.lcov
+.nyc_output/
+playwright-report/
+test-results/
 
-# ----- Electron -----
-release/
-# legacy webview build 산출물 — Phase 6 v4, build-legacy-estimate.cjs 가 빌드 시 생성
-clients/desktop/legacy-assets/estimate/*.html
+# ----- Misc -----
+*.tmp
+*.bak
+*.swp
+*~
+test_raw.json
+tempit_raw.json
 
-# ----- Logs / Tmp -----
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-tmp/
-temp/
+# ----- Codex 로컬 캐시/워크스페이스 (회사 PC 핸드오프 산출물 — 커밋 금지) -----
+.gradle-codex/
+_codex_commit_repo/
 
-# ----- Docker -----
-docker-compose.override.yml
-.docker-data/
-docker-data/
-
-# ----- Secrets (NEVER commit) -----
-*.pem
-*.key
-*.crt
-*.p12
-*.jks
-secrets/
-.secrets/
-
-# ----- Terraform -----
-infrastructure/terraform/terraform.tfvars
-infrastructure/terraform/.terraform/
-infrastructure/terraform/.terraform.lock.hcl
-infrastructure/terraform/terraform.tfstate
-infrastructure/terraform/terraform.tfstate.backup
-infrastructure/terraform/tfplan
-
-# ----- Playwright -----
-# test-results: Playwright 캡처 실패 시 diff PNG 등 임시 산출물 (실제 spec 결과물 아님)
-**/test-results/
-**/playwright-report/
-# pnpm lock — npm lock 과 충돌 방지 (이 프로젝트는 npm 사용)
-pnpm-lock.yaml
-pnpm-workspace.yaml
-
-# ----- Claude / Agent local state -----
-.claude/settings.local.json
-.claude/settings.json
-.claude/scheduled_tasks.lock
-.claude/.cache/
-# 에이전트 격리용 git worktrees — 머지 후 정리 대상, VCS 추적 금지 (PR #21 회고)
-.claude/worktrees/
-# superpowers brainstorming visual companion 세션 디렉토리 (런타임 mock/이벤트 산출물)
-.superpowers/
-
-# PR/Issue body draft + TM/PM 승인 코멘트 임시 파일 — gh CLI body-file 일회용 (PR #26 회고)
-.pr-body*.md
-.issue-*.md
-.tm-*.md
-.pm-*.md
-.tmp/
-.tmp-*
-
-# legacy GAS 운영 데이터 (Notion CSV export, GAS 스크립트 백업) — VCS 추적 금지 (PR-D Phase 10)
-# 사용자 운영 환경 의존 데이터, dev-env 에 placeholder 만 둘 것
-tools/legacy-gas/
-
-# 이카운트 ERP 실 운영 데이터 (MIG-1~6) — VCS 추적 금지
+# ----- 이카운트 raw (민감) -----
 # 거래처 사업자번호 / 미수금 / 매입매출 등 민감 정보 포함, .gitkeep 만 보존
 docs/migration/ecount-data/raw/*
 !docs/migration/ecount-data/raw/.gitkeep
 
-# Tesseract OCR (PR-F2) — 로컬 다운로드 traineddata 무시.
+# ----- Tesseract OCR (PR-F2) — 로컬 다운로드 traineddata 무시 -----
 # 한국어 모델 (kor.traineddata) 약 50MB; 환경별 설치 가이드 docs/dev-environment/tesseract-setup.md 참조.
 # system 경로 (C:\Program Files\Tesseract-OCR\tessdata, /usr/share/tesseract-ocr/...) 사용 권장이며,
 # 프로젝트 root 에 별도 다운로드 시 본 규칙으로 VCS 격리.

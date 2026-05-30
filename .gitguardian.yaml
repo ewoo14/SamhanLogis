@@ -28,3 +28,5 @@ secret:
       match: "samhan!2026"
     - name: "Internal token dev placeholder"
       match: "dev-internal-token-change-me"
+    - name: "P0-5 seed dev password (dev_p05_pass!) — V5 seed DEV-ONLY"
+      match: "dev_p05_pass!"
