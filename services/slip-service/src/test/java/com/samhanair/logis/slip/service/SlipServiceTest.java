@@ -115,7 +115,7 @@ class SlipServiceTest {
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
                         2, new BigDecimal("100.00"), null)));
 
-        SlipDetailResponse res = service.create(req, "user-1");
+        SlipDetailResponse res = service.create(req, "user-1", "홍길동");
 
         assertThat(res.status()).isEqualTo(SlipStatus.DRAFT);
         assertThat(res.slipNo()).isEqualTo("2026/05/04-1");
@@ -141,7 +141,7 @@ class SlipServiceTest {
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "p", null, null,
                         1, new BigDecimal("10.00"), null)));
 
-        SlipDetailResponse res = service.create(req, "user-1");
+        SlipDetailResponse res = service.create(req, "user-1", "홍길동");
 
         assertThat(res.slipType()).isEqualTo(SlipType.INBOUND);
         assertThat(res.partnerName()).isEqualTo("삼한");
@@ -261,7 +261,7 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.ACCEPTED, 4, new BigDecimal("20.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        service.reject(slipId, "manager-1", "재고 없음");
+        service.reject(slipId, "manager-1", "김매니저", "재고 없음");
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.REJECTED);
         verify(inventoryClient, times(1))
@@ -273,7 +273,7 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        service.reject(slipId, "manager-1", "잘못된 신청");
+        service.reject(slipId, "manager-1", "김매니저", "잘못된 신청");
 
         verify(inventoryClient, never())
                 .release(any(), any(), anyInt(), anyString(), any());
@@ -284,7 +284,7 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        assertThatThrownBy(() -> service.reject(slipId, "m", "x"))
+        assertThatThrownBy(() -> service.reject(slipId, "m", "김매니저", "x"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
@@ -322,7 +322,7 @@ class SlipServiceTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "u");
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "u", "홍길동");
 
         assertThat(slip.getPartnerName()).isEqualTo("새거래처");
         assertThat(slip.getMemo()).isEqualTo("새메모");
@@ -334,7 +334,7 @@ class SlipServiceTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         assertThatThrownBy(() -> service.editHeader(slipId,
-                new EditHeaderRequest(null, "x", null, null, null, null), "u"))
+                new EditHeaderRequest(null, "x", null, null, null, null), "u", "홍길동"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
@@ -346,13 +346,49 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
+        // [UUID 비공개 가드] X-User-Name(="홍길동") 이 actorName 으로 캡처되고, callerId(="user-1")
+        // 는 actorId 로만 쓰여 버전이력 actorName 에는 노출되지 않는다.
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "user-1");
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "user-1", "홍길동");
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
-                eq(null), any(UUID.class), eq("user-1"), eq(null));
+                eq(null), any(UUID.class), eq("홍길동"), eq(null));
+    }
+
+    @Test
+    void editHeader_withUuidCallerName_capturesNullActorName() {
+        // [UUID 비공개 가드] X-User-Name 이 UUID 형태이면 actorName=null 로 캡처되어
+        // 버전이력에 계정 UUID 가 노출되지 않는다 ([[uuid-no-user-visibility]]).
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        String uuidName = UUID.randomUUID().toString();
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null),
+                UUID.randomUUID().toString(), uuidName);
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(null), eq(null));
+    }
+
+    @Test
+    void editHeader_withoutCallerName_capturesNullActorName() {
+        // [UUID 비공개 가드] X-User-Name 부재 시 callerId(UUID) 폴백 금지 → actorName=null.
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        service.editHeader(slipId,
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null),
+                UUID.randomUUID().toString(), null);
+
+        verify(slipRevisionService, times(1)).capture(
+                eq(slip),
+                eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
+                eq(null), any(UUID.class), eq(null), eq(null));
     }
 
     // ---------- reject memo 변경 revision 캡처 (Phase 2.1) ----------
@@ -363,12 +399,12 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        service.reject(slipId, "user-1", "재고 없음");
+        service.reject(slipId, "user-1", "김매니저", "재고 없음");
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
-                eq(null), any(UUID.class), eq("user-1"), eq(null));
+                eq(null), any(UUID.class), eq("김매니저"), eq(null));
     }
 
     @Test
@@ -377,7 +413,7 @@ class SlipServiceTest {
         Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        service.reject(slipId, "user-1", null);
+        service.reject(slipId, "user-1", "김매니저", null);
 
         verify(slipRevisionService, never()).capture(
                 any(), any(), any(), any(), any(), any());
@@ -394,12 +430,12 @@ class SlipServiceTest {
         service.addLine(slipId,
                 new com.samhanair.logis.slip.web.dto.AddLineRequest(
                         productId, "에어컨", "M-1", null, 2, new BigDecimal("100.00"), null),
-                "user-1");
+                "user-1", "홍길동");
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
-                eq(null), any(UUID.class), eq("user-1"), eq(null));
+                eq(null), any(UUID.class), eq("홍길동"), eq(null));
     }
 
     @Test
@@ -410,12 +446,12 @@ class SlipServiceTest {
         ReflectionTestUtils.setField(slip.getLines().get(0), "id", lineId);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
-        service.removeLine(slipId, lineId, "user-1");
+        service.removeLine(slipId, lineId, "user-1", "홍길동");
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
                 eq(com.samhanair.logis.slip.revision.domain.SlipRevisionType.EDIT),
-                eq(null), any(UUID.class), eq("user-1"), eq(null));
+                eq(null), any(UUID.class), eq("홍길동"), eq(null));
     }
 
     // ---------- read ----------

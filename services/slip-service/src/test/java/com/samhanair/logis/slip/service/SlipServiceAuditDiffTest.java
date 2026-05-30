@@ -68,7 +68,7 @@ class SlipServiceAuditDiffTest {
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
                 "수정된 메모", null, null);
-        service.editHeader(slipId, req, "user-1");
+        service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, times(1)).recordOverlayPatch(
                 eq(slipId), any(), eq("user-1"), eq(null),
@@ -81,7 +81,7 @@ class SlipServiceAuditDiffTest {
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
                 null, null, null);
-        service.editHeader(slipId, req, "user-1");
+        service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, never()).recordOverlayPatch(
                 any(), any(), anyString(), any(), anyString(), any(), any());
@@ -93,7 +93,7 @@ class SlipServiceAuditDiffTest {
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
                 "원본 메모", null, null);
-        service.editHeader(slipId, req, "user-1");
+        service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, never()).recordOverlayPatch(
                 any(), any(), anyString(), any(), anyString(), any(), any());

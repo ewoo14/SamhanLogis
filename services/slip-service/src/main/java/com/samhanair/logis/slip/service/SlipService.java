@@ -107,13 +107,14 @@ public class SlipService {
      * SlipNumberService 로 채번.
      *
      * @param req 생성 요청 (slipType / slipDate / 창고 / 거래처 / 라인 등)
-     * @param requesterId 요청자 user-id (gateway X-User-Id 또는 "system")
+     * @param requesterId 요청자 user-id (gateway X-User-Id 또는 "system", 감사용 actorId)
+     * @param requesterName 요청자 표시명 (gateway X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @return 생성된 전표의 상세 응답 (라인 포함, status=DRAFT)
      * @throws BusinessException(INVALID_INPUT) 라인 productId 중 product-service 미존재 또는 입력 불량
      * @throws BusinessException(INTERNAL_ERROR) product-service 호출 실패
      * @throws IllegalArgumentException 출고전표 sourceWarehouseId null 또는 입고전표 destinationWarehouseId null
      */
-    public SlipDetailResponse create(CreateSlipRequest req, String requesterId) {
+    public SlipDetailResponse create(CreateSlipRequest req, String requesterId, String requesterName) {
         // 1. 라인 productId 일괄 검증 + lookup map 빌드 (snapshot 보강)
         List<UUID> productIds = req.lines().stream()
                 .map(CreateSlipRequest.SlipLineRequest::productId)
@@ -207,8 +208,9 @@ public class SlipService {
 
         Slip saved = slipRepository.save(slip);
         // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(saved, SlipRevisionType.CREATE, null,
-                parseActorId(requesterId), requesterId, null);
+                parseActorId(requesterId), resolveActorName(requesterName, requesterId), null);
         return SlipDetailResponse.from(saved);
     }
 
@@ -221,12 +223,14 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param req 수정 요청 (null 필드는 보존)
-     * @param callerId 호출자 user-id (감사용 — audit actor + audit broker payload)
+     * @param callerId 호출자 user-id (감사용 — audit actor + audit broker payload + revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
      */
-    public SlipDetailResponse editHeader(UUID id, EditHeaderRequest req, String callerId) {
+    public SlipDetailResponse editHeader(UUID id, EditHeaderRequest req, String callerId,
+                                         String callerName) {
         Slip slip = loadOrThrow(id);
         // PR-H2 — memo 변경분 audit 사전 snapshot (도메인 mutation 직전 oldValue 보존)
         String oldMemo = slip.getMemo();
@@ -242,9 +246,9 @@ public class SlipService {
         }
         // 권한 재편 Phase 2.1 — 헤더 batch 수정(partnerId/partnerName/deliveryTag/memo 모두 toSnapshot 필드)도
         // 버전이력에 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
-        // (editHeader 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -257,19 +261,22 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param req 기사 정보 수정 요청 (null 필드는 보존)
-     * @param callerId 호출자 user-id (감사용 — revision actor)
+     * @param callerId 호출자 user-id (감사용 — revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
      */
-    public SlipDetailResponse editDriver(UUID id, UpdateSlipDriverRequest req, String callerId) {
+    public SlipDetailResponse editDriver(UUID id, UpdateSlipDriverRequest req, String callerId,
+                                         String callerName) {
         Slip slip = loadOrThrow(id);
         applyMutation(() -> slip.editHeader(null, null, null, null,
                 req.driverName(), req.driverPhone()));
         // 권한 재편 Phase 2.1 — 기사 정보 변경(driverName/driverPhone 은 toSnapshot 필드)도 버전이력에
         // 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -284,12 +291,14 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param req 수정 요청 (null 필드는 보존)
-     * @param callerId 호출자 user-id
+     * @param callerId 호출자 user-id (감사용 — revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
      */
-    public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId) {
+    public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId,
+                                         String callerName) {
         Slip slip = loadOrThrow(id);
         // 기존 헤더 필드 수정 (도메인 메서드 chain — Slip.editHeader)
         applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
@@ -312,8 +321,9 @@ public class SlipService {
                 req.paymentDueDate());
 
         // 권한 재편 Phase 2.1 Task 2 — 수정 성공 직후 EDIT 스냅샷 캡처
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -354,12 +364,10 @@ public class SlipService {
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
         // 권한 재편 Phase 2.1 Task 2 — overlay patch 성공 직후 EDIT 스냅샷 캡처
-        // actorName 은 callerName 우선 (UUID 비공개 가드), 없으면 callerId 폴백
-        String revisionActorName = (callerName != null && !callerName.isBlank())
-                ? callerName
-                : callerId;
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
+        // (callerId(=UUID) 폴백 금지 — 버전이력에 UUID 노출 방지)
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), revisionActorName, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -409,9 +417,9 @@ public class SlipService {
         Slip slip = loadOrThrow(slipId);
         // status 별 마감 정책 가드 (applyOverlayPatch/softDelete 와 동일 정책)
         Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
-        String actorName = (callerName != null && !callerName.isBlank())
-                ? callerName
-                : callerId;
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
+        // (callerId(=UUID) 폴백 금지 — 버전이력에 UUID 노출 방지)
+        String actorName = resolveActorName(callerName, callerId);
         applyMutation(() -> slipRevisionService.restore(slip, revisionNo,
                 parseActorId(callerId), actorName, null));
         // 라인 전량 교체(markDeleted + 신규 라인 add) 영속화
@@ -482,16 +490,50 @@ public class SlipService {
     }
 
     /**
+     * 버전이력 actorName 안전 변환 — UUID 비공개 가드 ([[uuid-no-user-visibility]],
+     * partner-service {@code Partner4TabController.displayNameOrNull} / {@code EstimateService.resolveActorName}
+     * 패턴 미러).
+     *
+     * <p>header 인증 환경에서 {@code callerId} (X-User-Id) 는 계정 UUID 이다. 이를 그대로 actorName 으로
+     * capture 하면 버전이력 타임라인(FE 노출 {@code SlipRevisionResponse.actorName})에 raw UUID 가
+     * 새어나간다. 따라서:
+     * <ol>
+     *   <li>{@code callerName} (X-User-Name) 이 있고 UUID 형태가 아니면 그대로 사용한다.</li>
+     *   <li>그 외(헤더 부재 / UUID 형태)는 {@code null} 을 반환한다 — 버전이력에 UUID 미노출.</li>
+     * </ol>
+     *
+     * <p>{@code callerId} 폴백을 의도적으로 제거했다 — 폴백하면 다시 UUID 가 actorName 으로 들어간다.
+     * {@code callerId} 는 감사용 actorId({@link #parseActorId}) 로만 별도 사용한다.
+     *
+     * @param callerName X-User-Name 헤더 값 (없으면 null)
+     * @param callerId   X-User-Id 헤더 값 (actorId 전용 — actorName 으로는 미사용, 시그니처 명시용)
+     * @return UUID 가 아닌 표시명, 또는 {@code null}
+     */
+    private String resolveActorName(String callerName, String callerId) {
+        if (callerName == null || callerName.isBlank()) {
+            return null;
+        }
+        try {
+            UUID.fromString(callerName.trim());
+            return null; // UUID → 비공개
+        } catch (IllegalArgumentException notUuid) {
+            return callerName;
+        }
+    }
+
+    /**
      * 라인 1건 추가 — DRAFT/SAVED 단계만. ProductClient 로 productId 검증 후 추가.
      *
      * @param id 전표 ID
      * @param req 라인 요청
-     * @param callerId 호출자 user-id (감사용)
+     * @param callerId 호출자 user-id (감사용 — revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견 또는 productId 미존재
      * @throws BusinessException(CONFLICT) DRAFT/SAVED 가 아닐 때
      */
-    public SlipDetailResponse addLine(UUID id, AddLineRequest req, String callerId) {
+    public SlipDetailResponse addLine(UUID id, AddLineRequest req, String callerId,
+                                      String callerName) {
         Slip slip = loadOrThrow(id);
         slip.requireEditable();
         ProductSummary summary = productClient.requireExists(req.productId());
@@ -501,9 +543,9 @@ public class SlipService {
                 productName, modelName, req.specification(),
                 req.quantity(), req.unitPrice(), req.note())));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
-        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return SlipDetailResponse.from(slip);
     }
 
@@ -512,11 +554,12 @@ public class SlipService {
      *
      * @param id 전표 ID
      * @param lineId 제거할 라인 ID
-     * @param callerId 호출자 user-id
+     * @param callerId 호출자 user-id (감사용 — revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @throws BusinessException(NOT_FOUND) 전표/라인 미발견
      * @throws BusinessException(CONFLICT) DRAFT/SAVED 가 아닐 때
      */
-    public void removeLine(UUID id, UUID lineId, String callerId) {
+    public void removeLine(UUID id, UUID lineId, String callerId, String callerName) {
         Slip slip = loadOrThrow(id);
         slip.requireEditable();
         SlipLine line = slip.getLines().stream()
@@ -525,9 +568,9 @@ public class SlipService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "라인을 찾을 수 없습니다"));
         applyMutation(() -> slip.removeLine(line));
         // 권한 재편 Phase 2.1 — 라인 삭제도 롤백 가능하도록 EDIT 스냅샷 캡처
-        // (라인 전용 endpoint 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
     }
 
     /** 작성중 → 저장완료. */
@@ -641,14 +684,15 @@ public class SlipService {
      * 반려 — SENT/ACCEPTED → REJECTED. 직전 상태가 ACCEPTED 였고 OUTBOUND 면 inventory release.
      *
      * @param id 전표 ID
-     * @param callerId 호출자 user-id
+     * @param callerId 호출자 user-id (감사용 — revision actorId)
+     * @param callerName 호출자 표시명 (X-User-Name, UUID 비공개 가드 — 버전이력 actorName)
      * @param reasonText 반려 사유 (memo 앞에 prepend)
      * @return 갱신된 상세 응답
      * @throws BusinessException(NOT_FOUND) 전표 미발견
      * @throws BusinessException(CONFLICT) 현재 상태가 SENT/ACCEPTED 둘 다 아닐 때
      * @throws BusinessException(INTERNAL_ERROR) inventory release 호출 실패
      */
-    public SlipDetailResponse reject(UUID id, String callerId, String reasonText) {
+    public SlipDetailResponse reject(UUID id, String callerId, String callerName, String reasonText) {
         Slip slip = loadOrThrow(id);
         SlipStatus previous = slip.getStatus();
         // 권한 재편 Phase 2.1 — 반려 사유 prepend 로 memo(toSnapshot 필드) 변경 여부 감지용 사전 snapshot
@@ -663,8 +707,9 @@ public class SlipService {
         // 권한 재편 Phase 2.1 — reasonText 가 memo 앞에 prepend 되어 실제 변경된 경우에만 EDIT 캡처
         // (상태전이 reject 자체는 content 아님 — memo 변경분만 content-mutation 으로 본다)
         if (!java.util.Objects.equals(oldMemo, slip.getMemo())) {
+            // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
             slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
-                    parseActorId(callerId), callerId, null);
+                    parseActorId(callerId), resolveActorName(callerName, callerId), null);
         }
         return SlipDetailResponse.from(slip);
     }
