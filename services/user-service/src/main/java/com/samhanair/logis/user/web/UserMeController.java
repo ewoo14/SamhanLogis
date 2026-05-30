@@ -42,7 +42,17 @@ public class UserMeController {
     @GetMapping("/is-executive-office")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<ExecutiveOfficeCheckResponse> isExecutiveOffice(HttpServletRequest request) {
-        String departmentName = request.getHeader(HEADER_USER_DEPARTMENT);
+        // [RC7] 게이트웨이가 한글 부서명을 X-User-Department 로 UTF-8 URL-encode 전파한다(ISO-8859-1
+        // 헤더 모지바케 회피). 비교/응답 전 URL-decode 해야 isExecutiveOffice 판정과 화면 표시가 올바르다.
+        String raw = request.getHeader(HEADER_USER_DEPARTMENT);
+        String departmentName = raw;
+        if (raw != null) {
+            try {
+                departmentName = java.net.URLDecoder.decode(raw, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException ignore) {
+                departmentName = raw;
+            }
+        }
         boolean isExecutiveOffice = HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME.equals(departmentName);
         return ApiResponse.ok(new ExecutiveOfficeCheckResponse(isExecutiveOffice, departmentName));
     }

@@ -61,6 +61,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class EstimateController {
 
     private static final String CALLER_HEADER  = "X-User-Id";
+    private static final String CALLER_NAME_HEADER = "X-User-Name";
     private static final String ROLE_HEADER    = "X-User-Role";
 
     private final EstimateService estimateService;
@@ -111,9 +112,10 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.CREATE);
-        return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader), callerName));
     }
 
     /** 견적서 수정 — DRAFT/SENT 단계만. */
@@ -124,9 +126,10 @@ public class EstimateController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
-        return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader)));
+        return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader), callerName));
     }
 
     /** DRAFT → SENT. */

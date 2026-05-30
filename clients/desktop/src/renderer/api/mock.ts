@@ -1741,51 +1741,55 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const ids = body.productIds ?? []
 
     /**
-     * 시연용 mock — 모든 product 에 대해 본사/차량/위탁/가상 4 창고 mock 수량.
-     * 실제 BE 는 stock_balance 테이블에서 PIVOT 하여 응답.
+     * 시연용 mock — 실제 BE `ProductBalanceResponse[]` 평면 응답 구조를 모사.
+     * 각 product 의 본사/차량/위탁/가상 4 창고 잔량을 balances 배열로 반환한다.
+     * (모델명/품목명은 BE 미포함 — FE `fetchStockBalanceBatch` 가 선택 라인 메타로 결합.)
+     *
+     * 창고 메타: HQ-001(본사, HEADQUARTERS) / VH-001(차량, VEHICLE) /
+     * CS-001(위탁, CONSIGNMENT) / VR-001(가상, VIRTUAL).
      */
-    const mockPerProduct: Record<string, Record<string, number | null>> = {
-      'p-aj040': { 'HQ-001': 12, 'VH-001': 3, 'CS-001': 0, 'VR-001': null },
-      'p-aj052': { 'HQ-001': 5, 'VH-001': 2, 'CS-001': 0, 'VR-001': null },
-      'p-aj036': { 'HQ-001': 8, 'VH-001': 0, 'CS-001': 1, 'VR-001': null },
-      'p-aj100': { 'HQ-001': 2, 'VH-001': 0, 'CS-001': 0, 'VR-001': null },
-      'p-mwr10': { 'HQ-001': 45, 'VH-001': 10, 'CS-001': 2, 'VR-001': null },
+    const warehouseMeta: Array<{
+      id: string
+      code: string
+      name: string
+      type: 'HEADQUARTERS' | 'VEHICLE' | 'CONSIGNMENT' | 'VIRTUAL'
+    }> = [
+      { id: 'wh-hq', code: 'HQ-001', name: '본사창고', type: 'HEADQUARTERS' },
+      { id: 'wh-vh', code: 'VH-001', name: '차량1', type: 'VEHICLE' },
+      { id: 'wh-cs', code: 'CS-001', name: '위탁창고', type: 'CONSIGNMENT' },
+      { id: 'wh-vr', code: 'VR-001', name: '가상창고', type: 'VIRTUAL' },
+    ]
+
+    // 창고 코드 → totalQty. null/미존재 코드는 balances 에서 제외 (잔량 row 없음).
+    const mockPerProduct: Record<string, Record<string, number>> = {
+      'p-aj040': { 'HQ-001': 12, 'VH-001': 3, 'CS-001': 0 },
+      'p-aj052': { 'HQ-001': 5, 'VH-001': 2, 'CS-001': 0 },
+      'p-aj036': { 'HQ-001': 8, 'VH-001': 0, 'CS-001': 1 },
+      'p-aj100': { 'HQ-001': 2, 'VH-001': 0, 'CS-001': 0 },
+      'p-mwr10': { 'HQ-001': 45, 'VH-001': 10, 'CS-001': 2 },
     }
 
-    const productNameById: Record<string, { modelName: string; productName: string }> = {
-      'p-aj040': { modelName: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP' },
-      'p-aj052': { modelName: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP' },
-      'p-aj036': { modelName: 'AJ036NCH3CH', productName: '천장형 1Way 3HP' },
-      'p-aj100': { modelName: 'AJ100NCDKH', productName: '실외기 10HP' },
-      'p-mwr10': { modelName: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)' },
-    }
-
-    const rows = ids.map((pid) => {
-      const meta = productNameById[pid] ?? {
-        modelName: '(샘플)' + pid,
-        productName: '(샘플 품목)',
-      }
-      const per = mockPerProduct[pid] ?? {
-        'HQ-001': 0,
-        'VH-001': 0,
-        'CS-001': 0,
-        'VR-001': null,
-      }
-      const total = Object.entries(per).reduce(
-        (sum, [code, qty]) =>
-          sum + (qty ?? 0) * (code === 'VR-001' ? 0 : 1),
-        0,
-      )
-      return {
-        productId: pid,
-        modelName: meta.modelName,
-        productName: meta.productName,
-        perWarehouse: per,
-        total,
-      }
+    const data = ids.map((pid) => {
+      const per = mockPerProduct[pid] ?? { 'HQ-001': 0, 'VH-001': 0, 'CS-001': 0 }
+      const balances = warehouseMeta
+        // 잔량 row 가 존재하는 창고만 포함 (가상창고는 항상 포함하여 dash 표시).
+        .filter((w) => w.type === 'VIRTUAL' || per[w.code] !== undefined)
+        .map((w) => {
+          const totalQty = w.type === 'VIRTUAL' ? 0 : (per[w.code] ?? 0)
+          return {
+            warehouseId: w.id,
+            warehouseCode: w.code,
+            warehouseName: w.name,
+            warehouseType: w.type,
+            availableQty: totalQty,
+            reservedQty: 0,
+            totalQty,
+          }
+        })
+      return { productId: pid, balances }
     })
 
-    return envelope({ rows })
+    return envelope(data)
   }
 
   // GET /inventory/transfers/{id}

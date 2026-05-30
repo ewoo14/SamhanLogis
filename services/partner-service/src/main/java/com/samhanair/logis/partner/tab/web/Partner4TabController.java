@@ -96,8 +96,18 @@ public class Partner4TabController {
     @PostMapping("/full")
     @RequirePermission(page = "partners.4tab", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<PartnerFullResponse>> registerFull(
-            @Valid @RequestBody PartnerFullRequest req) {
-        PartnerFullResponse resp = partner4TabService.registerFull(req);
+            @Valid @RequestBody PartnerFullRequest req,
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            Principal principal) {
+        // 거래처 버전이력 actorName null 결함 수정 — 4탭 일괄 등록 시 revision actor(표시명) 전달.
+        // [UUID 비공개 가드] header 인증 환경에서 Principal.getName() 은 X-User-Id(계정 UUID)가
+        // 들어온다. UUID 를 actorName 으로 노출하면 버전이력 화면에 raw UUID 가 새어나가므로
+        // ([[uuid-no-user-visibility]]), 표시명은 X-User-Name 헤더(updateFull 경로와 일관)를 우선 사용하고,
+        // 없으면 Principal 식별자가 UUID 가 아닐 때만 사용한다(UUID 면 null → service 가 system 폴백).
+        String actorName = (userName != null && !userName.isBlank())
+                ? userName
+                : displayNameOrNull(principal != null ? principal.getName() : null);
+        PartnerFullResponse resp = partner4TabService.registerFull(req, actorName);
         return ResponseEntity.status(201).body(ApiResponse.ok(resp));
     }
 

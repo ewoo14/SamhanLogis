@@ -59,7 +59,11 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import axios from 'axios'
-import { fetchStockBalanceBatch, listWarehouses } from '../api/inventory'
+import {
+  fetchStockBalanceBatch,
+  listWarehouses,
+  type StockBalanceLookupLine,
+} from '../api/inventory'
 import {
   createSlip,
   lookupPartnerForAutoFill,
@@ -371,7 +375,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // ── 재고조회 mutation ───────────────────────────────────
 
   const stockMutation = useMutation({
-    mutationFn: (productIds: string[]) => fetchStockBalanceBatch(productIds),
+    mutationFn: (lines: StockBalanceLookupLine[]) =>
+      fetchStockBalanceBatch(lines),
     onMutate: () => {
       setStockRows(null)
       setStockError(null)
@@ -397,10 +402,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
   const openStockModal = () => {
     if (selectedProductLines.length === 0) return
-    const ids = selectedProductLines.map((l) => l.productId)
     setStockSelectedSnapshot(selectedProductLines)
     setStockModalOpen(true)
-    stockMutation.mutate(ids)
+    stockMutation.mutate(selectedProductLines)
   }
 
   const closeStockModal = () => setStockModalOpen(false)

@@ -25,6 +25,7 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.criteria.Predicate;
@@ -242,6 +243,31 @@ public class SlipService {
         // 권한 재편 Phase 2.1 — 헤더 batch 수정(partnerId/partnerName/deliveryTag/memo 모두 toSnapshot 필드)도
         // 버전이력에 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
         // (editHeader 는 callerName 파라미터가 없어 actorName=callerId 사용)
+        slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                parseActorId(callerId), callerId, null);
+        return SlipDetailResponse.from(slip);
+    }
+
+    /**
+     * 기사 정보 부분 수정 — DRAFT/SAVED 단계만. 도메인 메서드가 가드.
+     *
+     * <p>link-dispatch-slice — FE {@code updateSlipDriver()} ({@code PATCH /slips/{id}/driver}) 대응.
+     * 출고 슬립의 배송 기사명/연락처만 부분 갱신한다. driver 외 헤더 필드는 모두 null 로 전달해
+     * 보존하며, {@link Slip#editHeader} 의 null-보존 + 편집 가능 상태 가드를 그대로 따른다.
+     *
+     * @param id 전표 ID
+     * @param req 기사 정보 수정 요청 (null 필드는 보존)
+     * @param callerId 호출자 user-id (감사용 — revision actor)
+     * @return 갱신된 상세 응답
+     * @throws BusinessException(NOT_FOUND) 전표 미발견
+     * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
+     */
+    public SlipDetailResponse editDriver(UUID id, UpdateSlipDriverRequest req, String callerId) {
+        Slip slip = loadOrThrow(id);
+        applyMutation(() -> slip.editHeader(null, null, null, null,
+                req.driverName(), req.driverPhone()));
+        // 권한 재편 Phase 2.1 — 기사 정보 변경(driverName/driverPhone 은 toSnapshot 필드)도 버전이력에
+        // 잡히도록 EDIT 스냅샷 캡처. applyMutation 가드를 통과한 성공 경로에서만 도달한다.
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
                 parseActorId(callerId), callerId, null);
         return SlipDetailResponse.from(slip);

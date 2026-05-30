@@ -408,7 +408,8 @@ spring:
         - id: notification-service-noprefix
           uri: lb://notification-service
           predicates:
-            - Path=/admin/notifications/**,/notify/**
+            # [RC9] AligoAddressBookController 는 단수 /admin/notification/aligo/... 매핑 → 단수도 라우팅.
+            - Path=/admin/notifications/**,/admin/notification/**,/notify/**
           filters:
             - JwtAuthentication
 

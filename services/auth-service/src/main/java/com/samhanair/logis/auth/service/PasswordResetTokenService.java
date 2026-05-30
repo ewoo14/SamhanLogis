@@ -60,11 +60,15 @@ public class PasswordResetTokenService {
     /**
      * 비밀번호 재설정 인증번호 요청.
      *
-     * <p>loginId + email 불일치/미존재 시에도 동일 응답 (enumeration 방지).
+     * <p>loginId 만 필수. email 이 전달되지 않으면 loginId 로 조회한 계정의 등록 이메일을 사용한다
+     * (FE {@code passwordResetApi.ts} 계약 — "email 은 BE 가 loginId 로 자동 조회").
+     * email 이 전달된 경우에는 등록 이메일과 교차 검증한다.
+     *
+     * <p>미존재/비활성/이메일 불일치 시에도 동일 응답 (enumeration 방지).
      * 유효한 사용자인 경우에만 인증번호 생성 + 이메일 발송.
      *
-     * @param loginId   요청자 loginId
-     * @param email     요청자가 입력한 이메일 (교차 검증)
+     * @param loginId   요청자 loginId (필수)
+     * @param email     요청자가 입력한 이메일 (선택 — null/blank 면 등록 이메일 자동 조회)
      * @param clientIp  요청자 IP 주소 (감사 기록용)
      */
     @Transactional
@@ -77,15 +81,28 @@ public class PasswordResetTokenService {
 
         Account account = opt.get();
 
-        // 비활성/이메일 불일치 — enumeration 방지를 위해 동일 응답
+        // 비활성 계정 — enumeration 방지를 위해 동일 응답
         if (!account.isEnabled()) {
             log.info("[PasswordResetToken] requestReset — 비활성 계정 loginId={} (silent ok)", loginId);
             return;
         }
-        if (account.getEmail() == null || !account.getEmail().equalsIgnoreCase(email)) {
+
+        // 등록 이메일이 없으면 발송 불가 — enumeration 방지를 위해 동일 응답
+        String registeredEmail = account.getEmail();
+        if (registeredEmail == null || registeredEmail.isBlank()) {
+            log.info("[PasswordResetToken] requestReset — 등록 이메일 없음 loginId={} (silent ok)", loginId);
+            return;
+        }
+
+        // email 이 전달된 경우에만 교차 검증. 미전달(null/blank) 시 등록 이메일 자동 사용.
+        boolean emailProvided = email != null && !email.isBlank();
+        if (emailProvided && !registeredEmail.equalsIgnoreCase(email)) {
             log.info("[PasswordResetToken] requestReset — 이메일 불일치 loginId={} (silent ok)", loginId);
             return;
         }
+
+        // 실제 발송 대상은 항상 DB 등록 이메일 (사용자 입력 신뢰 금지)
+        String targetEmail = registeredEmail;
 
         // 기존 미사용 토큰 일괄 무효화 (재발급 시 기존 토큰 사용 불가)
         List<PasswordResetToken> oldTokens = tokenRepository.findByUserIdAndUsedFalse(account.getId());
@@ -102,7 +119,7 @@ public class PasswordResetTokenService {
         PasswordResetToken token = PasswordResetToken.create(account.getId(), tokenHash, expiresAt, clientIp);
         tokenRepository.save(token);
 
-        notificationStub.sendPasswordResetCode(email, loginId, code, expiresAt.toString());
+        notificationStub.sendPasswordResetCode(targetEmail, loginId, code, expiresAt.toString());
         log.info("[PasswordResetToken] requestReset — 인증번호 발급 완료 userId={} expiresAt={}",
                 account.getId(), expiresAt);
     }

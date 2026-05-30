@@ -146,6 +146,47 @@ class PasswordResetTokenServiceTest {
     }
 
     // ---------------------------------------------------------------
+    // 시나리오 4b: requestReset — email 미전송 시 등록 이메일 자동 조회
+    // ---------------------------------------------------------------
+
+    @Test
+    @DisplayName("requestReset — email null 이면 loginId 로 등록 이메일 자동 조회 후 발송")
+    void requestReset_nullEmail_autoLookupRegisteredEmail() {
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(activeAccount));
+
+        service.requestReset("alice", null, "127.0.0.1");
+
+        verify(tokenRepository).save(any(PasswordResetToken.class));
+        // 실제 발송 대상은 DB 등록 이메일
+        verify(notificationStub).sendPasswordResetCode(
+                eq("alice@samhan.com"), eq("alice"), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("requestReset — email blank 이면 등록 이메일 자동 조회 후 발송")
+    void requestReset_blankEmail_autoLookupRegisteredEmail() {
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(activeAccount));
+
+        service.requestReset("alice", "   ", "127.0.0.1");
+
+        verify(tokenRepository).save(any(PasswordResetToken.class));
+        verify(notificationStub).sendPasswordResetCode(
+                eq("alice@samhan.com"), eq("alice"), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("requestReset — email 미전송 + 등록 이메일 없으면 silent 반환 (enumeration 방지)")
+    void requestReset_nullEmail_noRegisteredEmail_silentlyReturns() {
+        ReflectionTestUtils.setField(activeAccount, "email", null);
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(activeAccount));
+
+        service.requestReset("alice", null, "127.0.0.1");
+
+        verify(tokenRepository, never()).save(any());
+        verify(notificationStub, never()).sendPasswordResetCode(any(), any(), any(), any());
+    }
+
+    // ---------------------------------------------------------------
     // 시나리오 5: confirmReset — 정상 검증 + 비밀번호 교체 + 잠금 해제
     // ---------------------------------------------------------------
 

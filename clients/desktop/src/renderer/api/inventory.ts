@@ -253,7 +253,10 @@ export type TransferTransitionAction =
 // ---------------------------------------------------------------------------
 
 /**
- * batch 재고 조회 응답 row — BE `StockBalanceBatchResponse.Row` 와 1:1.
+ * batch 재고 조회 응답 row — SlipFormPage `StockBalanceModal` 이 기대하는
+ * 평탄 matrix 행. BE 평면 응답 (`ProductBalanceResponse`) 을 본 클라이언트가
+ * pivot 하여 생성한다 (BE 는 `modelName`/`productName`/`perWarehouse`/`total`
+ * 을 직접 반환하지 않음 — 아래 `fetchStockBalanceBatch` 주석 참고).
  *
  * UUID 비공개 가드: `productId` 는 React key 로만 사용, 화면 미노출.
  * 화면에 표시되는 식별자는 `modelName` / `productName`.
@@ -268,9 +271,40 @@ export interface StockBalanceBatchRow {
   total: number
 }
 
-/** batch 응답 envelope. */
+/** batch 응답 envelope (FE pivot 결과). */
 export interface StockBalanceBatchResponse {
   rows: StockBalanceBatchRow[]
+}
+
+/**
+ * BE `POST /inventory/balances/batch` 의 실제 응답 — `ProductBalanceResponse` 와 1:1.
+ *
+ * BE 는 productId 별 모든 창고 잔량을 평면 배열로 반환하며 모델명/품목명은 포함하지
+ * 않는다 (잔량이 0 보다 큰 적이 있어 row 가 존재하는 창고만 포함; 잔량 0 row 도 유지).
+ */
+interface ProductBalanceResponse {
+  productId: string
+  balances: Array<{
+    warehouseId: string
+    warehouseCode: string
+    warehouseName: string
+    warehouseType: WarehouseType
+    availableQty: number
+    reservedQty: number
+    totalQty: number
+  }>
+}
+
+/**
+ * 재고조회 매트릭스 입력 라인 — productId + 화면 표시용 모델명/품목명.
+ *
+ * BE 응답에는 모델명/품목명이 없으므로 호출자(SlipFormPage 선택 라인)가
+ * 함께 전달하여 pivot 시 결합한다.
+ */
+export interface StockBalanceLookupLine {
+  productId: string
+  modelName: string
+  productName: string
 }
 
 /**
@@ -279,17 +313,50 @@ export interface StockBalanceBatchResponse {
  * SlipFormPage 의 [선택 항목 재고조회] 버튼에서 호출. N건을 1회 batch 로
  * 가져오므로 100건 이하 가정 (Designer ux-flow.md § 8.3).
  *
- * @param productIds 조회 대상 product UUID 배열 (호출자가 선택 라인에서 추출)
+ * BE 평면 응답 (`ProductBalanceResponse[]`) 을 `StockBalanceModal` 이 기대하는
+ * `{ rows: [{ ..., perWarehouse, total }] }` 구조로 pivot 한다:
+ * - `perWarehouse`: warehouseCode → totalQty. 가상창고(VIRTUAL)는 null.
+ * - `total`: 가상창고 제외 totalQty 합계.
+ * - `modelName` / `productName`: 호출자가 전달한 `lines` 메타에서 결합 (BE 미포함).
+ *
+ * @param lines 조회 대상 라인 (productId + 모델명/품목명)
  * @return 모델명 × 창고 matrix + 합계 + 가상창고 null
  */
 export async function fetchStockBalanceBatch(
-  productIds: string[],
+  lines: StockBalanceLookupLine[],
 ): Promise<StockBalanceBatchResponse> {
-  const res = await apiClient.post<ApiEnvelope<StockBalanceBatchResponse>>(
+  const productIds = lines.map((l) => l.productId)
+  const res = await apiClient.post<ApiEnvelope<ProductBalanceResponse[]>>(
     '/inventory/balances/batch',
     { productIds },
   )
-  return res.data.data
+
+  const metaById = new Map(
+    lines.map((l) => [l.productId, l] as const),
+  )
+
+  const rows: StockBalanceBatchRow[] = res.data.data.map((p) => {
+    const meta = metaById.get(p.productId)
+    const perWarehouse: Record<string, number | null> = {}
+    let total = 0
+    for (const b of p.balances) {
+      if (b.warehouseType === 'VIRTUAL') {
+        perWarehouse[b.warehouseCode] = null
+      } else {
+        perWarehouse[b.warehouseCode] = b.totalQty
+        total += b.totalQty
+      }
+    }
+    return {
+      productId: p.productId,
+      modelName: meta?.modelName ?? '',
+      productName: meta?.productName ?? '',
+      perWarehouse,
+      total,
+    }
+  })
+
+  return { rows }
 }
 
 /**

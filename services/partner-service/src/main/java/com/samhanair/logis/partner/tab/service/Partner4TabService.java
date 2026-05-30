@@ -121,6 +121,25 @@ public class Partner4TabService {
      */
     @Transactional
     public PartnerFullResponse registerFull(PartnerFullRequest req) {
+        return registerFull(req, null);
+    }
+
+    /**
+     * 거래처 4탭 일괄 등록 — revision actor 명시 overload (거래처 버전이력 actorName null 결함 수정).
+     *
+     * <p>{@link Partner4TabController} 가 {@code X-User-Name} 헤더(UUID 비공개 가드 적용)에서 추출한
+     * actor 표시명을 전달한다. 등록 직후 CREATE 스냅샷(revision 1) 캡처 시 actorName 으로 기록하여
+     * 버전이력 화면의 변경자 공란을 해소한다 ({@link #updateFull(String, PartnerFullRequest, UUID, String)}
+     * 과 동일 패턴).
+     *
+     * @param req       4탭 일괄 요청 (partnerCode / bizNo / name 필수)
+     * @param actorName 등록자 표시명 (UUID 비공개 가드, null 가능)
+     * @return 등록된 4탭 응답
+     * @throws BusinessException CONFLICT — partnerCode 또는 bizNo 중복
+     * @throws BusinessException INVALID_INPUT — partnerCode / bizNo / name 미입력
+     */
+    @Transactional
+    public PartnerFullResponse registerFull(PartnerFullRequest req, String actorName) {
         if (req.partnerCode() == null || req.partnerCode().isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "partnerCode 필수");
         }
@@ -157,9 +176,10 @@ public class Partner4TabService {
         }
 
         // 권한 재편 Phase 2.3 — 4탭 일괄 등록 직후 CREATE 스냅샷 1건 캡처 (revision 1).
-        // 진입 경로 (Partner4TabController.registerFull) 는 actor 정보를 전달하지 않으므로 system actor.
+        // actorId 는 헤더로 전달되지 않으므로 system actor 폴백, actorName 은 X-User-Name(표시명)을 기록해
+        // 버전이력 화면의 변경자 공란을 해소한다 (UUID 비공개 가드는 컨트롤러 displayNameOrNull 에서 적용).
         partnerRevisionService.captureFor(partnerId, PartnerRevisionType.CREATE, null,
-                SYSTEM_ACTOR_ID, null, null);
+                SYSTEM_ACTOR_ID, actorName, null);
 
         return buildFullResponse(partner, partnerId);
     }

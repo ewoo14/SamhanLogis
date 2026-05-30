@@ -71,6 +71,31 @@ class PasswordResetControllerTest {
     }
 
     // ---------------------------------------------------------------
+    // POST /auth/password-reset/request — 200 OK (email 미전송 — FE 계약)
+    // ---------------------------------------------------------------
+
+    @Test
+    @DisplayName("requestReset — email 미전송(loginId 만) 요청도 200 OK (BE 자동 조회 계약)")
+    void requestReset_emailOmitted_returns200() throws Exception {
+        // FE passwordResetApi.ts 는 loginId 만 전송 — email 은 BE 가 loginId 로 자동 조회
+        String json = "{\"loginId\":\"alice\"}";
+
+        MockHttpServletResponse response = mockMvc.perform(
+                MockMvcRequestBuilders.post("/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        String responseBody = new String(response.getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(responseBody).contains("인증번호가 등록된 이메일로 전송되었습니다");
+
+        verify(rateLimiter).checkAndIncrement(eq("alice"), anyString());
+        // email 은 null 로 서비스에 전달 — 서비스가 등록 이메일 자동 조회
+        verify(tokenService).requestReset(eq("alice"), Mockito.isNull(), anyString());
+    }
+
+    // ---------------------------------------------------------------
     // POST /auth/password-reset/request — 400 이메일 형식 오류
     // ---------------------------------------------------------------
 

@@ -851,7 +851,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const handleStockQuery = async () => {
     if (!selectedLine) return
     try {
-      const res = await fetchStockBalanceBatch([selectedLine.productId])
+      const res = await fetchStockBalanceBatch([
+        {
+          productId: selectedLine.productId,
+          modelName: selectedLine.modelName ?? '',
+          productName: selectedLine.productName ?? '',
+        },
+      ])
       const row = res.rows[0]
       if (!row) {
         alert(`${selectedLine.modelName ?? '-'} 재고 정보 없음`)

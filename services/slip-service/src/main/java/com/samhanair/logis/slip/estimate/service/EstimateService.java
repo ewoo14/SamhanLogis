@@ -58,10 +58,12 @@ public class EstimateService {
      *
      * @param req 생성 요청 (라인 1건 이상 필수)
      * @param requesterId 작성자 user-id (gateway X-User-Id)
+     * @param requesterName 작성자 표시명 (gateway X-User-Name, UUID 비공개 가드, 없으면 null)
      * @return 상세 응답 (lines 포함)
      * @throws BusinessException(INVALID_INPUT) productId 미존재
      */
-    public EstimateDetailResponse create(CreateEstimateRequest req, String requesterId) {
+    public EstimateDetailResponse create(CreateEstimateRequest req, String requesterId,
+                                         String requesterName) {
         // 1. 라인 productId 일괄 검증 + snapshot 보강
         List<UUID> productIds = req.lines().stream()
                 .map(CreateEstimateRequest.EstimateLineRequest::productId)
@@ -101,14 +103,15 @@ public class EstimateService {
         Estimate saved = estimateRepository.save(estimate);
         // 권한 재편 Phase 2.2 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
         estimateRevisionService.capture(saved, EstimateRevisionType.CREATE, null,
-                parseActorId(requesterId), requesterId, null);
+                parseActorId(requesterId), resolveActorName(requesterName, requesterId), null);
         return EstimateDetailResponse.from(saved);
     }
 
     /**
      * 견적서 수정 — DRAFT/SENT 단계만. lines 가 null 이 아니면 기존 라인 모두 replace.
      */
-    public EstimateDetailResponse update(UUID id, UpdateEstimateRequest req, String callerId) {
+    public EstimateDetailResponse update(UUID id, UpdateEstimateRequest req, String callerId,
+                                         String callerName) {
         Estimate estimate = loadOrThrow(id);
         applyMutation(() -> estimate.editHeader(req.partnerId(), req.partnerName(),
                 req.partnerBusinessNo(), req.partnerAddress(), req.validUntil(), req.memo()));
@@ -149,7 +152,7 @@ public class EstimateService {
 
         // 권한 재편 Phase 2.2 — 헤더/라인 변경 후 EDIT 스냅샷 캡처. 도메인 가드를 통과한 성공 경로에서만 도달한다.
         estimateRevisionService.capture(estimate, EstimateRevisionType.EDIT, null,
-                parseActorId(callerId), callerId, null);
+                parseActorId(callerId), resolveActorName(callerName, callerId), null);
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -203,7 +206,7 @@ public class EstimateService {
      * @param estimateId 복원 대상 견적 UUID
      * @param revisionNo 복원할 시점의 revisionNo
      * @param callerId 복원 주체 user-id (gateway X-User-Id, 감사용)
-     * @param callerName 복원 주체 표시명 (UUID 비공개 가드, 없으면 callerId 폴백)
+     * @param callerName 복원 주체 표시명 (UUID 비공개 가드, 없거나 UUID 형태면 null)
      * @return 복원 후 견적 상세 (lines 포함)
      * @throws BusinessException(NOT_FOUND) 견적 또는 복원 대상 revision 미존재
      * @throws BusinessException(CONFLICT) 편집 불가 단계의 견적
@@ -211,9 +214,10 @@ public class EstimateService {
     public EstimateDetailResponse restoreToRevision(UUID estimateId, int revisionNo,
                                                     String callerId, String callerName) {
         Estimate estimate = loadOrThrow(estimateId);
-        String actorName = (callerName != null && !callerName.isBlank())
-                ? callerName
-                : callerId;
+        // [UUID 비공개 가드] X-User-Name 헤더를 우선 사용하되, 부재 시 callerId(=X-User-Id) 로
+        // 폴백하면 버전이력에 계정 UUID 가 그대로 노출된다([[uuid-no-user-visibility]]).
+        // 표시명이 UUID 형태이거나 헤더가 없으면 null 로 처리해 화면에 UUID 가 새어나가지 않게 한다.
+        String actorName = resolveActorName(callerName, callerId);
         applyMutation(() -> estimateRevisionService.restore(estimate, revisionNo,
                 parseActorId(callerId), actorName, null));
         // 라인 전량 교체(clear + 신규 라인 add) 영속화
@@ -265,6 +269,36 @@ public class EstimateService {
             return UUID.fromString(callerId);
         } catch (IllegalArgumentException ex) {
             return new UUID(0L, 0L);
+        }
+    }
+
+    /**
+     * 버전이력 actorName 안전 변환 — UUID 비공개 가드 ([[uuid-no-user-visibility]],
+     * partner-service {@code Partner4TabController.displayNameOrNull} 패턴 미러).
+     *
+     * <p>header 인증 환경에서 {@code callerId} (X-User-Id) 는 계정 UUID 이다. 이를 actorName 으로
+     * 저장하면 버전이력 화면에 raw UUID 가 새어나가므로:
+     * <ol>
+     *   <li>{@code callerName} (X-User-Name) 이 있고 UUID 형태가 아니면 그대로 사용한다.</li>
+     *   <li>그 외(헤더 부재 / UUID 형태)는 {@code null} 을 반환한다 — 버전이력에 UUID 미노출.</li>
+     * </ol>
+     *
+     * <p>{@code callerId} 폴백을 의도적으로 제거했다 — 폴백하면 다시 UUID 가 actorName 으로 들어간다.
+     * {@code callerId} 는 감사용 actorId({@link #parseActorId}) 로만 별도 사용한다.
+     *
+     * @param callerName X-User-Name 헤더 값 (없으면 null)
+     * @param callerId   X-User-Id 헤더 값 (actorId 전용 — actorName 으로는 미사용, 시그니처 명시용)
+     * @return UUID 가 아닌 표시명, 또는 {@code null}
+     */
+    private String resolveActorName(String callerName, String callerId) {
+        if (callerName == null || callerName.isBlank()) {
+            return null;
+        }
+        try {
+            UUID.fromString(callerName.trim());
+            return null; // UUID → 비공개
+        } catch (IllegalArgumentException notUuid) {
+            return callerName;
         }
     }
 

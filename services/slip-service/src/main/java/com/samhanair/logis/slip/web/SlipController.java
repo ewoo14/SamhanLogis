@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -208,6 +209,35 @@ public class SlipController {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
         checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.editHeader(id, request, callerOrSystem(callerHeader)));
+    }
+
+    /**
+     * 기사 정보 부분 수정 — DRAFT/SAVED 단계만.
+     *
+     * <p>FE {@code updateSlipDriver()} 가 호출하는 {@code PATCH /slips/{id}/driver}. 출고 슬립의
+     * 배송 기사명/연락처만 부분 갱신한다. null 필드는 보존. 기존 전표 편집과 동일한 권한
+     * ({@code sales.slip.edit} EDIT + slipType 기반 동적 EDIT 가드) 을 적용한다.
+     *
+     * @return 200, SlipDetailResponse
+     */
+    @Operation(summary = "기사 정보 부분 수정",
+            description = "DRAFT/SAVED 단계만. driverName/driverPhone 부분 갱신, null 필드는 보존")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "전표 미존재"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
+    })
+    @PatchMapping("/{id}/driver")
+    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    public ApiResponse<SlipDetailResponse> editDriver(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateSlipDriverRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
+        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        return ApiResponse.ok(slipService.editDriver(id, request, callerOrSystem(callerHeader)));
     }
 
     /**
