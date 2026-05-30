@@ -14,6 +14,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRestoreResult;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
@@ -62,6 +63,9 @@ class PartnerOrderRevisionServiceTest {
     @Mock
     private PartnerOrderRepository orderRepository;
 
+    @Mock
+    private PartnerOrderLineRepository lineRepository;
+
     private ObjectMapper objectMapper;
     private PartnerOrderRevisionService service;
 
@@ -70,7 +74,12 @@ class PartnerOrderRevisionServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, objectMapper);
+        service = new PartnerOrderRevisionService(revisionRepository, orderRepository, lineRepository, objectMapper);
+
+        // restore() 내부 lineRepository.findAllIncludingDeletedByPartnerOrderId() 기본 lenient stub
+        // (단위 테스트에서 실 DB 조회 불가 — 빈 리스트 반환으로 사이드이펙트 없음)
+        lenient().when(lineRepository.findAllIncludingDeletedByPartnerOrderId(any(UUID.class)))
+                .thenReturn(java.util.List.of());
     }
 
     // ── capture 채번 단조증가 ──────────────────────────────────────────────────
@@ -284,6 +293,8 @@ class PartnerOrderRevisionServiceTest {
             assertThat(result.order().getPartnerCode()).isEqualTo("CONF-PC");
             // CONFIRMED 복원은 slipResyncRequired=true
             assertThat(result.slipResyncRequired()).isTrue();
+            // [P1-6] restoreHeader 는 status 를 변경하지 않으므로 복원 후에도 CONFIRMED 유지
+            assertThat(result.order().getStatus()).isEqualTo(PartnerOrderStatus.CONFIRMED);
         }
 
         @Test

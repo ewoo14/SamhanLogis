@@ -3,14 +3,14 @@
 -- slip(2.1)/estimate(2.2)/partner(2.3) revisions 패턴 미러.
 -- BaseEntity 7 audit 컬럼 컨벤션: V1__init_partner_order.sql 과 동일 타입/네이밍/기본값.
 -- snapshot JSONB: 헤더+라인 전체 full-snapshot (Jackson 직렬화, @JdbcTypeCode(SqlTypes.JSON)).
--- revision_type: CREATE / EDIT / STATUS / RESTORE
+-- revision_type: CREATE / EDIT / STATUS / RESTORE / DELETE
 -- revision_no: partner_order 별 독립 단조증가 채번 (partner_orders.revision_count 와 별개).
 
 CREATE TABLE partner_order_revisions (
     id                  UUID         PRIMARY KEY,
     partner_order_id    UUID         NOT NULL,        -- FK 미강제: soft-delete 후에도 버전이력 보존
     revision_no         INT          NOT NULL,        -- order 별 단조증가 (1, 2, 3, ...)
-    revision_type       VARCHAR(16)  NOT NULL,        -- CREATE / EDIT / STATUS / RESTORE
+    revision_type       VARCHAR(16)  NOT NULL,        -- CREATE / EDIT / STATUS / RESTORE / DELETE
     source_revision_no  INT,                          -- RESTORE 시 출처 revision_no (그 외 NULL)
     order_no            VARCHAR(30),                  -- 표시 식별자 스냅샷
     snapshot            JSONB        NOT NULL,        -- 헤더 + 라인 full-snapshot

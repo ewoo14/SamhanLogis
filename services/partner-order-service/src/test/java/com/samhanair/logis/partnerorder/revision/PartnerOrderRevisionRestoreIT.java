@@ -280,11 +280,12 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
 
         UUID orderId = UUID.fromString(extractOrderId(createResult));
 
-        // rev1 시점의 라인 수 기억 (2개 - estimateSnapshot 기준)
-        int rev1LineCount = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId)
-                .stream().filter(r -> r.getRevisionNo() == 1).findFirst()
-                .map(r -> r.getRevisionNo()).orElseThrow();
-        assertThat(rev1LineCount).isEqualTo(1); // rev1 revisionNo=1
+        // rev1 이 실제로 생성되었는지 확인 (1건)
+        // [P1-5 수정] rev1LineCount 가 revisionNo(=1) 를 가져오는 무의미 단언이었음.
+        // 실제 revision 존재 여부를 hasSize(1) 로 검증하고, rev1 의 revisionNo=1 을 직접 단언한다.
+        var rev1List = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId);
+        assertThat(rev1List).hasSize(1);
+        assertThat(rev1List.get(0).getRevisionNo()).isEqualTo(1);
 
         // (2) update → 헤더+라인 변경 (rev2=EDIT)
         String modifiedAt = currentVersionTimestamp(orderId);
@@ -411,6 +412,12 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                 WHERE id = ? AND slip_no = ? AND is_deleted = FALSE
                 """, Integer.class, orderId, slipNoBeforeRestore);
         assertThat(slipNoCount).isEqualTo(1);
+
+        // [P1-6] 복원 후 status=CONFIRMED 보존 확인 — restoreHeader 는 status 를 변경하지 않으므로
+        // CONFIRMED 상태가 그대로 유지되어야 한다. DB 레벨에서 직접 단언한다.
+        String statusAfterRestore = jdbcTemplate.queryForObject(
+                "SELECT status FROM partner_orders WHERE id = ?", String.class, orderId);
+        assertThat(statusAfterRestore).isEqualTo("CONFIRMED");
 
         // RESTORE revision 이 추가 생성됨 (rev3)
         var revisions = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId);
@@ -719,6 +726,145 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
         // RESTORE revision 의 sourceRevisionNo=1 확인
         var restoreRev = sorted.get(2);
         assertThat(restoreRev.getSourceRevisionNo()).isEqualTo(1);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 8 — create→edit(라인 변경)→delete→restore(rev1) 라인 정합 (P1-1)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * create→edit(라인 변경)→delete→restore(rev1) 흐름에서 라인 정합을 검증한다.
+     *
+     * <p>[P1-1 lines 정합 보장] PartnerOrder.lines 는 @SQLRestriction("is_deleted = false") 가
+     * 걸린 컬렉션이다. soft-deleted 주문을 undelete 한 후 replaceLines() 를 호출할 때
+     * 기존 soft-deleted 라인이 컬렉션에 포함되지 않아 markDeleted 루프를 통과하지 못하고
+     * DB 에 중복 잔존할 수 있다. 수정된 서비스는 lineRepository.findAllIncludingDeletedByPartnerOrderId()
+     * 로 soft-deleted 라인까지 포함해 명시적으로 전처리한 후 replaceLines() 를 호출한다.
+     *
+     * <p>검증 사항:
+     * <ul>
+     *   <li>restore(rev1) 후 활성 라인이 rev1 시점과 정확히 일치 (2개, 편집 라인 반영 안 됨)</li>
+     *   <li>DB partner_order_lines 에서 해당 주문의 is_deleted=true 라인이 중복 없이 잔존
+     *       (active=2, total 라인 수 = active + soft-deleted 이전 라인)</li>
+     * </ul>
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스8: create→edit(라인 변경)→delete→restore(rev1) 라인 정합 — 활성 라인 rev1 일치 + soft-deleted 중복 없음")
+    void case8_createEditDeleteRestore_linesMatchRev1AndNoDuplicateSoftDeletedLines() throws Exception {
+        // (1) DRAFT 주문 생성 (rev1=CREATE, 라인 2개)
+        UUID estimateId = UUID.randomUUID();
+        when(estimateClient.findById(estimateId)).thenReturn(Optional.of(estimateSnapshot(estimateId)));
+
+        MvcResult createResult = mockMvc.perform(
+                        post("/api/v1/partner-orders/from-estimate/{id}", estimateId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID orderId = UUID.fromString(extractOrderId(createResult));
+
+        // rev1 생성 확인 (라인 2개 — estimateSnapshot 기준)
+        assertThat(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId)).hasSize(1);
+        Integer activeAfterCreate = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ? AND is_deleted = FALSE",
+                Integer.class, orderId);
+        assertThat(activeAfterCreate).isEqualTo(2);
+
+        // (2) edit — 라인 변경 (rev2=EDIT): 라인 수량 변경으로 기존 2개 soft-delete + 새 2개 INSERT
+        String modifiedAt = currentVersionTimestamp(orderId);
+        mockMvc.perform(
+                        put("/api/v1/partner-orders/{id}", orderId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "영업편집자")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(updateJson(modifiedAt, "P-EDIT-CASE8", "1111111111", 5)))
+                .andExpect(status().isOk());
+
+        // edit 후: 활성 라인 2개, soft-deleted 라인 2개 (이전 rev1 라인)
+        Integer activeAfterEdit = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ? AND is_deleted = FALSE",
+                Integer.class, orderId);
+        assertThat(activeAfterEdit).isEqualTo(2);
+        Integer deletedAfterEdit = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ? AND is_deleted = TRUE",
+                Integer.class, orderId);
+        assertThat(deletedAfterEdit).isEqualTo(2);
+
+        // (3) delete — soft-delete 주문 + 라인 (rev2=DELETE)
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .delete("/api/v1/partner-orders/{id}", orderId)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "삭제담당자"))
+                .andExpect(status().isNoContent());
+
+        // delete 후: 주문 soft-deleted, 활성 라인 0개, soft-deleted 라인 4개(edit 2 + delete 2)
+        Integer activeAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ? AND is_deleted = FALSE",
+                Integer.class, orderId);
+        assertThat(activeAfterDelete).isEqualTo(0);
+        Integer totalAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ?",
+                Integer.class, orderId);
+        assertThat(totalAfterDelete).isEqualTo(4); // edit 2(soft-del) + delete 2(soft-del)
+
+        // (4) restore(rev1) — rev1 스냅샷(2개 라인)으로 복원
+        mockMvc.perform(
+                        post("/api/v1/partner-orders/{id}/revisions/{no}/restore", orderId, 1)
+                                .header("X-User-Id", SALES_ACCOUNT_ID)
+                                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
+                                .header("X-User-Name", "복원담당자"))
+                .andExpect(status().isOk())
+                // 활성 라인 2개 — rev1 시점 그대로
+                .andExpect(jsonPath("$.data.order.lines.length()").value(2))
+                // rev1 헤더 복구
+                .andExpect(jsonPath("$.data.order.partnerCode").value("P-RST-IT-001"))
+                .andExpect(jsonPath("$.data.slipResyncRequired").value(false));
+
+        // (5) 복원 후 라인 정합 DB 단언
+        // 활성 라인 2개 (rev1 스냅샷 기준 신규 INSERT 된 라인)
+        Integer activeAfterRestore = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ? AND is_deleted = FALSE",
+                Integer.class, orderId);
+        assertThat(activeAfterRestore).isEqualTo(2);
+
+        // soft-deleted 라인은 복원 전 4개 + 복원 시 0개 추가 soft-delete(이미 모두 soft-deleted) = 4개
+        // 새로 INSERT 된 라인 2개(rev1 스냅샷 기준) 는 active 이므로 총 라인 = 4 + 2 = 6개
+        Integer totalAfterRestore = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM partner_order_lines WHERE partner_order_id = ?",
+                Integer.class, orderId);
+        assertThat(totalAfterRestore).isEqualTo(6); // 4(soft-deleted) + 2(active, rev1 복원)
+
+        // soft-deleted 라인 중복 잔존 없음 확인 — 동일 productId 의 is_deleted=FALSE 라인이 2건을 초과하지 않음
+        // (같은 productId 라인이 active 1건만 존재해야 함)
+        Integer duplicateActiveCheck = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM (
+                    SELECT product_id, COUNT(*) as cnt
+                    FROM partner_order_lines
+                    WHERE partner_order_id = ? AND is_deleted = FALSE
+                    GROUP BY product_id
+                    HAVING COUNT(*) > 1
+                ) dup
+                """, Integer.class, orderId);
+        assertThat(duplicateActiveCheck).isEqualTo(0); // productId 별 중복 활성 라인 없음
+
+        // (6) RESTORE revision 생성 확인 (rev3 — CREATE→EDIT→DELETE 이후 rev4)
+        // 주문 생성(rev1=CREATE) + edit(rev2=EDIT) + delete(rev3=DELETE) + restore(rev4=RESTORE)
+        var revisionsAfterRestore = revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId);
+        assertThat(revisionsAfterRestore).hasSize(4);
+        var sorted = revisionsAfterRestore.stream()
+                .sorted(java.util.Comparator.comparingInt(r -> r.getRevisionNo()))
+                .toList();
+        assertThat(sorted.get(0).getRevisionType().name()).isEqualTo("CREATE");
+        assertThat(sorted.get(1).getRevisionType().name()).isEqualTo("EDIT");
+        assertThat(sorted.get(2).getRevisionType().name()).isEqualTo("DELETE");
+        assertThat(sorted.get(3).getRevisionType().name()).isEqualTo("RESTORE");
+        assertThat(sorted.get(3).getSourceRevisionNo()).isEqualTo(1);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

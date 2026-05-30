@@ -36,17 +36,38 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Phase 2.4 — {@link ResponseStatusException} 을 HTTP 상태코드 그대로 매핑한다.
+     * Phase 2.4 — {@link ResponseStatusException} 을 HTTP 상태코드 기반으로 {@link ErrorCode} 에 매핑한다.
      *
      * <p>도메인 메서드({@link com.samhanair.logis.partnerorder.domain.PartnerOrder#requireRestorable()} 등)가
      * {@code ResponseStatusException} 을 던질 때, Spring Boot 기본 {@code DefaultHandlerExceptionResolver}
-     * 보다 본 핸들러가 우선 처리되므로 명시적 매핑을 추가한다. {@link Exception} fallback 이 500 으로
-     * re-wrap 하는 것을 방지한다.
+     * 보다 본 핸들러가 우선 처리되므로 명시적 매핑을 추가한다.
+     *
+     * <p>HTTP 상태코드 → {@link ErrorCode} 매핑 규칙 (P2 수정, 2026-05-30):
+     * <ul>
+     *   <li>409 CONFLICT → {@link ErrorCode#CONFLICT} (복원 가드/채번 충돌)</li>
+     *   <li>404 NOT_FOUND → {@link ErrorCode#NOT_FOUND}</li>
+     *   <li>403 FORBIDDEN → {@link ErrorCode#FORBIDDEN}</li>
+     *   <li>401 UNAUTHORIZED → {@link ErrorCode#UNAUTHORIZED}</li>
+     *   <li>400 BAD_REQUEST → {@link ErrorCode#INVALID_INPUT}</li>
+     *   <li>그 외 → {@link ErrorCode#INTERNAL_ERROR} (500 계열)</li>
+     * </ul>
+     *
+     * <p>FE 가 {@code error.code} 기준으로 409(복원 가드) 와 500(서버오류) 를 구분할 수 있도록
+     * {@code INTERNAL_ERROR} 고정 반환을 제거했다.
      */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
+        int statusValue = ex.getStatusCode().value();
+        ErrorCode errorCode = switch (statusValue) {
+            case 400 -> ErrorCode.INVALID_INPUT;
+            case 401 -> ErrorCode.UNAUTHORIZED;
+            case 403 -> ErrorCode.FORBIDDEN;
+            case 404 -> ErrorCode.NOT_FOUND;
+            case 409 -> ErrorCode.CONFLICT;
+            default  -> ErrorCode.INTERNAL_ERROR;
+        };
         return ResponseEntity.status(ex.getStatusCode())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, ex.getReason()));
+                .body(ApiResponse.fail(errorCode, ex.getReason()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

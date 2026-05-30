@@ -4,8 +4,8 @@
  * <p>{@link ../../api/partnerOrderRevision} 의 {@code listPartnerOrderRevisions} 로
  * 버전이력(최신 우선)을 표시하고, 각 시점에 대해 "이 시점으로 복원" 액션을 제공한다.
  * 복원은 DS Modal confirm 후 {@code restorePartnerOrderRevision} mutation 으로 실행되며,
- * 성공 시 주문 상세 (['partner-orders', orderId]) + 버전이력
- * (['partner-order-revisions', orderId]) cache 를 무효화한다 (F5 stale 회귀 차단).
+ * 성공 시 주문 상세 (['partner-order', orderId]) + 목록 prefix (['partner-orders']) +
+ * 버전이력 (['partner-order-revisions', orderId]) cache 를 무효화한다 (F5 stale 회귀 차단).
  *
  * <h2>복원 가드 (설계서 §3.5, 개발책임자 결정 2026-05-30)</h2>
  * <p>제외목록 방식: {@code CONFIRMING} / {@code CANCELED} 상태면 복원 버튼을 비활성화하고
@@ -46,14 +46,17 @@ export interface PartnerOrderVersionHistoryPanelProps {
   status: PartnerOrderStatus
 }
 
-/** revision 유형별 한국어 라벨 + Badge 변형. */
+/**
+ * revision 유형별 한국어 라벨 + Badge 변형.
+ * STATUS 는 긍정/부정 혼재 이벤트이므로 중립 brand 사용 (success=초록은 완료 오해 유발).
+ */
 const REVISION_TYPE_META: Record<
   PartnerOrderRevisionType,
   { label: string; variant: 'neutral' | 'brand' | 'warning' | 'success' | 'danger' | 'nts' }
 > = {
   CREATE: { label: '생성', variant: 'neutral' },
   EDIT: { label: '수정', variant: 'brand' },
-  STATUS: { label: '상태변경', variant: 'success' },
+  STATUS: { label: '상태변경', variant: 'brand' },
   RESTORE: { label: '복원', variant: 'warning' },
   DELETE: { label: '삭제', variant: 'danger' },
 }
@@ -83,12 +86,27 @@ function displayActor(actorName: string | null | undefined): string | null {
 }
 
 /**
- * "2026-05-29T14:32:18" → "2026-05-29 14:32" — 로컬 표시 포맷.
- * BE LocalDateTime 문자열을 추가 파싱 없이 안전 절단.
+ * LocalDateTime 문자열 → "YYYY-MM-DD HH:mm" 표시.
+ * 방어적 파싱: ISO 문자열(정상), 배열 직렬화 잔존, 기타 포맷 모두 처리.
+ * BE write-dates-as-timestamps=false 설정이 없을 때도 깨지지 않게 Date 파싱으로 fallback.
  */
-function formatLocalDateTime(iso: string): string {
+function formatLocalDateTime(iso: string | unknown): string {
   if (!iso) return '-'
-  return iso.slice(0, 16).replace('T', ' ')
+  // 정상 경로: ISO 8601 문자열 "2026-05-29T14:32:18" — slice 로 빠르게 처리.
+  if (typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso)) {
+    return iso.slice(0, 16).replace('T', ' ')
+  }
+  // 방어 경로: BE 가 timestamp 배열([2026,5,29,14,32,18]) 이나 다른 포맷을 내보낸 경우.
+  const d = new Date(Array.isArray(iso) ? (iso as number[]).join('/') : String(iso))
+  if (Number.isNaN(d.getTime())) return '-'
+  return d.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).replace(/\.\s*/g, '-').replace(',', '').slice(0, 16)
 }
 
 /**
@@ -135,16 +153,18 @@ export function PartnerOrderVersionHistoryPanel({
     mutationFn: (revisionNo: number) => restorePartnerOrderRevision(orderId, revisionNo),
     onSuccess: (result, revisionNo) => {
       setRestoreTarget(null)
-      // F5 stale 회귀 차단 — 상세 + 목록 + 버전이력 전부 무효화 (Phase 2.3 F5 회귀 교훈).
+      // F5 stale 회귀 차단 — 상세 단건 + 목록(prefix) + 버전이력 전부 무효화.
+      // ['partner-orders'] prefix 무효화 → 목록 queryKey(['partner-orders', dateFrom, ...]) 전부 적중.
+      // ['partner-orders', orderId] 는 목록 queryKey prefix 와 불일치하므로 사용 금지.
       void queryClient.invalidateQueries({ queryKey: ['partner-order', orderId] })
-      void queryClient.invalidateQueries({ queryKey: ['partner-orders', orderId] })
+      void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
       void queryClient.invalidateQueries({ queryKey: ['partner-order-revisions', orderId] })
 
       if (result.slipResyncRequired) {
         // CONFIRMED 복원 — slip 재발행 필요 경고 우선 노출.
         setToast({
           kind: 'warning',
-          text: `rev ${revisionNo} 시점으로 주문을 복원했습니다. 이 주문은 완료(출고전표 발행됨) 상태입니다. 연결된 출고전표 재발행이 필요할 수 있습니다.`,
+          text: `rev ${revisionNo} 시점으로 주문을 복원했습니다.\n⚠ 출고전표가 발행된 주문입니다. 연결 전표 재발행을 확인하세요.`,
         })
       } else {
         setToast({
@@ -188,15 +208,16 @@ export function PartnerOrderVersionHistoryPanel({
         </p>
       ) : null}
 
-      {/* 복원 결과 토스트 — 사용자 닫기 가능 */}
+      {/* 복원 결과 토스트 — 사용자 닫기 가능.
+          role 분기: success=status(polite), warning/danger=alert(즉시 인터럽트, 설계서 §3 기준). */}
       {toast ? (
         <div
-          role="status"
+          role={toast.kind === 'success' ? 'status' : 'alert'}
           data-testid="partner-order-version-history-toast"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             padding: '10px 12px',
             marginBottom: 12,
             borderRadius: 6,
@@ -222,24 +243,16 @@ export function PartnerOrderVersionHistoryPanel({
             fontSize: 13,
           }}
         >
-          <span>{toast.text}</span>
-          <button
-            type="button"
+          <span style={{ whiteSpace: 'pre-line' }}>{toast.text}</span>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setToast(null)}
             aria-label="알림 닫기"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 16,
-              lineHeight: 1,
-              color: 'inherit',
-              marginLeft: 8,
-              flexShrink: 0,
-            }}
+            style={{ marginLeft: 'var(--space-2)', flexShrink: 0 }}
           >
-            x
-          </button>
+            &times;
+          </Button>
         </div>
       ) : null}
 

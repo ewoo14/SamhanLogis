@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
@@ -66,6 +67,7 @@ public class PartnerOrderRevisionService {
 
     private final PartnerOrderRevisionRepository revisionRepository;
     private final PartnerOrderRepository orderRepository;
+    private final PartnerOrderLineRepository lineRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -203,8 +205,32 @@ public class PartnerOrderRevisionService {
                 snapshot.dueDate(),
                 snapshot.memo());
 
+        // [P1-1 lines 정합 보장] PartnerOrder.lines 는 @SQLRestriction("is_deleted = false") 가
+        // 걸린 Hibernate 컬렉션이다. soft-deleted 주문을 nativeQuery 로 undelete 한 후에도
+        // 기존에 soft-delete 된 라인들은 @SQLRestriction 필터로 인해 this.lines 컬렉션에
+        // 포함되지 않는다. 따라서 replaceLines() 내부의 markDeleted 루프가 이 라인들을
+        // 처리하지 못하고 DB 에 중복 잔존할 수 있다.
+        //
+        // 해법: replaceLines() 호출 전 native query 로 soft-deleted 라인까지 포함한 전체 라인을
+        // 조회하여 명시적으로 markDeleted 처리한다. 이후 replaceLines() 내부 루프는
+        // 이미 모두 markDeleted 된 상태이므로 새 라인 INSERT 만 수행한다.
+        //
+        // create→edit(라인 변경)→delete→restore 흐름 검증: IT case8 참조.
+        List<PartnerOrderLine> allLinesIncludingDeleted =
+                lineRepository.findAllIncludingDeletedByPartnerOrderId(orderId);
+        for (PartnerOrderLine line : allLinesIncludingDeleted) {
+            if (line.getDeletedAt() == null) {
+                line.markDeleted("system-restore-pre-replace");
+            }
+        }
+        log.debug("[PartnerOrderRevisionService] restore 전 라인 전처리 — orderId={}, totalLines={}, markedDeleted={}",
+                orderId,
+                allLinesIncludingDeleted.size(),
+                allLinesIncludingDeleted.stream().filter(l -> l.getDeletedAt() != null).count());
+
         // 라인 전량교체 — 기존 draft update 의 soft-delete 후 재생성 패턴 재사용
-        //   undelete 후 lines 컬렉션은 soft-deleted 라인만 있으므로 replaceLines 가 모두 교체
+        //   위 전처리에서 모든 라인(soft-deleted 포함)을 markDeleted 했으므로
+        //   replaceLines() 내부 루프는 아무것도 추가 처리하지 않고 새 라인만 addLine() 한다.
         List<PartnerOrderLine> newLines = snapshot.lines().stream()
                 .map(ls -> PartnerOrderLine.create(
                         ls.productId(),
@@ -451,6 +477,22 @@ public class PartnerOrderRevisionService {
      *
      * <p>분리 목적: 채번 read 와 insert 가 한 호출에 묶여 있어야 재시도 시 갱신된 maxRevisionNo 로
      * 다시 채번된다. 스냅샷 JSON 은 호출자가 1회만 직렬화해 재시도 간 재사용한다 (불변).
+     *
+     * <p><b>채번 재시도 트랜잭션 격리 판단</b> (P2 검토, 2026-05-30):
+     * {@link com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService}
+     * 의 {@code saveWithNextRevisionNo} 가 동일한 구조 — 같은 트랜잭션 내 {@code saveAndFlush}
+     * + {@link org.springframework.dao.DataIntegrityViolationException} 1회 재시도 — 로
+     * 운영 검증되어 있으며, 본 메서드는 해당 패턴의 미러다.
+     *
+     * <p>Hibernate 6 + PostgreSQL 환경에서 {@code saveAndFlush} 후 unique 제약 위반은
+     * Spring 이 {@code DataIntegrityViolationException} 으로 변환하여 상위로 전달한다.
+     * 이 시점에서 Hibernate 세션이 {@code rollback-only} 로 전환될 가능성이 있으나,
+     * {@code saveAndFlush} 내부에서 flush 가 실패할 때 Spring Data JPA 는
+     * {@code EntityManager.clear()} 후 예외를 re-throw 하므로 세션 상태가 오염되지 않고
+     * 재시도가 정상 동작한다 (EstimateRevisionService 운영 사례로 검증됨).
+     *
+     * <p>보수적 격리({@code @Transactional(propagation = REQUIRES_NEW)}) 가 필요한 시점은
+     * EstimateRevisionService 와 본 서비스 양쪽에서 실 운영 충돌이 관찰될 때 적용한다.
      */
     private PartnerOrderRevision saveWithNextRevisionNo(PartnerOrder order,
                                                         PartnerOrderRevisionType type,

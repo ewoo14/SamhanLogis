@@ -6,8 +6,10 @@
  *   2) DRAFT 주문 — 복원 버튼 활성 → DS Modal confirm → 복원 호출 → 성공 toast
  *   3) DRAFT 복원 (slipResyncRequired=false) — 경고 배너 미노출
  *   4) CONFIRMED 주문 — 복원 성공 후 slipResyncRequired=true → 경고 toast 노출
- *   5) CONFIRMING / CANCELED 주문 — 복원 버튼 비활성 + 안내 문구
- *   6) actorName UUID 미노출 — UUID 패턴 문자열은 화면에서 마스킹
+ *   4a) CONFIRMING 주문 — 복원 버튼 비활성 + "확정 처리 중" 안내
+ *   4b) CANCELED 주문 — 복원 버튼 비활성 + "취소된 주문" 안내
+ *   5) actorName UUID 미노출 — UUID 패턴 문자열은 화면에서 마스킹
+ *   6) DELETE revision — 버전이력 목록에 "삭제" 배지 표시
  *
  * <h2>Mock 전략 — mock.ts fixture (VITE_MOCK_MODE=1)</h2>
  * <p>desktop 클라이언트는 {@code VITE_MOCK_MODE=1} 일 때 axios request interceptor 가
@@ -21,7 +23,8 @@
  *   - {@code ord-confirmed}  → CONFIRMED (복원 시 slipResyncRequired=true)
  *   - {@code ord-confirming} → CONFIRMING (복원 버튼 비활성)
  *   - {@code ord-canceled}   → CANCELED  (복원 버튼 비활성)
- * revisions fixture 는 모든 orderId 에서 3건(rev3 RESTORE, rev2 EDIT, rev1 CREATE) 공통 응답.
+ * revisions fixture 는 기본 3건(rev3 RESTORE, rev2 EDIT, rev1 CREATE) 공통 응답.
+ * {@code ord-delete-history} 의 경우 rev4(DELETE) 를 추가로 반환한다(시나리오 6).
  *
  * <h2>UUID 비공개 가드 ([[uuid-no-user-visibility]])</h2>
  * <p>화면 단언은 actorName / orderNo / 배지·변경요약 텍스트만 사용한다.
@@ -266,24 +269,6 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 6: DELETE revision — '삭제' 배지(danger variant) 표시
-  // ──────────────────────────────────────────────────────────
-  test('시나리오 6: DELETE revision — 버전이력 목록에 "삭제" 배지 표시', async ({ page }) => {
-    await installAuthMock(page)
-    // ord-delete-history orderId → mock.ts 가 DELETE revision 포함 fixture 반환.
-    // (mock.ts Phase 2.4 블록 내 orderId==='ord-delete-history' 분기로 DELETE rev 추가)
-    await gotoDetailAndWaitForPanel(page, DELETE_HISTORY_ORDER_ID)
-
-    const historyList = page.getByTestId('partner-order-version-history-list')
-    await expect(historyList).toBeVisible()
-
-    // rev4 행이 존재하고 '삭제' 텍스트를 포함해야 한다.
-    const row4 = page.getByTestId('partner-order-version-history-row-4')
-    await expect(row4).toBeVisible()
-    await expect(row4).toContainText('삭제')
-  })
-
-  // ──────────────────────────────────────────────────────────
   // 시나리오 5: actorName UUID 비노출 가드
   // ──────────────────────────────────────────────────────────
   test('시나리오 5: actorName UUID 패턴은 화면에 노출되지 않는다', async ({ page }) => {
@@ -304,5 +289,73 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
 
     // actorName '오병승' 은 정상 노출 (UUID 아님 → 마스킹 없음)
     await expect(panel).toContainText('오병승')
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 6: DELETE revision — '삭제' 배지(danger variant) 표시
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 6: DELETE revision — 버전이력 목록에 "삭제" 배지 표시', async ({ page }) => {
+    await installAuthMock(page)
+    // ord-delete-history orderId → mock.ts 가 DELETE revision 포함 fixture 반환.
+    // (mock.ts Phase 2.4 블록 내 orderId==='ord-delete-history' 분기 + rev4 DELETE 포함)
+    await gotoDetailAndWaitForPanel(page, DELETE_HISTORY_ORDER_ID)
+
+    const historyList = page.getByTestId('partner-order-version-history-list')
+    await expect(historyList).toBeVisible()
+
+    // rev4 행이 존재하고 '삭제' 텍스트를 포함해야 한다.
+    const row4 = page.getByTestId('partner-order-version-history-row-4')
+    await expect(row4).toBeVisible()
+    await expect(row4).toContainText('삭제')
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 7: 동일 revision 재복원 — 두 번째 복원도 toast 표시
+  //
+  // 검증 목적: rev1 복원 후 다시 rev1 을 복원해도 서버가 200 OK 를 반환하고
+  //   UI 가 성공 toast 를 표시하는지 확인한다 (멱등성 시나리오).
+  //   mock.ts 는 동일 revisionNo 에 대한 재복원 요청에도 동일한 성공 응답을 반환하므로
+  //   "동일 revision 재복원 허용" 비즈니스 규칙이 UI 레벨에서 차단되지 않음을 검증한다.
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 7: 동일 revision(rev1) 재복원 — 두 번째 toast 도 표시된다', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoDetailAndWaitForPanel(page, DRAFT_ORDER_ID)
+
+    await expect(page.getByTestId('partner-order-version-history-list')).toBeVisible()
+
+    // 첫 번째 복원
+    const restoreBtn1 = page.getByTestId('partner-order-version-history-restore-button-1')
+    await expect(restoreBtn1).toBeVisible()
+    await expect(restoreBtn1).toBeEnabled()
+    await restoreBtn1.click()
+
+    await expect(page.getByRole('dialog')).toBeVisible()
+    const confirmBtn = page.getByTestId('partner-order-version-history-restore-confirm')
+    await expect(confirmBtn).toBeVisible()
+    await confirmBtn.click()
+
+    // 첫 번째 toast 확인
+    const toast = page.getByTestId('partner-order-version-history-toast')
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText('rev 1')
+
+    // toast 닫힘 대기 (자동 닫힘) 또는 재열기 가능 상태로 복구 대기
+    // toast 가 사라질 때까지 최대 5 초 대기
+    await expect(toast).toBeHidden({ timeout: 5_000 }).catch(() => {
+      // toast 가 유지되는 경우에도 두 번째 복원 시도 허용
+    })
+
+    // 두 번째 복원 — 동일 rev1 재복원
+    await expect(restoreBtn1).toBeVisible()
+    await expect(restoreBtn1).toBeEnabled()
+    await restoreBtn1.click()
+
+    await expect(page.getByRole('dialog')).toBeVisible()
+    const confirmBtn2 = page.getByTestId('partner-order-version-history-restore-confirm')
+    await confirmBtn2.click()
+
+    // 두 번째 toast 표시 — UI 가 재복원을 차단하지 않음을 검증
+    await expect(page.getByTestId('partner-order-version-history-toast')).toBeVisible()
+    await expect(page.getByTestId('partner-order-version-history-toast')).toContainText('rev 1')
   })
 })

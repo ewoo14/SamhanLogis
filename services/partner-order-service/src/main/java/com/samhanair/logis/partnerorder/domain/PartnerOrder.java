@@ -286,7 +286,16 @@ public class PartnerOrder extends BaseEntity {
         this.slipPublishStatus = SlipPublishStatus.FAILED_PERMANENT;
     }
 
-    /** 거래처 취소 또는 admin 반려. */
+    /**
+     * 거래처 취소 또는 admin 반려.
+     *
+     * <p><b>현재 死코드</b>: cancel() 을 호출하는 서비스/컨트롤러 경로가 Phase 2.4 시점 기준으로
+     * 아직 구현되지 않았다. 도메인 메서드는 미래 "주문 취소" 슬라이스 구현을 위해 미리 선언되어 있으며,
+     * {@link PartnerOrderStatus#CANCELED} 상태에서의 복원 가드({@link #requireRestorable()}) 와
+     * 409 테스트 케이스는 이미 검증되어 있다. 취소 슬라이스 구현 시 이 주석을 제거하고
+     * STATUS revision 캡처({@link com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType#STATUS})
+     * 훅을 연결할 것.
+     */
     public void cancel() {
         this.status = PartnerOrderStatus.CANCELED;
     }
