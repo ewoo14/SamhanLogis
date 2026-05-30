@@ -114,3 +114,6 @@ infrastructure/terraform/.terraform.lock.hcl
 infrastructure/terraform/terraform.tfstate
 infrastructure/terraform/terraform.tfstate.backup
 infrastructure/terraform/tfplan
+.tmp-qa/
+infrastructure/docker-compose.qa-override.yml
+.tmp-qa-2-6c.sh
