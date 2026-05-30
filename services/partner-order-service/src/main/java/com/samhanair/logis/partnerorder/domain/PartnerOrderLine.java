@@ -16,6 +16,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 거래처 주문의 라인 1:N. {@link #productId} 는 product-service (M1a) 의 logical reference —
@@ -73,6 +75,13 @@ public class PartnerOrderLine extends BaseEntity {
     @Column(name = "remark", length = 500)
     private String remark;
 
+    /**
+     * 출고전표로 전환된 누적 수량 — Phase 2.6a (V8 migration).
+     * 잔여 = quantity - convertedQuantity. int 기본값 0 이므로 명시 초기화 불필요.
+     */
+    @Column(name = "converted_quantity", nullable = false)
+    private int convertedQuantity;
+
     private PartnerOrderLine(UUID productId, String modelName, String productName,
                              String categoryKey, int quantity, BigDecimal priceVat,
                              String remark) {
@@ -113,6 +122,44 @@ public class PartnerOrderLine extends BaseEntity {
                                           String categoryKey, int quantity, BigDecimal priceVat,
                                           String remark) {
         return new PartnerOrderLine(productId, modelName, productName, categoryKey, quantity, priceVat, remark);
+    }
+
+    /**
+     * 미전환 잔여 수량. quantity - convertedQuantity.
+     *
+     * @return 잔여 수량 (0 이상)
+     */
+    public int remainingQuantity() {
+        return this.quantity - this.convertedQuantity;
+    }
+
+    /**
+     * 전량 전환 여부. convertedQuantity >= quantity 이면 true.
+     *
+     * @return 전량 전환 완료 시 true
+     */
+    public boolean isFullyConverted() {
+        return this.convertedQuantity >= this.quantity;
+    }
+
+    /**
+     * 부분전환 — 전환 수량을 누적한다 (Phase 2.6a).
+     *
+     * @param qty 이번에 전환할 수량 (1 이상, 잔여 이하)
+     * @throws ResponseStatusException(409) 잔여 초과 또는 비양수
+     */
+    public void convert(int qty) {
+        if (qty <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "전환 수량은 1 이상이어야 합니다.");
+        }
+        if (qty > remainingQuantity()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "전환 수량이 잔여 수량을 초과합니다. 잔여=" + remainingQuantity() + ", 요청=" + qty);
+        }
+        this.convertedQuantity += qty;
     }
 
     /** PartnerOrder.addLine 내부 호출 — bidirectional 관계 동기화. */

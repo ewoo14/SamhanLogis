@@ -473,7 +473,8 @@ public class SlipPublishService {
                     normalizeSpec(l.spec()),
                     qty,
                     unitPrice,
-                    l.remarks()));
+                    l.remarks(),
+                    l.sourceOrderLineId()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -577,15 +578,18 @@ public class SlipPublishService {
         BigDecimal totalSupplyAmount = BigDecimal.ZERO;
         BigDecimal totalVatAmount = BigDecimal.ZERO;
 
+        /**
+         * SlipLine 엔티티 목록으로 변환. Phase 2.6a: sourceOrderLineId 포함 오버로드.
+         */
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
                     .map(e -> SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                            e.specification, e.quantity, e.unitPrice, e.note))
+                            e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId))
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
-                     int quantity, BigDecimal unitPrice, String note) {
+                     int quantity, BigDecimal unitPrice, String note, UUID sourceOrderLineId) {
         }
     }
 

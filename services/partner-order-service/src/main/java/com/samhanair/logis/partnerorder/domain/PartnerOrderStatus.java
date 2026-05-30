@@ -10,6 +10,7 @@ package com.samhanair.logis.partnerorder.domain;
  *     → CONFIRMED + slipPublishStatus=PENDING_RETRY (slip 5xx → outbox)
  *   CANCELED — 사용자 취소 (CONFIRMED 후 24h 내, 정책은 슬라이스 외)
  *   DRAFT ↔ ON_HOLD (보류/해제) — Phase 2.5
+ *   DRAFT/ON_HOLD → convert-to-slip → CONVERTED (전량 전환 완료) — Phase 2.6a
  * </pre>
  */
 public enum PartnerOrderStatus {
@@ -22,5 +23,7 @@ public enum PartnerOrderStatus {
     /** 확정 — slipNo 발급 시도 (성공 또는 retry 큐). */
     CONFIRMED,
     /** 거래처 취소 또는 admin 반려. */
-    CANCELED
+    CANCELED,
+    /** 전환완료 — 모든 라인이 출고전표로 전량 전환됨 (Phase 2.6a). */
+    CONVERTED
 }

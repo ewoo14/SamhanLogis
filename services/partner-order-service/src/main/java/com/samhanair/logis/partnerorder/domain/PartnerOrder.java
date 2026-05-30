@@ -415,4 +415,41 @@ public class PartnerOrder extends BaseEntity {
     public void restoreHeader(String partnerCode, String bizCode, LocalDate dueDate, String memo) {
         this.updateHeader(partnerCode, bizCode, dueDate, memo);
     }
+
+    /**
+     * 출고전표 전환 가능 상태인지 검사한다 (Phase 2.6a).
+     *
+     * <p>이미 출고전표가 발행된 주문(slipNo != null) 은 전환 불가.
+     * CANCELED / CONFIRMING 상태도 전환 불가.
+     *
+     * @throws ResponseStatusException(409) 전환 불가 상태일 때
+     */
+    public void requireConvertible() {
+        if (this.slipNo != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "이미 출고전표가 발행된 주문은 전환할 수 없습니다. slipNo=" + this.slipNo);
+        }
+        if (this.status == PartnerOrderStatus.CANCELED
+                || this.status == PartnerOrderStatus.CONFIRMING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "전환할 수 없는 상태입니다: " + this.status);
+        }
+    }
+
+    /**
+     * 모든 라인이 전량 전환되면 status 를 CONVERTED 로 표시한다 (Phase 2.6a).
+     *
+     * <p>활성 라인이 하나도 없으면 전환완료로 간주하지 않는다(방어).
+     * 전량 전환 완료 시 slipPublishStatus 는 변경하지 않는다(별도 슬라이스 범위).
+     */
+    public void markConvertedIfComplete() {
+        List<PartnerOrderLine> activeLines = getLines();
+        if (activeLines.isEmpty()) {
+            return;
+        }
+        boolean allConverted = activeLines.stream().allMatch(PartnerOrderLine::isFullyConverted);
+        if (allConverted) {
+            this.status = PartnerOrderStatus.CONVERTED;
+        }
+    }
 }

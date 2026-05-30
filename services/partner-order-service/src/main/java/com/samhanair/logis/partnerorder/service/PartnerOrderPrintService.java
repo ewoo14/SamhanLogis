@@ -321,6 +321,7 @@ public class PartnerOrderPrintService {
             case CONFIRMING -> "확인 중";
             case CONFIRMED -> "확정";
             case CANCELED -> "취소";
+            case CONVERTED -> "전환완료";
         };
     }
 

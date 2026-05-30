@@ -1,8 +1,10 @@
 package com.samhanair.logis.slip.publish;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.UUID;
 
 /**
  * Phase 6 M5 (slip-service-integration) 발행 endpoint 의 라인 요청 — 양식 1종 공통.
@@ -19,6 +21,7 @@ import java.math.BigDecimal;
  *   <li>{@code supplyAmount} — 공급가액 (legacy {@code SUPPLY_AMT}, audit 보존용)</li>
  *   <li>{@code vatAmount} — 세액 (legacy {@code VAT_AMT}, audit 보존용)</li>
  *   <li>{@code remarks} — 라인 메모 (legacy {@code REMARKS})</li>
+ *   <li>{@code sourceOrderLineId} — 출처 주문 라인 UUID (Phase 2.6a 부분전환, nullable)</li>
  * </ul>
  *
  * <p>SlipLine 엔티티에는 {@code unitPrice} (= unitPriceVat) 만 저장. Audit 합계는
@@ -34,5 +37,6 @@ public record PublishLineRequest(
         @PositiveOrZero BigDecimal unitPriceVat,
         @PositiveOrZero BigDecimal supplyAmount,
         @PositiveOrZero BigDecimal vatAmount,
-        @Size(max = 200) String remarks) {
+        @Size(max = 200) String remarks,
+        UUID sourceOrderLineId) {
 }

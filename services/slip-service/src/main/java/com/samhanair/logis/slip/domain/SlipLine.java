@@ -91,8 +91,17 @@ public class SlipLine extends BaseEntity {
     @Column(name = "note", length = 200)
     private String note;
 
+    /**
+     * 출처 주문 라인 ID — Phase 2.6a 부분전환 추적 (V29 migration).
+     * partner-order-service 의 PartnerOrderLine.id 를 역참조. nullable — 부분전환 경로 이외의
+     * 기존 발행 라인은 null 유지 (legacy 호환).
+     */
+    @Column(name = "source_order_line_id")
+    private UUID sourceOrderLineId;
+
     private SlipLine(Slip slip, UUID productId, String productName, String modelName,
-                     String specification, int quantity, BigDecimal unitPrice, String note) {
+                     String specification, int quantity, BigDecimal unitPrice, String note,
+                     UUID sourceOrderLineId) {
         validatePositive(quantity);
         validateUnitPrice(unitPrice);
         this.slip = slip;
@@ -103,6 +112,7 @@ public class SlipLine extends BaseEntity {
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.note = note;
+        this.sourceOrderLineId = sourceOrderLineId;
         this.lineTotal = computeLineTotal(quantity, unitPrice);
         this.supplyAmount = this.lineTotal;
         this.vatAmount = computeVat(this.lineTotal);
@@ -115,6 +125,9 @@ public class SlipLine extends BaseEntity {
      * <p>Slice A (sales-polish-2): {@code specification} 파라미터 신규 추가 (사용자 피드백 #4).
      * 호환성을 위해 {@code specification} 은 nullable.
      *
+     * <p>Phase 2.6a: {@code sourceOrderLineId} 파라미터 신규 추가 — 부분전환 경로에서 출처 주문 라인
+     * UUID 를 역추적. 비-전환 경로는 null 전달.
+     *
      * @param slip 헤더 (cascade ALL — 영속화 전이어도 무방)
      * @param productId 제품 UUID (서비스 레이어 ProductClient 사전 검증)
      * @param productName snapshot 명칭 (필수, 최대 200자)
@@ -123,14 +136,35 @@ public class SlipLine extends BaseEntity {
      * @param quantity 수량 (1 이상)
      * @param unitPrice 단가 (0 이상)
      * @param note 라인 메모 (선택, 최대 200자)
+     * @param sourceOrderLineId 출처 주문 라인 UUID (Phase 2.6a 부분전환, null 허용)
      * @return 영속화 전 SlipLine 인스턴스
      * @throws IllegalArgumentException 수량 0 이하 또는 unitPrice 가 음수일 때
      */
     public static SlipLine create(Slip slip, UUID productId, String productName, String modelName,
                                   String specification, int quantity, BigDecimal unitPrice,
+                                  String note, UUID sourceOrderLineId) {
+        return new SlipLine(slip, productId, productName, modelName, specification,
+                quantity, unitPrice, note, sourceOrderLineId);
+    }
+
+    /**
+     * 라인 1건 생성 (sourceOrderLineId 없는 호환 오버로드). 부분전환 외 기존 경로 호출처 유지.
+     *
+     * @param slip 헤더
+     * @param productId 제품 UUID
+     * @param productName snapshot 명칭
+     * @param modelName snapshot 모델명
+     * @param specification 규격
+     * @param quantity 수량
+     * @param unitPrice 단가
+     * @param note 라인 메모
+     * @return 영속화 전 SlipLine 인스턴스 (sourceOrderLineId = null)
+     */
+    public static SlipLine create(Slip slip, UUID productId, String productName, String modelName,
+                                  String specification, int quantity, BigDecimal unitPrice,
                                   String note) {
         return new SlipLine(slip, productId, productName, modelName, specification,
-                quantity, unitPrice, note);
+                quantity, unitPrice, note, null);
     }
 
     /**
