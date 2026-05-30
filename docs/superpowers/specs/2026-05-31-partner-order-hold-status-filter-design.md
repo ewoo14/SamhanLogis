@@ -34,19 +34,20 @@
 - `POST /api/v1/partner-orders/{id}/release` (edit/UPDATE) → releaseHold
 - (선택) 전이 시 Phase 2.4 STATUS revision 캡처 — hold/release 를 STATUS type 으로 기록(감사). Phase 2.4 에서 STATUS 는 死코드였으나 여기서 첫 실사용.
 
-### 4.3 BE 리스트 status 필터 (**최대 난점**)
-- `PartnerOrderQueryController` 목록 endpoint(`GET /api/v1/partner-orders`)에 `status` query param 추가(기본 DRAFT).
-- **현재 목록 쿼리가 `confirmedAt` 기반**(CONFIRMED 전제, `findAllByBizCodeAndConfirmedAtBetween...`)이라 DRAFT/ON_HOLD(confirmedAt=null) 조회 불가 → **JpaSpecificationExecutor 또는 신규 쿼리 메서드로 status 필터 재설계**. createdAt 기반 정렬/기간 필터로 전환 검토.
-- (선택) Flyway V8 `(status, created_at DESC)` 인덱스.
+### 4.3 BE 리스트 status 필터 (**grounding 정정 — 인프라 이미 완성**)
+- `PartnerOrderListController`(line 50) 에 `status` query param **이미 존재**. `PartnerOrderQueryService`(line 142-143) 가 `JpaSpecificationExecutor` 기반 status 필터 Specification **이미 구현**. `PartnerOrderRepository` 도 Specification 기반.
+- → **ON_HOLD enum 추가만으로 status 필터 자동 동작.** BE 리스트 변경 거의 없음(기본값 DRAFT 확인만).
+- Flyway: V1 `status VARCHAR(20) NOT NULL` + **CHECK 제약 없음** → enum 추가 마이그레이션 불필요. (V8 불필요. 선택: status 인덱스만.)
 
 ### 4.4 권한
 - 기존 `sales.partner-order.edit` UPDATE 재사용. auth seed 변경 불필요.
 
-### 4.5 FE (`SalesPartnerOrderListPage.tsx`)
-- queryKey 에 `statusFilter` 이미 존재 → **UI 드롭다운/탭(진행중/완료/보류) + API status param 전달 완성**. 기본값 DRAFT(진행중).
-- status→한글 라벨 맵에 `ON_HOLD='보류'` 추가 (DRAFT=진행중/CONFIRMED=완료/CANCELED=취소/CONFIRMING=처리중).
-- 주문 상세에 **보류/해제 버튼**(status 따라 토글, edit 권한 게이트).
+### 4.5 FE (grounding 정정 — 필터 UI 이미 완성)
+- `SalesPartnerOrderListPage.tsx`(line 122-135) **statusFilter state + Select 드롭다운 이미 구현**, queryKey(line 51) 에 statusFilter 포함 → ON_HOLD enum 값만 추가하면 즉시 작동.
+- `clients/desktop/src/renderer/api/sales.ts`(line 332-337) `PARTNER_ORDER_STATUS_LABEL` 에 `ON_HOLD: '보류'` 추가 (현재 DRAFT='작성중'/CONFIRMING='확정 처리중'/CONFIRMED='확정'/CANCELED='취소' — **업무용어 통일도 검토: DRAFT='진행중', CONFIRMED='완료'**). PartnerOrderStatus FE 타입에 ON_HOLD 추가.
+- 주문 상세에 **보류/해제 버튼**(status 따라 토글, edit 권한 게이트) — 신규.
 - 복원 성공 invalidate 패턴(Phase 2.4) 일관.
+- **라벨 정정 결정 필요**: 기존 라벨이 '작성중/확정'인데 개발책임자 업무용어는 '진행중/완료'. 통일할지 plan/구현 시 확정.
 
 ## 5. 테스트 + QA
 - IT: hold/release 전이(DRAFT↔ON_HOLD) + 완료 보류 시도 409 + status 필터 조회(진행중/완료/보류 각각) + ON_HOLD 주문 confirm + ON_HOLD 복원(Phase 2.4 연계).
@@ -57,6 +58,10 @@
 - Claude 에이전트 구현(Codex 다운) → Claude 5-team 리뷰 사이클 N=2 → CI green(skipped=0) → Docker 실 QA → 머지.
 - 메모리: [[project-partner-order-status-model]] / [[cycle-n2-mandatory]] / [[early-pr-docker-qa-screenshots]] / [[always-mouse-choices]]
 
-## 7. 미정/내일 확인
-- (선택) hold/release STATUS revision 캡처 여부 — 감사 가치 vs 단순성. 구현 시 결정.
-- 리스트 기본 필터가 '진행중'일 때 보류도 같이 보일지, 완전 분리할지(현재 설계: 분리, 진행중만).
+## 7. 미정/구현 시 확인
+- (선택) hold/release STATUS revision 캡처 여부 — 감사 가치 vs 단순성.
+- 리스트 기본 필터 '진행중'일 때 보류 분리 여부(현재 설계: 분리).
+- **라벨 통일**: 기존 DRAFT='작성중'/CONFIRMED='확정' ↔ 업무용어 '진행중'/'완료'. 통일 권장(개발책임자 업무용어 우선).
+
+## 8. grounding 요약 (구현 범위 축소)
+status 필터 BE(Controller/Service/Repository Specification) + FE(드롭다운/queryKey) **이미 완성**. **실제 신규 = ON_HOLD enum + hold/release 도메인메서드/API + confirm 가드 + FE 라벨/버튼 + 테스트.** 마이그레이션 불필요(CHECK 제약 없음).
