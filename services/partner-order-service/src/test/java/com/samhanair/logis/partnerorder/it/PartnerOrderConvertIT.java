@@ -113,6 +113,20 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
         lenient().when(dcConfigClient.fetchDcConfig(anyString())).thenReturn(Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
 
+        // InventoryClient stub — Phase 2.6c (reserve 예약 모델)
+        // resolveWarehouseIdByCode: 임의 warehouseId 반환 (IT 목적은 convert 흐름 검증)
+        lenient().when(inventoryClient.resolveWarehouseIdByCode(anyString()))
+                .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        // reserve: 정상 반환 (가용 부족 409 케이스는 별도 IT Phase26cConvertReserveIT 에서)
+        lenient().when(inventoryClient.reserve(
+                any(UUID.class), any(UUID.class), any(int.class),
+                anyString(), any(UUID.class)))
+                .thenReturn(Map.of());
+        // release: void (보상 트랜잭션용)
+        lenient().doNothing().when(inventoryClient).release(
+                any(UUID.class), any(UUID.class), any(int.class),
+                anyString(), any(UUID.class));
+
         // SlipServiceClient 기본 stub — slipNo 반환
         lenient().when(slipServiceClient.publishFromPartnerOrder(any(), anyString()))
                 .thenReturn(PublishResult.published(STUB_SLIP_NO));

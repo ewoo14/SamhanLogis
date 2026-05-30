@@ -182,6 +182,8 @@ import { DPS_COMPARE_ROLES } from '../api/dpsCompareApi'
 // [P0-B GAS 보강] 품목별 DPS 분석 (품목별 DPS 입고 pivot — WAREHOUSE/MANAGER/MASTER)
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 import { DPS_BY_PRODUCT_ROLES } from '../api/dpsByProductApi'
+// [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
+import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
 import { DISPATCH_SMS_ROLES } from '../api/dispatchSmsApi'
@@ -566,6 +568,16 @@ const router = createHashRouter([
             <PermissionGuard pageCode="purchases.receipt-ocr" action="view">
               <PurchaseSlipOcrUploadPage />
             </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+
+      // [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER).
+      {
+        path: '/inventory/stock-balance',
+        element: (
+          <RoleGuard allow={['WAREHOUSE', 'MANAGER', 'MASTER']}>
+            <InventoryStockBalancePage />
           </RoleGuard>
         ),
       },

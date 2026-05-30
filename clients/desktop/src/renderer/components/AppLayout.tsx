@@ -1047,6 +1047,15 @@ export function AppLayout() {
               >
                 사진 감사
               </SidebarLink>
+              {/* [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER). */}
+              <SidebarLink
+                to="/inventory/stock-balance"
+                show={showInventoryWarehouse || showInventoryStockTransfer}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-inventory-stock-balance"
+              >
+                재고 현황
+              </SidebarLink>
               {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. */}
               <SidebarLink
                 to="/inventory/safety-stock-alerts"

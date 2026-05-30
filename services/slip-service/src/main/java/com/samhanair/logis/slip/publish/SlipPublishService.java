@@ -228,6 +228,17 @@ public class SlipPublishService {
             return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
         }
 
+        // Phase 2.6c: PARTNER_ORDER 전환 전표 발행 즉시 불변 — DRAFT → SAVED → SENT 전이.
+        // EDITABLE_STATUSES({DRAFT, SAVED}) 에서 벗어나 수정/삭제 차단.
+        // 다른 sourceType(ESTIMATE 등) 및 기존 전표는 미변경 (회귀 방지).
+        if (SlipSourceType.PARTNER_ORDER.equals(saved.getSourceType())) {
+            saved.save();  // DRAFT → SAVED
+            saved.send();  // SAVED → SENT
+            saved = slipRepository.saveAndFlush(saved);
+            log.info("[Phase 2.6c] partner-order 전환 전표 불변 전이 완료: slip={} status=SENT",
+                    saved.getSlipNo());
+        }
+
         String dcSnapshot = serializeDiscount(req.discountInfo(), req.paymentDueLabel());
         SlipPublishAudit audit = SlipPublishAudit.create(saved.getId(), SlipSourceType.PARTNER_ORDER,
                 req.partnerOrderId(), idempotencyKey,

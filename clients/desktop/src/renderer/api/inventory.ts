@@ -359,6 +359,65 @@ export async function fetchStockBalanceBatch(
   return { rows }
 }
 
+// ---------------------------------------------------------------------------
+// StockBalance 목록 조회 (Phase 2.6c — 가용/실재고/예약 구분 표시)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /inventory/balances` 응답 row — BE `StockBalanceResponse` 와 1:1.
+ *
+ * UUID 비공개 가드:
+ * - `productId` / `warehouseId` 는 내부 key 용, 화면 미노출.
+ * - 화면 노출 식별자: `productCode` / `productName` / `warehouseCode` / `warehouseName`.
+ */
+export interface StockBalanceListRow {
+  productId: string
+  productCode: string
+  productName: string
+  warehouseId: string
+  warehouseCode: string
+  warehouseName: string
+  warehouseType: WarehouseType
+  /** 가용재고 = 실재고 - 예약재고. 전환 가능 여부 기준. */
+  availableQty: number
+  /** 예약재고 = 전환(reserve) 으로 잠긴 수량. */
+  reservedQty: number
+  /** 실재고 = 물리 보유 수량. */
+  totalQty: number
+}
+
+/** 목록 조회 옵션. */
+export interface ListStockBalancesOptions {
+  warehouseId?: string
+  page?: number
+  size?: number
+}
+
+/**
+ * 재고 현황 목록 조회 — 가용/실재고/예약 3구분.
+ *
+ * BE `GET /inventory/balances` 호출.
+ * 반환 행에서 warehouseType=VIRTUAL 인 항목은 예약 대상 외이므로
+ * 목록에 포함하되 화면에서 회색 처리한다.
+ *
+ * @param options 창고 필터 + 페이지 옵션
+ */
+export async function listStockBalances(
+  options: ListStockBalancesOptions = {},
+): Promise<PageResponse<StockBalanceListRow>> {
+  const params: Record<string, string | number> = {
+    page: options.page ?? 0,
+    size: options.size ?? 50,
+  }
+  if (options.warehouseId) params['warehouseId'] = options.warehouseId
+
+  const res = await apiClient.get<ApiEnvelope<PageResponse<StockBalanceListRow>>>(
+    '/inventory/balances',
+    { params },
+  )
+  return res.data.data
+}
+
 /**
  * 이동전표 라이프사이클 transition. reject 만 body (`reason`) 필요.
  */

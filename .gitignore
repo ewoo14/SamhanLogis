@@ -83,3 +83,34 @@ docs/migration/ecount-data/raw/*
 # 프로젝트 root 에 별도 다운로드 시 본 규칙으로 VCS 격리.
 tessdata/
 **/tessdata/*.traineddata
+
+# ----- Electron / 빌드 산출물 -----
+release/
+clients/desktop/legacy-assets/estimate/*.html
+
+# ----- Claude / Agent local state -----
+.claude/settings.local.json
+.claude/settings.json
+.claude/scheduled_tasks.lock
+.claude/.cache/
+.claude/worktrees/
+.superpowers/
+
+# ----- PR/Issue/TM/PM draft (gh CLI body-file 일회용) -----
+.pr-body*.md
+.issue-*.md
+.tm-*.md
+.pm-*.md
+.tmp/
+.tmp-*
+commit-msg.txt
+
+# ----- legacy GAS 운영 데이터 (VCS 추적 금지) -----
+tools/legacy-gas/
+
+# ----- Terraform -----
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/tfplan

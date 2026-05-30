@@ -1760,29 +1760,33 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { id: 'wh-vr', code: 'VR-001', name: '가상창고', type: 'VIRTUAL' },
     ]
 
-    // 창고 코드 → totalQty. null/미존재 코드는 balances 에서 제외 (잔량 row 없음).
-    const mockPerProduct: Record<string, Record<string, number>> = {
-      'p-aj040': { 'HQ-001': 12, 'VH-001': 3, 'CS-001': 0 },
-      'p-aj052': { 'HQ-001': 5, 'VH-001': 2, 'CS-001': 0 },
-      'p-aj036': { 'HQ-001': 8, 'VH-001': 0, 'CS-001': 1 },
-      'p-aj100': { 'HQ-001': 2, 'VH-001': 0, 'CS-001': 0 },
-      'p-mwr10': { 'HQ-001': 45, 'VH-001': 10, 'CS-001': 2 },
+    // 창고 코드 → { totalQty, reservedQty }. null/미존재 코드는 balances 에서 제외 (잔량 row 없음).
+    // Phase 2.6c: reservedQty 필드 추가 — availableQty = totalQty - reservedQty.
+    const mockPerProduct: Record<string, Record<string, { total: number; reserved: number }>> = {
+      'p-aj040': { 'HQ-001': { total: 12, reserved: 2 }, 'VH-001': { total: 3, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
+      'p-aj052': { 'HQ-001': { total: 5, reserved: 1 }, 'VH-001': { total: 2, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
+      'p-aj036': { 'HQ-001': { total: 8, reserved: 0 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 1, reserved: 0 } },
+      'p-aj100': { 'HQ-001': { total: 2, reserved: 2 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } },
+      'p-mwr10': { 'HQ-001': { total: 45, reserved: 5 }, 'VH-001': { total: 10, reserved: 0 }, 'CS-001': { total: 2, reserved: 0 } },
     }
 
     const data = ids.map((pid) => {
-      const per = mockPerProduct[pid] ?? { 'HQ-001': 0, 'VH-001': 0, 'CS-001': 0 }
+      const per = mockPerProduct[pid] ?? { 'HQ-001': { total: 0, reserved: 0 }, 'VH-001': { total: 0, reserved: 0 }, 'CS-001': { total: 0, reserved: 0 } }
       const balances = warehouseMeta
         // 잔량 row 가 존재하는 창고만 포함 (가상창고는 항상 포함하여 dash 표시).
         .filter((w) => w.type === 'VIRTUAL' || per[w.code] !== undefined)
         .map((w) => {
-          const totalQty = w.type === 'VIRTUAL' ? 0 : (per[w.code] ?? 0)
+          const slot = w.type === 'VIRTUAL' ? { total: 0, reserved: 0 } : (per[w.code] ?? { total: 0, reserved: 0 })
+          const totalQty = slot.total
+          const reservedQty = slot.reserved
+          const availableQty = Math.max(0, totalQty - reservedQty)
           return {
             warehouseId: w.id,
             warehouseCode: w.code,
             warehouseName: w.name,
             warehouseType: w.type,
-            availableQty: totalQty,
-            reservedQty: 0,
+            availableQty,
+            reservedQty,
             totalQty,
           }
         })
@@ -1790,6 +1794,34 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
 
     return envelope(data)
+  }
+
+  // GET /inventory/balances — 재고 현황 목록 (Phase 2.6c 신규)
+  // warehouseId 필터 + page/size 지원. 화면 노출: productCode/productName/warehouseCode/warehouseName (UUID 비공개).
+  if (method === 'GET' && url.includes('/inventory/balances') && !url.includes('/batch')) {
+    const mockRows = [
+      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 10, reservedQty: 2, totalQty: 12 },
+      { productId: 'p-aj040', productCode: 'AJ040RXH4BC1', productName: '시스템에어컨 4Way 4HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 3, reservedQty: 0, totalQty: 3 },
+      { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 4, reservedQty: 1, totalQty: 5 },
+      { productId: 'p-aj052', productCode: 'AJ052RXH5BC1', productName: '시스템에어컨 4Way 5HP', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 2, reservedQty: 0, totalQty: 2 },
+      { productId: 'p-aj036', productCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 8, reservedQty: 0, totalQty: 8 },
+      { productId: 'p-aj036', productCode: 'AJ036NCH3CH', productName: '천장형 1Way 3HP', warehouseId: 'wh-cs', warehouseCode: 'CS-001', warehouseName: '거래처 위탁창고', warehouseType: 'CONSIGNMENT', availableQty: 1, reservedQty: 0, totalQty: 1 },
+      { productId: 'p-aj100', productCode: 'AJ100NCDKH', productName: '실외기 10HP', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 0, reservedQty: 2, totalQty: 2 },
+      { productId: 'p-mwr10', productCode: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)', warehouseId: 'wh-hq', warehouseCode: 'HQ-001', warehouseName: '본사창고', warehouseType: 'HEADQUARTERS', availableQty: 40, reservedQty: 5, totalQty: 45 },
+      { productId: 'p-mwr10', productCode: 'MWR-WE10N', productName: '유선 리모컨 (WE10N)', warehouseId: 'wh-vh', warehouseCode: 'VH-001', warehouseName: '1호차 차량재고', warehouseType: 'VEHICLE', availableQty: 10, reservedQty: 0, totalQty: 10 },
+    ]
+    const params = mockLocationParams()
+    const warehouseIdFilter = params.get('warehouseId')
+    const filtered = warehouseIdFilter
+      ? mockRows.filter((r) => r.warehouseId === warehouseIdFilter)
+      : mockRows
+    return envelope({
+      content: filtered,
+      number: 0,
+      size: 50,
+      totalElements: filtered.length,
+      totalPages: 1,
+    })
   }
 
   // GET /inventory/transfers/{id}
@@ -3739,6 +3771,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         409,
         'PARTNER_ORDER_CONVERT_QUANTITY_EXCEEDED',
         '전환 수량이 잔여 수량을 초과하거나 이미 전환된 주문입니다.',
+      )
+    }
+    // Phase 2.6c: 재고 부족 409 — inventory-service 사전차단 시뮬레이션.
+    // mockConvertInventory409=1 → 재고 부족 메시지(품목명/수량 위주, UUID 미포함).
+    if (params.get('mockConvertInventory409')) {
+      return mockError(
+        409,
+        'INVENTORY_INSUFFICIENT_STOCK',
+        '재고 부족: 실외기(AJ040RXH4BC1) 요청 2, 가용 0',
       )
     }
     const fullyConverted = params.get('mockConvertFully') === '1'

@@ -204,9 +204,46 @@ export function SalesPartnerOrderDetailPage() {
     onError: (error) => {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 409) {
-          setConvertErrorMessage(
-            error.response.data?.message ?? '전환 수량이 잔여 수량을 초과하거나 이미 전환된 주문입니다.',
-          )
+          // Phase 2.6c: 재고 부족 409 처리 — Designer guide §3.4 기준.
+          // BE 가 insufficientLines 배열을 포함하면 FE 가 업무 문구 조합.
+          // BE 가 message 문자열만 전달하면 현행 패턴 유지.
+          const respData = error.response.data as Record<string, unknown> | undefined
+          const lines = respData?.['insufficientLines']
+          if (Array.isArray(lines) && lines.length > 0) {
+            type InsufficientLine = {
+              productName?: string
+              modelCode?: string
+              requestedQty?: number
+              availableQty?: number
+            }
+            const typedLines = lines as InsufficientLine[]
+            const first = typedLines[0]!
+            const firstName = first.productName ?? ''
+            const firstModel = first.modelCode ? ` (${first.modelCode})` : ''
+            const firstReq = first.requestedQty ?? '?'
+            const firstAvail = first.availableQty ?? 0
+            const extraCount = typedLines.length - 1
+
+            let msg: string
+            if (typedLines.length === 1) {
+              // 단일 품목 — Designer §3.2
+              msg = firstAvail === 0
+                ? `재고 부족으로 전환할 수 없습니다.\n${firstName}${firstModel} — 요청 ${firstReq}개 / 가용 0개\n수량을 줄이거나 담당자에게 재고 보충을 요청해 주세요.`
+                : `재고 부족으로 전환할 수 없습니다.\n${firstName}${firstModel} — 요청 ${firstReq}개 / 가용 ${firstAvail}개\n전환수량을 ${firstAvail}개 이하로 조정하거나 나누어 전환해 주세요.`
+            } else {
+              // 복수 품목 — Designer §3.3
+              msg = `재고 부족 품목이 있어 전환할 수 없습니다.\n${firstName}${firstModel} — 요청 ${firstReq}개 / 가용 ${firstAvail}개\n외 ${extraCount}건 재고 부족 — 품목별 수량을 조정해 주세요.`
+            }
+            setConvertErrorMessage(msg)
+            return
+          }
+          // insufficientLines 없음 — message 문자열 또는 fallback
+          const beMessage = respData?.['message'] as string | undefined
+          if (beMessage) {
+            setConvertErrorMessage(beMessage)
+            return
+          }
+          setConvertErrorMessage('재고 부족으로 전환할 수 없습니다. 수량을 줄이거나 담당자에게 확인해 주세요.')
           return
         }
         if (error.response?.status === 403) {
@@ -895,6 +932,7 @@ export function SalesPartnerOrderDetailPage() {
               className={styles['errorBanner']}
               role="alert"
               data-testid="partner-order-convert-modal-error"
+              style={{ whiteSpace: 'pre-line', alignItems: 'flex-start' }}
             >
               {convertErrorMessage}
             </div>

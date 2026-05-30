@@ -4,6 +4,35 @@
 
 ---
 
+## 🔥 2026-05-31 진행 중 — Phase 2.6c 주문→전환 시 재고 **예약(reserve)** 정합
+
+> ⚠️ Codex 6/1 12:00 복구 전 → 구현+리뷰 모두 Claude 에이전트 전면 대체.
+
+**도메인 모델 (개발책임자 확정 2026-05-31)**:
+- **주문서 = 재고 무영향**(견적전환 DRAFT, 거래처 confirm 주문 모두).
+- **출고전표로 전환(convert) = 재고 예약(reserve)** — 실재고 차감(deduct) 아님. 예약은 가용재고를 묶고 실재고 유지.
+- **실재고 차감(deduct) = 후속 출고확정 단계**(본 슬라이스 제외).
+- **재고 조회 = 가용/실/예약 구분 표시.** 예약 가능 부족 시 전환 **409 사전차단**.
+- **confirm 의 주문확정-reserve 제거**(주문 무영향). confirm 자동발행 자체 폐지는 2.6b.
+- **전환으로 생성된 출고전표(판매전표)는 새 전표 → 발행 즉시 불변(SENT)**. 기존/타 경로 전표는 회귀방지 위해 현행 유지.
+
+**진행 상태**: spec(`docs/superpowers/specs/2026-05-30-inventory-deduction-on-convert-2-6c-design.md` §0 모델정정)/plan(`docs/superpowers/plans/2026-05-30-inventory-deduction-2-6c.md`) 커밋 완료. backend reserve 재구현 진행 중(⚠️ 초기 deduct 오구현 → 전량 폐기 후 reserve 로 재시작). FE 전환 409 에러 UX 완료(기존 핸들러 재사용), **재고화면 가용/실/예약 표시 + mock.ts 정리는 backend API 확정 후**.
+
+**다음 단계**: backend 완료 → FE 재고화면 → PM 통합 빌드 → 5팀 사이클 N=2 → CI(skipped=0) → Docker 실 QA(실 inventory_db 예약 row psql 증빙) → 머지.
+**배포 순서**: inventory(by-code+reserve 멱등) → slip(전환전표 불변) → partner-order(convert 예약+사전차단+보상, confirm reserve 제거).
+
+---
+
+## ✅ 2026-05-30 완료 — 권한 재편 Phase 2.6a 주문→출고전표 **부분전환 머지** (PR #325 squash `fd6e0ea0`) + GitGuardian 평문제거 (PR #326 `076d569a`)
+
+- **2.6a 산출**: slip 미발행 주문(DRAFT/ON_HOLD, slipNo=null) 라인별 부분전환. `converted_quantity`(partner-order V8) + 단일주문 convert API(`POST /{id}/convert-to-slip`) + `SlipLine.sourceOrderLineId`(slip V29) + 전량전환 시 status `CONVERTED` + 권한 `sales.partner-order.convert`(auth V41). FE 전환버튼 화이트리스트 + 라인 수량 모달(비가역 경고) + 전환됨/잔여 컬럼.
+- **P0 버그 수정(Docker 실 QA 발견, Phase 6 잠재)**: `SlipServiceClient` URI `/slips/from-partner-order` → `/api/v1/slips/from-partner-order`(lb 직접호출 풀패스, 원본 404) + `X-User-Role:MASTER` 헤더. confirm/convert/outbox 3 caller 공통. cycle3 BE 재검 APPROVE. ⚠️ 운영 배포 시 outbox PENDING 일괄발행 부하 확인.
+- **사이클 N=2**: cycle1 5팀(P0 2/P1 6)→fix→cycle2 BE/FE/QA APPROVE. CI 전 job PASS. IT 10(실 Postgres)+단위4+Playwright. Docker 실 QA 실화면 4장+psql 적중(converted_quantity·source_order_line_id).
+- **GitGuardian(#326)**: #325 머지 후 main 5개 파일에 DEV 비번 `dev_p05_pass!` 평문 잔존(false positive 아님, 단 V5 시드 공개 DEV-ONLY·운영무관) → capture/seed 스크립트 환경변수화 + docs 마스킹 + `.gitguardian.yaml` ignored-matches + `.gitignore` 에 `.gradle-codex/`·`_codex_commit_repo/`(164MB jar 커밋 사고 방지). main 평문 0.
+- spec/plan: docs/superpowers/{specs,plans}/2026-05-30-order-to-slip-conversion-*. 분리: **2.6b**(다중주문 병합 + confirm 자동발행 폐지, 같은 거래처·'/'병기) / **2.6c**(재고 예약, 진행 중).
+
+---
+
 ## ✅ 2026-05-30 완료 — 권한 재편 Phase 2.5 주문 보류(ON_HOLD) 상태 + 리스트 상태 필터 **머지** (PR #324 squash `d095b9d0`)
 
 ⚠️ Codex 6/1 12:00 복구 전 → 구현+dual리뷰 모두 Claude 에이전트 전면 대체.

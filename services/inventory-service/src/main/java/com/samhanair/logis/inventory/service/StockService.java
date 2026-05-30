@@ -85,6 +85,10 @@ public class StockService {
     /**
      * 예약 — availableQty 에서 reservedQty 로 이동. RESERVE movement 기록.
      *
+     * <p><b>멱등 보장</b>: referenceType + referenceId + productId 조합이 이미 RESERVE movement 로
+     * 기록된 경우 no-op 으로 기존 잔량을 그대로 반환한다 (Phase 2.6c 사전차단 멱등 가드).
+     * referenceType 또는 referenceId 가 null 이면 멱등 검사를 건너뛴다 (기존 호출 무영향).
+     *
      * @param req 예약 요청 (productId / warehouseId / quantity / referenceType / referenceId / note)
      * @param actorUserId 행위자 user-id
      * @return 예약 후 잔량을 담은 ReservationResponse
@@ -94,6 +98,20 @@ public class StockService {
     public ReservationResponse reserve(ReserveRequest req, String actorUserId) {
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
         StockBalance balance = loadBalanceOrThrow(req.productId(), req.warehouseId());
+
+        // 멱등 가드 — (referenceType, referenceId, productId, RESERVE) 중복 시 no-op 반환
+        if (req.referenceType() != null && req.referenceId() != null) {
+            boolean alreadyReserved = stockMovementRepository
+                    .findByReferenceTypeAndReferenceIdAndProductIdAndMovementType(
+                            req.referenceType(), req.referenceId(),
+                            req.productId(), MovementType.RESERVE)
+                    .isPresent();
+            if (alreadyReserved) {
+                return new ReservationResponse(
+                        req.productId(), req.warehouseId(), req.quantity(),
+                        balance.getAvailableQty(), balance.getReservedQty(), actorUserId);
+            }
+        }
 
         applyWithRetry(() -> balance.reserve(req.quantity()));
 

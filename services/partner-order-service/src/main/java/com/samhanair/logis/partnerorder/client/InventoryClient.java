@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -14,9 +15,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * M1b inventory-service (8085) RPC client — confirm 흐름의 reservation/commit. 실제 재고 차감은
- * slip-service 가 담당하므로 본 client 는 reserve 만 호출 (slip 발행 후 commit 또는 release 는
- * 향후 슬라이스).
+ * inventory-service RPC client — Phase 2.6c reserve(예약) / release(해제) / warehouseCode 역조회.
+ *
+ * <p>설계 원칙:
+ * <ul>
+ *   <li>reserve 호출에 referenceType / referenceId 를 전달하여 inventory-service 의 멱등 가드 활성화.</li>
+ *   <li>가용 부족 409 → {@link BusinessException}(CONFLICT) 전파 → convert 사전차단.</li>
+ *   <li>release 는 보상 트랜잭션용 — 실패 시 alert 로그만 (상위 흐름이 별도 처리).</li>
+ *   <li>resolveWarehouseIdByCode — inventory DB 단일 출처로 warehouseCode → UUID 변환.</li>
+ * </ul>
  *
  * <p>회로 차단기 인스턴스: {@code inventoryClient}.
  */
@@ -37,16 +44,24 @@ public class InventoryClient {
     }
 
     /**
-     * 재고 reserve — productId / quantity 단건 (라인별 호출). availableQty → reservedQty 이동.
+     * 재고 reserve — availableQty → reservedQty 이동 (Phase 2.6c 멱등 가드 포함).
      *
-     * @param productId 제품 UUID
-     * @param warehouseId 창고 UUID (M4 skeleton 은 default warehouse 가정 — 향후 슬라이스에서 라인별 분기)
-     * @param quantity 예약 수량 (1 이상)
-     * @return inventory-service ReservationResponse 의 raw Map (wire-format)
-     * @throws BusinessException(CONFLICT) 가용 부족 (409)
+     * <p>referenceType / referenceId 를 inventory-service 에 전달하여
+     * (referenceType, referenceId, productId, RESERVE) 중복 시 no-op 응답을 받는다.
+     * 동일 convertKey 로 재시도해도 이중 예약이 발생하지 않는다.
+     *
+     * @param productId     제품 UUID
+     * @param warehouseId   창고 UUID
+     * @param quantity      예약 수량 (1 이상)
+     * @param referenceType 참조 유형 (예: "PARTNER_ORDER_CONVERT")
+     * @param referenceId   참조 ID UUID (예: convertKey를 UUID 변환한 값)
+     * @return inventory-service ReservationResponse raw Map (wire-format)
+     * @throws BusinessException(CONFLICT)       가용 부족 (409) — 전환 사전차단
+     * @throws BusinessException(INVALID_INPUT)  파라미터 오류
      * @throws BusinessException(INTERNAL_ERROR) 5xx 또는 token 미설정
      */
-    public Map<String, Object> reserve(UUID productId, UUID warehouseId, int quantity) {
+    public Map<String, Object> reserve(UUID productId, UUID warehouseId, int quantity,
+                                       String referenceType, UUID referenceId) {
         if (productId == null || warehouseId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "productId, warehouseId 필수");
         }
@@ -54,10 +69,16 @@ public class InventoryClient {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "quantity 는 1 이상");
         }
 
-        Map<String, Object> body = Map.of(
-                "productId", productId.toString(),
-                "warehouseId", warehouseId.toString(),
-                "quantity", quantity);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("productId", productId.toString());
+        body.put("warehouseId", warehouseId.toString());
+        body.put("quantity", quantity);
+        if (referenceType != null) {
+            body.put("referenceType", referenceType);
+        }
+        if (referenceId != null) {
+            body.put("referenceId", referenceId.toString());
+        }
 
         try {
             @SuppressWarnings("unchecked")
@@ -70,7 +91,7 @@ public class InventoryClient {
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
                         if (res.getStatusCode().value() == 409) {
                             throw new BusinessException(ErrorCode.CONFLICT,
-                                    "재고 부족 또는 예약 충돌");
+                                    "재고 부족 또는 예약 충돌 (가용 재고 부족)");
                         }
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "inventory-service 4xx: " + res.getStatusCode());
@@ -90,20 +111,46 @@ public class InventoryClient {
     }
 
     /**
-     * 재고 release — confirm 도중 slip 발행 실패 시 보상 트랜잭션 (M5 skeleton 은 호출만 노출).
+     * 재고 reserve (기존 시그니처 유지 — confirm 경로 호환).
      *
-     * @param productId 제품 UUID
+     * <p>referenceType / referenceId 없이 호출하는 레거시 경로용. 멱등 가드 미적용.
+     *
+     * @param productId   제품 UUID
      * @param warehouseId 창고 UUID
-     * @param quantity 해제 수량
+     * @param quantity    예약 수량 (1 이상)
+     * @return inventory-service ReservationResponse raw Map
      */
-    public void release(UUID productId, UUID warehouseId, int quantity) {
+    public Map<String, Object> reserve(UUID productId, UUID warehouseId, int quantity) {
+        return reserve(productId, warehouseId, quantity, null, null);
+    }
+
+    /**
+     * 재고 release — 보상 트랜잭션 (slip 발행 실패 시 예약 해제).
+     *
+     * <p>referenceType / referenceId 를 포함하여 어떤 예약에 대한 해제인지 inventory-service 에 전달.
+     * 실패 시 alert 로그만 — 상위 흐름이 별도 처리.
+     *
+     * @param productId     제품 UUID
+     * @param warehouseId   창고 UUID
+     * @param quantity      해제 수량
+     * @param referenceType 참조 유형 (null 허용)
+     * @param referenceId   참조 ID (null 허용)
+     */
+    public void release(UUID productId, UUID warehouseId, int quantity,
+                        String referenceType, UUID referenceId) {
         if (productId == null || warehouseId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "productId, warehouseId 필수");
         }
-        Map<String, Object> body = Map.of(
-                "productId", productId.toString(),
-                "warehouseId", warehouseId.toString(),
-                "quantity", quantity);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("productId", productId.toString());
+        body.put("warehouseId", warehouseId.toString());
+        body.put("quantity", quantity);
+        if (referenceType != null) {
+            body.put("referenceType", referenceType);
+        }
+        if (referenceId != null) {
+            body.put("referenceId", referenceId.toString());
+        }
         try {
             restClient.post()
                     .uri("/inventory/release")
@@ -113,8 +160,84 @@ public class InventoryClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RuntimeException ex) {
-            log.error("InventoryClient release failed: {}", ex.getMessage());
+            log.error("InventoryClient release failed (보상 실패 — 수동 복구 필요): {}", ex.getMessage());
             // release 실패는 alert 만 — 보상은 상위 흐름이 별도 처리
+        }
+    }
+
+    /**
+     * 재고 release (기존 시그니처 유지 — confirm 경로 호환).
+     *
+     * @param productId   제품 UUID
+     * @param warehouseId 창고 UUID
+     * @param quantity    해제 수량
+     */
+    public void release(UUID productId, UUID warehouseId, int quantity) {
+        release(productId, warehouseId, quantity, null, null);
+    }
+
+    /**
+     * warehouseCode → warehouseId(UUID) 역조회.
+     *
+     * <p>inventory-service {@code GET /internal/inventory/warehouses/by-code?code=} 호출.
+     * slip-service 의 정적 yml 매핑(WarehouseCodeMapper) 을 복제하지 않고
+     * inventory DB 를 단일 출처로 활용한다.
+     *
+     * @param warehouseCode 창고 코드 (예: "MAIN", "CAR-01")
+     * @return 창고 UUID
+     * @throws BusinessException(NOT_FOUND)      해당 코드의 창고 없음 (404)
+     * @throws BusinessException(INVALID_INPUT)  warehouseCode 가 blank
+     * @throws BusinessException(INTERNAL_ERROR) 5xx 또는 network 오류
+     */
+    public UUID resolveWarehouseIdByCode(String warehouseCode) {
+        if (warehouseCode == null || warehouseCode.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "warehouseCode 는 필수입니다");
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> envelope = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/internal/inventory/warehouses/by-code")
+                            .queryParam("code", warehouseCode.trim())
+                            .build())
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        if (res.getStatusCode().value() == 404) {
+                            throw new BusinessException(ErrorCode.NOT_FOUND,
+                                    "창고 코드 '" + warehouseCode + "' 를 찾을 수 없습니다");
+                        }
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "inventory-service warehouse 조회 4xx: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "inventory-service 5xx: " + res.getStatusCode());
+                    })
+                    .body(Map.class);
+            if (envelope == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "inventory-service warehouse 응답이 null");
+            }
+            // ApiResponse 래핑: data.warehouseId
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) envelope.get("data");
+            if (data == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "inventory-service warehouse 응답 data 필드 없음");
+            }
+            String warehouseIdStr = (String) data.get("warehouseId");
+            if (warehouseIdStr == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "inventory-service warehouse 응답 warehouseId 필드 없음");
+            }
+            return UUID.fromString(warehouseIdStr);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("InventoryClient resolveWarehouseIdByCode failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "inventory-service warehouse 조회 실패", ex);
         }
     }
 

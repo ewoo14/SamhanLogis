@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
-import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
@@ -78,7 +77,8 @@ public class PartnerOrderConfirmService {
 
     private final DcConfigClient dcConfigClient;
     private final ProductClient productClient;
-    private final InventoryClient inventoryClient;
+    // Phase 2.6c: inventoryClient 제거 — confirm 단계는 재고 무영향 (주문 무영향 원칙).
+    // inventoryClient 는 PartnerOrderConvertService 에서만 사용 (출고전표 전환 시 reserve).
     private final SlipServiceClient slipServiceClient;
 
     private final PartnerOrderRevisionService revisionService;
@@ -138,10 +138,9 @@ public class PartnerOrderConfirmService {
             productMap.put(p.id(), p);
         }
 
-        // 4) M1b inventory reserve (라인별)
-        for (ConfirmLineRequest line : request.lines()) {
-            inventoryClient.reserve(line.productId(), DEFAULT_WAREHOUSE_ID, line.quantity());
-        }
+        // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
+        // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
+        // 과도기 dev-report 참고: confirm 자동발행 slip 의 reserve/폐지는 Phase 2.6b 에서 처리.
 
         // 5) partner_order INSERT (CONFIRMING)
         String orderNo = nextOrderNo();
