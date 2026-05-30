@@ -31,16 +31,35 @@ GET http://localhost:8288/actuator/health  ->  {"status":"UP"}
 
 ## 3. 촬영 PNG 목록
 
+### 3-A. 실 desktop renderer 연동 캡처 (2026-05-30 추가, 실 연동 확인됨)
+
+캡처 환경:
+- **Vite dev server**: `http://localhost:5175` (VITE_MOCK_MODE 미설정 — 실 모드)
+- **Gateway API base**: `http://localhost:8080` (실 JWT, 실 DB)
+- **인증**: `window.samhanAuth` IPC stub — 실 JWT (`dev_master / dev_p05_pass!`) 주입
+- **캡처 도구**: Playwright headless Chromium, viewport 1440x900
+- **실 API 적중 확인**: network interceptor 로 `GET http://localhost:8080/api/v1/partner-orders?page=0&size=50&status=DRAFT` 요청 확인
+
+| 파일 | 크기 | 시나리오 | 실 DB 수치 |
+|---|---|---|---|
+| `screenshots/01-list-draft.png` | 110 KB | 주문 리스트 필터 DRAFT(진행중) | 전체 9건 |
+| `screenshots/02-list-confirmed.png` | 116 KB | 주문 리스트 필터 CONFIRMED(완료) | 전체 50건 |
+| `screenshots/03-list-onhold.png` | 81 KB | 주문 리스트 필터 ON_HOLD(보류) | PO-2026-0002 1건 |
+| `screenshots/04-detail-draft.png` | 91 KB | 주문 상세 DRAFT — "보류" 버튼 노출 | 주문 2026/04/15-5 |
+| `screenshots/05-hold-executed.png` | 92 KB | 보류 클릭 후 ON_HOLD — "보류 해제" 버튼 전환 | 실 POST /hold 응답 |
+| `screenshots/06-release-executed.png` | 91 KB | 보류 해제 후 DRAFT 복귀 — "보류" 버튼 재노출 | 실 POST /release 응답 |
+| `screenshots/07-label-badges.png` | 45 KB | ON_HOLD 필터 — "보류" 배지 한글 라벨 확인 | PO-2026-0002 보류 배지 |
+
+### 3-B. 이전 단계 raw JSON + curl 증빙
+
 | 파일 | 시나리오 |
 |---|---|
-| `screenshots/sc01-list-draft.png` | 주문 리스트 — 필터 DRAFT(진행중) |
-| `screenshots/sc02-list-confirmed.png` | 주문 리스트 — 필터 CONFIRMED(완료) |
-| `screenshots/sc03-list-onhold.png` | 주문 리스트 — 필터 ON_HOLD(보류) 1건 |
-| `screenshots/sc04-detail-draft-hold-btn.png` | 주문 상세 — DRAFT, 보류 버튼 표시 |
-| `screenshots/sc05-hold-executed.png` | 보류 실행 — DRAFT→ON_HOLD 전이 |
-| `screenshots/sc06-release-executed.png` | 보류 해제 — ON_HOLD→DRAFT 복귀 |
-| `screenshots/sc07-label-korean.png` | 상태 라벨 한글(진행중/완료/보류) 매핑 |
-| `screenshots/sc-conflict-confirmed-hold.png` | CONFIRMED 주문 hold 시도 — 409 CONFLICT |
+| `sc01-list-draft-raw.json` | DRAFT 필터 API 응답 raw |
+| `sc02-list-confirmed-raw.json` | CONFIRMED 필터 API 응답 raw |
+| `sc03-list-onhold-raw.json` | ON_HOLD 필터 API 응답 raw |
+| `sc04-draft-detail-raw.json` | DRAFT 주문 상세 API 응답 raw |
+| `sc05-hold-response-raw.json` | POST /hold 응답 raw |
+| `sc06-release-response-raw.json` | POST /release 응답 raw |
 
 ---
 
@@ -120,7 +139,7 @@ Response:
 | 409 (CONFIRMED hold 거부) | **실 적중** — 직접 curl |
 | 인증 (X-User-Role/X-Internal-Token) | **헤더 직접 주입** — 게이트웨이 우회 (설계 허용) |
 | partnerName 필드 | **null** — partner-service 조회 없음 (리스트 응답에서 null) |
-| FE 화면 스크린샷 | **PIL 생성 PNG** — desktop renderer mock 모드 한계로 API 응답 기반 직접 생성 |
+| FE 화면 스크린샷 | **실 desktop renderer 캡처** — Vite 5175 (실 모드) + 실 JWT stub + Playwright headless Chromium |
 
 ---
 
