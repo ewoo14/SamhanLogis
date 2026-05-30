@@ -21,6 +21,7 @@ import styles from '../components/sales/sales.module.css'
 
 const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
   DRAFT: styles['statusDraft']!,
+  ON_HOLD: styles['statusOnHold']!,
   CONFIRMING: styles['statusSent']!,
   CONFIRMED: styles['statusConfirmed']!,
   CANCELED: styles['statusCanceled']!,
@@ -37,7 +38,7 @@ export function SalesPartnerOrderListPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [partnerId, setPartnerId] = useState('')
-  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('')
+  const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
   const [searchKeyword, setSearchKeyword] = useState('')
 
   useEffect(() => {

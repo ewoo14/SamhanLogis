@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
@@ -121,17 +122,36 @@ public class PartnerOrderQueryService {
                 trimToNull(filter.searchKeyword()));
     }
 
+    /**
+     * 목록 필터를 JPA Specification 으로 변환한다.
+     *
+     * <p>기간 필터(dateFrom/dateTo) 기준 필드 분기 (Phase 2.5 ON_HOLD 보정):
+     * <ul>
+     *   <li>status = DRAFT 또는 ON_HOLD (confirm 이전 상태) → {@code createdAt} 기준</li>
+     *   <li>status = CONFIRMED / CONFIRMING / CANCELED 또는 필터 없음 → {@code confirmedAt} 기준</li>
+     * </ul>
+     * DRAFT/ON_HOLD 는 confirmedAt=null 이므로 confirmedAt 기반 기간필터 적용 시 전부 제외된다.
+     * createdAt 기준으로 분기하여 정확한 기간 조회를 보장한다.
+     *
+     * @param filter 목록 필터
+     * @return JPA Specification
+     */
     private Specification<PartnerOrder> toSpec(PartnerOrderListFilter filter) {
+        // DRAFT/ON_HOLD 는 confirmedAt=null → createdAt 기준으로 기간필터 적용
+        boolean preConfirm = filter.status() == PartnerOrderStatus.DRAFT
+                || filter.status() == PartnerOrderStatus.ON_HOLD;
+        String dateField = preConfirm ? "createdAt" : "confirmedAt";
+
         return (root, query, cb) -> {
             var predicates = new ArrayList<Predicate>();
             if (filter.dateFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(
-                        root.get("confirmedAt"),
+                        root.get(dateField),
                         filter.dateFrom().atStartOfDay()));
             }
             if (filter.dateTo() != null) {
                 LocalDateTime exclusiveTo = filter.dateTo().plusDays(1).atStartOfDay();
-                predicates.add(cb.lessThan(root.get("confirmedAt"), exclusiveTo));
+                predicates.add(cb.lessThan(root.get(dateField), exclusiveTo));
             }
             if (filter.partnerId() != null) {
                 String partner = like(filter.partnerId());

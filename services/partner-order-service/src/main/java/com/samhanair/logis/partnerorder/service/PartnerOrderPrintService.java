@@ -317,6 +317,7 @@ public class PartnerOrderPrintService {
     private static String statusLabel(PartnerOrderStatus status) {
         return switch (status) {
             case DRAFT -> "초안";
+            case ON_HOLD -> "보류";
             case CONFIRMING -> "확인 중";
             case CONFIRMED -> "확정";
             case CANCELED -> "취소";

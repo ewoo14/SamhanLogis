@@ -300,6 +300,36 @@ public class PartnerOrder extends BaseEntity {
         this.status = PartnerOrderStatus.CANCELED;
     }
 
+    /**
+     * 보류 처리 — 진행중(DRAFT) 주문을 보류(ON_HOLD)로 전이한다 (Phase 2.5).
+     *
+     * <p>DRAFT 가 아니면 409 CONFLICT. 완료(CONFIRMED)는 출고전표가 발행되어 보류 불가.
+     *
+     * @throws ResponseStatusException 409 DRAFT 가 아닌 상태에서 호출 시
+     */
+    public void markOnHold() {
+        if (this.status != PartnerOrderStatus.DRAFT) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "진행중(DRAFT) 주문만 보류할 수 있습니다. 현재 상태: " + this.status);
+        }
+        this.status = PartnerOrderStatus.ON_HOLD;
+    }
+
+    /**
+     * 보류 해제 — 보류(ON_HOLD) 주문을 진행중(DRAFT)으로 되돌린다 (Phase 2.5).
+     *
+     * @throws ResponseStatusException 409 ON_HOLD 가 아닌 상태에서 호출 시
+     */
+    public void releaseHold() {
+        if (this.status != PartnerOrderStatus.ON_HOLD) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "보류(ON_HOLD) 주문만 해제할 수 있습니다. 현재 상태: " + this.status);
+        }
+        this.status = PartnerOrderStatus.DRAFT;
+    }
+
     /** unmodifiable view — 외부 변경 차단. */
     public List<PartnerOrderLine> getLines() {
         return this.lines.stream()

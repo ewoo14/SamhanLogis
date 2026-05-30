@@ -13,6 +13,8 @@ import {
   PARTNER_ORDER_STATUS_LABEL,
   deletePartnerOrder,
   getPartnerOrder,
+  holdPartnerOrder,
+  releasePartnerOrder,
   updatePartnerOrder,
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
@@ -72,6 +74,7 @@ export function SalesPartnerOrderDetailPage() {
   const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
   const [reloadSuccessMessage, setReloadSuccessMessage] = useState<string | null>(null)
+  const [holdErrorMessage, setHoldErrorMessage] = useState<string | null>(null)
   const [partnerCode, setPartnerCode] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
@@ -125,6 +128,48 @@ export function SalesPartnerOrderDetailPage() {
         return
       }
       setDeleteErrorMessage('주문서 삭제에 실패했습니다. 상태를 확인해 주세요.')
+    },
+  })
+
+  /**
+   * 보류 처리 (DRAFT → ON_HOLD). edit 권한 게이트는 canEdit 로 보호.
+   * 성공 시 목록 + 상세 쿼리 무효화.
+   */
+  const holdMutation = useMutation({
+    mutationFn: () => holdPartnerOrder(orderId),
+    onSuccess: async (updated) => {
+      setHoldErrorMessage(null)
+      queryClient.setQueryData(['partner-order', id], updated)
+      await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setHoldErrorMessage('진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
+        return
+      }
+      setHoldErrorMessage('보류 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    },
+  })
+
+  /**
+   * 보류 해제 (ON_HOLD → DRAFT). edit 권한 게이트는 canEdit 로 보호.
+   * 성공 시 목록 + 상세 쿼리 무효화.
+   */
+  const releaseMutation = useMutation({
+    mutationFn: () => releasePartnerOrder(orderId),
+    onSuccess: async (updated) => {
+      setHoldErrorMessage(null)
+      queryClient.setQueryData(['partner-order', id], updated)
+      await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setHoldErrorMessage('보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
+        return
+      }
+      setHoldErrorMessage('보류 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     },
   })
 
@@ -250,6 +295,34 @@ export function SalesPartnerOrderDetailPage() {
                 인쇄
               </Button>
             ) : null}
+            {query.data && canEdit && query.data.status === 'DRAFT' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="partner-order-hold"
+                disabled={holdMutation.isPending}
+                onClick={() => {
+                  setHoldErrorMessage(null)
+                  holdMutation.mutate()
+                }}
+              >
+                보류
+              </Button>
+            ) : null}
+            {query.data && canEdit && query.data.status === 'ON_HOLD' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="partner-order-release"
+                disabled={releaseMutation.isPending}
+                onClick={() => {
+                  setHoldErrorMessage(null)
+                  releaseMutation.mutate()
+                }}
+              >
+                보류 해제
+              </Button>
+            ) : null}
             {query.data && canEdit ? (
               <Button
                 type="button"
@@ -284,6 +357,11 @@ export function SalesPartnerOrderDetailPage() {
         {printErrorMessage ? (
           <div className={styles['errorBanner']} role="alert" data-testid="partner-order-print-error">
             {printErrorMessage}
+          </div>
+        ) : null}
+        {holdErrorMessage ? (
+          <div className={styles['errorBanner']} role="alert" data-testid="partner-order-hold-error">
+            {holdErrorMessage}
           </div>
         ) : null}
 

@@ -457,6 +457,11 @@
   background: var(--state-neutral-bg, #f3f4f6);
   color: var(--state-neutral, #4b5563);
 }
+.statusOnHold {
+  /* 보류(ON_HOLD) — 주황 계열로 주의 표시. */
+  background: #ffedd5;
+  color: #9a3412;
+}
 .statusConfirmed {
   background: var(--state-info-bg, #dbeafe);
   color: var(--state-info, #1e40af);

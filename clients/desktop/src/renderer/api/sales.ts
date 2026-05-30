@@ -321,18 +321,20 @@ interface LiveEstimateDetailResponse {
 // partner-order-service M4 — 주문서 관리 (read-only)
 // ---------------------------------------------------------------------------
 
-/** PartnerOrderStatus — partner-order-service 가정. */
+/** PartnerOrderStatus — partner-order-service 가정. Phase 2.5: ON_HOLD 추가. */
 export type PartnerOrderStatus =
   | 'DRAFT'
+  | 'ON_HOLD'
   | 'CONFIRMING'
   | 'CONFIRMED'
   | 'CANCELED'
 
-/** PartnerOrderStatus → 한국어. */
+/** PartnerOrderStatus → 한국어. 업무용어 통일: DRAFT=진행중, CONFIRMED=완료. */
 export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
-  DRAFT: '작성중',
+  DRAFT: '진행중',
+  ON_HOLD: '보류',
   CONFIRMING: '확정 처리중',
-  CONFIRMED: '확정',
+  CONFIRMED: '완료',
   CANCELED: '취소',
 }
 
@@ -449,6 +451,36 @@ export async function deletePartnerOrder(orderNumber: string): Promise<void> {
   await apiClient.delete(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
   )
+}
+
+/**
+ * 주문 보류 처리 — 진행중(DRAFT) → 보류(ON_HOLD). Phase 2.5.
+ *
+ * <p>BE: {@code POST /api/v1/partner-orders/{id}/hold}. 권한: sales.partner-order.edit UPDATE.
+ * DRAFT 가 아닌 상태에서 호출 시 BE 가 409 반환.
+ *
+ * @param orderNumber 주문번호 (URL-safe encode 적용) — UUID 비노출 ([[uuid-no-user-visibility]]).
+ */
+export async function holdPartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
+  const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/hold`,
+  )
+  return res.data.data
+}
+
+/**
+ * 주문 보류 해제 — 보류(ON_HOLD) → 진행중(DRAFT). Phase 2.5.
+ *
+ * <p>BE: {@code POST /api/v1/partner-orders/{id}/release}. 권한: sales.partner-order.edit UPDATE.
+ * ON_HOLD 가 아닌 상태에서 호출 시 BE 가 409 반환.
+ *
+ * @param orderNumber 주문번호 (URL-safe encode 적용) — UUID 비노출 ([[uuid-no-user-visibility]]).
+ */
+export async function releasePartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
+  const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
+    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/release`,
+  )
+  return res.data.data
 }
 
 // ---------------------------------------------------------------------------
