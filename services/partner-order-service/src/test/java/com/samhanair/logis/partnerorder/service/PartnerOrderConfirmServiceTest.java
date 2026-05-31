@@ -3,16 +3,12 @@ package com.samhanair.logis.partnerorder.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
-import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
-import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
-import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -44,19 +40,11 @@ class PartnerOrderConfirmServiceTest {
     @Mock
     private PartnerOrderHistoryRepository historyRepository;
     @Mock
-    private SlipPublishOutboxRepository outboxRepository;
-    @Mock
     private DcConfigClient dcConfigClient;
     @Mock
     private ProductClient productClient;
     @Mock
-    private InventoryClient inventoryClient;
-    @Mock
-    private SlipServiceClient slipServiceClient;
-    @Mock
     private PartnerOrderRevisionService revisionService;
-    @Mock
-    private ObjectMapper objectMapper;
     @Mock
     private EntityManager entityManager;
     @Mock

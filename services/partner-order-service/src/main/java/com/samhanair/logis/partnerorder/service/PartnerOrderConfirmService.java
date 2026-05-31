@@ -1,24 +1,18 @@
 package com.samhanair.logis.partnerorder.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.ProductSummary;
-import com.samhanair.logis.partnerorder.client.SlipServiceClient;
-import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.domain.HistoryEventType;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderDraft;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderHistory;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
-import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
-import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
@@ -28,9 +22,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,24 +33,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 주문 확정 서비스 (legacy sendOrderFromUi 6074 → 본 서비스). 설계서 §3.6 + §6 의 흐름:
+ * 주문 확정 서비스 — 슬라이스 D1 이후 confirm 은 slip 미발행 DRAFT 주문만 생성한다.
  *
  * <pre>
- *   DRAFT → POST /confirm → CONFIRMING (advisory lock)
- *     → M3 dc-config Feign (server-side priceVat 적용)
- *     → M1b inventory reserve
- *     → partner_order INSERT (status=CONFIRMING)
- *     → SlipServiceClient.publishFromPartnerOrder(req, "PO-CONF-{draftSeq}")
- *       ├ 200 → CONFIRMED + slipNo 채움
- *       ├ 409 (idempotency duplicate) → 기존 slipNo 채움
- *       └ 5xx → outbox row INSERT (PENDING) + status=CONFIRMED + slipPublishStatus=PENDING_RETRY
- *          └ Scheduler 5분 retry (max 24시간 → FAILED_PERMANENT + alert)
+ *   POST /confirm
+ *     ① 멱등 가드 (findByIdempotencyKey)
+ *     ② M3 dc-config priceVat + M1a product 카탈로그 스냅샷
+ *     ③ PartnerOrder.createFromConfirm → status=DRAFT, slipPublishStatus=NOT_REQUIRED
+ *     ④ 라인 INSERT + recomputeTotal + save
+ *     ⑤ history(CONFIRMED=주문접수) + revision CREATE 캡처
+ *     ⑥ (slip 발행 없음)
+ *   → ConfirmResponse{ orderNo, status=DRAFT, slipNo=null }
  * </pre>
  *
- * <p>Idempotency-Key {@code PO-CONF-{partnerCode}-{draftSeq}} — 재시도 시 동일 키 재사용으로
- * slip-service 중복 차단. partnerCode 를 포함시켜 거래처별 draftSeq 시퀀스 격리를 보존.
+ * <p>출고전표는 이후 명시적 convert 액션({@code PartnerOrderConvertService})으로만 발행된다.
  *
- * <p>UUID 비공개 가드 — 응답 ConfirmResponse 는 orderNo / slipNo 만 노출.
+ * <p>UUID 비공개 가드 — 응답 ConfirmResponse 는 orderNo 만 사용자 노출.
  */
 @Service
 @RequiredArgsConstructor
@@ -73,21 +63,22 @@ public class PartnerOrderConfirmService {
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderDraftRepository draftRepository;
     private final PartnerOrderHistoryRepository historyRepository;
-    private final SlipPublishOutboxRepository outboxRepository;
 
     private final DcConfigClient dcConfigClient;
     private final ProductClient productClient;
     // Phase 2.6c: inventoryClient 제거 — confirm 단계는 재고 무영향 (주문 무영향 원칙).
     // inventoryClient 는 PartnerOrderConvertService 에서만 사용 (출고전표 전환 시 reserve).
-    private final SlipServiceClient slipServiceClient;
+    // 슬라이스 D1: slipServiceClient / outboxRepository 제거 — confirm 은 slip 미발행.
 
     private final PartnerOrderRevisionService revisionService;
 
-    private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
 
     /**
      * 임시저장 → 확정 흐름. draftId 가 있으면 draft 의 draftSeq 를 idempotencyKey 시드로 사용.
+     *
+     * <p>슬라이스 D1: confirm 은 {@link PartnerOrder#createFromConfirm} 으로 DRAFT + NOT_REQUIRED 주문을
+     * 생성하며 slip-service 를 호출하지 않는다. 출고전표는 명시적 convert 액션으로만 발행.
      *
      * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
      * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
@@ -98,7 +89,7 @@ public class PartnerOrderConfirmService {
      * @param actorName X-User-Name (헤더, UUID 비공개 가드 적용 전 원본)
      * @param draftId 임시저장 UUID (legacy 흐름 — saveOrderSnapshot 후 sendOrderFromUi)
      * @param request 라인 (가격은 무시 — server-side DC 적용)
-     * @return ConfirmResponse — slipNo 또는 PENDING_RETRY 상태
+     * @return ConfirmResponse — status=DRAFT, slipNo=null
      */
     @Transactional
     public ConfirmResponse confirm(String partnerCode, String bizCode, String actorUserId,
@@ -117,7 +108,7 @@ public class PartnerOrderConfirmService {
         long draftSeq = resolveDraftSeq(partnerCode, draftId);
         String idempotencyKey = "PO-CONF-" + partnerCode + "-" + draftSeq;
 
-        // Idempotency 검사 — 이미 확정된 키면 기존 결과 반환 (재호출 가드)
+        // 멱등 검사 — 이미 확정된 키면 기존 결과 반환 (재호출 가드)
         var existing = orderRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             log.info("Idempotency hit: idemKey={} → 기존 주문 반환", idempotencyKey);
@@ -140,12 +131,11 @@ public class PartnerOrderConfirmService {
 
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
-        // 과도기 dev-report 참고: confirm 자동발행 slip 의 reserve/폐지는 Phase 2.6b 에서 처리.
 
-        // 5) partner_order INSERT (CONFIRMING)
+        // 5) partner_order INSERT (DRAFT + NOT_REQUIRED — 슬라이스 D1)
         String orderNo = nextOrderNo();
 
-        PartnerOrder order = PartnerOrder.create(
+        PartnerOrder order = PartnerOrder.createFromConfirm(
                 partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
 
         for (ConfirmLineRequest line : request.lines()) {
@@ -166,36 +156,10 @@ public class PartnerOrderConfirmService {
                 order.getId(), partnerCode, HistoryEventType.CONFIRMED,
                 actorUserId, "{\"orderNo\":\"" + orderNo + "\"}"));
 
-        // 6) slip-service 발행 — Sync REST (Idempotency-Key)
-        Map<String, Object> slipPayload = buildSlipPayload(order);
-        try {
-            PublishResult result = slipServiceClient.publishFromPartnerOrder(
-                    slipPayload, idempotencyKey);
-            order.markSlipPublished(result.slipNo());
-            historyRepository.save(PartnerOrderHistory.ofOrder(
-                    order.getId(), partnerCode, HistoryEventType.SLIP_PUBLISHED,
-                    actorUserId,
-                    "{\"slipNo\":\"" + result.slipNo() + "\",\"duplicate\":" + result.duplicate() + "}"));
-        } catch (BusinessException ex) {
-            if (ex.getErrorCode() == ErrorCode.INTERNAL_ERROR) {
-                // 5xx → outbox 큐
-                order.markSlipPendingRetry();
-                outboxRepository.save(SlipPublishOutbox.queue(
-                        order.getId(), idempotencyKey, serialize(slipPayload)));
-                historyRepository.save(PartnerOrderHistory.ofOrder(
-                        order.getId(), partnerCode, HistoryEventType.SLIP_RETRY_QUEUED,
-                        actorUserId, "{\"reason\":\"" + ex.getMessage() + "\"}"));
-                log.warn("slip-service 5xx → outbox queued (orderNo={}, idemKey={})", orderNo, idempotencyKey);
-            } else {
-                // 4xx 또는 기타 — 보상 (release) + propagate
-                throw ex;
-            }
-        }
+        // 6) slip 발행 없음 — 슬라이스 D1 confirm 자동발행 폐지 (D-CF-02).
+        // 출고전표는 본사 데스크톱의 명시적 convert 액션(PartnerOrderConvertService)으로만 발행.
 
         // Phase 2.4 버전이력 훅 — confirm 은 PartnerOrder 를 신규 INSERT 하는 경로이므로 CREATE 캡처.
-        // STATUS 를 사용하면 이 주문의 타임라인에 CREATE 베이스라인이 없어 복원 시작점이 부재한다.
-        // from-estimate 경로(PartnerOrderFromEstimateService) 도 CREATE 를 사용하여
-        // 주문 생성 2경로 모두 revision_no=1 이 CREATE 타입으로 일관된다.
         UUID actorId = parseActorId(actorUserId);
         revisionService.capture(order, PartnerOrderRevisionType.CREATE, null,
                 actorId, actorName, null);
@@ -285,41 +249,6 @@ public class PartnerOrderConfirmService {
             case "specDetailMap" -> "specDiscount";
             default -> "homeDiscount";
         };
-    }
-
-    /**
-     * slip-service POST /from-partner-order 본문 — partnerCode/bizCode/orderNo + 라인 배열.
-     * slip-service 의 정확한 schema 는 M5 결정에 따름. M4 skeleton 은 합리적 wire-format 가정.
-     */
-    private Map<String, Object> buildSlipPayload(PartnerOrder order) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("partnerCode", order.getPartnerCode());
-        body.put("bizCode", order.getBizCode());
-        body.put("orderNo", order.getOrderNo());
-        List<Map<String, Object>> lines = new ArrayList<>();
-        for (PartnerOrderLine l : order.getLines()) {
-            Map<String, Object> lineMap = new LinkedHashMap<>();
-            lineMap.put("productId", l.getProductId().toString());
-            lineMap.put("modelName", l.getModelName());
-            lineMap.put("productName", l.getProductName());
-            lineMap.put("categoryKey", l.getCategoryKey());
-            lineMap.put("quantity", l.getQuantity());
-            lineMap.put("priceVat", l.getPriceVat());
-            lineMap.put("subtotal", l.getSubtotal());
-            lineMap.put("remark", l.getRemark());
-            lines.add(lineMap);
-        }
-        body.put("lines", lines);
-        return body;
-    }
-
-    private String serialize(Object payload) {
-        try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "outbox payload 직렬화 실패", ex);
-        }
     }
 
     /**

@@ -143,6 +143,9 @@ public class PartnerOrder extends BaseEntity {
      * confirm 흐름 진입 시점에 새 PartnerOrder 를 생성한다 (status=CONFIRMING).
      * slip 발행 결과에 따라 추후 {@link #markSlipPublished} 또는 {@link #markSlipPendingRetry} 호출.
      *
+     * <p><b>레거시(슬라이스 D1 이후)</b>: confirm 자동발행 폐지로 신규 흐름 미사용. 레거시 PENDING_RETRY
+     * 주문 / outbox 스케줄러 호환을 위해 유지(코드 물리 제거는 후속).
+     *
      * @param partnerCode 거래처 코드 (M2)
      * @param bizCode 사업자번호
      * @param orderNo 사용자 표시용 주문번호
@@ -153,6 +156,29 @@ public class PartnerOrder extends BaseEntity {
     public static PartnerOrder create(String partnerCode, String bizCode, String orderNo,
                                       String idempotencyKey, BigDecimal totalAmount) {
         return new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+    }
+
+    /**
+     * 거래처 포털 confirm 흐름 — slip 미발행 DRAFT 주문 생성 (슬라이스 D1).
+     *
+     * <p>confirm 자동발행 폐지(D-CF-02). 주문은 진행중(DRAFT) + slipPublishStatus=NOT_REQUIRED 로
+     * 생성되며, 출고전표는 이후 명시적 convert 액션으로만 발행된다. from-estimate 경로
+     * ({@link #createFromEstimate})와 동형(주문생성 일원화). sourceEstimateId 는 없다(거래처 직접 주문).
+     *
+     * @param partnerCode 거래처 코드
+     * @param bizCode 사업자번호
+     * @param orderNo 사용자 표시용 주문번호
+     * @param idempotencyKey 멱등 키 (PO-CONF-{partnerCode}-{draftSeq}) — 주문 중복생성 가드
+     * @param totalAmount DC 적용 후 server-side 합계
+     * @return DRAFT 상태의 신규 PartnerOrder (영속화 전)
+     */
+    public static PartnerOrder createFromConfirm(String partnerCode, String bizCode, String orderNo,
+                                                 String idempotencyKey, BigDecimal totalAmount) {
+        PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        order.status = PartnerOrderStatus.DRAFT;
+        order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
+        order.confirmedAt = null;
+        return order;
     }
 
     /**
@@ -263,6 +289,9 @@ public class PartnerOrder extends BaseEntity {
     /**
      * slip-service 200 또는 409 idempotency duplicate — slipNo 채움 + status=CONFIRMED.
      *
+     * <p><b>레거시(슬라이스 D1 이후)</b>: confirm 자동발행 폐지로 신규 흐름 미사용. 레거시 PENDING_RETRY
+     * 주문 / outbox 스케줄러 호환을 위해 유지(코드 물리 제거는 후속).
+     *
      * @param slipNo slip-service 가 반환한 슬립 번호
      */
     public void markSlipPublished(String slipNo) {
@@ -275,7 +304,12 @@ public class PartnerOrder extends BaseEntity {
         this.slipPublishedAt = LocalDateTime.now();
     }
 
-    /** slip-service 5xx → outbox 큐로 전이. status 는 CONFIRMED, slipPublishStatus 만 PENDING_RETRY 유지. */
+    /**
+     * slip-service 5xx → outbox 큐로 전이. status 는 CONFIRMED, slipPublishStatus 만 PENDING_RETRY 유지.
+     *
+     * <p><b>레거시(슬라이스 D1 이후)</b>: confirm 자동발행 폐지로 신규 흐름 미사용. 레거시 PENDING_RETRY
+     * 주문 / outbox 스케줄러 호환을 위해 유지(코드 물리 제거는 후속).
+     */
     public void markSlipPendingRetry() {
         this.status = PartnerOrderStatus.CONFIRMED;
         this.slipPublishStatus = SlipPublishStatus.PENDING_RETRY;
