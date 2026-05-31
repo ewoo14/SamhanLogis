@@ -392,8 +392,8 @@ export interface ConvertToSlipItem {
 /** POST /api/v1/partner-orders/{id}/convert-to-slip 요청 본문. */
 export interface ConvertToSlipRequest {
   items: ConvertToSlipItem[]
-  /** 창고 코드 (nullable — slip-service 기본값 적용). */
-  warehouseCode?: string | null
+  /** 출고 창고 코드 (필수 — D-WH-03). */
+  warehouseCode: string
 }
 
 /**

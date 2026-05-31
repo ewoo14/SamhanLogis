@@ -479,6 +479,7 @@ export function SalesPartnerOrderDetailPage() {
                     }
                   }
                   setConvertQtyMap(initQty)
+                  setConvertWarehouse(null)
                   setConvertOpen(true)
                 }}
               >
@@ -967,18 +968,27 @@ export function SalesPartnerOrderDetailPage() {
             })()}
           </div>
           {/* 슬라이스 C — 출고 창고 필수 선택 (inventory 단일 출처). 미선택 시 전환 불가. */}
-          <div data-testid="partner-order-convert-warehouse" style={{ marginBottom: 'var(--space-3)' }}>
-            <WarehouseSelector
-              warehouses={warehousesQuery.data ?? []}
-              value={convertWarehouse?.id ?? null}
-              onChange={(_id, warehouse) => setConvertWarehouse(warehouse)}
-              label="출고 창고"
-              placeholder="출고 창고를 선택하세요"
-              hideVirtual
-              required
-              disabled={convertMutation.isPending}
-            />
-          </div>
+          {(() => {
+            const hasConvertQty = Object.values(convertQtyMap).some((q) => q > 0)
+            const convertWarehouseError = warehousesQuery.isError
+              ? '창고 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+              : (!convertWarehouse && hasConvertQty ? '출고 창고를 선택하세요.' : undefined)
+            return (
+              <div data-testid="partner-order-convert-warehouse" style={{ marginBottom: 'var(--space-3)' }}>
+                <WarehouseSelector
+                  warehouses={warehousesQuery.data ?? []}
+                  value={convertWarehouse?.id ?? null}
+                  onChange={(_id, warehouse) => setConvertWarehouse(warehouse)}
+                  label="출고 창고"
+                  placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '출고 창고를 선택하세요'}
+                  hideVirtual
+                  required
+                  disabled={convertMutation.isPending || warehousesQuery.isLoading}
+                  error={convertWarehouseError}
+                />
+              </div>
+            )
+          })()}
           <div className={styles['tableWrap']}>
             <table className={styles['estTable']}>
               <thead>
