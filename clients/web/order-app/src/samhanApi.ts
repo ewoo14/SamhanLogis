@@ -167,7 +167,11 @@ const RPC_MAP: Record<string, RpcHandler> = {
     const id = p.id || 'new'
     return http
       .post(`/partner-orders/${encodeURIComponent(id)}/confirm`, payload)
-      .then((r) => r.data)
+      .then((r) => ({
+        ok: r.data?.success === true,
+        orderNo: r.data?.data?.orderNo ?? null,
+        error: r.data?.message ?? null,
+      }))
   },
 
   // ─── 튜토리얼 상태 (RPC §W 카테고리) ──────────────────────────────────
