@@ -255,6 +255,13 @@
   --radius-modal:  8px;
   --radius-chip:   4px;
 
+  /* focus-ring — 브랜드/에러 포커스 링 (0 0 0 3px + 알파 18%)
+   * brand: --color-brand-500(#2D77A8) α18%, danger: --color-danger(#D6504A) α18%
+   * Input / PhoneInput / MoneyInput / *Autocomplete / *Selector 전 컴포넌트 공통.
+   */
+  --focus-ring-brand:  0 0 0 3px rgba(45, 119, 168, 0.18);
+  --focus-ring-danger: 0 0 0 3px rgba(214, 80, 74, 0.18);
+
   /* shadow — soft elevation */
   --elev-card:    0 1px 3px rgba(0, 0, 0, 0.04);
   --elev-popover: 0 4px 12px rgba(0, 0, 0, 0.08);

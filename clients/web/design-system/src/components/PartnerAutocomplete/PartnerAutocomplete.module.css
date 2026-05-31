@@ -31,7 +31,7 @@
 .field:focus-within {
   outline: none;
   border-color: var(--color-brand-500);
-  box-shadow: 0 0 0 3px rgba(45, 119, 168, 0.18);
+  box-shadow: var(--focus-ring-brand);
 }
 
 .disabled {
@@ -45,7 +45,7 @@
 
 .hasError:focus-within {
   border-color: var(--color-danger);
-  box-shadow: 0 0 0 3px rgba(214, 80, 74, 0.18);
+  box-shadow: var(--focus-ring-danger);
 }
 
 .input {

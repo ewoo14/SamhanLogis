@@ -561,7 +561,11 @@ export async function searchPartners(q: string): Promise<PartnerOption[]> {
       phone: p.phone ?? undefined,
     }))
   } catch {
-    // 네트워크/서버 오류 시 graceful 빈 배열 반환
+    // 의도적 graceful degradation — ProductAutocomplete의 searchProductsApi 와 동일 패턴.
+    // 네트워크/서버 오류 시 reject 하지 않고 빈 배열 반환하여 "검색 결과 없음" UI 표시.
+    // PartnerAutocomplete 의 status='error' 상태(재시도 유도 UX)는
+    // makeMockSearch({ failAfterMs }) Storybook 전용으로, 실 운영에서는 silent degradation 유지.
+    // (throw 로 변경 시 ProductAutocomplete 와 불일치 — AC-3 의도 유지)
     return []
   }
 }

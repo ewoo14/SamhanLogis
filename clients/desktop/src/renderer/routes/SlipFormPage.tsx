@@ -551,19 +551,34 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           )}
         </div>
 
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 16 }}>
-          <FormField
-            label="거래처명"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={partnerName}
-                onChange={(e) => setPartnerName(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-              />
-            )}
+        {/*
+          AC-3: 거래처 선택은 PartnerAutocomplete 단일 경로.
+          기존 수동 '거래처명' FormField/input 제거 — P0 D-AC3-01 수정.
+          partnerName state 는 PartnerAutocomplete onChange(handlePartnerAutocompleteChange)
+          에서만 setPartnerName 을 호출하며, createSlip payload 의 partnerName 으로 전달됨.
+          partnerCode 는 BE CreateSlipRequest 에 필드 없음(partnerId=UUID만 존재) —
+          partnerName/customerTel/Address/Representative denormalize 전송이 설계 의도.
+          회귀 아님: 기존 수동 input 도 partnerCode 를 payload 에 전송한 적 없음.
+        */}
+        <div style={{ marginTop: 16 }}>
+          <PartnerAutocomplete
+            value={selectedPartner}
+            onChange={(p) => { void handlePartnerAutocompleteChange(p) }}
+            searchPartners={searchPartnersApi}
+            label="거래처"
+            placeholder="거래처명 또는 코드 입력…"
+            ariaLabel="거래처 자동완성"
+            disabled={autoFillLoading}
           />
+          {autoFillError ? (
+            <div className="sfp-error-banner" role="alert" style={{ marginTop: 8 }}>
+              <span aria-hidden="true">ⓘ</span>
+              <span>{autoFillError}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="sfp-form-grid sfp-form-grid--1" style={{ marginTop: 16 }}>
           <FormField
             label="메모"
             render={({ id }) => (
@@ -620,25 +635,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-section-title">거래 명세 정보 (e-Count 12 필드)</div>
 
-        {/* AC-3: 거래처 자동완성 (PartnerAutocomplete) — 선택 시 자동 채움 */}
-        <div style={{ marginTop: 8 }}>
-          <PartnerAutocomplete
-            value={selectedPartner}
-            onChange={(p) => { void handlePartnerAutocompleteChange(p) }}
-            searchPartners={searchPartnersApi}
-            label="거래처"
-            placeholder="거래처명 또는 코드 입력…"
-            ariaLabel="거래처 자동완성"
-            disabled={autoFillLoading}
-          />
-        </div>
-
-        {autoFillError ? (
-          <div className="sfp-error-banner" role="alert" style={{ marginTop: 8 }}>
-            <span aria-hidden="true">ⓘ</span>
-            <span>{autoFillError}</span>
-          </div>
-        ) : null}
+        {/*
+          AC-3 P0 D-AC3-01 수정: PartnerAutocomplete 는 헤더 정보 카드로 단일화.
+          이 카드에서는 거래처 선택 결과 자동 채움 값(연락처/주소/대표자)만 표시/수정.
+          autoFillError 배너는 헤더 카드 내 PartnerAutocomplete 아래에 표시됨.
+        */}
 
         {/* 거래처 snapshot 3 (자동 채움 + 수정 가능) */}
         <div className="sfp-form-grid sfp-form-grid--3" style={{ marginTop: 16 }}>
