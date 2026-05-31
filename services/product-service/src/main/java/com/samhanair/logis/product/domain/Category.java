@@ -19,6 +19,9 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 제품 카테고리 — 단일 부모 자기참조 트리 (개발책임자 결재). 깊이 무제한,
  * 강제 검사는 운영 정책으로 처리한다 (코드 강제 X). soft-deleted via {@link SQLRestriction}.
+ *
+ * <p>Phase INV-S S1: {@code serialManaged} 필드 추가 — 에어컨/판넬 계열 카테고리는
+ * {@code true} (개별 시리얼 인스턴스 관리), 부자재/배관 등은 {@code false} (batch lot 관리).
  */
 @Entity
 @Getter
@@ -46,13 +49,32 @@ public class Category extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
+    /**
+     * 개별시리얼 관리 여부 — {@code true}: 에어컨/판넬 등 stock_instances 대상,
+     * {@code false}: 부자재/배관 등 기존 stock_lots(batch) 대상.
+     * V9 마이그레이션으로 추가 (기존 row DEFAULT FALSE). Phase INV-S S1.
+     */
+    @Column(name = "serial_managed", nullable = false)
+    private boolean serialManaged;
+
     private Category(String code, String name, Category parent, int displayOrder) {
         this.code = code;
         this.name = name;
         this.parent = parent;
         this.displayOrder = displayOrder;
+        this.serialManaged = false;
     }
 
+    /**
+     * 카테고리 생성 팩토리 — create() 시그니처 무변경. serialManaged 기본값 false.
+     * 개별시리얼 지정은 {@link #markSerialManaged(boolean)} 도메인 메서드로 후속 호출.
+     *
+     * @param code         카테고리 코드 (unique)
+     * @param name         카테고리 명칭
+     * @param parent       상위 카테고리 (루트이면 null)
+     * @param displayOrder 정렬 순서
+     * @return 새 Category 인스턴스 (serialManaged=false)
+     */
     public static Category create(String code, String name, Category parent, int displayOrder) {
         return new Category(code, name, parent, displayOrder);
     }
@@ -67,5 +89,15 @@ public class Category extends BaseEntity {
 
     public void changeDisplayOrder(int displayOrder) {
         this.displayOrder = displayOrder;
+    }
+
+    /**
+     * 관리방식 지정 — 개별시리얼(true)/batch(false). Phase INV-S S1.
+     * inventory-service 가 이 플래그로 stock_instances 생성 여부를 판정한다.
+     *
+     * @param serialManaged true 이면 에어컨/판넬 계열(개별 시리얼), false 이면 batch
+     */
+    public void markSerialManaged(boolean serialManaged) {
+        this.serialManaged = serialManaged;
     }
 }
