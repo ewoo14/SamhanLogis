@@ -2576,3 +2576,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-CF-03 | **outbox/scheduler/SlipPublishStatus/markSlipPublished/markSlipPendingRetry 는 dormant 유지(코드 물리 제거는 후속).** confirm 신규 enqueue 0, 스케줄러는 레거시 PENDING_RETRY 행 drain 지속. 운영 in-flight 안전 + 최소 diff. deprecated 주석으로 후속 제거 표식. |
 
 **산출**: `PartnerOrder.createFromConfirm`(DRAFT+NOT_REQUIRED) + `PartnerOrderConfirmService.confirm` slip 발행 블록 제거 + 미사용 의존(slipServiceClient/outboxRepository/objectMapper/buildSlipPayload/serialize) 제거 + confirm IT 재작성(`85d6150f`). FE(order-app) 무변경(confirm 성공 핸들러 slipNo/status 비의존). spec `docs/superpowers/specs/2026-05-31-confirm-no-autopublish-design.md`, plan `docs/superpowers/plans/2026-05-31-confirm-no-autopublish.md`, dev-report `docs/dev-reports/slice-d1-confirm-no-autopublish.md`. partner-order-service 단독 배포, Flyway 불필요. **D2(다중주문 병합) 후속.**
+
+---
+
+### D-CR. confirm 경로 복구 — DC price-calc 정식 연동 + FE res.ok (2026-05-31)
+
+**배경**: 슬라이스 D1 Docker 실 QA 가 실 confirm 직접호출 BLOCKED 로 드러낸 **기존 버그 2건**(D1 무관). ① `DcConfigClient.fetchDcConfig` 가 없는 경로 `/api/v1/dc-configs/{partnerCode}` 호출 → 403 → confirm 예외 + applyDc 기대 스키마가 실제 엔드포인트와 불일치(죽은 DC 스켈레톤). ② order-app `sendOrderFromUi` 가 ApiResponse `{success}` 반환하나 레거시 핸들러는 `res.ok` 확인 → 항상 "전송 실패".
+
+| 결정 | 내용 |
+|---|---|
+| D-CR-01 | **confirm DC 적용 = dc-config-service `/internal/price-calculations` 정식 연동.** 죽은 `fetchDcConfig`/`applyDc`/`mapCategoryToDcKey` 제거 → `DcConfigClient.calculatePrices` 가 라인별 정상가+카테고리 전송, finalPrice 수신. dc-config 가 DC 단가 단일 소유(아키텍처 정합). |
+| D-CR-02 | **fail-soft 보존**: price-calc 404(DC 미설정)/5xx/연결실패 → 빈 결과 → confirm 이 listPrice 사용(DC 미적용). 기존 "DC 미적용 시 정상가" 사상 + 회계 critical path 가용성. |
+| D-CR-03 | **order-app `sendOrderFromUi` 응답 정규화**: ApiResponse → 레거시 핸들러 기대형 `{ok: success, orderNo, error: message}`. 거대 index.html 미변경, 성공 표시 복구. |
+
+**산출**: `DcConfigClient.calculatePrices`(POST /internal/price-calculations, ApiResponse<PriceCalculationResponse> 파싱, fail-soft) + confirm finalPrice 사용 + mapCategory + 죽은 메서드 제거 + VendorOrderService fetchDcConfig 참조 제거(미리보기 dcRate=0) + confirm IT 2종(`e85f45f3`). order-app sendOrderFromUi 정규화(`70dacf5f`). 225 tests PASS(skipped=0). spec/plan/dev-report `docs/.../2026-05-31-confirm-recovery-dc-price-calc*` + `docs/dev-reports/confirm-recovery-dc-price-calc.md`. partner-order+order-app 배포, Flyway 불필요. 옵션 정액 DC(confirm 라인 옵션 플래그)·estimate price-calc 점검 후속.

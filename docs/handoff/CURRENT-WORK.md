@@ -6,10 +6,16 @@
 
 ## 🧭 새 세션 시작 가이드 (2026-05-31 갱신)
 
-**현재 상태**: 슬라이스 **D1(confirm 자동발행 폐지) 구현 완료** — 브랜치 `feat/slice-d1-confirm-no-autopublish`(spec/plan/BE/docs 커밋). **PR 발행 + 5-team 리뷰 + Docker 실 QA 대기**. 슬라이스 C 머지 완료(#328 `ed7bebee`). (진행 순서 = **C(완료)→D1(구현완료)→D2(병합)→B→A**.)
+**현재 상태**: **confirm 경로 복구(DC price-calc 정식 연동 + FE res.ok) 구현 완료** — 브랜치 `fix/confirm-recovery-dc-price-calc`(BE `e85f45f3` + FE `70dacf5f` + docs). **PR 발행 + 5-team + Docker 실 QA 대기**. 슬라이스 C(#328 `ed7bebee`)·D1(#329 `8ff363f1`) 머지 완료. (순서 = C✅→D1✅→**confirm복구(진행)**→AC-1 창고자동완성→AC-2 품목→AC-3 거래처→D2 병합→B→A.)
 **환경 메모**: ⚠️ Codex 6/1(월) 12:00 복구 전 → 구현+리뷰 모두 Claude 에이전트. 5-team 패턴 + 사이클 N=2 + Docker 실 QA([[no-fake-data-ever]]) + [[always-mouse-choices]] 유지.
 
-### 🚧 슬라이스 D1 구현 완료 (브랜치 `feat/slice-d1-confirm-no-autopublish`, 머지 전)
+### 🚧 confirm 경로 복구 구현 완료 (브랜치 `fix/confirm-recovery-dc-price-calc`, 머지 전)
+D1 실 QA 가 드러낸 기존 버그 2건 복구. ① `DcConfigClient` 죽은 스켈레톤(없는 `/api/v1/dc-configs/{code}` 403) → dc-config `/internal/price-calculations` 정식 연동(D-CR-01, fail-soft D-CR-02). ② order-app `sendOrderFromUi` ApiResponse→레거시 `{ok}` 정규화(D-CR-03, "전송 실패" 오표시 해소).
+- BE `e85f45f3`: `DcConfigClient.calculatePrices` + confirm finalPrice 사용 + mapCategory + 죽은 메서드 제거 + VendorOrderService dcRate=0 + confirm IT 2종. 225 tests PASS(skipped=0). FE `70dacf5f`: 정규화.
+- spec/plan/dev-report `docs/.../2026-05-31-confirm-recovery-dc-price-calc*` + `docs/dev-reports/confirm-recovery-dc-price-calc.md`. DECISIONS D-CR-01~03.
+- **다음 단계**: PR → 5-team N=2 → CI → **Docker 실 QA(D1 BLOCKED 였던 실 confirm→DRAFT+DC price_vat psql 실증)** → 머지. → 이후 **AC-1 창고 자동완성**(설계 승인됨).
+
+### ✅ 슬라이스 D1 머지 완료 (#329 squash `8ff363f1`)
 2.6b 분할 ①. 거래처 포털 confirm 자동발행 폐지 — confirm 은 slip 미발행 **DRAFT(진행중)** 주문만 생성(D-CF-02), from-estimate 와 일원화. 출고전표는 명시적 convert 로만 발행.
 - BE: `PartnerOrder.createFromConfirm`(DRAFT+NOT_REQUIRED) + `confirm` slip 발행 블록 제거 + 미사용 의존 정리(`85d6150f`). FE(order-app) **무변경**(confirm 성공 핸들러 slipNo/status 비의존, "전송이 완료되었습니다"). outbox/scheduler dormant 유지(D-CF-03).
 - 테스트: `PartnerOrderConfirmServiceIT` 2 케이스(DRAFT+slipNo null+slip 미호출+outbox 0) + 전체 회귀 PASS(skipped=0). 부수효과: slip-service 다운에도 confirm 200.
