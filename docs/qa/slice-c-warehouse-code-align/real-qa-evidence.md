@@ -580,3 +580,94 @@ convertKey UUID (idempotency_key 후미에서 추출): `22cac5a7-1549-bcc9-e56a-
 **종합: PASS — fresh 주문에서 한 트랜잭션 묶음으로 핵심 invariant 깨끗하게 증명 완료**
 - 앞선 실험(§4-4 관찰-1)의 confound(동일 convertKey RESERVE→RELEASE 이력으로 인한 no-op 의심)는 **이번 fresh 실험에서 완전히 배제됨**
 - 신규 convertKey `22cac5a7-1549-bcc9-e56a-04e8fe58b2b9`로 신규 RESERVE 2건이 명확히 생성되어 슬라이스 C 재고 예약 정합 확인
+
+---
+
+## 10. 데스크톱 UI 실 캡처 (PR #328 머지 전 QA 스크린샷 의무)
+
+- **일시**: 2026-05-31 12:23 KST
+- **담당**: Claude QA Agent
+- **방식**: Playwright headless chromium + 실 gateway(:8080) + 실 JWT(addInitScript 주입) + 실 partner_order_db
+
+### 10-1. 구동 방식
+
+```
+# 실 gateway 모드 vite dev server (VITE_MOCK_MODE 미설정 → 실 API 사용)
+npx vite src/renderer --host 127.0.0.1 --port 5179
+# → VITE_API_BASE_URL 기본값 http://localhost:8080 사용
+
+# Playwright 실행
+PLAYWRIGHT_SKIP_WEB_SERVER=1 AUDIT_BASE_URL=http://127.0.0.1:5179 REAL_JWT={JWT}
+npx playwright test playwright/slice-c-warehouse-real-qa --reporter=line
+```
+
+### 10-2. 실 gateway 연동 증명
+
+Playwright 네트워크 로그에서 아래 실 API 요청 확인:
+
+```
+GET  200 http://localhost:8080/api/notifications/my
+GET  200 http://localhost:8080/auth/admin/permissions/my
+GET  200 http://localhost:8080/inventory/warehouses
+GET  200 http://localhost:8080/api/v1/partner-orders/8c976ad1-8370-47e2-87ef-14467d55b6ee
+GET  200 http://localhost:8080/api/v1/partner-orders/8c976ad1-8370-47e2-87ef-14467d55b6ee/revisions
+GET  200 http://localhost:8080/api/v1/partner-orders/8c976ad1-8370-47e2-87ef-14467d55b6ee/audit-logs
+POST 200 http://localhost:8080/api/v1/partner-orders/8c976ad1-8370-47e2-87ef-14467d55b6ee/convert-to-slip
+```
+
+- 모든 요청이 `localhost:8080`(실 api-gateway)을 경유함
+- 실 JWT(`Authorization: Bearer eyJhbGci...`, role=MASTER) addInitScript 주입으로 전달
+- VITE_MOCK_MODE 미설정 → mock.ts isMockMode() = false → fixture 우회 없음
+
+### 10-3. 사용 주문
+
+- **주문번호**: 2026/04/15-4
+- **주문 UUID**: `8c976ad1-8370-47e2-87ef-14467d55b6ee`
+- **상태**: DRAFT, linked_slip_no=null, converted_quantity=0 (실 DB)
+- **라인**: 삼성 천장형 3톤 AC100CNCDEH-76, qty=5, HQ-001 available=104
+
+### 10-4. 전환 결과 (실 API 응답)
+
+```json
+POST http://localhost:8080/api/v1/.../convert-to-slip
+→ HTTP 200
+{
+  "success": true,
+  "code": "OK",
+  "data": {
+    "slipNo": "2026/05/31-5",
+    "orderStatus": "DRAFT",
+    "fullyConverted": false
+  },
+  "timestamp": "2026-05-31T03:23:11.975434669Z"
+}
+```
+
+토스트 텍스트: `출고전표 2026/05/31-5 발행 — 잔여 수량이 남아 있습니다`
+
+### 10-5. 캡처 파일
+
+| 파일 | 크기 | 내용 |
+|---|---|---|
+| `docs/qa/slice-c-warehouse-code-align/ui-01-warehouse-required.png` | 96,120 bytes | 모달 오픈, 창고 미선택("출고 창고를 선택하세요"), 수량=2 입력, "출고 창고를 선택하세요." 에러 메시지 표시 |
+| `docs/qa/slice-c-warehouse-code-align/ui-02-warehouse-selected.png` | 95,667 bytes | "HQ-001 · 본사창고 (본사)" 선택, 수량=2 입력, "출고전표로 전환" 버튼 활성 |
+| `docs/qa/slice-c-warehouse-code-align/ui-03-convert-success.png` | 83,635 bytes | 전환 성공 후 상세 화면, "출고전표 2026/05/31-5 발행 — 잔여 수량이 남아 있습니다" 토스트, 전환됨=2 표시 |
+
+- 세 파일 모두 실 렌더러(Playwright headless chromium, vite dev server 5179) + 실 gateway API 응답으로 생성된 실 화면
+- mock fixture 아님 — 파일명·크기·내용이 실제 화면임
+
+### 10-6. 최종 결과
+
+| 검증 항목 | 결과 |
+|---|---|
+| 실 vite dev server (MOCK 비활성) 기동 | PASS |
+| 실 JWT addInitScript 주입 (gateway :8080 취득) | PASS |
+| 실 주문 상세 진입 (2026/04/15-4, HTTP 200) | PASS |
+| 출고전표 전환 버튼 노출 + 클릭 → 모달 오픈 | PASS |
+| 창고 미선택 상태 캡처 (ui-01) | PASS |
+| HQ-001 선택 + 수량 입력 → 제출 활성 캡처 (ui-02) | PASS |
+| 전환 성공 토스트 (slipNo=2026/05/31-5) 캡처 (ui-03) | PASS |
+| 실 gateway :8080 API 적중 확인 (네트워크 로그) | PASS |
+| mock fixture 미사용 확인 | PASS |
+
+**종합: PASS — 3장 실 UI 캡처 완료 (mock/합성 아님)**
