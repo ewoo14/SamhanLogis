@@ -569,7 +569,7 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
     productName: '실외기 10HP',
     sellingPrice: '4200000',
   },
-  MWR_WE10N: {
+  'MWR-WE10N': {
     productId: 'p-mwr10',
     modelName: 'MWR-WE10N',
     productName: '유선 리모컨 (WE10N)',

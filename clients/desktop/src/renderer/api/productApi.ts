@@ -16,7 +16,10 @@
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 import type { ProductOption } from '@samhan/design-system'
 
-/** product-service `ProductSummaryResponse` 매핑 타입 (FE 전용). */
+/**
+ * product-service `ProductSummaryResponse` 매핑 타입 (FE 전용).
+ * `categoryId` 는 BE 응답에 존재하나 FE 에서 미사용 — 타입 노출 제거 (F-04).
+ */
 interface ProductSummaryResponse {
   id: string
   name: string

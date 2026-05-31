@@ -66,8 +66,19 @@ export interface ProductAutocompleteProps {
    * debounce 적용은 컴포넌트 내부 또는 외부에서 가능 — 내부 debounceMs 로도 제어.
    */
   searchProducts: (q: string) => Promise<ProductOption[]>
-  /** 라벨 (default: "품목"). */
+  /**
+   * 라벨 텍스트 (FormField visible label). undefined 면 label 미렌더.
+   * LineRow 내 compact 사용 시 label 을 생략하고 ariaLabel 을 대신 지정한다.
+   * (default: "품목")
+   */
   label?: string
+  /**
+   * input 의 `aria-label` 속성.
+   * LineRow 내 compact 사용 시 visible label 없이 접근성 이름을 부여할 때 사용.
+   * label prop 이 있으면 label 이 접근성 이름으로 사용되므로 ariaLabel 은 불필요.
+   * label 이 빈 문자열("")이거나 undefined 일 때 ariaLabel 로 combobox 이름 지정.
+   */
+  ariaLabel?: string
   /** placeholder (default: "모델명 또는 품목명 입력…"). */
   placeholder?: string
   /** 필수 표시 (라벨 옆 별표). */
@@ -85,9 +96,6 @@ export interface ProductAutocompleteProps {
 /** 컴포넌트 내부 비동기 상태. */
 type SearchStatus = 'idle' | 'loading' | 'done' | 'error'
 
-/** 단조 증가 seq — stale 응답 무시용. */
-let _globalSeq = 0
-
 /**
  * ProductAutocomplete forwardRef — 호출자가 input 에 직접 focus/ref 가능.
  */
@@ -100,6 +108,7 @@ export const ProductAutocomplete = forwardRef<
     onChange,
     searchProducts,
     label = '품목',
+    ariaLabel,
     placeholder = '모델명 또는 품목명 입력…',
     required = false,
     error,
@@ -124,7 +133,12 @@ export const ProductAutocomplete = forwardRef<
   const blurTimer = useRef<number | undefined>(undefined)
   // debounce timer
   const debounceTimer = useRef<number | undefined>(undefined)
-  // stale 응답 무시: 최신 요청 seq 추적
+  /**
+   * stale 응답 무시: 인스턴스별 단조 증가 seq.
+   * 모듈 전역 카운터(이전 _globalSeq) 대신 인스턴스별 useRef 로 격리하여
+   * 멀티라인 전표에서 라인 A 검색이 라인 B seq 에 의해 버려지는 오염 방지.
+   */
+  const instanceSeq = useRef<number>(0)
   const latestSeq = useRef<number>(0)
 
   /** 선택 품목의 입력란 표시 레이블 (modelName). */
@@ -201,7 +215,8 @@ export const ProductAutocomplete = forwardRef<
   /** 서버 검색 실행 — stale 응답 무시 포함. */
   const performSearch = useCallback(
     async (q: string) => {
-      const seq = ++_globalSeq
+      // 인스턴스별 seq — 다른 인스턴스와 완전 격리
+      const seq = ++instanceSeq.current
       latestSeq.current = seq
 
       setStatus('loading')
@@ -268,118 +283,166 @@ export const ProductAutocomplete = forwardRef<
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
   const displayValue = open ? draft : selectedLabel
 
+  // 로딩/결과/에러 등 dropdown 표시 여부
   const showDropdown = open && (
     status === 'loading' || candidates.length > 0 || status === 'done' || status === 'error'
   )
+  const showLoadingRow = open && status === 'loading' && candidates.length === 0
   const showEmpty = open && status === 'done' && candidates.length === 0
   const showMinCharsHint = open && draft.trim().length > 0 && draft.trim().length < minChars
 
+  /**
+   * label 이 비어 있거나 undefined 인 경우 compact 모드:
+   * - FormField 를 건너뛰고 wrapper div 만 렌더.
+   * - `ariaLabel` 을 input aria-label 로 직접 적용.
+   * - label 이 있으면 FormField 가 label→htmlFor 연결로 접근성 이름 부여.
+   *
+   * 이유: 빈 label 의 `<label htmlFor=id>` 요소가 DOM 에 남아 있으면 브라우저가
+   * aria-labelledby 로 빈 텍스트를 계산하며 aria-label 을 덮어쓴다 (ARIA 2.1 §6.2.7).
+   */
+  const isCompact = !label || label === ''
+
+  /**
+   * 공통 dropdown 영역 — FormField 내부/외부 양쪽에서 재사용.
+   * `inputId` / `invalid` / `req` 는 각 분기에서 주입.
+   */
+  const renderControls = (
+    inputId: string,
+    invalid: boolean,
+    req: boolean,
+    ariaDescribedBy: string | undefined,
+  ) => (
+    <div className={styles['wrapper']}>
+      <div
+        className={[
+          styles['field'],
+          disabled ? styles['disabled'] : null,
+          (Boolean(error) || invalid) ? styles['hasError'] : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <input
+          ref={ref}
+          id={inputId}
+          type="text"
+          autoComplete="off"
+          className={styles['input']}
+          value={displayValue}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={req}
+          aria-label={isCompact ? ariaLabel : undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
+          aria-required={req || undefined}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={
+            open && activeIndex >= 0 && candidates[activeIndex]
+              ? `${listId}-${candidates[activeIndex]!.id}`
+              : undefined
+          }
+          role="combobox"
+        />
+        {status === 'loading' ? (
+          <span className={styles['loadingSpinner']} aria-hidden="true">
+            <span className={styles['spinnerDot']} />
+          </span>
+        ) : null}
+      </div>
+
+      {/* minChars 미달 안내 */}
+      {showMinCharsHint ? (
+        <div className={styles['hint']} role="status">
+          {minChars}글자 이상 입력하면 검색합니다.
+        </div>
+      ) : null}
+
+      {/* 로딩 중 — dropdown 박스에 "검색 중…" 표시 (D-1) */}
+      {showLoadingRow ? (
+        <ul
+          id={listId}
+          className={styles['dropdown']}
+          role="listbox"
+          aria-label="품목 목록"
+        >
+          <li className={styles['statusRow']} role="option" aria-selected={false}>
+            <span className={styles['spinnerDot']} aria-hidden="true" />
+            <span>검색 중…</span>
+          </li>
+        </ul>
+      ) : null}
+
+      {/* 후보 dropdown */}
+      {showDropdown && candidates.length > 0 ? (
+        <ul
+          id={listId}
+          className={styles['dropdown']}
+          role="listbox"
+          aria-label="품목 목록"
+        >
+          {candidates.map((p, idx) => (
+            <li
+              key={p.id}
+              id={`${listId}-${p.id}`}
+              className={[
+                styles['option'],
+                value?.id === p.id ? styles['optionSelected'] : null,
+                idx === activeIndex ? styles['optionActive'] : null,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              role="option"
+              aria-selected={value?.id === p.id}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                pick(p)
+              }}
+            >
+              <span className={styles['optionModel']}>{p.modelName}</span>
+              <span className={styles['optionSep']}>·</span>
+              <span className={styles['optionName']}>{p.productName}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* 빈 결과 */}
+      {showEmpty ? (
+        <div className={styles['empty']} role="status">
+          검색 결과 없음
+        </div>
+      ) : null}
+
+      {/* 에러 */}
+      {open && status === 'error' && errorMsg ? (
+        <div className={styles['empty']} role="status">
+          {errorMsg}
+        </div>
+      ) : null}
+    </div>
+  )
+
+  // compact 모드: label 없이 wrapper+input 만 렌더 (LineRow 인라인 사용)
+  if (isCompact) {
+    return renderControls(reactId, Boolean(error), required, undefined)
+  }
+
+  // 일반 모드: FormField 로 visible label + 에러/힌트 연결
   return (
     <FormField
       label={label}
       error={error}
       required={required}
-      render={({ id, ariaDescribedBy, invalid, required: req }) => (
-        <div className={styles['wrapper']}>
-          <div
-            className={[
-              styles['field'],
-              disabled ? styles['disabled'] : null,
-              (Boolean(error) || invalid) ? styles['hasError'] : null,
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <input
-              ref={ref}
-              id={id}
-              type="text"
-              autoComplete="off"
-              className={styles['input']}
-              value={displayValue}
-              onChange={handleChange}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={disabled}
-              required={req}
-              aria-invalid={invalid || undefined}
-              aria-describedby={ariaDescribedBy}
-              aria-required={req || undefined}
-              aria-autocomplete="list"
-              aria-expanded={open}
-              aria-controls={open ? listId : undefined}
-              aria-activedescendant={
-                open && activeIndex >= 0 && candidates[activeIndex]
-                  ? `${listId}-${candidates[activeIndex]!.id}`
-                  : undefined
-              }
-              role="combobox"
-            />
-            {status === 'loading' ? (
-              <span className={styles['loadingSpinner']} aria-hidden="true">
-                <span className={styles['spinnerDot']} />
-              </span>
-            ) : null}
-          </div>
-
-          {/* minChars 미달 안내 */}
-          {showMinCharsHint ? (
-            <div className={styles['hint']} role="status">
-              {minChars}글자 이상 입력하면 검색합니다.
-            </div>
-          ) : null}
-
-          {/* 후보 dropdown */}
-          {showDropdown && candidates.length > 0 ? (
-            <ul
-              id={listId}
-              className={styles['dropdown']}
-              role="listbox"
-              aria-label="품목 목록"
-            >
-              {candidates.map((p, idx) => (
-                <li
-                  key={p.id}
-                  id={`${listId}-${p.id}`}
-                  className={[
-                    styles['option'],
-                    value?.id === p.id ? styles['optionSelected'] : null,
-                    idx === activeIndex ? styles['optionActive'] : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  role="option"
-                  aria-selected={value?.id === p.id}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    pick(p)
-                  }}
-                >
-                  <span className={styles['optionModel']}>{p.modelName}</span>
-                  <span className={styles['optionSep']}>·</span>
-                  <span className={styles['optionName']}>{p.productName}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {/* 빈 결과 */}
-          {showEmpty ? (
-            <div className={styles['empty']} role="status">
-              검색 결과 없음
-            </div>
-          ) : null}
-
-          {/* 에러 */}
-          {open && status === 'error' && errorMsg ? (
-            <div className={styles['empty']} role="status">
-              {errorMsg}
-            </div>
-          ) : null}
-        </div>
-      )}
+      render={({ id, ariaDescribedBy, invalid, required: req }) =>
+        renderControls(id, invalid, req, ariaDescribedBy)
+      }
     />
   )
 })

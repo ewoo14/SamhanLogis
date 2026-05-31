@@ -1052,6 +1052,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                         }
                         searchProducts={searchProductsApi}
                         label=""
+                        ariaLabel={`라인 ${idx + 1} 품목`}
                         placeholder="모델명 또는 품목명"
                         debounceMs={250}
                       />

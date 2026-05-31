@@ -77,10 +77,13 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
 
 /**
  * 첫 번째 라인의 ProductAutocomplete input.
- * role=combobox 는 ProductAutocomplete 의 input 에 부착됨.
+ *
+ * SlipFormPage 에서 `ariaLabel="라인 1 품목"` 을 부여하므로
+ * `getByRole('combobox', { name: /라인 1 품목/ })` 으로 WarehouseSelector `<select>` 와
+ * 명확히 구분 (F-01/F-02 해소).
  */
 function getProductInput(page: Page) {
-  return page.getByRole('combobox').first()
+  return page.getByRole('combobox', { name: /라인 1 품목/ })
 }
 
 // ============================================================
@@ -113,10 +116,7 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ')
 
-    // debounce 250ms + 비동기 대기
-    await page.waitForTimeout(400)
-
-    // listbox 표시 확인
+    // listbox 결정적 대기 — debounce + 비동기 응답 완료까지 (F-05)
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
 
@@ -137,8 +137,6 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     const input = getProductInput(page)
     await input.click()
     await input.fill('AJ040')
-
-    await page.waitForTimeout(400)
 
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
@@ -165,8 +163,6 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     const input = getProductInput(page)
     await input.click()
     await input.fill('AJ')
-
-    await page.waitForTimeout(400)
 
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
@@ -195,8 +191,6 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ040')
 
-    await page.waitForTimeout(400)
-
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
 
@@ -222,8 +216,6 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await input.click()
     await input.fill('AJ')
 
-    await page.waitForTimeout(400)
-
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
 
@@ -235,6 +227,38 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
     await listbox.getByRole('option').first().click()
     const bodyText = await page.locator('body').textContent()
     expect(bodyText).not.toMatch(UUID_PATTERN)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 7: 멀티라인 — 라인1/라인2 각각 다른 품목 검색·선택 (F-06/D-7 per-instance seq)
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 7: 멀티라인 — 라인1·라인2 각각 독립 품목 선택 (per-instance seq)', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    // 라인 추가 → 라인 2 생성
+    await page.getByRole('button', { name: '+ 라인 추가' }).click()
+
+    // 라인 1: AJ040 검색 후 선택
+    const input1 = page.getByRole('combobox', { name: /라인 1 품목/ })
+    await input1.click()
+    await input1.fill('AJ040')
+    const listbox1 = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox1).toBeVisible({ timeout: 5_000 })
+    await listbox1.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
+    await expect(input1).toHaveValue('AJ040RXH4BC1')
+
+    // 라인 2: AJ052 검색 후 선택 (라인1 seq 오염 없이 독립 동작)
+    const input2 = page.getByRole('combobox', { name: /라인 2 품목/ })
+    await input2.click()
+    await input2.fill('AJ052')
+    const listbox2 = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox2).toBeVisible({ timeout: 5_000 })
+    await listbox2.getByRole('option', { name: /AJ052RXH5BC1/ }).click()
+    await expect(input2).toHaveValue('AJ052RXH5BC1')
+
+    // 라인 1 값 유지 확인
+    await expect(input1).toHaveValue('AJ040RXH4BC1')
   })
 
 })
