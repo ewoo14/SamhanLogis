@@ -2589,4 +2589,18 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-CR-02 | **fail-soft 보존**: price-calc 404(DC 미설정)/5xx/연결실패 → 빈 결과 → confirm 이 listPrice 사용(DC 미적용). 기존 "DC 미적용 시 정상가" 사상 + 회계 critical path 가용성. |
 | D-CR-03 | **order-app `sendOrderFromUi` 응답 정규화**: ApiResponse → 레거시 핸들러 기대형 `{ok: success, orderNo, error: message}`. 거대 index.html 미변경, 성공 표시 복구. |
 
-**산출**: `DcConfigClient.calculatePrices`(POST /internal/price-calculations, ApiResponse<PriceCalculationResponse> 파싱, fail-soft) + confirm finalPrice 사용 + mapCategory + 죽은 메서드 제거 + VendorOrderService fetchDcConfig 참조 제거(미리보기 dcRate=0) + confirm IT 2종(`e85f45f3`). order-app sendOrderFromUi 정규화(`70dacf5f`). 225 tests PASS(skipped=0). spec/plan/dev-report `docs/.../2026-05-31-confirm-recovery-dc-price-calc*` + `docs/dev-reports/confirm-recovery-dc-price-calc.md`. partner-order+order-app 배포, Flyway 불필요. 옵션 정액 DC(confirm 라인 옵션 플래그)·estimate price-calc 점검 후속.
+**산출**: `DcConfigClient.calculatePrices`(POST /internal/price-calculations, ApiResponse<PriceCalculationResponse> 파싱, fail-soft) + confirm finalPrice 사용 + mapCategory + 죽은 메서드 제거 + VendorOrderService fetchDcConfig 참조 제거(미리보기 dcRate=0) + confirm IT 2종(`e85f45f3`). order-app sendOrderFromUi 정규화(`70dacf5f`). 225 tests PASS(skipped=0). spec/plan/dev-report `docs/.../2026-05-31-confirm-recovery-dc-price-calc*` + `docs/dev-reports/confirm-recovery-dc-price-calc.md`. partner-order+order-app 배포, Flyway 불필요. 옵션 정액 DC(confirm 라인 옵션 플래그)·estimate price-calc 점검 후속. **partner_order↔dc-config 거래처코드 시드 정합 후속**(실 confirm DC 실적용 — confirm 은 정상 partnerCode 전송, 로컬 시드 불일치로 fail-soft).
+
+---
+
+### D-AC. 마스터데이터 자동완성 — 창고/품목/거래처 (2026-05-31)
+
+**배경**: 슬라이스 C 가 전환 모달에 `WarehouseSelector`(드롭다운) 도입. 개발책임자 요청 = 드롭다운 대신 **입력 즉시 자동완성**(거래처명/코드/기타 · 창고 · 품목 모델명/품목명). design-system 에 기존 typeahead idiom `AccountCodeSelect` 존재.
+
+| 결정 | 내용 |
+|---|---|
+| D-AC-01 | 마스터데이터 자동완성 = **3분할 순차 슬라이스(AC-1 창고 → AC-2 품목 → AC-3 거래처)**, 공용 `AccountCodeSelect` typeahead idiom 재사용. 각 독립 검색 백엔드·배선이라 분리(PR 비대화 방지). |
+| D-AC-02 | 각 엔티티별 **신규 design-system 컴포넌트**(WarehouseAutocomplete/ProductAutocomplete/PartnerAutocomplete), 기존 드롭다운(WarehouseSelector 등) **보존**(회귀 격리). 4종 완료 후 공용 typeahead 추출 재평가. |
+| D-AC-03 | 적용은 해당 입력 폼만, **API 본문은 비즈니스 식별자만**(warehouseCode/modelName/partnerCode — UUID 비공개), 기존 게이트/에러/로딩 로직 유지. |
+
+**산출(AC-1)**: design-system `WarehouseAutocomplete`(AccountCodeSelect 이식: 코드 prefix/이름 부분일치, 키보드 네비, hideVirtual, FormField, combobox 접근성) + Storybook + 전환 모달(`SalesPartnerOrderDetailPage`) `WarehouseSelector`→`WarehouseAutocomplete` 교체 + Playwright 갱신(`4cb264fa`). spec/dev-report `docs/.../2026-05-31-ac1-warehouse-autocomplete*`. AC-2/AC-3 후속.
