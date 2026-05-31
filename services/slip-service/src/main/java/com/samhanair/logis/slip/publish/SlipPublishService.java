@@ -190,7 +190,7 @@ public class SlipPublishService {
         // PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy)
         verifyPartnerOrThrow(req.partnerCode());
 
-        UUID warehouseId = warehouseCodeMapper.resolve(req.warehouseCode());
+        UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
         // PR-G1: memo prepend 폐기 — orderApprovedAt 만 사용자 자유 입력 memo 와 결합 보존 (snapshot 컬럼 없음)
         String memo = mergePartnerOrderApprovalIntoMemo(req.memo(), req.orderApprovedAt());
@@ -266,6 +266,33 @@ public class SlipPublishService {
     }
 
     // ---------- 내부 helper ----------
+
+    /**
+     * 창고 식별자 해석 — 슬라이스 C (inventory 단일 출처).
+     *
+     * <p>{@code warehouseId}(UUID 문자열) 가 주어지면 그대로 사용한다. partner-order convert 가
+     * inventory {@code by-code} 로 이미 해석한 UUID 를 전달하는 경로로, slip 의 정적 yml 매핑
+     * ({@link WarehouseCodeMapper})을 경유하지 않는다.
+     *
+     * <p>{@code warehouseId} 가 null/blank 이면 {@code warehouseCode} 를 {@link WarehouseCodeMapper}
+     * 로 폴백 해석한다 (estimate-app 등 레거시 호출자 하위호환).
+     *
+     * @param warehouseId   inventory 해석 UUID 문자열 (null/blank 가능)
+     * @param warehouseCode legacy/내부 창고 코드 (폴백 해석용)
+     * @return 출고지 창고 UUID
+     * @throws BusinessException(INVALID_INPUT) warehouseId 가 UUID 형식이 아니거나, 폴백 매핑 누락
+     */
+    private UUID resolveWarehouseId(String warehouseId, String warehouseCode) {
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            try {
+                return UUID.fromString(warehouseId.trim());
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "warehouseId 형식이 UUID 가 아닙니다: " + warehouseId);
+            }
+        }
+        return warehouseCodeMapper.resolve(warehouseCode);
+    }
 
     /**
      * PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy).

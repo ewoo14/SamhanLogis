@@ -20,6 +20,8 @@ import java.util.List;
  *   <li>{@code partnerOrderId} (UUID 문자열) → {@code Slip.sourceId}</li>
  *   <li>{@code orderApprovedAt} (선택) → 메모에 prepend 할 정보 (서비스 레이어 결정)</li>
  *   <li>나머지 필드는 estimate 와 동일 — partner-order-service 가 이미 매핑 변환을 마친 상태로 호출</li>
+ *   <li>{@code warehouseId} (UUID, 선택) — partner-order convert 가 inventory by-code 로 해석한
+ *       창고 UUID. 존재 시 yml 매핑 미경유로 직접 사용. 없으면 warehouseCode 를 WarehouseCodeMapper 폴백 해석.</li>
  * </ul>
  */
 public record PublishFromPartnerOrderRequest(
@@ -29,6 +31,7 @@ public record PublishFromPartnerOrderRequest(
         @Size(max = 100) String partnerName,
         @Size(max = 50) String employeeCode,
         @NotBlank @Size(max = 50) String warehouseCode,
+        @Size(max = 36) String warehouseId,
         @Size(max = 500) String shippingAddress,
         @Size(max = 100) String receiverPhone,
         @Size(max = 500) String memo,
