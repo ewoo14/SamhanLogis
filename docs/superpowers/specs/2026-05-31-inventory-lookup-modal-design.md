@@ -1,7 +1,7 @@
 # 품목 재고조회 모달 (Phase 2.6d) — 설계
 
 > brainstorming 완료(2026-05-31). 메모리 [[project_inventory_lookup_modal_2_6d]] 근거.
-> 2.6c(재고 reserve/예약 데이터 확정) 머지 후 착수. **읽기 전용 FE 슬라이스 — 백엔드 무변경.**
+> 2.6c(재고 reserve/예약 데이터 확정) 머지 후 착수. **읽기 전용·주로 FE 슬라이스.** 백엔드는 주문 상세 LineResponse 에 `productId` 노출 1건만 추가(재고 batch 키 — 출고/입고 슬립 라인은 이미 productId 보유, 주문 라인만 누락).
 > ⚠️ Codex 6/1(월) 12:00 복구 전 → 구현+dual리뷰 모두 Claude 에이전트.
 
 ## 1. 업무 규칙 (개발책임자)
@@ -18,7 +18,8 @@
 | D-IL-01 | "0수량 창고도 표시" 토글 범위 | **전 창고 마스터 머지** | balance row 없는(한 번도 입고 안 된) 창고도 0/0/0으로 표시 → "전체 창고" 문자 충족. FE 가 batch 결과 + listWarehouses 머지 |
 | D-IL-02 | 모달 품목 범위 | **다중 품목 매트릭스** | 상세에서 여러 라인 동시 선택 → 품목×창고 매트릭스 |
 | D-IL-03 | 셀 레이아웃 | **셀 3줄 누적(가용/실/예약)** | 정보 완전, 한 화면에 3값 동시 비교. 셀당 `가용 N / 실 N / 예약 N` |
-| D-IL-04 | API | **`POST /inventory/balances/batch` 재사용** (백엔드 무변경) | 전 인증 role(`inventory.list` VIEW) — 주문/판매 담당자 가능. 응답에 가용/실/예약+warehouseType 이미 포함 |
+| D-IL-04 | API | **`POST /inventory/balances/batch` 재사용** (inventory 무변경) | 전 인증 role(`inventory.list` VIEW) — 주문/판매 담당자 가능. 응답에 가용/실/예약+warehouseType 이미 포함 |
+| D-IL-06 | 주문 라인 productId | **partner-order `PartnerOrderDetailResponse.LineResponse` 에 productId 노출** | batch 키. 엔티티는 이미 보유, payload 노출만(UUID 비공개=화면 노출 금지지 payload 무관). 출고/입고 슬립 라인은 이미 productId 있음 |
 | D-IL-05 | 컴포넌트 | **신규 공유 `InventoryLookupModal`** | 기존 SlipFormPage `StockBalanceModal`(총량 전용·form 맥락)과 형태 상이 → 별도, 기존 무변경(회귀 0) |
 
 ## 3. 현행 (grounding, 2026-05-31)
