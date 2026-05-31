@@ -128,36 +128,31 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
     }
 
     /**
-     * 멱등 재confirm 검증 — spec §6.
+     * 멱등 재confirm 검증 — spec §6 (D1 사이클2 보강).
      *
-     * <p>동일 (partnerCode, draftSeq) 기반의 idempotencyKey 로 confirm 2회 호출 시:
+     * <p>동일 (partnerCode, draftSeq) 기반의 idempotencyKey 로 confirm 을 실제로 2회 호출하여
+     * 두 번째 호출이 {@code findByIdempotencyKey} hit 경로를 타는지 직접 검증한다.
+     *
+     * <p>핵심 전제 — {@code resolveDraftSeq(partnerCode, draftId=null)} 는
+     * {@code draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1} 을 반환하며,
+     * confirm 은 PartnerOrderDraft 를 INSERT 하지 않으므로 1회 confirm 후 MAX 값이 변하지 않는다.
+     * 따라서 동일 partnerCode 로 draftId=null 인 채 2회 호출하면 두 호출 모두 동일 draftSeq 를
+     * 사용하게 되고, idempotencyKey("PO-CONF-{partnerCode}-{draftSeq}") 가 동일해진다.
+     * 두 번째 호출은 반드시 {@code findByIdempotencyKey} hit → 기존 주문 반환 경로를 탄다.
+     *
+     * <p>검증 항목:
      * <ul>
-     *   <li>두 번째 호출도 동일 orderNo 를 반환해야 한다</li>
-     *   <li>partner_orders row 가 중복 생성되면 안 된다 (2회 호출 후 해당 orderNo 1건만 존재)</li>
-     *   <li>partner_order_lines row 가 중복 생성되면 안 된다 (1건만 존재)</li>
+     *   <li>두 번째 호출 응답 orderNo == 첫 번째 응답 orderNo (동일 주문 반환)</li>
+     *   <li>2회 호출 후 해당 partnerCode 의 partner_orders row = 1건 (중복 생성 0)</li>
+     *   <li>2회 호출 후 partner_order_lines row = 첫 호출과 동일 (라인 중복 0)</li>
+     *   <li>저장된 idempotencyKey 로 findByIdempotencyKey 가 동일 orderNo 의 주문을 반환</li>
      * </ul>
-     *
-     * <p>draftId=null 이면 partnerCode 별 MAX+1 draftSeq 를 사용하므로, 첫 호출 완료 후
-     * idempotencyKey 가 DB 에 저장된다. 두 번째 호출 시 동일 partnerCode 로 MAX+1 하면
-     * draftSeq 가 달라지므로 idempotencyKey 가 달라진다. 따라서 멱등을 보장하려면
-     * 첫 호출의 orderNo 를 저장해 두고, 두 번째 호출 응답이 동일함을 확인한다.
-     * draftSeq 를 고정하기 위해 명시적 draftId 를 사용하는 대신 동일 partnerCode+draftSeq 를
-     * 보장하는 방식 — orderRepository 로 1회 저장된 주문을 idempotencyKey 로 재조회한다.
-     *
-     * <p>실제 멱등 경로: orderRepository.findByIdempotencyKey(idemKey).isPresent() → true 이면
-     * 기존 주문 반환. 이 경로를 타도록 같은 idemKey 를 직접 재현하기 위해
-     * 두 번째 confirm 은 동일 partnerCode + 동일 draftSeq 가 필요하다.
-     * 단순화: 이 테스트는 전용 partnerCode 를 사용하고 첫 confirm 후 저장된 주문의
-     * idempotencyKey 가 두 번째 confirm 과 동일하게 되는 시나리오(draftSeq 충돌 없음)를
-     * 설계 — 이 partnerCode 로 최초 confirm(draftSeq=1) 후, MAX+1 이 2 가 되므로
-     * 두 번째 호출 idemKey 가 달라진다. 따라서 진짜 멱등 경로는 draftId 를 명시해
-     * 동일 draftSeq 를 강제해야 한다. 본 테스트는 임시저장 없이 UUID draftId 를 직접
-     * 사용하지 않고 idempotencyKey 수동 조회 방식으로 검증한다.
      */
     @Test
     void idempotent_reconfirm_returns_same_order_no_without_duplicate_rows() {
         // ── given ──────────────────────────────────────────────────────────────
-        String partnerCode = "P-IDEM";
+        // 전용 partnerCode 사용 — 다른 테스트 partnerCode 와 격리하여 MAX draftSeq 오염 방지
+        String partnerCode = "P-IDEM2";
         String bizCode = "1111111111";
         UUID productId = UUID.randomUUID();
 
@@ -175,43 +170,52 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         ConfirmResponse first = confirmService.confirm(
                 partnerCode, bizCode, "user-idem-1", "홍길동", null, request);
 
-        // 저장된 주문의 idempotencyKey 를 직접 조회하여 두 번째 confirm 이 hit 하도록 검증
-        String savedIdemKey = orderRepository.findByOrderNo(first.orderNo())
-                .orElseThrow(() -> new AssertionError("1회 confirm 후 주문을 찾을 수 없음"))
-                .getIdempotencyKey();
+        assertThat(first.orderNo()).isNotNull();
+        assertThat(first.status()).isEqualTo("DRAFT");
 
         // DB 상태 스냅샷 (1회 confirm 직후)
         var savedOrderAfterFirst = orderRepository.findByOrderNo(first.orderNo())
                 .orElseThrow(() -> new AssertionError("1회 confirm 후 주문을 찾을 수 없음"));
+        String savedIdemKey = savedOrderAfterFirst.getIdempotencyKey();
         long orderCountAfterFirst = orderRepository.findAll().stream()
                 .filter(o -> o.getPartnerCode().equals(partnerCode))
                 .count();
-        // 라인은 lazy 컬렉션이므로 lineRepository 로 직접 조회
         long lineCountAfterFirst = lineRepository.findAllByPartnerOrder_Id(
                 savedOrderAfterFirst.getId()).size();
 
-        // ── when: 동일 idemKey 로 2회 confirm 시뮬레이션 ───────────────────────
-        // idempotencyKey = "PO-CONF-" + partnerCode + "-" + draftSeq.
-        // draftId=null 이면 두 번째 호출의 MAX+1 draftSeq 가 달라지므로 idemKey 도 달라진다.
-        // 실제 멱등 경로(동일 idemKey hit)는 DB 에 이미 저장된 key 로 재조회함으로써 확인:
-        assertThat(orderRepository.findByIdempotencyKey(savedIdemKey)).isPresent();
+        // ── when: 2회 confirm — 실제 멱등 분기 hit 검증 ───────────────────────
+        // confirm 은 PartnerOrderDraft 를 INSERT 하지 않으므로 MAX draftSeq 불변.
+        // 동일 partnerCode + draftId=null → 동일 draftSeq → 동일 idempotencyKey 보장.
+        // 이 호출은 반드시 findByIdempotencyKey hit → 기존 주문 반환 경로를 타야 한다.
+        ConfirmResponse second = confirmService.confirm(
+                partnerCode, bizCode, "user-idem-2", "홍길동", null, request);
 
-        // ── then: 1회 호출 후 row 중복 없음 단언 ──────────────────────────────
-        long orderCountNow = orderRepository.findAll().stream()
+        // ── then ──────────────────────────────────────────────────────────────
+        // 두 번째 응답이 첫 번째와 동일한 orderNo 를 반환해야 한다 (멱등 경로 검증 핵심)
+        assertThat(second.orderNo())
+                .as("멱등 재호출 시 동일 orderNo 반환")
+                .isEqualTo(first.orderNo());
+
+        // 2회 호출 후에도 해당 partnerCode 의 partner_orders row = 1건 (중복 생성 0)
+        long orderCountAfterSecond = orderRepository.findAll().stream()
                 .filter(o -> o.getPartnerCode().equals(partnerCode))
                 .count();
-        long lineCountNow = lineRepository.findAllByPartnerOrder_Id(
-                savedOrderAfterFirst.getId()).size();
+        assertThat(orderCountAfterSecond)
+                .as("2회 confirm 후 partner_orders row 중복 없음")
+                .isEqualTo(orderCountAfterFirst);
 
-        assertThat(first.orderNo()).isNotNull();
-        assertThat(first.status()).isEqualTo("DRAFT");
-        // row 중복 없음 — 주문 1건만 존재
-        assertThat(orderCountNow).isEqualTo(orderCountAfterFirst);
-        // 라인 중복 없음
-        assertThat(lineCountNow).isEqualTo(lineCountAfterFirst);
-        // idempotencyKey 로 재조회 시 동일 orderNo
+        // 라인 row 중복 없음
+        long lineCountAfterSecond = lineRepository.findAllByPartnerOrder_Id(
+                savedOrderAfterFirst.getId()).size();
+        assertThat(lineCountAfterSecond)
+                .as("2회 confirm 후 partner_order_lines row 중복 없음")
+                .isEqualTo(lineCountAfterFirst);
+
+        // idempotencyKey 로 findByIdempotencyKey 가 동일 orderNo 의 주문을 반환
         assertThat(orderRepository.findByIdempotencyKey(savedIdemKey)
-                .map(o -> o.getOrderNo())).contains(first.orderNo());
+                .map(o -> o.getOrderNo()))
+                .as("findByIdempotencyKey 가 동일 주문 반환")
+                .contains(first.orderNo());
     }
 
     /**

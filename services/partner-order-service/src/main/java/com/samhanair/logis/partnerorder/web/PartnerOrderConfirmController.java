@@ -69,11 +69,10 @@ public class PartnerOrderConfirmController {
                     + "출고전표는 convert API 로 명시적으로만 발행 가능.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
-                    description = "확정 성공 — status=DRAFT, slipNo=null"),
+                    description = "확정 성공 — status=DRAFT, slipNo=null. "
+                            + "멱등 재호출(동일 partnerCode+draftSeq)도 200 으로 기존 주문을 반환한다."),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
-                    description = "임시저장(draftId) 또는 product 미발견"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-                    description = "멱등 충돌 (동일 주문 중복 confirm 시도)")
+                    description = "임시저장(draftId) 또는 product 미발견")
     })
     @PostMapping("/{draftId}/confirm")
     @RequirePermission(page = "sales.partner-order.confirm", action = PermissionAction.CREATE,
