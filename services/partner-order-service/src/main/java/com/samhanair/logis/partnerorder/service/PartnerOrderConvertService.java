@@ -183,6 +183,7 @@ public class PartnerOrderConvertService {
         payload.put("orderNo", order.getOrderNo());
         payload.put("ioDate", ioDate);
         payload.put("warehouseCode", req.warehouseCode());
+        payload.put("warehouseId", warehouseId.toString());
         payload.put("lines", payloadLines);
 
         PublishResult result;

@@ -442,6 +442,11 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
         // 수량 단언
         assertThat(capturedLine.get("qty")).isEqualTo("3");
 
+        // 슬라이스 C — payload 에 inventory 해석 warehouseId 포함 (yml 미경유)
+        assertThat(capturedPayload.get("warehouseId"))
+                .isEqualTo("00000000-0000-0000-0000-000000000001");
+        assertThat(capturedPayload.get("warehouseCode")).isEqualTo("WH-001");
+
         // idempotencyKey 가 PO-CONV- prefix 로 시작
         assertThat(keyCaptor.getValue()).startsWith("PO-CONV-");
     }
