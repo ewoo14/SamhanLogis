@@ -192,6 +192,11 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('1')
 
+    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const warehouseSelect = warehouseDiv.locator('select')
+    await warehouseSelect.selectOption({ index: 1 })
+
     // 제출
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeEnabled()
@@ -223,6 +228,11 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
 
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('2')
+
+    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const warehouseSelect = warehouseDiv.locator('select')
+    await warehouseSelect.selectOption({ index: 1 })
 
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeEnabled()
@@ -350,6 +360,11 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('2')
 
+    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const warehouseSelect = warehouseDiv.locator('select')
+    await warehouseSelect.selectOption({ index: 1 })
+
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeEnabled()
     await submitBtn.click()
@@ -364,6 +379,47 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
 
     // 성공 토스트 미노출
     await expect(page.getByTestId('partner-order-convert-toast')).toHaveCount(0)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 11: 슬라이스 C — 출고 창고 미선택 시 제출 비활성 → 선택 후 전환 성공
+  //
+  // 검증:
+  //   - 수량 입력 후에도 창고 미선택이면 partner-order-convert-submit 이 disabled.
+  //   - partner-order-convert-warehouse 내부 select 에서 비-placeholder 옵션 선택 후 submit 이 enabled.
+  //   - submit 클릭 → 성공 토스트 (SL-20260530-001 발행 문구).
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 11: 슬라이스 C — 창고 미선택 시 제출 비활성 → 창고 선택 후 전환 성공', async ({
+    page,
+  }) => {
+    await installAuthMock(page)
+    await gotoDetailAndWait(page, DRAFT_ORDER_ID)
+    await openConvertModal(page)
+
+    // 수량 입력 (기본값 = 잔여 전량. 1 로 명시 설정)
+    const qtyInput = page.getByTestId('partner-order-convert-qty-0')
+    await qtyInput.fill('1')
+
+    // 창고 미선택 → 제출 버튼 disabled 확인
+    const submitBtn = page.getByTestId('partner-order-convert-submit')
+    await expect(submitBtn).toBeDisabled()
+
+    // partner-order-convert-warehouse 내부 select 에서 비-placeholder 옵션 선택 (index 1)
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const warehouseSelect = warehouseDiv.locator('select')
+    await warehouseSelect.selectOption({ index: 1 })
+
+    // 창고 선택 후 → 제출 버튼 enabled 확인
+    await expect(submitBtn).toBeEnabled()
+
+    // 제출 → 성공 토스트
+    await submitBtn.click()
+    const toast = page.getByTestId('partner-order-convert-toast')
+    await expect(toast).toBeVisible({ timeout: 10_000 })
+    await expect(toast).toContainText('SL-20260530-001')
+
+    // 모달 닫힘 확인
+    await expect(page.getByTestId('partner-order-convert-modal-body')).toHaveCount(0)
   })
 
   // ──────────────────────────────────────────────────────────

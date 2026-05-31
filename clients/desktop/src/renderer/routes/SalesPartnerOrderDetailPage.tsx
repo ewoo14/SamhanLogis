@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Button, Input, Modal, Select } from '@samhan/design-system'
+import { Button, Input, Modal, Select, WarehouseSelector } from '@samhan/design-system'
+import type { Warehouse } from '@samhan/design-system'
+import { listWarehouses } from '../api/inventory'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   convertPartnerOrderToSlip,
@@ -93,6 +95,14 @@ export function SalesPartnerOrderDetailPage() {
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   /** 부분전환 모달: 라인별 전환 수량 (lineId → qty). */
   const [convertQtyMap, setConvertQtyMap] = useState<Record<string, number>>({})
+  /** 부분전환 모달: 선택된 출고 창고 (필수, 기본값 없음). */
+  const [convertWarehouse, setConvertWarehouse] = useState<Warehouse | null>(null)
+
+  /** 출고 창고 후보 목록 — inventory 단일 출처. */
+  const warehousesQuery = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: listWarehouses,
+  })
   const [partnerCode, setPartnerCode] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
@@ -183,12 +193,13 @@ export function SalesPartnerOrderDetailPage() {
    * 성공 시 목록 + 상세 쿼리 무효화 + 성공 토스트.
    */
   const convertMutation = useMutation({
-    mutationFn: (items: ConvertToSlipItem[]) =>
-      convertPartnerOrderToSlip(orderId, { items }),
+    mutationFn: (payload: { items: ConvertToSlipItem[]; warehouseCode: string }) =>
+      convertPartnerOrderToSlip(orderId, payload),
     onSuccess: async (result) => {
       setConvertErrorMessage(null)
       setConvertOpen(false)
       setConvertQtyMap({})
+      setConvertWarehouse(null)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
       const msg = result.fullyConverted
@@ -875,6 +886,7 @@ export function SalesPartnerOrderDetailPage() {
           if (!convertMutation.isPending) {
             setConvertOpen(false)
             setConvertErrorMessage(null)
+            setConvertWarehouse(null)
           }
         }}
         title="출고전표 전환"
@@ -891,6 +903,7 @@ export function SalesPartnerOrderDetailPage() {
               onClick={() => {
                 setConvertOpen(false)
                 setConvertErrorMessage(null)
+                setConvertWarehouse(null)
               }}
             >
               취소
@@ -902,10 +915,11 @@ export function SalesPartnerOrderDetailPage() {
               disabled={
                 convertMutation.isPending ||
                 !query.data ||
+                !convertWarehouse ||
                 Object.values(convertQtyMap).every((q) => q <= 0)
               }
               onClick={() => {
-                if (!query.data) return
+                if (!query.data || !convertWarehouse) return
                 const items = query.data.lines
                   .filter((line) => {
                     const remaining = line.quantity - line.convertedQuantity
@@ -918,7 +932,7 @@ export function SalesPartnerOrderDetailPage() {
                   }))
                 if (items.length === 0) return
                 setConvertErrorMessage(null)
-                convertMutation.mutate(items)
+                convertMutation.mutate({ items, warehouseCode: convertWarehouse.code })
               }}
             >
               {convertMutation.isPending ? '전환 중…' : '출고전표로 전환'}
@@ -951,6 +965,19 @@ export function SalesPartnerOrderDetailPage() {
                 ? ` (${selectedItems.length}개 품목 전환 예정)`
                 : null
             })()}
+          </div>
+          {/* 슬라이스 C — 출고 창고 필수 선택 (inventory 단일 출처). 미선택 시 전환 불가. */}
+          <div data-testid="partner-order-convert-warehouse" style={{ marginBottom: 'var(--space-3)' }}>
+            <WarehouseSelector
+              warehouses={warehousesQuery.data ?? []}
+              value={convertWarehouse?.id ?? null}
+              onChange={(_id, warehouse) => setConvertWarehouse(warehouse)}
+              label="출고 창고"
+              placeholder="출고 창고를 선택하세요"
+              hideVirtual
+              required
+              disabled={convertMutation.isPending}
+            />
           </div>
           <div className={styles['tableWrap']}>
             <table className={styles['estTable']}>
