@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Button, Input, Modal, Select, WarehouseSelector } from '@samhan/design-system'
+import { Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
 import { listWarehouses } from '../api/inventory'
 import {
@@ -975,12 +975,12 @@ export function SalesPartnerOrderDetailPage() {
               : (!convertWarehouse && hasConvertQty ? '출고 창고를 선택하세요.' : undefined)
             return (
               <div data-testid="partner-order-convert-warehouse" style={{ marginBottom: 'var(--space-3)' }}>
-                <WarehouseSelector
+                <WarehouseAutocomplete
                   warehouses={warehousesQuery.data ?? []}
                   value={convertWarehouse?.id ?? null}
                   onChange={(_id, warehouse) => setConvertWarehouse(warehouse)}
                   label="출고 창고"
-                  placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '출고 창고를 선택하세요'}
+                  placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
                   hideVirtual
                   required
                   disabled={convertMutation.isPending || warehousesQuery.isLoading}

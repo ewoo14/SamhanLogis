@@ -42,6 +42,14 @@
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
  * <p>단언은 orderNumber / slipNo / partnerName / 한국어 라벨만 사용. lineId 는 data-testid index 로 접근.
  *
+ * <h2>AC-1 창고 자동완성 — 셀렉터 변경 (WarehouseSelector → WarehouseAutocomplete)</h2>
+ * <p>
+ *   기존: {@code warehouseDiv.locator('select').selectOption({ index: 1 })}<br>
+ *   변경: {@code warehouseDiv.locator('input[role="combobox"]')} 에 창고 코드 타이핑
+ *         → 후보 listbox 중 첫 번째 옵션 클릭으로 선택.<br>
+ *   helper: {@code selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')} — 공통 헬퍼 사용.
+ * </p>
+ *
  * <h2>실행 방법</h2>
  * <pre>
  *   cd clients/desktop
@@ -52,7 +60,7 @@
  *     && npx playwright test playwright/phase-2-6a-order-convert --reporter=line
  * </pre>
  */
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Locator } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
@@ -129,6 +137,37 @@ async function openConvertModal(page: Page): Promise<void> {
   await expect(page.getByTestId('partner-order-convert-modal-body')).toBeVisible({ timeout: 10_000 })
 }
 
+/**
+ * AC-1: WarehouseAutocomplete 창고 선택 헬퍼.
+ *
+ * data-testid="partner-order-convert-warehouse" 내부의 autocomplete input 에
+ * 창고 코드(또는 이름)를 타이핑하고, dropdown listbox 에서 첫 번째 후보를 클릭한다.
+ *
+ * @param warehouseDiv - data-testid="partner-order-convert-warehouse" Locator
+ * @param searchText  - 입력할 검색 텍스트 (예: "HQ", "본사")
+ */
+async function selectWarehouseAutocomplete(
+  _page: Page,
+  warehouseDiv: Locator,
+  searchText: string,
+): Promise<void> {
+  // autocomplete input — role=combobox
+  const input = warehouseDiv.locator('input[role="combobox"]')
+  await expect(input).toBeVisible({ timeout: 5_000 })
+  await input.click()
+  await input.fill(searchText)
+  // 후보 listbox 가 열릴 때까지 대기 (aria-expanded=true)
+  await expect(input).toHaveAttribute('aria-expanded', 'true', { timeout: 5_000 })
+  // listbox 첫 번째 option 클릭
+  const listbox = warehouseDiv.locator('[role="listbox"]')
+  await expect(listbox).toBeVisible({ timeout: 5_000 })
+  const firstOption = listbox.locator('[role="option"]').first()
+  await expect(firstOption).toBeVisible({ timeout: 5_000 })
+  await firstOption.click()
+  // 선택 후 input 에 값이 채워졌는지 확인 (aria-expanded=false 로 닫힘)
+  await expect(input).toHaveAttribute('aria-expanded', 'false', { timeout: 5_000 })
+}
+
 // ============================================================
 // Test Suite
 // ============================================================
@@ -144,6 +183,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   //   - 모달 내 비가역 경고 문구("되돌릴 수 없습니다") 포함
   //   - 라인 수량 input (partner-order-convert-qty-0) 렌더
   //   - 제출 버튼 (partner-order-convert-submit) 존재
+  //   - 창고 자동완성 input (role=combobox) 렌더 (AC-1)
   // ──────────────────────────────────────────────────────────
   test('시나리오 1: DRAFT 주문 → 전환 버튼 노출 · 클릭 → 모달(라인+비가역경고) 열림', async ({
     page,
@@ -170,6 +210,11 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     // 제출 버튼 존재
     await expect(page.getByTestId('partner-order-convert-submit')).toBeVisible()
 
+    // AC-1: 창고 자동완성 input 렌더 확인
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const autocompleteInput = warehouseDiv.locator('input[role="combobox"]')
+    await expect(autocompleteInput).toBeVisible()
+
     // 에러 배너 미노출
     await expect(page.getByTestId('partner-order-convert-modal-error')).toHaveCount(0)
   })
@@ -180,6 +225,8 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   // mockConvertFully 미설정 → fullyConverted=false
   // 토스트 문구: "SL-20260530-001 발행 — 잔여 수량이 남아 있습니다"
   // 모달 닫힘 + partner-order-convert-toast 노출
+  //
+  // AC-1: 창고 autocomplete 입력 방식으로 창고 선택 (HQ 타이핑 → 첫 번째 후보 클릭)
   // ──────────────────────────────────────────────────────────
   test('시나리오 2: 수량 입력 → 전환 → 부분전환 성공 토스트 (fullyConverted=false)', async ({
     page,
@@ -192,10 +239,9 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('1')
 
-    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    // AC-1: 출고 창고 autocomplete 입력 → 첫 번째 후보 클릭
     const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
-    const warehouseSelect = warehouseDiv.locator('select')
-    await warehouseSelect.selectOption({ index: 1 })
+    await selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')
 
     // 제출
     const submitBtn = page.getByTestId('partner-order-convert-submit')
@@ -219,6 +265,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   // 시나리오 3: 전량 전환 성공 토스트 (mockConvertFully=1)
   //
   // fullyConverted=true → 토스트 문구 "전체 수량 전환 완료"
+  // AC-1: 창고 autocomplete 방식으로 선택
   // ──────────────────────────────────────────────────────────
   test('시나리오 3: 전환 → 전량전환 성공 토스트 (fullyConverted=true)', async ({ page }) => {
     await installAuthMock(page)
@@ -229,10 +276,9 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('2')
 
-    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    // AC-1: 출고 창고 autocomplete 입력 → 첫 번째 후보 클릭
     const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
-    const warehouseSelect = warehouseDiv.locator('select')
-    await warehouseSelect.selectOption({ index: 1 })
+    await selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')
 
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeEnabled()
@@ -347,6 +393,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   // mockConvert409=1 → POST 가 409 반환.
   // FE convertMutation.onError: 409 → setConvertErrorMessage → partner-order-convert-modal-error 노출.
   // 모달은 닫히지 않고 에러 배너가 모달 내부에 표시됨.
+  // AC-1: 창고 autocomplete 방식으로 선택
   // ──────────────────────────────────────────────────────────
   test('시나리오 9: 409 잔여초과 → 모달 내 에러 배너 (partner-order-convert-modal-error)', async ({
     page,
@@ -360,10 +407,9 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const qtyInput = page.getByTestId('partner-order-convert-qty-0')
     await qtyInput.fill('2')
 
-    // 슬라이스 C: 출고 창고 선택 필수 — 비-placeholder 옵션(index 1) 선택
+    // AC-1: 출고 창고 autocomplete 입력 → 첫 번째 후보 클릭
     const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
-    const warehouseSelect = warehouseDiv.locator('select')
-    await warehouseSelect.selectOption({ index: 1 })
+    await selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')
 
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeEnabled()
@@ -382,14 +428,16 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   })
 
   // ──────────────────────────────────────────────────────────
-  // 시나리오 11: 슬라이스 C — 출고 창고 미선택 시 제출 비활성 → 선택 후 전환 성공
+  // 시나리오 11: AC-1 — 출고 창고 미선택 시 제출 비활성 → autocomplete 선택 후 전환 성공
   //
   // 검증:
   //   - 수량 입력 후에도 창고 미선택이면 partner-order-convert-submit 이 disabled.
-  //   - partner-order-convert-warehouse 내부 select 에서 비-placeholder 옵션 선택 후 submit 이 enabled.
+  //   - partner-order-convert-warehouse 내부 autocomplete input 에 "HQ" 입력
+  //     → 후보 listbox 노출 → 첫 번째 option 클릭 → 창고 선택 완료.
+  //   - submit 이 enabled 로 전환됨.
   //   - submit 클릭 → 성공 토스트 (SL-20260530-001 발행 문구).
   // ──────────────────────────────────────────────────────────
-  test('시나리오 11: 슬라이스 C — 창고 미선택 시 제출 비활성 → 창고 선택 후 전환 성공', async ({
+  test('시나리오 11: AC-1 — 창고 autocomplete 미선택 시 제출 비활성 → 선택 후 전환 성공', async ({
     page,
   }) => {
     await installAuthMock(page)
@@ -404,10 +452,10 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     const submitBtn = page.getByTestId('partner-order-convert-submit')
     await expect(submitBtn).toBeDisabled()
 
-    // partner-order-convert-warehouse 내부 select 에서 비-placeholder 옵션 선택 (index 1)
+    // AC-1: partner-order-convert-warehouse 내부 autocomplete input 에 "HQ" 타이핑
+    //       → 후보 listbox 에서 첫 번째 option 클릭 (HQ-001 본사창고, hideVirtual 적용)
     const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
-    const warehouseSelect = warehouseDiv.locator('select')
-    await warehouseSelect.selectOption({ index: 1 })
+    await selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')
 
     // 창고 선택 후 → 제출 버튼 enabled 확인
     await expect(submitBtn).toBeEnabled()
