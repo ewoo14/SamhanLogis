@@ -39,6 +39,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>{@link Order} 20 — StockBalanceSeeder(10) 완료 후 실행 (창고/재고 데이터 의존).
  *
+ * <p>product modelName 은 {@link StockBalanceSeeder#PRODUCT_MODEL_NAMES} 공유 상수를 참조한다
+ * (출처: product-service HvacProductSeeder, 4 seeder 동일 유지).
+ *
  * <p>idempotency: {@code auditNo} EXISTS 체크 + 중복 시 skip. 안전 재실행.
  *
  * <p>채번: {@code AU-YYYYMMDD-NNN} 결정적 패턴 — InventoryAuditRepository.countByAuditNoStartingWith
@@ -57,8 +60,6 @@ public class InventoryAuditSeeder implements CommandLineRunner {
             UUID.fromString("11111111-1111-1111-1111-000000000001");
 
     private static final String PRODUCT_UUID_PREFIX = "samhan-seed:product:";
-    private static final String PRODUCT_MODEL_PATTERN = "TEST-MODEL-%04d";
-    private static final int PRODUCT_COUNT = 100;
 
     /** 실사 라인 수 고정 — 각 실사 5개 제품 비교. */
     private static final int LINES_PER_AUDIT = 5;
@@ -144,8 +145,9 @@ public class InventoryAuditSeeder implements CommandLineRunner {
 
         // 라인 5건 snapshot
         for (int li = 0; li < LINES_PER_AUDIT; li++) {
-            int productSeq = ((spec.idx() * 17 + li * 11) % PRODUCT_COUNT) + 1;
-            String modelName = String.format(PRODUCT_MODEL_PATTERN, productSeq);
+            // 출처: product-service HvacProductSeeder, 4 seeder 동일 유지 (inventory/slip/partner-order)
+            int productSeq = ((spec.idx() * 17 + li * 11) % StockBalanceSeeder.PRODUCT_MODEL_NAMES.length) + 1;
+            String modelName = StockBalanceSeeder.PRODUCT_MODEL_NAMES[productSeq - 1];
             UUID productId = deterministicUuid(PRODUCT_UUID_PREFIX + modelName);
             String productName = "냉난방기-" + modelName;
             int expectedQty = 30 + (productSeq * 7 + spec.idx() * 13) % 471;

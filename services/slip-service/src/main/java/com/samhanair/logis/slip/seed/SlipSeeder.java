@@ -48,6 +48,10 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link Slip#complete}, {@link Slip#inspect}, {@link Slip#ship}, {@link Slip#deliver},
  * {@link Slip#confirm}, {@link Slip#reject}. 잘못된 전이 시도 시 BusinessException(CONFLICT) 던짐.
  *
+ * <p>product modelName 은 {@code PRODUCT_MODEL_NAMES} 명시 배열
+ * (product-service HvacProductSeeder 와 1:1 동기화) 을 사용한다.
+ * UUID = {@code UUID.nameUUIDFromBytes("samhan-seed:product:" + modelName)} — product-service 와 동일 namespace.
+ *
  * <p>idempotency: {@code SlipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse} EXISTS 체크
  * + 중복 시 skip. 판매/구매 전표는 같은 공개번호를 가질 수 있으므로 유형까지 함께 본다.
  * UUID 비공개 가드 — 모든 외부 식별자는 slipNo / partnerCode / productCode 사용.
@@ -71,12 +75,76 @@ public class SlipSeeder implements CommandLineRunner {
 
     /** Stage 1 partner 시드 개수 (P-2026-0001 ~ P-2026-0050). */
     private static final int PARTNER_COUNT = 50;
-    /** Stage 1 product 시드 개수 (TEST-MODEL-0001 ~ TEST-MODEL-0100). */
-    private static final int PRODUCT_COUNT = 100;
     /** Stage 1 partner 비공개 식별자 패턴. */
     private static final String PARTNER_CODE_PATTERN = "P-2026-%04d";
-    /** Stage 1 product 비공개 식별자 패턴. */
-    private static final String PRODUCT_MODEL_NAME_PATTERN = "TEST-MODEL-%04d";
+
+    /**
+     * product-service HvacProductSeeder.buildAllRows 와 1:1 동기화된 실 modelName 100개.
+     * 출처: product-service HvacProductSeeder, 4 seeder 동일 유지 (inventory/slip/partner-order).
+     *
+     * <p>변경 시 반드시 HvacProductSeeder.buildAllRows 를 먼저 확인하고 4 seeder 동시 갱신.
+     *
+     * <ul>
+     *   <li>seq 1~30  벽걸이  : {@code AR%02dTXEAAWKNEU-%02d}</li>
+     *   <li>seq 31~50 스탠드  : {@code AF%02dBX1NWAEAH-%02d}</li>
+     *   <li>seq 51~75 DVM-S  : {@code AM%03dBNNDEH-%02d} (hp*10)</li>
+     *   <li>seq 76~85 천장형  : {@code AC%03dCNCDEH-%02d} ((idx+1)*100)</li>
+     *   <li>seq 86~95 공기청정기: {@code AX%02dB%dNNDB-%02d}</li>
+     *   <li>seq 96~100 부속   : 고정 5종</li>
+     * </ul>
+     */
+    private static final String[] PRODUCT_MODEL_NAMES = {
+            // seq 1~10 벽걸이 (pyongWall = {5,6,7,9,11,13,15,16,18,20})
+            "AR05TXEAAWKNEU-01", "AR06TXEAAWKNEU-02", "AR07TXEAAWKNEU-03",
+            "AR09TXEAAWKNEU-04", "AR11TXEAAWKNEU-05", "AR13TXEAAWKNEU-06",
+            "AR15TXEAAWKNEU-07", "AR16TXEAAWKNEU-08", "AR18TXEAAWKNEU-09",
+            "AR20TXEAAWKNEU-10",
+            // seq 11~20 벽걸이 (순환)
+            "AR05TXEAAWKNEU-11", "AR06TXEAAWKNEU-12", "AR07TXEAAWKNEU-13",
+            "AR09TXEAAWKNEU-14", "AR11TXEAAWKNEU-15", "AR13TXEAAWKNEU-16",
+            "AR15TXEAAWKNEU-17", "AR16TXEAAWKNEU-18", "AR18TXEAAWKNEU-19",
+            "AR20TXEAAWKNEU-20",
+            // seq 21~30 벽걸이 (순환)
+            "AR05TXEAAWKNEU-21", "AR06TXEAAWKNEU-22", "AR07TXEAAWKNEU-23",
+            "AR09TXEAAWKNEU-24", "AR11TXEAAWKNEU-25", "AR13TXEAAWKNEU-26",
+            "AR15TXEAAWKNEU-27", "AR16TXEAAWKNEU-28", "AR18TXEAAWKNEU-29",
+            "AR20TXEAAWKNEU-30",
+            // seq 31~38 스탠드 (pyongStand = {15,17,18,20,23,25,26,30})
+            "AF15BX1NWAEAH-31", "AF17BX1NWAEAH-32", "AF18BX1NWAEAH-33",
+            "AF20BX1NWAEAH-34", "AF23BX1NWAEAH-35", "AF25BX1NWAEAH-36",
+            "AF26BX1NWAEAH-37", "AF30BX1NWAEAH-38",
+            // seq 39~46 스탠드 (순환)
+            "AF15BX1NWAEAH-39", "AF17BX1NWAEAH-40", "AF18BX1NWAEAH-41",
+            "AF20BX1NWAEAH-42", "AF23BX1NWAEAH-43", "AF25BX1NWAEAH-44",
+            "AF26BX1NWAEAH-45", "AF30BX1NWAEAH-46",
+            // seq 47~50 스탠드 (순환)
+            "AF15BX1NWAEAH-47", "AF17BX1NWAEAH-48", "AF18BX1NWAEAH-49",
+            "AF20BX1NWAEAH-50",
+            // seq 51~63 DVM-S (hpDvm = {3,4,5,6,7,8,10,12,14,16,18,20,22})
+            "AM030BNNDEH-51", "AM040BNNDEH-52", "AM050BNNDEH-53",
+            "AM060BNNDEH-54", "AM070BNNDEH-55", "AM080BNNDEH-56",
+            "AM100BNNDEH-57", "AM120BNNDEH-58", "AM140BNNDEH-59",
+            "AM160BNNDEH-60", "AM180BNNDEH-61", "AM200BNNDEH-62",
+            "AM220BNNDEH-63",
+            // seq 64~75 DVM-S (순환)
+            "AM030BNNDEH-64", "AM040BNNDEH-65", "AM050BNNDEH-66",
+            "AM060BNNDEH-67", "AM070BNNDEH-68", "AM080BNNDEH-69",
+            "AM100BNNDEH-70", "AM120BNNDEH-71", "AM140BNNDEH-72",
+            "AM160BNNDEH-73", "AM180BNNDEH-74", "AM200BNNDEH-75",
+            // seq 76~85 천장형 ((idx+1)*100 → 100,200,...,1000)
+            "AC100CNCDEH-76", "AC200CNCDEH-77", "AC300CNCDEH-78",
+            "AC400CNCDEH-79", "AC500CNCDEH-80", "AC600CNCDEH-81",
+            "AC700CNCDEH-82", "AC800CNCDEH-83", "AC900CNCDEH-84",
+            "AC1000CNCDEH-85",
+            // seq 86~95 공기청정기 (m2 = {17,23,30,35,40,50,60,75,90,100})
+            "AX17B17NNDB-86", "AX23B23NNDB-87", "AX30B30NNDB-88",
+            "AX35B35NNDB-89", "AX40B40NNDB-90", "AX50B50NNDB-91",
+            "AX60B60NNDB-92", "AX75B75NNDB-93", "AX90B90NNDB-94",
+            "AX100B100NNDB-95",
+            // seq 96~100 부속 (고정 5종)
+            "PIPE-CU-15A", "PIPE-CU-22A", "INSUL-T20",
+            "REMOTE-MR-DH00", "COMM-MIM-N10"
+    };
 
     /** OrgChartSeeder 16명 employee loginId 풀 — requesterId / acceptor / inspector 순환. */
     private static final List<String> EMPLOYEE_LOGIN_IDS = List.of(
@@ -287,8 +355,9 @@ public class SlipSeeder implements CommandLineRunner {
         // 라인 추가 — DRAFT 단계에서 1~5개. 결정적 = (spec.idx() % 5) + 1.
         int lineCount = (spec.idx() % 5) + 1;
         for (int li = 0; li < lineCount; li++) {
-            int productSeq = ((spec.idx() * 7 + li * 3) % PRODUCT_COUNT) + 1;
-            String modelName = String.format(PRODUCT_MODEL_NAME_PATTERN, productSeq);
+            // 출처: product-service HvacProductSeeder, 4 seeder 동일 유지 (inventory/slip/partner-order)
+            int productSeq = ((spec.idx() * 7 + li * 3) % PRODUCT_MODEL_NAMES.length) + 1;
+            String modelName = PRODUCT_MODEL_NAMES[productSeq - 1];
             UUID productId = deterministicUuid(PRODUCT_UUID_PREFIX + modelName);
             String productName = "테스트제품-" + modelName;
             String specification = sampleSpecification(productSeq);

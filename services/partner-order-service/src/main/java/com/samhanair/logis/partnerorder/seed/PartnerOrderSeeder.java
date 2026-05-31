@@ -91,14 +91,37 @@ public class PartnerOrderSeeder implements CommandLineRunner {
             new PartnerSeed("P-2026-0030", "용산에어시스템", "240-87-01234")
     );
 
-    /** 결정적 product pool — 6 SKU 순환 (categoryKey, modelCode, modelName, productName, outboundPrice). */
+    /**
+     * 결정적 product pool — 6 SKU 순환.
+     *
+     * <p>출처: product-service HvacProductSeeder, 4 seeder 동일 유지 (inventory/slip/partner-order).
+     * modelName 은 HvacProductSeeder.buildAllRows 와 1:1 동기화.
+     * UUID = {@code UUID.nameUUIDFromBytes("samhan-seed:product:" + modelName)} 동일 규칙.
+     *
+     * <p>categoryKey 매핑:
+     * <ul>
+     *   <li>homemulti → DVM-S 시스템에어컨 (seq 51: AM030BNNDEH-51, seq 57: AM100BNNDEH-57)</li>
+     *   <li>singleSets → 벽걸이 (seq 1: AR05TXEAAWKNEU-01, seq 5: AR11TXEAAWKNEU-05)</li>
+     *   <li>commercialMulti → 천장형 (seq 76: AC100CNCDEH-76)</li>
+     *   <li>oldProducts → 스탠드 단종 (seq 50: AF20BX1NWAEAH-50, seq % 25 == 0)</li>
+     * </ul>
+     *
+     * <p>stock_balances.available_qty &gt; 0 보장 (StockBalanceSeeder: 30~500 범위).
+     * partner_order_lines.product_id = products.id = stock_balances.product_id 3중 정합.
+     */
     private static final List<ProductSeed> PRODUCT_POOL = List.of(
-            new ProductSeed("homemulti",        "010001", "AM072FXVAGH", "삼성 홈멀티 7kW",        new BigDecimal("1850000")),
-            new ProductSeed("homemulti",        "010002", "AM110FXVAGH", "삼성 홈멀티 11kW",       new BigDecimal("2350000")),
-            new ProductSeed("singleSets",       "010010", "AR07TXEAAWK", "삼성 무풍 1in1 7평",     new BigDecimal("950000")),
-            new ProductSeed("singleSets",       "010011", "AR11TXEAAWK", "삼성 무풍 1in1 11평",    new BigDecimal("1280000")),
-            new ProductSeed("commercialMulti",  "010020", "AC180RXADKH", "삼성 상업멀티 18kW",     new BigDecimal("4250000")),
-            new ProductSeed("oldProducts",      "019001", "OLD-LEGACY",  "구형 단종 모델",         new BigDecimal("680000"))
+            // homemulti → DVM-S 시스템에어컨 seq51 (AM030BNNDEH-51, 3HP)
+            new ProductSeed("homemulti",       "AM030BNNDEH-51",  "삼성 DVM-S 3HP",          new BigDecimal("900000")),
+            // homemulti → DVM-S 시스템에어컨 seq57 (AM100BNNDEH-57, 10HP)
+            new ProductSeed("homemulti",       "AM100BNNDEH-57",  "삼성 DVM-S 10HP",         new BigDecimal("3000000")),
+            // singleSets → 벽걸이 seq1 (AR05TXEAAWKNEU-01, 5평형)
+            new ProductSeed("singleSets",      "AR05TXEAAWKNEU-01", "삼성 윈드프리 5평형",   new BigDecimal("750000")),
+            // singleSets → 벽걸이 seq5 (AR11TXEAAWKNEU-05, 11평형)
+            new ProductSeed("singleSets",      "AR11TXEAAWKNEU-05", "삼성 윈드프리 11평형",  new BigDecimal("1320000")),
+            // commercialMulti → 천장형 seq76 (AC100CNCDEH-76, 3톤)
+            new ProductSeed("commercialMulti", "AC100CNCDEH-76",  "삼성 천장형 3톤",          new BigDecimal("2400000")),
+            // oldProducts → 스탠드 seq50 (AF20BX1NWAEAH-50, seq%25==0 → markDiscontinued)
+            new ProductSeed("oldProducts",     "AF20BX1NWAEAH-50", "삼성 비스포크 스탠드 20평형 (단종)", new BigDecimal("2100000"))
     );
 
     private final PartnerOrderRepository partnerOrderRepository;
@@ -138,8 +161,9 @@ public class PartnerOrderSeeder implements CommandLineRunner {
             for (int li = 0; li < lineCount; li++) {
                 ProductSeed prod = PRODUCT_POOL.get((seq * 7 + li) % PRODUCT_POOL.size());
                 int quantity = ((seq + li) % 5) + 1; // 1~5 결정적
+                // deterministicProductId 입력 = 실 modelName (product-service HvacProductSeeder 동일 규칙)
                 PartnerOrderLine line = PartnerOrderLine.create(
-                        deterministicProductId(prod.modelCode()),
+                        deterministicProductId(prod.modelName()),
                         prod.modelName(),
                         prod.productName(),
                         prod.categoryKey(),
@@ -190,9 +214,18 @@ public class PartnerOrderSeeder implements CommandLineRunner {
         setField(order, "confirmedAt", ts);
     }
 
-    /** Stage 1 product modelCode → 결정적 UUID (cross-service consistent 매핑 보장). */
-    static UUID deterministicProductId(String modelCode) {
-        return UUID.nameUUIDFromBytes(("samhan-seed:product:" + modelCode).getBytes());
+    /**
+     * product modelName → 결정적 UUID.
+     *
+     * <p>출처: product-service HvacProductSeeder.deterministicId 동일 namespace 규칙.
+     * {@code "samhan-seed:product:" + modelName} 로 UUID.nameUUIDFromBytes 적용.
+     * partner_order_lines.product_id = products.id = stock_balances.product_id 3중 정합 보장.
+     *
+     * @param modelName HvacProductSeeder.buildAllRows 의 실 modelName (예: "AR05TXEAAWKNEU-01")
+     * @return 결정적 product UUID
+     */
+    static UUID deterministicProductId(String modelName) {
+        return UUID.nameUUIDFromBytes(("samhan-seed:product:" + modelName).getBytes());
     }
 
     /** Reflection 으로 BaseEntity / PartnerOrder 의 private 필드 강제 세팅 (시드 fixture 한정). */
@@ -223,9 +256,16 @@ public class PartnerOrderSeeder implements CommandLineRunner {
 
     private record PartnerSeed(String partnerCode, String partnerName, String bizNo) {}
 
+    /**
+     * product-service HvacProductSeeder 실 modelName 기반 product 시드 레코드.
+     *
+     * @param categoryKey    거래처 주문 분류 키 (homemulti/singleSets/commercialMulti/oldProducts)
+     * @param modelName      HvacProductSeeder.buildAllRows 의 실 modelName (UUID 산출 key)
+     * @param productName    한국어 제품명 (UI 표시용)
+     * @param outboundPrice  출고단가
+     */
     private record ProductSeed(
             String categoryKey,
-            String modelCode,
             String modelName,
             String productName,
             BigDecimal outboundPrice) {}
