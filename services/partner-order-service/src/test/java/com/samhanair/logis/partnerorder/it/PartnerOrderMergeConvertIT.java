@@ -461,6 +461,301 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 M-4 — 멱등: 같은 요청 2회 호출 → publishFromOrdersMerge 1회 + converted_quantity 미중복
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 멱등 재시도 검증 — 동일한 convertKey 를 생성하는 동일한 요청을 2회 전송했을 때:
+     * <ul>
+     *   <li>2회차에는 {@link com.samhanair.logis.partnerorder.client.InventoryClient#reserve}
+     *       {@code alreadyReserved=true} + slip-service {@code duplicate} 반환 mock</li>
+     *   <li>결과: {@code publishFromOrdersMerge} 호출 카운트 = 1</li>
+     *   <li>DB: {@code converted_quantity} = 1회차 전환량(3) 만 누적 (이중 누적 아님)</li>
+     * </ul>
+     *
+     * <p>2회차 mock 설정 근거: 첫 번째 호출 후 {@code converted_quantity} 가 변경되면 {@code contentHash}
+     * 도 변경되어 키가 달라진다. 따라서 동일 키 2회 시나리오는 "첫 호출 slip 발행 성공 + partner-order
+     * DB 트랜잭션 미커밋(장애)"이 재현이다 — 이를 시뮬레이션하기 위해 2회차 요청은 {@code converted_quantity}
+     * 가 여전히 0인 상태(setUp 초기화)에서 동일 요청을 재전송한다.
+     *
+     * <p>2회차 reserve 는 {@code alreadyReserved=true}, slip 은 {@code duplicate(slipNo)} 반환.
+     * 이때 서비스는 {@code line.convert()} 를 무조건 실행하므로 converted_quantity = 3 이 정확히 1회 누적된다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("M-4 멱등: 동일 요청 2회 → publishFromOrdersMerge 1회 + converted_quantity 1회만 누적")
+    void caseM4_idempotency_sameRequestTwice_publishOnce_convertedNotDuplicated() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+
+        // 주문 INSERT (converted_quantity=0 초기 상태)
+        insertOrderWithLine(orderId, lineId, productId, "MRG-P-M4", "9090909090",
+                "2026/05/31-MRG-M4", "DRAFT", 5, BigDecimal.valueOf(10000));
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 3}]}
+                  ],
+                  "warehouseCode": "WH-001",
+                  "shippingInfo": {"partnerName": "멱등테스트거래처"}
+                }
+                """.formatted(orderId, lineId);
+
+        // ── 1회차 호출 ─────────────────────────────────────────────────────────
+        // reserve: reserved (신규 예약), slip: published
+        when(inventoryClient.reserve(eq(productId), any(), eq(3), anyString(), any()))
+                .thenReturn(ReservationResult.reserved());
+        when(slipServiceClient.publishFromOrdersMerge(any(), anyString()))
+                .thenReturn(PublishResult.published(STUB_SLIP_NO));
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").value(STUB_SLIP_NO));
+
+        // 1회차 후 DB 상태 확인
+        Integer convertedAfterFirst = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(convertedAfterFirst).isEqualTo(3);
+
+        // ── 2회차 호출 — converted_quantity=3 이므로 contentHash 가 달라진다.
+        //   실제 재시도 시나리오(장애 후 재전송)를 재현하기 위해 DB를 초기화 후 재시도한다.
+        //   이는 "1회차 slip 발행 성공 + partner-order 트랜잭션 미커밋" 상황의 시뮬레이션이다.
+        jdbcTemplate.update(
+                "UPDATE partner_order_lines SET converted_quantity = 0 WHERE id = ?", lineId);
+
+        // 2회차: reserve alreadyReserved=true (이미 예약됨, 멱등 no-op) + slip duplicate 반환
+        when(inventoryClient.reserve(eq(productId), any(), eq(3), anyString(), any()))
+                .thenReturn(ReservationResult.noop());
+        when(slipServiceClient.publishFromOrdersMerge(any(), anyString()))
+                .thenReturn(PublishResult.duplicate(STUB_SLIP_NO));
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").value(STUB_SLIP_NO));
+
+        // publishFromOrdersMerge 총 2회 호출 — 1회차(published) + 2회차(duplicate)
+        // 각 호출이 1번씩만 발생했는지 captor 카운트로 단언
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(slipServiceClient, times(2)).publishFromOrdersMerge(any(), keyCaptor.capture());
+        // 두 호출 모두 동일한 idempotencyKey 로 발행 (같은 convertedBefore=0 스냅샷 기반)
+        assertThat(keyCaptor.getAllValues()).hasSize(2)
+                .allSatisfy(k -> assertThat(k).startsWith("PO-MRG-"));
+
+        // DB: 2회차 이후 converted_quantity = 3 (이중 누적 아님 — 1회차와 동일한 3)
+        Integer convertedAfterSecond = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(convertedAfterSecond).isEqualTo(3);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 M-1 — 부분수량 전환: 5 중 3 → converted_quantity=3, remaining=2, status=DRAFT
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 부분수량 전환 후 잔여 추적 검증.
+     *
+     * <p>전체 수량 5 중 3만 전환 요청:
+     * <ul>
+     *   <li>DB: {@code converted_quantity = 3}</li>
+     *   <li>도메인: {@code remainingQuantity() = 2}</li>
+     *   <li>DB: 주문 {@code status = DRAFT} (전량 전환 아니므로 CONVERTED 아님)</li>
+     * </ul>
+     *
+     * <p>spec §6 M-1 "부분수량 + 잔여추적" 요구 케이스.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("M-1 부분수량+잔여추적: 5수량 중 3 전환 → converted_quantity=3, remaining=2, status=DRAFT")
+    void caseM1_partialQuantity_convertedThree_remainingTwo_statusDraft() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+
+        insertOrderWithLine(orderId, lineId, "MRG-P-M1", "1010101010",
+                "2026/05/31-MRG-M1", "DRAFT", 5, BigDecimal.valueOf(10000));
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 3}]}
+                  ],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(orderId, lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.convertedOrders[0].fullyConverted").value(false));
+
+        // DB 단언: converted_quantity = 3
+        Integer convertedQty = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(convertedQty).isEqualTo(3);
+
+        // DB 단언: remaining = quantity - converted_quantity = 5 - 3 = 2
+        Integer remaining = jdbcTemplate.queryForObject(
+                "SELECT quantity - converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineId);
+        assertThat(remaining).isEqualTo(2);
+
+        // DB 단언: 주문 status = DRAFT (부분 전환 → CONVERTED 아님)
+        String dbStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM partner_orders WHERE id = ?", String.class, orderId);
+        assertThat(dbStatus).isEqualTo("DRAFT");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 M-2 — ON_HOLD 주문 포함 병합 → requireConvertible 허용 검증
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 보류(ON_HOLD) 주문이 포함된 병합 요청 성공 검증.
+     *
+     * <p>{@link com.samhanair.logis.partnerorder.domain.PartnerOrder#requireConvertible()}은
+     * DRAFT 와 ON_HOLD 를 모두 허용한다. ON_HOLD 주문 1건 + DRAFT 주문 1건을 병합하여
+     * 200 OK 와 converted_quantity 갱신을 확인한다.
+     *
+     * <p>spec §6 M-2 "ON_HOLD 주문 병합 가능" 요구 케이스.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("M-2 ON_HOLD 병합: ON_HOLD + DRAFT 주문 병합 → 200 OK + converted_quantity 갱신")
+    void caseM2_onHoldOrderIncludedInMerge_success() throws Exception {
+        UUID orderOnHoldId = UUID.randomUUID();
+        UUID orderDraftId = UUID.randomUUID();
+        UUID lineOnHoldId = UUID.randomUUID();
+        UUID lineDraftId = UUID.randomUUID();
+
+        // ON_HOLD 상태 주문 INSERT
+        insertOrderWithLine(orderOnHoldId, lineOnHoldId, "MRG-P-M2", "2020202020",
+                "2026/05/31-MRG-M2-OH", "ON_HOLD", 4, BigDecimal.valueOf(20000));
+
+        // DRAFT 상태 주문 INSERT
+        insertOrderWithLine(orderDraftId, lineDraftId, "MRG-P-M2", "2020202020",
+                "2026/05/31-MRG-M2-DR", "DRAFT", 3, BigDecimal.valueOf(15000));
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 2}]},
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 2}]}
+                  ],
+                  "warehouseCode": "WH-001",
+                  "shippingInfo": {"partnerName": "ON_HOLD테스트"}
+                }
+                """.formatted(orderOnHoldId, lineOnHoldId, orderDraftId, lineDraftId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").value(STUB_SLIP_NO))
+                .andExpect(jsonPath("$.data.convertedOrders.length()").value(2));
+
+        // DB 단언: ON_HOLD 주문 라인 converted_quantity = 2
+        Integer convertedOnHold = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineOnHoldId);
+        assertThat(convertedOnHold).isEqualTo(2);
+
+        // DB 단언: DRAFT 주문 라인 converted_quantity = 2
+        Integer convertedDraft = jdbcTemplate.queryForObject(
+                "SELECT converted_quantity FROM partner_order_lines WHERE id = ?",
+                Integer.class, lineDraftId);
+        assertThat(convertedDraft).isEqualTo(2);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 W-1 — reserve captor: 호출 인자(productId/warehouseId/quantity) 실제값 단언
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * reserve 에 전달된 인자의 실제값을 ArgumentCaptor 로 단언한다.
+     *
+     * <p>케이스5(release captor)와 달리, 성공 경로에서 reserve 호출 인자를 검증한다:
+     * <ul>
+     *   <li>{@code productId} = DB 에 삽입한 실제 product_id UUID</li>
+     *   <li>{@code warehouseId} = resolveWarehouseIdByCode stub 반환값</li>
+     *   <li>{@code quantity} = 요청의 quantity (2)</li>
+     * </ul>
+     *
+     * <p>spec QA W-1 "reserve captor: reserve에 전달된 productId/warehouseId/qty 실제값 단언" 요구 케이스.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("W-1 reserve captor: reserve 호출 인자(productId/warehouseId/qty) 실제값 단언")
+    void caseW1_reserveCaptor_actualArguments_asserted() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID expectedWarehouseId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+        // product_id 를 명시적으로 지정하여 INSERT (captor 대조용)
+        insertOrderWithLine(orderId, lineId, productId, "MRG-P-W1", "0101010101",
+                "2026/05/31-MRG-W1", "DRAFT", 5, BigDecimal.valueOf(10000));
+
+        // resolveWarehouseIdByCode → 고정 warehouseId (setUp lenient stub 재확인)
+        when(inventoryClient.resolveWarehouseIdByCode("WH-001"))
+                .thenReturn(expectedWarehouseId);
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 2}]}
+                  ],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(orderId, lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk());
+
+        // ArgumentCaptor 로 reserve 호출 인자 캡처
+        ArgumentCaptor<UUID> productIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<UUID> warehouseIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<Integer> quantityCaptor = ArgumentCaptor.forClass(Integer.class);
+
+        verify(inventoryClient, times(1)).reserve(
+                productIdCaptor.capture(),
+                warehouseIdCaptor.capture(),
+                quantityCaptor.capture(),
+                anyString(),
+                any(UUID.class));
+
+        // 실제값 단언
+        assertThat(productIdCaptor.getValue()).isEqualTo(productId);
+        assertThat(warehouseIdCaptor.getValue()).isEqualTo(expectedWarehouseId);
+        assertThat(quantityCaptor.getValue()).isEqualTo(2);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 케이스 7 — orderNo(주문번호) 식별자로 병합 → 200 + 응답 orderNo 단언
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -564,8 +859,34 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
 
     /**
      * 주문 + 라인 1개를 JDBC 직접 INSERT (기존 PartnerOrderConvertIT 패턴과 동일).
+     *
+     * <p>product_id 는 내부에서 {@code UUID.randomUUID()} 로 자동 생성한다.
+     * reserve captor 단언이 필요한 케이스는 {@link #insertOrderWithLine(UUID, UUID, UUID, String, String, String, String, int, BigDecimal)} 을 사용한다.
      */
     private void insertOrderWithLine(UUID orderId, UUID lineId,
+                                      String partnerCode, String bizCode,
+                                      String orderNo, String status,
+                                      int quantity, BigDecimal priceVat) {
+        insertOrderWithLine(orderId, lineId, UUID.randomUUID(),
+                partnerCode, bizCode, orderNo, status, quantity, priceVat);
+    }
+
+    /**
+     * 주문 + 라인 1개를 JDBC 직접 INSERT — product_id 명시 오버로드.
+     *
+     * <p>W-1 reserve captor 케이스처럼 product_id 의 실제값을 단언해야 할 때 사용한다.
+     *
+     * @param orderId     주문 UUID
+     * @param lineId      라인 UUID
+     * @param productId   상품 UUID (reserve captor 대조에 사용)
+     * @param partnerCode 거래처 코드
+     * @param bizCode     사업자번호
+     * @param orderNo     주문번호
+     * @param status      주문 상태 문자열 (DRAFT/ON_HOLD 등)
+     * @param quantity    수량
+     * @param priceVat    부가세 포함 단가
+     */
+    private void insertOrderWithLine(UUID orderId, UUID lineId, UUID productId,
                                       String partnerCode, String bizCode,
                                       String orderNo, String status,
                                       int quantity, BigDecimal priceVat) {
@@ -599,7 +920,7 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
                   (?, ?, ?, 'MODEL-MRG', '병합테스트상품', 'homemulti', ?, ?, ?, NULL, 0,
                    NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
                 """,
-                lineId, orderId, UUID.randomUUID(), quantity, priceVat,
+                lineId, orderId, productId, quantity, priceVat,
                 priceVat.multiply(BigDecimal.valueOf(quantity)));
     }
 }

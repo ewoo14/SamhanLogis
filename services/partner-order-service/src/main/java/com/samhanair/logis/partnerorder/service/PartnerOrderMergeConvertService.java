@@ -212,6 +212,16 @@ public class PartnerOrderMergeConvertService {
         }
 
         // 8. converted 누적 + status 갱신 + saveAll
+        //
+        // [멱등 설계 의도] result.duplicate() == true 여도 line.convert() + saveAll 을 무조건 수행한다.
+        // 근거:
+        //   - convertKey(SHA-256)에는 각 라인의 convertedBefore(스냅샷) 이 포함된다.
+        //   - slip-service 가 duplicate 를 반환하는 경우는 같은 convertKey + 같은 본문으로
+        //     직전 요청이 실제로 slip 을 발행했으나, 그 직후 partner-order-service 트랜잭션이
+        //     커밋되지 못한(네트워크/프로세스 장애) 상황이다.
+        //   - 따라서 duplicate 응답은 "직전 미커밋 전환을 재적용해야 한다"는 신호이다.
+        //   - PartnerOrder 에 낙관적 락(lock_version, @Version)이 적용되어 있으므로
+        //     동시성 이중 누적은 별도 트랜잭션에서 감지·차단된다.
         for (ReserveTarget t : reserveTargets) {
             t.line().convert(t.quantity());
         }

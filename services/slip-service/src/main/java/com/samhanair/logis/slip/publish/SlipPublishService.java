@@ -348,6 +348,10 @@ public class SlipPublishService {
      * <p>Phase 2.6b D2 확장: PARTNER_ORDER sourceType 의 경우
      * {@code slip_source_orders} 역조회(UNION)로 병합 비대표 주문도 누락 없이 반환한다.
      * 단일주문 전환 경로는 {@code slip.source_id} 직접 매칭으로 기존과 동일하게 처리된다.
+     *
+     * <p>N+1 방지: 비대표 주문 역조회 시 {@code findAllByPartnerOrderId} 결과의 slipId 목록을 먼저
+     * 수집한 후 {@code slipRepository.findAllById(slipIds)} 배치 1회 조회로 Slip 을 로드한다.
+     * (기존: N회 {@code findById} 루프 → 배치 1회로 교체. 사이클1 P1-3 수정.)
      */
     @Transactional(readOnly = true)
     public List<PublishSlipResponse> findBySource(SlipSourceType sourceType, String sourceId) {
@@ -362,13 +366,19 @@ public class SlipPublishService {
         slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(sourceType, sourceId)
                 .forEach(s -> byId.put(s.getId(), s));
         // 2) 병합 비대표 주문 — slip_source_orders 역조회 (PARTNER_ORDER 한정)
+        // N+1 방지: findAllByPartnerOrderId 결과 slipId 목록을 모아 findAllById 배치 1회 조회.
         if (sourceType == SlipSourceType.PARTNER_ORDER) {
             try {
                 UUID orderId = UUID.fromString(sourceId);
-                sourceOrderRepository.findAllByPartnerOrderId(orderId)
-                        .forEach(so -> slipRepository.findById(so.getSlipId())
-                                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
-                                .ifPresent(s -> byId.putIfAbsent(s.getId(), s)));
+                List<UUID> slipIds = sourceOrderRepository.findAllByPartnerOrderId(orderId).stream()
+                        .map(SlipSourceOrder::getSlipId)
+                        .filter(id -> !byId.containsKey(id))
+                        .distinct()
+                        .toList();
+                if (!slipIds.isEmpty()) {
+                    slipRepository.findAllById(slipIds)
+                            .forEach(s -> byId.putIfAbsent(s.getId(), s));
+                }
             } catch (IllegalArgumentException ignored) {
                 // sourceId 가 UUID 형식이 아니면(estimate 번호 등) 역조회 skip
             }

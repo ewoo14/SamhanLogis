@@ -151,13 +151,22 @@ export function SalesPartnerOrderListPage() {
     setMergeDialogOpen(false)
   }
 
-  const handleMergeDialogSuccess = async (slipNo: string) => {
+  const handleMergeDialogSuccess = async (slipNo: string, convertedOrderNos: string[]) => {
     setMergeDialogOpen(false)
+    // FE P2: 토스트 카피 — N개 주문 병합 전환 + 4초 소멸 (가이드 §2.7)
+    setConvertSuccessMessage(
+      `출고전표 ${slipNo} 발행 완료 — ${convertedOrderNos.length}개 주문 병합 전환`,
+    )
     setSelectedOrderNumbers(new Set())
-    setConvertSuccessMessage(`출고전표 ${slipNo} 발행 완료`)
-    // 3초 후 토스트 자동 소멸
-    setTimeout(() => setConvertSuccessMessage(null), 3000)
+    // 4초 후 토스트 자동 소멸
+    setTimeout(() => setConvertSuccessMessage(null), 4000)
+    // FE P1-4: 목록 캐시 + 전환된 각 주문 단건 캐시 무효화
     await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+    await Promise.all(
+      convertedOrderNos.map((orderNo) =>
+        queryClient.invalidateQueries({ queryKey: ['partner-order', orderNo] }),
+      ),
+    )
   }
 
   return (
@@ -195,18 +204,7 @@ export function SalesPartnerOrderListPage() {
             data-testid="merge-convert-success-toast"
             role="status"
             aria-live="polite"
-            style={{
-              background: '#F0FDF4',
-              border: '1px solid #86EFAC',
-              color: '#166534',
-              borderRadius: 6,
-              padding: '10px 14px',
-              marginBottom: 8,
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
+            className={styles['mergeConvertSuccessToast']}
           >
             <span style={{ fontSize: 16 }}>&#10003;</span>
             {convertSuccessMessage}
@@ -275,17 +273,7 @@ export function SalesPartnerOrderListPage() {
             data-testid="merge-convert-action-bar"
             role="region"
             aria-label="선택 주문 병합 전환"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 12px',
-              marginBottom: 8,
-              background: '#F0F9FF',
-              border: '1px solid #BAE6FD',
-              borderRadius: 6,
-              fontSize: 13,
-            }}
+            className={styles['mergeConvertActionBar']}
           >
             <span data-testid="merge-convert-selected-count">
               {selectedCount}건 선택됨
@@ -421,7 +409,7 @@ export function SalesPartnerOrderListPage() {
         <MergeConvertDialog
           selectedOrders={selectedOrders}
           onClose={handleMergeDialogClose}
-          onSuccess={(slipNo) => void handleMergeDialogSuccess(slipNo)}
+          onSuccess={(slipNo, convertedOrderNos) => void handleMergeDialogSuccess(slipNo, convertedOrderNos)}
         />
       ) : null}
     </div>

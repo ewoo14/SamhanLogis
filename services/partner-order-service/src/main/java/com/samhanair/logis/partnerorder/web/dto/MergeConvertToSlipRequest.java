@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.web.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.UUID;
  */
 public record MergeConvertToSlipRequest(
         @NotNull @NotEmpty @Valid List<OrderItems> orders,
+        @NotBlank(message = "창고 코드는 필수입니다. warehouseCode 를 명시적으로 지정하세요.")
         String warehouseCode,
         @Valid ShippingInfo shippingInfo) {
 

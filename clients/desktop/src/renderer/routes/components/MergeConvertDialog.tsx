@@ -34,10 +34,11 @@
  *   <li>{@code merge-convert-modal-error}             — 모달 내 에러 배너</li>
  * </ul>
  */
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQueries, useQuery, useMutation } from '@tanstack/react-query'
 import axios from 'axios'
 import {
+  Badge,
   Button,
   Input,
   Modal,
@@ -62,20 +63,25 @@ interface MergeConvertDialogProps {
   /** 목록에서 선택된 주문 요약 목록 (2건 이상, 같은 partnerCode 보장). */
   selectedOrders: PartnerOrderSummary[]
   onClose: () => void
-  /** 발행 성공 후 호출 — slipNo 를 전달하여 목록 페이지에서 토스트 표시 + invalidate 처리. */
-  onSuccess: (slipNo: string) => void
+  /**
+   * 발행 성공 후 호출 — slipNo + 전환된 주문번호 목록을 전달하여
+   * 목록 페이지에서 토스트 표시 + 목록/단건 캐시 invalidate 처리.
+   */
+  onSuccess: (slipNo: string, convertedOrderNos: string[]) => void
 }
 
 /**
  * 헤더 충돌 필드 — 주문마다 다른 값이 있을 수 있는 배송 정보 키.
  * FE 가 사용자에게 선택 또는 '/' 병기 텍스트 입력을 요청하는 대상.
+ *
+ * NOTE: `discountInfo` 는 PartnerOrderDetail 에 미포함(BE 구조 제약)이므로
+ * 충돌 감지 대상에서 제외한다 (가이드 §9 미결 항목으로 추적).
  */
 type ShippingFieldKey =
   | 'partnerName'
   | 'shippingAddress'
   | 'receiverPhone'
   | 'paymentDueLabel'
-  | 'discountInfo'
   | 'memo'
 
 /** 헤더 충돌 필드 한국어 라벨. */
@@ -84,8 +90,16 @@ const SHIPPING_FIELD_LABEL: Record<ShippingFieldKey, string> = {
   shippingAddress: '배송지',
   receiverPhone: '수령인 연락처',
   paymentDueLabel: '납기',
-  discountInfo: '할인 정보',
   memo: '요청사항',
+}
+
+/** 충돌 필드별 직접입력 placeholder (가이드 §9 미결). */
+const SHIPPING_FIELD_PLACEHOLDER: Record<ShippingFieldKey, string> = {
+  partnerName: '예: 거래처명',
+  shippingAddress: '예: 서울/부산',
+  receiverPhone: '예: 010-1234-5678',
+  paymentDueLabel: '예: 2026-06-30 / 2026-07-15',
+  memo: '예: 직배송 요청',
 }
 
 /** 주문 상세에서 ShippingInfo 관련 필드 추출. */
@@ -102,10 +116,6 @@ function extractShippingFieldValue(
       return order.contactPhone ?? ''
     case 'paymentDueLabel':
       return order.dueDate ?? ''
-    case 'discountInfo':
-      // PartnerOrderDetail 에는 discountInfo 필드가 없음 — BE MergeConvertToSlipRequest.ShippingInfo 에 있으나
-      // 단일주문 상세에는 노출 안 됨 → 공백 처리
-      return ''
     case 'memo':
       return order.memo ?? ''
     default:
@@ -147,10 +157,9 @@ export function MergeConvertDialog({
   // 라인별 전환수량 맵 — 키: `${orderIndex}-${lineId}`
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({})
 
-  // 초기화: 모든 상세 로드 완료 후 잔여 전량으로 초기화
-  // (useEffect 없이 메모이제이션 — 상세 로드 완료 시 1회만 설정)
-  const [qtyInitialized, setQtyInitialized] = useState(false)
-  if (!qtyInitialized && orderDetails.length === selectedOrders.length && !isLoadingDetails) {
+  // FE P1-1: qtyMap 초기화 — useEffect 로 React 18 StrictMode 안전하게 처리
+  useEffect(() => {
+    if (isLoadingDetails || orderDetails.length !== selectedOrders.length) return
     const initMap: Record<string, number> = {}
     orderDetails.forEach((detail, oi) => {
       if (!detail) return
@@ -162,14 +171,30 @@ export function MergeConvertDialog({
       })
     })
     setQtyMap(initMap)
-    setQtyInitialized(true)
-  }
+  }, [isLoadingDetails, orderDetails.length])
 
   // 출고 창고
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
 
-  // 헤더 충돌 필드 확정값 — 사용자 입력 (선택/병기)
+  /**
+   * 헤더 충돌 필드 확정값 — 사용자 입력.
+   * 구조: { [key]: 선택된 값 | '__custom__' (직접입력 라디오 선택 시) }
+   * 직접입력 실제 텍스트는 customInputs 에 별도 관리.
+   */
   const [shippingFields, setShippingFields] = useState<Partial<Record<ShippingFieldKey, string>>>({})
+  /** 직접입력 라디오 선택 시 텍스트 인풋 값 — 키: ShippingFieldKey. */
+  const [customInputs, setCustomInputs] = useState<Partial<Record<ShippingFieldKey, string>>>({})
+
+  // autoFocus ref — 창고 인풋에 모달 열기 직후 포커스 (가이드 §2.2, §5.1)
+  const warehouseWrapRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const input = warehouseWrapRef.current?.querySelector<HTMLInputElement>('input[role="combobox"]')
+    if (input) {
+      // 약간의 지연 — Modal 애니메이션 완료 후 포커스
+      const tid = setTimeout(() => input.focus(), 80)
+      return () => clearTimeout(tid)
+    }
+  }, [])
 
   // 에러 메시지
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -196,6 +221,17 @@ export function MergeConvertDialog({
     }
   }
 
+  // 충돌 필드 미확정 여부 — 4-AND canSubmit 조건 (가이드 §2.7, Designer P1-2)
+  const hasUnresolvedConflict = conflictFields.some((key) => {
+    const selected = shippingFields[key]
+    if (selected === undefined) return true                       // 미선택
+    if (selected === '__custom__') {
+      // 직접입력 라디오 선택 시 실제 텍스트가 있어야 확정
+      return !customInputs[key]?.trim()
+    }
+    return false
+  })
+
   // 충돌 없는 필드는 첫 번째 주문 값으로 자동 채움
   const resolvedShippingInfo: MergeConvertShippingInfo = (() => {
     const keys: ShippingFieldKey[] = [
@@ -203,14 +239,16 @@ export function MergeConvertDialog({
       'shippingAddress',
       'receiverPhone',
       'paymentDueLabel',
-      'discountInfo',
       'memo',
     ]
     const result: MergeConvertShippingInfo = {}
     for (const key of keys) {
-      if (shippingFields[key] !== undefined) {
-        // 사용자가 직접 입력한 값 우선
-        ;(result as Record<string, string | undefined>)[key] = shippingFields[key] || undefined
+      const selected = shippingFields[key]
+      if (selected !== undefined) {
+        // 사용자 라디오 선택 또는 직접입력 값 우선
+        const finalVal =
+          selected === '__custom__' ? (customInputs[key] ?? '') : selected
+        ;(result as Record<string, string | undefined>)[key] = finalVal || undefined
       } else if (orderDetails[0]) {
         // 충돌 없는 필드 — 첫 번째 주문 값 사용
         const val = extractShippingFieldValue(orderDetails[0], key)
@@ -225,8 +263,16 @@ export function MergeConvertDialog({
   // 전환 수량 유효성 — 1건 이상 수량>0 라인 있어야 함
   const hasSomeQty = Object.values(qtyMap).some((q) => q > 0)
 
-  // 제출 버튼 활성 조건
-  const canSubmit = hasSomeQty && !!selectedWarehouse
+  // {M} 전환 예정 품목 수 — 비가역 경고 카피 (가이드 §2.1)
+  const convertItemCount = Object.values(qtyMap).filter((q) => q > 0).length
+
+  // 제출 버튼 활성 기반 조건 — 4-AND (가이드 §2.7, Designer P1-2)
+  // mergeMutation.isPending 은 선언 이후 버튼 disabled prop 에서 별도로 처리
+  const canSubmitBase =
+    !isLoadingDetails &&
+    hasSomeQty &&
+    !!selectedWarehouse &&
+    !hasUnresolvedConflict
 
   // 병합 전환 mutation
   const mergeMutation = useMutation({
@@ -248,8 +294,8 @@ export function MergeConvertDialog({
             }))
           if (items.length === 0) return null
           return {
-            // BE 확정 (2026-05-31): partnerOrderId 필드 = 주문번호(orderNo) 를 받는다.
-            // UUID 가 아닌 orderNumber(사용자 식별자) 를 전달 — 이미 정상 동작.
+            // BE 확정 (2026-05-31): partnerOrderId 필드 = 주문번호(orderNumber) 또는 UUID —
+            // BE PartnerOrderIdResolver 양용 허용. FE 는 orderNumber 를 전달한다.
             partnerOrderId: detail.orderNumber,
             items,
           }
@@ -260,8 +306,9 @@ export function MergeConvertDialog({
     },
     onSuccess: (result) => {
       setErrorMessage(null)
-      // slipNo 를 onSuccess 콜백으로 위임 — 목록 페이지에서 토스트 표시 + invalidate 처리
-      onSuccess(result.slipNo)
+      // FE P1-4: convertedOrders 의 orderNo 목록을 전달 — 단건 캐시 무효화용
+      const convertedOrderNos = result.convertedOrders.map((o) => o.orderNo)
+      onSuccess(result.slipNo, convertedOrderNos)
     },
     onError: (error) => {
       if (axios.isAxiosError(error)) {
@@ -269,11 +316,18 @@ export function MergeConvertDialog({
         const beMessage = respData?.['message'] as string | undefined
         if (error.response?.status === 409) {
           if (beMessage?.includes('같은 거래처')) {
-            setErrorMessage('병합은 같은 거래처 주문만 가능합니다.')
+            setErrorMessage('병합은 같은 거래처 주문만 가능합니다. 선택을 다시 확인해 주세요.')
             return
           }
           if (beMessage?.includes('warehouseCode')) {
             setErrorMessage('출고 창고를 선택해 주세요.')
+            return
+          }
+          // 재고 부족 — 가이드 §2.6 한국어 메시지 (BE 메시지 포함)
+          if (beMessage?.includes('재고 부족')) {
+            setErrorMessage(
+              `재고 부족으로 병합 발행할 수 없습니다.\n${beMessage}\n수량을 줄이거나 담당자에게 재고 보충을 요청해 주세요.`,
+            )
             return
           }
           setErrorMessage(
@@ -285,10 +339,10 @@ export function MergeConvertDialog({
           setErrorMessage('병합 전환 권한이 없습니다. 관리자에게 문의해 주세요.')
           return
         }
-        setErrorMessage(beMessage ?? '전환에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        setErrorMessage(beMessage ?? '병합 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.')
         return
       }
-      setErrorMessage('전환에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+      setErrorMessage('병합 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.')
     },
   })
 
@@ -302,7 +356,7 @@ export function MergeConvertDialog({
       onClose={() => {
         if (!mergeMutation.isPending) onClose()
       }}
-      title="출고전표로 병합 전환"
+      title="출고전표 병합 전환"
       size="xl"
       closeOnBackdropClick={!mergeMutation.isPending}
       closeOnEsc={!mergeMutation.isPending}
@@ -312,6 +366,7 @@ export function MergeConvertDialog({
           <Button
             type="button"
             variant="secondary"
+            data-testid="merge-convert-cancel"
             disabled={mergeMutation.isPending}
             onClick={() => {
               if (!mergeMutation.isPending) onClose()
@@ -323,56 +378,35 @@ export function MergeConvertDialog({
             type="button"
             variant="primary"
             data-testid="merge-convert-submit"
-            disabled={!canSubmit || mergeMutation.isPending || isLoadingDetails}
+            disabled={!canSubmitBase || mergeMutation.isPending}
+            aria-disabled={!canSubmitBase || mergeMutation.isPending}
             onClick={() => {
               setErrorMessage(null)
               mergeMutation.mutate()
             }}
           >
-            {mergeMutation.isPending ? '발행 중…' : '병합 발행'}
+            {mergeMutation.isPending ? '병합 발행 중…' : '병합 발행 →'}
           </Button>
         </>
       }
     >
       <div data-testid="merge-convert-dialog-body">
-        {/* 에러 배너 */}
-        {errorMessage ? (
-          <div
-            className={styles['errorBanner']}
-            role="alert"
-            data-testid="merge-convert-modal-error"
-            style={{ whiteSpace: 'pre-line', alignItems: 'flex-start', marginBottom: 12 }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        {/* 비가역 경고 */}
+        {/* [A] 비가역 경고 배너 — danger 토큰, 항상 최상단 (가이드 §2.1, Designer P1-1/P1-4) */}
         <div
-          className={styles['convertWarningBanner']}
+          className={styles['mergeConvertWarningBanner']}
           role="note"
-          style={{ marginBottom: 16 }}
+          data-testid="merge-convert-irreversible-warning"
         >
-          <strong>주의:</strong> 병합 발행 시 출고전표가 즉시 발행됩니다. 이 작업은 되돌릴 수 없습니다.
-          {selectedOrders.length >= 2
-            ? ` (${selectedOrders.length}개 주문을 단일 전표로 병합)`
+          <strong>주의:</strong> 병합 발행 후에는 출고전표가 즉시 생성되며 재고가 예약됩니다.{' '}
+          이 작업은 되돌릴 수 없습니다.
+          {convertItemCount > 0
+            ? ` (${selectedOrders.length}개 주문, ${convertItemCount}개 품목 전환 예정)`
             : null}
         </div>
 
-        {/* 로딩 중 */}
-        {isLoadingDetails ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
-            <Spinner size="sm" />
-            <span>주문 상세를 불러오는 중…</span>
-          </div>
-        ) : hasDetailError ? (
-          <div className={styles['errorBanner']} role="alert" style={{ marginBottom: 12 }}>
-            주문 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
-          </div>
-        ) : null}
-
-        {/* 출고 창고 선택 (필수) */}
+        {/* [B] 출고 창고 선택 (필수) — 가이드 §2.2 */}
         <div
+          ref={warehouseWrapRef}
           data-testid="merge-convert-warehouse"
           style={{ marginBottom: 16 }}
         >
@@ -389,86 +423,157 @@ export function MergeConvertDialog({
           />
         </div>
 
-        {/* 헤더 충돌 필드 — 주문마다 다른 값이 있는 경우 사용자에게 확정 요청 */}
+        {/* [C] 헤더 충돌 필드 — 라디오+직접입력 혼합 패턴 (가이드 §2.3, Designer P1-2) */}
         {conflictFields.length > 0 ? (
           <div
+            data-testid="merge-convert-conflict-section"
             style={{
-              background: '#FFFBEB',
-              border: '1px solid #FDE68A',
+              background: 'var(--color-warning-50, #fef6e7)',
+              border: '1px solid var(--color-warning-200, #f8da9a)',
               borderRadius: 6,
-              padding: '10px 14px',
-              marginBottom: 16,
+              padding: 'var(--space-4, 16px)',
+              marginBottom: 'var(--space-4, 16px)',
             }}
           >
-            <div style={{ fontSize: 12, color: '#92400E', marginBottom: 8, fontWeight: 600 }}>
-              아래 필드는 주문마다 값이 다릅니다. 최종 출고전표에 기록될 값을 입력하거나 선택하세요.
+            <div
+              style={{
+                fontSize: 'var(--font-size-sm, 13px)',
+                color: 'var(--color-warning-700, #b47a1f)',
+                marginBottom: 8,
+                fontWeight: 600,
+              }}
+            >
+              ⚠ 아래 필드는 주문마다 값이 다릅니다. 최종 출고전표에 기록될 값을 선택하세요.
             </div>
             {conflictFields.map((key) => {
               const orderValues = orderDetails
                 .filter(Boolean)
                 .map((d) => extractShippingFieldValue(d!, key))
                 .filter((v) => v !== '')
+              const selectedVal = shippingFields[key]
+              const isCustomSelected = selectedVal === '__custom__'
               return (
                 <div
                   key={key}
-                  data-testid={`merge-convert-shipping-field-${key}`}
-                  style={{ marginBottom: 10 }}
+                  data-testid={`merge-convert-conflict-${key}`}
+                  role="radiogroup"
+                  aria-labelledby={`conflict-label-${key}`}
+                  style={{ marginBottom: 12 }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                  <div
+                    id={`conflict-label-${key}`}
+                    style={{
+                      fontSize: 'var(--font-size-sm, 13px)',
+                      fontWeight: 600,
+                      marginBottom: 6,
+                      color: 'var(--color-warning-700, #b47a1f)',
+                    }}
+                  >
                     {SHIPPING_FIELD_LABEL[key]}
                   </div>
-                  {/* 각 주문의 값 라디오 선택 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
-                    {orderValues.map((val, vi) => (
-                      <label
-                        key={`${key}-radio-${vi}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}
-                      >
-                        <input
-                          type="radio"
-                          name={`shipping-${key}`}
-                          value={val}
-                          checked={shippingFields[key] === val}
-                          onChange={() => setShippingFields((prev) => ({ ...prev, [key]: val }))}
-                          disabled={mergeMutation.isPending}
-                        />
-                        <span>
-                          {/* 주문번호 표시 — UUID 비노출 */}
-                          주문 {orderDetails.filter(Boolean)[vi]?.orderNumber ?? `#${vi + 1}`} :{' '}
-                          <strong>{val}</strong>
-                        </span>
-                      </label>
-                    ))}
+                  {/* 주문별 값 라디오 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {orderValues.map((val, vi) => {
+                      const orderNo = orderDetails.filter(Boolean)[vi]?.orderNumber ?? `#${vi + 1}`
+                      return (
+                        <label
+                          key={`${key}-radio-${val}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 6,
+                            fontSize: 'var(--font-size-sm, 13px)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name={`conflict-${key}`}
+                            value={val}
+                            data-testid={`merge-convert-conflict-${key}-radio-${orderNo}`}
+                            checked={selectedVal === val}
+                            onChange={() =>
+                              setShippingFields((prev) => ({ ...prev, [key]: val }))
+                            }
+                            disabled={mergeMutation.isPending}
+                            aria-label={`${orderNo} 값 선택`}
+                          />
+                          <span>
+                            주문 {orderNo} 값:{' '}
+                            <strong>{val}</strong>
+                          </span>
+                        </label>
+                      )
+                    })}
+                    {/* 직접 입력 라디오 (세 번째 옵션) */}
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 6,
+                        fontSize: 'var(--font-size-sm, 13px)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name={`conflict-${key}`}
+                        value="__custom__"
+                        data-testid={`merge-convert-conflict-${key}-radio-custom`}
+                        checked={isCustomSelected}
+                        onChange={() =>
+                          setShippingFields((prev) => ({ ...prev, [key]: '__custom__' }))
+                        }
+                        disabled={mergeMutation.isPending}
+                        aria-label={`${SHIPPING_FIELD_LABEL[key]} 직접 입력`}
+                      />
+                      <span>직접 입력 (/ 병기 등)</span>
+                    </label>
+                    {/* 직접입력 텍스트 인풋 — 직접입력 라디오 선택 시에만 활성 */}
+                    <Input
+                      aria-label={`${SHIPPING_FIELD_LABEL[key]} 직접 입력`}
+                      aria-disabled={!isCustomSelected}
+                      data-testid={`merge-convert-conflict-${key}-input-custom`}
+                      value={customInputs[key] ?? ''}
+                      placeholder={SHIPPING_FIELD_PLACEHOLDER[key]}
+                      disabled={!isCustomSelected || mergeMutation.isPending}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setCustomInputs((prev) => ({ ...prev, [key]: val }))
+                        // 타이핑 시 직접입력 라디오 자동 선택 유지 (라디오 해제 방지)
+                        setShippingFields((prev) => ({ ...prev, [key]: '__custom__' }))
+                      }}
+                      inputSize="sm"
+                    />
                   </div>
-                  {/* '/' 병기 직접 입력 */}
-                  <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
-                    또는 직접 입력 ('/' 병기 가능 — 예: {orderValues.join(' / ')}):
-                  </div>
-                  <Input
-                    aria-label={`${SHIPPING_FIELD_LABEL[key]} 직접 입력`}
-                    value={shippingFields[key] ?? ''}
-                    placeholder={`예: ${orderValues.join(' / ')}`}
-                    onChange={(e) =>
-                      setShippingFields((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
-                    disabled={mergeMutation.isPending}
-                    inputSize="sm"
-                  />
                 </div>
               )
             })}
           </div>
         ) : null}
 
-        {/* 주문별 라인 표 */}
+        {/* 로딩 중 */}
+        {isLoadingDetails ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
+            <Spinner size="sm" />
+            <span>주문 상세를 불러오는 중…</span>
+          </div>
+        ) : hasDetailError ? (
+          <div className={styles['errorBanner']} role="alert" style={{ marginBottom: 12 }}>
+            주문 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+          </div>
+        ) : null}
+
+        {/* [D] 주문별 라인 그룹 표 */}
         {!isLoadingDetails && !hasDetailError
           ? orderDetails.map((detail, oi) => {
               if (!detail) return null
               const order = selectedOrders[oi]!
+              const statusVariant = order.status === 'ON_HOLD' ? 'neutral' : 'warning'
               return (
                 <div
                   key={detail.orderNumber}
-                  data-testid={`merge-convert-order-${detail.orderNumber}`}
+                  data-testid={`merge-convert-order-group-${detail.orderNumber}`}
                   style={{ marginBottom: 20 }}
                 >
                   <div
@@ -478,25 +583,26 @@ export function MergeConvertDialog({
                       gap: 8,
                       marginBottom: 8,
                       fontWeight: 600,
-                      fontSize: 13,
+                      fontSize: 'var(--font-size-sm, 13px)',
+                      background: 'var(--color-neutral-50, #f7f8fa)',
+                      padding: '10px 12px',
+                      borderRadius: 4,
                     }}
                   >
                     {/* 주문번호 사용자 노출 (UUID 비노출) */}
-                    <span>주문 {detail.orderNumber}</span>
-                    <span style={{ fontWeight: 400, color: '#6B7280' }}>
-                      {order.partnerName ?? order.partnerCode}
-                    </span>
+                    <span>주문번호: {detail.orderNumber}</span>
                     <span
                       style={{
-                        fontSize: 11,
-                        padding: '1px 6px',
-                        borderRadius: 10,
-                        background: '#EFF6FF',
-                        color: '#1E40AF',
+                        fontWeight: 400,
+                        color: 'var(--color-neutral-500, #6b7280)',
+                        marginLeft: 4,
                       }}
                     >
-                      {PARTNER_ORDER_STATUS_LABEL_LOCAL[order.status]}
+                      {order.partnerName ?? order.partnerCode}
                     </span>
+                    <Badge variant={statusVariant}>
+                      {PARTNER_ORDER_STATUS_LABEL_LOCAL[order.status]}
+                    </Badge>
                   </div>
                   <div className={styles['tableWrap']}>
                     <table className={styles['estTable']}>
@@ -539,7 +645,7 @@ export function MergeConvertDialog({
                                   max={remaining}
                                   value={disabled ? 0 : currentQty}
                                   disabled={disabled}
-                                  data-testid={`merge-convert-qty-${oi}-${li}`}
+                                  data-testid={`merge-convert-qty-${detail.orderNumber}-${li}`}
                                   onChange={(e) => {
                                     const raw = Number(e.target.value)
                                     const clamped = Math.max(0, Math.min(remaining, raw))
@@ -555,7 +661,12 @@ export function MergeConvertDialog({
                     </table>
                   </div>
                   <div
-                    style={{ fontSize: 11, color: '#6B7280', marginTop: 4, textAlign: 'right' }}
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--color-neutral-500, #6b7280)',
+                      marginTop: 4,
+                      textAlign: 'right',
+                    }}
                   >
                     합계 {krw(detail.totalAmount)}원
                   </div>
@@ -563,6 +674,18 @@ export function MergeConvertDialog({
               )
             })
           : null}
+
+        {/* [F] 오류 배너 — 가이드 §2.6 (비가역 경고 아래, 라인 표 아래) */}
+        {errorMessage ? (
+          <div
+            className={styles['errorBanner']}
+            role="alert"
+            data-testid="merge-convert-error"
+            style={{ whiteSpace: 'pre-line', alignItems: 'flex-start', marginTop: 12 }}
+          >
+            {errorMessage}
+          </div>
+        ) : null}
       </div>
     </Modal>
   )

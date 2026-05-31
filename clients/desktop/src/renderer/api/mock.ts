@@ -3891,11 +3891,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
     const orders = (body?.orders as Array<{ partnerOrderId: string }>) ?? []
     // BE 확정 응답 형태: orderNo(주문번호) + orderStatus + fullyConverted.
-    // partnerOrderId(UUID) 는 요청 전용 — 응답에는 orderNo(사용자 식별자) 반환.
+    // 실 BE 는 PartnerOrderIdResolver 로 주문을 찾은 뒤 DB 의 orderNumber 컬럼을 orderNo 에 반환.
+    // mock 고정 주문번호 상수로 BE 동작을 모사 — '2026/05/04-1', '2026/05/31-3' (DRAFT mock rows).
+    const MOCK_ORDER_NOS = ['2026/05/04-1', '2026/05/31-3', '2026/05/05-2', '2026/05/31-4']
     return envelope({
       slipNo: 'SL-20260531-MERGE-001',
-      convertedOrders: orders.map((o) => ({
-        orderNo: o.partnerOrderId,  // mock: 요청의 partnerOrderId 값을 orderNo 로 그대로 반환
+      convertedOrders: orders.map((_, idx) => ({
+        orderNo: MOCK_ORDER_NOS[idx] ?? `2026/05/31-${idx + 1}`,
         orderStatus: 'CONVERTED',
         fullyConverted: true,
       })),

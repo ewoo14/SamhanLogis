@@ -144,13 +144,14 @@ test.describe('Phase 2.6b D2 다중주문 병합 전환', () => {
     // 상태 필터를 전체로 변경 (기본값이 DRAFT 이므로)
     const statusSelect = page.getByTestId('partner-order-list-status-filter')
     await statusSelect.selectOption('')
-    await page.waitForTimeout(500)
 
     // DRAFT 행 체크박스 — orderNumber "2026/05/04-1" (mock DRAFT_ROW)
     // 체크박스 testid: merge-checkbox-{orderNumber}
     // mock.ts 에서 DRAFT orderNumber = '2026/05/04-1'
     // 단, URL encode 이슈 있으므로 aria-label 로 조회
     const checkboxes = page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')
+    // waitForTimeout → toBeVisible 단언으로 교체 (FE P1-5)
+    await expect(checkboxes.first()).toBeVisible({ timeout: 10_000 })
     const checkboxCount = await checkboxes.count()
     // DRAFT + ON_HOLD 행에 체크박스가 있으므로 1건 이상
     expect(checkboxCount).toBeGreaterThanOrEqual(1)
@@ -200,12 +201,12 @@ test.describe('Phase 2.6b D2 다중주문 병합 전환', () => {
     // 전체 상태 필터로 변경
     const statusSelect = page.getByTestId('partner-order-list-status-filter')
     await statusSelect.selectOption('')
-    await page.waitForTimeout(500)
 
     // 전체 필터 반환 순서: [DRAFT(1234567890), SAME_DRAFT(1234567890), SAME_ON_HOLD(1234567890),
     //   ON_HOLD(2345678901), CONFIRMED — 체크박스 없음]
     // 혼합 시나리오: 0번(partnerCode=1234567890) + 3번(partnerCode=2345678901) 선택.
     const checkboxes = page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')
+    // waitForTimeout → toBeVisible 단언으로 교체 (FE P1-5)
     await expect(checkboxes.first()).toBeVisible({ timeout: 10_000 })
     const count = await checkboxes.count()
     if (count < 4) {
@@ -351,9 +352,47 @@ test.describe('Phase 2.6b D2 다중주문 병합 전환', () => {
     await submitBtn.click()
 
     // 409 응답 → 모달 내 에러 배너 노출
-    const errorBanner = page.getByTestId('merge-convert-modal-error')
+    const errorBanner = page.getByTestId('merge-convert-error')
     await expect(errorBanner).toBeVisible({ timeout: 10_000 })
     await expect(errorBanner).toContainText('같은 거래처')
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 E-1 (QA 추가): 409 재고 부족 mock → 모달 내 에러 배너 피드백
+  //
+  // mockMerge409=stock — 재고 부족 409 응답 → merge-convert-error 노출.
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 E-1: 409 재고 부족 mock → 모달 내 에러 배너 피드백', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(listUrl('&mockMerge409=stock'), { waitUntil: 'domcontentloaded' })
+    await expect(page.getByTestId('header-page-title')).toContainText('주문서 관리', { timeout: 15_000 })
+
+    // DRAFT 필터 기본값 — 같은 partnerCode 2건
+    const checkboxes = page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')
+    await expect(checkboxes.first()).toBeVisible({ timeout: 10_000 })
+    await checkboxes.nth(0).check()
+    await checkboxes.nth(1).check()
+
+    await expect(page.getByTestId('merge-convert-open')).toBeEnabled({ timeout: 5_000 })
+    await page.getByTestId('merge-convert-open').click()
+
+    await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible({ timeout: 10_000 })
+
+    // 창고 선택
+    const warehouseDiv = page.getByTestId('merge-convert-warehouse')
+    await selectWarehouseAutocomplete(page, warehouseDiv, 'HQ')
+
+    const submitBtn = page.getByTestId('merge-convert-submit')
+    await expect(submitBtn).toBeEnabled({ timeout: 10_000 })
+    await submitBtn.click()
+
+    // 재고 부족 409 → 모달 내 에러 배너 노출
+    const errorBanner = page.getByTestId('merge-convert-error')
+    await expect(errorBanner).toBeVisible({ timeout: 10_000 })
+    await expect(errorBanner).toContainText('재고 부족')
+
+    // 모달은 닫히지 않고 유지 (dialog-body 로 확인)
+    await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible()
   })
 
   // ──────────────────────────────────────────────────────────

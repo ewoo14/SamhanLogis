@@ -17,9 +17,11 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipPublishAudit;
 import com.samhanair.logis.slip.domain.SlipSourceOrder;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import java.math.BigDecimal;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -86,6 +89,12 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
     @Autowired
     private SlipSourceOrderRepository sourceOrderRepository;
 
+    @Autowired
+    private SlipPublishAuditRepository auditRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private ProductClient productClient;
 
@@ -119,11 +128,46 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
 
     @Test
     void 두_주문을_단일_전표로_병합_발행하고_slip_source_orders_2행을_기록한다() throws Exception {
-        Map<String, Object> body = mergeBody(
-                ORDER_A_ID.toString(), "2026/05/31-001",
-                ORDER_B_ID.toString(), "2026/05/31-002",
-                "P0001", "거래처A", WAREHOUSE_CODE,
-                "서울", "case1-merge");
+        // sourceOrderLineId 를 line 에 포함하여 DB 저장 여부 단언 (QA S-2)
+        UUID lineASourceId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID lineBSourceId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        Map<String, Object> sourceOrderA = new LinkedHashMap<>();
+        sourceOrderA.put("partnerOrderId", ORDER_A_ID.toString());
+        sourceOrderA.put("orderNo", "2026/05/31-001");
+
+        Map<String, Object> sourceOrderB = new LinkedHashMap<>();
+        sourceOrderB.put("partnerOrderId", ORDER_B_ID.toString());
+        sourceOrderB.put("orderNo", "2026/05/31-002");
+
+        Map<String, Object> line1 = new LinkedHashMap<>();
+        line1.put("lineNo", 1);
+        line1.put("productCode", "MODEL-MERGE-1");
+        line1.put("productName", "병합 테스트 제품1");
+        line1.put("qty", "2");
+        line1.put("unitPriceVat", 110000);
+        line1.put("sourceOrderLineId", lineASourceId.toString());
+
+        Map<String, Object> line2 = new LinkedHashMap<>();
+        line2.put("lineNo", 2);
+        line2.put("productCode", "MODEL-MERGE-2");
+        line2.put("productName", "병합 테스트 제품2");
+        line2.put("qty", "3");
+        line2.put("unitPriceVat", 55000);
+        line2.put("sourceOrderLineId", lineBSourceId.toString());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("sourceOrders", List.of(sourceOrderA, sourceOrderB));
+        body.put("ioDate", "20260531");
+        body.put("partnerCode", "P0001");
+        body.put("partnerName", "거래처A");
+        body.put("warehouseCode", WAREHOUSE_CODE);
+        body.put("shippingAddress", "서울");
+        body.put("receiverPhone", "010-1234-5678");
+        body.put("paymentDueLabel", "익월말");
+        body.put("discountInfo", null);
+        body.put("memo", null);
+        body.put("lines", List.of(line1, line2));
 
         MvcResult result = mockMvc.perform(post("/api/v1/slips/from-orders-merge")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -139,13 +183,33 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
 
         UUID slipId = readSlipId(result);
 
-        // slip_source_orders 2행 검증
+        // (1) slip_source_orders 2행 검증
         List<SlipSourceOrder> sources = sourceOrderRepository.findAllBySlipId(slipId);
         assertThat(sources).hasSize(2);
         assertThat(sources).extracting(SlipSourceOrder::getOrderNo)
                 .containsExactlyInAnyOrder("2026/05/31-001", "2026/05/31-002");
         assertThat(sources).extracting(SlipSourceOrder::getPartnerOrderId)
                 .containsExactlyInAnyOrder(ORDER_A_ID, ORDER_B_ID);
+
+        // (2) W-3: slip.source_id == 대표(첫) 주문 UUID DB 단언 (QA W-3 / S-3)
+        Slip slip = slipRepository.findById(slipId).orElseThrow();
+        assertThat(slip.getSourceId())
+                .as("slip.source_id 는 대표(첫) 주문 ORDER_A_ID 여야 함")
+                .isEqualTo(ORDER_A_ID.toString());
+
+        // (3) S-5: slip.partner_code 스냅샷 단언
+        assertThat(slip.getPartnerCode())
+                .as("slip.partner_code 는 요청의 partnerCode 스냅샷이어야 함")
+                .isEqualTo("P0001");
+
+        // (4) S-2: slip_lines.source_order_line_id DB 저장 단언 (JDBC 직접 조회 — LAZY 초기화 방지)
+        List<UUID> savedSourceLineIds = jdbcTemplate.queryForList(
+                        "SELECT source_order_line_id FROM slip_lines WHERE slip_id = ? AND is_deleted = FALSE",
+                        UUID.class, slipId)
+                .stream().filter(id -> id != null).toList();
+        assertThat(savedSourceLineIds)
+                .as("slip_lines.source_order_line_id 가 요청의 sourceOrderLineId 로 저장되어야 함")
+                .containsExactlyInAnyOrder(lineASourceId, lineBSourceId);
     }
 
     // ---- 케이스 2: 헤더 '/' 병기 그대로 저장 ----
@@ -209,9 +273,23 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
 
         assertThat(secondSlipNo).isEqualTo(firstSlipNo);
 
-        // slip_source_orders 는 1차 때만 2행 저장 (멱등 재시도 시 재삽입 없음)
         UUID slipId = readSlipId(first);
-        assertThat(sourceOrderRepository.findAllBySlipId(slipId)).hasSize(2);
+
+        // (1) slip_source_orders 는 1차 때만 2행 저장 — 2차 replay 시 재삽입 없음
+        assertThat(sourceOrderRepository.findAllBySlipId(slipId))
+                .as("멱등 재시도 후 slip_source_orders 행 수는 2건 유지 (재삽입 없음)")
+                .hasSize(2);
+
+        // (2) W-4: SlipPublishAudit 1건 유지 — 멱등 재시도 시 audit 재삽입 없음 (QA W-4)
+        List<SlipPublishAudit> audits = auditRepository.findAllBySlipIdAndIsDeletedFalse(slipId);
+        assertThat(audits)
+                .as("멱등 replay 후 SlipPublishAudit 는 1건이어야 함 (재삽입 없음)")
+                .hasSize(1);
+
+        // (3) audit.sourceId == 대표 주문 UUID (QA S-4)
+        assertThat(audits.get(0).getSourceId())
+                .as("SlipPublishAudit.sourceId 는 대표(첫) 주문 ORDER_A_ID 여야 함")
+                .isEqualTo(ORDER_A_ID.toString());
     }
 
     // ---- 케이스 4: 같은 키 + 다른 본문 → 409 ----

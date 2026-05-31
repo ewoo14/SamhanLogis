@@ -514,10 +514,14 @@ export async function updatePartnerOrder(
 
 /**
  * 병합 전환 대상 주문 1건 + 선택 라인.
- * partnerOrderId 는 UUID 문자열이지만 사용자 화면에 미노출 (orderLineId 도 동일).
+ * partnerOrderId 는 사용자 화면에 미노출 (orderLineId 도 동일).
  */
 export interface MergeConvertOrderItems {
-  /** 주문 UUID — API 전송 전용, 사용자 노출 금지. */
+  /**
+   * 주문번호 또는 UUID — FE 는 orderNumber 전달.
+   * BE `PartnerOrderIdResolver` 가 주문번호/UUID 양용 허용.
+   * 사용자 화면 노출 금지.
+   */
   partnerOrderId: string
   items: { orderLineId: string; quantity: number }[]
 }
