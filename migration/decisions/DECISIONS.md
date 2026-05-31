@@ -2625,3 +2625,20 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-MRG-06 | **주문 식별자 = `PartnerOrderIdResolver`(주문번호/UUID 양용)**, 단일 경로와 일관. 응답은 orderNo 반환(UUID 비공개). 결정적 멱등키 `PO-MRG-{SHA256[:16]}`(전 주문/라인 convertedBefore 스냅샷) = reserve referenceId + slip Idempotency-Key 공용. |
 
 **산출**: slip V30 `slip_source_orders` + `SlipSourceOrder` 엔티티/리포지토리 + `publishFromOrdersMerge` + `findBySource` UNION 확장(비대표 주문 역조회) + `SlipPublishMergeIT` 6종. partner-order `MergeConvertToSlipRequest`/`MergeConvertResultResponse` + `PartnerOrderMergeConvertService`(reserve→발행→보상 N주문 일반화) + `POST /convert-to-slip-merge` + `SlipServiceClient.publishFromOrdersMerge` + 단위 8/IT 12. desktop 주문목록 다중선택+병합버튼 + `MergeConvertDialog`(충돌헤더 라디오/직접입력, 비가역 danger 경고, 4-AND 제출) + Playwright 9. 5-team 사이클 N=2 APPROVE(skipped=0). 배포순서 slip→partner-order→FE(런북 `docs/runbooks/d2-order-merge-deploy.md`). spec/plan/dev-report `docs/.../2026-05-31-order-merge-to-slip*`. 후속(비차단): 목록 배지 갱신 E2E, discountInfo 충돌헤더(PartnerOrderDetail 미보유), D2 Playwright CI 자동실행 게이트, 공용 AsyncAutocomplete 추출.
+
+---
+
+### D-IL. 품목 재고조회 모달 (Phase 2.6d, 2026-05-31)
+
+**배경**: 주문/출고전표/입고전표 상세에서 작업 중 품목 재고를 즉시 확인하는 운영 편의. 2.6c 가 가용/실/예약 데이터를 확정한 위에 읽기전용 조회 UX.
+
+| 결정 | 내용 |
+|---|---|
+| D-IL-01 | "0수량 창고도 표시" 토글 = **전 창고 마스터 머지** — FE 가 batch 결과 + `GET /inventory/warehouses` 머지로 balance row 없는 창고도 0/0/0 표시 |
+| D-IL-02 | **다중 품목 매트릭스** — 상세 라인 다중선택 → 품목×창고 매트릭스 |
+| D-IL-03 | **셀 3줄 누적(가용/실/예약)**. 토글 OFF=실재고(total)>0 창고만, ON=전 창고 |
+| D-IL-04 | API = **`POST /inventory/balances/batch` 재사용**(inventory 무변경). 권한 `inventory.list` VIEW = 전 인증 role → 주문/판매 담당자 가능. VIRTUAL 창고 제외 |
+| D-IL-05 | **신규 공유 `InventoryLookupModal`** — 기존 SlipFormPage StockBalanceModal(총량 전용)과 별개, 무변경 |
+| D-IL-06 | partner-order **`PartnerOrderDetailResponse.LineResponse` 에 productId 노출**(재고 batch 키). 화면 미노출(UUID 비공개=화면 노출만 금지). 출고/입고 슬립 라인은 이미 보유 |
+
+**산출**: partner-order LineResponse productId 1필드 + FE `fetchProductBalancesMatrix`(lines 기준 순회 — 잔량 없던 품목도 행 생성 + 전 창고 머지) + `InventoryLookupModal`(셀 3줄 가용/실/예약, 0토글, design-system 토큰: 가용0 danger·예약>0 warning, sticky 고정컬럼, th scope/caption/aria) + SlipDetailPage(기존 단일 alert 재고조회 대체)·SalesPartnerOrderDetailPage 배선 + Playwright 13. 5-team 사이클 N=2 APPROVE(skipped=0). **FE 전용 + BE 1필드** → 배포 partner-order→FE, Flyway 없음. 후속(비차단): SlipFormPage 모달 통합 / 시리얼 카운트 확장 / D2-6d Playwright CI 자동실행 게이트. spec/plan/dev-report `docs/.../2026-05-31-inventory-lookup-modal*`.
