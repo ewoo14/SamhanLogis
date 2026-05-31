@@ -2629,11 +2629,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ])
   }
 
-  // GET /admin/partners/search — admin/PartnersPage list
+  // GET /admin/partners/search — admin/PartnersPage list + AC-3 PartnerAutocomplete 검색
+  // q 파라미터로 partnerCode/name/bizNo/phone LIKE 필터 (대소문자 무시)
   if (method === 'GET' && url.includes('/admin/partners/search')) {
+    const q = (config.params?.['q'] as string | undefined) ?? ''
+    const lower = q.trim().toLowerCase()
+    const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
+    const filtered = lower
+      ? allItems.filter(
+          (item) =>
+            item.partnerCode.toLowerCase().includes(lower) ||
+            item.name.toLowerCase().includes(lower) ||
+            item.bizNo.toLowerCase().includes(lower) ||
+            (item.phone ?? '').toLowerCase().includes(lower),
+        )
+      : allItems
     return envelope({
-      items: MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row)),
-      total: MOCK_ADMIN_PARTNERS.length,
+      items: filtered,
+      total: filtered.length,
       page: 0,
       size: 20,
     })
@@ -2721,6 +2734,26 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       // row 의 거래 상태 반영 — 버전이력 패널 TERMINATED 복원 가드 검증용.
       status: (row as Record<string, unknown> | undefined)?.['status'] ?? 'ACTIVE',
     }))
+  }
+
+  // GET /admin/partners/{partnerCode} — 거래처 상세 (lookupPartnerForAutoFill + AC-3 detail fill)
+  // 주의: /admin/partners/search 보다 반드시 뒤에 배치 (search 가 더 specific 하므로 먼저 매칭됨)
+  const adminPartnerDetailMatch = url.match(/\/admin\/partners\/([^/?]+)$/)
+  if (method === 'GET' && adminPartnerDetailMatch) {
+    const code = decodeURIComponent(adminPartnerDetailMatch[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
+    if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    return envelope({
+      partnerCode: String(row['partnerCode'] ?? ''),
+      name: String(row['partnerName'] ?? row['name'] ?? ''),
+      phone: (row['phone'] as string | null | undefined) ?? null,
+      address: (row['address'] as string | null | undefined) ?? null,
+      representative: (row['representative'] as string | null | undefined) ?? null,
+      bizNo: String(row['businessNumber'] ?? row['bizNo'] ?? ''),
+      status: row['status'] ?? 'ACTIVE',
+    })
   }
 
   // POST/PUT/DELETE /admin/partners — 신규/수정/삭제

@@ -70,3 +70,5 @@ export * from './components/DataGrid'
 export * from './components/WarehouseAutocomplete'
 // AC-2 슬라이스 신규 — 품목 서버검색 자동완성 (async debounced, stale 방지)
 export * from './components/ProductAutocomplete'
+// AC-3 슬라이스 신규 — 거래처 서버검색 자동완성 (async debounced, stale 방지)
+export * from './components/PartnerAutocomplete'

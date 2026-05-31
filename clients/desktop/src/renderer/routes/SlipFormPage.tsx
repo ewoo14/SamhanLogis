@@ -33,12 +33,14 @@ import {
   KOREAN_MOBILE_PHONE_PATTERN,
   LineRow,
   LineTableHeader,
+  PartnerAutocomplete,
   PhoneInput,
   ProductAutocomplete,
   StockBalanceModal,
   WarehouseSelector,
   type DeliveryTagOption,
   type LineDraft,
+  type PartnerOption,
   type ProductOption,
   type StockBalanceRow,
   type WarehouseColumn,
@@ -73,6 +75,7 @@ import {
   type SlipType,
 } from '../api/slip'
 import { searchProducts as searchProductsApi } from '../api/productApi'
+import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 /**
@@ -199,9 +202,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
 
+  // AC-3: 거래처 자동완성 선택 상태 (PartnerAutocomplete controlled value)
+  const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
+
   // PR-G1 backlog #2 — V16 e-Count 12 컬럼 form state.
   // 거래처 자동 채움 (customerTel/Address/Representative) + 별도 입력 6 + 기간 2 + 분기 2.
-  const [partnerCode, setPartnerCode] = useState('')
+  // partnerCode 는 selectedPartner?.partnerCode 로 접근 (AC-3 이후 별도 state 불필요).
   const [customerTel, setCustomerTel] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
   const [customerRepresentative, setCustomerRepresentative] = useState('')
@@ -320,34 +326,50 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     // no-op: AC-2 ProductAutocomplete 가 onChange 로 updateLine 직접 호출
   }
 
-  // ── PR-G1 backlog #2 — 거래처 자동 채움 (partner-service lookup) ──
+  // ── AC-3: PartnerAutocomplete onChange 핸들러 ────────────────────────────────
 
   /**
-   * partnerCode 입력 후 "거래처 자동 채움" 버튼 클릭 시 호출.
+   * AC-3 거래처 자동완성 선택 핸들러 — 2단계 채움.
    *
-   * `GET /admin/partners/{partnerCode}` → name/phone/address/representative 200 응답.
-   * 200 시 customerTel/customerAddress/customerRepresentative + partnerName 자동 fill.
-   * 사용자가 채워진 후 자유롭게 수정 가능 (snapshot).
-   * 404 시 autoFillError 표시 — partner strict validation 정책에 따라 BE 가 발행 거부함.
+   * 1단계: 검색 summary(PartnerOption)로 partnerCode/partnerName/customerTel 즉시 fill.
+   * 2단계: GET /admin/partners/{partnerCode} → customerAddress/customerRepresentative 보강.
+   *        (기존 handlePartnerAutoFill 로직 재사용 — address/representative 는 search 응답에 없음)
+   *
+   * partner=null(해제) 시 관련 필드 클리어.
    */
-  const handlePartnerAutoFill = async () => {
-    const trimmed = partnerCode.trim()
-    if (!trimmed) {
-      setAutoFillError('거래처 코드를 먼저 입력하세요')
+  const handlePartnerAutocompleteChange = async (
+    partner: PartnerOption | null,
+  ) => {
+    setSelectedPartner(partner)
+
+    if (!partner) {
+      // 선택 해제 — 관련 필드 클리어
+      setPartnerName('')
+      setCustomerTel('')
+      setCustomerAddress('')
+      setCustomerRepresentative('')
+      setAutoFillError(null)
       return
     }
+
+    // 1단계: search summary 즉시 fill
+    setPartnerName(partner.name)
+    setCustomerTel(partner.phone ?? '')
+
+    // 2단계: detail fetch → address/representative 보강 (기존 handlePartnerAutoFill 로직 재사용)
     setAutoFillLoading(true)
     setAutoFillError(null)
     try {
-      const partner = await lookupPartnerForAutoFill(trimmed)
-      setPartnerName(partner.name)
-      if (partner.phone) setCustomerTel(partner.phone)
-      if (partner.address) setCustomerAddress(partner.address)
-      if (partner.representative) setCustomerRepresentative(partner.representative)
+      const detail = await lookupPartnerForAutoFill(partner.partnerCode)
+      if (detail.address) setCustomerAddress(detail.address)
+      if (detail.representative) setCustomerRepresentative(detail.representative)
+      // phone/name 은 summary 기준 우선, detail 로 보강
+      if (!partner.phone && detail.phone) setCustomerTel(detail.phone)
     } catch (err) {
-      const msg = axios.isAxiosError(err) && err.response?.status === 404
-        ? `거래처 코드 '${trimmed}' 를 찾을 수 없습니다. 먼저 partner-service 에 등록하세요.`
-        : '거래처 자동 채움에 실패했습니다.'
+      const msg =
+        axios.isAxiosError(err) && err.response?.status === 404
+          ? `거래처 코드 '${partner.partnerCode}' 상세 정보를 찾을 수 없습니다.`
+          : '거래처 상세 정보 조회에 실패했습니다.'
       setAutoFillError(msg)
     } finally {
       setAutoFillLoading(false)
@@ -598,35 +620,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-section-title">거래 명세 정보 (e-Count 12 필드)</div>
 
-        {/* 거래처 코드 + 자동 채움 버튼 */}
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 8 }}>
-          <FormField
-            label="거래처 코드"
-            hint="입력 후 '거래처 자동 채움' 버튼으로 연락처/주소/대표자 채우기"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={partnerCode}
-                onChange={(e) => setPartnerCode(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                placeholder="예: CUST-0001"
-                data-testid="slip-form-partner-code"
-              />
-            )}
+        {/* AC-3: 거래처 자동완성 (PartnerAutocomplete) — 선택 시 자동 채움 */}
+        <div style={{ marginTop: 8 }}>
+          <PartnerAutocomplete
+            value={selectedPartner}
+            onChange={(p) => { void handlePartnerAutocompleteChange(p) }}
+            searchPartners={searchPartnersApi}
+            label="거래처"
+            placeholder="거래처명 또는 코드 입력…"
+            ariaLabel="거래처 자동완성"
+            disabled={autoFillLoading}
           />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void handlePartnerAutoFill()}
-              loading={autoFillLoading}
-              disabled={!partnerCode.trim() || autoFillLoading}
-              data-testid="slip-form-partner-autofill-btn"
-            >
-              거래처 자동 채움
-            </Button>
-          </div>
         </div>
 
         {autoFillError ? (

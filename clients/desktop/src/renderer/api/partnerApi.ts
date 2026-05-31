@@ -26,6 +26,7 @@
  * <p>@PreAuthorize — SALES / MANAGER / MASTER (BE 와 일치).
  */
 import { apiClient, type ApiEnvelope } from './client'
+import type { PartnerOption } from '@samhan/design-system'
 
 // ---------------------------------------------------------------------------
 // 공통 열거형
@@ -503,4 +504,64 @@ export const MOCK_PARTNER_FULL: PartnerFullResponse = {
       memo: null,
     },
   ],
+}
+
+// ---------------------------------------------------------------------------
+// AC-3 슬라이스 — 거래처 서버검색 자동완성
+// ---------------------------------------------------------------------------
+
+/**
+ * admin-service `PartnerSummaryResponse` 매핑 타입 (AC-3 FE 전용).
+ *
+ * <p>BE `GET /admin/partners/search` 응답의 `items` 배열 원소.
+ * `id` (UUID) 는 BE 응답에 없거나 노출 금지 — partnerCode/name 이 식별자.
+ */
+interface PartnerSummaryResponse {
+  partnerCode: string
+  name: string
+  bizNo?: string | null
+  phone?: string | null
+}
+
+/**
+ * admin-service `AdminPartnerListResponse` 래퍼.
+ */
+interface AdminPartnerListResponse {
+  items: PartnerSummaryResponse[]
+  total?: number
+  page?: number
+  size?: number
+}
+
+/**
+ * 거래처 부분 검색 — `GET /admin/partners/search?q={q}&size=20`.
+ *
+ * <p>admin-service 의 `AdminPartnerController.search` 로 라우팅.
+ * `q` 파라미터로 partnerCode/name/bizNo/phone LIKE 검색.
+ *
+ * UUID 비공개 가드: 응답에 UUID 없음. partnerCode/name 이 사용자 표시 식별자.
+ *
+ * @param q 검색어 (거래처명·코드·사업자번호·전화 부분 입력)
+ * @returns `PartnerOption[]` — 실패 시 빈 배열 (graceful degradation)
+ */
+export async function searchPartners(q: string): Promise<PartnerOption[]> {
+  try {
+    const res = await apiClient.get<ApiEnvelope<AdminPartnerListResponse>>(
+      '/admin/partners/search',
+      {
+        params: { q, size: 20 },
+      },
+    )
+    const data = res.data.data
+    const items = Array.isArray(data?.items) ? data.items : []
+    return items.map((p): PartnerOption => ({
+      partnerCode: p.partnerCode ?? '',
+      name: p.name ?? '',
+      bizNo: p.bizNo ?? undefined,
+      phone: p.phone ?? undefined,
+    }))
+  } catch {
+    // 네트워크/서버 오류 시 graceful 빈 배열 반환
+    return []
+  }
 }
