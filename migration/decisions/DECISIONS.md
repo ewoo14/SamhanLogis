@@ -2608,3 +2608,20 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 **산출(AC-2, 2026-05-31)**: design-system `ProductAutocomplete`(**서버검색형** — WarehouseAutocomplete 의 async 변형: `searchProducts:(q)=>Promise<ProductOption[]>` 주입, debounce/minChars/로딩·빈·에러/stale 응답 무시/combobox) + Storybook + `LineRow` optional `modelCell` slot(backward compat) + desktop `searchProducts(q)`(`GET /api/products?q=` product-service, 백엔드 무변경) + SlipFormPage 품목 라인 배선(modelName onBlur 정확매칭 → 부분입력 서버검색) + Playwright(`5e407438`). 결정: D-AC2-01 서버검색형(다수 품목) / D-AC2-02 product-service q 검색 재사용(백엔드 무변경) / D-AC2-03 LineRow modelCell slot(타 소비자 격리) / D-AC2-04 SlipFormPage 만. spec/dev-report `docs/.../2026-05-31-ac2-product-autocomplete*`. AC-3 거래처 후속.
 
 **산출(AC-3, 2026-05-31)**: design-system `PartnerAutocomplete`(ProductAutocomplete 포팅 — 서버검색 async/debounce/per-instance seq/로딩·빈·에러/isCompact aria-label/combobox/blur 게이트) + Storybook + desktop `searchPartners(q)`(`GET /admin/partners/search?q=` code/name/bizNo/phone, 백엔드 무변경) + SlipFormPage 거래처 필드 배선(`01fc6da0`). 결정: D-AC3-01 서버검색형 / D-AC3-02 /admin/partners/search 재사용 / **D-AC3-03 2단계 채움**(검색 summary code/name/phone 즉시 + address/representative 는 기존 detail `GET /admin/partners/{code}` 재사용 보강, 수동 자동채움 버튼 → 선택 시 자동) / D-AC3-04 SlipFormPage 거래처만. Playwright 7/7 PASS. **마스터데이터 자동완성 트리오(창고#331/품목#332/거래처) 완료** → 공용 async typeahead(`AsyncAutocomplete<T>`) 추출 별도 리팩터 후보. spec/dev-report `docs/.../2026-05-31-ac3-partner-autocomplete*`.
+
+---
+
+### D-MRG. 다중 주문 → 단일 출고전표 병합 전환 (Phase 2.6b ② = D2, 2026-05-31)
+
+**배경**: 2.6a 단일주문 부분전환·2.6c 재고 reserve·D1 confirm 자동발행 폐지 후, 같은 거래처의 여러 DRAFT/ON_HOLD 주문을 하나의 출고전표로 병합 발행하는 기능. 기존 `slip.sourceId` 가 단일 String 이라 N:1 출처추적 불가.
+
+| 결정 | 내용 |
+|---|---|
+| D-MRG-01 | **N:1 출처추적 = slip-service `slip_source_orders`(V30) 조인 테이블**(slip_id, partner_order_id, order_no) + 기존 `SlipLine.sourceOrderLineId`(V29) 라인레벨 병행. 단일주문 경로는 미기록(회귀 0). `slip.sourceId`=대표(첫) 주문, N:1 진실은 조인 테이블. |
+| D-MRG-02 | **신규 병합 엔드포인트 추가** — partner-order `POST /convert-to-slip-merge` + slip `POST /from-orders-merge`. 검증된 단일주문 경로(`/{id}/convert-to-slip`, `publishFromPartnerOrder`) 무변경, 공통 헬퍼만 재사용. |
+| D-MRG-03 | **헤더 '/' 병기 = FE 가 최종 확정 전송**, BE 는 그대로 저장 + partnerCode 동일성만 검증(불일치 409). 사용자 통제·단순. |
+| D-MRG-04 | **원자적(all-or-nothing)** — 한 라인 가용부족 또는 slip 발행 실패 → 전체 409 + 예약 성공분 release 보상(멱등 no-op 제외). 단일주문 reserve 사전차단과 일관. partner_order_db 단일 트랜잭션. |
+| D-MRG-05 | **권한 = 기존 `sales.partner-order.convert` CREATE 재사용**. 신규 page 코드/시드 불필요. |
+| D-MRG-06 | **주문 식별자 = `PartnerOrderIdResolver`(주문번호/UUID 양용)**, 단일 경로와 일관. 응답은 orderNo 반환(UUID 비공개). 결정적 멱등키 `PO-MRG-{SHA256[:16]}`(전 주문/라인 convertedBefore 스냅샷) = reserve referenceId + slip Idempotency-Key 공용. |
+
+**산출**: slip V30 `slip_source_orders` + `SlipSourceOrder` 엔티티/리포지토리 + `publishFromOrdersMerge` + `findBySource` UNION 확장(비대표 주문 역조회) + `SlipPublishMergeIT` 6종. partner-order `MergeConvertToSlipRequest`/`MergeConvertResultResponse` + `PartnerOrderMergeConvertService`(reserve→발행→보상 N주문 일반화) + `POST /convert-to-slip-merge` + `SlipServiceClient.publishFromOrdersMerge` + 단위 8/IT 12. desktop 주문목록 다중선택+병합버튼 + `MergeConvertDialog`(충돌헤더 라디오/직접입력, 비가역 danger 경고, 4-AND 제출) + Playwright 9. 5-team 사이클 N=2 APPROVE(skipped=0). 배포순서 slip→partner-order→FE(런북 `docs/runbooks/d2-order-merge-deploy.md`). spec/plan/dev-report `docs/.../2026-05-31-order-merge-to-slip*`. 후속(비차단): 목록 배지 갱신 E2E, discountInfo 충돌헤더(PartnerOrderDetail 미보유), D2 Playwright CI 자동실행 게이트, 공용 AsyncAutocomplete 추출.
