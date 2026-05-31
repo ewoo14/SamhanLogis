@@ -3,20 +3,26 @@
  *
  * <p>거래처가 보낸 주문 목록 (legacy partner-order Code.js 의 ORDER DB 결과 → SamhanLogis
  * partner-order-service M4 통합).
+ *
+ * <p>Phase 2.6b D2: 체크박스 다중선택 + 병합 전환 버튼 추가.
+ * DRAFT/ON_HOLD 행만 선택 가능. 선택 주문 partnerCode 동일할 때만 버튼 활성.
  */
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Input, Select } from '@samhan/design-system'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button, Input, Select } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   listPartnerOrders,
   type PartnerOrderStatus,
+  type PartnerOrderSummary,
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
+import { useSessionStore } from '../stores/session'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
+import { MergeConvertDialog } from './components/MergeConvertDialog'
 import styles from '../components/sales/sales.module.css'
 
 const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
@@ -34,6 +40,15 @@ const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
 const toOrderPathId = (orderNumber: string) => orderNumber.replace(/\//g, '-')
 
 /**
+ * Phase 2.6b D2: 병합 전환 선택 가능 status (DRAFT/ON_HOLD).
+ * CONFIRMED/CANCELED/CONVERTED 행은 체크박스 비활성.
+ */
+const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT', 'ON_HOLD'])
+
+/** 병합 전환 허용 역할 — sales.partner-order.convert CREATE 와 동일 매트릭스. */
+const MERGE_CONVERT_ROLES = ['SALES', 'MANAGER', 'MASTER']
+
+/**
  * P1-3: confirmedAt 없는 status(DRAFT/ON_HOLD/CONFIRMING) 는 BE 가 createdAt 기준으로
  * 기간필터를 적용한다. 기간 입력 영역에 컨텍스트 힌트를 제공하여 사용자 혼란 방지.
  */
@@ -46,11 +61,22 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
+  const auth = useSessionStore((s) => s.auth)
+  const queryClient = useQueryClient()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [partnerId, setPartnerId] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
   const [searchKeyword, setSearchKeyword] = useState('')
+
+  /** Phase 2.6b D2: 다중선택 상태 — orderNumber Set. */
+  const [selectedOrderNumbers, setSelectedOrderNumbers] = useState<Set<string>>(new Set())
+  /** Phase 2.6b D2: 병합 전환 모달 open/close. */
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
+  /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
+  const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
+
+  const canMergeConvert = !!auth?.role && MERGE_CONVERT_ROLES.includes(auth.role)
 
   /**
    * P1-3: status 변경 시 기간 필터 초기화 + 컨텍스트 힌트 표시.
@@ -62,6 +88,8 @@ export function SalesPartnerOrderListPage() {
     // 기간 의미(confirmedAt vs createdAt)가 달라지므로 기존 값을 유지하면 결과가 달라질 수 있음.
     setDateFrom('')
     setDateTo('')
+    // 필터 변경 시 선택 초기화
+    setSelectedOrderNumbers(new Set())
   }
 
   const isPreConfirmStatus =
@@ -86,6 +114,51 @@ export function SalesPartnerOrderListPage() {
     retry: 1,
     refetchInterval: 30_000,
   })
+
+  /**
+   * Phase 2.6b D2: 현재 선택된 주문 객체 배열 (목록에서 orderNumber 매칭).
+   * 병합 가능 조건: 2건 이상 + 모두 같은 partnerCode.
+   */
+  const selectedOrders: PartnerOrderSummary[] = (query.data?.content ?? []).filter(
+    (o) => o.orderNumber && selectedOrderNumbers.has(o.orderNumber),
+  )
+
+  const selectedCount = selectedOrders.length
+
+  /**
+   * 선택 주문들의 partnerCode 가 모두 동일하면 true.
+   * 0~1건이면 병기 판정 불필요이므로 false 반환 (버튼 비활성).
+   */
+  const allSamePartner =
+    selectedCount >= 2 &&
+    new Set(selectedOrders.map((o) => o.partnerCode)).size === 1
+
+  const mergeButtonEnabled = canMergeConvert && selectedCount >= 2 && allSamePartner
+
+  const handleRowCheckboxChange = (orderNumber: string, checked: boolean) => {
+    setSelectedOrderNumbers((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(orderNumber)
+      } else {
+        next.delete(orderNumber)
+      }
+      return next
+    })
+  }
+
+  const handleMergeDialogClose = () => {
+    setMergeDialogOpen(false)
+  }
+
+  const handleMergeDialogSuccess = async (slipNo: string) => {
+    setMergeDialogOpen(false)
+    setSelectedOrderNumbers(new Set())
+    setConvertSuccessMessage(`출고전표 ${slipNo} 발행 완료`)
+    // 3초 후 토스트 자동 소멸
+    setTimeout(() => setConvertSuccessMessage(null), 3000)
+    await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+  }
 
   return (
     <div className={styles['salesScope']}>
@@ -116,6 +189,29 @@ export function SalesPartnerOrderListPage() {
           message="주문 row 를 클릭하면 상세 화면에서 변경 이력 (수정 횟수 / 복원) 을 확인할 수 있습니다. 본 목록은 30초마다 자동 갱신됩니다."
           testId="partner-order-list-audit-info-banner"
         />
+        {/* Phase 2.6b D2: 병합 전환 성공 토스트 */}
+        {convertSuccessMessage ? (
+          <div
+            data-testid="merge-convert-success-toast"
+            role="status"
+            aria-live="polite"
+            style={{
+              background: '#F0FDF4',
+              border: '1px solid #86EFAC',
+              color: '#166534',
+              borderRadius: 6,
+              padding: '10px 14px',
+              marginBottom: 8,
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 16 }}>&#10003;</span>
+            {convertSuccessMessage}
+          </div>
+        ) : null}
         <div className={styles['top']}>
           <div className={styles['title']}>
             주문서 관리
@@ -173,6 +269,62 @@ export function SalesPartnerOrderListPage() {
           </div>
         </div>
 
+        {/* Phase 2.6b D2: 병합 전환 액션 바 — 2건 이상 선택 시 표시 */}
+        {canMergeConvert && selectedCount >= 1 ? (
+          <div
+            data-testid="merge-convert-action-bar"
+            role="region"
+            aria-label="선택 주문 병합 전환"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 12px',
+              marginBottom: 8,
+              background: '#F0F9FF',
+              border: '1px solid #BAE6FD',
+              borderRadius: 6,
+              fontSize: 13,
+            }}
+          >
+            <span data-testid="merge-convert-selected-count">
+              {selectedCount}건 선택됨
+            </span>
+            {!allSamePartner && selectedCount >= 2 ? (
+              <span
+                data-testid="merge-convert-mixed-partner-warn"
+                style={{ color: '#B45309', fontSize: 12 }}
+              >
+                (같은 거래처만 병합 가능합니다)
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="merge-convert-open"
+              disabled={!mergeButtonEnabled}
+              title={
+                !allSamePartner && selectedCount >= 2
+                  ? '같은 거래처 주문만 병합 가능합니다'
+                  : selectedCount < 2
+                    ? '2건 이상 선택하세요'
+                    : undefined
+              }
+              onClick={() => setMergeDialogOpen(true)}
+            >
+              출고전표로 병합 전환
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              data-testid="merge-convert-deselect-all"
+              onClick={() => setSelectedOrderNumbers(new Set())}
+            >
+              선택 해제
+            </Button>
+          </div>
+        ) : null}
+
         {query.isLoading ? (
           <div className={styles['emptyState']}>주문 목록을 불러오는 중…</div>
         ) : query.isError ? (
@@ -189,6 +341,11 @@ export function SalesPartnerOrderListPage() {
           <table className={styles['listTable']}>
             <thead>
               <tr>
+                {canMergeConvert ? (
+                  <th style={{ width: 32 }}>
+                    <span className="sr-only">선택</span>
+                  </th>
+                ) : null}
                 <th>주문 번호</th>
                 <th>거래처 코드</th>
                 <th>거래처명</th>
@@ -199,11 +356,20 @@ export function SalesPartnerOrderListPage() {
               </tr>
             </thead>
             <tbody>
-              {(query.data?.content ?? []).map((o) => (
+              {(query.data?.content ?? []).map((o) => {
+                const isSelectable =
+                  canMergeConvert &&
+                  !!o.orderNumber &&
+                  MERGE_SELECTABLE_STATUS.has(o.status as PartnerOrderStatus)
+                const isSelected = !!o.orderNumber && selectedOrderNumbers.has(o.orderNumber)
+                return (
                 <tr
                   key={o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
                   style={!o.orderNumber ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                  onClick={() => {
+                  data-testid={o.orderNumber ? `partner-order-row-${o.orderNumber}` : undefined}
+                  onClick={(e) => {
+                    // 체크박스 클릭 시 row navigate 방지
+                    if ((e.target as HTMLElement).closest('[data-merge-checkbox]')) return
                     if (!o.orderNumber) {
                       console.warn('[SalesPartnerOrderListPage] orderNumber 누락 row 무시', o)
                       return
@@ -211,6 +377,27 @@ export function SalesPartnerOrderListPage() {
                     navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
                   }}
                 >
+                  {canMergeConvert ? (
+                    <td
+                      data-merge-checkbox="1"
+                      style={{ textAlign: 'center', verticalAlign: 'middle' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isSelectable ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`${o.orderNumber} 선택`}
+                          data-testid={`merge-checkbox-${o.orderNumber}`}
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (o.orderNumber) {
+                              handleRowCheckboxChange(o.orderNumber, e.target.checked)
+                            }
+                          }}
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
                   <td>{o.orderNumber}</td>
                   <td>{o.partnerCode}</td>
                   <td>{o.partnerName ?? o.partnerCode}</td>
@@ -223,11 +410,20 @@ export function SalesPartnerOrderListPage() {
                   </td>
                   <td>{o.linkedSlipNo ?? '-'}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Phase 2.6b D2: 병합 전환 모달 */}
+      {mergeDialogOpen ? (
+        <MergeConvertDialog
+          selectedOrders={selectedOrders}
+          onClose={handleMergeDialogClose}
+          onSuccess={(slipNo) => void handleMergeDialogSuccess(slipNo)}
+        />
+      ) : null}
     </div>
   )
 }

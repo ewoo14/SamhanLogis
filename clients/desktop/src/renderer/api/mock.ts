@@ -2343,17 +2343,44 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalAmount: 5200000,
       linkedSlipNo: 'SL-20260503-001',
     }
+    // Phase 2.6b D2: 병합 시나리오 4·5용 — SAME_PARTNER 같은 거래처 2건 (DRAFT + ON_HOLD).
+    // partnerCode = '1234567890' (DRAFT_ROW 와 동일 거래처).
+    const SAME_PARTNER_DRAFT_ROW = {
+      orderNumber: '2026/05/31-3',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T08:00:00',
+      status: 'DRAFT' as const,
+      totalAmount: 2500000,
+      linkedSlipNo: null,
+    }
+    const SAME_PARTNER_ON_HOLD_ROW = {
+      orderNumber: '2026/05/31-4',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T09:00:00',
+      status: 'ON_HOLD' as const,
+      totalAmount: 1200000,
+      linkedSlipNo: null,
+    }
 
-    let content: (typeof DRAFT_ROW | typeof ON_HOLD_ROW | typeof CONFIRMED_ROW)[]
+    let content: (
+      | typeof DRAFT_ROW
+      | typeof ON_HOLD_ROW
+      | typeof CONFIRMED_ROW
+      | typeof SAME_PARTNER_DRAFT_ROW
+      | typeof SAME_PARTNER_ON_HOLD_ROW
+    )[]
     if (statusParam === 'DRAFT') {
-      content = [DRAFT_ROW]
+      // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW]
     } else if (statusParam === 'ON_HOLD') {
-      content = [ON_HOLD_ROW]
+      content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
     } else if (statusParam === 'CONFIRMED') {
       content = [CONFIRMED_ROW]
     } else {
-      // 전체 또는 기타 — 세 건 모두 반환 (하위 호환 유지)
-      content = [DRAFT_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
+      // 전체 또는 기타 — 모든 행 반환 (혼합 시나리오 포함)
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
     }
 
     return envelope({
@@ -3832,6 +3859,47 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ])
     }
     return envelope(baseRevisions)
+  }
+
+  // ==========================================================================
+  // Phase 2.6b D2: 다중주문 병합 전환 — POST /api/v1/partner-orders/convert-to-slip-merge
+  //
+  // 중요: partnerOrderDetailMatch 보다 앞단에 배치 (경로 더 구체적).
+  // 성공 — { slipNo, convertedOrders } 반환.
+  //   mockMerge409=mixed   → 409 (거래처 불일치)
+  //   mockMerge409=stock   → 409 (재고 부족)
+  //   기본                 → 성공 (SL-20260531-MERGE-001)
+  // ==========================================================================
+
+  if (method === 'POST' && /\/api\/v1\/partner-orders\/convert-to-slip-merge/.test(url)) {
+    const params = mockLocationParams()
+    const mock409 = params.get('mockMerge409')
+    if (mock409 === 'mixed') {
+      return mockError(
+        409,
+        'PARTNER_ORDER_MERGE_DIFFERENT_PARTNER',
+        '병합은 같은 거래처 주문만 가능합니다.',
+      )
+    }
+    if (mock409 === 'stock') {
+      return mockError(
+        409,
+        'INVENTORY_INSUFFICIENT_STOCK',
+        '재고 부족: 실외기(AJ040RXH4BC1) 요청 2, 가용 0',
+      )
+    }
+    const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+    const orders = (body?.orders as Array<{ partnerOrderId: string }>) ?? []
+    // BE 확정 응답 형태: orderNo(주문번호) + orderStatus + fullyConverted.
+    // partnerOrderId(UUID) 는 요청 전용 — 응답에는 orderNo(사용자 식별자) 반환.
+    return envelope({
+      slipNo: 'SL-20260531-MERGE-001',
+      convertedOrders: orders.map((o) => ({
+        orderNo: o.partnerOrderId,  // mock: 요청의 partnerOrderId 값을 orderNo 로 그대로 반환
+        orderStatus: 'CONVERTED',
+        fullyConverted: true,
+      })),
+    })
   }
 
   // ==========================================================================

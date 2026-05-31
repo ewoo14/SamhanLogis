@@ -508,6 +508,67 @@ export async function updatePartnerOrder(
   return res.data.data
 }
 
+// ---------------------------------------------------------------------------
+// partner-order-service — 다중주문 병합 전환 (Phase 2.6b D2)
+// ---------------------------------------------------------------------------
+
+/**
+ * 병합 전환 대상 주문 1건 + 선택 라인.
+ * partnerOrderId 는 UUID 문자열이지만 사용자 화면에 미노출 (orderLineId 도 동일).
+ */
+export interface MergeConvertOrderItems {
+  /** 주문 UUID — API 전송 전용, 사용자 노출 금지. */
+  partnerOrderId: string
+  items: { orderLineId: string; quantity: number }[]
+}
+
+/** 병합 전환 확정 헤더 — FE 가 충돌 필드를 '/' 병기/선택 후 전달. */
+export interface MergeConvertShippingInfo {
+  partnerName?: string
+  shippingAddress?: string
+  receiverPhone?: string
+  paymentDueLabel?: string
+  discountInfo?: string
+  memo?: string
+}
+
+/**
+ * 병합 전환 결과 — BE MergeConvertResultResponse 와 1:1.
+ *
+ * @param slipNo 발급된 단일 출고전표 번호 (사용자 노출).
+ * @param convertedOrders 전환된 주문별 상태.
+ *   - orderNo: 주문번호 (BE 확정 — UUID 아님, 사용자 노출 가능).
+ *   - orderStatus: 전환 후 주문 상태 (CONVERTED / DRAFT 등).
+ *   - fullyConverted: 전량 전환 여부.
+ */
+export interface MergeConvertResult {
+  slipNo: string
+  convertedOrders: { orderNo: string; orderStatus: string; fullyConverted: boolean }[]
+}
+
+/**
+ * 다중 주문 병합 전환 — 선택 주문/라인을 단일 출고전표로 병합 발행한다 (Phase 2.6b D2).
+ *
+ * <p>BE: {@code POST /api/v1/partner-orders/convert-to-slip-merge}. 권한: sales.partner-order.convert CREATE.
+ * 같은 거래처 DRAFT/ON_HOLD 주문만 허용 (BE 가 partnerCode 동일성 검증 후 처리).
+ * 잔여 초과 또는 거래처 불일치 시 BE 가 409 반환.
+ *
+ * @param orders 병합 대상 주문 목록 (각각 partnerOrderId + 선택 라인)
+ * @param warehouseCode 출고 창고 코드 (필수)
+ * @param shippingInfo FE 확정 병합 헤더
+ */
+export async function mergeConvertToSlip(
+  orders: MergeConvertOrderItems[],
+  warehouseCode: string,
+  shippingInfo: MergeConvertShippingInfo,
+): Promise<MergeConvertResult> {
+  const res = await apiClient.post<ApiEnvelope<MergeConvertResult>>(
+    '/api/v1/partner-orders/convert-to-slip-merge',
+    { orders, warehouseCode, shippingInfo },
+  )
+  return res.data.data
+}
+
 /** 주문 soft delete. */
 export async function deletePartnerOrder(orderNumber: string): Promise<void> {
   await apiClient.delete(
