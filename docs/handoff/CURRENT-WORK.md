@@ -6,8 +6,8 @@
 
 ## 🧭 새 세션 시작 가이드 (2026-05-31 갱신)
 
-**현재 상태**: **AC-3(거래처 자동완성) 진입 대기**. C(#328)·D1(#329)·confirm복구(#330)·AC-1(#331)·**AC-2 품목자동완성(#332 `6f83afaf`)** 머지 완료. (순서 = C✅→D1✅→confirm복구✅→AC-1✅→AC-2✅→**AC-3 거래처(다음)**→D2 병합→B→A.) DECISIONS D-AC-01~03 / D-AC2-01~04.
-**AC-3 메모**: 거래처 검색 = partner-service `/admin/partners/search`(명·코드·정보) 추정 — AC-3 spec 시 실제 확인. ProductAutocomplete(서버검색 async) 패턴 재사용(거래처도 다수). 공용 typeahead 추출은 AC-3 후 재평가.
+**현재 상태**: **AC-3(거래처 자동완성) 구현 완료** — 브랜치 `feat/ac-3-partner-autocomplete`(`01fc6da0` PartnerAutocomplete + searchPartners + SlipFormPage 2단계 채움 + docs). **PR + 5-team + Docker 실 QA 대기**. C(#328)·D1(#329)·confirm복구(#330)·AC-1(#331)·AC-2(#332) 머지 완료. (순서 = C✅→D1✅→confirm복구✅→AC-1✅→AC-2✅→**AC-3(구현완료)**→D2 병합→B→A.) DECISIONS D-AC-01~03 / D-AC2-01~04 / D-AC3-01~04.
+**자동완성 트리오 완료(AC-3 머지 시)** → 공용 async typeahead(`AsyncAutocomplete<T>`) 추출 별도 리팩터 후보. confirm 후속(거래처코드 시드 정합) 미해결.
 **⚠️ AC-3 선결**: 거래처 검색 API(명·코드·정보) 확인 — partner-service `/admin/partners/search` 등 존재(slice C 메모). AC-2 검색 = product-service `GET /products?q=`(name/model_name LIKE) 재사용 확인됨.
 **⚠️ confirm 복구 후속(비차단)**: ① **partner_order ↔ dc-config 거래처코드 시드 정합**(DevOps/seed) — 정합 후 실 confirm DC 실적용 재-QA(현재 로컬 시드 불일치로 fail-soft, 코드는 정상 partnerCode 전송). ② order-app FE "전송 완료" 실 캡처(partner_auth 시드 부재로 #330 QA BLOCKED). ③ confirm 옵션 정액 DC / estimate price-calc / N-1 P2.
 **환경 메모**: ⚠️ Codex 6/1(월) 12:00 복구 전 → 구현+리뷰 모두 Claude 에이전트. 5-team 패턴 + 사이클 N=2 + Docker 실 QA([[no-fake-data-ever]]) + [[always-mouse-choices]] 유지.
