@@ -353,8 +353,13 @@ export interface PartnerOrderSummary {
   linkedSlipNo: string | null
 }
 
-/** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. Phase 2.6a: lineId/convertedQuantity 추가. */
+/** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. Phase 2.6a: lineId/convertedQuantity 추가. Phase 2.6d: productId 추가. */
 export interface PartnerOrderLine {
+  /**
+   * 재고 batch 조회 키. 화면 미노출(UUID 비공개).
+   * BE PartnerOrderDetailResponse.LineResponse.productId (Phase 2.6d 노출).
+   */
+  productId: string
   /**
    * 라인 UUID — BE PartnerOrderDetailResponse.LineResponse.lineId.
    * 사용자 화면 미노출; 부분전환 요청의 orderLineId 로만 사용.

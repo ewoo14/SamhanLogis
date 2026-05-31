@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
-import { listWarehouses } from '../api/inventory'
+import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   convertPartnerOrderToSlip,
@@ -23,6 +23,7 @@ import {
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
 } from '../api/sales'
+import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -86,6 +87,10 @@ export function SalesPartnerOrderDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
+  /** Phase 2.6d: 재고조회 다중선택 라인 ID 집합. */
+  const [checkedLineIds, setCheckedLineIds] = useState<Set<string>>(new Set())
+  /** Phase 2.6d: 재고조회 모달 open 상태. */
+  const [inventoryLookupOpen, setInventoryLookupOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
@@ -589,12 +594,61 @@ export function SalesPartnerOrderDetailPage() {
                 <div className={styles['cardTitle']}>
                   라인 ({query.data.lines?.length ?? 0}건)
                 </div>
+                {/* Phase 2.6d: 선택 품목 재고조회 버튼 */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={checkedLineIds.size === 0}
+                    data-testid="partner-order-inventory-lookup-btn"
+                    onClick={() => setInventoryLookupOpen(true)}
+                    title={
+                      checkedLineIds.size === 0
+                        ? '라인을 1개 이상 선택하세요'
+                        : `선택 ${checkedLineIds.size}건 재고조회`
+                    }
+                  >
+                    선택 품목 재고조회
+                    {checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
+                  </Button>
+                  {checkedLineIds.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setCheckedLineIds(new Set())}
+                    >
+                      선택 해제
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className={styles['tableWrap']}>
                 <table className={styles['estTable']}>
                   <thead>
                     {/* v2 §정정 4/5 — '품명'→'품목명', '모델 코드'→'모델명' */}
                     <tr>
+                      {/* Phase 2.6d: 재고조회 체크박스 컬럼 */}
+                      <th style={{ width: 28, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          aria-label="전체 선택"
+                          checked={
+                            (query.data.lines?.length ?? 0) > 0 &&
+                            (query.data.lines ?? []).every((l) =>
+                              checkedLineIds.has(l.lineId),
+                            )
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setCheckedLineIds(
+                                new Set((query.data.lines ?? []).map((l) => l.lineId)),
+                              )
+                            } else {
+                              setCheckedLineIds(new Set())
+                            }
+                          }}
+                        />
+                      </th>
                       <th>품목명</th>
                       <th>모델명</th>
                       <th>수량</th>
@@ -610,8 +664,28 @@ export function SalesPartnerOrderDetailPage() {
                     {(query.data.lines ?? []).map((line, index) => {
                       const converted = line.convertedQuantity ?? 0
                       const remaining = line.quantity - converted
+                      const checked = checkedLineIds.has(line.lineId)
                       return (
-                        <tr key={`${line.modelCode}-${line.productName}-${index}`}>
+                        <tr key={`${line.lineId}-${index}`}>
+                          {/* Phase 2.6d: 재고조회 체크박스 */}
+                          <td style={{ textAlign: 'center', paddingLeft: 4 }}>
+                            <input
+                              type="checkbox"
+                              aria-label={`${line.modelCode} 재고조회 선택`}
+                              checked={checked}
+                              onChange={() => {
+                                setCheckedLineIds((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(line.lineId)) {
+                                    next.delete(line.lineId)
+                                  } else {
+                                    next.add(line.lineId)
+                                  }
+                                  return next
+                                })
+                              }}
+                            />
+                          </td>
                           <td className={styles['tdLeft']}>{line.productName}</td>
                           <td>{line.modelCode}</td>
                           <td className={styles['numericCol']}>{line.quantity}</td>
@@ -1048,6 +1122,25 @@ export function SalesPartnerOrderDetailPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Phase 2.6d: 재고조회 모달 */}
+      {(() => {
+        const lookupLines: StockBalanceLookupLine[] = (query.data?.lines ?? [])
+          .filter((l) => checkedLineIds.has(l.lineId) && l.productId)
+          .map((l) => ({
+            productId: l.productId,
+            // modelCode = modelName 매핑 (주문 라인 필드명 차이)
+            modelName: l.modelCode,
+            productName: l.productName,
+          }))
+        return (
+          <InventoryLookupModal
+            open={inventoryLookupOpen}
+            onClose={() => setInventoryLookupOpen(false)}
+            lines={lookupLines}
+          />
+        )
+      })()}
     </div>
   )
 

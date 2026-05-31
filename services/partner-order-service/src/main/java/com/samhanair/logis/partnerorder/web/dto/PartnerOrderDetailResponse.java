@@ -63,6 +63,7 @@ public record PartnerOrderDetailResponse(
     /**
      * 주문 상세 라인.
      *
+     * @param productId 재고 batch 조회 키. 사용자 화면 미노출(UUID 비공개).
      * @param lineId 라인 UUID — FE 부분전환 요청(orderLineId) 에 사용. 사용자 화면 미노출.
      * @param modelCode 사용자 표시 모델명.
      * @param productName 품목명.
@@ -75,6 +76,7 @@ public record PartnerOrderDetailResponse(
      * @param expandedComponents 번들 펼침 구성품. 현재 저장 컬럼이 없어 빈 배열.
      */
     public record LineResponse(
+            String productId,
             String lineId,
             String modelCode,
             String productName,
@@ -88,6 +90,7 @@ public record PartnerOrderDetailResponse(
     ) {
         static LineResponse from(PartnerOrderLine line) {
             return new LineResponse(
+                    line.getProductId().toString(),
                     line.getId().toString(),
                     line.getModelName(),
                     line.getProductName(),

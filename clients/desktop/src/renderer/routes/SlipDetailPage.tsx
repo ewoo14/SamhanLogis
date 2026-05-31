@@ -64,7 +64,8 @@ import {
   type SlipTransitionAction,
   type SlipType,
 } from '../api/slip'
-import { fetchStockBalanceBatch } from '../api/inventory'
+import { type StockBalanceLookupLine } from '../api/inventory'
+import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { invalidateSignature } from '../api/signature'
 import {
   addSlipComment,
@@ -212,8 +213,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const listPath = isOutbound ? '/sales' : '/purchases'
 
   const [rejectReason, setRejectReason] = useState('')
-  /** 좌측 넘버링 클릭으로 선택된 라인 ID — 선택 시 상단 툴바 표시. */
+  /** 좌측 넘버링 클릭으로 선택된 라인 ID — 선택 시 상단 툴바 표시 (단일 선택, 행 편집용). */
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  /** Phase 2.6d: 재고조회 다중선택 라인 ID 집합. */
+  const [checkedLineIds, setCheckedLineIds] = useState<Set<string>>(new Set())
+  /** Phase 2.6d: 재고조회 모달 open 상태. */
+  const [inventoryLookupOpen, setInventoryLookupOpen] = useState(false)
   // link-dispatch-slice 신규: driver 인라인 편집 state (DRAFT/SAVED 만 활성)
   const [editingDriver, setEditingDriver] = useState(false)
   const [draftDriverName, setDraftDriverName] = useState('')
@@ -847,30 +852,33 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     ? slip.lines.find((l) => l.id === selectedLineId) ?? null
     : null
 
-  /** 선택된 라인의 product 재고를 batch endpoint 로 조회 후 alert. */
-  const handleStockQuery = async () => {
-    if (!selectedLine) return
-    try {
-      const res = await fetchStockBalanceBatch([
-        {
-          productId: selectedLine.productId,
-          modelName: selectedLine.modelName ?? '',
-          productName: selectedLine.productName ?? '',
-        },
-      ])
-      const row = res.rows[0]
-      if (!row) {
-        alert(`${selectedLine.modelName ?? '-'} 재고 정보 없음`)
-        return
+  /**
+   * Phase 2.6d: 체크박스 다중선택 토글.
+   * productId 보유 라인만 선택 가능.
+   */
+  const handleLineCheckToggle = (lineId: string) => {
+    setCheckedLineIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(lineId)) {
+        next.delete(lineId)
+      } else {
+        next.add(lineId)
       }
-      const perWh = Object.entries(row.perWarehouse)
-        .map(([code, qty]) => `${code}: ${qty == null ? '가상' : qty.toLocaleString()}`)
-        .join('\n')
-      alert(`[재고 조회] ${row.modelName}\n총합: ${row.total.toLocaleString()}\n\n${perWh}`)
-    } catch {
-      alert('재고 조회 실패')
-    }
+      return next
+    })
   }
+
+  /**
+   * Phase 2.6d: 선택 품목 재고조회 모달 열기.
+   * 선택된 라인의 {productId, modelName, productName} 배열로 모달 open.
+   */
+  const inventoryLookupLines: StockBalanceLookupLine[] = slip.lines
+    .filter((l) => checkedLineIds.has(l.id) && l.productId)
+    .map((l) => ({
+      productId: l.productId,
+      modelName: l.modelName ?? '',
+      productName: l.productName ?? '',
+    }))
 
   /** 행 삭제 — 경고창 후 BE DELETE. */
   const handleRemoveLine = () => {
@@ -1494,8 +1502,47 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       <h4 style={{ marginTop: 24 }}>전표 라인</h4>
 
       {/*
+        Phase 2.6d: 재고조회 툴바 — 체크박스 다중선택 + "선택 품목 재고조회" 버튼.
+        출고(OUTBOUND)·입고(INBOUND) mode 공통 동작.
+      */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={checkedLineIds.size === 0}
+          onClick={() => setInventoryLookupOpen(true)}
+          data-testid="slip-line-inventory-lookup-btn"
+          title={
+            checkedLineIds.size === 0
+              ? '라인을 1개 이상 선택하세요'
+              : `선택 ${checkedLineIds.size}건 재고조회`
+          }
+        >
+          선택 품목 재고조회
+          {checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
+        </Button>
+        {checkedLineIds.size > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setCheckedLineIds(new Set())}
+          >
+            선택 해제
+          </Button>
+        )}
+      </div>
+
+      {/*
         선택된 라인 액션 툴바 — 좌측 넘버링 클릭으로 행 선택 시 표시.
-        재고조회 (모든 단계) / 행 추가·삭제·순서수정 (DRAFT/SAVED 만, BE 가드와 동일).
+        행 추가·삭제·순서수정 (DRAFT/SAVED 만, BE 가드와 동일).
       */}
       {selectedLine ? (
         <div className="slip-line-toolbar" role="toolbar" aria-label="선택 라인 액션">
@@ -1503,9 +1550,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             선택: <strong>#{slip.lines.findIndex((l) => l.id === selectedLine.id) + 1}</strong>{' '}
             {selectedLine.modelName ?? '-'}
           </span>
-          <Button size="sm" variant="secondary" onClick={() => void handleStockQuery()}>
-            재고 조회
-          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -1539,13 +1583,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       ) : (
         <p className="slip-line-hint">
-          좌측 번호를 클릭하면 해당 라인을 선택할 수 있습니다 (재고 조회 / 순서 수정 / 추가 / 삭제).
+          좌측 번호를 클릭하면 해당 라인을 선택할 수 있습니다 (순서 수정 / 추가 / 삭제).
         </p>
       )}
 
       <table className="slip-line-table">
         <thead>
           <tr>
+            {/* Phase 2.6d: 재고조회 체크박스 컬럼 */}
+            <th className="col-no" style={{ width: 28, textAlign: 'center' }}>
+              <input
+                type="checkbox"
+                aria-label="전체 선택"
+                checked={
+                  slip.lines.length > 0 &&
+                  slip.lines.every((l) => checkedLineIds.has(l.id))
+                }
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setCheckedLineIds(new Set(slip.lines.map((l) => l.id)))
+                  } else {
+                    setCheckedLineIds(new Set())
+                  }
+                }}
+              />
+            </th>
             <th className="col-no">#</th>
             <th className="col-model">모델명</th>
             <th className="col-product">품목명</th>
@@ -1558,13 +1620,23 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <tbody>
           {slip.lines.length === 0 ? (
             <tr>
-              <td colSpan={7} className="slip-line-empty">라인이 없습니다.</td>
+              <td colSpan={8} className="slip-line-empty">라인이 없습니다.</td>
             </tr>
           ) : (
             slip.lines.map((l, idx) => {
               const selected = selectedLineId === l.id
+              const checked = checkedLineIds.has(l.id)
               return (
                 <tr key={l.id} className={selected ? 'is-selected' : undefined}>
+                  {/* Phase 2.6d: 재고조회 체크박스 */}
+                  <td style={{ textAlign: 'center', paddingLeft: 4 }}>
+                    <input
+                      type="checkbox"
+                      aria-label={`${l.modelName ?? `라인 ${idx + 1}`} 재고조회 선택`}
+                      checked={checked}
+                      onChange={() => handleLineCheckToggle(l.id)}
+                    />
+                  </td>
                   <td className="col-no">
                     <button
                       type="button"
@@ -1588,6 +1660,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           )}
         </tbody>
       </table>
+
+      {/* Phase 2.6d: 재고조회 모달 */}
+      <InventoryLookupModal
+        open={inventoryLookupOpen}
+        onClose={() => setInventoryLookupOpen(false)}
+        lines={inventoryLookupLines}
+      />
 
       {/*
         Slice A: 결재 정보 카드 — 출고인/검수인 자동 채움 (Designer wireframes.md § 5 + ux-flow.md § 2)

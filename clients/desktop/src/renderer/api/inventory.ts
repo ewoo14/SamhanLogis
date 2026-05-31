@@ -418,6 +418,98 @@ export async function listStockBalances(
   return res.data.data
 }
 
+// ---------------------------------------------------------------------------
+// BalanceMatrix (Phase 2.6d — 품목 × 창고 가용/실/예약 매트릭스)
+// ---------------------------------------------------------------------------
+
+/** 창고 컬럼 — 매트릭스 헤더. */
+export interface BalanceWarehouseCol {
+  warehouseId: string
+  warehouseCode: string
+  warehouseName: string
+  warehouseType: WarehouseType
+}
+
+/** 품목 행 — 창고코드별 가용/실/예약 셀. */
+export interface BalanceMatrixRow {
+  productId: string
+  modelName: string
+  productName: string
+  /**
+   * warehouseCode → {available, reserved, total}.
+   * listWarehouses 머지로 전 창고 채움 (없으면 0/0/0).
+   */
+  cells: Record<string, { available: number; reserved: number; total: number }>
+}
+
+/** 매트릭스 전체 — 헤더(창고 컬럼) + 행(품목). */
+export interface BalanceMatrix {
+  warehouses: BalanceWarehouseCol[]
+  rows: BalanceMatrixRow[]
+}
+
+/**
+ * 다건 품목의 창고별 가용/실/예약 매트릭스 — Phase 2.6d.
+ *
+ * batch(가용/실/예약) + listWarehouses 머지로 전 창고 집합 확보(D-IL-01).
+ * VIRTUAL 창고 제외(D-IL-04 / 2.6c 관례).
+ * 기존 `fetchStockBalanceBatch`(총량 only) 는 무변경.
+ *
+ * UUID 비공개 가드: warehouseId / productId 는 내부 key 전용, 화면 미노출.
+ *
+ * @param lines 조회 대상 라인 (productId + 모델명/품목명)
+ * @return 전 창고(비-VIRTUAL) × 품목 매트릭스 (0/0/0 채움 포함)
+ */
+export async function fetchProductBalancesMatrix(
+  lines: StockBalanceLookupLine[],
+): Promise<BalanceMatrix> {
+  const productIds = lines.map((l) => l.productId)
+  const [balRes, warehouses] = await Promise.all([
+    apiClient.post<ApiEnvelope<ProductBalanceResponse[]>>(
+      '/inventory/balances/batch',
+      { productIds },
+    ),
+    listWarehouses(),
+  ])
+
+  // 전 창고(비-VIRTUAL) 컬럼 — displayOrder ASC (listWarehouses 정렬 유지)
+  const cols: BalanceWarehouseCol[] = warehouses
+    .filter((w) => w.type !== 'VIRTUAL')
+    .map((w) => ({
+      warehouseId: w.id,
+      warehouseCode: w.code,
+      warehouseName: w.name,
+      warehouseType: w.type,
+    }))
+
+  const metaById = new Map(lines.map((l) => [l.productId, l] as const))
+
+  const rows: BalanceMatrixRow[] = balRes.data.data.map((p) => {
+    const meta = metaById.get(p.productId)
+    const cells: Record<string, { available: number; reserved: number; total: number }> = {}
+    // 전 창고 0/0/0 초기화 후 balance 덮어쓰기
+    for (const c of cols) {
+      cells[c.warehouseCode] = { available: 0, reserved: 0, total: 0 }
+    }
+    for (const b of p.balances) {
+      if (b.warehouseType === 'VIRTUAL') continue
+      cells[b.warehouseCode] = {
+        available: b.availableQty,
+        reserved: b.reservedQty,
+        total: b.totalQty,
+      }
+    }
+    return {
+      productId: p.productId,
+      modelName: meta?.modelName ?? '',
+      productName: meta?.productName ?? '',
+      cells,
+    }
+  })
+
+  return { warehouses: cols, rows }
+}
+
 /**
  * 이동전표 라이프사이클 transition. reject 만 body (`reason`) 필요.
  */
