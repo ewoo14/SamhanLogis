@@ -1,0 +1,130 @@
+package com.samhanair.logis.inventory.web;
+
+import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.inventory.domain.StockInstance;
+import com.samhanair.logis.inventory.domain.StockInstanceStatus;
+import com.samhanair.logis.inventory.service.StockInstanceService;
+import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
+import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 개별시리얼 인스턴스 CRUD/조회 컨트롤러 — Phase INV-S / S1.
+ *
+ * <p>권한 매트릭스:
+ * <ul>
+ *   <li>인스턴스 생성 ({@code POST /inventory/instances}) — {@code inventory.stock-balance CREATE}</li>
+ *   <li>FIFO/역-FIFO/품목별 조회 ({@code GET}) — {@code inventory.stock-balance VIEW}</li>
+ * </ul>
+ *
+ * <p>UUID 비공개 원칙 ({@code feedback_uuid_no_user_visibility}):
+ * 응답 DTO 의 {@code id}·{@code productId}·{@code warehouseId} 는 API key 로만 사용.
+ * 사용자 화면 표시는 {@code productCode}·{@code status}·슬립번호 사용.
+ */
+@RestController
+@RequestMapping("/inventory/instances")
+@RequiredArgsConstructor
+@Tag(name = "재고 인스턴스", description = "개별시리얼 재고 인스턴스 CRUD/조회 API (Phase INV-S S1)")
+public class StockInstanceController {
+
+    private final StockInstanceService stockInstanceService;
+
+    /**
+     * 개별시리얼 인스턴스 수동 생성.
+     *
+     * <p>serial-managed 품목({@code serialManaged=true}) 만 허용.
+     * batch 품목 요청 시 409 CONFLICT 반환.
+     *
+     * @param request 인스턴스 생성 요청 (productId, productCode, warehouseId 필수)
+     * @return 생성된 인스턴스 응답
+     */
+    @Operation(summary = "인스턴스 수동 생성", description = "serial-managed 품목의 개별시리얼 인스턴스를 수동 생성. batch 품목 요청 시 409.")
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.CREATE)
+    public ApiResponse<StockInstanceResponse> create(
+            @Valid @RequestBody CreateInstanceRequest request) {
+        StockInstance instance = stockInstanceService.create(
+                request.productId(),
+                request.productCode(),
+                request.warehouseId(),
+                request.inboundType(),
+                request.unitCost(),
+                request.inboundSlipNo(),
+                request.receivedAt());
+        return ApiResponse.ok(StockInstanceResponse.from(instance), "인스턴스 생성 완료");
+    }
+
+    /**
+     * FIFO 소진 후보 조회 — 품목코드 기준 AVAILABLE 인스턴스를 received_at ASC 순으로 반환.
+     *
+     * @param productCode 품목코드 그룹 (필수)
+     * @return FIFO 순 인스턴스 목록
+     */
+    @Operation(summary = "FIFO 소진 후보 조회", description = "품목코드 기준 AVAILABLE 인스턴스를 received_at ASC(FIFO) 순으로 반환.")
+    @GetMapping("/fifo")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceResponse>> fifo(
+            @Parameter(description = "품목코드 그룹", required = true)
+            @RequestParam String productCode) {
+        List<StockInstanceResponse> result = stockInstanceService.fifoCandidates(productCode)
+                .stream().map(StockInstanceResponse::from).toList();
+        return ApiResponse.ok(result, "FIFO 후보 조회 완료");
+    }
+
+    /**
+     * 역-FIFO 회수 후보 조회 — 거래처+품목코드 기준 SHIPPED 인스턴스를 outbound_at DESC 순으로 반환.
+     *
+     * @param partnerCode 거래처 코드 (필수)
+     * @param productCode 품목코드 그룹 (필수)
+     * @return 역-FIFO 순 인스턴스 목록
+     */
+    @Operation(summary = "역-FIFO 회수 후보 조회", description = "거래처+품목코드 기준 SHIPPED 인스턴스를 outbound_at DESC(역-FIFO) 순으로 반환.")
+    @GetMapping("/recall")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceResponse>> recall(
+            @Parameter(description = "거래처 코드", required = true)
+            @RequestParam String partnerCode,
+            @Parameter(description = "품목코드 그룹", required = true)
+            @RequestParam String productCode) {
+        List<StockInstanceResponse> result = stockInstanceService.recallCandidates(partnerCode, productCode)
+                .stream().map(StockInstanceResponse::from).toList();
+        return ApiResponse.ok(result, "역-FIFO 회수 후보 조회 완료");
+    }
+
+    /**
+     * 품목별 인스턴스 조회 — productId + 상태 필터.
+     *
+     * @param productId 제품 UUID (필수)
+     * @param status    조회할 상태 (nullable, null 이면 전체)
+     * @return 인스턴스 목록
+     */
+    @Operation(summary = "품목별 인스턴스 조회", description = "productId + 상태 필터로 인스턴스 목록 반환.")
+    @GetMapping
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    public ApiResponse<List<StockInstanceResponse>> byProduct(
+            @Parameter(description = "제품 UUID", required = true)
+            @RequestParam UUID productId,
+            @Parameter(description = "상태 필터 (AVAILABLE/RESERVED/SHIPPED/RECALLED). null 이면 전체.")
+            @RequestParam(required = false) StockInstanceStatus status) {
+        List<StockInstanceResponse> result = stockInstanceService.byProduct(productId, status)
+                .stream().map(StockInstanceResponse::from).toList();
+        return ApiResponse.ok(result, "품목별 인스턴스 조회 완료");
+    }
+}
