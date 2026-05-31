@@ -54,7 +54,7 @@ public class StockInstanceService {
      * @param inboundSlipNo 입고전표 번호 (nullable)
      * @param receivedAt    입고일시 (null 이면 now() 사용)
      * @return 영속화된 StockInstance
-     * @throws ResponseStatusException 409 — batch 품목(serialManaged=false) 인 경우
+     * @throws BusinessException 409(CONFLICT) — batch 품목(serialManaged=false) 인 경우
      */
     @Transactional
     public StockInstance create(UUID productId, String productCode, UUID warehouseId,

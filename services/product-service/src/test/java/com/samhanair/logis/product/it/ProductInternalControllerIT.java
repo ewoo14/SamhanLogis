@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -84,6 +86,10 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                     c.markSerialManaged(true);
                     return categoryRepository.save(c);
                 });
+        // N-3 (방어 단언): V9 마이그레이션이 실제로 serial_managed=true 를 적용했는지 검증
+        assertThat(serialCategory.isSerialManaged())
+                .as("INDOOR_WALL 카테고리는 V9 마이그레이션에 의해 serial_managed=true 이어야 합니다")
+                .isTrue();
 
         // V2 시드 PIPING 카테고리 — serial_managed=false (DEFAULT)
         Category batchCategory = categoryRepository.findAll().stream()
@@ -156,17 +162,30 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
 
     /**
      * 에어컨 / batch 품목 혼합 lookup — 각각 serialManaged 값이 올바르게 반환되는지 검증.
+     *
+     * <p>{@code findAllByIdIn} 은 IN 쿼리로 구현되어 응답 순서가 보장되지 않는다.
+     * 따라서 {@code $.data[0].serialManaged} 위치 기반 단언 대신
+     * jsonPath filter expression (UUID 기준) 으로 각 품목의 serialManaged 값을 독립적으로 단언한다.
+     *
+     * <p>N-1 fix (사이클 2 QA MAJOR 결함): size 단언만 존재해 false-green 가능성 제거.
+     * UUID 별 serialManaged 단언을 추가하여 실제 변환 정확성을 보장한다.
      */
     @Test
     void lookup_mixed_returnsCorrectSerialManagedPerProduct() throws Exception {
         var body = new LookupRequest(List.of(serialProductId, batchProductId));
+        String serialIdStr = serialProductId.toString();
+        String batchIdStr = batchProductId.toString();
 
         mockMvc.perform(post("/products/internal/lookup")
                         .header("X-Internal-Token", INTERNAL_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()", is(2)));
-        // 개별 serialManaged 값은 각 품목 UUID 기준으로 검증 (순서 무관하므로 size 검증)
+                // 총 2건 반환
+                .andExpect(jsonPath("$.data.length()", is(2)))
+                // serial 품목(INDOOR_WALL) — UUID 기준 filter expression, 결과는 List → hasItem
+                .andExpect(jsonPath("$.data[?(@.id=='" + serialIdStr + "')].serialManaged", hasItem(true)))
+                // batch 품목(PIPING) — UUID 기준 filter expression, 결과는 List → hasItem
+                .andExpect(jsonPath("$.data[?(@.id=='" + batchIdStr + "')].serialManaged", hasItem(false)));
     }
 }

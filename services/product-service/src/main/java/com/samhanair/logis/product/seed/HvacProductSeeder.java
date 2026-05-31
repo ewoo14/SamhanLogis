@@ -84,11 +84,13 @@ public class HvacProductSeeder implements CommandLineRunner {
     private static final BigDecimal RATE_ITEM_35  = new BigDecimal("1.30");
 
     /** V2 product_categories 시드의 결정적 UUID (V2__seed_product_categories.sql 와 1:1). */
+    private static final java.util.UUID CAT_HVAC_ROOT      = java.util.UUID.fromString("00000000-0000-0000-0000-000000001001");
+    /** V9 UPDATE 대상: 실내기 루트 카테고리 (INDOOR_WALL/INDOOR_CEILING 의 부모). */
+    private static final java.util.UUID CAT_INDOOR         = java.util.UUID.fromString("00000000-0000-0000-0000-000000001002");
+    private static final java.util.UUID CAT_OUTDOOR        = java.util.UUID.fromString("00000000-0000-0000-0000-000000001003");
     private static final java.util.UUID CAT_INDOOR_WALL    = java.util.UUID.fromString("00000000-0000-0000-0000-000000001004");
     private static final java.util.UUID CAT_INDOOR_CEILING = java.util.UUID.fromString("00000000-0000-0000-0000-000000001005");
-    private static final java.util.UUID CAT_OUTDOOR        = java.util.UUID.fromString("00000000-0000-0000-0000-000000001003");
     private static final java.util.UUID CAT_PIPING         = java.util.UUID.fromString("00000000-0000-0000-0000-000000001006");
-    private static final java.util.UUID CAT_HVAC_ROOT      = java.util.UUID.fromString("00000000-0000-0000-0000-000000001001");
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -107,11 +109,12 @@ public class HvacProductSeeder implements CommandLineRunner {
     public void run(String... args) {
         // 카테고리 prefetch — 100건 INSERT 동안 매번 lookup 회피
         Map<java.util.UUID, Category> catCache = new HashMap<>();
+        loadCategory(catCache, CAT_HVAC_ROOT);
+        loadCategory(catCache, CAT_INDOOR);
+        loadCategory(catCache, CAT_OUTDOOR);
         loadCategory(catCache, CAT_INDOOR_WALL);
         loadCategory(catCache, CAT_INDOOR_CEILING);
-        loadCategory(catCache, CAT_OUTDOOR);
         loadCategory(catCache, CAT_PIPING);
-        loadCategory(catCache, CAT_HVAC_ROOT);
 
         if (catCache.isEmpty()) {
             log.warn("HvacProductSeeder skipped — V2 product_categories seed missing (categoryRepository empty)");
@@ -121,10 +124,12 @@ public class HvacProductSeeder implements CommandLineRunner {
         // 에어컨 계열 카테고리 serial_managed=true 보장
         // V9 Flyway SQL 이 DB 에 이미 적용하지만, JPA 영속성 컨텍스트 내 일관성 보장
         // (Flyway 없이 seeder 만 도는 테스트 컨텍스트, H2 in-memory 환경 대비)
+        // V9 UPDATE 대상 5종: HVAC/INDOOR/OUTDOOR/INDOOR_WALL/INDOOR_CEILING 모두 포함
         markSerialManagedIfPresent(catCache, CAT_HVAC_ROOT);
+        markSerialManagedIfPresent(catCache, CAT_INDOOR);
+        markSerialManagedIfPresent(catCache, CAT_OUTDOOR);
         markSerialManagedIfPresent(catCache, CAT_INDOOR_WALL);
         markSerialManagedIfPresent(catCache, CAT_INDOOR_CEILING);
-        markSerialManagedIfPresent(catCache, CAT_OUTDOOR);
         // CAT_PIPING 은 batch 관리 — serial_managed=false 유지 (기본값)
 
         List<SeedRow> rows = buildAllRows();
