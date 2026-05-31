@@ -113,6 +113,66 @@ public class SlipServiceClient {
         }
     }
 
+    /**
+     * slip-service 에 다중 주문 병합 발행을 요청한다 — Phase 2.6b D2.
+     *
+     * <p>응답 분기는 {@link #publishFromPartnerOrder} 와 동일하다(200 성공 / 409 멱등 duplicate / 5xx 예외).
+     * 기존 {@code publishFromPartnerOrder} 는 무변경(회귀 0). URI 만 {@code /from-orders-merge}.
+     *
+     * @param requestPayload 병합 발행 본문 — slip-service {@code PublishFromOrdersMergeRequest} 계약에 맞는 맵.
+     *                       필수 키: {@code sourceOrders}(List) / {@code lines}(List) / {@code warehouseCode}
+     * @param idempotencyKey {@code PO-MRG-...} 결정적 키 (reserve referenceId 와 공용)
+     * @return PublishResult — published(200) 또는 duplicate(409) 구분
+     * @throws BusinessException(INTERNAL_ERROR) slip-service 5xx / 연결 실패
+     */
+    public PublishResult publishFromOrdersMerge(Map<String, Object> requestPayload,
+                                                String idempotencyKey) {
+        if (requestPayload == null || requestPayload.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "requestPayload 비어있음");
+        }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "idempotencyKey 필수");
+        }
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restClient.post()
+                    .uri("/api/v1/slips/from-orders-merge")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
+                    .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
+                    .header(IDEMPOTENCY_HEADER, idempotencyKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestPayload)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 5xx: " + res.getStatusCode());
+                    })
+                    .onStatus(s -> s.is4xxClientError() && s.value() != 409, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "slip-service 4xx: " + res.getStatusCode());
+                    })
+                    .onStatus(s -> s.value() == 409, (req, res) -> { /* no-op, allow body parse */ })
+                    .toEntity(new ParameterizedTypeReference<Map<String, Object>>() {});
+
+            String slipNo = extractSlipNo(response.getBody());
+            if (slipNo == null || slipNo.isBlank()) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "slip-service 병합 응답에 slipNo 누락");
+            }
+            if (response.getStatusCode().value() == 409) {
+                return PublishResult.duplicate(slipNo);
+            }
+            return PublishResult.published(slipNo);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("SlipServiceClient merge publish failed (idemKey={}): {}",
+                    idempotencyKey, ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "slip-service 병합 호출 실패", ex);
+        }
+    }
+
     private String extractSlipNo(Map<String, Object> body) {
         if (body == null) {
             return null;
