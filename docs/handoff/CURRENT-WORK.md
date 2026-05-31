@@ -6,8 +6,16 @@
 
 ## 🧭 새 세션 시작 가이드 (2026-05-31 갱신)
 
-**현재 상태**: main `8fba1c52` 동기화, working tree 깨끗. Phase 2.6c(재고 예약) 머지 완료(#327). 진행 중 작업 없음 — 다음 슬라이스 **선택 대기**.
+**현재 상태**: 슬라이스 **C(slip↔inventory 창고코드 정렬) 구현 완료** — 브랜치 `feat/slice-c-slip-inventory-warehouse-align`(spec/plan/BE×2/FE/docs 커밋). **PR 발행 + 5-team 리뷰 + Docker 실 QA 대기**. (4개 슬라이스 일괄 진행 순서 = **C→D→B→A**, 개발책임자 결정 2026-05-31.)
 **환경 메모**: ⚠️ Codex 6/1(월) 12:00 복구 전 → 구현+리뷰 모두 Claude 에이전트. 5-team 패턴 + 사이클 N=2 + Docker 실 QA([[no-fake-data-ever]]) + [[always-mouse-choices]] 유지.
+
+### ✅ 슬라이스 C 구현 완료 (브랜치 `feat/slice-c-slip-inventory-warehouse-align`, 머지 전)
+2.6c convert happy-path 잠금. **inventory 단일 출처**(D-WH-01) + convert 가 inventory 해석 warehouseId 를 slip 에 직접 전달·estimate 는 yml 격리(D-WH-02) + 전환 모달 창고 필수 선택(D-WH-03).
+- BE: slip `PublishFromPartnerOrderRequest.warehouseId` + `resolveWarehouseId`(warehouseId 우선·yml 폴백, `bcafe950`) / partner-order convert payload warehouseId 전달(`fd5f4378`). FE: 전환 모달 `WarehouseSelector` 필수 + warehouseCode 전송(`44cbc420`).
+- 테스트: `SlipPublishWarehouseIdIT`(2 PASS) + `PartnerOrderConvertIT`(case1~10 PASS, case6 warehouseId captor) + Playwright `phase-2-6a-order-convert`(11 passed). typecheck/lint 0 err.
+- spec/plan/dev-report: `docs/superpowers/{specs,plans}/2026-05-31-slip-inventory-warehouse-code-align*` + `docs/dev-reports/slice-c-warehouse-code-align.md`. DECISIONS D-WH-01~03.
+- **다음 단계**: PR 발행 → 5-team 사이클 N=2 → CI(skipped=0) → Docker 실 QA(convert→reserve→slip 발행 성공(SENT)→converted_quantity psql 적중) → 머지. 배포 순서 slip→partner-order→FE.
+- **다음 슬라이스**: D(2.6b 다중주문 병합 + confirm 자동발행 폐지) → B(2.6d 재고조회 모달) → A(시리얼 인스턴스).
 
 ### 다음 후보 (개발책임자 마우스 선택 → spec/plan 있으면 바로 구현 착수)
 
