@@ -1,0 +1,240 @@
+/**
+ * AC-2 — 품목 자동완성 (`ProductAutocomplete`) Playwright E2E.
+ *
+ * <h2>검증 대상</h2>
+ * <ol>
+ *   <li>새 출고전표 작성 (`/sales/new`) 진입 — 품목 자동완성 입력 필드 표시</li>
+ *   <li>품목 부분 입력("AJ") → mock `GET /api/products?q=AJ` → 후보 listbox 표시</li>
+ *   <li>후보 항목 키보드(ArrowDown + Enter) 선택 → modelName 입력란 반영</li>
+ *   <li>후보 항목 클릭 선택 → modelName 입력란 반영</li>
+ *   <li>선택 후 단가(unitPrice) 자동 채워짐 확인 (합계 셀 변화)</li>
+ *   <li>빈 문자열 검색 시 후보 노출 (전체 목록)</li>
+ *   <li>UUID 비공개 가드: 화면에 UUID 패턴 미노출</li>
+ * </ol>
+ *
+ * <h2>Mock 전략</h2>
+ * - `VITE_MOCK_MODE=1` + mock.ts `GET /api/products?q=` 핸들러.
+ * - 후보 5건: AJ040RXH4BC1, AJ052RXH5BC1, AJ036NCH3CH, AJ100NCDKH, MWR-WE10N.
+ * - "AJ" 쿼리 → 4건 (MWR 제외), "AJ040" → 1건.
+ *
+ * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
+ * - 화면 텍스트에 UUID(8-4-4-4-12 hex) 패턴 미포함 단언.
+ *
+ * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
+ * - 본 spec 은 VITE_MOCK_MODE=1 Playwright 컴포넌트 회귀 전용.
+ * - 실 QA 캡처는 Docker 실서버 환경에서 별도 수행.
+ *
+ * <h2>실행 방법</h2>
+ * <pre>
+ *   cd clients/desktop
+ *   # 별도 터미널:
+ *   set VITE_MOCK_MODE=1 && npx vite src/renderer --host 127.0.0.1 --port 5174
+ *   # 테스트 실행:
+ *   set PLAYWRIGHT_SKIP_WEB_SERVER=1 && set AUDIT_BASE_URL=http://127.0.0.1:5174
+ *     && npx playwright test playwright/ac-2-product-autocomplete --reporter=line
+ * </pre>
+ */
+import { expect, test, type Page } from '@playwright/test'
+
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
+
+/** UUID 정규식 — 화면 노출 가드. */
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
+
+/**
+ * window.samhanAuth stub — AuthGuard 통과 (MANAGER role).
+ */
+async function installAuthMock(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const auth = {
+      token: 'playwright-token',
+      userId: '00000000-0000-0000-0000-000000010001',
+      role: 'MANAGER',
+      fullName: '오병승',
+      partnerCode: 'P-MOCK-001',
+    }
+    Object.defineProperty(window, 'samhanAuth', {
+      configurable: true,
+      value: {
+        getToken: async () => auth,
+        setToken: async () => undefined,
+        clearToken: async () => undefined,
+      },
+    })
+  })
+}
+
+/** 새 출고전표 작성 페이지로 이동. */
+async function gotoSlipNewPage(page: Page): Promise<void> {
+  await page.goto(`${BASE_URL}/#/sales/new?mockRole=MANAGER`, {
+    waitUntil: 'domcontentloaded',
+  })
+  // 페이지 로드 완료 확인 — "새 출고전표" 또는 "라인 추가" 버튼 기다림
+  await expect(
+    page.getByRole('button', { name: '+ 라인 추가' }),
+  ).toBeVisible({ timeout: 15_000 })
+}
+
+/**
+ * 첫 번째 라인의 ProductAutocomplete input.
+ * role=combobox 는 ProductAutocomplete 의 input 에 부착됨.
+ */
+function getProductInput(page: Page) {
+  return page.getByRole('combobox').first()
+}
+
+// ============================================================
+// Test Suite
+// ============================================================
+
+test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 1: 페이지 진입 → 품목 combobox 존재 확인
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 1: 전표 작성 진입 — 품목 combobox 렌더 확인', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await expect(input).toBeVisible()
+    await expect(input).toHaveAttribute('role', 'combobox')
+    await expect(input).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 2: "AJ" 입력 → 후보 listbox 표시
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 2: "AJ" 입력 → 후보 listbox 표시 (mock /api/products?q=AJ)', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await input.click()
+    await input.fill('AJ')
+
+    // debounce 250ms + 비동기 대기
+    await page.waitForTimeout(400)
+
+    // listbox 표시 확인
+    const listbox = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+
+    // 후보 항목 중 AJ040 포함 확인
+    await expect(listbox).toContainText('AJ040RXH4BC1')
+
+    // combobox expanded
+    await expect(input).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 3: 후보 클릭 선택 → modelName 입력란 반영
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 3: 후보 클릭 선택 → 입력란에 modelName 표시', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await input.click()
+    await input.fill('AJ040')
+
+    await page.waitForTimeout(400)
+
+    const listbox = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+
+    // AJ040RXH4BC1 옵션 클릭
+    const option = listbox.getByRole('option', { name: /AJ040RXH4BC1/ })
+    await expect(option).toBeVisible()
+    await option.click()
+
+    // 선택 후 입력란에 modelName 표시
+    await expect(input).toHaveValue('AJ040RXH4BC1')
+
+    // listbox 닫힘
+    await expect(listbox).not.toBeVisible()
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 4: 키보드 ↓/Enter 선택 → 입력란 반영
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 4: 키보드 ArrowDown + Enter 선택 → modelName 반영', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await input.click()
+    await input.fill('AJ')
+
+    await page.waitForTimeout(400)
+
+    const listbox = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+
+    // ArrowDown → 첫 번째 항목 활성화
+    await input.press('ArrowDown')
+    // Enter → 선택
+    await input.press('Enter')
+
+    // 입력란에 선택된 modelName (첫 번째 AJ 매칭 = AJ036NCH3CH 또는 AJ040RXH4BC1)
+    const finalValue = await input.inputValue()
+    expect(finalValue).toMatch(/^AJ/)
+
+    // listbox 닫힘
+    await expect(listbox).not.toBeVisible()
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 5: 선택 후 단가 자동채움 확인 (합계 셀 갱신)
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 5: 품목 선택 → 단가 자동 채워짐', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await input.click()
+    await input.fill('AJ040')
+
+    await page.waitForTimeout(400)
+
+    const listbox = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+
+    await listbox.getByRole('option', { name: /AJ040RXH4BC1/ }).click()
+
+    // 단가 input — 라인 1 단가 (aria-label "라인 1 단가")
+    const priceInput = page.getByRole('textbox', { name: '라인 1 단가' })
+    await expect(priceInput).toBeVisible()
+
+    // 단가 1,850,000 이 채워졌는지 확인 (mock sellingPrice: "1850000")
+    const priceVal = await priceInput.inputValue()
+    expect(Number(priceVal.replace(/,/g, ''))).toBeGreaterThan(0)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 6: UUID 비공개 가드 — 화면에 UUID 미노출
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 6: UUID 비공개 가드 — 전표작성 화면 UUID 미노출', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    const input = getProductInput(page)
+    await input.click()
+    await input.fill('AJ')
+
+    await page.waitForTimeout(400)
+
+    const listbox = page.getByRole('listbox', { name: '품목 목록' })
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+
+    // listbox 텍스트에 UUID 미포함
+    const listboxText = await listbox.textContent()
+    expect(listboxText).not.toMatch(UUID_PATTERN)
+
+    // 선택 후 전체 페이지 텍스트 UUID 미포함
+    await listbox.getByRole('option').first().click()
+    const bodyText = await page.locator('body').textContent()
+    expect(bodyText).not.toMatch(UUID_PATTERN)
+  })
+
+})

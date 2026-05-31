@@ -22,7 +22,7 @@
  *
  * 본 컴포넌트는 `mode` prop 으로 OUTBOUND / INBOUND 양쪽 화면에서 재사용.
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -34,10 +34,12 @@ import {
   LineRow,
   LineTableHeader,
   PhoneInput,
+  ProductAutocomplete,
   StockBalanceModal,
   WarehouseSelector,
   type DeliveryTagOption,
   type LineDraft,
+  type ProductOption,
   type StockBalanceRow,
   type WarehouseColumn,
 } from '@samhan/design-system'
@@ -67,10 +69,10 @@ import {
 import {
   createSlip,
   lookupPartnerForAutoFill,
-  lookupProductByModelName,
   type SlipLineInput,
   type SlipType,
 } from '../api/slip'
+import { searchProducts as searchProductsApi } from '../api/productApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 /**
@@ -126,6 +128,8 @@ function SortableLineRow(props: {
   onQuantityChange: (v: string) => void
   onUnitPriceChange: (v: string) => void
   onDelete: () => void
+  /** AC-2: 모델명 셀 커스텀 렌더 slot (ProductAutocomplete 주입). */
+  modelCell?: ReactNode
 }) {
   const {
     attributes,
@@ -158,6 +162,7 @@ function SortableLineRow(props: {
       onQuantityChange={props.onQuantityChange}
       onUnitPriceChange={props.onUnitPriceChange}
       onDelete={props.onDelete}
+      modelCell={props.modelCell}
       dragHandleProps={{
         attributes: attributes as unknown as Record<string, unknown>,
         listeners: listeners as Record<string, unknown> | undefined,
@@ -304,38 +309,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   /**
-   * 모델명 onBlur lookup — `GET /slips/lookup-product?modelName=...`.
+   * 모델명 onBlur — AC-2 이후 모든 라인이 `modelCell` 슬롯의 `ProductAutocomplete` 로 대체됨.
    *
-   * 200 시 productId / productName / sellingPrice fill,
-   * 404 시 lookupError 메시지 + productId null 유지.
+   * LineRow backward-compat 유지를 위해 prop 으로 전달하지만
+   * `modelCell` 제공 시 LineRow 가 기존 input 을 렌더하지 않으므로 실제 호출되지 않는다.
+   *
+   * @deprecated AC-2 이후 미사용. modelCell=ProductAutocomplete 로 대체.
    */
-  const handleModelNameBlur = async (id: string, modelName: string) => {
-    const trimmed = modelName.trim()
-    if (!trimmed) {
-      updateLine(id, { productId: null, lookupError: null, productName: '' })
-      return
-    }
-    updateLine(id, { lookupLoading: true, lookupError: null })
-    try {
-      const product = await lookupProductByModelName(trimmed)
-      updateLine(id, {
-        productId: product.productId,
-        productName: product.productName,
-        unitPrice: product.sellingPrice,
-        lookupError: null,
-        lookupLoading: false,
-      })
-    } catch (err) {
-      const msg = axios.isAxiosError(err) && err.response?.status === 404
-        ? '해당 모델명을 찾을 수 없습니다'
-        : '모델명 조회에 실패했습니다'
-      updateLine(id, {
-        productId: null,
-        productName: '',
-        lookupError: msg,
-        lookupLoading: false,
-      })
-    }
+  const handleModelNameBlur = (_id: string, _modelName: string): void => {
+    // no-op: AC-2 ProductAutocomplete 가 onChange 로 updateLine 직접 호출
   }
 
   // ── PR-G1 backlog #2 — 거래처 자동 채움 (partner-service lookup) ──
@@ -1023,22 +1005,60 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               items={lines.map((l) => l.id)}
               strategy={verticalListSortingStrategy}
             >
-              {lines.map((line, idx) => (
-                <SortableLineRow
-                  key={line.id}
-                  line={line}
-                  lineNumber={idx + 1}
-                  selected={selectedIds.has(line.id)}
-                  canDelete={lines.length > 1}
-                  onSelect={(s) => toggleSelect(line.id, s)}
-                  onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
-                  onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
-                  onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
-                  onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
-                  onUnitPriceChange={(v) => updateLine(line.id, { unitPrice: v })}
-                  onDelete={() => removeLine(line.id)}
-                />
-              ))}
+              {lines.map((line, idx) => {
+                /**
+                 * AC-2: 현재 라인의 ProductOption 재구성.
+                 * productId / modelName / productName 이 모두 있으면 value 전달, 없으면 null.
+                 * UUID 비공개 가드: id 는 내부 state 전용, 화면 노출 X.
+                 */
+                const lineProductValue: ProductOption | null =
+                  line.productId && line.modelName
+                    ? {
+                        id: line.productId,
+                        modelName: line.modelName,
+                        productName: line.productName,
+                      }
+                    : null
+
+                return (
+                  <SortableLineRow
+                    key={line.id}
+                    line={line}
+                    lineNumber={idx + 1}
+                    selected={selectedIds.has(line.id)}
+                    canDelete={lines.length > 1}
+                    onSelect={(s) => toggleSelect(line.id, s)}
+                    onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
+                    onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
+                    onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                    onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
+                    onUnitPriceChange={(v) => updateLine(line.id, { unitPrice: v })}
+                    onDelete={() => removeLine(line.id)}
+                    modelCell={
+                      <ProductAutocomplete
+                        value={lineProductValue}
+                        onChange={(p) =>
+                          updateLine(line.id, {
+                            productId: p?.id ?? null,
+                            modelName: p?.modelName ?? '',
+                            productName: p?.productName ?? '',
+                            unitPrice:
+                              p?.sellingPrice != null
+                                ? String(p.sellingPrice)
+                                : line.unitPrice,
+                            lookupError: null,
+                            lookupLoading: false,
+                          })
+                        }
+                        searchProducts={searchProductsApi}
+                        label=""
+                        placeholder="모델명 또는 품목명"
+                        debounceMs={250}
+                      />
+                    }
+                  />
+                )
+              })}
             </SortableContext>
           </DndContext>
         </div>

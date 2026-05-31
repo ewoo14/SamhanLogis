@@ -25,7 +25,7 @@
  *
  * UUID 비공개 가드: `productId` 는 부모 state 로만 보관, 화면에 노출 X.
  */
-import { forwardRef, useId, type CSSProperties } from 'react'
+import { forwardRef, useId, type CSSProperties, type ReactNode } from 'react'
 import styles from './LineRow.module.css'
 import { Spinner } from '../Spinner/Spinner'
 import { DragHandle } from '../DragHandle/DragHandle'
@@ -95,7 +95,14 @@ export interface LineRowProps {
   canDelete?: boolean
   /** drag 시 transform 적용용 inline style (dnd-kit transform CSS). */
   style?: CSSProperties
-  /** 외부 ref (sortable container ref). */
+  /**
+   * 모델명 셀 커스텀 슬롯 (AC-2 신규).
+   *
+   * 제공 시 모델명 `<input>` 자리에 이 노드를 렌더한다 (예: `<ProductAutocomplete>`).
+   * **미제공 시 기존 modelName input + onModelNameChange/onModelNameBlur 동작 그대로 유지** (backward compatible).
+   * `modelCell` 사용 라인은 lookupError/lookupLoading 을 호출자가 자체 처리.
+   */
+  modelCell?: ReactNode
 }
 
 /**
@@ -131,6 +138,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     isDragging = false,
     canDelete = true,
     style,
+    modelCell,
   },
   ref,
 ) {
@@ -190,32 +198,38 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
         {/* 3. 라인 번호 */}
         <div className={`${styles['cell']} ${styles['cellLineNo']}`}>{lineNumber}</div>
 
-        {/* 4. 모델명 */}
+        {/* 4. 모델명 — modelCell slot 제공 시 커스텀 렌더, 미제공 시 기존 input 유지 */}
         <div className={`${styles['cell']} ${styles['cellModel']}`}>
-          <input
-            id={modelId}
-            type="text"
-            className={`${styles['input']} ${styles['modelInput']}`}
-            value={line.modelName}
-            onChange={(e) => onModelNameChange(e.target.value)}
-            onBlur={(e) => onModelNameBlur(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur()
-              }
-            }}
-            placeholder="예: AJ040RXH4BC1"
-            aria-label={`라인 ${lineNumber} 모델명`}
-            aria-invalid={hasError || undefined}
-            aria-describedby={hasError ? `${modelId}-err` : undefined}
-            spellCheck={false}
-            autoComplete="off"
-          />
-          {line.lookupLoading ? (
-            <span className={styles['modelSpinner']} aria-hidden="true">
-              <Spinner size="xs" tone="var(--action-brand)" />
-            </span>
-          ) : null}
+          {modelCell != null ? (
+            modelCell
+          ) : (
+            <>
+              <input
+                id={modelId}
+                type="text"
+                className={`${styles['input']} ${styles['modelInput']}`}
+                value={line.modelName}
+                onChange={(e) => onModelNameChange(e.target.value)}
+                onBlur={(e) => onModelNameBlur(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }}
+                placeholder="예: AJ040RXH4BC1"
+                aria-label={`라인 ${lineNumber} 모델명`}
+                aria-invalid={hasError || undefined}
+                aria-describedby={hasError ? `${modelId}-err` : undefined}
+                spellCheck={false}
+                autoComplete="off"
+              />
+              {line.lookupLoading ? (
+                <span className={styles['modelSpinner']} aria-hidden="true">
+                  <Spinner size="xs" tone="var(--action-brand)" />
+                </span>
+              ) : null}
+            </>
+          )}
         </div>
 
         {/* 5. 품목명 (read-only display) */}

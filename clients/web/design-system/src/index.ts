@@ -68,3 +68,5 @@ export * from './components/ExcelDownloadButton'
 export * from './components/DataGrid'
 // AC-1 슬라이스 신규 — 창고 자동완성 typeahead (AccountCodeSelect 패턴 이식)
 export * from './components/WarehouseAutocomplete'
+// AC-2 슬라이스 신규 — 품목 서버검색 자동완성 (async debounced, stale 방지)
+export * from './components/ProductAutocomplete'
