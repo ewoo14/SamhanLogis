@@ -54,6 +54,11 @@ public class InventoryClient {
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String INVENTORY_SERVICE_BASE = "http://inventory-service";
+    /** 서비스 간 내부 호출 시 PermissionAspect MASTER bypass 를 위해 고정 주입. */
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String INTERNAL_ROLE = "MASTER";
+    private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -109,6 +114,8 @@ public class InventoryClient {
             Map<String, Object> envelope = restClient.post()
                     .uri("/inventory/reserve")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
+                    .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -192,6 +199,8 @@ public class InventoryClient {
             restClient.post()
                     .uri("/inventory/release")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
+                    .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
