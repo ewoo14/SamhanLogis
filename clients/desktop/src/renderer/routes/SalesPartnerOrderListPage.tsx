@@ -18,6 +18,7 @@ import {
   type PartnerOrderSummary,
 } from '../api/sales'
 import { formatSlipDate } from '../api/slipNumber'
+import { toOrderPathId } from '../utils/orderNo'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { useSessionStore } from '../stores/session'
@@ -37,7 +38,6 @@ const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 // v2 §정정 8 — 'YYYY/MM/DD' 통일.
 const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
-const toOrderPathId = (orderNumber: string) => orderNumber.replace(/\//g, '-')
 
 /**
  * Phase 2.6b D2: 병합 전환 선택 가능 status (DRAFT/ON_HOLD).
