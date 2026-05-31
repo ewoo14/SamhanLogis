@@ -118,3 +118,6 @@ infrastructure/terraform/tfplan
 infrastructure/docker-compose.qa-override.yml
 .tmp-qa-2-6c.sh
 *.orig
+_tmp_*
+.pr327.*
+*.class
