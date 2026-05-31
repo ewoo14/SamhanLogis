@@ -22,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,11 +39,13 @@ import org.springframework.transaction.annotation.Transactional;
  * <pre>
  *   POST /confirm
  *     ① 멱등 가드 (findByIdempotencyKey)
- *     ② M3 dc-config priceVat + M1a product 카탈로그 스냅샷
- *     ③ PartnerOrder.createFromConfirm → status=DRAFT, slipPublishStatus=NOT_REQUIRED
- *     ④ 라인 INSERT + recomputeTotal + save
- *     ⑤ history(CONFIRMED=주문접수) + revision CREATE 캡처
- *     ⑥ (slip 발행 없음)
+ *     ② dc-config price-calc (POST /internal/price-calculations) 로 라인별 finalPrice 계산
+ *        └ 실패/404/5xx → fail-soft (listPrice 사용)
+ *     ③ M1a product 카탈로그 스냅샷
+ *     ④ PartnerOrder.createFromConfirm → status=DRAFT, slipPublishStatus=NOT_REQUIRED
+ *     ⑤ 라인 INSERT (priceVat=finalPrice else listPrice) + recomputeTotal + save
+ *     ⑥ history(CONFIRMED=주문접수) + revision CREATE 캡처
+ *     ⑦ (slip 발행 없음)
  *   → ConfirmResponse{ orderNo, status=DRAFT, slipNo=null }
  * </pre>
  *
@@ -80,6 +83,9 @@ public class PartnerOrderConfirmService {
      * <p>슬라이스 D1: confirm 은 {@link PartnerOrder#createFromConfirm} 으로 DRAFT + NOT_REQUIRED 주문을
      * 생성하며 slip-service 를 호출하지 않는다. 출고전표는 명시적 convert 액션으로만 발행.
      *
+     * <p>DC 단가 계산: {@link DcConfigClient#calculatePrices} (POST /internal/price-calculations) 로
+     * 라인별 finalPrice 를 받아 priceVat 에 적용한다. fail-soft 적용 — price-calc 실패 시 listPrice 사용.
+     *
      * <p>주문 저장 성공 후 {@link PartnerOrderRevisionService#capture} 로 CREATE 유형 revision 을
      * 트랜잭션 내에서 캡처한다 (Phase 2.4 버전이력 훅).
      *
@@ -115,10 +121,7 @@ public class PartnerOrderConfirmService {
             return ConfirmResponse.from(existing.get());
         }
 
-        // 2) M3 dc-config — server-side priceVat
-        Map<String, Object> dcConfig = dcConfigClient.fetchDcConfig(partnerCode);
-
-        // 3) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
+        // 2) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
         List<UUID> productIds = request.lines().stream()
                 .map(ConfirmLineRequest::productId)
                 .distinct()
@@ -129,6 +132,21 @@ public class PartnerOrderConfirmService {
             productMap.put(p.id(), p);
         }
 
+        // 3) price-calc 요청 빌드 (라인 index 를 lineId 로)
+        List<DcConfigClient.PriceLine> priceLines = new ArrayList<>();
+        List<ConfirmLineRequest> reqLines = request.lines();
+        for (int i = 0; i < reqLines.size(); i++) {
+            ConfirmLineRequest line = reqLines.get(i);
+            ProductSummary p = productMap.get(line.productId());
+            if (p == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + line.productId());
+            }
+            priceLines.add(new DcConfigClient.PriceLine(
+                    String.valueOf(i), p.modelName(), p.sellingPrice(),
+                    mapCategory(line.categoryKey()), line.quantity()));
+        }
+        Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
+
         // 4) inventory reserve 제거 (Phase 2.6c — 주문 무영향 원칙)
         // confirm 단계에서는 재고 예약을 하지 않는다. 재고 예약은 "출고전표로 전환(convert)" 시점에만 발생.
 
@@ -138,13 +156,10 @@ public class PartnerOrderConfirmService {
         PartnerOrder order = PartnerOrder.createFromConfirm(
                 partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
 
-        for (ConfirmLineRequest line : request.lines()) {
+        for (int i = 0; i < reqLines.size(); i++) {
+            ConfirmLineRequest line = reqLines.get(i);
             ProductSummary p = productMap.get(line.productId());
-            if (p == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND,
-                        "제품 카탈로그 없음: " + line.productId());
-            }
-            BigDecimal priceVat = applyDc(p.sellingPrice(), line.categoryKey(), dcConfig);
+            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), p.sellingPrice());
             PartnerOrderLine entity = PartnerOrderLine.create(
                     p.id(), p.modelName(), p.name(), line.categoryKey(),
                     line.quantity(), priceVat, line.remark());
@@ -214,40 +229,19 @@ public class PartnerOrderConfirmService {
     }
 
     /**
-     * server-side DC 적용 — categoryKey 기반 할인율 매트릭스 (M3 가드 일관, client 가격 무시).
-     * dc-config-service 응답이 비어있으면 sellingPrice 그대로.
+     * ConfirmLineRequest.categoryKey → price-calc category (HOMEMULTI/COMMERCIAL_MULTI/OTHER).
+     *
+     * @param categoryKey legacy 카테고리 키 (homemulti / commercialMulti / ...)
+     * @return price-calc 카테고리 문자열
      */
-    private BigDecimal applyDc(BigDecimal sellingPrice, String categoryKey, Map<String, Object> dcConfig) {
-        if (sellingPrice == null) {
-            return BigDecimal.ZERO;
+    private String mapCategory(String categoryKey) {
+        if (categoryKey == null) {
+            return "OTHER";
         }
-        if (dcConfig == null || dcConfig.isEmpty()) {
-            return sellingPrice;
-        }
-        String dcKey = mapCategoryToDcKey(categoryKey);
-        Object raw = dcConfig.get(dcKey);
-        if (!(raw instanceof Number num)) {
-            return sellingPrice;
-        }
-        BigDecimal rate = BigDecimal.valueOf(num.doubleValue());
-        BigDecimal multiplier = BigDecimal.ONE.subtract(rate);
-        if (multiplier.signum() <= 0) {
-            return BigDecimal.ZERO;
-        }
-        return sellingPrice.multiply(multiplier);
-    }
-
-    private String mapCategoryToDcKey(String categoryKey) {
         return switch (categoryKey) {
-            case "homemulti", "homeDefaults" -> "homeDiscount";
-            case "commercialMulti" -> "commDiscount";
-            case "singleSets", "singleDefaults", "singleMatPrices" -> "singleDiscount";
-            case "singleParts" -> "singlePartsDiscount";
-            case "commercialParts" -> "commPartsDiscount";
-            case "oldProducts" -> "oldDiscount";
-            case "homeInc", "commInc", "singleInc", "singlePartsInc" -> "incDiscount";
-            case "specDetailMap" -> "specDiscount";
-            default -> "homeDiscount";
+            case "homemulti", "homeDefaults" -> "HOMEMULTI";
+            case "commercialMulti" -> "COMMERCIAL_MULTI";
+            default -> "OTHER";
         };
     }
 

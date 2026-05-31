@@ -58,7 +58,7 @@ class PartnerOrderDraftServiceIT extends AbstractPostgresIT {
     @Test
     void draft_create_assigns_sequential_draft_seq_per_partner() {
         // mock setup (lenient - 호출되지 않을 수 있음)
-        Mockito.lenient().when(dcConfigClient.fetchDcConfig(Mockito.anyString()))
+        Mockito.lenient().when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
                 .thenReturn(Map.of());
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
                 .thenReturn(List.of());

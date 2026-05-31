@@ -132,8 +132,8 @@ class VendorOrderControllerIT extends AbstractPostgresIT {
                     return Optional.of(new PartnerSummary(
                             UUID.randomUUID(), code, "Test Partner", "1234567890"));
                 });
-        Mockito.lenient().when(dcConfigClient.fetchDcConfig(Mockito.anyString()))
-                .thenReturn(Map.of("homeDiscount", 0.10));
+        Mockito.lenient().when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of());
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
                 .thenReturn(java.util.List.of());
         Mockito.lenient().when(slipServiceClient.publishFromPartnerOrder(

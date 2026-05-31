@@ -101,19 +101,9 @@ public class VendorOrderService {
                 .toList();
         Map<String, CatalogEntry> catalog = catalogClient.findByModelCodes(modelCodes);
 
-        // DC 조회 (partnerCode 가 있을 때만)
+        // DC rate 조회 (미리보기 용도 — price-calc 는 라인 기반이므로 preview 단계에서는 0 사용)
+        // 실 DC 적용은 confirm 단계의 PartnerOrderConfirmService.calculatePrices 에서 수행.
         BigDecimal dcRate = BigDecimal.ZERO;
-        if (partnerCode != null && !partnerCode.isBlank()) {
-            try {
-                Map<String, Object> dcConfig = dcConfigClient.fetchDcConfig(partnerCode);
-                Object raw = dcConfig.get("homeDiscount");
-                if (raw instanceof Number num) {
-                    dcRate = BigDecimal.valueOf(num.doubleValue());
-                }
-            } catch (RuntimeException ex) {
-                log.warn("DC config fail-soft: {}", ex.getMessage());
-            }
-        }
 
         // preview line 생성
         List<VendorOrderUploadResponse.PreviewLine> previewLines = new ArrayList<>();

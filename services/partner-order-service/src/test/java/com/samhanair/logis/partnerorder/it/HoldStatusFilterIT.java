@@ -132,7 +132,7 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
                 any(UUID.class), anyString(), any(PermissionAction.class))).thenReturn(true);
 
         // 외부 client 기본 lenient stub
-        lenient().when(dcConfigClient.fetchDcConfig(anyString())).thenReturn(Map.of());
+        lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
     }
 

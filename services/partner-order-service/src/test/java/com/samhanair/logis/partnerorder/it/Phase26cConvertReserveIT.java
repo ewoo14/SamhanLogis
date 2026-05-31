@@ -110,7 +110,7 @@ class Phase26cConvertReserveIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.check(
                 any(UUID.class), anyString(), any(PermissionAction.class))).thenReturn(true);
 
-        lenient().when(dcConfigClient.fetchDcConfig(anyString())).thenReturn(Map.of());
+        lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
 
         // InventoryClient 기본 stub

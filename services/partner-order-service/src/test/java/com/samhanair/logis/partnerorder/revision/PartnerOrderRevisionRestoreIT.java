@@ -157,7 +157,7 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                 any(UUID.class), anyString(), any(PermissionAction.class))).thenReturn(true);
 
         // 외부 client 기본 lenient stub
-        lenient().when(dcConfigClient.fetchDcConfig(anyString())).thenReturn(java.util.Map.of());
+        lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(java.util.Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
         // InventoryClient.reserve(UUID, UUID, int) 는 concrete class — 직접 stub 하지 않음.
         // confirm 흐름 IT 에서만 필요하므로 각 케이스에서 개별 stub (본 IT 는 confirm 경로 미사용).

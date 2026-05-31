@@ -50,7 +50,7 @@ class PartnerOrderBootstrapIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         // 모든 외부 client mock — confirm 흐름 외에는 호출되지 않음
-        Mockito.lenient().when(dcConfigClient.fetchDcConfig(Mockito.anyString()))
+        Mockito.lenient().when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
                 .thenReturn(Map.of());
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
                 .thenReturn(List.of());
