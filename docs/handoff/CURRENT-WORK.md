@@ -6,8 +6,16 @@
 
 ## 🧭 새 세션 시작 가이드 (2026-05-31 갱신)
 
-**현재 상태**: 슬라이스 **C(slip↔inventory 창고코드 정렬) 머지 완료** (#328 squash `ed7bebee`). 진행 중 작업 없음 — **다음 슬라이스 D 진입 대기**. (4개 슬라이스 일괄 진행 순서 = **C(완료)→D→B→A**, 개발책임자 결정 2026-05-31.)
+**현재 상태**: 슬라이스 **D1(confirm 자동발행 폐지) 구현 완료** — 브랜치 `feat/slice-d1-confirm-no-autopublish`(spec/plan/BE/docs 커밋). **PR 발행 + 5-team 리뷰 + Docker 실 QA 대기**. 슬라이스 C 머지 완료(#328 `ed7bebee`). (진행 순서 = **C(완료)→D1(구현완료)→D2(병합)→B→A**.)
 **환경 메모**: ⚠️ Codex 6/1(월) 12:00 복구 전 → 구현+리뷰 모두 Claude 에이전트. 5-team 패턴 + 사이클 N=2 + Docker 실 QA([[no-fake-data-ever]]) + [[always-mouse-choices]] 유지.
+
+### 🚧 슬라이스 D1 구현 완료 (브랜치 `feat/slice-d1-confirm-no-autopublish`, 머지 전)
+2.6b 분할 ①. 거래처 포털 confirm 자동발행 폐지 — confirm 은 slip 미발행 **DRAFT(진행중)** 주문만 생성(D-CF-02), from-estimate 와 일원화. 출고전표는 명시적 convert 로만 발행.
+- BE: `PartnerOrder.createFromConfirm`(DRAFT+NOT_REQUIRED) + `confirm` slip 발행 블록 제거 + 미사용 의존 정리(`85d6150f`). FE(order-app) **무변경**(confirm 성공 핸들러 slipNo/status 비의존, "전송이 완료되었습니다"). outbox/scheduler dormant 유지(D-CF-03).
+- 테스트: `PartnerOrderConfirmServiceIT` 2 케이스(DRAFT+slipNo null+slip 미호출+outbox 0) + 전체 회귀 PASS(skipped=0). 부수효과: slip-service 다운에도 confirm 200.
+- spec/plan/dev-report: `docs/superpowers/{specs,plans}/2026-05-31-confirm-no-autopublish*` + `docs/dev-reports/slice-d1-confirm-no-autopublish.md`. DECISIONS D-CF-01~03.
+- **다음 단계**: PR → 5-team N=2 → CI → Docker 실 QA(실 confirm→DRAFT+slip 0건 psql→convert 발행) → 머지. partner-order 단독 배포.
+- **다음 슬라이스**: D2(다중주문 병합 — slip N:1 출처추적+from-orders-merge+'/'병기+FE 다중선택) → B(2.6d 재고조회 모달) → A(시리얼).
 
 ### ✅ 2026-05-31 완료 — 슬라이스 C slip↔inventory 창고코드 정렬 **머지** (#328 squash `ed7bebee`)
 2.6c convert happy-path 잠금. **inventory 단일 출처**(D-WH-01) + convert 가 inventory 해석 warehouseId 를 slip 에 직접 전달·estimate 는 yml 격리(D-WH-02) + 전환 모달 창고 필수 선택(D-WH-03).

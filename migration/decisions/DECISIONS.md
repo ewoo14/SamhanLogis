@@ -2562,3 +2562,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-WH-03 | **FE 전환 모달 창고 드롭다운 필수(기본값 없음)**. design-system `WarehouseSelector`(hideVirtual) 로 출고 창고를 명시 선택해야 전환 가능(미선택 시 제출 비활성). 재고 없는 창고 오선택 방지. UUID 비공개: 선택 내부 value 는 창고 id 지만 convert 요청 본문엔 warehouseCode 만 전송. 창고별 가용 재고 표시는 슬라이스 B(2.6d 재고조회 모달). |
 
 **산출**: slip `PublishFromPartnerOrderRequest.warehouseId`(nullable) + `SlipPublishService.resolveWarehouseId`(warehouseId 우선·yml 폴백, 커밋 `bcafe950`); partner-order `PartnerOrderConvertService.convert` slip payload 에 warehouseId 추가(`fd5f4378`); FE 전환 모달 `WarehouseSelector` 필수 선택 + warehouseCode 전송(`44cbc420`). 테스트: `SlipPublishWarehouseIdIT`(2) + `PartnerOrderConvertIT.case6` captor + Playwright 시나리오 11. spec `docs/superpowers/specs/2026-05-31-slip-inventory-warehouse-code-align-design.md`, plan `docs/superpowers/plans/2026-05-31-slip-inventory-warehouse-code-align.md`, dev-report `docs/dev-reports/slice-c-warehouse-code-align.md`. 배포 순서: slip → partner-order → FE.
+
+---
+
+### D-CF. confirm 자동발행 폐지 (2026-05-31, 슬라이스 D1 = 2.6b 분할 ①)
+
+**배경**: 거래처 포털 confirm(`PartnerOrderConfirmService.confirm`)이 주문 INSERT 직후 자동으로 출고전표(slip)를 발행(200→CONFIRMED+slipNo / 5xx→outbox PENDING_RETRY)했다. 이 강결합이 부분전환/병합(2.6a/2.6c/D2)의 명시적 convert 모델과 충돌(confirm 발행 주문은 slipNo≠null → convert 불가)했고, from-estimate 경로(이미 DRAFT+NOT_REQUIRED)와 비대칭이었다.
+
+| 결정 | 내용 |
+|---|---|
+| D-CF-01 | **2.6b 를 D1(confirm 자동발행 폐지) / D2(다중주문 병합) 로 분할.** D1 먼저 독립 슬라이스. confirm 폐지가 주문 라이프사이클 근간(전환 일원화)이라 D2 병합의 토대 — 각각 독립 테스트·머지. |
+| D-CF-02 | **confirm 은 slip 미발행 주문만 생성, 결과 status=DRAFT(진행중) + NOT_REQUIRED.** `PartnerOrder.createFromConfirm`(from-estimate 동형, sourceEstimateId=null)으로 생성. 출고전표는 명시적 convert 액션(`PartnerOrderConvertService`)으로만 발행(완료=CONVERTED). CONFIRMING/CONFIRMED/SlipPublishStatus 는 신규 흐름 미사용(레거시 호환만). 두 주문생성 경로 통일 + convert 모델 정합 + churn 최소. 부수효과: slip-service 다운 시에도 confirm 200(가용성 개선). |
+| D-CF-03 | **outbox/scheduler/SlipPublishStatus/markSlipPublished/markSlipPendingRetry 는 dormant 유지(코드 물리 제거는 후속).** confirm 신규 enqueue 0, 스케줄러는 레거시 PENDING_RETRY 행 drain 지속. 운영 in-flight 안전 + 최소 diff. deprecated 주석으로 후속 제거 표식. |
+
+**산출**: `PartnerOrder.createFromConfirm`(DRAFT+NOT_REQUIRED) + `PartnerOrderConfirmService.confirm` slip 발행 블록 제거 + 미사용 의존(slipServiceClient/outboxRepository/objectMapper/buildSlipPayload/serialize) 제거 + confirm IT 재작성(`85d6150f`). FE(order-app) 무변경(confirm 성공 핸들러 slipNo/status 비의존). spec `docs/superpowers/specs/2026-05-31-confirm-no-autopublish-design.md`, plan `docs/superpowers/plans/2026-05-31-confirm-no-autopublish.md`, dev-report `docs/dev-reports/slice-d1-confirm-no-autopublish.md`. partner-order-service 단독 배포, Flyway 불필요. **D2(다중주문 병합) 후속.**
