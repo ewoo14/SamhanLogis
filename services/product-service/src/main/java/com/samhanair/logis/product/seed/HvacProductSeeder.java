@@ -6,9 +6,11 @@ import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +52,14 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  *
  * <p><b>Idempotency</b>: {@link ProductRepository#existsByModelNameAndIsDeletedFalse(String)} 로 중복 확인.
- * <p><b>도메인 메서드만</b>: {@link Product#create} factory + {@code updateEcountMeta} /
+ * <p><b>결정적 UUID 보장 — jdbcTemplate native INSERT</b>: {@code @UuidGenerator} 가 붙은
+ * JPA {@code save()} 는 Hibernate 6 의 {@code BeforeExecutionGenerator} 에 의해 INSERT 직전
+ * UUID 를 항상 새로 생성하므로 리플렉션으로 주입한 결정적 UUID 를 덮어쓴다.
+ * inventory-service {@link com.samhanair.logis.inventory.seed.StockBalanceSeeder} 와 동일하게
+ * {@link JdbcTemplate} raw INSERT 를 사용하여 Hibernate UUID 생성 로직을 완전히 우회한다.
+ * 도메인 메서드({@link Product#create} + setter chain)로 값을 계산 후 getter 로 읽어 INSERT.
+ * Product 엔티티/도메인 운영 코드(Product.java) 는 무수정 — 회귀 0.
+ * <p><b>도메인 메서드만(값 계산 목적)</b>: {@link Product#create} factory + {@code updateEcountMeta} /
  * {@code updateVatPolicy} / {@code updateInventoryPolicy} / {@code updateGroups} /
  * {@code updateHvacPriceMatrix} chain. {@code markDiscontinued} 만 4건 적용 (seq % 25 == 0).
  */
@@ -77,11 +87,14 @@ public class HvacProductSeeder implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public HvacProductSeeder(ProductRepository productRepository,
-                             CategoryRepository categoryRepository) {
+                             CategoryRepository categoryRepository,
+                             JdbcTemplate jdbcTemplate) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -111,11 +124,12 @@ public class HvacProductSeeder implements CommandLineRunner {
                 continue;
             }
             try {
+                UUID deterministicId = deterministicId("product", row.modelName());
                 Product product = buildProduct(row, catCache);
-                // PM 통합 fix — Stage 2/3/4 seeder 와 cross-service join 위해 deterministic UUID 강제 주입.
-                // slip_line.product_id 가 modelName 기반 결정 UUID 와 매칭 되도록 함.
-                forceId(product, deterministicId("product", row.modelName()));
-                productRepository.save(product);
+                // jdbcTemplate raw INSERT — Hibernate @UuidGenerator(BeforeExecutionGenerator) 우회.
+                // JPA save() 는 INSERT 직전 UUID 를 항상 신규 생성하므로 결정적 UUID 를 보존할 수 없음.
+                // inventory StockBalanceSeeder 와 동일한 패턴. Product 도메인/엔티티 수정 0 (회귀 없음).
+                insertProductNative(deterministicId, row, product);
                 created++;
             } catch (RuntimeException ex) {
                 log.error("Failed to seed product {}: {}", row.modelName(), ex.getMessage(), ex);
@@ -339,20 +353,127 @@ public class HvacProductSeeder implements CommandLineRunner {
     /**
      * {@code samhan-seed:<type>:<key>} 결정적 UUID 도출 — Stage 1/2/3/4 seeder
      * 모두 동일 namespace 패턴 사용 (cross-stage 참조 정합).
+     * UTF-8 바이트 사용 ({@link StandardCharsets#UTF_8}) — StockBalanceSeeder 와 동일 규칙.
      */
     private static UUID deterministicId(String type, String key) {
-        return UUID.nameUUIDFromBytes(("samhan-seed:" + type + ":" + key).getBytes());
+        return UUID.nameUUIDFromBytes(
+                ("samhan-seed:" + type + ":" + key).getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Hibernate 의 {@code @UuidGenerator} 가 random UUID 부여하기 전에 결정 UUID 강제 주입. */
-    private static void forceId(Object entity, UUID id) {
-        try {
-            Field f = entity.getClass().getDeclaredField("id");
-            f.setAccessible(true);
-            f.set(entity, id);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Failed to set deterministic id on "
-                    + entity.getClass().getSimpleName(), e);
-        }
+    /**
+     * products 테이블 native INSERT — Hibernate {@code @UuidGenerator} 를 완전히 우회하여
+     * 결정적 UUID 를 실제 PK 로 저장한다.
+     *
+     * <p>삽입 컬럼: seeder 가 채우는 필드만 명시 (나머지 nullable/default 는 DB 기본값 사용).
+     * V1~V7 migration 의 NOT NULL + DEFAULT 컬럼은 모두 DEFAULT 로 처리 가능.
+     *
+     * @param id      결정적 UUID ({@code samhan-seed:product:<modelName>} 기반 Type-3)
+     * @param row     시드 행 (modelName / seq 등 메타)
+     * @param product 도메인 메서드 체인으로 값이 채워진 Product 객체 (getter 로 읽기만 함)
+     */
+    private void insertProductNative(UUID id, SeedRow row, Product product) {
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        jdbcTemplate.update(
+                "INSERT INTO products ("
+                        + "  id, name, model_name, category_id,"
+                        + "  selling_price, purchase_price, currency, status,"
+                        + "  description,"
+                        // V3 확장 컬럼
+                        + "  product_type, has_variable_discount, discount_flags,"
+                        + "  release_price, delivery_price, usage_scope,"
+                        + "  spec_text, remark,"
+                        // V5 이카운트 컬럼
+                        + "  product_code, specification, unit, product_business_type,"
+                        + "  inventory_qty_mgmt, barcode,"
+                        + "  vat_rate_on_sales, vat_rate_on_purchase, price_includes_vat,"
+                        + "  safety_stock_qty, lead_time_days, min_order_unit, purchase_source,"
+                        + "  product_group1, product_group2,"
+                        + "  inbound_price, outbound_price, single_price, outdoor_price,"
+                        + "  multi_50_price, multi_48_price, multi_45_price, item_35_price,"
+                        // V6 revision
+                        + "  revision_count,"
+                        // V7 세금 유형
+                        + "  tax_type, unit_price_with_vat,"
+                        // BaseEntity audit
+                        + "  created_at, created_by, is_deleted"
+                        + ") VALUES ("
+                        + "  ?, ?, ?, ?,"
+                        + "  ?, ?, ?, ?,"
+                        + "  ?,"
+                        + "  ?, ?, ?,"
+                        + "  ?, ?, ?,"
+                        + "  ?, ?,"
+                        + "  ?, ?, ?, ?,"
+                        + "  ?, ?,"
+                        + "  ?, ?, ?,"
+                        + "  ?, ?, ?, ?,"
+                        + "  ?, ?,"
+                        + "  ?, ?, ?, ?,"
+                        + "  ?, ?, ?, ?,"
+                        + "  ?,"
+                        + "  ?, ?,"
+                        + "  ?, ?, ?"
+                        + ")",
+                // id, name, model_name, category_id
+                id,
+                product.getName(),
+                product.getModelName(),
+                product.getCategory().getId(),
+                // selling_price, purchase_price, currency, status
+                product.getSellingPrice(),
+                product.getPurchasePrice(),
+                product.getCurrency(),
+                product.getStatus().name(),
+                // description
+                product.getDescription(),
+                // product_type, has_variable_discount, discount_flags
+                product.getProductType().name(),
+                product.getHasVariableDiscount(),
+                product.getDiscountFlags(),
+                // release_price, delivery_price, usage_scope
+                product.getReleasePrice(),
+                product.getDeliveryPrice(),
+                product.getUsageScope().name(),
+                // spec_text, remark
+                product.getSpecText(),
+                product.getRemark(),
+                // product_code, specification, unit, product_business_type
+                product.getProductCode(),
+                product.getSpecification(),
+                product.getUnit(),
+                product.getProductBusinessType(),
+                // inventory_qty_mgmt, barcode
+                product.getInventoryQtyMgmt(),
+                product.getBarcode(),
+                // vat_rate_on_sales, vat_rate_on_purchase, price_includes_vat
+                product.getVatRateOnSales(),
+                product.getVatRateOnPurchase(),
+                product.getPriceIncludesVat(),
+                // safety_stock_qty, lead_time_days, min_order_unit, purchase_source
+                product.getSafetyStockQty(),
+                product.getLeadTimeDays(),
+                product.getMinOrderUnit(),
+                product.getPurchaseSource(),
+                // product_group1, product_group2
+                product.getProductGroup1(),
+                product.getProductGroup2(),
+                // inbound_price, outbound_price, single_price, outdoor_price
+                product.getInboundPrice(),
+                product.getOutboundPrice(),
+                product.getSinglePrice(),
+                product.getOutdoorPrice(),
+                // multi_50_price, multi_48_price, multi_45_price, item_35_price
+                product.getMulti50Price(),
+                product.getMulti48Price(),
+                product.getMulti45Price(),
+                product.getItem35Price(),
+                // revision_count
+                0,
+                // tax_type, unit_price_with_vat
+                product.getTaxType().name(),
+                product.getUnitPriceWithVat(),
+                // created_at, created_by, is_deleted
+                now, "system", false
+        );
     }
 }
