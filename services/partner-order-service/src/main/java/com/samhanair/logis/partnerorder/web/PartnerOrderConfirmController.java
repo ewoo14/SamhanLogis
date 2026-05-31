@@ -21,14 +21,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 
 /**
- * 주문 확정 endpoint (legacy sendOrderFromUi). 설계서 §3.6 흐름 — Sync REST + outbox + Circuit Breaker.
+ * 주문 확정 endpoint (legacy sendOrderFromUi) — 슬라이스 D1 이후 slip 자동발행 폐지.
  *
  * <p>권한 — PARTNER + admin (MASTER/MANAGER).
  *
- * <p>본 endpoint 는 임시저장 ID (path) 를 받아 → DC + reserve + slip 발행. slipNo 는 응답에서
- * PUBLISHED 시 채워지고 PENDING_RETRY 시 null (FE 는 polling 또는 history 조회로 확인).
+ * <p>본 endpoint 는 임시저장 ID (path) 를 받아 거래처 주문을 DRAFT 상태로 생성한다.
+ * confirm 단계에서는 slip-service 를 호출하지 않으며 slipNo 는 항상 null 이다.
+ * 출고전표 발행은 이후 본사 데스크톱의 명시적 convert 액션({@code PartnerOrderConvertService})으로만 수행한다.
  *
- * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.confirm} EDIT.
+ * <p>응답:
+ * <ul>
+ *   <li>{@code status=DRAFT} — 진행중(주문 접수됨, 출고전표 미생성)</li>
+ *   <li>{@code slipPublishStatus=NOT_REQUIRED} — confirm 단계에서 slip 발행 불필요</li>
+ *   <li>{@code slipNo=null} — 항상 null (출고전표는 convert 후 채워짐)</li>
+ * </ul>
+ *
+ * <p>멱등 보장 — 동일 (partnerCode, draftSeq) 로 재호출 시 기존 주문을 반환하며 중복 row 생성 없음
+ * (idempotencyKey = {@code "PO-CONF-" + partnerCode + "-" + draftSeq}).
+ *
+ * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.confirm} CREATE.
  */
 @RestController
 @RequestMapping("/api/v1/partner-orders")
@@ -44,17 +55,25 @@ public class PartnerOrderConfirmController {
     private final PartnerOrderConfirmService confirmService;
 
     /**
-     * 임시저장 → 확정 (path variable = draftId). draftId 없이 confirm 도 향후 슬라이스에서 가능
-     * (skeleton 은 draft 기반 단일 흐름).
+     * 임시저장 → 확정 (path variable = draftId) — 슬라이스 D1 이후 DRAFT 주문만 생성.
      *
-     * @return 200, ConfirmResponse — slipNo 또는 PENDING_RETRY 상태
+     * <p>draftId 가 없으면 partnerCode 별 MAX draftSeq + 1 로 idempotencyKey 를 채번한다.
+     * confirm 은 slip-service 를 호출하지 않으므로 응답 {@code slipNo=null},
+     * {@code status=DRAFT}, {@code slipPublishStatus=NOT_REQUIRED} 가 항상 반환된다.
+     * 출고전표 발행은 별도 convert API 로만 수행한다.
+     *
+     * @return 200, ConfirmResponse — status=DRAFT, slipNo=null, slipPublishStatus=NOT_REQUIRED
      */
-    @Operation(summary = "주문 확정",
-            description = "Sync REST + outbox 흐름 — slip 발행 200/409 → CONFIRMED, 5xx → PENDING_RETRY")
+    @Operation(summary = "주문 확정 (D1 — slip 자동발행 없음)",
+            description = "거래처 주문을 DRAFT 상태로 생성한다. slip-service 미호출. "
+                    + "출고전표는 convert API 로 명시적으로만 발행 가능.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "확정 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "draft 또는 product 미발견"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "재고 부족 또는 중복 confirm")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "확정 성공 — status=DRAFT, slipNo=null"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "임시저장(draftId) 또는 product 미발견"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                    description = "멱등 충돌 (동일 주문 중복 confirm 시도)")
     })
     @PostMapping("/{draftId}/confirm")
     @RequirePermission(page = "sales.partner-order.confirm", action = PermissionAction.CREATE,
