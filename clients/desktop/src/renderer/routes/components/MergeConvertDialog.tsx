@@ -135,13 +135,25 @@ export function MergeConvertDialog({
   onSuccess,
 }: MergeConvertDialogProps) {
   // 선택 주문 상세 로드 (라인 정보 필요) — useQueries 로 rules-of-hooks 위반 방지
+  //
+  // FE-BUG-1 수정: 목록에서 전달된 orderNumber 가 슬래시 포맷(`2026/05/31-2`)인 경우
+  // encodeURIComponent 가 `%2F` 로 변환 → 게이트웨이 400 오류.
+  // BE PartnerOrderIdResolver 는 하이픈/슬래시 모두 처리하므로
+  // 상세 조회 전에 `/` → `-` 로 정규화하여 URL-safe 하이픈 포맷으로 통일한다.
+  // (하이픈 포맷은 no-op. 기존 단일주문 경로 무변경 — 이 컴포넌트 호출부만 국소 적용.)
+  const normalizeOrderNumber = (orderNumber: string): string =>
+    orderNumber.replace(/\//g, '-')
+
   const orderDetailsQueries = useQueries({
-    queries: selectedOrders.map((o) => ({
-      queryKey: ['partner-order', o.orderNumber],
-      queryFn: () => getPartnerOrder(o.orderNumber!),
-      enabled: !!o.orderNumber,
-      retry: 1 as const,
-    })),
+    queries: selectedOrders.map((o) => {
+      const normalizedNo = o.orderNumber ? normalizeOrderNumber(o.orderNumber) : undefined
+      return {
+        queryKey: ['partner-order', normalizedNo],
+        queryFn: () => getPartnerOrder(normalizedNo!),
+        enabled: !!normalizedNo,
+        retry: 1 as const,
+      }
+    }),
   })
 
   const warehousesQuery = useQuery({

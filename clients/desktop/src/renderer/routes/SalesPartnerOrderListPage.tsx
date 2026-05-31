@@ -286,11 +286,15 @@ export function SalesPartnerOrderListPage() {
                 (같은 거래처만 병합 가능합니다)
               </span>
             ) : null}
+            {/* UI-OBS-1 수정: 혼합 거래처 선택 시 disabled + aria-disabled 모두 설정.
+                Playwright toBeDisabled() 는 HTML disabled 속성을 확인하므로 충분하나,
+                스크린리더 / ARIA 접근성을 위해 aria-disabled 도 명시적으로 동기화한다. */}
             <Button
               type="button"
               variant="primary"
               data-testid="merge-convert-open"
               disabled={!mergeButtonEnabled}
+              aria-disabled={!mergeButtonEnabled}
               title={
                 !allSamePartner && selectedCount >= 2
                   ? '같은 거래처 주문만 병합 가능합니다'
