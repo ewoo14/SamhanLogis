@@ -1,0 +1,267 @@
+/**
+ * AC-3 (PR #333) — 거래처 자동완성(PartnerAutocomplete) 실 gateway 실 UI 캡처.
+ *
+ * 목적: PR #333 머지 전 데스크톱 UI 실 캡처 — QA 스크린샷 의무([[feedback_pr_qa_screenshots]]) 충족.
+ * 실 gateway(:8080) + 실 JWT(addInitScript 주입) + 실 admin-service 데이터 대상 동작 검증.
+ * mock 일절 없음 ([[feedback_no_fake_data_ever]]).
+ *
+ * 캡처 대상:
+ *   ui-01-partner-search.png  — "서울" 타이핑 후 실 후보 드롭다운 노출
+ *   ui-02-partner-selected.png — 후보 선택 완료 + 연락처/주소/대표자 자동 채움
+ *
+ * 실 거래처 시드 (admin-service):
+ *   - 검색어 "서울" → (주)서울에어컨(P-2026-0001) + (주)서울택배(P0-6-C002) 2건
+ *   - GET /admin/partners/search?q=서울&size=20 → HTTP 200
+ *
+ * 실 gateway 연동 증명:
+ *   - API 베이스: http://localhost:8080 (VITE_MOCK_MODE 미설정)
+ *   - 실 JWT: gateway /api/v1/auth/login dev_master 계정 취득 후 addInitScript 주입
+ *   - GET /admin/partners/search?q=서울 → 실 거래처 후보
+ *   - GET /api/v1/partners/{partnerCode}/full → 2단계 detail (연락처/주소/대표자)
+ *
+ * 실행:
+ *   cd clients/desktop
+ *   (별도 터미널) npx vite src/renderer --host 127.0.0.1 --port 5179
+ *   set PLAYWRIGHT_SKIP_WEB_SERVER=1 && set AUDIT_BASE_URL=http://127.0.0.1:5179
+ *   set REAL_JWT=<MASTER_TOKEN>
+ *   npx playwright test playwright/ac-3-partner-autocomplete/ac3-real-qa-driver --reporter=line
+ */
+import * as path from 'path'
+import * as fs from 'fs'
+import { fileURLToPath } from 'url'
+import { expect, test, type Page } from '@playwright/test'
+
+// ============================================================
+// 상수 설정
+// ============================================================
+
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5179'
+
+const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
+const MASTER_USER_ROLE = 'MASTER'
+const MASTER_USER_NAME = '[DEV-SEED] 개발마스터'
+
+/**
+ * 실 JWT — gateway :8080 /api/v1/auth/login 에서 취득한 토큰.
+ * addInitScript 로 window.samhanAuth.getToken() 에 주입.
+ */
+const REAL_JWT = process.env['REAL_JWT'] ?? ''
+
+const _dirname = path.dirname(fileURLToPath(import.meta.url))
+const SCREENSHOT_DIR = path.resolve(
+  _dirname,
+  '../../../../docs/qa/ac3-partner-autocomplete',
+)
+
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
+}
+
+async function capture(page: Page, filename: string): Promise<string> {
+  const filePath = path.join(SCREENSHOT_DIR, filename)
+  await page.screenshot({ path: filePath, fullPage: false })
+  const stat = fs.statSync(filePath)
+  console.log(`[CAPTURE] ${filePath} (${stat.size} bytes)`)
+  return filePath
+}
+
+// ============================================================
+// 실 JWT addInitScript 주입
+// ============================================================
+
+async function installRealJwtStub(page: Page, token: string): Promise<void> {
+  await page.addInitScript(`
+    (function() {
+      const _auth = {
+        token: '${token}',
+        userId: '${MASTER_USER_ID}',
+        role: '${MASTER_USER_ROLE}',
+        fullName: '${MASTER_USER_NAME}',
+        partnerCode: null,
+      };
+      Object.defineProperty(window, 'samhanAuth', {
+        configurable: true,
+        value: {
+          getToken: async () => _auth,
+          setToken: async () => undefined,
+          clearToken: async () => undefined,
+        },
+      });
+      console.log('[AC-3 QA] samhanAuth real JWT stub installed, role=' + _auth.role);
+    })();
+  `)
+}
+
+const slipNewUrl = () => `${BASE_URL}/#/sales/new`
+
+// ============================================================
+// 테스트 스위트
+// ============================================================
+
+test.describe('AC-3 거래처 자동완성 — 실 gateway 실 UI 캡처', () => {
+
+  test.beforeAll(() => {
+    if (!REAL_JWT) {
+      throw new Error('[BLOCKED] REAL_JWT 환경변수가 없음. 실 JWT 없이 실 gateway 캡처 불가.')
+    }
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 캡처 1: "서울" 타이핑 → 실 후보 드롭다운 노출
+  //
+  // 실 gateway GET /admin/partners/search?q=서울 에서 거래처 목록 로드.
+  // PartnerAutocomplete input(role=combobox) 에 "서울" 타이핑 → listbox[role=listbox] 노출.
+  // 실재 거래처((주)서울에어컨 P-2026-0001) 후보가 candidates 에 포함됨을 실 화면으로 증명.
+  // ──────────────────────────────────────────────────────────
+  test('캡처1: "서울" 타이핑 → 실 거래처 후보 드롭다운 노출', async ({ page }) => {
+    await installRealJwtStub(page, REAL_JWT)
+
+    // 실 gateway 네트워크 요청 모니터링
+    const partnerSearchHits: string[] = []
+    page.on('response', async (res) => {
+      if (res.url().includes('/admin/partners/search')) {
+        partnerSearchHits.push(`${res.status()} GET ${res.url()}`)
+        console.log(`[API HIT] partner search: ${res.status()} ${res.url()}`)
+      }
+    })
+
+    await page.goto(slipNewUrl(), { waitUntil: 'domcontentloaded' })
+
+    // 전표 작성 화면 로드 완료 대기 — "+ 라인 추가" 버튼 표시
+    await expect(page.getByRole('button', { name: '+ 라인 추가' })).toBeVisible({ timeout: 20_000 })
+    await page.waitForTimeout(1500)
+
+    // PartnerAutocomplete input — role=combobox, label="거래처"
+    const partnerInput = page.getByRole('combobox', { name: /거래처/ })
+    await expect(partnerInput).toBeVisible({ timeout: 8_000 })
+
+    // "서울" 타이핑
+    await partnerInput.click()
+    await partnerInput.fill('서울')
+
+    // listbox 노출 대기 (aria-expanded=true + 실 API 응답 완료)
+    await expect(partnerInput).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 })
+
+    const listbox = page.getByRole('listbox', { name: '거래처 목록' })
+    await expect(listbox).toBeVisible({ timeout: 8_000 })
+
+    // 첫 번째 후보 확인 ((주)서울에어컨)
+    const firstOption = listbox.getByRole('option').first()
+    await expect(firstOption).toBeVisible({ timeout: 5_000 })
+    const optionText = await firstOption.innerText()
+    console.log('[AUTOCOMPLETE FIRST OPTION]', optionText)
+
+    // 캡처 1: 후보 드롭다운 노출 상태 (드롭다운이 화면에 보이는 상태 캡처)
+    await capture(page, 'ui-01-partner-search.png')
+
+    // 모든 후보 로깅
+    const allOptions = await listbox.getByRole('option').all()
+    const allTexts = await Promise.all(allOptions.map((o) => o.innerText()))
+    console.log('[ALL AUTOCOMPLETE OPTIONS]', allTexts)
+
+    // "서울" 포함 후보 존재 증명
+    const hasSeoul = allTexts.some((t) => t.includes('서울'))
+    console.log('[서울 IN CANDIDATES]', hasSeoul, '/ total:', allTexts.length)
+    expect(hasSeoul).toBe(true)
+
+    console.log('[PARTNER SEARCH API HITS]', partnerSearchHits)
+    expect(partnerSearchHits.length).toBeGreaterThan(0)
+    // HTTP 200 확인
+    expect(partnerSearchHits.some((h) => h.startsWith('200'))).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 캡처 2: 후보 클릭 선택 → 거래처명 표시 + 연락처/주소/대표자 자동 채움
+  //
+  // listbox 첫 번째 후보 클릭((주)서울에어컨)
+  // → PartnerAutocomplete input value = "(주)서울에어컨"
+  // → 2단계: GET /api/v1/partners/P-2026-0001/full → 연락처/주소/대표자 자동 채움.
+  // ──────────────────────────────────────────────────────────
+  test('캡처2: 후보 클릭 선택 → 거래처명 표시 + 연락처/주소/대표자 자동 채움', async ({ page }) => {
+    await installRealJwtStub(page, REAL_JWT)
+
+    const apiResponses: string[] = []
+    page.on('response', async (res) => {
+      if (res.url().includes('/admin/partners/')) {
+        apiResponses.push(`${res.status()} ${res.url()}`)
+        console.log(`[API HIT] ${res.status()} ${res.url()}`)
+      }
+    })
+
+    await page.goto(slipNewUrl(), { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('button', { name: '+ 라인 추가' })).toBeVisible({ timeout: 20_000 })
+    await page.waitForTimeout(1500)
+
+    // PartnerAutocomplete input
+    const partnerInput = page.getByRole('combobox', { name: /거래처/ })
+    await expect(partnerInput).toBeVisible({ timeout: 8_000 })
+
+    // "서울" 타이핑 → 후보 노출
+    await partnerInput.click()
+    await partnerInput.fill('서울')
+    await expect(partnerInput).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 })
+
+    const listbox = page.getByRole('listbox', { name: '거래처 목록' })
+    await expect(listbox).toBeVisible({ timeout: 8_000 })
+
+    // 첫 번째 후보 클릭 ((주)서울에어컨)
+    const firstOption = listbox.getByRole('option').first()
+    await expect(firstOption).toBeVisible({ timeout: 5_000 })
+    const optionText = await firstOption.innerText()
+    console.log('[CLICKING OPTION]', optionText)
+    await firstOption.click()
+
+    // 선택 후 input value 확인 — (주)서울에어컨
+    await expect(partnerInput).toHaveAttribute('aria-expanded', 'false', { timeout: 5_000 })
+    const inputValue = await partnerInput.inputValue()
+    console.log('[SELECTED INPUT VALUE]', inputValue)
+    expect(inputValue).toMatch(/서울/)
+
+    // listbox 닫힘 확인
+    await expect(listbox).not.toBeVisible({ timeout: 3_000 })
+
+    // 2단계 자동 채움 완료 대기 — 연락처 필드 입력 확인
+    await page.waitForTimeout(1500)
+
+    // 연락처 자동 채움 확인
+    const telInput = page.getByTestId('slip-form-customer-tel')
+    await expect(telInput).toBeVisible({ timeout: 5_000 })
+    const telVal = await telInput.inputValue()
+    console.log('[CUSTOMER TEL VALUE]', telVal)
+    expect(telVal.length).toBeGreaterThan(0)
+
+    // 주소 자동 채움 확인
+    const addrInput = page.getByTestId('slip-form-customer-address')
+    await expect(addrInput).toBeVisible({ timeout: 5_000 })
+    const addrVal = await addrInput.inputValue()
+    console.log('[CUSTOMER ADDRESS VALUE]', addrVal)
+    expect(addrVal.length).toBeGreaterThan(0)
+
+    // 대표자 자동 채움 확인
+    const repInput = page.getByTestId('slip-form-customer-representative')
+    await expect(repInput).toBeVisible({ timeout: 5_000 })
+    const repVal = await repInput.inputValue()
+    console.log('[CUSTOMER REPRESENTATIVE VALUE]', repVal)
+    expect(repVal.length).toBeGreaterThan(0)
+
+    // 캡처 2: 선택 완료 + 자동 채움 상태
+    await capture(page, 'ui-02-partner-selected.png')
+
+    console.log('[ALL API RESPONSES]', apiResponses.join('\n'))
+
+    // search + detail 양쪽 적중 확인
+    // detail: GET /admin/partners/{partnerCode} (slip.ts lookupPartnerForAutoFill)
+    const hasSearchHit = apiResponses.some((r) => r.includes('/admin/partners/search'))
+    const hasDetailHit = apiResponses.some((r) => r.includes('/admin/partners/') && !r.includes('/search'))
+    console.log('[SEARCH HIT]', hasSearchHit, '[DETAIL HIT]', hasDetailHit)
+    console.log('[ALL ADMIN PARTNER HITS]', apiResponses)
+    expect(hasSearchHit).toBe(true)
+    expect(hasDetailHit).toBe(true)
+
+    // 모든 응답이 200 (403 아님 — 권한 확인)
+    const nonOkResponses = apiResponses.filter((r) => !r.startsWith('200'))
+    console.log('[NON-200 RESPONSES]', nonOkResponses)
+    expect(nonOkResponses.length).toBe(0)
+  })
+
+})
