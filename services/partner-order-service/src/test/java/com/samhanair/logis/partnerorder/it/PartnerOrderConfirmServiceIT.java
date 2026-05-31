@@ -416,17 +416,20 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 .orElseThrow(() -> new AssertionError("주문을 찾을 수 없음: " + response.orderNo()))
                 .getId();
 
-        List<Map<String, Object>> lines = jdbcTemplate.queryForList(
-                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? ORDER BY created_at",
-                orderId);
+        // ORDER BY 에 의존하지 않고 product_id 로 각 라인을 직접 조회한다.
+        // created_at 단독 / created_at+id(UUID) 정렬은 같은 트랜잭션 내 다중라인 INSERT 시 비결정적(flaky).
+        // productId0 → lineId "0" → finalPrice=800,000 (DC 적용)
+        // productId1 → lineId "1" → 미응답 → fail-soft → listPrice=1,200,000
+        BigDecimal line0PriceVat = jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, productId0);
+        BigDecimal line1PriceVat = jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, productId1);
 
-        assertThat(lines).hasSize(2);
-        BigDecimal line0PriceVat = (BigDecimal) lines.get(0).get("price_vat");
-        BigDecimal line1PriceVat = (BigDecimal) lines.get(1).get("price_vat");
-
-        // 라인0: finalPrice (DC 적용)
+        // 라인0 (productId0=HM-5000): finalPrice (DC 적용)
         assertThat(line0PriceVat).as("라인0 price_vat = finalPrice (DC 적용)").isEqualByComparingTo("800000");
-        // 라인1: listPrice (lineId "1" 누락 → fail-soft)
+        // 라인1 (productId1=HM-8000): listPrice (lineId "1" 누락 → fail-soft)
         assertThat(line1PriceVat).as("라인1 price_vat = listPrice (price-calc 누락 → fail-soft)").isEqualByComparingTo("1200000");
     }
 }

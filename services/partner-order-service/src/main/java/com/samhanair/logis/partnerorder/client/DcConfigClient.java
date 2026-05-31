@@ -48,11 +48,17 @@ public class DcConfigClient {
 
     public DcConfigClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                           InternalAuthProperties internalAuthProperties) {
-        // P1-2: dc-config hang 방지 — connect 2s / read 3s (PartnerInternalClient 와 동일 패턴)
+        // N-1 공유 빌더 변이 방지: builder.clone() 으로 DcConfigClient 전용 사본 생성.
+        // loadBalancedRestClientBuilder 는 @Scope 없는 싱글턴 @Bean 이므로
+        // builder.requestFactory(rf) 를 직접 호출하면 같은 빌더를 주입받는
+        // ProductClient / InventoryClient / SlipServiceClient 등에도
+        // connect 2s / read 3s timeout 이 전파되는 잠재적 회귀가 발생한다.
+        // clone() 은 DefaultRestClientBuilder(this) 로 완전히 독립된 빌더 사본을 반환하므로
+        // 원본 싱글턴 빌더는 변이되지 않는다 (Spring 6.1.x RestClient.Builder#clone() 명시).
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
         rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
         rf.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
-        this.restClient = builder
+        this.restClient = builder.clone()
                 .baseUrl(DC_CONFIG_SERVICE_BASE)
                 .requestFactory(rf)
                 .build();
