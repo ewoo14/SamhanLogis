@@ -1,5 +1,6 @@
 package com.samhanair.logis.inventory.web.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -15,8 +16,8 @@ public record CreateInstanceRequest(
         @NotNull(message = "productId 는 필수입니다")
         UUID productId,
 
-        /** 품목코드 그룹 — 필수, FIFO 인덱스 키 */
-        @NotNull(message = "productCode 는 필수입니다")
+        /** 품목코드 그룹 — 필수, FIFO 인덱스 키 (빈 문자열/공백 불허) */
+        @NotBlank(message = "productCode 는 필수이며 공백만으로 구성될 수 없습니다")
         String productCode,
 
         /** 입고 창고 UUID — 필수 */

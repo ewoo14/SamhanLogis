@@ -1,6 +1,8 @@
 package com.samhanair.logis.inventory.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,8 +18,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 개별시리얼 재고 인스턴스 — 재고 최소단위(UUID=시리얼 키). Phase INV-S / S1.
@@ -145,7 +145,7 @@ public class StockInstance extends BaseEntity {
      * @param partnerCode    출고 거래처 코드
      * @param outboundSlipNo 출고(판매)전표 번호
      * @param outboundAt     출고일시 (null 이면 now() 사용)
-     * @throws ResponseStatusException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
+     * @throws BusinessException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
      */
     public void ship(String partnerCode, String outboundSlipNo, LocalDateTime outboundAt) {
         requireStatus(StockInstanceStatus.AVAILABLE, "출고");
@@ -158,7 +158,7 @@ public class StockInstance extends BaseEntity {
     /**
      * 회수 — SHIPPED → RECALLED (반품/회차 역-FIFO, S4 연동).
      *
-     * @throws ResponseStatusException 409 — 현재 상태가 SHIPPED 이 아닌 경우
+     * @throws BusinessException 409 — 현재 상태가 SHIPPED 이 아닌 경우
      */
     public void recall() {
         requireStatus(StockInstanceStatus.SHIPPED, "회수");
@@ -168,7 +168,7 @@ public class StockInstance extends BaseEntity {
     /**
      * 예약 — AVAILABLE → RESERVED (2.6c 수량 reserve 통합 후속).
      *
-     * @throws ResponseStatusException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
+     * @throws BusinessException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
      */
     public void reserve() {
         requireStatus(StockInstanceStatus.AVAILABLE, "예약");
@@ -178,7 +178,7 @@ public class StockInstance extends BaseEntity {
     /**
      * 예약 해제 — RESERVED → AVAILABLE.
      *
-     * @throws ResponseStatusException 409 — 현재 상태가 RESERVED 이 아닌 경우
+     * @throws BusinessException 409 — 현재 상태가 RESERVED 이 아닌 경우
      */
     public void release() {
         requireStatus(StockInstanceStatus.RESERVED, "예약 해제");
@@ -186,14 +186,18 @@ public class StockInstance extends BaseEntity {
     }
 
     /**
-     * 상태 전이 가드 — 예상 상태와 다르면 409 CONFLICT 를 던진다.
+     * 상태 전이 가드 — 예상 상태와 다르면 {@link BusinessException}(409 CONFLICT) 를 던진다.
+     *
+     * <p>도메인 레이어가 Spring Web 에 의존하지 않도록 {@link BusinessException} 사용.
+     * {@link com.samhanair.logis.inventory.web.GlobalExceptionHandler} 에서 409 ApiResponse 로 변환.
      *
      * @param expected 기대 상태
      * @param action   동작명 (한국어, 오류 메시지에 포함)
+     * @throws BusinessException 409 — 현재 상태가 expected 와 다른 경우
      */
     private void requireStatus(StockInstanceStatus expected, String action) {
         if (this.status != expected) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new BusinessException(ErrorCode.CONFLICT,
                     action + " 불가 — 현재 상태 " + this.status + " (필요 " + expected + ")");
         }
     }

@@ -39,6 +39,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>이중 가드</b>: {@code @Profile("dev")} + {@code app.product.seed-test-data=true} 둘 다 만족 시만 실행.
  * application.yml default false. ProductSeedRunner 의 {@code @Profile("seed")} 와는 직교 (서로 배타).
  *
+ * <p><b>serial_managed 보장</b>: V9 Flyway SQL 이 이미 에어컨 계열 카테고리의
+ * {@code serial_managed=true} 를 DB 에 적용하지만, seeder 가 카테고리를 메모리에 로드한 후
+ * {@link Category#markSerialManaged(boolean)} 을 호출하여 JPA 영속성 컨텍스트 내에서도
+ * 일관성을 보장한다 (Flyway 없이 seeder 만 도는 테스트 컨텍스트 대비).
+ *
  * <p><b>HVAC 단가 6종 비즈니스 룰</b> (이카운트 매트릭스):
  * <ul>
  *     <li>입고단가 (inboundPrice) = tonnage * 100,000 base</li>
@@ -113,6 +118,15 @@ public class HvacProductSeeder implements CommandLineRunner {
             return;
         }
 
+        // 에어컨 계열 카테고리 serial_managed=true 보장
+        // V9 Flyway SQL 이 DB 에 이미 적용하지만, JPA 영속성 컨텍스트 내 일관성 보장
+        // (Flyway 없이 seeder 만 도는 테스트 컨텍스트, H2 in-memory 환경 대비)
+        markSerialManagedIfPresent(catCache, CAT_HVAC_ROOT);
+        markSerialManagedIfPresent(catCache, CAT_INDOOR_WALL);
+        markSerialManagedIfPresent(catCache, CAT_INDOOR_CEILING);
+        markSerialManagedIfPresent(catCache, CAT_OUTDOOR);
+        // CAT_PIPING 은 batch 관리 — serial_managed=false 유지 (기본값)
+
         List<SeedRow> rows = buildAllRows();
         int created = 0;
         int skipped = 0;
@@ -141,6 +155,20 @@ public class HvacProductSeeder implements CommandLineRunner {
 
     private void loadCategory(Map<java.util.UUID, Category> cache, java.util.UUID id) {
         categoryRepository.findById(id).ifPresent(c -> cache.put(id, c));
+    }
+
+    /**
+     * 캐시에 카테고리가 존재하면 {@code serialManaged=true} 로 지정.
+     * V9 Flyway 가 DB 에 적용하는 UPDATE 와 동일 효과를 JPA 레이어에서 보장하기 위함.
+     *
+     * @param cache 카테고리 캐시 맵
+     * @param id    대상 카테고리 UUID
+     */
+    private void markSerialManagedIfPresent(Map<java.util.UUID, Category> cache, java.util.UUID id) {
+        Category category = cache.get(id);
+        if (category != null) {
+            category.markSerialManaged(true);
+        }
     }
 
     private Product buildProduct(SeedRow row, Map<java.util.UUID, Category> catCache) {

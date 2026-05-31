@@ -50,6 +50,17 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     List<StockInstance> findByProductIdAndStatus(UUID productId, StockInstanceStatus status);
 
     /**
+     * 품목별 인스턴스 전체 조회 — status 무관, productId 인덱스 활용.
+     *
+     * <p>status=null 시 findAll().filter() 전체 스캔 대신 이 메서드를 사용하여
+     * {@code ix_stock_instances_product(product_id)} 인덱스를 활용한다.
+     *
+     * @param productId 제품 UUID
+     * @return 해당 품목의 모든 인스턴스 목록 (soft-delete 필터 자동 적용)
+     */
+    List<StockInstance> findByProductId(UUID productId);
+
+    /**
      * 창고별 인스턴스 수 집계 — 대시보드/조회용.
      *
      * @param productCode 품목코드 그룹

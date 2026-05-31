@@ -22,6 +22,10 @@ import org.hibernate.annotations.UuidGenerator;
  *
  * <p>Phase INV-S S1: {@code serialManaged} 필드 추가 — 에어컨/판넬 계열 카테고리는
  * {@code true} (개별 시리얼 인스턴스 관리), 부자재/배관 등은 {@code false} (batch lot 관리).
+ *
+ * <p><b>판넬 카테고리(PANEL 등) 주의</b>: 현재 V2 시드에 판넬 카테고리는 미정의이다.
+ * 판넬 카테고리 추가 시 별도 Flyway 마이그레이션으로 {@code serial_managed=true} 지정이 필요하며,
+ * Java seeder 경로에서도 {@link #markSerialManaged(boolean)} 을 호출해야 한다.
  */
 @Entity
 @Getter

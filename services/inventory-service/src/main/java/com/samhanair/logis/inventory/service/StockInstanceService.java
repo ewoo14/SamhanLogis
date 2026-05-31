@@ -98,18 +98,20 @@ public class StockInstanceService {
     /**
      * 품목별 인스턴스 조회 — productId + 상태 필터.
      *
+     * <p>status 지정 시 {@code findByProductIdAndStatus} 로 인덱스 사용.
+     * status 미지정(null) 시 {@code findByProductId} 로 {@code ix_stock_instances_product} 인덱스 사용.
+     * (이전 {@code findAll().filter()} 전체 스캔 제거 — BE P0-2 / DevOps F-1 수정)
+     *
      * @param productId 제품 UUID
-     * @param status    조회할 상태 (null 이면 전체 상태는 미구현 — 필요 시 확장)
-     * @return 인스턴스 목록
+     * @param status    조회할 상태 (null 이면 전체 상태 조회)
+     * @return 인스턴스 목록 (soft-delete 자동 필터)
      */
     @Transactional(readOnly = true)
     public List<StockInstance> byProduct(UUID productId, StockInstanceStatus status) {
         if (status != null) {
             return repo.findByProductIdAndStatus(productId, status);
         }
-        // status null 시 전체 조회 (soft-delete 필터는 @SQLRestriction 적용)
-        return repo.findAll().stream()
-                .filter(i -> i.getProductId().equals(productId))
-                .toList();
+        // status null 시 ix_stock_instances_product(product_id) 인덱스 활용
+        return repo.findByProductId(productId);
     }
 }
