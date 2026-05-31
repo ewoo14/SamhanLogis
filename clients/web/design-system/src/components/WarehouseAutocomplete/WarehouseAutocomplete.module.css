@@ -116,6 +116,12 @@
   outline-offset: -2px;
 }
 
+/* D-1: selected + keyboard-active 동시 상태 — selected 강조(brand-100)를 유지하면서
+ * active outline 을 더 진한 brand-200 배경으로 명확히 구분. */
+.optionSelected.optionActive {
+  background-color: var(--color-brand-200);
+}
+
 .optionCode {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);

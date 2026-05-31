@@ -57,18 +57,19 @@ type Story = StoryObj<typeof WarehouseAutocomplete>
 /** 기본 상태 — 클릭/포커스 시 전체 창고 후보 dropdown 표시. */
 export const Default: Story = {
   render: () => {
-    const [selected, setSelected] = useState<string | null>(null)
+    const [selectedWarehouse, setSelectedWarehouse] = useState<{ code: string; name: string } | null>(null)
     return (
       <div style={{ width: 360, padding: 16 }}>
         <WarehouseAutocomplete
           warehouses={SAMPLE_WAREHOUSES}
-          value={selected}
-          onChange={(id) => setSelected(id || null)}
+          value={selectedWarehouse ? (SAMPLE_WAREHOUSES.find((w) => w.code === selectedWarehouse.code)?.id ?? null) : null}
+          onChange={(_id, wh) => setSelectedWarehouse({ code: wh.code, name: wh.name })}
           label="창고 선택"
           placeholder="창고 코드 또는 이름 입력…"
         />
+        {/* D-2: UUID(id) 노출 금지 — code/name 만 표시 */}
         <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
-          선택된 창고 ID: {selected ?? '(없음)'}
+          선택된 창고: {selectedWarehouse ? `${selectedWarehouse.code} · ${selectedWarehouse.name}` : '(없음)'}
         </div>
       </div>
     )

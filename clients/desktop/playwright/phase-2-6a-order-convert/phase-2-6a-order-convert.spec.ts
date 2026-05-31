@@ -471,6 +471,61 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   })
 
   // ──────────────────────────────────────────────────────────
+  // 시나리오 12: AC-1 F-1 회귀 — 미선택 상태에서 임의 텍스트 입력 후 blur → 제출 버튼 disabled 유지
+  //
+  // 재현(버그 시나리오):
+  //   창고 미선택(value=null) 상태에서 input 에 임의 텍스트 입력 후 blur 시
+  //   수정 전: onChange('', dummyObj) 호출 → convertWarehouse 가 code='' 인 truthy 객체로
+  //            남아 제출 버튼이 enabled 로 오활성됨 (게이트 우회).
+  //   수정 후: onChange 미호출 → 부모 상태 null 유지 → 제출 버튼 disabled.
+  //
+  // 검증 흐름:
+  //   1. 창고 미선택 상태에서 수량 입력.
+  //   2. 창고 autocomplete 에 매칭 없는 임의 텍스트 입력("zzz").
+  //   3. Escape → 입력 취소(listbox 닫힘), 이후 Tab 으로 blur.
+  //   4. 창고 미선택이므로 제출 버튼 disabled 확인.
+  //
+  // 또 다른 F-1 경로: input 이 완전히 빈 상태에서 blur (포커스 후 아무것도 안 입력).
+  //   → onChange 미호출 → 부모 null 유지 → disabled.
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 12: F-1 회귀 — 창고 미선택 상태에서 임의 텍스트 입력+blur 시 제출 버튼 disabled 유지', async ({
+    page,
+  }) => {
+    await installAuthMock(page)
+    await gotoDetailAndWait(page, DRAFT_ORDER_ID)
+    await openConvertModal(page)
+
+    // 수량 입력
+    const qtyInput = page.getByTestId('partner-order-convert-qty-0')
+    await qtyInput.fill('1')
+
+    // 창고 미선택 → 수량만 있으면 제출 버튼 disabled (사전 조건)
+    const submitBtn = page.getByTestId('partner-order-convert-submit')
+    await expect(submitBtn).toBeDisabled()
+
+    // F-1 케이스 A: 빈 포커스 후 바로 blur (아무것도 입력 안 함)
+    const warehouseDiv = page.getByTestId('partner-order-convert-warehouse')
+    const autocompleteInput = warehouseDiv.locator('input[role="combobox"]')
+    await autocompleteInput.focus()
+    // Tab 으로 blur (빈 입력)
+    await autocompleteInput.press('Tab')
+    // blur timer(120ms) 대기
+    await page.waitForTimeout(200)
+    // 여전히 disabled — onChange 미호출로 부모 상태 null 유지
+    await expect(submitBtn).toBeDisabled()
+
+    // F-1 케이스 B: 매칭 없는 텍스트 입력 후 Tab(blur) → free-text 차단, 여전히 disabled
+    await autocompleteInput.focus()
+    // 'zzz' 는 창고 코드/이름에 없으므로 매칭 실패
+    await autocompleteInput.fill('zzz매칭없음')
+    // Tab 으로 blur (Escape 없이 바로 — Escape 는 Escape 핸들러가 자체 blur 유발)
+    await page.keyboard.press('Tab')
+    await page.waitForTimeout(200)
+    // 매칭 실패 → onChange 미호출 → 여전히 disabled
+    await expect(submitBtn).toBeDisabled()
+  })
+
+  // ──────────────────────────────────────────────────────────
   // 시나리오 10: 기존 Phase 2.5 hold/release 기능 회귀 확인
   //
   // Phase 2.6a mock 추가 후 기존 mock 통과 검증.

@@ -148,7 +148,8 @@ export const WarehouseAutocomplete = forwardRef<
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
-    setDraft(selectedLabel)
+    // F-2: 포커스 시 draft 를 빈 문자열로 초기화 → 전체 후보 노출 (selectedLabel 검색 마찰 제거)
+    setDraft('')
     setActiveIndex(-1)
     setOpen(true)
   }
@@ -161,7 +162,12 @@ export const WarehouseAutocomplete = forwardRef<
       // blur 시 매칭 검사 — 입력값을 코드/이름으로 매칭
       const trimmed = draft.trim()
       if (!trimmed) {
-        if (value) onChange('', { id: '', name: '', code: '', type: 'HEADQUARTERS', active: true })
+        // F-1: 빈 입력 blur 시 onChange 호출 금지 (게이트 우회 차단).
+        //   - 기존 선택값이 있으면 draft 를 selectedLabel 로 복원 (이전 선택 유지).
+        //   - 선택값이 없으면 draft 비운 상태 유지, 부모 상태 null 유지.
+        if (selectedWarehouse) {
+          setDraft(selectedLabel)
+        }
         return
       }
       const exact = visibleWarehouses.find(
@@ -225,7 +231,7 @@ export const WarehouseAutocomplete = forwardRef<
             className={[
               styles['field'],
               disabled ? styles['disabled'] : null,
-              (error ?? invalid) ? styles['hasError'] : null,
+              (Boolean(error) || invalid) ? styles['hasError'] : null,
             ]
               .filter(Boolean)
               .join(' ')}
