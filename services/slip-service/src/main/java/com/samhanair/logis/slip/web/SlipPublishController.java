@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.publish.PublishFromEstimateRequest;
+import com.samhanair.logis.slip.publish.PublishFromOrdersMergeRequest;
 import com.samhanair.logis.slip.publish.PublishFromPartnerOrderRequest;
 import com.samhanair.logis.slip.publish.PublishSlipResponse;
 import com.samhanair.logis.slip.publish.SlipPublishService;
@@ -119,6 +120,44 @@ public class SlipPublishController {
             @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         PublishSlipResponse response = slipPublishService.publishFromPartnerOrder(
+                request, normalizeKey(idempotencyKey), callerOrSystem(callerHeader));
+        HttpStatus status = response.idempotentReplay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(ApiResponse.ok(response));
+    }
+
+    /**
+     * 다중 주문 → 출고전표 병합 발행 — Phase 2.6b D2.
+     *
+     * <p>응답 코드:
+     * <ul>
+     *   <li>201 Created — 신규 병합 발행</li>
+     *   <li>200 OK — 멱등 재반환 (같은 키 + 같은 본문)</li>
+     *   <li>409 Conflict — 같은 키 + 다른 본문 / 동시 발행 race</li>
+     *   <li>400 Bad Request — sourceOrders 비어있음 / warehouseCode 매핑 누락</li>
+     * </ul>
+     *
+     * @param request        병합 발행 요청 본문
+     * @param idempotencyKey Idempotency-Key 헤더 (선택, 중복 발행 보호용)
+     * @param callerHeader   X-User-Id 헤더 (gateway 주입)
+     * @return ApiResponse&lt;PublishSlipResponse&gt;
+     */
+    @Operation(summary = "다중 주문 → 출고전표 병합 발행",
+            description = "여러 partner-order 를 단일 출고전표로 병합 발행 (Phase 2.6b D2). "
+                    + "Idempotency-Key 헤더로 중복 발행 보호.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신규 병합 발행 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "멱등 재반환"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "같은 키 + 다른 본문 / 동시 발행 race"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "sourceOrders 비어있음 / warehouseCode 매핑 누락")
+    })
+    @PostMapping("/from-orders-merge")
+    @RequirePermission(page = "slip.publish.from-partner-order",
+            action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
+    public ResponseEntity<ApiResponse<PublishSlipResponse>> publishFromOrdersMerge(
+            @Valid @RequestBody PublishFromOrdersMergeRequest request,
+            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        PublishSlipResponse response = slipPublishService.publishFromOrdersMerge(
                 request, normalizeKey(idempotencyKey), callerOrSystem(callerHeader));
         HttpStatus status = response.idempotentReplay() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(ApiResponse.ok(response));

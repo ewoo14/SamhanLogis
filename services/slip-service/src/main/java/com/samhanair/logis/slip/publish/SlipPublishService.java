@@ -13,8 +13,10 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipPublishAudit;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.domain.SlipSourceOrder;
 import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -87,6 +89,7 @@ public class SlipPublishService {
 
     private final SlipRepository slipRepository;
     private final SlipPublishAuditRepository auditRepository;
+    private final SlipSourceOrderRepository sourceOrderRepository;
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
     private final PartnerInternalClient partnerInternalClient;
@@ -250,7 +253,102 @@ public class SlipPublishService {
         return PublishSlipResponse.created(saved);
     }
 
-    /** {@code GET /api/v1/slips/by-source} — sourceType + sourceId 로 슬립 목록 조회. */
+    /**
+     * 다중 주문 → 단일 출고전표 병합 발행 — Phase 2.6b D2.
+     *
+     * <p>{@link #publishFromPartnerOrder} 와 동일한 헤더/라인/채번/SENT 불변 전이/audit 흐름을
+     * 따르되 차이점:
+     * <ul>
+     *   <li>{@code Slip.assignPublishSource(PARTNER_ORDER, primaryOrderId, key)} — 대표(첫) 주문</li>
+     *   <li>{@code slip_source_orders} N행 INSERT — 전체 출처 주문 추적</li>
+     *   <li>fingerprint = 정렬된 sourceOrders + lines 기준</li>
+     * </ul>
+     * 기존 {@link #publishFromPartnerOrder}(단일주문)는 무변경 — 회귀 0.
+     *
+     * @param req           병합 발행 요청
+     * @param idempotencyKey Idempotency-Key (null/blank 가능)
+     * @param requesterId   호출자 user-id
+     * @return 발행 결과 + replay 여부
+     * @throws BusinessException(CONFLICT) 같은 키 + 다른 본문
+     */
+    public PublishSlipResponse publishFromOrdersMerge(PublishFromOrdersMergeRequest req,
+                                                      String idempotencyKey, String requesterId) {
+        String fingerprint = computeMergeFingerprint(req);
+
+        Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            return assertReplayOrConflict(existing.get(), fingerprint);
+        }
+
+        verifyPartnerOrThrow(req.partnerCode());
+
+        UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
+        LocalDate slipDate = parseIoDate(req.ioDate());
+        String memo = preserveFreeMemo(req.memo());
+        String requester = pickRequester(req.employeeCode(), requesterId);
+
+        ResolvedLines resolved = resolveLines(req.lines());
+
+        String slipNo = slipNumberService.next(slipDate, SlipType.OUTBOUND);
+        int seqNo = slipNumberService.extractSeqNo(slipNo);
+        Slip slip = Slip.createOutbound(slipNo, slipDate, seqNo,
+                warehouseId, null, null, req.partnerName(), null, memo, requester);
+        for (SlipLine line : resolved.toEntityLines(slip)) {
+            slip.addLine(line);
+        }
+        // 대표(첫) 주문을 source_id 로 설정 — N:1 진실은 slip_source_orders.
+        String primaryOrderId = req.sourceOrders().get(0).partnerOrderId();
+        slip.assignPublishSource(SlipSourceType.PARTNER_ORDER, primaryOrderId, idempotencyKey);
+
+        slip.applyEcountSchema(
+                IO_TYPE_OUTBOUND, pickTimeDate(null),
+                null, null, null,
+                req.shippingAddress(), null, req.receiverPhone(),
+                req.paymentDueLabel(), req.discountInfo(),
+                null, null);
+        if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
+            slip.setPartnerCode(req.partnerCode().trim());
+        }
+
+        Slip saved;
+        try {
+            saved = slipRepository.saveAndFlush(slip);
+        } catch (DataIntegrityViolationException ex) {
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+        }
+
+        // 출처 주문 N행 기록 (slip_source_orders V30)
+        for (SourceOrderRef ref : req.sourceOrders()) {
+            sourceOrderRepository.save(
+                    SlipSourceOrder.of(saved.getId(), UUID.fromString(ref.partnerOrderId()), ref.orderNo()));
+        }
+
+        // Phase 2.6c: PARTNER_ORDER 전환 전표 발행 즉시 불변 (DRAFT → SAVED → SENT)
+        if (SlipSourceType.PARTNER_ORDER.equals(saved.getSourceType())) {
+            saved.save();
+            saved.send();
+            saved = slipRepository.saveAndFlush(saved);
+            log.info("[D2] 병합 전표 불변 전이 완료: slip={} status=SENT", saved.getSlipNo());
+        }
+
+        String dcSnapshot = serializeDiscount(req.discountInfo(), req.paymentDueLabel());
+        SlipPublishAudit audit = SlipPublishAudit.create(saved.getId(), SlipSourceType.PARTNER_ORDER,
+                primaryOrderId, idempotencyKey,
+                resolved.totalSupplyAmount, resolved.totalVatAmount, dcSnapshot, fingerprint);
+        auditRepository.save(audit);
+
+        log.info("[D2] 병합 발행 완료 — {}개 주문 → slip {} (idem={})",
+                req.sourceOrders().size(), saved.getSlipNo(), idempotencyKey);
+        return PublishSlipResponse.created(saved);
+    }
+
+    /**
+     * {@code GET /api/v1/slips/by-source} — sourceType + sourceId 로 슬립 목록 조회.
+     *
+     * <p>Phase 2.6b D2 확장: PARTNER_ORDER sourceType 의 경우
+     * {@code slip_source_orders} 역조회(UNION)로 병합 비대표 주문도 누락 없이 반환한다.
+     * 단일주문 전환 경로는 {@code slip.source_id} 직접 매칭으로 기존과 동일하게 처리된다.
+     */
     @Transactional(readOnly = true)
     public List<PublishSlipResponse> findBySource(SlipSourceType sourceType, String sourceId) {
         if (sourceType == null) {
@@ -259,10 +357,23 @@ public class SlipPublishService {
         if (sourceId == null || sourceId.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "sourceId 는 필수입니다");
         }
-        return slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(sourceType, sourceId)
-                .stream()
-                .map(PublishSlipResponse::replay)
-                .toList();
+        // 1) 기존: slip.source_id 직접 매칭 (단일주문 + 병합 대표 주문)
+        java.util.LinkedHashMap<UUID, Slip> byId = new java.util.LinkedHashMap<>();
+        slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(sourceType, sourceId)
+                .forEach(s -> byId.put(s.getId(), s));
+        // 2) 병합 비대표 주문 — slip_source_orders 역조회 (PARTNER_ORDER 한정)
+        if (sourceType == SlipSourceType.PARTNER_ORDER) {
+            try {
+                UUID orderId = UUID.fromString(sourceId);
+                sourceOrderRepository.findAllByPartnerOrderId(orderId)
+                        .forEach(so -> slipRepository.findById(so.getSlipId())
+                                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                                .ifPresent(s -> byId.putIfAbsent(s.getId(), s)));
+            } catch (IllegalArgumentException ignored) {
+                // sourceId 가 UUID 형식이 아니면(estimate 번호 등) 역조회 skip
+            }
+        }
+        return byId.values().stream().map(PublishSlipResponse::replay).toList();
     }
 
     // ---------- 내부 helper ----------
@@ -533,6 +644,21 @@ public class SlipPublishService {
         } catch (NumberFormatException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "qty 가 정수가 아닙니다: " + qty);
         }
+    }
+
+    private String computeMergeFingerprint(PublishFromOrdersMergeRequest req) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "ORDERS_MERGE");
+        canonical.put("sourceOrders", req.sourceOrders().stream()
+                .map(SourceOrderRef::partnerOrderId).sorted().toList());
+        canonical.put("ioDate", req.ioDate());
+        canonical.put("warehouseCode", req.warehouseCode());
+        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("paymentDueLabel", req.paymentDueLabel());
+        canonical.put("discountInfo", req.discountInfo());
+        canonical.put("memo", req.memo());
+        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        return sha256(toJsonOrThrow(canonical));
     }
 
     private String computeFingerprint(PublishFromEstimateRequest req) {
