@@ -90,3 +90,24 @@ e-Count 가 PR-G1 V16 에서 완전 제거되어 slip 의 `warehouseId` 는 단�
   inventory 단일 출처 통합 (별도 슬라이스).
 - 전환 모달 창고별 가용 재고 표시 → 슬라이스 B (2.6d 재고조회 모달).
 - 다중주문 병합 전환 시 창고 정합 → 슬라이스 D (2.6b).
+
+## 10. 5-team 리뷰 (사이클 N=2, Codex 다운 → 전원 Claude 에이전트)
+
+raw: `docs/qa/slice-c-warehouse-code-align/claude-{be,fe,designer,qa,devops}-cycle{1,2}.md`.
+
+| 팀 | 사이클1 | 사이클2 |
+|---|---|---|
+| BE | APPROVE (P1×1 후속, P2×3) | — |
+| FE | CHANGES_REQUESTED (P1×2) | **APPROVE** |
+| Designer | CHANGES_REQUESTED (P1×2) | **APPROVE** |
+| QA | APPROVE (P1×1 = Docker 게이트) | — |
+| DevOps | APPROVE (결함 0) | — |
+
+**사이클1 fix (`184da98f`)**: FE-F2 `ConvertToSlipRequest.warehouseCode` 필수화 / FE-F1 모달 open 시 창고 초기화 / Designer-F1 미선택 시 인라인 에러(`출고 창고를 선택하세요`) / Designer-F2 창고 목록 로딩·에러 상태(disabled + placeholder + 에러 문구) / mock `active` 필드. → 사이클2 FE·Designer APPROVE.
+
+**비차단 후속 (P2)**:
+- BE-P1: convert 재시도 2차 호출 slip payload warehouseId 포함 captor 단언 추가(현 fingerprint 는 warehouseCode 기준이라 실전 영향 없음). 
+- Designer-P2: WarehouseSelector 옵션 코드 표시(`코드 · 창고명`) → 창고명 단독 / focus ring 색상 토큰화 — **공유 컴포넌트라 별도 슬라이스**(다른 사용처 영향).
+- QA/FE-P2: warehouseId 형식오류 400 경로 IT, SENT 불변 전이 연동 단언, Playwright 시나리오 8 disabled 원인 분리·시나리오 11 토스트 문구 보강.
+
+**QA-P1 (Docker 실 QA 게이트)**: reserve(inventory `warehouse_id`)와 slip 저장(`slips.source_warehouse_id`)이 **동일 창고 UUID** 임은 단위 IT(각 @MockBean 경계)로는 완전 증명 불가 → **머지 전 Docker 실 QA 에서 psql cross-check** 필수. 절차/쿼리: `docs/qa/slice-c-warehouse-code-align/claude-qa-cycle1.md` §3. ([[feedback_no_fake_data_ever]] 실 캡처 의무.)

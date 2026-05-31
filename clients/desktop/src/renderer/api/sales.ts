@@ -417,7 +417,7 @@ export interface ConvertResult {
  * 잔여 초과 수량 지정 시 BE 가 409 반환.
  *
  * @param orderNumber 주문번호 (URL-safe encode 적용) — UUID 비노출.
- * @param request 전환 요청 (items: 수량>0 라인만, warehouseCode optional).
+ * @param request 전환 요청 (items: 수량>0 라인만, warehouseCode 필수 — D-WH-03).
  */
 export async function convertPartnerOrderToSlip(
   orderNumber: string,
