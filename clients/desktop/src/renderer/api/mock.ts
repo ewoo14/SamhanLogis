@@ -1789,6 +1789,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const body = parseMockBody(config) as { productIds?: string[] }
     const ids = body.productIds ?? []
 
+    // Phase 2.6d: 에러 시나리오 테스트 트리거 — '__error_test__' productId 포함 시 500 반환 (R-4)
+    if (ids.includes('__error_test__')) {
+      return mockError(500, 'INVENTORY_SERVER_ERROR', '재고 서버 일시 오류가 발생했습니다.')
+    }
+
     /**
      * 시연용 mock — 실제 BE `ProductBalanceResponse[]` 평면 응답 구조를 모사.
      * 각 product 의 본사/차량/위탁/가상 4 창고 잔량을 balances 배열로 반환한다.
@@ -4052,6 +4057,41 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // ord-linked-slip         → DRAFT + linkedSlipNo 있음 — 전환 버튼 미노출
     // ord-partially-converted → DRAFT + line 0 convertedQuantity=1 (부분 전환 후 잔여 1 남음)
     // 그 외 기존 fixture      → CONFIRMED (하위 호환)
+    // Phase 2.6d: ord-error-test → 에러 배너 시나리오 (R-4). __error_test__ productId → batch 500
+    if (poId === 'ord-error-test') {
+      return envelope({
+        orderNumber: '2026/05/31-ERR',
+        partnerCode: '1234567890',
+        bizCode: '1234567890',
+        partnerName: '테스트에러거래처',
+        submittedAt: '2026-05-31T10:00:00',
+        updatedAt: '2026-05-31T10:00:00',
+        status: 'DRAFT',
+        totalAmount: 100000,
+        linkedSlipNo: null,
+        deliveryAddress: '서울시 강남구 테헤란로 1',
+        siteAddress: '현장 B동',
+        contactPhone: '010-0000-0000',
+        dueDate: '2026-06-01',
+        memo: null,
+        lines: [
+          {
+            productId: '__error_test__',
+            lineId: 'line-err-001',
+            modelCode: 'ERR-MODEL-001',
+            productName: '에러 테스트 품목',
+            categoryKey: 'homemulti',
+            quantity: 1,
+            convertedQuantity: 0,
+            deliveryPrice: 100000,
+            subtotal: 100000,
+            bundleMode: null,
+            expandedComponents: [],
+          },
+        ],
+      })
+    }
+
     const poStatus: string =
       poId === 'ord-draft' || poId === 'ord-partially-converted' || poId === 'ord-linked-slip'
         ? 'DRAFT'

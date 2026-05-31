@@ -10,8 +10,9 @@ import java.util.List;
 /**
  * 주문 상세 응답.
  *
- * <p>헤더와 라인 모두 화면 표시값만 포함한다. 라인 내부 식별자 / product 내부 식별자는 노출 금지 원칙에 따라
- * 응답하지 않는다.
+ * <p>헤더와 라인 모두 화면 표시값만 포함한다. 라인의 {@code lineId} 와 {@code productId} 는
+ * 사용자 화면에 노출하지 않는다(UUID 비공개 원칙). {@code productId} 는 재고 batch 조회 키로서
+ * payload 에 포함되나 FE 에서 API 내부 파라미터로만 사용하며 DOM 에 렌더링하지 않는다.
  *
  * <p>{@code partnerName} 같은 entity 컬럼 부재 필드는 {@code null} 반환되며, {@link JsonInclude#NON_NULL}
  * 정책으로 JSON 직렬화 시 제외된다. IT 의 {@code doesNotExist()} 단언 정합 + FE 의 fallback 처리 일관.

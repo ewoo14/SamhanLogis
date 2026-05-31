@@ -4,7 +4,7 @@
  * <p>거래처가 입력한 그대로 표시 (수정 X). Bundle EXPAND/KEEP 결과 + expanded
  * components + 자동 생성 슬립 번호 표시.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
@@ -385,6 +385,25 @@ export function SalesPartnerOrderDetailPage() {
       }
     }
   }, [])
+
+  // Phase 2.6d: 주문 id 변경 시 재고조회 체크 상태 초기화 (P1-1)
+  useEffect(() => {
+    setCheckedLineIds(new Set())
+  }, [id])
+
+  // Phase 2.6d: 재고조회 모달 lines — useMemo로 본문 최상위 계산 (P1-3 IIFE 제거)
+  const inventoryLookupLines = useMemo<StockBalanceLookupLine[]>(
+    () =>
+      (query.data?.lines ?? [])
+        .filter((l) => checkedLineIds.has(l.lineId) && !!l.productId)
+        .map((l) => ({
+          productId: l.productId,
+          // modelCode = modelName 매핑 (주문 라인 필드명 차이)
+          modelName: l.modelCode,
+          productName: l.productName,
+        })),
+    [query.data?.lines, checkedLineIds],
+  )
 
   if (!isValidId) {
     return (
@@ -1124,23 +1143,11 @@ export function SalesPartnerOrderDetailPage() {
       </Modal>
 
       {/* Phase 2.6d: 재고조회 모달 */}
-      {(() => {
-        const lookupLines: StockBalanceLookupLine[] = (query.data?.lines ?? [])
-          .filter((l) => checkedLineIds.has(l.lineId) && l.productId)
-          .map((l) => ({
-            productId: l.productId,
-            // modelCode = modelName 매핑 (주문 라인 필드명 차이)
-            modelName: l.modelCode,
-            productName: l.productName,
-          }))
-        return (
-          <InventoryLookupModal
-            open={inventoryLookupOpen}
-            onClose={() => setInventoryLookupOpen(false)}
-            lines={lookupLines}
-          />
-        )
-      })()}
+      <InventoryLookupModal
+        open={inventoryLookupOpen}
+        onClose={() => setInventoryLookupOpen(false)}
+        lines={inventoryLookupLines}
+      />
     </div>
   )
 

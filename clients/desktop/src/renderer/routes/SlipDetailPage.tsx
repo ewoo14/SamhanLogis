@@ -307,6 +307,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     enabled: !!id,
   })
 
+  // Phase 2.6d: 전표 id 변경 시 재고조회 체크 상태 초기화 (P1-1)
+  useEffect(() => {
+    setCheckedLineIds(new Set())
+  }, [id])
+
   // PR-H1+PR-H2+PR-H3: SSE 구독 — 진입 시 1회, unmount 시 abort.
   // 이벤트 수신 시 슬립 본체/코멘트/audit-logs 모두 invalidate.
   useEffect(() => {

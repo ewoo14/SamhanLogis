@@ -482,27 +482,34 @@ export async function fetchProductBalancesMatrix(
       warehouseType: w.type,
     }))
 
-  const metaById = new Map(lines.map((l) => [l.productId, l] as const))
+  // batch 응답을 productId 키로 인덱싱 (B-2: 응답 없는 품목도 0/0/0 행 생성)
+  const batchById = new Map(
+    balRes.data.data.map((p) => [p.productId, p] as const),
+  )
 
-  const rows: BalanceMatrixRow[] = balRes.data.data.map((p) => {
-    const meta = metaById.get(p.productId)
+  // lines 기준 순회 — batch 응답 없는 품목도 전 창고 0/0/0 행 생성 (D-IL-01 동일 원칙)
+  const rows: BalanceMatrixRow[] = lines.map((line) => {
+    const p = batchById.get(line.productId)
     const cells: Record<string, { available: number; reserved: number; total: number }> = {}
-    // 전 창고 0/0/0 초기화 후 balance 덮어쓰기
+    // 전 창고 0/0/0 초기화
     for (const c of cols) {
       cells[c.warehouseCode] = { available: 0, reserved: 0, total: 0 }
     }
-    for (const b of p.balances) {
-      if (b.warehouseType === 'VIRTUAL') continue
-      cells[b.warehouseCode] = {
-        available: b.availableQty,
-        reserved: b.reservedQty,
-        total: b.totalQty,
+    // batch 응답 있는 경우 덮어쓰기 (VIRTUAL 제외)
+    if (p) {
+      for (const b of p.balances) {
+        if (b.warehouseType === 'VIRTUAL') continue
+        cells[b.warehouseCode] = {
+          available: b.availableQty,
+          reserved: b.reservedQty,
+          total: b.totalQty,
+        }
       }
     }
     return {
-      productId: p.productId,
-      modelName: meta?.modelName ?? '',
-      productName: meta?.productName ?? '',
+      productId: line.productId,
+      modelName: line.modelName,
+      productName: line.productName,
       cells,
     }
   })

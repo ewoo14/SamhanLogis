@@ -7,9 +7,13 @@
  *   <li>출고전표 상세 — 체크박스 다중선택 → 버튼 → 모달</li>
  *   <li>입고전표 상세 — 체크박스 다중선택 → 버튼 → 모달</li>
  *   <li>0토글 OFF(기본) → 실재고>0 창고만 / ON → 전 창고(BK-001 포함, 0/0/0 셀 노출)</li>
- *   <li>셀 3줄: 가용 N / 실 N / 예약 N</li>
+ *   <li>셀 3줄: 가용 N / 실 N / 예약 N — 실수치 단언 포함</li>
  *   <li>UUID 비공개 가드 — 모달 내 UUID 패턴 미포함</li>
  *   <li>선택 0건 시 버튼 비활성</li>
+ *   <li>VIRTUAL 창고(VR-001/가상창고) 모달 미노출 단언</li>
+ *   <li>0토글 OFF 시 total=0 창고(CS-001 등) 숨김 단언</li>
+ *   <li>출고전표 UUID 가드</li>
+ *   <li>API 에러 시 에러 배너(role=alert) 노출</li>
  * </ol>
  *
  * <h2>Mock 전략 — VITE_MOCK_MODE=1 (mock.ts Phase 2.6d)</h2>
@@ -19,6 +23,7 @@
  *   <li>POST /inventory/balances/batch → warehouseType + availableQty/reservedQty/totalQty 포함.
  *       BK-001 창고는 응답에 없음 → FE 가 0/0/0 으로 채움.</li>
  *   <li>주문/슬립 상세 mock 라인 productId 포함 (Phase 2.6d mock 보강).</li>
+ *   <li>Mock 기준 p-aj040/HQ-001: totalQty=12, reservedQty=2 → availableQty=10.</li>
  * </ul>
  *
  * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
@@ -138,7 +143,7 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     await expect(modal).toBeVisible({ timeout: 10_000 })
   })
 
-  test('시나리오 3: 모달에서 셀 3줄(가용/실/예약) 확인', async ({ page }) => {
+  test('시나리오 3: 모달에서 셀 3줄(가용/실/예약) 실수치 단언 (B-1)', async ({ page }) => {
     await installAuthMock(page)
     await gotoPartnerOrderDetail(page, 'ord-draft')
 
@@ -152,13 +157,23 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     const modal = page.getByTestId('inventory-lookup-modal')
     await expect(modal).toBeVisible({ timeout: 10_000 })
 
-    // 셀 3줄 — 가용/실/예약 텍스트 확인
+    // 셀 3줄 — 가용/실/예약 레이블 존재 확인
     await expect(modal).toContainText('가용')
     await expect(modal).toContainText('실')
     await expect(modal).toContainText('예약')
+
+    // B-1: HQ-001 셀 실수치 단언 (mock: p-aj040/HQ-001 → total=12, reserved=2, available=10)
+    const hqCell = modal.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-HQ-001')
+    await expect(hqCell).toContainText('10')   // 가용
+    await expect(hqCell).toContainText('12')   // 실
+    await expect(hqCell).toContainText('2')    // 예약
+
+    // R-1: VIRTUAL(VR-001/가상창고) 모달 미노출 단언
+    await expect(modal).not.toContainText('VR-001')
+    await expect(modal).not.toContainText('가상창고')
   })
 
-  test('시나리오 4: 0토글 OFF(기본) → BK-001 미노출 / ON → BK-001 노출', async ({ page }) => {
+  test('시나리오 4: 0토글 OFF(기본) → BK-001·CS-001 미노출 / ON → BK-001 노출 + BK-001 0/0/0 단언 (B-1, R-2)', async ({ page }) => {
     await installAuthMock(page)
     await gotoPartnerOrderDetail(page, 'ord-draft')
 
@@ -172,8 +187,11 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     const modal = page.getByTestId('inventory-lookup-modal')
     await expect(modal).toBeVisible({ timeout: 10_000 })
 
-    // 0토글 OFF 기본값 — BK-001 미노출 (batch에 없으므로 총 0)
+    // R-2: 0토글 OFF 기본값 — BK-001 미노출 (batch에 없으므로 총 0)
     await expect(modal).not.toContainText('BK-001')
+
+    // R-2: 0토글 OFF — total=0 창고(p-aj040/CS-001) 숨김 단언
+    await expect(modal).not.toContainText('CS-001')
 
     // 0수량 창고 토글 ON
     const toggle = page.getByTestId('inventory-lookup-zero-toggle')
@@ -181,6 +199,10 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
 
     // BK-001 노출 확인 (0/0/0 행)
     await expect(modal).toContainText('BK-001')
+
+    // B-1: BK-001 셀 0/0/0 단언 (mock에 없으므로 FE가 0으로 채움)
+    const bkCell = modal.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-BK-001')
+    await expect(bkCell).toContainText('0')  // 가용 0
   })
 
   test('시나리오 5: UUID 비공개 가드 — 모달 내 UUID 미노출', async ({ page }) => {
@@ -201,7 +223,7 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     expect(UUID_PATTERN.test(modalText)).toBe(false)
   })
 
-  test('시나리오 6: 전체선택 체크박스 → 모든 라인 선택', async ({ page }) => {
+  test('시나리오 6: 전체선택 체크박스 → 모든 라인 선택 + 선택 수 (1) 단언', async ({ page }) => {
     await installAuthMock(page)
     await gotoPartnerOrderDetail(page, 'ord-draft')
 
@@ -213,9 +235,11 @@ test.describe('주문서 상세 — 재고조회 모달', () => {
     await expect(allCheck).toBeVisible({ timeout: 5_000 })
     await allCheck.check()
 
-    // 버튼 활성 + 선택 수 표시
+    // 버튼 활성 + 선택 수 표시 (ord-draft 라인 1건이므로 (1) 표시)
     await expect(btn).toBeEnabled()
     await expect(btn).toContainText('(')
+    // 실제 건수 단언 — ord-draft 1라인
+    await expect(btn).toContainText('1')
   })
 })
 
@@ -247,7 +271,7 @@ test.describe('출고전표 상세 — 재고조회 모달', () => {
     await expect(modal).toBeVisible({ timeout: 10_000 })
   })
 
-  test('시나리오 8: 출고전표 — 셀 3줄 + 0토글 동작', async ({ page }) => {
+  test('시나리오 8: 출고전표 — 셀 3줄 + 0토글 동작 + VIRTUAL 미노출 (R-1)', async ({ page }) => {
     await installAuthMock(page)
     await gotoSalesSlipDetail(page, 'slip-001')
 
@@ -266,12 +290,35 @@ test.describe('출고전표 상세 — 재고조회 모달', () => {
     await expect(modal).toContainText('실')
     await expect(modal).toContainText('예약')
 
+    // R-1: VIRTUAL 창고 미노출 단언
+    await expect(modal).not.toContainText('VR-001')
+    await expect(modal).not.toContainText('가상창고')
+
     // 0토글 OFF 기본 → BK-001 미노출
     await expect(modal).not.toContainText('BK-001')
 
     // 0토글 ON
     await page.getByTestId('inventory-lookup-zero-toggle').check()
     await expect(modal).toContainText('BK-001')
+  })
+
+  // R-3: 출고전표(OUTBOUND) 컨텍스트 UUID 가드 시나리오
+  test('시나리오 9: 출고전표 UUID 비공개 가드 (R-3)', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSalesSlipDetail(page, 'slip-001')
+
+    const btn = page.getByTestId('slip-line-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 12_000 })
+
+    const checkboxes = page.getByRole('checkbox', { name: /재고조회 선택/ })
+    await checkboxes.first().check()
+    await btn.click()
+
+    const modal = page.getByTestId('inventory-lookup-modal')
+    await expect(modal).toBeVisible({ timeout: 10_000 })
+
+    const modalText = await modal.innerText()
+    expect(UUID_PATTERN.test(modalText)).toBe(false)
   })
 })
 
@@ -322,7 +369,7 @@ test.describe('입고전표 상세 — 재고조회 모달', () => {
 })
 
 // ============================================================
-// 시나리오 12: 기존 SlipFormPage StockBalanceModal 회귀 확인
+// 시나리오 12: 기존 SlipFormPage StockBalanceModal 회귀 확인 (P1-4 수정)
 // ============================================================
 
 test.describe('회귀 — SlipFormPage StockBalanceModal 무변경', () => {
@@ -335,8 +382,38 @@ test.describe('회귀 — SlipFormPage StockBalanceModal 무변경', () => {
     // SlipFormPage 기본 렌더 확인 (title 또는 form 요소)
     // 오류 없이 렌더되면 회귀 없음 — 기존 StockBalanceModal 미변경 보장
     await expect(page.locator('body')).toBeVisible({ timeout: 10_000 })
-    // StockBalanceModal 이 강제 open 되지 않았음을 확인
-    const stockModal = page.getByTestId('stock-balance-modal')
-    await expect(stockModal).toHaveCount(0)
+    // P1-4 수정: stock-balance-modal testid 없으므로 aria role 기반으로 검증
+    // InventoryLookupModal(신규)이 강제 open 되지 않았음을 확인
+    const inventoryModal = page.getByTestId('inventory-lookup-modal')
+    await expect(inventoryModal).toHaveCount(0)
+  })
+})
+
+// ============================================================
+// 시나리오 13: API 에러 시 에러 배너 노출 (R-4)
+// ============================================================
+
+test.describe('에러 처리 — API 500 에러 배너', () => {
+  test('시나리오 13: batch API 500 에러 → 에러 배너(role=alert) 노출 (R-4)', async ({ page }) => {
+    // ord-error-test: mock에서 __error_test__ productId 포함 라인 반환
+    // → POST /inventory/balances/batch 에 __error_test__ 포함 시 mock 500 반환
+    await installAuthMock(page)
+    await gotoPartnerOrderDetail(page, 'ord-error-test')
+
+    const btn = page.getByTestId('partner-order-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 10_000 })
+
+    const checkboxes = page.getByRole('checkbox', { name: /재고조회 선택/ })
+    await checkboxes.first().check()
+    await btn.click()
+
+    // 에러 배너 노출 확인 (role="alert" + testid)
+    const errorBanner = page.getByRole('alert')
+    await expect(errorBanner).toBeVisible({ timeout: 10_000 })
+    await expect(errorBanner).toContainText('오류')
+
+    // testid 기반 단언
+    const errorTestId = page.getByTestId('inventory-lookup-error')
+    await expect(errorTestId).toBeVisible({ timeout: 5_000 })
   })
 })

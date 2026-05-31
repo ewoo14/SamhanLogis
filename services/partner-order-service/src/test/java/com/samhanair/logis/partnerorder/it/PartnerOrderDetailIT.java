@@ -95,7 +95,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.partnerName").doesNotExist())
                 .andExpect(jsonPath("$.data.lines.length()").value(1))
                 .andExpect(jsonPath("$.data.lines[0].productName").value("실외기"))
-                .andExpect(jsonPath("$.data.lines[0].id").doesNotExist());
+                .andExpect(jsonPath("$.data.lines[0].id").doesNotExist())
+                .andExpect(jsonPath("$.data.lines[0].productId").exists());
     }
 
     @Test
