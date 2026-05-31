@@ -314,6 +314,9 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
      * price-calc 가 finalPrice 를 반환하면 라인의 price_vat 에 DC 적용 단가가 저장된다.
      *
      * <p>spec §6 — {@code calculatePrices} stub(lineId→finalPrice) → 주문 라인 {@code price_vat=finalPrice} 단언.
+     *
+     * <p>P0-2: idempotencyKey 하드코딩 제거 — {@code response.orderNo()} 로 주문 조회.
+     * draftSeq 가정(+1L) 을 제거하여 DB 상태 의존성을 없앤다.
      */
     @Test
     void confirm_applies_dc_final_price_from_price_calc() {
@@ -332,9 +335,10 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 "P-DC", "1234567890", "user-dc", null, null, request);
 
         assertThat(response.status()).isEqualTo("DRAFT");
-        // 라인 priceVat = finalPrice (DC 적용)
-        UUID orderId = orderRepository.findByIdempotencyKey(
-                "PO-CONF-P-DC-" + 1L).orElseThrow().getId();
+        // P0-2: response.orderNo() 로 주문 조회 — idempotencyKey 하드코딩 제거
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo())
+                .orElseThrow(() -> new AssertionError("confirm 후 주문을 찾을 수 없음: " + response.orderNo()))
+                .getId();
         BigDecimal priceVat = jdbcTemplate.queryForObject(
                 "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ?",
                 BigDecimal.class, orderId);
@@ -345,6 +349,8 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
      * price-calc 가 빈 Map 을 반환하면 fail-soft 로 listPrice 가 price_vat 에 저장된다.
      *
      * <p>spec §6 — {@code calculatePrices} 빈 Map → {@code price_vat=listPrice}(fail-soft) 단언.
+     *
+     * <p>P0-2: idempotencyKey 하드코딩 제거 — {@code response.orderNo()} 로 주문 조회.
      */
     @Test
     void confirm_failsoft_uses_list_price_when_price_calc_empty() {
@@ -363,10 +369,64 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 "P-FS", "1234567890", "user-fs", null, null, request);
 
         assertThat(response.status()).isEqualTo("DRAFT");
-        UUID orderId = orderRepository.findByIdempotencyKey("PO-CONF-P-FS-" + 1L).orElseThrow().getId();
+        // P0-2: response.orderNo() 로 주문 조회 — idempotencyKey 하드코딩 제거
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo())
+                .orElseThrow(() -> new AssertionError("confirm 후 주문을 찾을 수 없음: " + response.orderNo()))
+                .getId();
         BigDecimal priceVat = jdbcTemplate.queryForObject(
                 "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ?",
                 BigDecimal.class, orderId);
         assertThat(priceVat).isEqualByComparingTo("1500000"); // listPrice
+    }
+
+    /**
+     * P1-3: 다중 라인 부분 응답 — 2라인 중 lineId "0" 만 finalPrice 응답, "1" 누락.
+     *
+     * <p>누락된 라인("1")은 fail-soft 로 listPrice 를 사용해야 한다.
+     * <ul>
+     *   <li>라인0 price_vat = finalPrice (DC 적용 800,000)</li>
+     *   <li>라인1 price_vat = listPrice (1,200,000, lineId "1" 미응답)</li>
+     * </ul>
+     */
+    @Test
+    void confirm_partial_price_calc_response_applies_finalPrice_to_matched_line_only() {
+        UUID productId0 = UUID.randomUUID();
+        UUID productId1 = UUID.randomUUID();
+
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(
+                        new ProductSummary(productId0, "헬로멀티 5kW", "HM-5000", null,
+                                new BigDecimal("1000000"), "ACTIVE"),
+                        new ProductSummary(productId1, "헬로멀티 8kW", "HM-8000", null,
+                                new BigDecimal("1200000"), "ACTIVE")));
+
+        // lineId "0" 만 finalPrice 반환, lineId "1" 누락 → fail-soft = listPrice
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("800000")));
+
+        ConfirmRequest request = new ConfirmRequest(List.of(
+                new ConfirmLineRequest(productId0, "homemulti", 1, null),
+                new ConfirmLineRequest(productId1, "commercialMulti", 1, null)));
+        ConfirmResponse response = confirmService.confirm(
+                "P-PARTIAL", "5555555555", "user-partial", null, null, request);
+
+        assertThat(response.status()).isEqualTo("DRAFT");
+
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo())
+                .orElseThrow(() -> new AssertionError("주문을 찾을 수 없음: " + response.orderNo()))
+                .getId();
+
+        List<Map<String, Object>> lines = jdbcTemplate.queryForList(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? ORDER BY created_at",
+                orderId);
+
+        assertThat(lines).hasSize(2);
+        BigDecimal line0PriceVat = (BigDecimal) lines.get(0).get("price_vat");
+        BigDecimal line1PriceVat = (BigDecimal) lines.get(1).get("price_vat");
+
+        // 라인0: finalPrice (DC 적용)
+        assertThat(line0PriceVat).as("라인0 price_vat = finalPrice (DC 적용)").isEqualByComparingTo("800000");
+        // 라인1: listPrice (lineId "1" 누락 → fail-soft)
+        assertThat(line1PriceVat).as("라인1 price_vat = listPrice (price-calc 누락 → fail-soft)").isEqualByComparingTo("1200000");
     }
 }

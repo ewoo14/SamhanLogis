@@ -2,7 +2,6 @@ package com.samhanair.logis.partnerorder.vendor.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
@@ -47,23 +46,26 @@ public class VendorOrderService {
     private static LocalDate inMemoryOrderDate = LocalDate.MIN;
     private static int inMemoryOrderSeq = 0;
 
-    /** ObjectProvider — OcrEngine bean 미등록 시에도 service 자체는 부팅 가능. */
+    /**
+     * ObjectProvider — OcrEngine bean 미등록 시에도 service 자체는 부팅 가능.
+     *
+     * <p>P1-1: DcConfigClient 는 vendor upload preview 단계에서 사용하지 않는다.
+     * DC 적용은 confirm 단계의 {@link com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService}
+     * 에서만 수행한다 (price-calc POST /internal/price-calculations).
+     */
     private final ObjectProvider<OcrEngine> ocrEngineProvider;
     private final VendorParserRegistry parserRegistry;
     private final ProductCatalogLookupClient catalogClient;
     private final PartnerLookupClient partnerLookupClient;
-    private final DcConfigClient dcConfigClient;
 
     public VendorOrderService(ObjectProvider<OcrEngine> ocrEngineProvider,
                               VendorParserRegistry parserRegistry,
                               ProductCatalogLookupClient catalogClient,
-                              PartnerLookupClient partnerLookupClient,
-                              DcConfigClient dcConfigClient) {
+                              PartnerLookupClient partnerLookupClient) {
         this.ocrEngineProvider = ocrEngineProvider;
         this.parserRegistry = parserRegistry;
         this.catalogClient = catalogClient;
         this.partnerLookupClient = partnerLookupClient;
-        this.dcConfigClient = dcConfigClient;
     }
 
     /**

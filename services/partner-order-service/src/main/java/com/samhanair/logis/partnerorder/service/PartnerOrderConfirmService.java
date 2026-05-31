@@ -231,8 +231,19 @@ public class PartnerOrderConfirmService {
     /**
      * ConfirmLineRequest.categoryKey → price-calc category (HOMEMULTI/COMMERCIAL_MULTI/OTHER).
      *
+     * <p>매핑 규칙:
+     * <ul>
+     *   <li>{@code homemulti} / {@code homeDefaults} → {@code HOMEMULTI}</li>
+     *   <li>{@code commercialMulti} → {@code COMMERCIAL_MULTI}</li>
+     *   <li>그 외 모든 값 (singleSets / commercialParts / oldProducts 등) → {@code OTHER}</li>
+     * </ul>
+     *
+     * <p><b>주의</b>: {@code OTHER} 카테고리는 dc-config-service 에서 rate DC 미적용 대상이다.
+     * 옵션 품목 / 단품 DC 는 후속 슬라이스에서 별도 category 신설 예정
+     * (현 confirm 라인 한계 — P1-3 후속).
+     *
      * @param categoryKey legacy 카테고리 키 (homemulti / commercialMulti / ...)
-     * @return price-calc 카테고리 문자열
+     * @return price-calc 카테고리 문자열 (HOMEMULTI / COMMERCIAL_MULTI / OTHER)
      */
     private String mapCategory(String categoryKey) {
         if (categoryKey == null) {

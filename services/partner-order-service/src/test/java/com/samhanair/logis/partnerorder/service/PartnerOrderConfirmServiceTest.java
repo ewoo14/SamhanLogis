@@ -89,6 +89,43 @@ class PartnerOrderConfirmServiceTest {
         assertThat(orderNo).isEqualTo(today + "-1");
     }
 
+    /**
+     * P1-3: mapCategory — homemulti / commercialMulti / 기타 매핑 검증.
+     *
+     * <p>private 메서드를 {@link ReflectionTestUtils#invokeMethod} 로 간접 검증.
+     */
+    @Test
+    void mapCategory_homemulti_to_HOMEMULTI() {
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "homemulti"))
+                .isEqualTo("HOMEMULTI");
+    }
+
+    @Test
+    void mapCategory_homeDefaults_to_HOMEMULTI() {
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "homeDefaults"))
+                .isEqualTo("HOMEMULTI");
+    }
+
+    @Test
+    void mapCategory_commercialMulti_to_COMMERCIAL_MULTI() {
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "commercialMulti"))
+                .isEqualTo("COMMERCIAL_MULTI");
+    }
+
+    @Test
+    void mapCategory_other_values_to_OTHER() {
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "singleSets"))
+                .isEqualTo("OTHER");
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "commercialParts"))
+                .isEqualTo("OTHER");
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "oldProducts"))
+                .isEqualTo("OTHER");
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", (Object) null))
+                .isEqualTo("OTHER");
+        assertThat(ReflectionTestUtils.<String>invokeMethod(service, "mapCategory", "unknown"))
+                .isEqualTo("OTHER");
+    }
+
     private static PartnerOrder order(String orderNo) {
         return PartnerOrder.create("P-TEST", "1234567890", orderNo,
                 "IDEM-" + orderNo, BigDecimal.ZERO);

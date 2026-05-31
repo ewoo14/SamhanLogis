@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
@@ -31,10 +30,13 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**
- * VendorOrderService 단위 테스트 — OCR + parser + 단가 lookup + DC 적용 + confirm.
+ * VendorOrderService 단위 테스트 — OCR + parser + 단가 lookup + confirm.
  *
- * <p>외부 client (PartnerLookup / ProductCatalog / DcConfig) Mockito.mock + ObjectProvider 로
+ * <p>외부 client (PartnerLookup / ProductCatalog) Mockito.mock + ObjectProvider 로
  * OcrEngine MockOcrEngine 주입.
+ *
+ * <p>P1-1: DcConfigClient 는 vendor preview 단계에서 사용하지 않으므로 mock 에서 제거됨.
+ * DC 적용은 confirm 단계의 PartnerOrderConfirmService 가 담당.
  */
 class VendorOrderServiceTest {
 
@@ -42,14 +44,12 @@ class VendorOrderServiceTest {
     private VendorOrderService service;
     private ProductCatalogLookupClient catalogClient;
     private PartnerLookupClient partnerLookupClient;
-    private DcConfigClient dcConfigClient;
 
     @BeforeEach
     void setUp() {
         ocrEngine = new MockOcrEngine();
         catalogClient = Mockito.mock(ProductCatalogLookupClient.class);
         partnerLookupClient = Mockito.mock(PartnerLookupClient.class);
-        dcConfigClient = Mockito.mock(DcConfigClient.class);
 
         VendorParserRegistry registry = new VendorParserRegistry(List.of(
                 new AirDesignerOrderParser(), new JSystemOrderParser()));
@@ -58,8 +58,10 @@ class VendorOrderServiceTest {
         ObjectProvider<OcrEngine> provider = Mockito.mock(ObjectProvider.class);
         Mockito.when(provider.getIfAvailable()).thenReturn(ocrEngine);
 
+        // P1-1: dcConfigClient 제거 — VendorOrderService 는 preview 단계에서 DC 계산 불필요.
+        // confirm 단계 DC 적용은 PartnerOrderConfirmService 가 담당.
         service = new VendorOrderService(
-                provider, registry, catalogClient, partnerLookupClient, dcConfigClient);
+                provider, registry, catalogClient, partnerLookupClient);
     }
 
     @Test
