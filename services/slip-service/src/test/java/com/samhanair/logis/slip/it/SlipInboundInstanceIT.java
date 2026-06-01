@@ -90,7 +90,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         slipService.complete(slip.getId());
 
-        verify(inventoryClient).inboundInstances(eq(productId), eq("MODEL-SERIAL"),
+        verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")));
         verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
@@ -125,7 +125,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         slipService.complete(slip.getId());
 
-        verify(inventoryClient, times(1)).inboundInstances(eq(serialProductId), eq("MODEL-SERIAL"),
+        verify(inventoryClient, times(1)).inboundInstances(eq(serialProductId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(2), eq("구매"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")));
         verify(inventoryClient, times(1)).inbound(eq(batchProductId), eq(destinationWarehouseId),
@@ -142,9 +142,43 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
         slipService.complete(slip.getId());
 
-        verify(inventoryClient).inboundInstances(eq(productId), eq("MODEL-BORROW"),
+        verify(inventoryClient).inboundInstances(eq(productId), eq("AC-S2"),
                 eq(destinationWarehouseId), eq(1), eq("차용"), eq(slip.getSlipNo()),
                 eq(new BigDecimal("500000.00")));
+    }
+
+    @Test
+    @DisplayName("RETURN 태그라도 batch 라인은 기존 inbound lot 경로를 유지한다")
+    void complete_returnTag_batchLine_callsLotInbound() {
+        UUID productId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(DeliveryTag.RETURN, line(productId, "배관", "PIPE-BATCH", 3,
+                new BigDecimal("10000.00")));
+        when(productClient.requireExists(productId)).thenReturn(product(productId, false));
+
+        slipService.complete(slip.getId());
+
+        verify(inventoryClient).inbound(eq(productId), eq(destinationWarehouseId), eq(3),
+                eq(slip.getSlipNo()), eq(new BigDecimal("10000.00")));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    @DisplayName("RETURN_TRIP 태그 serial 라인은 S4 범위라 CONFLICT")
+    void complete_returnTripTag_serialLine_throwsConflict() {
+        UUID productId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(DeliveryTag.RETURN_TRIP, line(productId, "에어컨",
+                "MODEL-RETURN-TRIP", 1, new BigDecimal("500000.00")));
+        when(productClient.requireExists(productId)).thenReturn(product(productId, true));
+
+        assertThatThrownBy(() -> slipService.complete(slip.getId()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
     }
 
     @Test
@@ -156,7 +190,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         when(productClient.requireExists(productId)).thenReturn(product(productId, true));
         doThrow(new BusinessException(ErrorCode.INTERNAL_ERROR, "inventory 실패"))
                 .when(inventoryClient)
-                .inboundInstances(eq(productId), eq("MODEL-SERIAL"), eq(destinationWarehouseId),
+                .inboundInstances(eq(productId), eq("AC-S2"), eq(destinationWarehouseId),
                         eq(1), eq("구매"), eq(slip.getSlipNo()), eq(new BigDecimal("500000.00")));
 
         assertThatThrownBy(() -> slipService.complete(slip.getId()))
@@ -167,7 +201,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     }
 
     private ProductSummary product(UUID productId, boolean serialManaged) {
-        return new ProductSummary(productId, "테스트 품목", "MODEL", UUID.randomUUID(),
+        return new ProductSummary(productId, "테스트 품목", "MODEL", "AC-S2", UUID.randomUUID(),
                 new BigDecimal("500000.00"), "ACTIVE", serialManaged);
     }
 

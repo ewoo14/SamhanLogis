@@ -134,6 +134,36 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("POST /inventory/instances/batch: 기존 count=1 에 qty=3 재요청 → 부족분 2개만 추가")
+    void inboundBatch_existingOne_addsOnlyDeficit() throws Exception {
+        assumeTrue(warehouseId != null, "창고 시드 없음 — 테스트 skip");
+
+        Map<String, Object> first = batchRequest(
+                serialProductId, "AC-S2", warehouseId, 1,
+                "구매", "S2-INB-DEFICIT", new BigDecimal("500000"));
+        Map<String, Object> target = batchRequest(
+                serialProductId, "AC-S2", warehouseId, 3,
+                "구매", "S2-INB-DEFICIT", new BigDecimal("500000"));
+
+        postBatch(first);
+        assertThat(stockInstanceRepository.countByInboundSlipAndProduct("S2-INB-DEFICIT", serialProductId))
+                .isEqualTo(1);
+
+        mockMvc.perform(post("/inventory/instances/batch")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", MASTER_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(target)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.length()", is(3)));
+
+        assertThat(stockInstanceRepository.countByInboundSlipAndProduct("S2-INB-DEFICIT", serialProductId))
+                .isEqualTo(3);
+        assertThat(stockInstanceRepository.findByInboundSlipAndProduct("S2-INB-DEFICIT", serialProductId))
+                .hasSize(3);
+    }
+
+    @Test
     @DisplayName("POST /inventory/instances/batch: batch 품목(serialManaged=false) → 409")
     void inboundBatch_batchProduct_returns409() throws Exception {
         assumeTrue(warehouseId != null, "창고 시드 없음 — 테스트 skip");

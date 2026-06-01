@@ -86,6 +86,7 @@ class ProductClientTest {
                     "id": "11111111-1111-1111-1111-111111111111",
                     "name": "벽걸이 무풍에어컨",
                     "modelName": "AJ040RXH4BC1",
+                    "productCode": "AC-WALL-040",
                     "categoryId": "22222222-2222-2222-2222-222222222222",
                     "sellingPrice": 1500000.00,
                     "status": "ACTIVE",
@@ -101,6 +102,7 @@ class ProductClientTest {
         ProductSummary result = client.lookup(List.of(productId)).get(0);
 
         assertThat(result.serialManaged()).isTrue();
+        assertThat(result.productCode()).isEqualTo("AC-WALL-040");
         server.verify();
     }
 

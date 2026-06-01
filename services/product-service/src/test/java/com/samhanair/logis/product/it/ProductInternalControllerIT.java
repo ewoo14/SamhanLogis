@@ -108,6 +108,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                 "KRW",
                 null,
                 "serialManaged IT 검증용 에어컨"));
+        serialProduct.updateEcountMeta("AC-SERIAL-IT", null, null, null, true, null);
         serialProductId = serialProduct.getId();
 
         // batch 품목 생성 (배관/부속)
@@ -120,6 +121,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                 "KRW",
                 null,
                 "serialManaged=false IT 검증용 batch 품목"));
+        batchProduct.updateEcountMeta("PIPE-BATCH-IT", null, null, null, true, null);
         batchProductId = batchProduct.getId();
     }
 
@@ -141,6 +143,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].serialManaged", is(true)))
+                .andExpect(jsonPath("$.data[0].productCode", is("AC-SERIAL-IT")))
                 .andExpect(jsonPath("$.data[0].id").exists());
     }
 

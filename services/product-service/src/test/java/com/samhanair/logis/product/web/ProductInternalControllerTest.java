@@ -95,7 +95,7 @@ class ProductInternalControllerTest {
         var body = new LookupRequest(List.of(id));
 
         when(productService.lookup(List.of(id))).thenReturn(List.of(
-                new ProductSummaryResponse(id, "스마트 벽걸이", "SHA-W15K", categoryId,
+                new ProductSummaryResponse(id, "스마트 벽걸이", "SHA-W15K", "AC-W15K", categoryId,
                         new BigDecimal("1500000.00"), ProductStatus.ACTIVE)));
 
         MockHttpServletResponse response = mockMvc.perform(MockMvcRequestBuilders
@@ -107,6 +107,7 @@ class ProductInternalControllerTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getContentAsString()).contains("SHA-W15K");
+        assertThat(response.getContentAsString()).contains("AC-W15K");
         verify(productService).lookup(List.of(id));
     }
 

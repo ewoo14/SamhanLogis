@@ -41,7 +41,9 @@ public class InventoryClient {
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String USER_ID_HEADER = "X-User-Id";
     private static final String INTERNAL_USER_ROLE = "MASTER";
+    private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String INVENTORY_SERVICE_BASE = "http://inventory-service";
 
     private final RestClient restClient;
@@ -180,6 +182,7 @@ public class InventoryClient {
                     .uri(path)
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .header(USER_ROLE_HEADER, INTERNAL_USER_ROLE)
+                    .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()

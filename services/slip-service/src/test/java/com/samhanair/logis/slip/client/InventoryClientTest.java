@@ -25,6 +25,7 @@ import org.springframework.web.client.RestClient;
 class InventoryClientTest {
 
     private static final String TOKEN = "test-token-xyz";
+    private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
 
     private MockRestServiceServer server;
     private InventoryClient client;
@@ -95,6 +96,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,

@@ -651,11 +651,11 @@ public class SlipService {
                         line.getQuantity(), true, SLIP_REF_TYPE, slip.getId());
             }
         } else {
-            String inboundType = resolveInboundType(slip);
             for (SlipLine line : slip.getLines()) {
-                boolean serialManaged = productClient.requireExists(line.getProductId()).serialManaged();
-                if (serialManaged) {
-                    inventoryClient.inboundInstances(line.getProductId(), line.getModelName(),
+                ProductSummary product = productClient.requireExists(line.getProductId());
+                if (product.serialManaged()) {
+                    String inboundType = resolveInboundType(slip);
+                    inventoryClient.inboundInstances(line.getProductId(), product.productCode(),
                             slip.getDestinationWarehouseId(), line.getQuantity(),
                             inboundType, slip.getSlipNo(), line.getUnitPrice());
                 } else {
