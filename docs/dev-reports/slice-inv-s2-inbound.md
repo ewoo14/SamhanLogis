@@ -32,12 +32,11 @@ INBOUND 전표 complete 시 라인 품목이 serial-managed 이면 `stock_instan
 - `ProductClientTest`, `InventoryClientTest`, `SlipServiceTest`, `SlipInboundInstanceIT`.
 
 ## 5. 검증
-- inventory compile: `:services:inventory-service:compileJava :compileTestJava` PASS.
-- inventory unit: `*StockInstanceServiceBatch*` PASS.
-- inventory IT: `*StockInstanceBatchInbound*` BUILD SUCCESSFUL, Testcontainers Docker 감지 실패로 skipped=3.
-- product compile/test: `*ProductInternalController*` PASS. ProductInternalControllerIT는 Docker 감지 실패로 skipped=3.
-- slip client/service unit: `*ProductClient*`, `*InventoryClient*`, `*SlipServiceTest` PASS.
-- slip IT: `*SlipInboundInstance*` BUILD SUCCESSFUL, Testcontainers Docker 감지 실패로 skipped=5.
+- **CI 20/20 green** (실 Linux Testcontainers — IT skipped=0). 로컬은 Testcontainers Docker 미감지로 skip 됐으나 CI 에서 전 IT 실행·통과.
+  - inventory: `StockInstanceServiceBatchTest`(멱등/deficit/409) + `StockInstanceBatchInboundIT`(실 Postgres N개/멱등/deficit/409).
+  - slip: `SlipServiceTest`/`InventoryClientTest`/`ProductClientTest` + `SlipInboundInstanceIT`(분기 serial/batch/혼합 + inboundType + RETURN_TRIP 가드 + RETURN batch 비회귀 + inventory 실패 Tx 롤백).
+- **Docker 실 QA (TM, 실 inventory 재빌드 + 실 Postgres + V16 적용)**: `POST /inventory/instances/batch` serial qty3→201(3개 AVAILABLE, product_code=`010001` 실 이카운트코드, inbound_type=`구매`), 멱등 재호출 추가0, deficit qty5→+2=5, batch 품목→409(0행), UUID 시리얼 키 확인. slip `complete()` 통합은 CI `SlipInboundInstanceIT`(실 Testcontainers) 검증.
+- **리뷰 사이클(수렴)**: 사이클1 Claude 5-team → P1 2건(product_code=modelName 정정→`productCode`, RETURN 가드 회귀→serial 한정). 사이클2(N=2) Codex cross-check → P1 2건(동일품목 다라인 productId 합산, 멱등 동시성 advisory lock). CI 가 추가 포착(slip_no VARCHAR30 초과, 6월 date-bomb 2건, 신규 IT 공유 컨테이너 오염→@AfterEach 격리) 일괄 해소.
 
 ## 6. 배포
 권장 순서: inventory(V16 + 배치 API) → slip-service(complete 분기). product-service는 S1에서 이미 `serialManaged`를 노출하므로 추가 배포 필수는 아니다. batch 품목과 OUTBOUND 경로는 기존 호출을 유지한다.
@@ -46,4 +45,4 @@ INBOUND 전표 complete 시 라인 품목이 serial-managed 이면 `stock_instan
 - S3: OUTBOUND 출고 시 FIFO 인스턴스 SHIPPED 소진.
 - S4: RETURN/RETURN_TRIP 회수 역-FIFO 재입고.
 - 2.6c 수량 reserve와 인스턴스 RESERVED 상태 통합.
-- 로컬 Docker 접근 복구 후 S2 IT 및 실 gateway/JWT/3-DB QA 증빙 추가.
+- **(비차단, S2 무관 인프라 후속)** ① CI `ci.yml` slip 테스트가 패키지 allowlist 라 `slip.attachment.*` 미실행 → 필터 보강 별도 PR. ② `/inventory/*` mutation 엔드포인트 internal-token 강제 가드(현 X-User-Role:MASTER 헤더 의존, 기존 패턴 한계). ③ date-bomb 테스트 패턴(하드코딩 월 범위) 전수 점검.
