@@ -2657,3 +2657,15 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-SER-04 | **FIFO/역-FIFO** — 출고 소진 = product_code+AVAILABLE received_at ASC. 회수 = outbound_partner_code+product_code+SHIPPED outbound_at DESC. V15 인덱스 2개. |
 
 **산출**: product V9 `categories.serial_managed` + Category 도메인 + ProductSummaryResponse + HvacProductSeeder markSerialManaged. inventory V15 `stock_instances` + StockInstance(Status) + Repository(FIFO/역-FIFO/findByProductId) + Service(serial_managed 가드 409) + Controller(/inventory/instances) + seeder + IT 12. batch 품목은 기존 stock_lots/balances 무변경. 5-team 사이클 N=2 APPROVE. CI green(skipped=0). Docker 실 QA PASS(인스턴스 201/batch 409/FIFO ASC/psql cross-DB). 배포 product(V9)→inventory(V15), 순서 위반 시 serialManaged=false 안전 degrade. **미결정(spec §5, S2~S4 시)**: 전표↔inventory 연동(이벤트 vs REST) / 2.6c 수량 reserve↔인스턴스 RESERVED 통합. dev-report `docs/dev-reports/slice-inv-s1-serial-instance.md`.
+
+---
+
+### D-GW-CORS. 게이트웨이 ↔ arologis CORS 중복 헤더 dedup (2026-06-01)
+
+**배경**: arologis-service 는 게이트웨이 우회 직접접근(:8097)용 자체 Spring Security CORS 를 보유. 이 `.cors()` 가 게이트웨이 **경유** 2xx 응답에도 발동 → 게이트웨이 전역 `CorsWebFilter` 의 ACAO/ACAC 와 중복(×2) → 브라우저/Electron `multiple values` 차단. #322 와 같은 2026-05-30 게이트웨이 경유 실 QA 에서 발견됐으나 머지 누락(실행 이미지엔 반영, git 미커밋)된 1행 후속 수정.
+
+| 결정 | 내용 |
+|---|---|
+| D-GW-CORS-01 | 게이트웨이 `spring.cloud.gateway.default-filters` 에 `DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE` 추가. 전 라우트 응답에서 ACAO/ACAC 중복 제거(유일값 유지). 양쪽이 요청 Origin 을 동일 반영하므로 단일화 안전. 서비스 직접접근(:8097) 자체 CORS 는 게이트웨이 미경유라 보존. 자체 CORS 미설정 서비스는 ACAO 1개뿐이라 무영향(회귀 0). 대안 `RETAIN_FIRST`/서비스측 CORS 제거는 직접접근 시나리오 훼손 또는 동등하므로 기각. |
+
+**산출**: `services/api-gateway/.../application.yml` default-filters 1행(+주석). Flyway/DB 무변경 = 게이트웨이 config-only 단독 재배포. **Docker 실 QA**: before(dedup 없는 소스 재빌드) arologis 경유 ACAO/ACAC=2(중복) → after(커밋 소스 재빌드) =1(단일), 비-arologis(권한/회계)·preflight 회귀 0(`docs/qa/gateway-arologis-cors-dedup/real-qa-evidence.md`). dev-report `docs/dev-reports/fix-gateway-arologis-cors-dedup.md`. 후속(비차단): arologis 자체 CORS 를 직접접근 전용 조건으로 한정하면 중복 근본 제거.

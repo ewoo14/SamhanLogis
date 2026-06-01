@@ -25,6 +25,11 @@ spring:
       # 600s = SseEmitter 무한 timeout + 30s heartbeat 와 충분한 여유.
       httpclient:
         response-timeout: 600s
+      # [CORS 중복] arologis-service 등 일부 서비스가 자체 CORS(ACAO) 헤더를 설정해 게이트웨이
+      # CorsWebFilter 와 중복되면 브라우저/Electron 이 "multiple values" 로 차단한다. 전 라우트 응답에서
+      # ACAO/ACAC 중복을 제거(고유값 유지) — 서비스 직접접근용 CORS 는 보존된다.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       routes:
         # ============================================================
         # Legacy `/api/*` routes (Phase 1~9). 단일 prefix `/api`. StripPrefix=1
