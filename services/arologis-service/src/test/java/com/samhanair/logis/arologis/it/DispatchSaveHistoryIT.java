@@ -22,6 +22,7 @@ import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.domain.DispatchProgramType;
 import com.samhanair.logis.arologis.repository.DispatchSaveHistoryRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -85,6 +86,10 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANUAL_NAMED 는 append 저장되고 목록/상세로 복원된다")
     void manualNamedAppendListDetailFlow() throws Exception {
+        LocalDate now = LocalDate.now();
+        String fromDate = now.minusDays(1).toString();
+        String toDate = now.plusDays(1).toString();
+
         MvcResult created = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("PRE_CLASSIFY", "오전 마감 점검", 2))
@@ -101,8 +106,8 @@ class DispatchSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "PRE_CLASSIFY")
                         .param("mode", "MANUAL_NAMED")
-                        .param("from", "2026-05-01")
-                        .param("to", "2026-05-31")
+                        .param("from", fromDate)
+                        .param("to", toDate)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(status().isOk())

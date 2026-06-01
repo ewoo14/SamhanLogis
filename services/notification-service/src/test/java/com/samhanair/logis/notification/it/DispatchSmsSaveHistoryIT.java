@@ -19,6 +19,7 @@ import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.repository.DispatchSmsSaveHistoryRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -90,6 +91,10 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANUAL_NAMED 는 2건 이상 append 저장되고 edited 본문까지 목록/상세로 복원된다")
     void manualNamedAppendListDetailFlow() throws Exception {
+        LocalDate now = LocalDate.now();
+        String fromDate = now.minusDays(1).toString();
+        String toDate = now.plusDays(1).toString();
+
         MvcResult createdFirst = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("오전 미리보기 점검", 2, "P-001", "편집 본문 A"))
@@ -117,8 +122,8 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "DISPATCH_SMS")
                         .param("mode", "MANUAL_NAMED")
-                        .param("from", "2026-05-01")
-                        .param("to", "2026-05-31")
+                        .param("from", fromDate)
+                        .param("to", toDate)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
