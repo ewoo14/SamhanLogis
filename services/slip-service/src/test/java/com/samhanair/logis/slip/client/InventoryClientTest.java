@@ -91,6 +91,18 @@ class InventoryClientTest {
     }
 
     @Test
+    void inboundInstances_callsInstancesBatchEndpoint_withInternalToken() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.CREATED));
+
+        client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,
+                "구매", "S2-INB-001", new BigDecimal("500000.00"));
+        server.verify();
+    }
+
+    @Test
     void reserve_4xxResponse_mapsToConflict() {
         server.expect(requestTo("http://inventory-service/inventory/reserve"))
                 .andRespond(withStatus(HttpStatus.CONFLICT));

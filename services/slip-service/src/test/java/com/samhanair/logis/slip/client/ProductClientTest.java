@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -69,6 +71,36 @@ class ProductClientTest {
         assertThat(result.modelName()).isEqualTo("AJ040RXH4BC1");
         assertThat(result.name()).isEqualTo("벽걸이 무풍에어컨");
         assertThat(result.status()).isEqualTo("ACTIVE");
+        server.verify();
+    }
+
+    @Test
+    void lookup_success_mapsSerialManaged() {
+        UUID productId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        String body = """
+                {
+                  "success": true,
+                  "code": "OK",
+                  "message": "성공",
+                  "data": [{
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "name": "벽걸이 무풍에어컨",
+                    "modelName": "AJ040RXH4BC1",
+                    "categoryId": "22222222-2222-2222-2222-222222222222",
+                    "sellingPrice": 1500000.00,
+                    "status": "ACTIVE",
+                    "serialManaged": true
+                  }]
+                }
+                """;
+        server.expect(requestTo("http://product-service/products/internal/lookup"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        ProductSummary result = client.lookup(List.of(productId)).get(0);
+
+        assertThat(result.serialManaged()).isTrue();
         server.verify();
     }
 

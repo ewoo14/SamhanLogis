@@ -633,13 +633,13 @@ public class SlipService {
 
     /**
      * 처리완료 — INSPECTING → COMPLETED. OUTBOUND 면 라인별 deduct(fromReservation=true),
-     * INBOUND 면 라인별 inbound 호출.
+     * INBOUND 면 serial-managed 품목은 인스턴스 배치 입고, batch 품목은 기존 lot 입고를 호출한다.
      *
      * <p>Slice A (sales-polish-2) 변경: 직전 단계가 PROCESSING → INSPECTING 으로 변경.
      * 재고 차감 시점은 그대로 complete 시점 유지 — 검수는 단순 확인 단계, 재고는
      * 이미 reserve 되어 있고 출고 완료 시점에 deduct 가 의미적으로 정확.
      *
-     * @throws BusinessException(CONFLICT) 상태 불일치, 재고 부족
+     * @throws BusinessException(CONFLICT) 상태 불일치, 재고 부족, 회수 입고 태그(RETURN/RETURN_TRIP)
      * @throws BusinessException(INTERNAL_ERROR) inventory-service 호출 실패
      */
     public SlipDetailResponse complete(UUID id) {
@@ -651,12 +651,31 @@ public class SlipService {
                         line.getQuantity(), true, SLIP_REF_TYPE, slip.getId());
             }
         } else {
+            String inboundType = resolveInboundType(slip);
             for (SlipLine line : slip.getLines()) {
-                inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                        line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                boolean serialManaged = productClient.requireExists(line.getProductId()).serialManaged();
+                if (serialManaged) {
+                    inventoryClient.inboundInstances(line.getProductId(), line.getModelName(),
+                            slip.getDestinationWarehouseId(), line.getQuantity(),
+                            inboundType, slip.getSlipNo(), line.getUnitPrice());
+                } else {
+                    inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                            line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                }
             }
         }
         return SlipDetailResponse.from(slip);
+    }
+
+    private String resolveInboundType(Slip slip) {
+        DeliveryTag tag = slip.getDeliveryTag();
+        if (tag == DeliveryTag.BORROW) {
+            return "차용";
+        }
+        if (tag == DeliveryTag.RETURN || tag == DeliveryTag.RETURN_TRIP) {
+            throw new BusinessException(ErrorCode.CONFLICT, "회수 입고는 S4 범위입니다");
+        }
+        return "구매";
     }
 
     /** 처리완료 → 배송중 (OUTBOUND 한정). */

@@ -194,7 +194,7 @@ class SlipPhotoAuditAdminControllerTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.page()).isEqualTo("slip.photo-audit");
-        assertThat(annotation.action()).isEqualTo("VIEW");
+        assertThat(annotation.action()).isEqualTo(PermissionAction.VIEW);
     }
 
     @TestConfiguration

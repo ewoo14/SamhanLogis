@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +40,8 @@ public class InventoryClient {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String INTERNAL_USER_ROLE = "MASTER";
     private static final String INVENTORY_SERVICE_BASE = "http://inventory-service";
 
     private final RestClient restClient;
@@ -127,6 +130,35 @@ public class InventoryClient {
         post("/inventory/lots/inbound", body);
     }
 
+    /**
+     * 시리얼 관리 품목 입고 — 입고전표 complete() 시 인스턴스 N개를 멱등 생성한다.
+     *
+     * @param productId     제품 UUID
+     * @param productCode   품목코드 그룹 (inventory stock_instances.product_code)
+     * @param warehouseId   입고 창고
+     * @param quantity      입고 수량
+     * @param inboundType   입고 구분(구매/차용)
+     * @param inboundSlipNo 입고전표 번호
+     * @param unitCost      단위 원가
+     * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public void inboundInstances(UUID productId, String productCode, UUID warehouseId, int quantity,
+                                 String inboundType, String inboundSlipNo, BigDecimal unitCost) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("productId", productId.toString());
+        body.put("productCode", productCode);
+        body.put("warehouseId", warehouseId.toString());
+        body.put("quantity", quantity);
+        body.put("inboundType", inboundType);
+        body.put("inboundSlipNo", inboundSlipNo);
+        body.put("receivedAt", LocalDateTime.now());
+        if (unitCost != null) {
+            body.put("unitCost", unitCost);
+        }
+        post("/inventory/instances/batch", body);
+    }
+
     private static Map<String, Object> baseBody(UUID productId, UUID warehouseId, int quantity,
                                                 String refType, UUID refId) {
         Map<String, Object> body = new HashMap<>();
@@ -147,6 +179,7 @@ public class InventoryClient {
             restClient.post()
                     .uri(path)
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .header(USER_ROLE_HEADER, INTERNAL_USER_ROLE)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()

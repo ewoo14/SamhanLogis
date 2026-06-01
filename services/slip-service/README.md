@@ -107,6 +107,17 @@ auth-service V38 seed가 `PARTNER`를 제외한 내부 role의 기존 `FALSE` ro
 - 목록 기본 정렬은 `slipDate DESC, seqNo DESC`.
 - 상세 `inspectionStatus`: INBOUND `SAVED / CONFIRMED`는 `READY`, 그 외는 `NOT_READY`.
 
+### INV-S S2 — INBOUND 시리얼 인스턴스 입고 연동 (2026-06-01)
+
+`SlipService.complete()`의 INBOUND 라인 루프가 product-service `serialManaged` 값을 기준으로 분기한다.
+
+| 라인 품목 | inventory 호출 | 비고 |
+|---|---|---|
+| `serialManaged=true` | `POST /inventory/instances/batch` | 수량 N개 `stock_instances` 멱등 생성, `product_code` 값은 `SlipLine.modelName` 스냅샷 사용 |
+| `serialManaged=false` | `POST /inventory/lots/inbound` | 기존 batch lot 경로 유지 |
+
+`DeliveryTag.BORROW`는 `inboundType="차용"`, tag 없음은 `"구매"`로 전달한다. `RETURN`/`RETURN_TRIP` 회수 입고는 S4 범위라 complete 시 409로 차단한다.
+
 ### SP-08-5-2 매입 수정 direct PUT (2026-05-18 구현)
 
 legacy GAS의 매입 row 즉시 수정 사용감을 `Slip(type=INBOUND)` direct PUT으로 고정한다.
