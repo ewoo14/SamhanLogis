@@ -1,5 +1,6 @@
 package com.samhanair.logis.partnerorder.revision.snapshot;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -43,6 +44,7 @@ import java.util.UUID;
  * @param lines          라인 스냅샷 배열 (is_deleted=false 라인만 포함)
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record PartnerOrderSnapshot(
         String orderNo,
         String partnerCode,
@@ -75,6 +77,7 @@ public record PartnerOrderSnapshot(
      * @param remark      비고
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record LineSnapshot(
             UUID productId,
             String modelName,

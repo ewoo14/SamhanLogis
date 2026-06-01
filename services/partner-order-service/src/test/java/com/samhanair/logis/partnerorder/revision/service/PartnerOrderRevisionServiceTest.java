@@ -22,6 +22,7 @@ import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
 import com.samhanair.logis.partnerorder.revision.snapshot.PartnerOrderSnapshot;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +81,58 @@ class PartnerOrderRevisionServiceTest {
         // (단위 테스트에서 실 DB 조회 불가 — 빈 리스트 반환으로 사이드이펙트 없음)
         lenient().when(lineRepository.findAllIncludingDeletedByPartnerOrderId(any(UUID.class)))
                 .thenReturn(java.util.List.of());
+    }
+
+    // ── listWithSummary 스냅샷 스키마 진화 내성 ───────────────────────────────
+
+    @Nested
+    @DisplayName("listWithSummary() — 저장 스냅샷 스키마 진화 내성")
+    class ListWithSummarySnapshotEvolution {
+
+        @Test
+        @DisplayName("① unknown 필드가 추가된 snapshot 은 정상 요약한다")
+        void listWithSummary_unknownFields_succeeds() {
+            UUID orderId = UUID.randomUUID();
+            when(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId))
+                    .thenReturn(List.of(mockRevisionWithSnapshot(orderId, 1,
+                            snapshotWithUnknownFields())));
+
+            List<com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse> result =
+                    service.listWithSummary(orderId);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).changeSummary().lineAdded()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("② 폐기된 enum 값이 저장된 snapshot 도 500 없이 요약한다")
+        void listWithSummary_unknownEnumValues_succeeds() {
+            UUID orderId = UUID.randomUUID();
+            when(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId))
+                    .thenReturn(List.of(mockRevisionWithSnapshot(orderId, 1,
+                            snapshotWithUnknownEnumValues())));
+
+            List<com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse> result =
+                    service.listWithSummary(orderId);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).changeSummary().lineAdded()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("③ 타입 불일치로 역직렬화 불가한 snapshot 은 해당 revision summary 만 null 처리한다")
+        void listWithSummary_typeMismatch_returnsRevisionWithEmptySummary() {
+            UUID orderId = UUID.randomUUID();
+            when(revisionRepository.findByPartnerOrderIdOrderByRevisionNoDesc(orderId))
+                    .thenReturn(List.of(mockRevisionWithSnapshot(orderId, 1,
+                            snapshotWithTypeMismatch())));
+
+            List<com.samhanair.logis.partnerorder.revision.web.dto.PartnerOrderRevisionResponse> result =
+                    service.listWithSummary(orderId);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).changeSummary()).isNull();
+        }
     }
 
     // ── capture 채번 단조증가 ──────────────────────────────────────────────────
@@ -478,5 +531,91 @@ class PartnerOrderRevisionServiceTest {
                 orderId, revisionNo, PartnerOrderRevisionType.CREATE,
                 null, "2026/05/30-1", snapshotJson,
                 null, null, null);
+    }
+
+    private String snapshotWithUnknownFields() {
+        return """
+                {
+                  "orderNo": "2026/06/01-320",
+                  "partnerCode": "P-REV-EVO",
+                  "bizCode": "1112233333",
+                  "status": "DRAFT",
+                  "slipPublishStatus": "NOT_REQUIRED",
+                  "totalAmount": 240000,
+                  "dueDate": "2026-06-10",
+                  "memo": "unknown field",
+                  "legacyHeaderField": "과거 헤더 필드",
+                  "revisionCount": 0,
+                  "lines": [
+                    {
+                      "productId": "00000000-0000-0000-0000-000000000121",
+                      "modelName": "AJ040RXH4BC1",
+                      "productName": "실외기",
+                      "categoryKey": "homemulti",
+                      "quantity": 2,
+                      "priceVat": 120000,
+                      "subtotal": 240000,
+                      "remark": "unknown field",
+                      "legacyLineField": "과거 라인 필드"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String snapshotWithUnknownEnumValues() {
+        return """
+                {
+                  "orderNo": "2026/06/01-321",
+                  "partnerCode": "P-REV-EVO",
+                  "bizCode": "1112233333",
+                  "status": "LEGACY_DONE",
+                  "slipPublishStatus": "LEGACY_QUEUE",
+                  "totalAmount": 240000,
+                  "dueDate": "2026-06-10",
+                  "memo": "unknown enum",
+                  "revisionCount": 0,
+                  "lines": [
+                    {
+                      "productId": "00000000-0000-0000-0000-000000000122",
+                      "modelName": "AJ040RXH4BC1",
+                      "productName": "실외기",
+                      "categoryKey": "homemulti",
+                      "quantity": 2,
+                      "priceVat": 120000,
+                      "subtotal": 240000,
+                      "remark": "unknown enum"
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private String snapshotWithTypeMismatch() {
+        return """
+                {
+                  "orderNo": "2026/06/01-322",
+                  "partnerCode": "P-REV-EVO",
+                  "bizCode": "1112233333",
+                  "status": "DRAFT",
+                  "slipPublishStatus": "NOT_REQUIRED",
+                  "totalAmount": 240000,
+                  "dueDate": "2026-06-10",
+                  "memo": "type mismatch",
+                  "revisionCount": 0,
+                  "lines": [
+                    {
+                      "productId": "00000000-0000-0000-0000-000000000123",
+                      "modelName": "AJ040RXH4BC1",
+                      "productName": "실외기",
+                      "categoryKey": "homemulti",
+                      "quantity": {"legacy": 2},
+                      "priceVat": 120000,
+                      "subtotal": 240000,
+                      "remark": "type mismatch"
+                    }
+                  ]
+                }
+                """;
     }
 }

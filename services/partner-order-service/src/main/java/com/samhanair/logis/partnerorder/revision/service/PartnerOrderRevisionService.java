@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.revision.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -24,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -56,7 +56,6 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 @Transactional
-@RequiredArgsConstructor
 public class PartnerOrderRevisionService {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerOrderRevisionService.class);
@@ -69,6 +68,20 @@ public class PartnerOrderRevisionService {
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderLineRepository lineRepository;
     private final ObjectMapper objectMapper;
+    private final ObjectMapper snapshotObjectMapper;
+
+    public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
+                                       PartnerOrderRepository orderRepository,
+                                       PartnerOrderLineRepository lineRepository,
+                                       ObjectMapper objectMapper) {
+        this.revisionRepository = revisionRepository;
+        this.orderRepository = orderRepository;
+        this.lineRepository = lineRepository;
+        this.objectMapper = objectMapper;
+        this.snapshotObjectMapper = objectMapper.copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
+    }
 
     /**
      * 주문 헤더+라인(is_deleted=false) 을 불변 스냅샷으로 조립한다.
@@ -304,7 +317,7 @@ public class PartnerOrderRevisionService {
         List<PartnerOrderRevisionResponse> responses = new ArrayList<>(revisions.size());
         PartnerOrderSnapshot prev = null;
         for (PartnerOrderRevision revision : revisions) {
-            PartnerOrderSnapshot cur = deserialize(revision.getSnapshot());
+            PartnerOrderSnapshot cur = deserializeForSummary(revision);
             ChangeSummary summary = summarize(prev, cur);
             responses.add(new PartnerOrderRevisionResponse(
                     revision.getRevisionNo(),
@@ -315,7 +328,9 @@ public class PartnerOrderRevisionService {
                     revision.getActorColor(),
                     revision.getCreatedAt(),
                     summary));
-            prev = cur;
+            if (cur != null) {
+                prev = cur;
+            }
         }
         // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
         Collections.reverse(responses);
@@ -370,6 +385,9 @@ public class PartnerOrderRevisionService {
      * @return 변경 규모 요약
      */
     public ChangeSummary summarize(PartnerOrderSnapshot prev, PartnerOrderSnapshot cur) {
+        if (cur == null) {
+            return null;
+        }
         List<PartnerOrderSnapshot.LineSnapshot> curLines =
                 cur.lines() == null ? List.of() : cur.lines();
         if (prev == null) {
@@ -580,11 +598,28 @@ public class PartnerOrderRevisionService {
      */
     private PartnerOrderSnapshot deserialize(String json) {
         try {
-            return objectMapper.readValue(json, PartnerOrderSnapshot.class);
+            return snapshotObjectMapper.readValue(json, PartnerOrderSnapshot.class);
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "스냅샷 역직렬화에 실패했습니다: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 목록 요약용 스냅샷 역직렬화.
+     *
+     * <p>과거 저장 스냅샷이 현재 record 로 더 이상 역직렬화되지 않아도 타임라인 전체를
+     * 500 으로 실패시키지 않는다. 손상된 revision 은 summary=null 로 비우고, 다음 정상
+     * revision 비교 기준은 직전 정상 스냅샷으로 유지한다.
+     */
+    private PartnerOrderSnapshot deserializeForSummary(PartnerOrderRevision revision) {
+        try {
+            return snapshotObjectMapper.readValue(revision.getSnapshot(), PartnerOrderSnapshot.class);
+        } catch (JsonProcessingException e) {
+            log.warn("[PartnerOrderRevisionService] revision snapshot 요약 생략 — orderId={}, revisionNo={}, cause={}",
+                    revision.getPartnerOrderId(), revision.getRevisionNo(), e.getOriginalMessage());
+            return null;
         }
     }
 }
