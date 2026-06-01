@@ -29,12 +29,17 @@ import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.criteria.Predicate;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -651,16 +656,35 @@ public class SlipService {
                         line.getQuantity(), true, SLIP_REF_TYPE, slip.getId());
             }
         } else {
+            Map<UUID, ProductSummary> productsById = new HashMap<>();
+            Map<UUID, SerialInboundGroup> serialGroups = new LinkedHashMap<>();
             for (SlipLine line : slip.getLines()) {
                 ProductSummary product = productClient.requireExists(line.getProductId());
+                productsById.put(line.getProductId(), product);
                 if (product.serialManaged()) {
-                    String inboundType = resolveInboundType(slip);
-                    inventoryClient.inboundInstances(line.getProductId(), product.productCode(),
-                            slip.getDestinationWarehouseId(), line.getQuantity(),
-                            inboundType, slip.getSlipNo(), line.getUnitPrice());
-                } else {
+                    serialGroups.compute(line.getProductId(), (ignored, group) -> {
+                        if (group == null) {
+                            return SerialInboundGroup.from(product, line);
+                        }
+                        group.add(line);
+                        return group;
+                    });
+                }
+            }
+
+            Set<UUID> dispatchedSerialProducts = new HashSet<>();
+            for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (!product.serialManaged()) {
                     inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
                             line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                    continue;
+                }
+                if (dispatchedSerialProducts.add(line.getProductId())) {
+                    SerialInboundGroup group = serialGroups.get(line.getProductId());
+                    inventoryClient.inboundInstances(line.getProductId(), product.productCode(),
+                            slip.getDestinationWarehouseId(), group.quantity(),
+                            resolveInboundType(slip), slip.getSlipNo(), group.weightedUnitCost());
                 }
             }
         }
@@ -676,6 +700,41 @@ public class SlipService {
             throw new BusinessException(ErrorCode.CONFLICT, "회수 입고는 S4 범위입니다");
         }
         return "구매";
+    }
+
+    private static final class SerialInboundGroup {
+        private final ProductSummary product;
+        private int quantity;
+        private BigDecimal totalCost;
+
+        private SerialInboundGroup(ProductSummary product) {
+            this.product = product;
+        }
+
+        private static SerialInboundGroup from(ProductSummary product, SlipLine line) {
+            SerialInboundGroup group = new SerialInboundGroup(product);
+            group.add(line);
+            return group;
+        }
+
+        private void add(SlipLine line) {
+            quantity += line.getQuantity();
+            if (line.getUnitPrice() != null) {
+                BigDecimal lineCost = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
+                totalCost = totalCost == null ? lineCost : totalCost.add(lineCost);
+            }
+        }
+
+        private int quantity() {
+            return quantity;
+        }
+
+        private BigDecimal weightedUnitCost() {
+            if (totalCost == null || quantity == 0) {
+                return product.sellingPrice();
+            }
+            return totalCost.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+        }
     }
 
     /** 처리완료 → 배송중 (OUTBOUND 한정). */

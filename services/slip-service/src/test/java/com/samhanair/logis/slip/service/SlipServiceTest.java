@@ -232,6 +232,30 @@ class SlipServiceTest {
     }
 
     @Test
+    void complete_inbound_duplicateSerialProductLines_aggregatesQuantityForIdempotentBatch() {
+        Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                destWh, partnerId, "삼한", null, null, "u");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
+                2, new BigDecimal("500000.00"), null));
+        slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
+                3, new BigDecimal("500000.00"), null));
+        forceStatus(slip, SlipStatus.PROCESSING);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+
+        service.complete(slipId);
+
+        verify(inventoryClient, times(1))
+                .inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh), eq(5),
+                        eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
+        verify(inventoryClient, never())
+                .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
     void complete_inbound_mixedSerialAndBatch_routesEachLine() {
         UUID batchProductId = UUID.randomUUID();
         Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,

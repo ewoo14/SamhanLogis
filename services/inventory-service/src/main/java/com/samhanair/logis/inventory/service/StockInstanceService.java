@@ -7,6 +7,8 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +42,9 @@ public class StockInstanceService {
 
     private final StockInstanceRepository repo;
     private final ProductClient productClient;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * 수동 인스턴스 생성 — serial-managed 품목만 허용. S2 입고 연동 전 토대.
@@ -99,6 +104,7 @@ public class StockInstanceService {
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
         }
 
+        lockInboundBatchKey(inboundSlipNo, productId);
         long existingCount = repo.countByInboundSlipAndProduct(inboundSlipNo, productId);
         List<StockInstance> existing = repo.findByInboundSlipAndProduct(inboundSlipNo, productId);
         if (existingCount >= quantity) {
@@ -117,6 +123,17 @@ public class StockInstanceService {
         result.addAll(existing);
         result.addAll(saved);
         return result;
+    }
+
+    private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {
+        if (entityManager == null) {
+            return;
+        }
+        String lockKey = inboundSlipNo + "|" + productId;
+        entityManager
+                .createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(:lockKey) AS bigint))")
+                .setParameter("lockKey", lockKey)
+                .getSingleResult();
     }
 
     /**
