@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,8 +31,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * S2 인스턴스 배치 입고 API 통합 테스트.
@@ -45,6 +50,12 @@ import org.springframework.transaction.annotation.Transactional;
 class StockInstanceBatchInboundIT extends AbstractPostgresIT {
 
     private static final String MASTER_ROLE = "MASTER";
+    private static final String CLEANUP_USER = "StockInstanceBatchInboundIT";
+    private static final List<String> TEST_INBOUND_SLIP_NOS = List.of(
+            "S2-INB-001",
+            "S2-INB-002",
+            "S2-INB-DEFICIT",
+            "S2-INB-003");
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,6 +69,12 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
     @Autowired
     private StockInstanceRepository stockInstanceRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @MockBean
     private ProductClient productClient;
 
@@ -70,6 +87,7 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
      */
     @BeforeEach
     void setUp() {
+        cleanupTestStockInstances();
         var warehouses = warehouseRepository.findAllByIsDeletedFalseOrderByDisplayOrderAsc();
         if (!warehouses.isEmpty()) {
             warehouseId = warehouses.get(0).getId();
@@ -87,6 +105,11 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
         Mockito.lenient().when(productClient.requireExists(serialProductId)).thenReturn(serialProduct);
         Mockito.lenient().when(productClient.requireExists(batchProductId)).thenReturn(batchProduct);
         Mockito.lenient().when(productClient.lookup(Mockito.anyList())).thenReturn(List.of(serialProduct));
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanupTestStockInstances();
     }
 
     @Test
@@ -204,5 +227,22 @@ class StockInstanceBatchInboundIT extends AbstractPostgresIT {
         body.put("unitCost", unitCost.toPlainString());
         body.put("receivedAt", LocalDateTime.of(2026, 6, 1, 9, 0).toString());
         return body;
+    }
+
+    private void cleanupTestStockInstances() {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.executeWithoutResult(status -> jdbcTemplate.update("""
+                UPDATE stock_instances
+                   SET is_deleted = true,
+                       deleted_at = CURRENT_TIMESTAMP,
+                       deleted_by = ?
+                 WHERE is_deleted = false
+                   AND inbound_slip_no IN (?, ?, ?, ?)
+                """, CLEANUP_USER,
+                TEST_INBOUND_SLIP_NOS.get(0),
+                TEST_INBOUND_SLIP_NOS.get(1),
+                TEST_INBOUND_SLIP_NOS.get(2),
+                TEST_INBOUND_SLIP_NOS.get(3)));
     }
 }

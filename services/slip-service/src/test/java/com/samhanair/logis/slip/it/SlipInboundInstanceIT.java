@@ -32,13 +32,18 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * S2 입고 전표 complete() 인스턴스 분기 통합 테스트.
@@ -49,6 +54,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 @SpringBootTest(classes = SlipServiceApplication.class)
 class SlipInboundInstanceIT extends AbstractPostgresIT {
 
+    private static final String TEST_SLIP_NO_PREFIX = "2026/06/01-9";
+    private static final String CLEANUP_USER = "SlipInboundInstanceIT";
     private static final AtomicInteger SLIP_NO_SEQUENCE = new AtomicInteger(9000);
 
     @Autowired
@@ -56,6 +63,12 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipRepository slipRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockBean
     private ProductClient productClient;
@@ -77,10 +90,16 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
      */
     @BeforeEach
     void setUp() {
+        cleanupTestSlips();
         destinationWarehouseId = UUID.randomUUID();
         partnerId = UUID.randomUUID();
         lenient().when(userInternalClient.resolveFullName(any())).thenReturn(Optional.of("담당자"));
         lenient().when(warehouseInternalClient.findWarehouseName(any())).thenReturn(Optional.of("입고창고"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanupTestSlips();
     }
 
     @Test
@@ -223,6 +242,32 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     private SlipLineSpec line(UUID productId, String productName, String modelName,
                               int quantity, BigDecimal unitPrice) {
         return new SlipLineSpec(productId, productName, modelName, quantity, unitPrice);
+    }
+
+    private void cleanupTestSlips() {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.executeWithoutResult(status -> {
+            String slipNoPattern = TEST_SLIP_NO_PREFIX + "%";
+            jdbcTemplate.update("""
+                    UPDATE slip_lines
+                       SET is_deleted = true,
+                           deleted_at = CURRENT_TIMESTAMP,
+                           deleted_by = ?
+                     WHERE is_deleted = false
+                       AND slip_id IN (
+                           SELECT id FROM slips WHERE slip_no LIKE ?
+                       )
+                    """, CLEANUP_USER, slipNoPattern);
+            jdbcTemplate.update("""
+                    UPDATE slips
+                       SET is_deleted = true,
+                           deleted_at = CURRENT_TIMESTAMP,
+                           deleted_by = ?
+                     WHERE is_deleted = false
+                       AND slip_no LIKE ?
+                    """, CLEANUP_USER, slipNoPattern);
+        });
     }
 
     private record SlipLineSpec(UUID productId, String productName, String modelName,
