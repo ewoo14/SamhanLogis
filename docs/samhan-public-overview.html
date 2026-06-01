@@ -673,11 +673,12 @@ body {
         </div>
       </div>
       <div class="svc-card-db">inventory_db</div>
-      <div class="svc-card-desc">4-tier 창고(본사/차량/거래처위탁/가상) + FIFO 재고 차감(StockLot) + StockBalance @Version 낙관적 락 + applyWithRetry(). StockTransfer 상태머신. 22 endpoint. MinIO 재고 사진.</div>
+      <div class="svc-card-desc">4-tier 창고(본사/차량/거래처위탁/가상) + FIFO 재고 차감(StockLot) + serial-managed 품목 stock_instances 입고(S2) + StockBalance @Version 낙관적 락 + applyWithRetry(). StockTransfer 상태머신. MinIO 재고 사진.</div>
       <div class="svc-tags">
         <span class="stag yellow">FIFO 재고 차감</span>
         <span class="stag blue">@Version 낙관적 락</span>
         <span class="stag green">4-tier Warehouse</span>
+        <span class="stag purple">Serial Instance S2</span>
         <span class="stag cyan">MinIO</span>
         <span class="stag purple">Apache POI (Excel)</span>
       </div>
