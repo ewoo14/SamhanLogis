@@ -16,15 +16,18 @@ import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.repository.DpsSaveHistoryRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.time.LocalDate;
 import java.util.UUID;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,7 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DpsSaveHistoryRepository repository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     /** 외부 client 격리 — Eureka 비활성 Testcontainers 환경에서 500 방지. */
     @MockBean private ProductClient productClient;
@@ -55,9 +59,17 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private NotificationClient notificationClient;
 
+    @BeforeEach
+    void cleanHistory() {
+        jdbcTemplate.update("DELETE FROM dps_save_history");
+    }
+
     @Test
     @DisplayName("POST → 목록 → 상세 → latest 전체 흐름")
     void postListDetailLatestFlow() throws Exception {
+        LocalDate now = LocalDate.now();
+        String fromDate = now.minusDays(1).toString();
+        String toDate = now.plusDays(1).toString();
         String manualBody = """
                 {
                   "programType": "DPS_COMPARE",
@@ -84,8 +96,8 @@ class DpsSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "DPS_COMPARE")
                         .param("mode", "MANUAL_NAMED")
-                        .param("from", "2026-05-01")
-                        .param("to", "2026-05-31")
+                        .param("from", fromDate)
+                        .param("to", toDate)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk())

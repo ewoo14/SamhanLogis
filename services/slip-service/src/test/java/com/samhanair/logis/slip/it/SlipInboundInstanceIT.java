@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,8 @@ import org.springframework.test.util.ReflectionTestUtils;
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 class SlipInboundInstanceIT extends AbstractPostgresIT {
+
+    private static final AtomicInteger SLIP_NO_SEQUENCE = new AtomicInteger(9000);
 
     @Autowired
     private SlipService slipService;
@@ -206,8 +209,9 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     }
 
     private Slip saveInboundSlip(DeliveryTag deliveryTag, SlipLineSpec... lineSpecs) {
-        Slip slip = Slip.createInbound("2026/06/01-" + UUID.randomUUID(), LocalDate.of(2026, 6, 1),
-                1, destinationWarehouseId, partnerId, "테스트 거래처", deliveryTag, null, "u");
+        int seqNo = SLIP_NO_SEQUENCE.incrementAndGet();
+        Slip slip = Slip.createInbound("2026/06/01-" + seqNo, LocalDate.of(2026, 6, 1),
+                seqNo, destinationWarehouseId, partnerId, "테스트 거래처", deliveryTag, null, "u");
         for (SlipLineSpec spec : lineSpecs) {
             slip.addLine(SlipLine.create(slip, spec.productId(), spec.productName(), spec.modelName(),
                     null, spec.quantity(), spec.unitPrice(), null));

@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipCleanupProgramType;
 import com.samhanair.logis.slip.repository.SlipCleanupSaveHistoryRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -90,6 +91,9 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
     @Test
     @DisplayName("MANUAL_NAMED 는 append 저장되고 목록/상세로 복원된다")
     void manualNamedAppendListDetailFlow() throws Exception {
+        LocalDate now = LocalDate.now();
+        String fromDate = now.minusDays(1).toString();
+        String toDate = now.plusDays(1).toString();
         MvcResult firstCreated = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(manualBody("오전 마감 점검", 2))
@@ -115,8 +119,8 @@ class SlipCleanupSaveHistoryIT extends AbstractPostgresIT {
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "SLIP_CLEANUP")
                         .param("mode", "MANUAL_NAMED")
-                        .param("from", "2026-05-01")
-                        .param("to", "2026-05-31")
+                        .param("from", fromDate)
+                        .param("to", toDate)
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
