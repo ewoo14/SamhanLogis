@@ -9,6 +9,7 @@ import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +69,54 @@ public class StockInstanceService {
         return repo.save(StockInstance.inbound(
                 productId, productCode, warehouseId,
                 inboundType, receivedAt, unitCost, inboundSlipNo));
+    }
+
+    /**
+     * 전표 입고 연동용 인스턴스 배치 생성 — serial-managed 품목 N개를 멱등 생성한다.
+     *
+     * <p>동일 {@code inboundSlipNo + productId} 로 이미 생성된 수량을 세고, 요청 수량보다 부족한
+     * deficit 만큼만 {@link StockInstance#inbound} 팩토리로 추가 생성한다. 이미 목표 수량 이상이면
+     * 추가 생성 없이 기존 인스턴스 목록을 반환한다.
+     *
+     * @param productId     제품 UUID
+     * @param productCode   품목코드 그룹
+     * @param warehouseId   입고 창고 UUID
+     * @param quantity      생성 목표 수량
+     * @param inboundType   입고 구분(구매/차용)
+     * @param inboundSlipNo 입고전표 번호
+     * @param unitCost      단위 원가
+     * @param receivedAt    입고일시 (null 이면 도메인 팩토리에서 now 사용)
+     * @return 기존 인스턴스와 신규 생성 인스턴스를 합친 목록
+     * @throws BusinessException 409(CONFLICT) — batch 품목(serialManaged=false) 인 경우
+     */
+    @Transactional
+    public List<StockInstance> inboundBatch(UUID productId, String productCode, UUID warehouseId,
+                                            int quantity, String inboundType, String inboundSlipNo,
+                                            BigDecimal unitCost, LocalDateTime receivedAt) {
+        ProductSummary product = productClient.requireExists(productId);
+        if (!product.serialManaged()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
+        }
+
+        long existingCount = repo.countByInboundSlipAndProduct(inboundSlipNo, productId);
+        List<StockInstance> existing = repo.findByInboundSlipAndProduct(inboundSlipNo, productId);
+        if (existingCount >= quantity) {
+            return existing;
+        }
+        int deficit = quantity - Math.toIntExact(existingCount);
+
+        List<StockInstance> toCreate = new ArrayList<>(deficit);
+        for (int i = 0; i < deficit; i++) {
+            toCreate.add(StockInstance.inbound(
+                    productId, productCode, warehouseId,
+                    inboundType, receivedAt, unitCost, inboundSlipNo));
+        }
+        List<StockInstance> saved = repo.saveAll(toCreate);
+        List<StockInstance> result = new ArrayList<>(existing.size() + saved.size());
+        result.addAll(existing);
+        result.addAll(saved);
+        return result;
     }
 
     /**

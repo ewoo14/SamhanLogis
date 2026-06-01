@@ -5,6 +5,8 @@ import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * 개별시리얼 인스턴스 리포지토리 — {@code @SQLRestriction("is_deleted = false")} 으로 soft-delete 자동 필터.
@@ -70,4 +72,39 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      */
     long countByProductCodeAndWarehouseIdAndStatus(
             String productCode, UUID warehouseId, StockInstanceStatus status);
+
+    /**
+     * S2 입고 멱등 수량 확인 — 입고전표+품목 기준 기존 인스턴스 수를 센다.
+     *
+     * @param slipNo    입고전표 번호
+     * @param productId 제품 UUID
+     * @return 해당 전표+품목으로 생성된 인스턴스 수
+     */
+    @Query("""
+            SELECT COUNT(s)
+            FROM StockInstance s
+            WHERE s.inboundSlipNo = :slipNo
+              AND s.productId = :productId
+              AND s.isDeleted = false
+            """)
+    long countByInboundSlipAndProduct(@Param("slipNo") String slipNo,
+                                      @Param("productId") UUID productId);
+
+    /**
+     * S2 입고 멱등 응답용 기존 인스턴스 조회 — 입고전표+품목 기준으로 반환한다.
+     *
+     * @param slipNo    입고전표 번호
+     * @param productId 제품 UUID
+     * @return 해당 전표+품목으로 생성된 인스턴스 목록
+     */
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.inboundSlipNo = :slipNo
+              AND s.productId = :productId
+              AND s.isDeleted = false
+            ORDER BY s.receivedAt ASC, s.id ASC
+            """)
+    List<StockInstance> findByInboundSlipAndProduct(@Param("slipNo") String slipNo,
+                                                    @Param("productId") UUID productId);
 }

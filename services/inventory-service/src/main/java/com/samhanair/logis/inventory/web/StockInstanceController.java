@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.service.StockInstanceService;
+import com.samhanair.logis.inventory.web.dto.BatchInboundInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
@@ -69,6 +70,37 @@ public class StockInstanceController {
                 request.inboundSlipNo(),
                 request.receivedAt());
         return ApiResponse.ok(StockInstanceResponse.from(instance), "인스턴스 생성 완료");
+    }
+
+    /**
+     * 입고 전표 연동용 인스턴스 배치 생성.
+     *
+     * <p>{@code inboundSlipNo + productId} 기준으로 이미 생성된 인스턴스 수를 세고 부족분만 추가 생성한다.
+     * serial-managed=false 품목은 batch lot 경로 대상이므로 409 CONFLICT 를 반환한다.
+     *
+     * @param request 배치 입고 요청
+     * @return 기존 및 신규 생성 인스턴스 응답 목록
+     */
+    @Operation(summary = "인스턴스 배치 입고",
+            description = "serial-managed 품목 N개 인스턴스 멱등 생성(inbound_slip_no+product 기준). batch 품목 요청 시 409.")
+    @PostMapping("/batch")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.CREATE)
+    public ApiResponse<List<StockInstanceResponse>> inboundBatch(
+            @Valid @RequestBody BatchInboundInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.inboundBatch(
+                        request.productId(),
+                        request.productCode(),
+                        request.warehouseId(),
+                        request.quantity(),
+                        request.inboundType(),
+                        request.inboundSlipNo(),
+                        request.unitCost(),
+                        request.receivedAt())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "인스턴스 배치 입고 완료");
     }
 
     /**

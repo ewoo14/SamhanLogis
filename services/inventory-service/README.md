@@ -6,6 +6,7 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 
 - **창고 (`warehouses`)** — 자체/임대/가상 창고 마스터
 - **재고 로트 (`stock_lots`)** — 입고 단위, FIFO 키는 `received_at`
+- **개별시리얼 인스턴스 (`stock_instances`)** — serial-managed 품목의 UUID 단위 재고, FIFO/회수 상태 전이
 - **재고 잔량 (`stock_balances`)** — `(product, warehouse)` 집계 + 낙관적 락
 - **재고 이동 (`stock_movements`)** — append-only 감사 로그
 - **이동전표 (`stock_transfers` + `stock_transfer_lines`)** — 창고 간 재배치 워크플로우
@@ -23,6 +24,12 @@ SamhanLogis MSA 의 재고 도메인 마이크로서비스 (plan §3 첫 슬라�
 
 - **product-service** — `POST /products/internal/lookup` 으로 productId 검증 (`X-Internal-Token`)
 - **eureka-server** — 서비스 디스커버리
+
+## INV-S 시리얼 인스턴스 재고
+
+- S1: `POST /inventory/instances` 수동 생성, FIFO/역-FIFO/품목별 조회. `product-service`의 `serialManaged=false` 품목은 409로 차단한다.
+- S2: `POST /inventory/instances/batch` 배치 입고. `(inboundSlipNo, productId)` 현재 count를 기준으로 부족분만 생성해 complete 재시도 시 N개로 수렴한다.
+- V15 `stock_instances`, V16 `idx_stock_instances_inbound_slip_product` 인덱스 사용. UUID는 내부 키이며 화면 표시는 `productCode`, 상태, 전표번호 중심이다.
 
 ## 포트
 
