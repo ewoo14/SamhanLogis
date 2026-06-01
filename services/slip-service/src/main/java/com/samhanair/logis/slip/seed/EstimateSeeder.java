@@ -57,11 +57,8 @@ public class EstimateSeeder implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(EstimateSeeder.class);
 
     private static final String PARTNER_UUID_PREFIX = "samhan-seed:partner:";
-    private static final String PRODUCT_UUID_PREFIX = "samhan-seed:product:";
     private static final String PARTNER_CODE_PATTERN = "P-2026-%04d";
-    private static final String PRODUCT_MODEL_PATTERN = "TEST-MODEL-%04d";
     private static final int PARTNER_COUNT = 50;
-    private static final int PRODUCT_COUNT = 100;
 
     /** SlipSeeder 와 동일 직원 풀 (requester 결정성). */
     private static final List<String> EMPLOYEE_IDS = List.of(
@@ -174,10 +171,11 @@ public class EstimateSeeder implements CommandLineRunner {
         // 라인 추가 — (spec.idx() % 3) + 1 개 (1~3건)
         int lineCount = (spec.idx() % 3) + 1;
         for (int li = 0; li < lineCount; li++) {
-            int productSeq = ((spec.idx() * 11 + li * 5) % PRODUCT_COUNT) + 1;
-            String modelName = String.format(PRODUCT_MODEL_PATTERN, productSeq);
-            UUID productId = deterministicUuid(PRODUCT_UUID_PREFIX + modelName);
-            String productName = "냉난방기-" + modelName;
+            int productSeq = ((spec.idx() * 11 + li * 5) % HvacSeedProductCatalog.size()) + 1;
+            HvacSeedProductCatalog.ProductSeed product = HvacSeedProductCatalog.byOneBasedSeq(productSeq);
+            String modelName = product.modelName();
+            UUID productId = HvacSeedProductCatalog.deterministicProductId(modelName);
+            String productName = product.productName();
             String specification = sampleSpec(productSeq);
             int quantity = ((spec.idx() + li) % 5) + 1;  // 1~5
             BigDecimal unitPrice = computeUnitPrice(productSeq);
