@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
@@ -209,10 +210,17 @@ class SlipRealtimeControllerIT extends AbstractPostgresIT {
     @Test
     void postComment_inventoryRole_returns403() throws Exception {
         String slipId = createOutboundSlipAsSales();
+        UUID inventoryUserId = UUID.randomUUID();
 
-        // 등록 권한 = SALES/WAREHOUSE/MANAGER/MASTER. INVENTORY 는 차단.
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(inventoryUserId),
+                        ArgumentMatchers.eq("slip.comments"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(false);
+
+        // 등록 권한 = account x page x action. INVENTORY 테스트 계정은 slip.comments CREATE deny.
         mockMvc.perform(post("/slips/" + slipId + "/comments")
-                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Id", inventoryUserId.toString())
                         .header("X-User-Name", "재고원")
                         .header("X-User-Role", "INVENTORY")
                         .contentType(MediaType.APPLICATION_JSON)
