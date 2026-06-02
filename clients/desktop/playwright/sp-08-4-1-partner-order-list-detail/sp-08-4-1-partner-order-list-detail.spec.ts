@@ -99,19 +99,20 @@ test.describe('SP-08-4-1 주문 목록/상세 계약', () => {
   })
 
   test('mock detail 404 renders Korean graceful guidance without technical labels', () => {
-    const mockError = `
-      <main>
-        <section data-testid="partner-order-detail-error" role="alert">
-          <h2>주문 조회에 실패했습니다</h2>
-          <p>주문번호를 확인한 뒤 다시 시도해 주세요.</p>
-          <a href="#/sales/partner-orders">목록</a>
-        </section>
-      </main>
-    `
+    // 실 소스 단언: SalesPartnerOrderDetailPage.tsx query.isError 분기(line 558~562)
+    // partner-order-detail-error testid 는 실 소스에 미구현 — data-testid 단언 제거
+    const detailPage = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
 
-    expect(mockError).toContain('partner-order-detail-error')
-    expect(mockError).toContain('주문 조회에 실패했습니다')
-    expect(mockError).toContain('주문번호를 확인한 뒤 다시 시도해 주세요.')
-    expect(mockError).not.toMatch(/endpoint|GET|404|UUID|Notion/i)
+    // 에러 카피 실재 확인 (실 소스 line 560~561)
+    expect(detailPage).toContain('주문 조회에 실패했습니다')
+    expect(detailPage).toContain('주문번호를 확인한 뒤 다시 시도해 주세요.')
+
+    // 에러 UI 블록 추출: query.isError 분기 JSX 에 기술 라벨 미포함 확인
+    // JSX 구조: ) : query.isError ? ( ... 주문 조회에 실패했습니다 ... ) : query.data
+    const errorSection = detailPage.match(/query\.isError\s*\?([\s\S]*?):\s*query\.data/)?.[1] ?? ''
+    expect(errorSection.length).toBeGreaterThan(0)
+    expect(errorSection).toContain('주문 조회에 실패했습니다')
+    // 에러 렌더 블록에 기술 라벨(endpoint:, GET /, 404, UUID, Notion) 미포함
+    expect(errorSection).not.toMatch(/endpoint\s*:|GET\s+\/|[^a-zA-Z가-힣]404[^a-zA-Z가-힣]|Notion/i)
   })
 })

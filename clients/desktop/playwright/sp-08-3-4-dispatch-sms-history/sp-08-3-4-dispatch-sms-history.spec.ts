@@ -6,7 +6,6 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import * as fs from 'fs'
-import * as http from 'http'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -20,28 +19,6 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
-async function isServerAvailable(): Promise<boolean> {
-  return new Promise(resolve => {
-    try {
-      const url = new URL(BASE_URL)
-      const directPath = '/sp-08-3-4-dispatch-sms-history'
-      const req = http.get(
-        { hostname: url.hostname, port: Number(url.port) || 80, path: directPath, timeout: 2000 },
-        res => {
-          resolve(Boolean(res.statusCode && res.statusCode < 500))
-          res.resume()
-        },
-      )
-      req.on('error', () => resolve(false))
-      req.on('timeout', () => {
-        req.destroy()
-        resolve(false)
-      })
-    } catch {
-      resolve(false)
-    }
-  })
-}
 
 async function openDispatchSms(page: Page, query = 'mockRole=DISPATCH'): Promise<void> {
   await page.goto(`${BASE_URL}/#/arologis/dispatch-sms?${query}`, {
@@ -136,7 +113,6 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
   })
 
   test('mock UI: preview restore, manual save dialog, send audit mode, and row restore work on the real route', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
     page.on('dialog', dialog => dialog.accept())
     await openDispatchSms(page)
 
@@ -164,7 +140,6 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
   })
 
   test('mock route: latest 404 leaves dispatch sms page usable without restore banner', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
     await openDispatchSms(page, 'mockRole=DISPATCH&mockDispatchSmsLatest404=1')
 
     await expect(page.locator('[data-testid="dispatch-sms-history-tab-run"]')).toBeVisible()
@@ -172,23 +147,7 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     await expect(page.locator('[data-testid="dispatch-sms-preview-button"]')).toBeEnabled()
   })
 
-  test('mock UI snippet: SEND_AUDIT rows are index-based and UUID-free', async ({ page }) => {
-    await page.setContent(`
-      <main>
-        <button data-testid="dispatch-sms-history-tab-run">실행</button>
-        <button data-testid="dispatch-sms-history-tab-list">저장내역</button>
-        <select data-testid="dispatch-sms-history-mode">
-          <option value="MANUAL_NAMED">명시 저장만</option>
-          <option value="AUTO_LATEST">자동 저장만</option>
-          <option value="SEND_AUDIT" selected>발송 감사</option>
-        </select>
-        <div data-testid="dispatch-sms-history-row-0" role="row">2026. 05. 17. 사용자 발송 감사 2건</div>
-        <button data-testid="dispatch-sms-send-button" class="variant-warning">SMS 발송</button>
-      </main>
-    `)
-
-    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText('발송 감사')
-    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).not.toContainText(UUID_REGEX)
-    await expect(page.locator('[data-testid="dispatch-sms-send-button"]')).toHaveClass(/variant-warning/)
-  })
+  // [P1] setContent false-green 제거: SEND_AUDIT rows index-based + UUID-free 보장은
+  // 위 실-라우트 테스트(line 138~163)가 SEND_AUDIT 조회 + dispatch-sms-history-row-0 click
+  // + not.toContainText(UUID_REGEX) 로 동일 보장을 커버하므로 setContent 중복 삭제.
 })

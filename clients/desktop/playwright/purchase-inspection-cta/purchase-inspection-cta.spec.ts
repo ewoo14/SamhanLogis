@@ -97,7 +97,8 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(layout).toContain('>판매관리</NavLink>')
     expect(layout).toContain('>구매관리</NavLink>')
     expect(layout).toContain('>재고이동 관리</NavLink>')
-    expect(layout).toContain('견적서 관리')
+    // SidebarLink(내부 NavLink) 닫힘 구조로 강화 — '견적서 관리\n          </SidebarLink>' 형태 실재
+    expect(layout).toMatch(/견적서 관리[\s\S]*?<\/SidebarLink>/)
     expect(layout).toContain('주문서 관리')
     expect(layout).toContain('주문서 승인')
     expect(layout).toContain('거래처 DC 설정')

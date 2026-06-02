@@ -7,7 +7,6 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import * as fs from 'fs'
-import * as http from 'http'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -21,27 +20,6 @@ function read(relPath: string): string {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
 }
 
-async function isServerAvailable(): Promise<boolean> {
-  return new Promise(resolve => {
-    try {
-      const url = new URL(BASE_URL)
-      const req = http.get(
-        { hostname: url.hostname, port: Number(url.port) || 80, path: '/', timeout: 2000 },
-        res => {
-          resolve(true)
-          res.resume()
-        },
-      )
-      req.on('error', () => resolve(false))
-      req.on('timeout', () => {
-        req.destroy()
-        resolve(false)
-      })
-    } catch {
-      resolve(false)
-    }
-  })
-}
 
 async function openSlipCleanup(page: Page, query = 'mockRole=SALES'): Promise<void> {
   await page.goto(`${BASE_URL}/#/sales/slip-cleanup?${query}`, {
@@ -135,7 +113,6 @@ test.describe('SP-08-3-3 slip cleanup history', () => {
   })
 
   test('mock route: latest restore, dialog, history tab, and row restore work on the real route', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
     await openSlipCleanup(page)
 
     await expect(page.locator('[data-testid="slip-cleanup-history-tab-run"]')).toBeVisible()
@@ -154,7 +131,6 @@ test.describe('SP-08-3-3 slip cleanup history', () => {
   })
 
   test('mock route: latest 404 leaves the first-visit page usable without restore banner', async ({ page }) => {
-    test.skip(!(await isServerAvailable()), `dev server unavailable: ${BASE_URL}`)
     await openSlipCleanup(page, 'mockRole=SALES&mockLatest404=1')
 
     await expect(page.locator('[data-testid="slip-cleanup-history-tab-run"]')).toBeVisible()

@@ -230,5 +230,17 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     expect(ledgerApi).toContain("'ACCOUNTANT'")
     expect(ledgerApi).toContain("'MANAGER'")
     expect(ledgerApi).toContain("'MASTER'")
+
+    // auth-service V37 seed: accounting.period-close.reverse 는 MASTER 에게만 can_view/can_edit TRUE
+    // (V37__seed_sp_d6_7_accounting_page_codes.sql line 72 확인)
+    const v37seed = read(
+      'services/auth-service/src/main/resources/db/migration/V37__seed_sp_d6_7_accounting_page_codes.sql',
+    )
+    expect(v37seed).toContain("'accounting.period-close.reverse'")
+    // MASTER TRUE 행 실재
+    expect(v37seed).toContain("('accounting.period-close.reverse',    'MASTER',     TRUE, TRUE)")
+    // MANAGER/ACCOUNTANT 등 비-MASTER 에 대한 명시적 grant 행 없음 → CROSS JOIN LEFT JOIN COALESCE FALSE
+    expect(v37seed).not.toMatch(/'accounting\.period-close\.reverse',\s*'MANAGER'/)
+    expect(v37seed).not.toMatch(/'accounting\.period-close\.reverse',\s*'ACCOUNTANT'/)
   })
 })
