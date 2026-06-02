@@ -3,7 +3,7 @@
  *
  * 디자인 시스템 일관:
  * - tokens.css 의 --color-* / --space-* / --radius-* / --shadow-* 사용
- * - Modal/StockBalanceModal 와 동일한 portal + backdrop pattern
+ * - Modal 계열과 동일한 portal + backdrop pattern
  * - lg size (max-width 720px) — reject 표 가독성 우선
  */
 

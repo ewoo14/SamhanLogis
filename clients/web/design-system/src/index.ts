@@ -24,7 +24,6 @@ export * from './components/WarehouseSelector'
 // sales-form-polish 슬라이스 신규 컴포넌트
 export * from './components/DragHandle'
 export * from './components/LineRow'
-export * from './components/StockBalanceModal'
 // sales-polish-2-slice (Slice A) 신규 컴포넌트
 export * from './components/ProgressBar'
 // link-dispatch-slice 신규 컴포넌트 (PhoneInput / CopyButton)

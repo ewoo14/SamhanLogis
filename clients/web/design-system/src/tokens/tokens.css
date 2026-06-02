@@ -189,7 +189,7 @@
 /* ==========================================================================
  * sales-form-polish 슬라이스 — 모던 미니멀 alias (Designer tokens.md 인용)
  *
- * 본 슬라이스는 SlipFormPage / StockBalanceModal / DispatchView 만 신규 alias
+ * 본 슬라이스는 SlipFormPage / InventoryLookupModal / DispatchView 만 신규 alias
  * 사용 (Q5=B). 기존 16 컴포넌트는 후속 슬라이스에서 점진 migration.
  * 기존 토큰은 그대로 두고, 의미적 alias 만 추가하여 호환성 유지.
  * ========================================================================== */

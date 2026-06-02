@@ -248,34 +248,6 @@ export type TransferTransitionAction =
   | 'confirm'
   | 'cancel'
 
-// ---------------------------------------------------------------------------
-// StockBalance batch (sales-form-polish 슬라이스 신규)
-// ---------------------------------------------------------------------------
-
-/**
- * batch 재고 조회 응답 row — SlipFormPage `StockBalanceModal` 이 기대하는
- * 평탄 matrix 행. BE 평면 응답 (`ProductBalanceResponse`) 을 본 클라이언트가
- * pivot 하여 생성한다 (BE 는 `modelName`/`productName`/`perWarehouse`/`total`
- * 을 직접 반환하지 않음 — 아래 `fetchStockBalanceBatch` 주석 참고).
- *
- * UUID 비공개 가드: `productId` 는 React key 로만 사용, 화면 미노출.
- * 화면에 표시되는 식별자는 `modelName` / `productName`.
- */
-export interface StockBalanceBatchRow {
-  productId: string
-  modelName: string
-  productName: string
-  /** 창고 코드 → 수량 (재고 0 이면 0, 가상창고는 null). */
-  perWarehouse: Record<string, number | null>
-  /** 합계 (가상창고 제외). */
-  total: number
-}
-
-/** batch 응답 envelope (FE pivot 결과). */
-export interface StockBalanceBatchResponse {
-  rows: StockBalanceBatchRow[]
-}
-
 /**
  * BE `POST /inventory/balances/batch` 의 실제 응답 — `ProductBalanceResponse` 와 1:1.
  *
@@ -305,58 +277,6 @@ export interface StockBalanceLookupLine {
   productId: string
   modelName: string
   productName: string
-}
-
-/**
- * 다건 productId 의 창고별 재고 + 합계 조회.
- *
- * SlipFormPage 의 [선택 항목 재고조회] 버튼에서 호출. N건을 1회 batch 로
- * 가져오므로 100건 이하 가정 (Designer ux-flow.md § 8.3).
- *
- * BE 평면 응답 (`ProductBalanceResponse[]`) 을 `StockBalanceModal` 이 기대하는
- * `{ rows: [{ ..., perWarehouse, total }] }` 구조로 pivot 한다:
- * - `perWarehouse`: warehouseCode → totalQty. 가상창고(VIRTUAL)는 null.
- * - `total`: 가상창고 제외 totalQty 합계.
- * - `modelName` / `productName`: 호출자가 전달한 `lines` 메타에서 결합 (BE 미포함).
- *
- * @param lines 조회 대상 라인 (productId + 모델명/품목명)
- * @return 모델명 × 창고 matrix + 합계 + 가상창고 null
- */
-export async function fetchStockBalanceBatch(
-  lines: StockBalanceLookupLine[],
-): Promise<StockBalanceBatchResponse> {
-  const productIds = lines.map((l) => l.productId)
-  const res = await apiClient.post<ApiEnvelope<ProductBalanceResponse[]>>(
-    '/inventory/balances/batch',
-    { productIds },
-  )
-
-  const metaById = new Map(
-    lines.map((l) => [l.productId, l] as const),
-  )
-
-  const rows: StockBalanceBatchRow[] = res.data.data.map((p) => {
-    const meta = metaById.get(p.productId)
-    const perWarehouse: Record<string, number | null> = {}
-    let total = 0
-    for (const b of p.balances) {
-      if (b.warehouseType === 'VIRTUAL') {
-        perWarehouse[b.warehouseCode] = null
-      } else {
-        perWarehouse[b.warehouseCode] = b.totalQty
-        total += b.totalQty
-      }
-    }
-    return {
-      productId: p.productId,
-      modelName: meta?.modelName ?? '',
-      productName: meta?.productName ?? '',
-      perWarehouse,
-      total,
-    }
-  })
-
-  return { rows }
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +373,6 @@ export interface BalanceMatrix {
  *
  * batch(가용/실/예약) + listWarehouses 머지로 전 창고 집합 확보(D-IL-01).
  * VIRTUAL 창고 제외(D-IL-04 / 2.6c 관례).
- * 기존 `fetchStockBalanceBatch`(총량 only) 는 무변경.
  *
  * UUID 비공개 가드: warehouseId / productId 는 내부 key 전용, 화면 미노출.
  *
