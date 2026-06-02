@@ -163,6 +163,20 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].id").exists());
     }
 
+    @Test
+    void lookupByCode_returnsProductSummaryWithSerialManaged() throws Exception {
+        var body = java.util.Map.of("productCode", "AC-SERIAL-IT");
+
+        mockMvc.perform(post("/products/internal/lookup-by-code")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productCode", is("AC-SERIAL-IT")))
+                .andExpect(jsonPath("$.data.serialManaged", is(true)))
+                .andExpect(jsonPath("$.data.id").exists());
+    }
+
     /**
      * 에어컨 / batch 품목 혼합 lookup — 각각 serialManaged 값이 올바르게 반환되는지 검증.
      *

@@ -3,6 +3,7 @@ package com.samhanair.logis.product.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
+import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,6 +67,25 @@ public class ProductInternalController {
     @PostMapping("/lookup-by-model")
     public ApiResponse<ProductSummaryResponse> lookupByModel(@Valid @RequestBody LookupByModelRequest request) {
         return ApiResponse.ok(productService.lookupSummaryByModelName(request.modelName()));
+    }
+
+    /**
+     * 품목코드(product_code) 단건 조회 (internal) — inventory-service S3 출고 예약 경로.
+     *
+     * @param request LookupByCodeRequest (productCode: 정확 매칭 품목코드)
+     * @return 응답 envelope 안 ProductSummaryResponse (200)
+     */
+    @Operation(summary = "품목코드 단건 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. inventory-service S3 인스턴스 출고 예약 serialManaged 확인용.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "productCode 누락/공백"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "품목코드에 해당하는 제품이 없습니다")
+    })
+    @PostMapping("/lookup-by-code")
+    public ApiResponse<ProductSummaryResponse> lookupByCode(@Valid @RequestBody LookupByCodeRequest request) {
+        return ApiResponse.ok(productService.lookupSummaryByProductCode(request.productCode()));
     }
 
     /**
