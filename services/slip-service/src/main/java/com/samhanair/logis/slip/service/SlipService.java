@@ -649,7 +649,7 @@ public class SlipService {
     }
 
     /**
-     * 처리완료 — INSPECTING → COMPLETED. OUTBOUND 면 serial-managed 라인은 예약 인스턴스 출고, batch 라인은 deduct(fromReservation=true),
+     * 처리완료 — PROCESSING → INSPECTING. OUTBOUND 면 serial-managed 라인은 예약 인스턴스 출고, batch 라인은 deduct(fromReservation=true),
      * INBOUND 면 serial-managed 품목은 인스턴스 배치 입고, batch 품목은 기존 lot 입고를 호출한다.
      *
      * <p>Slice A (sales-polish-2) 변경: 직전 단계가 PROCESSING → INSPECTING 으로 변경.

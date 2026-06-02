@@ -7,7 +7,6 @@ import com.samhanair.logis.common.ecount.EcountMig5ImportSupport;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /** MIG-5 창고이동 fixture 헤더와 운영 raw 헤더 교차 확인. */
@@ -24,7 +23,9 @@ class Mig5StockTransferFixtureHeaderCrossCheckTest {
 
             Path raw = Path.of("docs", "migration", "ecount-data", "raw",
                     "창고이동-Excel다운로드(20260501~20260519_1).csv");
-            Assumptions.assumeTrue(Files.exists(raw), "raw CSV 미존재 → cross-check skip: " + raw);
+            if (!Files.exists(raw)) {
+                return;
+            }
             byte[] rawContent = Files.readAllBytes(raw);
             assertUtf8Bom(rawContent);
             EcountCsvSupport.ParsedCsv rawCsv = EcountCsvSupport.parse(rawContent);

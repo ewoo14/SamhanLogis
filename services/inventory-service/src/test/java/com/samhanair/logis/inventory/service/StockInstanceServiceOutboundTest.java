@@ -58,17 +58,21 @@ class StockInstanceServiceOutboundTest {
     @DisplayName("reserveBatch는 재고부족이면 예약 없이 409를 반환한다")
     void reserveBatch_shortage_throwsConflictWithoutReservation() {
         UUID warehouseId = UUID.randomUUID();
-        when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(UUID.randomUUID(), "AC-S3", true));
+        StockInstance only = instance(UUID.randomUUID(), "AC-S3", warehouseId, LocalDateTime.of(2026, 5, 30, 9, 0));
+        when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(only.getProductId(), "AC-S3", true));
         when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-2", "AC-S3", StockInstanceStatus.RESERVED))
                 .thenReturn(0L);
-        when(repo.countByProductCodeAndWarehouseIdAndStatus("AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
-                .thenReturn(1L);
+        // 가용 후보가 1개뿐 → 필요 2개 미만이므로 후보 목록 크기로 사전차단(동시성 TOCTOU 대비)
+        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                .thenReturn(List.of(only));
 
         assertThatThrownBy(() -> service.reserveBatch("AC-S3", warehouseId, 2, "2026/06/02-2"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("재고 부족");
 
-        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
+        // 아무것도 예약하지 않음
+        assertThat(only.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
     }
 
     @Test
@@ -83,8 +87,6 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(productId, "AC-S3", true));
         when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
                 .thenReturn(1L);
-        when(repo.countByProductCodeAndWarehouseIdAndStatus("AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
-                .thenReturn(2L);
         when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
                 "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
                 .thenReturn(List.of(early, late));
@@ -118,7 +120,8 @@ class StockInstanceServiceOutboundTest {
         List<StockInstance> result = service.reserveBatch("AC-S3", warehouseId, 2, "2026/06/02-4");
 
         assertThat(result).containsExactly(reserved);
-        verify(repo, never()).countByProductCodeAndWarehouseIdAndStatus(any(), any(), any());
+        // 이미 목표 수량 이상 예약됨 → 후보 조회 자체를 하지 않음
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
     }
 
     @Test

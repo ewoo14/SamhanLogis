@@ -157,16 +157,16 @@ public class StockInstanceService {
         }
 
         int deficit = quantity - Math.toIntExact(already);
-        long available = repo.countByProductCodeAndWarehouseIdAndStatus(
-                productCode, warehouseId, StockInstanceStatus.AVAILABLE);
-        if (available < deficit) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "재고 부족 — 가용 인스턴스 " + available + " < 필요 " + deficit
-                            + " (productCode=" + productCode + ", warehouse=" + warehouseId + ")");
-        }
-
+        // advisory lock 키가 outboundSlipNo|productCode 이므로 다른 전표가 동일 warehouse/productCode 의
+        // AVAILABLE 인스턴스를 동시 소진할 수 있다. count 와 실제 후보 목록의 TOCTOU 불일치로 인한
+        // IndexOutOfBounds(500) 를 막기 위해, 후보 목록을 먼저 적재한 뒤 그 크기로 재고부족을 사전차단한다.
         List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
                 productCode, warehouseId, StockInstanceStatus.AVAILABLE);
+        if (candidates.size() < deficit) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "재고 부족 — 가용 인스턴스 " + candidates.size() + " < 필요 " + deficit
+                            + " (productCode=" + productCode + ", warehouse=" + warehouseId + ")");
+        }
         for (int i = 0; i < deficit; i++) {
             candidates.get(i).reserve(outboundSlipNo);
         }

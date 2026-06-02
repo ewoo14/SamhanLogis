@@ -249,8 +249,8 @@ public class InventoryClient {
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
                         throw new BusinessException(ErrorCode.CONFLICT,
-                                "inventory-service 호출 실패: " + res.getStatusCode()
-                                        + " (재고 부족 등)");
+                                "inventory-service 호출 실패(" + res.getStatusCode() + "): "
+                                        + readErrorBody(res));
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -263,6 +263,19 @@ public class InventoryClient {
             log.error("InventoryClient {} failed: {}", path, ex.getMessage());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "inventory-service 호출 실패", ex);
+        }
+    }
+
+    /**
+     * inventory-service 4xx 응답 본문을 추출 — 재고 부족 상세("가용 N < 필요 M (productCode=...)") 등을
+     * 호출자/로그에 전달해 디버깅성을 확보한다. 읽기 실패 시 일반 문구로 폴백한다.
+     */
+    private static String readErrorBody(org.springframework.http.client.ClientHttpResponse res) {
+        try {
+            String body = new String(res.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            return body.isBlank() ? "재고 부족 등" : body;
+        } catch (java.io.IOException ex) {
+            return "재고 부족 등";
         }
     }
 

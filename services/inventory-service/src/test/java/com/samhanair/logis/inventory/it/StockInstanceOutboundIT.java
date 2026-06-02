@@ -79,7 +79,7 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         cleanup();
-        warehouseId = UUID.fromString("00000000-0000-0000-0000-00000000s301".replace("s", "5"));
+        warehouseId = UUID.fromString("00000000-0000-0000-0000-000000005301"); // DB 무관 픽스처 전용 UUID
         serialProductId = UUID.randomUUID();
         batchProductId = UUID.randomUUID();
         Mockito.lenient().when(productClient.requireExistsByCode(SERIAL_CODE)).thenReturn(
