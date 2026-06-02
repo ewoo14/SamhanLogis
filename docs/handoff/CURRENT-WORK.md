@@ -4,6 +4,19 @@
 
 ---
 
+## 🌙 2026-06-03 자율 세션 — 시리얼 S4 회수연동 PR #348 ⏸️ ready(머지 대기, P1 2건 개발책임자 결정)
+
+> PM 완전 자율 진행. happy-path 무결 완성, 단 Codex cross-check P1 2건(설계 수준·S3 공통)으로 **자율 머지 보류 → 개발책임자 확인 필요**.
+
+- **PR #348** `[FEAT] 시리얼 인스턴스 회수연동 S4` (브랜치 feat/serial-instance-s4-recall). spec/plan/dev-report = `docs/superpowers/{specs,plans}/2026-06-03-serial-instance-s4-recall*` + `docs/dev-reports/slice-inv-s4-recall.md`. DECISIONS D-SER-13~16.
+- **산출**: inventory(StockInstance.recall(recallSlipNo) 마커 + recallBatch 역-FIFO[outbound_at DESC+id tie-break]/회수부족409 후보크기단일판정/멱등/advisory lock + V18 recall_slip_no + recall-batch API) / slip(SlipService.complete() INBOUND RETURN/RETURN_TRIP 분기[S2 409 가드 해제]+혼합전표 + InventoryClient.recallInstances) / product 무변경.
+- **dual 리뷰 N=2**: Claude 5-agent(P0/P1 0, P2 fix: tie-break·@MockBean·RETURN IT) + Codex cross-check(P1 2건 ↓).
+- **검증**: inventory 408/slip 781 skip0. **CI 20 green**. **Docker happy-path 실QA PASS**(recall→RECALLED+recall_slip_no/부족409/멱등/역-FIFO, `docs/qa/slice-inv-s4-recall/`).
+- 🚨 **머지 보류 — Codex P1 2건(설계 수준, S3 공통)**: ① `completeRecallInbound` 혼합전표 serial recall 성공 후 batch inbound 실패 시 un-recall(RECALLED→SHIPPED) 보상 인프라 부재 ② `recallBatch` 다른 recallSlipNo 동시 회수 시 같은 SHIPPED 후보 중복선택(advisory lock key recallSlipNo|productCode, row lock/@Version 없음). **둘 다 S3 `reserveBatch`와 공통 구조** → **"시리얼 동시성·보상 강화" 후속 슬라이스로 S3 포함 일관 처리 권장**. happy-path 무결, 발생 조건(혼합전표 batch 실패 / 동일 거래처·품목 동시 2전표) 제한적. **개발책임자 결정 필요**: (a) 그대로 머지 + 후속 슬라이스 / (b) P1 fix 후 머지.
+- **Phase INV-S 종합**: S1(#336)·S2(#338)·S3(#347 머지) ✅ / **S4(#348 ready 머지 대기)**.
+
+---
+
 ## 🌙 2026-06-03 자율 세션 — 시리얼 S3 출고연동 ✅ 머지 완료 (#347 squash `4dae83b5`, PM 완전 자율)
 
 > 개발책임자 취침 중 PM 자율 연속 진행 지시. dual 5-agent cross-check + skip·error 0 + Docker 실 QA 의무.

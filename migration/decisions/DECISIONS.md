@@ -2663,6 +2663,10 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-SER-10 | **ship 가드 확장 = AVAILABLE\|RESERVED→SHIPPED**(직접 출고 + 예약 후 출고 모두 허용). `reserve(outboundSlipNo)` 마커로 전표 추적, `release()` 시 마커 클리어. |
 | D-SER-11 | **reserveBatch 재고부족 = 후보 목록 크기 단일 판정**(count 쿼리 제거). advisory lock(`outboundSlipNo\|productCode`)이 동일 전표만 직렬화하므로, 다른 전표의 동시 소진 TOCTOU 로 인한 IndexOutOfBounds(500)를 후보 목록 크기로 사전차단. (Claude 5-agent P0 fix) |
 | D-SER-12 | **accept 혼합전표 동기 REST 보상**. serial/batch 라인 예약을 순차 호출하되 중간 실패 시 이미 성공한 원격 예약을 역순 release/releaseInstances 보상(보상 실패는 `addSuppressed`). product-service 에 `POST /internal/products/lookup-by-code` 신규(productCode 단건조회, inventory `requireExistsByCode` 소비 — plan 무변경 가정 정정). 배포순서 product→inventory→slip. (Codex cross-check P1 fix) |
+| D-SER-13 | **S4 회수 = `recall()` SHIPPED→RECALLED**(S1 도메인 재사용 + recallSlipNo 마커). 회수품 재판매(RECALLED→AVAILABLE)는 본 슬라이스 descope(후속 검수/재입고). ⚠️ 개발책임자 확인 권장(회수품 재판매 정책). |
+| D-SER-14 | **회수 역-FIFO = `outbound_partner_code` + `product_code`, `outbound_at DESC` + `id ASC` tie-break**. 가장 최근 출고분부터 회수(LIFO), source 창고 무관(출고처 거래처 기준). |
+| D-SER-15 | **회수 트리거 = `SlipService.complete()` INBOUND RETURN/RETURN_TRIP**. S2 의 409 가드 해제 + serial→recallInstances / batch→수량복원. S3 출고연동 대칭. |
+| D-SER-16 | **회수부족 409 후보크기 단일판정**(S3 D-SER-11 TOCTOU 패턴) + recall_slip_no 마커 멱등(V18 컬럼/인덱스). ⚠️ **동시성·보상 인프라 후속(Codex cross-check P1)**: completeRecallInbound un-recall 보상 / recallBatch 다른 전표 동시 후보 경합 — **S3 reserveBatch 공통**, "시리얼 동시성·보상 강화" 후속 슬라이스 + 개발책임자 결정 대기. |
 
 **산출(S1)**: product V9 `categories.serial_managed` + Category 도메인 + ProductSummaryResponse + HvacProductSeeder markSerialManaged. inventory V15 `stock_instances` + StockInstance(Status) + Repository(FIFO/역-FIFO/findByProductId) + Service(serial_managed 가드 409) + Controller(/inventory/instances) + seeder + IT 12. batch 품목은 기존 stock_lots/balances 무변경. 5-team 사이클 N=2 APPROVE. CI green(skipped=0). Docker 실 QA PASS(인스턴스 201/batch 409/FIFO ASC/psql cross-DB). 배포 product(V9)→inventory(V15), 순서 위반 시 serialManaged=false 안전 degrade. dev-report `docs/dev-reports/slice-inv-s1-serial-instance.md`.
 

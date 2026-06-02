@@ -116,7 +116,7 @@ auth-service V38 seed가 `PARTNER`를 제외한 내부 role의 기존 `FALSE` ro
 | `serialManaged=true` | `POST /inventory/instances/batch` | 수량 N개 `stock_instances` 멱등 생성, `product_code` 값은 `SlipLine.modelName` 스냅샷 사용 |
 | `serialManaged=false` | `POST /inventory/lots/inbound` | 기존 batch lot 경로 유지 |
 
-`DeliveryTag.BORROW`는 `inboundType="차용"`, tag 없음은 `"구매"`로 전달한다. `RETURN`/`RETURN_TRIP` 회수 입고는 S4 범위라 complete 시 409로 차단한다.
+`DeliveryTag.BORROW`는 `inboundType="차용"`, tag 없음은 `"구매"`로 전달한다. `RETURN`/`RETURN_TRIP` 회수 입고는 complete 시 serial 라인은 거래처+품목코드 SHIPPED 인스턴스를 역-FIFO(`outbound_at DESC`)로 회수(SHIPPED→RECALLED, `recallInstances`)하고 batch 라인은 기존 수량 복원 경로를 유지한다 (S4 회수연동, PR #348).
 
 ### SP-08-5-2 매입 수정 direct PUT (2026-05-18 구현)
 
