@@ -157,6 +157,36 @@ class InventoryClientTest {
     }
 
     @Test
+    void recallInstances_callsRecallBatchEndpoint_withInternalHeadersAndBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/recall-batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(jsonPath("$.partnerCode").value("P-S4-001"))
+                .andExpect(jsonPath("$.productCode").value("AC-S4"))
+                .andExpect(jsonPath("$.quantity").value(2))
+                .andExpect(jsonPath("$.recallSlipNo").value("2026/06/03-1"))
+                .andRespond(withSuccess());
+
+        client.recallInstances("P-S4-001", "AC-S4", 2, "2026/06/03-1");
+        server.verify();
+    }
+
+    @Test
+    void recallInstances_4xxResponse_includesErrorBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/recall-batch"))
+                .andRespond(withStatus(HttpStatus.CONFLICT)
+                        .body("{\"message\":\"회수 대상 부족\"}")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.recallInstances("P-S4-002", "AC-S4", 9, "2026/06/03-2"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("회수 대상 부족");
+        server.verify();
+    }
+
+    @Test
     void reserve_4xxResponse_mapsToConflict() {
         server.expect(requestTo("http://inventory-service/inventory/reserve"))
                 .andRespond(withStatus(HttpStatus.CONFLICT));

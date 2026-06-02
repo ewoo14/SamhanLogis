@@ -186,20 +186,43 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("RETURN_TRIP 태그 serial 라인은 S4 범위라 CONFLICT")
-    void complete_returnTripTag_serialLine_throwsConflict() {
+    @DisplayName("RETURN_TRIP 태그 serial 라인은 recallInstances 를 호출한다")
+    void complete_returnTripTag_serialLine_callsRecallInstances() {
         UUID productId = UUID.randomUUID();
         Slip slip = saveInboundSlip(DeliveryTag.RETURN_TRIP, line(productId, "에어컨",
                 "MODEL-RETURN-TRIP", 1, new BigDecimal("500000.00")));
+        slip.setPartnerCode("P-S4-IT-001");
+        slipRepository.saveAndFlush(slip);
         when(productClient.requireExists(productId)).thenReturn(product(productId, true));
+
+        slipService.complete(slip.getId());
+
+        verify(inventoryClient).recallInstances(eq("P-S4-IT-001"), eq("AC-S2"),
+                eq(1), eq(slip.getSlipNo()));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    @DisplayName("RETURN serial 회수 실패 시 complete 트랜잭션은 롤백되어 상태가 PROCESSING 에 남는다")
+    void complete_returnSerialRecallFailure_rollsBackSlipStatus() {
+        UUID productId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(DeliveryTag.RETURN, line(productId, "에어컨", "MODEL-RETURN", 1,
+                new BigDecimal("500000.00")));
+        slip.setPartnerCode("P-S4-IT-002");
+        slipRepository.saveAndFlush(slip);
+        when(productClient.requireExists(productId)).thenReturn(product(productId, true));
+        doThrow(new BusinessException(ErrorCode.CONFLICT, "회수 대상 부족"))
+                .when(inventoryClient).recallInstances(eq("P-S4-IT-002"), eq("AC-S2"),
+                        eq(1), eq(slip.getSlipNo()));
 
         assertThatThrownBy(() -> slipService.complete(slip.getId()))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.CONFLICT));
+                .hasMessageContaining("회수 대상 부족");
 
-        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+        Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(SlipStatus.PROCESSING);
         verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
     }
 

@@ -368,7 +368,45 @@ class SlipServiceTest {
     }
 
     @Test
-    void complete_inbound_returnTag_serialProduct_throwsConflictBeforeInventoryInbound() {
+    void complete_inbound_returnTag_serialProduct_callsRecallInstances() {
+        Slip slip = preparedInbound(SlipStatus.PROCESSING, DeliveryTag.RETURN, productId,
+                "에어컨", "MODEL-RETURN", 1, new BigDecimal("500000.00"));
+        slip.setPartnerCode("P-RETURN-001");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-RETURN", "AC-RETURN-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+
+        service.complete(slipId);
+
+        verify(inventoryClient).recallInstances(eq("P-RETURN-001"), eq("AC-RETURN-001"),
+                eq(1), eq("2026/05/04-1"));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    void complete_inbound_returnTripTag_serialProduct_callsRecallInstances() {
+        Slip slip = preparedInbound(SlipStatus.PROCESSING, DeliveryTag.RETURN_TRIP, productId,
+                "에어컨", "MODEL-RETURN-TRIP", 1, new BigDecimal("500000.00"));
+        slip.setPartnerCode("P-RETURN-TRIP-001");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-RETURN-TRIP", "AC-RETURN-TRIP-001",
+                        UUID.randomUUID(), new BigDecimal("500000.00"), "ACTIVE", true));
+
+        service.complete(slipId);
+
+        verify(inventoryClient).recallInstances(eq("P-RETURN-TRIP-001"), eq("AC-RETURN-TRIP-001"),
+                eq(1), eq("2026/05/04-1"));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    void complete_inbound_returnTag_serialProduct_withoutPartnerCode_throwsConflict() {
         Slip slip = preparedInbound(SlipStatus.PROCESSING, DeliveryTag.RETURN, productId,
                 "에어컨", "MODEL-RETURN", 1, new BigDecimal("500000.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
@@ -379,29 +417,10 @@ class SlipServiceTest {
         assertThatThrownBy(() -> service.complete(slipId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.CONFLICT));
+                        .isEqualTo(ErrorCode.CONFLICT))
+                .hasMessageContaining("출고 거래처 코드");
 
-        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
-        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
-    }
-
-    @Test
-    void complete_inbound_returnTripTag_serialProduct_throwsConflictBeforeInventoryInbound() {
-        Slip slip = preparedInbound(SlipStatus.PROCESSING, DeliveryTag.RETURN_TRIP, productId,
-                "에어컨", "MODEL-RETURN-TRIP", 1, new BigDecimal("500000.00"));
-        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
-        when(productClient.requireExists(productId)).thenReturn(
-                new ProductSummary(productId, "에어컨", "MODEL-RETURN-TRIP", "AC-RETURN-TRIP-001",
-                        UUID.randomUUID(), new BigDecimal("500000.00"), "ACTIVE", true));
-
-        assertThatThrownBy(() -> service.complete(slipId))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.CONFLICT));
-
-        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
-                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).recallInstances(anyString(), anyString(), anyInt(), anyString());
         verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
     }
 
@@ -409,6 +428,7 @@ class SlipServiceTest {
     void complete_inbound_returnTag_batchProduct_keepsLotInboundPath() {
         Slip slip = preparedInbound(SlipStatus.PROCESSING, DeliveryTag.RETURN, productId,
                 "배관", "PIPE-BATCH", 3, new BigDecimal("10000.00"));
+        slip.setPartnerCode("P-RETURN-BATCH-001");
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
         when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
@@ -417,6 +437,37 @@ class SlipServiceTest {
         service.complete(slipId);
 
         verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(3),
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    void complete_inbound_returnTag_mixedSerialAndBatch_recallsSerialThenInboundBatch() {
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                destWh, partnerId, "삼한", DeliveryTag.RETURN, null, "u");
+        slip.setPartnerCode("P-RETURN-MIX-001");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
+                2, new BigDecimal("500000.00"), null));
+        slip.addLine(SlipLine.create(slip, batchProductId, "배관", "PIPE-BATCH", null,
+                5, new BigDecimal("10000.00"), null));
+        forceStatus(slip, SlipStatus.PROCESSING);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+        when(productClient.requireExists(batchProductId)).thenReturn(
+                new ProductSummary(batchProductId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.complete(slipId);
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(inventoryClient);
+        inOrder.verify(inventoryClient).recallInstances(eq("P-RETURN-MIX-001"), eq("AC-SERIAL-001"),
+                eq(2), eq("2026/05/04-1"));
+        inOrder.verify(inventoryClient).inbound(eq(batchProductId), eq(destWh), eq(5),
                 eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
                 anyString(), anyString(), any(BigDecimal.class));

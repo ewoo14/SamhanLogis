@@ -30,7 +30,7 @@ import org.springframework.web.client.RestClient;
  * 입고전표 lifecycle: complete → {@link #inbound} (라인별 1회).
  * serial-managed 입고/출고 lifecycle: complete → {@link #inboundInstances},
  * accept → {@link #reserveInstances}, complete → {@link #shipInstances},
- * reject/cancel → {@link #releaseInstances}.
+ * reject/cancel → {@link #releaseInstances}, 반품/회차 complete → {@link #recallInstances}.
  *
  * <p>HTTP 상태 매핑:
  * <ul>
@@ -220,6 +220,25 @@ public class InventoryClient {
         body.put("outboundSlipNo", outboundSlipNo);
         body.put("productCode", productCode);
         post("/inventory/instances/release-batch", body);
+    }
+
+    /**
+     * 시리얼 관리 품목 회수 — INBOUND 반품/회차 전표 complete 시 SHIPPED 인스턴스를 RECALLED 처리한다.
+     *
+     * @param partnerCode  출고 거래처 코드
+     * @param productCode  품목코드 그룹
+     * @param quantity     회수 수량
+     * @param recallSlipNo 회수 입고전표 번호
+     * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환(회수 대상 부족 등)
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public void recallInstances(String partnerCode, String productCode, int quantity, String recallSlipNo) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("partnerCode", partnerCode);
+        body.put("productCode", productCode);
+        body.put("quantity", quantity);
+        body.put("recallSlipNo", recallSlipNo);
+        post("/inventory/instances/recall-batch", body);
     }
 
     private static Map<String, Object> baseBody(UUID productId, UUID warehouseId, int quantity,
