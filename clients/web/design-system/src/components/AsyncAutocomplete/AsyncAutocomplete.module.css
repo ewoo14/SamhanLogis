@@ -147,6 +147,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 1;
+  /* 1차 식별자(모델명/거래처명)는 숫자 혼합 — 등폭 정렬 유지(구 optionModel 동등) */
+  font-variant-numeric: tabular-nums;
 }
 
 .optionSep {
