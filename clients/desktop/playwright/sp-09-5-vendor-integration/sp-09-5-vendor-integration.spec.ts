@@ -1022,7 +1022,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
    *   - SP-08-8 credential-plaintext-guard 패턴 (SP-09 확장 범위):
    *     * docs/qa/sp-09-* 디렉토리 내 .md/.txt 파일에 평문 자격 증명 미포함
    *     * docs/dev-reports/sp-09-*.md 에 평문 자격 증명 미포함
-   *     * clients/desktop/playwright/sp-09-*/ 내 fixture 에 평문 자격 증명 미포함
+   *     * clients/desktop/playwright/sp-09-* 하위 fixture 에 평문 자격 증명 미포함
    *   - 4 vendor key 환경 변수명만 허용 (실값 금지):
    *     * NTS:   NTS_API_KEY / NTS_BASE_URL (실값: 43자+ 영숫자 금지)
    *     * Aligo: ALIGO_API_KEY / ALIGO_USER_ID (실값: 30자+ 영숫자 금지)

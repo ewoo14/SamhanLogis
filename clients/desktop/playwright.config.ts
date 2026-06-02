@@ -20,6 +20,8 @@ export default defineConfig({
     '**/audit/**',
     '**/phase-2-4-real-qa/**',
     '**/*-real-qa.spec.ts',
+    // 레거시 GAS 소스 의존 스펙은 mock 회귀가 아니므로 3-A2 컨벤션 대상에서 제외한다.
+    '**/full-menu-contract/**',
   ],
   timeout: 60_000,
   retries: process.env['CI'] ? 1 : 0,

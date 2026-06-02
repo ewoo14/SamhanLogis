@@ -21,12 +21,16 @@
  */
 
 import { test, expect, type Page } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 import * as fs from 'fs'
 
 // ---------------------------------------------------------------------------
 // 설정
 // ---------------------------------------------------------------------------
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const BASE_URL = process.env['HR_BASE_URL'] ?? 'http://localhost:5173'
 
