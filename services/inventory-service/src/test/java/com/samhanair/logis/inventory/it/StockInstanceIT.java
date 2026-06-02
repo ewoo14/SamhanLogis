@@ -263,23 +263,26 @@ class StockInstanceIT extends AbstractPostgresIT {
     }
 
     // ─────────────────────────────────────────────────
-    // TC-5: 상태전이 가드 — RESERVED 상태에서 ship → BusinessException
+    // TC-5: 상태전이 — RESERVED 상태에서 ship → SHIPPED
     // (도메인 단위 — DB 무관, DOMAIN_TEST_WAREHOUSE_ID 고정값 사용)
     // ─────────────────────────────────────────────────
 
     @Test
-    @DisplayName("TC-5: 상태전이 가드 — RESERVED 상태에서 ship() 호출 → BusinessException 409 (도메인 단위)")
-    void stateGuard_ship_fromReserved_throws409() {
+    @DisplayName("TC-5: 상태전이 — RESERVED 상태에서 ship() 호출 → SHIPPED (도메인 단위)")
+    void stateTransition_ship_fromReserved_ships() {
         // M-2: DB 의존 제거 — DOMAIN_TEST_WAREHOUSE_ID 하드코딩 사용
+        LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 10, 0);
         StockInstance instance = StockInstance.inbound(
                 serialProductId, serialProductCode, DOMAIN_TEST_WAREHOUSE_ID,
                 "구매", LocalDateTime.now(), BigDecimal.valueOf(500000), null);
-        instance.reserve();  // AVAILABLE → RESERVED
+        instance.reserve("OUT-001");  // AVAILABLE → RESERVED
 
-        // requireStatus 가 BusinessException 을 던지는지 단언 (Spring Web 의존 제거 검증)
-        Assertions.assertThrows(
-                BusinessException.class,
-                () -> instance.ship("PARTNER-001", "OUT-001", LocalDateTime.now()));
+        instance.ship("PARTNER-001", "OUT-001", outboundAt);
+
+        assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        assertThat(instance.getOutboundPartnerCode()).isEqualTo("PARTNER-001");
+        assertThat(instance.getOutboundSlipNo()).isEqualTo("OUT-001");
+        assertThat(instance.getOutboundAt()).isEqualTo(outboundAt);
     }
 
     @Test

@@ -6,6 +6,9 @@ import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.service.StockInstanceService;
 import com.samhanair.logis.inventory.web.dto.BatchInboundInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.ReleaseBatchInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.ReserveBatchInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.ShipBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -29,10 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
  * 개별시리얼 인스턴스 CRUD/조회 컨트롤러 — Phase INV-S / S1.
  *
  * <p>권한 매트릭스:
- * <ul>
- *   <li>인스턴스 생성 ({@code POST /inventory/instances}) — {@code inventory.stock-balance CREATE}</li>
- *   <li>FIFO/역-FIFO/품목별 조회 ({@code GET}) — {@code inventory.stock-balance VIEW}</li>
- * </ul>
+     * <ul>
+     *   <li>인스턴스 생성 ({@code POST /inventory/instances}) — {@code inventory.stock-balance CREATE}</li>
+     *   <li>출고 배치 전이 ({@code POST /reserve-batch|ship-batch|release-batch}) — {@code inventory.stock-balance UPDATE}</li>
+     *   <li>FIFO/역-FIFO/품목별 조회 ({@code GET}) — {@code inventory.stock-balance VIEW}</li>
+     * </ul>
  *
  * <p>UUID 비공개 원칙 ({@code feedback_uuid_no_user_visibility}):
  * 응답 DTO 의 {@code id}·{@code productId}·{@code warehouseId} 는 API key 로만 사용.
@@ -101,6 +105,76 @@ public class StockInstanceController {
                 .map(StockInstanceResponse::from)
                 .toList();
         return ApiResponse.ok(result, "인스턴스 배치 입고 완료");
+    }
+
+    /**
+     * 출고 전표 accept 연동용 인스턴스 FIFO 예약.
+     *
+     * <p>{@code outboundSlipNo + productCode} 기준으로 이미 예약된 인스턴스 수를 세고 부족분만 추가 예약한다.
+     * serial-managed=false 품목은 batch lot 경로 대상이므로 409 CONFLICT 를 반환한다.
+     *
+     * @param request 출고 배치 예약 요청
+     * @return 해당 전표가 점유한 RESERVED 인스턴스 응답 목록
+     */
+    @Operation(summary = "인스턴스 출고 예약",
+            description = "serial-managed 품목 N개 인스턴스를 FIFO 예약(outbound_slip_no+product 기준 멱등). batch 품목 요청 시 409.")
+    @PostMapping("/reserve-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> reserveBatch(
+            @Valid @RequestBody ReserveBatchInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.reserveBatch(
+                        request.productCode(),
+                        request.warehouseId(),
+                        request.quantity(),
+                        request.outboundSlipNo())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "인스턴스 출고 예약 완료");
+    }
+
+    /**
+     * 출고 전표 complete 연동용 예약 인스턴스 출고.
+     *
+     * @param request 출고 배치 완료 요청
+     * @return 해당 전표로 SHIPPED 처리된 인스턴스 응답 목록
+     */
+    @Operation(summary = "예약 인스턴스 출고",
+            description = "outbound_slip_no+product 기준 RESERVED 인스턴스를 SHIPPED 로 전이.")
+    @PostMapping("/ship-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> shipBatch(
+            @Valid @RequestBody ShipBatchInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.shipBatch(
+                        request.outboundSlipNo(),
+                        request.productCode(),
+                        request.partnerCode(),
+                        request.outboundAt())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "예약 인스턴스 출고 완료");
+    }
+
+    /**
+     * 출고 전표 reject/cancel 연동용 예약 인스턴스 해제.
+     *
+     * @param request 출고 배치 해제 요청
+     * @return AVAILABLE 로 복원된 인스턴스 응답 목록
+     */
+    @Operation(summary = "예약 인스턴스 해제",
+            description = "outbound_slip_no+product 기준 RESERVED 인스턴스를 AVAILABLE 로 복원.")
+    @PostMapping("/release-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> releaseBatch(
+            @Valid @RequestBody ReleaseBatchInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.releaseBatch(
+                        request.outboundSlipNo(),
+                        request.productCode())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "예약 인스턴스 해제 완료");
     }
 
     /**

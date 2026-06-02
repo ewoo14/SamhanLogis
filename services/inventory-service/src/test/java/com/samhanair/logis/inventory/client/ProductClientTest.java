@@ -156,4 +156,33 @@ class ProductClientTest {
         assertThat(result.id()).isEqualTo(id);
         server.verify();
     }
+
+    @Test
+    void requireExistsByCode_callsInternalLookupByCode_andParsesSerialManaged() {
+        UUID id = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        String json = "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\","
+                + "\"data\":{"
+                + "\"id\":\"" + id + "\","
+                + "\"name\":\"AC\","
+                + "\"modelName\":\"X\","
+                + "\"productCode\":\"AC-S3\","
+                + "\"categoryId\":\"" + categoryId + "\","
+                + "\"sellingPrice\":100.00,"
+                + "\"status\":\"ACTIVE\","
+                + "\"serialManaged\":true"
+                + "}}";
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-code"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+
+        ProductSummary result = client.requireExistsByCode("AC-S3");
+
+        assertThat(result.id()).isEqualTo(id);
+        assertThat(result.productCode()).isEqualTo("AC-S3");
+        assertThat(result.serialManaged()).isTrue();
+        server.verify();
+    }
 }

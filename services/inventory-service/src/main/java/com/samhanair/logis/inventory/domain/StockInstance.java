@@ -29,6 +29,7 @@ import org.hibernate.annotations.UuidGenerator;
  * <pre>
  *   AVAILABLE ─ ship()    → SHIPPED
  *   AVAILABLE ─ reserve() → RESERVED
+ *   RESERVED  ─ ship()    → SHIPPED
  *   RESERVED  ─ release() → AVAILABLE
  *   SHIPPED   ─ recall()  → RECALLED
  * </pre>
@@ -140,15 +141,18 @@ public class StockInstance extends BaseEntity {
     }
 
     /**
-     * 출고 — AVAILABLE → SHIPPED + 출고처 기록(S3 입출고 연동에서 호출).
+     * 출고 — AVAILABLE/RESERVED → SHIPPED + 출고처 기록(S3 입출고 연동에서 호출).
      *
      * @param partnerCode    출고 거래처 코드
      * @param outboundSlipNo 출고(판매)전표 번호
      * @param outboundAt     출고일시 (null 이면 now() 사용)
-     * @throws BusinessException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
+     * @throws BusinessException 409 — 현재 상태가 AVAILABLE 또는 RESERVED 가 아닌 경우
      */
     public void ship(String partnerCode, String outboundSlipNo, LocalDateTime outboundAt) {
-        requireStatus(StockInstanceStatus.AVAILABLE, "출고");
+        if (this.status != StockInstanceStatus.AVAILABLE && this.status != StockInstanceStatus.RESERVED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "출고 불가 — 현재 상태 " + this.status + " (필요 AVAILABLE 또는 RESERVED)");
+        }
         this.status = StockInstanceStatus.SHIPPED;
         this.outboundPartnerCode = partnerCode;
         this.outboundSlipNo = outboundSlipNo;
@@ -171,18 +175,33 @@ public class StockInstance extends BaseEntity {
      * @throws BusinessException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
      */
     public void reserve() {
-        requireStatus(StockInstanceStatus.AVAILABLE, "예약");
-        this.status = StockInstanceStatus.RESERVED;
+        reserve(null);
     }
 
     /**
-     * 예약 해제 — RESERVED → AVAILABLE.
+     * 출고 예약 — AVAILABLE → RESERVED + 출고전표 마커 기록.
+     *
+     * <p>S3 출고연동에서 accept 시점에 어느 OUTBOUND 전표가 인스턴스를 점유했는지
+     * {@code outboundSlipNo} 로 기록한다. complete/reject/cancel 경로는 이 마커로 대상을 특정한다.
+     *
+     * @param outboundSlipNo 출고(판매)전표 번호
+     * @throws BusinessException 409 — 현재 상태가 AVAILABLE 이 아닌 경우
+     */
+    public void reserve(String outboundSlipNo) {
+        requireStatus(StockInstanceStatus.AVAILABLE, "예약");
+        this.status = StockInstanceStatus.RESERVED;
+        this.outboundSlipNo = outboundSlipNo;
+    }
+
+    /**
+     * 예약 해제 — RESERVED → AVAILABLE + 출고전표 마커 제거.
      *
      * @throws BusinessException 409 — 현재 상태가 RESERVED 이 아닌 경우
      */
     public void release() {
         requireStatus(StockInstanceStatus.RESERVED, "예약 해제");
         this.status = StockInstanceStatus.AVAILABLE;
+        this.outboundSlipNo = null;
     }
 
     /**

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>주요 기능:
  * <ul>
  *   <li>수동 인스턴스 생성 — serial-managed 품목 검증 후 {@link StockInstance#inbound} 팩토리 호출.</li>
+ *   <li>S3 OUTBOUND 출고연동 — 전표 accept/complete/reject 생명주기에서 reserve/ship/release 배치 처리.</li>
  *   <li>FIFO 소진 후보 조회 — {@code received_at ASC}.</li>
  *   <li>역-FIFO 회수 후보 조회 — {@code outbound_at DESC}.</li>
  *   <li>품목별 인스턴스 조회.</li>
@@ -125,11 +126,104 @@ public class StockInstanceService {
         return result;
     }
 
+    /**
+     * OUTBOUND 전표 accept 연동용 인스턴스 FIFO 예약 — productCode + warehouse 범위에서 부족분만 RESERVED 처리한다.
+     *
+     * <p>동일 {@code outboundSlipNo + productCode} 로 이미 예약된 수량을 세고, 요청 수량보다 부족한
+     * deficit 만큼만 received_at ASC 순서로 예약한다. batch 품목은 기존 수량 재고 경로 대상이므로 409 를 반환한다.
+     *
+     * @param productCode    품목코드 그룹
+     * @param warehouseId    출고 원천 창고 UUID
+     * @param quantity       예약 목표 수량
+     * @param outboundSlipNo 출고전표 번호
+     * @return 해당 전표가 점유한 RESERVED 인스턴스 목록
+     * @throws BusinessException 409(CONFLICT) — batch 품목 또는 가용 인스턴스 부족
+     */
+    @Transactional
+    public List<StockInstance> reserveBatch(String productCode, UUID warehouseId, int quantity,
+                                            String outboundSlipNo) {
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (!product.serialManaged()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
+        }
+
+        lockOutboundBatchKey(outboundSlipNo, productCode);
+        long already = repo.countByOutboundSlipNoAndProductCodeAndStatus(
+                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        if (already >= quantity) {
+            return repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                    outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        }
+
+        int deficit = quantity - Math.toIntExact(already);
+        long available = repo.countByProductCodeAndWarehouseIdAndStatus(
+                productCode, warehouseId, StockInstanceStatus.AVAILABLE);
+        if (available < deficit) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "재고 부족 — 가용 인스턴스 " + available + " < 필요 " + deficit
+                            + " (productCode=" + productCode + ", warehouse=" + warehouseId + ")");
+        }
+
+        List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+                productCode, warehouseId, StockInstanceStatus.AVAILABLE);
+        for (int i = 0; i < deficit; i++) {
+            candidates.get(i).reserve(outboundSlipNo);
+        }
+        return repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+    }
+
+    /**
+     * OUTBOUND 전표 complete 연동용 인스턴스 출고 — RESERVED 인스턴스를 SHIPPED 로 전이한다.
+     *
+     * @param outboundSlipNo 출고전표 번호
+     * @param productCode    품목코드 그룹
+     * @param partnerCode    출고 거래처 코드
+     * @param outboundAt     출고일시(null 이면 도메인에서 현재 시각 기록)
+     * @return 해당 전표로 SHIPPED 처리된 인스턴스 목록
+     */
+    @Transactional
+    public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
+                                         String partnerCode, LocalDateTime outboundAt) {
+        List<StockInstance> reserved = repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        for (StockInstance instance : reserved) {
+            instance.ship(partnerCode, outboundSlipNo, outboundAt);
+        }
+        return repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                outboundSlipNo, productCode, StockInstanceStatus.SHIPPED);
+    }
+
+    /**
+     * OUTBOUND 전표 reject/cancel 연동용 인스턴스 예약 해제 — RESERVED 인스턴스를 AVAILABLE 로 복원한다.
+     *
+     * @param outboundSlipNo 출고전표 번호
+     * @param productCode    품목코드 그룹
+     * @return AVAILABLE 로 복원된 인스턴스 목록
+     */
+    @Transactional
+    public List<StockInstance> releaseBatch(String outboundSlipNo, String productCode) {
+        List<StockInstance> reserved = repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        for (StockInstance instance : reserved) {
+            instance.release();
+        }
+        return reserved;
+    }
+
     private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {
+        lockBatchKey(inboundSlipNo + "|" + productId);
+    }
+
+    private void lockOutboundBatchKey(String outboundSlipNo, String productCode) {
+        lockBatchKey(outboundSlipNo + "|" + productCode);
+    }
+
+    private void lockBatchKey(String lockKey) {
         if (entityManager == null) {
             return;
         }
-        String lockKey = inboundSlipNo + "|" + productId;
         entityManager
                 .createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(:lockKey) AS bigint))")
                 .setParameter("lockKey", lockKey)

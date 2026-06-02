@@ -132,6 +132,55 @@ public class ProductClient {
         return lookup(List.of(productId)).get(0);
     }
 
+    /**
+     * 품목코드 기준 단건 검증 — S3 출고 인스턴스 배치에서 productCode 로 serialManaged 여부를 확인한다.
+     *
+     * <p>product-service internal code lookup 이 별도 DTO 없이 {@code productCode} 요청 본문을 받는다는
+     * 계약으로 호출하고, 응답 envelope 의 {@code data} 를 {@link ProductSummary} 로 변환한다.
+     *
+     * @param productCode 품목코드 그룹
+     * @return product-service 의 ProductSummary
+     * @throws BusinessException(INVALID_INPUT) productCode 가 비어있거나 product-service 4xx 응답
+     * @throws BusinessException(INTERNAL_ERROR) product-service 호출 실패 또는 envelope 포맷 오류
+     */
+    @SuppressWarnings("unchecked")
+    public ProductSummary requireExistsByCode(String productCode) {
+        if (productCode == null || productCode.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "productCode 는 필수입니다");
+        }
+        Map<String, Object> body = Map.of("productCode", productCode);
+        Map<String, Object> envelope;
+        try {
+            envelope = restClient.post()
+                    .uri("/products/internal/lookup-by-code")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "존재하지 않는 품목코드: " + productCode);
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 호출 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient lookup-by-code failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 호출 실패", ex);
+        }
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof Map<?, ?> raw)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 응답 포맷 오류 (data 누락)");
+        }
+        return objectMapper.convertValue(raw, ProductSummary.class);
+    }
+
     private String requireToken() {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {

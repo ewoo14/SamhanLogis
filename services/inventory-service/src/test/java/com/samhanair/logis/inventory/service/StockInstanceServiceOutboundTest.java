@@ -1,0 +1,175 @@
+package com.samhanair.logis.inventory.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.domain.StockInstance;
+import com.samhanair.logis.inventory.domain.StockInstanceStatus;
+import com.samhanair.logis.inventory.repository.StockInstanceRepository;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+/**
+ * S3 출고연동용 인스턴스 배치 서비스 단위 테스트.
+ */
+@ExtendWith(MockitoExtension.class)
+class StockInstanceServiceOutboundTest {
+
+    @Mock
+    private StockInstanceRepository repo;
+
+    @Mock
+    private ProductClient productClient;
+
+    @InjectMocks
+    private StockInstanceService service;
+
+    @Test
+    @DisplayName("serial_managed=false 품목은 reserveBatch를 409로 거부한다")
+    void reserveBatch_batchProduct_throwsConflict() {
+        UUID productId = UUID.randomUUID();
+        when(productClient.requireExistsByCode("PIPE-S3")).thenReturn(product(productId, "PIPE-S3", false));
+
+        assertThatThrownBy(() -> service.reserveBatch("PIPE-S3", UUID.randomUUID(), 2, "2026/06/02-1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reserveBatch는 재고부족이면 예약 없이 409를 반환한다")
+    void reserveBatch_shortage_throwsConflictWithoutReservation() {
+        UUID warehouseId = UUID.randomUUID();
+        when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(UUID.randomUUID(), "AC-S3", true));
+        when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-2", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(0L);
+        when(repo.countByProductCodeAndWarehouseIdAndStatus("AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                .thenReturn(1L);
+
+        assertThatThrownBy(() -> service.reserveBatch("AC-S3", warehouseId, 2, "2026/06/02-2"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("재고 부족");
+
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reserveBatch는 FIFO 순으로 부족분만 RESERVED 처리하고 outboundSlipNo를 기록한다")
+    void reserveBatch_reservesDeficitByFifo() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance already = instance(productId, "AC-S3", warehouseId, LocalDateTime.of(2026, 5, 29, 9, 0));
+        already.reserve("2026/06/02-3");
+        StockInstance early = instance(productId, "AC-S3", warehouseId, LocalDateTime.of(2026, 5, 30, 9, 0));
+        StockInstance late = instance(productId, "AC-S3", warehouseId, LocalDateTime.of(2026, 5, 31, 9, 0));
+        when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(productId, "AC-S3", true));
+        when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(1L);
+        when(repo.countByProductCodeAndWarehouseIdAndStatus("AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                .thenReturn(2L);
+        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                .thenReturn(List.of(early, late));
+        when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                "2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(already, early, late));
+
+        List<StockInstance> result = service.reserveBatch("AC-S3", warehouseId, 3, "2026/06/02-3");
+
+        assertThat(result).containsExactly(already, early, late);
+        assertThat(early.getStatus()).isEqualTo(StockInstanceStatus.RESERVED);
+        assertThat(late.getStatus()).isEqualTo(StockInstanceStatus.RESERVED);
+        assertThat(early.getOutboundSlipNo()).isEqualTo("2026/06/02-3");
+        assertThat(late.getOutboundSlipNo()).isEqualTo("2026/06/02-3");
+    }
+
+    @Test
+    @DisplayName("reserveBatch는 이미 목표 수량 이상 예약된 경우 추가 예약하지 않는다")
+    void reserveBatch_isIdempotentWhenAlreadyReserved() {
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance reserved = instance(UUID.randomUUID(), "AC-S3", warehouseId,
+                LocalDateTime.of(2026, 5, 30, 9, 0));
+        reserved.reserve("2026/06/02-4");
+        when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(reserved.getProductId(), "AC-S3", true));
+        when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-4", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(2L);
+        when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                "2026/06/02-4", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(reserved));
+
+        List<StockInstance> result = service.reserveBatch("AC-S3", warehouseId, 2, "2026/06/02-4");
+
+        assertThat(result).containsExactly(reserved);
+        verify(repo, never()).countByProductCodeAndWarehouseIdAndStatus(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("shipBatch는 RESERVED 인스턴스를 SHIPPED로 전이하고 출고처를 기록한다")
+    void shipBatch_shipsReservedInstances() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 11, 0);
+        StockInstance reserved = instance(productId, "AC-S3", warehouseId,
+                LocalDateTime.of(2026, 5, 30, 9, 0));
+        reserved.reserve("2026/06/02-5");
+        when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                "2026/06/02-5", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(reserved));
+        when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                "2026/06/02-5", "AC-S3", StockInstanceStatus.SHIPPED))
+                .thenReturn(List.of(reserved));
+
+        List<StockInstance> result = service.shipBatch("2026/06/02-5", "AC-S3", "P-2026-0001", outboundAt);
+
+        assertThat(result).containsExactly(reserved);
+        assertThat(reserved.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        assertThat(reserved.getOutboundPartnerCode()).isEqualTo("P-2026-0001");
+        assertThat(reserved.getOutboundAt()).isEqualTo(outboundAt);
+    }
+
+    @Test
+    @DisplayName("releaseBatch는 RESERVED 인스턴스를 AVAILABLE로 돌리고 전표 마커를 지운다")
+    void releaseBatch_releasesReservedInstances() {
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance reserved = instance(UUID.randomUUID(), "AC-S3", warehouseId,
+                LocalDateTime.of(2026, 5, 30, 9, 0));
+        reserved.reserve("2026/06/02-6");
+        when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                "2026/06/02-6", "AC-S3", StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(reserved));
+
+        List<StockInstance> result = service.releaseBatch("2026/06/02-6", "AC-S3");
+
+        assertThat(result).containsExactly(reserved);
+        assertThat(reserved.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
+        assertThat(reserved.getOutboundSlipNo()).isNull();
+    }
+
+    private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {
+        return new ProductSummary(productId, "테스트 품목", "MODEL-S3", productCode,
+                null, new BigDecimal("500000"), "ACTIVE", serialManaged);
+    }
+
+    private StockInstance instance(UUID productId, String productCode, UUID warehouseId, LocalDateTime receivedAt) {
+        return StockInstance.inbound(productId, productCode, warehouseId,
+                "구매", receivedAt, new BigDecimal("500000"), "S2-IN-001");
+    }
+}
