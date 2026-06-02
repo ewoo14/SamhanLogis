@@ -71,3 +71,5 @@ export * from './components/WarehouseAutocomplete'
 export * from './components/ProductAutocomplete'
 // AC-3 슬라이스 신규 — 거래처 서버검색 자동완성 (async debounced, stale 방지)
 export * from './components/PartnerAutocomplete'
+// AAC 공통화 — Product/Partner async 자동완성 공용 base
+export * from './components/AsyncAutocomplete'
