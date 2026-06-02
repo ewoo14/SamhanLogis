@@ -166,6 +166,89 @@ class StockInstanceServiceOutboundTest {
         assertThat(reserved.getOutboundSlipNo()).isNull();
     }
 
+    @Test
+    @DisplayName("recallBatch는 batch 품목을 409로 거부한다")
+    void recallBatch_batchProduct_throwsConflict() {
+        when(productClient.requireExistsByCode("PIPE-S4")).thenReturn(product(UUID.randomUUID(), "PIPE-S4", false));
+
+        assertThatThrownBy(() -> service.recallBatch("P-S4-001", "PIPE-S4", 1, "2026/06/03-1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("recallBatch는 회수 대상 부족이면 409를 반환하고 상태를 바꾸지 않는다")
+    void recallBatch_shortage_throwsConflictWithoutRecall() {
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance only = shipped(UUID.randomUUID(), "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 12, 0), "P-S4-002");
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(only.getProductId(), "AC-S4", true));
+        when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-2", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(0L);
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+                "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED))
+                .thenReturn(List.of(only));
+
+        assertThatThrownBy(() -> service.recallBatch("P-S4-002", "AC-S4", 2, "2026/06/03-2"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("회수 대상 부족");
+
+        assertThat(only.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+    }
+
+    @Test
+    @DisplayName("recallBatch는 outbound_at DESC 역-FIFO로 부족분만 RECALLED 처리한다")
+    void recallBatch_recallsDeficitByReverseFifo() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance already = shipped(productId, "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 12, 0), "P-S4-003");
+        already.recall("2026/06/03-3");
+        StockInstance latest = shipped(productId, "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 15, 0), "P-S4-003");
+        StockInstance older = shipped(productId, "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 14, 0), "P-S4-003");
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(productId, "AC-S4", true));
+        when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(1L);
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+                "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED))
+                .thenReturn(List.of(latest, older));
+        when(repo.findByRecallSlipNoAndProductCodeAndStatus(
+                "2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(List.of(already, latest));
+
+        List<StockInstance> result = service.recallBatch("P-S4-003", "AC-S4", 2, "2026/06/03-3");
+
+        assertThat(result).containsExactly(already, latest);
+        assertThat(latest.getStatus()).isEqualTo(StockInstanceStatus.RECALLED);
+        assertThat(latest.getRecallSlipNo()).isEqualTo("2026/06/03-3");
+        assertThat(older.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+    }
+
+    @Test
+    @DisplayName("recallBatch는 이미 목표 수량 이상 회수된 경우 추가 회수하지 않는다")
+    void recallBatch_isIdempotentWhenAlreadyRecalled() {
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance recalled = shipped(UUID.randomUUID(), "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 12, 0), "P-S4-004");
+        recalled.recall("2026/06/03-4");
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(recalled.getProductId(), "AC-S4", true));
+        when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-4", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(2L);
+        when(repo.findByRecallSlipNoAndProductCodeAndStatus(
+                "2026/06/03-4", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(List.of(recalled));
+
+        List<StockInstance> result = service.recallBatch("P-S4-004", "AC-S4", 2, "2026/06/03-4");
+
+        assertThat(result).containsExactly(recalled);
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(any(), any(), any());
+    }
+
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {
         return new ProductSummary(productId, "테스트 품목", "MODEL-S3", productCode,
                 null, new BigDecimal("500000"), "ACTIVE", serialManaged);
@@ -174,5 +257,13 @@ class StockInstanceServiceOutboundTest {
     private StockInstance instance(UUID productId, String productCode, UUID warehouseId, LocalDateTime receivedAt) {
         return StockInstance.inbound(productId, productCode, warehouseId,
                 "구매", receivedAt, new BigDecimal("500000"), "S2-IN-001");
+    }
+
+    private StockInstance shipped(UUID productId, String productCode, UUID warehouseId,
+                                  LocalDateTime outboundAt, String partnerCode) {
+        StockInstance instance = instance(productId, productCode, warehouseId,
+                outboundAt.minusDays(1));
+        instance.ship(partnerCode, "S3-OUT-" + outboundAt.getHour(), outboundAt);
+        return instance;
     }
 }

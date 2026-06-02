@@ -198,12 +198,69 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.message", containsString("batch")));
     }
 
+    @Test
+    @DisplayName("recall-batch: outbound_at DESC 역-FIFO로 최근 출고 2개만 RECALLED 처리한다")
+    void recallBatch_recallsLatestShippedInstances() throws Exception {
+        seedShipped(3, "P-S4-IT-001");
+
+        postRecall("P-S4-IT-001", "S4-RETURN-001", 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)))
+                .andExpect(jsonPath("$.data[0].status", is("RECALLED")))
+                .andExpect(jsonPath("$.data[0].recallSlipNo", is("S4-RETURN-001")));
+
+        List<StockInstance> recalled = stockInstanceRepository
+                .findByRecallSlipNoAndProductCodeAndStatus(
+                        "S4-RETURN-001", SERIAL_CODE, StockInstanceStatus.RECALLED);
+        assertThat(recalled).hasSize(2);
+        assertThat(recalled).extracting(StockInstance::getOutboundSlipNo)
+                .containsExactlyInAnyOrder("S4-OUT-3", "S4-OUT-2");
+        assertThat(stockInstanceRepository.countByOutboundPartnerCodeAndProductCodeAndStatus(
+                "P-S4-IT-001", SERIAL_CODE, StockInstanceStatus.SHIPPED)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("recall-batch: 회수 대상 부족이면 409 및 회수 0건")
+    void recallBatch_shortageReturns409WithoutRecall() throws Exception {
+        seedShipped(1, "P-S4-IT-002");
+
+        postRecall("P-S4-IT-002", "S4-RETURN-002", 2)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("회수 대상 부족")));
+
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-002", SERIAL_CODE, StockInstanceStatus.RECALLED)).isZero();
+    }
+
+    @Test
+    @DisplayName("recall-batch: 동일 회수전표 재호출은 추가 회수 없이 멱등")
+    void recallBatch_sameRequestIsIdempotent() throws Exception {
+        seedShipped(3, "P-S4-IT-003");
+
+        postRecall("P-S4-IT-003", "S4-RETURN-003", 2).andExpect(status().isOk());
+        postRecall("P-S4-IT-003", "S4-RETURN-003", 2).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)));
+
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-003", SERIAL_CODE, StockInstanceStatus.RECALLED)).isEqualTo(2);
+        assertThat(stockInstanceRepository.countByOutboundPartnerCodeAndProductCodeAndStatus(
+                "P-S4-IT-003", SERIAL_CODE, StockInstanceStatus.SHIPPED)).isEqualTo(1);
+    }
+
     private ResultActions postReserve(String outboundSlipNo, int quantity) throws Exception {
         return mockMvc.perform(post("/inventory/instances/reserve-batch")
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", MASTER_ROLE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reserveBody(SERIAL_CODE, outboundSlipNo, quantity))));
+    }
+
+    private ResultActions postRecall(String partnerCode, String recallSlipNo, int quantity) throws Exception {
+        return mockMvc.perform(post("/inventory/instances/recall-batch")
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", MASTER_ROLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(recallBody(partnerCode, recallSlipNo, quantity))));
     }
 
     private Map<String, Object> reserveBody(String productCode, String outboundSlipNo, int quantity) {
@@ -231,12 +288,32 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         return body;
     }
 
+    private Map<String, Object> recallBody(String partnerCode, String recallSlipNo, int quantity) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("partnerCode", partnerCode);
+        body.put("productCode", SERIAL_CODE);
+        body.put("quantity", quantity);
+        body.put("recallSlipNo", recallSlipNo);
+        return body;
+    }
+
     private void seedAvailable(int count) {
         for (int i = 1; i <= count; i++) {
             stockInstanceRepository.save(StockInstance.inbound(
                     serialProductId, SERIAL_CODE, warehouseId, "구매",
                     LocalDateTime.of(2026, 6, i, 9, 0),
                     new BigDecimal("500000"), "S3-IN-" + i));
+        }
+    }
+
+    private void seedShipped(int count, String partnerCode) {
+        for (int i = 1; i <= count; i++) {
+            StockInstance instance = StockInstance.inbound(
+                    serialProductId, SERIAL_CODE, warehouseId, "구매",
+                    LocalDateTime.of(2026, 6, i, 9, 0),
+                    new BigDecimal("500000"), "S4-IN-" + i);
+            instance.ship(partnerCode, "S4-OUT-" + i, LocalDateTime.of(2026, 6, i, 15, 0));
+            stockInstanceRepository.save(instance);
         }
     }
 
@@ -251,7 +328,10 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                  WHERE is_deleted = false
                    AND (product_code IN (?, ?)
                         OR inbound_slip_no LIKE 'S3-IN-%'
-                        OR outbound_slip_no LIKE 'S3-OUT-%')
+                        OR inbound_slip_no LIKE 'S4-IN-%'
+                        OR outbound_slip_no LIKE 'S3-OUT-%'
+                        OR outbound_slip_no LIKE 'S4-OUT-%'
+                        OR recall_slip_no LIKE 'S4-RETURN-%')
                 """, CLEANUP_USER, SERIAL_CODE, BATCH_CODE));
     }
 }

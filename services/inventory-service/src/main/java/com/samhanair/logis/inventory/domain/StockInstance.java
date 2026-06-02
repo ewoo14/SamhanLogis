@@ -96,6 +96,10 @@ public class StockInstance extends BaseEntity {
     @Column(name = "outbound_at")
     private LocalDateTime outboundAt;
 
+    /** 회수(반품/회차)전표 번호 — S4 멱등 마커. */
+    @Column(name = "recall_slip_no", length = 64)
+    private String recallSlipNo;
+
     /**
      * 내부 생성자 — 정적 팩토리를 통해서만 사용.
      */
@@ -165,8 +169,22 @@ public class StockInstance extends BaseEntity {
      * @throws BusinessException 409 — 현재 상태가 SHIPPED 이 아닌 경우
      */
     public void recall() {
+        recall(null);
+    }
+
+    /**
+     * 회수 — SHIPPED → RECALLED + 회수전표 번호 기록.
+     *
+     * <p>S4 회수연동은 동일 INBOUND RETURN/RETURN_TRIP 전표 재호출 시 추가 회수를 막기 위해
+     * {@code recallSlipNo + productCode + RECALLED} 로 멱등 판정한다.
+     *
+     * @param recallSlipNo 회수 입고전표 번호
+     * @throws BusinessException 409 — 현재 상태가 SHIPPED 이 아닌 경우
+     */
+    public void recall(String recallSlipNo) {
         requireStatus(StockInstanceStatus.SHIPPED, "회수");
         this.status = StockInstanceStatus.RECALLED;
+        this.recallSlipNo = recallSlipNo;
     }
 
     /**

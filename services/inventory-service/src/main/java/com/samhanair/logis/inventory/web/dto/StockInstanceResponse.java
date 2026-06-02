@@ -37,6 +37,8 @@ public record StockInstanceResponse(
         String outboundSlipNo,
         /** 출고일시 */
         LocalDateTime outboundAt,
+        /** 회수전표 번호 — 사용자 표시용 비즈니스 식별자 */
+        String recallSlipNo,
         /** 생성일시 */
         LocalDateTime createdAt,
         /** 생성자 */
@@ -62,6 +64,7 @@ public record StockInstanceResponse(
                 instance.getOutboundPartnerCode(),
                 instance.getOutboundSlipNo(),
                 instance.getOutboundAt(),
+                instance.getRecallSlipNo(),
                 instance.getCreatedAt(),
                 instance.getCreatedBy());
     }

@@ -212,12 +212,62 @@ public class StockInstanceService {
         return reserved;
     }
 
+    /**
+     * INBOUND 반품/회차 전표 complete 연동용 인스턴스 역-FIFO 회수 — SHIPPED 인스턴스를 RECALLED 로 전이한다.
+     *
+     * <p>동일 {@code recallSlipNo + productCode} 로 이미 회수된 수량을 세고, 요청 수량보다 부족한
+     * deficit 만큼만 {@code outbound_at DESC} 역-FIFO 순서로 회수한다. 부족 판정은 후보 목록 크기
+     * 하나로만 수행해 count/list TOCTOU 불일치로 인한 500 을 방지한다(S3 D-SER-11 교훈).
+     *
+     * @param partnerCode  출고 거래처 코드
+     * @param productCode  품목코드 그룹
+     * @param quantity     회수 목표 수량
+     * @param recallSlipNo 회수 입고전표 번호
+     * @return 해당 전표로 RECALLED 처리된 인스턴스 목록
+     * @throws BusinessException 409(CONFLICT) — batch 품목 또는 회수 대상 부족
+     */
+    @Transactional
+    public List<StockInstance> recallBatch(String partnerCode, String productCode,
+                                           int quantity, String recallSlipNo) {
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (!product.serialManaged()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
+        }
+
+        lockRecallBatchKey(recallSlipNo, productCode);
+        long already = repo.countByRecallSlipNoAndProductCodeAndStatus(
+                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        if (already >= quantity) {
+            return repo.findByRecallSlipNoAndProductCodeAndStatus(
+                    recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        }
+
+        int deficit = quantity - Math.toIntExact(already);
+        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+                partnerCode, productCode, StockInstanceStatus.SHIPPED);
+        if (candidates.size() < deficit) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "회수 대상 부족 — 출고 인스턴스 " + candidates.size() + " < 필요 " + deficit
+                            + " (partnerCode=" + partnerCode + ", productCode=" + productCode + ")");
+        }
+        for (int i = 0; i < deficit; i++) {
+            candidates.get(i).recall(recallSlipNo);
+        }
+        return repo.findByRecallSlipNoAndProductCodeAndStatus(
+                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+    }
+
     private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {
         lockBatchKey(inboundSlipNo + "|" + productId);
     }
 
     private void lockOutboundBatchKey(String outboundSlipNo, String productCode) {
         lockBatchKey(outboundSlipNo + "|" + productCode);
+    }
+
+    private void lockRecallBatchKey(String recallSlipNo, String productCode) {
+        lockBatchKey(recallSlipNo + "|" + productCode);
     }
 
     private void lockBatchKey(String lockKey) {

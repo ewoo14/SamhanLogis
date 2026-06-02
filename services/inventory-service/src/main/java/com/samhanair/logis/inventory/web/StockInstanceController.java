@@ -7,6 +7,7 @@ import com.samhanair.logis.inventory.service.StockInstanceService;
 import com.samhanair.logis.inventory.web.dto.BatchInboundInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReleaseBatchInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.RecallBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReserveBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ShipBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
@@ -175,6 +176,29 @@ public class StockInstanceController {
                 .map(StockInstanceResponse::from)
                 .toList();
         return ApiResponse.ok(result, "예약 인스턴스 해제 완료");
+    }
+
+    /**
+     * 반품/회차 INBOUND 전표 complete 연동용 인스턴스 회수.
+     *
+     * @param request 회수 배치 요청
+     * @return 해당 전표로 RECALLED 처리된 인스턴스 응답 목록
+     */
+    @Operation(summary = "인스턴스 회수",
+            description = "partnerCode+productCode 기준 SHIPPED 인스턴스를 outbound_at DESC 역-FIFO로 RECALLED 처리.")
+    @PostMapping("/recall-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> recallBatch(
+            @Valid @RequestBody RecallBatchInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.recallBatch(
+                        request.partnerCode(),
+                        request.productCode(),
+                        request.quantity(),
+                        request.recallSlipNo())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "인스턴스 회수 완료");
     }
 
     /**

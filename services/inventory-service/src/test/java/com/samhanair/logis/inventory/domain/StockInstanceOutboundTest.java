@@ -74,6 +74,29 @@ class StockInstanceOutboundTest {
                 .isEqualTo(ErrorCode.CONFLICT);
     }
 
+    @Test
+    @DisplayName("recall(recallSlipNo)는 SHIPPED 인스턴스를 RECALLED로 전이하고 회수전표 마커를 기록한다")
+    void recallWithSlipMarker_recordsMarker() {
+        StockInstance instance = instance();
+        instance.ship("P-2026-0005", "2026/06/02-6", LocalDateTime.of(2026, 6, 2, 11, 0));
+
+        instance.recall("2026/06/03-1");
+
+        assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.RECALLED);
+        assertThat(instance.getRecallSlipNo()).isEqualTo("2026/06/03-1");
+    }
+
+    @Test
+    @DisplayName("SHIPPED가 아닌 인스턴스 회수는 409로 거부한다")
+    void recallFromInvalidStateThrows409() {
+        StockInstance instance = instance();
+
+        assertThatThrownBy(() -> instance.recall("2026/06/03-2"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
     private StockInstance instance() {
         return StockInstance.inbound(PRODUCT_ID, "AC-S3", WAREHOUSE_ID,
                 "구매", LocalDateTime.of(2026, 5, 30, 9, 0),
