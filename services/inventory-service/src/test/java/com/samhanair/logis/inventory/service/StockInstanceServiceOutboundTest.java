@@ -279,6 +279,7 @@ class StockInstanceServiceOutboundTest {
         assertThat(recalled.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
         assertThat(recalled.getRecallSlipNo()).isNull();
         assertThat(recalled.getOutboundPartnerCode()).isEqualTo("P-S4-005");
+        assertThat(recalled.getOutboundSlipNo()).isEqualTo("S3-OUT-12");
         assertThat(recalled.getOutboundAt()).isEqualTo(outboundAt);
     }
 
