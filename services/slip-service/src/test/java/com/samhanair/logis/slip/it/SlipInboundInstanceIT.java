@@ -82,6 +82,9 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
 
+    @MockBean
+    private com.samhanair.logis.slip.client.PartnerInternalClient partnerInternalClient;
+
     private UUID destinationWarehouseId;
     private UUID partnerId;
 
@@ -95,6 +98,7 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         partnerId = UUID.randomUUID();
         lenient().when(userInternalClient.resolveFullName(any())).thenReturn(Optional.of("담당자"));
         lenient().when(warehouseInternalClient.findWarehouseName(any())).thenReturn(Optional.of("입고창고"));
+        lenient().when(partnerInternalClient.resolveBusinessNumber(any())).thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -198,6 +202,25 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         slipService.complete(slip.getId());
 
         verify(inventoryClient).recallInstances(eq("P-S4-IT-001"), eq("AC-S2"),
+                eq(1), eq(slip.getSlipNo()));
+        verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
+                anyString(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    @DisplayName("RETURN 태그 serial 라인도 recallInstances 를 호출한다")
+    void complete_returnTag_serialLine_callsRecallInstances() {
+        UUID productId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(DeliveryTag.RETURN, line(productId, "에어컨",
+                "MODEL-RETURN", 1, new BigDecimal("500000.00")));
+        slip.setPartnerCode("P-S4-IT-003");
+        slipRepository.saveAndFlush(slip);
+        when(productClient.requireExists(productId)).thenReturn(product(productId, true));
+
+        slipService.complete(slip.getId());
+
+        verify(inventoryClient).recallInstances(eq("P-S4-IT-003"), eq("AC-S2"),
                 eq(1), eq(slip.getSlipNo()));
         verify(inventoryClient, never()).inboundInstances(any(), anyString(), any(), anyInt(),
                 anyString(), anyString(), any(BigDecimal.class));

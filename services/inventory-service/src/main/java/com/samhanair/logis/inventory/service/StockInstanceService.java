@@ -244,7 +244,7 @@ public class StockInstanceService {
         }
 
         int deficit = quantity - Math.toIntExact(already);
-        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                 partnerCode, productCode, StockInstanceStatus.SHIPPED);
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -301,7 +301,7 @@ public class StockInstanceService {
      */
     @Transactional(readOnly = true)
     public List<StockInstance> recallCandidates(String partnerCode, String productCode) {
-        return repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+        return repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                 partnerCode, productCode, StockInstanceStatus.SHIPPED);
     }
 

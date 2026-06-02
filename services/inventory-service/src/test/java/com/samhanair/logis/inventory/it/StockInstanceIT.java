@@ -251,7 +251,7 @@ class StockInstanceIT extends AbstractPostgresIT {
 
         // 역-FIFO — outbound_at DESC
         List<StockInstance> recall = stockInstanceRepository
-                .findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+                .findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                         partnerCode, serialProductCode, StockInstanceStatus.SHIPPED);
 
         // C-1 + QA MINOR-8: 정확히 3건 + 정확 값 단언

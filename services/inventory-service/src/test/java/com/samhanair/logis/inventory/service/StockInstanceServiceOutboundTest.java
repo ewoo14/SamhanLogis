@@ -176,7 +176,7 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(any(), any(), any());
     }
 
     @Test
@@ -188,7 +188,7 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(only.getProductId(), "AC-S4", true));
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-2", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(0L);
-        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                 "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED))
                 .thenReturn(List.of(only));
 
@@ -214,7 +214,7 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(productId, "AC-S4", true));
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(1L);
-        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
                 "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED))
                 .thenReturn(List.of(latest, older));
         when(repo.findByRecallSlipNoAndProductCodeAndStatus(
@@ -246,7 +246,7 @@ class StockInstanceServiceOutboundTest {
         List<StockInstance> result = service.recallBatch("P-S4-004", "AC-S4", 2, "2026/06/03-4");
 
         assertThat(result).containsExactly(recalled);
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(any(), any(), any());
     }
 
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {

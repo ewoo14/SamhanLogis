@@ -50,7 +50,7 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      * @param status              대상 상태
      * @return outbound_at 내림차순 인스턴스 목록 (역-FIFO 순)
      */
-    List<StockInstance> findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDesc(
+    List<StockInstance> findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
             String outboundPartnerCode, String productCode, StockInstanceStatus status);
 
     /**
