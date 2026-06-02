@@ -2,7 +2,8 @@
 // expected(통과)>0 을 강제한다. 잔여 통과셋에는 조건부 skip 이 있을 수 있어
 // skipped 는 경고만 남기되, skipped > expected 는 전량 skip 위장 가능성으로 실패시킨다.
 import { readFileSync } from 'node:fs'
-const path = 'playwright-report/results.json'
+// html 리포터의 playwright-report/ 와 충돌하지 않도록 별도 디렉토리(playwright-json) 사용
+const path = 'playwright-json/results.json'
 let stats
 try {
   stats = JSON.parse(readFileSync(path, 'utf8')).stats
