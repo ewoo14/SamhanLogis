@@ -9,8 +9,8 @@
  *   (DndContext + SortableContext + useSortable + 마우스 + 키보드 sensor)
  * - 행 체크박스 + 헤더 체크박스 (전체 선택 / indeterminate)
  * - 행 클릭/체크 시 selected state — 좌측 4px 파란 띠 + 배경 변화
- * - 헤더에 [선택 항목 재고조회] 버튼 — `POST /inventory/balances/batch`
- * - `<StockBalanceModal>` 모달 (모델명 × 창고 matrix + 합계)
+ * - 헤더에 [선택 항목 재고조회] 버튼 — 가용/실/예약 재고 모달
+ * - `<InventoryLookupModal>` 모달 (모델명 × 창고 matrix)
  * - 자동 라인 번호 (drag 시 자동 갱신)
  * - 합계 영역 헤더 — 4건 / 공급가액 / 부가세 / 총 (모던 미니멀 dense)
  * - 신규 디자인 토큰 (`--surface-*`, `--ink-*`, `--row-h` 등) 적용
@@ -36,14 +36,11 @@ import {
   PartnerAutocomplete,
   PhoneInput,
   ProductAutocomplete,
-  StockBalanceModal,
   WarehouseSelector,
   type DeliveryTagOption,
   type LineDraft,
   type PartnerOption,
   type ProductOption,
-  type StockBalanceRow,
-  type WarehouseColumn,
 } from '@samhan/design-system'
 import {
   DndContext,
@@ -64,7 +61,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import axios from 'axios'
 import {
-  fetchStockBalanceBatch,
   listWarehouses,
   type StockBalanceLookupLine,
 } from '../api/inventory'
@@ -77,6 +73,7 @@ import {
 import { searchProducts as searchProductsApi } from '../api/productApi'
 import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { InventoryLookupModal } from './components/InventoryLookupModal'
 
 /**
  * 본 슬라이스용 OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 8종.
@@ -234,12 +231,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [autoFillError, setAutoFillError] = useState<string | null>(null)
   const [autoFillLoading, setAutoFillLoading] = useState(false)
 
-  // 재고조회 모달 state
+  // 재고조회 모달 state — 신 InventoryLookupModal 은 자체 페치(useQuery).
+  // 스냅샷은 모달 열린 채 라인 편집 시 표 흔들림 방지용으로 유지.
   const [stockModalOpen, setStockModalOpen] = useState(false)
-  const [stockRows, setStockRows] = useState<StockBalanceRow[] | null>(null)
-  const [stockError, setStockError] = useState<string | null>(null)
   const [stockSelectedSnapshot, setStockSelectedSnapshot] = useState<
-    Array<{ productId: string; modelName: string; productName: string }>
+    StockBalanceLookupLine[]
   >([])
 
   const warehousesQuery = useQuery({
@@ -258,16 +254,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   )
-
-  /** 창고 컬럼 메타 (재고 모달용) — listWarehouses 결과에서 자동 생성. */
-  const warehouseColumns = useMemo<WarehouseColumn[]>(() => {
-    const ws = Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []
-    return ws.map((w) => ({
-      code: w.code,
-      label: w.name.length > 6 ? w.name.slice(0, 6) : w.name,
-      virtual: w.type === 'VIRTUAL',
-    }))
-  }, [warehousesQuery.data])
 
   // ── 라인 조작 핸들러 ─────────────────────────────────────
 
@@ -376,24 +362,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     }
   }
 
-  // ── 재고조회 mutation ───────────────────────────────────
-
-  const stockMutation = useMutation({
-    mutationFn: (lines: StockBalanceLookupLine[]) =>
-      fetchStockBalanceBatch(lines),
-    onMutate: () => {
-      setStockRows(null)
-      setStockError(null)
-    },
-    onSuccess: (data) => {
-      setStockRows(data.rows as StockBalanceRow[])
-    },
-    onError: () => {
-      setStockError('재고 조회에 실패했습니다. 다시 시도해 주세요.')
-      setStockRows([])
-    },
-  })
-
   const selectedProductLines = useMemo(() => {
     return lines
       .filter((l) => selectedIds.has(l.id) && l.productId)
@@ -408,7 +376,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     if (selectedProductLines.length === 0) return
     setStockSelectedSnapshot(selectedProductLines)
     setStockModalOpen(true)
-    stockMutation.mutate(selectedProductLines)
   }
 
   const closeStockModal = () => setStockModalOpen(false)
@@ -984,6 +951,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             <Button
               variant="secondary"
               size="sm"
+              data-testid="slip-form-inventory-lookup-btn"
               onClick={openStockModal}
               disabled={selectedProductLines.length === 0}
             >
@@ -1120,14 +1088,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         </div>
       </Card>
 
-      {/* 재고조회 모달 */}
-      <StockBalanceModal
+      {/* 재고조회 모달 — 신 공용 InventoryLookupModal (가용/실/예약 자체 페치) */}
+      <InventoryLookupModal
         open={stockModalOpen}
         onClose={closeStockModal}
-        selectedLines={stockSelectedSnapshot}
-        warehouseColumns={warehouseColumns}
-        rows={stockRows}
-        error={stockError}
+        lines={stockSelectedSnapshot}
       />
     </div>
   )
