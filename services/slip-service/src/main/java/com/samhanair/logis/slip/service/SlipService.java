@@ -593,7 +593,7 @@ public class SlipService {
     }
 
     /**
-     * 수락 — SENT → ACCEPTED. OUTBOUND 면 라인별 inventoryClient.reserve 호출.
+     * 수락 — SENT → ACCEPTED. OUTBOUND 면 serial-managed 라인은 인스턴스 FIFO 예약, batch 라인은 기존 수량 예약.
      *
      * @throws BusinessException(CONFLICT) 상태 불일치, 재고 부족, 또는 낙관적 락 충돌
      * @throws BusinessException(INTERNAL_ERROR) inventory-service 호출 실패
@@ -602,7 +602,19 @@ public class SlipService {
         Slip slip = loadOrThrow(id);
         applyMutation(() -> slip.accept(acceptorUserId));
         if (slip.getSlipType() == SlipType.OUTBOUND) {
+            Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
+            Map<UUID, SerialOutboundGroup> serialGroups = serialOutboundGroups(slip, productsById);
+            Set<UUID> dispatchedSerialProducts = new HashSet<>();
             for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (product.serialManaged()) {
+                    if (dispatchedSerialProducts.add(line.getProductId())) {
+                        SerialOutboundGroup group = serialGroups.get(line.getProductId());
+                        inventoryClient.reserveInstances(product.productCode(), slip.getSourceWarehouseId(),
+                                group.quantity(), slip.getSlipNo());
+                    }
+                    continue;
+                }
                 inventoryClient.reserve(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), SLIP_REF_TYPE, slip.getId());
             }
@@ -637,7 +649,7 @@ public class SlipService {
     }
 
     /**
-     * 처리완료 — INSPECTING → COMPLETED. OUTBOUND 면 라인별 deduct(fromReservation=true),
+     * 처리완료 — INSPECTING → COMPLETED. OUTBOUND 면 serial-managed 라인은 예약 인스턴스 출고, batch 라인은 deduct(fromReservation=true),
      * INBOUND 면 serial-managed 품목은 인스턴스 배치 입고, batch 품목은 기존 lot 입고를 호출한다.
      *
      * <p>Slice A (sales-polish-2) 변경: 직전 단계가 PROCESSING → INSPECTING 으로 변경.
@@ -651,7 +663,17 @@ public class SlipService {
         Slip slip = loadOrThrow(id);
         applyMutation(slip::complete);
         if (slip.getSlipType() == SlipType.OUTBOUND) {
+            Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
+            Set<UUID> dispatchedSerialProducts = new HashSet<>();
             for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (product.serialManaged()) {
+                    if (dispatchedSerialProducts.add(line.getProductId())) {
+                        inventoryClient.shipInstances(slip.getSlipNo(), product.productCode(),
+                                slip.getPartnerCode(), null);
+                    }
+                    continue;
+                }
                 inventoryClient.deduct(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), true, SLIP_REF_TYPE, slip.getId());
             }
@@ -700,6 +722,50 @@ public class SlipService {
             throw new BusinessException(ErrorCode.CONFLICT, "회수 입고는 S4 범위입니다");
         }
         return "구매";
+    }
+
+    private Map<UUID, ProductSummary> loadProductsByLine(Slip slip) {
+        Map<UUID, ProductSummary> productsById = new HashMap<>();
+        for (SlipLine line : slip.getLines()) {
+            productsById.computeIfAbsent(line.getProductId(), productClient::requireExists);
+        }
+        return productsById;
+    }
+
+    private Map<UUID, SerialOutboundGroup> serialOutboundGroups(
+            Slip slip, Map<UUID, ProductSummary> productsById) {
+        Map<UUID, SerialOutboundGroup> groups = new LinkedHashMap<>();
+        for (SlipLine line : slip.getLines()) {
+            ProductSummary product = productsById.get(line.getProductId());
+            if (product.serialManaged()) {
+                groups.compute(line.getProductId(), (ignored, group) -> {
+                    if (group == null) {
+                        return SerialOutboundGroup.from(product, line);
+                    }
+                    group.add(line);
+                    return group;
+                });
+            }
+        }
+        return groups;
+    }
+
+    private static final class SerialOutboundGroup {
+        private int quantity;
+
+        private static SerialOutboundGroup from(ProductSummary product, SlipLine line) {
+            SerialOutboundGroup group = new SerialOutboundGroup();
+            group.add(line);
+            return group;
+        }
+
+        private void add(SlipLine line) {
+            quantity += line.getQuantity();
+        }
+
+        private int quantity() {
+            return quantity;
+        }
     }
 
     private static final class SerialInboundGroup {
@@ -777,7 +843,16 @@ public class SlipService {
         String oldMemo = slip.getMemo();
         applyMutation(() -> slip.reject(reasonText));
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {
+            Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
+            Set<UUID> dispatchedSerialProducts = new HashSet<>();
             for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (product.serialManaged()) {
+                    if (dispatchedSerialProducts.add(line.getProductId())) {
+                        inventoryClient.releaseInstances(slip.getSlipNo(), product.productCode());
+                    }
+                    continue;
+                }
                 inventoryClient.release(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), SLIP_REF_TYPE, slip.getId());
             }
@@ -808,7 +883,16 @@ public class SlipService {
         SlipStatus previous = slip.getStatus();
         applyMutation(slip::cancel);
         if (previous == SlipStatus.ACCEPTED && slip.getSlipType() == SlipType.OUTBOUND) {
+            Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
+            Set<UUID> dispatchedSerialProducts = new HashSet<>();
             for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (product.serialManaged()) {
+                    if (dispatchedSerialProducts.add(line.getProductId())) {
+                        inventoryClient.releaseInstances(slip.getSlipNo(), product.productCode());
+                    }
+                    continue;
+                }
                 inventoryClient.release(line.getProductId(), slip.getSourceWarehouseId(),
                         line.getQuantity(), SLIP_REF_TYPE, slip.getId());
             }

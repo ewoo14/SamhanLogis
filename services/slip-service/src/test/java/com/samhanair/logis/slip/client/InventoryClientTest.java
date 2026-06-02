@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.client;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -96,11 +97,62 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,
                 "구매", "S2-INB-001", new BigDecimal("500000.00"));
+        server.verify();
+    }
+
+    @Test
+    void reserveInstances_callsReserveBatchEndpoint_withInternalHeadersAndBody() {
+        UUID warehouseId = UUID.randomUUID();
+
+        server.expect(requestTo("http://inventory-service/inventory/instances/reserve-batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(jsonPath("$.productCode").value("AC-S3"))
+                .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
+                .andExpect(jsonPath("$.quantity").value(2))
+                .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-1"))
+                .andRespond(withSuccess());
+
+        client.reserveInstances("AC-S3", warehouseId, 2, "2026/06/02-1");
+        server.verify();
+    }
+
+    @Test
+    void shipInstances_callsShipBatchEndpoint_withInternalHeadersAndBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/ship-batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-2"))
+                .andExpect(jsonPath("$.productCode").value("AC-S3"))
+                .andExpect(jsonPath("$.partnerCode").value("P-2026-0001"))
+                .andRespond(withSuccess());
+
+        client.shipInstances("2026/06/02-2", "AC-S3", "P-2026-0001", null);
+        server.verify();
+    }
+
+    @Test
+    void releaseInstances_callsReleaseBatchEndpoint_withInternalHeadersAndBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/release-batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-3"))
+                .andExpect(jsonPath("$.productCode").value("AC-S3"))
+                .andRespond(withSuccess());
+
+        client.releaseInstances("2026/06/02-3", "AC-S3");
         server.verify();
     }
 

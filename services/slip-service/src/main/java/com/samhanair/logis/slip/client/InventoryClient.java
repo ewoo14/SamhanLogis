@@ -28,6 +28,9 @@ import org.springframework.web.client.RestClient;
  *   <li>reject/cancel after ACCEPTED → {@link #release} (라인별 1회)</li>
  * </ul>
  * 입고전표 lifecycle: complete → {@link #inbound} (라인별 1회).
+ * serial-managed 입고/출고 lifecycle: complete → {@link #inboundInstances},
+ * accept → {@link #reserveInstances}, complete → {@link #shipInstances},
+ * reject/cancel → {@link #releaseInstances}.
  *
  * <p>HTTP 상태 매핑:
  * <ul>
@@ -159,6 +162,64 @@ public class InventoryClient {
             body.put("unitCost", unitCost);
         }
         post("/inventory/instances/batch", body);
+    }
+
+    /**
+     * 시리얼 관리 품목 출고 예약 — OUTBOUND 전표 accept() 시 인스턴스 N개를 FIFO RESERVED 처리한다.
+     *
+     * @param productCode    품목코드 그룹
+     * @param warehouseId    출고 원천 창고
+     * @param quantity       예약 수량
+     * @param outboundSlipNo 출고전표 번호
+     * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환(재고 부족 등)
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public void reserveInstances(String productCode, UUID warehouseId, int quantity, String outboundSlipNo) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("productCode", productCode);
+        body.put("warehouseId", warehouseId.toString());
+        body.put("quantity", quantity);
+        body.put("outboundSlipNo", outboundSlipNo);
+        post("/inventory/instances/reserve-batch", body);
+    }
+
+    /**
+     * 시리얼 관리 품목 예약분 출고 — OUTBOUND 전표 complete() 시 RESERVED 인스턴스를 SHIPPED 처리한다.
+     *
+     * @param outboundSlipNo 출고전표 번호
+     * @param productCode    품목코드 그룹
+     * @param partnerCode    출고 거래처 코드
+     * @param outboundAt     출고일시(null 이면 inventory-service 기준 now)
+     * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public void shipInstances(String outboundSlipNo, String productCode,
+                              String partnerCode, LocalDateTime outboundAt) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("outboundSlipNo", outboundSlipNo);
+        body.put("productCode", productCode);
+        if (partnerCode != null) {
+            body.put("partnerCode", partnerCode);
+        }
+        if (outboundAt != null) {
+            body.put("outboundAt", outboundAt);
+        }
+        post("/inventory/instances/ship-batch", body);
+    }
+
+    /**
+     * 시리얼 관리 품목 예약 해제 — OUTBOUND 전표 reject/cancel 시 RESERVED 인스턴스를 AVAILABLE 복원한다.
+     *
+     * @param outboundSlipNo 출고전표 번호
+     * @param productCode    품목코드 그룹
+     * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환
+     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
+     */
+    public void releaseInstances(String outboundSlipNo, String productCode) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("outboundSlipNo", outboundSlipNo);
+        body.put("productCode", productCode);
+        post("/inventory/instances/release-batch", body);
     }
 
     private static Map<String, Object> baseBody(UUID productId, UUID warehouseId, int quantity,

@@ -162,6 +162,28 @@ class SlipServiceTest {
     }
 
     @Test
+    void accept_outbound_mixedSerialAndBatch_routesSerialInstancesAndBatchReserve() {
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = preparedOutboundMixed(SlipStatus.SENT, batchProductId);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+        when(productClient.requireExists(batchProductId)).thenReturn(
+                new ProductSummary(batchProductId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.accept(slipId, "warehouse-1");
+
+        verify(inventoryClient, times(1))
+                .reserveInstances(eq("AC-SERIAL-001"), eq(sourceWh), eq(5), eq("2026/05/04-1"));
+        verify(inventoryClient, times(1))
+                .reserve(eq(batchProductId), eq(sourceWh), eq(4), anyString(), eq(slipId));
+        verify(inventoryClient, never())
+                .reserve(eq(productId), any(), anyInt(), anyString(), any());
+    }
+
+    @Test
     void accept_inbound_doesNotCallInventoryReserve() {
         Slip slip = preparedInbound(SlipStatus.SENT);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
@@ -198,6 +220,29 @@ class SlipServiceTest {
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
         verify(inventoryClient, times(1))
                 .deduct(eq(productId), eq(sourceWh), eq(3), eq(true), anyString(), eq(slipId));
+    }
+
+    @Test
+    void complete_outbound_mixedSerialAndBatch_routesSerialShipAndBatchDeduct() {
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = preparedOutboundMixed(SlipStatus.PROCESSING, batchProductId);
+        slip.setPartnerCode("P-2026-0001");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+        when(productClient.requireExists(batchProductId)).thenReturn(
+                new ProductSummary(batchProductId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.complete(slipId);
+
+        verify(inventoryClient, times(1))
+                .shipInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"), eq("P-2026-0001"), eq(null));
+        verify(inventoryClient, times(1))
+                .deduct(eq(batchProductId), eq(sourceWh), eq(4), eq(true), anyString(), eq(slipId));
+        verify(inventoryClient, never())
+                .deduct(eq(productId), any(), anyInt(), anyBoolean(), anyString(), any());
     }
 
     @Test
@@ -410,6 +455,28 @@ class SlipServiceTest {
     }
 
     @Test
+    void reject_fromAccepted_outbound_mixedSerialAndBatch_routesSerialReleaseAndBatchRelease() {
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = preparedOutboundMixed(SlipStatus.ACCEPTED, batchProductId);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+        when(productClient.requireExists(batchProductId)).thenReturn(
+                new ProductSummary(batchProductId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.reject(slipId, "manager-1", "김매니저", "재고 없음");
+
+        verify(inventoryClient, times(1))
+                .releaseInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"));
+        verify(inventoryClient, times(1))
+                .release(eq(batchProductId), eq(sourceWh), eq(4), anyString(), eq(slipId));
+        verify(inventoryClient, never())
+                .release(eq(productId), any(), anyInt(), anyString(), any());
+    }
+
+    @Test
     void reject_fromSent_doesNotCallRelease() {
         Slip slip = preparedOutbound(SlipStatus.SENT, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
@@ -614,6 +681,20 @@ class SlipServiceTest {
                 sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, null, "u");
         ReflectionTestUtils.setField(slip, "id", slipId);
         slip.addLine(SlipLine.create(slip, productId, "에어컨", "M-1", null, qty, unitPrice, null));
+        forceStatus(slip, status);
+        return slip;
+    }
+
+    private Slip preparedOutboundMixed(SlipStatus status, UUID batchProductId) {
+        Slip slip = Slip.createOutbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, null, "u");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
+                2, new BigDecimal("500000.00"), null));
+        slip.addLine(SlipLine.create(slip, productId, "에어컨", "MODEL-SERIAL", null,
+                3, new BigDecimal("500000.00"), null));
+        slip.addLine(SlipLine.create(slip, batchProductId, "배관", "PIPE-BATCH", null,
+                4, new BigDecimal("10000.00"), null));
         forceStatus(slip, status);
         return slip;
     }
