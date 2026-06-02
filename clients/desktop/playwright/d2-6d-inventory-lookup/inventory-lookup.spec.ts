@@ -369,23 +369,25 @@ test.describe('입고전표 상세 — 재고조회 모달', () => {
 })
 
 // ============================================================
-// 시나리오 12: 기존 SlipFormPage StockBalanceModal 회귀 확인 (P1-4 수정)
+// 시나리오 12: SlipFormPage 신 InventoryLookupModal 일원화 회귀 (3-D)
 // ============================================================
 
-test.describe('회귀 — SlipFormPage StockBalanceModal 무변경', () => {
-  test('시나리오 12: SlipFormPage 재고조회 모달 회귀 없음', async ({ page }) => {
+test.describe('회귀 — SlipFormPage 재고모달 일원화(InventoryLookupModal)', () => {
+  test('시나리오 12: 빈 폼 — 재고조회 버튼 비활성 + 모달 미오픈', async ({ page }) => {
     await installAuthMock(page)
-    // SlipFormPage는 /sales/new 또는 /sales/:id/edit 경로
+    // SlipFormPage 신규 작성 경로
     await page.goto(`${BASE_URL}/#/sales/new?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
     })
-    // SlipFormPage 기본 렌더 확인 (title 또는 form 요소)
-    // 오류 없이 렌더되면 회귀 없음 — 기존 StockBalanceModal 미변경 보장
     await expect(page.locator('body')).toBeVisible({ timeout: 10_000 })
-    // P1-4 수정: stock-balance-modal testid 없으므로 aria role 기반으로 검증
-    // InventoryLookupModal(신규)이 강제 open 되지 않았음을 확인
-    const inventoryModal = page.getByTestId('inventory-lookup-modal')
-    await expect(inventoryModal).toHaveCount(0)
+
+    // 일원화: SlipFormPage 도 신 InventoryLookupModal 사용 → 닫힘 상태면 DOM 미존재
+    await expect(page.getByTestId('inventory-lookup-modal')).toHaveCount(0)
+
+    // 라인 미선택 → 재고조회 버튼 비활성 (모달 인프라 배선 확인)
+    const btn = page.getByTestId('slip-form-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 10_000 })
+    await expect(btn).toBeDisabled()
   })
 })
 

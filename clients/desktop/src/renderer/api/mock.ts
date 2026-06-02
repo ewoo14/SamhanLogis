@@ -171,6 +171,12 @@ export const MOCK_AUTH = {
   partnerCode: 'P-MOCK-001',
 }
 
+/**
+ * 3-D 배지 갱신 E2E 토대 — 병합/전환된 주문번호를 기억하여 이후 목록 조회 시
+ * status 를 CONVERTED 로 덮어쓴다. (테스트별 새 page = 새 모듈 → 자동 초기화)
+ */
+const mockConvertedOrderNos = new Set<string>()
+
 /** 시드 창고 (V2 시드 4종 + Phase 2.6d 전창고 머지 검증용 신규 1종) */
 const MOCK_WAREHOUSES = [
   {
@@ -1797,7 +1803,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     /**
      * 시연용 mock — 실제 BE `ProductBalanceResponse[]` 평면 응답 구조를 모사.
      * 각 product 의 본사/차량/위탁/가상 4 창고 잔량을 balances 배열로 반환한다.
-     * (모델명/품목명은 BE 미포함 — FE `fetchStockBalanceBatch` 가 선택 라인 메타로 결합.)
+     * (모델명/품목명은 BE 미포함 — FE `fetchProductBalancesMatrix` 가 선택 라인 메타로 결합.)
      *
      * 창고 메타: HQ-001(본사, HEADQUARTERS) / VH-001(차량, VEHICLE) /
      * CS-001(위탁, CONSIGNMENT) / VR-001(가상, VIRTUAL).
@@ -2383,13 +2389,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       linkedSlipNo: null,
     }
 
-    let content: (
-      | typeof DRAFT_ROW
-      | typeof ON_HOLD_ROW
-      | typeof CONFIRMED_ROW
-      | typeof SAME_PARTNER_DRAFT_ROW
-      | typeof SAME_PARTNER_ON_HOLD_ROW
-    )[]
+    let content: Array<{
+      orderNumber: string
+      partnerCode: string
+      partnerName: string
+      submittedAt: string
+      status: string
+      totalAmount: number
+      linkedSlipNo: string | null
+    }>
     if (statusParam === 'DRAFT') {
       // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
       content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW]
@@ -2401,6 +2409,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       // 전체 또는 기타 — 모든 행 반환 (혼합 시나리오 포함)
       content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
     }
+
+    // 3-D: 병합/전환된 주문은 CONVERTED 로 표시. DRAFT 필터에서는 제외(BE 동작 모사).
+    content = content
+      .map((row) =>
+        mockConvertedOrderNos.has(row.orderNumber)
+          ? { ...row, status: 'CONVERTED' as const, linkedSlipNo: 'SL-20260531-MERGE-001' }
+          : row,
+      )
+      .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
 
     return envelope({
       content,
@@ -3913,13 +3930,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 실 BE 는 PartnerOrderIdResolver 로 주문을 찾은 뒤 DB 의 orderNumber 컬럼을 orderNo 에 반환.
     // mock 고정 주문번호 상수로 BE 동작을 모사 — '2026/05/04-1', '2026/05/31-3' (DRAFT mock rows).
     const MOCK_ORDER_NOS = ['2026/05/04-1', '2026/05/31-3', '2026/05/05-2', '2026/05/31-4']
+    const convertedOrders = orders.map((_, idx) => ({
+      orderNo: MOCK_ORDER_NOS[idx] ?? `2026/05/31-${idx + 1}`,
+      orderStatus: 'CONVERTED' as const,
+      fullyConverted: true,
+    }))
+    // 3-D: 변환된 주문번호 기억 → 이후 목록 재페치 시 CONVERTED 로 노출
+    for (const co of convertedOrders) mockConvertedOrderNos.add(co.orderNo)
     return envelope({
       slipNo: 'SL-20260531-MERGE-001',
-      convertedOrders: orders.map((_, idx) => ({
-        orderNo: MOCK_ORDER_NOS[idx] ?? `2026/05/31-${idx + 1}`,
-        orderStatus: 'CONVERTED',
-        fullyConverted: true,
-      })),
+      convertedOrders,
     })
   }
 
