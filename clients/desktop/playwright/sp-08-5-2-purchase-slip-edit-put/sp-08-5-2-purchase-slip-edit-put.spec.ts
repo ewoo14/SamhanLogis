@@ -19,7 +19,7 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     const slip = read('services/slip-service/src/main/java/com/samhanair/logis/slip/domain/Slip.java')
 
     expect(controller).toContain('@PutMapping("/{id}")')
-    expect(controller).toContain("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "purchases.slip.edit"')
     expect(controller).toContain('HttpHeaderConstants.CALLER_ID_HEADER')
     expect(dto).toContain('LocalDateTime updatedAt')
     expect(dto).toContain('List<LineRequest> lines')
@@ -90,7 +90,7 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     const controller = read('services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipUpdateController.java')
     const it = read('services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipUpdateIT.java')
 
-    expect(controller).toContain("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "purchases.slip.edit"')
     expect(it).toContain('testUpdateForbiddenForInventory')
     expect(it).toContain('testUpdateForbiddenForSales')
     expect(it).toContain('testUpdateForbiddenForAccountant')

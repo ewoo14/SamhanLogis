@@ -52,7 +52,7 @@ test.describe('Samhan Public 거래처 관리 UI gap', () => {
     expect(layout).toContain('sidebar-sales-partners')
     expect(layout).toContain('거래처 관리')
     expect(layout).toMatch(
-      /to="\/admin\/partners"[\s\S]*show=\{showPartnerManagement\}[\s\S]*requiredRole="SALES \/ MANAGER \/ MASTER"/,
+      /to="\/admin\/partners"[\s\S]*show=\{showPartnerManagement[\s\S]*requiredRole="SALES \/ MANAGER \/ MASTER"/,
     )
   })
 

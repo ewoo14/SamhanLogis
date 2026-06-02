@@ -20,7 +20,7 @@ test.describe('SP-08-6-2 매출 수정 direct PUT 계약', () => {
 
     // 컨트롤러 — PUT /slips/{id}/sales + SALES/MANAGER/MASTER 권한 + 헤더
     expect(controller).toContain('@PutMapping("/{id}/sales")')
-    expect(controller).toContain("hasAnyRole('SALES','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "sales.slip.edit"')
     expect(controller).toContain('HttpHeaderConstants.CALLER_ID_HEADER')
 
     // DTO — updatedAt 낙관적 잠금 토큰 + 라인 목록
@@ -112,15 +112,15 @@ test.describe('SP-08-6-2 매출 수정 direct PUT 계약', () => {
 
   test('T5 role guard locks INVENTORY/WAREHOUSE/ACCOUNTANT out of BE sales PUT', () => {
     const controller = read('services/slip-service/src/main/java/com/samhanair/logis/slip/web/SalesSlipUpdateController.java')
-    const it = read('services/slip-service/src/test/java/com/samhanair/logis/slip/it/SalesSlipUpdateIT.java')
+    const it = read('services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipSalesUpdateIT.java')
 
     // 컨트롤러 권한 — SALES/MANAGER/MASTER 만 허용
-    expect(controller).toContain("hasAnyRole('SALES','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "sales.slip.edit"')
 
     // IT — 차단 케이스 4건
-    expect(it).toContain('testSalesUpdateForbiddenForInventory')
-    expect(it).toContain('testSalesUpdateForbiddenForWarehouse')
-    expect(it).toContain('testSalesUpdateForbiddenForAccountant')
-    expect(it).toContain('testSalesUpdateNonOutboundForbidden')
+    expect(it).toContain('testUpdateSalesForbiddenForInventory')
+    expect(it).toContain('testUpdateSalesForbiddenForWarehouse')
+    expect(it).toContain('testUpdateSalesForbiddenForAccountant')
+    expect(it).toContain('testUpdateSalesNonOutboundForbidden')
   })
 })

@@ -61,7 +61,8 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@RequestMapping("/admin/notifications/dispatch-sms/history")')
-    expect(controller).toContain("hasAnyRole('DISPATCH','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = PAGE_CODE')
+    expect(controller).toContain('PAGE_CODE = "dispatch.sms-save-history"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(controller).toContain('SEND_AUDIT')
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')

@@ -60,7 +60,7 @@ test.describe('SP-08-3-3 slip cleanup history', () => {
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@RequestMapping("/slips/cleanup/history")')
-    expect(controller).toContain("hasAnyRole('SALES','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "slip.cleanup-history"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')

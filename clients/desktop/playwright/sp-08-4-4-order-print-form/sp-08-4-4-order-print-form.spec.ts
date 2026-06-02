@@ -19,7 +19,10 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
 
     expect(controller).toContain('@GetMapping(value = "/{id}/print"')
     expect(controller).toContain('MediaType.TEXT_HTML_VALUE + ";charset=UTF-8"')
-    expect(controller).toContain("@PreAuthorize(\"hasAnyRole('SALES','MANAGER','MASTER','PARTNER')\")")
+    expect(controller).toContain('@RequirePermission(')
+    expect(controller).toContain('page = "sales.partner-order.print"')
+    expect(controller).toContain('action = PermissionAction.PRINT')
+    expect(controller).toContain('partnerSelfService = true')
     expect(service).toContain('PartnerOrderIdResolver.findByIdentifier')
     expect(service).toContain('@media print')
     expect(service).toContain('@page { size: A4; margin: 0; }')

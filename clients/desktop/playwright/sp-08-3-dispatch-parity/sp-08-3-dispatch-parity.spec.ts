@@ -188,7 +188,7 @@ test.describe('SP-08-3-1 배차 legacy GAS DB/API parity 기반 잠금', () => {
     expect(sources).toContain('/admin/notifications/dispatch-batch/preview')
     expect(sources).toContain('/admin/notifications/dispatch-batch/send')
     expect(sources).not.toContain('/arologis/dispatch-sms/preview')
-    expect(sources).not.toContain('/arologis/dispatch-sms/send')
+    expect(sources).not.toMatch(/\/arologis\/dispatch-sms\/send(?![-\w])/)
     expect(sources).toContain('/admin/arologis/dispatches/history')
     expect(sources).toContain('/admin/arologis/dispatches/history/latest')
     expect(sources).toContain('/slips/cleanup/history')

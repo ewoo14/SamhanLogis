@@ -111,7 +111,12 @@ test.describe('파일시스템 검증 (server 불필요)', () => {
     expect(content, 'SAMHAN_ALIGO_KEY 미설정').toContain('SAMHAN_ALIGO_KEY')
     expect(content, 'SAMHAN_ALIGO_USERID 미설정').toContain('SAMHAN_ALIGO_USERID')
     expect(content, 'SAMHAN_ALIGO_SENDER 미설정').toContain('SAMHAN_ALIGO_SENDER')
-    expect(content, 'SAMHAN_ALIGO_API_URL 미설정').toContain('SAMHAN_ALIGO_API_URL=https://apis.aligo.in')
+    expect(content, 'SAMHAN_ALIGO_API_URL 미설정').toContain('SAMHAN_ALIGO_API_URL=')
+    const aligoYml = fs.readFileSync(
+      path.join(PROJECT_ROOT, 'services', 'notification-service', 'src', 'main', 'resources', 'application.yml'),
+      'utf-8',
+    )
+    expect(aligoYml).toContain('${SAMHAN_ALIGO_API_URL:https://apis.aligo.in/send/}')
   })
 
   // 4-FS. CSV import — 인코딩 가이드 + 서비스 소스 존재

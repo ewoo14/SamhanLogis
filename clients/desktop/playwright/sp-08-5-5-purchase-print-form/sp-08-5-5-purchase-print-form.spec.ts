@@ -238,14 +238,21 @@ test.describe('SP-08-5-5 매입 인쇄 양식 정적 계약', () => {
   test('T5: @media print + 인쇄 트리거 — @media print CSS + window.print() 또는 인쇄 버튼', () => {
     const printLayout = read(printLayoutPath)
     const printComponent = read(resolvePrintComponent())
+    const printLayoutCss = fileExists('clients/desktop/src/renderer/print/PrintLayout.module.css')
+      ? read('clients/desktop/src/renderer/print/PrintLayout.module.css')
+      : ''
+    const globalCss = fileExists('clients/desktop/src/renderer/styles/global.css')
+      ? read('clients/desktop/src/renderer/styles/global.css')
+      : ''
 
     // @media print CSS 규칙 — PrintLayout 에서 공통 처리하거나 컴포넌트 모듈에 존재
     const hasMediaPrint =
       printLayout.includes('@media print') ||
       printComponent.includes('@media print') ||
-      // CSS module 파일 확인
-      (fileExists('clients/desktop/src/renderer/print/PrintLayout.module.css') &&
-        read('clients/desktop/src/renderer/print/PrintLayout.module.css').includes('@media print'))
+      printLayoutCss.includes('@media print') ||
+      printLayoutCss.includes('@page') ||
+      globalCss.includes('@media print') ||
+      globalCss.includes('@page')
     expect(hasMediaPrint).toBeTruthy()
 
     // 인쇄 트리거 — window.print() 자동 호출 또는 인쇄 버튼

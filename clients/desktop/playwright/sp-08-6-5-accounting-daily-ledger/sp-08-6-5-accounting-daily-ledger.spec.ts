@@ -37,12 +37,15 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
 
     // BE-A12 endpoint 선언
     expect(reportCtrl).toContain('@GetMapping("/accounting/closings/daily")')
-    expect(reportCtrl).toContain("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    expect(reportCtrl).toContain('@RequirePermission(page = REPORTS_PAGE_CODE')
+    expect(reportCtrl).toContain('REPORTS_PAGE_CODE = "accounting.reports"')
     expect(reportCtrl).toContain('DailyClosingDetailResponse')
-    expect(reportCtrl).toContain('getDailyDetail(date)')
+    expect(reportCtrl).toContain('getDailyDetail(date, kind, sourceKind)')
 
     // 마감 실행 권한 (ACCOUNTANT/MASTER 만, MANAGER 미포함)
-    expect(closeCtrl).toContain("hasAnyRole('ACCOUNTANT','MASTER')")
+    expect(closeCtrl).toContain('@RequirePermission(page = PAGE_CODE')
+    expect(closeCtrl).toContain('PAGE_CODE = "accounting.period-close"')
+    expect(closeCtrl).toContain('PermissionAction.CREATE')
     expect(closeCtrl).toContain('@PostMapping')
     expect(closeCtrl).toContain('@ResponseStatus(HttpStatus.CREATED)')
 
@@ -204,14 +207,18 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     const ledgerApi = read('clients/desktop/src/renderer/api/partnerLedgerApi.ts')
 
     // BE 역마감 MASTER 독점
-    expect(closeCtrl).toContain("hasRole('MASTER')")
+    expect(closeCtrl).toContain('@RequirePermission(page = "accounting.period-close.reverse"')
+    expect(closeCtrl).toContain('PermissionAction.UPDATE')
     expect(closeCtrl).toContain('@PostMapping("/{id}/reverse")')
 
     // BE 마감 실행 ACCOUNTANT/MASTER — MANAGER 제외
-    expect(closeCtrl).toContain("hasAnyRole('ACCOUNTANT','MASTER')")
+    expect(closeCtrl).toContain('@RequirePermission(page = PAGE_CODE')
+    expect(closeCtrl).toContain('PAGE_CODE = "accounting.period-close"')
+    expect(closeCtrl).toContain('PermissionAction.CREATE')
 
     // BE 원장/일마감 조회 ACCOUNTANT/MANAGER/MASTER
-    expect(reportCtrl).toContain("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")
+    expect(reportCtrl).toContain('@RequirePermission(page = REPORTS_PAGE_CODE')
+    expect(reportCtrl).toContain('REPORTS_PAGE_CODE = "accounting.reports"')
 
     // FE 권한 함수
     expect(closingApi).toContain('canExecuteClosing')

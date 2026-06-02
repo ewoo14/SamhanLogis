@@ -105,7 +105,7 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
 
     const blockRoute = ymlRouteBlock(gateway, 'partner-blocks-v1')
     expect(blockRoute).toContain('Path=/api/v1/partners/admin/blocks/**')
-    expect(blockRoute).not.toContain('StripPrefix')
+    expect(blockRoute).not.toMatch(/-\s*StripPrefix/)
     expect(blockRoute).toContain('JwtAuthentication')
 
     const dcRoute = ymlRouteBlock(gateway, 'dc-config-admin-v1')

@@ -38,7 +38,7 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
 
     // controller endpoint
     expect(controller).toContain('@DeleteMapping("/{id}")')
-    expect(controller).toContain("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "purchases.slip.delete"')
     expect(controller).toContain('HttpHeaderConstants.CALLER_ID_HEADER')
     expect(controller).toContain('SlipDeleteService')
     expect(controller).toContain('deleteService.delete(')
@@ -162,7 +162,7 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
       'services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipDeleteIT.java',
     )
 
-    expect(controller).toContain("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "purchases.slip.delete"')
 
     // SlipDeleteIT 가 INVENTORY/SALES/ACCOUNTANT/NonInbound/D8b 패턴 포함 확인
     expect(deleteIt).toContain('testDeleteForbiddenForInventory')

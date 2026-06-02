@@ -35,11 +35,12 @@ test.describe('SP-08-5-1 매입 목록/상세 계약', () => {
   test('T2 desktop PurchaseQueryPage keeps SP-03 inspection CTA contract', () => {
     const page = read('clients/desktop/src/renderer/routes/purchase-query/PurchaseQueryPage.tsx')
     const api = read('clients/desktop/src/renderer/api/slip.ts')
+    const dialog = read('clients/desktop/src/renderer/routes/components/InboundInspectionDialog.tsx')
 
     expect(page).toContain("const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const")
     expect(page).toContain("import { InboundInspectionDialog } from '../components/InboundInspectionDialog'")
     expect(page).toContain('setInspectionSlipId(row.id)')
-    expect(page).toContain('void slipsQuery.refetch()')
+    expect(dialog).toContain("invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })")
     expect(api).toContain("slipType: 'OUTBOUND' | 'INBOUND'")
     expect(api).toContain("apiClient.get<ApiEnvelope<PageResponse<SlipQueryRow>>>")
     expect(api).toContain("'/slips/query'")

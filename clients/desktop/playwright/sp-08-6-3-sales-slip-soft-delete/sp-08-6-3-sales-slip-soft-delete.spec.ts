@@ -38,7 +38,8 @@ test.describe('SP-08-6-3 매출 전표 soft delete 계약', () => {
 
     // controller endpoint
     expect(controller).toContain('@DeleteMapping("/{id}/sales")')
-    expect(controller).toContain("hasAnyRole('SALES','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "sales.slip.edit"')
+    expect(controller).toContain('PermissionAction.DELETE')
     expect(controller).toContain('HttpHeaderConstants.CALLER_ID_HEADER')
     expect(controller).toContain('SalesSlipDeleteService')
     expect(controller).toContain('deleteService.delete(')
@@ -173,7 +174,8 @@ test.describe('SP-08-6-3 매출 전표 soft delete 계약', () => {
       'services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipSalesDeleteIT.java',
     )
 
-    expect(controller).toContain("hasAnyRole('SALES','MANAGER','MASTER')")
+    expect(controller).toContain('@RequirePermission(page = "sales.slip.edit"')
+    expect(controller).toContain('PermissionAction.DELETE')
 
     // SlipSalesDeleteIT 4 forbidden + shipped 케이스 확인
     expect(deleteIt).toContain('testDeleteSalesForbiddenForInventory')

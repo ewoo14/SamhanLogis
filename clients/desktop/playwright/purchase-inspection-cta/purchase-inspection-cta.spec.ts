@@ -33,6 +33,7 @@ function read(filePath: string): string {
 test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
   test('구매관리는 SAVED/CONFIRMED 행에서 InboundInspectionDialog를 연다', () => {
     const page = read(purchasePagePath)
+    const dialog = read(path.join(desktopRoot, 'src/renderer/routes/components/InboundInspectionDialog.tsx'))
 
     expect(page).toContain("import { InboundInspectionDialog } from '../components/InboundInspectionDialog'")
     expect(page).toContain("const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const")
@@ -40,7 +41,7 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(page).toContain('setInspectionSlipId(row.id)')
     expect(page).toContain('<InboundInspectionDialog')
     expect(page).toContain('slipId={inspectionSlipId}')
-    expect(page).toContain('void slipsQuery.refetch()')
+    expect(dialog).toContain("invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })")
   })
 
   test('검수 버튼은 UUID가 아닌 구매번호 기반 public test id를 사용한다', () => {
@@ -65,7 +66,8 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
       /export function canInspectInbound[\s\S]*WAREHOUSE[\s\S]*MANAGER[\s\S]*MASTER/,
     )
     expect(canInspectInboundBody).not.toContain('INVENTORY')
-    expect(layout).toContain('const showInboundInspection = canInspectInbound(auth?.role)')
+    expect(layout).toContain("const showInboundInspection = dynamicCanAccess('inbound.inspection', 'view')")
+    expect(layout).toContain('|| canInspectInbound(auth?.role)')
     expect(page).toContain('const canInspect = canInspectInbound(role)')
   })
 
@@ -95,10 +97,10 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(layout).toContain('>판매관리</NavLink>')
     expect(layout).toContain('>구매관리</NavLink>')
     expect(layout).toContain('>재고이동 관리</NavLink>')
-    expect(layout).toContain('>견적서 관리</NavLink>')
-    expect(layout).toContain('>주문서 관리</NavLink>')
-    expect(layout).toContain('>주문서 승인</NavLink>')
-    expect(layout).toContain('>거래처 DC 설정</NavLink>')
+    expect(layout).toContain('견적서 관리')
+    expect(layout).toContain('주문서 관리')
+    expect(layout).toContain('주문서 승인')
+    expect(layout).toContain('거래처 DC 설정')
     expect(salesSubNav).toContain("label: '견적서 관리'")
     expect(salesSubNav).toContain("label: '주문서 관리'")
     expect(salesSubNav).toContain("label: '주문서 승인'")

@@ -193,6 +193,9 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
     const has2Panel =
       invoiceComponent.includes('party-side') ||
       invoiceComponent.includes('tax-invoice-parties') ||
+      invoiceComponent.includes('sales-invoice-parties') ||
+      invoiceComponent.includes('sales-invoice-party-box') ||
+      (invoiceComponent.includes('공급자 (발행자)') && invoiceComponent.includes('공급받는자')) ||
       invoiceComponent.includes('supplier') && invoiceComponent.includes('receiver')
     expect(has2Panel).toBeTruthy()
 

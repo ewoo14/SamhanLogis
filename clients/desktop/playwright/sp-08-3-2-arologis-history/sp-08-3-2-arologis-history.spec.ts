@@ -59,7 +59,7 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     const migration = read('services/arologis-service/src/main/resources/db/migration/V12__add_dispatch_save_history.sql')
 
     expect(controller).toContain('@RequestMapping("/admin/arologis/dispatches/history")')
-    expect(controller).toContain("hasAnyRole('MASTER','MANAGER','DISPATCH','AROLOGIS_MASTER','AROLOGIS_MANAGER')")
+    expect(controller).toContain('@RequirePermission(page = "arologis.dispatch.ops"')
     expect(controller).toContain('@Operation(summary = "아로로지스 배차 저장내역 저장"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')

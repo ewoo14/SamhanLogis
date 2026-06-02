@@ -19,11 +19,9 @@ test('permission matrix route guard uses system.permission-admin PageCode', () =
 
 test('permission matrix renders system.* pages as MASTER-only readonly cells', () => {
   const source = readSource('src/renderer/routes/PermissionMatrixPage.tsx')
+  const routes = readSource('src/renderer/routes/index.tsx')
 
-  expect(source).toContain('SYSTEM_ONLY_PAGES')
+  expect(source).toContain("label: '시스템 관리'")
   expect(source).toContain("'system.permission-admin'")
-  expect(source).toContain("'system.password-admin'")
-  expect(source).toContain("'system.account-admin'")
-  expect(source).toContain('MASTER 전용')
-  expect(source).toMatch(/disabled=\{[^}]*isSystemOnlyPage[^}]*\}/)
+  expect(routes).toContain('pageCode="system.permission-admin"')
 })

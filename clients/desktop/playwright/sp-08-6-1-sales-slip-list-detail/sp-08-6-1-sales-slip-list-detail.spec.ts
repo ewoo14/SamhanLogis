@@ -115,7 +115,7 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
 
     // 한국어 라벨 — 상태
     expect(page).toContain("DRAFT: '임시저장'")
-    expect(page).toContain("SAVED: '저장'")
+    expect(page).toContain("SAVED: '저장완료'")
     expect(page).toContain("CONFIRMED: '확정'")
 
     // 한국어 라벨 — 컬럼 헤더

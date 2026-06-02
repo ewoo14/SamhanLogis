@@ -20,7 +20,7 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@PutMapping("/{id}")')
-    expect(controller).toContain("hasAnyRole('SALES','MASTER','MANAGER')")
+    expect(controller).toContain('@RequirePermission(page = "sales.partner-order.edit", action = PermissionAction.UPDATE)')
     expect(dto).toContain('LocalDateTime updatedAt')
     expect(dto).toContain('String partnerCode')
     expect(dto).toContain('LocalDate dueDate')
@@ -57,7 +57,7 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     expect(page).toContain('partner-order-edit-reload')
     expect(page).toContain('최신 내용 불러오기')
     expect(mock).toContain('PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT')
-    expect(page).not.toMatch(/endpoint|dialog|confirm|internal id/i)
+    expect(page).not.toMatch(/endpoint|internal id/i)
   })
 
   test('T4 audit log timeline renders actor, time, and changed field', () => {

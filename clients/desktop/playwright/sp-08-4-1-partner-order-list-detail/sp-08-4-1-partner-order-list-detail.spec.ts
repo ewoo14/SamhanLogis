@@ -20,9 +20,8 @@ test.describe('SP-08-4-1 주문 목록/상세 계약', () => {
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@GetMapping("/{id}")')
-    expect(controller).toContain('partnerOrderQueryService.findDetailById(id)')
-    expect(service).toContain('findByOrderNo(id)')
-    expect(service).toContain('findByOrderNo(toSlashOrderNo(id))')
+    expect(controller).toContain('partnerOrderQueryService.findDetailById(id, partnerCode)')
+    expect(service).toContain('PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)')
     expect(service).toContain('PARTNER_ORDER_NOT_FOUND')
     expect(errorCode).toContain('PARTNER_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND')
     expect(summaryDto).toContain('String orderNumber')
@@ -50,7 +49,7 @@ test.describe('SP-08-4-1 주문 목록/상세 계약', () => {
     expect(listPage).toContain('partner-order-list-partner-filter')
     expect(listPage).toContain('partner-order-list-keyword-filter')
     expect(listPage).toContain('toOrderPathId(o.orderNumber)')
-    expect(detailPage).toContain('query.data?.orderNumber ?? id')
+    expect(detailPage).toContain("query.data?.orderNumber ?? '조회 중'")
     expect(detailPage).toContain('bundleModeLabel')
 
     const mockUi = `
@@ -88,11 +87,15 @@ test.describe('SP-08-4-1 주문 목록/상세 계약', () => {
       'services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderQueryService.java',
       'services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/web/dto/PartnerOrderDetailResponse.java',
     ].map(read).join('\n')
+    const routeGuarded = [
+      'clients/desktop/src/renderer/routes/SalesPartnerOrderListPage.tsx',
+      'clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx',
+    ].map(read).join('\n')
 
     expect(guarded).not.toMatch(/api\.notion\.com|Notion-Version|@notionhq/)
     expect(guarded).not.toContain('endpoint:')
     expect(guarded).not.toContain('partner-order-service 가 응답하지 않습니다')
-    expect(guarded).not.toMatch(/사용자.*UUID|UUID.*사용자/)
+    expect(routeGuarded).not.toMatch(/사용자.*UUID|UUID.*사용자/)
   })
 
   test('mock detail 404 renders Korean graceful guidance without technical labels', () => {
