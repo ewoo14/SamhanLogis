@@ -202,7 +202,9 @@ CREATE INDEX IF NOT EXISTS ix_stock_instances_outbound_slip
 - [ ] **커밋** `test(S3): 출고연동 IT (inventory + slip, 실 Postgres)`
 
 ## 배포 순서
-inventory(V17 + 배치 API) → slip-service(생명주기 분기). product-service 무변경(S1 serialManaged 노출).
+**product-service(lookup-by-code endpoint 신규) → inventory(V17 + 배치 API + ProductClient.requireExistsByCode) → slip-service(생명주기 분기).**
+- 호출 의존은 역방향(slip → inventory → product)이므로 위 순서로 배포해야 한다. 역순 배포 시 신규 호출 경로가 구버전에서 일시 404 가능하나, 각 client 가 4xx 를 BusinessException(CONFLICT/INVALID_INPUT)으로 매핑하므로 서비스 다운은 아님.
+- ⚠️ 구현 중 product-service 에 `POST /internal/products/lookup-by-code` 가 신규 추가됨(당초 "무변경" 가정 정정 — productCode 단건조회가 inventory `requireExistsByCode` 에 필요). Codex cross-check ⑤ 반영.
 
 ## 자기검토 체크
 - spec §3~5 전 항목 task 매핑 확인(도메인/repo/service/api/client/slip wiring/IT).

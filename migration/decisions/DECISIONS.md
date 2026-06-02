@@ -2659,6 +2659,10 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-SER-06 | **트리거 = 기존 `SlipService.complete()` INBOUND 루프 확장**. 라인별 product `serialManaged` 판정 후 serial → `POST /inventory/instances/batch`, batch → 기존 `/inventory/lots/inbound`. 혼합 전표는 라인 단위 분기. |
 | D-SER-07 | **시리얼 데이터 = 자동 UUID 인스턴스만**. 수량 N개 입고 시 제조 시리얼번호 입력 없이 `stock_instances` N행을 AVAILABLE 로 생성한다. 실 제조 시리얼 수집은 후속. |
 | D-SER-08 | **inboundType 판정 = `slip.deliveryTag`**. BORROW→"차용", tag 없음/일반→"구매". RETURN/RETURN_TRIP(회수)은 S4 범위라 S2 complete 에서 409 CONFLICT 가드. |
+| D-SER-09 | **S3 출고연동 생명주기 A안**(개발책임자). accept→인스턴스 FIFO 예약(AVAILABLE→RESERVED, source창고, 재고부족 409 사전차단), complete→출고(RESERVED→SHIPPED + 출고처/일시), reject·cancel(직전 ACCEPTED)→예약 해제(RESERVED→AVAILABLE). batch 라인은 기존 수량 경로(reserve/deduct/release) 무변경. |
+| D-SER-10 | **ship 가드 확장 = AVAILABLE\|RESERVED→SHIPPED**(직접 출고 + 예약 후 출고 모두 허용). `reserve(outboundSlipNo)` 마커로 전표 추적, `release()` 시 마커 클리어. |
+| D-SER-11 | **reserveBatch 재고부족 = 후보 목록 크기 단일 판정**(count 쿼리 제거). advisory lock(`outboundSlipNo\|productCode`)이 동일 전표만 직렬화하므로, 다른 전표의 동시 소진 TOCTOU 로 인한 IndexOutOfBounds(500)를 후보 목록 크기로 사전차단. (Claude 5-agent P0 fix) |
+| D-SER-12 | **accept 혼합전표 동기 REST 보상**. serial/batch 라인 예약을 순차 호출하되 중간 실패 시 이미 성공한 원격 예약을 역순 release/releaseInstances 보상(보상 실패는 `addSuppressed`). product-service 에 `POST /internal/products/lookup-by-code` 신규(productCode 단건조회, inventory `requireExistsByCode` 소비 — plan 무변경 가정 정정). 배포순서 product→inventory→slip. (Codex cross-check P1 fix) |
 
 **산출(S1)**: product V9 `categories.serial_managed` + Category 도메인 + ProductSummaryResponse + HvacProductSeeder markSerialManaged. inventory V15 `stock_instances` + StockInstance(Status) + Repository(FIFO/역-FIFO/findByProductId) + Service(serial_managed 가드 409) + Controller(/inventory/instances) + seeder + IT 12. batch 품목은 기존 stock_lots/balances 무변경. 5-team 사이클 N=2 APPROVE. CI green(skipped=0). Docker 실 QA PASS(인스턴스 201/batch 409/FIFO ASC/psql cross-DB). 배포 product(V9)→inventory(V15), 순서 위반 시 serialManaged=false 안전 degrade. dev-report `docs/dev-reports/slice-inv-s1-serial-instance.md`.
 
