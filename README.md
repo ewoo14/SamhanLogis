@@ -27,6 +27,15 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-03)
+
+- 시리얼 재고 동시성·보상 강화 완료:
+  - inventory `reserveBatch`/`recallBatch` 후보 조회에 `PESSIMISTIC_WRITE` row lock 변형을 적용해 서로 다른 전표가 같은 시리얼 후보를 중복 선택하지 않도록 했다.
+  - `StockInstance.unrecall()` + `POST /inventory/instances/unrecall-batch` + slip `InventoryClient.unrecallInstances` 를 추가했다.
+  - `SlipService.completeRecallInbound` 는 serial recall 성공 후 batch inbound 실패 시 unrecall 보상을 역순 실행하고, 보상 실패는 원 예외에 suppressed 로 연결한다.
+  - Testcontainers IT: inventory `StockInstanceOutboundIT` 12 tests / 0 skipped, slip `SlipInboundInstanceIT` 10 tests / 0 skipped.
+  - dev-report: `docs/dev-reports/slice-serial-concurrency-compensation.md`.
+
 ### 최신 진행 메모 (2026-05-28)
 
 - 권한 재편 Phase 1 (진행): role 기반 2-action(VIEW/EDIT) 동적 RBAC을 **계정 × page × 7-action**(VIEW/CREATE/UPDATE/DELETE/RESTORE/DOWNLOAD/PRINT)으로 전환했다.

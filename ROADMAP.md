@@ -29,6 +29,14 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-03)
+
+- Phase INV-S 후속 "시리얼 재고 동시성·보상 강화" 완료:
+  - S3 reserveBatch / S4 recallBatch 후보 조회를 `PESSIMISTIC_WRITE` row lock 으로 전환해 교차 전표 후보 경합을 직렬화했다.
+  - S4 recall 역전이 보상(`unrecall-batch`)을 추가하고, `completeRecallInbound` 혼합전표 batch 실패 시 serial recall 보상을 역순 실행한다.
+  - Flyway 변경 없음. 배포 순서: inventory(row lock + unrecall API) → slip(unrecall client + 보상 루프).
+  - 검증: inventory `StockInstanceOutboundIT` 12 tests / 0 skipped, slip `SlipInboundInstanceIT` 10 tests / 0 skipped.
+
 ### Phase 10.5 최신 D-AX 진행 메모 (2026-05-16)
 
 - D-AX-15: `clients/arologis-mobile` driver dashboard GPS 이식 완료, PR #194 merge.

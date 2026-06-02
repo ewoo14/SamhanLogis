@@ -5,9 +5,12 @@ import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import java.util.List;
 import java.util.UUID;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 /**
@@ -49,9 +52,11 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      * @param productCode 품목코드 그룹
      * @param warehouseId 출고 원천 창고 UUID
      * @param status      대상 상태
+     * @param pageable    잠금 후보 제한(PageRequest.of(0, deficit))
      * @return 창고 범위 FIFO 인스턴스 목록 (row lock 보유)
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
     @Query("""
             SELECT s
             FROM StockInstance s
@@ -64,7 +69,8 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     List<StockInstance> findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
             @Param("productCode") String productCode,
             @Param("warehouseId") UUID warehouseId,
-            @Param("status") StockInstanceStatus status);
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
 
     /**
      * 역-FIFO 회수 후보 — 거래처+품목코드 기준 지정 상태 인스턴스를 outbound_at DESC 순으로 조회.
@@ -84,9 +90,11 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      * @param outboundPartnerCode 출고 거래처 코드
      * @param productCode         품목코드 그룹
      * @param status              대상 상태
+     * @param pageable            잠금 후보 제한(PageRequest.of(0, deficit))
      * @return outbound_at 내림차순 인스턴스 목록 (row lock 보유)
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
     @Query("""
             SELECT s
             FROM StockInstance s
@@ -99,7 +107,8 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     List<StockInstance> findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
             @Param("outboundPartnerCode") String outboundPartnerCode,
             @Param("productCode") String productCode,
-            @Param("status") StockInstanceStatus status);
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
 
     /**
      * 회수 대상 수량 확인 — 거래처+품목코드+상태 기준 건수.

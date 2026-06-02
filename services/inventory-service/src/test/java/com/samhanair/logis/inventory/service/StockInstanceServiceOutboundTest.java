@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * S3 출고연동용 인스턴스 배치 서비스 단위 테스트.
@@ -51,7 +52,8 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(any(), any(), any());
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                any(), any(), any(), any());
     }
 
     @Test
@@ -64,7 +66,7 @@ class StockInstanceServiceOutboundTest {
                 .thenReturn(0L);
         // 가용 후보가 1개뿐 → 필요 2개 미만이므로 후보 목록 크기로 사전차단(동시성 TOCTOU 대비)
         when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
-                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 2)))
                 .thenReturn(List.of(only));
 
         assertThatThrownBy(() -> service.reserveBatch("AC-S3", warehouseId, 2, "2026/06/02-2"))
@@ -73,6 +75,8 @@ class StockInstanceServiceOutboundTest {
 
         // 아무것도 예약하지 않음
         assertThat(only.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
+        verify(repo).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 2));
     }
 
     @Test
@@ -88,7 +92,7 @@ class StockInstanceServiceOutboundTest {
         when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
                 .thenReturn(1L);
         when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
-                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 2)))
                 .thenReturn(List.of(early, late));
         when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
                 "2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
@@ -101,6 +105,8 @@ class StockInstanceServiceOutboundTest {
         assertThat(late.getStatus()).isEqualTo(StockInstanceStatus.RESERVED);
         assertThat(early.getOutboundSlipNo()).isEqualTo("2026/06/02-3");
         assertThat(late.getOutboundSlipNo()).isEqualTo("2026/06/02-3");
+        verify(repo).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 2));
     }
 
     @Test
@@ -121,7 +127,8 @@ class StockInstanceServiceOutboundTest {
 
         assertThat(result).containsExactly(reserved);
         // 이미 목표 수량 이상 예약됨 → 후보 조회 자체를 하지 않음
-        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(any(), any(), any());
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                any(), any(), any(), any());
     }
 
     @Test
@@ -176,7 +183,8 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                any(), any(), any(), any());
     }
 
     @Test
@@ -189,7 +197,7 @@ class StockInstanceServiceOutboundTest {
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-2", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(0L);
         when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
-                "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED))
+                "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED, PageRequest.of(0, 2)))
                 .thenReturn(List.of(only));
 
         assertThatThrownBy(() -> service.recallBatch("P-S4-002", "AC-S4", 2, "2026/06/03-2"))
@@ -197,6 +205,8 @@ class StockInstanceServiceOutboundTest {
                 .hasMessageContaining("회수 대상 부족");
 
         assertThat(only.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        verify(repo).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED, PageRequest.of(0, 2));
     }
 
     @Test
@@ -215,8 +225,8 @@ class StockInstanceServiceOutboundTest {
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(1L);
         when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
-                "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED))
-                .thenReturn(List.of(latest, older));
+                "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED, PageRequest.of(0, 1)))
+                .thenReturn(List.of(latest));
         when(repo.findByRecallSlipNoAndProductCodeAndStatus(
                 "2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(List.of(already, latest));
@@ -227,6 +237,8 @@ class StockInstanceServiceOutboundTest {
         assertThat(latest.getStatus()).isEqualTo(StockInstanceStatus.RECALLED);
         assertThat(latest.getRecallSlipNo()).isEqualTo("2026/06/03-3");
         assertThat(older.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        verify(repo).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED, PageRequest.of(0, 1));
     }
 
     @Test
@@ -246,7 +258,8 @@ class StockInstanceServiceOutboundTest {
         List<StockInstance> result = service.recallBatch("P-S4-004", "AC-S4", 2, "2026/06/03-4");
 
         assertThat(result).containsExactly(recalled);
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                any(), any(), any(), any());
     }
 
     @Test

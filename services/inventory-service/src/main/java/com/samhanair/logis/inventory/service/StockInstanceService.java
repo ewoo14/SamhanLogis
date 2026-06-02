@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -161,7 +162,7 @@ public class StockInstanceService {
         // AVAILABLE 인스턴스를 동시 소진할 수 있다. count 와 실제 후보 목록의 TOCTOU 불일치로 인한
         // IndexOutOfBounds(500) 를 막기 위해, 후보 목록을 먼저 적재한 뒤 그 크기로 재고부족을 사전차단한다.
         List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
-                productCode, warehouseId, StockInstanceStatus.AVAILABLE);
+                productCode, warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, deficit));
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "재고 부족 — 가용 인스턴스 " + candidates.size() + " < 필요 " + deficit
@@ -245,7 +246,7 @@ public class StockInstanceService {
 
         int deficit = quantity - Math.toIntExact(already);
         List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
-                partnerCode, productCode, StockInstanceStatus.SHIPPED);
+                partnerCode, productCode, StockInstanceStatus.SHIPPED, PageRequest.of(0, deficit));
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "회수 대상 부족 — 출고 인스턴스 " + candidates.size() + " < 필요 " + deficit

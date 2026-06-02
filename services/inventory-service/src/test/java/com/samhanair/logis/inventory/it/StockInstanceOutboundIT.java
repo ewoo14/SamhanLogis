@@ -330,7 +330,11 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(unrecallBody("S4-RETURN-004"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()", is(1)))
-                .andExpect(jsonPath("$.data[0].status", is("SHIPPED")));
+                .andExpect(jsonPath("$.data[0].status", is("SHIPPED")))
+                .andExpect(jsonPath("$.data[0].outboundPartnerCode", is("P-S4-IT-004")))
+                .andExpect(jsonPath("$.data[0].outboundSlipNo", is("S4-OUT-1")))
+                .andExpect(jsonPath("$.data[0].outboundAt", is("2026-06-01T15:00:00")))
+                .andExpect(jsonPath("$.data[0].recallSlipNo").doesNotExist());
 
         assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
                 "S4-RETURN-004", SERIAL_CODE, StockInstanceStatus.RECALLED)).isZero();
