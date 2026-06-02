@@ -758,23 +758,37 @@ public class SlipService {
         }
 
         Set<UUID> dispatchedSerialProducts = new HashSet<>();
-        for (SlipLine line : slip.getLines()) {
-            ProductSummary product = productsById.get(line.getProductId());
-            if (product.serialManaged() && dispatchedSerialProducts.add(line.getProductId())) {
-                SerialInboundGroup group = serialGroups.get(line.getProductId());
-                inventoryClient.recallInstances(slip.getPartnerCode(), product.productCode(),
-                        group.quantity(), slip.getSlipNo());
+        java.util.List<Runnable> compensations = new java.util.ArrayList<>();
+        try {
+            for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (product.serialManaged() && dispatchedSerialProducts.add(line.getProductId())) {
+                    SerialInboundGroup group = serialGroups.get(line.getProductId());
+                    String productCode = product.productCode();
+                    inventoryClient.recallInstances(slip.getPartnerCode(), productCode,
+                            group.quantity(), slip.getSlipNo());
+                    compensations.add(() -> inventoryClient.unrecallInstances(slip.getSlipNo(), productCode));
+                }
             }
-        }
 
-        // batch 품목은 기존 lot 입고 경로를 유지한다. 원격 batch inbound 는 현재 inverse API 가 없으므로
-        // serial 회수 성공 뒤 실행해 "batch lot 생성 후 serial 회수 실패" 상태를 만들지 않는다.
-        for (SlipLine line : slip.getLines()) {
-            ProductSummary product = productsById.get(line.getProductId());
-            if (!product.serialManaged()) {
-                inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                        line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+            // batch 품목은 기존 lot 입고 경로를 유지한다. 원격 batch inbound 는 현재 inverse API 가 없으므로
+            // serial 회수 성공 뒤 실행해 "batch lot 생성 후 serial 회수 실패" 상태를 만들지 않는다.
+            for (SlipLine line : slip.getLines()) {
+                ProductSummary product = productsById.get(line.getProductId());
+                if (!product.serialManaged()) {
+                    inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                            line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                }
             }
+        } catch (RuntimeException ex) {
+            for (int i = compensations.size() - 1; i >= 0; i--) {
+                try {
+                    compensations.get(i).run();
+                } catch (RuntimeException compensationFailure) {
+                    ex.addSuppressed(compensationFailure);
+                }
+            }
+            throw ex;
         }
     }
 

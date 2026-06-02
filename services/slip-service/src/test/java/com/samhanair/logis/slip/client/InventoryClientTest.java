@@ -187,6 +187,34 @@ class InventoryClientTest {
     }
 
     @Test
+    void unrecallInstances_callsUnrecallBatchEndpoint_withInternalHeadersAndBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/unrecall-batch"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(jsonPath("$.recallSlipNo").value("2026/06/03-3"))
+                .andExpect(jsonPath("$.productCode").value("AC-S4"))
+                .andRespond(withSuccess());
+
+        client.unrecallInstances("2026/06/03-3", "AC-S4");
+        server.verify();
+    }
+
+    @Test
+    void unrecallInstances_4xxResponse_includesErrorBody() {
+        server.expect(requestTo("http://inventory-service/inventory/instances/unrecall-batch"))
+                .andRespond(withStatus(HttpStatus.CONFLICT)
+                        .body("{\"message\":\"회수 취소 불가\"}")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.unrecallInstances("2026/06/03-4", "AC-S4"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("회수 취소 불가");
+        server.verify();
+    }
+
+    @Test
     void reserve_4xxResponse_mapsToConflict() {
         server.expect(requestTo("http://inventory-service/inventory/reserve"))
                 .andRespond(withStatus(HttpStatus.CONFLICT));

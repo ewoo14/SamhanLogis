@@ -247,6 +247,38 @@ class SlipInboundInstanceIT extends AbstractPostgresIT {
         Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(SlipStatus.PROCESSING);
         verify(inventoryClient, never()).inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+        verify(inventoryClient, never()).unrecallInstances(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("RETURN 혼합전표에서 serial 회수 후 batch 입고 실패 시 unrecall 보상 및 complete 롤백")
+    void complete_returnMixedBatchFailure_unrecallsSerialAndRollsBackSlipStatus() {
+        UUID serialProductId = UUID.randomUUID();
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = saveInboundSlip(DeliveryTag.RETURN,
+                line(serialProductId, "에어컨", "MODEL-RETURN-SERIAL", 2, new BigDecimal("500000.00")),
+                line(batchProductId, "배관", "PIPE-BATCH", 5, new BigDecimal("10000.00")));
+        slip.setPartnerCode("P-S4-IT-004");
+        slipRepository.saveAndFlush(slip);
+        when(productClient.requireExists(serialProductId)).thenReturn(product(serialProductId, true));
+        when(productClient.requireExists(batchProductId)).thenReturn(product(batchProductId, false));
+        doThrow(new BusinessException(ErrorCode.CONFLICT, "batch inbound 실패"))
+                .when(inventoryClient).inbound(eq(batchProductId), eq(destinationWarehouseId), eq(5),
+                        eq(slip.getSlipNo()), eq(new BigDecimal("10000.00")));
+
+        assertThatThrownBy(() -> slipService.complete(slip.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("batch inbound 실패");
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(inventoryClient);
+        inOrder.verify(inventoryClient).recallInstances(eq("P-S4-IT-004"), eq("AC-S2"),
+                eq(2), eq(slip.getSlipNo()));
+        inOrder.verify(inventoryClient).inbound(eq(batchProductId), eq(destinationWarehouseId), eq(5),
+                eq(slip.getSlipNo()), eq(new BigDecimal("10000.00")));
+        inOrder.verify(inventoryClient).unrecallInstances(eq(slip.getSlipNo()), eq("AC-S2"));
+
+        Slip reloaded = slipRepository.findById(slip.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(SlipStatus.PROCESSING);
     }
 
     @Test
