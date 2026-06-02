@@ -4,6 +4,23 @@
 
 ---
 
+## 🌙 2026-06-03 자율 세션 — 시리얼 S3 출고연동 PR #347 (진행 중, PM 완전 자율)
+
+> 개발책임자 취침 중 PM 자율 연속 진행 지시. dual 5-agent cross-check + skip·error 0 + Docker 실 QA 의무.
+
+- **PR #347** `[FEAT] 시리얼 인스턴스 출고연동 S3` (브랜치 feat/serial-instance-s3-outbound). spec/plan = `docs/superpowers/{specs,plans}/2026-06-02-serial-instance-s3-outbound*`.
+- **Codex 구현(gpt-5.5) 완료** → PM이 커밋(Codex가 커밋 못하고 turn 종료). 커밋: inventory `8a15a6d7` / product `c099ef4d` / slip `627e32aa`.
+  - inventory: StockInstance reserve(slipNo)/ship 가드(AVAILABLE|RESERVED→SHIPPED)/release + reserveBatch(FIFO 멱등+재고부족409)/shipBatch/releaseBatch + advisory lock + API 3종 + DTO + **V17** 인덱스 + ProductClient.requireExistsByCode.
+  - product: **lookup-by-code endpoint 신규**(plan상 무변경이었으나 productCode 단건조회 필요 — 합리적 확장, DECISIONS 기록 예정).
+  - slip: SlipService OUTBOUND accept→reserve/complete→ship(출고처)/reject·cancel→release serial vs batch 분기 + InventoryClient 3메서드. 동기REST+Tx보상(D-SER-05 계승).
+- **통합 빌드 PASS**: inventory 399(skip 1=`Mig5StockTransferFixtureHeaderCrossCheckTest` 기존·S3무관)/slip 774(skip0)/product 210(skip0). **신규 S3 테스트 20개 전부 skip0·fail0·err0**(StockInstanceOutboundTest4/ServiceOutboundTest6/OutboundIT6/SlipOutboundInstanceIT4 — IT는 실 Testcontainers Docker 실행). push 완료(CI 트리거).
+- **진행 중**: Claude 5-agent 리뷰 → Codex 5-섹션 cross-check(N=2~3) → CI green → Docker 실QA(docs/qa/slice-inv-s3-outbound/) → PR ready → 머지.
+- 🚨 **Gradle 주의(2회 데드락 교훈)**: VS Code Java 확장이 `~/.gradle` 캐시 lock 점유 → gradle 데드락. **반드시 `$env:GRADLE_USER_HOME='C:\dev\SamhanLogis\.gradle-codex'` + `--no-daemon` + `-p C:\dev\SamhanLogis`** 사용(~/.gradle 금지). 실제 테스트 검증 시 `--no-build-cache`(FROM-CACHE 회피).
+- PR #347 body 한글깨짐(PowerShell UTF-8 위반)은 복구 완료. 임시파일 `.pr-347-body.md`는 PR ready 시 정리.
+- **S3 완료 후 다음**: handoff "다음 후보"서 PM 자율 선택(시리얼 S4 회수 1순위) → 풀사이클 반복.
+
+---
+
 ## 🧭 새 세션 시작 가이드 (2026-06-01 갱신 — 회사 PC, Codex 복구 후)
 
 > **🖥️ 회사 PC 세션 (2026-06-01, 종료)**: `git pull`(32커밋) + 메모리 sync → **6 PR 머지**(#337 CORS / #338 S2 / #340 CI하드닝 / #341 3-B / #342 3-C + 핸드오프/메모리 커밋). main 클린·origin 동기화. **내일 본 파일만 읽고 3-D 부터 재개.**
