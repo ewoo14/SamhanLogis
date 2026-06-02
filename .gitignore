@@ -58,6 +58,7 @@ coverage/
 *.lcov
 .nyc_output/
 playwright-report/
+playwright-json/
 test-results/
 
 # ----- Misc -----

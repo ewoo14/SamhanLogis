@@ -15,5 +15,6 @@ const { expected = 0, unexpected = 0, skipped = 0, flaky = 0 } = stats
 console.log(`[guard] expected=${expected} unexpected=${unexpected} skipped=${skipped} flaky=${flaky}`)
 if (expected === 0) { console.error('[guard] 통과 테스트 0 — 미실행/전량 skip false-green'); process.exit(1) }
 if (skipped > expected) { console.error(`[guard] skipped=${skipped} > expected=${expected} — 비정상 skip 비율 false-green 차단`); process.exit(1) }
+if (unexpected > 0) { console.error(`[guard] unexpected=${unexpected} — 리포터/exit 불일치 방어`); process.exit(1) }
 if (skipped > 0) { console.warn(`[guard] skipped=${skipped} — 조건부 skip 허용(통과 테스트 ${expected}건 존재)`) }
 process.exit(0)

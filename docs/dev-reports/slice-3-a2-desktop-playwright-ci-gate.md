@@ -6,7 +6,11 @@
 
 - opt-out 컨벤션: 실서버/실QA, 수동 캡처, 감사/real QA, 레거시 GAS 소스 의존 계약처럼 mock 회귀가 아닌 스펙만 `playwright.config.ts`의 `testIgnore`에 명시한다.
 - CI 잡: desktop Playwright mock 회귀 스펙을 별도 게이트로 실행하고, JSON reporter 결과를 남긴다.
-- 가드: `scripts/assert-playwright-ran.mjs`가 `playwright-report/results.json`의 `stats.expected`를 확인해 통과 테스트 0건 false-green을 차단한다. 조건부 skip은 잔여 통과셋에서 정당하게 발생할 수 있으므로 경고로 남기되, `skipped > expected`는 전량 skip 위장 가능성으로 실패시킨다.
+- 가드: `scripts/assert-playwright-ran.mjs`가 `playwright-json/results.json`(html 리포터의 `playwright-report/`와 디렉토리 분리)의 `stats.expected`를 확인해 통과 테스트 0건 false-green을 차단한다. 조건부 skip은 잔여 통과셋에서 정당하게 발생할 수 있으므로 경고로 남기되, `skipped > expected` 및 `unexpected > 0`는 실패시킨다.
+
+**격리 후 게이트 = 171 tests green**(핵심 mock 회귀 24 tests 포함). CI `Desktop Playwright` 잡 24/24 green 으로 실증.
+
+> ⚠️ **파일 단위 격리 트레이드오프**: QUARANTINE은 test 케이스가 아니라 **파일 단위** `testIgnore`라, 39개 격리 파일 안에 통과하던 개별 test가 있으면 그것도 게이트에서 동반 제외된다(수집 416 → 게이트 171). 후속 수리 시 파일째 재게이트하면 복원된다.
 
 ## 2. 트리아지 결과
 

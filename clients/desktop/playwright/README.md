@@ -9,6 +9,7 @@
 - `playwright/audit/` 디렉토리
 - `playwright/phase-2-4-real-qa/` 디렉토리
 - `*-real-qa.spec.ts` 파일명
+- `playwright/full-menu-contract/` 디렉토리 — 레거시 GAS 소스(`tools/legacy-gas/**`) 의존, mock 회귀 아님(소스 부재 시 미수집)
 
 위 컨벤션을 사용한 스펙만 CI mock 회귀 게이트에서 제외된다. 신규 mock 스펙은 자동 게이트되므로 PR 전 로컬에서 `PLAYWRIGHT_SKIP_WEB_SERVER` 없이 `npx playwright test`로 green을 확인한다.
 
