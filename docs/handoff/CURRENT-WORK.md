@@ -11,7 +11,13 @@
 > 🚨 **교훈(개발책임자 지적)**: CHORE 라도 **dual 5-agent TM 리뷰 제대로** 돌릴 것 — 가벼운 PM 단독 리뷰가 #342 의 P1(CI 필터 누락 false-green)을 놓칠 뻔. PR 마다 **Claude TM / Codex TM 사이클별 종합 코멘트 게시 의무**([[feedback_dual_5agent_review]]).
 > **다음 = 아래 "다음 작업" 3-D**(FE StockBalanceModal, brainstorming 필요) → 3-A2(Playwright) → item 2(typeahead). [[feedback_pm_auto_continuous]].
 
-**현재 상태**: **item 3-D 머지 완료 (#343 squash `ea2b4038`)**. 다음 = **3-A2**(desktop Playwright CI hard gate) → item 2(typeahead). item 3 의 A·B·C·D 머지 완료 + CORS·S2.
+**현재 상태**: **item 3-A2 진행 중 (PR #344)** — desktop Playwright CI hard gate. 3-D 머지 완료(#343 `ea2b4038`). 3-A2 후 = item 2(typeahead). item 3 A·B·C·D 머지 완료 + CORS·S2.
+
+### 🚧 item 3-A2 진행 중 (브랜치 `feature/slice-3-a2-desktop-playwright-ci-gate`, PR #344)
+`clients/desktop/playwright/**` mock 회귀 스펙 CI hard gate(false-green 해소). **opt-out 컨벤션**(testIgnore manual/full-qa/audit/*-real-qa/full-menu-contract — 그 외 자동 게이트) + `qa-e2e.yml` `desktop-playwright` 잡(`|| true` 금지) + silent-skip 가드 + README. spec/plan/DECISIONS(D-3A2-01~03)/dev-report 박제.
+- **트리아지**: load-error 복구(`__dirname` ESM/sp-09-5 문법/full-menu-contract 제외) → 수집 0→416 → 로컬 전수 **335 pass / 77 fail(39 기존 미실행 레거시 파일) / 4 skip** → **39파일 투명 격리(QUARANTINE)** → 게이트 **171 tests green**(핵심 mock 회귀 badge-refresh/d2-6d/d2-order-merge 24 tests 포함).
+- **남은 단계**: CI `desktop-playwright` green 확인 → dual 리뷰 → 머지.
+- **⚠️ 후속(추적, 비차단)**: 격리 39 레거시 스펙 수리 — 동적RBAC(sp-d1/d2/d3/d4/d6-1·applayout), 정적계약(sp-08-*/sp-09-*), 드리프트UI(admin-hr/tax-invoice-batch/supplier-profile/phase-2-5/2-6c/purchase-inspection-cta/partner-ui-menu-gap/operational/sp-06). 목록: dev-report `slice-3-a2-...`.
 
 ### ✅ item 3-D 머지 완료 (#343 squash `ea2b4038`, 2026-06-02)
 SlipFormPage 재고모달을 구 `StockBalanceModal`(총량) → 신 공용 `InventoryLookupModal`(가용/실/예약)로 일원화 + 구 컴포넌트/`fetchStockBalanceBatch` 데드코드 제거(순감 –818/+57) + 병합 후 주문 목록 배지 갱신 invalidate 회귀 E2E 신규. BE 무변경/Flyway 없음/FE only. spec/plan/dev-report/DECISIONS(D-3D-01~03) 박제.

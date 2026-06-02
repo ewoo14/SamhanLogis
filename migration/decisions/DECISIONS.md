@@ -2689,3 +2689,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-3D-03 | **합계(실재고 총합) 컬럼 생략**. 전환은 특정 창고 기준이며 합계는 각 창고 셀(가용/실/예약)로 파악. 상세 모달과 100% 동일 UX 우선. |
 
 **산출**: `SlipFormPage` 모달 교체 + 데드 state/mutation/memo 제거. design-system `StockBalanceModal`(4파일)+배럴 export 삭제, `inventory.ts` `fetchStockBalanceBatch`/타입 제거(`ProductBalanceResponse` 유지). `mock.ts` `mockConvertedOrderNos` 상태보존 + 목록 CONVERTED 반영. 신규 Playwright `partner-order-list-badge-refresh` + `d2-6d` 시나리오 12 일원화 회귀. 순감 –818/+57. **dual 5-agent(Claude+Codex) P0/P1 0 수렴**, CI green. dev-report `docs/dev-reports/slice-3-d-slipform-stock-modal-unify.md`. **후속**: 신규 desktop Playwright 스펙 CI 자동실행 = item 3-A2(별도). 머지 게이트 = Docker 실 QA(구-시드 reseed 선결).
+
+---
+
+### D-3A2. desktop Playwright CI hard gate (2026-06-02, PR #344)
+
+**배경**: `clients/desktop/playwright/**` 77 스펙이 어떤 CI 잡에서도 미실행(`qa-e2e.yml` 은 별도 `qa/playwright` 만, `frontend-desktop` 은 typecheck/build 만, tsconfig 도 playwright 미포함) → 3-D 추가 `partner-order-list-badge-refresh` 등 회귀 가드가 green 이어도 0회 실행([[feedback_ci_test_filter_false_green]] 계열).
+
+| 결정 | 내용 |
+|---|---|
+| D-3A2-01 | 게이트 범위 = **mock 회귀 스펙**(VITE_MOCK_MODE headless)만. 실QA/manual 캡처 스펙 제외. |
+| D-3A2-02 | 큐레이션 = **opt-out 컨벤션**(testIgnore: manual/full-qa/audit/phase-2-4-real-qa/`*-real-qa`/full-menu-contract — 그 외 전부 실행). allowlist 금지 → 신규 mock 스펙 자동 게이트. |
+| D-3A2-03 | 트리아지 잔여 실패는 **투명 격리 허용**(testIgnore QUARANTINE 블록 + dev-report 추적, 은폐 금지). |
+
+**산출**: `playwright.config.ts`(testIgnore opt-out + 크로스플랫폼 webServer `env:{VITE_MOCK_MODE}` + `workers:CI?2:1` + CI json reporter) + `qa-e2e.yml` `desktop-playwright` 잡(`npx playwright test`, `|| true` 금지 = hard gate) + `scripts/assert-playwright-ran.mjs`(silent-skip 가드: expected==0 실패) + `playwright/README.md`(컨벤션). **트리아지**: load-error 복구(`__dirname` ESM shim/sp-09-5 문법/full-menu-contract 제외) → 수집 0→416 → 로컬 전수 335 pass/77 fail(39 레거시 파일)/4 skip → **39파일 투명 격리** → 게이트 171 tests green(핵심 mock 회귀 24 tests 포함). **후속(추적)**: 격리 39 레거시 스펙 수리(동적RBAC sp-d*/정적계약 sp-08·09/드리프트UI). dev-report `docs/dev-reports/slice-3-a2-desktop-playwright-ci-gate.md`.
