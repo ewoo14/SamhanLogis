@@ -1,7 +1,7 @@
 /**
- * Playwright 설정 — Desktop 클라이언트 manual 캡처 + full-screen-audit.
+ * Playwright 설정 — Desktop 클라이언트 mock 회귀 hard gate.
  *
- * dev server 가 VITE_MOCK_MODE=1 로 가동 중이어야 함.
+ * dev server 는 기본적으로 VITE_MOCK_MODE=1 로 자동 기동됨.
  * AUDIT_BASE_URL 환경 변수로 dev server 주소 재정의 가능 (기본: http://127.0.0.1:5173).
  *
  * 실행 예:
@@ -11,14 +11,22 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 
-const skipWebServer = process.env['PLAYWRIGHT_SKIP_WEB_SERVER'] === '1'
-
 export default defineConfig({
   testDir: './playwright',
+  // opt-out 컨벤션: 실서버/실QA·수동 캡처 전용 스펙 제외(나머지 mock 회귀는 자동 게이트)
+  testIgnore: [
+    '**/manual/**',
+    '**/full-qa/**',
+    '**/audit/**',
+    '**/phase-2-4-real-qa/**',
+    '**/*-real-qa.spec.ts',
+  ],
   timeout: 60_000,
-  retries: 0,
-  workers: 1,
-  reporter: [['line'], ['html', { open: 'never' }]],
+  retries: process.env['CI'] ? 1 : 0,
+  workers: process.env['CI'] ? 2 : 1,
+  reporter: process.env['CI']
+    ? [['line'], ['json', { outputFile: 'playwright-report/results.json' }], ['html', { open: 'never' }]]
+    : [['line'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173',
     viewport: { width: 1440, height: 900 },
@@ -32,12 +40,13 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: skipWebServer
+  webServer: process.env['PLAYWRIGHT_SKIP_WEB_SERVER'] === '1'
     ? undefined
     : {
-        command: 'set VITE_MOCK_MODE=1&& npx vite src/renderer --host 127.0.0.1 --port 5173',
+        command: 'npx vite src/renderer --host 127.0.0.1 --port 5173',
+        env: { VITE_MOCK_MODE: '1' },
         url: 'http://127.0.0.1:5173/',
-        reuseExistingServer: true,
+        reuseExistingServer: !process.env['CI'],
         timeout: 120_000,
       },
 })
