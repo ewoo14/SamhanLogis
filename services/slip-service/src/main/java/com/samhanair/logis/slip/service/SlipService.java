@@ -605,18 +605,38 @@ public class SlipService {
             Map<UUID, ProductSummary> productsById = loadProductsByLine(slip);
             Map<UUID, SerialOutboundGroup> serialGroups = serialOutboundGroups(slip, productsById);
             Set<UUID> dispatchedSerialProducts = new HashSet<>();
-            for (SlipLine line : slip.getLines()) {
-                ProductSummary product = productsById.get(line.getProductId());
-                if (product.serialManaged()) {
-                    if (dispatchedSerialProducts.add(line.getProductId())) {
-                        SerialOutboundGroup group = serialGroups.get(line.getProductId());
-                        inventoryClient.reserveInstances(product.productCode(), slip.getSourceWarehouseId(),
-                                group.quantity(), slip.getSlipNo());
+            // 원격 inventory 예약은 slip 트랜잭션에 묶이지 않으므로(동기 REST), 혼합 전표에서 라인 중간 실패 시
+            // 이미 성공한 예약을 역순 보상(release)해 고아 RESERVED 를 방지한다. (D-SER-05 동기 REST + 보상)
+            java.util.List<Runnable> compensations = new java.util.ArrayList<>();
+            try {
+                for (SlipLine line : slip.getLines()) {
+                    ProductSummary product = productsById.get(line.getProductId());
+                    if (product.serialManaged()) {
+                        if (dispatchedSerialProducts.add(line.getProductId())) {
+                            SerialOutboundGroup group = serialGroups.get(line.getProductId());
+                            String productCode = product.productCode();
+                            inventoryClient.reserveInstances(productCode, slip.getSourceWarehouseId(),
+                                    group.quantity(), slip.getSlipNo());
+                            compensations.add(() -> inventoryClient.releaseInstances(slip.getSlipNo(), productCode));
+                        }
+                        continue;
                     }
-                    continue;
+                    UUID productId = line.getProductId();
+                    int quantity = line.getQuantity();
+                    inventoryClient.reserve(productId, slip.getSourceWarehouseId(),
+                            quantity, SLIP_REF_TYPE, slip.getId());
+                    compensations.add(() -> inventoryClient.release(productId, slip.getSourceWarehouseId(),
+                            quantity, SLIP_REF_TYPE, slip.getId()));
                 }
-                inventoryClient.reserve(line.getProductId(), slip.getSourceWarehouseId(),
-                        line.getQuantity(), SLIP_REF_TYPE, slip.getId());
+            } catch (RuntimeException ex) {
+                for (int i = compensations.size() - 1; i >= 0; i--) {
+                    try {
+                        compensations.get(i).run();
+                    } catch (RuntimeException compensationFailure) {
+                        ex.addSuppressed(compensationFailure);
+                    }
+                }
+                throw ex;
             }
         }
         return SlipDetailResponse.from(slip);

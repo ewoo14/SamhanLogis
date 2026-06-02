@@ -184,6 +184,29 @@ class SlipServiceTest {
     }
 
     @Test
+    void accept_outbound_serialReservedThenBatchFails_compensatesSerialRelease() {
+        UUID batchProductId = UUID.randomUUID();
+        Slip slip = preparedOutboundMixed(SlipStatus.SENT, batchProductId);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("500000.00"), "ACTIVE", true));
+        when(productClient.requireExists(batchProductId)).thenReturn(
+                new ProductSummary(batchProductId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+        // serial 인스턴스 예약 성공 후 batch 예약이 재고부족으로 실패하는 순서
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.CONFLICT, "재고 부족"))
+                .when(inventoryClient).reserve(eq(batchProductId), eq(sourceWh), eq(4), anyString(), eq(slipId));
+
+        assertThatThrownBy(() -> service.accept(slipId, "warehouse-1"))
+                .isInstanceOf(BusinessException.class);
+
+        // 이미 성공한 serial 예약을 역순 보상(release)하여 고아 RESERVED 가 남지 않는다
+        verify(inventoryClient, times(1))
+                .releaseInstances(eq("2026/05/04-1"), eq("AC-SERIAL-001"));
+    }
+
+    @Test
     void accept_inbound_doesNotCallInventoryReserve() {
         Slip slip = preparedInbound(SlipStatus.SENT);
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
