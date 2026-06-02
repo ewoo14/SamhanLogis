@@ -101,11 +101,18 @@ test.describe('3-D 병합 후 주문 목록 배지 갱신 (invalidate 회귀)', 
     await installAuthMock(page)
     await gotoListAndWait(page) // 기본 DRAFT 필터 — 같은 거래처 DRAFT 2건
 
-    // 변환 전: 두 DRAFT 행 존재
-    await expect(page.getByTestId('partner-order-row-2026/05/04-1')).toBeVisible({
+    // 변환 전: 같은 거래처 DRAFT 2건 병합 전제 명시.
+    const firstDraftRow = page.getByTestId('partner-order-row-2026/05/04-1')
+    const secondDraftRow = page.getByTestId('partner-order-row-2026/05/31-3')
+    await expect(firstDraftRow).toBeVisible({
       timeout: 10_000,
     })
-    await expect(page.getByTestId('partner-order-row-2026/05/31-3')).toBeVisible()
+    await expect(secondDraftRow).toBeVisible()
+    await expect(
+      page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]'),
+    ).toHaveCount(2)
+    await expect(firstDraftRow.locator('td').nth(2)).toHaveText('1234567890')
+    await expect(secondDraftRow.locator('td').nth(2)).toHaveText('1234567890')
 
     await performMerge(page)
 

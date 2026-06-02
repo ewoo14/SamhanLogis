@@ -3929,6 +3929,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // BE 확정 응답 형태: orderNo(주문번호) + orderStatus + fullyConverted.
     // 실 BE 는 PartnerOrderIdResolver 로 주문을 찾은 뒤 DB 의 orderNumber 컬럼을 orderNo 에 반환.
     // mock 고정 주문번호 상수로 BE 동작을 모사 — '2026/05/04-1', '2026/05/31-3' (DRAFT mock rows).
+    // index 0/1 은 DRAFT 2-주문 테스트 fixture 순서 ['2026/05/04-1', '2026/05/31-3'] 와
+    // 의도적으로 1:1 매핑한다. 우연한 통과가 아니므로 목록 fixture 순서 변경 시 함께 갱신해야 한다.
     const MOCK_ORDER_NOS = ['2026/05/04-1', '2026/05/31-3', '2026/05/05-2', '2026/05/31-4']
     const convertedOrders = orders.map((_, idx) => ({
       orderNo: MOCK_ORDER_NOS[idx] ?? `2026/05/31-${idx + 1}`,
