@@ -11,7 +11,10 @@
 > 🚨 **교훈(개발책임자 지적)**: CHORE 라도 **dual 5-agent TM 리뷰 제대로** 돌릴 것 — 가벼운 PM 단독 리뷰가 #342 의 P1(CI 필터 누락 false-green)을 놓칠 뻔. PR 마다 **Claude TM / Codex TM 사이클별 종합 코멘트 게시 의무**([[feedback_dual_5agent_review]]).
 > **다음 = 아래 "다음 작업" 3-D**(FE StockBalanceModal, brainstorming 필요) → 3-A2(Playwright) → item 2(typeahead). [[feedback_pm_auto_continuous]].
 
-**현재 상태**: **item 2 머지 완료 (#345 squash `4c07e580`)** — 이번 세션 3 슬라이스(3-D #343 / 3-A2 #344 / item 2 #345) 머지. **진행 중 작업 없음.** 다음 후보(개발책임자 선택) ↓.
+**현재 상태**: **PR #346 (3-A2-① 정적계약 22스펙 재게이트) 리뷰 완료·CI green·머지 대기** — 회사 PC Codex 리뷰 중 세션 단절 → 재개. CI 실패(operational `describe.skip` silent-skip 가드 위반) 선제 fix → dual 5-agent 리뷰 3사이클 수렴(Codex+Claude QA/FE, false-green/단언약화 7건+1건 fix, 최종 APPROVE) → 전체 CI green(게이트 297 passed/0 skipped). TM 종합 코멘트 게시. **개발책임자 머지 승인 대기**(브랜치 `chore/slice-3a2-sp08-static-regate`, HEAD `7ea50201`). 머지 후 다음 후보 ↓.
+> ⚠️ 잔여(비차단, 추적): PermissionMatrix system.* 셀 FE readonly 미구현(서버 시드 V37 강제, sp-d6-1 TODO) / 격리 유지 sp-08-6-6·sp-09-*·sp-d1~d4 후속 배치 / **3-A2 격리 잔여 레거시 스펙**(동적RBAC·드리프트UI — 정적계약 22 외).
+
+**(직전)**: **item 2 머지 완료 (#345 squash `4c07e580`)** — 3-D #343 / 3-A2 #344 / item 2 #345 머지.
 
 ### 다음 후보 (개발책임자 선택)
 1. **시리얼 S3 출고연동** — 판매전표→FIFO SHIPPED 소진 + 2.6c reserve↔RESERVED 통합([[project_serial_inventory_model]]). 다음 시리얼 슬라이스.

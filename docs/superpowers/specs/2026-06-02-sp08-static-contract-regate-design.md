@@ -147,3 +147,5 @@ RBAC·드리프트UI 브라우저 스펙과 sp-09 vendor shell은 후속 슬라�
 - D-3A2R-02: sp-08-6-6 **이연** — 유일 브라우저 selector 테스트, 다음 브라우저 배치로 분리.
 - D-3A2R-03: 정적계약 배치 범위 = sp-08 17 + 동일성격 5 = **22파일** (triage Batch 1 정렬).
 - D-3A2R-04: 검증은 게이트 green + CI 로 한정, **Docker 실 QA 불요**(소스 grep, 런타임 미관여).
+- D-3A2R-05: `operational-validation.spec.ts`의 영구 비활성 `test.describe.skip` UI 스모크 4건 **삭제**(개발책임자 결정) — 재게이트 시 silent-skip 가드(`skipped=0`) 위반. `manual/`·`audit/` 스위트와 중복되는, 게이트 미실행 비활성 코드. 정적계약 검증부는 게이트 유지.
+- D-3A2R-06: hard gate 편입 스펙의 false-green(=`page.setContent()` 합성 HTML 자기검증 / `test.skip(!isServerAvailable)` 잔존)은 **실 컴포넌트 정적 소스 단언으로 전환**(소스가 없으면 실-라우트 중복 테스트로 대체·삭제). dual 5-agent 리뷰 사이클1~3 수렴(Codex+Claude QA/FE, 최종 APPROVE). 잔여: PermissionMatrix system.* 셀 **클라이언트 readonly(`isSystemOnly`/`disabled`) 미구현** — MASTER 전용은 서버 시드(V37) 강제, sp-d6-1에 TODO 박제·후속 FE 슬라이스 추적.
