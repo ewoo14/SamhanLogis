@@ -2675,3 +2675,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-GW-CORS-01 | 게이트웨이 `spring.cloud.gateway.default-filters` 에 `DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE` 추가. 전 라우트 응답에서 ACAO/ACAC 중복 제거(유일값 유지). 양쪽이 요청 Origin 을 동일 반영하므로 단일화 안전. 서비스 직접접근(:8097) 자체 CORS 는 게이트웨이 미경유라 보존. 자체 CORS 미설정 서비스는 ACAO 1개뿐이라 무영향(회귀 0). 대안 `RETAIN_FIRST`/서비스측 CORS 제거는 직접접근 시나리오 훼손 또는 동등하므로 기각. |
 
 **산출**: `services/api-gateway/.../application.yml` default-filters 1행(+주석). Flyway/DB 무변경 = 게이트웨이 config-only 단독 재배포. **Docker 실 QA**: before(dedup 없는 소스 재빌드) arologis 경유 ACAO/ACAC=2(중복) → after(커밋 소스 재빌드) =1(단일), 비-arologis(권한/회계)·preflight 회귀 0(`docs/qa/gateway-arologis-cors-dedup/real-qa-evidence.md`). dev-report `docs/dev-reports/fix-gateway-arologis-cors-dedup.md`. 후속(비차단): arologis 자체 CORS 를 직접접근 전용 조건으로 한정하면 중복 근본 제거.
+
+---
+
+### D-3D. SlipFormPage 재고모달 일원화 + 목록 배지 갱신 E2E (2026-06-02, PR #343)
+
+**배경**: 2.6d(#335) 신 공용 `InventoryLookupModal`(가용/실/예약)은 상세 페이지에만 배선되고, 작성 페이지(`SlipFormPage`)는 구 `StockBalanceModal`(총량+합계)을 유지 → 재고 모달 2개 분기 + 작성 페이지 정보 빈약.
+
+| 결정 | 내용 |
+|---|---|
+| D-3D-01 | **작성 페이지 재고모달을 신 공용 `InventoryLookupModal`(가용/실/예약)로 일원화**, 구 `StockBalanceModal` + `fetchStockBalanceBatch` 데드코드 제거. 신 모달은 자체 페치(`useQuery`)라 폼의 페치 state/mutation/창고컬럼 memo 불필요. 스냅샷은 모달 열린 채 라인 편집 시 표 흔들림 방지용으로 유지. |
+| D-3D-02 | **슬라이스 범위 = 모달 일원화 + 목록 배지 갱신 E2E(둘 다)**. 배지 E2E 는 병합 후 `invalidateQueries(['partner-orders'])`가 수동 새로고침 없이 목록을 갱신함을 검증(mock 상태보존으로 CONVERTED 모사). |
+| D-3D-03 | **합계(실재고 총합) 컬럼 생략**. 전환은 특정 창고 기준이며 합계는 각 창고 셀(가용/실/예약)로 파악. 상세 모달과 100% 동일 UX 우선. |
+
+**산출**: `SlipFormPage` 모달 교체 + 데드 state/mutation/memo 제거. design-system `StockBalanceModal`(4파일)+배럴 export 삭제, `inventory.ts` `fetchStockBalanceBatch`/타입 제거(`ProductBalanceResponse` 유지). `mock.ts` `mockConvertedOrderNos` 상태보존 + 목록 CONVERTED 반영. 신규 Playwright `partner-order-list-badge-refresh` + `d2-6d` 시나리오 12 일원화 회귀. 순감 –818/+57. **dual 5-agent(Claude+Codex) P0/P1 0 수렴**, CI green. dev-report `docs/dev-reports/slice-3-d-slipform-stock-modal-unify.md`. **후속**: 신규 desktop Playwright 스펙 CI 자동실행 = item 3-A2(별도). 머지 게이트 = Docker 실 QA(구-시드 reseed 선결).
