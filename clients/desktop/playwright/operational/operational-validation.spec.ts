@@ -17,7 +17,6 @@
 import { test, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as http from 'http'
 import { fileURLToPath } from 'url'
 
 // ---------------------------------------------------------------------------
@@ -27,7 +26,6 @@ import { fileURLToPath } from 'url'
 const _filename = fileURLToPath(import.meta.url)
 const _dirname = path.dirname(_filename)
 
-const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 // 프로젝트 루트: spec 위치에서 4단계 위 (clients/desktop/playwright/operational/)
 const PROJECT_ROOT = path.resolve(_dirname, '../../../../')
 const QA_DIR = path.join(PROJECT_ROOT, 'docs', 'qa', 'operational-validation')
@@ -37,39 +35,6 @@ function ensureQaDir() {
     fs.mkdirSync(QA_DIR, { recursive: true })
   }
 }
-
-/**
- * dev server 가용 여부 — 모듈 레벨에서 한 번만 체크
- */
-async function isServerAvailable(): Promise<boolean> {
-  return new Promise(resolve => {
-    try {
-      const url = new URL(BASE_URL)
-      const req = http.get(
-        {
-          hostname: url.hostname,
-          port: Number(url.port) || 80,
-          path: '/',
-          timeout: 2000,
-        },
-        res => {
-          resolve(true)
-          res.resume()
-        }
-      )
-      req.on('error', () => resolve(false))
-      req.on('timeout', () => {
-        req.destroy()
-        resolve(false)
-      })
-    } catch {
-      resolve(false)
-    }
-  })
-}
-
-// 전역 서버 가용 여부 (한번만 체크, 기본 false — beforeAll 에서 설정)
-let SERVER_OK: boolean = false
 
 // ---------------------------------------------------------------------------
 // 파일시스템 기반 검증 — dev server 불필요
@@ -251,61 +216,5 @@ test.describe('파일시스템 검증 (server 불필요)', () => {
       }
     }
     expect(found, `Flyway V1 baseline service 수 부족: ${found}/10`).toBeGreaterThanOrEqual(8)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// UI 검증 — dev server 필요
-// PLAYWRIGHT_SKIP_UI=1 환경변수 또는 dev server 미가용 시 SKIP
-// Playwright 1.x 에서 beforeAll 비동기 결과로 test.skip 호출 불가 제약으로
-// 환경변수 플래그 방식 사용.
-// 실행 방법: set VITE_MOCK_MODE=1 && npx vite --port 5173 (별도 터미널)
-// ---------------------------------------------------------------------------
-
-// 서버 가용 여부를 동기적으로 확인할 수 없으므로 환경변수 플래그로 대체
-const SKIP_UI = process.env['PLAYWRIGHT_SKIP_UI'] === '1' ||
-  process.env['PLAYWRIGHT_SKIP_UI'] === 'true'
-
-const uiSkipReason = `dev server 미가용 (${BASE_URL}) — set VITE_MOCK_MODE=1 && npx vite --port 5173 실행 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도`
-
-test.describe.skip('UI 검증 (dev server 필요 — PLAYWRIGHT_SKIP_UI=0 으로 활성)', () => {
-
-  // 로그인 페이지 한국어
-  test('10-UI. 로그인 페이지 한국어 텍스트', async ({ page }) => {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 15000 })
-    const body = await page.textContent('body') ?? ''
-    const hasKorean = /[가-힣]/.test(body)
-    expect(hasKorean, '한국어 텍스트 없음').toBeTruthy()
-    expect(body.includes('�'), '한글 깨짐 문자(U+FFFD) 발견').toBeFalsy()
-    ensureQaDir()
-    await page.screenshot({ path: path.join(QA_DIR, '10-ui-login-korean.png'), fullPage: true })
-  })
-
-  // 대시보드 smoke
-  test('6-UI. 대시보드 Gateway smoke (mock)', async ({ page }) => {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 15000 })
-    const body = await page.textContent('body') ?? ''
-    expect(body.length, '대시보드 빈 body').toBeGreaterThan(50)
-    ensureQaDir()
-    await page.screenshot({ path: path.join(QA_DIR, '06-ui-dashboard-smoke.png'), fullPage: true })
-  })
-
-  // SMTP P0-2 로그인 폼 존재
-  test('2-UI. 로그인 폼 이메일 입력 존재 (SMTP P0-2)', async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 15000 })
-    const emailInput = page.locator('input[type="email"], [data-testid="login-email"]').first()
-    const exists = await emailInput.count() > 0
-    expect(exists, '이메일 입력 필드 없음').toBeTruthy()
-    ensureQaDir()
-    await page.screenshot({ path: path.join(QA_DIR, '02-ui-smtp-login-form.png'), fullPage: true })
-  })
-
-  // JWT 인증 guard
-  test('8-UI. 비인증 접근 시 처리 (JWT guard)', async ({ page }) => {
-    await page.goto(`${BASE_URL}/slips`, { waitUntil: 'domcontentloaded', timeout: 15000 })
-    const body = await page.textContent('body') ?? ''
-    expect(body.length, 'JWT guard 후 빈 body').toBeGreaterThan(30)
-    ensureQaDir()
-    await page.screenshot({ path: path.join(QA_DIR, '08-ui-jwt-guard.png'), fullPage: true })
   })
 })
