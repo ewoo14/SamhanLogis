@@ -37,5 +37,5 @@
 | `05-modal-toggle-on-matrix.png` | 0수량 ON → 가용/실/예약 매트릭스(VIRTUAL 제외) |
 
 ## 부수 메모 (환경)
-- dev_master 비밀번호 해시가 V5 시드 평문 주석(`dev_p05_pass!`)과 불일치하던 기록된 함정([[CURRENT-WORK]] 환경 메모)을 해소 — 문서화된 의도값으로 복원(가역 DEV 인증 변경, 비파괴).
+- dev_master 비밀번호 해시가 V5 시드 DEV 평문값(V5 시드/`.gitguardian.yaml` 화이트리스트에만 보관)과 불일치하던 기록된 함정([[CURRENT-WORK]] 환경 메모)을 해소 — 문서화된 의도값으로 복원(가역 DEV 인증 변경, 비파괴). 평문은 본 문서에 미기재.
 - design-system `dist` 가 stale(소스 배럴 대비) → 렌더러 마운트 실패하던 것을 `npm run build`(DS) 재빌드로 해소. CI 는 `build:legacy` 선행이라 무관.
