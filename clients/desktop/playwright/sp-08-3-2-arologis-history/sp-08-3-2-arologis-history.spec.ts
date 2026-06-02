@@ -160,16 +160,31 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
   })
 
   // [P1] latest empty 404 → 복원 banner 미노출 보장을 정적 소스로 전환.
-  test('latest empty 404 시 복원 banner 미노출은 restoredResponse 조건부 렌더로 보장된다', () => {
-    // RestoredBanner 는 각 페이지에서 restoreBanner 상태가 있을 때만 조건부 렌더됨
-    const preClassify = read('clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx')
-    const unassigned = read('clients/arologis-desktop/src/renderer/routes/dispatches/UnassignedPage.tsx')
-    const reconcile = read('clients/arologis-desktop/src/renderer/routes/dispatches/DispatchReconcilePage.tsx')
+  // (cross-check 보강) "404/latest 없음이면 배너 미노출" 의도를 실제로 고정한다:
+  //   ① 배너는 restoreBanner 상태가 truthy 일 때만 조건부 렌더(`{restoreBanner ? (`)
+  //   ② latest fetch 실패(404/없음) catch 핸들러는 배너를 설정하지 않음(첫 방문 UX 보존 주석)
+  //   ③ 어떤 catch 블록도 배너 메시지를 setRestoreBanner 로 설정하지 않음(실패=무배너)
+  test('latest empty 404 시 복원 banner 미노출 — 조건부 렌더 + catch 무설정으로 보장된다', () => {
+    const pages = [
+      'clients/arologis-desktop/src/renderer/routes/dispatches/PreClassifyPage.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/UnassignedPage.tsx',
+      'clients/arologis-desktop/src/renderer/routes/dispatches/DispatchReconcilePage.tsx',
+    ].map(p => ({ p, src: read(p) }))
 
-    // RestoredBanner 는 restoreBanner 상태 또는 메시지 조건 하에서만 렌더
-    expect(preClassify).toContain('RestoredBanner')
-    expect(unassigned).toContain('RestoredBanner')
-    expect(reconcile).toContain('RestoredBanner')
+    for (const { p, src } of pages) {
+      // ① 조건부 렌더 게이트: restoreBanner 상태가 있을 때만 RestoredBanner 노출
+      expect(src, `${p}: restoreBanner 조건부 렌더 게이트 부재`).toMatch(/\{\s*restoreBanner\s*\?\s*\(/)
+      expect(src, `${p}: RestoredBanner 미사용`).toContain('RestoredBanner')
+      // ② latest 없음/조회 실패(404) catch 가 배너를 세우지 않음 (첫 방문 UX 보존)
+      expect(src, `${p}: latest 실패 catch 무배너 보장 주석 부재`)
+        .toContain('// latest 없음/조회 실패는 첫 방문 UX 를 막지 않는다.')
+      // ③ 어떤 catch 블록에서도 배너 메시지를 설정하지 않음 (실패 경로 = 무배너)
+      const catchBlocks = src.match(/\.catch\(\(\)\s*=>\s*\{[\s\S]*?\}\)/g) ?? []
+      expect(catchBlocks.length, `${p}: catch 블록 미검출`).toBeGreaterThan(0)
+      for (const block of catchBlocks) {
+        expect(block, `${p}: catch 블록이 복원 배너를 설정함(404 무배너 위반)`).not.toContain('setRestoreBanner(`')
+      }
+    }
   })
 
   // [P1] row click 복원 navigation 보장을 각 화면 소스로 전환.
