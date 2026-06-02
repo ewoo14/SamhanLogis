@@ -271,7 +271,8 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> unrecallBatch(String recallSlipNo, String productCode) {
         lockRecallBatchKey(recallSlipNo, productCode);
-        List<StockInstance> recalled = repo.findByRecallSlipNoAndProductCodeAndStatus(
+        // BE 리뷰 P1: ForUpdate row lock — unrecall-batch endpoint 직접 동시호출 시 같은 RECALLED 행 중복 전이 방지
+        List<StockInstance> recalled = repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
                 recallSlipNo, productCode, StockInstanceStatus.RECALLED);
         for (StockInstance instance : recalled) {
             instance.unrecall();

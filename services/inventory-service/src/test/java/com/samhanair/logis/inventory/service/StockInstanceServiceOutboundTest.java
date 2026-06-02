@@ -256,7 +256,7 @@ class StockInstanceServiceOutboundTest {
         LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 12, 0);
         StockInstance recalled = shipped(UUID.randomUUID(), "AC-S4", warehouseId, outboundAt, "P-S4-005");
         recalled.recall("2026/06/03-5");
-        when(repo.findByRecallSlipNoAndProductCodeAndStatus(
+        when(repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
                 "2026/06/03-5", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(List.of(recalled));
 

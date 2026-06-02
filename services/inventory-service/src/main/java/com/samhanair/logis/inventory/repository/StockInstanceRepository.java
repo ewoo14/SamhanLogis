@@ -177,6 +177,24 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             String recallSlipNo, String productCode, StockInstanceStatus status);
 
     /**
+     * S4 회수취소(unrecall) 대상 조회(row lock) — recallSlipNo+productCode+상태(RECALLED) 행을
+     * {@code PESSIMISTIC_WRITE} 로 잠가 unrecall-batch endpoint 직접 동시호출 시 같은 행 중복 전이를 방지한다. (BE 리뷰 P1)
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productCode = :productCode
+              AND s.status = :status
+              AND s.isDeleted = false
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productCode") String productCode,
+            @Param("status") StockInstanceStatus status);
+
+    /**
      * S4 회수연동 멱등 수량 확인 — 회수전표 번호 + 품목코드 + 상태 기준 건수.
      *
      * @param recallSlipNo 회수 입고전표 번호
