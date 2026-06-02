@@ -160,7 +160,7 @@ public class StockInstanceService {
         // advisory lock 키가 outboundSlipNo|productCode 이므로 다른 전표가 동일 warehouse/productCode 의
         // AVAILABLE 인스턴스를 동시 소진할 수 있다. count 와 실제 후보 목록의 TOCTOU 불일치로 인한
         // IndexOutOfBounds(500) 를 막기 위해, 후보 목록을 먼저 적재한 뒤 그 크기로 재고부족을 사전차단한다.
-        List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+        List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
                 productCode, warehouseId, StockInstanceStatus.AVAILABLE);
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -244,7 +244,7 @@ public class StockInstanceService {
         }
 
         int deficit = quantity - Math.toIntExact(already);
-        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
+        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
                 partnerCode, productCode, StockInstanceStatus.SHIPPED);
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -256,6 +256,27 @@ public class StockInstanceService {
         }
         return repo.findByRecallSlipNoAndProductCodeAndStatus(
                 recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+    }
+
+    /**
+     * INBOUND 반품/회차 전표 complete 보상용 회수 취소 — RECALLED 인스턴스를 SHIPPED 로 되돌린다.
+     *
+     * <p>{@code recallSlipNo + productCode} 로 해당 전표가 회수한 인스턴스만 특정한다.
+     * outbound 마커는 도메인 전이에서 유지되어 재보상 또는 재회수 후보로 남는다.
+     *
+     * @param recallSlipNo 회수 입고전표 번호
+     * @param productCode  품목코드 그룹
+     * @return SHIPPED 로 복원된 인스턴스 목록
+     */
+    @Transactional
+    public List<StockInstance> unrecallBatch(String recallSlipNo, String productCode) {
+        lockRecallBatchKey(recallSlipNo, productCode);
+        List<StockInstance> recalled = repo.findByRecallSlipNoAndProductCodeAndStatus(
+                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        for (StockInstance instance : recalled) {
+            instance.unrecall();
+        }
+        return recalled;
     }
 
     private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {

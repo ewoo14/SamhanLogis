@@ -97,6 +97,35 @@ class StockInstanceOutboundTest {
                 .isEqualTo(ErrorCode.CONFLICT);
     }
 
+    @Test
+    @DisplayName("unrecall은 RECALLED를 SHIPPED로 되돌리고 출고 마커는 유지한다")
+    void unrecallRestoresShippedAndKeepsOutboundMarkers() {
+        LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 11, 0);
+        StockInstance instance = instance();
+        instance.ship("P-2026-0006", "2026/06/02-7", outboundAt);
+        instance.recall("2026/06/03-3");
+
+        instance.unrecall();
+
+        assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        assertThat(instance.getRecallSlipNo()).isNull();
+        assertThat(instance.getOutboundPartnerCode()).isEqualTo("P-2026-0006");
+        assertThat(instance.getOutboundSlipNo()).isEqualTo("2026/06/02-7");
+        assertThat(instance.getOutboundAt()).isEqualTo(outboundAt);
+    }
+
+    @Test
+    @DisplayName("RECALLED가 아닌 인스턴스 회수 취소는 409로 거부한다")
+    void unrecallFromInvalidStateThrows409() {
+        StockInstance instance = instance();
+        instance.ship("P-2026-0007", "2026/06/02-8", null);
+
+        assertThatThrownBy(instance::unrecall)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
     private StockInstance instance() {
         return StockInstance.inbound(PRODUCT_ID, "AC-S3", WAREHOUSE_ID,
                 "구매", LocalDateTime.of(2026, 5, 30, 9, 0),

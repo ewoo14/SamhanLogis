@@ -11,6 +11,7 @@ import com.samhanair.logis.inventory.web.dto.RecallBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReserveBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ShipBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
+import com.samhanair.logis.inventory.web.dto.UnrecallBatchInstanceRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>권한 매트릭스:
      * <ul>
      *   <li>인스턴스 생성 ({@code POST /inventory/instances}) — {@code inventory.stock-balance CREATE}</li>
-     *   <li>출고 배치 전이 ({@code POST /reserve-batch|ship-batch|release-batch}) — {@code inventory.stock-balance UPDATE}</li>
+     *   <li>출고/회수 배치 전이 ({@code POST /reserve-batch|ship-batch|release-batch|recall-batch|unrecall-batch}) — {@code inventory.stock-balance UPDATE}</li>
      *   <li>FIFO/역-FIFO/품목별 조회 ({@code GET}) — {@code inventory.stock-balance VIEW}</li>
      * </ul>
  *
@@ -199,6 +200,27 @@ public class StockInstanceController {
                 .map(StockInstanceResponse::from)
                 .toList();
         return ApiResponse.ok(result, "인스턴스 회수 완료");
+    }
+
+    /**
+     * 반품/회차 INBOUND 전표 complete 보상용 인스턴스 회수 취소.
+     *
+     * @param request 회수 취소 배치 요청
+     * @return 해당 전표 회수가 취소되어 SHIPPED 로 복원된 인스턴스 응답 목록
+     */
+    @Operation(summary = "인스턴스 회수 취소",
+            description = "recallSlipNo+productCode 기준 RECALLED 인스턴스를 SHIPPED 로 복원.")
+    @PostMapping("/unrecall-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> unrecallBatch(
+            @Valid @RequestBody UnrecallBatchInstanceRequest request) {
+        List<StockInstanceResponse> result = stockInstanceService.unrecallBatch(
+                        request.recallSlipNo(),
+                        request.productCode())
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "인스턴스 회수 취소 완료");
     }
 
     /**

@@ -8,18 +8,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.StockInstanceStatus;
 import com.samhanair.logis.inventory.repository.StockInstanceRepository;
+import com.samhanair.logis.inventory.service.StockInstanceService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -62,6 +70,9 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
 
     @Autowired
     private StockInstanceRepository stockInstanceRepository;
+
+    @Autowired
+    private StockInstanceService stockInstanceService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -247,6 +258,86 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                 "P-S4-IT-003", SERIAL_CODE, StockInstanceStatus.SHIPPED)).isEqualTo(1);
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("reserve-batch: 동시 전표가 같은 후보 1건을 예약해도 row lock으로 중복 선택하지 않는다")
+    void reserveBatch_concurrentRequestsDoNotSelectSameCandidate() throws Exception {
+        cleanup();
+        seedAvailable(1);
+
+        List<Throwable> failures = runConcurrently(
+                () -> stockInstanceService.reserveBatch(SERIAL_CODE, warehouseId, 1, "S3-OUT-LCK-1"),
+                () -> stockInstanceService.reserveBatch(SERIAL_CODE, warehouseId, 1, "S3-OUT-LCK-2"));
+
+        long conflictCount = failures.stream()
+                .filter(BusinessException.class::isInstance)
+                .filter(ex -> ex.getMessage().contains("재고 부족"))
+                .count();
+        assertThat(conflictCount).isEqualTo(1);
+        assertThat(stockInstanceRepository.countByProductCodeAndWarehouseIdAndStatus(
+                SERIAL_CODE, warehouseId, StockInstanceStatus.RESERVED)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT outbound_slip_no)
+                  FROM stock_instances
+                 WHERE is_deleted = false
+                   AND product_code = ?
+                   AND status = 'RESERVED'
+                """, Long.class, SERIAL_CODE)).isEqualTo(1L);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("recall-batch: 동시 회수 전표가 같은 SHIPPED 후보 1건을 중복 회수하지 않는다")
+    void recallBatch_concurrentRequestsDoNotSelectSameCandidate() throws Exception {
+        cleanup();
+        seedShipped(1, "P-S4-LCK");
+
+        List<Throwable> failures = runConcurrently(
+                () -> stockInstanceService.recallBatch("P-S4-LCK", SERIAL_CODE, 1, "S4-RETURN-LCK-1"),
+                () -> stockInstanceService.recallBatch("P-S4-LCK", SERIAL_CODE, 1, "S4-RETURN-LCK-2"));
+
+        long conflictCount = failures.stream()
+                .filter(BusinessException.class::isInstance)
+                .filter(ex -> ex.getMessage().contains("회수 대상 부족"))
+                .count();
+        assertThat(conflictCount).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM stock_instances
+                 WHERE is_deleted = false
+                   AND product_code = ?
+                   AND status = 'RECALLED'
+                """, Long.class, SERIAL_CODE)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT recall_slip_no)
+                  FROM stock_instances
+                 WHERE is_deleted = false
+                   AND product_code = ?
+                   AND status = 'RECALLED'
+                """, Long.class, SERIAL_CODE)).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("unrecall-batch: RECALLED → SHIPPED 복원 및 recallSlipNo 제거")
+    void unrecallBatch_restoresRecalledInstancesToShipped() throws Exception {
+        seedShipped(1, "P-S4-IT-004");
+        postRecall("P-S4-IT-004", "S4-RETURN-004", 1).andExpect(status().isOk());
+
+        mockMvc.perform(post("/inventory/instances/unrecall-batch")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", MASTER_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(unrecallBody("S4-RETURN-004"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(1)))
+                .andExpect(jsonPath("$.data[0].status", is("SHIPPED")));
+
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-004", SERIAL_CODE, StockInstanceStatus.RECALLED)).isZero();
+        assertThat(stockInstanceRepository.countByOutboundPartnerCodeAndProductCodeAndStatus(
+                "P-S4-IT-004", SERIAL_CODE, StockInstanceStatus.SHIPPED)).isEqualTo(1);
+    }
+
     private ResultActions postReserve(String outboundSlipNo, int quantity) throws Exception {
         return mockMvc.perform(post("/inventory/instances/reserve-batch")
                 .header("X-User-Id", UUID.randomUUID().toString())
@@ -295,6 +386,42 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         body.put("quantity", quantity);
         body.put("recallSlipNo", recallSlipNo);
         return body;
+    }
+
+    private Map<String, Object> unrecallBody(String recallSlipNo) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("recallSlipNo", recallSlipNo);
+        body.put("productCode", SERIAL_CODE);
+        return body;
+    }
+
+    @SafeVarargs
+    private final List<Throwable> runConcurrently(Callable<?>... calls) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(calls.length);
+        CyclicBarrier barrier = new CyclicBarrier(calls.length);
+        try {
+            List<Future<Throwable>> futures = java.util.Arrays.stream(calls)
+                    .map(call -> executor.submit(() -> {
+                        try {
+                            barrier.await();
+                            call.call();
+                            return null;
+                        } catch (Throwable ex) {
+                            return ex;
+                        }
+                    }))
+                    .toList();
+            List<Throwable> failures = new java.util.ArrayList<>();
+            for (Future<Throwable> future : futures) {
+                Throwable failure = future.get();
+                if (failure != null) {
+                    failures.add(failure);
+                }
+            }
+            return failures;
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private void seedAvailable(int count) {

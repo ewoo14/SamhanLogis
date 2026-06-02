@@ -51,7 +51,7 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(any(), any(), any());
     }
 
     @Test
@@ -63,7 +63,7 @@ class StockInstanceServiceOutboundTest {
         when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-2", "AC-S3", StockInstanceStatus.RESERVED))
                 .thenReturn(0L);
         // 가용 후보가 1개뿐 → 필요 2개 미만이므로 후보 목록 크기로 사전차단(동시성 TOCTOU 대비)
-        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
                 "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
                 .thenReturn(List.of(only));
 
@@ -87,7 +87,7 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S3")).thenReturn(product(productId, "AC-S3", true));
         when(repo.countByOutboundSlipNoAndProductCodeAndStatus("2026/06/02-3", "AC-S3", StockInstanceStatus.RESERVED))
                 .thenReturn(1L);
-        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+        when(repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
                 "AC-S3", warehouseId, StockInstanceStatus.AVAILABLE))
                 .thenReturn(List.of(early, late));
         when(repo.findByOutboundSlipNoAndProductCodeAndStatus(
@@ -121,7 +121,7 @@ class StockInstanceServiceOutboundTest {
 
         assertThat(result).containsExactly(reserved);
         // 이미 목표 수량 이상 예약됨 → 후보 조회 자체를 하지 않음
-        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(any(), any(), any());
+        verify(repo, never()).findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(any(), any(), any());
     }
 
     @Test
@@ -176,7 +176,7 @@ class StockInstanceServiceOutboundTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(any(), any(), any());
     }
 
     @Test
@@ -188,7 +188,7 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(only.getProductId(), "AC-S4", true));
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-2", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(0L);
-        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
                 "P-S4-002", "AC-S4", StockInstanceStatus.SHIPPED))
                 .thenReturn(List.of(only));
 
@@ -214,7 +214,7 @@ class StockInstanceServiceOutboundTest {
         when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(productId, "AC-S4", true));
         when(repo.countByRecallSlipNoAndProductCodeAndStatus("2026/06/03-3", "AC-S4", StockInstanceStatus.RECALLED))
                 .thenReturn(1L);
-        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
+        when(repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
                 "P-S4-003", "AC-S4", StockInstanceStatus.SHIPPED))
                 .thenReturn(List.of(latest, older));
         when(repo.findByRecallSlipNoAndProductCodeAndStatus(
@@ -246,7 +246,27 @@ class StockInstanceServiceOutboundTest {
         List<StockInstance> result = service.recallBatch("P-S4-004", "AC-S4", 2, "2026/06/03-4");
 
         assertThat(result).containsExactly(recalled);
-        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(any(), any(), any());
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("unrecallBatch는 RECALLED 인스턴스를 SHIPPED로 되돌리고 회수전표 마커만 지운다")
+    void unrecallBatch_restoresShippedAndKeepsOutboundMarkers() {
+        UUID warehouseId = UUID.randomUUID();
+        LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 12, 0);
+        StockInstance recalled = shipped(UUID.randomUUID(), "AC-S4", warehouseId, outboundAt, "P-S4-005");
+        recalled.recall("2026/06/03-5");
+        when(repo.findByRecallSlipNoAndProductCodeAndStatus(
+                "2026/06/03-5", "AC-S4", StockInstanceStatus.RECALLED))
+                .thenReturn(List.of(recalled));
+
+        List<StockInstance> result = service.unrecallBatch("2026/06/03-5", "AC-S4");
+
+        assertThat(result).containsExactly(recalled);
+        assertThat(recalled.getStatus()).isEqualTo(StockInstanceStatus.SHIPPED);
+        assertThat(recalled.getRecallSlipNo()).isNull();
+        assertThat(recalled.getOutboundPartnerCode()).isEqualTo("P-S4-005");
+        assertThat(recalled.getOutboundAt()).isEqualTo(outboundAt);
     }
 
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {

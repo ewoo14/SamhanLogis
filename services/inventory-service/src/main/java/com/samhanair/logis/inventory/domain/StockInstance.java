@@ -32,6 +32,7 @@ import org.hibernate.annotations.UuidGenerator;
  *   RESERVED  ─ ship()    → SHIPPED
  *   RESERVED  ─ release() → AVAILABLE
  *   SHIPPED   ─ recall()  → RECALLED
+ *   RECALLED  ─ unrecall()→ SHIPPED
  * </pre>
  * 각 전이 메서드는 선행 상태가 맞지 않으면 {@code 409 CONFLICT} 를 던진다.
  *
@@ -185,6 +186,20 @@ public class StockInstance extends BaseEntity {
         requireStatus(StockInstanceStatus.SHIPPED, "회수");
         this.status = StockInstanceStatus.RECALLED;
         this.recallSlipNo = recallSlipNo;
+    }
+
+    /**
+     * 회수 취소 — RECALLED → SHIPPED + 회수전표 마커 제거.
+     *
+     * <p>OUTBOUND 마커({@code outboundPartnerCode/outboundSlipNo/outboundAt}) 는 유지한다.
+     * completeRecallInbound 보상에서 회수만 되돌려 같은 출고처 기준 재회수가 가능해야 하기 때문이다.
+     *
+     * @throws BusinessException 409 — 현재 상태가 RECALLED 가 아닌 경우
+     */
+    public void unrecall() {
+        requireStatus(StockInstanceStatus.RECALLED, "회수 취소");
+        this.status = StockInstanceStatus.SHIPPED;
+        this.recallSlipNo = null;
     }
 
     /**
