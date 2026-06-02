@@ -27,6 +27,7 @@ PR 머지 완료 후 사용자가 "진행" 누르지 않아도 PM 이 자율로 
   3. 핵심 기능 우선 + 사용자 영향 큰 순
 - 각 슬라이스 머지 후 handoff + samhan-public-overview.html 즉시 동기화 ([feedback_samhan_public_overview_sync])
 - **PR 발행 alert / 머지 confirmation 모두 PM 자율 — 사용자 통지 X**
+- **spec 구현 시 세부 결정도 PM 판단 자율** (2026-06-02 개발책임자 "spec 구현시 PM 판단 하 자율 진행"): 구현 중 매 결정마다 AskUserQuestion 묻지 말고 PM 판단으로 진행. [[always-mouse-choices]] 는 **중대 갈림길**(범위·도메인 모델·비가역 결정)에만 적용. 구현 디테일(생명주기 배선, API 형태, 테스트 구조 등)은 자율 결정 + commit/dev-report 에 근거 박제.
 
 **언제 멈추는가**:
 - 시리즈 종료 (이카운트 raw 모두 처리 완료 + 도메인 변환 완료)
