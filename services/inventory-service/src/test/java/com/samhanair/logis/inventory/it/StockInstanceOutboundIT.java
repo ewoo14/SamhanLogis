@@ -372,6 +372,16 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
             assertThat(instance.getOutboundAt()).isNull();
             assertThat(instance.getReceivedAt()).isBetween(before, after);
         });
+
+        // QA P1: @Transactional 1차 캐시가 아닌 실 DB flush 값으로 마커 null·received_at 재진입을 직접 검증.
+        Integer dbResoldRows = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM stock_instances
+                 WHERE product_code = ? AND status = 'AVAILABLE' AND is_deleted = false
+                   AND recall_slip_no IS NULL AND outbound_partner_code IS NULL
+                   AND outbound_slip_no IS NULL AND outbound_at IS NULL
+                   AND received_at BETWEEN ? AND ?
+                """, Integer.class, SERIAL_CODE, before, after);
+        assertThat(dbResoldRows).isEqualTo(2);
     }
 
     @Test
