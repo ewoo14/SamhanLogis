@@ -181,12 +181,17 @@ export function TaxInvoiceDetailPage() {
       setShowEmitNtsModal(false)
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'tax-invoices'] })
       // emit 결과의 eTaxExternalId 를 상세 캐시에 낙관적 반영(홈택스 접수번호 즉시 표시 — SP-09-1 T3).
-      // detail invalidate refetch 는 DRY_RUN 미영속 mock 을 덮어써 값이 사라지므로, 결과 기반 setQueryData 사용.
-      queryClient.setQueryData(
-        ['accounting', 'tax-invoice', id],
-        (old: typeof query.data) =>
-          old ? { ...old, eTaxExternalId: result.eTaxExternalId ?? old.eTaxExternalId } : old,
-      )
+      // detail invalidate refetch 는 DRY_RUN 미영속 mock 을 덮어써 값이 사라지므로, 결과 기반으로 캐시를 갱신한다.
+      // 캐시가 비어있는 경우(레이스)엔 undefined 반환=캐시 삭제 시맨틱을 피하기 위해 invalidate 로 refetch 한다(리뷰 P0).
+      const cachedDetail = queryClient.getQueryData<typeof query.data>(['accounting', 'tax-invoice', id])
+      if (cachedDetail) {
+        queryClient.setQueryData(['accounting', 'tax-invoice', id], {
+          ...cachedDetail,
+          eTaxExternalId: result.eTaxExternalId ?? cachedDetail.eTaxExternalId,
+        })
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ['accounting', 'tax-invoice', id] })
+      }
       void queryClient.invalidateQueries({
         queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
       })
@@ -397,15 +402,6 @@ export function TaxInvoiceDetailPage() {
                 ? ` · 취소: ${new Date(t.cancelledAt).toLocaleString('ko-KR')}`
                 : ''}
             </div>
-            {/* SP-09-1 T3: 홈택스 접수번호(eTaxExternalId) 값 표시 — 비즈니스 식별자(사용자 노출 가능). NTS 발행 후 표시. */}
-            {t.eTaxExternalId ? (
-              <div
-                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-neutral-700)', fontVariantNumeric: 'tabular-nums' }}
-                data-testid="tax-invoice-detail-etax-external-id"
-              >
-                홈택스 접수번호: <strong>{t.eTaxExternalId}</strong>
-              </div>
-            ) : null}
             {t.status === 'CANCELLED' && t.cancelReason ? (
               <div
                 style={{
@@ -516,8 +512,9 @@ export function TaxInvoiceDetailPage() {
 
         {/* SP-09-1: NTS 발행 결과 — eTaxExternalId 등록 후 표시.
             D1: hardcoded #15803D/#166534 → NTS 토큰 참조.
-            D3: eTaxExternalId 값 monospace 처리. */}
-        {t.eTaxExternalId ? (
+            D3: eTaxExternalId 값 monospace 처리.
+            CANCELLED 시 미표시 — 취소된 세금계산서에 NTS 발행이 유효한 것으로 오해 방지(리뷰 P1). */}
+        {t.eTaxExternalId && t.status !== 'CANCELLED' ? (
           <div
             style={{
               marginBottom: 16,

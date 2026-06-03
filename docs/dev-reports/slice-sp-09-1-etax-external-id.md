@@ -23,6 +23,15 @@
 - sp-09-1 **5/5 green** → testIgnore 해제 재게이트.
 - 게이트 합동(sp-d4·sp-d2·sp-d3·admin-hr·phase-2-5·sp-08-6-6·sp-09-3·sp-09-1) **64 passed / 0 skipped**. desktop tsc 0.
 
+## 3.5 리뷰 반영 (FE + Codex)
+
+- **중복 testid(FE P0)**: 페이지에 이미 NTS 발행 결과 배너(`tax-invoice-detail-etax-external-id`)가 있었음 → 처음 추가했던 인라인 블록 제거(중복 testid strict-mode 위반 방지). 실제 T3 해결은 URL(ti-001 상세)+setQueryData(기존 배너가 emit 후 표시되게)였음.
+- **setQueryData undefined 가드(FE P0)**: `old` 없을 때 undefined 반환=캐시 삭제 시맨틱 → 캐시 존재 시만 갱신, 없으면 invalidate fallback.
+- **CANCELLED 가드(FE P1)**: 배너 조건 `t.eTaxExternalId && t.status !== 'CANCELLED'` — 취소된 세금계산서에 NTS 발행 유효 오해 방지.
+- **confirm 정밀화(FE P1)**: step2 의 dead `dialog` 핸들러 제거 + `[data-testid="tax-invoice-emit-nts-modal-confirm"]` 정확 클릭.
+- **step3 false-green 강화(Codex P1)**: 일반 문구('전자세금계산서'/'e-Tax') fallback 제거 → canonical 배너 testid `toBeVisible` + `toContainText('DRY-')` 로 emit 실행 효과 엄격 검증.
+- **submittedAt(FE P1)**: `EmitNtsResponse.submittedAt` 화면 미표시는 `TaxInvoiceDetail` DTO 확장(BE) 필요 → Phase 11 후속(DRY_RUN 불요).
+
 ## 4. 후속
 
 - 실 BE(TaxInvoiceEmitService)는 eTaxExternalId 를 영속하므로 운영에선 setQueryData + 자연 refetch 모두 값 반환.
