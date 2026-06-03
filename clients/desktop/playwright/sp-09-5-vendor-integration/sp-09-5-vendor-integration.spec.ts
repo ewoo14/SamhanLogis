@@ -323,50 +323,42 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       })
 
       await page.goto(CLOVA_URL_WAREHOUSE, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      // 직전 step 역할 세션 재설정(hash 네비 미반영) — WAREHOUSE 로 OCR 페이지 진입 보장.
+      await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1200)
 
-      // 드롭존 표시 확인
+      // 드롭존·파일입력은 WAREHOUSE 에서 반드시 노출(vacuous skip 방지 — Codex P1).
       const dropZone = page.locator('[data-testid="receipt-ocr-drop-zone"]')
-      const dropZoneVisible = await dropZone.isVisible().catch(() => false)
+      await expect(dropZone, 'WAREHOUSE OCR 드롭존 미표시').toBeVisible({ timeout: 8000 })
+      const fileInput = page.locator('[data-testid="receipt-ocr-file-input"]')
+      await expect(fileInput, 'OCR 파일 입력 미존재').toBeAttached({ timeout: 5000 })
 
-      if (dropZoneVisible) {
-        // 파일 선택 + 제출 시도 (502 응답 확인)
-        const fileInput = page.locator('[data-testid="receipt-ocr-file-input"]')
-        const fileInputAttached = (await fileInput.count()) > 0
+      // in-process mock(VITE_MOCK_MODE)은 page.route 를 가리므로 502 는 mock 의 파일명 컨벤션('502')으로 트리거.
+      const minimalPng = Buffer.from(
+        '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
+        'hex',
+      )
+      const tmpPng = path.join(QA_DIR, 'fixture-clova-502.png')
+      fs.writeFileSync(tmpPng, minimalPng)
 
-        if (fileInputAttached) {
-          // 최소 PNG fixture 생성
-          const minimalPng = Buffer.from(
-            '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
-            'hex',
-          )
-          const tmpPng = path.join(QA_DIR, 'fixture-clova-test.png')
-          fs.writeFileSync(tmpPng, minimalPng)
+      await fileInput.setInputFiles(tmpPng)
+      await page.waitForTimeout(500)
 
-          await fileInput.setInputFiles(tmpPng)
-          await page.waitForTimeout(500)
+      const submitBtn = page.locator('[data-testid="receipt-ocr-submit-btn"]')
+      await expect(submitBtn, '파일 선택 후 OCR 제출 버튼 비활성').toBeEnabled({ timeout: 5000 })
+      await submitBtn.click()
+      await page.waitForTimeout(1500)
 
-          const submitBtn = page.locator('[data-testid="receipt-ocr-submit-btn"]')
-          const isEnabled = await submitBtn.isEnabled().catch(() => false)
-
-          if (isEnabled) {
-            await submitBtn.click()
-            await page.waitForTimeout(1500)
-
-            const bodyText = (await page.textContent('body')) ?? ''
-            const hasClovaError =
-              bodyText.includes('OCR_SUBMIT_FAILED') ||
-              bodyText.includes('placeholder') ||
-              bodyText.includes('CLOVA') ||
-              bodyText.includes('DRY_RUN') ||
-              bodyText.includes('연동 전')
-            expect(
-              hasClovaError,
-              'Clova placeholder 502 에러 메시지 미표시 — "OCR_SUBMIT_FAILED"/"CLOVA"/"placeholder" 키워드 없음',
-            ).toBe(true)
-          }
-        }
-      }
+      const bodyText = (await page.textContent('body')) ?? ''
+      const hasClovaError =
+        bodyText.includes('OCR_SUBMIT_FAILED') ||
+        bodyText.includes('일시적 오류') ||
+        bodyText.includes('Clova') ||
+        bodyText.includes('외부 서비스')
+      expect(
+        hasClovaError,
+        'Clova 502 에러 메시지 미표시 — OCR_SUBMIT_FAILED 502 차단 검증',
+      ).toBe(true)
 
       await page.unroute('**/slips/receipt-ocr**')
 
