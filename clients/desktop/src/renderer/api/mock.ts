@@ -185,7 +185,7 @@ const mockConvertedOrderNos = new Set<string>()
  */
 const MOCK_COMPENSATION_FAILURES = [
   {
-    id: 'cf-seed-0001-0000-0000-000000000001',
+    id: 'cf510001-0000-0000-0000-000000000001',
     slipNo: '2026/06/03-001',
     slipType: 'OUTBOUND',
     phase: 'SERIAL_DEDUCTION',
@@ -198,7 +198,7 @@ const MOCK_COMPENSATION_FAILURES = [
     createdAt: '2026-06-03T08:15:01+09:00',
   },
   {
-    id: 'cf-seed-0002-0000-0000-000000000002',
+    id: 'cf510002-0000-0000-0000-000000000002',
     slipNo: '2026/06/02-017',
     slipType: 'INBOUND',
     phase: 'SERIAL_ASSIGNMENT',
@@ -211,7 +211,7 @@ const MOCK_COMPENSATION_FAILURES = [
     createdAt: '2026-06-02T14:32:05+09:00',
   },
   {
-    id: 'cf-seed-0003-0000-0000-000000000003',
+    id: 'cf510003-0000-0000-0000-000000000003',
     slipNo: '2026/06/01-042',
     slipType: 'OUTBOUND',
     phase: 'SERIAL_DEDUCTION',

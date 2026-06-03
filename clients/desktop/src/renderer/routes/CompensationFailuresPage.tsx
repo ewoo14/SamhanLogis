@@ -40,6 +40,7 @@ import {
   type CompensationFailureResponse,
 } from '../api/compensationFailureApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const PAGE_SIZE = 20
 
@@ -116,6 +117,10 @@ export function CompensationFailuresPage() {
   usePageTitle('보상 실패 복구')
 
   const queryClient = useQueryClient()
+  // 해소(resolve) 는 BE 가 inventory.list UPDATE 권한을 요구 → update 권한 없는 역할(예: ACCOUNTANT)에게는
+  // 버튼을 숨겨 클릭 시 403 혼란을 방지한다(BE @RequirePermission UPDATE 와 정합).
+  const { canAccess } = usePermissions()
+  const canResolve = canAccess('inventory.list', 'update')
 
   /** resolved=false 기본 — 전체 보기 시 true */
   const [showAll, setShowAll] = useState(false)
@@ -407,7 +412,7 @@ export function CompensationFailuresPage() {
                       </Badge>
                     </Td>
                     <Td>
-                      {!f.resolved ? (
+                      {!f.resolved && canResolve ? (
                         <Button
                           variant="primary"
                           size="sm"

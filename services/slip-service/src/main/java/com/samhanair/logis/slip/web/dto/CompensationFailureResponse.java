@@ -26,6 +26,7 @@ import java.util.UUID;
  * @param createdAt 감사 행 저장시각
  */
 public record CompensationFailureResponse(
+        // PATCH .../{id}/resolve 요청 wire 식별자 전용 — 사용자 화면 표시 금지(UUID 비공개, slipNo 노출).
         UUID id,
         String slipNo,
         SlipType slipType,

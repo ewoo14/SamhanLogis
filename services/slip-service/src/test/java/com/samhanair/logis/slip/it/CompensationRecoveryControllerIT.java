@@ -207,6 +207,10 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isForbidden());
 
+        // PATCH 403 이 VIEW stub 부작용이 아닌 UPDATE 가드에 의한 것임을 격리 검증한다(VIEW 복원).
+        Mockito.when(dynamicPermissionClient.check(
+                        any(UUID.class), eq("inventory.list"), eq(PermissionAction.VIEW)))
+                .thenReturn(true);
         Mockito.when(dynamicPermissionClient.check(
                         any(UUID.class), eq("inventory.list"), eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
