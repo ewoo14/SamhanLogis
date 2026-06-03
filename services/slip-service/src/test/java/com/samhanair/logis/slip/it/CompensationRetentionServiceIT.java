@@ -165,13 +165,10 @@ class CompensationRetentionServiceIT extends AbstractPostgresIT {
     }
 
     private void cleanup() {
+        // 반복 실행 시 잔여물 누적 방지 — purge 가 이미 soft-delete 한 행(is_deleted=true)도 물리 삭제한다(QA P2).
         jdbcTemplate.update("""
-                UPDATE serial_compensation_failures
-                   SET is_deleted = true,
-                       deleted_at = CURRENT_TIMESTAMP,
-                       deleted_by = 'CompensationRetentionServiceIT'
+                DELETE FROM serial_compensation_failures
                  WHERE slip_no LIKE ?
-                   AND is_deleted = false
                 """, CLEANUP_PREFIX + "%");
     }
 }

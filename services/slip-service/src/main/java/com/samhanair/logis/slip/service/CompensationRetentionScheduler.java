@@ -37,7 +37,8 @@ public class CompensationRetentionScheduler {
     /**
      * 설정된 cron 주기로 해소 완료 보상 실패 감사 행의 보존기간 만료분을 정리한다.
      */
-    @Scheduled(cron = "${samhan.compensation.retention.cron}")
+    // zone 명시 — UTC 서버(Linux/EC2)에서도 한국시간 기준으로 cron 발화한다(cutoff Clock 과 동일 ZoneId).
+    @Scheduled(cron = "${samhan.compensation.retention.cron}", zone = "${samhan.compensation.retention.zone:Asia/Seoul}")
     public void purgeResolvedFailures() {
         LocalDateTime cutoff = LocalDateTime.now(clock).minusDays(retentionDays);
         int purged = retentionService.purge(cutoff, RETENTION_ACTOR);

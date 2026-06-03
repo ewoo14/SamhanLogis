@@ -46,6 +46,8 @@ class CompensationRetentionServiceTest {
         assertThat(oldResolved.getIsDeleted()).isTrue();
         assertThat(oldResolved.getDeletedBy()).isEqualTo("system-retention");
         assertThat(oldResolved.getDeletedAt()).isNotNull();
+        // recentResolved/oldUnresolved 는 mock 리포지토리가 반환하지 않아 서비스 루프에 진입하지 않음을 확인
+        // (리포지토리 쿼리 필터 resolved=true AND created_at<cutoff 의 정확성은 IT 에서 실 DB 로 검증). (QA P2)
         assertThat(recentResolved.getIsDeleted()).isFalse();
         assertThat(oldUnresolved.getIsDeleted()).isFalse();
         verify(failureRepository).findByResolvedTrueAndCreatedAtBefore(cutoff);
