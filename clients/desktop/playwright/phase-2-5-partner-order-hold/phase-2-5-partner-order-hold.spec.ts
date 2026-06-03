@@ -199,8 +199,10 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
     await expect(page.getByRole('table')).toContainText('2026/05/05-2')
     await expect(page.getByRole('table')).toContainText('강남에어솔루션')
 
-    // DRAFT 행 미노출
-    await expect(page.getByRole('table')).not.toContainText('엘에이시스템에어')
+    // DRAFT 행 미노출 — ON_HOLD 필터 시 '진행중'(DRAFT) 상태 라벨이 테이블에 없어야 한다.
+    // (특정 거래처명으로 단언하지 않는다: Phase 2.6b 병합 시나리오가 동일 거래처의 DRAFT/ON_HOLD 행을
+    //  함께 seed 하므로, 거래처명 기반 배제는 드리프트에 취약하다. 필터 의미는 '상태=보류만' 이다.)
+    await expect(page.getByRole('table')).not.toContainText('진행중')
   })
 
   // ──────────────────────────────────────────────────────────

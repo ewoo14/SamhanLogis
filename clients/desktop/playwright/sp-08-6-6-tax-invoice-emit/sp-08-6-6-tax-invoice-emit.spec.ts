@@ -86,9 +86,9 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 // ---------------------------------------------------------------------------
 // 세금계산서 목록 URL (ACCOUNTANT 역할)
 // ---------------------------------------------------------------------------
-const LIST_URL = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT`
-const DETAIL_URL_DRAFT = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=DRAFT`
-const DETAIL_URL_ISSUED = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=ISSUED`
+const LIST_URL = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`
+const DETAIL_URL_DRAFT = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=DRAFT`
+const DETAIL_URL_ISSUED = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=ISSUED`
 
 // ---------------------------------------------------------------------------
 // TC-T1 ~ TC-T5
@@ -97,9 +97,10 @@ const DETAIL_URL_ISSUED = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTA
 test.describe('SP-08-6-6 세금계산서 발행 (T1~T5)', () => {
   test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     const ok = await isServerAvailable()
-    test.skip(!ok, `dev server 미접근: ${BASE_URL}`)
+    // false green 방지(SP-09 패턴) — dev server 미가용 시 skip 이 아닌 FAIL.
+    expect(ok, `dev server 미접근: ${BASE_URL}`).toBe(true)
   })
 
   /**
@@ -318,7 +319,7 @@ test.describe('SP-08-6-6 세금계산서 발행 (T1~T5)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    const viewerListUrl = `${BASE_URL}/accounting/tax-invoices?mockRole=VIEWER`
+    const viewerListUrl = `${BASE_URL}/#/accounting/tax-invoices?mockRole=VIEWER`
     await page.goto(viewerListUrl, { waitUntil: 'domcontentloaded', timeout: 20000 })
     await page.waitForTimeout(1500)
 

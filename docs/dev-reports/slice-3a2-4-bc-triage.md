@@ -83,8 +83,23 @@ supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확
 있으나 그 자체로 re-gate 되지 않는다(잔여 TC 가 게이트 차단). 다음 세션은 **스펙별로** (a) `/#/`+seed+skip 정정
 → (b) 잔여 TC 의 드리프트/갭 분류 → (c) 드리프트면 교정 후 re-gate, 갭이면 구현 슬라이스 분리 후 격리 유지.
 
+### 🟢 추가 재게이트 — 순수 드리프트 스펙 (phase-2-5 · sp-08-6-6)
+
+`/#/`+skip+seed 정정만으로 **전건 green** 인 스펙은 즉시 재게이트(잔여 feature TC 없음):
+- **phase-2-5**(8/8): 시나리오3 단언을 거래처명 배제("엘에이시스템에어") → "ON_HOLD 필터 시 진행중(DRAFT) 라벨 부재"
+  로 교정. (Phase 2.6b 병합 시나리오가 동일 거래처 DRAFT/ON_HOLD 행을 함께 seed → 거래처명 배제가 드리프트.)
+- **sp-08-6-6**(5/5): URL `/#/` 정합 + `test.skip(!ok)`→`expect`. T2/T3 실패는 feature 갭이 아니라 페이지 미로드였음.
+
+### 🔑 B/C 는 혼합 — 스펙별 분류 필수
+
+- **순수 드리프트(re-gate 가능)**: sp-d4, phase-2-5, sp-08-6-6 — `/#/`/seed/단언 정정만으로 green.
+- **feature 잔여(격리 유지, 별도 작업)**: supplier(TC-SP-3 흐름)·tax-invoice-batch(TC-TIB-1 기능이전)·sp-09-1(T3 미구현 표시)
+  ·sp-09-3(OCR 결과카드/422배너/RoleGuard)·sp-09-2/4/5(외부연동 shell 복합 흐름)·phase-2-6c(재고현황 모달).
+- 교훈: `/#/` 정정 후 **반드시 전건 재실행** 해야 (a) 순수 드리프트인지 (b) feature 잔여가 남는지 판별된다.
+  실패 수가 적다고 순수 드리프트가 아니며(sp-09-1 1실패=feature), 많다고 전부 feature 도 아니다(sp-08-6-6 2실패=드리프트).
+
 ### ⑥ 본 세션 종합
 
-- ✅ 재게이트: **sp-d4(20 TC)**.
-- 🔧 부분 정정(격리 유지, 개선분 커밋): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5) — `/#/`+skip 드리프트.
-- 📋 잔여 7스펙(phase-2-5/phase-2-6c/sp-08-6-6/sp-09-2~5) + 위 3스펙의 feature 잔여 TC = 다음 세션 per-spec.
+- ✅ 재게이트: **sp-d4(20)·phase-2-5(8)·sp-08-6-6(5)** = 33 TC.
+- 🔧 부분 정정(격리 유지): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5) — `/#/`+skip, 잔여 feature TC.
+- 📋 잔여 feature 스펙(sp-09-2/3/4/5·phase-2-6c) + 위 3스펙 feature TC = 다음 세션 per-feature(드리프트 vs 갭).
