@@ -98,8 +98,17 @@ supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확
 - 교훈: `/#/` 정정 후 **반드시 전건 재실행** 해야 (a) 순수 드리프트인지 (b) feature 잔여가 남는지 판별된다.
   실패 수가 적다고 순수 드리프트가 아니며(sp-09-1 1실패=feature), 많다고 전부 feature 도 아니다(sp-08-6-6 2실패=드리프트).
 
-### ⑥ 본 세션 종합
+### feature 스펙 확정 (sp-09-2/3/4/5 · phase-2-6c — 격리 유지)
 
-- ✅ 재게이트: **sp-d4(20)·phase-2-5(8)·sp-08-6-6(5)** = 33 TC.
-- 🔧 부분 정정(격리 유지): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5) — `/#/`+skip, 잔여 feature TC.
-- 📋 잔여 feature 스펙(sp-09-2/3/4/5·phase-2-6c) + 위 3스펙 feature TC = 다음 세션 per-feature(드리프트 vs 갭).
+5스펙 일괄 재실행(sp-09-5 `/#/` 정정 포함): **23 failed / 5 passed**. `/#/` 정정 후에도 실패 잔존(sp-09-5 는
+3→4 로 오히려 표면화) → **순수 드리프트 아님, feature 레벨 확정**:
+- sp-09-2(5·알리고 SMS 실발송 흐름)·sp-09-3(3·OCR 결과카드/422배너)·sp-09-4(3·KFTC)·sp-09-5(4·vendor 연동)·phase-2-6c(8·재고현황 모달).
+- 이들은 외부연동 shell/모달의 mock 흐름·상호작용 검증이라 스펙당 전 TC 의 실 기능 대조가 필요(드리프트 정정만으로 re-gate 불가).
+  실 기능 갭(미구현 표시/흐름)이면 구현 슬라이스 분리 후 격리 유지. → 다음 세션 per-feature.
+- sp-09-5 `/#/` 정정(de-false-green)은 적용·보존(격리 유지).
+
+### ⑥ 본 세션 종합 (최종)
+
+- ✅ **재게이트 33 TC**: sp-d4(20)·phase-2-5(8)·sp-08-6-6(5) — 순수 드리프트.
+- 🔧 부분 정정(격리, feature 잔여): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5)·sp-09-5(`/#/`).
+- 📋 다음 세션: sp-09-2/3/4/5·phase-2-6c + 위 partial 의 feature 잔여 TC = per-feature(드리프트 vs 갭→구현 슬라이스).

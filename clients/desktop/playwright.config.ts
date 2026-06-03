@@ -36,12 +36,12 @@ export default defineConfig({
     //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS), sp-09-3/4/5(각3: OCR/KFTC/vendor),
     //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터), sp-09-1(1: eTaxExternalId),
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
-    '**/phase-2-6c-inventory-deduction/**',
     '**/sp-09-1-nts-etax-emit-shell/**',
     '**/sp-09-2-aligo-sms-real-send/**',
     '**/sp-09-3-ocr-receipt-shell/**',
     '**/sp-09-4-kftc-shell/**',
     '**/sp-09-5-vendor-integration/**',
+    '**/phase-2-6c-inventory-deduction/**',
     '**/supplier-profile/**',
     '**/tax-invoice-batch/**',
   ],

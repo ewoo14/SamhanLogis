@@ -100,9 +100,9 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 // ---------------------------------------------------------------------------
 
 // NTS (SP-09-1) — 세금계산서 목록
-const NTS_URL_ACCOUNTANT   = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT`
-const NTS_URL_SALES        = `${BASE_URL}/accounting/tax-invoices?mockRole=SALES`
-const NTS_URL_WAREHOUSE    = `${BASE_URL}/accounting/tax-invoices?mockRole=WAREHOUSE`
+const NTS_URL_ACCOUNTANT   = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`
+const NTS_URL_SALES        = `${BASE_URL}/#/accounting/tax-invoices?mockRole=SALES`
+const NTS_URL_WAREHOUSE    = `${BASE_URL}/#/accounting/tax-invoices?mockRole=WAREHOUSE`
 
 // Aligo (SP-09-2) — SMS 발송 이력
 const ALIGO_URL_MANAGER    = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=MANAGER`
