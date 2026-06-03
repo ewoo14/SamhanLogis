@@ -9,6 +9,8 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.domain.CompensationOperation;
+import com.samhanair.logis.slip.domain.CompensationPhase;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
@@ -105,6 +107,7 @@ public class SlipService {
      * ({@link SlipAuditLogService} 의 broker 주입 패턴과 동일 — InMemoryRealtimeBroker facade bean).
      */
     private final SlipRealtimeBroker broker;
+    private final CompensationAuditWriter compensationAuditWriter;
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
@@ -607,7 +610,7 @@ public class SlipService {
             Set<UUID> dispatchedSerialProducts = new HashSet<>();
             // 원격 inventory 예약은 slip 트랜잭션에 묶이지 않으므로(동기 REST), 혼합 전표에서 라인 중간 실패 시
             // 이미 성공한 예약을 역순 보상(release)해 고아 RESERVED 를 방지한다. (D-SER-05 동기 REST + 보상)
-            java.util.List<Runnable> compensations = new java.util.ArrayList<>();
+            List<Compensation> compensations = new ArrayList<>();
             try {
                 for (SlipLine line : slip.getLines()) {
                     ProductSummary product = productsById.get(line.getProductId());
@@ -617,7 +620,8 @@ public class SlipService {
                             String productCode = product.productCode();
                             inventoryClient.reserveInstances(productCode, slip.getSourceWarehouseId(),
                                     group.quantity(), slip.getSlipNo());
-                            compensations.add(() -> inventoryClient.releaseInstances(slip.getSlipNo(), productCode));
+                            compensations.add(new Compensation(productCode, CompensationOperation.RELEASE_INSTANCES,
+                                    () -> inventoryClient.releaseInstances(slip.getSlipNo(), productCode)));
                         }
                         continue;
                     }
@@ -625,18 +629,12 @@ public class SlipService {
                     int quantity = line.getQuantity();
                     inventoryClient.reserve(productId, slip.getSourceWarehouseId(),
                             quantity, SLIP_REF_TYPE, slip.getId());
-                    compensations.add(() -> inventoryClient.release(productId, slip.getSourceWarehouseId(),
-                            quantity, SLIP_REF_TYPE, slip.getId()));
+                    compensations.add(new Compensation(product.productCode(), CompensationOperation.RELEASE,
+                            () -> inventoryClient.release(productId, slip.getSourceWarehouseId(),
+                                    quantity, SLIP_REF_TYPE, slip.getId())));
                 }
             } catch (RuntimeException ex) {
-                for (int i = compensations.size() - 1; i >= 0; i--) {
-                    try {
-                        compensations.get(i).run();
-                    } catch (RuntimeException compensationFailure) {
-                        ex.addSuppressed(compensationFailure);
-                    }
-                }
-                throw ex;
+                runCompensationsWithAudit(slip, CompensationPhase.ACCEPT_RESERVE, compensations, ex);
             }
         }
         return SlipDetailResponse.from(slip);
@@ -758,7 +756,7 @@ public class SlipService {
         }
 
         Set<UUID> dispatchedSerialProducts = new HashSet<>();
-        java.util.List<Runnable> compensations = new java.util.ArrayList<>();
+        List<Compensation> compensations = new ArrayList<>();
         try {
             for (SlipLine line : slip.getLines()) {
                 ProductSummary product = productsById.get(line.getProductId());
@@ -767,7 +765,8 @@ public class SlipService {
                     String productCode = product.productCode();
                     inventoryClient.recallInstances(slip.getPartnerCode(), productCode,
                             group.quantity(), slip.getSlipNo());
-                    compensations.add(() -> inventoryClient.unrecallInstances(slip.getSlipNo(), productCode));
+                    compensations.add(new Compensation(productCode, CompensationOperation.UNRECALL_INSTANCES,
+                            () -> inventoryClient.unrecallInstances(slip.getSlipNo(), productCode)));
                 }
             }
 
@@ -781,15 +780,31 @@ public class SlipService {
                 }
             }
         } catch (RuntimeException ex) {
-            for (int i = compensations.size() - 1; i >= 0; i--) {
-                try {
-                    compensations.get(i).run();
-                } catch (RuntimeException compensationFailure) {
-                    ex.addSuppressed(compensationFailure);
-                }
-            }
-            throw ex;
+            runCompensationsWithAudit(slip, CompensationPhase.COMPLETE_RECALL, compensations, ex);
         }
+    }
+
+    private void runCompensationsWithAudit(Slip slip, CompensationPhase phase,
+                                           List<Compensation> compensations,
+                                           RuntimeException originalEx) {
+        for (int i = compensations.size() - 1; i >= 0; i--) {
+            Compensation compensation = compensations.get(i);
+            try {
+                compensation.action().run();
+            } catch (RuntimeException compensationFailure) {
+                try {
+                    compensationAuditWriter.record(slip, phase, compensation.productCode(),
+                            compensation.operation(), compensationFailure, originalEx);
+                } catch (RuntimeException auditFailure) {
+                    compensationFailure.addSuppressed(auditFailure);
+                }
+                originalEx.addSuppressed(compensationFailure);
+            }
+        }
+        throw originalEx;
+    }
+
+    private record Compensation(String productCode, CompensationOperation operation, Runnable action) {
     }
 
     private Map<UUID, ProductSummary> loadProductsByLine(Slip slip) {

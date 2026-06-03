@@ -1,0 +1,74 @@
+package com.samhanair.logis.slip.service;
+
+import com.samhanair.logis.slip.domain.CompensationOperation;
+import com.samhanair.logis.slip.domain.CompensationPhase;
+import com.samhanair.logis.slip.domain.SerialCompensationFailure;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.repository.SerialCompensationFailureRepository;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 원격 재고 보상 실패를 구조적 WARN 로그와 slip DB 감사 행으로 남긴다.
+ *
+ * <p>원본 전표 트랜잭션은 inventory 실패로 롤백될 수 있으므로 반드시 별도 빈의
+ * {@code REQUIRES_NEW} 메서드로 호출해 self-invocation 을 피한다.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class CompensationAuditWriter {
+
+    private static final int MAX_REASON_LENGTH = 1000;
+
+    private final SerialCompensationFailureRepository repository;
+    private final Clock clock;
+
+    /**
+     * 보상 실패 1건을 독립 트랜잭션으로 기록한다.
+     *
+     * @param slip 원본 전표
+     * @param phase 보상 단계
+     * @param productCode 품목 코드
+     * @param operation 실패한 보상 동작
+     * @param compensationFailure 보상 예외
+     * @param originalFailure 보상을 촉발한 원본 예외
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void record(Slip slip, CompensationPhase phase, String productCode,
+                       CompensationOperation operation, Throwable compensationFailure,
+                       Throwable originalFailure) {
+        String failureReason = summarize(compensationFailure);
+        String originalFailureReason = summarize(originalFailure);
+        log.warn("[COMPENSATION_FAILURE] slipNo={} slipType={} phase={} product={} op={} cause={}",
+                slip.getSlipNo(), slip.getSlipType(), phase, productCode, operation, failureReason);
+
+        repository.save(SerialCompensationFailure.of(
+                slip,
+                phase,
+                productCode,
+                operation,
+                failureReason,
+                originalFailureReason,
+                LocalDateTime.now(clock)));
+        // TODO: notification-service 운영 알림 푸시는 후속 복구 API 슬라이스에서 연동한다.
+    }
+
+    private String summarize(Throwable ex) {
+        if (ex == null) {
+            return "Unknown";
+        }
+        String message = ex.getMessage();
+        String summary = ex.getClass().getSimpleName()
+                + (message == null || message.isBlank() ? "" : ": " + message);
+        if (summary.length() <= MAX_REASON_LENGTH) {
+            return summary;
+        }
+        return summary.substring(0, MAX_REASON_LENGTH);
+    }
+}
