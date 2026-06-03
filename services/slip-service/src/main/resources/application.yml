@@ -60,6 +60,12 @@ samhan:
       # D-SER-26 — 보상 실패 운영 알림 푸시. 기본 비활성, 운영에서 enabled=true + recipient 지정 시 발송.
       enabled: ${SAMHAN_COMPENSATION_ALERT_ENABLED:false}
       recipient-user-id: ${SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID:}
+    retry:
+      # D-SER-27 — 보상 실패 자동 재시도(outbox/Saga). 기본 비활성, 운영에서 명시 활성.
+      enabled: ${SAMHAN_COMPENSATION_RETRY_ENABLED:false}
+      cron: ${SAMHAN_COMPENSATION_RETRY_CRON:0 */10 * * * *}
+      max-retries: ${SAMHAN_COMPENSATION_RETRY_MAX:5}
+      backoff-base-minutes: ${SAMHAN_COMPENSATION_RETRY_BACKOFF_MIN:10}
 
 eureka:
   client:

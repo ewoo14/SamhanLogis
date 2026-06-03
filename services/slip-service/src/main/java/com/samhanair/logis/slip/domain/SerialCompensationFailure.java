@@ -74,6 +74,18 @@ public class SerialCompensationFailure extends BaseEntity {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
+    /** 자동 재시도 누적 횟수. max-retries 도달 시 후보에서 제외(수동 정합 대상 유지). (D-SER-27) */
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount;
+
+    /** 마지막 자동 재시도 시각 (운영 가시성). */
+    @Column(name = "last_retry_at")
+    private LocalDateTime lastRetryAt;
+
+    /** 다음 자동 재시도 가능 시각 (지수 백오프). NULL 이면 즉시 후보. */
+    @Column(name = "next_retry_at")
+    private LocalDateTime nextRetryAt;
+
     private SerialCompensationFailure(Slip slip, CompensationPhase phase, String productCode,
                                       CompensationOperation attemptedOperation, String failureReason,
                                       String originalFailureReason, LocalDateTime occurredAt) {
@@ -104,6 +116,9 @@ public class SerialCompensationFailure extends BaseEntity {
         this.originalFailureReason = originalFailureReason;
         this.resolved = false;
         this.occurredAt = occurredAt;
+        this.retryCount = 0;
+        this.lastRetryAt = null;
+        this.nextRetryAt = null;
     }
 
     /**
@@ -137,6 +152,35 @@ public class SerialCompensationFailure extends BaseEntity {
             return;
         }
         this.resolved = true;
+    }
+
+    /**
+     * 자동 재시도가 성공해 보상이 정합됐음을 표시한다. (D-SER-27)
+     *
+     * <p>마지막 재시도 시각을 기록하고 {@link #resolve()} 로 해소 처리한다. next_retry_at 은
+     * 더 이상 의미가 없으므로 비운다.
+     *
+     * @param retriedAt 재시도 성공 시각
+     */
+    public void recordRetrySuccess(LocalDateTime retriedAt) {
+        this.retryCount += 1;
+        this.lastRetryAt = retriedAt;
+        this.nextRetryAt = null;
+        resolve();
+    }
+
+    /**
+     * 자동 재시도가 실패했음을 기록하고 다음 재시도 시각(백오프)을 설정한다. (D-SER-27)
+     *
+     * <p>append-only 본문은 불변이며 재시도 상태만 갱신한다. resolved 는 그대로 false 로 둔다.
+     *
+     * @param retriedAt 재시도 시도 시각
+     * @param nextRetryAt 다음 재시도 가능 시각(지수 백오프)
+     */
+    public void recordRetryFailure(LocalDateTime retriedAt, LocalDateTime nextRetryAt) {
+        this.retryCount += 1;
+        this.lastRetryAt = retriedAt;
+        this.nextRetryAt = nextRetryAt;
     }
 
     /**

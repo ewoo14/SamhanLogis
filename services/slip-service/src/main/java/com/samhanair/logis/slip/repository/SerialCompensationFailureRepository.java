@@ -36,4 +36,24 @@ public interface SerialCompensationFailureRepository
      */
     List<SerialCompensationFailure> findByResolvedTrueAndCreatedAtBefore(
             LocalDateTime cutoff);
+
+    /**
+     * 자동 재시도 후보를 조회한다. (D-SER-27)
+     *
+     * <p>미해소(resolved=false) AND 재시도 한도 미만(retry_count &lt; maxRetries) AND
+     * 백오프 경과(next_retry_at 이 NULL 이거나 now 이하) 인 행만 후보. {@code @SQLRestriction("is_deleted=false")}
+     * 로 정리된 행은 제외된다. 오래된 실패부터 재시도하도록 occurred_at 오름차순.
+     *
+     * @param maxRetries 재시도 상한(이 값 이상이면 자동 재시도 중단, 수동 정합 대상 유지)
+     * @param now 현재 시각(백오프 비교 기준)
+     * @return 재시도 후보 목록(occurred_at ASC)
+     */
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT f FROM SerialCompensationFailure f
+             WHERE f.resolved = false
+               AND f.retryCount < :maxRetries
+               AND (f.nextRetryAt IS NULL OR f.nextRetryAt <= :now)
+             ORDER BY f.occurredAt ASC
+            """)
+    List<SerialCompensationFailure> findRetryCandidates(int maxRetries, LocalDateTime now);
 }
