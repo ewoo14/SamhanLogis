@@ -32,3 +32,26 @@ mock 데이터 검증이 필요하다(드리프트 vs 실 기능 갭 분류 포�
 - 나머지 9 스펙은 각 1~8 실패로 **개별 verify-then-fix 가 필요**해 격리 유지(triage 표 + failure 분류 기록).
   다음 세션에서 스펙별로 (1) 실 mock 동작 진단 → (2) 드리프트면 단언 교정 / 실 기능 갭이면 별도 구현 슬라이스 분리.
 - 우선순위 제안: 단일 실패(phase-2-5/sp-09-1/supplier-profile/tax-invoice-batch) → sp-08-6-6 → sp-09-2~5 → phase-2-6c(최다).
+
+## 4. 확인된 드리프트 패턴 (다음 세션 핵심 단서)
+
+supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확인 — 다른 B/C 스펙도 동일 점검 권장:
+
+1. **HashRouter URL 누락**: `page.goto(\`${BASE_URL}/accounting/supplier-profiles\`)` — `/#/` 가 빠져 SPA 가 라우트를
+   인식 못 하고 홈/로그인으로 떨어짐 → 대상 페이지 콘텐츠 "미표시". 올바른 형태는 `${BASE_URL}/#/accounting/...`.
+   (sp-d2/sp-d3/sp-09 정상 스펙은 모두 `/#/` 사용 — 회귀 가드도 `/#/` 패턴 강제.)
+2. **seed 값 드리프트**: 스펙 `SEED_BUSINESS_NUMBER='2148720659'` vs 현 mock seed `'1112233333'`(㈜삼한공조시스템/김미선).
+   mock 데이터 갱신분과 스펙 기대값 불일치.
+
+→ 다음 세션은 각 격리 스펙에서 (a) goto URL `/#/` 정합 (b) mock seed 기대값 정합 (c) data-testid 존재 여부
+   부터 점검하면 drift 분이 빠르게 green 전환될 것으로 보인다(실 기능 갭은 그 후 분리).
+
+### supplier-profile 부분 정정 결과 (본 슬라이스에서 착수, 격리 유지)
+
+- 적용: ① 7개 goto URL `/#/` 정합 ② `SEED_BUSINESS_NUMBER` 2148720659→1112233333(현 mock seed) ③ TC-SP-1
+  사업자번호 포맷(formatBizNo `000-00-00000`) 허용. → **5/7 pass**(broken→5/7 개선, 스펙 개선분 커밋).
+- 잔여(격리 유지): **TC-SP-3**(신규 추가 → list size 2) = `add → 폼 → save` 상호작용 흐름 드리프트 —
+  `supplier-profile-add-btn` 클릭 후 저장 버튼 셀렉터(`supplier-profile-save`)가 흐름과 불일치(click timeout).
+  실 UI 플로우 대조 후 셀렉터/스텝 재작성 필요. (TC-SP-1 도 포맷 정정 후 재확인 권장.)
+- 교훈: **URL `/#/` 정정으로 페이지가 실제 로드되면, 그동안 가려졌던 상호작용 TC 실패가 새로 표면화**된다
+  (페이지 미로드 시엔 트리비얼 통과/단순 실패였던 것). 각 스펙은 URL 정정 후 상호작용 TC 재검증이 필수다.

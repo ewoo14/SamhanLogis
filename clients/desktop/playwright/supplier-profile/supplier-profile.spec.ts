@@ -108,8 +108,9 @@ async function waitForSettle(page: Page): Promise<void> {
 // seed 데이터 상수
 // ---------------------------------------------------------------------------
 
-const SEED_BUSINESS_NUMBER = '2148720659'
-const SEED_COMPANY_NAME = '（주）삼한공조시스템'
+// mock seed(`/accounting/supplier-profiles` primary) 와 정합 — 드리프트 정정(3-A2-④ B/C).
+const SEED_BUSINESS_NUMBER = '1112233333'
+const SEED_COMPANY_NAME = '(주)삼한공조시스템'
 
 // ---------------------------------------------------------------------------
 // TC-SP-1 ~ TC-SP-7
@@ -136,7 +137,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -144,10 +145,11 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
 
     const pageText = (await page.textContent('body')) ?? ''
 
-    // 사업자등록번호 + 상호 필수 검증
+    // 사업자등록번호 + 상호 필수 검증 — 페이지는 formatBizNo 로 000-00-00000 표시하므로 raw/포맷 모두 허용.
+    const seedBizFormatted = SEED_BUSINESS_NUMBER.replace(/^(\d{3})(\d{2})(\d{5})$/, '$1-$2-$3')
     expect(
-      pageText.includes(SEED_BUSINESS_NUMBER),
-      `사업자등록번호 ${SEED_BUSINESS_NUMBER} 미표시`,
+      pageText.includes(SEED_BUSINESS_NUMBER) || pageText.includes(seedBizFormatted),
+      `사업자등록번호 ${SEED_BUSINESS_NUMBER}(${seedBizFormatted}) 미표시`,
     ).toBeTruthy()
     expect(
       pageText.includes(SEED_COMPANY_NAME) || pageText.includes('삼한공조'),
@@ -186,7 +188,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -260,7 +262,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -338,7 +340,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -391,7 +393,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -451,7 +453,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/supplier-profiles?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -516,7 +518,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/?mockRole=MASTER`, {
+    await page.goto(`${BASE_URL}/#/?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
