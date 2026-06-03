@@ -163,6 +163,28 @@ function _resolveMockRole(): string {
   return 'MANAGER'
 }
 
+/**
+ * 권한 시나리오 override — dev/test 전용. `?mockPerms=<base64(JSON)>` 로 revoke/grant 시나리오를
+ * in-process mock 에 주입한다(Playwright `page.route` 가 mock 모드에서 무효인 한계 우회 — 3-A2-③).
+ * JSON = Array<{ pageCode: string; view?: boolean; edit?: boolean }>. view 기본 true / edit 기본 false.
+ * 미지정(null) 시 기존 mockRole 기반 권한 유지(회귀 0).
+ */
+function _resolveMockPerms(): Array<{ pageCode: string; view: boolean; edit: boolean }> | null {
+  if (typeof window === 'undefined' || typeof window.location === 'undefined') return null
+  const raw = mockLocationParams().get('mockPerms')
+  if (!raw) return null
+  try {
+    const decoded = typeof atob === 'function' ? atob(raw) : raw
+    const parsed = JSON.parse(decoded) as Array<{ pageCode: string; view?: boolean; edit?: boolean }>
+    if (!Array.isArray(parsed)) return null
+    return parsed
+      .filter((p) => p && typeof p.pageCode === 'string')
+      .map((p) => ({ pageCode: p.pageCode, view: p.view ?? true, edit: p.edit ?? false }))
+  } catch {
+    return null
+  }
+}
+
 export const MOCK_AUTH = {
   token: 'mock-jwt-token',
   userId: '00000000-0000-0000-0000-000000010001',
@@ -5160,6 +5182,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 실 BE 응답은 대문자 PermissionAction enum (예: "VIEW") → actionsFromRaw 의
     // toLowerCase() 정규화 경로를 mock 으로도 회귀 포착하기 위해 대문자로 반환한다.
     const allActions = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT']
+    // 3-A2-③: ?mockPerms= 시나리오 주입이 있으면 role 기본보다 우선(revoke/grant 재현).
+    const mockPerms = _resolveMockPerms()
+    if (mockPerms) {
+      const permissions: Record<string, string[]> = {}
+      for (const p of mockPerms) {
+        const actions: string[] = []
+        if (p.view) actions.push('VIEW', 'DOWNLOAD', 'PRINT')
+        if (p.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        if (actions.length > 0) permissions[p.pageCode] = actions
+      }
+      return envelope(permissions)
+    }
     if (mockRole === 'MASTER') {
       const permissions: Record<string, string[]> = {}
       for (const page of SP_D1_PAGES) permissions[page] = allActions
