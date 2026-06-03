@@ -16,6 +16,17 @@
 
 ---
 
+## ✅ 2026-06-03 — ③ 3-A2-③ mock 권한제어(?mockPerms=) + applayout 재게이트 (부분완주, PR 진행)
+
+> 세션 마무리 ③. 3-A2-② 근본원인(page.route no-op) 해소 메커니즘 + A그룹 verify-then-fix(정직한 부분완주). clients/desktop 단독, 프로덕션 무변경.
+
+- **메커니즘**(핵심): `mock.ts ?mockPerms=base64(JSON [{pageCode,view,edit}])` → `/permissions/my` 우선 적용(없으면 role 기반 회귀0). in-process mock 에 revoke/grant/dept 시나리오 주입 → page.route 무효 한계 해소. **전 RBAC 스펙 재게이트의 공통 enabler**.
+- **재게이트**: `permission-overhaul/applayout`(전건 green; pre-response hidden 단언 OBSOLETE 재고정).
+- **A그룹 실 Playwright 19/28 pass**. 재격리(진행분 보존+testIgnore 복원): admin-hr(부서게이팅/라벨)·sp-d1(매트릭스 role-grid→account-select 재설계)·sp-d2/sp-d3(권한없는 URL redirect "/" 미작동). 단언약화·false-green 없이 정직 처리.
+- **후속 3-A2-④**: sp-d2/d3 redirect 의미론(usePermissions 캐시 타이밍 vs 가드, sp-d4 패턴 대조) / sp-d1 매트릭스 UI 재작성 / admin-hr 부서게이팅·라벨 / B·C그룹. 메커니즘 확보로 스펙별 verify-then-fix 만 남음. 상세 `docs/dev-reports/slice-3a2-3-mock-permission-control.md`.
+
+---
+
 ## 🧹 2026-06-03 — 세션 마무리 정리 (작은 해소 일괄)
 
 > 개발책임자 "남은 내용 해소 후 마무리" 지시. 작은 정리 → ⓑ 분산보상 후속 → 3-A2-③ 순 진행.

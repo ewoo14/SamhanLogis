@@ -23,8 +23,14 @@ export default defineConfig({
     // 레거시 GAS 소스 의존 스펙은 mock 회귀가 아니므로 3-A2 컨벤션 대상에서 제외한다.
     '**/full-menu-contract/**',
     // 🔴 3-A2 QUARANTINE — 기존 미실행 레거시 스펙 드리프트(335 통과분과 분리). 추적·수리: docs/dev-reports/slice-3-a2-desktop-playwright-ci-gate.md. 신규 mock 스펙은 본 목록과 무관하게 자동 게이트됨.
+    // 🟡 3-A2-③ 진행분 — ?mockPerms= 메커니즘으로 page.route 전환 완료했으나 잔존 실패로 재격리(후속 3-A2-④):
+    //   admin-hr(부서 게이팅 forbidden/redirect·"관리자" 라벨), sp-d1(매트릭스 role-grid→account-select UI 재설계),
+    //   sp-d2/sp-d3(권한 없는 URL PermissionGuard redirect "/" 미작동 — redirect 의미론 조사 필요).
+    //   applayout 은 재게이트 완료(전건 green). 상세: docs/dev-reports/slice-3a2-3-mock-permission-control.md.
     '**/admin-hr/**',
-    '**/permission-overhaul/applayout.spec.ts',
+    '**/sp-d1-dynamic-rbac/**',
+    '**/sp-d2-accounting-permission-migration/**',
+    '**/sp-d3-slip-dispatch-permission-migration/**',
     '**/phase-2-5-partner-order-hold/**',
     '**/phase-2-6c-inventory-deduction/**',
     '**/sp-08-6-6-tax-invoice-emit/**',
@@ -33,9 +39,6 @@ export default defineConfig({
     '**/sp-09-3-ocr-receipt-shell/**',
     '**/sp-09-4-kftc-shell/**',
     '**/sp-09-5-vendor-integration/**',
-    '**/sp-d1-dynamic-rbac/**',
-    '**/sp-d2-accounting-permission-migration/**',
-    '**/sp-d3-slip-dispatch-permission-migration/**',
     '**/sp-d4-remaining-pages-permission-migration/**',
     '**/supplier-profile/**',
     '**/tax-invoice-batch/**',

@@ -73,10 +73,35 @@ const SETTLE_WAIT = 800
  */
 function buildUrl(routePath: string, role: string, department?: string): string {
   const params: string[] = [`mockRole=${encodeURIComponent(role)}`]
+  const perms = defaultMockPermsForRole(role)
+  params.push(`mockPerms=${encodeURIComponent(mockPerms(perms))}`)
   if (department) {
     params.push(`mockDepartment=${encodeURIComponent(department)}`)
   }
   return `${BASE_URL}/#${routePath}?${params.join('&')}`
+}
+
+type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
+
+function mockPerms(perms: MockPerm[]): string {
+  return btoa(JSON.stringify(perms))
+}
+
+function defaultMockPermsForRole(role: string): MockPerm[] {
+  if (role === 'MASTER') {
+    return [
+      { pageCode: 'admin.employees', view: true, edit: true },
+      { pageCode: 'admin.users', view: true, edit: true },
+      { pageCode: 'system.permission-admin', view: true, edit: true },
+      { pageCode: 'partners.list', view: true, edit: true },
+      { pageCode: 'partners.detail', view: true, edit: true },
+      { pageCode: 'inventory.warehouse', view: true, edit: true },
+    ]
+  }
+
+  return [
+    { pageCode: 'sales.slip.list', view: true, edit: true },
+  ]
 }
 
 /** 스크린샷 저장 (실패 무시) */
@@ -116,13 +141,13 @@ async function waitForSettle(page: Page): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const HR_MENU_TEST_IDS = [
-  'nav-admin-users',        // 신규인사 / 사용자관리
-  'nav-admin-roles',        // 권한조정
-  'nav-admin-departments',  // 부서관리
-  'nav-admin-chat-rooms',   // 단톡방
-  'nav-admin-partners',     // 거래처 (DC설정 포함)
-  'nav-admin-partner-dc-config', // DC설정 (별도 메뉴인 경우)
-  'nav-admin-warehouses',   // 창고관리
+  'admin-nav-users-new',     // 신규인사 / 사용자관리
+  'admin-nav-roles',         // 권한조정
+  'admin-nav-departments',   // 부서관리
+  'admin-nav-chat-rooms',    // 단톡방
+  'admin-nav-dc-config',     // DC설정
+  'admin-nav-partners',      // 거래처
+  'admin-nav-warehouses',    // 창고관리
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -235,11 +260,10 @@ test('TC-HR3: SALES — 인사 카테고리 NavLink 회색 disabled + 클릭 시
   })
   await waitForSettle(page)
 
-  // 인사 카테고리 섹션 헤더 또는 첫 번째 HR 메뉴 링크 탐색
-  // data-testid="nav-category-hr" 또는 data-testid="nav-admin-users" 기준
+  // AppLayout 인사 카테고리 진입점 또는 권한 메뉴 링크 탐색
   const hrCategoryEl = page
-    .getByTestId('nav-category-hr')
-    .or(page.getByTestId('nav-admin-users'))
+    .getByTestId('sidebar-hr-users')
+    .or(page.getByTestId('sidebar-hr-permission-matrix'))
     .first()
 
   const isVisible = await hrCategoryEl.isVisible().catch(() => false)

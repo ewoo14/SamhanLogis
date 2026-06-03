@@ -101,6 +101,42 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
   })
 }
 
+type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
+
+function mockPerms(perms: MockPerm[]): string {
+  return btoa(JSON.stringify(perms))
+}
+
+function withMockPerms(url: string, perms: MockPerm[]): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}mockPerms=${encodeURIComponent(mockPerms(perms))}`
+}
+
+function mockPermsFromActions(
+  response: { data: Array<{ pageCode: string; actions?: string[] }> },
+): MockPerm[] {
+  return response.data.map((permission) => {
+    const actions = (permission.actions ?? []).map((action) => action.toUpperCase())
+    return {
+      pageCode: permission.pageCode,
+      view: actions.includes('VIEW'),
+      edit: actions.some((action) => ['CREATE', 'UPDATE', 'DELETE'].includes(action)),
+    }
+  })
+}
+
+const MASTER_PERMISSION_PERMS: MockPerm[] = [
+  'system.permission-admin',
+  'admin.employees',
+  'admin.users',
+  'sales.slip.list',
+  'purchases.slip.list',
+  'purchases.receipt-ocr',
+  'accounting.accounts',
+  'accounting.journals',
+  'dispatch.board',
+].map((pageCode) => ({ pageCode, view: true, edit: true }))
+
 // ---------------------------------------------------------------------------
 // URL 상수 — HashRouter 라우트
 // ---------------------------------------------------------------------------
@@ -208,9 +244,8 @@ function buildSalesMyPermissionsWithOcr() {
   return {
     success: true,
     data: [
-      { pageCode: 'DASHBOARD', actions: ['view'] },
-      { pageCode: 'SALES', actions: ['view', 'edit'] },
-      { pageCode: 'PURCHASES', actions: ['view'] }, // OCR grant 후 view 추가
+      { pageCode: 'sales.slip.list', actions: ['view', 'edit'] },
+      { pageCode: 'purchases.receipt-ocr', actions: ['view'] }, // OCR grant 후 view 추가
     ],
   }
 }
@@ -220,9 +255,8 @@ function buildSalesMyPermissionsDefault() {
   return {
     success: true,
     data: [
-      { pageCode: 'DASHBOARD', actions: ['view'] },
-      { pageCode: 'SALES', actions: ['view', 'edit'] },
-      // PURCHASES 없음 — OCR 미노출
+      { pageCode: 'sales.slip.list', actions: ['view', 'edit'] },
+      // purchases.receipt-ocr 없음 — OCR 미노출
     ],
   }
 }
@@ -232,12 +266,11 @@ function buildManagerMyPermissions() {
   return {
     success: true,
     data: [
-      { pageCode: 'DASHBOARD', actions: ['view'] },
-      { pageCode: 'SALES', actions: ['view', 'edit'] },
-      { pageCode: 'PURCHASES', actions: ['view', 'edit'] },
-      { pageCode: 'ACCOUNTING', actions: ['view', 'edit'] },
-      { pageCode: 'ADMIN', actions: ['view', 'edit'] },
-      // PERMISSION_MATRIX 없음 — 403
+      { pageCode: 'sales.slip.list', actions: ['view', 'edit'] },
+      { pageCode: 'purchases.slip.list', actions: ['view', 'edit'] },
+      { pageCode: 'accounting.accounts', actions: ['view', 'edit'] },
+      { pageCode: 'admin.employees', actions: ['view', 'edit'] },
+      // system.permission-admin 없음 — 403
     ],
   }
 }
@@ -288,33 +321,8 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       }
     })
 
-    // GET /admin/permissions/my mock 등록 (MASTER — 모든 권한)
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: [
-            { pageCode: 'PERMISSION_MATRIX', actions: ['view', 'edit'] },
-            { pageCode: 'ADMIN', actions: ['view', 'edit'] },
-            { pageCode: 'DASHBOARD', actions: ['view', 'edit'] },
-            { pageCode: 'SALES', actions: ['view', 'edit'] },
-            { pageCode: 'PURCHASES', actions: ['view', 'edit'] },
-            { pageCode: 'ACCOUNTING', actions: ['view', 'edit'] },
-            { pageCode: 'WAREHOUSES', actions: ['view', 'edit'] },
-            { pageCode: 'REPORTS', actions: ['view', 'edit'] },
-            { pageCode: 'AROLOGIS', actions: ['view', 'edit'] },
-            { pageCode: 'DISPATCH_BOARD', actions: ['view', 'edit'] },
-            { pageCode: 'WAREHOUSE_OPS', actions: ['view', 'edit'] },
-            { pageCode: 'TRANSFERS', actions: ['view', 'edit'] },
-          ],
-        }),
-      })
-    })
-
     await test.step('권한 매트릭스 페이지 진입 — MASTER', async () => {
-      await page.goto(PERMISSION_MATRIX_URL_MASTER, {
+      await page.goto(withMockPerms(PERMISSION_MATRIX_URL_MASTER, MASTER_PERMISSION_PERMS), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -422,7 +430,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await page.unroute('**/admin/permissions')
-    await page.unroute('**/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -455,19 +462,10 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       }
     })
 
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: [{ pageCode: 'PERMISSION_MATRIX', actions: ['view', 'edit'] }],
-        }),
-      })
-    })
-
     await test.step('권한 매트릭스 페이지 로드', async () => {
-      await page.goto(PERMISSION_MATRIX_URL_MASTER, {
+      await page.goto(withMockPerms(PERMISSION_MATRIX_URL_MASTER, [
+        { pageCode: 'system.permission-admin', view: true, edit: true },
+      ]), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -576,7 +574,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await page.unroute('**/admin/permissions')
-    await page.unroute('**/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -628,19 +625,10 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       }
     })
 
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: [{ pageCode: 'PERMISSION_MATRIX', actions: ['view', 'edit'] }],
-        }),
-      })
-    })
-
     await test.step('권한 매트릭스 페이지 로드', async () => {
-      await page.goto(PERMISSION_MATRIX_URL_MASTER, {
+      await page.goto(withMockPerms(PERMISSION_MATRIX_URL_MASTER, [
+        { pageCode: 'system.permission-admin', view: true, edit: true },
+      ]), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -733,7 +721,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await page.unroute('**/admin/permissions')
-    await page.unroute('**/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -754,15 +741,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /admin/permissions/my — SALES + OCR view 권한 포함
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesMyPermissionsWithOcr()),
-      })
-    })
-
     // GET /purchases/receipt-ocr 페이지 응답 mock
     await page.route('**/slips/receipt-ocr**', async route => {
       if (route.request().method() === 'GET') {
@@ -777,7 +755,10 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await test.step('SALES 역할로 OCR 영수증 페이지 진입', async () => {
-      await page.goto(RECEIPT_OCR_URL_SALES, {
+      await page.goto(withMockPerms(
+        RECEIPT_OCR_URL_SALES,
+        mockPermsFromActions(buildSalesMyPermissionsWithOcr()),
+      ), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -849,7 +830,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       fullPage: true,
     })
 
-    await page.unroute('**/admin/permissions/my')
     await page.unroute('**/slips/receipt-ocr**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -876,16 +856,11 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesMyPermissionsDefault()),
-      })
-    })
-
     await test.step('존재하지 않는 해시 라우트 직접 진입', async () => {
-      await page.goto(NONEXISTENT_URL, {
+      await page.goto(withMockPerms(
+        NONEXISTENT_URL,
+        mockPermsFromActions(buildSalesMyPermissionsDefault()),
+      ), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -934,8 +909,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       fullPage: true,
     })
 
-    await page.unroute('**/admin/permissions/my')
-
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -955,15 +928,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /admin/permissions/my — MANAGER: PERMISSION_MATRIX 없음
-    await page.route('**/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildManagerMyPermissions()),
-      })
-    })
-
     // GET /admin/permissions 403 응답 (MASTER 외 접근 차단)
     await page.route('**/admin/permissions', async route => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/my')) {
@@ -982,7 +946,10 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await test.step('MANAGER 역할로 권한 매트릭스 페이지 진입 시도', async () => {
-      await page.goto(PERMISSION_MATRIX_URL_MANAGER, {
+      await page.goto(withMockPerms(
+        PERMISSION_MATRIX_URL_MANAGER,
+        mockPermsFromActions(buildManagerMyPermissions()),
+      ), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -1049,7 +1016,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       fullPage: true,
     })
 
-    await page.unroute('**/admin/permissions/my')
     await page.unroute('**/admin/permissions')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)

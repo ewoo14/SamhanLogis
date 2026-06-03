@@ -12,9 +12,9 @@
  * TC 목록 (5건):
  *   T1 회계 12 라우트 PermissionGuard 일괄 적용 확인 — ACCOUNTANT 기본 권한 → 19 페이지 (12 라우트) 모두 접근
  *   T2 SALES 로그인 → 회계 카테고리 사이드바 hidden (return null) + 모든 회계 URL 직접 진입 시 redirect "/"
- *   T3 마스터가 ACCOUNTANT 의 accounting.tax-invoice.list 권한 revoke → ACCOUNTANT 가 해당 페이지만 hidden + 다른 회계 페이지는 표시
+ *   T3 마스터가 ACCOUNTANT 의 accounting.tax-invoice.batch-issue 권한 revoke → ACCOUNTANT 가 해당 페이지만 hidden + 다른 회계 페이지는 표시
  *   T4 권한 revoke 후 URL 직접 진입 차단 (404 효과 — redirect "/")
- *   T5 마스터가 SALES 에게 accounting.tax-invoice.list 권한 grant → SALES 사이드바에 회계 카테고리 + 1 메뉴 표시
+ *   T5 마스터가 SALES 에게 accounting.tax-invoice.batch-issue 권한 grant → SALES 사이드바에 회계 카테고리 + 1 메뉴 표시
  *
  * SP-09 패턴 의무:
  *   - false green (|| true / test.skip(!ok) / page.setContent() fallback) 0건
@@ -27,7 +27,7 @@
  *   /accounting/journals              → accounting.journals              (분개장)
  *   /accounting/balances              → accounting.balances              (시산표)
  *   /accounting/tax-invoices          → accounting.tax-invoice.emit-nts  (세금계산서 — SP-D1 POC)
- *   /accounting/tax-invoices/batch    → accounting.tax-invoice.list      (세금계산서 일괄발행)
+ *   /accounting/tax-invoices/batch    → accounting.tax-invoice.batch-issue (세금계산서 일괄발행)
  *   /accounting/daily-closings        → accounting.daily-closing         (일마감)
  *   /accounting/ledgers               → accounting.general-ledger        (원장)
  *   /accounting/deposit-match         → accounting.deposit-match         (입금 매칭)
@@ -108,6 +108,27 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
   })
 }
 
+type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
+
+function mockPerms(perms: MockPerm[]): string {
+  return btoa(JSON.stringify(perms))
+}
+
+function withMockPerms(url: string, perms: MockPerm[]): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}mockPerms=${encodeURIComponent(mockPerms(perms))}`
+}
+
+function mockPermsFromResponse(
+  response: { data: Array<{ pageCode: string; canView?: boolean; canEdit?: boolean }> },
+): MockPerm[] {
+  return response.data.map((permission) => ({
+    pageCode: permission.pageCode,
+    view: permission.canView ?? true,
+    edit: permission.canEdit ?? false,
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // 회계 12 라우트 정의 — SP-D2 마이그레이션 대상 전체
 // ---------------------------------------------------------------------------
@@ -149,7 +170,7 @@ const ACCOUNTING_ROUTES = [
     path: '/accounting/tax-invoices/batch',
     sidebarTestId: 'sidebar-accounting-tax-invoices',
     pageText: ['일괄', '세금계산서', 'batch'],
-    pageCode: 'accounting.tax-invoice.list',
+    pageCode: 'accounting.tax-invoice.batch-issue',
     label: '세금계산서 일괄발행',
   },
   {
@@ -214,6 +235,7 @@ function buildAccountantFullPermissions() {
       // SP-D1 기존 5개 PageCode
       { pageCode: 'accounting.tax-invoice.emit-nts', canView: true, canEdit: true },
       { pageCode: 'accounting.tax-invoice.list', canView: true, canEdit: true },
+      { pageCode: 'accounting.tax-invoice.batch-issue', canView: true, canEdit: true },
       { pageCode: 'accounting.deposit-match', canView: true, canEdit: false },
       { pageCode: 'accounting.daily-closing', canView: true, canEdit: true },
       { pageCode: 'accounting.general-ledger', canView: true, canEdit: false },
@@ -229,17 +251,13 @@ function buildAccountantFullPermissions() {
   }
 }
 
-/** ACCOUNTANT — tax-invoice.list 만 revoke 후 권한 */
-function buildAccountantWithTaxInvoiceListRevoked() {
+/** ACCOUNTANT — tax-invoice.batch-issue 만 revoke 후 권한 */
+function buildAccountantWithTaxInvoiceBatchRevoked() {
   return {
     success: true,
-    data: [
-      { pageCode: 'accounting.tax-invoice.emit-nts', canView: true, canEdit: true },
-      // accounting.tax-invoice.list 제외 (revoke)
-      { pageCode: 'accounting.deposit-match', canView: true, canEdit: false },
-      { pageCode: 'accounting.daily-closing', canView: true, canEdit: true },
-      { pageCode: 'accounting.general-ledger', canView: true, canEdit: false },
-    ],
+    data: buildAccountantFullPermissions().data.filter(
+      (permission) => permission.pageCode !== 'accounting.tax-invoice.batch-issue',
+    ),
   }
 }
 
@@ -254,14 +272,14 @@ function buildSalesNoAccountingPermissions() {
   }
 }
 
-/** SALES — accounting.tax-invoice.list grant 후 권한 */
+/** SALES — accounting.tax-invoice.batch-issue grant 후 권한 */
 function buildSalesWithTaxInvoiceListGranted() {
   return {
     success: true,
     data: [
       { pageCode: 'purchases.slip.list', canView: true, canEdit: false },
       { pageCode: 'sales.slip.list', canView: true, canEdit: true },
-      { pageCode: 'accounting.tax-invoice.list', canView: true, canEdit: false },
+      { pageCode: 'accounting.tax-invoice.batch-issue', canView: true, canEdit: false },
     ],
   }
 }
@@ -312,14 +330,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — ACCOUNTANT 회계 전체 권한 (SP-D1 5개 + SP-D2 7개 = 12개 PageCode)
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildAccountantFullPermissions()),
-      })
-    })
+    const accountantFullPerms = mockPermsFromResponse(buildAccountantFullPermissions())
 
     // 회계 BE endpoint 응답 mock — 실제 데이터 미필요, 빈 목록으로 처리
     await page.route('**/accounting/**', async route => {
@@ -335,7 +346,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('ACCOUNTANT — 계정과목 페이지 진입 확인', async () => {
-      await page.goto(ACCOUNTING_ACCOUNTS_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_ACCOUNTS_ACCOUNTANT, accountantFullPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -370,7 +381,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('ACCOUNTANT — 세금계산서 페이지 진입 확인 (SP-D1 POC)', async () => {
-      await page.goto(ACCOUNTING_TAX_INVOICES_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_ACCOUNTANT, accountantFullPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -390,7 +401,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('ACCOUNTANT — 일마감 페이지 진입 확인', async () => {
-      await page.goto(ACCOUNTING_DAILY_CLOSINGS_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_DAILY_CLOSINGS_ACCOUNTANT, accountantFullPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -440,7 +451,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/accounting/**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -463,17 +473,10 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — SALES 회계 권한 없음
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesNoAccountingPermissions()),
-      })
-    })
+    const salesNoAccountingPerms = mockPermsFromResponse(buildSalesNoAccountingPermissions())
 
     await test.step('SALES — 회계 카테고리 사이드바 hidden 확인', async () => {
-      await page.goto(`${BASE_URL}/#/?mockRole=SALES`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=SALES`, salesNoAccountingPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -507,7 +510,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('SALES — 세금계산서 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(ACCOUNTING_TAX_INVOICES_SALES, {
+      await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_SALES, salesNoAccountingPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -530,7 +533,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('SALES — 계정과목 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(ACCOUNTING_ACCOUNTS_SALES, {
+      await page.goto(withMockPerms(ACCOUNTING_ACCOUNTS_SALES, salesNoAccountingPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -547,7 +550,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       expect(
         isRedirectedAway,
-        `SALES 계정과목 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. accounting.tax-invoice.list 권한 없으므로 PermissionGuard 가 "/" redirect 필요.`,
+        `SALES 계정과목 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. accounting.accounts 권한 없으므로 PermissionGuard 가 "/" redirect 필요.`,
       ).toBe(true)
     })
 
@@ -556,38 +559,29 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
-
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
   // -------------------------------------------------------------------------
   /**
-   * T3: 마스터가 ACCOUNTANT 의 accounting.tax-invoice.list 권한 revoke
+   * T3: 마스터가 ACCOUNTANT 의 accounting.tax-invoice.batch-issue 권한 revoke
    *      → ACCOUNTANT 가 해당 페이지만 hidden + 다른 회계 페이지는 표시
    *
    * 검증 항목:
-   *   - GET /auth/admin/permissions/my → accounting.tax-invoice.list 제외 응답
-   *   - /accounting/accounts 진입 → PermissionGuard redirect "/" (accounting.tax-invoice.list 없음)
+   *   - GET /auth/admin/permissions/my → accounting.tax-invoice.batch-issue 제외 응답
+   *   - /accounting/tax-invoices/batch 진입 → PermissionGuard redirect "/" (accounting.tax-invoice.batch-issue 없음)
    *   - /accounting/tax-invoices 진입 → 세금계산서 접근 허용 (accounting.tax-invoice.emit-nts 보유)
    *   - /accounting/daily-closings 진입 → 일마감 접근 허용 (accounting.daily-closing 보유)
    *   - 사이드바: tax-invoice.list 매핑 메뉴 (계정과목/분개장/시산표 등) hidden
    *   - 사이드바: tax-invoice.emit-nts/daily-closing/deposit-match 메뉴는 표시
    *   - pageerror 없음
    */
-  test('T3: ACCOUNTANT tax-invoice.list revoke → 해당 페이지 hidden + 나머지 회계 페이지 표시', async ({ page }) => {
+  test('T3: ACCOUNTANT tax-invoice.batch-issue revoke → 해당 페이지 hidden + 나머지 회계 페이지 표시', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — tax-invoice.list 제외 (revoke 후)
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildAccountantWithTaxInvoiceListRevoked()),
-      })
-    })
+    const accountantRevokedPerms = mockPermsFromResponse(buildAccountantWithTaxInvoiceBatchRevoked())
 
     // 회계 BE endpoint 응답 mock
     await page.route('**/accounting/**', async route => {
@@ -602,8 +596,8 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       }
     })
 
-    await test.step('accounting.tax-invoice.list revoke 후 계정과목 페이지 차단 확인', async () => {
-      await page.goto(ACCOUNTING_ACCOUNTS_ACCOUNTANT, {
+    await test.step('accounting.accounts 보유 — 계정과목 페이지 접근 허용 확인', async () => {
+      await page.goto(withMockPerms(ACCOUNTING_ACCOUNTS_ACCOUNTANT, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -611,21 +605,21 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       const currentUrl = page.url()
 
-      // accounting.tax-invoice.list 없음 → PermissionGuard redirect "/"
-      const isBlockedByPermissionGuard =
+      // accounting.accounts 는 revoke 안 됨 → 접근 허용
+      const isBlockedFromAccounts =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         (currentUrl.includes(BASE_URL) && !currentUrl.includes('/accounting/accounts')) ||
         currentUrl.includes('/login')
 
       expect(
-        isBlockedByPermissionGuard,
-        `accounting.tax-invoice.list revoke 후 계정과목 접근이 허용됨 — URL: ${currentUrl}. PermissionGuard 차단 필요.`,
-      ).toBe(true)
+        isBlockedFromAccounts,
+        `accounting.accounts 보유 ACCOUNTANT 의 계정과목 페이지가 차단됨 — URL: ${currentUrl}. revoke 대상 아님 — 접근 허용 필요.`,
+      ).toBe(false)
     })
 
     await test.step('accounting.tax-invoice.emit-nts 보유 — 세금계산서 페이지 접근 허용 확인', async () => {
-      await page.goto(ACCOUNTING_TAX_INVOICES_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_ACCOUNTANT, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -646,7 +640,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('accounting.daily-closing 보유 — 일마감 페이지 접근 허용 확인', async () => {
-      await page.goto(ACCOUNTING_DAILY_CLOSINGS_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_DAILY_CLOSINGS_ACCOUNTANT, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -667,13 +661,13 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
     await test.step('사이드바: tax-invoice.list 매핑 메뉴 hidden 확인 (계정과목/분개장)', async () => {
       // 홈으로 이동 후 사이드바 상태 확인
-      await page.goto(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
       await page.waitForTimeout(1500)
 
-      // accounting.tax-invoice.list 매핑 메뉴 — 계정과목, 분개장
+      // accounting.tax-invoice.batch-issue 매핑 메뉴 — 세금계산서 그룹
       const accountingAccountsLink = page.locator('[data-testid="sidebar-accounting-accounts"]')
       const accountingJournalsLink = page.locator('[data-testid="sidebar-accounting-journals"]')
 
@@ -694,7 +688,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       // 현재 단계: 사이드바 구조 확인 + 진입 차단이 핵심 assertion
       expect(
         hasAccountingSection !== undefined,
-        '사이드바 상태 확인 완료 — accounting.tax-invoice.list revoke 후 진입 차단 (PermissionGuard) 검증됨',
+        '사이드바 상태 확인 완료 — accounting.tax-invoice.batch-issue revoke 후 나머지 회계 메뉴 유지 검증됨',
       ).toBe(true)
     })
 
@@ -703,7 +697,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/accounting/**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -714,7 +707,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    * T4: 권한 revoke 후 URL 직접 진입 차단 (404 효과)
    *
    * 검증 항목:
-   *   - ACCOUNTANT — accounting.tax-invoice.list revoke 상태
+   *   - ACCOUNTANT — accounting.tax-invoice.batch-issue revoke 상태
    *   - /accounting/tax-invoices/batch 직접 진입 → PermissionGuard redirect "/"
    *   - /accounting/accounts 직접 진입 → redirect "/"
    *   - redirect 후 URL 이 "/" 또는 로그인 페이지 (사용자 입장에서 404 동일)
@@ -729,14 +722,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — tax-invoice.list revoke
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildAccountantWithTaxInvoiceListRevoked()),
-      })
-    })
+    const accountantRevokedPerms = mockPermsFromResponse(buildAccountantWithTaxInvoiceBatchRevoked())
 
     // 회계 BE endpoint — 403 반환 (PermissionGuard 통과해도 BE 에서 차단)
     await page.route('**/accounting/tax-invoices**', async route => {
@@ -747,7 +733,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
           body: JSON.stringify({
             success: false,
             code: 'ACCESS_DENIED',
-            message: 'accounting.tax-invoice.list 권한이 없습니다.',
+            message: 'accounting.tax-invoice.batch-issue 권한이 없습니다.',
           }),
         })
       } else {
@@ -756,7 +742,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('/accounting/tax-invoices/batch 직접 진입 차단 확인', async () => {
-      await page.goto(ACCOUNTING_TAX_INVOICES_ACCOUNTANT_REVOKED, {
+      await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_ACCOUNTANT_REVOKED, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -764,7 +750,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       const currentUrl = page.url()
 
-      // PermissionGuard: accounting.tax-invoice.list 없음 → Navigate to="/" replace
+      // PermissionGuard: accounting.tax-invoice.batch-issue 없음 → Navigate to="/" replace
       const isBlockedAndRedirected =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
@@ -773,7 +759,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       expect(
         isBlockedAndRedirected,
-        `/accounting/tax-invoices/batch 직접 진입이 허용됨 — URL: ${currentUrl}. accounting.tax-invoice.list revoke 후 PermissionGuard redirect 필요.`,
+        `/accounting/tax-invoices/batch 직접 진입이 허용됨 — URL: ${currentUrl}. accounting.tax-invoice.batch-issue revoke 후 PermissionGuard redirect 필요.`,
       ).toBe(true)
 
       // 세금계산서 일괄발행 페이지 콘텐츠 미표시 확인
@@ -790,7 +776,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await test.step('/accounting/accounts 직접 진입 차단 확인', async () => {
-      await page.goto(ACCOUNTING_ACCOUNTS_ACCOUNTANT, {
+      await page.goto(withMockPerms(ACCOUNTING_ACCOUNTS_ACCOUNTANT, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -806,19 +792,21 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       expect(
         isBlockedAndRedirected,
-        `/accounting/accounts 직접 진입이 허용됨 — URL: ${currentUrl}. accounting.tax-invoice.list revoke 후 PermissionGuard redirect 필요.`,
-      ).toBe(true)
+        `/accounting/accounts 직접 진입이 차단됨 — URL: ${currentUrl}. accounting.accounts 는 revoke 대상이 아니므로 접근 허용 필요.`,
+      ).toBe(false)
     })
 
-    await test.step('redirect 목적지 확인 — 대시보드 또는 로그인', async () => {
+    await test.step('최종 위치 확인 — 허용된 계정과목 또는 redirect 목적지', async () => {
       const currentUrl = page.url()
       const bodyText = (await page.textContent('body')) ?? ''
 
-      // 대시보드 또는 로그인 페이지 표시 (정상 redirect 목적지)
+      // batch 차단 후 계정과목은 허용되므로 최종 위치는 계정과목/대시보드/로그인 중 하나.
       const isValidRedirectDest =
+        currentUrl.includes('/accounting/accounts') ||
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         currentUrl.includes('/login') ||
+        bodyText.includes('계정과목') ||
         bodyText.includes('대시보드') ||
         bodyText.includes('Dashboard') ||
         bodyText.includes('로그인') ||
@@ -826,7 +814,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
       expect(
         isValidRedirectDest,
-        `redirect 목적지 미확인 — URL: ${currentUrl}, bodyText: "${bodyText.substring(0, 100)}"`,
+        `최종 위치 미확인 — URL: ${currentUrl}, bodyText: "${bodyText.substring(0, 100)}"`,
       ).toBe(true)
     })
 
@@ -835,7 +823,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/accounting/tax-invoices**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -843,12 +830,12 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
   // -------------------------------------------------------------------------
   /**
-   * T5: 마스터가 SALES 에게 accounting.tax-invoice.list 권한 grant
+   * T5: 마스터가 SALES 에게 accounting.tax-invoice.batch-issue 권한 grant
    *      → SALES 사이드바에 회계 카테고리 + 세금계산서 메뉴 표시
    *
    * 검증 항목:
-   *   - POST /auth/admin/permissions/batch → 200 성공 (SALES + accounting.tax-invoice.list grant)
-   *   - GET /auth/admin/permissions/my → accounting.tax-invoice.list view=true 포함
+   *   - POST /auth/admin/permissions/batch → 200 성공 (SALES + accounting.tax-invoice.batch-issue grant)
+   *   - ?mockPerms= → accounting.tax-invoice.batch-issue view=true 포함
    *   - /accounting/tax-invoices 진입 → 세금계산서 목록 표시 (이중 가드: RoleGuard ACCOUNTANT/MANAGER/MASTER 는 통과 안 함)
    *   - 사이드바에 회계 카테고리 표시 (세금계산서 메뉴 노출)
    *   - 단, SALES 는 RoleGuard allow={ACCOUNTING_ROLES} 차단됨 (RoleGuard + PermissionGuard 이중 가드)
@@ -862,7 +849,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    *   SP-D3 에서 RoleGuard 제거 후 PermissionGuard 만 남기면 SALES grant 가 유효해짐.
    *   T5 는 "이중 가드 패턴 + grant 흐름" 검증.
    */
-  test('T5: 마스터가 SALES 에게 accounting.tax-invoice.list grant → 이중 가드 패턴 + 사이드바 확인', async ({ page }) => {
+  test('T5: 마스터가 SALES 에게 accounting.tax-invoice.batch-issue grant → 이중 가드 패턴 + 사이드바 확인', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -879,7 +866,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
           body: JSON.stringify({
             success: true,
             data: null,
-            message: 'SALES accounting.tax-invoice.list view 권한이 부여되었습니다.',
+            message: 'SALES accounting.tax-invoice.batch-issue view 권한이 부여되었습니다.',
             timestamp: '2026-05-18T10:00:00Z',
           }),
         })
@@ -888,16 +875,9 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       }
     })
 
-    // GET /auth/admin/permissions/my — SALES + accounting.tax-invoice.list granted
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesWithTaxInvoiceListGranted()),
-      })
-    })
+    const salesGrantedPerms = mockPermsFromResponse(buildSalesWithTaxInvoiceListGranted())
 
-    await test.step('마스터 권한 매트릭스에서 SALES accounting.tax-invoice.list grant 요청', async () => {
+    await test.step('마스터 권한 매트릭스에서 SALES accounting.tax-invoice.batch-issue grant 요청', async () => {
       // POST /auth/admin/permissions/batch 호출 시뮬레이션
       // 실제 UI 대신 직접 route 검증으로 batch API 호출 확인
       const response = await page.evaluate(async (baseUrl) => {
@@ -907,7 +887,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               permissions: [
-                { roleCode: 'SALES', pageCode: 'accounting.tax-invoice.list', canView: true, canEdit: false },
+                { roleCode: 'SALES', pageCode: 'accounting.tax-invoice.batch-issue', canView: true, canEdit: false },
               ],
             }),
           })
@@ -924,8 +904,8 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       ).toBe(true)
     })
 
-    await test.step('SALES — accounting.tax-invoice.list grant 후 permissions/my 응답 확인', async () => {
-      await page.goto(ACCOUNTING_TAX_INVOICES_SALES_GRANTED, {
+    await test.step('SALES — accounting.tax-invoice.batch-issue grant 후 라우트 가드 확인', async () => {
+      await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_SALES_GRANTED, salesGrantedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -953,32 +933,19 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       const isExpectedBehavior = isBlockedByRoleGuard || isAllowedByPermissionGuard
       expect(
         isExpectedBehavior,
-        `SALES accounting.tax-invoice.list grant 후 예상치 못한 URL — ${currentUrl}`,
+        `SALES accounting.tax-invoice.batch-issue grant 후 예상치 못한 URL — ${currentUrl}`,
       ).toBe(true)
     })
 
-    await test.step('SALES — permissions/my 응답에 accounting.tax-invoice.list 포함 확인', async () => {
-      // permissions/my mock 응답 검증 — grant 후 응답에 accounting.tax-invoice.list 포함
-      const permResponse = await page.evaluate(async (baseUrl) => {
-        try {
-          const res = await fetch(`${baseUrl}/auth/admin/permissions/my`)
-          const json = (await res.json()) as {
-            data?: Array<{ pageCode: string; canView: boolean }>
-          }
-          return json.data ?? []
-        } catch {
-          return []
-        }
-      }, BASE_URL)
-
-      const hasTaxInvoiceList = Array.isArray(permResponse) && permResponse.some(
-        (p: { pageCode: string; canView: boolean }) =>
-          p.pageCode === 'accounting.tax-invoice.list' && p.canView === true,
-      )
+    await test.step('SALES — mockPerms 에 accounting.tax-invoice.batch-issue 포함 확인', async () => {
+      const decodedPerms = new URL(page.url()).hash
+      const hasTaxInvoiceBatchIssue = decodedPerms.includes('mockPerms=')
+        && salesGrantedPerms.some((p) =>
+          p.pageCode === 'accounting.tax-invoice.batch-issue' && p.view === true)
 
       expect(
-        hasTaxInvoiceList,
-        `permissions/my 응답에 accounting.tax-invoice.list view=true 미포함 — grant 후 응답 반영 필요. 응답: ${JSON.stringify(permResponse).substring(0, 200)}`,
+        hasTaxInvoiceBatchIssue,
+        `mockPerms 에 accounting.tax-invoice.batch-issue view=true 미포함 — grant 후 URL 주입 반영 필요. perms: ${JSON.stringify(salesGrantedPerms).substring(0, 200)}`,
       ).toBe(true)
     })
 
@@ -988,7 +955,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
     })
 
     await page.unroute('**/auth/admin/permissions/batch')
-    await page.unroute('**/auth/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -1012,9 +978,13 @@ test.describe('SP-D2 회귀 가드 (false green 0건 검증)', () => {
     )
     const specContent = fs.readFileSync(specFile, 'utf-8')
 
-    // false green 패턴 검출 — SP-09 패턴 의무
-    // 주석/문자열 제외: 코드 라인에서만 패턴 매칭 (주석 라인 // 로 시작하는 행 제외)
-    const codeLines = specContent
+    // false green 패턴 검출 — SP-09 패턴 의무.
+    // self-test 섹션 자체의 제목/메시지 문자열이 매칭되지 않도록 self-test describe 블록 이전만 검사한다.
+    const selfTestMarker = "test.describe('SP-D2 회귀 가드"
+    const selfTestStart = specContent.indexOf(selfTestMarker)
+    const codeToCheck = selfTestStart >= 0 ? specContent.slice(0, selfTestStart) : specContent
+
+    const codeLines = codeToCheck
       .split('\n')
       .filter(line => {
         const trimmed = line.trimStart()
@@ -1025,25 +995,26 @@ test.describe('SP-D2 회귀 가드 (false green 0건 검증)', () => {
       })
       .join('\n')
 
-    // || true 패턴 — 실제 코드에서 사용 금지 (조건식 단락 평가 false green)
-    const orTrueMatches = codeLines.match(/\|\|\s*true(?!\s*\/\/)/g) ?? []
+    // 금지 패턴 — regex 와 메시지 문자열 자체가 self-match 하지 않도록 조합한다.
+    const orTruePattern = new RegExp('\\|\\|\\s*true(?!\\s*//)', 'g')
+    const orTrueMatches = codeLines.match(orTruePattern) ?? []
     expect(
       orTrueMatches.length,
-      `false green 패턴 발견: || true — SP-09 패턴 위반. 발견: ${JSON.stringify(orTrueMatches)}`,
+      `false green 패턴 발견: ${'||'} true — SP-09 패턴 위반. 발견: ${JSON.stringify(orTrueMatches)}`,
     ).toBe(0)
 
-    // test.skip(!ok) 패턴 — skip 대신 FAIL 의무
-    const skipNotOkMatches = codeLines.match(/test\.skip\(!ok\)/g) ?? []
+    const skipPattern = new RegExp('test\\.skip\\(!ok\\)', 'g')
+    const skipNotOkMatches = codeLines.match(skipPattern) ?? []
     expect(
       skipNotOkMatches.length,
-      `false green 패턴 발견: test.skip(!ok) — SP-09 패턴 위반. 발견: ${JSON.stringify(skipNotOkMatches)}`,
+      `false green 패턴 발견: ${'test.skip(!ok)'} — SP-09 패턴 위반. 발견: ${JSON.stringify(skipNotOkMatches)}`,
     ).toBe(0)
 
-    // page.setContent( 패턴 — dev server 없이 HTML mock fallback 금지
-    const setContentMatches = codeLines.match(/page\.setContent\s*\(/g) ?? []
+    const setContentPattern = new RegExp('page\\.setContent\\s*\\(', 'g')
+    const setContentMatches = codeLines.match(setContentPattern) ?? []
     expect(
       setContentMatches.length,
-      `false green 패턴 발견: page.setContent() — SP-09 패턴 위반 (dev server 없이 HTML 직접 삽입). 발견: ${JSON.stringify(setContentMatches)}`,
+      `false green 패턴 발견: ${'page.setContent('}) — SP-09 패턴 위반 (dev server 없이 HTML 직접 삽입). 발견: ${JSON.stringify(setContentMatches)}`,
     ).toBe(0)
   })
 

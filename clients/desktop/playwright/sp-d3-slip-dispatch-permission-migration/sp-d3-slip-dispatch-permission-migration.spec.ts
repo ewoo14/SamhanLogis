@@ -101,6 +101,27 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
   })
 }
 
+type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
+
+function mockPerms(perms: MockPerm[]): string {
+  return btoa(JSON.stringify(perms))
+}
+
+function withMockPerms(url: string, perms: MockPerm[]): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}mockPerms=${encodeURIComponent(mockPerms(perms))}`
+}
+
+function mockPermsFromResponse(
+  response: { data: Array<{ pageCode: string; canView?: boolean; canEdit?: boolean }> },
+): MockPerm[] {
+  return response.data.map((permission) => ({
+    pageCode: permission.pageCode,
+    view: permission.canView ?? true,
+    edit: permission.canEdit ?? false,
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // SP-D3 마이그레이션 대상 6 PageCode 정의 — routes/index.tsx 1:1 정합
 // ---------------------------------------------------------------------------
@@ -260,14 +281,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — SALES 권한
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesPermissions()),
-      })
-    })
+    const salesPerms = mockPermsFromResponse(buildSalesPermissions())
 
     // 슬립 BE endpoint mock — 빈 목록 응답
     await page.route('**/slips**', async route => {
@@ -283,7 +297,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — 매출 슬립 목록 (/sales/slips) 접근 가능 확인', async () => {
-      await page.goto(SALES_SLIPS_URL, {
+      await page.goto(withMockPerms(SALES_SLIPS_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -304,7 +318,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — 배차 메뉴 사이드바 hidden 확인', async () => {
-      await page.goto(`${BASE_URL}/#/?mockRole=SALES`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=SALES`, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -329,7 +343,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — 매입 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(PURCHASES_SLIPS_URL, {
+      await page.goto(withMockPerms(PURCHASES_SLIPS_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -352,7 +366,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — 배차 메뉴 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(DISPATCH_BOARD_URL, {
+      await page.goto(withMockPerms(DISPATCH_BOARD_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -378,7 +392,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/slips**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -401,14 +414,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — WAREHOUSE 권한
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildWarehousePermissions()),
-      })
-    })
+    const warehousePerms = mockPermsFromResponse(buildWarehousePermissions())
 
     // 슬립 BE endpoint mock
     await page.route('**/slips**', async route => {
@@ -424,7 +430,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('WAREHOUSE — 매입 슬립 목록 (/purchases/slips) 접근 가능 확인', async () => {
-      await page.goto(WAREHOUSE_PURCHASES_URL, {
+      await page.goto(withMockPerms(WAREHOUSE_PURCHASES_URL, warehousePerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -444,7 +450,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('WAREHOUSE — 영수증 OCR (/purchases/receipt-ocr) 접근 가능 확인', async () => {
-      await page.goto(WAREHOUSE_OCR_URL, {
+      await page.goto(withMockPerms(WAREHOUSE_OCR_URL, warehousePerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -464,7 +470,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('WAREHOUSE — 배차 메뉴 + SMS 발송 이력 사이드바 hidden 확인', async () => {
-      await page.goto(`${BASE_URL}/#/?mockRole=WAREHOUSE`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=WAREHOUSE`, warehousePerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -500,7 +506,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/slips**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -524,14 +529,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — DISPATCH 권한
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildDispatchPermissions()),
-      })
-    })
+    const dispatchPerms = mockPermsFromResponse(buildDispatchPermissions())
 
     // 배차 관련 BE endpoint mock
     await page.route('**/dispatch-board**', async route => {
@@ -559,7 +557,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('DISPATCH — 배차 메뉴 (/dispatch-board) 접근 가능 확인', async () => {
-      await page.goto(DISPATCH_BOARD_DISPATCH_URL, {
+      await page.goto(withMockPerms(DISPATCH_BOARD_DISPATCH_URL, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -579,7 +577,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('DISPATCH — SMS 발송 이력 (/arologis/dispatch-sms/send-audit) 접근 가능 확인', async () => {
-      await page.goto(DISPATCH_SMS_AUDIT_URL, {
+      await page.goto(withMockPerms(DISPATCH_SMS_AUDIT_URL, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -599,7 +597,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('DISPATCH — 매출 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(`${BASE_URL}/#/sales/slips?mockRole=DISPATCH`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/sales/slips?mockRole=DISPATCH`, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -621,7 +619,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('DISPATCH — 매입 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
-      await page.goto(`${BASE_URL}/#/purchases/slips?mockRole=DISPATCH`, {
+      await page.goto(withMockPerms(`${BASE_URL}/#/purchases/slips?mockRole=DISPATCH`, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -647,7 +645,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       fullPage: true,
     })
 
-    await page.unroute('**/auth/admin/permissions/my')
     await page.unroute('**/dispatch-board**')
     await page.unroute('**/aligo/send-audit**')
 
@@ -696,14 +693,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       }
     })
 
-    // GET /auth/admin/permissions/my — purchases.slip.list revoke 후
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildSalesWithPurchaseSlipRevoked()),
-      })
-    })
+    const salesRevokedPerms = mockPermsFromResponse(buildSalesWithPurchaseSlipRevoked())
 
     await test.step('마스터 권한 매트릭스에서 SALES purchases.slip.list revoke 요청', async () => {
       const response = await page.evaluate(async (baseUrl) => {
@@ -730,7 +720,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — purchases.slip.list revoke 후 매입 슬립 접근 차단 확인', async () => {
-      await page.goto(PURCHASES_SLIPS_URL, {
+      await page.goto(withMockPerms(PURCHASES_SLIPS_URL, salesRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -751,7 +741,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('SALES — sales.slip.list 유지 → 매출 슬립 접근 허용 확인', async () => {
-      await page.goto(SALES_SLIPS_URL, {
+      await page.goto(withMockPerms(SALES_SLIPS_URL, salesRevokedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -771,27 +761,14 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       ).toBe(false)
     })
 
-    await test.step('permissions/my 응답에 purchases.slip.list 미포함 확인', async () => {
-      const permResponse = await page.evaluate(async (baseUrl) => {
-        try {
-          const res = await fetch(`${baseUrl}/auth/admin/permissions/my`)
-          const json = (await res.json()) as {
-            data?: Array<{ pageCode: string; canView: boolean }>
-          }
-          return json.data ?? []
-        } catch {
-          return []
-        }
-      }, BASE_URL)
-
-      const hasPurchaseSlipList = Array.isArray(permResponse) && permResponse.some(
-        (p: { pageCode: string; canView: boolean }) =>
-          p.pageCode === 'purchases.slip.list' && p.canView === true,
+    await test.step('mockPerms 에 purchases.slip.list 미포함 확인', async () => {
+      const hasPurchaseSlipList = salesRevokedPerms.some(
+        (p) => p.pageCode === 'purchases.slip.list' && p.view === true,
       )
 
       expect(
         hasPurchaseSlipList,
-        `permissions/my 응답에 purchases.slip.list view=true 포함됨 — revoke 후 미포함 필요. 응답: ${JSON.stringify(permResponse).substring(0, 200)}`,
+        `mockPerms 에 purchases.slip.list view=true 포함됨 — revoke 후 미포함 필요. perms: ${JSON.stringify(salesRevokedPerms).substring(0, 200)}`,
       ).toBe(false)
     })
 
@@ -801,7 +778,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await page.unroute('**/auth/admin/permissions/batch')
-    await page.unroute('**/auth/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -828,17 +804,10 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // GET /auth/admin/permissions/my — 권한 완전 없음
-    await page.route('**/auth/admin/permissions/my', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildNoPermissions()),
-      })
-    })
+    const noPerms = mockPermsFromResponse(buildNoPermissions())
 
     await test.step('/purchases/slips 직접 진입 차단 확인 (purchases.slip.list 없음)', async () => {
-      await page.goto(PURCHASES_SLIPS_NO_PERM_URL, {
+      await page.goto(withMockPerms(PURCHASES_SLIPS_NO_PERM_URL, noPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -871,7 +840,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('/dispatch-board 직접 진입 차단 확인 (dispatch.board 없음)', async () => {
-      await page.goto(DISPATCH_BOARD_NO_PERM_URL, {
+      await page.goto(withMockPerms(DISPATCH_BOARD_NO_PERM_URL, noPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -892,7 +861,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await test.step('/sales/slips 직접 진입 차단 확인 (sales.slip.list 없음)', async () => {
-      await page.goto(SALES_SLIPS_NO_PERM_URL, {
+      await page.goto(withMockPerms(SALES_SLIPS_NO_PERM_URL, noPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
@@ -935,8 +904,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       path: path.join(QA_DIR, 'T5-no-perm-url-block-redirect.png'),
       fullPage: true,
     })
-
-    await page.unroute('**/auth/admin/permissions/my')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
