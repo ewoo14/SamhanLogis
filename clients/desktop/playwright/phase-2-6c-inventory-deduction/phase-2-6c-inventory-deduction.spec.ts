@@ -100,7 +100,11 @@ async function gotoDetailAndWait(page: Page, orderId: string, extra = ''): Promi
 }
 
 /**
- * 전환 버튼 클릭 → 모달 본문이 보일 때까지 대기.
+ * 전환 버튼 클릭 → 모달 본문이 보일 때까지 대기 → 출고 창고 선택(submit 활성 precondition).
+ *
+ * <p>Phase 2.6a 부분전환으로 전환 모달은 출고 창고(WarehouseAutocomplete) 선택 + 라인 qty>0 둘 다
+ * 충족해야 submit 이 활성된다. 모든 시나리오의 공통 precondition 이므로 헬퍼에서 창고를 선택한다.
+ * WarehouseAutocomplete 는 combobox 입력 + role=option 드롭다운 — 코드로 필터 후 옵션 클릭.
  */
 async function openConvertModal(page: Page): Promise<void> {
   const convertBtn = page.getByTestId('partner-order-convert-open')
@@ -108,6 +112,14 @@ async function openConvertModal(page: Page): Promise<void> {
   await expect(convertBtn).toBeEnabled()
   await convertBtn.click()
   await expect(page.getByTestId('partner-order-convert-modal-body')).toBeVisible({ timeout: 10_000 })
+
+  // 출고 창고 선택(HQ-001 본사창고) — WarehouseAutocomplete combobox 입력 후 옵션 클릭.
+  const whInput = page.locator('[data-testid="partner-order-convert-warehouse"] input[role="combobox"]')
+  await expect(whInput).toBeVisible({ timeout: 10_000 })
+  await whInput.fill('HQ-001')
+  const whOption = page.locator('[role="option"]').filter({ hasText: 'HQ-001' }).first()
+  await expect(whOption, '출고 창고 옵션(HQ-001) 미표시 — WarehouseAutocomplete 후보 필요').toBeVisible({ timeout: 5_000 })
+  await whOption.click()
 }
 
 // ============================================================
@@ -268,8 +280,9 @@ test.describe('재고 현황 화면 (/inventory/stock-balance)', () => {
     await page.goto(`${BASE_URL}/#/inventory/stock-balance?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
     })
-    // 재고 현황 헤더 대기
-    await expect(page.getByText('재고 현황')).toBeVisible({ timeout: 12_000 })
+    // 재고 현황 헤더 대기 — "재고 현황" 은 사이드바/페이지 제목/h3/빈상태 셀 등 다수 매칭(strict 위반)이므로
+    // 페이지 제목 testid 로 한정한다.
+    await expect(page.getByTestId('header-page-title')).toHaveText('재고 현황', { timeout: 12_000 })
   }
 
   // ──────────────────────────────────────────────────────────

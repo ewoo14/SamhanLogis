@@ -30,8 +30,10 @@ export default defineConfig({
     //   구현돼 있었고, mock(is-executive-office)이 hash query 의 mockDepartment 를 못 읽던 버그를 교정해 테스트 가능해짐.
     // 🟡 sp-d1 은 권한 매트릭스 UI 재설계(role-grid→account-select)로 스펙(84-grid 기대)과 불일치 — 별도 슬라이스.
     '**/sp-d1-dynamic-rbac/**',
+    // 🟢 phase-2-6c 재게이트(8/8) — 전환 모달 창고선택+qty 상호작용 + 재고현황 페이지 제목 testid 한정.
+    // 🟢 sp-09-1 재게이트(5/5) — eTaxExternalId 표시(FE) + emit 낙관적 갱신.
     // 🟢 3-A2-④ B/C 재게이트 — sp-d4(잔여 7도메인 PermissionGuard, 20 TC 전부 green) 재게이트 완료.
-    //   나머지 9 스펙은 각 기능별 다양한 실패(콘텐츠/상호작용/권한)로 개별 verify-then-fix 필요 — triage 후 격리 유지:
+    //   잔여 격리 스펙은 각 기능별 verify-then-fix 필요 — triage 후 격리 유지:
     //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS), sp-09-3/4/5(각3: OCR/KFTC/vendor),
     //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터), sp-09-1(1: eTaxExternalId),
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
@@ -39,7 +41,7 @@ export default defineConfig({
     '**/sp-09-2-aligo-sms-real-send/**',
     '**/sp-09-4-kftc-shell/**',
     '**/sp-09-5-vendor-integration/**',
-    '**/phase-2-6c-inventory-deduction/**',
+    
     '**/supplier-profile/**',
     '**/tax-invoice-batch/**',
   ],
