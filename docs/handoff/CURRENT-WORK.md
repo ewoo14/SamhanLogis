@@ -16,6 +16,16 @@
 
 ---
 
+## 🔁 2026-06-03 — 백로그 전부 처리 마라톤 (개발책임자 지시)
+
+> "관련 모든 백로그 전부 처리하고 마무리". 7 슬라이스: ①WarehouseSelector제거 ②회수품재판매 ③retention ④notification ⑤3-A2-④A ⑥3-A2-④B/C ⑦outbox/Saga. (제조시리얼 수집은 개발책임자 제외 결정.)
+
+- **① WarehouseSelector 제거** ✅ #357 — 타입 WA 이전, design-system build/desktop tsc 0.
+- **② 회수품 재판매(RECALLED→AVAILABLE)** ✅ (PR #358, 머지 진행) — `StockInstance.resell()` + resell-batch API(advisory+row lock, 후보크기 부족판정, 멱등). 5-agent(BE/DevOps APPROVE, QA P1-1 JdbcTemplate 실DB 단언 보강)+Codex APPROVE. **Docker 실 QA: 실 RECALLED(S4Q-RET-2) resell→200→psql AVAILABLE·마커 null** (no-fake-data). D-SER-24.
+- 남은: ③retention 스케줄러 ④notification 푸시 ⑤3-A2-④ A그룹 ⑥3-A2-④ B/C ⑦outbox/Saga(대형, spec 신중).
+
+---
+
 ## ✅ 2026-06-03 — ③ 3-A2-③ mock 권한제어(?mockPerms=) + applayout 재게이트 (부분완주, PR 진행)
 
 > 세션 마무리 ③. 3-A2-② 근본원인(page.route no-op) 해소 메커니즘 + A그룹 verify-then-fix(정직한 부분완주). clients/desktop 단독, 프로덕션 무변경.
