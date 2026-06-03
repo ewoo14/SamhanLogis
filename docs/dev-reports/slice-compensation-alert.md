@@ -26,6 +26,7 @@
 - **@MockBean 격리(QA P1)**: `SlipCompensationAuditIT` 에 `NotificationClient` @MockBean 명시(보상 흐름의 전이 의존 격리).
 - **예외 swallow 단언(QA P1) / blank recipient WARN(QA P2)**: 고정 제목 eq + WARN 로그 단언 추가.
 - **env 템플릿(DevOps P1)**: `infrastructure/env-templates/slip-service.env` 에 retention(D-SER-25 누락분 동반)+alert env 블록 + Phase 11 체크리스트.
+- **UUID 유출 방지(Codex cross-check P1)**: 푸시 본문에서 예외 원인 메시지(`failureReason`/`originalFailureReason`) 제거 — 예외 메시지에 내부 UUID(warehouse/user/slip)가 섞이면 사용자-visible 푸시로 유출. 본문은 비즈니스 식별자(slipNo·유형·단계·품목·동작)만, 상세 원인은 감사 행/로그에서 slipNo 로 조회. notifier 가 원인 문자열을 아예 받지 않도록 시그니처에서 제외(defense-in-depth). 단위+IT 에 **UUID 부재 단언**(IT 는 예외 메시지에 UUID 를 심고 본문 미포함 실증) 추가.
 - 후속(P2): Micrometer 카운터(`compensation.alert.send` result tag) 관측성 — Phase 11 Grafana 경보 시 추가.
 
 ## 4. 후속

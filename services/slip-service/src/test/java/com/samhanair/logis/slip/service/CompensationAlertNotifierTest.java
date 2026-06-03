@@ -42,10 +42,13 @@ class CompensationAlertNotifierTest {
         return slip;
     }
 
+    // 본문에 UUID(예외 메시지에 섞여 들어올 수 있는 내부 식별자)가 절대 노출되지 않는지 검증하는 패턴.
+    private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
     private void notify(CompensationAlertNotifier notifier) {
         notifier.notifyFailure(slip(), CompensationPhase.ACCEPT_RESERVE, "AC-ALERT-001",
-                CompensationOperation.RELEASE_INSTANCES, "RuntimeException: 보상 실패",
-                "BusinessException: 원본 실패");
+                CompensationOperation.RELEASE_INSTANCES);
     }
 
     @Test
@@ -63,9 +66,12 @@ class CompensationAlertNotifierTest {
         assertThat(body.getValue())
                 .contains("2026/06/03-99")
                 .contains("AC-ALERT-001")
-                .contains("RELEASE_INSTANCES")
-                .contains("보상 실패")
-                .contains("원본 실패");
+                .contains("RELEASE_INSTANCES");
+        // 🚨 UUID 비공개 — 본문/제목 어디에도 UUID 형식 문자열이 없어야 한다. (Codex cross-check P1)
+        assertThat(UUID_PATTERN.matcher(body.getValue()).find())
+                .as("푸시 본문에 UUID 노출 없음").isFalse();
+        assertThat(UUID_PATTERN.matcher(subject.getValue()).find())
+                .as("푸시 제목에 UUID 노출 없음").isFalse();
     }
 
     @Test

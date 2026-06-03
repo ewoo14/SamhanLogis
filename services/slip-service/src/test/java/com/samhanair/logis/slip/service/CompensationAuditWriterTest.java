@@ -74,9 +74,9 @@ class CompensationAuditWriterTest {
                 .contains("slipNo=2026/06/03-77")
                 .contains("product=AC-WARN-001")
                 .contains("op=RELEASE_INSTANCES");
-        // 감사 행 저장 성공 후 운영 알림 seam 이 동일 컨텍스트(요약된 원인 포함)로 호출된다. (D-SER-26)
+        // 감사 행 저장 성공 후 운영 알림 seam 이 비즈니스 식별자(slip/단계/품목/동작)로 호출된다. (D-SER-26)
+        // 원인 요약은 UUID 포함 가능성 때문에 notifier 에 전달하지 않는다(Codex P1).
         verify(alertNotifier).notifyFailure(eq(slip), eq(CompensationPhase.ACCEPT_RESERVE),
-                eq("AC-WARN-001"), eq(CompensationOperation.RELEASE_INSTANCES),
-                eq(saved.getFailureReason()), eq("BusinessException: 원본 실패"));
+                eq("AC-WARN-001"), eq(CompensationOperation.RELEASE_INSTANCES));
     }
 }

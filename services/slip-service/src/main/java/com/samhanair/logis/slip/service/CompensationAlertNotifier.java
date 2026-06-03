@@ -44,16 +44,17 @@ public class CompensationAlertNotifier {
     /**
      * 보상 실패 1건을 운영 알림으로 발송한다(best-effort).
      *
+     * <p>알림 본문은 비즈니스 식별자(slipNo·품목코드 등)만 담는다. 원인 예외 메시지에는 내부 UUID
+     * (warehouse/user/slip)가 섞일 수 있어 사용자-visible 푸시에 절대 싣지 않는다. 상세 원인은
+     * 보상 감사 행/WARN 로그에 slipNo 로 남으므로 운영자는 거기서 조회한다. (Codex cross-check P1 — UUID 유출 방지)
+     *
      * @param slip 원본 전표
      * @param phase 보상 단계
      * @param productCode 품목 코드
      * @param operation 실패한 보상 동작
-     * @param failureReason 보상 실패 원인 요약
-     * @param originalFailureReason 보상을 촉발한 원본 실패 원인 요약
      */
     public void notifyFailure(Slip slip, CompensationPhase phase, String productCode,
-                              CompensationOperation operation, String failureReason,
-                              String originalFailureReason) {
+                              CompensationOperation operation) {
         if (!enabled) {
             return;
         }
@@ -65,8 +66,7 @@ public class CompensationAlertNotifier {
         }
         String slipNo = slip.getSlipNo();
         String subject = String.format("[보상실패] %s", slipNo);
-        String body = buildBody(slip, phase, productCode, operation,
-                failureReason, originalFailureReason);
+        String body = buildBody(slip, phase, productCode, operation);
         // 호출 컨텍스트가 트랜잭션(감사 record() 의 REQUIRES_NEW) 안이면 커밋 완료 후 발송한다.
         // 이유: (1) 감사 행이 롤백되면 알림도 발송하지 않아 알림-DB 일관성 유지,
         //       (2) notification HTTP I/O(최대 5s)가 DB 커넥션 점유 시간에 포함되지 않게 함. (리뷰 BE/DevOps P1)
@@ -105,14 +105,13 @@ public class CompensationAlertNotifier {
     }
 
     private String buildBody(Slip slip, CompensationPhase phase, String productCode,
-                             CompensationOperation operation, String failureReason,
-                             String originalFailureReason) {
+                             CompensationOperation operation) {
+        // 예외 메시지(내부 UUID 포함 가능)는 본문에서 제외 — 상세 원인은 감사 행/로그에서 slipNo 로 조회.
         String body = String.format(
                 "재고 보상 실패가 발생했습니다. 수동 정합이 필요합니다.%n"
                         + "전표번호: %s%n전표유형: %s%n단계: %s%n품목코드: %s%n동작: %s%n"
-                        + "실패원인: %s%n원본원인: %s",
-                slip.getSlipNo(), slip.getSlipType(), phase, productCode, operation,
-                failureReason, originalFailureReason);
+                        + "상세 원인은 보상 감사 로그/복구 화면에서 전표번호로 확인하세요.",
+                slip.getSlipNo(), slip.getSlipType(), phase, productCode, operation);
         return body.length() > MAX_BODY_LENGTH ? body.substring(0, MAX_BODY_LENGTH) : body;
     }
 }

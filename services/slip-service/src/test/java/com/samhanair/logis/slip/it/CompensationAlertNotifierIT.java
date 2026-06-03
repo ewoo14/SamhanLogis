@@ -102,10 +102,12 @@ class CompensationAlertNotifierIT extends AbstractPostgresIT {
                 "삼한상사", DeliveryTag.DAY, null, "alert-it");
         ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
 
+        // 보상 예외 메시지에 내부 UUID 가 섞여 있어도(현실적 시나리오) 푸시 본문에는 노출되지 않아야 한다.
+        String leakedUuid = UUID.randomUUID().toString();
         auditWriter.record(slip, CompensationPhase.ACCEPT_RESERVE, "AC-ALERT-IT-001",
                 CompensationOperation.RELEASE_INSTANCES,
-                new RuntimeException("release 실패"),
-                new RuntimeException("reserve 실패"));
+                new RuntimeException("release 실패 instance=" + leakedUuid),
+                new RuntimeException("reserve 실패 warehouse=" + leakedUuid));
 
         // 감사 행 저장(REQUIRES_NEW) 커밋 후 운영 알림 push 가 비즈니스 식별자 제목/본문으로 발송된다.
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
@@ -115,5 +117,7 @@ class CompensationAlertNotifierIT extends AbstractPostgresIT {
                 .contains(SLIP_NO)
                 .contains("AC-ALERT-IT-001")
                 .contains("RELEASE_INSTANCES");
+        // 🚨 UUID 비공개 — 예외 메시지에 들어온 UUID 가 푸시 본문에 유출되지 않는다. (Codex cross-check P1)
+        assertThat(body.getValue()).doesNotContain(leakedUuid);
     }
 }
