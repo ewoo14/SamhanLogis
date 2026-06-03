@@ -39,7 +39,7 @@ export default defineConfig({
     //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터), sp-09-1(1: eTaxExternalId),
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
     
-    '**/sp-09-2-aligo-sms-real-send/**',
+    
     '**/sp-09-4-kftc-shell/**',
     
     
