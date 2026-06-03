@@ -135,8 +135,10 @@ class CompensationRetryServiceIT extends AbstractPostgresIT {
 
     @Test
     void retry_futureBackoff_isNotCandidate() {
+        // next_retry_at 이 명백한 미래(고정값) — 서비스 clock(Asia/Seoul) 과 테스트 JVM 기본 zone(CI=UTC)
+        // 의 오프셋과 무관하게 항상 미래여야 후보에서 제외됨(타임존 의존 제거).
         insertFailure("004", "RELEASE_INSTANCES", false, 1,
-                LocalDateTime.now().plusHours(1));
+                LocalDateTime.of(2099, 1, 1, 0, 0));
 
         CompensationRetryService.RetryResult result = retryService.retryEligible(5, 10);
 
