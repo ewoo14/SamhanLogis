@@ -23,6 +23,13 @@
 - 단위 `CompensationRetryServiceTest` 4: 수량형 skip(inventory 미호출), RELEASE_INSTANCES 성공→resolve, 실패 지수 백오프(base*2^retryCount), 후보 0.
 - IT(실 Testcontainers, @MockBean InventoryClient) `CompensationRetryServiceIT` 5: 성공 해소+retry_count, 실패 retry_count++/next_retry_at, max-retries 후보 제외, 미래 백오프 skip, resolved 후보 제외. **skip0/fail0/err0**.
 
+## 3.5 리뷰 반영 (Claude 5-team + Codex)
+
+- **트랜잭션 정합(BE P0)**: 단일 `@Transactional` 내 HTTP 다건 루프 → 커넥션 장시간 점유 + flush 예외 롤백 정합 불일치. → **`CompensationRetryExecutor`(REQUIRES_NEW per-failure)** 분리(선례 CompensationAuditWriter). 오케스트레이터는 후보 id 만 조회 후 건별 위임 — 커넥션 건 사이 반납, 실패 격리.
+- **동시성(BE/Codex P1)**: findRetryCandidates 락 없음 → 다중 인스턴스 retry_count 이중 증가. → executor 가 **`findByIdForUpdate`(PESSIMISTIC_WRITE) 행 락** + 락 후 resolved 재확인(GONE). inventory 멱등(#349)과 이중 안전망.
+- **백오프 오버플로(BE P1)**: `1L << retryCount` 가 max-retries env override 과대 시 음수→과거→무한루프. → `Math.min(retryCount, 30)` 상한 클램프 + Javadoc 명확화(갱신 전 retryCount 지수).
+- **테스트 강화(QA P0/P1)**: IT 실패 케이스 resolved=false 단언 + 백오프 차이(last↔next=10분, 타임존 무관) 단언, max-retries 경계(retry_count=4 후보 포함), next_retry_at 등호 경계 후보, occurred_at ASC 순서(InOrder). 단위 혼합 배치(성공+실패+skip+GONE 집계) + executor 디스패치/락후 재확인.
+
 ## 4. 후속
 
 - **Phase 11 활성화**: `SAMHAN_COMPENSATION_RETRY_ENABLED=true` (retention/alert 활성화와 동반 컷오버).

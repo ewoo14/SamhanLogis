@@ -56,4 +56,17 @@ public interface SerialCompensationFailureRepository
              ORDER BY f.occurredAt ASC
             """)
     List<SerialCompensationFailure> findRetryCandidates(int maxRetries, LocalDateTime now);
+
+    /**
+     * 재시도 1건을 행 락(PESSIMISTIC_WRITE)으로 조회한다. (D-SER-27)
+     *
+     * <p>재시도 실행기가 REQUIRES_NEW 트랜잭션에서 호출해 동일 행의 동시 재시도(다중 인스턴스/중복 발화)를
+     * 직렬화한다 — 같은 보상 행에 대한 retry_count 이중 증가를 방지한다.
+     *
+     * @param id 감사 행 id
+     * @return 행 락을 획득한 엔티티(없으면 empty)
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT f FROM SerialCompensationFailure f WHERE f.id = :id")
+    java.util.Optional<SerialCompensationFailure> findByIdForUpdate(UUID id);
 }
