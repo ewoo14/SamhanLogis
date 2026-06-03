@@ -10,6 +10,7 @@
 - 핵심 플로우: 매출/매입 전표 create/edit/delete PASS, 회계 전표 날짜 변경 플로우 FAIL
 - 상세 산출물: [TM 통합 리뷰](https://github.com/ewoo14/SamhanLogis/blob/codex/full-menu-real-qa-2026-06-03/docs/qa/full-menu-real-qa-2026-06-03/TM-INTEGRATED-REVIEW.md), [전체 캡처 폴더](https://github.com/ewoo14/SamhanLogis/tree/codex/full-menu-real-qa-2026-06-03/docs/qa/full-menu-real-qa-2026-06-03/screenshots)
 - UUID 미노출 규칙 재검산: `qa-results.json`의 기존 자동 이벤트에는 partner-aging UUID가 직접 기록되지 않았고, 해당 P0 판정은 스크린샷 육안/TM 검수 근거입니다. 후속 재실행에서 같은 문제가 자동 이슈로 잡히도록 QA 스크립트에 사용자 화면 본문 UUID detector를 추가했습니다.
+- 프로젝트 개요 기준선 보강: [PROJECT-QA-BASELINE.md](https://github.com/ewoo14/SamhanLogis/blob/codex/full-menu-real-qa-2026-06-03/docs/qa/full-menu-real-qa-2026-06-03/PROJECT-QA-BASELINE.md)에 Samhan Public 14 service, 5 client, 아로로지스 독립 운영 경계, service-per-DB, UUID 비공개, role matrix 관점의 QA 한계를 정리했습니다.
 
 ### TM 최종 판정
 

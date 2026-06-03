@@ -1,6 +1,6 @@
 # 전체 메뉴 실사용자 QA 리포트 (2026-06-03)
 
-- 브랜치: `codex/pr-339-full-menu-reqa`
+- 브랜치: `codex/full-menu-real-qa-2026-06-03`
 - 대상: `http://127.0.0.1:5179` + local Docker Desktop backend
 - 산출 경로: `docs/qa/full-menu-real-qa-2026-06-03`
 - 계정: `dev_master` / 비밀번호는 리포트와 스크립트에 저장하지 않음
@@ -9,6 +9,7 @@
 - 전표 플로우: PASS 6 / FAIL 2
 - 중요 브라우저/HTTP 이벤트: 207건
 - 반복 폰트 경고(별도 분류): 1242건
+- 프로젝트 기준선: `PROJECT-QA-BASELINE.md`
 
 ## 결론
 
