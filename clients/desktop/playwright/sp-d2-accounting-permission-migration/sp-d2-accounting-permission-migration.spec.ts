@@ -517,9 +517,14 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
-      // PermissionGuard → Navigate to="/" replace → 홈 대시보드 또는 로그인
-      const isRedirectedAway =
+      // 이중 가드(RoleGuard ACCOUNTING_ROLES + PermissionGuard): SALES 는 바깥 RoleGuard 에서 먼저 차단되어
+      // "접근 권한이 없습니다" 화면을 in-place 렌더(URL 유지)하거나, RoleGuard 통과 시 PermissionGuard 가 "/" redirect.
+      // 둘 중 하나면 차단 성립 — sp-d4 검증 패턴 일관.
+      const isBlockedByRoleGuard =
+        bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만')
+      const isRedirectedByPermGuard =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         (currentUrl.includes(BASE_URL) && !currentUrl.includes('/accounting/tax-invoices')) ||
@@ -527,9 +532,17 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
         currentUrl.includes('/forbidden')
 
       expect(
-        isRedirectedAway,
-        `SALES 세금계산서 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. accounting.tax-invoice.emit-nts 권한 없으므로 PermissionGuard 가 "/" redirect 필요.`,
+        isBlockedByRoleGuard || isRedirectedByPermGuard,
+        `SALES 세금계산서 직접 진입 차단 미작동 — URL: ${currentUrl}. RoleGuard(접근 권한 없음) 또는 PermissionGuard(redirect) 중 하나가 동작해야 함.`,
       ).toBe(true)
+
+      // 차단 강화 — 세금계산서 페이지 콘텐츠가 렌더되지 않아야 한다(권한 없는 데이터 노출 방지).
+      const taxInvoicePageLoaded =
+        bodyText.includes('세금계산서 발행') || bodyText.includes('공급가액 합계')
+      expect(
+        taxInvoicePageLoaded,
+        `차단된 SALES 에게 세금계산서 페이지 콘텐츠가 노출됨 — bodyText: "${bodyText.substring(0, 120)}"`,
+      ).toBe(false)
     })
 
     await test.step('SALES — 계정과목 URL 직접 진입 시 redirect "/" 확인', async () => {
@@ -540,8 +553,11 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
-      const isRedirectedAway =
+      const isBlockedByRoleGuard =
+        bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만')
+      const isRedirectedByPermGuard =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         (currentUrl.includes(BASE_URL) && !currentUrl.includes('/accounting/accounts')) ||
@@ -549,9 +565,16 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
         currentUrl.includes('/forbidden')
 
       expect(
-        isRedirectedAway,
-        `SALES 계정과목 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. accounting.accounts 권한 없으므로 PermissionGuard 가 "/" redirect 필요.`,
+        isBlockedByRoleGuard || isRedirectedByPermGuard,
+        `SALES 계정과목 직접 진입 차단 미작동 — URL: ${currentUrl}. RoleGuard(접근 권한 없음) 또는 PermissionGuard(redirect) 중 하나가 동작해야 함.`,
       ).toBe(true)
+
+      // 차단 강화 — 계정과목 트리 콘텐츠가 렌더되지 않아야 한다.
+      const accountTreeLoaded = bodyText.includes('계정 트리') || bodyText.includes('계정과목 등록')
+      expect(
+        accountTreeLoaded,
+        `차단된 SALES 에게 계정과목 페이지 콘텐츠가 노출됨 — bodyText: "${bodyText.substring(0, 120)}"`,
+      ).toBe(false)
     })
 
     await page.screenshot({

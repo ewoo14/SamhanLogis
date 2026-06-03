@@ -122,6 +122,47 @@ function mockPermsFromResponse(
   }))
 }
 
+/**
+ * 권한 없는 라우트 접근이 차단됐는지 판정한다(이중 가드 일관 — sp-d4 패턴).
+ *
+ * <p>슬립/배차 라우트는 RoleGuard(정적 화이트리스트) + PermissionGuard 이중 가드다. 화이트리스트
+ * 밖 role 은 바깥 RoleGuard 가 먼저 "접근 권한이 없습니다" 화면을 in-place 렌더(URL 유지)하고,
+ * RoleGuard 를 통과한 role 은 PermissionGuard 가 "/" 로 redirect 한다. 둘 중 하나면 차단 성립이며,
+ * 어느 경우든 보호 페이지 콘텐츠는 렌더되지 않는다.
+ *
+ * @param currentUrl 현재 URL
+ * @param bodyText 현재 body 텍스트
+ * @param pathFragment 차단 대상 라우트 경로 조각(예: '/purchases/slips')
+ */
+function isAccessBlocked(currentUrl: string, bodyText: string, pathFragment: string): boolean {
+  const blockedByRoleGuard =
+    bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만')
+  const redirectedByPermGuard =
+    currentUrl.endsWith('/#/') ||
+    currentUrl.endsWith('/#') ||
+    (currentUrl.includes(BASE_URL) && !currentUrl.includes(pathFragment)) ||
+    currentUrl.includes('/login') ||
+    currentUrl.includes('/forbidden')
+  return blockedByRoleGuard || redirectedByPermGuard
+}
+
+/**
+ * 권한 없는 라우트 진입 후 차단(redirect/forbidden)이 정착할 때까지 폴링한다.
+ *
+ * <p>PermissionGuard 의 "/" redirect 는 권한 fetch 완료 후 발생하므로, 고정 대기는 전이 중
+ * 빈 프레임을 포착할 수 있다. 차단이 확인되면 즉시 반환하고, 미차단이면 최대 대기 후 반환해
+ * (false-green 없이) 호출부 단언이 실제 상태로 실패하게 한다.
+ */
+async function waitForAccessSettled(page: Page, pathFragment: string): Promise<void> {
+  await page.waitForTimeout(600)
+  for (let i = 0; i < 24; i++) {
+    const currentUrl = page.url()
+    const bodyText = (await page.textContent('body').catch(() => '')) ?? ''
+    if (isAccessBlocked(currentUrl, bodyText, pathFragment)) return
+    await page.waitForTimeout(300)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SP-D3 마이그레이션 대상 6 PageCode 정의 — routes/index.tsx 1:1 정합
 // ---------------------------------------------------------------------------
@@ -350,22 +391,16 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
-      // purchases.slip.list 없음 → PermissionGuard redirect "/"
-      const isRedirectedAway =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/purchases/slips')) ||
-        currentUrl.includes('/login') ||
-        currentUrl.includes('/forbidden')
-
+      // purchases.slip.list 없음 → RoleGuard 차단(접근 권한 없음) 또는 PermissionGuard redirect "/"
       expect(
-        isRedirectedAway,
-        `SALES 매입 슬립 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. purchases.slip.list 권한 없으므로 PermissionGuard redirect "/" 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/purchases/slips'),
+        `SALES 매입 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. RoleGuard 또는 PermissionGuard 중 하나가 차단해야 함.`,
       ).toBe(true)
     })
 
-    await test.step('SALES — 배차 메뉴 URL 직접 진입 시 redirect "/" 확인', async () => {
+    await test.step('SALES — 배차 메뉴 URL 직접 진입 시 차단 확인', async () => {
       await page.goto(withMockPerms(DISPATCH_BOARD_URL, salesPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
@@ -373,17 +408,11 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
-
-      const isRedirectedAway =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/dispatch-board')) ||
-        currentUrl.includes('/login') ||
-        currentUrl.includes('/forbidden')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isRedirectedAway,
-        `SALES 배차 메뉴 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. dispatch.board 권한 없으므로 PermissionGuard redirect "/" 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/dispatch-board'),
+        `SALES 배차 메뉴 직접 진입 차단 미작동 — URL: ${currentUrl}. dispatch.board 권한 없으므로 차단 필요.`,
       ).toBe(true)
     })
 
@@ -531,30 +560,9 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
     const dispatchPerms = mockPermsFromResponse(buildDispatchPermissions())
 
-    // 배차 관련 BE endpoint mock
-    await page.route('**/dispatch-board**', async route => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: [], total: 0 }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
-
-    await page.route('**/aligo/send-audit**', async route => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true, data: [], total: 0 }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    // NOTE: 배차/SMS 페이지는 VITE_MOCK_MODE in-process mock 이 직접 서빙하므로 page.route 불필요.
+    // 광범위 glob('**/dispatch-board**' 등) page.route 는 후속 SPA redirect 네비게이션을 간섭해
+    // 차단 단계에서 빈 화면·redirect 미작동을 유발했다(순수 네비게이션은 정상 — 진단 확인). 제거.
 
     await test.step('DISPATCH — 배차 메뉴 (/dispatch-board) 접근 가능 확인', async () => {
       await page.goto(withMockPerms(DISPATCH_BOARD_DISPATCH_URL, dispatchPerms), {
@@ -601,42 +609,30 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
+      await waitForAccessSettled(page, '/sales/slips')
 
       const currentUrl = page.url()
-
-      const isRedirectedAway =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/sales/slips')) ||
-        currentUrl.includes('/login') ||
-        currentUrl.includes('/forbidden')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isRedirectedAway,
-        `DISPATCH 매출 슬립 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. sales.slip.list 권한 없으므로 PermissionGuard redirect "/" 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/sales/slips'),
+        `DISPATCH 매출 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. sales.slip.list 권한 없으므로 차단 필요.`,
       ).toBe(true)
     })
 
-    await test.step('DISPATCH — 매입 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
+    await test.step('DISPATCH — 매입 슬립 URL 직접 진입 시 차단 확인', async () => {
       await page.goto(withMockPerms(`${BASE_URL}/#/purchases/slips?mockRole=DISPATCH`, dispatchPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
+      await waitForAccessSettled(page, '/purchases/slips')
 
       const currentUrl = page.url()
-
-      const isRedirectedAway =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/purchases/slips')) ||
-        currentUrl.includes('/login') ||
-        currentUrl.includes('/forbidden')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isRedirectedAway,
-        `DISPATCH 매입 슬립 직접 진입 시 redirect 미작동 — URL: ${currentUrl}. purchases.slip.list 권한 없으므로 PermissionGuard redirect "/" 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/purchases/slips'),
+        `DISPATCH 매입 슬립 직접 진입 차단 미작동 — URL: ${currentUrl}. purchases.slip.list 권한 없으므로 차단 필요.`,
       ).toBe(true)
     })
 
@@ -644,9 +640,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       path: path.join(QA_DIR, 'T3-dispatch-board-sms-access-slip-hidden.png'),
       fullPage: true,
     })
-
-    await page.unroute('**/dispatch-board**')
-    await page.unroute('**/aligo/send-audit**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -814,20 +807,14 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
-
-      const isBlockedAndRedirected =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/purchases/slips')) ||
-        currentUrl.includes('/login')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isBlockedAndRedirected,
-        `/purchases/slips 직접 진입이 허용됨 — URL: ${currentUrl}. purchases.slip.list 권한 없음 — PermissionGuard redirect 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/purchases/slips'),
+        `/purchases/slips 직접 진입이 허용됨 — URL: ${currentUrl}. purchases.slip.list 권한 없음 — 차단 필요.`,
       ).toBe(true)
 
       // 매입 슬립 콘텐츠 미표시 확인
-      const bodyText = (await page.textContent('body')) ?? ''
       const purchaseSlipPageLoaded =
         bodyText.includes('매입 슬립') ||
         bodyText.includes('SlipList') ||
@@ -847,16 +834,11 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
-
-      const isBlockedAndRedirected =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/dispatch-board')) ||
-        currentUrl.includes('/login')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isBlockedAndRedirected,
-        `/dispatch-board 직접 진입이 허용됨 — URL: ${currentUrl}. dispatch.board 권한 없음 — PermissionGuard redirect 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/dispatch-board'),
+        `/dispatch-board 직접 진입이 허용됨 — URL: ${currentUrl}. dispatch.board 권한 없음 — 차단 필요.`,
       ).toBe(true)
     })
 
@@ -868,35 +850,33 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
-
-      const isBlockedAndRedirected =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/sales/slips')) ||
-        currentUrl.includes('/login')
+      const bodyText = (await page.textContent('body')) ?? ''
 
       expect(
-        isBlockedAndRedirected,
-        `/sales/slips 직접 진입이 허용됨 — URL: ${currentUrl}. sales.slip.list 권한 없음 — PermissionGuard redirect 필요.`,
+        isAccessBlocked(currentUrl, bodyText, '/sales/slips'),
+        `/sales/slips 직접 진입이 허용됨 — URL: ${currentUrl}. sales.slip.list 권한 없음 — 차단 필요.`,
       ).toBe(true)
     })
 
-    await test.step('redirect 목적지 확인 — 대시보드 또는 로그인', async () => {
+    await test.step('차단 목적지 확인 — 대시보드/로그인 redirect 또는 접근 권한 없음 화면', async () => {
       const currentUrl = page.url()
       const bodyText = (await page.textContent('body')) ?? ''
 
-      const isValidRedirectDest =
+      // 이중 가드: PermissionGuard redirect(대시보드/로그인) 또는 RoleGuard in-place 차단 화면 중 하나.
+      const isValidBlockedDest =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         currentUrl.includes('/login') ||
         bodyText.includes('대시보드') ||
         bodyText.includes('Dashboard') ||
         bodyText.includes('로그인') ||
-        bodyText.includes('이메일')
+        bodyText.includes('이메일') ||
+        bodyText.includes('접근 권한이 없습니다') ||
+        bodyText.includes('권한 보유자만')
 
       expect(
-        isValidRedirectDest,
-        `redirect 목적지 미확인 — URL: ${currentUrl}, bodyText: "${bodyText.substring(0, 100)}"`,
+        isValidBlockedDest,
+        `차단 목적지 미확인 — URL: ${currentUrl}, bodyText: "${bodyText.substring(0, 100)}"`,
       ).toBe(true)
     })
 
