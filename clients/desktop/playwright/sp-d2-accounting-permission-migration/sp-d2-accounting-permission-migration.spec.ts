@@ -606,7 +606,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
 
     const accountantRevokedPerms = mockPermsFromResponse(buildAccountantWithTaxInvoiceBatchRevoked())
 
-    // 회계 BE endpoint 응답 mock
+    // 회계 BE endpoint 응답 mock — 연쇄 네비게이션 중 실 API 호출이 인증 흐름에 영향을 주지 않도록 격리.
     await page.route('**/accounting/**', async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -619,6 +619,10 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       }
     })
 
+    // NOTE: 본 테스트의 핵심은 "단일 권한(batch-issue) revoke 가 나머지 회계 페이지 접근을 막지 않는다"이며
+    //   아래 3개 접근 step 으로 검증한다. (동적 사이드바의 per-permission 숨김 표시는 미완 기능 — spec 주석 참조 —
+    //   이며 전체 스위트 컨텍스트에서 mock-auth/권한 캐시 타이밍에 민감해 신뢰성 있는 단언이 어려우므로,
+    //   ACCOUNTANT 회계 사이드바 가시성 검증은 T1 로 대체한다. 타우톨로지/flaky 단언 도입을 피한다.)
     await test.step('accounting.accounts 보유 — 계정과목 페이지 접근 허용 확인', async () => {
       await page.goto(withMockPerms(ACCOUNTING_ACCOUNTS_ACCOUNTANT, accountantRevokedPerms), {
         waitUntil: 'domcontentloaded',
@@ -680,39 +684,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
         isBlockedFromDailyClosing,
         `accounting.daily-closing 보유 ACCOUNTANT 의 일마감 페이지가 차단됨 — URL: ${currentUrl}. revoke 대상 아님 — 접근 허용 필요.`,
       ).toBe(false)
-    })
-
-    await test.step('사이드바: tax-invoice.list 매핑 메뉴 hidden 확인 (계정과목/분개장)', async () => {
-      // 홈으로 이동 후 사이드바 상태 확인
-      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, accountantRevokedPerms), {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000,
-      })
-      await page.waitForTimeout(1500)
-
-      // accounting.tax-invoice.batch-issue 매핑 메뉴 — 세금계산서 그룹
-      const accountingAccountsLink = page.locator('[data-testid="sidebar-accounting-accounts"]')
-      const accountingJournalsLink = page.locator('[data-testid="sidebar-accounting-journals"]')
-
-      const accountsLinkVisible = await accountingAccountsLink.isVisible().catch(() => false)
-      const journalsLinkVisible = await accountingJournalsLink.isVisible().catch(() => false)
-
-      // SP-D2 동적 사이드바 구현 시: tax-invoice.list 없으면 해당 메뉴 hidden
-      // 이중 가드 구조 (RoleGuard + PermissionGuard) — 사이드바는 PermissionGuard 연동 시 반영
-      // 현재 AppLayout 은 canAccessAccounting(role) 정적 체크 — SP-D2 동적 연동 후 변경됨
-      // 따라서 이 단계에서는 ACCOUNTANT 역할이면 showAccounting=true 로 메뉴 표시될 수 있음
-      // SP-D2 완전 구현 전: "메뉴가 있으나 진입 차단" 이중 가드 패턴 검증
-      const bodyText = (await page.textContent('body')) ?? ''
-      const hasAccountingSection =
-        bodyText.includes('회계') || accountsLinkVisible || journalsLinkVisible
-
-      // ACCOUNTANT 역할이므로 사이드바 자체는 존재 (역할 기반) — 진입 시 PermissionGuard 차단
-      // T3 는 진입 차단 (PermissionGuard) + 사이드바 동적 숨김 (SP-D2 완전 구현 후 검증)
-      // 현재 단계: 사이드바 구조 확인 + 진입 차단이 핵심 assertion
-      expect(
-        hasAccountingSection !== undefined,
-        '사이드바 상태 확인 완료 — accounting.tax-invoice.batch-issue revoke 후 나머지 회계 메뉴 유지 검증됨',
-      ).toBe(true)
     })
 
     await page.screenshot({
@@ -938,25 +909,15 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       // 이중 가드 패턴: RoleGuard 에서 차단 → PermissionGuard grant 해도 진입 불가 (SP-D3 전)
       // T5 의 핵심 = "이중 가드 동작 검증"
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
-      // 이중 가드 구조상 SALES 는 차단됨 (RoleGuard ACCOUNTING_ROLES 미포함)
-      // 또는 PermissionGuard 만 구현된 경우 grant 후 진입 가능
-      // 현재 SP-D2 구현 단계에 따라 두 시나리오 모두 허용
-      const isBlockedByRoleGuard =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/accounting/tax-invoices')) ||
-        currentUrl.includes('/forbidden') ||
-        currentUrl.includes('/login')
-
-      const isAllowedByPermissionGuard =
-        currentUrl.includes('/accounting/tax-invoices')
-
-      // 이중 가드 또는 PermissionGuard 단독 중 하나
-      const isExpectedBehavior = isBlockedByRoleGuard || isAllowedByPermissionGuard
+      // 이중 가드 핵심 검증: SALES 는 RoleGuard(ACCOUNTING_ROLES=ACCOUNTANT/MANAGER/MASTER) 화이트리스트
+      // 밖이므로, PermissionGuard 로 tax-invoice.batch-issue 를 grant 해도 바깥 RoleGuard 가 차단해
+      // "접근 권한이 없습니다" 화면을 렌더한다(URL 유지). RoleGuard 제거(SP-D3 이후) 전까지 grant 는 무효.
+      // (grant 는 사이드바 메뉴에는 반영되나 라우트 진입은 RoleGuard 가 막는다 — 진단으로 확인.)
       expect(
-        isExpectedBehavior,
-        `SALES accounting.tax-invoice.batch-issue grant 후 예상치 못한 URL — ${currentUrl}`,
+        bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만'),
+        `SALES 는 RoleGuard 이중 가드로 차단되어야 함(grant 무효, 접근 권한 없음 화면) — URL: ${currentUrl}, body: "${bodyText.substring(0, 120)}"`,
       ).toBe(true)
     })
 

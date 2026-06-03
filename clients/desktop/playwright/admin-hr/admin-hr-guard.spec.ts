@@ -157,7 +157,11 @@ const HR_MENU_TEST_IDS = [
 test.describe('인사 카테고리 + 대표실 가드', () => {
   test.beforeEach(async () => {
     const ok = await isServerAvailable()
-    test.skip(!ok, `dev server 미가동: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite 후 재시도`)
+    // false green 방지(SP-09 패턴 일관) — dev server 미가용 시 skip 이 아닌 FAIL.
+    expect(
+      ok,
+      `dev server 미접근: ${BASE_URL} — VITE_MOCK_MODE=1 npx vite src/renderer --host 127.0.0.1 --port 5173 실행 후 재시도`,
+    ).toBe(true)
   })
 
 // ---------------------------------------------------------------------------

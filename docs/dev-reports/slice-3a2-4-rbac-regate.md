@@ -23,6 +23,17 @@
 - **admin-hr TC-HR2 = `test.fixme`**: /admin/users 부서 route-게이팅은 접근제어 강화 프로덕션 기능(BE @PreAuthorize 부서 정합·대상 라우트 범위·redirect 목적지 결정 필요)이라 별도 슬라이스. 사이드바 "인사" 카테고리는 이미 대표실+MASTER 부서 게이팅됨(TC-HR4/HR5 통과).
 - **sp-d1 = 격리 유지**: 권한 매트릭스 UI 재설계(role-grid→account-select)로 스펙(84-grid) 전면 재작성 필요 — 별도 슬라이스.
 
+## 3.5 QA 리뷰 반영 (false-green 적발 수정)
+
+QA 리뷰가 재게이트 대상 spec 의 **사전 존재 false-green**(재게이트로 본 슬라이스가 책임) 적발 → 정정:
+
+- **sp-d2 T5**(P1): `isBlockedByRoleGuard || isAllowedByPermissionGuard` 가 상호배타 조건이라 **항상 true**(동어반복). → SALES 는 RoleGuard(ACCOUNTING_ROLES) 밖이라 grant 무효·차단이 기대 동작임을 확인(진단: "접근 권한이 없습니다" 화면, 단 grant 된 세금계산서 메뉴는 사이드바에 표시) → **RoleGuard forbidden 화면 정밀 단언**으로 교체.
+- **sp-d2 T3**(P0): `hasAccountingSection !== undefined`(boolean→항상 true) 사이드바 sub-step → **제거**. 동적 per-permission 사이드바 숨김은 미완 기능 + 전체 스위트 컨텍스트에서 mock-auth 타이밍 민감(신뢰성 단언 불가) → ACCOUNTANT 회계 사이드바 가시성은 T1 로 대체. 타우톨로지/flaky 도입 회피. (T3 핵심=부분 revoke 가 비-revoke 페이지 접근 차단 안 함, 3 접근 step 유지.)
+- **sp-d3 T3**(P1): "접근 가능" step 에 **콘텐츠 렌더 단언 추가**(차단 화면 부재 + 앱 셸 렌더 — page.route 제거 후 빈 화면 회귀 방지).
+- **admin-hr beforeEach**(P1): `test.skip(!ok)` → `expect(ok).toBe(true)`(dev server 미가용 시 FAIL — SP-09 패턴·sp-d2/d3 일관).
+
+재검증: 20 passed / 1 skipped(fixme). desktop tsc 0.
+
 ## 4. 후속
 
 - **admin-hr 부서 route-게이팅**: /admin/users(및 대상 admin 라우트) 대표실 외 차단 — BE 부서 정합 + redirect 목적지 결정 후 구현.

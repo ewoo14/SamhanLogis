@@ -572,6 +572,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
       const isRedirectedToHome =
         currentUrl.endsWith('/#/') ||
@@ -582,6 +583,10 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
         isRedirectedToHome,
         `DISPATCH 배차 메뉴 페이지 접근이 차단됨 — URL: ${currentUrl}. dispatch.board view=true 보유 DISPATCH 는 접근 허용 필요.`,
       ).toBe(false)
+
+      // 접근 허용 강화 — RoleGuard 차단 화면이 아니어야 하고 앱 셸이 렌더되어야 한다(page.route 제거 후 빈 화면 회귀 방지).
+      expect(bodyText.includes('접근 권한이 없습니다'), 'DISPATCH 배차 메뉴 — 차단 화면 표시됨').toBe(false)
+      expect(bodyText.includes('대시보드'), 'DISPATCH 배차 메뉴 — 앱 셸 미렌더(빈 화면)').toBe(true)
     })
 
     await test.step('DISPATCH — SMS 발송 이력 (/arologis/dispatch-sms/send-audit) 접근 가능 확인', async () => {
@@ -592,6 +597,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await page.waitForTimeout(1500)
 
       const currentUrl = page.url()
+      const bodyText = (await page.textContent('body')) ?? ''
 
       const isRedirectedToHome =
         currentUrl.endsWith('/#/') ||
@@ -602,6 +608,10 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
         isRedirectedToHome,
         `DISPATCH SMS 발송 이력 페이지 접근이 차단됨 — URL: ${currentUrl}. notification.dispatch-sms.send-audit view=true 보유 DISPATCH 는 접근 허용 필요.`,
       ).toBe(false)
+
+      // 접근 허용 강화 — 차단 화면 아님 + 앱 셸 렌더(빈 화면 회귀 방지).
+      expect(bodyText.includes('접근 권한이 없습니다'), 'DISPATCH SMS 이력 — 차단 화면 표시됨').toBe(false)
+      expect(bodyText.includes('대시보드'), 'DISPATCH SMS 이력 — 앱 셸 미렌더(빈 화면)').toBe(true)
     })
 
     await test.step('DISPATCH — 매출 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
