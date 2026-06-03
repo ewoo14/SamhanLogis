@@ -75,6 +75,10 @@ const TYPE_LABEL: Record<WarehouseType, string> = {
  * - 비활성 창고(`active: false`) 는 옵션이 disabled + 회색 처리되어 선택 불가.
  * - `FormField` 와 통합되어 라벨/에러/required 표시를 일관되게 처리.
  * - 선택값은 controlled (`value` + `onChange`) 로만 다루며 내부 state 미보유.
+ *
+ * @deprecated 모든 창고 선택 UI 가 {@link WarehouseAutocomplete}(타이핑 검색 combobox)로 일원화됨
+ *   (2026-06-03). 신규 사용 금지 — `WarehouseAutocomplete` 를 사용할 것. 본 컴포넌트는
+ *   `Warehouse`/`WarehouseType` 타입 export 호환을 위해 유지된다(JSX 사용처 0).
  */
 export function WarehouseSelector({
   warehouses,

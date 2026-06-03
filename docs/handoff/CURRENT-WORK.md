@@ -4,6 +4,16 @@
 
 ---
 
+## 🧹 2026-06-03 — 세션 마무리 정리 (작은 해소 일괄)
+
+> 개발책임자 "남은 내용 해소 후 마무리" 지시. 작은 정리 → ⓑ 분산보상 후속 → 3-A2-③ 순 진행.
+
+- **slip HikariCP**: `application.yml` datasource `hikari.maximum-pool-size: 20 / minimum-idle: 5`(env override) 추가 — CompensationAuditWriter REQUIRES_NEW 2중 커넥션 고갈 방지(D-SER-22 DevOps P1 해소).
+- **WarehouseSelector @deprecated**: JSX 사용처 0(WarehouseAutocomplete 로 일원화) → 컴포넌트 `@deprecated` 마킹. `Warehouse`/`WarehouseType` 타입은 WarehouseAutocomplete 가 소비하므로 유지.
+- **PR #339 close**: codex full-menu QA 산출물(100파일 스냅샷, 3일 stale Draft) → per-slice QA 워크플로우로 대체, 캡처 스크립트로 재생성 가능 → PM 판단 close.
+
+---
+
 ## ✅ 2026-06-03 — WarehouseAutocomplete 통합 (ⓒ 3순위, 잔여 WarehouseSelector 일원화)
 
 > ⓒ 마지막. design-system `WarehouseAutocomplete`(AC-1)를 작성 폼 헤더 창고 선택에 일원화. FE only(desktop).

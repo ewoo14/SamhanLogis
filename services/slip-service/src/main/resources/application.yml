@@ -17,6 +17,11 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:slip_db}
     username: ${DB_USER:samhan}
     password: ${DB_PASSWORD:samhan_dev_pw}
+    hikari:
+      # 보상 감사(CompensationAuditWriter)는 REQUIRES_NEW 로 외부 트랜잭션과 별도 커넥션을 점유한다.
+      # 보상 실패 다발(inventory 일시 다운 등) 시 스레드당 2 커넥션 소모 → 기본값(10) 고갈 방지로 상향. (D-SER-22 후속, DevOps P1)
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
   jpa:
     hibernate:
       ddl-auto: validate
