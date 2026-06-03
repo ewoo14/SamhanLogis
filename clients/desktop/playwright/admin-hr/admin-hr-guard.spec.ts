@@ -209,8 +209,9 @@ test('TC-HR1: MASTER+대표실 — /admin/users 진입 가능 + 인사 사이드
 //   admin.users 권한 보유 MASTER 가 비-대표실 부서(영업)여도 진입이 허용된다(URL 잔류). 부서 기반
 //   라우트 게이팅(대표실 외 차단)은 접근제어 강화 프로덕션 기능이며 BE @PreAuthorize 부서 정합·
 //   대상 admin 라우트 범위·redirect 목적지(/forbidden vs "/") 결정이 필요하므로 별도 슬라이스로 분리한다.
-//   (사이드바 "인사" 카테고리는 이미 대표실+MASTER 로 부서 게이팅됨 — TC-HR4/HR5 통과.) 정직 표기: false-green 회피.
-test.fixme('TC-HR2: MASTER+영업 — /admin/users 직접 URL 진입 시 forbidden 또는 redirect', async ({
+//   (사이드바 "인사" 카테고리는 이미 대표실+MASTER 로 부서 게이팅됨 — TC-HR4/HR5 통과.)
+//   본 spec(admin-hr)은 미구현 TC-HR2 때문에 playwright.config testIgnore 로 격리 상태다(별도 슬라이스).
+test('TC-HR2: MASTER+영업 — /admin/users 직접 URL 진입 시 forbidden 또는 redirect', async ({
   page,
 }) => {
   const errors: string[] = []

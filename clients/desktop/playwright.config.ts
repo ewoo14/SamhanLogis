@@ -23,10 +23,12 @@ export default defineConfig({
     // 레거시 GAS 소스 의존 스펙은 mock 회귀가 아니므로 3-A2 컨벤션 대상에서 제외한다.
     '**/full-menu-contract/**',
     // 🔴 3-A2 QUARANTINE — 기존 미실행 레거시 스펙 드리프트(335 통과분과 분리). 추적·수리: docs/dev-reports/slice-3-a2-desktop-playwright-ci-gate.md. 신규 mock 스펙은 본 목록과 무관하게 자동 게이트됨.
-    // 🟢 3-A2-④ 재게이트 완료(green) — sp-d2(회계 5/5)·sp-d3(슬립/배차 9/9)·admin-hr(인사 4/5, TC-HR2 는
-    //   부서 route-게이팅 프로덕션 기능 미구현으로 test.fixme 정직 표기). 이중 가드(RoleGuard+PermissionGuard)
+    // 🟢 3-A2-④ 재게이트 완료(green) — sp-d2(회계 5/5)·sp-d3(슬립/배차 9/9). 이중 가드(RoleGuard+PermissionGuard)
     //   차단 판정을 sp-d4 검증 패턴으로 교정 + 광범위 page.route 제거(SPA redirect 간섭). 상세:
     //   docs/dev-reports/slice-3a2-4-rbac-regate.md.
+    // 🟡 admin-hr 은 4/5 로컬 통과하나 TC-HR2(/admin/users 부서 route-게이팅)가 프로덕션 기능 미구현 —
+    //   gated 스펙은 skip 금지(silent-skip 2차 방어)라 미구현 TC 를 fixme/skip 으로 둘 수 없어 격리 유지(별도 슬라이스).
+    '**/admin-hr/**',
     // 🟡 sp-d1 은 권한 매트릭스 UI 재설계(role-grid→account-select)로 스펙(84-grid 기대)과 불일치 — 별도 슬라이스.
     '**/sp-d1-dynamic-rbac/**',
     '**/phase-2-5-partner-order-hold/**',

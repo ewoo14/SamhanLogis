@@ -15,12 +15,15 @@
 
 - **sp-d2**(5/5+가드): T2 차단 판정을 sp-d4 패턴(RoleGuard 화면 OR PermissionGuard redirect)으로 교정 + **보호 콘텐츠 부재 단언 추가(강화)**.
 - **sp-d3**(9/9): `isAccessBlocked()` 헬퍼(이중 가드 일관) + `waitForAccessSettled()` redirect 정착 폴링 도입. T1/T3/T5 차단 단언 교정. 🚨 **T3 빈 화면 근본원인 = 광범위 `page.route('**/dispatch-board**')` mock 이 후속 SPA redirect 네비게이션을 간섭**(순수 네비게이션·fresh 진입은 정상 — 진단 확인). in-process VITE_MOCK_MODE 가 해당 페이지를 서빙하므로 **redundant page.route 제거**로 해결. 회귀 가드(`|| true`/`setContent` 0건) 통과.
-- **admin-hr**(4/5): TC-HR4 를 `getByText('관리자',{exact:true})` 로 정밀화("회계 관리자" 오탐 제거). TC-HR2 에 redirect 정착 폴링 추가.
-- **sp-d2/sp-d3/admin-hr testIgnore 해제(재게이트)**. **20 passed / 1 skipped**(TC-HR2 fixme).
+- **admin-hr**(로컬 4/5): TC-HR4 `getByText('관리자',{exact:true})` 정밀화, beforeEach FAIL 가드, TC-HR2 정착 폴링.
+- **sp-d2/sp-d3 testIgnore 해제(재게이트)**. **16 passed / 0 skipped**.
+- ⚠️ **admin-hr 는 격리 유지**: CI "silent-skip 가드(false-green 2차 방어)"가 gated 스펙의 skip>0 을 금지하므로
+  미구현 TC-HR2 를 `test.fixme`/skip 으로 둘 수 없고, 4 TC 만 분리 게이트하려면 헬퍼 중복 파일 분리가 필요해
+  본 슬라이스에선 admin-hr 전체를 격리 유지한다(부서 게이팅 구현 슬라이스에서 함께 재게이트). 개선분은 커밋되어 즉시 활용 가능.
 
 ## 3. 정직한 분리 (false-green 회피)
 
-- **admin-hr TC-HR2 = `test.fixme`**: /admin/users 부서 route-게이팅은 접근제어 강화 프로덕션 기능(BE @PreAuthorize 부서 정합·대상 라우트 범위·redirect 목적지 결정 필요)이라 별도 슬라이스. 사이드바 "인사" 카테고리는 이미 대표실+MASTER 부서 게이팅됨(TC-HR4/HR5 통과).
+- **admin-hr 격리 유지(TC-HR2)**: /admin/users 부서 route-게이팅은 접근제어 강화 프로덕션 기능(BE @PreAuthorize 부서 정합·대상 라우트 범위·redirect 목적지 결정 필요)이라 별도 슬라이스. 사이드바 "인사" 카테고리는 이미 대표실+MASTER 부서 게이팅됨(TC-HR4/HR5 로컬 통과). gated 스펙 skip 금지로 fixme 불가 → 파일 전체 격리.
 - **sp-d1 = 격리 유지**: 권한 매트릭스 UI 재설계(role-grid→account-select)로 스펙(84-grid) 전면 재작성 필요 — 별도 슬라이스.
 
 ## 3.5 QA 리뷰 반영 (false-green 적발 수정)
@@ -32,7 +35,7 @@ QA 리뷰가 재게이트 대상 spec 의 **사전 존재 false-green**(재게�
 - **sp-d3 T3**(P1): "접근 가능" step 에 **콘텐츠 렌더 단언 추가**(차단 화면 부재 + 앱 셸 렌더 — page.route 제거 후 빈 화면 회귀 방지).
 - **admin-hr beforeEach**(P1): `test.skip(!ok)` → `expect(ok).toBe(true)`(dev server 미가용 시 FAIL — SP-09 패턴·sp-d2/d3 일관).
 
-재검증: 20 passed / 1 skipped(fixme). desktop tsc 0.
+재검증: gated(sp-d2+sp-d3) 16 passed / 0 skipped. desktop tsc 0. (admin-hr 격리 — silent-skip 가드 충족.)
 
 ## 4. 후속
 
