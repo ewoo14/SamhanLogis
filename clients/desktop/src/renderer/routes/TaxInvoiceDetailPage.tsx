@@ -180,7 +180,13 @@ export function TaxInvoiceDetailPage() {
     onSuccess: (result) => {
       setShowEmitNtsModal(false)
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'tax-invoices'] })
-      void queryClient.invalidateQueries({ queryKey: ['accounting', 'tax-invoice', id] })
+      // emit 결과의 eTaxExternalId 를 상세 캐시에 낙관적 반영(홈택스 접수번호 즉시 표시 — SP-09-1 T3).
+      // detail invalidate refetch 는 DRY_RUN 미영속 mock 을 덮어써 값이 사라지므로, 결과 기반 setQueryData 사용.
+      queryClient.setQueryData(
+        ['accounting', 'tax-invoice', id],
+        (old: typeof query.data) =>
+          old ? { ...old, eTaxExternalId: result.eTaxExternalId ?? old.eTaxExternalId } : old,
+      )
       void queryClient.invalidateQueries({
         queryKey: ['accounting', 'tax-invoice', id, 'audit-logs'],
       })
@@ -391,6 +397,15 @@ export function TaxInvoiceDetailPage() {
                 ? ` · 취소: ${new Date(t.cancelledAt).toLocaleString('ko-KR')}`
                 : ''}
             </div>
+            {/* SP-09-1 T3: 홈택스 접수번호(eTaxExternalId) 값 표시 — 비즈니스 식별자(사용자 노출 가능). NTS 발행 후 표시. */}
+            {t.eTaxExternalId ? (
+              <div
+                style={{ marginTop: 8, fontSize: 13, color: 'var(--color-neutral-700)', fontVariantNumeric: 'tabular-nums' }}
+                data-testid="tax-invoice-detail-etax-external-id"
+              >
+                홈택스 접수번호: <strong>{t.eTaxExternalId}</strong>
+              </div>
+            ) : null}
             {t.status === 'CANCELLED' && t.cancelReason ? (
               <div
                 style={{

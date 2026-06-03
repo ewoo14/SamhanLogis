@@ -92,6 +92,8 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 const LIST_URL_ACCOUNTANT = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`
 /** ACCOUNTANT 역할 + ISSUED 상태 세금계산서 상세 (NTS 발행 대상) */
 const DETAIL_URL_ISSUED = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=ISSUED`
+// T3: NTS 발행은 상세 페이지(TaxInvoiceDetailPage)에서만 가능 — ISSUED·미발행(ti-001) 단건 상세로 직접 진입.
+const DETAIL_URL_ISSUED_TI001 = `${BASE_URL}/#/accounting/tax-invoices/ti-001?mockRole=ACCOUNTANT`
 /** SALES 역할 — 403 가드 검증 */
 const LIST_URL_SALES = `${BASE_URL}/#/accounting/tax-invoices?mockRole=SALES`
 /** MANAGER 역할 — 403 가드 검증 */
@@ -452,9 +454,9 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       })
     })
 
-    // ── step 1: ISSUED 상세 진입
+    // ── step 1: ISSUED 단건 상세 진입(ti-001) — NTS 발행 버튼은 상세 페이지에서만 노출.
     await test.step('ISSUED detail 진입', async () => {
-      await page.goto(DETAIL_URL_ISSUED, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await page.goto(DETAIL_URL_ISSUED_TI001, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
       const bodyText = (await page.textContent('body')) ?? ''
@@ -470,29 +472,24 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
       ).first()
 
-      if ((await ntsBtn.count()) > 0) {
-        // ISSUED 행 클릭하여 상세로 이동 (목록 페이지인 경우)
-        page.once('dialog', async dialog => { await dialog.accept() })
-        await ntsBtn.click()
-        await page.waitForTimeout(1500)
+      // ti-001(ISSUED·미발행) 상세에는 NTS 발행 버튼이 노출되어야 한다.
+      await expect(ntsBtn, 'NTS 발행 버튼 미노출 — ISSUED 미발행 상세에서 emit-nts 버튼 필요').toBeVisible({ timeout: 5000 })
 
-        // confirm modal (role=dialog) 또는 window.confirm 수락 후 route 호출됐는지 검증
-        const confirmModal = page.locator('[role="dialog"], [data-testid*="confirm-modal"], [data-testid*="emit-confirm"]')
-        if ((await confirmModal.count()) > 0) {
-          // modal 내 확인 버튼 클릭
-          const confirmBtn = confirmModal.locator('button:has-text("확인"), button:has-text("발행"), button:has-text("예")').first()
-          if ((await confirmBtn.count()) > 0) {
-            await confirmBtn.click()
-            await page.waitForTimeout(1500)
-          }
+      page.once('dialog', async dialog => { await dialog.accept() })
+      await ntsBtn.click()
+      await page.waitForTimeout(1000)
+
+      // 발행 confirm 모달 수락(페이지는 Modal 사용 — window.confirm 폴백도 위 dialog 핸들러로 처리).
+      const confirmModal = page.locator('[role="dialog"], [data-testid*="confirm-modal"], [data-testid*="emit-confirm"]')
+      if ((await confirmModal.count()) > 0) {
+        const confirmBtn = confirmModal.locator('button:has-text("확인"), button:has-text("발행"), button:has-text("예")').first()
+        if ((await confirmBtn.count()) > 0) {
+          await confirmBtn.click()
+          await page.waitForTimeout(1500)
         }
-
-        // route 호출 횟수 검증 — 버튼 클릭 후 emit-nts API 가 1회 호출됐어야 함
-        expect(
-          emitNtsCallCount,
-          'NTS 발행 버튼 클릭 후 emit-nts API 호출이 발생하지 않음',
-        ).toBeGreaterThanOrEqual(1)
       }
+      // NOTE: emit-nts 호출 검증은 page.route 카운터가 아니라(VITE_MOCK_MODE 에서 in-process mock 이 처리하여
+      //       page.route 무효) 발행 효과(eTaxExternalId 화면 표시)로 step 3 에서 확인한다.
     })
 
     // ── step 3: eTaxExternalId testid 표시 + 스크린샷
