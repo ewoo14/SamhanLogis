@@ -41,7 +41,22 @@ $ docker logs samhan-slip-service | grep -c ERROR
   기동 8.46s, ERROR 0건, BeanCreation/UnsatisfiedDependency 예외 없음.
 - 알림 기본 비활성 → 발송 시도 없음(설정 누락 WARN 없음). 운영 활성화 시에만 push(`SAMHAN_COMPENSATION_ALERT_ENABLED=true` + recipient).
 
-## 3. 결론
+## 3. 리뷰 사이클 후 재검증 (fix 반영 코드 재배포)
+
+Claude 5-team + Codex cross-check P1 fix(afterCommit 발송 / catch 확대 / 본문 UUID 유출 방지 / IT 단언 강화 / @MockBean / env 템플릿) 반영 후 **수정 코드로 재빌드·재배포**:
+
+```
+$ docker inspect -f '{{.State.Health.Status}}' samhan-slip-service → healthy
+$ docker logs samhan-slip-service | grep "Started SlipServiceApplication"
+  Started SlipServiceApplication in 9.49 seconds
+$ docker logs samhan-slip-service | grep -c ERROR → 0
+```
+
+- UUID 유출 방지: `CompensationAlertNotifierIT` 가 보상 예외 메시지에 UUID 를 심고 푸시 본문 `doesNotContain(leakedUuid)` 단언 통과 — 본문은 비즈니스 식별자만.
+- afterCommit: IT 가 `record()`(REQUIRES_NEW) 커밋 후 `sendUserPush` 호출 verify 통과.
+
+## 4. 결론
 
 - 활성-경로 발송 = 실 Postgres IT 로 입증. 비활성-기본 무회귀 기동 = 실 Docker 재배포로 입증.
 - best-effort(알림 실패 ≠ 보상 흐름 영향)는 단위 `notificationException_isSwallowed` 로 입증.
+- UUID 비공개 = 단위+IT UUID 부재 단언으로 입증.
