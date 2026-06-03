@@ -31,6 +31,11 @@ export default defineConfig({
     '**/admin-hr/**',
     // 🟡 sp-d1 은 권한 매트릭스 UI 재설계(role-grid→account-select)로 스펙(84-grid 기대)과 불일치 — 별도 슬라이스.
     '**/sp-d1-dynamic-rbac/**',
+    // 🟢 3-A2-④ B/C 재게이트 — sp-d4(잔여 7도메인 PermissionGuard, 20 TC 전부 green) 재게이트 완료.
+    //   나머지 9 스펙은 각 기능별 다양한 실패(콘텐츠/상호작용/권한)로 개별 verify-then-fix 필요 — triage 후 격리 유지:
+    //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS), sp-09-3/4/5(각3: OCR/KFTC/vendor),
+    //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터), sp-09-1(1: eTaxExternalId),
+    //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
     '**/phase-2-5-partner-order-hold/**',
     '**/phase-2-6c-inventory-deduction/**',
     '**/sp-08-6-6-tax-invoice-emit/**',
@@ -39,7 +44,6 @@ export default defineConfig({
     '**/sp-09-3-ocr-receipt-shell/**',
     '**/sp-09-4-kftc-shell/**',
     '**/sp-09-5-vendor-integration/**',
-    '**/sp-d4-remaining-pages-permission-migration/**',
     '**/supplier-profile/**',
     '**/tax-invoice-batch/**',
   ],
