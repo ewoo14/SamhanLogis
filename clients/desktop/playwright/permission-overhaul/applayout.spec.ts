@@ -96,4 +96,23 @@ test.describe('Phase 1 Stage 3 Task 14 AppLayout permission gates', () => {
     await page.getByTestId('sidebar-hr-permission-matrix').click()
     await expect(page).toHaveURL(/#\/admin\/permission-matrix(?:\?.*)?$/)
   })
+
+  // fail-closed 게이트: system.permission-admin 미보유 시 권한 관리 진입점 미노출.
+  // (응답-전 hidden 은 in-process mock 즉시응답이라 재현 불가 → 권한-거부 음성 시나리오로 가드 보존.)
+  test('system.permission-admin 권한 없으면 권한 관리 메뉴 미노출(fail-closed)', async ({ page }) => {
+    await installAuthMock(page)
+    await mockNotifications(page)
+    await mockAccounts(page)
+    await mockAccountMatrix(page)
+
+    const noAdminUrl = withMockPerms(
+      `${BASE_URL}/#/?mockRole=MANAGER`,
+      [{ pageCode: 'dashboard', view: true }],
+    )
+    await page.goto(noAdminUrl, { waitUntil: 'domcontentloaded' })
+    await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
+
+    await expect(page.getByTestId('sidebar-hr-permission-matrix')).toHaveCount(0)
+    await expect(page.getByTestId('sidebar-hr-permission-bulk')).toHaveCount(0)
+  })
 })
