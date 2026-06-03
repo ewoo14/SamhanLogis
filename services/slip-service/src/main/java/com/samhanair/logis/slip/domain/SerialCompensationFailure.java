@@ -67,6 +67,10 @@ public class SerialCompensationFailure extends BaseEntity {
     @Column(name = "resolved", nullable = false)
     private boolean resolved;
 
+    /**
+     * 보상 실패가 발생한 시각. REQUIRES_NEW 독립 커밋 지연으로 BaseEntity {@code createdAt}
+     * (DB 삽입 시각) 과 미세하게 달라질 수 있어 별도 보존한다.
+     */
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
@@ -81,6 +85,11 @@ public class SerialCompensationFailure extends BaseEntity {
         }
         if (attemptedOperation == null) {
             throw new IllegalArgumentException("attemptedOperation 은 필수입니다");
+        }
+        // ProductSummary 레거시 생성자가 productCode=null 을 반환할 수 있어 NOT NULL 제약 위반이
+        // 감사 저장 단계에서 suppressed 로 묻히기 전에 조기 fail-fast 한다.
+        if (productCode == null || productCode.isBlank()) {
+            throw new IllegalArgumentException("productCode 는 필수입니다");
         }
         if (occurredAt == null) {
             throw new IllegalArgumentException("occurredAt 은 필수입니다");

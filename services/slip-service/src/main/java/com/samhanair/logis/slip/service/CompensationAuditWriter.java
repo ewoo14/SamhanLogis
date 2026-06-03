@@ -45,17 +45,27 @@ public class CompensationAuditWriter {
                        Throwable originalFailure) {
         String failureReason = summarize(compensationFailure);
         String originalFailureReason = summarize(originalFailure);
-        log.warn("[COMPENSATION_FAILURE] slipNo={} slipType={} phase={} product={} op={} cause={}",
-                slip.getSlipNo(), slip.getSlipType(), phase, productCode, operation, failureReason);
+        // 단일 로그라인 자급 원칙: 보상 실패 원인(cause)과 원본 실패 원인(originalCause)을 함께 기록해
+        // 로그 기반 경보만으로 운영 triage 가 가능하게 한다.
+        log.warn("[COMPENSATION_FAILURE] slipNo={} slipType={} phase={} product={} op={} cause={} originalCause={}",
+                slip.getSlipNo(), slip.getSlipType(), phase, productCode, operation,
+                failureReason, originalFailureReason);
 
-        repository.save(SerialCompensationFailure.of(
-                slip,
-                phase,
-                productCode,
-                operation,
-                failureReason,
-                originalFailureReason,
-                LocalDateTime.now(clock)));
+        try {
+            repository.save(SerialCompensationFailure.of(
+                    slip,
+                    phase,
+                    productCode,
+                    operation,
+                    failureReason,
+                    originalFailureReason,
+                    LocalDateTime.now(clock)));
+        } catch (RuntimeException saveFailure) {
+            // 감사 행 저장마저 실패하면 suppressed 로만 묻히므로, 독립 ERROR 로그로 추적 공백을 막는다.
+            log.error("[COMPENSATION_AUDIT_SAVE_FAILURE] slipNo={} phase={} product={} op={} — 감사 행 저장 실패",
+                    slip.getSlipNo(), phase, productCode, operation, saveFailure);
+            throw saveFailure;
+        }
         // TODO: notification-service 운영 알림 푸시는 후속 복구 API 슬라이스에서 연동한다.
     }
 

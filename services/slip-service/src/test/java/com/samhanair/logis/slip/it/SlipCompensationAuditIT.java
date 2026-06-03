@@ -142,6 +142,14 @@ class SlipCompensationAuditIT extends AbstractPostgresIT {
         assertThat(failure.getOriginalFailureReason()).isEqualTo("BusinessException: batch reserve 실패");
         assertThat(failure.isResolved()).isFalse();
         assertThat(failure.getCreatedAt()).isNotNull();
+        assertThat(failure.getOccurredAt()).isNotNull();
+
+        // REQUIRES_NEW 물리 커밋 독립성을 raw JDBC 로 직접 증명한다 — JPA 1차 캐시/@SQLRestriction 개입
+        // 없이, 원본 slip 트랜잭션 롤백에도 audit 행이 DB 에 실제 잔존함을 확인한다.
+        Integer committedCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM serial_compensation_failures WHERE slip_id = ? AND is_deleted = false",
+                Integer.class, slip.getId());
+        assertThat(committedCount).isEqualTo(1);
     }
 
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {

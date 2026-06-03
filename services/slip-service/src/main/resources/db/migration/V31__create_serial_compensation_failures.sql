@@ -7,7 +7,7 @@
 CREATE TABLE serial_compensation_failures (
     id                       UUID          PRIMARY KEY,
     slip_id                  UUID          NOT NULL,
-    slip_no                  VARCHAR(64)   NOT NULL,
+    slip_no                  VARCHAR(64)   NOT NULL,  -- slips.slip_no 역정규화 사본(원본 VARCHAR(30), 여유 폭)
     slip_type                VARCHAR(32)   NOT NULL,
     phase                    VARCHAR(32)   NOT NULL,
     product_code             VARCHAR(64)   NOT NULL,
@@ -29,3 +29,7 @@ CREATE TABLE serial_compensation_failures (
 
 CREATE INDEX idx_serial_comp_failures_resolved_created
     ON serial_compensation_failures (resolved, created_at);
+
+-- 운영자 전표번호 조회 / cleanup(slip_no LIKE) Sequential Scan 방지.
+CREATE INDEX idx_serial_comp_failures_slip_no
+    ON serial_compensation_failures (slip_no);

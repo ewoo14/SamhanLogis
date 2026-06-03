@@ -100,7 +100,7 @@ class SlipServiceCompensationTest {
                 .when(inventoryClient).reserve(eq(batchProductId), eq(sourceWarehouseId),
                         eq(4), anyString(), eq(slipId));
         org.mockito.Mockito.doThrow(compensationFailure)
-                .when(inventoryClient).releaseInstances(eq("2026/06/03-1"), eq("AC-SERIAL-COMP"));
+                .when(inventoryClient).releaseInstances(eq(slip.getSlipNo()), eq("AC-SERIAL-COMP"));
 
         Throwable thrown = catchThrowable(() -> service.accept(slipId, "warehouse-1"));
 
@@ -128,7 +128,7 @@ class SlipServiceCompensationTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(thrown.getSuppressed()).isEmpty();
         verifyNoInteractions(compensationAuditWriter);
-        verify(inventoryClient, times(1)).releaseInstances(eq("2026/06/03-1"), eq("AC-SERIAL-COMP"));
+        verify(inventoryClient, times(1)).releaseInstances(eq(slip.getSlipNo()), eq("AC-SERIAL-COMP"));
     }
 
     @Test
