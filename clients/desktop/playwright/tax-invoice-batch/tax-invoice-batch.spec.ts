@@ -110,9 +110,10 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
 
   test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     const ok = await isServerAvailable()
-    test.skip(!ok, `dev server 미접근: ${BASE_URL}`)
+    // false green 방지(SP-09 패턴) — dev server 미가용 시 skip 이 아닌 FAIL.
+    expect(ok, `dev server 미접근: ${BASE_URL}`).toBe(true)
   })
 
   /**
@@ -126,7 +127,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -169,7 +170,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -252,7 +253,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -332,7 +333,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -419,7 +420,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -493,7 +494,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
@@ -547,7 +548,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT`, {
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })

@@ -55,3 +55,17 @@ supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확
   실 UI 플로우 대조 후 셀렉터/스텝 재작성 필요. (TC-SP-1 도 포맷 정정 후 재확인 권장.)
 - 교훈: **URL `/#/` 정정으로 페이지가 실제 로드되면, 그동안 가려졌던 상호작용 TC 실패가 새로 표면화**된다
   (페이지 미로드 시엔 트리비얼 통과/단순 실패였던 것). 각 스펙은 URL 정정 후 상호작용 TC 재검증이 필수다.
+
+### tax-invoice-batch 부분 정정 결과 (본 슬라이스 착수, 격리 유지)
+
+- 적용: 7개 goto URL `/#/` 정합 + `test.skip(!ok)`→`expect(ok).toBe(true)`(SP-09 패턴). → **6/7 pass**.
+- 잔여(격리 유지): **TC-TIB-1**(4탭 visible) = 기대 4탭["미리보기 생성/결과 페이지/전표 필터/저장 내역"] 전부 미발견.
+  🔑 `TaxInvoiceBatchPage.tsx` 주석: **"PR #161 4탭 UI 는 HometaxExportPage(`/accounting/hometax-export`)로 흡수됨"**
+  — TC-TIB-1 은 **이전된 기능**을 검증하므로 단순 라벨 수정이 아닌, batch 페이지 현행 UI 기준 재작성 또는
+  hometax-export 페이지로 대상 변경이 필요(실 기능 재배치 반영).
+
+### ⑥ 본 세션 종합
+
+- ✅ 재게이트: **sp-d4(20 TC)**.
+- 🔧 부분 정정(격리 유지, 개선분 커밋): supplier-profile(5/7), tax-invoice-batch(6/7) — `/#/` 드리프트 정정.
+- 📋 잔여 8스펙 + 위 2스펙의 잔여 TC = 다음 세션 per-spec verify-then-fix(드리프트 패턴 + 기능 재배치/흐름 대조).
