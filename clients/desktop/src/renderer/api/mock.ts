@@ -846,6 +846,12 @@ interface MockDispatchSmsHistoryRow {
 const mockDispatchSmsHistoryRows: MockDispatchSmsHistoryRow[] = []
 
 /**
+ * 사업자 양식(supplier-profiles) 목록 — POST 신규 등록이 실제로 목록에 반영되도록 stateful 보관.
+ * 페이지 로드(테스트별 fresh context)마다 모듈 재평가로 빈 배열 → 첫 GET 시 seed 1건 주입.
+ */
+const mockSupplierProfileList: Record<string, unknown>[] = []
+
+/**
  * URL + method 매칭으로 mock 응답을 반환. 매칭 실패 시 null.
  */
 export function getMockResponse(config: AxiosRequestConfig): unknown | null {
@@ -3049,51 +3055,78 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     updatedAt: '2026-01-01T00:00:00+09:00',
   }
 
-  // GET /accounting/supplier-profiles/primary → seed 기본 사업자
+  // 첫 접근 시 seed 1건 주입 (테스트별 fresh page → 모듈 재평가로 재seed).
+  if (mockSupplierProfileList.length === 0) {
+    mockSupplierProfileList.push({ ...MOCK_SUPPLIER_PRIMARY })
+  }
+
+  // GET /accounting/supplier-profiles/primary → 기본 사업자
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/primary')) {
-    return envelope(MOCK_SUPPLIER_PRIMARY)
+    return envelope(mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY)
   }
 
-  // GET /accounting/supplier-profiles → seed 목록 (1건)
+  // GET /accounting/supplier-profiles → 목록 (POST 등록분 포함)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles')) {
-    return envelope([MOCK_SUPPLIER_PRIMARY])
+    return envelope([...mockSupplierProfileList])
   }
 
-  // POST /accounting/supplier-profiles → 신규 등록 echo
+  // POST /accounting/supplier-profiles → 신규 등록 (목록에 실제 append)
   if (method === 'POST' && url.endsWith('/accounting/supplier-profiles')) {
-    const body = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
-    return envelope({
+    const body = parseMockBody(config)
+    const created = {
       ...MOCK_SUPPLIER_PRIMARY,
       ...body,
       id: `00000000-0000-0000-0000-supplier${Date.now()}`,
       isPrimary: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    })
+    }
+    mockSupplierProfileList.push(created)
+    return envelope(created)
   }
 
   // PUT /accounting/supplier-profiles/{id} → echo 수정
   const supplierPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
   if (method === 'PUT' && supplierPutMatch) {
-    const body = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
-    return envelope({
-      ...MOCK_SUPPLIER_PRIMARY,
+    const body = parseMockBody(config)
+    const updatedId = supplierPutMatch[1]!
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === updatedId)
+    const updated = {
+      ...(idx >= 0 ? mockSupplierProfileList[idx] : MOCK_SUPPLIER_PRIMARY),
       ...body,
-      id: supplierPutMatch[1]!,
+      id: updatedId,
       updatedAt: new Date().toISOString(),
-    })
+    }
+    if (idx >= 0) mockSupplierProfileList[idx] = updated
+    return envelope(updated)
   }
 
-  // POST /accounting/supplier-profiles/{id}/mark-primary → echo
+  // POST /accounting/supplier-profiles/{id}/mark-primary → 목록 전체 isPrimary swap
   const supplierMarkPrimaryMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/mark-primary$/)
   if (method === 'POST' && supplierMarkPrimaryMatch) {
-    return envelope({ ...MOCK_SUPPLIER_PRIMARY, isPrimary: true, id: supplierMarkPrimaryMatch[1]! })
+    const targetId = supplierMarkPrimaryMatch[1]!
+    let target: Record<string, unknown> | null = null
+    mockSupplierProfileList.forEach((p) => {
+      const isTarget = p['id'] === targetId
+      p['isPrimary'] = isTarget
+      if (isTarget) target = p
+    })
+    return envelope(target ?? { ...MOCK_SUPPLIER_PRIMARY, isPrimary: true, id: targetId })
   }
 
-  // DELETE /accounting/supplier-profiles/{id} → 204 no content
+  // DELETE /accounting/supplier-profiles/{id} → primary 는 삭제 거부(BusinessException), 그 외 목록에서 제거
   const supplierDeleteMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
   if (method === 'DELETE' && supplierDeleteMatch) {
-    return null // 204 no content — axios adapter 는 null 을 정상 처리
+    const delId = supplierDeleteMatch[1]!
+    const target = mockSupplierProfileList.find((p) => p['id'] === delId)
+    if (target && target['isPrimary']) {
+      return mockError(409, 'SUPPLIER_PRIMARY_DELETE_FORBIDDEN', '기본 사업자는 삭제할 수 없습니다. 먼저 다른 사업자를 기본으로 지정하세요.')
+    }
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === delId)
+    if (idx >= 0) mockSupplierProfileList.splice(idx, 1)
+    // 주의: 어댑터(client.ts)는 getMockResponse 가 null 이면 "미매칭"으로 보고 실 HTTP 로 fallthrough 한다.
+    // 따라서 204 라도 null 반환 금지 — non-null envelope 로 성공을 알린다(삭제 mutation 은 body 무시).
+    return envelope({ deleted: true })
   }
 
   // ==========================================================================

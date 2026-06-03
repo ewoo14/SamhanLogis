@@ -104,6 +104,28 @@ async function waitForSettle(page: Page): Promise<void> {
   await page.waitForTimeout(800)
 }
 
+/**
+ * 신규 사업자 등록 헬퍼 — add 버튼 → 모달 → 필수필드 입력 → 저장 → 모달 닫힘 대기.
+ * stateful mock 이 목록에 append 하므로 호출 후 해당 companyName/bizNo 카드가 추가된다.
+ */
+async function addSupplierProfile(
+  page: Page,
+  opts: { company: string; bizNo: string; ceo?: string; address?: string },
+): Promise<void> {
+  await page.getByTestId('supplier-profile-add-btn').click()
+  const modal = page.getByRole('dialog')
+  await expect(modal, '신규 등록 모달 미오픈').toBeVisible({ timeout: 5000 })
+  await page.getByTestId('supplier-field-businessNumber').fill(opts.bizNo)
+  await page.getByTestId('supplier-field-companyName').fill(opts.company)
+  await page.getByTestId('supplier-field-ceoName').fill(opts.ceo ?? '김큐에이')
+  await page.getByTestId('supplier-field-address').fill(opts.address ?? '서울특별시 송파구 QA로 200')
+  await page.getByTestId('supplier-field-businessType').fill('서비스')
+  await page.getByTestId('supplier-field-businessItem').fill('소프트웨어 품질검증')
+  await page.getByTestId('supplier-profile-save-btn').click()
+  await expect(modal, '저장 후 모달 미닫힘 — 등록 실패').toBeHidden({ timeout: 8000 })
+  await waitForSettle(page)
+}
+
 // ---------------------------------------------------------------------------
 // seed 데이터 상수
 // ---------------------------------------------------------------------------
@@ -156,15 +178,17 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
       `상호 ${SEED_COMPANY_NAME} 미표시`,
     ).toBeTruthy()
 
-    // 7 필드 레이블 확인 (최소 5개 이상)
+    // 항상 렌더되는 6 InfoRow 레이블 전부 검증 — 페이지 실제 텍스트와 정합.
+    // ('상호'는 카드 제목=companyName 값으로 렌더되어 레이블 아님 → SEED_COMPANY_NAME 별도 검증.
+    //  '종사업장번호'는 seed subBusinessNumber=null 이라 조건부 미렌더 → 제외.)
     const fieldLabels = [
-      '사업자등록번호', '상호', '대표자', '사업장주소', '업태', '종목', '이메일',
+      '사업자등록번호', '대표 성명', '사업장 주소', '업태', '종목', '이메일',
     ]
     const foundLabels = fieldLabels.filter(label => pageText.includes(label))
     expect(
       foundLabels.length,
-      `필드 레이블 부족 (발견: ${foundLabels.length}/7): ${foundLabels.join(', ')}`,
-    ).toBeGreaterThanOrEqual(5)
+      `필드 레이블 부족 (발견: ${foundLabels.length}/6): ${foundLabels.join(', ')}`,
+    ).toBeGreaterThanOrEqual(6)
 
     ensureQaDir()
     await page.screenshot({
@@ -196,40 +220,21 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
 
     const newAddress = '서울특별시 강남구 테헤란로 QA-테스트동 100호'
 
-    // "수정" 버튼 탐색
-    const editBtn = page.locator(
-      '[data-testid="supplier-profile-edit"], [data-testid*="edit-profile"], button:has-text("수정")',
-    ).first()
+    // seed 사업자 수정 버튼(supplier-edit-btn-{bizNo}) → 수정 모달.
+    const editBtn = page.getByTestId(`supplier-edit-btn-${SEED_BUSINESS_NUMBER}`)
+    await expect(editBtn, '수정 버튼 미표시 — MASTER write 가용').toBeVisible({ timeout: 5000 })
+    await editBtn.click()
 
-    const btnExists = (await editBtn.count()) > 0
+    const modal = page.getByRole('dialog')
+    await expect(modal, '수정 모달 미오픈').toBeVisible({ timeout: 5000 })
+    await expect(modal).toContainText('수정')
 
-    if (btnExists) {
-      await editBtn.click()
-      await page.waitForTimeout(600)
-
-      // 주소 입력 필드 탐색
-      const addressInput = page.locator(
-        '[data-testid="input-business-address"], input[name="businessAddress"], textarea[name="businessAddress"]',
-      ).first()
-
-      if ((await addressInput.count()) > 0) {
-        await addressInput.triple_click?.()
-        await addressInput.fill(newAddress)
-        await page.waitForTimeout(300)
-      }
-
-      // 저장 버튼 클릭
-      const saveBtn = page.locator(
-        '[data-testid="supplier-profile-save"], button:has-text("저장"), button:has-text("확인")',
-      ).first()
-
-      if ((await saveBtn.count()) > 0) {
-        await saveBtn.click()
-        await waitForSettle(page)
-      }
-    }
-
-    const pageTextAfter = (await page.textContent('body')) ?? ''
+    // 사업장 주소 갱신 → 저장 (stateful PUT → 목록 카드에 반영).
+    const addressInput = page.getByTestId('supplier-field-address')
+    await addressInput.fill(newAddress)
+    await page.getByTestId('supplier-profile-save-btn').click()
+    await expect(modal, '저장 후 모달 미닫힘 — 수정 실패').toBeHidden({ timeout: 8000 })
+    await waitForSettle(page)
 
     ensureQaDir()
     await page.screenshot({
@@ -237,15 +242,12 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
       fullPage: true,
     })
 
-    // 수정 후 화면에 새 주소 or 성공 toast 노출
-    const saveOk =
-      pageTextAfter.includes(newAddress) ||
-      pageTextAfter.includes('저장') ||
-      pageTextAfter.includes('수정') ||
-      pageTextAfter.includes('성공') ||
-      !btnExists // 버튼 미구현 — FE agent 작업 완료 후 재검증
-
-    expect(saveOk, '주소 갱신 후 화면 반영 미확인 (저장 or 갱신 주소 미표시)').toBeTruthy()
+    // 수정 후 갱신된 주소가 카드에 실제 표시 (silent-pass 제거 — 새 주소 strict).
+    const pageTextAfter = (await page.textContent('body')) ?? ''
+    expect(
+      pageTextAfter.includes(newAddress),
+      `수정한 사업장 주소("${newAddress}") 미표시 — PUT 갱신 화면 반영 실패`,
+    ).toBe(true)
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -268,52 +270,31 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     })
     await waitForSettle(page)
 
-    // "신규 추가" 버튼 탐색
-    const addBtn = page.locator(
-      '[data-testid="supplier-profile-add"], [data-testid*="add-profile"], button:has-text("신규 추가"), button:has-text("추가")',
-    ).first()
+    // "신규 추가" 버튼 — 실제 testid (supplier-profile-add-btn) → 신규 등록 Modal 오픈.
+    const addBtn = page.getByTestId('supplier-profile-add-btn')
+    await expect(addBtn, '신규 추가 버튼(supplier-profile-add-btn) 미표시 — MASTER 권한 write 가용').toBeVisible({ timeout: 5000 })
+    await addBtn.click()
 
-    const addBtnExists = (await addBtn.count()) > 0
+    // 신규 등록 Modal(role=dialog) 오픈 대기.
+    const modal = page.getByRole('dialog')
+    await expect(modal, '신규 등록 모달 미오픈').toBeVisible({ timeout: 5000 })
+    await expect(modal).toContainText('신규 등록')
 
-    if (addBtnExists) {
-      await addBtn.click()
-      await page.waitForTimeout(600)
+    // 필수 필드 입력 (Input 은 ...rest 로 data-testid 를 <input> 에 forward) — 검증 통과 위해 전부 입력.
+    const NEW_COMPANY = '큐에이테스트물류'
+    await page.getByTestId('supplier-field-businessNumber').fill('2208123456')
+    await page.getByTestId('supplier-field-companyName').fill(NEW_COMPANY)
+    await page.getByTestId('supplier-field-ceoName').fill('김큐에이')
+    await page.getByTestId('supplier-field-address').fill('서울특별시 송파구 QA로 200')
+    await page.getByTestId('supplier-field-businessType').fill('서비스')
+    await page.getByTestId('supplier-field-businessItem').fill('소프트웨어 품질검증')
 
-      // 신규 사업자 등록번호 입력
-      const bizNumInput = page.locator(
-        '[data-testid="input-business-number"], input[name="businessNumber"]',
-      ).first()
-      if ((await bizNumInput.count()) > 0) {
-        await bizNumInput.fill('1234567890')
-      }
+    // 저장 → POST → in-process mock 목록에 실제 append.
+    await page.getByTestId('supplier-profile-save-btn').click()
+    await waitForSettle(page)
 
-      // 상호 입력
-      const companyNameInput = page.locator(
-        '[data-testid="input-company-name"], input[name="companyName"]',
-      ).first()
-      if ((await companyNameInput.count()) > 0) {
-        await companyNameInput.fill('QA테스트사업자')
-      }
-
-      // 저장 버튼
-      const saveBtn = page.locator(
-        '[data-testid="supplier-profile-save"], button:has-text("저장"), button:has-text("추가"), button:has-text("등록")',
-      ).first()
-      if ((await saveBtn.count()) > 0) {
-        await saveBtn.click()
-        await waitForSettle(page)
-      }
-    }
-
-    const pageTextAfter = (await page.textContent('body')) ?? ''
-
-    // list size 2 — 두 번째 사업자 또는 "QA테스트사업자" 노출 확인
-    const hasTwoProfiles =
-      pageTextAfter.includes('QA테스트사업자') ||
-      (await page.locator(
-        '[data-testid*="supplier-profile-item"], [data-testid*="profile-card"]',
-      ).count()) >= 2 ||
-      !addBtnExists
+    // 모달 닫힘(저장 성공) — 검증 실패 시 모달이 유지되므로 닫힘 자체가 성공 신호.
+    await expect(modal, '저장 후 모달 미닫힘 — 등록 실패(검증 에러)').toBeHidden({ timeout: 8000 })
 
     ensureQaDir()
     await page.screenshot({
@@ -321,10 +302,17 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
       fullPage: true,
     })
 
+    // list size 2 — stateful mock 이 등록분을 목록에 반영 → seed(삼한공조) + 신규(큐에이테스트물류) 동시 표시.
+    const pageTextAfter = (await page.textContent('body')) ?? ''
     expect(
-      hasTwoProfiles || pageTextAfter.length > 50,
-      '2번째 사업자 추가 후 목록 size 2 미확인',
-    ).toBeTruthy()
+      pageTextAfter.includes(NEW_COMPANY),
+      `신규 등록 사업자 "${NEW_COMPANY}" 목록 미표시 — POST 후 list size 2 미반영`,
+    ).toBe(true)
+    expect(
+      pageTextAfter.includes('삼한공조'),
+      `기존 seed 사업자(삼한공조) 미표시 — 목록 2건 동시 표시 실패`,
+    ).toBe(true)
+
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -346,29 +334,19 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     })
     await waitForSettle(page)
 
-    // "기본 사업자 전환" 버튼 탐색 (두 번째 항목)
-    const setPrimaryBtns = page.locator(
-      '[data-testid*="set-primary"], button:has-text("기본 사업자 전환"), button:has-text("기본으로 설정")',
-    )
-    const primaryBtnCount = await setPrimaryBtns.count()
+    // mark-primary/삭제 버튼은 non-primary 행에만 렌더되므로, 2번째(보조) 사업자를 먼저 추가한다.
+    const BIZ2 = '2208123456'
+    await addSupplierProfile(page, { company: '큐에이전환물류', bizNo: BIZ2 })
 
-    let swapOccurred = false
+    // 초기 상태: seed(primary) 는 mark-primary 버튼 없음, 2번째(보조) 는 있음.
+    const seedMarkBtn = page.getByTestId(`supplier-mark-primary-btn-${SEED_BUSINESS_NUMBER}`)
+    const biz2MarkBtn = page.getByTestId(`supplier-mark-primary-btn-${BIZ2}`)
+    await expect(biz2MarkBtn, '2번째(보조) 사업자 기본전환 버튼 미표시').toBeVisible({ timeout: 5000 })
+    await expect(seedMarkBtn, 'seed(기본) 사업자엔 기본전환 버튼이 없어야 함').toHaveCount(0)
 
-    if (primaryBtnCount > 0) {
-      // 두 번째 버튼 클릭 (이미 primary 가 아닌 사업자 대상)
-      const targetBtn = primaryBtnCount > 1 ? setPrimaryBtns.nth(1) : setPrimaryBtns.first()
-      await targetBtn.click()
-      await waitForSettle(page)
-
-      const pageTextAfter = (await page.textContent('body')) ?? ''
-      swapOccurred =
-        pageTextAfter.includes('기본') ||
-        pageTextAfter.includes('전환') ||
-        (await page.locator('[data-testid*="primary-badge"], [data-testid*="is-primary"]').count()) > 0
-    } else {
-      console.log('TC-SP-4: "기본 사업자 전환" 버튼 미발견 — FE agent 작업 후 재검증')
-      swapOccurred = true // 미구현 허용
-    }
+    // 2번째 → 기본 전환 (stateful mock isPrimary swap).
+    await biz2MarkBtn.click()
+    await waitForSettle(page)
 
     ensureQaDir()
     await page.screenshot({
@@ -376,20 +354,34 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
       fullPage: true,
     })
 
-    expect(swapOccurred, '기본 사업자 전환 후 primary 표시 swap 미확인').toBeTruthy()
+    // swap 검증: 2번째가 primary(기본전환 버튼 사라짐) + seed 가 보조(기본전환 버튼 출현).
+    await expect(
+      page.getByTestId(`supplier-mark-primary-btn-${BIZ2}`),
+      '기본 전환 후 2번째 사업자가 primary 가 되어 기본전환 버튼이 사라져야 함',
+    ).toHaveCount(0)
+    await expect(
+      page.getByTestId(`supplier-mark-primary-btn-${SEED_BUSINESS_NUMBER}`),
+      '기본 전환 후 seed 사업자가 보조가 되어 기본전환 버튼이 출현해야 함',
+    ).toBeVisible({ timeout: 5000 })
+    // primary 배지는 정확히 1건만 존재.
+    await expect(
+      page.getByTestId('supplier-primary-badge'),
+      'primary 배지는 정확히 1건이어야 함(swap 후 단일 기본)',
+    ).toHaveCount(1)
+
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
   /**
-   * TC-SP-5: primary 사업자 "삭제" 시도 → BusinessException toast
+   * TC-SP-5: 기본 사업자 삭제 방지(UI) + 보조 사업자 삭제 동작
    *
    * 기대 결과:
-   *   - primary(기본) 사업자의 "삭제" 버튼 클릭
-   *   - toast 또는 alert 에 "기본 사업자는 삭제할 수 없습니다" 유사 메시지 노출
-   *   - 레코드 삭제 X (primary 사업자 여전히 존재)
+   *   - primary(기본) 사업자 카드에 "삭제" 버튼 미노출 (UI 레벨 삭제 방지)
+   *     (BE 는 추가로 409 SUPPLIER_PRIMARY_DELETE_FORBIDDEN 으로 방어 — mock 동일)
+   *   - 보조 사업자는 삭제 버튼 노출 → 삭제 시 목록에서 제거, 기본 사업자는 유지
    *   - pageerror 없음
    */
-  test('TC-SP-5: primary 사업자 삭제 시도 → BusinessException toast', async ({ page }) => {
+  test('TC-SP-5: 기본 사업자 삭제 방지(UI) + 보조 사업자 삭제', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -399,34 +391,25 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     })
     await waitForSettle(page)
 
-    // primary 사업자의 삭제 버튼 탐색
-    const deleteBtns = page.locator(
-      '[data-testid*="supplier-delete"], button:has-text("삭제")',
-    )
+    // 기본 사업자 삭제 방지(UI 레벨): primary 행에는 삭제 버튼이 렌더되지 않는다.
+    // (BE 는 추가로 409 SUPPLIER_PRIMARY_DELETE_FORBIDDEN 으로 방어 — mock 동일.)
+    await expect(
+      page.getByTestId(`supplier-delete-btn-${SEED_BUSINESS_NUMBER}`),
+      'primary(기본) 사업자에 삭제 버튼이 노출됨 — 기본 사업자 삭제 방지(UI) 실패',
+    ).toHaveCount(0)
 
-    let exceptionShown = false
+    // 보조 사업자는 삭제 가능해야 함 — 2번째 추가 후 삭제 → 목록에서 제거 검증.
+    const BIZ2 = '3308234567'
+    await addSupplierProfile(page, { company: '큐에이삭제대상물류', bizNo: BIZ2 })
+    await expect(
+      page.getByText('큐에이삭제대상물류', { exact: false }),
+      '2번째(보조) 사업자 추가 후 목록 미표시',
+    ).toBeVisible({ timeout: 5000 })
 
-    if ((await deleteBtns.count()) > 0) {
-      // primary 사업자 카드의 삭제 버튼 클릭
-      await deleteBtns.first().click()
-      await page.waitForTimeout(800)
-
-      const pageTextAfter = (await page.textContent('body')) ?? ''
-
-      // BusinessException toast 메시지 확인
-      exceptionShown =
-        pageTextAfter.includes('기본 사업자') ||
-        pageTextAfter.includes('삭제할 수 없') ||
-        pageTextAfter.includes('primary') ||
-        pageTextAfter.includes('오류') ||
-        pageTextAfter.includes('불가') ||
-        (await page.locator(
-          '[role="alert"], [data-testid*="toast"], .toast, [class*="toast"]',
-        ).count()) > 0
-    } else {
-      console.log('TC-SP-5: 삭제 버튼 미발견 — FE agent 작업 후 재검증')
-      exceptionShown = true
-    }
+    // 보조 사업자 삭제 (window.confirm 자동 수락).
+    page.once('dialog', (d) => d.accept())
+    await page.getByTestId(`supplier-delete-btn-${BIZ2}`).click()
+    await waitForSettle(page)
 
     ensureQaDir()
     await page.screenshot({
@@ -434,10 +417,16 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
       fullPage: true,
     })
 
+    // 삭제된 보조 사업자는 목록에서 사라지고, 기본(seed) 사업자는 그대로 유지.
+    await expect(
+      page.getByText('큐에이삭제대상물류', { exact: false }),
+      '보조 사업자 삭제 후에도 목록에 잔존 — 삭제 미반영',
+    ).toHaveCount(0)
+    const pageTextAfter = (await page.textContent('body')) ?? ''
     expect(
-      exceptionShown,
-      'primary 사업자 삭제 시도 시 BusinessException toast 미표시',
-    ).toBeTruthy()
+      pageTextAfter.includes('삼한공조'),
+      '삭제 작업 후 기본(seed) 사업자가 사라짐 — 잘못된 삭제',
+    ).toBe(true)
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 

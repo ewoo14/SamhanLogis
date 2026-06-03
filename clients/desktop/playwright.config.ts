@@ -43,7 +43,7 @@ export default defineConfig({
 
     
     
-    '**/supplier-profile/**',
+
     '**/tax-invoice-batch/**',
   ],
   timeout: 60_000,
