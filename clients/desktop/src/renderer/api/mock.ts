@@ -852,6 +852,12 @@ const mockDispatchSmsHistoryRows: MockDispatchSmsHistoryRow[] = []
 const mockSupplierProfileList: Record<string, unknown>[] = []
 
 /**
+ * 홈택스 일괄 제외 거래처(hometax-export/exclusions) 목록 — POST 추가/DELETE 제거가 실제로 목록에 반영되도록 stateful.
+ * 페이지 로드마다 재seed(첫 접근 시 MOCK_BATCH_EXCLUSIONS 주입).
+ */
+const mockBatchExclusionList: Record<string, unknown>[] = []
+
+/**
  * URL + method 매칭으로 mock 응답을 반환. 매칭 실패 시 null.
  */
 export function getMockResponse(config: AxiosRequestConfig): unknown | null {
@@ -4747,10 +4753,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // POST /accounting/hometax-export/preview — 미리보기 생성 (250건, splitFileCount=3)
   if (method === 'POST' && url.includes('/accounting/hometax-export/preview')) {
-    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
-      fromDate?: string
-      toDate?: string
-    }
+    const body = parseMockBody(config) as { fromDate?: string; toDate?: string }
     return envelope({
       batchNo: `BATCH-${Date.now().toString().slice(-8)}`,
       batchId: '00000000-0000-0000-0000-batchmocknew1',
@@ -4774,7 +4777,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
-    return `${header}${csv}`
+    // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
+    // (string 반환 시 triggerDownload 가 실패 → 다운로드 이벤트 미발생.)
+    return new Blob([`${header}${csv}`], { type: 'text/csv;charset=utf-8' })
   }
 
   // GET /accounting/hometax-export/history/{batchId} — 단건 이력 (Tab 4 복원)
@@ -4804,30 +4809,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // POST /accounting/hometax-export/exclusions — 제외 거래처 추가
+  // 첫 접근 시 제외 거래처 seed 주입 (테스트별 fresh page → 재seed).
+  if (url.includes('/accounting/hometax-export/exclusions') && mockBatchExclusionList.length === 0) {
+    mockBatchExclusionList.push(...MOCK_BATCH_EXCLUSIONS.map((e) => ({ ...e })))
+  }
+
+  // POST /accounting/hometax-export/exclusions — 제외 거래처 추가 (목록에 실제 append)
   if (method === 'POST' && url.includes('/accounting/hometax-export/exclusions')) {
-    const body = (config.data ? JSON.parse(config.data as string) : {}) as {
-      partnerCode?: string
-      partnerName?: string
-      reason?: string
-    }
-    return envelope({
+    const body = parseMockBody(config) as { partnerCode?: string; partnerName?: string; reason?: string }
+    const created = {
       partnerCode: body.partnerCode ?? 'P-NEW',
       partnerName: body.partnerName ?? '신규 거래처',
       reason: body.reason ?? '—',
       createdAt: new Date().toISOString(),
       createdBy: '오병승',
-    })
+    }
+    // 동일 partnerCode 중복 방지 후 append.
+    if (!mockBatchExclusionList.some((e) => e['partnerCode'] === created.partnerCode)) {
+      mockBatchExclusionList.push(created)
+    }
+    return envelope(created)
   }
 
-  // DELETE /accounting/hometax-export/exclusions/{partnerCode}
+  // DELETE /accounting/hometax-export/exclusions/{partnerCode} — 목록에서 제거
   if (method === 'DELETE' && url.includes('/accounting/hometax-export/exclusions/')) {
+    const code = decodeURIComponent(url.split('/exclusions/')[1]?.split('?')[0] ?? '')
+    const idx = mockBatchExclusionList.findIndex((e) => e['partnerCode'] === code)
+    if (idx >= 0) mockBatchExclusionList.splice(idx, 1)
     return envelope({ deleted: true })
   }
 
   // GET /accounting/hometax-export/exclusions — 제외 거래처 목록
   if (method === 'GET' && url.includes('/accounting/hometax-export/exclusions')) {
-    return envelope(MOCK_BATCH_EXCLUSIONS)
+    return envelope([...mockBatchExclusionList])
   }
 
   // ==========================================================================
@@ -4864,7 +4878,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           r.recipientName, r.recipientBusinessNo, r.supplyAmount, r.vatAmount, r.totalAmount].join(','),
       )
       .join('\n')
-    return `${header}${csv}`
+    // responseType:'blob' 소비자(downloadHometaxSplit)가 res.data 를 Blob 으로 사용하므로 실제 Blob 반환.
+    // (string 반환 시 triggerDownload 가 실패 → 다운로드 이벤트 미발생.)
+    return new Blob([`${header}${csv}`], { type: 'text/csv;charset=utf-8' })
   }
 
   // @deprecated — GET /accounting/tax-invoices/batch/exclusions

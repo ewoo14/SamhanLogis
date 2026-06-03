@@ -95,12 +95,30 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 // 공통 탭 레이블 (4탭)
 // ---------------------------------------------------------------------------
 
+// PR #161 4탭 워크플로는 HometaxExportPage(/accounting/hometax-export)로 흡수됨.
+// 탭 라벨도 HometaxExportPage 기준('전표 필터'→'거래처 필터링').
+const HOMETAX_URL = `${BASE_URL}/#/accounting/hometax-export`
+
 const TAB_LABELS = [
   '미리보기 생성',
   '결과 페이지',
-  '전표 필터',
+  '거래처 필터링',
   '저장 내역',
 ]
+
+/** hometax-export 미리보기 생성 실행 → 결과 탭 자동 전환까지 수행. */
+async function runPreview(page: Page): Promise<void> {
+  await page.getByTestId('hometax-export-tab-preview').click()
+  await page.waitForTimeout(400)
+  await page.getByTestId('batch-preview-from').fill('2026-05-01')
+  await page.getByTestId('batch-preview-to').fill('2026-05-31')
+  await page.getByTestId('batch-preview-execute').click()
+  // 성공 시 결과 탭 자동 활성 (handlePreviewSuccess → setActiveTab('result')).
+  await expect(
+    page.getByTestId('hometax-export-tab-result'),
+    '미리보기 실행 후 결과 탭 자동 활성 실패',
+  ).toHaveAttribute('aria-selected', 'true', { timeout: 8000 })
+}
 
 // ---------------------------------------------------------------------------
 // TC-TIB-1 ~ TC-TIB-7
@@ -123,28 +141,29 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - 탭 영역에 "미리보기 생성" / "결과 페이지" / "전표 필터" / "저장 내역" 4개 탭 텍스트 노출
    *   - pageerror 없음
    */
-  test('TC-TIB-1: 4탭 visible', async ({ page }) => {
+  test('TC-TIB-1: hometax-export 워크플로 4탭 visible', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${HOMETAX_URL}?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    const pageText = (await page.textContent('body')) ?? ''
-
-    const missing: string[] = []
+    // 워크플로 4탭 버튼 testid 가시 (result 탭은 미리보기 전 disabled 이나 렌더는 됨).
+    for (const id of ['preview', 'result', 'exclusions', 'history']) {
+      await expect(
+        page.getByTestId(`hometax-export-tab-${id}`),
+        `탭 버튼 미표시: hometax-export-tab-${id}`,
+      ).toBeVisible({ timeout: 5000 })
+    }
+    // 4탭 라벨 텍스트 검증 (PR #161 이후 라벨: 거래처 필터링).
     for (const label of TAB_LABELS) {
-      // tab 역할 요소 또는 body 텍스트에서 확인
-      const tabLocator = page.locator(
-        `[role="tab"]:has-text("${label}"), [data-testid*="tab"]:has-text("${label}"), button:has-text("${label}")`,
-      )
-      const countInPage = await tabLocator.count()
-      if (countInPage === 0 && !pageText.includes(label)) {
-        missing.push(label)
-      }
+      await expect(
+        page.getByText(label, { exact: false }).first(),
+        `탭 라벨 미표시: ${label}`,
+      ).toBeVisible({ timeout: 5000 })
     }
 
     ensureQaDir()
@@ -153,7 +172,6 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       fullPage: true,
     })
 
-    expect(missing, `누락 탭: [${missing.join(', ')}]`).toHaveLength(0)
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -166,76 +184,31 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - "결과 페이지" 탭이 활성화되거나 결과 테이블 영역 노출
    *   - pageerror 없음
    */
-  test('TC-TIB-2: Tab 1 처리 실행 → totalRowCount + Tab 2 이동', async ({ page }) => {
+  test('TC-TIB-2: 미리보기 생성 → totalRowCount 250 + 결과 탭 자동 이동', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${HOMETAX_URL}?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    // Tab 1 ("미리보기 생성") 클릭 (이미 기본 활성일 수 있음)
-    const tab1 = page.locator(
-      '[role="tab"]:has-text("미리보기 생성"), button:has-text("미리보기 생성")',
-    ).first()
-    if ((await tab1.count()) > 0) {
-      await tab1.click()
-      await page.waitForTimeout(500)
-    }
+    // 미리보기 실행 → 결과 탭 자동 전환(헬퍼 내 strict 검증).
+    await runPreview(page)
 
-    // fromDate 입력
-    const fromInput = page.locator(
-      '[data-testid="batch-from-date"], input[name="fromDate"], input[name="from"]',
-    ).first()
-    if ((await fromInput.count()) > 0) {
-      await fromInput.fill('2026-05-01')
-    }
+    // 결과 탭에 전체 250건(mock MOCK_BATCH_ROWS=250) 표시 — strict.
+    const body = (await page.textContent('body')) ?? ''
+    expect(
+      body.includes('250건'),
+      `미리보기 totalRowCount 250건 미표시 — body 일부: "${body.slice(0, 200)}"`,
+    ).toBe(true)
 
-    // toDate 입력
-    const toInput = page.locator(
-      '[data-testid="batch-to-date"], input[name="toDate"], input[name="to"]',
-    ).first()
-    if ((await toInput.count()) > 0) {
-      await toInput.fill('2026-05-31')
-    }
-
-    // "처리 실행" 버튼 클릭
-    const executeBtn = page.locator(
-      '[data-testid="batch-execute"], button:has-text("처리 실행"), button:has-text("실행"), button:has-text("미리보기")',
-    ).first()
-
-    if ((await executeBtn.count()) > 0) {
-      await executeBtn.click()
-      // BE 응답 대기 (최대 8초)
-      await page.waitForTimeout(2000)
-
-      const pageText = (await page.textContent('body')) ?? ''
-
-      // totalRowCount 숫자 노출 또는 "결과 페이지" 활성 확인
-      const hasRowCount =
-        /\d+건|\d+행|totalRowCount|결과.*행|행.*결과/.test(pageText) ||
-        pageText.includes('결과 페이지')
-
-      ensureQaDir()
-      await page.screenshot({
-        path: path.join(QA_DIR, 'TC-TIB-2-batch-execute-result.png'),
-        fullPage: true,
-      })
-
-      expect(hasRowCount, 'totalRowCount 또는 결과 페이지 탭 미노출').toBeTruthy()
-    } else {
-      // 실행 버튼 미구현 — 페이지 기본 로드 검증
-      const body = (await page.textContent('body')) ?? ''
-      expect(body.length, 'batch 페이지 body 비어있음').toBeGreaterThan(50)
-
-      ensureQaDir()
-      await page.screenshot({
-        path: path.join(QA_DIR, 'TC-TIB-2-batch-no-execute-btn.png'),
-        fullPage: true,
-      })
-    }
+    ensureQaDir()
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-TIB-2-batch-execute-result.png'),
+      fullPage: true,
+    })
 
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -249,55 +222,44 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - "Excel 다운로드" 버튼 클릭 → download 이벤트 발생 (blob)
    *   - pageerror 없음
    */
-  test('TC-TIB-3: Tab 2 splitFileCount=3 + Excel 다운로드', async ({ page }) => {
+  test('TC-TIB-3: 결과 splitFileCount=3 + Excel 다운로드', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${HOMETAX_URL}?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    // Tab 2 ("결과 페이지") 직접 클릭
-    const tab2 = page.locator(
-      '[role="tab"]:has-text("결과 페이지"), button:has-text("결과 페이지")',
-    ).first()
+    // 미리보기 실행 → 결과 탭. mock MOCK_BATCH_ROWS=250 → splitFileCount=3.
+    // 다운로드 버튼은 현재 fileIndex 1개만 렌더되고 ◄ ► 네비게이션으로 전환된다(0-based).
+    await runPreview(page)
 
-    if ((await tab2.count()) > 0) {
-      await tab2.click()
-      await page.waitForTimeout(800)
-    }
+    // splitFileCount=3 표시 검증 ("파일 3개" + "1 / 3" 네비게이션).
+    const body = (await page.textContent('body')) ?? ''
+    expect(body.includes('파일 3개'), 'splitFileCount=3(파일 3개) 미표시').toBe(true)
+    await expect(
+      page.getByTestId('batch-result-download-0'),
+      '현재 분할 파일(1/3) 다운로드 버튼 미표시',
+    ).toBeVisible({ timeout: 8000 })
 
-    const pageText = (await page.textContent('body')) ?? ''
+    // 첫 분할 파일 다운로드 이벤트 캡처 + .xlsx 파일명 검증.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 8000 }),
+      page.getByTestId('batch-result-download-0').click(),
+    ])
+    expect(
+      download.suggestedFilename(),
+      `다운로드 파일명 Excel(.xlsx) 아님: ${download.suggestedFilename()}`,
+    ).toContain('.xlsx')
 
-    // splitFileCount=3 관련 페이지 navigation 노출 검증
-    const hasSplitNav =
-      pageText.includes('파일 1') ||
-      pageText.includes('파일 2') ||
-      pageText.includes('파일 3') ||
-      /fileIndex|분할|Sheet[123]|1 \/ 3|2 \/ 3/.test(pageText) ||
-      (await page.locator('[data-testid*="file-index"], [data-testid*="split"]').count()) > 0
-
-    // Excel 다운로드 버튼 → download 이벤트 캡처
-    const downloadBtn = page.locator(
-      '[data-testid="batch-excel-download"], button:has-text("Excel"), button:has-text("엑셀"), button:has-text("다운로드")',
-    ).first()
-
-    let downloadOccurred = false
-    if ((await downloadBtn.count()) > 0) {
-      const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 8000 }).catch(() => null),
-        downloadBtn.click(),
-      ])
-      if (download !== null) {
-        downloadOccurred = true
-        // 다운로드 파일명에 xlsx 또는 xls 포함 확인
-        const suggestedFilename = download.suggestedFilename()
-        const isExcel = suggestedFilename.includes('.xlsx') || suggestedFilename.includes('.xls')
-        expect(isExcel, `다운로드 파일명 Excel 형식 아님: ${suggestedFilename}`).toBeTruthy()
-      }
-    }
+    // 다음 파일(2/3) 네비게이션 → download-1 노출(분할 navigation 동작 검증).
+    await page.getByRole('button', { name: '다음 파일' }).click()
+    await expect(
+      page.getByTestId('batch-result-download-1'),
+      '다음 파일 네비게이션 후 2/3 다운로드 버튼 미표시',
+    ).toBeVisible({ timeout: 5000 })
 
     ensureQaDir()
     await page.screenshot({
@@ -305,18 +267,6 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       fullPage: true,
     })
 
-    // splitFileCount navigation 또는 결과 테이블 행 표시 중 하나라도 검증
-    const hasResultContent =
-      hasSplitNav ||
-      (await page.locator('table tbody tr, [data-testid*="batch-row"]').count()) > 0 ||
-      pageText.includes('슬립') ||
-      pageText.includes('거래처') ||
-      downloadOccurred
-
-    expect(
-      hasResultContent,
-      'Tab 2 결과 내용 (splitFileCount navigation / 행 테이블 / 다운로드) 미노출',
-    ).toBeTruthy()
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -329,70 +279,43 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - 삭제 버튼 클릭 → 목록에서 제거
    *   - pageerror 없음
    */
-  test('TC-TIB-4: Tab 3 제외 거래처 add/list/delete', async ({ page }) => {
+  test('TC-TIB-4: 거래처 필터링 add/list/delete', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${HOMETAX_URL}?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    // Tab 3 ("전표 필터") 클릭
-    const tab3 = page.locator(
-      '[role="tab"]:has-text("전표 필터"), button:has-text("전표 필터")',
-    ).first()
+    // 거래처 필터링(제외 거래처) 탭 → seed 제외 거래처(P-EX-001) 표시.
+    await page.getByTestId('hometax-export-tab-exclusions').click()
+    await page.waitForTimeout(600)
+    await expect(
+      page.getByText('P-EX-001', { exact: false }).first(),
+      'seed 제외 거래처(P-EX-001) 미표시',
+    ).toBeVisible({ timeout: 5000 })
 
-    if ((await tab3.count()) > 0) {
-      await tab3.click()
-      await page.waitForTimeout(800)
-    }
+    // 신규 제외 거래처 추가 → stateful mock 목록 반영.
+    const NEW_CODE = 'P-QA-9001'
+    await page.getByTestId('exclusion-add-code').fill(NEW_CODE)
+    await page.getByTestId('exclusion-add-name').fill('큐에이제외상사')
+    await page.getByTestId('exclusion-add-reason').fill('QA 테스트 제외')
+    await page.getByTestId('exclusion-add-submit').click()
+    await page.waitForTimeout(800)
+    await expect(
+      page.getByText(NEW_CODE, { exact: false }).first(),
+      `추가한 제외 거래처(${NEW_CODE}) 목록 미표시`,
+    ).toBeVisible({ timeout: 5000 })
 
-    const pageText = (await page.textContent('body')) ?? ''
-
-    // 제외 거래처 관련 UI 노출 확인
-    const hasExclusionUi =
-      pageText.includes('제외') ||
-      pageText.includes('거래처') ||
-      (await page.locator(
-        '[data-testid*="exclusion"], [placeholder*="거래처"], [placeholder*="코드"]',
-      ).count()) > 0
-
-    if (hasExclusionUi) {
-      // 거래처 코드 입력
-      const codeInput = page.locator(
-        '[data-testid="exclusion-partner-code"], input[placeholder*="거래처코드"], input[placeholder*="코드"]',
-      ).first()
-
-      if ((await codeInput.count()) > 0) {
-        await codeInput.fill('TEST-PC-QA')
-        await page.waitForTimeout(300)
-
-        // 추가 버튼 클릭
-        const addBtn = page.locator(
-          '[data-testid="exclusion-add"], button:has-text("추가"), button:has-text("등록")',
-        ).first()
-
-        if ((await addBtn.count()) > 0) {
-          await addBtn.click()
-          await page.waitForTimeout(800)
-
-          const afterAddText = (await page.textContent('body')) ?? ''
-          const addedVisible = afterAddText.includes('TEST-PC-QA')
-
-          // 삭제 버튼 클릭
-          const deleteBtn = page.locator(
-            '[data-testid*="exclusion-delete"], button:has-text("삭제"), button[aria-label*="삭제"]',
-          ).first()
-
-          if ((await deleteBtn.count()) > 0 && addedVisible) {
-            await deleteBtn.click()
-            await page.waitForTimeout(800)
-          }
-        }
-      }
-    }
+    // 삭제 → 목록에서 제거.
+    await page.getByTestId(`exclusion-delete-${NEW_CODE}`).click()
+    await page.waitForTimeout(800)
+    await expect(
+      page.getByText(NEW_CODE, { exact: false }),
+      `삭제 후에도 제외 거래처(${NEW_CODE}) 잔존`,
+    ).toHaveCount(0)
 
     ensureQaDir()
     await page.screenshot({
@@ -400,10 +323,6 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       fullPage: true,
     })
 
-    expect(
-      hasExclusionUi || pageText.length > 50,
-      'Tab 3 전표 필터 내용 미노출',
-    ).toBeTruthy()
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -416,58 +335,35 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - 이력 행 클릭 → "결과 페이지" 탭이 활성화되거나 row 데이터 복원
    *   - pageerror 없음
    */
-  test('TC-TIB-5: Tab 4 이력 목록 + 행 클릭 복원', async ({ page }) => {
+  test('TC-TIB-5: 저장 내역 행 클릭 → 결과 탭 복원', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/accounting/tax-invoices/batch?mockRole=ACCOUNTANT`, {
+    await page.goto(`${HOMETAX_URL}?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    // Tab 4 ("저장 내역") 클릭
-    const tab4 = page.locator(
-      '[role="tab"]:has-text("저장 내역"), button:has-text("저장 내역")',
-    ).first()
+    // 저장 내역 탭 → 이력 행(mock MOCK_BATCH_HISTORIES 10건) 표시.
+    await page.getByTestId('hometax-export-tab-history').click()
+    await page.waitForTimeout(800)
+    const firstRow = page.locator('[data-testid^="history-row-"]').first()
+    await expect(firstRow, '저장 내역 이력 행(history-row-*) 미표시').toBeVisible({ timeout: 5000 })
 
-    if ((await tab4.count()) > 0) {
-      await tab4.click()
-      await page.waitForTimeout(1000)
-    }
+    // 행 클릭 → 단건 복원(GET /history/{id}) → 결과 탭 자동 활성(handleHistoryRestore).
+    await firstRow.click()
+    await expect(
+      page.getByTestId('hometax-export-tab-result'),
+      '이력 복원 후 결과 탭 자동 활성 실패',
+    ).toHaveAttribute('aria-selected', 'true', { timeout: 8000 })
 
-    const pageText = (await page.textContent('body')) ?? ''
-
-    // 이력 목록 관련 텍스트 확인
-    const hasHistoryContent =
-      pageText.includes('이력') ||
-      pageText.includes('배치') ||
-      pageText.includes('TIB-') ||
-      (await page.locator('table tbody tr, [data-testid*="history-row"]').count()) > 0
-
-    // 이력 행이 있으면 첫 번째 행 클릭
-    const historyRow = page.locator(
-      '[data-testid*="history-row"], table tbody tr[role="button"], table tbody tr:has(td)',
-    ).first()
-
-    if ((await historyRow.count()) > 0) {
-      await historyRow.click()
-      await page.waitForTimeout(800)
-
-      // Tab 2 ("결과 페이지") 활성화 또는 rows 데이터 복원 확인
-      const afterClickText = (await page.textContent('body')) ?? ''
-      const tab2Restored =
-        afterClickText.includes('결과 페이지') ||
-        afterClickText.includes('슬립') ||
-        afterClickText.includes('거래처') ||
-        (await page.locator(
-          '[role="tab"][aria-selected="true"]:has-text("결과 페이지")',
-        ).count()) > 0
-      // 복원 확인 — soft assertion (mock 환경에서 데이터 없을 수 있음)
-      if (!tab2Restored) {
-        console.log('TC-TIB-5: 이력 행 클릭 후 Tab 2 복원 미확인 (mock 데이터 없을 수 있음)')
-      }
-    }
+    // 복원된 결과에 전체 250건 표시.
+    const body = (await page.textContent('body')) ?? ''
+    expect(
+      body.includes('250건'),
+      `복원된 결과 totalRowCount 250건 미표시 — body 일부: "${body.slice(0, 200)}"`,
+    ).toBe(true)
 
     ensureQaDir()
     await page.screenshot({
@@ -475,10 +371,6 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       fullPage: true,
     })
 
-    expect(
-      hasHistoryContent || pageText.length > 50,
-      'Tab 4 저장 내역 내용 미노출',
-    ).toBeTruthy()
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -490,38 +382,32 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - href 또는 data-testid 가 /accounting/tax-invoices/batch 를 가리킴
    *   - pageerror 없음
    */
-  test('TC-TIB-6: 사이드바 세금계산서 일괄발행 NavLink visible', async ({ page }) => {
+  test('TC-TIB-6: 사이드바 "홈택스 일괄 양식" NavLink visible (ACCOUNTANT)', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await page.goto(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, {
+    // 회계 카테고리가 펼쳐지도록 회계 하위 페이지로 진입.
+    await page.goto(`${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    const pageText = (await page.textContent('body')) ?? ''
+    // PR #161 이후 4탭 워크플로 진입점은 사이드바 "홈택스 일괄 양식"(→ /accounting/hometax-export).
+    const navLink = page.getByTestId('sidebar-accounting-hometax-export')
+    await expect(
+      navLink,
+      '사이드바 "홈택스 일괄 양식" NavLink 미노출 (ACCOUNTANT — accounting.partner-ledger 권한)',
+    ).toBeVisible({ timeout: 5000 })
+    await expect(navLink, 'NavLink 라벨 불일치').toContainText('홈택스 일괄 양식')
 
-    // 사이드바에 "세금계산서 일괄발행" 또는 "일괄발행" 텍스트 + 링크 확인
-    const navLink = page.locator(
-      'a:has-text("세금계산서 일괄발행"), a:has-text("일괄발행"), [href*="tax-invoices/batch"], [data-testid*="batch-nav"]',
-    ).first()
-
-    const navExists = (await navLink.count()) > 0
-    const textExists = pageText.includes('일괄발행')
-
-    // ACCOUNTANT 미노출 시 사이드바 카테고리 "회계" 펼침 시도
-    if (!navExists && !textExists) {
-      const accountingCategory = page.locator(
-        '[data-testid*="category-accounting"], nav a:has-text("회계"), button:has-text("회계")',
-      ).first()
-      if ((await accountingCategory.count()) > 0) {
-        await accountingCategory.click()
-        await page.waitForTimeout(600)
-      }
-    }
-
-    const afterExpandText = (await page.textContent('body')) ?? ''
+    // 클릭 → hometax-export 4탭 페이지 진입.
+    await navLink.click()
+    await page.waitForURL(/hometax-export/, { timeout: 5000 })
+    await expect(
+      page.getByTestId('hometax-export-tab-preview'),
+      'NavLink 클릭 후 hometax-export 워크플로 페이지 미진입',
+    ).toBeVisible({ timeout: 5000 })
 
     ensureQaDir()
     await page.screenshot({
@@ -529,10 +415,6 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       fullPage: true,
     })
 
-    expect(
-      navExists || textExists || afterExpandText.includes('일괄발행'),
-      '사이드바에 "세금계산서 일괄발행" NavLink 미노출 (ACCOUNTANT 권한)',
-    ).toBeTruthy()
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
 
@@ -544,7 +426,7 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
    *   - 클릭 시 /accounting/tax-invoices/batch 로 navigate
    *   - pageerror 없음
    */
-  test('TC-TIB-7: TaxInvoiceListPage 일괄 발행 버튼 → batch 이동', async ({ page }) => {
+  test('TC-TIB-7: TaxInvoiceListPage 일괄 발행 버튼 → hometax-export 이동', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -552,52 +434,25 @@ test.describe('세금계산서 일괄발행 페이지 (TC-TIB-1~7)', () => {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
-    await page.waitForTimeout(1500)
+    await page.waitForTimeout(1200)
 
-    // "일괄 발행" 버튼 탐색
-    const batchBtn = page.locator(
-      '[data-testid="tax-invoice-batch-btn"], button:has-text("일괄 발행"), a:has-text("일괄 발행")',
-    ).first()
+    // "일괄 발행 (홈택스 양식)" 버튼 — PR #161 이후 /accounting/hometax-export 로 navigate.
+    const batchBtn = page.getByTestId('tax-invoice-batch-button')
+    await expect(batchBtn, '일괄 발행 버튼(tax-invoice-batch-button) 미표시').toBeVisible({ timeout: 5000 })
 
-    const btnExists = (await batchBtn.count()) > 0
+    await batchBtn.click()
+    await page.waitForURL(/hometax-export/, { timeout: 5000 })
+    // 4탭 워크플로 페이지 진입 확인.
+    await expect(
+      page.getByTestId('hometax-export-tab-preview'),
+      '일괄 발행 버튼 클릭 후 hometax-export 워크플로 페이지 미진입',
+    ).toBeVisible({ timeout: 5000 })
 
-    if (btnExists) {
-      await batchBtn.click()
-      // navigate 대기 (최대 5초)
-      await page.waitForURL(/tax-invoices\/batch/, { timeout: 5000 }).catch(() => {
-        // URL 변경 미감지 — SPA 내부 navigate 일 경우 body 확인으로 fallback
-      })
-
-      await page.waitForTimeout(800)
-
-      const currentUrl = page.url()
-      const pageText = (await page.textContent('body')) ?? ''
-
-      const navigatedToBatch =
-        currentUrl.includes('tax-invoices/batch') ||
-        pageText.includes('미리보기 생성') ||
-        pageText.includes('저장 내역')
-
-      ensureQaDir()
-      await page.screenshot({
-        path: path.join(QA_DIR, 'TC-TIB-7-list-to-batch-navigate.png'),
-        fullPage: true,
-      })
-
-      expect(navigatedToBatch, '일괄 발행 버튼 클릭 후 /accounting/tax-invoices/batch 미이동').toBeTruthy()
-    } else {
-      // 버튼 미구현 — 페이지 기본 로드 검증 (FE agent 작업 미완료 허용)
-      const body = (await page.textContent('body')) ?? ''
-      expect(body.length, 'TaxInvoiceListPage body 비어있음').toBeGreaterThan(50)
-
-      ensureQaDir()
-      await page.screenshot({
-        path: path.join(QA_DIR, 'TC-TIB-7-list-no-batch-btn.png'),
-        fullPage: true,
-      })
-
-      console.log('TC-TIB-7: "일괄 발행" 버튼 미구현 — FE agent 작업 완료 후 재검증 필요')
-    }
+    ensureQaDir()
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-TIB-7-list-to-batch-navigate.png'),
+      fullPage: true,
+    })
 
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })

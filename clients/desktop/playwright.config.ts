@@ -44,7 +44,7 @@ export default defineConfig({
     
     
 
-    '**/tax-invoice-batch/**',
+
   ],
   timeout: 60_000,
   retries: process.env['CI'] ? 1 : 0,
