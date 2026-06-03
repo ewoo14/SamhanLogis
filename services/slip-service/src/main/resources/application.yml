@@ -56,6 +56,10 @@ samhan:
       enabled: ${SAMHAN_COMPENSATION_RETENTION_ENABLED:false}
       cron: ${SAMHAN_COMPENSATION_RETENTION_CRON:0 30 3 * * *}
       retention-days: ${SAMHAN_COMPENSATION_RETENTION_DAYS:90}
+    alert:
+      # D-SER-26 — 보상 실패 운영 알림 푸시. 기본 비활성, 운영에서 enabled=true + recipient 지정 시 발송.
+      enabled: ${SAMHAN_COMPENSATION_ALERT_ENABLED:false}
+      recipient-user-id: ${SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID:}
 
 eureka:
   client:

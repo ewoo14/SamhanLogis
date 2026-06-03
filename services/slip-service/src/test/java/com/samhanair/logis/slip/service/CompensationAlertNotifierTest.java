@@ -1,0 +1,115 @@
+package com.samhanair.logis.slip.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.domain.CompensationOperation;
+import com.samhanair.logis.slip.domain.CompensationPhase;
+import com.samhanair.logis.slip.domain.DeliveryTag;
+import com.samhanair.logis.slip.domain.Slip;
+import java.time.LocalDate;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+/**
+ * CompensationAlertNotifier 의 config-gating / best-effort 단위 테스트.
+ */
+@ExtendWith(MockitoExtension.class)
+class CompensationAlertNotifierTest {
+
+    private static final String RECIPIENT = "11111111-1111-1111-1111-111111111111";
+
+    @Mock
+    private NotificationClient notificationClient;
+
+    private Slip slip() {
+        Slip slip = Slip.createOutbound("2026/06/03-99", LocalDate.of(2026, 6, 3), 99,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
+        ReflectionTestUtils.setField(slip, "id", UUID.randomUUID());
+        return slip;
+    }
+
+    private void notify(CompensationAlertNotifier notifier) {
+        notifier.notifyFailure(slip(), CompensationPhase.ACCEPT_RESERVE, "AC-ALERT-001",
+                CompensationOperation.RELEASE_INSTANCES, "RuntimeException: 보상 실패",
+                "BusinessException: 원본 실패");
+    }
+
+    @Test
+    void enabledWithRecipient_sendsPushWithBusinessIdentifiersOnly() {
+        CompensationAlertNotifier notifier =
+                new CompensationAlertNotifier(notificationClient, true, RECIPIENT);
+
+        notify(notifier);
+
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(notificationClient).sendUserPush(
+                eq(UUID.fromString(RECIPIENT)), subject.capture(), body.capture());
+        assertThat(subject.getValue()).isEqualTo("[보상실패] 2026/06/03-99");
+        assertThat(body.getValue())
+                .contains("2026/06/03-99")
+                .contains("AC-ALERT-001")
+                .contains("RELEASE_INSTANCES")
+                .contains("보상 실패")
+                .contains("원본 실패");
+    }
+
+    @Test
+    void disabled_doesNotSend() {
+        CompensationAlertNotifier notifier =
+                new CompensationAlertNotifier(notificationClient, false, RECIPIENT);
+
+        notify(notifier);
+
+        verifyNoInteractions(notificationClient);
+    }
+
+    @Test
+    void enabledButBlankRecipient_doesNotSend() {
+        CompensationAlertNotifier notifier =
+                new CompensationAlertNotifier(notificationClient, true, "  ");
+
+        notify(notifier);
+
+        verify(notificationClient, never()).sendUserPush(org.mockito.ArgumentMatchers.any(),
+                anyString(), anyString());
+    }
+
+    @Test
+    void enabledButMalformedRecipient_doesNotSend() {
+        CompensationAlertNotifier notifier =
+                new CompensationAlertNotifier(notificationClient, true, "not-a-uuid");
+
+        notify(notifier);
+
+        verify(notificationClient, never()).sendUserPush(org.mockito.ArgumentMatchers.any(),
+                anyString(), anyString());
+    }
+
+    @Test
+    void notificationException_isSwallowed() {
+        CompensationAlertNotifier notifier =
+                new CompensationAlertNotifier(notificationClient, true, RECIPIENT);
+        doThrow(new RuntimeException("notification down"))
+                .when(notificationClient).sendUserPush(org.mockito.ArgumentMatchers.any(),
+                        anyString(), anyString());
+
+        // 예외가 전파되지 않아야 한다(보상 흐름 무영향).
+        notify(notifier);
+
+        verify(notificationClient).sendUserPush(eq(UUID.fromString(RECIPIENT)),
+                anyString(), anyString());
+    }
+}
