@@ -4,6 +4,27 @@
 
 ---
 
+## ✅ 2026-06-03 — 3-D 비-0 재고 실 Docker QA 완수 (PR #343 보류 QA 마감)
+
+> ⓒ 2순위. PR #343(SlipFormPage 재고모달 일원화) 머지 전 보류됐던 실 Docker QA 를 비-0 재고로 완수. 코드 무변경(QA 검증 + 증빙 docs only).
+
+- 실 게이트웨이(127.0.0.1:8080) MASTER 로그인 → `POST /api/inventory/balances/batch` 실 호출 → 비-0 가용/실/예약 매트릭스(본사창고 498/0/498, 1호차 40/0/40) → **psql 전수 대조 완전 일치**. no-fake-data 준수.
+- 증빙: `docs/qa/slice-3-d-nonzero-stock-qa/real-qa-evidence.md`. inventory_db stock_balances 200행 전부 available>0(reseed 불요).
+- 다음 = ⓒ 3순위 WarehouseAutocomplete.
+
+---
+
+## 🧩 2026-06-03 — 3-A2-② RBAC 격리 재게이트 시도 → revert (개발책임자 결정) + 🔴 3-A2-③ 근본원인 발견
+
+> ⓒ 1순위로 3-A2-②(RBAC/AppLayout 격리 A그룹 6스펙 재게이트) 시도. **mock 모드 구조적 한계로 깨끗한 재게이트 불가 → 전체 revert**(개발책임자 결정). 다음 = 3-D → WarehouseAutocomplete.
+
+- **시도/결과**: A그룹 6스펙(admin-hr/applayout/sp-d1~d4) testIgnore 제거 후 실 Playwright 베이스라인 48 tests **33 pass / 15 fail**. verify-then-fix(Codex+PM)로 권한 mock shape 를 sp-d4 정답(`{pageCode, canView, canEdit}`)으로 교정 → 9 fail 까지 감소. 그러나 잔여 실패가 단일 근본원인에 수렴.
+- 🔴 **근본원인(3-A2-③ 필수 선결)**: `clients/desktop/src/renderer/api/client.ts:45-52` — `VITE_MOCK_MODE=1` 시 `getMockResponse(config)` **in-process 직접 호출**, 실 HTTP 미발생. → Playwright `page.route`(네트워크 가로채기) **no-op**. sp-d1/d2/d3 의 권한 시나리오(revoke/grant/custom matrix) override 가 mock 모드에서 무효. sp-d4 통과는 `mockRole`+mock.ts 기본 권한모델이 우연히 단언 충족(page.route 죽은 코드).
+- **3-A2-③ 처방**: `mock.ts` 에 권한 시나리오 제어 메커니즘(mockRole 별 `_mockPermissionCells` 동적 revoke/grant + dept 게이팅 + 매트릭스 account-select 재설계 반영) 신규 구축 후 스펙 재작성. admin-hr TC-HR2 = 부서(대표실) 게이팅 mock-gap, applayout Task14 = fail-closed 응답전 hidden 지연mock, sp-d1 = 매트릭스 role-grid→account-select(mock 3계정) 재설계. **전용 슬라이스**.
+- revert 완료: testIgnore A그룹 복원, 브랜치 feat/3-a2-2-rbac-regate 폐기, 프로덕션·스펙 무변경(main 무오염).
+
+---
+
 ## 🌙 2026-06-03 자율 세션 — ⓑ 시리얼 분산 보상 견고화 ✅ (PR #351, 머지 진행)
 
 > Phase INV-S 후속 ⓑ. D-SER-05(동기 REST best-effort 보상) 한계 보완 — 보상 실패 조용한 삼킴 → 관측·영속·복구단서. slip-service 단독.
