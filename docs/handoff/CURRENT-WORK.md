@@ -4,6 +4,16 @@
 
 ---
 
+## ✅ 2026-06-03 — WarehouseAutocomplete 통합 (ⓒ 3순위, 잔여 WarehouseSelector 일원화)
+
+> ⓒ 마지막. design-system `WarehouseAutocomplete`(AC-1)를 작성 폼 헤더 창고 선택에 일원화. FE only(desktop).
+
+- `SlipFormPage`(출발/도착 2) + `TransferFormPage`(출발/도착 2) 잔여 `WarehouseSelector`(plain select) → `WarehouseAutocomplete` 교체. props 동등(value string|null, onChange id, hideVirtual/error 보존). 프로덕션 로직 무변경.
+- 검증: desktop `tsc` 0 + 실 Playwright(slip-form-v20/d2-6d/phase-2-6a) **30 pass/0 fail**. DS WarehouseSelector 미사용화(deprecate 별도 후속).
+- **🎉 ⓒ 3건 종결**: 3-A2-②(revert+3-A2-③ 문서화) / 3-D(비-0 재고 실QA #352) / WarehouseAutocomplete(본 PR). → 대기 모드.
+
+---
+
 ## ✅ 2026-06-03 — 3-D 비-0 재고 실 Docker QA 완수 (PR #343 보류 QA 마감)
 
 > ⓒ 2순위. PR #343(SlipFormPage 재고모달 일원화) 머지 전 보류됐던 실 Docker QA 를 비-0 재고로 완수. 코드 무변경(QA 검증 + 증빙 docs only).

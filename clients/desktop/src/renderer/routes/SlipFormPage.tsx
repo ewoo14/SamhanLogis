@@ -36,7 +36,7 @@ import {
   PartnerAutocomplete,
   PhoneInput,
   ProductAutocomplete,
-  WarehouseSelector,
+  WarehouseAutocomplete,
   type DeliveryTagOption,
   type LineDraft,
   type PartnerOption,
@@ -489,7 +489,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-section-title">헤더 정보</div>
         <div className="sfp-form-grid sfp-form-grid--3">
-          <WarehouseSelector
+          <WarehouseAutocomplete
             label={isOutbound ? '출발 창고' : '입고 창고'}
             required={isOutbound}
             warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
@@ -497,7 +497,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             onChange={(id) => setSourceWh(id)}
             hideVirtual
           />
-          <WarehouseSelector
+          <WarehouseAutocomplete
             label={isOutbound ? '도착 창고' : '출발 창고 (옵션)'}
             required={!isOutbound}
             warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}

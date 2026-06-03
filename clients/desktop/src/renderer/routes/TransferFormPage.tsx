@@ -18,7 +18,7 @@ import {
   Button,
   Card,
   FormField,
-  WarehouseSelector,
+  WarehouseAutocomplete,
 } from '@samhan/design-system'
 import axios from 'axios'
 import {
@@ -161,14 +161,14 @@ export function TransferFormPage() {
       <Card padding={5} shadow="sm">
         <div className="form-section">
           <div className="form-row">
-            <WarehouseSelector
+            <WarehouseAutocomplete
               label="출발 창고"
               required
               warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
               value={sourceWh}
               onChange={(id) => setSourceWh(id)}
             />
-            <WarehouseSelector
+            <WarehouseAutocomplete
               label="도착 창고"
               required
               warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
