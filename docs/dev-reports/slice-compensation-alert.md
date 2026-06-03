@@ -18,7 +18,17 @@
 - IT(실 Testcontainers): `CompensationAlertNotifierIT` — alert.enabled=true + recipient `@TestPropertySource`, `@MockBean NotificationClient`, 실 PostgreSQL/Flyway 에서 `record()` → 감사 저장 + `sendUserPush` 호출 verify. 실 Postgres 컨테이너 기동/종료 확인. BUILD SUCCESSFUL.
 - 무회귀: 보상감사(#351)·복구(#355)·retention(#359) 테스트 green.
 
-## 3. 후속
+## 3. 리뷰 반영 (Claude 5-team + Codex cross-check)
+
+- **트랜잭션 정합(BE P1 / DevOps P2)**: `record()`(REQUIRES_NEW) 커밋 전 알림 발송 → 알림-DB 불일치 + notification HTTP(최대 5s) DB 커넥션 점유. → `TransactionSynchronizationManager` 활성 시 `afterCommit` 으로 발송 이동(커밋 실패 시 미발송·커넥션 선반납). 트랜잭션 밖 호출(단위)은 즉시 발송.
+- **best-effort 범위(BE P1 / DevOps·QA)**: `catch(RuntimeException)` → `catch(Exception)`(checked 포함 전 예외 삼킴).
+- **IT body 단언(QA P1)**: `anyString()` → ArgumentCaptor 로 본문 `slipNo·품목코드·동작` contains 검증(false-green 제거).
+- **@MockBean 격리(QA P1)**: `SlipCompensationAuditIT` 에 `NotificationClient` @MockBean 명시(보상 흐름의 전이 의존 격리).
+- **예외 swallow 단언(QA P1) / blank recipient WARN(QA P2)**: 고정 제목 eq + WARN 로그 단언 추가.
+- **env 템플릿(DevOps P1)**: `infrastructure/env-templates/slip-service.env` 에 retention(D-SER-25 누락분 동반)+alert env 블록 + Phase 11 체크리스트.
+- 후속(P2): Micrometer 카운터(`compensation.alert.send` result tag) 관측성 — Phase 11 Grafana 경보 시 추가.
+
+## 4. 후속
 
 - **Phase 11 활성화**: 운영 알림 활성화 = `SAMHAN_COMPENSATION_ALERT_ENABLED=true` + `SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID=<운영자 user UUID>`. 컷오버 체크리스트 등재(retention 활성화와 동반).
 - 다중 수신자(운영 그룹) 알림은 현 단일 recipient 로 충분; 필요 시 그룹/역할 기반 fan-out 후속.

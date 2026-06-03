@@ -1,6 +1,6 @@
 package com.samhanair.logis.slip.it;
 
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -106,8 +107,13 @@ class CompensationAlertNotifierIT extends AbstractPostgresIT {
                 new RuntimeException("release 실패"),
                 new RuntimeException("reserve 실패"));
 
-        // 감사 행 저장 성공 후 운영 알림 push 가 비즈니스 식별자 제목으로 발송된다.
+        // 감사 행 저장(REQUIRES_NEW) 커밋 후 운영 알림 push 가 비즈니스 식별자 제목/본문으로 발송된다.
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
         verify(notificationClient).sendUserPush(eq(RECIPIENT),
-                eq("[보상실패] " + SLIP_NO), anyString());
+                eq("[보상실패] " + SLIP_NO), body.capture());
+        assertThat(body.getValue())
+                .contains(SLIP_NO)
+                .contains("AC-ALERT-IT-001")
+                .contains("RELEASE_INSTANCES");
     }
 }

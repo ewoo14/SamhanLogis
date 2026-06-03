@@ -20,12 +20,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * CompensationAlertNotifier 의 config-gating / best-effort 단위 테스트.
  */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class CompensationAlertNotifierTest {
 
     private static final String RECIPIENT = "11111111-1111-1111-1111-111111111111";
@@ -77,7 +79,7 @@ class CompensationAlertNotifierTest {
     }
 
     @Test
-    void enabledButBlankRecipient_doesNotSend() {
+    void enabledButBlankRecipient_doesNotSendAndWarns(CapturedOutput output) {
         CompensationAlertNotifier notifier =
                 new CompensationAlertNotifier(notificationClient, true, "  ");
 
@@ -85,6 +87,8 @@ class CompensationAlertNotifierTest {
 
         verify(notificationClient, never()).sendUserPush(org.mockito.ArgumentMatchers.any(),
                 anyString(), anyString());
+        // 활성화했으나 수신자 미설정은 설정 오류 — WARN 으로 표면화되어야 한다.
+        assertThat(output).contains("recipient-user-id 미설정");
     }
 
     @Test
@@ -109,7 +113,8 @@ class CompensationAlertNotifierTest {
         // 예외가 전파되지 않아야 한다(보상 흐름 무영향).
         notify(notifier);
 
+        // 정상 인자(고정 제목)로 호출됐고 예외만 삼켜졌음을 함께 확인한다.
         verify(notificationClient).sendUserPush(eq(UUID.fromString(RECIPIENT)),
-                anyString(), anyString());
+                eq("[보상실패] 2026/06/03-99"), anyString());
     }
 }

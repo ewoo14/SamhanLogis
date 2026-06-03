@@ -8,6 +8,8 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 보상 실패 발생 시 운영자에게 best-effort 운영 알림(push)을 발송한다.
@@ -61,15 +63,32 @@ public class CompensationAlertNotifier {
             log.warn("[CompensationAlertNotifier] alert.enabled=true 이나 recipient-user-id 미설정 — 운영 알림 skip");
             return;
         }
+        String slipNo = slip.getSlipNo();
+        String subject = String.format("[보상실패] %s", slipNo);
+        String body = buildBody(slip, phase, productCode, operation,
+                failureReason, originalFailureReason);
+        // 호출 컨텍스트가 트랜잭션(감사 record() 의 REQUIRES_NEW) 안이면 커밋 완료 후 발송한다.
+        // 이유: (1) 감사 행이 롤백되면 알림도 발송하지 않아 알림-DB 일관성 유지,
+        //       (2) notification HTTP I/O(최대 5s)가 DB 커넥션 점유 시간에 포함되지 않게 함. (리뷰 BE/DevOps P1)
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send(recipient, subject, body, slipNo);
+                }
+            });
+        } else {
+            send(recipient, subject, body, slipNo);
+        }
+    }
+
+    private void send(UUID recipient, String subject, String body, String slipNo) {
         try {
-            String subject = String.format("[보상실패] %s", slip.getSlipNo());
-            String body = buildBody(slip, phase, productCode, operation,
-                    failureReason, originalFailureReason);
             notificationClient.sendUserPush(recipient, subject, body);
-        } catch (RuntimeException ex) {
-            // 알림은 보조 신호 — 어떤 실패도 보상 흐름에 전파하지 않는다.
+        } catch (Exception ex) {
+            // 알림은 보조 신호 — 어떤 예외(checked 포함)도 보상 흐름에 전파하지 않는다.
             log.warn("[CompensationAlertNotifier] 운영 알림 발송 실패(graceful) — slipNo={} msg={}",
-                    slip.getSlipNo(), ex.getMessage());
+                    slipNo, ex.getMessage());
         }
     }
 

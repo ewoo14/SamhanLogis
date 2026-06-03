@@ -13,6 +13,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.InventoryClient;
+import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -84,6 +85,11 @@ class SlipCompensationAuditIT extends AbstractPostgresIT {
 
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
+
+    // 보상 감사 흐름이 CompensationAlertNotifier 를 통해 NotificationClient 에 (전이적으로) 의존하므로
+    // 외부 client 격리 규칙에 따라 명시적으로 mock 한다(alert 기본 비활성과 무관하게 컨텍스트 결합 제거).
+    @MockBean
+    private NotificationClient notificationClient;
 
     private UUID serialProductId;
     private UUID batchProductId;
