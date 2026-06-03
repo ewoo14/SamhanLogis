@@ -332,7 +332,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       if (dropZoneVisible) {
         // 파일 선택 + 제출 시도 (502 응답 확인)
         const fileInput = page.locator('[data-testid="receipt-ocr-file-input"]')
-        const fileInputAttached = await fileInput.isAttached().catch(() => false)
+        const fileInputAttached = (await fileInput.count()) > 0
 
         if (fileInputAttached) {
           // 최소 PNG fixture 생성
@@ -541,7 +541,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       if (dropZoneVisible) {
         // 파일 선택 + 제출
         const fileInput = page.locator('[data-testid="receipt-ocr-file-input"]')
-        const fileInputAttached = await fileInput.isAttached().catch(() => false)
+        const fileInputAttached = (await fileInput.count()) > 0
 
         if (fileInputAttached) {
           const minimalPng = Buffer.from(
@@ -712,6 +712,8 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
     // ── step 4: SALES — KFTC 접근 차단
     await test.step('SALES — KFTC 입금 매칭 접근 차단 확인', async () => {
       await page.goto(KFTC_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      // 직전 step 의 역할(ACCOUNTANT) 세션이 hash 네비로 SALES 로 재설정되지 않으므로 reload 로 mockRole=SALES 재독.
+      await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1000)
 
       const submitBtn = page.locator('[data-testid="deposit-match-submit-btn"]')
@@ -748,6 +750,8 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
     // ── step 6: WAREHOUSE — Clova OCR 허용 확인
     await test.step('WAREHOUSE — Clova OCR 접근 허용 (drop-zone 표시)', async () => {
       await page.goto(CLOVA_URL_WAREHOUSE, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      // 직전 SALES 세션을 WAREHOUSE 로 재설정(hash 네비는 mockRole 미반영) — reload 로 재독.
+      await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1000)
 
       const dropZone = page.locator('[data-testid="receipt-ocr-drop-zone"]')
@@ -861,6 +865,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
 
     // ── step 2: Aligo teal 토큰 — SMS 발송 이력 페이지
     await test.step('Aligo teal 토큰 — SMS 발송 이력 페이지 vendor 식별 요소 확인', async () => {
+      // 직전 step 의 역할 세션이 hash 네비로 재설정되지 않아 SMS 이력 접근이 막힐 수 있어 reload 로 mockRole 재독.
       await page.route('**/admin/notifications/dispatch-sms/history**', async route => {
         await route.fulfill({
           status: 200,
@@ -873,6 +878,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       })
 
       await page.goto(ALIGO_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1200)
 
       // Aligo vendor 토큰 요소 탐색
