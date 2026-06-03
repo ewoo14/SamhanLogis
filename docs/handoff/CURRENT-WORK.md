@@ -4,6 +4,39 @@
 
 ---
 
+## 🏁 2026-06-04 연속 세션 (PM 전권 위임 자율 진행) — B/C triage 거의 완결, 잔여 = sp-d1 1건
+
+### ✅ 이번 세션 머지 6건 (전부 main green, PM 자율 머지)
+| PR | 슬라이스 | 비고 |
+|---|---|---|
+| #372 | sp-09-5 vendor 통합 재게이트(5/5) | isAttached→count, 역할 reload, Clova 502 strict |
+| #373 | sp-09-2 알리고 SMS 발송이력(5/5) | in-process mock 3건 정합, 상세모달 마스킹/msg_id/result_code, RBAC reload |
+| #374 | **sp-09-4 KFTC 입금매칭 상세모달(신규 FE 기능)**(5/5) | 자동 분개 미리보기 modal(차변 보통예금**102**/대변 외상매출금110 동액). 🔴 도메인 정정: 보통예금 102(103 아님, accounting-service V1 seed) |
+| #375 | supplier-profile CRUD(7/7) | mock stateful 전환, 7 TC 전부 strict 강화 |
+| #376 | tax-invoice-batch hometax-export 재게이트(7/7) | 4탭 워크플로 /accounting/hometax-export 로 relocation 정합, 실 다운로드 이벤트 |
+
+> 위로 **3-A2-④ B/C triage 사실상 완결**. CURRENT-WORK 하단 "잔여 구현 슬라이스" 1~4(sp-09-1/4/2/5·phase-2-6c)는 이번 + 이전 세션에 **전부 완료**. 격리 잔여는 **sp-d1 단 1건**.
+
+### 🔴 발견·수정한 잠복 mock 버그 3건 (strict 테스트가 표면화 — in-process mock 공통 함정)
+1. **POST/PUT `JSON.parse(config.data)`**: VITE_MOCK_MODE 에서 `config.data` 는 이미 객체(`[object Object]`)라 파싱 throw → **`parseMockBody(config)`** 사용. (supplier POST/PUT, hometax preview/exclusions POST 등.)
+2. **DELETE/204 `return null` ↔ 어댑터 미매칭 충돌**: `client.ts:48 if (mock !== null)` 가 null 을 "미매칭"으로 보고 **실 HTTP fallthrough → 네트워크 에러 → 페이지 블랭크**. 204 라도 null 금지 → **`envelope({ deleted: true })`**.
+3. **`responseType:'blob'` ↔ string 반환 불일치**: 다운로드 소비자가 `res.data as Blob` 사용하는데 mock 이 string 반환 → `triggerDownload` 실패. → **`new Blob([...], {type})`** 반환.
+> ⇒ 신규 mock 핸들러 작성 시 **(a) body 는 parseMockBody (b) 성공도 non-null envelope (c) blob 소비자는 Blob 반환** 3원칙.
+
+### 🔧 회사 PC 잔여 = **sp-d1 단 1건** (RBAC 권한 매트릭스 — account-select 재설계 재작성)
+> 정밀 recon 완료. **재게이트 가능**(페이지·mock 준비됨, 의미 재작성만 필요).
+- **현황**: T4/T5/T6 통과(사이드바 OCR·404·403), **T1/T2/T3 실패** — 페이지가 **role-grid → account-select 로 재설계**됨(구 스펙의 7역할×12페이지 grid 모델 obsolete).
+- **신 UI 흐름**(`src/renderer/routes/PermissionMatrixPage.tsx`): 페이지 로드 시 **첫 계정 자동선택**(`selectedAccountId`) → 그 계정의 페이지×액션(view/edit) 매트릭스 렌더.
+- **신 testid**: `perm-matrix-account-select`(계정 드롭다운) · `perm-matrix-cell-{matrixPageNorm(page)}-{view|edit}`(셀, **role 없음**) · `perm-matrix-change-count` · `perm-matrix-save-btn` · `perm-matrix-apply-template` · `perm-matrix-copy-account` · `perm-matrix-domain-all-{domainId}[-off]` · `perm-matrix-col-all-{action}` · `perm-matrix-row-all-{page}` · `permission-matrix-table`.
+- **mock**(`mock.ts` ~5112): GET `/auth/admin/permissions/accounts` → 3계정(김관리 MANAGER/이영업 SALES/박배차 DISPATCH) · GET `/account/{id}` · POST `/batch` · POST `/bulk`. (page.route mock `buildDefaultPermissionMatrix` 는 no-op — 제거 대상.)
+- **재작성 방향**: T1=계정 선택 3옵션 + 매트릭스 cell 다수 렌더 / T2=`perm-matrix-cell-*` 토글 → `perm-matrix-change-count` 1 / T3=`perm-matrix-save-btn` → toast. 구 `permission-matrix-role-*`/`-cell-{role}-{page}` 단언 전부 제거. **dev-report: `slice-sp-d1-rbac-regate.md` 신규 작성**.
+- **착수**: `git checkout -b feat/sp-d1-rbac-regate`; playwright.config testIgnore 의 `'**/sp-d1-dynamic-rbac/**'` 임시 해제 → 재작성 → 6/6 green → dual review(QA false-green + Codex) → testIgnore 정식 해제 → PR.
+
+### 📋 P2 후속 (별도)
+- retention soft-delete 물리 purge · Micrometer 보상 메트릭 · Phase11 활성화(`SAMHAN_COMPENSATION_{RETENTION,ALERT,RETRY}_ENABLED`) · sp-09-5 NTS/KFTC/Aligo 502 in-process mock 트리거 보강.
+
+---
+
 ## 🏢 2026-06-03 야간 마라톤 종료 → 회사 PC 이어가기 (개발책임자 취침, 자율 진행 결과)
 
 ### ✅ 이번 세션 완료 (머지 14건 + admin-hr 재게이트)
