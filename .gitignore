@@ -114,8 +114,13 @@ clients/desktop/legacy-assets/estimate/*.html
 .tmp-*
 commit-msg.txt
 
-# ----- legacy GAS 운영 데이터 (VCS 추적 금지) -----
-tools/legacy-gas/
+# ----- legacy GAS (소스 코드는 추적, 운영 데이터·자격은 제외) -----
+# .js/.html 소스는 회사 PC 코드 조회용으로 추적(Notion/Google 토큰은 redact 됨).
+# 민감 운영 데이터(거래처 DC·단톡방·발송금지 등 Notion export)는 VCS 추적 금지.
+tools/legacy-gas/_notion-export/
+tools/legacy-gas/**/*.csv
+tools/legacy-gas/**/*.zip
+tools/legacy-gas/**/*.xlsx
 
 # ----- Terraform -----
 infrastructure/terraform/.terraform/

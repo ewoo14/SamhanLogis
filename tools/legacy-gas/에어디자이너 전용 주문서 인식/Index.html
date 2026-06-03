@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>에어디자이너 발주서 업로드</title>
+<style>
+.wrap{max-width:920px;margin:26px auto;padding:0 14px}
+.row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.row .f{flex:1;min-width:240px}
+.label{font-size:12px;color:#64748b;display:block;margin-bottom:6px}
+.input,.select{width:100%;height:42px;border:1px solid #93c5fd;border-radius:10px;padding:0 12px;outline:none;font-size:15px;background:#fff}
+.box{width:100%;min-height:240px;border:2px dashed #7cc5ff;border-radius:18px;background:#e6f4ff;display:flex;align-items:center;justify-content:center;position:relative;transition:.2s ease}
+.box.dragover{background:#d6eeff}
+.inner{text-align:center;padding:26px 20px}
+.btn{appearance:none;border:0;border-radius:12px;background:#0ea5e9;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer}
+.btn:disabled{opacity:.9;background:#94a3b8;cursor:not-allowed}
+.hint{color:#2563eb;margin-top:10px}
+.note{font-size:12px;color:#64748b}
+.actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+
+/* 진행바 */
+.progress{margin-top:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;height:10px;position:relative}
+.progress .bar{height:100%;width:0%}
+.progress .bar.det{background:#60a5fa;transition:width .15s ease}
+.progress .bar.ind{background:linear-gradient(90deg,#93c5fd 0%,#60a5fa 50%,#93c5fa 100%);animation:ind 1.4s infinite}
+@keyframes ind {0%{transform:translateX(-100%);width:30%}50%{transform:translateX(50%);width:40%}100%{transform:translateX(200%);width:30%}}
+.progress-info{display:flex;justify-content:space-between;font-size:12px;color:#475569;margin-top:6px}
+
+/* 파일 리스트 */
+.filelist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.fileitem{display:flex;align-items:center;gap:8px;justify-content:center}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px}
+.file-remove{width:22px;height:22px;border-radius:50%;background:#ef4444;color:#fff;display:inline-flex;align-items:center;justify-content:center;border:none;font-weight:900;cursor:pointer}
+
+/* 모달 */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal{background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:90vh;overflow:visible;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;position:relative}
+.modal .hd{padding:14px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+.modal .bd{padding:16px;overflow:auto}
+.modal .ft{padding:12px 16px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e5e7eb}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;margin-right:6px}
+.tbl{width:100%;border-collapse:collapse;margin-top:10px}
+.tbl th,.tbl td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left}
+.tbl th{background:#f1f5f9}
+.warn{color:#b45309}
+.mute{color:#64748b}
+.small{font-size:12px}
+.total{margin-top:12px;font-weight:700}
+.section{margin-top:16px}
+
+/* 전송 모달 */
+#sendModal .modal{max-width:520px;text-align:center}
+.hourglass{font-size:64px;line-height:1;margin:16px 0}
+.send-text{white-space:pre-line;margin-top:8px}
+.send-count{margin-top:6px;color:#475569;font-size:13px}
+
+/* 캐러셀 내비 모달 외부 붙임 */
+.navbtn{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:#0ea5e9;color:#fff;font-weight:900;font-size:22px;cursor:pointer;box-shadow:0 6px 16px rgba(14,165,233,.35);transition:transform .15s ease;z-index:60;display:flex;align-items:center;justify-content:center;padding:0}
+.navbtn:active{transform:translateY(-50%) scale(.96)}
+.navbtn.left{left:-40px}
+.navbtn.right{right:-40px}
+
+/* 슬라이드 모션 */
+.slide-enter-right{animation:slideInRight .22s ease both}
+.slide-enter-left{animation:slideInLeft .22s ease both}
+@keyframes slideInRight{from{opacity:.35;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInLeft{from{opacity:.35;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}
+
+/* 카운터 */
+.counter{margin-top:10px;text-align:center;color:#475569;font-size:13px}
+
+/* 세트명 병합 행 */
+.tbl tr.sethead td{
+  background:#f8fafc;
+  font-weight:700;
+  color:#0f172a;
+}
+.tbl tr.sethead td .sub{
+  font-weight:400;
+  font-size:12px;
+  color:#64748b;
+  margin-left:6px;
+}
+</style>
+<script>
+const CONFIG = <?!= config ?>;
+let pickedFiles = [];
+let preparedFiles = [];
+let lastPreviews = [];
+let previewNames = [];
+let currentPreviewIndex = 0;
+
+function qs(id){ return document.getElementById(id); }
+function appendLog(t){ console.log(t); }
+
+/* 진행바 */
+function showDeterministicProgress(pct, labelL, labelR){
+  const bar = qs('progBar');
+  const infoL = qs('progInfoL');
+  const infoR = qs('progInfoR');
+  bar.className = 'bar det';
+  bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  if (labelL != null) infoL.textContent = labelL;
+  if (labelR != null) infoR.textContent = labelR;
+  qs('progressWrap').style.display = 'block';
+}
+function showIndeterminateProgress(labelL, labelR){
+  const bar = qs('progBar');
+  const infoL = qs('progInfoL');
+  const infoR = qs('progInfoR');
+  bar.className = 'bar ind';
+  bar.style.width = '30%';
+  if (labelL != null) infoL.textContent = labelL;
+  if (labelR != null) infoR.textContent = labelR;
+  qs('progressWrap').style.display = 'block';
+}
+function hideProgress(){ qs('progressWrap').style.display = 'none'; }
+
+// 선택
+function populateDropdowns(){
+  const manSel  = qs('managerSelect');
+  const managers  = Array.isArray(CONFIG?.managers)  ? CONFIG.managers  : [];
+
+  manSel.innerHTML = '';
+  managers.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m.code;
+    opt.textContent = m.name;
+    opt.dataset.ecountId = m.ecountId || '';
+    opt.dataset.ecountApi = m.ecountApi || '';
+    manSel.appendChild(opt);
+  });
+
+  const defMan = managers.find(m=>m.name==='심미광');
+  if (defMan) manSel.value = defMan.code;
+}
+
+/* 파일 base64 여러 개 */
+function readManyFilesToBase64(files){
+  return new Promise(async (resolve)=>{
+    const out = [];
+    for (let i=0;i<files.length;i++){
+      const f = files[i];
+      const res = await new Promise((res2,rej2)=>{
+        const r = new FileReader();
+        r.onprogress = e=>{
+          if (e.lengthComputable) {
+            const pct = Math.round(((i + e.loaded/e.total) / files.length) * 100);
+            showDeterministicProgress(pct, '파일 업로드 중', pct + '%');
+            qs('uploadStatus').textContent = '파일 업로드 중 ' + (i+1) + ' / ' + files.length;
+          }
+        };
+        r.onloadstart = ()=>{
+          showDeterministicProgress(0, '파일 업로드 중', '0%');
+          qs('uploadStatus').textContent = '파일 업로드 중 ' + (i+1) + ' / ' + files.length;
+        };
+        r.onloadend = ()=>{
+          const pct2 = Math.round(((i+1) / files.length) * 100);
+          showDeterministicProgress(pct2, '파일 업로드 완료', pct2 + '%');
+          qs('uploadStatus').textContent = '파일 업로드 완료';
+        };
+        r.onload = () => {
+          const b64 = btoa(new Uint8Array(r.result).reduce((s,b)=>s+String.fromCharCode(b),''));
+          res2({ name:f.name, type:f.type||'application/pdf', data:b64 });
+        };
+        r.onerror = () => rej2(r.error);
+        r.readAsArrayBuffer(f);
+      }).catch(err=>{
+        appendLog('>> ❌ 업로드 오류 ' + (err && err.message ? err.message : err));
+        return null;
+      });
+      if (res) out.push(res);
+    }
+    resolve(out);
+  });
+}
+
+/* 파일 UI */
+function renderFileLine(){
+  const sel = qs('sel');
+  if (!pickedFiles.length){
+    sel.innerHTML = '선택된 파일 없음';
+    qs('note').style.display = 'block';
+    qs('btnExtract').disabled = true;
+    qs('uploadStatus').textContent = '';
+    hideProgress();
+    return;
+  }
+  const items = pickedFiles.map((f,i)=>`
+    <div class="fileitem">
+      <span class="badge">${f.name}</span>
+      <button class="file-remove" title="삭제" onclick="removeFileAt(${i})">×</button>
+    </div>
+  `).join('');
+  sel.innerHTML = `<div class="filelist">${items}</div>`;
+  qs('note').style.display = 'none';
+  qs('btnExtract').disabled = preparedFiles.length === 0;
+}
+function removeFileAt(i){
+  if (i<0 || i>=pickedFiles.length) return;
+  pickedFiles.splice(i,1);
+  if (preparedFiles && preparedFiles.length>i) preparedFiles.splice(i,1);
+  renderFileLine();
+}
+
+/* 파일 선택 */
+function setFiles(fs){
+  pickedFiles = Array.isArray(fs) ? fs : [];
+  preparedFiles = [];
+  lastPreviews = [];
+  previewNames = [];
+  currentPreviewIndex = 0;
+  renderFileLine();
+
+  if (!pickedFiles.length) return;
+  qs('btnExtract').disabled = true;
+
+  readManyFilesToBase64(pickedFiles)
+    .then(list=>{
+      preparedFiles = list;
+      qs('btnExtract').disabled = preparedFiles.length === 0;
+      if (preparedFiles.length > 0) appendLog('>> 📦 파일 준비 완료 ' + preparedFiles.length + '건');
+      if (preparedFiles.length === 0) { pickedFiles = []; renderFileLine(); }
+      else { renderFileLine(); }
+    })
+    .catch(err=>{
+      appendLog('>> ❌ 업로드 오류 ' + (err && err.message ? err.message : err));
+      pickedFiles = []; preparedFiles = [];
+      renderFileLine();
+    });
+}
+function clearFiles(){
+  pickedFiles = [];
+  preparedFiles = [];
+  lastPreviews = [];
+  previewNames = [];
+  currentPreviewIndex = 0;
+  const inp = qs('file');
+  inp.value = '';
+  renderFileLine();
+}
+
+/* 드래그앤드롭 바인딩 */
+function bindDnD(){
+  const box = qs('box');
+  const inp = qs('file');
+
+  box.addEventListener('dragover', e=>{ e.preventDefault(); box.classList.add('dragover'); });
+  box.addEventListener('dragleave', ()=>{ box.classList.remove('dragover'); });
+  box.addEventListener('drop', e=>{
+    e.preventDefault();
+    box.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files||[]).filter(f=>/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    if (!files.length){
+      appendLog('>> ⚠️ PDF 파일만 가능합니다');
+      return;
+    }
+    setFiles(files);
+  });
+
+  inp.addEventListener('change', e=>{
+    const files = Array.from(e.target.files||[]).filter(f=>/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    setFiles(files);
+  });
+}
+
+/* 추출 */
+async function handleExtract(){
+  if (!preparedFiles.length){
+    appendLog('>> ⚠️ 먼저 PDF를 첨부하세요');
+    return;
+  }
+
+  try{
+    appendLog('>> 📦 파일 전송 준비');
+
+    lastPreviews = [];
+    previewNames = [];
+    currentPreviewIndex = 0;
+
+    showIndeterminateProgress('서버 파싱 중', `0 / ${preparedFiles.length}`);
+
+    for (let i = 0; i < preparedFiles.length; i++){
+      showIndeterminateProgress('서버 파싱 중', `${i + 1} / ${preparedFiles.length}`);
+      console.log(`>> ⏳ 파싱 진행 ${i + 1} / ${preparedFiles.length}`);
+
+      // 여기서 파일 정보에 거래처 코드를 함께 실어서 보냄
+      const payload = {
+        ...preparedFiles[i],
+      };
+
+      await new Promise((resolve)=>{
+        google.script.run
+          .withSuccessHandler(res=>{
+            if (res && res.ok){
+              lastPreviews.push(res.preview);
+              previewNames.push(preparedFiles[i]?.name || ('파일 ' + (i + 1)));
+            } else {
+              appendLog('>> 🟥 파싱 실패 ' + (i + 1));
+            }
+            resolve();
+          })
+          .withFailureHandler(err=>{
+            appendLog('>> ❌ 오류 ' + (err && err.message ? err.message : err));
+            resolve();
+          })
+          .parsePdfForPreview(payload);
+      });
+    }
+
+    hideProgress();
+
+    if (!lastPreviews.length){
+      appendLog('>> ⚠️ 파싱 결과가 없습니다');
+      return;
+    }
+
+    appendLog('>> ✅ 파싱 완료, 미리보기 준비');
+    openPreviewModal(lastPreviews);
+  } catch (e){
+    hideProgress();
+    appendLog('>> ❌ 오류 ' + (e && e.message ? e.message : e));
+  }
+}
+
+/* 미리보기 모달 */
+function openPreviewModal(previews){
+  lastPreviews = Array.isArray(previews) ? previews : (previews ? [previews] : []);
+  if (!lastPreviews.length) return;
+  currentPreviewIndex = 0;
+  renderPreviewSlide(currentPreviewIndex, 'right');
+  qs('modal').style.display = 'flex';
+  syncNavButtons();
+}
+function closeModal(){ qs('modal').style.display = 'none'; }
+
+/* 세트 포함 단일 표 렌더 */
+function renderPreviewSlide(idx, dir){
+  appendLog('>> 🖼️ 미리보기 렌더링 ' + (idx+1));
+
+  const preview  = lastPreviews[idx];
+  const bd       = qs('previewBody');
+  const unmatched= preview.itemsUnmatched||[];
+  const final    = preview.finalItems||[];
+  const expanded = preview.expandedSets||[];
+  const nf = new Intl.NumberFormat('ko-KR');
+
+  const formatDue = v => {
+    if (!v) return '-';
+    const s = String(v);
+    if (/^\d{8}$/.test(s)) {
+      return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return s;
+  };
+
+  const whName = preview.warehouseName
+    || (preview.warehouseCode === '2'
+          ? '상일창고'
+          : (preview.warehouseCode === '00003' || !preview.warehouseCode
+               ? '초월창고'
+               : '-'));
+
+  const raisedNotice = preview.isRaisedPrice
+    ? '<div style="color:#ef4444; font-weight:bold; font-size:15px; margin-bottom:12px; padding: 10px; background: #fee2e2; border-radius: 8px;">※ 4월 이후 출고건은 인상단가가 자동 적용되었습니다.</div>'
+    : '';
+
+  const headHtml = `
+    ${raisedNotice}
+    <div><span class="tag">거래처명</span> <strong>${preview.custName}</strong></div>
+    <div><span class="tag">배송일자</span> ${formatDue(preview.due)}</div>
+    <div><span class="tag">인수자 연락처</span> ${preview.tel || '-'}</div>
+    <div><span class="tag">배송주소</span> ${preview.addr || '-'}</div>
+    <div><span class="tag">특이사항</span> ${preview.memo || '-'}</div>
+    <div><span class="tag">물류창고</span> ${whName}</div>
+  `;
+
+  let tableHtml = '';
+  let grandTotal = 0;
+
+  if (expanded.length > 0) {
+    let rowsHtml = '';
+
+    expanded.forEach(set=>{
+      rowsHtml += `
+        <tr class="sethead">
+          <td colspan="5">
+            ${set.setName} × ${set.setQty}
+            <span class="sub">세트</span>
+          </td>
+        </tr>
+      `;
+      (set.parts||[]).forEach(p=>{
+        const line = Number(p.line)||0; grandTotal += line;
+        rowsHtml += `
+          <tr>
+            <td>${p.model}</td>
+            <td>${p.spec || ''}</td>
+            <td style="text-align:right">${p.qty}</td>
+            <td style="text-align:right">${nf.format(p.unit)}</td>
+            <td style="text-align:right">${nf.format(line)}</td>
+          </tr>
+        `;
+      });
+    });
+
+    const inSet = new Set();
+    expanded.forEach(s => (s.parts||[]).forEach(p => inSet.add(`${p.model}|${p.qty}|${p.unit}|${p.line}`)));
+    const singles = final.filter(x => !inSet.has(`${x.model}|${x.qty}|${x.unit}|${x.line}`));
+
+    if (singles.length){
+      rowsHtml += `
+        <tr class="sethead"><td colspan="5">단독 품목 <span class="sub">세트 외</span></td></tr>
+      `;
+      singles.forEach(it=>{
+        const line = Number(it.line)||0; grandTotal += line;
+        rowsHtml += `
+          <tr>
+            <td>${it.model}</td>
+            <td>${it.spec || ''}</td>
+            <td style="text-align:right">${it.qty}</td>
+            <td style="text-align:right">${nf.format(it.unit)}</td>
+            <td style="text-align:right">${nf.format(line)}</td>
+          </tr>
+        `;
+      });
+    }
+
+    tableHtml = `
+      <div class="section">
+        <strong>전송 대상 품목</strong>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>모델</th>
+              <th>규격</th>
+              <th style="text-align:right">수량</th>
+              <th style="text-align:right">납품단가</th>
+              <th style="text-align:right">금액</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="total">합계 ${nf.format(grandTotal)}</div>
+        <div class="small mute">납품단가는 전역 설정 적용 후 표시</div>
+      </div>
+    `;
+  } else {
+    const rows = final.map(it=>{
+      const line = Number(it.line)||0; grandTotal += line;
+      return `
+        <tr>
+          <td>${it.model}</td>
+          <td>${it.spec || ''}</td>
+          <td style="text-align:right">${it.qty}</td>
+          <td style="text-align:right">${nf.format(it.unit)}</td>
+          <td style="text-align:right">${nf.format(line)}</td>
+        </tr>
+      `;
+    }).join('');
+    tableHtml = `
+      <div class="section">
+        <strong>전송 대상 품목</strong>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>모델</th>
+              <th>규격</th>
+              <th style="text-align:right">수량</th>
+              <th style="text-align:right">납품단가</th>
+              <th style="text-align:right">금액</th>
+            </tr>
+          </thead>
+          <tbody>${rows || `<tr><td colspan="5">전송 대상 품목 없음</td></tr>`}</tbody>
+        </table>
+        <div class="total">합계 ${nf.format(grandTotal)}</div>
+        <div class="small mute">납품단가는 전역 설정 적용 후 표시</div>
+      </div>
+    `;
+  }
+
+  const unmatchedRows = (unmatched||[]).map(it=>`
+    <tr><td class="warn">${it.model}</td><td class="warn" style="text-align:right">${it.qty}</td></tr>
+  `).join('');
+  const unmatchedHtml = unmatched.length ? `
+    <div class="section">
+      <p class="warn">모델 불일치 품목은 전송 대상에서 제외됩니다</p>
+      <table class="tbl">
+        <thead><tr><th>모델</th><th style="text-align:right">수량</th></tr></thead>
+        <tbody>${unmatchedRows}</tbody>
+      </table>
+    </div>
+  ` : '';
+
+  bd.innerHTML = `
+    <div>${headHtml}</div>
+    ${tableHtml}
+    ${unmatchedHtml}
+    <div class="counter" id="carouselCounter">${(idx+1)} / ${lastPreviews.length}</div>
+  `;
+
+  const specCnt = final.filter(x=>x.spec && String(x.spec).trim()).length;
+  appendLog('>> 🧾 규격 표시 ' + specCnt + ' / ' + final.length);
+
+  bd.classList.remove('slide-enter-left','slide-enter-right'); void bd.offsetWidth;
+  bd.classList.add(dir==='left' ? 'slide-enter-left' : 'slide-enter-right');
+}
+
+/* 내비 상태 */
+function syncNavButtons(){
+  const prev = qs('navPrev');
+  const next = qs('navNext');
+  if (!prev || !next) return;
+
+  const n = lastPreviews.length;
+  const i = currentPreviewIndex;
+
+  if (n <= 1){
+    prev.style.display = 'none';
+    next.style.display = 'none';
+    return;
+  }
+  prev.style.display = (i === 0) ? 'none' : 'inline-flex';
+  next.style.display = (i === n-1) ? 'none' : 'inline-flex';
+}
+
+/* 이동 */
+function prevSlide(){
+  if (currentPreviewIndex <= 0) return;
+  currentPreviewIndex -= 1;
+  renderPreviewSlide(currentPreviewIndex, 'left');
+  syncNavButtons();
+}
+function nextSlide(){
+  if (currentPreviewIndex >= lastPreviews.length-1) return;
+  currentPreviewIndex += 1;
+  renderPreviewSlide(currentPreviewIndex, 'right');
+  syncNavButtons();
+}
+
+// 세트 표 순서 그대로 정렬
+function makeOrderedFinalItems(p) {
+  if (Array.isArray(p?.expandedSets) && p.expandedSets.length) {
+    const rest = (p.finalItems || []).map((x,i)=>({ ...x, __i:i }));
+    function take(m,q,u){
+      let i = rest.findIndex(x => String(x.model)===String(m) &&
+                                  Number(x.qty)===Number(q) &&
+                                  Number(x.unit)===Number(u));
+      if (i < 0) i = rest.findIndex(x => String(x.model)===String(m));
+      return i>=0 ? rest.splice(i,1)[0] : { model:m, qty:q, unit:u, spec:'' };
+    }
+    const out = [];
+    p.expandedSets.forEach(s => (s.parts||[]).forEach(pr => out.push(take(pr.model, pr.qty, pr.unit))));
+    rest.forEach(x => out.push(x));
+    console.log('>> 🧭 세트 표 순서 보장', out.map(x=>x.model));
+    return out;
+  }
+  return p.finalItems || [];
+}
+
+/* 전송 진행 모달 */
+function openSendModal(isDone, cur, total){
+  const body = qs('sendModalBody');
+  if (isDone){
+    body.innerHTML = `<div class="hourglass">✅</div><div class="send-text">전송이 완료되었습니다.\n이카운트 주문서를 확인해주세요.</div>`;
+    qs('sendModal').style.display = 'flex';
+    appendLog('>> ✅ 전송 완료 모달 표시');
+    setTimeout(()=>{
+      appendLog('>> 🧹 모달 자동 닫기 실행');
+      closeSendModal();
+      closeModal();
+    }, 2000);
+  } else {
+    body.innerHTML = `<div class="hourglass">⏳</div><div class="send-text">전송 중입니다.\n잠시만 기다려주세요.</div><div id="sendCounter" class="send-count">${cur||0} / ${total||0}</div>`;
+    qs('sendModal').style.display = 'flex';
+    appendLog('>> ⏳ 전송 진행 모달 표시');
+  }
+}
+function updateSendCounter(cur, total){
+  const el = document.getElementById('sendCounter');
+  if (el) el.textContent = `${cur} / ${total}`;
+}
+function closeSendModal(){ qs('sendModal').style.display = 'none'; }
+
+// 전송
+async function sendNow(){
+  if (!lastPreviews.length){
+    return;
+  }
+  const manSel = qs('managerSelect');
+  const managerCode = manSel.value.trim();
+  const selectedOpt = manSel.options[manSel.selectedIndex];
+  const ecountId = selectedOpt ? selectedOpt.dataset.ecountId : '';
+  const ecountApi = selectedOpt ? selectedOpt.dataset.ecountApi : '';
+
+  showIndeterminateProgress('이카운트 전송 중', '처리 중');
+
+  const total = lastPreviews.length;
+  let done = 0;
+  let fail = 0;
+
+  openSendModal(false, 0, total);
+
+  for (let i=0;i<total;i++){
+    const current = lastPreviews[i];
+    const itemsForSend = makeOrderedFinalItems(current);
+    const payload = {
+      ...current,
+      finalItems: itemsForSend.map(x => ({
+        model: x.model,
+        qty: x.qty,
+        unit: x.unit,
+        spec: x.spec || '',
+        fromSet: !!x.fromSet,
+        homeIdx: x.homeIdx ?? null,
+        seq: x.seq ?? null,
+        setGroup: x.setGroup ?? null,
+        setDiscType: x.setDiscType || null,
+        setDiscAmt: Number(x.setDiscAmt || 0)
+      }))
+    };
+
+    await new Promise((resolve)=>{
+      google.script.run
+        .withSuccessHandler(res=>{
+          if (res && res.ok) {
+            done += 1;
+          } else {
+            fail += 1;
+          }
+          updateSendCounter(done + fail, total);
+          resolve();
+        })
+        .withFailureHandler(err=>{
+          fail += 1;
+          updateSendCounter(done + fail, total);
+          resolve();
+        })
+        .sendFromPreview({ managerCode: managerCode, ecountId: ecountId, ecountApi: ecountApi }, payload);
+    });
+  }
+
+  hideProgress();
+  if (fail === 0){
+    openSendModal(true);
+  } else {
+    const body = qs('sendModalBody');
+    body.innerHTML = `<div class="hourglass">⚠️</div><div class="send-text">일부 전표 전송에 실패했습니다.\n성공 ${done} / 실패 ${fail}</div>`;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  bindDnD();
+  populateDropdowns();
+  renderFileLine();
+});
+</script>
+</head>
+<body>
+  <div class="wrap">
+    <h2>에어디자이너 발주서 업로드</h2>
+
+    <div class="row">
+      <div class="f">
+        <label class="label">담당자명</label>
+        <select id="managerSelect" class="select"></select>
+      </div>
+    </div>
+
+    <div id="box" class="box">
+      <div class="inner">
+        <input id="file" type="file" accept="application/pdf" multiple hidden>
+        <button class="btn" onclick="document.getElementById('file').click()">파일 첨부하기</button>
+
+        <div class="hint" id="sel">선택된 파일 없음</div>
+        <div class="note" id="note">여기에 파일을 드래그 앤 드롭해도 됩니다</div>
+        <div class="hint" id="uploadStatus" style="margin-top:6px"></div>
+
+        <div id="progressWrap" class="progress" style="display:none">
+          <div id="progBar" class="bar det"></div>
+        </div>
+        <div class="progress-info" style="display:flex" id="progressInfo">
+          <span id="progInfoL"></span>
+          <span id="progInfoR"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnExtract" class="btn" onclick="handleExtract()" disabled>추출하기</button>
+    </div>
+  </div>
+
+  <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="hd">
+        <strong>주문서 미리보기</strong>
+        <button class="btn" onclick="closeModal()">닫기</button>
+      </div>
+      <div id="previewBody" class="bd"></div>
+      <div class="ft">
+        <button class="btn" onclick="closeModal()">이전</button>
+        <button class="btn" onclick="sendNow()">전송</button>
+      </div>
+
+      <button id="navPrev" class="navbtn left" onclick="prevSlide()" aria-label="이전">&lt;</button>
+      <button id="navNext" class="navbtn right" onclick="nextSlide()" aria-label="다음">&gt;</button>
+    </div>
+  </div>
+
+  <div id="sendModal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="bd" id="sendModalBody">
+        <div class="hourglass">⏳</div>
+        <div class="send-text">전송 중입니다.\n잠시만 기다려주세요.</div>
+        <div id="sendCounter" class="send-count">0 / 0</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

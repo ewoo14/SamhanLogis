@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 10px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 툴바 */
+    .global-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 20px; background: white; border-radius: 8px; margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .btn-group { display: flex; gap: 8px; }
+
+    /* 이동 */
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 1000px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s; z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; }
+    .page.active { display: block; }
+    #page_upload { max-width: 800px; }
+    #page_history { max-width: 1800px; }
+    .custom-page { width: 100%; max-width: 1800px; }
+
+    /* 영역 */
+    #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; }
+    #drop_zone:hover { border-color: #3182ce; background: #ebf8ff; }
+    
+    /* 버튼 */
+    .action-btn { margin: 0; padding: 8px 16px; background: #3182ce; color: white; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+    .action-btn:hover { background: #2b6cb0; }
+    .btn-copy { background: #48bb78; } .btn-copy:hover { background: #38a169; }
+    .btn-save { background: #ed8936; } .btn-save:hover { background: #dd6b20; }
+    .btn-delete { background: #e53e3e; } .btn-delete:hover { background: #c53030; }
+    .btn-mark { background: #3182ce; } .btn-mark:hover { background: #2b6cb0; }
+    .btn-unmark { background: #e53e3e; } .btn-unmark:hover { background: #c53030; }
+    .btn-remark { background: #975a16; } .btn-remark:hover { background: #7b4a11; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .reset-btn:hover { background: #e2e8f0; }
+    
+    /* 표 */
+    .table-wrapper { height: calc(100vh - 320px); margin-bottom: 20px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: 100%; min-width: 1400px; border-collapse: collapse; table-layout: fixed; user-select: none; }
+    .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 8px 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; cursor: cell; text-align: center; height: 35px; box-sizing: border-box; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; position: sticky; top: -1px; z-index: 2; box-shadow: 0 -1px 0 #cbd5e0; padding: 0; }
+    
+    /* 정렬 */
+    .res-table td:nth-child(5), 
+    .res-table td:nth-child(6), 
+    .res-table td:nth-child(7), 
+    .res-table td:nth-child(8), 
+    .res-table td:nth-child(11) { text-align: left !important; }
+    .res-table td:nth-child(9) { text-align: right !important; }
+
+    /* 다중선택 */
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+
+    /* 필터 */
+    .th-content { display: flex; justify-content: center; align-items: center; position: relative; width: 100%; height: 100%; padding: 8px 20px; box-sizing: border-box; }
+    .th-content span { text-align: center; }
+    .th-content button { position: absolute; right: 2px; background: none; border: none; cursor: pointer; color: #4a5568; font-size: 10px; padding: 2px; }
+    .filter-active { color: #e53e3e !important; font-weight: bold; }
+    .filter-popup { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 6px; padding: 10px; z-index: 9999; flex-direction: column; gap: 8px; width: 170px; }
+    .filter-popup button { background: #edf2f7; border: 1px solid #cbd5e0; padding: 6px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
+    .filter-popup button:hover { background: #e2e8f0; }
+    .filter-popup input[type="text"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; }
+    .kw-grid { display: none; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 5px; }
+    .kw-btn { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; background: #edf2f7; cursor: pointer; text-align: center; color: #4a5568; }
+    .kw-btn.active { background: #3182ce; color: white; border-color: #2b6cb0; font-weight: bold; }
+    .kw-btn.exclude { background: #e53e3e; color: white; border-color: #c53030; font-weight: bold; }
+    .filter-popup hr { margin: 2px 0; border: 0; border-top: 1px solid #cbd5e0; }
+
+    /* 서식 */
+    .bg-highlight { background-color: #fee2e2 !important; }
+    .bg-err-date { background-color: #ffcccc !important; }
+    .bg-jibang-wknd { background-color: #c9eb34 !important; }
+    .row-modified { background-color: #ebd4ff !important; color: #44337a !important; }
+    .row-modified-2 { background-color: #fef08a !important; color: #854d0e !important; }
+    .row-modified-3 { background-color: #fed7aa !important; color: #9a3412 !important; }
+    .row-completed { background-color: #f4f5f7 !important; color: #718096 !important; }
+    .row-restored { background-color: #c6f6d5 !important; color: #22543d !important; }
+    .row-selected { background-color: #e6f7ff !important; }
+    
+    /* 폐기선 */
+    .discard-line { position: relative; }
+    .discard-line::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); height: 2px; background-color: #e53e3e; z-index: 2; }
+    
+    /* 우클릭 */
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+
+    /* 비율 */
+    .col-chk { width: 3%; }
+    .col-idx { width: 3%; }
+    .col-date { width: 8%; } 
+    .col-num { width: 8%; } 
+    .col-client { width: 9%; }
+    .col-addr { width: 15%; } 
+    .col-prod { width: 12%; }
+    .col-rmk { width: 12%; } 
+    .col-amt { width: 6%; } 
+    .col-wh { width: 8%; } 
+    .col-edit { width: 11%; } 
+    .col-mgr { width: 5%; }
+  </style>
+</head>
+<body onclick="closePopup(event)">
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="filterPopup" class="filter-popup">
+    <button onclick="sortData('asc')" style="text-align:center;">오름차순 정렬</button>
+    <button onclick="sortData('desc')" style="text-align:center;">내림차순 정렬</button>
+    <hr>
+    <div id="filter-text-wrap" style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:10px; font-size:12px;">
+        <label><input type="radio" name="filterMode" value="include" checked onchange="applyFilterRealtime()"> 포함</label>
+        <label><input type="radio" name="filterMode" value="exclude" onchange="applyFilterRealtime()"> 미포함</label>
+      </div>
+      <input type="text" id="filterText" placeholder="검색어 입력" oninput="applyFilterRealtime()">
+      <div id="keyword-grid" class="kw-grid"></div>
+      <button onclick="applyEmptyFilter(true)" style="width:100%; text-align:center; margin-top:2px;" class="reset-btn">비어있음</button>
+      <button onclick="applyEmptyFilter(false)" style="width:100%; text-align:center;" class="reset-btn">비어있지 않음</button>
+    </div>
+    <button onclick="clearFilter()" style="color:red; margin-top:5px; text-align:center;" class="reset-btn">필터 해제</button>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      로딩 중...
+    </div>
+  </div>
+
+  <div id="deleteModal" class="mobile-gate-layer" style="display:none; z-index:10000; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; color:#2d3748;">해당 페이지를 삭제하시겠습니까?</h3>
+      <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
+        <button class="reset-btn" onclick="closeDeleteModal()">취소</button>
+        <button class="action-btn btn-delete" style="width:auto; padding: 8px 20px;" onclick="executeDelete()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="renameModal" class="mobile-gate-layer" style="display:none; z-index:10000; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; color:#2d3748; font-size:18px;">변경할 페이지 이름을 설정하세요.</h3>
+      <input type="text" id="renameInput" style="width:80%; padding:10px; margin:15px 0; border:1px solid #cbd5e0; border-radius:6px; font-size:14px; outline:none;" placeholder="페이지 이름 입력">
+      <div style="display: flex; justify-content: center; gap: 10px;">
+        <button class="reset-btn" onclick="closeRenameModal()">취소</button>
+        <button class="action-btn btn-copy" style="width:auto; padding: 8px 20px;" onclick="executeRename()">변경</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>(주)삼한공조시스템</h2>
+      <p>AI 무풍 시스템에어컨 전표리스트</p>
+    </div>
+
+    <div class="nav-container" id="navContainer"></div>
+
+    <div class="global-toolbar" id="globalToolbar" style="display:none; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        
+        <div style="display:flex; gap:6px;">
+          <button class="action-btn btn-mark" onclick="markCompleted()">발송완료</button>
+          <button class="action-btn btn-unmark" onclick="unmarkCompleted()">완료취소</button>
+          <button class="action-btn btn-remark" onclick="remarkCompleted()">수정발송</button>
+          <button class="action-btn btn-delete" onclick="openDeleteModal()">페이지 삭제</button>
+          <button class="action-btn" style="background:#4a5568;" onclick="openRenameModal()">페이지 이름 변경</button>
+        </div>
+        
+        <div class="btn-group">
+          <button id="global_btn_save_notion" class="action-btn" style="background:#805ad5;" onclick="saveStateToNotion()">내역저장</button>
+          <button class="action-btn btn-copy" onclick="copyCurrentTable()">복사</button>
+          <button class="action-btn btn-save" onclick="saveCurrentTable()">저장</button>
+          <button class="action-btn" onclick="runProcess(false)">데이터 불러오기(갱신)</button>
+        </div>
+      </div>
+      <div id="stats_container" style="display:none; text-align:center; font-size:14px; font-weight:bold; color:#4a5568; background:#f7fafc; padding:8px; border-radius:6px; width:100%;"></div>
+    </div>
+
+    <div id="pagesContainer">
+      <div id="page_upload" class="page active">
+        <h3 style="text-align: center; margin-bottom: 20px;">이카운트 엑셀 데이터 업로드</h3>
+        <div id="drop_zone" onclick="document.getElementById('file_input').click()">
+          이곳에 엑셀 파일을 드래그하거나 클릭하여 업로드하세요.
+        </div>
+        <input type="file" id="file_input" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event)">
+        <p id="file_status" style="text-align:center; margin-top:15px; color:green; font-weight:bold;"></p>
+      </div>
+      
+      <div id="customPagesContainer"></div>
+
+      <div id="page_history" class="page">
+        <div style="text-align: center; margin-bottom: 15px;">
+          <input type="date" id="history_start" class="reset-btn"> ~ 
+          <input type="date" id="history_end" class="reset-btn">
+          <button class="action-btn" style="display: inline-block; width: auto; padding: 8px 15px; margin: 0 0 0 10px;" onclick="loadHistory()">조회</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr><th>작업자</th><th>저장일시</th><th>복원여부</th></tr>
+            </thead>
+            <tbody id="tbody_history"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ecountData = [];
+    let uploadedDates = new Set();
+    let currentDataMap = new Map();
+
+    let currentUserEmail = '';
+    let currentUserName = '';
+    
+    let customPages = []; 
+    let currentTabIndex = 0; 
+    let isSelecting = false; 
+    let startR = -1, startC = -1; 
+    let currentTable = null;
+    
+    let curFilterCol = '';
+    
+    const COL_MAP = {
+      '날짜': 'date', '전표번호': 'num', '거래처': 'client', '배송주소': 'addr',
+      '품 목': 'prod', '특이사항': 'rmk', '금 액': 'amt', '출고창고': 'wh',
+      '전표수정내역': 'editHist', '담당자명': 'mgr'
+    };
+
+    // 시작
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('authLoading').style.display = 'none';
+          if (res.authorized) {
+            currentUserEmail = res.email;
+            currentUserName = res.managerName;
+            document.getElementById('welcomeName').innerText = res.managerName;
+            document.getElementById('welcomeAnimation').style.display = 'flex';
+            setTimeout(() => { document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }); }, 100);
+            setTimeout(() => {
+              document.getElementById('mobileGate').style.display = 'none';
+              document.getElementById('initialLoading').style.display = 'flex';
+              document.getElementById('mainApp').style.display = 'block';
+              initHistoryDates();
+              checkAutoRestore();
+            }, 2500);
+          } else {
+            document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error || '미등록'}</span></div>`;
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">시스템오류<span>${err.message}</span></div>`;
+        })
+        .getUserAuth();
+    };
+
+    // 로드
+    function checkAutoRestore() {
+      google.script.run
+        .withSuccessHandler(res => {
+          if(res && res.data) {
+            restoreState(res.data, true);
+          } else {
+            document.getElementById('initialLoading').style.display = 'none';
+            renderTabs();
+          }
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+          renderTabs();
+        })
+        .getLatestHistoryFromNotion();
+    }
+
+    // 화면
+    function renderTabs() {
+      const container = document.getElementById('navContainer');
+      let html = `<div class="slider" id="slider"></div>`;
+      
+      html += `<div class="nav-item ${currentTabIndex===0?'active':''}" onclick="switchTab(0)">업로드</div>`;
+      
+      customPages.forEach((p, idx) => {
+        let i = idx + 1;
+        html += `<div class="nav-item ${currentTabIndex===i?'active':''}" onclick="switchTab(${i})"><span>${p.title}</span></div>`;
+      });
+
+      if (customPages.length < 5) {
+        html += `<div class="nav-item" onclick="addCustomPage()" style="font-weight:900; font-size:18px;">+</div>`;
+      }
+      
+      let histIndex = customPages.length < 5 ? customPages.length + 2 : customPages.length + 1;
+      html += `<div class="nav-item ${currentTabIndex===histIndex?'active':''}" onclick="switchTab(${histIndex})">저장내역</div>`;
+      
+      container.innerHTML = html;
+      
+      let totalNavItems = 2 + customPages.length + (customPages.length < 5 ? 1 : 0);
+      let pct = 100 / totalNavItems;
+      let slider = document.getElementById('slider');
+      slider.style.width = `${pct}%`;
+      slider.style.transform = `translateX(${currentTabIndex * 100}%)`;
+
+      document.getElementById('page_upload').classList.toggle('active', currentTabIndex === 0);
+      document.getElementById('page_history').classList.toggle('active', currentTabIndex === histIndex);
+      
+      customPages.forEach((p, idx) => {
+        let i = idx + 1;
+        let pDiv = document.getElementById(p.id);
+        if(pDiv) pDiv.classList.toggle('active', currentTabIndex === i);
+      });
+
+      let toolbar = document.getElementById('globalToolbar');
+      let statsBox = document.getElementById('stats_container');
+
+      if (currentTabIndex === 0 || currentTabIndex === histIndex) {
+        toolbar.style.display = 'none';
+      } else {
+        toolbar.style.display = 'flex';
+        let p = customPages[currentTabIndex - 1];
+        
+        if (p && p.stats) {
+          statsBox.innerHTML = p.stats;
+          statsBox.style.display = 'block';
+        } else {
+          statsBox.style.display = 'none';
+        }
+      }
+
+      if (currentTabIndex === histIndex) loadHistory();
+    }
+
+    // 이동
+    function switchTab(index) {
+      currentTabIndex = index;
+      renderTabs();
+    }
+
+    // 파일
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, {type: 'binary'});
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, {range: 1});
+        
+        uploadedDates.clear();
+        currentDataMap.clear();
+
+        ecountData = jsonData.map(row => {
+          let newRow = {};
+          for (let key in row) {
+            let cleanKey = key.replace(/\s+/g, '');
+            let val = String(row[key] || '').replace(/\s+/g, ' ').trim();
+            newRow[cleanKey] = val;
+          }
+
+          let saleNum = String(newRow['판매번호'] || '');
+          if (saleNum.includes('-')) {
+            let splitArr = saleNum.split(/\s*-\s*/, 2);
+            let date = splitArr[0] ? splitArr[0].trim() : '';
+            let num = splitArr[1] ? splitArr[1].trim() : '';
+            uploadedDates.add(date);
+
+            let client = newRow['거래처'] || '';
+            let addr = newRow['배송주소'] || '';
+            let prod = newRow['품목'] || '';
+            let rmk = newRow['특이사항'] || '';
+            
+            let rawAmount = String(newRow['금액'] || '').replace(/,/g, '').trim();
+            let amt = (rawAmount && !isNaN(rawAmount)) ? parseInt(rawAmount).toLocaleString() : (newRow['금액'] || '');
+            let wh = newRow['출고창고'] || '';
+            wh = wh.replace('삼성창고 (초월 무갑)', '초월창고');
+            let editHist = newRow['전표수정내역'] || ''; 
+            let mgr = newRow['담당자명'] || '';
+
+            let stripped = editHist.replace(/[\{\}]/g, '').trim();
+            if (stripped === '-' || /^\d+%$/.test(stripped)) editHist = '';
+
+            let key = date + '_' + num;
+            let rowStr = [client, addr, prod, rmk, amt, wh, editHist, mgr].join('||');
+            currentDataMap.set(key, rowStr);
+          }
+          return newRow;
+        });
+
+        document.getElementById('file_status').innerText = file.name + ' 업로드 완료';
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    const dropZone = document.getElementById('drop_zone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#3182ce'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#cbd5e0'; });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#cbd5e0';
+      if (e.dataTransfer.files.length > 0) {
+        document.getElementById('file_input').files = e.dataTransfer.files;
+        handleFile({target: {files: e.dataTransfer.files}});
+      }
+    });
+
+    // 변경
+    function openRenameModal() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let idx = currentTabIndex - 1;
+      document.getElementById('renameInput').value = customPages[idx].title;
+      document.getElementById('renameModal').style.display = 'flex';
+      document.getElementById('renameInput').focus();
+    }
+    
+    function closeRenameModal() { document.getElementById('renameModal').style.display = 'none'; }
+    
+    function executeRename() {
+      let idx = currentTabIndex - 1;
+      let text = document.getElementById('renameInput').value.trim();
+      if(text === '') text = '신규페이지';
+      customPages[idx].title = text;
+      closeRenameModal();
+      renderTabs();
+    }
+    
+    // 테이블 틀
+    function createTableFrame(pId) {
+      let headCells = ['날짜', '전표번호', '거래처', '배송주소', '품 목', '특이사항', '금 액', '출고창고', '전표수정내역', '담당자명'];
+      let thHtml = `<th style="width: 3%;"><input type="checkbox" onchange="toggleAll(this, 'tbody_${pId}')"></th><th style="width: 3%;">번호</th>`;
+      headCells.forEach(name => {
+        thHtml += `<th><div class="th-content"><span>${name}</span><button data-col="${name}" onclick="openPopup('${name}', event)">▼</button></div></th>`;
+      });
+      return `
+        <div class="table-wrapper">
+          <table class="custom-table res-table" id="tbl_${pId}">
+            <colgroup><col class="col-chk"><col class="col-idx"><col class="col-date"><col class="col-num"><col class="col-client"><col class="col-addr"><col class="col-prod"><col class="col-rmk"><col class="col-amt"><col class="col-wh"><col class="col-edit"><col class="col-mgr"></colgroup>
+            <thead><tr>${thHtml}</tr></thead>
+            <tbody id="tbody_${pId}"></tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // 추가
+    function addCustomPage() {
+      if (customPages.length >= 5) return;
+      let newId = 'custom_' + Date.now();
+      
+      customPages.push({ 
+        id: newId, 
+        title: '신규페이지', 
+        dataList: [],
+        stats: '',
+        completedMap: [],
+        filtersMap: {}
+      });
+      
+      let cDiv = document.createElement('div');
+      cDiv.id = newId;
+      cDiv.className = 'page custom-page';
+      cDiv.innerHTML = createTableFrame(newId);
+      
+      document.getElementById('customPagesContainer').appendChild(cDiv);
+      switchTab(customPages.length);
+    }
+
+    // 삭제
+    function openDeleteModal() { document.getElementById('deleteModal').style.display = 'flex'; }
+    function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+    function executeDelete() {
+      let idx = currentTabIndex - 1;
+      let pId = customPages[idx].id;
+      document.getElementById(pId).remove();
+      customPages.splice(idx, 1);
+      closeDeleteModal();
+      switchTab(0);
+    }
+
+    // 실행
+    function runProcess(skipSave) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) {
+        alert('페이지 이동 요망');
+        return;
+      }
+      if (ecountData.length === 0) {
+        alert('파일 필요');
+        switchTab(0);
+        return;
+      }
+
+      let p = customPages[currentTabIndex - 1];
+      let pMap = new Map(p.completedMap);
+      
+      let newList = [];
+
+      ecountData.forEach(row => {
+        let saleNum = String(row['판매번호'] || '');
+        if (!saleNum.includes('-')) return;
+
+        let splitArr = saleNum.split(/\s*-\s*/, 2);
+        let date = splitArr[0] ? splitArr[0].trim() : '';
+        let num = splitArr[1] ? splitArr[1].trim() : '';
+
+        let client = row['거래처'] || '';
+        let addr = row['배송주소'] || '';
+        let prod = row['품목'] || '';
+        let rmk = row['특이사항'] || '';
+        
+        let rawAmount = String(row['금액'] || '').replace(/,/g, '').trim();
+        let amt = (rawAmount && !isNaN(rawAmount)) ? parseInt(rawAmount).toLocaleString() : (row['금액'] || '');
+        
+        let wh = row['출고창고'] || '';
+        wh = wh.replace('삼성창고 (초월 무갑)', '초월창고');
+        
+        let editHist = row['전표수정내역'] || ''; 
+        let mgr = row['담당자명'] || '';
+        let stripped = editHist.replace(/[\{\}]/g, '').trim();
+        if (stripped === '-' || /^\d+%$/.test(stripped)) editHist = '';
+
+        // 날짜
+        let dateVal = date.replace(/[\.\/]/g, '-');
+        if (dateVal.length === 8 && /^\d{8}$/.test(dateVal)) {
+          dateVal = dateVal.substring(0,4) + '-' + dateVal.substring(4,6) + '-' + dateVal.substring(6,8);
+        }
+
+        let actualDay = null;
+        let dObj = null;
+        let parts = dateVal.split('-');
+        if (parts.length >= 3) {
+          dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          actualDay = dObj.getDate();
+        }
+        
+        // 정규식
+        let mMatch = rmk.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?상/);
+        let nMatch = rmk.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?하/);
+        
+        let mVal = mMatch ? parseInt(mMatch[1], 10) : null;
+        let nVal = nMatch ? parseInt(nMatch[1], 10) : null;
+        
+        let hasSangHa = (mMatch !== null && nMatch !== null);
+        let hasYard = /야적.*\//.test(addr);
+        let hasJibang = /지방.*\//.test(addr);
+        
+        // 주말
+        let isJibangWknd = false;
+        if (hasJibang && mVal !== null && nVal !== null && dObj) {
+          let loadDate = new Date(dObj.getTime());
+          if (mVal < actualDay - 10) loadDate.setMonth(loadDate.getMonth() + 1);
+          loadDate.setDate(mVal);
+          
+          let unloadDate = new Date(dObj.getTime());
+          if (nVal < mVal && nVal < 10) unloadDate.setMonth(unloadDate.getMonth() + 1);
+          unloadDate.setDate(nVal);
+          
+          if (loadDate.getDay() === 6 && unloadDate.getDay() === 0) {
+            isJibangWknd = true;
+          }
+        }
+
+        // 판별
+        let highlightClass = '';
+        
+        if ((hasYard || hasJibang) && !hasSangHa) {
+          highlightClass = 'bg-highlight';
+        } else if (!(hasYard || hasJibang) && hasSangHa) {
+          highlightClass = 'bg-highlight';
+        } else if (mVal !== null && actualDay !== null && actualDay !== mVal) {
+          highlightClass = 'bg-err-date';
+        } else if (isJibangWknd) {
+          highlightClass = 'bg-jibang-wknd';
+        }
+        
+        let rData = { date, num, client, addr, prod, rmk, amt, wh, editHist, mgr, highlightClass, isDiscarded: false };
+        newList.push(rData);
+      });
+
+      pMap.forEach((entry, key) => {
+        if (!currentDataMap.has(key)) {
+          let splitVal = key.split('_');
+          let date = splitVal[0];
+          let num = splitVal[1];
+
+          if (uploadedDates.has(date)) entry.status = 'discarded';
+          
+          let storedStr = entry.over || entry.base;
+          let storedArr = storedStr.split('||');
+          let client = storedArr[0] || '';
+          let addr = storedArr[1] || '';
+          let prod = storedArr[2] || '';
+          let rmk = storedArr[3] || '';
+          let amt = storedArr[4] || '';
+          let wh = storedArr[5] || '';
+          let editHist = storedArr[6] || '';
+          let mgr = storedArr[7] || '';
+
+          let isDiscardedState = entry.status === 'discarded';
+          newList.push({ date, num, client, addr, prod, rmk, amt, wh, editHist, mgr, highlightClass: '', isDiscarded: isDiscardedState });
+        } else {
+          if (entry.status === 'discarded') {
+            entry.status = 'restored';
+            entry.over = null; 
+          }
+        }
+      });
+
+      newList.sort((a, b) => {
+        if (a.date !== b.date) return a.date > b.date ? -1 : 1;
+        return (parseInt(b.num) || 0) - (parseInt(a.num) || 0);
+      });
+
+      p.dataList = newList;
+      p.completedMap = Array.from(pMap.entries());
+
+      renderTable(p);
+      if (!skipSave) saveStateToNotion();
+    }
+
+    // 렌더링
+    function renderTable(p) {
+      let tbody = document.getElementById('tbody_' + p.id);
+      if(!tbody) return;
+      tbody.innerHTML = '';
+      
+      let pMap = new Map(p.completedMap);
+      let activeFilters = p.filtersMap || {};
+
+      let filteredList = p.dataList.filter(d => {
+        for (let colName in activeFilters) {
+          let f = activeFilters[colName];
+          let key = COL_MAP[colName];
+          let val = d[key];
+          
+          if (f.type === 'empty') {
+            if (String(val || '').trim() !== '') return false;
+          } else if (f.type === 'not_empty') {
+            if (String(val || '').trim() === '') return false;
+          } else {
+            let strVal = String(val || '');
+            if (f.text) {
+              if (f.type === 'include' && !strVal.includes(f.text)) return false;
+              if (f.type === 'exclude' && strVal.includes(f.text)) return false;
+            }
+            if (f.kwStates) {
+              let includes = [];
+              let excludes = [];
+              for (let kw in f.kwStates) {
+                if (f.kwStates[kw] === 'include') includes.push(kw);
+                else if (f.kwStates[kw] === 'exclude') excludes.push(kw);
+              }
+
+              let checkKw = function(s, k) {
+                if (k.endsWith('/')) {
+                  let reg = new RegExp(k.slice(0, -1) + '.*\\/');
+                  return reg.test(s);
+                }
+                return s.includes(k);
+              };
+
+              for (let kw of excludes) {
+                if (checkKw(strVal, kw)) return false;
+              }
+              if (includes.length > 0) {
+                let kwMatch = false;
+                for (let kw of includes) {
+                  if (checkKw(strVal, kw)) { kwMatch = true; break; }
+                }
+                if (!kwMatch) return false;
+              }
+            }
+          }
+        }
+        return true;
+      });
+
+      let total = 0, unsent = 0, sent = 0, discard = 0, mod1 = 0, mod2 = 0, mod3 = 0;
+
+      filteredList.forEach((d, idx) => {
+        let tr = document.createElement('tr');
+        let key = d.date + '_' + d.num;
+
+        if (d.highlightClass) tr.classList.add(d.highlightClass);
+        
+        let currentState = 'unsent';
+
+        if (pMap.has(key)) {
+          let entry = pMap.get(key);
+          let curStr = currentDataMap.get(key);
+          
+          if (!entry.modHistory) {
+            entry.modHistory = [];
+            entry.lastSeen = entry.base;
+          }
+
+          if (curStr !== undefined && curStr !== entry.lastSeen) {
+            // 비교
+            let curEditHist = curStr.split('||')[6];
+            let lastEditHist = entry.lastSeen.split('||')[6];
+            if (curEditHist !== lastEditHist) {
+              entry.modHistory.push(curStr);
+            }
+            entry.lastSeen = curStr;
+          }
+
+          // 판별
+          let isSent = false;
+          if (entry.over === curStr) {
+            isSent = true;
+          } else if (entry.over && curStr) {
+            let overEditHist = entry.over.split('||')[6];
+            let curEditHist = curStr.split('||')[6];
+            if (overEditHist === curEditHist) isSent = true;
+          }
+
+          if (d.isDiscarded) {
+            tr.classList.add('row-completed');
+            currentState = 'discard';
+          } else if (isSent) {
+            tr.classList.add('row-completed');
+            currentState = 'sent';
+          } else if (entry.status === 'restored') {
+            tr.classList.add('row-restored');
+            currentState = 'unsent';
+          } else if (entry.modHistory.length === 0) {
+            tr.classList.add('row-completed'); 
+            currentState = 'sent';
+          } else {
+            let mods = entry.modHistory.length;
+            if (mods === 1) { tr.classList.add('row-modified'); currentState = 'mod1'; }
+            else if (mods === 2) { tr.classList.add('row-modified-2'); currentState = 'mod2'; }
+            else { tr.classList.add('row-modified-3'); currentState = 'mod3'; }
+          }
+        }
+
+        total++;
+        if(currentState === 'unsent') unsent++;
+        else if(currentState === 'sent') sent++;
+        else if(currentState === 'discard') discard++;
+        else if(currentState === 'mod1') mod1++;
+        else if(currentState === 'mod2') mod2++;
+        else if(currentState === 'mod3') mod3++;
+
+        let tdChk = document.createElement('td');
+        let chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.dataset.key = key;
+        chk.onchange = function() {
+          if (this.checked) tr.classList.add('row-selected');
+          else tr.classList.remove('row-selected');
+        };
+        tdChk.appendChild(chk);
+        tr.appendChild(tdChk);
+
+        let tdIdx = document.createElement('td');
+        tdIdx.innerText = idx + 1;
+        tr.appendChild(tdIdx);
+
+        let cells = [d.date, d.num, d.client, d.addr, d.prod, d.rmk, d.amt, d.wh, d.editHist, d.mgr];
+        cells.forEach((text, i) => {
+          let td = document.createElement('td');
+          td.innerText = text;
+          td.title = text; 
+          
+          if (d.isDiscarded && i >= 2 && i <= 8) td.classList.add('discard-line');
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      
+      let statsStr = `전체 ${total} / 미발송 ${unsent} / 발송 ${sent} / 폐기 ${discard} / 수정 ${mod1} / 2차수정 ${mod2} / 3차수정 ${mod3}`;
+      p.stats = statsStr;
+      
+      document.getElementById('stats_container').innerHTML = statsStr;
+      document.getElementById('stats_container').style.display = 'block';
+
+      updateFilterUI();
+    }
+
+    // 필터제어
+    function openPopup(col, e) {
+      e.stopPropagation();
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      curFilterCol = col;
+      
+      let p = customPages[currentTabIndex - 1];
+      let popup = document.getElementById('filterPopup');
+      popup.style.display = 'flex';
+      popup.style.left = e.pageX + 'px';
+      popup.style.top = (e.pageY + 15) + 'px';
+      
+      let f = p.filtersMap[col];
+      
+      document.getElementById('filterText').value = (f && (f.type === 'include' || f.type === 'exclude')) ? f.text : '';
+      if (f && f.type === 'exclude') document.querySelector('input[name="filterMode"][value="exclude"]').checked = true;
+      else document.querySelector('input[name="filterMode"][value="include"]').checked = true;
+      
+      let kwGrid = document.getElementById('keyword-grid');
+      kwGrid.innerHTML = '';
+      let keywords = [];
+      if (col === '배송주소') keywords = ['야적/', '지방/', '경동/', '로젠/'];
+      else if (col === '출고창고') keywords = ['초월', '상일', '서초', '온라인'];
+      
+      if (keywords.length > 0) {
+        kwGrid.style.display = 'grid';
+        let activeStates = (f && f.kwStates) ? f.kwStates : {};
+        keywords.forEach(kw => {
+          let btn = document.createElement('div');
+          let disp = kw.replace('/', '');
+          let state = activeStates[kw];
+          btn.className = 'kw-btn';
+          if (state === 'include') btn.classList.add('active');
+          else if (state === 'exclude') btn.classList.add('exclude');
+          btn.innerText = disp;
+          btn.onclick = function(ev) { ev.stopPropagation(); toggleKeyword(kw, this); };
+          kwGrid.appendChild(btn);
+        });
+      } else {
+        kwGrid.style.display = 'none';
+      }
+    }
+
+    function closePopup(e) {
+      let popup = document.getElementById('filterPopup');
+      if (e && popup.contains(e.target)) return;
+      popup.style.display = 'none';
+    }
+
+    function sortData(dir) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let key = COL_MAP[curFilterCol];
+
+      p.dataList.sort((a, b) => {
+        let v1 = String(a[key] || ''); 
+        let v2 = String(b[key] || '');
+        
+        let n1 = Number(v1.replace(/,/g, '').replace(/[^0-9.-]/g, '')); 
+        let n2 = Number(v2.replace(/,/g, '').replace(/[^0-9.-]/g, ''));
+        if (v1 !== '' && v2 !== '' && !isNaN(n1) && !isNaN(n2) && key !== 'date' && key !== 'num') { 
+          v1 = n1; 
+          v2 = n2; 
+        }
+        if (v1 < v2) return dir === 'asc' ? -1 : 1;
+        if (v1 > v2) return dir === 'asc' ? 1 : -1;
+        return 0;
+      });
+      
+      renderTable(p);
+      closePopup();
+    }
+
+    function applyFilterRealtime() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let text = document.getElementById('filterText').value.trim();
+      let type = document.querySelector('input[name="filterMode"]:checked').value;
+      
+      let existingKwStates = (p.filtersMap[curFilterCol] && p.filtersMap[curFilterCol].kwStates) ? p.filtersMap[curFilterCol].kwStates : {};
+      
+      if (!text && Object.keys(existingKwStates).length === 0) {
+        delete p.filtersMap[curFilterCol];
+      } else {
+        p.filtersMap[curFilterCol] = { type: type, text: text, kwStates: existingKwStates };
+      }
+      renderTable(p);
+    }
+
+    function toggleKeyword(kw, btn) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let f = p.filtersMap[curFilterCol] || { type: 'include', text: '', kwStates: {} };
+      if (!f.kwStates) f.kwStates = {};
+      
+      let curState = f.kwStates[kw];
+      if (!curState) {
+        f.kwStates[kw] = 'include';
+        btn.className = 'kw-btn active';
+      } else if (curState === 'include') {
+        f.kwStates[kw] = 'exclude';
+        btn.className = 'kw-btn exclude';
+      } else {
+        delete f.kwStates[kw];
+        btn.className = 'kw-btn';
+      }
+      
+      if (!f.text && Object.keys(f.kwStates).length === 0) {
+        delete p.filtersMap[curFilterCol];
+      } else {
+        p.filtersMap[curFilterCol] = f;
+      }
+      
+      renderTable(p);
+    }
+
+    function applyEmptyFilter(isEmpty) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      p.filtersMap[curFilterCol] = { type: isEmpty ? 'empty' : 'not_empty', text: '' };
+      renderTable(p);
+      closePopup();
+    }
+
+    function clearFilter() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      delete p.filtersMap[curFilterCol];
+      renderTable(p);
+      closePopup();
+    }
+
+    function updateFilterUI() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let table = document.getElementById('tbl_' + p.id);
+      if (!table) return;
+      
+      let btns = table.querySelectorAll('th .th-content button');
+      btns.forEach(btn => {
+        let c = btn.getAttribute('data-col');
+        if (p.filtersMap && p.filtersMap[c]) btn.classList.add('filter-active');
+        else btn.classList.remove('filter-active');
+      });
+    }
+
+    // 선택
+    function toggleAll(masterChk, tbodyId) {
+      let tbody = document.getElementById(tbodyId);
+      if(!tbody) return;
+      let chks = tbody.querySelectorAll('input[type="checkbox"]');
+      chks.forEach(chk => {
+        chk.checked = masterChk.checked;
+        let tr = chk.closest('tr');
+        if (chk.checked) tr.classList.add('row-selected');
+        else tr.classList.remove('row-selected');
+      });
+    }
+
+    function getCheckedKeys(tbodyId) {
+      let tbody = document.getElementById(tbodyId);
+      if(!tbody) return [];
+      let chks = tbody.querySelectorAll('input[type="checkbox"]:checked');
+      return Array.from(chks).map(chk => chk.dataset.key);
+    }
+
+    function clearCheckboxes(tbodyId) {
+      let table = document.getElementById(tbodyId).closest('table');
+      let masterChk = table.querySelector('thead input[type="checkbox"]');
+      if (masterChk) masterChk.checked = false;
+    }
+
+    // 발송
+    function markCompleted() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let tbodyId = 'tbody_' + p.id;
+      let keys = getCheckedKeys(tbodyId);
+      if (!keys.length) return;
+
+      let pMap = new Map(p.completedMap);
+      keys.forEach(key => {
+        if (!pMap.has(key)) {
+          let d = p.dataList.find(item => (item.date + '_' + item.num) === key);
+          if (d) {
+            let curStr = [d.client, d.addr, d.prod, d.rmk, d.amt, d.wh, d.editHist, d.mgr].join('||');
+            pMap.set(key, { base: curStr, over: null, status: 'completed' });
+          }
+        }
+      });
+      p.completedMap = Array.from(pMap.entries());
+      clearCheckboxes(tbodyId);
+      renderTable(p);
+      saveStateToNotion();
+    }
+
+    // 취소
+    function unmarkCompleted() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let tbodyId = 'tbody_' + p.id;
+      let keys = getCheckedKeys(tbodyId);
+      if (!keys.length) return;
+
+      let pMap = new Map(p.completedMap);
+      keys.forEach(key => {
+        if (!pMap.has(key)) return;
+
+        let entry = pMap.get(key);
+        let curStr = currentDataMap.get(key);
+
+        if (!entry.modHistory) entry.modHistory = entry.over ? [entry.over] : [];
+
+        if (curStr !== undefined) {
+          // 내역
+          let curEditHist = curStr.split('||')[6];
+          let inModHistory = entry.modHistory.some(h => h.split('||')[6] === curEditHist);
+          let overEditHist = entry.over ? entry.over.split('||')[6] : null;
+
+          if (inModHistory) {
+            entry.modHistory = entry.modHistory.filter(h => h.split('||')[6] !== curEditHist);
+            entry.over = entry.modHistory.length > 0 ? entry.modHistory[entry.modHistory.length - 1] : null;
+          } else if (overEditHist === curEditHist) {
+            entry.over = null;
+          } else {
+            pMap.delete(key);
+            return;
+          }
+
+          if (entry.modHistory.length === 0 && entry.over === null) {
+            pMap.delete(key);
+          }
+        } else {
+          pMap.delete(key);
+        }
+      });
+      p.completedMap = Array.from(pMap.entries());
+      clearCheckboxes(tbodyId);
+      renderTable(p);
+      saveStateToNotion();
+    }
+
+    // 수정
+    function remarkCompleted() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let tbodyId = 'tbody_' + p.id;
+      let keys = getCheckedKeys(tbodyId);
+      if (!keys.length) return;
+
+      let pMap = new Map(p.completedMap);
+      keys.forEach(key => {
+        if (pMap.has(key)) {
+          let entry = pMap.get(key);
+          let curStr = currentDataMap.get(key);
+          
+          if (!entry.modHistory) entry.modHistory = entry.over ? [entry.over] : [];
+          
+          if (curStr !== undefined) {
+            // 비교
+            let curEditHist = curStr.split('||')[6];
+            let baseEditHist = entry.base.split('||')[6];
+            let inModHistory = entry.modHistory.some(h => h.split('||')[6] === curEditHist);
+            
+            if (curEditHist !== baseEditHist && !inModHistory) {
+              entry.modHistory.push(curStr);
+            }
+            entry.over = curStr;
+            entry.status = 'completed';
+          }
+        }
+      });
+      p.completedMap = Array.from(pMap.entries());
+      clearCheckboxes(tbodyId);
+      renderTable(p);
+      saveStateToNotion();
+    }
+
+    // 저장
+    function saveStateToNotion() {
+      if (customPages.length === 0) return;
+      
+      let state = { ecountData: ecountData, customPages: customPages };
+      let base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+      google.script.run.saveHistoryToNotion(base64Data, currentUserEmail, currentUserName);
+      alert('저장완료');
+    }
+
+    // 복사
+    function copyCurrentTable() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let pId = customPages[currentTabIndex - 1].id;
+      let target = document.getElementById('tbl_' + pId);
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      html2canvas(target).then(canvas => {
+        wrapper.scrollTop = originScroll;
+        canvas.toBlob(blob => {
+          navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => alert('복사완료'));
+        });
+      });
+    }
+
+    // 저장
+    function saveCurrentTable() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let pId = customPages[currentTabIndex - 1].id;
+      let target = document.getElementById('tbl_' + pId);
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      html2canvas(target).then(canvas => {
+        wrapper.scrollTop = originScroll;
+        let link = document.createElement('a');
+        link.download = customPages[currentTabIndex - 1].title + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    // 선택
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2) return;
+      if (e.target.closest('.ctx-menu') || e.target.closest('.filter-popup')) return;
+      if (!document.hasFocus()) window.focus();
+
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) { 
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected')); 
+        return; 
+      }
+      
+      if (td.cellIndex === 0) return;
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex; let targetC = td.cellIndex;
+
+      if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex; let c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        });
+      } else if (e.ctrlKey || e.metaKey) {
+        isSelecting = true; startR = targetR; startC = targetC; td.classList.toggle('selected');
+      } else {
+        isSelecting = true; startR = targetR; startC = targetC;
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        td.classList.add('selected');
+      }
+      
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable) return;
+      let endR = td.parentElement.rowIndex; let endC = td.cellIndex;
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      currentTable.querySelectorAll('td').forEach(cell => {
+        let r = cell.parentElement.rowIndex; let c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+    
+    // 추출
+    function getSelectedText() {
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return '';
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      return textLines.join('\n');
+    }
+
+    // 복사
+    function copyTextToClipboard(text) {
+      if (!text) return;
+      let textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea);
+    }
+
+    // 문맥
+    const ctxMenu = document.getElementById('ctxMenu');
+    document.addEventListener('contextmenu', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.closest('.custom-table')) {
+        e.preventDefault();
+        if (!td.classList.contains('selected')) {
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          td.classList.add('selected');
+        }
+        ctxMenu.style.display = 'block';
+        ctxMenu.style.left = e.pageX + 'px';
+        ctxMenu.style.top = e.pageY + 'px';
+      } else {
+        ctxMenu.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if(e.target.closest('.ctx-menu')) return;
+      ctxMenu.style.display = 'none';
+    });
+
+    document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+      let text = getSelectedText();
+      copyTextToClipboard(text);
+      ctxMenu.style.display = 'none';
+    });
+
+    document.addEventListener('copy', (e) => {
+      let text = getSelectedText();
+      if (text === '') return;
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', text);
+    });
+
+    // 날짜
+    function initHistoryDates() {
+      let t = new Date(); let s = new Date(t); s.setDate(s.getDate() - 1); let e = new Date(t); e.setDate(e.getDate() + 1);
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      document.getElementById('history_start').value = f(s); document.getElementById('history_end').value = f(e);
+    }
+
+    // 조회
+    function loadHistory() {
+      let start = document.getElementById('history_start').value; let end = document.getElementById('history_end').value;
+      document.getElementById('tbody_history').innerHTML = '<tr><td colspan="3" style="text-align:center;">조회중</td></tr>';
+      
+      google.script.run.withSuccessHandler(function(res) {
+        let tbody = document.getElementById('tbody_history');
+        tbody.innerHTML = '';
+        if (res.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">결과없음</td></tr>'; return;
+        }
+        res.forEach(item => {
+          let tr = document.createElement('tr');
+          let dt = new Date(item.time).toLocaleString();
+          tr.innerHTML = `<td style="text-align:center;">${item.worker}</td><td style="text-align:center;">${dt}</td>`;
+          let tdRestore = document.createElement('td'); tdRestore.style.textAlign = 'center';
+          let btn = document.createElement('button'); btn.innerText = '복원'; btn.className = 'action-btn'; btn.style.padding = '4px 10px';
+          btn.onclick = function() { restoreState(item.data, false); };
+          tdRestore.appendChild(btn); tr.appendChild(tdRestore); tbody.appendChild(tr);
+        });
+      }).getHistoryFromNotion(start, end);
+    }
+
+    // 복원
+    function restoreState(base64Data, isAuto) {
+      try {
+        let state = JSON.parse(decodeURIComponent(escape(atob(base64Data))));
+        ecountData = state.ecountData;
+        customPages = state.customPages || [];
+        
+        uploadedDates.clear();
+        currentDataMap.clear();
+
+        ecountData.forEach(row => {
+          let saleNum = String(row['판매번호'] || '');
+          if (saleNum.includes('-')) {
+            let splitArr = saleNum.split(/\s*-\s*/, 2);
+            let date = splitArr[0] ? splitArr[0].trim() : '';
+            let num = splitArr[1] ? splitArr[1].trim() : '';
+            uploadedDates.add(date);
+            
+            let client = row['거래처'] || '';
+            let addr = row['배송주소'] || '';
+            let prod = row['품목'] || '';
+            let rmk = row['특이사항'] || '';
+            let rawAmount = String(row['금액'] || '').replace(/,/g, '').trim();
+            let amt = (rawAmount && !isNaN(rawAmount)) ? parseInt(rawAmount).toLocaleString() : (row['금액'] || '');
+            let wh = row['출고창고'] || '';
+            wh = wh.replace('삼성창고 (초월 무갑)', '초월창고');
+            let editHist = row['전표수정내역'] || ''; 
+            let mgr = row['담당자명'] || '';
+
+            let stripped = editHist.replace(/[\{\}]/g, '').trim();
+            if (stripped === '-' || /^\d+%$/.test(stripped)) editHist = '';
+            
+            let key = date + '_' + num;
+            currentDataMap.set(key, [client, addr, prod, rmk, amt, wh, editHist, mgr].join('||'));
+          }
+        });
+
+        document.getElementById('customPagesContainer').innerHTML = '';
+        
+        customPages.forEach(p => {
+          p.filtersMap = p.filtersMap || {};
+          p.dataList = p.dataList || [];
+          
+          let cDiv = document.createElement('div');
+          cDiv.id = p.id;
+          cDiv.className = 'page custom-page';
+          cDiv.innerHTML = createTableFrame(p.id);
+          document.getElementById('customPagesContainer').appendChild(cDiv);
+          
+          if(p.dataList.length > 0) renderTable(p);
+        });
+        
+        currentTabIndex = customPages.length > 0 ? 1 : 0;
+        renderTabs();
+        
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('완료');
+        }
+      } catch(e) {
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('에러');
+        }
+        renderTabs();
+      }
+    }
+  </script>
+</body>
+</html>

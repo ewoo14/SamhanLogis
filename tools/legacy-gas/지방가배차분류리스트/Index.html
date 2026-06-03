@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+
+  <style>
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 10px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 툴바 */
+    .global-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 20px; background: white; border-radius: 8px; margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .btn-group { display: flex; gap: 8px; }
+
+    /* 이동 */
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 1200px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s; z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; }
+    .page.active { display: block; }
+    #page_upload { max-width: 800px; }
+    #page_history { max-width: 1800px; }
+    .custom-page { width: 100%; max-width: 98%; }
+
+    /* 영역 */
+    #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; }
+    #drop_zone:hover { border-color: #3182ce; background: #ebf8ff; }
+    
+    /* 버튼 */
+    .action-btn { margin: 0; padding: 8px 16px; background: #3182ce; color: white; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+    .action-btn:hover { background: #2b6cb0; }
+    .btn-copy { background: #48bb78; } .btn-copy:hover { background: #38a169; }
+    .btn-save { background: #ed8936; } .btn-save:hover { background: #dd6b20; }
+    .btn-delete { background: #e53e3e; } .btn-delete:hover { background: #c53030; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .reset-btn:hover { background: #e2e8f0; }
+    
+    /* 표 */
+    .table-wrapper { max-height: calc(100vh - 350px); overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: 100%; min-width: 1600px; border-collapse: collapse; table-layout: fixed; user-select: none; }
+    .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 8px 10px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; cursor: cell; text-align: center; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; position: sticky; top: -1px; z-index: 2; box-shadow: 0 -1px 0 #cbd5e0; padding: 0; }
+    
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+    
+    /* 배송주소 열 줄바꿈 허용 */
+    .custom-table td:nth-child(3) { text-align: left !important; white-space: normal; word-break: break-all; }
+    .custom-table td:nth-child(8) { text-align: left !important; }
+
+    /* 서식 */
+    .bg-highlight { background-color: #fee2e2 !important; }
+    .bg-err-date { background-color: #ffcccc !important; }
+    .bg-jibang-wknd { background-color: #c9eb34 !important; }
+
+    /* 필터 */
+    .th-content { display: flex; justify-content: center; align-items: center; position: relative; width: 100%; height: 100%; padding: 8px 20px; box-sizing: border-box; }
+    .th-content span { text-align: center; }
+    .th-content button { position: absolute; right: 2px; background: none; border: none; cursor: pointer; color: #4a5568; font-size: 10px; padding: 2px; }
+    .filter-active { color: #e53e3e !important; font-weight: bold; }
+    .filter-popup { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 6px; padding: 10px; z-index: 9999; flex-direction: column; gap: 8px; width: 180px; }
+    .filter-popup button { background: #edf2f7; border: 1px solid #cbd5e0; padding: 6px; border-radius: 4px; cursor: pointer; text-align: center; font-size: 12px; }
+    .filter-popup button:hover { background: #e2e8f0; }
+    .filter-popup input[type="text"], .filter-popup input[type="date"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; font-family: inherit; width: 100%; box-sizing: border-box; }
+    
+    .filter-popup button.sort-btn.active { background: #3182ce; color: white; border-color: #2b6cb0; font-weight: bold; }
+
+    .kw-grid { display: none; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 5px; }
+    .kw-btn { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; background: #edf2f7; cursor: pointer; text-align: center; color: #4a5568; }
+    .kw-btn.active { background: #3182ce; color: white; border-color: #2b6cb0; font-weight: bold; }
+    .kw-btn.exclude { background: #e53e3e; color: white; border-color: #c53030; font-weight: bold; }
+    .filter-popup hr { margin: 2px 0; border: 0; border-top: 1px solid #cbd5e0; }
+    
+    /* 비율 */
+    .col-move { width: 4%; }
+    .col-date { width: 8%; }
+    .col-addr { width: 28%; } 
+    .col-cust { width: 15%; }
+    .col-num { width: 9%; }
+    .col-rmk { width: 12%; }
+    .col-wh { width: 6%; }
+    .col-item { width: 10%; }
+    .col-amt { width: 8%; }
+    
+    /* 드래그 */
+    .drag-handle { cursor: grab; user-select: none; color: #a0aec0; font-weight: bold; font-size: 16px; background-color: #f7fafc !important; }
+    .drag-handle:active { cursor: grabbing; }
+    .sortable-ghost { opacity: 0.4; background-color: #edf2f7; }
+
+    /* 메뉴 */
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+  </style>
+</head>
+<body onclick="closePopup(event)">
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="filterPopup" class="filter-popup">
+    <button id="btnSortAsc" class="sort-btn" onclick="sortData('asc')">오름차순 정렬</button>
+    <button id="btnSortDesc" class="sort-btn" onclick="sortData('desc')">내림차순 정렬</button>
+    <hr>
+    <div id="filter-date-wrap" style="display:none; flex-direction:column; gap:8px;">
+      <input type="date" id="filterDateStart" onchange="applyFilterRealtime()">
+      <span style="text-align:center; font-size:12px; color:#4a5568;">~</span>
+      <input type="date" id="filterDateEnd" onchange="applyFilterRealtime()">
+    </div>
+    <div id="filter-text-wrap" style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:10px; font-size:12px; justify-content:center;">
+        <label><input type="radio" name="filterMode" value="include" checked onchange="applyFilterRealtime()"> 포함</label>
+        <label><input type="radio" name="filterMode" value="exclude" onchange="applyFilterRealtime()"> 미포함</label>
+      </div>
+      <input type="text" id="filterText" placeholder="검색어 입력" oninput="applyFilterRealtime()">
+      <div id="keyword-grid" class="kw-grid"></div>
+      <button onclick="applyEmptyFilter(true)" class="reset-btn">비어있음</button>
+      <button onclick="applyEmptyFilter(false)" class="reset-btn">비어있지 않음</button>
+    </div>
+    <button onclick="clearFilter()" style="color:red; margin-top:5px;" class="reset-btn">필터 해제</button>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      로딩 중...
+    </div>
+  </div>
+
+  <div id="deleteModal" class="mobile-gate-layer" style="display:none; z-index:10000; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; color:#2d3748;">해당 페이지를 삭제하시겠습니까?</h3>
+      <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
+        <button class="reset-btn" onclick="closeDeleteModal()">취소</button>
+        <button class="action-btn btn-delete" style="width:auto; padding: 8px 20px;" onclick="executeDelete()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="renameModal" class="mobile-gate-layer" style="display:none; z-index:10000; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; color:#2d3748; font-size:18px;">변경할 페이지 이름을 설정하세요.</h3>
+      <input type="text" id="renameInput" style="width:80%; padding:10px; margin:15px 0; border:1px solid #cbd5e0; border-radius:6px; font-size:14px; outline:none;" placeholder="페이지 이름 입력">
+      <div style="display: flex; justify-content: center; gap: 10px;">
+        <button class="reset-btn" onclick="closeRenameModal()">취소</button>
+        <button class="action-btn btn-copy" style="width:auto; padding: 8px 20px;" onclick="executeRename()">변경</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>(주)삼한공조시스템</h2>
+      <p>지방 가배차 프로그램</p>
+    </div>
+
+    <div class="nav-container" id="navContainer"></div>
+
+    <div class="global-toolbar" id="globalToolbar" style="display:none; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <div style="display:flex; gap:8px;">
+          <button id="global_btn_delete" class="action-btn btn-delete" onclick="openDeleteModal()">삭제</button>
+          <button id="global_btn_rename" class="action-btn" style="background:#4a5568;" onclick="openRenameModal()">페이지 이름 변경</button>
+          <button id="global_btn_save_notion" class="action-btn" style="background:#805ad5;" onclick="saveStateToNotion()">내역저장</button>
+        </div>
+        
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="run_loading" style="display:none; color:#3182ce; font-weight:bold; font-size:14px;">실행 중... ⏳</span>
+          <div class="btn-group">
+            <button class="action-btn btn-copy" onclick="copyCurrentTable()">복사</button>
+            <button class="action-btn btn-save" onclick="saveCurrentTable()">저장</button>
+            <button class="action-btn" onclick="runProcess(false)">실행</button>
+          </div>
+        </div>
+      </div>
+      <div id="stats_container" style="display:none; text-align:center; font-size:14px; color:#4a5568; background:#f7fafc; padding:8px; border-radius:6px; width:100%;"></div>
+    </div>
+
+    <div id="pagesContainer">
+      <div id="page_upload" class="page active">
+        <h3 style="text-align: center; margin-bottom: 20px;">이카운트 엑셀 데이터 업로드</h3>
+        <div id="drop_zone" onclick="document.getElementById('file_input').click()">
+          이곳에 엑셀 파일을 드래그하거나 클릭하여 업로드하세요.
+        </div>
+        <input type="file" id="file_input" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event)">
+        <p id="file_status" style="text-align:center; margin-top:15px; color:green; font-weight:bold;"></p>
+      </div>
+      
+      <div id="customPagesContainer"></div>
+
+      <div id="page_history" class="page">
+        <div style="text-align: center; margin-bottom: 15px;">
+          <input type="date" id="history_start" class="reset-btn"> ~ 
+          <input type="date" id="history_end" class="reset-btn">
+          <button class="action-btn" style="display: inline-block; width: auto; padding: 8px 15px; margin: 0 0 0 10px;" onclick="loadHistory()">조회</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table">
+            <thead>
+              <tr><th>작업자</th><th>저장일시</th><th>복원여부</th></tr>
+            </thead>
+            <tbody id="tbody_history"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ecountData = [];
+    let currentUserEmail = '';
+    let currentUserName = '';
+    let customPages = []; 
+    let currentTabIndex = 0; 
+    let dayExtracted = '';
+
+    // 메모리
+    let undoStack = [];
+    let redoStack = [];
+
+    // 상태
+    function saveUndoState() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let pId = customPages[currentTabIndex - 1].id;
+      let tbody = document.getElementById('tbody_' + pId);
+      if (tbody) {
+        undoStack.push({ id: 'tbody_' + pId, html: tbody.innerHTML });
+        if (undoStack.length > 30) undoStack.shift();
+        redoStack = [];
+      }
+    }
+
+    // 복구
+    function performUndo() {
+      if (undoStack.length === 0) return;
+      let state = undoStack.pop();
+      let tbody = document.getElementById(state.id);
+      if (tbody) {
+        redoStack.push({ id: state.id, html: tbody.innerHTML });
+        tbody.innerHTML = state.html;
+      }
+    }
+
+    // 재실행
+    function performRedo() {
+      if (redoStack.length === 0) return;
+      let state = redoStack.pop();
+      let tbody = document.getElementById(state.id);
+      if (tbody) {
+        undoStack.push({ id: state.id, html: tbody.innerHTML });
+        tbody.innerHTML = state.html;
+      }
+    }
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('authLoading').style.display = 'none';
+          if (res.authorized) {
+            currentUserEmail = res.email;
+            currentUserName = res.managerName;
+            document.getElementById('welcomeName').innerText = res.managerName;
+            document.getElementById('welcomeAnimation').style.display = 'flex';
+            setTimeout(() => { document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }); }, 100);
+            setTimeout(() => {
+              document.getElementById('mobileGate').style.display = 'none';
+              document.getElementById('initialLoading').style.display = 'flex';
+              document.getElementById('mainApp').style.display = 'block';
+              initHistoryDates();
+              checkAutoRestore();
+            }, 2500);
+          } else {
+            document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error || '미등록'}</span></div>`;
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">시스템오류<span>${err.message}</span></div>`;
+        })
+        .getUserAuth();
+    };
+
+    function checkAutoRestore() {
+      google.script.run
+        .withSuccessHandler(res => {
+          if(res && res.data) {
+            restoreState(res.data, true);
+          } else {
+            document.getElementById('initialLoading').style.display = 'none';
+            renderTabs();
+          }
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+          renderTabs();
+        })
+        .getLatestHistoryFromNotion();
+    }
+
+    // 화면
+    function renderTabs() {
+      const container = document.getElementById('navContainer');
+      let html = `<div class="slider" id="slider"></div>`;
+      
+      html += `<div class="nav-item ${currentTabIndex===0?'active':''}" onclick="switchTab(0)">업로드</div>`;
+      
+      customPages.forEach((p, idx) => {
+        let i = idx + 1;
+        html += `<div class="nav-item ${currentTabIndex===i?'active':''}" onclick="switchTab(${i})"><span>${p.title}</span></div>`;
+      });
+
+      if (customPages.length < 5) {
+        html += `<div class="nav-item" onclick="addCustomPage()" style="font-weight:900; font-size:18px;">+</div>`;
+      }
+      
+      let histIndex = customPages.length < 5 ? customPages.length + 2 : customPages.length + 1;
+      html += `<div class="nav-item ${currentTabIndex===histIndex?'active':''}" onclick="switchTab(${histIndex})">저장내역</div>`;
+      
+      container.innerHTML = html;
+      
+      let totalNavItems = 2 + customPages.length + (customPages.length < 5 ? 1 : 0);
+      let pct = 100 / totalNavItems;
+      
+      let slider = document.getElementById('slider');
+      slider.style.width = `${pct}%`;
+      slider.style.transform = `translateX(${currentTabIndex * 100}%)`;
+
+      document.getElementById('page_upload').classList.toggle('active', currentTabIndex === 0);
+      document.getElementById('page_history').classList.toggle('active', currentTabIndex === histIndex);
+      
+      customPages.forEach((p, idx) => {
+        let i = idx + 1;
+        let pDiv = document.getElementById(p.id);
+        if(pDiv) pDiv.classList.toggle('active', currentTabIndex === i);
+      });
+
+      let toolbar = document.getElementById('globalToolbar');
+      let statsBox = document.getElementById('stats_container');
+
+      if (currentTabIndex === 0 || currentTabIndex === histIndex) {
+        toolbar.style.display = 'none';
+      } else {
+        toolbar.style.display = 'flex';
+        let p = customPages[currentTabIndex - 1];
+        if (p && p.stats) {
+          statsBox.innerHTML = p.stats;
+          statsBox.style.display = 'block';
+        } else {
+          statsBox.style.display = 'none';
+        }
+      }
+
+      if (currentTabIndex === histIndex) loadHistory();
+    }
+
+    // 탭이동
+    function switchTab(index) {
+      currentTabIndex = index;
+      renderTabs();
+    }
+
+    // 이름
+    function openRenameModal() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let idx = currentTabIndex - 1;
+      document.getElementById('renameInput').value = customPages[idx].title;
+      document.getElementById('renameModal').style.display = 'flex';
+      document.getElementById('renameInput').focus();
+    }
+    
+    function closeRenameModal() { 
+      document.getElementById('renameModal').style.display = 'none'; 
+    }
+    
+    function executeRename() {
+      let idx = currentTabIndex - 1;
+      let text = document.getElementById('renameInput').value.trim();
+      if(text === '') text = '신규페이지';
+      customPages[idx].title = text;
+      closeRenameModal();
+      renderTabs();
+    }
+
+    // 노션
+    function saveStateToNotion() {
+      if (customPages.length === 0) return;
+      
+      let loading = document.getElementById('run_loading');
+      let prevText = loading.innerText;
+      loading.innerText = '저장 중... ⏳';
+      loading.style.display = 'inline-block';
+      
+      customPages.forEach(cp => {
+        let tb = document.getElementById('tbody_' + cp.id);
+        if(tb) cp.html = tb.innerHTML;
+      });
+      
+      let state = { ecountData: ecountData, customPages: customPages };
+      
+      // 압축 기술 적용 (노션 용량 초과 방지)
+      let base64Data = LZString.compressToBase64(JSON.stringify(state));
+      
+      google.script.run
+        .withSuccessHandler(function() {
+          loading.style.display = 'none';
+          loading.innerText = prevText;
+          alert('저장완료');
+        })
+        .withFailureHandler(function(err) {
+          loading.style.display = 'none';
+          loading.innerText = prevText;
+          alert('오류발생');
+        })
+        .saveHistoryToNotion(base64Data, currentUserEmail, currentUserName);
+    }
+
+    // 테이블 헤더 템플릿
+    function createTableFrame(pId) {
+      return `
+        <div class="table-wrapper">
+          <table class="custom-table" id="tbl_${pId}">
+            <colgroup><col class="col-move"><col class="col-date"><col class="col-addr"><col class="col-cust"><col class="col-num"><col class="col-rmk"><col class="col-wh"><col class="col-item"><col class="col-amt"></colgroup>
+            <thead>
+              <tr>
+                <th>이동</th>
+                <th><div class="th-content"><span>날짜</span><button data-col="1" onclick="openPopup('날짜', 1, event)">▼</button></div></th>
+                <th><div class="th-content"><span>배송주소</span><button data-col="2" onclick="openPopup('배송주소', 2, event)">▼</button></div></th>
+                <th><div class="th-content"><span>업체명</span><button data-col="3" onclick="openPopup('업체명', 3, event)">▼</button></div></th>
+                <th><div class="th-content"><span>전표번호</span><button data-col="4" onclick="openPopup('전표번호', 4, event)">▼</button></div></th>
+                <th><div class="th-content"><span>특이사항</span><button data-col="5" onclick="openPopup('특이사항', 5, event)">▼</button></div></th>
+                <th><div class="th-content"><span>창고</span><button data-col="6" onclick="openPopup('창고', 6, event)">▼</button></div></th>
+                <th><div class="th-content"><span>품목</span><button data-col="7" onclick="openPopup('품목', 7, event)">▼</button></div></th>
+                <th><div class="th-content"><span>금액</span><button data-col="8" onclick="openPopup('금액', 8, event)">▼</button></div></th>
+              </tr>
+            </thead>
+            <tbody id="tbody_${pId}"></tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // 페이지
+    function addCustomPage() {
+      if (customPages.length >= 5) return;
+      let newId = 'custom_' + Date.now();
+      customPages.push({ id: newId, title: '신규페이지', html: '', filtersMap: {}, sortMap: { 1: 'desc', 4: 'desc' } });
+      
+      let cDiv = document.createElement('div');
+      cDiv.id = newId;
+      cDiv.className = 'page custom-page';
+      cDiv.innerHTML = createTableFrame(newId);
+      document.getElementById('customPagesContainer').appendChild(cDiv);
+      
+      new Sortable(document.getElementById(`tbody_${newId}`), {
+        handle: '.drag-handle',
+        animation: 150,
+        axis: 'y'
+      });
+      
+      switchTab(customPages.length);
+    }
+
+    // 삭제
+    function openDeleteModal() { document.getElementById('deleteModal').style.display = 'flex'; }
+    function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; }
+    function executeDelete() {
+      let idx = currentTabIndex - 1;
+      let pId = customPages[idx].id;
+      document.getElementById(pId).remove();
+      customPages.splice(idx, 1);
+      closeDeleteModal();
+      switchTab(0);
+    }
+
+    // 파일
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, {type: 'binary'});
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, {range: 1, raw: false, defval: ""});
+        
+        ecountData = jsonData.map(row => {
+          let newRow = {};
+          for (let key in row) newRow[key.trim()] = String(row[key] || '').replace(/\s+/g, ' ').trim();
+          return newRow;
+        });
+
+        if(ecountData.length > 0 && ecountData[0]['일자-No.']) {
+          let dtStr = ecountData[0]['일자-No.'].split('-')[0].trim();
+          if(dtStr) dayExtracted = dtStr.slice(-2);
+        } else {
+          dayExtracted = new Date().getDate().toString();
+        }
+
+        document.getElementById('file_status').innerText = file.name + ' 업로드 완료! ' + ecountData.length + '건';
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    const dropZone = document.getElementById('drop_zone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#3182ce'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#cbd5e0'; });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#cbd5e0';
+      if (e.dataTransfer.files.length > 0) {
+        document.getElementById('file_input').files = e.dataTransfer.files;
+        handleFile({target: {files: e.dataTransfer.files}});
+      }
+    });
+
+    // 실행
+    function runProcess(skipSave) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) {
+        alert('신규페이지(+)를 추가한 뒤 해당 페이지에서 실행해주세요.');
+        return;
+      }
+      if (ecountData.length === 0) {
+        alert('엑셀 데이터를 먼저 업로드해주세요.');
+        switchTab(0);
+        return;
+      }
+
+      document.getElementById('run_loading').style.display = 'inline-block';
+      document.getElementById('stats_container').style.display = 'none';
+      
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('run_loading').style.display = 'none';
+          if(res.status === 'success') {
+            let p = customPages[currentTabIndex - 1];
+            let tbody = document.getElementById('tbody_' + p.id);
+            
+            p.sortMap = { 1: 'desc', 4: 'desc' };
+
+            let oldMap = {};
+            Array.from(tbody.rows).forEach(tr => {
+              let vid = tr.cells[4] ? tr.cells[4].innerText.trim() : '';
+              if (vid && vid !== '&nbsp;') {
+                let isStruck = tr.cells[1] && tr.cells[1].style.textDecoration.includes('line-through');
+                oldMap[vid] = { tr: tr, isStruck: isStruck, used: false };
+              }
+            });
+            
+            tbody.innerHTML = '';
+            
+            // 정렬
+            res.data.sort((a, b) => {
+              let d1 = a['날짜'] || a['일자'] || '';
+              let d2 = b['날짜'] || b['일자'] || '';
+              if (d1 !== d2) return d1 > d2 ? -1 : 1;
+              let n1 = Number(String(a['전표번호']||'').replace(/[^0-9]/g, ''));
+              let n2 = Number(String(b['전표번호']||'').replace(/[^0-9]/g, ''));
+              return n2 - n1;
+            });
+            
+            res.data.forEach(r => {
+              let tr = document.createElement('tr');
+              let isHeaderOrBlank = (r['전표번호'] === '');
+              let vid = String(r['전표번호']).trim();
+              
+              let cleanCust = String(r['업체명'] || '').replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
+              let dateVal = r['날짜'] || r['일자'] || '';
+              let addrVal = r['배송주소'] || r['주소'] || '';
+              let spec = r['특이사항'] || '';
+              
+              let highlightClass = '';
+              
+              if (!isHeaderOrBlank && dateVal) {
+                dateVal = dateVal.replace(/[\.\/]/g, '-');
+                if (dateVal.length === 8 && /^\d{8}$/.test(dateVal)) {
+                  dateVal = dateVal.substring(0,4) + '-' + dateVal.substring(4,6) + '-' + dateVal.substring(6,8);
+                }
+
+                let actualDay = null;
+                let dObj = null;
+                let parts = dateVal.split('-');
+                if (parts.length >= 3) {
+                  dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                  actualDay = dObj.getDate();
+                }
+                
+                let orig = ecountData.find(e => {
+                  let rNum = String(e['판매번호'] || e['일자-No.'] || '');
+                  let v = rNum.includes('-') ? rNum.split('-').pop().trim() : rNum.trim();
+                  return v === vid;
+                });
+                let origAddr = orig ? (orig['배송주소'] || orig['주소'] || '') : addrVal;
+
+                let mMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?상/);
+                let nMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?하/);
+                
+                let mVal = mMatch ? parseInt(mMatch[1], 10) : null;
+                let nVal = nMatch ? parseInt(nMatch[1], 10) : null;
+                
+                let hasSangHa = (mMatch !== null && nMatch !== null);
+                let hasYard = /야적.*\//.test(origAddr);
+                let hasJibang = /지방.*\//.test(origAddr);
+
+                let isJibangWknd = false;
+                if (hasJibang && mVal !== null && nVal !== null && dObj) {
+                  let loadDate = new Date(dObj.getTime());
+                  if (mVal < actualDay - 10) loadDate.setMonth(loadDate.getMonth() + 1);
+                  loadDate.setDate(mVal);
+                  
+                  let unloadDate = new Date(dObj.getTime());
+                  if (nVal < mVal && nVal < 10) unloadDate.setMonth(unloadDate.getMonth() + 1);
+                  unloadDate.setDate(nVal);
+                  
+                  if (loadDate.getDay() === 6 && unloadDate.getDay() === 0) {
+                    isJibangWknd = true;
+                  }
+                }
+
+                if ((hasYard || hasJibang) && !hasSangHa) {
+                  highlightClass = 'bg-highlight';
+                } else if (!(hasYard || hasJibang) && hasSangHa) {
+                  highlightClass = 'bg-highlight';
+                } else if (mVal !== null && actualDay !== null && actualDay !== mVal) {
+                  highlightClass = 'bg-err-date';
+                } else if (isJibangWknd) {
+                  highlightClass = 'bg-jibang-wknd';
+                }
+              }
+
+              if (highlightClass) tr.classList.add(highlightClass);
+              
+              let cells = [isHeaderOrBlank ? '' : '=', dateVal, addrVal, cleanCust, r['전표번호'], spec, r['창고'], r['품목'], r['금액']];
+              
+              let isStruck = false;
+              if (vid && oldMap[vid]) {
+                isStruck = oldMap[vid].isStruck;
+                oldMap[vid].used = true;
+              }
+              
+              cells.forEach((text, i) => {
+                let td = document.createElement('td');
+                td.innerHTML = text === '' ? '&nbsp;' : text;
+                
+                if (isHeaderOrBlank) {
+                  td.contentEditable = "false";
+                  td.style.backgroundColor = "#f7fafc";
+                  if (i === 2 && text !== '') td.style.fontWeight = 'bold';
+                } else {
+                  if (i === 0) {
+                    td.className = 'drag-handle';
+                    td.contentEditable = "false";
+                  } else if (i === 2) {
+                    td.contentEditable = "true";
+                  } else {
+                    td.contentEditable = "false";
+                  }
+                  
+                  if (isStruck && i > 0) {
+                    td.style.color = '#a0aec0';
+                    td.style.textDecoration = 'line-through';
+                  }
+                }
+                tr.appendChild(td);
+              });
+              tbody.appendChild(tr);
+            });
+            
+            let missingRows = Object.values(oldMap).filter(v => !v.used);
+            if (missingRows.length > 0) {
+              missingRows.forEach(m => {
+                let tr = document.createElement('tr');
+                Array.from(m.tr.cells).forEach((oldTd, i) => {
+                  let td = document.createElement('td');
+                  td.innerHTML = oldTd.innerHTML;
+                  
+                  if (i === 0) {
+                    td.className = 'drag-handle';
+                    td.contentEditable = "false";
+                  } else if (i === 2) {
+                    td.contentEditable = "true";
+                  } else {
+                    td.contentEditable = "false";
+                  }
+                  
+                  if (i > 0) {
+                    td.style.color = '#e53e3e';
+                    td.style.textDecoration = 'line-through solid #e53e3e';
+                  }
+                  tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+              });
+            }
+            
+            let st = res.stats;
+            if(st) {
+              let statsHtml = `전체 데이터: <b>${st.total}</b>건 / 지방 추출: <b>${st.processed}</b>건`;
+              let statsBox = document.getElementById('stats_container');
+              statsBox.innerHTML = statsHtml;
+              statsBox.style.display = 'block';
+              p.stats = statsHtml; 
+            }
+
+            p.html = tbody.innerHTML;
+            executeDOMFilter(p);
+            
+            if (!skipSave) {
+              saveStateToNotion(); // 자동저장도 동일한 압축 로직 사용
+            }
+          } else {
+            alert('오류 발생: ' + res.message);
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('run_loading').style.display = 'none';
+          alert('서버 통신 오류: ' + err.message);
+        })
+        .runClassification(ecountData, dayExtracted || new Date().getDate().toString());
+    }
+
+    // 필터제어
+    let curFilterColName = '';
+    let curFilterColIdx = -1;
+
+    function openPopup(colName, colIdx, e) {
+      e.stopPropagation();
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      curFilterColName = colName;
+      curFilterColIdx = colIdx;
+      
+      let p = customPages[currentTabIndex - 1];
+      if(!p.filtersMap) p.filtersMap = {};
+      if(!p.sortMap) p.sortMap = { 1: 'desc', 4: 'desc' };
+
+      let popup = document.getElementById('filterPopup');
+      popup.style.display = 'flex';
+      popup.style.left = e.pageX + 'px';
+      popup.style.top = (e.pageY + 15) + 'px';
+      
+      // 정렬 버튼 초기화 및 활성화
+      document.getElementById('btnSortAsc').classList.remove('active');
+      document.getElementById('btnSortDesc').classList.remove('active');
+      if (p.sortMap[colIdx] === 'asc') {
+        document.getElementById('btnSortAsc').classList.add('active');
+      } else if (p.sortMap[colIdx] === 'desc') {
+        document.getElementById('btnSortDesc').classList.add('active');
+      }
+
+      let f = p.filtersMap[colIdx] || {};
+      let dateWrap = document.getElementById('filter-date-wrap');
+      let textWrap = document.getElementById('filter-text-wrap');
+
+      if (colName === '날짜') {
+        dateWrap.style.display = 'flex';
+        textWrap.style.display = 'none';
+        document.getElementById('filterDateStart').value = f.start || '';
+        document.getElementById('filterDateEnd').value = f.end || '';
+      } else {
+        dateWrap.style.display = 'none';
+        textWrap.style.display = 'flex';
+        document.getElementById('filterText').value = (f.type === 'include' || f.type === 'exclude') ? (f.text || '') : '';
+        if (f.type === 'exclude') document.querySelector('input[name="filterMode"][value="exclude"]').checked = true;
+        else document.querySelector('input[name="filterMode"][value="include"]').checked = true;
+        
+        let kwGrid = document.getElementById('keyword-grid');
+        kwGrid.innerHTML = '';
+        let keywords = [];
+        if (colName === '배송주소') keywords = ['야적/', '지방/', '경동/', '로젠/'];
+        else if (colName === '창고') keywords = ['초월', '상일', '서초', '온라인'];
+        
+        if (keywords.length > 0) {
+          kwGrid.style.display = 'grid';
+          let activeStates = f.kwStates || {};
+          keywords.forEach(kw => {
+            let btn = document.createElement('div');
+            let disp = kw.replace('/', '');
+            let state = activeStates[kw];
+            btn.className = 'kw-btn';
+            if (state === 'include') btn.classList.add('active');
+            else if (state === 'exclude') btn.classList.add('exclude');
+            btn.innerText = disp;
+            btn.onclick = function(ev) { ev.stopPropagation(); toggleKeyword(kw, this); };
+            kwGrid.appendChild(btn);
+          });
+        } else {
+          kwGrid.style.display = 'none';
+        }
+      }
+    }
+
+    function closePopup(e) {
+      let popup = document.getElementById('filterPopup');
+      if (e && popup.contains(e.target)) return;
+      popup.style.display = 'none';
+    }
+
+    function sortData(dir) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      let tbody = document.getElementById('tbody_' + p.id);
+      if(!tbody) return;
+      let rows = Array.from(tbody.rows);
+
+      p.sortMap = {};
+      p.sortMap[curFilterColIdx] = dir;
+
+      let idx = curFilterColIdx;
+      rows.sort((a, b) => {
+        let v1 = a.cells[idx].innerText.trim();
+        let v2 = b.cells[idx].innerText.trim();
+        if(v1 === '&nbsp;') v1 = '';
+        if(v2 === '&nbsp;') v2 = '';
+
+        let n1 = Number(v1.replace(/,/g, '').replace(/[^0-9.-]/g, ''));
+        let n2 = Number(v2.replace(/,/g, '').replace(/[^0-9.-]/g, ''));
+        if(v1 !== '' && v2 !== '' && !isNaN(n1) && !isNaN(n2) && idx != 1 && idx != 4) { 
+          v1 = n1; v2 = n2; 
+        }
+        if(v1 < v2) return dir === 'asc' ? -1 : 1;
+        if(v1 > v2) return dir === 'asc' ? 1 : -1;
+        return 0;
+      });
+      
+      rows.forEach(r => tbody.appendChild(r));
+      updateFilterUI(p);
+      closePopup();
+    }
+
+    function applyFilterRealtime() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      if(!p.filtersMap) p.filtersMap = {};
+      
+      if (curFilterColName === '날짜') {
+        let st = document.getElementById('filterDateStart').value;
+        let ed = document.getElementById('filterDateEnd').value;
+        if(st || ed) p.filtersMap[curFilterColIdx] = { type: 'date', start: st, end: ed };
+        else delete p.filtersMap[curFilterColIdx];
+      } else {
+        let text = document.getElementById('filterText').value.trim();
+        let type = document.querySelector('input[name="filterMode"]:checked').value;
+        let existingKw = (p.filtersMap[curFilterColIdx] && p.filtersMap[curFilterColIdx].kwStates) ? p.filtersMap[curFilterColIdx].kwStates : {};
+        if (!text && Object.keys(existingKw).length === 0) {
+          delete p.filtersMap[curFilterColIdx];
+        } else {
+          p.filtersMap[curFilterColIdx] = { type: type, text: text, kwStates: existingKw };
+        }
+      }
+      executeDOMFilter(p);
+    }
+
+    function toggleKeyword(kw, btn) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      if(!p.filtersMap) p.filtersMap = {};
+      let f = p.filtersMap[curFilterColIdx] || { type: 'include', text: '', kwStates: {} };
+      if (!f.kwStates) f.kwStates = {};
+      
+      let curState = f.kwStates[kw];
+      if (!curState) {
+        f.kwStates[kw] = 'include';
+        btn.className = 'kw-btn active';
+      } else if (curState === 'include') {
+        f.kwStates[kw] = 'exclude';
+        btn.className = 'kw-btn exclude';
+      } else {
+        delete f.kwStates[kw];
+        btn.className = 'kw-btn';
+      }
+      
+      if (!f.text && Object.keys(f.kwStates).length === 0) {
+        delete p.filtersMap[curFilterColIdx];
+      } else {
+        p.filtersMap[curFilterColIdx] = f;
+      }
+      executeDOMFilter(p);
+    }
+
+    function applyEmptyFilter(isEmpty) {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      if(!p.filtersMap) p.filtersMap = {};
+      p.filtersMap[curFilterColIdx] = { type: isEmpty ? 'empty' : 'not_empty', text: '' };
+      executeDOMFilter(p);
+      closePopup();
+    }
+
+    function clearFilter() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let p = customPages[currentTabIndex - 1];
+      if(p.filtersMap) delete p.filtersMap[curFilterColIdx];
+      executeDOMFilter(p);
+      closePopup();
+    }
+
+    function executeDOMFilter(p) {
+      let tbody = document.getElementById('tbody_' + p.id);
+      if(!tbody) return;
+      Array.from(tbody.rows).forEach(tr => {
+        let show = true;
+        for(let colIdx in p.filtersMap) {
+          let f = p.filtersMap[colIdx];
+          let td = tr.cells[colIdx];
+          if(!td) continue;
+          let tdText = td.innerText.trim();
+          if(tdText === '&nbsp;') tdText = '';
+
+          if(f.type === 'date') {
+            if(f.start && tdText < f.start) show = false;
+            if(f.end && tdText > f.end) show = false;
+          } else if(f.type === 'empty') {
+            if(tdText !== '') show = false;
+          } else if(f.type === 'not_empty') {
+            if(tdText === '') show = false;
+          } else {
+            if(f.text) {
+              if(f.type === 'include' && !tdText.includes(f.text)) show = false;
+              if(f.type === 'exclude' && tdText.includes(f.text)) show = false;
+            }
+            if(f.kwStates) {
+              let includes = [], excludes = [];
+              for(let kw in f.kwStates) {
+                if(f.kwStates[kw] === 'include') includes.push(kw);
+                else if(f.kwStates[kw] === 'exclude') excludes.push(kw);
+              }
+              for(let kw of excludes) if(tdText.includes(kw)) show = false;
+              if(includes.length > 0) {
+                let kwMatch = false;
+                for(let kw of includes) if(tdText.includes(kw)) { kwMatch = true; break; }
+                if(!kwMatch) show = false;
+              }
+            }
+          }
+        }
+        tr.style.display = show ? '' : 'none';
+      });
+      updateFilterUI(p);
+    }
+
+    function updateFilterUI(p) {
+      let table = document.getElementById('tbl_' + p.id);
+      if (!table) return;
+      let btns = table.querySelectorAll('th .th-content button');
+      btns.forEach(btn => {
+        let cIdx = btn.getAttribute('data-col');
+        if ((p.filtersMap && p.filtersMap[cIdx]) || (p.sortMap && p.sortMap[cIdx])) btn.classList.add('filter-active');
+        else btn.classList.remove('filter-active');
+      });
+    }
+
+    // 복사
+    function copyCurrentTable() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let pId = customPages[currentTabIndex - 1].id;
+      let target = document.getElementById('tbl_' + pId);
+      html2canvas(target).then(canvas => {
+        canvas.toBlob(blob => {
+          navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => alert('복사완료'));
+        });
+      });
+    }
+
+    // 캡처
+    function saveCurrentTable() {
+      if (currentTabIndex === 0 || currentTabIndex > customPages.length) return;
+      let pId = customPages[currentTabIndex - 1].id;
+      let target = document.getElementById('tbl_' + pId);
+      html2canvas(target).then(canvas => {
+        let link = document.createElement('a');
+        link.download = customPages[currentTabIndex - 1].title + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    // 선택
+    let isSelecting = false; let startR = -1, startC = -1; let currentTable = null;
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2) return;
+      if (e.target.closest('.ctx-menu') || e.target.closest('.filter-popup')) return;
+      if (!document.hasFocus()) window.focus();
+
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) { 
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected')); 
+        return; 
+      }
+      
+      if (td.cellIndex === 0) return;
+
+      if (td.classList.contains('editing') && document.activeElement === td) return;
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return;
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex; let targetC = td.cellIndex;
+
+      if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          if (cell.cellIndex === 0) return;
+          let r = cell.parentElement.rowIndex; let c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        });
+      } else if (e.ctrlKey || e.metaKey) {
+        isSelecting = true; startR = targetR; startC = targetC; td.classList.toggle('selected');
+      } else {
+        isSelecting = true; startR = targetR; startC = targetC;
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        td.classList.add('selected');
+      }
+      
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable || td.cellIndex === 0) return;
+      let endR = td.parentElement.rowIndex; let endC = td.cellIndex;
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      currentTable.querySelectorAll('td').forEach(cell => {
+        if (cell.cellIndex === 0) return;
+        let r = cell.parentElement.rowIndex; let c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+    
+    // 편집
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.getAttribute('contenteditable') === 'true') {
+        td.classList.add('editing');
+        td.focus(); 
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false); sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    document.addEventListener('focusout', (e) => {
+      if (e.target.tagName === 'TD') {
+        e.target.classList.remove('editing');
+      }
+    });
+
+    // 키보드
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          if (document.activeElement.tagName !== 'TD' || !document.activeElement.classList.contains('editing')) {
+            e.preventDefault(); performUndo(); return;
+          }
+        }
+        if (e.key.toLowerCase() === 'y') {
+          if (document.activeElement.tagName !== 'TD' || !document.activeElement.classList.contains('editing')) {
+            e.preventDefault(); performRedo(); return;
+          }
+        }
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+      let selected = document.querySelectorAll('.selected');
+      
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete')) {
+        let isEditing = document.activeElement.tagName === 'TD' && document.activeElement.classList.contains('editing');
+        if (isEditing && selected.length === 1) return; 
+        
+        saveUndoState(); 
+        
+        let processedRows = new Set();
+        selected.forEach(td => { 
+          let tr = td.parentElement;
+          if (processedRows.has(tr)) return;
+          processedRows.add(tr);
+          
+          let isStruck = tr.cells[1] && tr.cells[1].style.textDecoration.includes('line-through');
+          
+          for (let i = 1; i < tr.cells.length; i++) {
+            if (isStruck) {
+              tr.cells[i].style.color = '';
+              tr.cells[i].style.textDecoration = '';
+            } else {
+              tr.cells[i].style.color = '#a0aec0';
+              tr.cells[i].style.textDecoration = 'line-through';
+            }
+          }
+          td.classList.remove('editing');
+        });
+        e.preventDefault(); 
+        if (document.activeElement.tagName === 'TD') document.activeElement.blur();
+        return;
+      }
+      
+      if (selected.length === 1) {
+        let td = selected[0];
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          let tr = td.parentElement; let table = td.closest('table');
+          let nextTr = table.rows[tr.rowIndex + 1];
+          if (nextTr) {
+            let nextTd = nextTr.cells[td.cellIndex];
+            if (nextTd) { 
+              td.classList.remove('selected', 'editing'); 
+              if(document.activeElement === td) td.blur(); 
+              nextTd.classList.add('selected'); 
+            }
+          }
+          return;
+        }
+        
+        if (td.getAttribute('contenteditable') === 'true' && !td.classList.contains('editing')) {
+          if (e.key.length === 1) { 
+            saveUndoState(); 
+            td.innerText = ''; td.style.color = ''; td.style.textDecoration = '';
+            td.classList.add('editing'); td.focus(); 
+          }
+        }
+      }
+    });
+
+    // 클립보드
+    document.addEventListener('copy', (e) => {
+      if(document.activeElement && document.activeElement.tagName === 'TD') return;
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return;
+      e.preventDefault();
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0 || selected[0].getAttribute('contenteditable') !== 'true') return; 
+      e.preventDefault();
+      
+      saveUndoState();
+      
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      let table = selected[0].closest('table');
+      let sR = selected[0].parentElement.rowIndex; let sC = selected[0].cellIndex;
+      let tbody = table.querySelector('tbody');
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t');
+        let targetRow = table.rows[sR + i];
+        if (!targetRow) {
+          targetRow = tbody.insertRow();
+          for(let k=0; k < table.rows[0].cells.length; k++) {
+            let td = targetRow.insertCell();
+            if (k === 0) {
+              td.innerText = '='; td.className = 'drag-handle'; td.contentEditable = 'false';
+            } else if (k === 2) {
+              td.contentEditable = "true"; td.style.textAlign='left';
+            } else {
+              td.contentEditable = "false";
+            }
+          }
+        }
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetRow.cells[sC + j];
+          if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            targetCell.innerText = val.replace(/""/g, '"');
+            targetCell.style.color = '';
+            targetCell.style.textDecoration = '';
+          }
+        }
+      }
+    });
+
+    // 조회날짜
+    function initHistoryDates() {
+      let t = new Date(); let s = new Date(t); s.setDate(s.getDate() - 1); let e = new Date(t); e.setDate(e.getDate() + 1);
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      document.getElementById('history_start').value = f(s); document.getElementById('history_end').value = f(e);
+    }
+
+    // 내역조회
+    function loadHistory() {
+      let start = document.getElementById('history_start').value; let end = document.getElementById('history_end').value;
+      document.getElementById('tbody_history').innerHTML = '<tr><td colspan="3" style="text-align:center;">조회중</td></tr>';
+      google.script.run.withSuccessHandler(function(res) {
+        let tbody = document.getElementById('tbody_history'); tbody.innerHTML = '';
+        if (res.length === 0) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">결과없음</td></tr>'; return; }
+        res.forEach(item => {
+          let tr = document.createElement('tr');
+          let dt = new Date(item.time).toLocaleString();
+          tr.innerHTML = `<td style="text-align:center;">${item.worker}</td><td style="text-align:center;">${dt}</td>`;
+          let tdRest = document.createElement('td'); tdRest.style.textAlign = 'center';
+          let btn = document.createElement('button'); btn.innerText = '복원'; btn.className = 'reset-btn';
+          btn.onclick = function() { restoreState(item.data, false); };
+          tdRest.appendChild(btn); tr.appendChild(tdRest); tbody.appendChild(tr);
+        });
+      }).getHistoryFromNotion(start, end);
+    }
+
+    // 복원 (호환성 유지 포함)
+    function restoreState(base64Data, isAuto) {
+      try {
+        let state;
+        try {
+          // 구버전 호환 (압축 적용 전 저장된 데이터 처리)
+          state = JSON.parse(decodeURIComponent(escape(atob(base64Data))));
+        } catch (e) {
+          // 신버전 (LZString 압축 적용 후 데이터 처리)
+          state = JSON.parse(LZString.decompressFromBase64(base64Data));
+        }
+
+        ecountData = state.ecountData;
+        customPages = state.customPages || [];
+        document.getElementById('customPagesContainer').innerHTML = '';
+        
+        customPages.forEach(p => {
+          if(!p.filtersMap) p.filtersMap = {};
+          if(!p.sortMap) p.sortMap = { 1: 'desc', 4: 'desc' };
+          let cDiv = document.createElement('div');
+          cDiv.id = p.id;
+          cDiv.className = 'page custom-page';
+          cDiv.innerHTML = `
+            <div class="table-wrapper">
+              <table class="custom-table" id="tbl_${p.id}">
+                <colgroup><col class="col-move"><col class="col-date"><col class="col-addr"><col class="col-cust"><col class="col-num"><col class="col-rmk"><col class="col-wh"><col class="col-item"><col class="col-amt"></colgroup>
+                <thead>
+                  <tr>
+                    <th>이동</th>
+                    <th><div class="th-content"><span>날짜</span><button data-col="1" onclick="openPopup('날짜', 1, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>배송주소</span><button data-col="2" onclick="openPopup('배송주소', 2, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>업체명</span><button data-col="3" onclick="openPopup('업체명', 3, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>전표번호</span><button data-col="4" onclick="openPopup('전표번호', 4, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>특이사항</span><button data-col="5" onclick="openPopup('특이사항', 5, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>창고</span><button data-col="6" onclick="openPopup('창고', 6, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>품목</span><button data-col="7" onclick="openPopup('품목', 7, event)">▼</button></div></th>
+                    <th><div class="th-content"><span>금액</span><button data-col="8" onclick="openPopup('금액', 8, event)">▼</button></div></th>
+                  </tr>
+                </thead>
+                <tbody id="tbody_${p.id}">${p.html}</tbody>
+              </table>
+            </div>
+          `;
+          document.getElementById('customPagesContainer').appendChild(cDiv);
+          
+          new Sortable(document.getElementById(`tbody_${p.id}`), {
+            handle: '.drag-handle',
+            animation: 150,
+            axis: 'y'
+          });
+          
+          executeDOMFilter(p);
+        });
+        
+        currentTabIndex = customPages.length > 0 ? 1 : 0;
+        renderTabs();
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('복원완료');
+        }
+      } catch(e) {
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('오류발생');
+        }
+        renderTabs();
+      }
+    }
+
+    // 추출
+    function getSelectedText() {
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return '';
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      return textLines.join('\n');
+    }
+
+    // 복사
+    function copyTextToClipboard(text) {
+      if (!text) return;
+      let textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea);
+    }
+
+    // 문맥
+    const ctxMenu = document.getElementById('ctxMenu');
+    document.addEventListener('contextmenu', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.closest('.custom-table')) {
+        e.preventDefault();
+        if (!td.classList.contains('selected')) {
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          td.classList.add('selected');
+        }
+        ctxMenu.style.display = 'block';
+        ctxMenu.style.left = e.pageX + 'px';
+        ctxMenu.style.top = e.pageY + 'px';
+      } else {
+        ctxMenu.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if(e.target.closest('.ctx-menu')) return;
+      ctxMenu.style.display = 'none';
+    });
+
+    document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+      let text = getSelectedText();
+      copyTextToClipboard(text);
+      ctxMenu.style.display = 'none';
+    });
+  </script>
+</body>
+</html>

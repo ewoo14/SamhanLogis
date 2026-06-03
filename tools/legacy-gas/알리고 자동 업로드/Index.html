@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 900px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 20%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; height: calc(100vh - 160px); overflow-y: auto; }
+    .page.active { display: block; }
+
+    .drop-zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .drop-zone-item { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 40px 10px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; font-size: 14px; font-weight: bold; display: flex; flex-direction: column; align-items: center; }
+    .drop-zone-item:hover { border-color: #3182ce; background: #ebf8ff; }
+    .drop-zone-item.valid { border-color: #48bb78 !important; background: #f0fff4 !important; color: #2f855a !important; border-style: solid; }
+    
+    .top-action-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
+    .settings-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1; }
+    .action-group { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .record-count { font-size: 14px; font-weight: 800; color: #0033a0; background: #ebf8ff; padding: 8px 14px; border-radius: 20px; }
+    
+    .action-btn { padding: 8px 16px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
+    .action-btn:hover { background: #2b6cb0; transform: translateY(-1px); }
+    .action-btn:disabled { background: #a0aec0; cursor: not-allowed; }
+    .btn-green { background: #48bb78; } .btn-green:hover { background: #38a169; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    
+    .table-wrapper { height: calc(100vh - 300px); overflow: auto; border: 1px solid #cbd5e0; background: white; border-radius: 6px; margin-bottom: 30px; display: block; }
+    table.custom-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .custom-table th, .custom-table td { border-bottom: 1px solid #cbd5e0; border-right: 1px solid #cbd5e0; padding: 8px 12px; font-size: 13px; text-align: center; white-space: nowrap; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; position: sticky; top: 0; z-index: 5; border-top: 1px solid #cbd5e0; }
+
+    .th-content { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+    .th-content button { background: none; border: none; cursor: pointer; color: #4a5568; font-size: 10px; padding: 2px; margin-left: 5px; }
+    .filter-active { color: #e53e3e !important; font-weight: bold; }
+    
+    .filter-popup { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 6px; padding: 10px; z-index: 9999; width: 180px; flex-direction: column; gap: 8px; }
+    .filter-popup input[type="text"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; width: calc(100% - 14px); }
+    .filter-clear { width: 100%; padding: 8px; background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2; border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center; }
+
+    .day-mapping-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; }
+    .day-mapping-item { display: flex; flex-direction: column; background: #f8fafc; padding: 12px 8px; border: 1px solid #e2e8f0; border-radius: 8px; align-items: center; min-width: 130px; flex: 1; }
+    .day-mapping-item > span { width: 100%; text-align: center; font-weight: 900; color: #1a202c; margin-bottom: 12px; border-bottom: 2px solid #cbd5e0; padding-bottom: 6px; }
+    .region-check-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 2px; width: 100%; }
+
+    .checkbox-grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 15px; background: #edf2f7; border-radius: 6px; margin-bottom: 0; }
+    .checkbox-item { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: bold; color: #2d3748; cursor: pointer; }
+
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+  </style>
+</head>
+<body>
+
+  <body onclick="if(!event.target.closest('.ctx-menu')) { let m = document.getElementById('ctxMenu'); if(m) m.style.display='none'; }">
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="filterPopup" class="filter-popup">
+    <input type="text" id="filterText" placeholder="검색어 입력" oninput="applyFilterRealtime()">
+    <button class="filter-clear" onclick="clearFilter()">필터 해제</button>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다.</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold; margin-top:20px;">사용자 인증 중...</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px; width: 80%; max-width: 600px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      <span id="loadingText">작업 처리 중입니다...</span>
+      <div id="progressContainer" style="margin-top: 20px; display: none; width: 100%;">
+        <div style="background: #e2e8f0; border-radius: 10px; overflow: hidden; height: 20px; width: 100%;">
+          <div id="progressBar" style="background: #3182ce; width: 0%; height: 100%; transition: width 0.3s;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 14px; font-weight: bold; color: #4a5568;">
+          <span id="progressText">0 / 0</span>
+          <span id="etaText" style="color: #e53e3e;">예상시간 계산중</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>영업 문자 발송 통합 시스템</h2>
+      <p>지역별 주소록 추출 및 변환 프로그램</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider"></div>
+      <div class="nav-item active" onclick="switchTab(0)">업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">요일발송</div>
+      <div class="nav-item" onclick="switchTab(2)">전체발송</div>
+      <div class="nav-item" onclick="switchTab(3)">골프회</div>
+      <div class="nav-item" onclick="switchTab(4)">저장내역</div>
+    </div>
+
+    <div id="page_upload" class="page active" style="max-width: 675px;">
+      <h3 style="text-align: center;">주소록 엑셀 업로드</h3>
+      <p style="text-align: center; font-size: 13px; color: #718096; margin-bottom: 25px;">서버 외부 자료 동기화를 위해 업로드가 필요합니다.</p>
+      
+      <div class="drop-zone-grid">
+        <div class="drop-zone-item" id="drop_ecount" onclick="document.getElementById('file_ecount').click()">
+          이카운트 거래처리스트<br><span id="status_ecount" style="font-weight:normal; margin-top:8px;">대기중</span>
+        </div>
+        <div class="drop-zone-item" id="drop_kt" onclick="document.getElementById('file_kt').click()">
+          KT 공유주소록<br><span id="status_kt" style="font-weight:normal; margin-top:8px;">대기중</span>
+        </div>
+      </div>
+      
+      <input type="file" id="file_ecount" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event, 'ecount')">
+      <input type="file" id="file_kt" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event, 'kt')">
+      
+      <div style="text-align: center; margin-top: 30px;">
+        <button class="action-btn" style="padding: 12px 40px; font-size: 15px;" onclick="syncServerData()">노션 동기화</button>
+        <div id="syncResultText" style="margin-top: 15px; font-size: 14px; font-weight: bold; color: #3182ce;"></div>
+      </div>
+    </div>
+
+    <div id="page_promo" class="page">
+      <div class="top-action-bar">
+        <div class="settings-group" id="dayMappingContainer"></div>
+        <div class="action-group">
+          <span class="record-count" id="count_promo">0건</span>
+          <button class="action-btn btn-green" id="btn_dl_promo" onclick="downloadData('promo')">CSV 다운로드</button>
+          <button class="action-btn" onclick="executePromo()">실행</button>
+        </div>
+      </div>
+      
+      <div class="table-wrapper" id="table_wrap_promo">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th style="width:150px;"><div class="th-content">전화번호<button data-col="phone" onclick="openFilterPopup('phone', 'promo', event)">▼</button></div></th>
+              <th><div class="th-content">이름<button data-col="name" onclick="openFilterPopup('name', 'promo', event)">▼</button></div></th>
+              <th style="width:200px;"><div class="th-content">그룹<button data-col="group" onclick="openFilterPopup('group', 'promo', event)">▼</button></div></th>
+            </tr>
+          </thead>
+          <tbody id="tbody_promo"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page_all" class="page">
+      <div class="top-action-bar">
+        <div class="settings-group">
+          <span style="font-size:13px; font-weight:bold; color:#4a5568;">노션 및 업로드된 주소록 전체 병합 변환</span>
+        </div>
+        <div class="action-group">
+          <span class="record-count" id="count_all">0건</span>
+          <button class="action-btn btn-green" id="btn_dl_all" onclick="downloadData('all')">CSV 다운로드</button>
+          <button class="action-btn" onclick="executeAllClients()">실행</button>
+        </div>
+      </div>
+      
+      <div class="table-wrapper" id="table_wrap_all">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th style="width:150px;"><div class="th-content">전화번호<button data-col="phone" onclick="openFilterPopup('phone', 'all', event)">▼</button></div></th>
+              <th><div class="th-content">이름<button data-col="name" onclick="openFilterPopup('name', 'all', event)">▼</button></div></th>
+              <th style="width:200px;"><div class="th-content">그룹<button data-col="group" onclick="openFilterPopup('group', 'all', event)">▼</button></div></th>
+            </tr>
+          </thead>
+          <tbody id="tbody_all"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page_golf" class="page">
+      <div class="top-action-bar">
+        <div class="settings-group">
+          <div class="checkbox-grid">
+            <label class="checkbox-item"><input type="checkbox" id="chk_서울" checked> 서울</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_경기" checked> 경기</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_충청" checked> 충청</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_강원"> 강원</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_전라"> 전라</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_경상"> 경상</label>
+            <label class="checkbox-item"><input type="checkbox" id="chk_제주"> 제주</label>
+          </div>
+        </div>
+        <div class="action-group">
+          <span class="record-count" id="count_golf">0건</span>
+          <button class="action-btn btn-green" id="btn_dl_golf" onclick="downloadData('golf')">CSV 다운로드</button>
+          <button class="action-btn" onclick="executeGolf()">실행</button>
+        </div>
+      </div>
+
+      <div class="table-wrapper" id="table_wrap_golf">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th style="width:150px;"><div class="th-content">전화번호<button data-col="phone" onclick="openFilterPopup('phone', 'golf', event)">▼</button></div></th>
+              <th><div class="th-content">이름<button data-col="name" onclick="openFilterPopup('name', 'golf', event)">▼</button></div></th>
+              <th style="width:200px;"><div class="th-content">그룹<button data-col="group" onclick="openFilterPopup('group', 'golf', event)">▼</button></div></th>
+            </tr>
+          </thead>
+          <tbody id="tbody_golf"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page_history" class="page">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <input type="date" id="history_start" class="reset-btn"> ~ 
+        <input type="date" id="history_end" class="reset-btn">
+        <button class="reset-btn" style="margin-left: 10px; background: #3182ce; color: white;" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table">
+          <thead>
+            <tr><th>작업자</th><th>생성일시</th><th>처리주제</th><th>데이터상세</th></tr>
+          </thead>
+          <tbody id="tbody_history"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let globalUser = { email: '', name: '' };
+    let serverData = { notion: [], sheets: [] };
+    let localData = { ecount: [], kt: [] };
+    let rawEcountData = [];
+    let isDataSynced = false;
+
+    let currentProcessData = {};
+
+    window.onload = function() {
+      initHistoryDates();
+      initDayMappingUI();
+      initDragAndDrop();
+      
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('authLoading').style.display = 'none';
+        if (res.authorized) {
+          globalUser.email = res.email;
+          globalUser.name = res.managerName;
+          document.getElementById('welcomeName').innerText = res.managerName;
+          document.getElementById('welcomeAnimation').style.display = 'flex';
+          
+          setTimeout(() => {
+            document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+          }, 100);
+
+          setTimeout(() => {
+            document.getElementById('mobileGate').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+          }, 2500);
+        } else {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">접근실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error}</span></div>`;
+        }
+      }).getUserAuth();
+    };
+
+    function initDragAndDrop() {
+      ['ecount', 'kt'].forEach(type => {
+        let dz = document.getElementById('drop_' + type);
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderStyle = 'solid'; dz.style.borderColor = '#3182ce'; });
+        dz.addEventListener('dragleave', () => { dz.style.borderStyle = 'dashed'; dz.style.borderColor = ''; });
+        dz.addEventListener('drop', e => {
+          e.preventDefault(); dz.style.borderStyle = 'dashed'; dz.style.borderColor = '';
+          if (e.dataTransfer.files.length > 0) {
+            document.getElementById('file_' + type).files = e.dataTransfer.files;
+            handleFile({ target: { files: e.dataTransfer.files } }, type);
+          }
+        });
+      });
+    }
+
+    function switchTab(index) {
+      let navItems = document.querySelectorAll('.nav-item');
+      let slider = document.getElementById('slider');
+      slider.style.width = (100 / navItems.length) + '%';
+      slider.style.transform = `translateX(${index * 100}%)`;
+      navItems.forEach((el, i) => el.classList.toggle('active', i === index));
+      document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
+      
+      if(index === 4) loadHistory();
+    }
+
+    function handleFile(e, type) {
+      let file = e.target.files[0];
+      if (!file) return;
+      let dz = document.getElementById('drop_' + type);
+      let st = document.getElementById('status_' + type);
+      st.innerText = '처리중...';
+      dz.classList.remove('valid');
+
+      let reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          let wb = XLSX.read(evt.target.result, { type: 'binary' });
+          let sheet = wb.Sheets[wb.SheetNames[0]];
+          
+          let data;
+          if (type === 'ecount') {
+            data = XLSX.utils.sheet_to_json(sheet, { range: 1 });
+            if (data.length > 0) data.pop();
+            data = data.filter(row => String(row['그룹'] || '').trim() === 'SF(밴더)');
+            rawEcountData = data.map(row => ({
+              '거래처코드': row['거래처코드'],
+              '담당자명': row['담당자명'],
+              '거래처명': row['거래처명'],
+              '대표자명': row['대표자명'],
+              '주소': row['주소1'] || row['주소'],
+              '전화번호': row['전화번호'],
+              '비고': row['검색창내용'] || row['비고']
+            }));
+          } else {
+            data = XLSX.utils.sheet_to_json(sheet);
+          }
+          
+          localData[type] = [];
+          data.forEach(row => {
+            let p = String(row['휴대폰 전화번호'] || row['연락처'] || row['전화번호'] || '');
+            let n = String(row['성명'] || row['회사명'] || row['이름'] || row['거래처명'] || '');
+            let g = String(row['그룹'] || '');
+            
+            p = p.replace(/[^0-9]/g, '');
+            if (p.length === 11 && p.startsWith('010')) {
+              p = `010-${p.substring(3,7)}-${p.substring(7,11)}`;
+              if (type.startsWith('kt') && g !== '/SF벤더') return;
+              localData[type].push({ phone: p, name: n });
+            }
+          });
+          
+          dz.classList.add('valid');
+          st.innerText = `${localData[type].length}건 로드`;
+        } catch(err) {
+          st.innerText = '형식오류';
+        }
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    function syncServerData() {
+      if (rawEcountData.length === 0) {
+        alert('이카운트 거래처리스트 엑셀 파일을 먼저 업로드해주세요.');
+        return;
+      }
+
+      document.getElementById('loadingText').innerText = '데이터 서버 동기화 진행 중...';
+      document.getElementById('initialLoading').style.display = 'flex';
+      document.getElementById('progressContainer').style.display = 'block';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressText').innerText = '0 / ' + rawEcountData.length;
+      document.getElementById('etaText').innerText = '예상시간계산중';
+
+      let totalItems = rawEcountData.length;
+      let batchSize = 50;
+      let batches = [];
+      for(let i = 0; i < totalItems; i += batchSize) {
+        batches.push(rawEcountData.slice(i, i + batchSize));
+      }
+
+      let currentBatch = 0;
+      let totalAdded = 0, totalUpdated = 0, totalUnchanged = 0, totalFailed = 0;
+      let startTime = Date.now();
+
+      function processNextBatch() {
+        if (currentBatch >= batches.length) {
+          let finalMsg = '전체: ' + totalItems + '건, 추가: ' + totalAdded + '건, 갱신: ' + totalUpdated + '건, 변경없음: ' + totalUnchanged + '건, 실패: ' + totalFailed + '건';
+          document.getElementById('etaText').innerText = '마무리 작업중';
+
+          google.script.run.withSuccessHandler(res => {
+            serverData = res;
+            document.getElementById('syncResultText').innerText = finalMsg;
+            isDataSynced = true;
+
+            google.script.run.autoSaveToNotion(JSON.stringify(rawEcountData), globalUser.email, globalUser.name, '거래처 동기화 - ' + totalItems + '건');
+
+            setTimeout(() => {
+              document.getElementById('initialLoading').style.display = 'none';
+              document.getElementById('progressContainer').style.display = 'none';
+              alert('동기화가 완료되었습니다.');
+            }, 1500);
+          }).withFailureHandler(err => {
+            document.getElementById('initialLoading').style.display = 'none';
+            alert('수집오류: ' + err.message);
+          }).fetchExternalData();
+          return;
+        }
+
+        let chunk = batches[currentBatch];
+
+        google.script.run.withSuccessHandler(res => {
+          totalAdded += res.added;
+          totalUpdated += res.updated;
+          totalUnchanged += res.unchanged;
+          totalFailed += res.failed;
+
+          currentBatch++;
+          let processedItems = Math.min(currentBatch * batchSize, totalItems);
+          let percent = (processedItems / totalItems) * 100;
+
+          document.getElementById('progressBar').style.width = percent + '%';
+          document.getElementById('progressText').innerText = processedItems + ' / ' + totalItems;
+
+          let elapsed = Date.now() - startTime;
+          let timePerItem = elapsed / processedItems;
+          let remainingItems = totalItems - processedItems;
+          let etaSec = Math.ceil((timePerItem * remainingItems) / 1000);
+
+          let min = Math.floor(etaSec / 60);
+          let sec = etaSec % 60;
+          document.getElementById('etaText').innerText = '예상 남은 시간: ' + min + '분 ' + sec + '초';
+
+          processNextBatch();
+        }).withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+          alert('업데이트오류: ' + err.message);
+        }).syncEcountChunk(chunk);
+      }
+
+      processNextBatch();
+    }
+
+    function getCombinedLocalPhones() {
+      let merged = [...localData.ecount, ...localData.kt];
+      let map = {};
+      merged.forEach(x => { map[x.phone] = x.name; });
+      return map;
+    }
+
+    function getRegionCode(addr) {
+      if (!addr) return '기타';
+      if (addr.includes('서울')) return '서울';
+      
+      if (/전라|전남|전북|광주광역시|광산구/.test(addr) || (addr.includes('광주') && /동구|서구|남구|북구/.test(addr))) return '전라';
+      
+      if (addr.includes('인천') || addr.includes('경기') || /고양|성남|남양주|동두천|파주|안산|부천|화성|수원|용인|평택|의정부|과천|안양|군포|의왕|시흥|포천|구리|양주|김포|오산|하남|광주/.test(addr)) return '경기';
+      if (/충청|대전|세종|충북|충남/.test(addr)) return '충청';
+      if (/경상|경남|경북|부산|울산|대구/.test(addr)) return '경상';
+      if (addr.includes('강원')) return '강원';
+      if (addr.includes('제주')) return '제주';
+      return '기타';
+    }
+
+    function initDayMappingUI() {
+      const days = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+      const regions = ['서울', '경기', '강원', '충청', '전라', '경상', '제주'];
+      const container = document.getElementById('dayMappingContainer');
+      let html = '';
+
+      days.forEach((day, dIdx) => {
+        html += `<div class="day-mapping-item"><span>${day}</span><div class="region-check-list">`;
+        regions.forEach(reg => {
+          let checked = '';
+          if(dIdx === 1 && reg === '전라') checked = 'checked';
+          if(dIdx === 2 && reg === '경상') checked = 'checked';
+          if(dIdx === 3 && (reg === '서울' || reg === '경기')) checked = 'checked';
+          if(dIdx === 4 && (reg === '강원' || reg === '제주')) checked = 'checked';
+          html += `<label><input type="checkbox" class="day-reg-check" data-day="${dIdx}" data-reg="${reg}" ${checked}> ${reg}</label>`;
+        });
+        html += `</div></div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    let activeFilters = {};
+    let currentFilterTab = '';
+    let currentFilterCol = '';
+
+    function openFilterPopup(col, tabId, e) {
+      e.stopPropagation();
+      currentFilterCol = col;
+      currentFilterTab = tabId;
+      
+      let p = document.getElementById('filterPopup');
+      p.style.display = 'flex';
+      p.style.left = (e.pageX - 150) + 'px';
+      p.style.top = (e.pageY + 15) + 'px';
+      
+      document.getElementById('filterText').value = activeFilters[tabId]?.[col] || '';
+    }
+
+    function applyFilterRealtime() {
+      let text = document.getElementById('filterText').value.trim();
+      if (!activeFilters[currentFilterTab]) activeFilters[currentFilterTab] = {};
+      
+      if (!text) delete activeFilters[currentFilterTab][currentFilterCol];
+      else activeFilters[currentFilterTab][currentFilterCol] = text;
+      
+      renderTableRows(currentFilterTab);
+    }
+
+    function clearFilter() {
+      if (activeFilters[currentFilterTab]) {
+        delete activeFilters[currentFilterTab][currentFilterCol];
+      }
+      document.getElementById('filterPopup').style.display = 'none';
+      renderTableRows(currentFilterTab);
+    }
+
+    document.addEventListener('click', (e) => {
+      let p = document.getElementById('filterPopup');
+      if (p && p.style.display === 'flex' && !p.contains(e.target) && !e.target.closest('.th-content button')) {
+        p.style.display = 'none';
+      }
+    });
+
+    function renderTableRows(tabId) {
+      let dt = currentProcessData[tabId];
+      if (!dt || !dt.list) return;
+      
+      let tbody = document.getElementById(`tbody_${tabId}`);
+      let groupName = dt.filename.replace('.csv', '');
+      let html = '';
+      let count = 0;
+      
+      let filters = activeFilters[tabId] || {};
+      
+      dt.list.forEach(r => {
+        let pass = true;
+        if (filters.phone && !r.phone.includes(filters.phone)) pass = false;
+        if (filters.name && !r.name.includes(filters.name)) pass = false;
+        if (filters.group && !groupName.includes(filters.group)) pass = false;
+        
+        if (pass) {
+          html += `<tr><td contenteditable="true">${r.phone}</td><td contenteditable="true" style="text-align:left;">${r.name}</td><td contenteditable="true">${groupName}</td></tr>`;
+          count++;
+        }
+      });
+      
+      tbody.innerHTML = html;
+      document.getElementById(`count_${tabId}`).innerText = `${count}건`;
+      
+      document.querySelectorAll(`#table_wrap_${tabId} th button`).forEach(btn => {
+        let col = btn.getAttribute('data-col');
+        if (activeFilters[tabId]?.[col]) btn.classList.add('filter-active');
+        else btn.classList.remove('filter-active');
+      });
+    }
+
+    function renderTable(list, tabId, filename, folderId, topic) {
+      hideLoading();
+      if (list.length === 0) return alert('조건에 일치하는 데이터가 없습니다.');
+      
+      currentProcessData[tabId] = { list: list, filename: filename, folderId: folderId, topic: topic };
+      activeFilters[tabId] = {};
+      
+      renderTableRows(tabId);
+    }
+
+    function downloadData(tabId) {
+      let dt = currentProcessData[tabId];
+      if (!dt || !dt.list || dt.list.length === 0) return;
+      
+      showLoading('CSV 파일 변환 및 드라이브 전송 중...');
+      let csvContent = '\uFEFF전화번호,이름,그룹\n';
+      let groupName = dt.filename.replace('.csv', '');
+      let filters = activeFilters[tabId] || {};
+      
+      let filteredList = dt.list.filter(r => {
+        if (filters.phone && !r.phone.includes(filters.phone)) return false;
+        if (filters.name && !r.name.includes(filters.name)) return false;
+        if (filters.group && !groupName.includes(filters.group)) return false;
+        return true;
+      });
+      
+      if(filteredList.length === 0) {
+        hideLoading();
+        return alert('다운로드할 데이터가 없습니다.');
+      }
+
+      filteredList.forEach(r => {
+        csvContent += `${r.phone},"${r.name.replace(/"/g, '""')}","${groupName}"\n`;
+      });
+
+      downloadLocal(dt.filename, csvContent);
+      
+      google.script.run.withSuccessHandler(()=>{
+        hideLoading();
+        alert('다운로드 및 저장이 완료되었습니다.');
+      }).withFailureHandler(()=>{
+        hideLoading();
+        alert('서버 업로드에 실패했습니다.');
+      }).uploadCsvToDrive(dt.filename, csvContent, dt.folderId);
+
+      google.script.run.autoSaveToNotion(JSON.stringify(filteredList), globalUser.email, globalUser.name, dt.topic + ` - ${filteredList.length}건`);
+    }
+
+    function executePromo() {
+      if (!isDataSynced) return alert('업로드 페이지에서 노션 동기화를 먼저 진행하세요.');
+      
+      let dayIdx = new Date().getDay();
+      let checks = document.querySelectorAll(`.day-reg-check[data-day="${dayIdx}"]:checked`);
+      let targets = Array.from(checks).map(c => c.getAttribute('data-reg'));
+      
+      if (targets.length === 0) return alert('지정된 발송 요일이 휴무 상태입니다.');
+
+      showLoading('요일별 발송 자료 취합 중...');
+      
+      setTimeout(() => {
+        let phoneMap = new Set();
+        let results = [];
+        
+        serverData.notion.forEach(x => {
+          let p = x.phone.match(/(010-\d{3,4}-\d{4})/)?.[0];
+          if (p && targets.includes(getRegionCode(x.addr))) {
+            phoneMap.add(p);
+            results.push({ phone: p, name: x.name });
+          }
+        });
+
+        serverData.sheets.forEach(x => {
+          let p = x.phone.replace(/[^0-9]/g, '');
+          if (p.length === 11 && p.startsWith('010')) p = `010-${p.substring(3,7)}-${p.substring(7,11)}`;
+          if (p && targets.includes(getRegionCode(x.addr)) && !phoneMap.has(p)) {
+            phoneMap.add(p);
+            results.push({ phone: p, name: x.name });
+          }
+        });
+
+        let todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        let locName = targets.join('_');
+        let fileName = `${todayStr}_알리고_SF_${locName}.csv`;
+        
+        renderTable(results, 'promo', fileName, '1YdALcpyYBFrO6U_X4lJpO3RBESilfKcr', `요일발송 (${locName})`);
+      }, 100);
+    }
+
+    function executeAllClients() {
+      if (!isDataSynced) return alert('업로드 페이지에서 노션 동기화를 먼저 진행하세요.');
+      showLoading('전체 거래처 자료 취합 중...');
+
+      setTimeout(() => {
+        let localMap = getCombinedLocalPhones();
+        let blocked = ["010-5114-9955", "010-4731-3294", "010-5646-1545"];
+        let finalMap = { ...localMap };
+        
+        serverData.notion.forEach(x => {
+          let p = x.phone.match(/(010-\d{3,4}-\d{4})/)?.[0];
+          if (p && !finalMap[p]) finalMap[p] = x.name;
+        });
+
+        let todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        let results = [];
+        for (let p in finalMap) {
+          if (!blocked.includes(p)) results.push({ phone: p, name: finalMap[p] });
+        }
+
+        let fileName = `sf_전체_${todayStr}.csv`;
+        renderTable(results, 'all', fileName, '11XY6jVo8E1ROt2U4eJW8mvpfvzvzqCmU', '전체거래처');
+      }, 100);
+    }
+
+    function executeGolf() {
+      if (!isDataSynced) return alert('업로드 페이지에서 노션 동기화를 먼저 진행하세요.');
+      
+      let targets = [];
+      if (document.getElementById('chk_서울').checked) targets.push('서울');
+      if (document.getElementById('chk_경기').checked) targets.push('경기');
+      if (document.getElementById('chk_충청').checked) targets.push('충청');
+      if (document.getElementById('chk_강원').checked) targets.push('강원');
+      if (document.getElementById('chk_전라').checked) targets.push('전라');
+      if (document.getElementById('chk_경상').checked) targets.push('경상');
+      if (document.getElementById('chk_제주').checked) targets.push('제주');
+
+      if (targets.length === 0) return alert('최소 한 개 이상의 지역을 선택하세요.');
+
+      showLoading('골프회 자료 취합 중...');
+      
+      setTimeout(() => {
+        let phoneMap = new Set();
+        let results = [];
+        
+        serverData.notion.forEach(x => {
+          let p = x.phone.match(/(010-\d{3,4}-\d{4})/)?.[0];
+          if (p && targets.includes(getRegionCode(x.addr))) {
+            phoneMap.add(p);
+            results.push({ phone: p, name: x.name });
+          }
+        });
+
+        serverData.sheets.forEach(x => {
+          let p = x.phone.replace(/[^0-9]/g, '');
+          if (p.length === 11 && p.startsWith('010')) p = `010-${p.substring(3,7)}-${p.substring(7,11)}`;
+          if (p && targets.includes(getRegionCode(x.addr)) && !phoneMap.has(p)) {
+            phoneMap.add(p);
+            results.push({ phone: p, name: x.name });
+          }
+        });
+
+        let todayStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        let locName = targets.join('_');
+        let fileName = `골프회_${todayStr}_${locName}.csv`;
+        
+        renderTable(results, 'golf', fileName, '1OKlP1kOzRBEaXGh5F00x_iB9_futKIt7', `골프회 (${locName})`);
+      }, 100);
+    }
+
+    function downloadLocal(filename, text) {
+      let blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      let link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function showLoading(msg) {
+      document.getElementById('loadingText').innerText = msg;
+      document.getElementById('initialLoading').style.display = 'flex';
+    }
+    
+    function hideLoading() {
+      document.getElementById('initialLoading').style.display = 'none';
+    }
+
+    function initHistoryDates() {
+      let now = new Date();
+      let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      let kst = new Date(utc + (3600000 * 9));
+      
+      let s = new Date(kst); s.setDate(s.getDate() - 1);
+      let e = new Date(kst); e.setDate(e.getDate() + 1);
+      
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      
+      document.getElementById('history_start').value = f(s); 
+      document.getElementById('history_end').value = f(e);
+    }
+
+    function loadHistory() {
+      let start = document.getElementById('history_start').value; 
+      let end = document.getElementById('history_end').value;
+      let tbody = document.getElementById('tbody_history');
+      tbody.innerHTML = '<tr><td colspan="4">검색중...</td></tr>';
+      
+      google.script.run.withSuccessHandler(res => {
+        if(!res || !res.length) {
+          tbody.innerHTML = '<tr><td colspan="4">내역없음</td></tr>';
+          return;
+        }
+        tbody.innerHTML = res.map(row => {
+          let dateStr = new Date(row.time).toLocaleString();
+          return `<tr>
+            <td>${row.worker}</td>
+            <td>${dateStr}</td>
+            <td>${row.topic}</td>
+            <td><button class="reset-btn" onclick="viewHistoryDetail('${row.id}', this)">데이터조회</button></td>
+          </tr>`;
+        }).join('');
+      }).getHistoryFromNotion(start, end);
+    }
+
+    function viewHistoryDetail(id, btn) {
+      let prevText = btn.innerText;
+      btn.innerText = '불러오는중...';
+      btn.disabled = true;
+      
+      google.script.run.withSuccessHandler(jsonStr => {
+        btn.innerText = prevText;
+        btn.disabled = false;
+        if (jsonStr) {
+          try {
+            let data = JSON.parse(jsonStr);
+            alert(`해당 이력 데이터 확인:\n총 ${data.length}건이 보관되어 있습니다.\n미리보기: ${data[0].phone} / ${data[0].name}`);
+          } catch(e) { alert('분석오류'); }
+        } else {
+          alert('내역없음');
+        }
+      }).getSpecificHistory(id);
+    }
+
+    let isSelecting = false;
+    let startR = -1, startC = -1;
+    let currentTable = null;
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2 || e.target.closest('.ctx-menu') || e.target.closest('.filter-popup')) return;
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) {
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        return;
+      }
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return; 
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex; let targetC = td.cellIndex;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (td.getAttribute('contenteditable') === 'true' || td.querySelector('.center-indicator')) td.classList.toggle('selected');
+        startR = targetR; startC = targetC; isSelecting = false;
+      } else if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC && (cell.getAttribute('contenteditable') === 'true' || cell.querySelector('.center-indicator'))) cell.classList.add('selected');
+        });
+      } else {
+        isSelecting = true; startR = targetR; startC = targetC;
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        if(td.getAttribute('contenteditable') === 'true' || td.querySelector('.center-indicator')) td.classList.add('selected');
+      }
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable) return;
+      
+      let endR = td.parentElement.rowIndex, endC = td.cellIndex;
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      
+      currentTable.querySelectorAll('td').forEach(cell => {
+        let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC && (cell.getAttribute('contenteditable') === 'true' || cell.querySelector('.center-indicator'))) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.getAttribute('contenteditable') === 'true') {
+        td.focus();
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false);
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+      let selected = document.querySelectorAll('.selected');
+      
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
+        selected.forEach(td => { if(td.getAttribute('contenteditable') === 'true') td.innerText = ''; });
+        e.preventDefault();
+        return;
+      }
+      
+      if (selected.length === 1) {
+        let td = selected[0];
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          let tr = td.parentElement, table = td.closest('table'), span = td.rowSpan || 1;
+          let nextTr = table.rows[tr.rowIndex + span];
+          
+          if (nextTr) {
+            let nextTd = nextTr.cells[td.cellIndex];
+            if (nextTd) {
+              td.classList.remove('selected');
+              if(document.activeElement === td) td.blur(); 
+              nextTd.classList.add('selected');
+              if (nextTd.getAttribute('contenteditable') === 'true') {
+                nextTd.focus();
+                let range = document.createRange(), sel = window.getSelection();
+                range.selectNodeContents(nextTd); range.collapse(false);
+                sel.removeAllRanges(); sel.addRange(range);
+              }
+            }
+          }
+          return;
+        }
+        if (td.getAttribute('contenteditable') === 'true' && document.activeElement !== td) {
+          if (e.key.length === 1) { td.innerText = ''; td.focus(); }
+        }
+      }
+    });
+
+    document.addEventListener('copy', (e) => {
+      if(document.activeElement && document.activeElement.tagName === 'TD') return;
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return;
+      e.preventDefault();
+      
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            let t = cell.querySelector('.indicator-text');
+            rowData.push(t ? t.innerText : cell.innerText.replace(/\n$/, ''));
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0) return;
+      let firstCell = selected[0];
+      if (firstCell.getAttribute('contenteditable') !== 'true') return; 
+      
+      e.preventDefault();
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      
+      let table = firstCell.closest('table'), sR = firstCell.parentElement.rowIndex, sC = firstCell.cellIndex;
+      let tbody = table.querySelector('tbody');
+      
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t'), targetRow = table.rows[sR + i];
+        if (!targetRow) {
+          targetRow = tbody.insertRow();
+          for(let k=0; k < table.rows[0].cells.length; k++) {
+            let td = targetRow.insertCell();
+            td.contentEditable = "true";
+          }
+        }
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetRow.cells[sC + j];
+          if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            targetCell.innerText = val.replace(/""/g, '"');
+          }
+        }
+      }
+    });
+
+    const ctxMenu = document.getElementById('ctxMenu');
+    if (ctxMenu) {
+      document.addEventListener('contextmenu', (e) => {
+        let td = e.target.closest('td');
+        if (td && td.closest('.custom-table')) {
+          e.preventDefault();
+          if (!td.classList.contains('selected')) {
+            document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            td.classList.add('selected');
+          }
+          ctxMenu.style.display = 'block';
+          ctxMenu.style.left = e.pageX + 'px'; ctxMenu.style.top = e.pageY + 'px';
+        } else {
+          ctxMenu.style.display = 'none';
+        }
+      });
+      document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+        let selectedCells = Array.from(document.querySelectorAll('.selected'));
+        if (selectedCells.length === 0) return;
+        let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+        let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+        let table = selectedCells[0].closest('table'), textLines = [];
+        for (let r of rows) {
+          let rowData = [];
+          for (let c of cols) {
+            let cell = table.rows[r].cells[c];
+            if (cell && cell.classList.contains('selected')) {
+              let t = cell.querySelector('.indicator-text');
+              rowData.push(t ? t.innerText : cell.innerText.replace(/\n$/, ''));
+            }
+          }
+          textLines.push(rowData.join('\t'));
+        }
+        let textArea = document.createElement("textarea"); textArea.value = textLines.join('\n');
+        document.body.appendChild(textArea); textArea.select();
+        try { document.execCommand('copy'); } catch (err) {}
+        document.body.removeChild(textArea); ctxMenu.style.display = 'none';
+      });
+    }
+  </script>
+</body>
+</html>

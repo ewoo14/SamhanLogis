@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    .mobile-gate-layer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    .nav-container { position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 1200px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 25%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    .toggle-container { position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 500px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+    .toggle-slider { position: absolute; top: 0; left: 0; height: 100%; width: 50%; background: #3182ce; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .toggle-item { flex: 1; text-align: center; padding: 10px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .toggle-item.active { color: white; }
+
+    .page { display: none; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; width: 100%; }
+    .page.active { display: block; }
+    #page0, #page2, #page3 { max-width: 1000px; }
+    #page1 { max-width: 100%; }
+
+    #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; font-weight: bold; }
+    #drop_zone:hover { border-color: #3182ce; background: #ebf8ff; }
+    #drop_zone.valid { border-color: #48bb78; background: #f0fff4; color: #2f855a; border-style: solid; }
+    
+    .action-btn { padding: 8px 16px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin-left: 5px; }
+    .btn-save { background: #ed8936; }
+    .btn-excel { background: #107c41; }
+    .reset-btn { background: #edf2f7; color: #4a5568; }
+    
+    .table-wrapper { max-height: calc(100vh - 250px); overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: max-content; min-width: 100%; border-collapse: collapse; table-layout: fixed; user-select: none; }
+    .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 6px 10px; font-size: 12px; white-space: nowrap; vertical-align: middle; }
+    .custom-table th { color: #1a202c; font-weight: bold; position: sticky; top: -1px; z-index: 2; border-bottom: 2px solid #cbd5e0; text-align: center; padding: 0; outline: 1px solid #cbd5e0; }
+    .custom-table td { cursor: cell; }
+    
+    .th-content { display: flex; justify-content: center; align-items: center; position: relative; width: 100%; height: 100%; padding: 6px 20px 6px 10px; box-sizing: border-box; }
+    .th-content span { text-align: center; }
+    .th-content button { position: absolute; right: 2px; background: none; border: none; cursor: pointer; color: #4a5568; font-size: 10px; padding: 2px; }
+    .filter-active { color: #e53e3e !important; font-weight: bold; }
+
+    #page2 .custom-table th, #page3 .custom-table th { background-color: #edf2f7 !important; padding: 12px 10px !important; color: #4a5568; }
+
+    .filter-popup { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 6px; padding: 10px; z-index: 9999; flex-direction: column; gap: 8px; width: 170px; }
+    .filter-popup button { background: #edf2f7; border: 1px solid #cbd5e0; padding: 6px; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
+    .filter-popup button:hover { background: #e2e8f0; }
+    .filter-popup input[type="text"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; }
+    .filter-popup hr { margin: 2px 0; border: 0; border-top: 1px solid #cbd5e0; }
+    
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; }
+
+    .drag-handle:active { cursor: grabbing !important; }
+    .sortable-ghost { opacity: 0.4; background-color: #edf2f7; }
+    
+    .loading-modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center; flex-direction: column; color: white; font-size: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div id="loadingModal" class="loading-modal">
+    <div style="font-size: 40px; margin-bottom: 10px;">⏳</div>
+    <div id="loadingText">처리 중입니다...</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      로딩 중...
+    </div>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>세금계산서 일괄발행 프로그램</h2>
+      <p>홈택스 일괄 업로드용 엑셀 변환 (100건 단위 분할)</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider"></div>
+      <div class="nav-item active" onclick="switchTab(0)">엑셀 업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">결과 페이지</div>
+      <div class="nav-item" onclick="switchTab(2)">전표번호 필터링</div>
+      <div class="nav-item" onclick="switchTab(3)">저장 내역</div>
+    </div>
+
+    <div id="page0" class="page active">
+      <h3 style="text-align: center; margin-bottom: 20px;">판매조회 데이터 업로드</h3>
+      <div class="toggle-container">
+        <div class="toggle-slider" id="filter_toggle_slider"></div>
+        <div class="toggle-item active" onclick="setFilterToggle(true, 0)">회계반영일자 미전표 제외</div>
+        <div class="toggle-item" onclick="setFilterToggle(false, 1)">모든 전표 포함</div>
+      </div>
+      <div id="drop_zone" onclick="document.getElementById('file_input').click()">이곳에 [판매조회] 엑셀 파일을 드래그하거나 클릭하세요.</div>
+      <input type="file" id="file_input" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event)">
+      <div style="text-align:center; margin-top:20px;">
+        <button class="action-btn" style="padding: 10px 30px; font-size: 16px;" onclick="runProcess()">처리실행</button>
+      </div>
+      <p id="file_status" style="text-align:center; margin-top:15px; color:green; font-weight:bold;"></p>
+    </div>
+
+    <div id="page1" class="page">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <div id="resultCount" style="font-weight: bold; color: #e53e3e; font-size: 15px; width: 150px;">변환 대기: 0건</div>
+        <div style="flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center;">
+          <input type="text" placeholder="🔍 통합검색" style="padding: 8px 15px; width: 100%; max-width: 400px; border-radius: 20px; border: 1px solid #cbd5e0; text-align: center; outline: none;" oninput="applyGlobalSearch(this.value)">
+        </div>
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap;">
+          <button class="action-btn" style="background:#a0aec0;" onclick="clearAllFilters()">필터초기화</button>
+          <button class="action-btn btn-excel" onclick="exportToExcel()">엑셀 일괄 다운로드</button>
+          <button class="action-btn btn-save" onclick="saveToNotion()">내역 저장</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table" id="table_result">
+          <thead id="thead_result"></thead>
+          <tbody id="tbody_result"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page2" class="page">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <div style="font-weight: bold; color: #4a5568;">제외 처리할 전표번호 목록</div>
+        <div>
+          <button class="action-btn reset-btn" onclick="resetExceptionData()">초기화</button>
+          <button class="action-btn btn-save" onclick="saveExceptionData(this)">저장</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table" style="width: 100%; min-width: auto;">
+          <colgroup><col style="width:15%"><col style="width:70%"><col style="width:15%"></colgroup>
+          <thead><tr><th>이동</th><th>전표번호</th><th>삭제</th></tr></thead>
+          <tbody id="tbody_exception"></tbody>
+        </table>
+      </div>
+      <div style="text-align: center; margin-top: 10px;">
+        <button class="action-btn" onclick="addExceptionRow()" style="padding: 4px 20px; font-size: 16px;">+</button>
+      </div>
+    </div>
+
+    <div id="page3" class="page">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <input type="date" id="history_start" style="padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px;"> ~ 
+        <input type="date" id="history_end" style="padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px;">
+        <button class="action-btn" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table" style="width: 100%; min-width: auto;">
+          <thead><tr><th>작업자</th><th>저장일시</th><th>주제</th><th>복원여부</th></tr></thead>
+          <tbody id="tbody_history"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="filterPopup" class="filter-popup">
+    <div id="filter-text-wrap" style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:10px; font-size:12px;">
+        <label><input type="radio" name="filterMode" value="include" checked onchange="applyFilterRealtime()"> 포함</label>
+        <label><input type="radio" name="filterMode" value="exclude" onchange="applyFilterRealtime()"> 미포함</label>
+      </div>
+      <input type="text" id="filterText" placeholder="검색어 입력" oninput="applyFilterRealtime()">
+      <button onclick="applyEmptyFilter(true)" style="width:100%; text-align:center; margin-top:2px;">비어있음</button>
+      <button onclick="applyEmptyFilter(false)" style="width:100%; text-align:center;">비어있지 않음</button>
+    </div>
+    <button onclick="clearFilter()" style="color:red; margin-top:5px;">필터 해제</button>
+  </div>
+
+  <script>
+    // 변수
+    let rawExcelData = [];
+    let processedData = [];
+    let exceptionCodes = [];
+    let currentUserEmail = '';
+    let currentUserName = '';
+    let excludeEmptyDate = true;
+
+    // 함수
+    let undoStack = [];
+    let redoStack = [];
+
+    function saveState() {
+      undoStack.push(JSON.stringify(processedData));
+      if (undoStack.length > 30) undoStack.shift(); 
+      redoStack = [];
+    }
+
+    function undo() {
+      if (!undoStack.length) return;
+      redoStack.push(JSON.stringify(processedData));
+      processedData = JSON.parse(undoStack.pop());
+      renderTableData(); 
+    }
+
+    function redo() {
+      if (!redoStack.length) return;
+      undoStack.push(JSON.stringify(processedData));
+      processedData = JSON.parse(redoStack.pop());
+      renderTableData(); 
+    }
+
+    // 배열
+    const HEADER_LIST = [
+      "전자(세금)계산서 종류 (01:일반, 02:영세율)", "작성일자",
+      "공급자 등록번호 (\"-\" 없이 입력)", "공급자 종사업장번호",
+      "공급자 상호", "공급자 성명", "공급자 사업장주소", "공급자 업태",
+      "공급자 종목", "공급자 이메일",
+      "공급받는자 등록번호 (\"-\" 없이 입력)", "공급받는자 종사업장번호",
+      "공급받는자 상호", "공급받는자 성명", "공급받는자 사업장주소", "공급받는자 업태",
+      "공급받는자 종목", "공급받는자 이메일1", "공급받는자 이메일2",
+      "공급가액", "세액", "비고",
+      "일자1 (2자리, 작성년월 제외)", "품목1", "규격1", "수량1", "단가1",
+      "공급가액1", "세액1", "품목비고1",
+      "일자2 (2자리, 작성년월 제외)", "품목2", "규격2", "수량2", "단가2",
+      "공급가액2", "세액2", "품목비고2",
+      "일자3 (2자리, 작성년월 제외)", "품목3", "규격3", "수량3", "단가3",
+      "공급가액3", "세액3", "품목비고3",
+      "일자4 (2자리, 작성년월 제외)", "품목4", "규격4", "수량4", "단가4",
+      "공급가액4", "세액4", "품목비고4",
+      "현금", "수표", "어음", "외상미수금", "영수(01),청구(02)"
+    ];
+
+    // 상수
+    const yellowCols = [1, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 27, 28, 58];
+    const redCols = [0, 2, 4, 5];
+    const redDataCols = [0, 1, 2, 4, 5, 22, 58];
+    const numCols = [19, 20, 25, 26, 27, 28, 33, 34, 35, 36, 41, 42, 43, 44, 49, 50, 51, 52, 53, 54, 55, 56];
+    const textCols = [0, 2, 3, 10, 11, 58];
+    
+    let filtersMap = {};
+    let curFilterColIdx = -1;
+    let globalSearchText = '';
+
+    // 초기화
+    window.onload = function() {
+      initSortable();
+      initHistoryDates();
+      renderHeaders();
+      
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('authLoading').style.display = 'none';
+        if (res.authorized) {
+          currentUserEmail = res.email;
+          currentUserName = res.managerName;
+          
+          document.getElementById('welcomeName').innerText = res.managerName;
+          document.getElementById('welcomeAnimation').style.display = 'flex';
+          
+          setTimeout(() => {
+            document.querySelectorAll('.anim-line').forEach(el => {
+              el.style.opacity = '1';
+              el.style.transform = 'translateY(0)';
+            });
+          }, 100);
+
+          setTimeout(() => {
+            document.getElementById('mobileGate').style.display = 'none';
+            document.getElementById('initialLoading').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'block';
+            loadExceptionData();
+            checkAutoRestore();
+          }, 2500);
+        } else {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span></div>`;
+        }
+      }).getUserAuth();
+    };
+
+    function initSortable() {
+      let el = document.getElementById('tbody_exception');
+      if (el && typeof Sortable !== 'undefined') {
+        new Sortable(el, { handle: '.drag-handle', animation: 150, axis: 'y' });
+      }
+    }
+
+    function switchTab(index) {
+      let navItems = document.querySelectorAll('.nav-item');
+      let slider = document.getElementById('slider');
+      slider.style.width = (100 / navItems.length) + '%';
+      slider.style.transform = `translateX(${index * 100}%)`;
+      navItems.forEach((el, i) => el.classList.toggle('active', i === index));
+      document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
+    }
+
+    function setFilterToggle(val, index) {
+      excludeEmptyDate = val;
+      document.getElementById('filter_toggle_slider').style.transform = `translateX(${index * 100}%)`;
+      let items = document.querySelectorAll('.toggle-item');
+      items[0].classList.toggle('active', index === 0);
+      items[1].classList.toggle('active', index === 1);
+    }
+
+    // 파일업로드
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, {type: 'binary'});
+        let raw = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {range: 1});
+        
+        rawExcelData = raw.filter(r => (r['전표번호'] || r['거래처코드'] || r['일자']) && !String(r['거래처명'] || r['전표번호'] || '').includes('합계'));
+        
+        document.getElementById('drop_zone').innerText = file.name;
+        document.getElementById('drop_zone').classList.add('valid');
+        document.getElementById('file_status').innerText = '로드 완료. 처리실행을 눌러주세요.';
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    // 드래그
+    const dropZone = document.getElementById('drop_zone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#3182ce'; });
+    dropZone.addEventListener('dragleave', () => dropZone.style.borderColor = '#cbd5e0');
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault(); dropZone.style.borderColor = '#cbd5e0';
+      if (e.dataTransfer.files.length > 0) {
+        document.getElementById('file_input').files = e.dataTransfer.files;
+        handleFile({target: {files: e.dataTransfer.files}});
+      }
+    });
+
+    function cleanCustomerName(s) {
+      if (!s) return "";
+      let txt = String(s);
+      txt = txt.replace(/\((?!주\)).*?\)/g, "");
+      if (txt.indexOf('-') > -1) txt = txt.split('-', 1)[0];
+      return txt.replace(/구\)/g, '').replace(/\*/g, '').trim();
+    }
+
+    // 실행
+    function runProcess() {
+      if (!rawExcelData.length) return alert('엑셀 데이터를 업로드해주세요.');
+      
+      showLoading('데이터 변환 중...');
+      
+      setTimeout(() => {
+        processedData = [];
+        let validDateFallback = '';
+        
+        for (let i = 0; i < rawExcelData.length; i++) {
+          let r = rawExcelData[i];
+          let accDate = String(r['회계반영일자'] || r['회계반영여부'] || '').trim();
+          let orgDate = String(r['일자'] || '').trim();
+          
+          let rawSlip = '';
+            for (let key in r) {
+              if (key.replace(/\s/g, '').includes('전표번호')) {
+                rawSlip = String(r[key] || '').trim();
+                break;
+              }
+            }
+            
+            let match = rawSlip.match(/-\s*(\d+)/);
+            let slipNum = match ? match[1] : rawSlip.replace(/[^0-9]/g, '');
+            
+            if (excludeEmptyDate && !accDate) continue;
+            
+            if (!validDateFallback && orgDate) {
+            let m = orgDate.match(/(\d{4})[-\/\.](\d{2})[-\/\.](\d{2})/);
+            if (m) validDateFallback = m[1] + m[2] + m[3];
+          }
+          
+          let fullDate = validDateFallback || (new Date().toISOString().slice(0,10).replace(/-/g,''));
+          let day2 = fullDate.slice(6, 8);
+          
+          let email2 = '';
+          for (let key in r) {
+            if (key.toLowerCase().includes('mail') && key.includes('2')) email2 = r[key];
+          }
+
+          let rowArr = [];
+          for (let h of HEADER_LIST) {
+            let val = '';
+            switch (h) {
+              case "전자(세금)계산서 종류 (01:일반, 02:영세율)": val = "01"; break;
+              case "작성일자": val = fullDate; break;
+              case "공급자 등록번호 (\"-\" 없이 입력)": val = "2148720659"; break;
+              case "공급자 상호": val = "（주）삼한공조시스템"; break;
+              case "공급자 성명": val = "김미선"; break;
+              case "공급자 사업장주소": val = "서울특별시 서초구 마방로2길 9, 4층(양재동)"; break;
+              case "공급자 업태": val = "도소매"; break;
+              case "공급자 종목": val = "가전제품"; break;
+              case "공급자 이메일": val = "apjog09@daum.net"; break;
+              case "공급받는자 등록번호 (\"-\" 없이 입력)": val = String(r['거래처코드'] || '').replace(/[^\d]/g, ''); break;
+              case "공급받는자 종사업장번호": val = ""; break;
+              case "공급받는자 상호": val = cleanCustomerName(r['거래처명']); break;
+              case "공급받는자 성명": val = r['대표이사'] || ''; break;
+              case "공급받는자 사업장주소": val = r['주소1'] || ''; break;
+              case "공급받는자 업태": val = r['업태'] || ''; break;
+              case "공급받는자 종목": val = r['종목'] || ''; break;
+              case "공급받는자 이메일1": val = r['Email'] || ''; break;
+              case "공급받는자 이메일2": val = email2; break;
+              case "공급가액": val = r['공급가액합계'] || r['공급가액'] || 0; break;
+              case "세액": val = r['부가세합계'] || r['부가세'] || 0; break;
+              case "비고": val = r['배송주소'] || ''; break;
+              case "일자1 (2자리, 작성년월 제외)": val = day2; break;
+              case "품목1": val = r['품목명'] || ''; break;
+              case "공급가액1": val = r['공급가액합계'] || r['공급가액'] || 0; break;
+              case "세액1": val = r['부가세합계'] || r['부가세'] || 0; break;
+              case "영수(01),청구(02)": val = "02"; break;
+            }
+            rowArr.push(val);
+          }
+          rowArr.push(slipNum);
+          processedData.push(rowArr);
+        }
+        
+        undoStack = [];
+        redoStack = [];
+        
+        renderTableData();
+        hideLoading();
+        switchTab(1);
+
+        let todayStr = new Date().toISOString().slice(0,10);
+        google.script.run.autoSaveResultToNotion(JSON.stringify(processedData), currentUserEmail, currentUserName, '자동저장 (' + todayStr + ')');
+      }, 100);
+    }
+
+    // 렌더링
+    function renderHeaders() {
+      let tr = document.createElement('tr');
+      HEADER_LIST.forEach((h, cIdx) => {
+        let th = document.createElement('th');
+        let bgColor = yellowCols.includes(cIdx) ? '#FFFF00' : (redCols.includes(cIdx) ? '#F2DCDB' : '#E2EFDA');
+        th.style.backgroundColor = bgColor;
+        
+        th.style.color = '#000000'; 
+        
+        let isFiltered = filtersMap[cIdx] ? 'filter-active' : '';
+        th.innerHTML = `
+          <div class="th-content">
+            <span>${h}</span>
+            <button class="${isFiltered}" onclick="openPopup(${cIdx}, event)" style="color:#4a5568;">▼</button>
+          </div>
+        `;
+        tr.appendChild(th);
+      });
+      document.getElementById('thead_result').innerHTML = '';
+      document.getElementById('thead_result').appendChild(tr);
+    }
+
+    function renderTableData() {
+      let tbody = document.getElementById('tbody_result');
+      tbody.innerHTML = '';
+      
+      let visibleCount = 0;
+      processedData.forEach((row, rIdx) => {
+        let isVisible = true;
+        
+        let rowSlipNum = String(row[59] || '');
+        if (rowSlipNum && exceptionCodes.includes(rowSlipNum)) {
+          isVisible = false;
+        }
+
+        for (let colIdx in filtersMap) {
+          let f = filtersMap[colIdx];
+          let val = String(row[colIdx] || '');
+          if (f.type === 'empty') {
+            if (val.trim() !== '') isVisible = false;
+          } else if (f.type === 'not_empty') {
+            if (val.trim() === '') isVisible = false;
+          } else if (f.type === 'include' && !val.includes(f.text)) {
+            isVisible = false;
+          } else if (f.type === 'exclude' && val.includes(f.text)) {
+            isVisible = false;
+          }
+        }
+
+        if (isVisible && globalSearchText) {
+          let match = false;
+          for (let i = 0; i < row.length; i++) {
+            if (String(row[i] || '').toLowerCase().includes(globalSearchText)) {
+              match = true;
+              break;
+            }
+          }
+          if (!match) isVisible = false;
+        }
+
+        if (isVisible) {
+          visibleCount++;
+          let tr = document.createElement('tr');
+          row.slice(0, 59).forEach((val, cIdx) => {
+            let td = document.createElement('td');
+            
+            if (redDataCols.includes(cIdx)) {
+              td.style.backgroundColor = '#F2DCDB';
+            }
+            
+            td.style.textAlign = numCols.includes(cIdx) ? 'right' : 'left';
+            td.innerText = numCols.includes(cIdx) && !isNaN(Number(val)) && val !== '' ? Number(val).toLocaleString() : val;
+            
+            td.setAttribute('contenteditable', 'true');
+            td.dataset.r = rIdx;
+            td.dataset.c = cIdx;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        }
+      });
+      
+      document.getElementById('resultCount').innerText = `변환 대기: ${visibleCount}건`;
+    }
+
+    // 필터
+    function openPopup(colIdx, e) {
+      e.stopPropagation();
+      curFilterColIdx = colIdx;
+      let popup = document.getElementById('filterPopup');
+      popup.style.display = 'flex';
+      popup.style.left = e.pageX + 'px';
+      popup.style.top = (e.pageY + 15) + 'px';
+      
+      let f = filtersMap[colIdx];
+      document.getElementById('filterText').value = (f && (f.type === 'include' || f.type === 'exclude')) ? f.text : '';
+      if (f && f.type === 'exclude') document.querySelector('input[name="filterMode"][value="exclude"]').checked = true;
+      else document.querySelector('input[name="filterMode"][value="include"]').checked = true;
+    }
+
+    document.addEventListener('click', (e) => {
+      let popup = document.getElementById('filterPopup');
+      if (popup.style.display === 'flex' && !popup.contains(e.target) && e.target.tagName !== 'BUTTON') {
+        popup.style.display = 'none';
+      }
+    });
+
+    function applyFilterRealtime() {
+      let text = document.getElementById('filterText').value.trim();
+      let type = document.querySelector('input[name="filterMode"]:checked').value;
+      if (!text) delete filtersMap[curFilterColIdx];
+      else filtersMap[curFilterColIdx] = { type: type, text: text };
+      renderHeaders();
+      renderTableData();
+    }
+
+    function applyEmptyFilter(isEmpty) {
+      filtersMap[curFilterColIdx] = { type: isEmpty ? 'empty' : 'not_empty', text: '' };
+      document.getElementById('filterPopup').style.display = 'none';
+      renderHeaders();
+      renderTableData();
+    }
+
+    function clearFilter() {
+      delete filtersMap[curFilterColIdx];
+      document.getElementById('filterPopup').style.display = 'none';
+      renderHeaders();
+      renderTableData();
+    }
+
+    function clearAllFilters() {
+      filtersMap = {};
+      globalSearchText = '';
+      let gInput = document.querySelector('#page1 input[placeholder="🔍 통합검색"]');
+      if (gInput) gInput.value = '';
+      renderHeaders();
+      renderTableData();
+    }
+
+    function applyGlobalSearch(val) {
+      globalSearchText = val.trim().toLowerCase();
+      renderTableData();
+    }
+
+    // 목록
+    function applyExceptionRealtime() {
+      let data = [];
+      document.querySelectorAll('#tbody_exception tr').forEach(tr => {
+        let w = tr.children[1].innerText.trim();
+        if (w) data.push(w);
+      });
+      exceptionCodes = data;
+      renderTableData();
+    }
+
+    function addExceptionRow(val = '') {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `<td class="drag-handle" style="text-align:center; cursor:grab; font-weight:bold; color:#a0aec0; user-select:none;">=</td>
+                      <td contenteditable="true" style="text-align:center; cursor:text;" oninput="applyExceptionRealtime()">${val}</td>
+                      <td style="text-align:center;"><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove(); applyExceptionRealtime();">-</button></td>`;
+      document.getElementById('tbody_exception').appendChild(tr);
+    }
+
+    function resetExceptionData() {
+      document.getElementById('tbody_exception').innerHTML = '';
+      for (let i = 0; i < 300; i++) addExceptionRow();
+      applyExceptionRealtime();
+    }
+
+    function saveExceptionData(btn) {
+      let data = [];
+      document.querySelectorAll('#tbody_exception tr').forEach(tr => {
+        let w = tr.children[1].innerText.trim();
+        if (w) data.push(w);
+      });
+      exceptionCodes = data;
+      
+      let prevText = btn.innerText;
+      btn.innerText = '저장중...';
+      btn.disabled = true;
+      document.body.style.cursor = 'wait';
+      
+      google.script.run.withSuccessHandler(() => {
+        btn.innerText = prevText;
+        btn.disabled = false;
+        document.body.style.cursor = 'default';
+        alert('저장 완료');
+      }).withFailureHandler(err => {
+        btn.innerText = prevText;
+        btn.disabled = false;
+        document.body.style.cursor = 'default';
+        alert('오류: ' + err.message);
+      }).saveExceptionCodesToNotion(data);
+    }
+
+    function loadExceptionData() {
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('tbody_exception').innerHTML = '';
+        exceptionCodes = res || [];
+        exceptionCodes.forEach(w => addExceptionRow(w));
+        for(let i = exceptionCodes.length; i < 300; i++) addExceptionRow(); 
+      }).getExceptionCodesFromNotion();
+    }
+
+    function saveToNotion() {
+      if (!processedData.length) return alert('저장할 데이터가 없습니다.');
+      let topic = prompt('저장 주제를 입력하세요');
+      if (topic === null) return;
+      
+      showLoading('서버 저장 중...');
+      let jsonStr = JSON.stringify(processedData);
+      
+      google.script.run.withSuccessHandler(() => {
+        hideLoading();
+        alert('저장 완료');
+      }).withFailureHandler(err => {
+        hideLoading();
+        alert('오류: ' + err.message);
+      }).autoSaveResultToNotion(jsonStr, currentUserEmail, currentUserName, topic);
+    }
+
+    // 기록
+    function initHistoryDates() {
+      let d = new Date(), s = new Date(d); s.setDate(s.getDate() - 1);
+      document.getElementById('history_start').value = s.toISOString().split('T')[0];
+      document.getElementById('history_end').value = d.toISOString().split('T')[0];
+    }
+
+    function loadHistory() {
+      let s = document.getElementById('history_start').value;
+      let e = document.getElementById('history_end').value;
+      document.getElementById('tbody_history').innerHTML = '<tr><td colspan="4" style="text-align:center;">조회중...</td></tr>';
+      
+      google.script.run.withSuccessHandler(res => {
+        let tbody = document.getElementById('tbody_history');
+        if (!res.length) return tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">결과없음</td></tr>';
+        tbody.innerHTML = res.map(item => `<tr>
+          <td style="text-align:center;">${item.worker}</td>
+          <td style="text-align:center;">${new Date(item.time).toLocaleString()}</td>
+          <td style="text-align:center;">${item.topic || ''}</td>
+          <td style="text-align:center;"><button class="action-btn" onclick="restoreHistory('${item.id}', this)">복원</button></td>
+        </tr>`).join('');
+      }).getHistoryFromNotion(s, e);
+    }
+
+    function restoreHistory(id, btn) {
+      let prevText = btn.innerText;
+      btn.innerText = '복원중...';
+      btn.disabled = true;
+      showLoading('데이터 복원 중...');
+      
+      google.script.run.withSuccessHandler(jsonStr => {
+        btn.innerText = prevText;
+        btn.disabled = false;
+        hideLoading();
+        if (jsonStr) {
+          try {
+            processedData = JSON.parse(jsonStr);
+            renderTableData();
+            switchTab(1);
+          } catch(e) { alert('데이터 파싱 오류'); }
+        }
+      }).getSpecificHistory(id);
+    }
+
+    function checkAutoRestore() {
+      google.script.run.withSuccessHandler(res => {
+        if (res && res.data) {
+          try {
+            processedData = JSON.parse(res.data);
+            renderTableData();
+            switchTab(1);
+          } catch(e) {}
+        }
+        document.getElementById('initialLoading').style.display = 'none';
+      }).withFailureHandler(() => {
+        document.getElementById('initialLoading').style.display = 'none';
+      }).getLatestHistoryFromNotion();
+    }
+
+    function showLoading(msg) {
+      document.getElementById('loadingText').innerText = msg || '처리 중입니다...';
+      document.getElementById('loadingModal').style.display = 'flex';
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingModal').style.display = 'none';
+    }
+
+    // 다운로드
+    async function exportToExcel() {
+      if (processedData.length === 0) return alert('출력할 데이터가 없습니다.');
+      showLoading('엑셀 생성 중...');
+      
+      setTimeout(async () => {
+        let dateStr = processedData[0][1] ? String(processedData[0][1]).slice(2) : new Date().toISOString().slice(2,10).replace(/-/g,'');
+        
+        let exportData = processedData.filter(row => {
+          let rowSlipNum = String(row[59] || '');
+          return !(rowSlipNum && exceptionCodes.includes(rowSlipNum));
+        });
+
+        if (exportData.length === 0) {
+          hideLoading();
+          return alert('출력할 데이터가 없습니다. (전표번호 모두 제외됨)');
+        }
+
+        let chunks = [];
+        for (let i = 0; i < exportData.length; i += 100) {
+          chunks.push(exportData.slice(i, i + 100));
+        }
+
+        for (let idx = 0; idx < chunks.length; idx++) {
+          const workbook = new ExcelJS.Workbook();
+          const s1 = workbook.addWorksheet('엑셀 업로드 양식(전자세금계산서-일반(영세율))', { views: [{ showGridLines: false }] });
+          
+          s1.columns = [
+            { width: 22 }, { width: 12 }, { width: 16 }, { width: 12 }, { width: 20 },
+            { width: 12 }, { width: 35 }, { width: 15 }, { width: 15 }, { width: 25 },
+            { width: 16 }, { width: 12 }, { width: 20 }, { width: 12 }, { width: 35 },
+            { width: 15 }, { width: 15 }, { width: 25 }, { width: 25 }, { width: 15 },
+            { width: 15 }, { width: 20 }, { width: 10 }, { width: 20 }, { width: 10 },
+            { width: 10 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
+            { width: 10 }, { width: 20 }, { width: 10 }, { width: 10 }, { width: 15 },
+            { width: 15 }, { width: 15 }, { width: 15 }, { width: 10 }, { width: 20 },
+            { width: 10 }, { width: 10 }, { width: 15 }, { width: 15 }, { width: 15 },
+            { width: 15 }, { width: 10 }, { width: 20 }, { width: 10 }, { width: 10 },
+            { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 },
+            { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }
+          ];
+
+          s1.getCell('A1').value = '엑셀 업로드 양식(전자세금계산서-일반(영세율))';
+          s1.getCell('A2').value = '★주황색으로 표시된 부분은 필수입력항목으로 반드시 입력하셔야 합니다.\n★아래 \'항목설명\' 시트를 참고하여 작성하시기 바랍니다.';
+          s1.getCell('A3').value = '★실제 업로드할 DATA는 7행부터 입력하여야 합니다. 최대 100건까지 입력이 가능하나, 발급은 최대 10건씩 처리가 됩니다.(100건 초과 자료는 처리 안됨)\n★임의로 행을 추가하거나 삭제하는 경우 파일을 제대로 읽지 못하는 경우가 있으므로, 주어진 양식안에 반드시 작성을 하시기 바랍니다.';
+          s1.getCell('A4').value = '★전자(세금)계산서 종류는 엑셀 업로드 양식에 따라 해당 전자(세금)계산서 종류코드를 반드시 입력하셔야 합니다.\n★품목은 1건이상 입력해야 합니다.\n★공급받는자 등록번호는 사업자등록번호, 주민등록번호를 입력할 수 있습니다.\n   외국인인 경우 \'9999999999999\'를 입력하시고, 비고란에 외국인등록번호 또는 여권번호를 입력하시기 바랍니다.';
+          s1.getCell('A5').value = '★처음 일괄발급을 이용하시는 분들은 \'올바른 예시\' 시트에 있는 내용을 수정하거나 그대로 복사하시면 오류 없이 쉽게 발급하실 수 있습니다.\n★일괄발급 시 오류가 나온다면 \'잘못된 예시\' 시트에 있는 내용들을 참고하셔서 오류 항목을 수정하시면 됩니다. 계속해서 일괄발급에 어려움을 전산센터(국번없이 126번 누르고 12번을 누르면 전자세금계산서 서비스로 연결됨)로 전화주시면 도움을 드리겠습니다.\n★발급가능한 파일 확장자는 XLS, XLSX 입니다.\n★기본 셀 서식은 \'텍스트\' 이며 기본 셀 서식을 이용하여 내용을 입력하시기 바랍니다.';
+
+          s1.mergeCells('A1:G1');
+          s1.mergeCells('A2:L2');
+          s1.mergeCells('A3:L3');
+          s1.mergeCells('A4:L4');
+          s1.mergeCells('A5:L5');
+
+          let rowHeights = [0, 31.5, 42, 45, 90.75, 115.5];
+          for (let r = 1; r <= 5; r++) {
+            s1.getRow(r).height = rowHeights[r];
+            let cell = s1.getCell(`A${r}`);
+            
+            if (r === 1) {
+              cell.font = { name: '돋움', size: 24, color: { argb: 'FF0000FF' }, bold: true };
+              cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+            } else if (r === 5) {
+              cell.font = { name: '돋움', size: 16, color: { argb: 'FF008000' }, bold: false };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+            } else {
+              cell.font = { name: '돋움', size: 14, color: { argb: 'FFFF0000' }, bold: false };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+            }
+          }
+          
+          s1.addRow(HEADER_LIST);
+          let hdrRow = s1.getRow(6);
+          hdrRow.height = 46.5; 
+          hdrRow.eachCell((c, colNumber) => {
+            let colIdx = colNumber - 1;
+            let bgColor = yellowCols.includes(colIdx) ? 'FFFFFF00' : (redCols.includes(colIdx) ? 'FFF2DCDB' : 'FFE2EFDA');
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+            
+            c.font = { name: '돋움', size: 10, bold: true, color: { argb: 'FF000000' } };
+            
+            c.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          });
+
+          s1.autoFilter = 'A6:BG6';
+
+          chunks[idx].forEach(rData => {
+            let row = s1.addRow(rData.slice(0, 59));
+            row.height = 24;
+            row.eachCell((c, colNumber) => {
+              let colIdx = colNumber - 1;
+              c.font = { name: '돋움', size: 10 };
+              c.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+              
+              if (redDataCols.includes(colIdx)) {
+                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2DCDB' } };
+              }
+
+              c.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
+              
+              if (textCols.includes(colIdx)) {
+                c.numFmt = '@';
+              } else if (numCols.includes(colIdx)) {
+                c.numFmt = '#,##0';
+                c.alignment.horizontal = 'right';
+                let numVal = Number(String(c.value).replace(/,/g, ''));
+                if (!isNaN(numVal) && String(c.value).trim() !== '') c.value = numVal;
+              }
+            });
+          });
+          
+          workbook.addWorksheet('항목설명').addRow(['항목설명 참조']);
+          workbook.addWorksheet('올바른 예시').addRow(['올바른 예시 참조']);
+          workbook.addWorksheet('잘못된 예시').addRow(['잘못된 예시 참조']);
+
+          const buffer = await workbook.xlsx.writeBuffer();
+          const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `세금계산서양식_${dateStr}_${idx + 1}.xlsx`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          
+          await new Promise(r => setTimeout(r, 500));
+        }
+        hideLoading();
+      }, 100);
+    }
+
+    // 이벤트
+    document.addEventListener('focusout', (e) => {
+      let td = e.target;
+      if (td.tagName === 'TD' && td.hasAttribute('contenteditable')) {
+        let tbodyId = td.closest('tbody').id;
+        if (tbodyId === 'tbody_result') {
+          let r = parseInt(td.dataset.r);
+          let c = parseInt(td.dataset.c);
+          if (!isNaN(r) && !isNaN(c)) {
+            let newVal = td.innerText.replace(/,/g, '').trim();
+            if (processedData[r][c] !== newVal) {
+              saveState();
+              processedData[r][c] = newVal;
+            }
+          }
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        let activeCell = document.activeElement.tagName === 'TD' ? document.activeElement : null;
+        let targetCell = activeCell;
+        
+        if (!targetCell) {
+          let selected = document.querySelectorAll('.selected');
+          if (selected.length === 1) targetCell = selected[0];
+        }
+        
+        if (targetCell && targetCell.tagName === 'TD') {
+          if (activeCell) activeCell.blur();
+          
+          let tr = targetCell.closest('tr');
+          let nextTr = tr.nextElementSibling;
+          let c = Array.from(tr.children).indexOf(targetCell);
+          
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          if (nextTr) {
+            let nextTd = nextTr.children[c];
+            if (nextTd) {
+              nextTd.classList.add('selected');
+              nextTd.scrollIntoView({ block: 'nearest' });
+            }
+          } else {
+            targetCell.classList.add('selected');
+          }
+        }
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
+        let tbodyId = selected[0].closest('tbody').id;
+        if (tbodyId === 'tbody_result') saveState(); 
+        
+        selected.forEach(td => { 
+          if(td.hasAttribute('contenteditable')) {
+            td.innerText = ''; 
+            if (tbodyId === 'tbody_result') {
+              let r = parseInt(td.dataset.r);
+              let c = parseInt(td.dataset.c);
+              if (!isNaN(r) && !isNaN(c)) processedData[r][c] = '';
+            }
+          }
+        });
+        if (tbodyId === 'tbody_exception') {
+          applyExceptionRealtime();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (document.activeElement.tagName !== 'TD' && document.activeElement.tagName !== 'INPUT') {
+        if (selected.length === 1 && e.key.length === 1) {
+          let td = selected[0];
+          if (td.hasAttribute('contenteditable')) {
+            td.focus();
+            td.innerText = e.key;
+            let range = document.createRange();
+            let sel = window.getSelection();
+            range.selectNodeContents(td);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            if (td.closest('tbody').id === 'tbody_exception') {
+              applyExceptionRealtime();
+            }
+            e.preventDefault();
+          }
+        }
+      }
+    });
+
+    let isSelecting = false;
+    let activeTbody = null;
+    let startR = -1, startC = -1;
+    
+    // 선택
+    document.addEventListener('mousedown', (e) => {
+      let td = e.target.closest('td[contenteditable="true"]');
+      if (!td) {
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        return;
+      }
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return; 
+      
+      activeTbody = td.closest('tbody');
+      let tr = td.closest('tr');
+      let targetR = parseInt(td.dataset.r);
+      if (isNaN(targetR)) targetR = Array.from(activeTbody.children).indexOf(tr);
+      let targetC = parseInt(td.dataset.c);
+      if (isNaN(targetC)) targetC = Array.from(tr.children).indexOf(td);
+      
+      if (e.ctrlKey || e.metaKey) {
+        td.classList.toggle('selected');
+        startR = targetR;
+        startC = targetC;
+        isSelecting = false;
+      } else if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        activeTbody.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+          let cTr = cell.closest('tr');
+          let r = parseInt(cell.dataset.r);
+          if (isNaN(r)) r = Array.from(activeTbody.children).indexOf(cTr);
+          let c = parseInt(cell.dataset.c);
+          if (isNaN(c)) c = Array.from(cTr.children).indexOf(cell);
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        });
+      } else {
+        isSelecting = true;
+        startR = targetR;
+        startC = targetC;
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        td.classList.add('selected');
+      }
+
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+        document.activeElement.blur();
+      }
+
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting || !activeTbody) return;
+      let td = e.target.closest('td[contenteditable="true"]');
+      if (!td || td.closest('tbody') !== activeTbody) return;
+      
+      let tr = td.closest('tr');
+      let endR = parseInt(td.dataset.r);
+      if (isNaN(endR)) endR = Array.from(activeTbody.children).indexOf(tr);
+      let endC = parseInt(td.dataset.c);
+      if (isNaN(endC)) endC = Array.from(tr.children).indexOf(td);
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      
+      activeTbody.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+        let cTr = cell.closest('tr');
+        let r = parseInt(cell.dataset.r);
+        if (isNaN(r)) r = Array.from(activeTbody.children).indexOf(cTr);
+        let c = parseInt(cell.dataset.c);
+        if (isNaN(c)) c = Array.from(cTr.children).indexOf(cell);
+        
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+    
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td[contenteditable="true"]');
+      if (td) {
+        td.focus();
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false);
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    // 복사
+    document.addEventListener('copy', (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName.toUpperCase())) return;
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName.toUpperCase())) return;
+
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return;
+      e.preventDefault();
+      
+      let tbody = selectedCells[0].closest('tbody');
+      let rowsMap = new Map();
+      selectedCells.forEach(td => {
+        let tr = td.closest('tr');
+        let r = Array.from(tbody.children).indexOf(tr);
+        let c = parseInt(td.dataset.c);
+        if (isNaN(c)) c = Array.from(tr.children).indexOf(td);
+        
+        if (!rowsMap.has(r)) rowsMap.set(r, []);
+        rowsMap.get(r).push({ c: c, text: td.innerText.replace(/\n$/, '') });
+      });
+
+      let sortedRows = Array.from(rowsMap.keys()).sort((a, b) => a - b);
+      let textLines = [];
+      
+      for (let r of sortedRows) {
+        let cols = rowsMap.get(r).sort((a, b) => a.c - b.c);
+        textLines.push(cols.map(col => col.text).join('\t'));
+      }
+      
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName.toUpperCase())) return;
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName.toUpperCase())) return;
+
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0) return;
+      let firstCell = selected[0];
+      if (!firstCell.hasAttribute('contenteditable')) return; 
+      
+      e.preventDefault();
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      
+      let tbody = firstCell.closest('tbody');
+      let isResult = tbody.id === 'tbody_result';
+      let sR_visible = Array.from(tbody.children).indexOf(firstCell.closest('tr'));
+      let sC = parseInt(firstCell.dataset.c);
+      if (isNaN(sC)) sC = Array.from(firstCell.closest('tr').children).indexOf(firstCell);
+      
+      if (isResult) saveState(); 
+      
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t');
+        let targetTr = tbody.children[sR_visible + i]; // 보이는 행 기준 순차 이동
+        
+        if (!targetTr) {
+          if (!isResult) {
+            addExceptionRow();
+            targetTr = tbody.lastElementChild;
+          } else {
+            break;
+          }
+        }
+        
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetTr.children[sC + j];
+          if (targetCell && targetCell.hasAttribute('contenteditable')) {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            val = val.replace(/""/g, '"');
+            
+            targetCell.innerText = val;
+            if (isResult) {
+              let absoluteR = parseInt(targetCell.dataset.r);
+              let absoluteC = parseInt(targetCell.dataset.c);
+              if (!isNaN(absoluteR) && !isNaN(absoluteC) && processedData[absoluteR]) {
+                processedData[absoluteR][absoluteC] = val;
+              }
+            }
+          }
+        }
+      }
+      if (!isResult && tbody.id === 'tbody_exception') {
+        applyExceptionRealtime();
+      }
+    });
+  </script>
+</body>
+</html>

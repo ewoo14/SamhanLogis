@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+  
+  <style>
+    .drag-handle:active { cursor: grabbing !important; }
+    .sortable-ghost { opacity: 0.4; background-color: #edf2f7; }
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 이동 */
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 1000px; margin: 0 auto 20px auto; padding: 0; box-sizing: border-box; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider {
+      position: absolute; top: 0; left: 0; height: 100%; width: 20%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; margin: 0; box-sizing: border-box;
+    }
+    .nav-item {
+      flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; background: transparent; margin: 0; box-sizing: border-box;
+    }
+    .nav-item.active { color: #ffffff; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px 40px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; }
+    .page.active { display: block; }
+    #page0 { max-width: 800px; }
+    #page1 { width: 100%; max-width: 100%; padding: 20px; } 
+    #page2 { max-width: 600px; padding: 20px; } 
+    #page3 { max-width: 600px; padding: 20px; } 
+    #page4 { max-width: 1000px; padding: 20px; }
+
+    .top-action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+
+    /* 영역 */
+    .drop-zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .drop-zone-item { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 40px 20px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; font-size: 16px; font-weight: bold; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .drop-zone-item:hover { border-color: #3182ce; background: #ebf8ff; }
+    .drop-zone-item.valid { border-color: #48bb78 !important; background: #f0fff4 !important; color: #2f855a !important; border-style: solid; }
+    .drop-zone-item.invalid { border-color: #e53e3e !important; background: #fff5f5 !important; color: #c53030 !important; border-style: solid; }
+    
+    /* 버튼 */
+    .action-btn { padding: 8px 16px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .action-btn:hover { background: #2b6cb0; }
+    .btn-save { background: #ed8936; }
+    .btn-save:hover { background: #dd6b20; }
+    .btn-wrap { display: flex; gap: 5px; justify-content: center; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .reset-btn:hover { background: #e2e8f0; }
+
+    /* 표 */
+    .table-wrapper { max-height: calc(100vh - 350px); margin-bottom: 20px; overflow-y: auto; overflow-x: hidden; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: 100%; border-collapse: collapse; table-layout: fixed; user-select: none; }
+    /* 행 높이 축소 반영 */
+    .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 4px 8px; font-size: 13px; white-space: pre-wrap; word-break: break-all; vertical-align: middle; cursor: cell; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; text-align: center; position: sticky; top: 0; z-index: 2; cursor: default; height: 30px; }
+    
+    /* 제목 */
+    .title-header { height: 40px; font-size: 18px !important; font-weight: 900 !important; background-color: #ffffff !important; color: #1a202c !important; letter-spacing: 1px; border-bottom: 2px solid #cbd5e0 !important; cursor: default; }
+    .res-table thead tr:first-child th { top: 0; z-index: 3; }
+    .res-table thead tr:last-child th { top: 40px; z-index: 2; }
+
+    /* 선택 */
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+
+    /* 정렬 */
+    .res-table td { text-align: center; }
+
+    /* 비율 */
+    .col-code { width: 10%; }
+    .col-name { width: 15%; }
+    .col-base { width: 10%; }
+    .col-sale { width: 10%; }
+    .col-recv { width: 10%; }
+    .col-bal { width: 10%; }
+    .col-folder { width: 15%; }
+    .col-action { width: 20%; }
+    
+    /* 숨김 */
+    canvas { display: none; }
+    #loading_msg { text-align: center; color: #3182ce; font-weight: bold; margin-top: 15px; display: none; }
+    
+    /* 우클릭 */
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+  </style>
+</head>
+<body>
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      로딩 중...
+    </div>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중...</div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>계정별원장 이미지 생성 프로그램</h2>
+      <p>거래처별 거래원장 이미지 자동 생성</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider" style="width: 20%;"></div>
+      <div class="nav-item active" onclick="switchTab(0)">업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">결과목록</div>
+      <div class="nav-item" onclick="switchTab(2)">거래처코드</div>
+      <div class="nav-item" onclick="switchTab(3)">필터단어</div>
+      <div class="nav-item" onclick="switchTab(4)">저장내역</div>
+    </div>
+
+    <div id="page0" class="page active">
+      <h3 style="text-align: center; margin-bottom: 20px;">엑셀 데이터 업로드</h3>
+      <div class="drop-zone-grid">
+        <div class="drop-zone-item" id="dz_sales" onclick="document.getElementById('file_sales').click()">
+          판매전표<br><span id="st_sales" style="font-size:13px; color:#718096; font-weight:normal; display:block; margin-top:8px;">대기중</span>
+        </div>
+        <div class="drop-zone-item" id="dz_receipt" onclick="document.getElementById('file_receipt').click()">
+          수금현황<br><span id="st_receipt" style="font-size:13px; color:#718096; font-weight:normal; display:block; margin-top:8px;">대기중</span>
+        </div>
+        <div class="drop-zone-item" id="dz_bond" onclick="document.getElementById('file_bond').click()">
+          거래처별 채권<br><span id="st_bond" style="font-size:13px; color:#718096; font-weight:normal; display:block; margin-top:8px;">대기중</span>
+        </div>
+        <div class="drop-zone-item" id="dz_ledger" onclick="document.getElementById('file_ledger').click()">
+          계정별원장<br><span id="st_ledger" style="font-size:13px; color:#718096; font-weight:normal; display:block; margin-top:8px;">대기중</span>
+        </div>
+      </div>
+      
+      <input type="file" id="file_sales" style="display:none;" accept=".xlsx, .xls" onchange="handleFileSelect(event, 'sales')">
+      <input type="file" id="file_receipt" style="display:none;" accept=".xlsx, .xls" onchange="handleFileSelect(event, 'receipt')">
+      <input type="file" id="file_bond" style="display:none;" accept=".xlsx, .xls" onchange="handleFileSelect(event, 'bond')">
+      <input type="file" id="file_ledger" style="display:none;" accept=".xlsx, .xls" onchange="handleFileSelect(event, 'ledger')">
+      
+      <div style="text-align:center; margin-top: 40px; margin-bottom: 15px;">
+        <label style="font-size: 15px; font-weight: bold; color: #4a5568;">
+          이미지 표시 최대 거래건수: 
+          <input type="number" id="max_items" value="20" style="width: 60px; padding: 4px; text-align: center; border: 1px solid #cbd5e0; border-radius: 4px; margin-left: 5px;"> 건
+        </label>
+      </div>
+
+      <div style="text-align:center; margin-bottom: 30px;">
+        <label style="font-size: 15px; font-weight: bold; color: #4a5568; margin-right: 15px;">잔액 있는 거래처만 표시:</label>
+        <label style="margin-right: 10px; cursor: pointer;"><input type="radio" name="show_only_balance" value="TRUE" checked> TRUE</label>
+        <label style="cursor: pointer;"><input type="radio" name="show_only_balance" value="FALSE"> FALSE</label>
+      </div>
+
+      <div style="text-align:center;">
+        <button class="action-btn" style="padding: 10px 30px; font-size: 16px;" onclick="startProcessing()">처리실행</button>
+      </div>
+      <p id="file_status" style="text-align:center; margin-top:15px; color:green; font-weight:bold;"></p>
+      <div id="loading_msg">데이터 분석 및 이미지 생성 중...</div>
+    </div>
+
+    <div id="page1" class="page">
+      <div class="table-wrapper">
+        <table class="custom-table res-table" id="table_result">
+          <colgroup>
+            <col class="col-code"><col class="col-name"><col class="col-base"><col class="col-sale"><col class="col-recv"><col class="col-bal"><col class="col-folder"><col class="col-action">
+          </colgroup>
+          <thead>
+            <tr><th colspan="8" class="title-header">이미지 생성 결과</th></tr>
+            <tr><th>거래처코드</th><th>거래처명</th><th>시작이월</th><th>출고합계</th><th>입금합계</th><th>최종잔액</th><th>수신번호</th><th>작업</th></tr>
+          </thead>
+          <tbody id="tbody_result"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page2" class="page">
+      <div class="top-action-bar">
+        <button class="action-btn reset-btn" onclick="resetClientCodes()">초기화</button>
+        <button class="action-btn btn-save" onclick="saveClientCodeData(this)">저장</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table" id="table_client_code">
+          <colgroup><col style="width:15%"><col style="width:70%"><col style="width:15%"></colgroup>
+          <thead><tr><th>이동</th><th>거래처코드 (숫자만)</th><th>삭제</th></tr></thead>
+          <tbody id="tbody_client_code"></tbody>
+        </table>
+      </div>
+      <div style="text-align: center; margin-top: 10px;">
+        <button class="action-btn" onclick="addClientCodeRow()" style="padding: 4px 20px; font-size: 16px;">+</button>
+      </div>
+    </div>
+
+    <div id="page3" class="page">
+      <div class="top-action-bar">
+        <label style="font-size: 15px; font-weight: bold; cursor: pointer;">
+          <input type="checkbox" id="apply_filter" checked> 적용
+        </label>
+        <button class="action-btn btn-save" onclick="saveFilterData(this)">저장</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table" id="table_filter">
+          <colgroup><col style="width:15%"><col style="width:70%"><col style="width:15%"></colgroup>
+          <thead><tr><th>이동</th><th>필터링 단어</th><th>삭제</th></tr></thead>
+          <tbody id="tbody_filter"></tbody>
+        </table>
+      </div>
+      <div style="text-align: center; margin-top: 10px;">
+        <button class="action-btn" onclick="addFilterRow()" style="padding: 4px 20px; font-size: 16px;">+</button>
+      </div>
+    </div>
+
+    <div id="page4" class="page">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <input type="date" id="history_start" class="reset-btn"> ~ 
+        <input type="date" id="history_end" class="reset-btn">
+        <button class="action-btn" style="margin-left: 10px;" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table">
+          <thead>
+            <tr><th>작업자</th><th>저장일시</th><th>저장주제</th><th>복원여부</th></tr>
+          </thead>
+          <tbody id="tbody_history"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let chatMapData = {};
+    let filterWords = [];
+    let clientCodes = [];
+    let currentUserEmail = '';
+    let currentUserName = '';
+    let processedResultData = [];
+    
+    const COLKEY = {
+      sales: { no: ["판매번호","전표번호","일자-No","일자-No.","일자 - No."], cc: ["거래처코드","거래처 코드","거래처ID","거래처 id","거래처 id "], cn: ["거래처명","업체명","사업자명","이카운트 사업자명"], ad: ["배송주소","배송지","주소","납품주소"], amt: ["합계","총액","금액","판매금액","전표금액","공급가액"] },
+      receipt: { no: ["일자-No.","일자-No","일자 - No.","전표번호","영수번호"], cc: ["거래처코드","거래처 코드","거래처ID","거래처 id"], amt: ["금액","수금금액","입금액","수납금액"] },
+      bond: { cc: ["거래처코드","거래처 코드","거래처ID","거래처 id"], cn: ["거래처명","업체명","사업자명","이카운트 사업자명"], base: ["기초채권","이월잔액","전월잔액"], bal: ["잔액","현재잔액","미수잔액"], desc: ["적요","메모","비고"], ph: ["전화","연락처","대표전화","핸드폰"] },
+      ledger: { no: ["전표번호"], code: ["거래처코드"], desc: ["적요"], debit: ["차변"], credit: ["대변"] }
+    };
+    const DATE_KEYS = ["일자","영수일자","매출일자","거래일자"];
+    const SLIP_KEYS = ["전표번호","영수번호","번호","순번","No","no"];
+
+    /* 초기화 */
+    window.onload = function() {
+      initSortable();
+      initDragAndDrop();
+      initHistoryDates();
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('authLoading').style.display = 'none';
+          if (res.authorized) {
+            document.getElementById('welcomeName').innerText = res.managerName;
+            document.getElementById('welcomeAnimation').style.display = 'flex';
+            setTimeout(() => { document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }); }, 100);
+            
+            loadInitialData();
+            
+            setTimeout(() => {
+              currentUserEmail = res.email;
+              currentUserName = res.managerName;
+              document.getElementById('mobileGate').style.display = 'none';
+              document.getElementById('initialLoading').style.display = 'flex';
+              document.getElementById('mainApp').style.display = 'block';
+              checkAutoRestore();
+            }, 2500);
+          } else {
+            document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error || '미등록'}</span></div>`;
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">시스템오류<span>${err.message}</span></div>`;
+        })
+        .getUserAuth();
+    }
+
+    /* 복원확인 */
+    function checkAutoRestore() {
+      google.script.run
+        .withSuccessHandler(async res => {
+          if (res && res.data) {
+            try {
+              let parsed = JSON.parse(res.data);
+              for (let item of parsed) {
+                if (!item.dataUrl && item.rows) {
+                  item.dataUrl = await drawCanvas(item.name, item.rows);
+                }
+              }
+              renderTable(parsed);
+              switchTab(1);
+            } catch(e) {}
+          }
+          document.getElementById('initialLoading').style.display = 'none';
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+        })
+        .getLatestHistoryFromNotion();
+    }
+
+    /* 데이터 */
+    function loadInitialData() {
+      google.script.run.withSuccessHandler(res => chatMapData = res).getChatMapData();
+      loadFilterData();
+      loadClientCodeData();
+    }
+
+    /* 정렬 */
+    function initSortable() {
+      let elFilter = document.getElementById('tbody_filter');
+      if (elFilter && typeof Sortable !== 'undefined') {
+        new Sortable(elFilter, { handle: '.drag-handle', animation: 150, axis: 'y' });
+      }
+      let elCode = document.getElementById('tbody_client_code');
+      if (elCode && typeof Sortable !== 'undefined') {
+        new Sortable(elCode, { handle: '.drag-handle', animation: 150, axis: 'y' });
+      }
+    }
+
+    /* 이동 */
+    function switchTab(index) {
+      let navItems = document.querySelectorAll('.nav-item');
+      let slider = document.getElementById('slider');
+      slider.style.width = (100 / navItems.length) + '%';
+      slider.style.transform = `translateX(${index * 100}%)`;
+      navItems.forEach((el, i) => el.classList.toggle('active', i === index));
+      document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
+      if (index === 2) loadClientCodeData();
+      if (index === 3) loadFilterData();
+      if (index === 4) loadHistory();
+    }
+
+    /* 도구 */
+    function sStr(x) {
+      if (x === null || x === undefined) return '';
+      let t = String(x).replace(/\u00a0/g, ' ').replace(/\u200b/g, '').replace(/_x000D_/g, ' ');
+      return t.replace(/\s+/g, ' ').trim();
+    }
+
+    function normCode(x) {
+      if (x === null || x === undefined) return '';
+      let t = String(x).replace(/[\t\r\n\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000\u200B\uFEFF ]+/g, '');
+      return t.replace(/[^\d]/g, '');
+    }
+
+    function toNum(x) {
+      if (x === null || x === undefined || x === '') return 0.0;
+      if (typeof x === 'number') return x;
+      let t = String(x).replace(/[^\d\-\.\,]/g, '').replace(/,/g, '');
+      let n = parseFloat(t);
+      return isNaN(n) ? 0.0 : n;
+    }
+
+    function fmtAmt(v) {
+      if (v === null || v === undefined || isNaN(v)) return '';
+      let n = Math.round(parseFloat(v));
+      if (Math.abs(n) < 0.5) return '';
+      return n.toLocaleString('ko-KR');
+    }
+
+    function findCol(headers, keys) {
+      let low = headers.map(h => sStr(h).toLowerCase());
+      for (let k of keys) {
+        let kk = k.toLowerCase();
+        for (let i = 0; i < low.length; i++) {
+          if (low[i].includes(kk)) return headers[i];
+        }
+      }
+      return null;
+    }
+
+    function parseNoToDate(str) {
+      let t = sStr(str);
+      let m = t.match(/^\s*(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})\s*(?:[\-–—−]?\s*)?([^\s]+)\s*$/);
+      if (m) {
+        let dstr = m[1].replace(/[\.\-]/g, '/');
+        let dt = new Date(dstr);
+        if (!isNaN(dt)) {
+          let mm = ('0' + (dt.getMonth() + 1)).slice(-2);
+          let dd = ('0' + dt.getDate()).slice(-2);
+          return { dt: dt, slip: m[2], key: `${dt.getFullYear()}/${mm}/${dd} -${m[2]}` };
+        }
+      }
+      let dfind = t.match(/(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})/);
+      if (dfind) {
+        let dstr = dfind[1].replace(/[\.\-]/g, '/');
+        let dt = new Date(dstr);
+        if (!isNaN(dt)) {
+          let mm = ('0' + (dt.getMonth() + 1)).slice(-2);
+          let dd = ('0' + dt.getDate()).slice(-2);
+          let slipm = t.match(/(\d{1,6})\s*$/);
+          let slip = slipm ? slipm[1] : "1";
+          return { dt: dt, slip: slip, key: `${dt.getFullYear()}/${mm}/${dd} -${slip}` };
+        }
+      }
+      return { dt: null, slip: null, key: null };
+    }
+
+    function normPhone(text) {
+      if (!text) return null;
+      let t = String(text).replace(/[—–]/g, '-');
+      let matches = t.match(/0\d[\d\-]{8,}/g) || [];
+      for (let m of matches) {
+        let seg = m.replace(/[^\d]/g, '');
+        if (seg.startsWith('010') && seg.length >= 11) {
+          return `010-${seg.substring(3,7)}-${seg.substring(7,11)}`;
+        }
+      }
+      return null;
+    }
+
+    /* 첨부 */
+    let uploadFiles = { sales: null, bond: null, receipt: null, ledger: null };
+
+    function handleFileSelect(e, type) {
+      let files = e.target.files;
+      if (!files || files.length === 0) return;
+      assignFiles(files, type);
+    }
+
+    async function assignFiles(files, type) {
+      let dz = document.getElementById('dz_' + type);
+      let st = document.getElementById('st_' + type);
+      
+      dz.classList.remove('valid', 'invalid');
+      st.innerText = '양식 검사 중...';
+
+      let file = files[0];
+      let isValid = await validateExcelFormat(file, type);
+
+      if (isValid) {
+        dz.classList.add('valid');
+        uploadFiles[type] = file;
+        st.innerText = file.name;
+      } else {
+        dz.classList.add('invalid');
+        uploadFiles[type] = null;
+        st.innerText = '양식 불일치 (다시 첨부 요망)';
+      }
+    }
+
+    /* 검증 */
+    function validateExcelFormat(file, type) {
+      return new Promise((resolve) => {
+        let reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            let wb = XLSX.read(e.target.result, {type: 'binary'});
+            let allText = '';
+            wb.SheetNames.forEach(sn => {
+              let ws = wb.Sheets[sn];
+              let data = XLSX.utils.sheet_to_json(ws, {header: 1});
+              allText += data.slice(0, 30).map(r => (Array.isArray(r) ? r : []).join('|')).join('\n') + '\n';
+            });
+            
+            let res = false;
+            const check = (keys) => keys.some(k => allText.includes(k));
+            
+            if (type === 'sales') {
+              res = check(COLKEY.sales.no) && check(COLKEY.sales.amt) && (check(COLKEY.sales.ad) || check(COLKEY.sales.cn));
+            } else if (type === 'receipt') {
+              res = check(COLKEY.receipt.no) && check(COLKEY.receipt.amt);
+            } else if (type === 'bond') {
+              const isLedger = allText.includes('차변') || allText.includes('대변') || allText.includes('계정별원장');
+              res = (check(COLKEY.bond.base) && check(COLKEY.bond.bal)) && !isLedger;
+            } else if (type === 'ledger') {
+              const essential = ['외상매출금', '잡이익', '잡손실'];
+              const hasAccount = essential.some(k => allText.includes(k));
+              const hasCols = check(COLKEY.ledger.debit) && check(COLKEY.ledger.credit);
+              res = (allText.includes('계정별원장') || hasAccount || hasCols);
+            }
+            resolve(res);
+          } catch(err) {
+            resolve(false);
+          }
+        };
+        reader.readAsBinaryString(file);
+      });
+    }
+
+    /* 드래그 */
+    function initDragAndDrop() {
+      ['sales', 'bond', 'receipt', 'ledger'].forEach(type => {
+        let dz = document.getElementById('dz_' + type);
+        if (dz) {
+          dz.addEventListener('dragover', e => { 
+            e.preventDefault(); 
+            dz.style.borderStyle = 'solid';
+            dz.style.borderColor = '#3182ce'; 
+          });
+          dz.addEventListener('dragleave', () => { 
+            dz.style.borderStyle = 'dashed';
+            dz.style.borderColor = ''; 
+          });
+          dz.addEventListener('drop', e => {
+            e.preventDefault();
+            dz.style.borderStyle = 'dashed';
+            dz.style.borderColor = '';
+            if (e.dataTransfer.files.length > 0) assignFiles(e.dataTransfer.files, type);
+          });
+        }
+      });
+    }
+
+    /* 실행 */
+    async function startProcessing() {
+      if (!uploadFiles.sales || !uploadFiles.bond || !uploadFiles.receipt || !uploadFiles.ledger) {
+        alert('4가지 데이터 영역에 해당하는 엑셀 파일을 모두 올바르게 첨부해주세요.\n(동일한 통합 파일인 경우 각 각 칸에 똑같이 드래그하시면 됩니다.)');
+        return;
+      }
+      
+      document.getElementById('loading_msg').style.display = 'block';
+      document.getElementById('file_status').innerText = '데이터 통합 분석 중...';
+      
+      try {
+        const readExcel = (file) => new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const wb = XLSX.read(e.target.result, { type: 'binary' });
+            let allSheetsData = [];
+            wb.SheetNames.forEach(sn => {
+              allSheetsData.push(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 }));
+            });
+            resolve(allSheetsData);
+          };
+          reader.readAsBinaryString(file);
+        });
+
+        let rawSales = await readExcel(uploadFiles.sales);
+        let rawBond = await readExcel(uploadFiles.bond);
+        let rawReceipt = await readExcel(uploadFiles.receipt);
+        let rawLedger = await readExcel(uploadFiles.ledger);
+
+        processLocalData(rawSales, rawBond, rawReceipt, rawLedger); 
+      } catch(e) {
+        alert('엑셀 읽기 오류: ' + e);
+        document.getElementById('loading_msg').style.display = 'none';
+      }
+    }
+
+    /* 분석 */
+    async function processLocalData(rawSalesAll, rawBondAll, rawReceiptAll, rawLedgerAll) {
+      try {
+        const extractSheetData = (allSheets) => {
+          for (let sheet of allSheets) {
+            let df = formatDf(sheet, 1);
+            if (df.length > 0) return df;
+          }
+          return [];
+        };
+
+        const extractReceiptData = (allSheets) => {
+          for (let sheet of allSheets) {
+            let df = formatReceipt(sheet);
+            if (df.length > 0) return df;
+          }
+          return [];
+        };
+
+        let dfSales = extractSheetData(rawSalesAll);
+        let dfBond = extractSheetData(rawBondAll);
+        let dfReceipt = extractReceiptData(rawReceiptAll);
+
+        let S_no = findCol(Object.keys(dfSales[0]||{}), COLKEY.sales.no);
+        let S_cc = findCol(Object.keys(dfSales[0]||{}), COLKEY.sales.cc);
+        let S_cn = findCol(Object.keys(dfSales[0]||{}), COLKEY.sales.cn);
+        let S_ad = findCol(Object.keys(dfSales[0]||{}), COLKEY.sales.ad);
+        let S_amt = findCol(Object.keys(dfSales[0]||{}), COLKEY.sales.amt);
+
+        let R_no = findCol(Object.keys(dfReceipt[0]||{}), COLKEY.receipt.no);
+        let R_cc = findCol(Object.keys(dfReceipt[0]||{}), COLKEY.receipt.cc);
+        let R_amt = findCol(Object.keys(dfReceipt[0]||{}), COLKEY.receipt.amt);
+
+        let B_cc = findCol(Object.keys(dfBond[0]||{}), COLKEY.bond.cc);
+        let B_cn = findCol(Object.keys(dfBond[0]||{}), COLKEY.bond.cn);
+        let B_base = findCol(Object.keys(dfBond[0]||{}), COLKEY.bond.base);
+        let B_desc = findCol(Object.keys(dfBond[0]||{}), COLKEY.bond.desc);
+        let B_ph = findCol(Object.keys(dfBond[0]||{}), COLKEY.bond.ph);
+
+        let startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 1);
+        startDate.setDate(1);
+        startDate.setHours(0,0,0,0);
+        let endDate = new Date();
+        endDate.setHours(23,59,59,999);
+
+        let activeBondSheet = rawBondAll.find(sheet => sheet.length > 3) || [];
+        for (let i = 0; i < Math.min(3, activeBondSheet.length); i++) {
+          let row = Array.isArray(activeBondSheet[i]) ? activeBondSheet[i] : [];
+          let line = row.map(sStr).join(" ");
+          let m = line.match(/(\d{4}[\/\.\-]\d{1,2}[\/\.\-]\d{1,2})/g);
+          if (m && m.length >= 2) {
+            let d1 = new Date(m[0].replace(/[\.\-]/g, '/'));
+            let d2 = new Date(m[1].replace(/[\.\-]/g, '/'));
+            if (!isNaN(d1) && !isNaN(d2)) {
+              if (d1 > d2) { let t=d1; d1=d2; d2=t; }
+              startDate = d1;
+              endDate = d2;
+              break;
+            }
+          }
+        }
+
+        dfSales.forEach(r => parseDateCol(r, S_no));
+        dfReceipt.forEach(r => parseDateColReceipt(r, R_no, Object.keys(r)));
+
+        dfSales.forEach(r => { r._amt = toNum(r[S_amt]); r._code = normCode(r[S_cc]); });
+        dfReceipt.forEach(r => { r._amt = toNum(r[R_amt]); r._code = normCode(r[R_cc]); });
+        dfBond.forEach(r => { r._base = toNum(r[B_base]); r._code = normCode(r[B_cc]); });
+
+        let salesF = dfSales.filter(r => r._dt && r._dt >= startDate && r._dt <= endDate);
+        let receiptF = dfReceipt.filter(r => r._dt && r._dt >= startDate && r._dt <= endDate);
+
+        let ledgerMap = {};
+        if (rawLedgerAll && rawLedgerAll.length > 0) {
+          rawLedgerAll.forEach(sheet => {
+            let parsed = parseAccountLedger(sheet);
+            parsed.forEach(p => {
+              if (!ledgerMap[p.code]) ledgerMap[p.code] = [];
+              ledgerMap[p.code].push(p);
+            });
+          });
+        }
+
+        let bondDescMap = {};
+        dfBond.forEach(r => {
+          if (r._code) {
+            let d = sStr(r[B_desc]).toLowerCase();
+            bondDescMap[r._code] = (bondDescMap[r._code] || "") + " " + d;
+          }
+        });
+
+        let codesSet = new Set();
+        salesF.forEach(r => codesSet.add(r._code));
+        receiptF.forEach(r => codesSet.add(r._code));
+        Object.keys(ledgerMap).forEach(k => codesSet.add(k));
+        let codesTarget = Array.from(codesSet).sort();
+
+        let activeCodes = [];
+        document.querySelectorAll('#tbody_client_code tr').forEach(tr => {
+          let val = tr.children[1].innerText.trim().replace(/[^\d]/g, '');
+          if (val) activeCodes.push(val);
+        });
+        if (activeCodes.length > 0) {
+          codesTarget = codesTarget.filter(c => activeCodes.includes(c));
+        }
+
+        let renderDataList = [];
+        let maxItems = parseInt(document.getElementById('max_items').value) || 20;
+        let showOnlyBalance = document.querySelector('input[name="show_only_balance"]:checked').value === 'TRUE';
+
+        for (let code of codesTarget) {
+          let bRows = dfBond.filter(r => r._code === code);
+          let baseVal = bRows.length > 0 ? bRows[0]._base : 0.0;
+          let nameBond = bRows.length > 0 ? sStr(bRows[0][B_cn]) : "";
+          
+          let sSubAll = dfSales.filter(r => r._code === code).sort((a,b) => (a._dt||0) - (b._dt||0));
+          let nameSales = sSubAll.length > 0 ? sStr(sSubAll[sSubAll.length-1][S_cn]) : "";
+          let name = nameSales || nameBond;
+          let isForced = activeCodes.includes(code);
+
+          if (!isForced) {
+            if (isExcludedByName(name)) continue;
+            if (isExcludedByWord(code, bondDescMap)) continue;
+          }
+
+          let sSub = salesF.filter(r => r._code === code);
+          let rSub = receiptF.filter(r => r._code === code);
+
+          let items = [];
+          sSub.forEach(r => items.push({ dt: r._dt, slip: r._slip, ord: 0, key: r._key, desc: sStr(r[S_ad]), sale: r._amt, recv: 0.0 }));
+          rSub.forEach(r => items.push({ dt: r._dt, slip: r._slip, ord: 0, key: r._key, desc: name || "", sale: 0.0, recv: r._amt }));
+
+          let lRows = ledgerMap[code] || [];
+          lRows.forEach(lr => {
+            if (lr.dt && lr.dt >= startDate && lr.dt <= endDate) {
+              let sAmt = 0.0, rAmt = 0.0;
+              if (lr.account === '9199') sAmt = lr.credit;
+              else if (lr.account === '9549') rAmt = lr.debit;
+              else if (lr.account === '1089') { sAmt = lr.debit; rAmt = lr.credit; }
+              if (sAmt !== 0 || rAmt !== 0) {
+                items.push({ dt: lr.dt, slip: lr.slip, ord: 2, key: lr.key, desc: lr.desc, sale: sAmt, recv: rAmt });
+              }
+            }
+          });
+
+          if (!isForced && items.length === 0 && Math.abs(baseVal) < 0.5) continue;
+
+          items.sort((a, b) => {
+            let tA = a.dt ? a.dt.getTime() : 0; let tB = b.dt ? b.dt.getTime() : 0;
+            if (tA !== tB) return tA - tB;
+            if (a.ord !== b.ord) return a.ord - b.ord;
+            let nA = parseInt((a.slip||"0").replace(/\D/g, '')) || 0;
+            let nB = parseInt((b.slip||"0").replace(/\D/g, '')) || 0;
+            return nA - nB;
+          });
+
+          let carryBase = baseVal;
+          let itemsShow = items;
+          if (items.length > maxItems) {
+            let omit = items.slice(0, items.length - maxItems);
+            itemsShow = items.slice(items.length - maxItems);
+            omit.forEach(o => carryBase += o.sale - o.recv);
+          }
+
+         let curBal = carryBase;
+          let drawRows = [];
+          if (carryBase !== 0) drawRows.push({ merge: "이월잔액", sale: "", recv: "", bal: fmtAmt(carryBase) });
+          itemsShow.forEach(it => {
+            curBal += it.sale - it.recv;
+            drawRows.push({ key: it.key, desc: it.desc, sale: fmtAmt(it.sale), recv: fmtAmt(it.recv), bal: fmtAmt(curBal) });
+          });
+          drawRows.push({ merge: "합계", sale: "", recv: "", bal: fmtAmt(curBal) });
+
+          if (showOnlyBalance) {
+            if (curBal <= 0.5) continue;
+          } else {
+            if (!isForced && Math.abs(curBal) < 0.5 && itemsShow.length === 0) continue;
+          }
+
+          let roomName = chatMapData[name] || "";
+          let phonePick = null;
+          if (bRows.length > 0) {
+            let bd = sStr(bRows[0][B_desc]);
+            let m = bd.match(/입금[^0-9]*((010[0-9\-\s]+))/);
+            if (m) phonePick = normPhone(m[1]);
+            if (!phonePick && B_ph) {
+              let pTxt = bRows.map(r => String(r[B_ph])).join(" ");
+              phonePick = normPhone(pTxt);
+            }
+          }
+
+          if (!isForced && !roomName && !phonePick) continue;
+          let targetFolder = roomName || phonePick;
+          
+          let sumSale = itemsShow.reduce((sum, x) => sum + x.sale, 0);
+          let sumRecv = itemsShow.reduce((sum, x) => sum + x.recv, 0);
+
+          let canvasData = await drawCanvas(name, drawRows);
+          
+          renderDataList.push({
+            code: code, name: name,
+            base: carryBase, sale: sumSale, recv: sumRecv, bal: curBal,
+            folder: targetFolder, dataUrl: canvasData, rows: drawRows,
+            filename: (name || code) + ".png"
+          });
+        }
+
+        renderDataList.sort((a, b) => {
+          let aHasRoom = chatMapData[a.name] ? 1 : 0;
+          let bHasRoom = chatMapData[b.name] ? 1 : 0;
+          if (aHasRoom !== bHasRoom) return bHasRoom - aHasRoom;
+          return a.code.localeCompare(b.code);
+        });
+
+        renderTable(renderDataList);
+
+        document.getElementById('loading_msg').style.display = 'none';
+        document.getElementById('file_status').innerText = `성공! 총 ${renderDataList.length}건 변환 완료.`;
+
+        switchTab(1);
+
+        let todayStr = new Date().toISOString().split('T')[0];
+        let saveList = renderDataList.map(item => {
+          let { dataUrl, ...rest } = item;
+          return rest;
+        });
+        google.script.run.autoSaveResultToNotion(JSON.stringify(saveList), currentUserEmail, currentUserName, '자동저장 (' + todayStr + ')');
+
+      } catch (e) {
+        alert(e);
+        document.getElementById('loading_msg').style.display = 'none';
+      }
+    }
+
+    /* 포맷팅 */
+    function formatDf(raw, hdrIdx) {
+      if (raw.length <= hdrIdx) return [];
+      let headers = (Array.isArray(raw[hdrIdx]) ? raw[hdrIdx] : []).map(sStr);
+      let res = [];
+      for (let i = hdrIdx + 1; i < raw.length; i++) {
+        let obj = {};
+        let row = Array.isArray(raw[i]) ? raw[i] : [];
+        for (let j = 0; j < headers.length; j++) {
+          obj[headers[j]] = row[j];
+        }
+        res.push(obj);
+      }
+      return res;
+    }
+
+    function formatReceipt(raw) {
+      let bestRow = -1, bestHits = -1;
+      let ckeys = [].concat(COLKEY.receipt.no, COLKEY.receipt.cc, COLKEY.receipt.amt);
+      for (let i = 0; i < Math.min(raw.length, 20); i++) {
+        let row = Array.isArray(raw[i]) ? raw[i] : [];
+        let rowStr = row.map(sStr).join(" ");
+        let hits = 0;
+        ckeys.forEach(k => { if (rowStr.includes(k)) hits++; });
+        if (hits > bestHits) { bestHits = hits; bestRow = i; }
+      }
+      if (bestRow === -1) return [];
+      let headers = (Array.isArray(raw[bestRow]) ? raw[bestRow] : []).map(sStr);
+      let res = [];
+      for (let i = bestRow + 1; i < raw.length; i++) {
+        let row = Array.isArray(raw[i]) ? raw[i] : [];
+        let isSum = row.some(v => sStr(v).includes('합계') || sStr(v).includes('총계'));
+        if (!isSum) {
+          let obj = {};
+          for (let j = 0; j < headers.length; j++) { obj[headers[j]] = row[j]; }
+          res.push(obj);
+        }
+      }
+      return res;
+    }
+
+    function parseDateCol(r, col) {
+      let v = r[col];
+      let p = parseNoToDate(v);
+      if (!p.dt) {
+        let ak = Object.keys(r).find(k => DATE_KEYS.some(dk => k.includes(dk)));
+        let sk = Object.keys(r).find(k => SLIP_KEYS.some(dk => k.includes(dk)));
+        if (ak && r[ak]) {
+          let dtTry = new Date(String(r[ak]).substring(0,10).replace(/[\.\-]/g, '/'));
+          if (!isNaN(dtTry)) {
+            p.dt = dtTry;
+            p.slip = (sk && r[sk]) ? sStr(r[sk]) : "1";
+            let mm = ('0' + (p.dt.getMonth() + 1)).slice(-2);
+            let dd = ('0' + p.dt.getDate()).slice(-2);
+            p.key = `${p.dt.getFullYear()}/${mm}/${dd} -${p.slip}`;
+          }
+        }
+      }
+      r._dt = p.dt; r._slip = p.slip; r._key = p.key;
+    }
+
+    function parseDateColReceipt(r, col, keys) {
+      let v = r[col];
+      let p = parseNoToDate(v);
+      if (!p.dt) {
+        let full = keys.map(k => sStr(r[k])).join(" ");
+        let p2 = parseNoToDate(full);
+        if (p2.dt) p = p2;
+      }
+      if (!p.dt) {
+        let ak = keys.find(k => DATE_KEYS.some(dk => k.includes(dk)));
+        let sk = keys.find(k => SLIP_KEYS.some(dk => k.includes(dk)));
+        if (ak && r[ak]) {
+          let dtTry = new Date(String(r[ak]).substring(0,10).replace(/[\.\-]/g, '/'));
+          if (!isNaN(dtTry)) {
+            p.dt = dtTry;
+            if (!p.slip) p.slip = (sk && r[sk]) ? sStr(r[sk]) : "1";
+            if (!p.key) {
+              let mm = ('0' + (p.dt.getMonth() + 1)).slice(-2);
+              let dd = ('0' + p.dt.getDate()).slice(-2);
+              p.key = `${p.dt.getFullYear()}/${mm}/${dd} -${p.slip}`;
+            }
+          }
+        }
+      }
+      r._dt = p.dt; r._slip = p.slip; r._key = p.key;
+    }
+
+    function parseAccountLedger(raw) {
+      let items = [];
+      const TARGET_ACC = ["1089", "9199", "9549"];
+      let i = 0;
+      while (i < raw.length) {
+        let row = Array.isArray(raw[i]) ? raw[i] : [];
+        let rowStr = row.map(sStr).join(" ");
+        let cAcc = TARGET_ACC.find(a => rowStr.includes(a) && (rowStr.includes("계정별원장") || rowStr.includes("회사명")));
+        if (!cAcc) { i++; continue; }
+        
+        let hdrIdx = -1;
+        let cMap = {};
+        for (let k = i + 1; k < Math.min(i + 10, raw.length); k++) {
+          let cRow = Array.isArray(raw[k]) ? raw[k] : [];
+          let cStr = cRow.map(sStr);
+          if (cStr.includes("전표번호") && cStr.includes("거래처코드")) {
+            hdrIdx = k;
+            for (let idx = 0; idx < cStr.length; idx++) {
+              let t = cStr[idx];
+              for (let key in COLKEY.ledger) {
+                if (COLKEY.ledger[key].some(kw => t.includes(kw))) cMap[key] = idx;
+              }
+            }
+            break;
+          }
+        }
+        if (hdrIdx === -1) { i++; continue; }
+        
+        let j = hdrIdx + 1;
+        while (j < raw.length) {
+          let dRow = Array.isArray(raw[j]) ? raw[j] : [];
+          let dStr = dRow.map(sStr).join(" ");
+          if (dStr.includes("합계") || dStr.includes("누계") || (dStr.includes("계정별원장") && j > hdrIdx + 5)) {
+            i = j; break;
+          }
+          let idxNo = cMap["no"];
+          let idxCd = cMap["code"];
+          if (idxNo !== undefined && idxCd !== undefined && dRow[idxNo] && dRow[idxCd]) {
+            let rNo = sStr(dRow[idxNo]);
+            let rCd = normCode(dRow[idxCd]);
+            let p = parseNoToDate(rNo);
+            if (p.dt) {
+              items.push({
+                account: cAcc, code: rCd, dt: p.dt, slip: p.slip, key: p.key,
+                desc: cMap["desc"] ? sStr(dRow[cMap["desc"]]) : "",
+                debit: cMap["debit"] ? toNum(dRow[cMap["debit"]]) : 0.0,
+                credit: cMap["credit"] ? toNum(dRow[cMap["credit"]]) : 0.0
+              });
+            }
+          }
+          j++;
+        }
+        i = j;
+      }
+      return items;
+    }
+
+    function isExcludedByName(name) {
+      if (!name) return false;
+      return Object.keys(chatMapData).includes(sStr(name));
+    }
+
+    function isExcludedByWord(code, bondMap) {
+      let applyFilter = document.getElementById('apply_filter').checked;
+      if (!applyFilter) return false;
+      let txt = bondMap[code] || "";
+      if (!txt || filterWords.length === 0) return false;
+      return filterWords.some(w => txt.includes(w));
+    }
+
+    /* 필터단어 */
+    function addFilterRow(word = '') {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `<td class="drag-handle" style="text-align:center; cursor:grab; font-weight:bold; color:#a0aec0; user-select:none;">=</td>
+                      <td contenteditable="true" style="text-align:center; cursor:text;">${word}</td>
+                      <td style="text-align:center;"><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="removeFilterRow(this)">-</button></td>`;
+      document.getElementById('tbody_filter').appendChild(tr);
+    }
+
+    function removeFilterRow(btn) {
+      let tr = btn.closest('tr');
+      if(tr) tr.parentNode.removeChild(tr);
+    }
+
+    function saveFilterData(btn) {
+      let data = [];
+      document.querySelectorAll('#tbody_filter tr').forEach(tr => {
+        let w = tr.children[1].innerText.trim().toLowerCase();
+        if (w) data.push(w);
+      });
+      filterWords = data;
+      let btnText = btn.innerText;
+      btn.innerText = '저장 중...';
+      btn.style.opacity = '0.6';
+      btn.disabled = true;
+      document.body.style.cursor = 'wait';
+      google.script.run.withSuccessHandler(()=>{
+          btn.innerText = btnText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          alert('필터링 단어 저장 완료');
+      }).withFailureHandler(err=>{
+          btn.innerText = btnText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          alert('오류: ' + err.message);
+      }).saveFilterWordsToNotion(data);
+    }
+
+    function loadFilterData() {
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('tbody_filter').innerHTML = '';
+        filterWords = res || [];
+        filterWords.forEach(w => addFilterRow(w));
+        let len = filterWords.length;
+        for(let i = len; i < 300; i++) addFilterRow(); 
+      }).getFilterWordsFromNotion();
+    }
+
+    /* 거래처코드 */
+    function addClientCodeRow(code = '') {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `<td class="drag-handle" style="text-align:center; cursor:grab; font-weight:bold; color:#a0aec0; user-select:none;">=</td>
+                      <td contenteditable="true" style="text-align:center; cursor:text;" oninput="this.innerText=this.innerText.replace(/[^0-9]/g,'')">${code}</td>
+                      <td style="text-align:center;"><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="removeClientCodeRow(this)">-</button></td>`;
+      document.getElementById('tbody_client_code').appendChild(tr);
+    }
+
+    function removeClientCodeRow(btn) {
+      let tr = btn.closest('tr');
+      if(tr) tr.parentNode.removeChild(tr);
+    }
+
+    function resetClientCodes() {
+      document.getElementById('tbody_client_code').innerHTML = '';
+      for(let i = 0; i < 300; i++) addClientCodeRow();
+    }
+
+    function saveClientCodeData(btn) {
+      let data = [];
+      document.querySelectorAll('#tbody_client_code tr').forEach(tr => {
+        let w = tr.children[1].innerText.trim().replace(/[^\d]/g, '');
+        if (w) data.push(w);
+      });
+      clientCodes = data;
+      let btnText = btn.innerText;
+      btn.innerText = '저장 중...';
+      btn.style.opacity = '0.6';
+      btn.disabled = true;
+      document.body.style.cursor = 'wait';
+      google.script.run.withSuccessHandler(()=>{
+          btn.innerText = btnText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          alert('거래처코드 저장 완료');
+      }).withFailureHandler(err=>{
+          btn.innerText = btnText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          alert('오류: ' + err.message);
+      }).saveClientCodesToNotion(data);
+    }
+
+    function loadClientCodeData() {
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('tbody_client_code').innerHTML = '';
+        clientCodes = res || [];
+        clientCodes.forEach(w => addClientCodeRow(w));
+        let len = clientCodes.length;
+        for(let i = len; i < 300; i++) addClientCodeRow(); 
+      }).getClientCodesFromNotion();
+    }
+
+    /* 캔버스 */
+    function drawCanvas(customerName, rows) {
+      return new Promise(resolve => {
+        let cvs = document.createElement('canvas');
+        let ctx = cvs.getContext('2d');
+        
+        const W = 1600;
+        const PAD = 60;
+        const ROW_H = 52;
+        const ROW_H_HDR = 62;
+        const TITLE_H = 72;
+        const TITLE_GAP = 18;
+        
+        const tw = W - PAD * 2;
+        const rArr = [0.16, 0.42, 0.14, 0.14, 0.14];
+        let xs = [PAD];
+        rArr.slice(0, 4).forEach(r => xs.push(xs[xs.length-1] + Math.floor(tw * r)));
+        xs.push(PAD + tw);
+        
+        let n = rows.length;
+        let H = PAD + TITLE_H + TITLE_GAP + ROW_H_HDR * 2 + n * ROW_H + PAD;
+        
+        cvs.width = W; cvs.height = H;
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, W, H);
+        
+        ctx.fillStyle = "black";
+        ctx.strokeStyle = "black";
+        
+        let titleTxt = customerName ? `${customerName} 거래내역` : "미지정 거래내역";
+        ctx.font = "bold 46px 'Malgun Gothic'";
+        let tW = ctx.measureText(titleTxt).width;
+        ctx.fillText(titleTxt, (W - tW) / 2, PAD + 46);
+        
+        let y = PAD + TITLE_H + TITLE_GAP;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(xs[0], y, tw, ROW_H_HDR);
+        
+        ctx.font = "bold 28px 'Malgun Gothic'";
+        let lab = "출고/입금내역";
+        let lW = ctx.measureText(lab).width;
+        ctx.fillText(lab, xs[0] + (tw - lW) / 2, y + 42);
+        
+        y += ROW_H_HDR;
+        ctx.fillStyle = "rgb(235,235,235)";
+        ctx.fillRect(xs[0], y, tw, ROW_H_HDR);
+        ctx.strokeRect(xs[0], y, tw, ROW_H_HDR);
+        ctx.fillStyle = "black";
+        
+        for (let i = 1; i < xs.length - 1; i++) {
+          ctx.beginPath(); ctx.moveTo(xs[i], y); ctx.lineTo(xs[i], y + ROW_H_HDR); ctx.stroke();
+        }
+        
+        let heads = ["일자", "적요", "출고", "입금", "잔액"];
+        heads.forEach((h, i) => {
+          let cx = (xs[i] + xs[i+1]) / 2;
+          let w = ctx.measureText(h).width;
+          ctx.fillText(h, cx - w / 2, y + 42);
+        });
+        
+        y += ROW_H_HDR;
+        ctx.font = "26px 'Malgun Gothic'";
+        
+        rows.forEach(r => {
+          let isSum = (r.merge === "합계");
+          if (isSum) {
+            ctx.fillStyle = "rgb(235,235,235)";
+            ctx.fillRect(xs[0], y, tw, ROW_H);
+          }
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "black";
+          ctx.strokeRect(xs[0], y, tw, ROW_H);
+          ctx.fillStyle = "black";
+          
+          for (let i = 1; i < xs.length - 1; i++) {
+            if (r.merge && i === 1) continue;
+            ctx.beginPath(); ctx.moveTo(xs[i], y); ctx.lineTo(xs[i], y + ROW_H); ctx.stroke();
+          }
+          
+          if (r.merge) {
+            ctx.font = "bold 26px 'Malgun Gothic'";
+            let w = ctx.measureText(r.merge).width;
+            let cx = (xs[0] + xs[2]) / 2;
+            ctx.fillText(r.merge, cx - w / 2, y + 36);
+          } else {
+            ctx.font = "26px 'Malgun Gothic'";
+            drawTextClipped(ctx, r.key, xs[0], xs[1], y, ROW_H);
+            drawTextClipped(ctx, r.desc, xs[1], xs[2], y, ROW_H);
+          }
+          
+          let vals = [r.sale, r.recv, r.bal];
+          vals.forEach((v, idx) => {
+            let isBal = (idx === 2);
+            ctx.font = (isSum || isBal) ? "bold 26px 'Malgun Gothic'" : "26px 'Malgun Gothic'";
+            ctx.fillStyle = (isSum && isBal && v) ? "rgb(200,0,0)" : "black";
+            let w = ctx.measureText(v).width;
+            let right = xs[3 + idx];
+            ctx.fillText(v, right - 12 - w, y + 36);
+          });
+          
+          if (isSum) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "rgb(200,0,0)";
+            ctx.strokeRect(xs[4], y, xs[5] - xs[4], ROW_H);
+          }
+          y += ROW_H;
+        });
+        
+        resolve(cvs.toDataURL('image/png'));
+      });
+    }
+
+    function drawTextClipped(ctx, text, xL, xR, yT, rowH) {
+      if (!text) return;
+      let pad = 12;
+      let maxW = xR - xL - pad * 2;
+      if (maxW <= 0) return;
+      
+      let txt = String(text);
+      let w = ctx.measureText(txt).width;
+      if (w > maxW) {
+        let lo = 0, hi = txt.length, best = "";
+        while (lo <= hi) {
+          let mid = Math.floor((lo + hi) / 2);
+          let c = txt.substring(0, mid);
+          if (ctx.measureText(c).width <= maxW) { best = c; lo = mid + 1; }
+          else { hi = mid - 1; }
+        }
+        txt = best;
+      }
+      ctx.fillText(txt, xL + pad, yT + 36);
+    }
+
+    /* 화면 */
+    function renderTable(list) {
+      processedResultData = list;
+      let tbody = document.getElementById('tbody_result');
+      tbody.innerHTML = '';
+      
+      list.forEach((item, idx) => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td contenteditable="true">${item.code || ''}</td>
+          <td contenteditable="true">${item.name || ''}</td>
+          <td contenteditable="true">${fmtAmt(item.base)}</td>
+          <td contenteditable="true">${fmtAmt(item.sale)}</td>
+          <td contenteditable="true">${fmtAmt(item.recv)}</td>
+          <td contenteditable="true" style="color:${item.bal<0?'red':'black'}; font-weight:bold;">${fmtAmt(item.bal)}</td>
+          <td contenteditable="true">${item.folder || ''}</td>
+          <td>
+            <div class="btn-wrap">
+              <button class="action-btn" onclick="copyCanvas('${idx}')">복사</button>
+              <button class="action-btn btn-save" onclick="saveCanvas('${idx}')">저장</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* 복사 및 저장 */
+    function dataURItoBlob(dataURI) {
+      const byteString = atob(dataURI.split(',')[1]);
+      const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+      return new Blob([ab], {type: mimeString});
+    }
+
+    async function copyCanvas(idx) {
+      try {
+        let item = processedResultData[idx];
+        const blob = dataURItoBlob(item.dataUrl);
+        await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
+        alert('복사완료');
+      } catch (err) {
+        alert('오류발생');
+      }
+    }
+
+    function saveCanvas(idx) {
+      try {
+        let item = processedResultData[idx];
+        let link = document.createElement('a');
+        link.download = item.filename;
+        link.href = item.dataUrl;
+        link.click();
+      } catch (err) {
+        alert('저장 중 오류가 발생했습니다.');
+      }
+    }
+
+    /* 표 선택/편집 로직 (Shift, Ctrl 등) */
+    let isSelecting = false;
+    let startR = -1, startC = -1;
+    let currentTable = null;
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2) return;
+      if (e.target.closest('.ctx-menu')) return;
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) {
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        return;
+      }
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return; 
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex;
+      let targetC = td.cellIndex;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (td.getAttribute('contenteditable') === 'true') {
+          td.classList.toggle('selected');
+        }
+        startR = targetR;
+        startC = targetC;
+        isSelecting = false;
+      } else if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex;
+          let c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC && cell.getAttribute('contenteditable') === 'true') {
+            cell.classList.add('selected');
+          }
+        });
+      } else {
+        isSelecting = true;
+        startR = targetR;
+        startC = targetC;
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        if(td.getAttribute('contenteditable') === 'true') td.classList.add('selected');
+      }
+      
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable) return;
+      
+      let endR = td.parentElement.rowIndex;
+      let endC = td.cellIndex;
+      
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      
+      currentTable.querySelectorAll('td').forEach(cell => {
+        let r = cell.parentElement.rowIndex;
+        let c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC && cell.getAttribute('contenteditable') === 'true') {
+          cell.classList.add('selected');
+        } else {
+          cell.classList.remove('selected');
+        }
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.getAttribute('contenteditable') === 'true') {
+        td.focus();
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false);
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+      let selected = document.querySelectorAll('.selected');
+      
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
+        selected.forEach(td => { if(td.getAttribute('contenteditable') === 'true') td.innerText = ''; });
+        e.preventDefault();
+        return;
+      }
+      
+      if (selected.length === 1) {
+        let td = selected[0];
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          let tr = td.parentElement;
+          let table = td.closest('table');
+          let span = td.rowSpan || 1;
+          let nextTr = table.rows[tr.rowIndex + span];
+          
+          if (nextTr) {
+            let nextTd = nextTr.cells[td.cellIndex];
+            if (nextTd) {
+              td.classList.remove('selected');
+              if(document.activeElement === td) td.blur(); 
+              nextTd.classList.add('selected');
+              if (nextTd.getAttribute('contenteditable') === 'true') {
+                nextTd.focus();
+                let range = document.createRange(), sel = window.getSelection();
+                range.selectNodeContents(nextTd); range.collapse(false);
+                sel.removeAllRanges(); sel.addRange(range);
+              }
+            }
+          }
+          return;
+        }
+
+        if (td.getAttribute('contenteditable') === 'true' && document.activeElement !== td) {
+          if (e.key.length === 1) {
+            td.innerText = ''; td.focus();
+          }
+        }
+      }
+    });
+
+    document.addEventListener('copy', (e) => {
+      if(document.activeElement && document.activeElement.tagName === 'TD') return;
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) {
+        if(window.getSelection().toString().length > 0) return; 
+        return;
+      }
+      e.preventDefault();
+      
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, '')); 
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0) return;
+      
+      let firstCell = selected[0];
+      if (firstCell.getAttribute('contenteditable') !== 'true') return; 
+      
+      e.preventDefault();
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      
+      let table = firstCell.closest('table');
+      let sR = firstCell.parentElement.rowIndex;
+      let sC = firstCell.cellIndex;
+      let tbody = table.querySelector('tbody');
+      
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t');
+        let targetRow = table.rows[sR + i];
+        
+        if (!targetRow) {
+          targetRow = tbody.insertRow();
+          for(let k=0; k < table.rows[0].cells.length; k++) {
+            let td = targetRow.insertCell();
+            if (k < table.rows[0].cells.length - 1) td.contentEditable = "true";
+          }
+        }
+        
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetRow.cells[sC + j];
+          if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            targetCell.innerText = val.replace(/""/g, '"');
+          }
+        }
+      }
+    });
+
+    /* 우클릭 메뉴 */
+    function copyTextToClipboard(text) {
+      if (!text) return;
+      let textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea);
+    }
+
+    const ctxMenu = document.getElementById('ctxMenu');
+    document.addEventListener('contextmenu', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.closest('.custom-table')) {
+        e.preventDefault();
+        if (!td.classList.contains('selected')) {
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          td.classList.add('selected');
+        }
+        ctxMenu.style.display = 'block';
+        ctxMenu.style.left = e.pageX + 'px';
+        ctxMenu.style.top = e.pageY + 'px';
+      } else {
+        ctxMenu.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if(e.target.closest('.ctx-menu')) return;
+      ctxMenu.style.display = 'none';
+    });
+
+    document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+      let text = getSelectedText();
+      copyTextToClipboard(text);
+      ctxMenu.style.display = 'none';
+    });
+
+    function getSelectedText() {
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return '';
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      return textLines.join('\n');
+    }
+
+    /* 내역조회 */
+    function initHistoryDates() {
+      let now = new Date();
+      let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      let kst = new Date(utc + (3600000 * 9));
+      let s = new Date(kst); s.setDate(s.getDate() - 1);
+      let e = new Date(kst); e.setDate(e.getDate() + 1);
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      document.getElementById('history_start').value = f(s); 
+      document.getElementById('history_end').value = f(e);
+    }
+
+    function loadHistory() {
+      let start = document.getElementById('history_start').value; 
+      let end = document.getElementById('history_end').value;
+      let tbody = document.getElementById('tbody_history');
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">조회중...</td></tr>';
+      
+      google.script.run.withSuccessHandler(res => {
+        if(!res || !res.length) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">내역이 없습니다.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = res.map(row => {
+          let dateStr = new Date(row.time).toLocaleString();
+          return `<tr>
+            <td style="text-align: center;">${row.worker}</td>
+            <td style="text-align: center;">${dateStr}</td>
+            <td style="text-align: center;">${row.topic}</td>
+            <td style="text-align: center;"><button class="action-btn" onclick="restoreHistory('${row.id}', this)">복원</button></td>
+          </tr>`;
+        }).join('');
+      }).getHistoryFromNotion(start, end);
+    }
+
+    function restoreHistory(id, btn) {
+      let prevText = btn.innerText;
+      btn.innerText = '복원중...';
+      btn.disabled = true;
+      document.body.style.cursor = 'wait';
+      
+      google.script.run
+        .withSuccessHandler(async jsonStr => {
+          btn.innerText = prevText;
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          
+          if (jsonStr) {
+            try {
+              document.getElementById('loading_msg').style.display = 'block';
+              document.getElementById('loading_msg').innerText = '이미지 재생성 및 데이터 복원 중...';
+              
+              let parsed = JSON.parse(jsonStr);
+              for (let item of parsed) {
+                if (!item.dataUrl && item.rows) {
+                  item.dataUrl = await drawCanvas(item.name, item.rows);
+                }
+              }
+              renderTable(parsed);
+              document.getElementById('loading_msg').style.display = 'none';
+              alert('복원되었습니다.');
+              switchTab(1);
+            } catch(e) { 
+              alert('데이터 파싱 오류'); 
+              document.getElementById('loading_msg').style.display = 'none';
+            }
+          } else {
+            alert('데이터를 불러오지 못했습니다.');
+          }
+        })
+        .withFailureHandler(err => {
+          btn.innerText = prevText;
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          alert('통신 오류: ' + err.message);
+        })
+        .getSpecificHistory(id);
+    }
+  </script>
+</body>
+</html>

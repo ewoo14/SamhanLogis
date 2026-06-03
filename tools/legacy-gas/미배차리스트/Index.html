@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 이동 */
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 900px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 16.666%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; }
+    .page.active { display: block; }
+    #page0 { max-width: 800px; }
+    #page1 { width: 100%; max-width: 100%; padding: 20px; box-sizing: border-box; }
+    #page1.active { display: flex; gap: 20px; }
+    .split-panel { flex: 1; min-width: 0; }
+    #page2, #page3, #page4 { width: 100%; max-width: 100%; padding: 20px; } 
+    #page5 { max-width: 1600px; padding: 20px; }
+
+    /* 영역 */
+    #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; }
+    #drop_zone:hover { border-color: #3182ce; background: #ebf8ff; }
+    
+    /* 버튼 */
+    .action-btn { display: block; width: 200px; padding: 15px; background: #3182ce; color: white; text-align: center; font-weight: bold; border-radius: 8px; border: none; cursor: margin: 20px auto 0 auto; font-size: 16px; }
+    .action-btn:hover { background: #2b6cb0; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .reset-btn:hover { background: #e2e8f0; }
+
+    /* 표 */
+    .table-wrapper { height: calc(100vh - 300px); max-height: calc(100vh - 300px); margin-bottom: 20px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: 100%; border-collapse: collapse; table-layout: fixed; user-select: none; }
+    table.res-table { min-width: 1300px; }
+    .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 8px 10px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; cursor: cell; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; text-align: center; position: sticky; top: -1px; z-index: 2; }
+    
+    /* 제목 */
+    .title-header { height: 60px; font-size: 26px !important; font-weight: 900 !important; background-color: #ffffff !important; color: #1a202c !important; letter-spacing: 2px; border-bottom: 2px solid #cbd5e0 !important; }
+    .res-table thead tr:first-child th { top: -1px; z-index: 3; }
+    .res-table thead tr:last-child th { top: 59px; z-index: 2; }
+
+    /* 선택 */
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+
+    /* 중복 */
+    .bg-duplicate { background-color: #fee2e2 !important; color: #991b1b; font-weight: bold; }
+    
+    /* 정렬 */
+    .res-table td { text-align: center; }
+    .res-table td:nth-child(3), 
+    .res-table td:nth-child(4), 
+    .res-table td:nth-child(6), 
+    .res-table td:nth-child(7), 
+    .res-table td:nth-child(10) { text-align: left; } 
+
+    /* 서식 */
+    .bg-morning { background-color: #fef08a !important; } 
+    .bg-afternoon { background-color: #bfdbfe !important; } 
+    .bg-discarded { background-color: #EDD7F5 !important; color: #B80FF5; }
+    .bg-duplicated-row { background-color: #fee2e2 !important; color: #991b1b; }
+    .bg-highlight { background-color: #fee2e2 !important; }
+    .bg-err-date { background-color: #fed7aa !important; }
+    .bg-jibang-wknd { background-color: #c9eb34 !important; }
+
+    /* 비율 */
+    .col-date { width: 10%; }   .col-num { width: 11%; }    .col-client { width: 10%; }
+    .col-addr { width: 17%; transition: width 0.3s; }  .col-amt { width: 8%; }    
+    .col-prod { width: 14%; transition: width 0.3s; }
+    .col-rmk { width: 14%; transition: width 0.3s; }   .col-wh { width: 8%; }     .col-mgr { width: 8%; }
+    .col-form { width: 0; display: none; }
+    .res-table th:nth-child(10), .res-table td:nth-child(10) { display: none; }
+
+    .res-table.show-format .col-addr { width: 14%; }
+    .res-table.show-format .col-prod { width: 11%; }
+    .res-table.show-format .col-rmk { width: 10%; }
+    .res-table.show-format .col-form { display: table-column; width: 10%; }
+    .res-table.show-format th:nth-child(10), .res-table.show-format td:nth-child(10) { display: table-cell; }
+
+    /* 메뉴 */
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+
+    /* 날짜 선택 모달 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 10005; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-box { background: white; padding: 25px; border-radius: 10px; width: 300px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
+    .modal-box h4 { margin: 0 0 15px 0; color: #1a202c; font-size: 18px; }
+    .modal-box input[type="date"] { width: 80%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 15px; margin-bottom: 20px; text-align: center; }
+    .modal-actions { display: flex; gap: 10px; justify-content: center; }
+  </style>
+</head>
+<body>
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      로딩 중...
+    </div>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>(주)삼한공조시스템</h2>
+      <p>AI 무풍 시스템에어컨 미배차현황 관리 시스템</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider"></div>
+      <div class="nav-item active" onclick="switchTab(0)">업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">배차내역</div>
+      <div class="nav-item" onclick="switchTab(2)">당일미배차</div>
+      <div class="nav-item" onclick="switchTab(3)">야적미배차</div>
+      <div class="nav-item" onclick="switchTab(4)">지방미배차</div>
+      <div class="nav-item" onclick="switchTab(5)">저장내역</div>
+    </div>
+
+    <div id="page0" class="page active">
+      <h3 style="text-align: center; margin-bottom: 20px;">이카운트 엑셀 데이터 업로드</h3>
+      <div id="drop_zone" onclick="document.getElementById('file_input').click()">
+        이곳에 엑셀 파일을 드래그하거나 클릭하여 업로드하세요.
+      </div>
+      <input type="file" id="file_input" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event)">
+      <p id="file_status" style="text-align:center; margin-top:15px; color:green; font-weight:bold;"></p>
+    </div>
+
+    <div id="page1" class="page">
+      <div class="split-panel">
+        <div style="position: relative; margin-bottom: 15px; text-align: center;">
+          <h3 style="margin:0; padding: 5px 0;">경기퀵 배차내역</h3>
+          <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+            <button class="reset-btn" onclick="saveManualToNotion(1)">노션저장</button>
+            <button class="reset-btn" onclick="clearData1()">초기화</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table" id="table_source">
+            <thead><tr><th>배차요청내역</th></tr></thead>
+            <tbody id="tbody_source"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="split-panel">
+        <div style="position: relative; margin-bottom: 15px; text-align: center;">
+          <h3 style="margin:0; padding: 5px 0;">전국화물 배차내역</h3>
+          <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+            <button class="reset-btn" onclick="saveManualToNotion(2)">노션저장</button>
+            <button class="reset-btn" onclick="clearData2()">초기화</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="custom-table" id="table_source2">
+            <thead><tr><th>배차요청내역</th></tr></thead>
+            <tbody id="tbody_source2"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="page2" class="page">
+      <div style="position: relative; margin-bottom: 15px; text-align: center;">
+        <label style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: bold; cursor: pointer; color: #4a5568;">
+          <input type="checkbox" checked onchange="toggleFormat('table_unassigned', this)"> 양식숨김
+        </label>
+        <h3 style="margin:0; padding: 5px 0;">당일미배차</h3>
+        <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #48bb78;" onclick="copyTableImage('table_unassigned')">복사</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #ed8936;" onclick="saveTableImage('table_unassigned')">저장</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 20px;" onclick="runProcess()">데이터 처리 실행</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table res-table" id="table_unassigned">
+          <colgroup><col class="col-date"><col class="col-num"><col class="col-client"><col class="col-addr"><col class="col-amt"><col class="col-prod"><col class="col-rmk"><col class="col-wh"><col class="col-mgr"><col class="col-form"></colgroup>
+          <thead>
+            <tr><th colspan="10" class="title-header">당일미배차 내역</th></tr>
+            <tr><th>전표일자</th><th>전표번호</th><th>거래처</th><th>배송주소</th><th>금액</th><th>품목</th><th>특이사항</th><th>출고창고</th><th>담당자명</th><th>업로드양식</th></tr>
+          </thead>
+          <tbody id="tbody_unassigned"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page3" class="page">
+      <div style="position: relative; margin-bottom: 15px; text-align: center;">
+        <label style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: bold; cursor: pointer; color: #4a5568;">
+          <input type="checkbox" checked onchange="toggleFormat('table_yard', this)"> 양식숨김
+        </label>
+        <h3 style="margin:0; padding: 5px 0;">야적미배차</h3>
+        <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #48bb78;" onclick="copyTableImage('table_yard')">복사</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #ed8936;" onclick="saveTableImage('table_yard')">저장</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 20px;" onclick="runProcess()">데이터 처리 실행</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table res-table" id="table_yard">
+          <colgroup><col class="col-date"><col class="col-num"><col class="col-client"><col class="col-addr"><col class="col-amt"><col class="col-prod"><col class="col-rmk"><col class="col-wh"><col class="col-mgr"><col class="col-form"></colgroup>
+          <thead>
+            <tr><th colspan="10" class="title-header">야적미배차 내역</th></tr>
+            <tr><th>전표일자</th><th>전표번호</th><th>거래처</th><th>배송주소</th><th>금액</th><th>품목</th><th>특이사항</th><th>출고창고</th><th>담당자명</th><th>업로드양식</th></tr>
+          </thead>
+          <tbody id="tbody_yard"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page4" class="page">
+      <div style="position: relative; margin-bottom: 15px; text-align: center;">
+        <label style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 15px; font-weight: bold; cursor: pointer; color: #4a5568;">
+          <input type="checkbox" checked onchange="toggleFormat('table_regional', this)"> 양식숨김
+        </label>
+        <h3 style="margin:0; padding: 5px 0;">지방미배차</h3>
+        <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #48bb78;" onclick="copyTableImage('table_regional')">복사</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #ed8936;" onclick="saveTableImage('table_regional')">저장</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 20px;" onclick="runProcess()">데이터 처리 실행</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table res-table" id="table_regional">
+          <colgroup><col class="col-date"><col class="col-num"><col class="col-client"><col class="col-addr"><col class="col-amt"><col class="col-prod"><col class="col-rmk"><col class="col-wh"><col class="col-mgr"><col class="col-form"></colgroup>
+          <thead>
+            <tr><th colspan="10" class="title-header">지방미배차 내역</th></tr>
+            <tr><th>전표일자</th><th>전표번호</th><th>거래처</th><th>배송주소</th><th>금액</th><th>품목</th><th>특이사항</th><th>출고창고</th><th>담당자명</th><th>업로드양식</th></tr>
+          </thead>
+          <tbody id="tbody_regional"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="page5" class="page">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <input type="date" id="history_start" class="reset-btn"> ~ 
+        <input type="date" id="history_end" class="reset-btn">
+        <button class="action-btn" style="display: inline-block; width: auto; padding: 8px 15px; margin: 0 0 0 10px;" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>작업자</th>
+              <th>저장일시</th>
+              <th>복원여부</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_history"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="dateModal" class="modal-overlay">
+    <div class="modal-box">
+      <h4>노션 저장 일자 선택</h4>
+      <input type="date" id="manualSaveDate">
+      <div class="modal-actions">
+        <button class="action-btn" style="width:auto; margin:0; padding:8px 16px; background:#e2e8f0; color:#4a5568;" onclick="closeDateModal()">취소</button>
+        <button class="action-btn" style="width:auto; margin:0; padding:8px 16px;" onclick="confirmManualSave()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ecountData = [];
+    let currentUserEmail = '';
+    let currentUserName = '';
+
+    // 기억
+    let undoStack = [];
+    let redoStack = [];
+
+    // 보존
+    function saveUndoState() {
+      let tb1 = document.getElementById('tbody_source');
+      let tb2 = document.getElementById('tbody_source2');
+      if (tb1 && tb2) {
+        undoStack.push({ h1: tb1.innerHTML, h2: tb2.innerHTML });
+        if (undoStack.length > 30) undoStack.shift();
+        redoStack = [];
+      }
+    }
+
+    // 복원
+    function performUndo() {
+      if (undoStack.length === 0) return;
+      let tb1 = document.getElementById('tbody_source');
+      let tb2 = document.getElementById('tbody_source2');
+      if (tb1 && tb2) {
+        redoStack.push({ h1: tb1.innerHTML, h2: tb2.innerHTML });
+        let state = undoStack.pop();
+        tb1.innerHTML = state.h1;
+        tb2.innerHTML = state.h2;
+        checkDuplicates();
+      }
+    }
+
+    // 재실행
+    function performRedo() {
+      if (redoStack.length === 0) return;
+      let tb1 = document.getElementById('tbody_source');
+      let tb2 = document.getElementById('tbody_source2');
+      if (tb1 && tb2) {
+        undoStack.push({ h1: tb1.innerHTML, h2: tb2.innerHTML });
+        let state = redoStack.pop();
+        tb1.innerHTML = state.h1;
+        tb2.innerHTML = state.h2;
+        checkDuplicates();
+      }
+    }
+
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          document.getElementById('authLoading').style.display = 'none';
+          if (res.authorized) {
+            currentUserEmail = res.email;
+            currentUserName = res.managerName;
+            document.getElementById('welcomeName').innerText = res.managerName;
+            document.getElementById('welcomeAnimation').style.display = 'flex';
+            setTimeout(() => { document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }); }, 100);
+            setTimeout(() => {
+              document.getElementById('mobileGate').style.display = 'none';
+              document.getElementById('initialLoading').style.display = 'flex';
+              document.getElementById('mainApp').style.display = 'block';
+              clearData(); 
+              initHistoryDates();
+              checkAutoRestore();
+            }, 2500);
+          } else {
+            document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error || '미등록'}</span></div>`;
+          }
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">시스템오류<span>${err.message}</span></div>`;
+        })
+        .getUserAuth();
+    }
+
+    // 로드
+    function checkAutoRestore() {
+      google.script.run
+        .withSuccessHandler(res => {
+          if(res && res.data) {
+            restoreState(res.data, true);
+          } else {
+            document.getElementById('initialLoading').style.display = 'none';
+          }
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+        })
+        .getLatestHistoryFromNotion();
+    }
+
+    // 이동
+    function switchTab(index) {
+      document.getElementById('slider').style.transform = `translateX(${index * 100}%)`;
+      document.querySelectorAll('.nav-item').forEach((el, i) => el.classList.toggle('active', i === index));
+      document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
+      if (index === 5) loadHistory();
+    }
+
+    function toggleFormat(tableId, chk) {
+      let tb = document.getElementById(tableId);
+      if(chk.checked) tb.classList.remove('show-format');
+      else tb.classList.add('show-format');
+    }
+
+    function clearData() {
+      clearData1();
+      clearData2();
+    }
+
+    function clearData1() {
+      let html = '';
+      for(let i=0; i<500; i++) html += '<tr><td contenteditable="true"></td></tr>';
+      document.getElementById('tbody_source').innerHTML = html;
+      checkDuplicates();
+    }
+
+    function clearData2() {
+      let html = '';
+      for(let i=0; i<500; i++) html += '<tr><td contenteditable="true"></td></tr>';
+      document.getElementById('tbody_source2').innerHTML = html;
+      checkDuplicates();
+    }
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, {type: 'binary'});
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, {defval: "", range: 1, raw: false});
+        
+        // 기록
+        let lastVal = {};
+
+        ecountData = jsonData.map(row => {
+          let newRow = {};
+          for (let key in row) {
+            let cleanKey = key.replace(/\s+/g, '');
+            // 정제
+            newRow[cleanKey] = String(row[key] || '').replace(/_x000D_|_x000A_|\r\n|\n|\r/gi, ' ').replace(/\s+/g, ' ').trim();
+          }
+          return newRow;
+        });
+        document.getElementById('file_status').innerText = file.name + ' 업로드 완료! ' + ecountData.length + '건';
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    const dropZone = document.getElementById('drop_zone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#3182ce'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#cbd5e0'; });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#cbd5e0';
+      if (e.dataTransfer.files.length > 0) {
+        document.getElementById('file_input').files = e.dataTransfer.files;
+        handleFile({target: {files: e.dataTransfer.files}});
+      }
+    });
+
+    let isSelecting = false;
+    let startR = -1, startC = -1;
+    let currentTable = null;
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2) return;
+      if (e.target.closest('.ctx-menu')) return;
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) {
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        return;
+      }
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return; 
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex;
+      let targetC = td.cellIndex;
+
+      /* 쉬프트선택 */
+      if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex;
+          let c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        });
+      /* 다중선택 */
+      } else if (e.ctrlKey || e.metaKey) {
+        isSelecting = true;
+        startR = targetR;
+        startC = targetC;
+        td.classList.toggle('selected');
+      } else {
+        /* 일반선택 */
+        isSelecting = true;
+        startR = targetR;
+        startC = targetC;
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        td.classList.add('selected');
+      }
+      
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable) return;
+      
+      let endR = td.parentElement.rowIndex;
+      let endC = td.cellIndex;
+      
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      
+      currentTable.querySelectorAll('td').forEach(cell => {
+        let r = cell.parentElement.rowIndex;
+        let c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.getAttribute('contenteditable') === 'true') {
+        td.focus();
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false);
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      // 제어
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          if (document.activeElement.tagName !== 'TD') {
+            e.preventDefault();
+            performUndo();
+            return;
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          if (document.activeElement.tagName !== 'TD') {
+            e.preventDefault();
+            performRedo();
+            return;
+          }
+        }
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+      let selected = document.querySelectorAll('.selected');
+      
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
+        saveUndoState();
+        selected.forEach(td => { if(td.getAttribute('contenteditable') === 'true') td.innerText = ''; });
+        checkDuplicates();
+        e.preventDefault();
+        return;
+      }
+      
+      if (selected.length === 1) {
+        let td = selected[0];
+        
+        // 이동
+        if (e.key === 'Enter' && document.activeElement !== td) {
+          e.preventDefault();
+          let tr = td.parentElement;
+          let nextTr = tr.nextElementSibling;
+          if (nextTr) {
+            let nextTd = nextTr.cells[td.cellIndex];
+            if (nextTd) {
+              td.classList.remove('selected');
+              nextTd.classList.add('selected');
+            }
+          }
+          return;
+        }
+
+        // 편집
+        if (td.getAttribute('contenteditable') === 'true' && document.activeElement !== td) {
+          if (e.key.length === 1) {
+            saveUndoState();
+            td.innerText = ''; td.focus();
+          }
+        }
+      }
+    });
+
+    document.addEventListener('copy', (e) => {
+      if(document.activeElement && document.activeElement.tagName === 'TD') return;
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) {
+        if(window.getSelection().toString().length > 0) return; 
+        return;
+      }
+      e.preventDefault();
+      
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, '')); 
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0) {
+        if(document.activeElement.tagName === 'TD') {
+           saveUndoState();
+           setTimeout(checkDuplicates, 50); 
+           return; 
+        }
+        return;
+      }
+      let firstCell = selected[0];
+      if (firstCell.getAttribute('contenteditable') !== 'true') return; 
+      
+      e.preventDefault();
+      saveUndoState();
+      
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      
+      let table = firstCell.closest('table');
+      let sR = firstCell.parentElement.rowIndex;
+      let sC = firstCell.cellIndex;
+      let tbody = table.querySelector('tbody');
+      
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t');
+        let targetRow = table.rows[sR + i];
+        if (!targetRow) {
+          targetRow = tbody.insertRow();
+          let td = targetRow.insertCell();
+          td.contentEditable = "true";
+        }
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetRow.cells[sC + j];
+          if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            targetCell.innerText = val.replace(/""/g, '"');
+          }
+        }
+      }
+      checkDuplicates();
+    });
+
+    document.getElementById('tbody_source').addEventListener('input', checkDuplicates);
+    document.getElementById('tbody_source2').addEventListener('input', checkDuplicates);
+
+    function extractNum(text) {
+      let s = String(text || '').replace(/（/g, '(').replace(/）/g, ')');
+      let open = s.indexOf('(');
+      if (open === -1) return '';
+      let close = s.indexOf(')', open + 1);
+      if (close === -1) return '';
+      let inner = s.slice(open + 1, close);
+      let m = inner.match(/(?:^|[^\d])(\d{1,3})\s*$/);
+      if (!m) return '';
+      return m[1];
+    }
+
+    function checkDuplicates() {
+      let tds = document.querySelectorAll('#tbody_source td, #tbody_source2 td');
+      let numCounts = {};
+      tds.forEach(td => {
+        let n = extractNum(td.innerText);
+        if(n) { numCounts[n] = (numCounts[n] || 0) + 1; }
+        td.classList.remove('bg-duplicate');
+      });
+      tds.forEach(td => {
+        let n = extractNum(td.innerText);
+        if(n && numCounts[n] > 1) { td.classList.add('bg-duplicate'); }
+      });
+    }
+
+    function getDeliveryInitialState(warehouse, address, remark) {
+      let o = String(address || '');
+      let r = String(remark || '');
+
+      if (/입금/.test(r)) return '보류';
+      if (/배차\s*x/i.test(o) || /배차\s*x/i.test(r)) return '해당없음';
+      if ((/반품/.test(o) || /반품/.test(r)) && !(/배차/i.test(o) || /배차/i.test(r))) return '해당없음';
+      
+      if (o.match(/야적.*[\/:]/)) return '야적미배차';
+      if (o.match(/지방.*[\/:]/)) return '지방미배차';
+      if (warehouse.indexOf('초월') === -1 && warehouse.indexOf('상일') === -1) return '해당없음';
+      if (o.substring(0, 10).match(/자가|회차|차용|반납|대여|회수/)) return '해당없음';
+      if (o.match(/경동.*[\/:]/) || o.match(/로젠.*[\/:]/)) return '해당없음';
+      
+      return '미배차';
+    }
+
+    function generateFormatStr(address, client, slipNumber, remark) {
+      let rawAddr = String(address || '').trim().replace(/^(?:지방|야적|야상)\s*[\/:]\s*/, '');
+      let addrPart = rawAddr.replace(/^(\S+)\s*(\S*)\s*(\S*).*/, "$1 $2 $3");
+      
+      let clientPart = String(client || '').replace(/\*/g, '').replace(/\([^)]*\)/g, '');
+      clientPart = clientPart.replace(/\s*주식회사|유한회사|사단법인|재단법인|합작회사|합병회사|협동|조합|법인|주|구\s*/g, '');
+      clientPart = clientPart.replace(/-.*$/, '').trim().substring(0, 10);
+      
+      let rem = String(remark || '').replace(/(?:\d+\s*(?:상차|하차|상|하|일)|상차|하차)/g, '').trim();
+      
+      return `-${addrPart}(${clientPart}-${slipNumber})${rem}`;
+    }
+
+    function runProcess(skipSave) {
+      if (ecountData.length === 0) {
+        alert('업로드필요');
+        switchTab(0);
+        return;
+      }
+
+      if (!skipSave) {
+        let state = {
+          ecountData: ecountData,
+          sourceHtml: document.getElementById('tbody_source').innerHTML,
+          sourceHtml2: document.getElementById('tbody_source2').innerHTML
+        };
+        let base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+        google.script.run.saveHistoryToNotion(base64Data, currentUserEmail, currentUserName);
+      }
+
+      let sourceList = [];
+      document.querySelectorAll('#tbody_source tr, #tbody_source2 tr').forEach(tr => {
+        // 정제
+        let val = tr.cells[0].innerText.replace(/\s+/g, ' ').trim();
+        if (val) sourceList.push(val);
+      });
+
+      // 집계
+      let assignedCounts = {};
+      sourceList.forEach(val => {
+        let num = extractNum(val);
+        if (num) assignedCounts[num] = (assignedCounts[num] || 0) + 1;
+      });
+
+      // 엑셀
+      let ecountNumbers = new Set();
+      // 주소
+      let addressMap = {};
+      
+      ecountData.forEach(row => {
+        let saleNum = String(row['판매번호'] || '').trim();
+        let slipNum = saleNum.split(/\s*-\s*/, 2)[1] || '';
+        if (slipNum) ecountNumbers.add(slipNum);
+        
+        // 변환
+        let addr = String(row['배송주소'] || '').replace(/_x000D_|_x000A_|\r\n|\n|\r/gi, ' ').replace(/\s+/g, ' ').trim();
+        if (saleNum && addr && !addressMap[saleNum]) {
+          addressMap[saleNum] = addr;
+        }
+      });
+
+      let listUnassigned = [];
+      let listYard = [];
+      let listRegional = [];
+
+      // 폐기
+      Object.keys(assignedCounts).forEach(num => {
+        if (!ecountNumbers.has(num)) {
+          let discarded = { isDiscarded: true, num: num, date: '', client: '', addr: '', amt: '', prod: '', rmk: '', wh: '', mgr: '' };
+          listUnassigned.push(discarded);
+          listYard.push(discarded);
+          listRegional.push(discarded);
+        }
+      });
+
+      ecountData.forEach(row => {
+        let saleNumber = String(row['판매번호'] || '').trim();
+        let splitArr = saleNumber.split(/\s*-\s*/, 2);
+        let slipDate = splitArr[0] || '';
+        let slipNumber = splitArr[1] || '';
+        
+        let client = row['거래처'] || '';
+        // 매핑
+        let address = addressMap[saleNumber] || '';
+        
+        let rawAmount = String(row['금액'] || '').replace(/,/g, '').trim();
+        let amtFmt = (rawAmount && !isNaN(rawAmount)) ? parseInt(rawAmount).toLocaleString() : (row['금액'] || '');
+        
+        let product = row['품목'] || '';
+        let remark = row['특이사항'] || '';
+        let wh = row['출고창고'] || '';
+        let mgr = row['담당자명'] || '';
+
+        let init = getDeliveryInitialState(wh, address, remark);
+        let state = init;
+        let isDuplicate = false;
+        
+        if (assignedCounts[slipNumber]) {
+          if (assignedCounts[slipNumber] > 1) {
+            isDuplicate = true;
+          } else {
+            if (init.indexOf('야적') === 0) state = '야적배차완료';
+            else if (init.indexOf('지방') === 0) state = '지방배차완료';
+            else if (init === '미배차') state = '배차완료';
+          }
+        }
+
+        let rowData = { date: slipDate, num: slipNumber, client: client, addr: address, amt: amtFmt, prod: product, rmk: remark, wh: wh, mgr: mgr, isDuplicate: isDuplicate };
+
+        if (state === '미배차') listUnassigned.push(rowData);
+        if (state === '야적미배차') listYard.push(rowData);
+        if (state === '지방미배차') listRegional.push(rowData);
+      });
+
+      function sortData(list) {
+        list.sort((a, b) => {
+          let scoreA = a.isDiscarded ? 2 : (a.isDuplicate ? 1 : 0);
+          let scoreB = b.isDiscarded ? 2 : (b.isDuplicate ? 1 : 0);
+          return scoreB - scoreA;
+        });
+      }
+      sortData(listUnassigned);
+      sortData(listYard);
+      sortData(listRegional);
+
+      function renderTable(tbodyId, dataList, applyColors) {
+        let tbody = document.getElementById(tbodyId);
+        tbody.innerHTML = '';
+        dataList.forEach(d => {
+          let tr = document.createElement('tr');
+          
+          if (d.isDiscarded) {
+            tr.className = 'bg-discarded';
+            let tdDate = document.createElement('td');
+            let tdNum = document.createElement('td');
+            tdNum.innerText = d.num;
+            let tdRest = document.createElement('td');
+            tdRest.colSpan = 8;
+            tdRest.innerHTML = '<b>폐기전표</b>';
+            tdRest.style.textAlign = 'center';
+            
+            tr.appendChild(tdDate);
+            tr.appendChild(tdNum);
+            tr.appendChild(tdRest);
+          } else {
+            let formatStr = generateFormatStr(d.addr, d.client, d.num, d.rmk);
+            let displayRmk = d.isDuplicate ? '<b>중복배차</b>' : d.rmk;
+            let cells = [d.date, d.num, d.client, d.addr, d.amt, d.prod, displayRmk, d.wh, d.mgr, formatStr];
+            
+            cells.forEach((text, i) => {
+              let td = document.createElement('td');
+              if (i === 6 && d.isDuplicate) td.innerHTML = text;
+              else td.innerText = text;
+              tr.appendChild(td);
+            });
+
+            if (d.isDuplicate) {
+              tr.classList.add('bg-duplicated-row');
+            } else if (applyColors) {
+              let dateVal = String(d.date || '').replace(/[\.\/]/g, '-');
+              if (dateVal.length === 8 && /^\d{8}$/.test(dateVal)) {
+                dateVal = dateVal.substring(0,4) + '-' + dateVal.substring(4,6) + '-' + dateVal.substring(6,8);
+              }
+
+              let actualDay = null;
+              let dObj = null;
+              let parts = dateVal.split('-');
+              if (parts.length >= 3) {
+                dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                actualDay = dObj.getDate();
+              }
+
+              let spec = String(d.rmk || '');
+              let origAddr = String(d.addr || '');
+
+              let mMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?상/);
+              let nMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?하/);
+              
+              let mVal = mMatch ? parseInt(mMatch[1], 10) : null;
+              let nVal = nMatch ? parseInt(nMatch[1], 10) : null;
+              
+              let hasSangHa = (mMatch !== null && nMatch !== null);
+              let hasYard = /야적.*\//.test(origAddr);
+              let hasJibang = /지방.*\//.test(origAddr);
+
+              let isJibangWknd = false;
+              if (hasJibang && mVal !== null && nVal !== null && dObj) {
+                let loadDate = new Date(dObj.getTime());
+                if (mVal < actualDay - 10) loadDate.setMonth(loadDate.getMonth() + 1);
+                loadDate.setDate(mVal);
+                
+                let unloadDate = new Date(dObj.getTime());
+                if (nVal < mVal && nVal < 10) unloadDate.setMonth(unloadDate.getMonth() + 1);
+                unloadDate.setDate(nVal);
+                
+                if (loadDate.getDay() === 6 && unloadDate.getDay() === 0) {
+                  isJibangWknd = true;
+                }
+              }
+
+              let highlightClass = '';
+              if ((hasYard || hasJibang) && !hasSangHa) {
+                highlightClass = 'bg-highlight';
+              } else if (!(hasYard || hasJibang) && hasSangHa) {
+                highlightClass = 'bg-highlight';
+              } else if (mVal !== null && actualDay !== null && actualDay !== mVal) {
+                highlightClass = 'bg-err-date';
+              } else if (isJibangWknd) {
+                highlightClass = 'bg-jibang-wknd';
+              }
+
+              if (highlightClass) {
+                tr.classList.add(highlightClass);
+              } else {
+                let hasMorning = /오전|7시|8시|9시|10시|11시|바로|일찍|최대|첫차/.test(spec);
+                let hasAfternoon = /오후|저녁|밤/.test(spec);
+                if (spec !== "") {
+                    if (hasMorning && !hasAfternoon) {
+                      tr.classList.add('bg-morning');
+                      let safeSpec = spec.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                      let regex = /(오전|7시|8시|9시|10시|11시|바로|일찍|최대|첫차)/g;
+                      tr.childNodes[6].innerHTML = safeSpec.replace(regex, '<span style="color: blue; font-weight: bold;">$1</span>');
+                    }
+                    else if (!hasMorning || hasAfternoon) tr.classList.add('bg-afternoon');
+                }
+              }
+            }
+          }
+          tbody.appendChild(tr);
+        });
+      }
+
+      renderTable('tbody_unassigned', listUnassigned, true);
+      renderTable('tbody_yard', listYard, true);
+      renderTable('tbody_regional', listRegional, true);
+    }
+
+    function copyTableImage(tableId) {
+      /* 표선택 */
+      let target = document.getElementById(tableId);
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      
+      /* 캡처복사 */
+      html2canvas(target).then(canvas => {
+        wrapper.scrollTop = originScroll;
+        canvas.toBlob(blob => {
+          navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => {
+            alert('복사완료');
+          });
+        });
+      });
+    }
+
+    function saveTableImage(tableId) {
+      /* 표선택 */
+      let target = document.getElementById(tableId);
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      
+      /* 캡처저장 */
+      html2canvas(target).then(canvas => {
+        wrapper.scrollTop = originScroll;
+        let link = document.createElement('a');
+        link.download = '미배차현황.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    // 초기화
+    function initHistoryDates() {
+      let t = new Date();
+      let s = new Date(t);
+      s.setDate(s.getDate() - 1);
+      let e = new Date(t);
+      e.setDate(e.getDate() + 1);
+
+      let sy = s.getFullYear();
+      let sm = ('0' + (s.getMonth() + 1)).slice(-2);
+      let sd = ('0' + s.getDate()).slice(-2);
+      
+      let ey = e.getFullYear();
+      let em = ('0' + (e.getMonth() + 1)).slice(-2);
+      let ed = ('0' + e.getDate()).slice(-2);
+
+      document.getElementById('history_start').value = sy + '-' + sm + '-' + sd;
+      document.getElementById('history_end').value = ey + '-' + em + '-' + ed;
+    }
+
+    // 조회
+    function loadHistory() {
+      let start = document.getElementById('history_start').value;
+      let end = document.getElementById('history_end').value;
+      document.getElementById('tbody_history').innerHTML = '<tr><td colspan="3" style="text-align:center;">조회중</td></tr>';
+      
+      google.script.run.withSuccessHandler(function(res) {
+        let tbody = document.getElementById('tbody_history');
+        tbody.innerHTML = '';
+        if (res.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">결과없음</td></tr>';
+          return;
+        }
+        res.forEach(item => {
+          let tr = document.createElement('tr');
+          
+          let tdWorker = document.createElement('td');
+          tdWorker.innerText = item.worker;
+          tdWorker.style.textAlign = 'center';
+          
+          let tdTime = document.createElement('td');
+          let dt = new Date(item.time);
+          tdTime.innerText = dt.toLocaleString();
+          tdTime.style.textAlign = 'center';
+          
+          let tdRestore = document.createElement('td');
+          tdRestore.style.textAlign = 'center';
+          let btn = document.createElement('button');
+          btn.innerText = '복원';
+          btn.className = 'reset-btn';
+          btn.onclick = function() { restoreState(item.data, false); };
+          tdRestore.appendChild(btn);
+          
+          tr.appendChild(tdWorker);
+          tr.appendChild(tdTime);
+          tr.appendChild(tdRestore);
+          tbody.appendChild(tr);
+        });
+      }).getHistoryFromNotion(start, end);
+    }
+
+    // 복원
+    function restoreState(base64Data, isAuto) {
+      try {
+        let jsonStr = decodeURIComponent(escape(atob(base64Data)));
+        let state = JSON.parse(jsonStr);
+        ecountData = state.ecountData;
+        document.getElementById('tbody_source').innerHTML = state.sourceHtml;
+        if (state.sourceHtml2 !== undefined) {
+          document.getElementById('tbody_source2').innerHTML = state.sourceHtml2;
+        } else {
+          clearData2();
+        }
+        runProcess(true);
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('복원완료');
+        }
+      } catch(e) {
+        if (isAuto) {
+          document.getElementById('initialLoading').style.display = 'none';
+        } else {
+          alert('오류발생');
+        }
+      }
+    }
+
+    // 추출
+    function getSelectedText() {
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return '';
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            if (cell.style.display === 'none' || window.getComputedStyle(cell).display === 'none') {
+              rowData.push('');
+            } else {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      return textLines.join('\n');
+    }
+
+    // 저장
+    function copyTextToClipboard(text) {
+      if (!text) return;
+      let textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea);
+    }
+
+    // 문맥
+    const ctxMenu = document.getElementById('ctxMenu');
+    if (ctxMenu) {
+      document.addEventListener('contextmenu', (e) => {
+        let td = e.target.closest('td');
+        if (td && td.closest('.custom-table')) {
+          e.preventDefault();
+          if (!td.classList.contains('selected')) {
+            document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            td.classList.add('selected');
+          }
+          ctxMenu.style.display = 'block';
+          ctxMenu.style.left = e.pageX + 'px';
+          ctxMenu.style.top = e.pageY + 'px';
+        } else {
+          ctxMenu.style.display = 'none';
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if(e.target.closest('.ctx-menu')) return;
+        ctxMenu.style.display = 'none';
+      });
+
+      document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+        let text = getSelectedText();
+        copyTextToClipboard(text);
+        ctxMenu.style.display = 'none';
+      });
+    }
+
+    // 수동저장 관련 변수 및 함수
+    let currentManualSaveType = 1;
+
+    function saveManualToNotion(type) {
+      currentManualSaveType = type;
+      let modal = document.getElementById('dateModal');
+      let dateInput = document.getElementById('manualSaveDate');
+
+      // 오늘 날짜 기본 세팅 (KST 기준)
+      let today = new Date();
+      let utc = today.getTime() + (today.getTimezoneOffset() * 60000);
+      let kst = new Date(utc + (3600000 * 9));
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      dateInput.value = f(kst);
+
+      modal.style.display = 'flex';
+    }
+
+    function closeDateModal() {
+      document.getElementById('dateModal').style.display = 'none';
+    }
+
+    function confirmManualSave() {
+      let dateStr = document.getElementById('manualSaveDate').value;
+      if (!dateStr) {
+        alert('날짜를 선택해주세요.');
+        return;
+      }
+
+      closeDateModal();
+      document.getElementById('initialLoading').style.display = 'flex'; // 로딩 표시
+      
+      let tableId = currentManualSaveType === 1 ? 'tbody_source' : 'tbody_source2';
+      let programType = currentManualSaveType === 1 ? '경기퀵 배차내역' : '전국화물 배차내역';
+      let htmlData = document.getElementById(tableId).innerHTML;
+      
+      let base64Data = btoa(unescape(encodeURIComponent(htmlData)));
+      
+      google.script.run
+        .withSuccessHandler(() => {
+          document.getElementById('initialLoading').style.display = 'none';
+          alert('저장완료: ' + programType + ' (' + dateStr + ')');
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+          alert('저장실패: ' + err);
+        })
+        .saveManualDataToNotion(base64Data, currentUserEmail, currentUserName, programType, dateStr);
+    }
+  </script>
+</body>
+</html>

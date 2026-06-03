@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .mobile-gate-layer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
+    }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 이동 */
+    .nav-container {
+      position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 900px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 33.333%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; }
+    .page.active { display: block; }
+    #page_upload { max-width: 800px; }
+    #page_history { max-width: 1000px; }
+    #page_result { width: 100%; max-width: 100%; padding: 20px; }
+
+    /* 영역 */
+    .drop-zone-item { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px 20px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; font-size: 16px; font-weight: bold; display: flex; flex-direction: column; align-items: center; }
+    .drop-zone-item:hover { border-color: #3182ce; background: #ebf8ff; }
+    .drop-zone-item.valid { border-color: #48bb78 !important; background: #f0fff4 !important; color: #2f855a !important; border-style: solid; }
+    .drop-zone-item.invalid { border-color: #e53e3e !important; background: #fff5f5 !important; color: #c53030 !important; border-style: solid; }
+    
+    /* 버튼 */
+    .top-action-bar { display: flex; justify-content: flex-end; margin-bottom: 15px; gap: 8px; }
+    .action-btn { padding: 8px 16px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .action-btn:hover { background: #2b6cb0; }
+    .action-btn:disabled { background: #a0aec0; cursor: not-allowed; }
+    .btn-save { background: #ed8936; } .btn-save:hover { background: #dd6b20; }
+    .reset-btn { padding: 8px 16px; background: #edf2f7; color: #4a5568; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .reset-btn:hover { background: #e2e8f0; }
+    
+    /* 표 */
+    .table-wrapper { height: calc(100vh - 250px); margin-bottom: 30px; overflow: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table.custom-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: max-content; user-select: none; }
+    .custom-table th, .custom-table td { border-bottom: 1px solid #cbd5e0; border-right: 1px solid #cbd5e0; padding: 6px 10px; font-size: 13px; text-align: center; vertical-align: middle; white-space: nowrap; cursor: cell; }
+    .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; position: sticky; top: 0; z-index: 5; border-top: 1px solid #cbd5e0; outline: 1px solid #cbd5e0; cursor: default; }
+    .custom-table th:first-child, .custom-table td:first-child { border-left: 1px solid #cbd5e0; }
+
+    /* 제목 */
+    .title-header { font-size: 16px !important; font-weight: 900 !important; background-color: #ffffff !important; color: #1a202c !important; letter-spacing: 1px; }
+    .res-table thead tr:first-child th { top: 0; z-index: 6; }
+    .res-table thead tr:last-child th { top: 35px; z-index: 5; }
+
+    /* 다중선택 */
+    .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .custom-table td:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+
+    /* 검증색상 */
+    .bg-gray { background-color: #f7fafc !important; }
+    .bg-red { background-color: #fff5f5 !important; }
+    .bg-green { background-color: #f0fff4 !important; }
+    .text-blue { color: #3182ce; font-weight: 900; }
+    .text-green { color: #48bb78; font-weight: bold; }
+    .text-red { color: #e53e3e; font-weight: bold; }
+    .text-gray { color: #a0aec0; font-weight: bold; }
+
+    /* 중심표시기 */
+    .center-indicator { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 40px; font-weight: 900; }
+    .indicator-text { position: absolute; top: -2px; font-size: 14px; }
+    .indicator-arrow { position: absolute; bottom: 0px; font-size: 18px; }
+
+    /* 필터 */
+    .th-content { display: flex; justify-content: center; align-items: center; position: relative; width: 100%; height: 100%; padding: 0 10px; box-sizing: border-box; }
+    .th-content button { position: absolute; right: -5px; background: none; border: none; cursor: pointer; color: #4a5568; font-size: 10px; padding: 2px; }
+    .filter-active { color: #e53e3e !important; font-weight: bold; }
+    
+    .filter-popup { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 6px; padding: 10px; z-index: 9999; width: 180px; flex-direction: column; gap: 8px; }
+    .filter-grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .filter-grid-2x2 button { padding: 10px 5px; border-radius: 4px; border: 1px solid #cbd5e0; background: #edf2f7; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s; text-align: center; }
+    .filter-grid-2x2 button.active { background: #3182ce; color: white; border-color: #2b6cb0; }
+    .filter-popup input[type="text"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; }
+    .filter-clear { width: 100%; padding: 8px; background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2; border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center; }
+
+    /* 우클릭 */
+    .ctx-menu { display: none; position: absolute; background: white; border: 1px solid #cbd5e0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border-radius: 4px; z-index: 10000; padding: 5px 0; min-width: 100px; }
+    .ctx-menu-item { padding: 8px 15px; cursor: pointer; font-size: 14px; color: #2d3748; }
+    .ctx-menu-item:hover { background: #ebf8ff; }
+  </style>
+</head>
+<body onclick="closePopup(event)">
+
+  <div id="ctxMenu" class="ctx-menu">
+    <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+  </div>
+
+  <div id="filterPopup" class="filter-popup">
+    <div id="filter-bool-wrap" class="filter-grid-2x2">
+      <button id="f_ALL" class="active" onclick="applyBoolFilter('ALL')">ALL</button>
+      <button id="f_NOTHING" onclick="applyBoolFilter('NOTHING')">NOTHING</button>
+      <button id="f_TRUE" onclick="applyBoolFilter('TRUE')">TRUE</button>
+      <button id="f_FALSE" onclick="applyBoolFilter('FALSE')">FALSE</button>
+    </div>
+    <div id="filter-text-wrap" style="display:none; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:10px; font-size:12px;">
+        <label><input type="radio" name="filterMode" value="include" checked onchange="applyFilterRealtime()"> 포함</label>
+        <label><input type="radio" name="filterMode" value="exclude" onchange="applyFilterRealtime()"> 미포함</label>
+      </div>
+      <input type="text" id="filterText" placeholder="검색어 입력" oninput="applyFilterRealtime()">
+      <button onclick="applyEmptyFilter(true)" class="reset-btn" style="padding:6px; width:100%;">비어있음</button>
+      <button onclick="applyEmptyFilter(false)" class="reset-btn" style="padding:6px; width:100%;">비어있지 않음</button>
+    </div>
+    <button class="filter-clear" onclick="clearFilter()">필터 해제</button>
+  </div>
+
+  <div id="mobileGate" class="mobile-gate-layer">
+    <div id="welcomeAnimation" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out;">(주)삼한공조시스템</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.4s;"><span id="welcomeName"></span>님</div>
+      <div class="anim-line" style="opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; transition-delay: 0.8s;">환영합니다.</div>
+    </div>
+    <div id="authLoading" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      <span id="loadingText">작업 처리 중입니다...</span>
+    </div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>운송사 교차검증</h2>
+      <p>노션 저장 내역 및 운송사 엑셀 데이터 무결성 매칭 분석</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider"></div>
+      <div class="nav-item active" onclick="switchTab(0)">업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">검증결과</div>
+      <div class="nav-item" onclick="switchTab(2)">저장내역</div>
+    </div>
+
+    <div id="page_upload" class="page active">
+      <h3 style="text-align: center; margin-bottom: 20px;">검증 설정 및 엑셀 업로드</h3>
+      
+      <div style="display:flex; justify-content:center; gap:15px; margin-bottom:15px;">
+        <input type="date" id="match_start" class="reset-btn">
+        <span style="align-self:center; font-weight:bold;">~</span>
+        <input type="date" id="match_end" class="reset-btn">
+      </div>
+
+      <div style="display:flex; justify-content:center; gap:25px; margin-bottom:20px;">
+        <label style="font-size:15px; font-weight:bold; cursor:pointer;">
+          <input type="radio" name="target_type" value="경기퀵 배차내역" checked> 경기퀵 배차내역
+        </label>
+        <label style="font-size:15px; font-weight:bold; cursor:pointer;">
+          <input type="radio" name="target_type" value="전국화물 배차내역"> 전국화물 배차내역
+        </label>
+      </div>
+
+      <div class="drop-zone-item" id="drop_excel" onclick="document.getElementById('file_excel').click()" style="margin-bottom: 20px;">
+        [운송사] 엑셀 파일 다중 업로드<br><span id="status_excel" style="font-size:13px; color:#718096; font-weight:normal; display:block; margin-top:8px;">여기를 클릭하거나 여러 파일을 드래그하세요.</span>
+      </div>
+      <input type="file" id="file_excel" style="display:none;" accept=".xlsx, .xls" multiple onchange="handleFile(event)">
+      
+      <div style="text-align:center; margin-top: 30px;">
+        <button class="action-btn" id="btn_run" style="padding: 10px 40px; font-size: 16px;" onclick="runMatching()" disabled>검증 실행</button>
+      </div>
+    </div>
+
+    <div id="page_result" class="page">
+      <div class="top-action-bar">
+        <button class="action-btn btn-save" onclick="triggerManualSave()">수동저장</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table res-table" id="resultTable">
+          <thead>
+            <tr>
+              <th colspan="3" class="title-header">노션 저장 내역 (좌측)</th>
+              <th style="background:#edf2f7; width:60px;" class="title-header">
+                <div class="th-content">
+                  <span>상태</span>
+                  <button data-col="상태" onclick="openFilterPopup('상태', event)">▼</button>
+                </div>
+              </th>
+              <th colspan="3" class="title-header">운송사 엑셀 (우측)</th>
+            </tr>
+            <tr>
+              <th><div class="th-content"><span>일자</span><button data-col="일자_L" onclick="openFilterPopup('일자_L', event)">▼</button></div></th>
+              <th><div class="th-content"><span>전표번호</span><button data-col="전표번호_L" onclick="openFilterPopup('전표번호_L', event)">▼</button></div></th>
+              <th><div class="th-content"><span>업체명</span><button data-col="업체명_L" onclick="openFilterPopup('업체명_L', event)">▼</button></div></th>
+              <th style="background:#edf2f7;">검증결과</th>
+              <th><div class="th-content"><span>일자</span><button data-col="일자_R" onclick="openFilterPopup('일자_R', event)">▼</button></div></th>
+              <th><div class="th-content"><span>전표번호</span><button data-col="전표번호_R" onclick="openFilterPopup('전표번호_R', event)">▼</button></div></th>
+              <th><div class="th-content"><span>업체명</span><button data-col="업체명_R" onclick="openFilterPopup('업체명_R', event)">▼</button></div></th>
+            </tr>
+          </thead>
+          <tbody id="tbody_result"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="page_history" class="page">
+      <div style="text-align: center; margin-bottom: 15px;">
+        <input type="date" id="history_start" class="reset-btn"> ~ 
+        <input type="date" id="history_end" class="reset-btn">
+        <button class="action-btn" style="margin-left: 10px;" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table">
+          <thead>
+            <tr><th>작업자</th><th>저장일시</th><th>저장주제</th><th>복원여부</th></tr>
+          </thead>
+          <tbody id="tbody_history"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let excelRawData = [];
+    let matchedResults = [];
+    let filtersMap = {};
+    let curFilterCol = '';
+    let currentUserEmail = '';
+    let currentUserName = '';
+
+    /* 초기화 */
+    window.onload = function() {
+      initDragAndDrop();
+      initHistoryDates();
+      
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('authLoading').style.display = 'none';
+        if (res.authorized) {
+          currentUserEmail = res.email;
+          currentUserName = res.managerName;
+          document.getElementById('welcomeName').innerText = res.managerName;
+          document.getElementById('welcomeAnimation').style.display = 'flex';
+          
+          setTimeout(() => {
+            document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+          }, 100);
+
+          setTimeout(() => {
+            document.getElementById('mobileGate').style.display = 'none';
+            document.getElementById('initialLoading').style.display = 'flex';
+            document.getElementById('loadingText').innerText = '데이터 복원 중...';
+            document.getElementById('mainApp').style.display = 'block';
+            checkAutoRestore();
+          }, 2500);
+
+        } else {
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:red; font-size:13px;">${res.error || '미등록'}</span></div>`;
+        }
+      }).getUserAuth();
+    };
+
+    function checkAutoRestore() {
+      google.script.run
+        .withSuccessHandler(res => {
+          document.getElementById('initialLoading').style.display = 'none';
+          if (res && res.data) {
+            try {
+              matchedResults = JSON.parse(res.data);
+              renderTable();
+              switchTab(1);
+            } catch(e) {}
+          }
+        })
+        .withFailureHandler(err => {
+          document.getElementById('initialLoading').style.display = 'none';
+        })
+        .getLatestHistoryFromNotion();
+    }
+
+    /* 화면이동 */
+    function switchTab(index) {
+      let navItems = document.querySelectorAll('.nav-item');
+      let slider = document.getElementById('slider');
+      slider.style.width = (100 / navItems.length) + '%';
+      slider.style.transform = `translateX(${index * 100}%)`;
+      navItems.forEach((el, i) => el.classList.toggle('active', i === index));
+      document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
+      
+      if(index === 2) loadHistory();
+    }
+
+    /* 드래그 */
+    function initDragAndDrop() {
+      let dz = document.getElementById('drop_excel');
+      dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderStyle = 'solid'; dz.style.borderColor = '#3182ce'; });
+      dz.addEventListener('dragleave', () => { dz.style.borderStyle = 'dashed'; dz.style.borderColor = ''; });
+      dz.addEventListener('drop', e => {
+        e.preventDefault(); dz.style.borderStyle = 'dashed'; dz.style.borderColor = '';
+        if (e.dataTransfer.files.length > 0) {
+          document.getElementById('file_excel').files = e.dataTransfer.files;
+          handleFile({ target: { files: e.dataTransfer.files } });
+        }
+      });
+    }
+
+    /* 엑셀병합 */
+    function handleFile(e) {
+      let files = e.target.files;
+      if (!files || files.length === 0) return;
+      
+      let dz = document.getElementById('drop_excel');
+      let st = document.getElementById('status_excel');
+      st.innerText = '파일 분석 중...';
+      dz.classList.remove('valid', 'invalid');
+      excelRawData = [];
+      
+      let promises = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        promises.push(new Promise((resolve, reject) => {
+          let reader = new FileReader();
+          reader.onload = function(evt) {
+            try {
+              let wb = XLSX.read(evt.target.result, { type: 'binary' });
+              let sheetName = wb.SheetNames[0];
+              let rData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+              let headers = rData[1] || [];
+              
+              let dateIdx = headers.findIndex(h => String(h).includes('접수시간'));
+              let nameIdx = headers.findIndex(h => String(h).includes('업체명'));
+              
+              if (dateIdx > -1 && nameIdx > -1) {
+                for (let r = 2; r < rData.length; r++) {
+                  let row = rData[r];
+                  if (!row || (!row[dateIdx] && !row[nameIdx])) continue;
+                  excelRawData.push({
+                    '접수시간': row[dateIdx],
+                    '업체명': row[nameIdx]
+                  });
+                }
+              }
+              resolve();
+            } catch(err) {
+              reject();
+            }
+          };
+          reader.readAsBinaryString(files[i]);
+        }));
+      }
+
+      Promise.all(promises).then(() => {
+        if (excelRawData.length > 0) {
+          dz.classList.add('valid');
+          st.innerText = files.length + '개 파일 추출 완료 (' + excelRawData.length + '건)';
+        } else {
+          dz.classList.add('invalid');
+          st.innerText = '유효한 데이터 없음 (열헤더 확인)';
+        }
+        checkReady();
+      }).catch(() => {
+        dz.classList.add('invalid');
+        st.innerText = '파일 분석 오류';
+      });
+    }
+
+    function checkReady() {
+      document.getElementById('btn_run').disabled = (excelRawData.length === 0);
+    }
+
+    /* 매칭 */
+    function runMatching() {
+      let startDate = document.getElementById('match_start').value;
+      let endDate = document.getElementById('match_end').value;
+      let targetType = document.querySelector('input[name="target_type"]:checked').value;
+      
+      if (!startDate || !endDate) {
+        alert('시작일과 종료일을 모두 선택해주세요.');
+        return;
+      }
+      
+      showLoading('데이터 교차 검증 중...');
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res || res.length === 0) {
+            hideLoading();
+            alert('지정된 범위에 해당하는 노션 저장 내역이 없습니다.');
+            return;
+          }
+
+          let leftData = [];
+          res.forEach(item => {
+            try {
+              let htmlStr = decodeURIComponent(escape(atob(item.data)));
+              let tempDiv = document.createElement('tbody');
+              tempDiv.innerHTML = htmlStr;
+              let rows = tempDiv.querySelectorAll('tr');
+              
+              // 날짜 MM-DD 형식으로 통일
+              let normL = item.date.length >= 10 ? item.date.substring(5, 10) : item.date;
+              normL = normL.replace(/\//g, '-');
+              
+              rows.forEach(tr => {
+                if (!tr.cells || tr.cells.length === 0) return;
+                let text = tr.cells[0].innerText.trim();
+                if (!text) return;
+                
+                let client = '', slip = '';
+                
+                let s = String(text).replace(/（/g, '(').replace(/）/g, ')');
+                let open = s.indexOf('(');
+                
+                if (open !== -1) {
+                  let close = s.indexOf(')', open + 1);
+                  if (close !== -1) {
+                    let inner = s.slice(open + 1, close);
+                    let m = inner.match(/(?:^|[^\d])(\d{1,3})\s*$/);
+                    if (m) {
+                      slip = m[1];
+                      client = inner.substring(0, inner.lastIndexOf(slip)).replace(/[-_.\s]+$/, '').trim();
+                    }
+                  }
+                }
+                
+                if(slip) leftData.push({ date: item.date, normDate: normL, slip: slip, client: client, raw: text });
+              });
+            } catch(e) {
+              console.error('HTML 파싱 오류:', e);
+            }
+          });
+
+          let rightData = [];
+          excelRawData.forEach(row => {
+            let timeStr = String(row['접수시간'] || '').trim();
+            let namesStr = String(row['업체명'] || '').trim();
+            
+            if (namesStr) {
+              let parts = namesStr.split('/');
+              
+              // 날짜 MM-DD 형식으로 통일 (0 한자리수 패딩 처리)
+              let normR = timeStr.split(' ')[0].replace(/\//g, '-');
+              let splitR = normR.split('-');
+              if(splitR.length === 2) {
+                normR = splitR[0].padStart(2, '0') + '-' + splitR[1].padStart(2, '0');
+              }
+              
+              parts.forEach(part => {
+                part = part.trim();
+                if (!part) return;
+                
+                let client = '', slip = '';
+                
+                let m = part.match(/(?:^|[^\d])(\d{1,3})\s*$/);
+                if (m) {
+                  slip = m[1];
+                  client = part.substring(0, part.lastIndexOf(slip)).replace(/[-_.\s]+$/, '').trim();
+                } else {
+                  let match = part.match(/^([^\d]+)?([\d\-A-Za-z]+)$/);
+                  if (match) {
+                    client = match[1] ? match[1].trim() : '';
+                    slip = match[2].trim();
+                  } else {
+                    slip = part;
+                  }
+                }
+                rightData.push({ date: timeStr, normDate: normR, slip: slip, client: client, raw: part });
+              });
+            }
+          });
+
+          let results = [];
+          let usedR = new Array(rightData.length).fill(false);
+          let usedL = new Array(leftData.length).fill(false);
+
+          for (let j = 0; j < rightData.length; j++) {
+            let r = rightData[j];
+            if (!r.slip) continue;
+            // 일자(normDate)와 전표번호(slip) 동시 일치 검증
+            let mIdx = leftData.findIndex((l, i) => !usedL[i] && l.slip === r.slip && l.normDate === r.normDate);
+            if (mIdx !== -1) {
+              usedL[mIdx] = true;
+              usedR[j] = true;
+              results.push({ l: leftData[mIdx], r: r, status: 'TRUE' });
+            }
+          }
+
+          for (let i = 0; i < leftData.length; i++) {
+            if (!usedL[i] && leftData[i].slip) results.push({ l: leftData[i], r: null, status: 'FALSE_LEFT' });
+          }
+          for (let j = 0; j < rightData.length; j++) {
+            if (!usedR[j] && rightData[j].slip) results.push({ l: null, r: rightData[j], status: 'FALSE_RIGHT' });
+          }
+
+          results.sort((a, b) => {
+            let d1 = a.l ? a.l.date : (a.r ? a.r.date : '');
+            let d2 = b.l ? b.l.date : (b.r ? b.r.date : '');
+            return d1.localeCompare(d2);
+          });
+
+          matchedResults = results;
+          renderTable();
+          hideLoading();
+          switchTab(1);
+          
+          let todayStr = new Date().toISOString().split('T')[0];
+          google.script.run.autoSaveToNotion(JSON.stringify(matchedResults), currentUserEmail, currentUserName, '자동저장 (' + todayStr + ')');
+        })
+        .withFailureHandler(err => {
+          hideLoading();
+        })
+        .getManualDataFromNotion(startDate, endDate, targetType);
+    }
+
+    /* 포맷팅 */
+    function cleanStr(v) { return String(v || '').trim(); }
+
+    /* 렌더링 */
+    function renderTable() {
+      let tbody = document.getElementById('tbody_result');
+      let html = '';
+
+      let filteredResults = matchedResults.filter(row => {
+        for (let col in filtersMap) {
+          let f = filtersMap[col];
+          if (col === '상태') {
+            if (f.text === 'TRUE' && row.status !== 'TRUE') return false;
+            if (f.text === 'FALSE' && row.status === 'TRUE') return false;
+            if (f.text === 'NOTHING') return false;
+          } else {
+            let l = row.l || {}; let r = row.r || {};
+            let vMap = {
+              '일자_L': l.date, '전표번호_L': l.slip, '업체명_L': l.client,
+              '일자_R': r.date, '전표번호_R': r.slip, '업체명_R': r.client
+            };
+            let cellVal = String(vMap[col] || '');
+            
+            if (f.type === 'empty' && cellVal.trim() !== '') return false;
+            if (f.type === 'not_empty' && cellVal.trim() === '') return false;
+            if (f.type === 'include' && f.text && !cellVal.toLowerCase().includes(f.text.toLowerCase())) return false;
+            if (f.type === 'exclude' && f.text && cellVal.toLowerCase().includes(f.text.toLowerCase())) return false;
+          }
+        }
+        return true;
+      });
+
+      filteredResults.forEach(row => {
+        let st = row.status;
+        let l = row.l || {}; let r = row.r || {};
+        
+        let bgClassL = st === 'TRUE' ? 'bg-green' : 'bg-red';
+        let bgClassR = st === 'TRUE' ? 'bg-green' : 'bg-red';
+        
+        let centerHtml = '';
+        if (st === 'TRUE') {
+          centerHtml = `<div class="center-indicator bg-green"><span class="indicator-text text-blue">TRUE</span><span class="indicator-arrow arrow-green">&lt;--&gt;</span></div>`;
+        } else if (st === 'FALSE_LEFT') {
+          centerHtml = `<div class="center-indicator bg-red"><span class="indicator-text text-blue">FALSE</span><span class="indicator-arrow arrow-red">&lt;--</span></div>`;
+        } else if (st === 'FALSE_RIGHT') {
+          centerHtml = `<div class="center-indicator bg-red"><span class="indicator-text text-blue">FALSE</span><span class="indicator-arrow arrow-red">--&gt;</span></div>`;
+        }
+
+        html += `<tr>
+          <td contenteditable="true" class="${bgClassL}">${cleanStr(l.date)}</td>
+          <td contenteditable="true" class="${bgClassL}">${cleanStr(l.slip)}</td>
+          <td contenteditable="true" class="${bgClassL}">${cleanStr(l.client)}</td>
+          
+          <td style="background:#edf2f7; border-left:2px solid #cbd5e0; border-right:2px solid #cbd5e0;">${centerHtml}</td>
+          
+          <td contenteditable="true" class="${bgClassR}">${cleanStr(r.date)}</td>
+          <td contenteditable="true" class="${bgClassR}">${cleanStr(r.slip)}</td>
+          <td contenteditable="true" class="${bgClassR}">${cleanStr(r.client)}</td>
+        </tr>`;
+      });
+      
+      if(!html) html = `<tr><td colspan="7" style="padding:30px;">매칭된 데이터가 없습니다.</td></tr>`;
+      tbody.innerHTML = html;
+      updateFilterUI();
+    }
+
+    /* 필터 */
+    function openFilterPopup(col, e) {
+      e.stopPropagation();
+      curFilterCol = col;
+      let p = document.getElementById('filterPopup');
+      p.style.display = 'flex';
+      p.style.left = (e.pageX - 90) + 'px';
+      p.style.top = (e.pageY + 15) + 'px';
+      
+      let f = filtersMap[col];
+
+      if (col === '상태') {
+        document.getElementById('filter-text-wrap').style.display = 'none';
+        document.getElementById('filter-bool-wrap').style.display = 'grid';
+        document.querySelectorAll('.filter-grid-2x2 button').forEach(b => b.classList.remove('active'));
+        let stateVal = (f && f.text) ? f.text : 'ALL';
+        document.getElementById('f_' + stateVal).classList.add('active');
+      } else {
+        document.getElementById('filter-text-wrap').style.display = 'flex';
+        document.getElementById('filter-bool-wrap').style.display = 'none';
+        document.getElementById('filterText').value = (f && (f.type === 'include' || f.type === 'exclude')) ? f.text : '';
+        if (f && f.type === 'exclude') document.querySelector('input[name="filterMode"][value="exclude"]').checked = true;
+        else document.querySelector('input[name="filterMode"][value="include"]').checked = true;
+      }
+    }
+
+    function applyBoolFilter(val) {
+      if (val === 'ALL') delete filtersMap['상태'];
+      else filtersMap['상태'] = { type: 'exact', text: val };
+      renderTable();
+      closePopup();
+    }
+
+    function applyFilterRealtime() {
+      let text = document.getElementById('filterText').value.trim();
+      let type = document.querySelector('input[name="filterMode"]:checked').value;
+      if (!text) delete filtersMap[curFilterCol];
+      else filtersMap[curFilterCol] = { type: type, text: text };
+      renderTable();
+    }
+
+    function applyEmptyFilter(isEmpty) {
+      filtersMap[curFilterCol] = { type: isEmpty ? 'empty' : 'not_empty', text: '' };
+      renderTable();
+      closePopup();
+    }
+
+    function clearFilter() {
+      delete filtersMap[curFilterCol];
+      renderTable();
+      closePopup();
+    }
+
+    function updateFilterUI() {
+      let table = document.getElementById('resultTable');
+      if (!table) return;
+      let btns = table.querySelectorAll('th .th-content button');
+      btns.forEach(btn => {
+        let c = btn.getAttribute('data-col');
+        if (filtersMap[c]) btn.classList.add('filter-active');
+        else btn.classList.remove('filter-active');
+      });
+    }
+
+    function closePopup(e) {
+      let p = document.getElementById('filterPopup');
+      if (e && p.contains(e.target)) return;
+      p.style.display = 'none';
+    }
+
+    /* 날짜초기화 */
+    function initHistoryDates() {
+      let now = new Date();
+      let utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      let kst = new Date(utc + (3600000 * 9));
+      
+      let s = new Date(kst); 
+      s.setDate(s.getDate() - 1);
+      
+      let e = new Date(kst); 
+      e.setDate(e.getDate() + 1);
+      
+      let f = (d) => d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+      
+      document.getElementById('match_start').value = f(s); 
+      document.getElementById('match_end').value = f(e);
+      document.getElementById('history_start').value = f(s); 
+      document.getElementById('history_end').value = f(e);
+    }
+
+    function triggerManualSave() {
+      if(!matchedResults.length) return alert('저장할 데이터가 없습니다.');
+      let topic = prompt('저장할 주제를 입력하세요:', '수동저장');
+      if(!topic) return;
+      
+      showLoading('수동 저장 중...');
+      google.script.run.withSuccessHandler(()=>{
+        hideLoading();
+        alert('저장 완료');
+      }).withFailureHandler((err)=>{
+        hideLoading();
+      }).autoSaveToNotion(JSON.stringify(matchedResults), currentUserEmail, currentUserName, topic);
+    }
+
+    function loadHistory() {
+      let start = document.getElementById('history_start').value; 
+      let end = document.getElementById('history_end').value;
+      let tbody = document.getElementById('tbody_history');
+      tbody.innerHTML = '<tr><td colspan="4">조회중...</td></tr>';
+      
+      google.script.run.withSuccessHandler(res => {
+        if(!res || !res.length) {
+          tbody.innerHTML = '<tr><td colspan="4">내역이 없습니다.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = res.map(row => {
+          let dateStr = new Date(row.time).toLocaleString();
+          return `<tr>
+            <td>${row.worker}</td>
+            <td>${dateStr}</td>
+            <td>${row.topic}</td>
+            <td><button class="action-btn" onclick="restoreHistory('${row.id}', this)">복원</button></td>
+          </tr>`;
+        }).join('');
+      }).getHistoryFromNotion(start, end);
+    }
+
+    function restoreHistory(id, btn) {
+      let prevText = btn.innerText;
+      btn.innerText = '복원중...';
+      btn.disabled = true;
+      document.body.style.cursor = 'wait';
+      
+      google.script.run
+        .withSuccessHandler(jsonStr => {
+          btn.innerText = prevText;
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+          
+          if (jsonStr) {
+            try {
+              matchedResults = JSON.parse(jsonStr);
+              renderTable();
+              alert('복원되었습니다.');
+              switchTab(1);
+            } catch(e) {}
+          }
+        })
+        .withFailureHandler(err => {
+          btn.innerText = prevText;
+          btn.disabled = false;
+          document.body.style.cursor = 'default';
+        })
+        .getSpecificHistory(id);
+    }
+
+    /* 로딩 */
+    function showLoading(msg) {
+      document.getElementById('loadingText').innerText = msg;
+      document.getElementById('initialLoading').style.display = 'flex';
+    }
+    function hideLoading() {
+      document.getElementById('initialLoading').style.display = 'none';
+    }
+
+    /* 다중선택 */
+    let isSelecting = false;
+    let startR = -1, startC = -1;
+    let currentTable = null;
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.button === 2 || e.target.closest('.ctx-menu') || e.target.closest('.filter-popup')) return;
+      let td = e.target.closest('td');
+      if (!td || !td.closest('.custom-table')) {
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        return;
+      }
+      if (document.activeElement === td && !e.shiftKey && !e.ctrlKey && !e.metaKey) return; 
+      
+      currentTable = td.closest('table');
+      let targetR = td.parentElement.rowIndex; let targetC = td.cellIndex;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (td.getAttribute('contenteditable') === 'true' || td.querySelector('.center-indicator')) td.classList.toggle('selected');
+        startR = targetR; startC = targetC; isSelecting = false;
+      } else if (e.shiftKey && startR !== -1 && startC !== -1) {
+        let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+        let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+        
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+          if (r >= minR && r <= maxR && c >= minC && c <= maxC && (cell.getAttribute('contenteditable') === 'true' || cell.querySelector('.center-indicator'))) cell.classList.add('selected');
+        });
+      } else {
+        isSelecting = true; startR = targetR; startC = targetC;
+        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        if(td.getAttribute('contenteditable') === 'true' || td.querySelector('.center-indicator')) td.classList.add('selected');
+      }
+      if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      e.preventDefault(); 
+    });
+
+    document.addEventListener('mouseover', (e) => {
+      if (!isSelecting) return;
+      let td = e.target.closest('td');
+      if (!td || td.closest('table') !== currentTable) return;
+      
+      let endR = td.parentElement.rowIndex, endC = td.cellIndex;
+      let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+      let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+      
+      currentTable.querySelectorAll('td').forEach(cell => {
+        let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+        if (r >= minR && r <= maxR && c >= minC && c <= maxC && (cell.getAttribute('contenteditable') === 'true' || cell.querySelector('.center-indicator'))) cell.classList.add('selected');
+        else cell.classList.remove('selected');
+      });
+    });
+
+    document.addEventListener('mouseup', () => { isSelecting = false; });
+
+    document.addEventListener('dblclick', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.getAttribute('contenteditable') === 'true') {
+        td.focus();
+        let range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(td); range.collapse(false);
+        sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return; 
+      let selected = document.querySelectorAll('.selected');
+      
+      if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
+        selected.forEach(td => { if(td.getAttribute('contenteditable') === 'true') td.innerText = ''; });
+        e.preventDefault();
+        return;
+      }
+      
+      if (selected.length === 1) {
+        let td = selected[0];
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          let tr = td.parentElement, table = td.closest('table'), span = td.rowSpan || 1;
+          let nextTr = table.rows[tr.rowIndex + span];
+          
+          if (nextTr) {
+            let nextTd = nextTr.cells[td.cellIndex];
+            if (nextTd) {
+              td.classList.remove('selected');
+              if(document.activeElement === td) td.blur(); 
+              nextTd.classList.add('selected');
+              if (nextTd.getAttribute('contenteditable') === 'true') {
+                nextTd.focus();
+                let range = document.createRange(), sel = window.getSelection();
+                range.selectNodeContents(nextTd); range.collapse(false);
+                sel.removeAllRanges(); sel.addRange(range);
+              }
+            }
+          }
+          return;
+        }
+        if (td.getAttribute('contenteditable') === 'true' && document.activeElement !== td) {
+          if (e.key.length === 1) { td.innerText = ''; td.focus(); }
+        }
+      }
+    });
+
+    document.addEventListener('copy', (e) => {
+      if(document.activeElement && document.activeElement.tagName === 'TD') return;
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return;
+      e.preventDefault();
+      
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table');
+      let textLines = [];
+      
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            let t = cell.querySelector('.indicator-text');
+            rowData.push(t ? t.innerText : cell.innerText.replace(/\n$/, ''));
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      e.clipboardData.setData('text/plain', textLines.join('\n'));
+    });
+
+    document.addEventListener('paste', (e) => {
+      let selected = document.querySelectorAll('.selected');
+      if (selected.length === 0) return;
+      let firstCell = selected[0];
+      if (firstCell.getAttribute('contenteditable') !== 'true') return; 
+      
+      e.preventDefault();
+      let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      let rows = text.split(/\r?\n/);
+      if (rows[rows.length-1] === '') rows.pop(); 
+      
+      let table = firstCell.closest('table'), sR = firstCell.parentElement.rowIndex, sC = firstCell.cellIndex;
+      let tbody = table.querySelector('tbody');
+      
+      for (let i = 0; i < rows.length; i++) {
+        let rowData = rows[i].split('\t'), targetRow = table.rows[sR + i];
+        if (!targetRow) {
+          targetRow = tbody.insertRow();
+          for(let k=0; k < table.rows[0].cells.length; k++) {
+            let td = targetRow.insertCell();
+            if (k !== 3) td.contentEditable = "true";
+          }
+        }
+        for (let j = 0; j < rowData.length; j++) {
+          let targetCell = targetRow.cells[sC + j];
+          if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
+            let val = rowData[j];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+            targetCell.innerText = val.replace(/""/g, '"');
+          }
+        }
+      }
+    });
+
+    /* 우클릭 */
+    const ctxMenu = document.getElementById('ctxMenu');
+    document.addEventListener('contextmenu', (e) => {
+      let td = e.target.closest('td');
+      if (td && td.closest('.custom-table')) {
+        e.preventDefault();
+        if (!td.classList.contains('selected')) {
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          td.classList.add('selected');
+        }
+        ctxMenu.style.display = 'block';
+        ctxMenu.style.left = e.pageX + 'px'; ctxMenu.style.top = e.pageY + 'px';
+      } else {
+        ctxMenu.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', (e) => { if(!e.target.closest('.ctx-menu')) ctxMenu.style.display = 'none'; });
+    document.getElementById('ctxBtnCopy').addEventListener('click', () => {
+      let selectedCells = Array.from(document.querySelectorAll('.selected'));
+      if (selectedCells.length === 0) return;
+      let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+      let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+      let table = selectedCells[0].closest('table'), textLines = [];
+      for (let r of rows) {
+        let rowData = [];
+        for (let c of cols) {
+          let cell = table.rows[r].cells[c];
+          if (cell && cell.classList.contains('selected')) {
+            let t = cell.querySelector('.indicator-text');
+            rowData.push(t ? t.innerText : cell.innerText.replace(/\n$/, ''));
+          }
+        }
+        textLines.push(rowData.join('\t'));
+      }
+      let textArea = document.createElement("textarea"); textArea.value = textLines.join('\n');
+      document.body.appendChild(textArea); textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea); ctxMenu.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
