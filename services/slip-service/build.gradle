@@ -82,4 +82,7 @@ bootJar {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // slip-service 테스트 스위트(800+ 테스트, 다수 @SpringBootTest 컨텍스트 + Testcontainers)가
+    // 포크 테스트 JVM 기본 heap 을 초과해 OOM 하므로 상향(빌드 인프라 설정, 프로덕션 무관).
+    maxHeapSize = '2g'
 }

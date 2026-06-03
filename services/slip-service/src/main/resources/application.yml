@@ -50,6 +50,12 @@ spring:
 samhan:
   auth-service:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
+  compensation:
+    retention:
+      # D-SER-25 — 보상 실패 감사 retention. 기본 비활성, 운영에서 명시 활성.
+      enabled: ${SAMHAN_COMPENSATION_RETENTION_ENABLED:false}
+      cron: ${SAMHAN_COMPENSATION_RETENTION_CRON:0 30 3 * * *}
+      retention-days: ${SAMHAN_COMPENSATION_RETENTION_DAYS:90}
 
 eureka:
   client:

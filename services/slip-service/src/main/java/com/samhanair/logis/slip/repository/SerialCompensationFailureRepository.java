@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.repository;
 
 import com.samhanair.logis.slip.domain.SerialCompensationFailure;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,4 +24,16 @@ public interface SerialCompensationFailureRepository
     Page<SerialCompensationFailure> findByResolvedOrderByCreatedAtDesc(
             boolean resolved,
             Pageable pageable);
+
+    /**
+     * 보존기간이 지난 해소 완료 감사 행을 조회한다.
+     *
+     * <p>{@code @SQLRestriction("is_deleted = false")} 로 이미 정리된 행은 재조회되지 않아
+     * retention 작업이 멱등으로 동작한다.
+     *
+     * @param cutoff 보존기간 기준 시각. 이 시각보다 오래된 행만 후보
+     * @return 정리 후보 감사 행 목록
+     */
+    List<SerialCompensationFailure> findByResolvedTrueAndCreatedAtBefore(
+            LocalDateTime cutoff);
 }

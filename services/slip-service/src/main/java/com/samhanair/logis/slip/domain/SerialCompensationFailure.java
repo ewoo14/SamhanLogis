@@ -138,4 +138,17 @@ public class SerialCompensationFailure extends BaseEntity {
         }
         this.resolved = true;
     }
+
+    /**
+     * 보존기간이 지난 해소 완료 감사 행을 soft-delete 한다.
+     *
+     * <p>미해소({@code resolved=false}) 행은 운영 복구 단서이므로 정리 대상이 될 수 없다.
+     * 호출자는 retention 후보 조회에서 resolved=true 를 보장해야 하며, 본 메서드는
+     * {@link BaseEntity#markDeleted(String)} 에만 위임해 audit 7필드 일관성을 유지한다.
+     *
+     * @param actor 정리 수행자 식별자
+     */
+    public void softDelete(String actor) {
+        markDeleted(actor);
+    }
 }
