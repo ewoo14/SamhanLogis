@@ -4,6 +4,19 @@
 
 ---
 
+## 🌙 2026-06-03 자율 세션 — ⓐ 시리얼 락 전략 최적화 (PR #350, 머지 진행)
+
+> Phase INV-S 후속 ⓐ. #349 DevOps cross-check P1/P2(락 범위·인덱스·timeout) 해소. 기능 불변·운영 안정성. inventory 단독.
+> 다음 = ⓑ 분산 보상 견고화(새 브랜치 `feat/serial-compensation-resilience`) → 이후 ⓒ[3-A2 / 3-D 비-0 재고 QA / WarehouseAutocomplete]는 **새 세션**.
+
+- **PR #350** `[FEAT] 시리얼 재고 락 전략 최적화` (브랜치 feat/serial-lock-optimization). spec/plan = `docs/superpowers/{specs,plans}/2026-06-03-serial-lock-optimization*`. DECISIONS D-SER-19~21. dev-report `slice-serial-lock-optimization.md`.
+- **산출**(inventory 단독): ForUpdate 후보조회 `Pageable`(`PageRequest.of(0, deficit)` → deficit 행만 FOR UPDATE) + `@QueryHints` lock.timeout 3000ms + Flyway V19 `ix_stock_instances_fifo_wh ... WHERE is_deleted=FALSE` 부분 인덱스 + unrecallBatch outboundSlipNo 단언.
+- **dual 리뷰**: Claude 5-agent(P1 2 fix: QA outboundSlipNo 단언 / BE lock.timeout PG 적용 → Docker 검증) + Codex(gpt-5.5) **OVERALL APPROVE**(5섹션, 신규 P0/P1 0).
+- **검증**: 단위/IT skip0·fail0·err0, **CI 전체 GREEN**. **Docker 실 QA**(`docs/qa/slice-serial-lock-optimization/real-qa-evidence.md`): Flyway V19 적용·partial 인덱스 정의·EXPLAIN `Index Scan ix_stock_instances_fifo_wh`·`SET LOCAL lock_timeout` 수용.
+- 🚨 **lock.timeout PG 적용 결론(BE↔DevOps 상충 해소)**: PG 는 `SET LOCAL lock_timeout` 수용하나 `FOR UPDATE WAIT n` 부재로 Hibernate 힌트가 **PG 자동 발행 안 됨(no-op, BE 지적 정확)**. 실 방어 = advisory lock(키별 직렬화) 1차 + LIMIT deficit. hard timeout 강제는 **P2 후속**(native `SET LOCAL` / connection-init-sql). 머지 비차단(설계 수준 한계).
+
+---
+
 ## 🌙 2026-06-03 자율 세션 — 시리얼 동시성·보상 강화 ✅ 머지 완료 (#349 `c2cd830a`) — 🎉 Phase INV-S 완결
 
 > 🎉 **Phase INV-S 완결**: S1(#336)·S2(#338)·S3(#347)·S4(#348)·동시성보상(#349) 전부 머지. 모두 dual 5-agent cross-check N=2 + CI green + Docker 실 QA 검증.
