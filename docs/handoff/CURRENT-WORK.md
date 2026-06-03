@@ -10,7 +10,9 @@
 
 - **BE**(slip): `SerialCompensationFailure.resolve()` + repo `findByResolvedOrderByCreatedAtDesc` + `CompensationFailureResponse`(slipId 제외) + `CompensationRecoveryService` + `CompensationRecoveryController`(GET `/api/v1/slips/compensation-failures` inventory.list VIEW + PATCH `/{id}/resolve` UPDATE). IT 6 + 단위 3, slip 800/0/0.
 - **FE**(desktop): `CompensationFailuresPage`(목록+resolved 필터+해소 다이얼로그+배지, design-system 재사용, UUID 비노출) + api + mock + route(`/inventory/compensation-failures` PermissionGuard) + 사이드바("창고 운영"). Playwright 6/6 green, tsc 0.
-- retention: 자동 스케줄러 descope → 운영 가이드(90일+resolved 정리) dev-report 문서화. 다음 = ③ 3-A2-③.
+- retention: 자동 스케줄러 descope → 운영 가이드(90일+resolved 정리) dev-report 문서화.
+- **🚨 실 Docker QA 가 DevOps P1 포착**: gateway StripPrefix=2 로 컨트롤러 풀패스(`/api/v1/slips/...`) 미매칭 → `SlipController /slips/{id}` 충돌 400. **컨트롤러를 `/slips/compensation-failures` 컨벤션으로 정정**(IT 동기화, gateway 무변경) → gateway 200 확인. MockMvc IT 가 못 잡던 결함을 실 QA 가 포착(no-fake-data 가치). 5-agent fix(false-green UUID·IT 403 격리·버튼 update 가드·id Javadoc) + Codex 음성테스트.
+- 다음 = ③ 3-A2-③.
 
 ---
 

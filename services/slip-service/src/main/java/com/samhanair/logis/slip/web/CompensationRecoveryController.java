@@ -24,7 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>보상 실패는 재고 정합 관할 업무이므로 {@code inventory.list} 권한으로 보호한다.
  */
 @RestController
-@RequestMapping("/api/v1/slips/compensation-failures")
+// gateway slip-service-v1 route(Path=/api/v1/slips/**)가 StripPrefix=2('api','v1')를 적용하므로
+// slip-service 컨벤션대로 strip 후 경로 `/slips/...`로 매핑한다(SlipController 등과 일관).
+// 클라이언트/게이트웨이 노출 경로는 `/api/v1/slips/compensation-failures`. literal segment 가
+// SlipController `/slips/{id}` 보다 우선 매칭되어 충돌 없음.
+@RequestMapping("/slips/compensation-failures")
 @RequiredArgsConstructor
 public class CompensationRecoveryController {
 

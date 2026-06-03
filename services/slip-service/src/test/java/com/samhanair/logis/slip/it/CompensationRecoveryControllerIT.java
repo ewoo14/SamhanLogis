@@ -121,7 +121,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
                 LocalDateTime.of(2026, 6, 3, 11, 0),
                 LocalDateTime.of(2026, 6, 3, 11, 1));
 
-        MvcResult result = mockMvc.perform(get("/api/v1/slips/compensation-failures")
+        MvcResult result = mockMvc.perform(get("/slips/compensation-failures")
                         .param("page", "0")
                         .param("size", "10")
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
@@ -150,7 +150,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
                 LocalDateTime.of(2026, 6, 3, 10, 0),
                 LocalDateTime.of(2026, 6, 3, 10, 1));
 
-        mockMvc.perform(get("/api/v1/slips/compensation-failures")
+        mockMvc.perform(get("/slips/compensation-failures")
                         .param("resolved", "true")
                         .param("page", "0")
                         .param("size", "10")
@@ -168,7 +168,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
                 LocalDateTime.of(2026, 6, 3, 10, 0),
                 LocalDateTime.of(2026, 6, 3, 10, 1));
 
-        mockMvc.perform(patch("/api/v1/slips/compensation-failures/{id}/resolve", id)
+        mockMvc.perform(patch("/slips/compensation-failures/{id}/resolve", id)
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isOk())
@@ -177,7 +177,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
 
         assertThat(failureRepository.findById(id).orElseThrow().isResolved()).isTrue();
 
-        mockMvc.perform(patch("/api/v1/slips/compensation-failures/{id}/resolve", id)
+        mockMvc.perform(patch("/slips/compensation-failures/{id}/resolve", id)
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isOk())
@@ -187,7 +187,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
 
     @Test
     void resolve_missingFailure_returns404() throws Exception {
-        mockMvc.perform(patch("/api/v1/slips/compensation-failures/{id}/resolve", UUID.randomUUID())
+        mockMvc.perform(patch("/slips/compensation-failures/{id}/resolve", UUID.randomUUID())
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isNotFound());
@@ -202,7 +202,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
         Mockito.when(dynamicPermissionClient.check(
                         any(UUID.class), eq("inventory.list"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
-        mockMvc.perform(get("/api/v1/slips/compensation-failures")
+        mockMvc.perform(get("/slips/compensation-failures")
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isForbidden());
@@ -214,7 +214,7 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
         Mockito.when(dynamicPermissionClient.check(
                         any(UUID.class), eq("inventory.list"), eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
-        mockMvc.perform(patch("/api/v1/slips/compensation-failures/{id}/resolve", id)
+        mockMvc.perform(patch("/slips/compensation-failures/{id}/resolve", id)
                         .header(USER_ID_HEADER, INVENTORY_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "INVENTORY"))
                 .andExpect(status().isForbidden());
