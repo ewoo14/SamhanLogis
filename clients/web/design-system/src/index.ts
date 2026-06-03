@@ -20,7 +20,8 @@ export * from './components/SlipStatusBadge'
 export * from './components/Spinner'
 export * from './components/TagChip'
 export * from './components/TagInput'
-export * from './components/WarehouseSelector'
+// WarehouseSelector 제거(2026-06-03) — 전 창고 선택 UI 가 WarehouseAutocomplete 로 일원화됨.
+//   Warehouse/WarehouseType 타입은 WarehouseAutocomplete 에서 export.
 // sales-form-polish 슬라이스 신규 컴포넌트
 export * from './components/DragHandle'
 export * from './components/LineRow'

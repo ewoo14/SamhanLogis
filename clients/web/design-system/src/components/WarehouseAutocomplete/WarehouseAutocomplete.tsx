@@ -10,9 +10,30 @@ import {
 } from 'react'
 import styles from './WarehouseAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
-import type { Warehouse } from '../WarehouseSelector/WarehouseSelector'
 
-export type { Warehouse }
+/**
+ * 창고 분류 enum (BE `WarehouseType` 와 1:1 대응).
+ *
+ * - `HEADQUARTERS` 본사창고 — 본사 보유 물리 창고
+ * - `VEHICLE`       차량재고 — 차량 단위로 운영되는 이동 재고
+ * - `CONSIGNMENT`   거래처위탁 — 위탁 보관된 외부 창고
+ * - `VIRTUAL`       가상창고 — 서비스 인보이스 등 비물리. 재고 차감/이동 대상에서 제외.
+ */
+export type WarehouseType = 'HEADQUARTERS' | 'VEHICLE' | 'CONSIGNMENT' | 'VIRTUAL'
+
+/** 창고 도메인 객체 (BE `/inventory/warehouses` 응답 형태). */
+export interface Warehouse {
+  /** 창고 UUID. */
+  id: string
+  /** 창고명 (한국어). */
+  name: string
+  /** 창고 코드 (예: HQ-001, VH-001). */
+  code: string
+  /** 창고 분류 — VIRTUAL 은 시각적 배지로 구분 표시. */
+  type: WarehouseType
+  /** 활성/비활성 여부. */
+  active: boolean
+}
 
 export interface WarehouseAutocompleteProps {
   /** 선택 가능한 창고 목록 (BE `/inventory/warehouses` 응답). */
