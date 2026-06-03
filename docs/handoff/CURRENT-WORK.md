@@ -4,10 +4,23 @@
 
 ---
 
-## 🌙 2026-06-03 자율 세션 — ⓐ 시리얼 락 전략 최적화 (PR #350, 머지 진행)
+## 🌙 2026-06-03 자율 세션 — ⓑ 시리얼 분산 보상 견고화 ✅ (PR #351, 머지 진행)
+
+> Phase INV-S 후속 ⓑ. D-SER-05(동기 REST best-effort 보상) 한계 보완 — 보상 실패 조용한 삼킴 → 관측·영속·복구단서. slip-service 단독.
+> **🚧 다음 = ⓒ는 개발책임자 새 세션 착수** (PM 자동 착수 금지).
+
+- **PR #351** `[FEAT] 시리얼 분산 보상 견고화` (브랜치 feat/serial-compensation-resilience). spec/plan = `docs/superpowers/{specs,plans}/2026-06-03-serial-compensation-resilience*`. DECISIONS D-SER-22. dev-report `slice-serial-compensation-resilience.md`.
+- **산출**(slip 단독): `CompensationAuditWriter`(@Transactional REQUIRES_NEW 별도 빈, 구조적 WARN `[COMPENSATION_FAILURE]` cause+originalCause + `serial_compensation_failures`(V31) append-only 독립 커밋) + `SlipService.runCompensationsWithAudit` 공통 헬퍼(accept ACCEPT_RESERVE / completeRecallInbound COMPLETE_RECALL, serial·batch 공통) + `SerialCompensationFailure`(BaseEntity, productCode guard) + `CompensationPhase`/`CompensationOperation` + `TimeConfig` Clock + V31(인덱스 resolved,created / slip_no).
+- **왜 slip측 영속**: 보상 실패 원인 = inventory 도달 불가 → inventory stock_movements 도 실패 가능 → 호출자(slip) 측 영속이 정합.
+- **dual 리뷰(N=1 수렴)**: Designer/FE APPROVE + Claude 5-agent fix 7건(QA P0 IT raw JDBC 커밋독립 단언 / QA P1 occurredAt·slipNo eq / BE P1 productCode guard / DevOps P1 WARN originalCause / BE P2 audit save 로그·slip_no 인덱스·Javadoc) + Codex(gpt-5.5) **OVERALL APPROVE**. @Version 미반영(append-only audit 선례 일관, PM 판정).
+- **검증**: 신규 6테스트 skip0·fail0·err0, **CI 20/20 green**. **Docker 실 QA**(`docs/qa/slice-serial-compensation-resilience/real-qa-evidence.md`): Flyway V31 success=t·테이블 18컬럼·인덱스 2개·정상 무오염(count0/마커0)·REQUIRES_NEW 커밋독립 CI 실 IT.
+- **후속**: HikariCP maximum-pool-size(DevOps P1) / retention·복구 API·운영자 보상실패 화면(Designer) / notification 푸시(TODO seam) / 자동 재시도 outbox·Saga(D-SER-05 근본).
+
+---
+
+## 🌙 2026-06-03 자율 세션 — ⓐ 시리얼 락 전략 최적화 ✅ 머지 완료 (#350 `ed087bdb`)
 
 > Phase INV-S 후속 ⓐ. #349 DevOps cross-check P1/P2(락 범위·인덱스·timeout) 해소. 기능 불변·운영 안정성. inventory 단독.
-> 다음 = ⓑ 분산 보상 견고화(새 브랜치 `feat/serial-compensation-resilience`) → 이후 ⓒ[3-A2 / 3-D 비-0 재고 QA / WarehouseAutocomplete]는 **새 세션**.
 
 - **PR #350** `[FEAT] 시리얼 재고 락 전략 최적화` (브랜치 feat/serial-lock-optimization). spec/plan = `docs/superpowers/{specs,plans}/2026-06-03-serial-lock-optimization*`. DECISIONS D-SER-19~21. dev-report `slice-serial-lock-optimization.md`.
 - **산출**(inventory 단독): ForUpdate 후보조회 `Pageable`(`PageRequest.of(0, deficit)` → deficit 행만 FOR UPDATE) + `@QueryHints` lock.timeout 3000ms + Flyway V19 `ix_stock_instances_fifo_wh ... WHERE is_deleted=FALSE` 부분 인덱스 + unrecallBatch outboundSlipNo 단언.
