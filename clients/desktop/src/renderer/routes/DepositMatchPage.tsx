@@ -34,7 +34,7 @@
  *   <li>{@code deposit-match-error}</li>
  * </ul>
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { useMutation } from '@tanstack/react-query'
 import { Button } from '@samhan/design-system'
@@ -45,6 +45,7 @@ import {
   KftcGatewayError,
   type DepositMatchResponse,
   type DepositMatchResult,
+  type DepositJournalLine,
 } from '../api/depositMatchApi'
 
 // ---------------------------------------------------------------------------
@@ -192,11 +193,15 @@ function SummaryBadge({ label, count, variant }: SummaryBadgeProps) {
 interface ResultRowProps {
   result: DepositMatchResult
   index: number
+  onSelect: (result: DepositMatchResult) => void
 }
 
-function ResultRow({ result, index }: ResultRowProps) {
+function ResultRow({ result, index, onSelect }: ResultRowProps) {
+  // MATCHED 행만 클릭 가능 — 자동 분개 미리보기 modal 오픈.
+  const clickable = result.status === 'MATCHED'
+
   const rowStyle: React.CSSProperties = {
-    display: 'contents',
+    cursor: clickable ? 'pointer' : 'default',
   }
 
   const cellStyle: React.CSSProperties = {
@@ -210,6 +215,22 @@ function ResultRow({ result, index }: ResultRowProps) {
     <tr
       data-testid={`deposit-match-row-${index + 1}`}
       style={rowStyle}
+      onClick={clickable ? () => onSelect(result) : undefined}
+      // <tr> 에 role="button" 은 ARIA 규격 위반(row context 파괴) — implicit row role 유지.
+      // 클릭/키보드(Enter·Space) 활성화만 부여하고 가용성은 title 로 안내한다.
+      tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? `${result.depositorName} 자동 분개 미리보기 열기` : undefined}
+      title={clickable ? '클릭하면 자동 분개 미리보기를 표시합니다' : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSelect(result)
+              }
+            }
+          : undefined
+      }
     >
       <td style={cellStyle}>{result.depositorName}</td>
       <td style={{ ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>
@@ -239,9 +260,10 @@ function ResultRow({ result, index }: ResultRowProps) {
 
 interface ResultTableProps {
   results: DepositMatchResult[]
+  onSelect: (result: DepositMatchResult) => void
 }
 
-function ResultTable({ results }: ResultTableProps) {
+function ResultTable({ results, onSelect }: ResultTableProps) {
   const thStyle: React.CSSProperties = {
     padding: '10px 12px',
     fontSize: 12,
@@ -281,10 +303,184 @@ function ResultTable({ results }: ResultTableProps) {
         </thead>
         <tbody>
           {results.map((row, i) => (
-            <ResultRow key={`${row.transactionDate}-${row.depositorName}-${i}`} result={row} index={i} />
+            <ResultRow
+              key={`${row.transactionDate}-${row.depositorName}-${row.amount}`}
+              result={row}
+              index={i}
+              onSelect={onSelect}
+            />
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 하위 컴포넌트 — 매칭 상세 + 자동 분개 미리보기 modal
+// ---------------------------------------------------------------------------
+
+interface DetailModalProps {
+  result: DepositMatchResult
+  onClose: () => void
+}
+
+/**
+ * MATCHED 입금의 자동 분개 미리보기 modal.
+ *
+ * <p>차변 보통예금(102) / 대변 외상매출금(110) 라인을 표시한다.
+ * DRY_RUN 단계 미리보기이며 실제 전표를 생성하지 않는다.
+ * UUID 비공개: 계정 UUID·journalDraftId 미노출 — 계정코드/계정명/금액 + 비즈니스 식별자만.
+ */
+function DepositDetailModal({ result, onClose }: DetailModalProps) {
+  const lines = result.journalDraft?.lines ?? []
+  const debit = lines.find((l) => l.side === 'DEBIT')
+  const credit = lines.find((l) => l.side === 'CREDIT')
+  const hasJournal = lines.length > 0
+
+  // ARIA dialog 패턴 — Escape 키로 닫기 (WCAG 2.1 SC 2.1.2).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  }
+  const panelStyle: React.CSSProperties = {
+    background: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    width: 'min(520px, 92vw)',
+    maxHeight: '88vh',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+  }
+  const metaRowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 13,
+    padding: '6px 0',
+    borderBottom: '1px solid var(--color-neutral-100, #f3f4f6)',
+  }
+  const journalLineStyle = (side: 'DEBIT' | 'CREDIT'): React.CSSProperties => ({
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px 12px',
+    borderRadius: 6,
+    fontSize: 13,
+    background:
+      side === 'DEBIT'
+        ? 'var(--color-brand-50, #eff6ff)'
+        : 'var(--color-success-50, #ecfdf5)',
+    border: `1px solid ${side === 'DEBIT' ? 'var(--color-brand-200, #bfdbfe)' : 'var(--color-success-200, #a7f3d0)'}`,
+  })
+
+  const renderJournalLine = (
+    line: DepositJournalLine | undefined,
+    side: 'DEBIT' | 'CREDIT',
+    testId: string,
+  ) => {
+    const label = side === 'DEBIT' ? '차변' : '대변'
+    if (!line) {
+      return (
+        <div data-testid={testId} style={journalLineStyle(side)}>
+          <span>{label}</span>
+          <span style={{ color: 'var(--color-neutral-400, #9ca3af)' }}>—</span>
+        </div>
+      )
+    }
+    return (
+      <div data-testid={testId} style={journalLineStyle(side)}>
+        <span style={{ fontWeight: 600 }}>
+          {label} · {line.accountName}({line.accountCode})
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', Consolas, monospace", fontVariantNumeric: 'tabular-nums' }}>
+          {formatKrw(line.amount)}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={overlayStyle}
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        data-testid="deposit-match-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="입금 매칭 상세 · 자동 분개 미리보기"
+        style={panelStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h4 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>매칭 상세</h4>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500, #6b7280)' }}>
+              자동 분개 미리보기 (DRY_RUN — 실제 전표 미생성)
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" type="button" onClick={onClose} aria-label="닫기">
+            ✕
+          </Button>
+        </header>
+
+        {/* 비즈니스 식별자 */}
+        <section style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={metaRowStyle}>
+            <span style={{ color: 'var(--color-neutral-500, #6b7280)' }}>입금자명</span>
+            <strong>{result.depositorName}</strong>
+          </div>
+          <div style={metaRowStyle}>
+            <span style={{ color: 'var(--color-neutral-500, #6b7280)' }}>입금 금액</span>
+            <strong style={{ fontFamily: "'JetBrains Mono', Consolas, monospace" }}>{formatKrw(result.amount)}</strong>
+          </div>
+          <div style={metaRowStyle}>
+            <span style={{ color: 'var(--color-neutral-500, #6b7280)' }}>거래처코드</span>
+            <strong>{result.matchedPartnerCode ?? '—'}</strong>
+          </div>
+          <div style={metaRowStyle}>
+            <span style={{ color: 'var(--color-neutral-500, #6b7280)' }}>세금계산서번호</span>
+            <strong>{result.matchedTaxInvoiceNo ?? '—'}</strong>
+          </div>
+        </section>
+
+        {/* 자동 분개 미리보기 */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-700, #374151)' }}>
+            자동 분개 미리보기
+          </div>
+          {hasJournal ? (
+            <>
+              {renderJournalLine(debit, 'DEBIT', 'deposit-match-journal-debit')}
+              {renderJournalLine(credit, 'CREDIT', 'deposit-match-journal-credit')}
+            </>
+          ) : (
+            <div
+              role="status"
+              style={{ fontSize: 13, color: 'var(--color-neutral-500, #6b7280)', padding: '8px 0' }}
+            >
+              자동 분개 데이터를 불러오지 못했습니다.
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
@@ -300,6 +496,7 @@ export function DepositMatchPage() {
   const [to, setTo] = useState(todayIso())
   const [accountFinNo, setAccountFinNo] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [selectedResult, setSelectedResult] = useState<DepositMatchResult | null>(null)
 
   const mutation = useMutation<
     DepositMatchResponse,
@@ -335,6 +532,7 @@ export function DepositMatchPage() {
     setTo(todayIso())
     setAccountFinNo('')
     setFormError(null)
+    setSelectedResult(null)
     mutation.reset()
   }
 
@@ -543,7 +741,7 @@ export function DepositMatchPage() {
 
           {/* ───────── 영역 3: 결과 테이블 ───────── */}
           {mutation.data.results.length > 0 ? (
-            <ResultTable results={mutation.data.results} />
+            <ResultTable results={mutation.data.results} onSelect={setSelectedResult} />
           ) : (
             <div
               style={{
@@ -557,6 +755,11 @@ export function DepositMatchPage() {
             </div>
           )}
         </>
+      ) : null}
+
+      {/* 매칭 상세 + 자동 분개 미리보기 modal */}
+      {selectedResult ? (
+        <DepositDetailModal result={selectedResult} onClose={() => setSelectedResult(null)} />
       ) : null}
     </div>
   )

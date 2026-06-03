@@ -4965,12 +4965,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         matchedPartnerCode: 'P-001',
         matchedTaxInvoiceNo: 'TI-20260502-001',
         status: 'MATCHED',
+        journalDraft: {
+          lines: [
+            { side: 'DEBIT', accountCode: '102', accountName: '보통예금', amount: 2750000 },
+            { side: 'CREDIT', accountCode: '110', accountName: '외상매출금', amount: 2750000 },
+          ],
+        },
       },
       {
         depositorName: '△△인테리어',
         amount: 1320000,
         transactionDate: `${ym}-05`,
-        matchedPartnerCode: 'P-002',
+        matchedPartnerCode: null,
         matchedTaxInvoiceNo: null,
         status: 'UNMATCHED',
       },
@@ -4989,6 +4995,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         matchedPartnerCode: 'P-004',
         matchedTaxInvoiceNo: 'TI-20260512-003',
         status: 'MATCHED',
+        journalDraft: {
+          lines: [
+            { side: 'DEBIT', accountCode: '102', accountName: '보통예금', amount: 4180000 },
+            { side: 'CREDIT', accountCode: '110', accountName: '외상매출금', amount: 4180000 },
+          ],
+        },
       },
       {
         depositorName: '홍길동',

@@ -40,7 +40,7 @@ export default defineConfig({
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
     
     
-    '**/sp-09-4-kftc-shell/**',
+
     
     
     '**/supplier-profile/**',

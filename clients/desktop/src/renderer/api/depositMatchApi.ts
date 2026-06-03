@@ -66,6 +66,33 @@ export interface DepositFetchRequest {
 // ---------------------------------------------------------------------------
 
 /**
+ * 자동 분개 미리보기 단일 라인 — BE {@code DepositJournalLine} 와 필드명 1:1 정합.
+ *
+ * <p>UUID 비공개: 계정 UUID 미노출 — 표준 계정코드({@code accountCode}) + 계정명({@code accountName})만 노출.
+ */
+export interface DepositJournalLine {
+  /** 차변(DEBIT) / 대변(CREDIT). */
+  side: 'DEBIT' | 'CREDIT'
+  /** 표준 계정코드 (예: 보통예금 102 / 외상매출금 110). */
+  accountCode: string
+  /** 계정명 (예: 보통예금 / 외상매출금). */
+  accountName: string
+  /** 라인 금액 (원). */
+  amount: number
+}
+
+/**
+ * 매칭 입금의 자동 분개 미리보기 — BE {@code DepositJournalDraft} 와 1:1 정합.
+ *
+ * <p>입금 매칭 표준 분개: 차변 보통예금(102) / 대변 외상매출금(110), 동액.
+ * DRY_RUN 단계에서는 실제 전표를 생성하지 않고 미리보기만 제공한다.
+ */
+export interface DepositJournalDraft {
+  /** 분개 라인 목록 (차변/대변). */
+  lines: DepositJournalLine[]
+}
+
+/**
  * 입금 매칭 단건 결과 — BE {@code DepositMatchResult} 와 필드명 1:1 정합.
  *
  * <p>UUID 비공개: {@code journalDraftId} 는 내부 전용 (화면 미노출).
@@ -90,6 +117,11 @@ export interface DepositMatchResult {
   matchedTaxInvoiceNo?: string
   /** 매칭 상태. */
   status: 'MATCHED' | 'UNMATCHED'
+  /**
+   * 자동 분개 미리보기 (MATCHED 상태에만 존재).
+   * 차변 보통예금(102) / 대변 외상매출금(110) 동액.
+   */
+  journalDraft?: DepositJournalDraft
 }
 
 /**
