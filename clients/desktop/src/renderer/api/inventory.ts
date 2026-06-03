@@ -35,7 +35,7 @@ export interface Warehouse {
   description: string | null
   createdAt: string
   modifiedAt: string
-  /** 디자인 시스템 `WarehouseSelector` 호환을 위한 가상 필드 (항상 true). */
+  /** 디자인 시스템 `WarehouseAutocomplete`/`WarehouseSelector` 의 `Warehouse` 타입 호환용 가상 필드 (항상 true). */
   active: boolean
 }
 

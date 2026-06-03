@@ -495,6 +495,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
             value={sourceWh}
             onChange={(id) => setSourceWh(id)}
+            placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
             hideVirtual
           />
           <WarehouseAutocomplete
@@ -503,6 +504,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
             value={destWh}
             onChange={(id) => setDestWh(id)}
+            placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
             hideVirtual
           />
           {isOutbound ? (

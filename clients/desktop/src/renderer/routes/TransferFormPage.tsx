@@ -8,7 +8,7 @@
  *
  * 사유 (reason) 는 6종 enum (REBALANCE/URGENT/CONSOLIDATE/MAINTENANCE/SAMSUNG_DIRECT/OTHER).
  *
- * UUID 비공개: 출발/도착 창고 선택은 WarehouseSelector (코드+이름),
+ * UUID 비공개: 출발/도착 창고 선택은 WarehouseAutocomplete (코드+이름 타이핑 검색),
  * 모델명 onBlur lookup 으로 productId 내부 보유.
  */
 import { useState } from 'react'

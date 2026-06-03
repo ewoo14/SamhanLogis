@@ -79,7 +79,7 @@ async function gotoSlipNewPage(page: Page): Promise<void> {
  * 첫 번째 라인의 ProductAutocomplete input.
  *
  * SlipFormPage 에서 `ariaLabel="라인 1 품목"` 을 부여하므로
- * `getByRole('combobox', { name: /라인 1 품목/ })` 으로 WarehouseSelector `<select>` 와
+ * `getByRole('combobox', { name: /라인 1 품목/ })` 으로 다른 combobox(창고 자동완성 등)와
  * 명확히 구분 (F-01/F-02 해소).
  */
 function getProductInput(page: Page) {
