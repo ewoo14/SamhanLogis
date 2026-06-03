@@ -9,6 +9,7 @@ import com.samhanair.logis.inventory.web.dto.CreateInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReleaseBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.RecallBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ReserveBatchInstanceRequest;
+import com.samhanair.logis.inventory.web.dto.ResellBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.ShipBatchInstanceRequest;
 import com.samhanair.logis.inventory.web.dto.StockInstanceResponse;
 import com.samhanair.logis.inventory.web.dto.UnrecallBatchInstanceRequest;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>권한 매트릭스:
      * <ul>
      *   <li>인스턴스 생성 ({@code POST /inventory/instances}) — {@code inventory.stock-balance CREATE}</li>
-     *   <li>출고/회수 배치 전이 ({@code POST /reserve-batch|ship-batch|release-batch|recall-batch|unrecall-batch}) — {@code inventory.stock-balance UPDATE}</li>
+     *   <li>출고/회수/재판매 배치 전이 ({@code POST /reserve-batch|ship-batch|release-batch|recall-batch|unrecall-batch|resell-batch}) — {@code inventory.stock-balance UPDATE}</li>
      *   <li>FIFO/역-FIFO/품목별 조회 ({@code GET}) — {@code inventory.stock-balance VIEW}</li>
      * </ul>
  *
@@ -49,6 +51,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Tag(name = "재고 인스턴스", description = "개별시리얼 재고 인스턴스 CRUD/조회 API (Phase INV-S S1)")
 public class StockInstanceController {
+
+    private static final String USER_ID_HEADER = "X-User-Id";
 
     private final StockInstanceService stockInstanceService;
 
@@ -221,6 +225,31 @@ public class StockInstanceController {
                 .map(StockInstanceResponse::from)
                 .toList();
         return ApiResponse.ok(result, "인스턴스 회수 취소 완료");
+    }
+
+    /**
+     * 검수 완료 회수품 재판매 — RECALLED 인스턴스를 AVAILABLE 로 복귀.
+     *
+     * @param request      재판매 배치 요청
+     * @param callerHeader X-User-Id (감사용)
+     * @return AVAILABLE 로 복귀된 인스턴스 응답 목록
+     */
+    @Operation(summary = "회수품 재판매",
+            description = "recallSlipNo+productCode 기준 RECALLED 인스턴스를 AVAILABLE 로 복귀하고 회수/출고 마커를 제거.")
+    @PostMapping("/resell-batch")
+    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.UPDATE)
+    public ApiResponse<List<StockInstanceResponse>> resellBatch(
+            @Valid @RequestBody ResellBatchInstanceRequest request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String callerHeader) {
+        List<StockInstanceResponse> result = stockInstanceService.resellBatch(
+                        request.recallSlipNo(),
+                        request.productCode(),
+                        request.quantity(),
+                        callerHeader)
+                .stream()
+                .map(StockInstanceResponse::from)
+                .toList();
+        return ApiResponse.ok(result, "회수품 재판매 완료");
     }
 
     /**

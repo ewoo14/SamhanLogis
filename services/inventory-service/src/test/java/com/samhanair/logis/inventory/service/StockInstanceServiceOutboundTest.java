@@ -283,6 +283,73 @@ class StockInstanceServiceOutboundTest {
         assertThat(recalled.getOutboundAt()).isEqualTo(outboundAt);
     }
 
+    @Test
+    @DisplayName("resellBatch는 회수 대상 부족이면 409를 반환하고 상태를 바꾸지 않는다")
+    void resellBatch_shortage_throwsConflictWithoutResell() {
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance only = shipped(UUID.randomUUID(), "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 12, 0), "P-S4-006");
+        only.recall("2026/06/03-6");
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(only.getProductId(), "AC-S4", true));
+        when(repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                "2026/06/03-6", "AC-S4", StockInstanceStatus.RECALLED, PageRequest.of(0, 2)))
+                .thenReturn(List.of(only));
+
+        assertThatThrownBy(() -> service.resellBatch("2026/06/03-6", "AC-S4", 2, "tester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("재판매 대상 부족");
+
+        assertThat(only.getStatus()).isEqualTo(StockInstanceStatus.RECALLED);
+        assertThat(only.getRecallSlipNo()).isEqualTo("2026/06/03-6");
+        assertThat(only.getOutboundPartnerCode()).isEqualTo("P-S4-006");
+        verify(repo).findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                "2026/06/03-6", "AC-S4", StockInstanceStatus.RECALLED, PageRequest.of(0, 2));
+    }
+
+    @Test
+    @DisplayName("resellBatch는 RECALLED 후보만 AVAILABLE로 복귀하고 회수/출고 마커를 지운다")
+    void resellBatch_resellsRecalledInstancesAndClearsMarkers() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance first = shipped(productId, "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 12, 0), "P-S4-007");
+        StockInstance second = shipped(productId, "AC-S4", warehouseId,
+                LocalDateTime.of(2026, 6, 2, 13, 0), "P-S4-007");
+        first.recall("2026/06/03-7");
+        second.recall("2026/06/03-7");
+        LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(productId, "AC-S4", true));
+        when(repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                "2026/06/03-7", "AC-S4", StockInstanceStatus.RECALLED, PageRequest.of(0, 2)))
+                .thenReturn(List.of(first, second));
+
+        List<StockInstance> result = service.resellBatch("2026/06/03-7", "AC-S4", 2, "tester");
+
+        LocalDateTime after = LocalDateTime.now().plusSeconds(1);
+        assertThat(result).containsExactly(first, second);
+        assertThat(result).allSatisfy(instance -> {
+            assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
+            assertThat(instance.getRecallSlipNo()).isNull();
+            assertThat(instance.getOutboundPartnerCode()).isNull();
+            assertThat(instance.getOutboundSlipNo()).isNull();
+            assertThat(instance.getOutboundAt()).isNull();
+            assertThat(instance.getReceivedAt()).isBetween(before, after);
+        });
+    }
+
+    @Test
+    @DisplayName("resellBatch 재호출은 이미 AVAILABLE로 바뀐 분을 제외해 부족 409로 수렴한다")
+    void resellBatch_retryAfterAlreadyResold_throwsConflict() {
+        when(productClient.requireExistsByCode("AC-S4")).thenReturn(product(UUID.randomUUID(), "AC-S4", true));
+        when(repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                "2026/06/03-8", "AC-S4", StockInstanceStatus.RECALLED, PageRequest.of(0, 1)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.resellBatch("2026/06/03-8", "AC-S4", 1, "tester"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("재판매 대상 부족");
+    }
+
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {
         return new ProductSummary(productId, "테스트 품목", "MODEL-S3", productCode,
                 null, new BigDecimal("500000"), "ACTIVE", serialManaged);

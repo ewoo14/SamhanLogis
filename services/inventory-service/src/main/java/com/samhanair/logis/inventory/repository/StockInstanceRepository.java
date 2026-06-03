@@ -190,6 +190,7 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      * {@code PESSIMISTIC_WRITE} 로 잠가 unrecall-batch endpoint 직접 동시호출 시 같은 행 중복 전이를 방지한다. (BE 리뷰 P1)
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
     @Query("""
             SELECT s
             FROM StockInstance s
@@ -202,6 +203,35 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("recallSlipNo") String recallSlipNo,
             @Param("productCode") String productCode,
             @Param("status") StockInstanceStatus status);
+
+    /**
+     * 회수품 재판매 대상 조회(row lock) — recallSlipNo+productCode+RECALLED 후보를 제한 수량만 잠근다.
+     *
+     * <p>resell-batch 는 회수전표와 품목코드 단위로 advisory lock 을 잡지만, 다른 운영성 전이와의
+     * 교차 실행에서 같은 행 중복 전이를 막기 위해 후보 행에도 {@code PESSIMISTIC_WRITE} 를 적용한다.
+     *
+     * @param recallSlipNo 회수 입고전표 번호
+     * @param productCode  품목코드 그룹
+     * @param status       대상 상태(RECALLED)
+     * @param pageable     잠금 후보 제한(PageRequest.of(0, quantity))
+     * @return 재판매 후보 인스턴스 목록(row lock 보유)
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productCode = :productCode
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.id ASC
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productCode") String productCode,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
 
     /**
      * S4 회수연동 멱등 수량 확인 — 회수전표 번호 + 품목코드 + 상태 기준 건수.

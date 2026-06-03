@@ -126,6 +126,39 @@ class StockInstanceOutboundTest {
                 .isEqualTo(ErrorCode.CONFLICT);
     }
 
+    @Test
+    @DisplayName("resell은 RECALLED를 AVAILABLE로 전이하고 회수/출고 마커를 지우며 receivedAt을 갱신한다")
+    void resellRestoresAvailableAndClearsRecallAndOutboundMarkers() {
+        LocalDateTime outboundAt = LocalDateTime.of(2026, 6, 2, 12, 0);
+        StockInstance instance = instance();
+        instance.ship("P-2026-0008", "2026/06/02-9", outboundAt);
+        instance.recall("2026/06/03-6");
+        LocalDateTime previousReceivedAt = instance.getReceivedAt();
+        LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+
+        instance.resell();
+
+        LocalDateTime after = LocalDateTime.now().plusSeconds(1);
+        assertThat(instance.getStatus()).isEqualTo(StockInstanceStatus.AVAILABLE);
+        assertThat(instance.getRecallSlipNo()).isNull();
+        assertThat(instance.getOutboundPartnerCode()).isNull();
+        assertThat(instance.getOutboundSlipNo()).isNull();
+        assertThat(instance.getOutboundAt()).isNull();
+        assertThat(instance.getReceivedAt()).isNotEqualTo(previousReceivedAt);
+        assertThat(instance.getReceivedAt()).isBetween(before, after);
+    }
+
+    @Test
+    @DisplayName("RECALLED가 아닌 인스턴스 재판매는 409로 거부한다")
+    void resellFromInvalidStateThrows409() {
+        StockInstance instance = instance();
+
+        assertThatThrownBy(instance::resell)
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
     private StockInstance instance() {
         return StockInstance.inbound(PRODUCT_ID, "AC-S3", WAREHOUSE_ID,
                 "구매", LocalDateTime.of(2026, 5, 30, 9, 0),

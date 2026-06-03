@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>S3 OUTBOUND 출고연동 — 전표 accept/complete/reject 생명주기에서 reserve/ship/release 배치 처리.</li>
  *   <li>FIFO 소진 후보 조회 — {@code received_at ASC}.</li>
  *   <li>역-FIFO 회수 후보 조회 — {@code outbound_at DESC}.</li>
+ *   <li>회수품 재판매 — {@code RECALLED → AVAILABLE}.</li>
  *   <li>품목별 인스턴스 조회.</li>
  * </ul>
  *
@@ -279,6 +280,44 @@ public class StockInstanceService {
             instance.unrecall();
         }
         return recalled;
+    }
+
+    /**
+     * 회수품 재판매 배치 — RECALLED 인스턴스를 AVAILABLE 로 복귀시킨다.
+     *
+     * <p>{@code recallSlipNo + productCode} 키로 advisory lock 을 잡고, 같은 키의 RECALLED 후보를
+     * 요청 수량만큼 {@code FOR UPDATE} 로 잠근다. 후보 수가 요청 수량보다 작으면 아무 상태도 바꾸지 않고
+     * 409 를 반환한다. 이미 재판매되어 AVAILABLE 로 바뀐 인스턴스는 RECALLED 후보에서 제외되므로
+     * 동일 요청 재호출은 부족 409 로 수렴한다.
+     *
+     * @param recallSlipNo 회수 입고전표 번호
+     * @param productCode  품목코드 그룹
+     * @param quantity     재판매 목표 수량
+     * @param actorUserId  처리 담당자 user-id (현재 상태 전이는 BaseEntity 감사 필드로 추적)
+     * @return AVAILABLE 로 복귀된 인스턴스 목록
+     * @throws BusinessException 409(CONFLICT) — batch 품목 또는 재판매 후보 부족
+     */
+    @Transactional
+    public List<StockInstance> resellBatch(String recallSlipNo, String productCode,
+                                           int quantity, String actorUserId) {
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        if (!product.serialManaged()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productCode=" + productCode);
+        }
+
+        lockRecallBatchKey(recallSlipNo, productCode);
+        List<StockInstance> candidates = repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                recallSlipNo, productCode, StockInstanceStatus.RECALLED, PageRequest.of(0, quantity));
+        if (candidates.size() < quantity) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "재판매 대상 부족 — 회수 인스턴스 " + candidates.size() + " < 필요 " + quantity
+                            + " (recallSlipNo=" + recallSlipNo + ", productCode=" + productCode + ")");
+        }
+        for (StockInstance instance : candidates) {
+            instance.resell();
+        }
+        return candidates;
     }
 
     private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {

@@ -33,6 +33,7 @@ import org.hibernate.annotations.UuidGenerator;
  *   RESERVED  ─ release() → AVAILABLE
  *   SHIPPED   ─ recall()  → RECALLED
  *   RECALLED  ─ unrecall()→ SHIPPED
+ *   RECALLED  ─ resell()  → AVAILABLE
  * </pre>
  * 각 전이 메서드는 선행 상태가 맞지 않으면 {@code 409 CONFLICT} 를 던진다.
  *
@@ -200,6 +201,25 @@ public class StockInstance extends BaseEntity {
         requireStatus(StockInstanceStatus.RECALLED, "회수 취소");
         this.status = StockInstanceStatus.SHIPPED;
         this.recallSlipNo = null;
+    }
+
+    /**
+     * 회수품 재판매 — RECALLED → AVAILABLE + 회수/출고 마커 제거.
+     *
+     * <p>검수 완료 후 재판매 가능한 재고로 되돌리는 운영자 명시 액션이다.
+     * 출고·회수 마커를 모두 지워 신규 가용 재고로 취급하고, {@code receivedAt} 을 현재 시각으로
+     * 갱신해 FIFO 소진 순서에 재입고 시점 기준으로 재진입시킨다.
+     *
+     * @throws BusinessException 409 — 현재 상태가 RECALLED 가 아닌 경우
+     */
+    public void resell() {
+        requireStatus(StockInstanceStatus.RECALLED, "재판매");
+        this.status = StockInstanceStatus.AVAILABLE;
+        this.recallSlipNo = null;
+        this.outboundPartnerCode = null;
+        this.outboundSlipNo = null;
+        this.outboundAt = null;
+        this.receivedAt = LocalDateTime.now();
     }
 
     /**

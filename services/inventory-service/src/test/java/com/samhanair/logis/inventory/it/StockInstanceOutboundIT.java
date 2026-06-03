@@ -342,6 +342,110 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                 "P-S4-IT-004", SERIAL_CODE, StockInstanceStatus.SHIPPED)).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("resell-batch: RECALLED → AVAILABLE 및 회수/출고 마커 제거, received_at 재입고 시점 갱신")
+    void resellBatch_restoresRecalledInstancesToAvailable() throws Exception {
+        seedShipped(2, "P-S4-IT-005");
+        postRecall("P-S4-IT-005", "S4-RETURN-005", 2).andExpect(status().isOk());
+        LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+
+        postResell("S4-RETURN-005", 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)))
+                .andExpect(jsonPath("$.data[0].status", is("AVAILABLE")))
+                .andExpect(jsonPath("$.data[0].recallSlipNo").doesNotExist())
+                .andExpect(jsonPath("$.data[0].outboundPartnerCode").doesNotExist())
+                .andExpect(jsonPath("$.data[0].outboundSlipNo").doesNotExist())
+                .andExpect(jsonPath("$.data[0].outboundAt").doesNotExist());
+
+        LocalDateTime after = LocalDateTime.now().plusSeconds(1);
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-005", SERIAL_CODE, StockInstanceStatus.RECALLED)).isZero();
+        List<StockInstance> available = stockInstanceRepository
+                .findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAsc(
+                        SERIAL_CODE, warehouseId, StockInstanceStatus.AVAILABLE);
+        assertThat(available).hasSize(2);
+        assertThat(available).allSatisfy(instance -> {
+            assertThat(instance.getRecallSlipNo()).isNull();
+            assertThat(instance.getOutboundPartnerCode()).isNull();
+            assertThat(instance.getOutboundSlipNo()).isNull();
+            assertThat(instance.getOutboundAt()).isNull();
+            assertThat(instance.getReceivedAt()).isBetween(before, after);
+        });
+    }
+
+    @Test
+    @DisplayName("resell-batch: 회수 인스턴스 부족이면 409 및 상태 변경 0건")
+    void resellBatch_shortageReturns409WithoutResell() throws Exception {
+        seedShipped(1, "P-S4-IT-006");
+        postRecall("P-S4-IT-006", "S4-RETURN-006", 1).andExpect(status().isOk());
+
+        postResell("S4-RETURN-006", 2)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("재판매 대상 부족")));
+
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-006", SERIAL_CODE, StockInstanceStatus.RECALLED)).isEqualTo(1);
+        assertThat(stockInstanceRepository.countByProductCodeAndWarehouseIdAndStatus(
+                SERIAL_CODE, warehouseId, StockInstanceStatus.AVAILABLE)).isZero();
+    }
+
+    @Test
+    @DisplayName("resell-batch: 동일 요청 재호출은 이미 AVAILABLE 분을 제외해 409로 수렴한다")
+    void resellBatch_sameRequestRetryReturns409AfterAlreadyResold() throws Exception {
+        seedShipped(1, "P-S4-IT-007");
+        postRecall("P-S4-IT-007", "S4-RETURN-007", 1).andExpect(status().isOk());
+
+        postResell("S4-RETURN-007", 1).andExpect(status().isOk());
+        postResell("S4-RETURN-007", 1)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("재판매 대상 부족")));
+
+        assertThat(stockInstanceRepository.countByProductCodeAndWarehouseIdAndStatus(
+                SERIAL_CODE, warehouseId, StockInstanceStatus.AVAILABLE)).isEqualTo(1);
+        assertThat(stockInstanceRepository.countByRecallSlipNoAndProductCodeAndStatus(
+                "S4-RETURN-007", SERIAL_CODE, StockInstanceStatus.RECALLED)).isZero();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("resell-batch: 동시 재판매 요청은 advisory+row lock으로 같은 RECALLED 후보를 중복 전이하지 않는다")
+    void resellBatch_concurrentRequestsDoNotResellSameCandidateTwice() throws Exception {
+        cleanup();
+        seedShipped(1, "P-S4-RES-LCK");
+        stockInstanceService.recallBatch("P-S4-RES-LCK", SERIAL_CODE, 1, "S4-RETURN-RES-LCK");
+
+        List<Throwable> failures = runConcurrently(
+                () -> stockInstanceService.resellBatch("S4-RETURN-RES-LCK", SERIAL_CODE, 1, "tester-1"),
+                () -> stockInstanceService.resellBatch("S4-RETURN-RES-LCK", SERIAL_CODE, 1, "tester-2"));
+
+        long conflictCount = failures.stream()
+                .filter(BusinessException.class::isInstance)
+                .filter(ex -> ex.getMessage().contains("재판매 대상 부족"))
+                .count();
+        assertThat(conflictCount).isEqualTo(1);
+        assertThat(stockInstanceRepository.countByProductCodeAndWarehouseIdAndStatus(
+                SERIAL_CODE, warehouseId, StockInstanceStatus.AVAILABLE)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM stock_instances
+                 WHERE is_deleted = false
+                   AND product_code = ?
+                   AND status = 'RECALLED'
+                """, Long.class, SERIAL_CODE)).isZero();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM stock_instances
+                 WHERE is_deleted = false
+                   AND product_code = ?
+                   AND status = 'AVAILABLE'
+                   AND recall_slip_no IS NULL
+                   AND outbound_partner_code IS NULL
+                   AND outbound_slip_no IS NULL
+                   AND outbound_at IS NULL
+                """, Long.class, SERIAL_CODE)).isEqualTo(1L);
+    }
+
     private ResultActions postReserve(String outboundSlipNo, int quantity) throws Exception {
         return mockMvc.perform(post("/inventory/instances/reserve-batch")
                 .header("X-User-Id", UUID.randomUUID().toString())
@@ -356,6 +460,14 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                 .header("X-User-Role", MASTER_ROLE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(recallBody(partnerCode, recallSlipNo, quantity))));
+    }
+
+    private ResultActions postResell(String recallSlipNo, int quantity) throws Exception {
+        return mockMvc.perform(post("/inventory/instances/resell-batch")
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", MASTER_ROLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(resellBody(recallSlipNo, quantity))));
     }
 
     private Map<String, Object> reserveBody(String productCode, String outboundSlipNo, int quantity) {
@@ -396,6 +508,14 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("recallSlipNo", recallSlipNo);
         body.put("productCode", SERIAL_CODE);
+        return body;
+    }
+
+    private Map<String, Object> resellBody(String recallSlipNo, int quantity) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("recallSlipNo", recallSlipNo);
+        body.put("productCode", SERIAL_CODE);
+        body.put("quantity", quantity);
         return body;
     }
 

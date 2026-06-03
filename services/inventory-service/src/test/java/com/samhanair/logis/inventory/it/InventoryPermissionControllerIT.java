@@ -3,6 +3,7 @@ package com.samhanair.logis.inventory.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -22,6 +23,7 @@ import com.samhanair.logis.inventory.attachment.web.InspectionAttachmentControll
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.DpsProgramType;
 import com.samhanair.logis.inventory.domain.DpsSaveMode;
+import com.samhanair.logis.inventory.domain.StockInstance;
 import com.samhanair.logis.inventory.domain.TransferReason;
 import com.samhanair.logis.inventory.domain.TransferStatus;
 import com.samhanair.logis.inventory.domain.WarehouseType;
@@ -40,6 +42,7 @@ import com.samhanair.logis.inventory.service.InboundInspectionService;
 import com.samhanair.logis.inventory.service.InventoryAuditService;
 import com.samhanair.logis.inventory.service.SafetyStockService;
 import com.samhanair.logis.inventory.service.StockExcelExportService;
+import com.samhanair.logis.inventory.service.StockInstanceService;
 import com.samhanair.logis.inventory.service.StockService;
 import com.samhanair.logis.inventory.service.StockTransferService;
 import com.samhanair.logis.inventory.service.WarehouseService;
@@ -52,6 +55,7 @@ import com.samhanair.logis.inventory.web.InventoryAuditController;
 import com.samhanair.logis.inventory.web.InventoryPermissionGuard;
 import com.samhanair.logis.inventory.web.SafetyStockController;
 import com.samhanair.logis.inventory.web.StockController;
+import com.samhanair.logis.inventory.web.StockInstanceController;
 import com.samhanair.logis.inventory.web.StockTransferController;
 import com.samhanair.logis.inventory.web.WarehouseController;
 import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
@@ -118,6 +122,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 InboundInspectionController.class,
                 InventoryAuditController.class,
                 SafetyStockController.class,
+                StockInstanceController.class,
                 InspectionAttachmentController.class,
                 EcountWarehouseImportController.class,
                 EcountStockTransferImportController.class
@@ -149,6 +154,7 @@ class InventoryPermissionControllerIT {
     @MockBean private StockMovementRepository stockMovementRepository;
     @MockBean private StockExcelExportService stockExcelExportService;
     @MockBean private StockTransferService transferService;
+    @MockBean private StockInstanceService stockInstanceService;
     @MockBean private WarehouseService warehouseService;
     @MockBean private RealtimeBroker realtimeBroker;
     @MockBean private InventoryPermissionGuard inventoryPermissionGuard;
@@ -195,6 +201,8 @@ class InventoryPermissionControllerIT {
         lenient().when(transferService.receive(any())).thenReturn(transferDetail());
         lenient().when(transferService.confirm(any(), anyString())).thenReturn(transferDetail());
         lenient().when(transferService.cancel(any(), anyString())).thenReturn(transferDetail());
+        lenient().when(stockInstanceService.resellBatch(anyString(), anyString(), anyInt(), anyString()))
+                .thenReturn(List.of(stockInstance()));
 
         lenient().when(warehouseService.listAll()).thenReturn(List.of(warehouse()));
         lenient().when(warehouseService.searchAdmin(any(), any())).thenReturn(new AdminWarehouseListResponse(List.of(), 0, 0, 20));
@@ -349,6 +357,9 @@ class InventoryPermissionControllerIT {
                 endpoint("safety set", "inventory.safety-stock", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/products/{id}/safety-stock", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"threshold\":10,\"note\":\"note\"}")),
+                endpoint("stock instance resell", "inventory.stock-balance", PermissionAction.UPDATE, "WAREHOUSE",
+                        () -> post("/inventory/instances/resell-batch").contentType(MediaType.APPLICATION_JSON)
+                                .content(resellBody())),
                 endpoint("ecount warehouse import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/warehouses/imports/ecount").file(csv("file"))),
                 endpoint("ecount transfer import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
@@ -395,6 +406,10 @@ class InventoryPermissionControllerIT {
 
     private static String historyBody() {
         return "{\"programType\":\"DPS_COMPARE\",\"saveMode\":\"MANUAL_NAMED\",\"topic\":\"저장\",\"requestParams\":{},\"responsePayload\":{}}";
+    }
+
+    private static String resellBody() {
+        return "{\"recallSlipNo\":\"S4-RETURN-PERM\",\"productCode\":\"AC-PERM\",\"quantity\":1}";
     }
 
     private static MockMultipartFile csv(String name) {
@@ -454,6 +469,11 @@ class InventoryPermissionControllerIT {
 
     private DeductionResponse deduction() {
         return new DeductionResponse(ID, OTHER_ID, 1, 1, 9, 0, 9, List.of());
+    }
+
+    private StockInstance stockInstance() {
+        return StockInstance.inbound(ID, "AC-PERM", OTHER_ID, "구매",
+                LocalDateTime.of(2026, 6, 3, 9, 0), java.math.BigDecimal.ONE, "S2-IN-PERM");
     }
 
     private AuditResponse auditRow() {
