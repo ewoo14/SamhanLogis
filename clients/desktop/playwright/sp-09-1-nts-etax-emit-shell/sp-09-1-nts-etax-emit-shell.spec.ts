@@ -89,13 +89,13 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 // ---------------------------------------------------------------------------
 
 /** ACCOUNTANT 역할 + ISSUED 상태 세금계산서 목록 */
-const LIST_URL_ACCOUNTANT = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT`
+const LIST_URL_ACCOUNTANT = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT`
 /** ACCOUNTANT 역할 + ISSUED 상태 세금계산서 상세 (NTS 발행 대상) */
-const DETAIL_URL_ISSUED = `${BASE_URL}/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=ISSUED`
+const DETAIL_URL_ISSUED = `${BASE_URL}/#/accounting/tax-invoices?mockRole=ACCOUNTANT&mockStatus=ISSUED`
 /** SALES 역할 — 403 가드 검증 */
-const LIST_URL_SALES = `${BASE_URL}/accounting/tax-invoices?mockRole=SALES`
+const LIST_URL_SALES = `${BASE_URL}/#/accounting/tax-invoices?mockRole=SALES`
 /** MANAGER 역할 — 403 가드 검증 */
-const LIST_URL_MANAGER = `${BASE_URL}/accounting/tax-invoices?mockRole=MANAGER`
+const LIST_URL_MANAGER = `${BASE_URL}/#/accounting/tax-invoices?mockRole=MANAGER`
 
 // ---------------------------------------------------------------------------
 // TC-T1 ~ TC-T5
@@ -104,9 +104,10 @@ const LIST_URL_MANAGER = `${BASE_URL}/accounting/tax-invoices?mockRole=MANAGER`
 test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T1~T5)', () => {
   test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     const ok = await isServerAvailable()
-    test.skip(!ok, `dev server 미접근: ${BASE_URL}`)
+    // false green 방지(SP-09 패턴) — dev server 미가용 시 skip 이 아닌 FAIL.
+    expect(ok, `dev server 미접근: ${BASE_URL}`).toBe(true)
   })
 
   // -------------------------------------------------------------------------
@@ -359,7 +360,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
     // MASTER 역할도 동일 권한 — canAccessTaxInvoice 정적 계약 검증
     // taxInvoiceApi.ts: canAccessTaxInvoice(role) = role === 'ACCOUNTANT' || role === 'MASTER'
-    const masterListUrl = `${BASE_URL}/accounting/tax-invoices?mockRole=MASTER`
+    const masterListUrl = `${BASE_URL}/#/accounting/tax-invoices?mockRole=MASTER`
     await page.goto(masterListUrl, { waitUntil: 'domcontentloaded', timeout: 20000 })
     await page.waitForTimeout(1000)
 
@@ -658,7 +659,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
     // ── step 3: INVENTORY 페이지 진입 → 즉시 inventoryBlocked assert
     await test.step('INVENTORY 역할 — 진입 직후 접근 차단 확인', async () => {
-      const inventoryListUrl = `${BASE_URL}/accounting/tax-invoices?mockRole=INVENTORY`
+      const inventoryListUrl = `${BASE_URL}/#/accounting/tax-invoices?mockRole=INVENTORY`
       await page.goto(inventoryListUrl, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 

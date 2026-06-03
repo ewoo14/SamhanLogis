@@ -64,8 +64,27 @@ supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확
   — TC-TIB-1 은 **이전된 기능**을 검증하므로 단순 라벨 수정이 아닌, batch 페이지 현행 UI 기준 재작성 또는
   hometax-export 페이지로 대상 변경이 필요(실 기능 재배치 반영).
 
+### sp-09-1 부분 정정 결과 (격리 유지)
+
+- 적용: URL `/#/` 정합 + `test.skip(!ok)`→`expect`. → **4/5 pass**.
+- 잔여: **T3**(eTaxExternalId 화면 표시) = `[data-testid="tax-invoice-detail-etax-external-id"]` 가 **페이지 컴포넌트에 미존재**.
+  eTaxExternalId 표시 기능이 미구현/미배선(emit 응답의 DRY- ID 를 상세에 노출하는 UI 없음) — feature 갭.
+
+### 🔑 ⑥ 핵심 결론 — B/C 잔여 TC 는 feature 레벨 (mechanical 아님)
+
+3 스펙(supplier-profile/tax-invoice-batch/sp-09-1) 실증으로 확정: **`/#/` 드리프트 일괄 정정은 각 스펙을 N-1/N
+까지만 끌어올리고, 잔여 1+ TC 는 모두 feature 레벨**이다 —
+- supplier TC-SP-3: add→폼→save **상호작용 흐름** 드리프트(셀렉터/스텝).
+- tax-invoice-batch TC-TIB-1: 4탭 UI 가 **HometaxExportPage 로 이전**(기능 재배치).
+- sp-09-1 T3: eTaxExternalId **표시 UI 미구현**(testid 부재).
+
+→ B/C 재게이트는 A그룹 같은 단일 패턴 일괄 교정이 **불가**하며, 스펙마다 실 기능 현황 대조(드리프트 정정 vs
+기능 갭 분리 → 후자는 별도 구현 슬라이스)가 필요하다. 각 스펙 `/#/`+skip 정정(de-false-green)은 적용 가치가
+있으나 그 자체로 re-gate 되지 않는다(잔여 TC 가 게이트 차단). 다음 세션은 **스펙별로** (a) `/#/`+seed+skip 정정
+→ (b) 잔여 TC 의 드리프트/갭 분류 → (c) 드리프트면 교정 후 re-gate, 갭이면 구현 슬라이스 분리 후 격리 유지.
+
 ### ⑥ 본 세션 종합
 
 - ✅ 재게이트: **sp-d4(20 TC)**.
-- 🔧 부분 정정(격리 유지, 개선분 커밋): supplier-profile(5/7), tax-invoice-batch(6/7) — `/#/` 드리프트 정정.
-- 📋 잔여 8스펙 + 위 2스펙의 잔여 TC = 다음 세션 per-spec verify-then-fix(드리프트 패턴 + 기능 재배치/흐름 대조).
+- 🔧 부분 정정(격리 유지, 개선분 커밋): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5) — `/#/`+skip 드리프트.
+- 📋 잔여 7스펙(phase-2-5/phase-2-6c/sp-08-6-6/sp-09-2~5) + 위 3스펙의 feature 잔여 TC = 다음 세션 per-spec.
