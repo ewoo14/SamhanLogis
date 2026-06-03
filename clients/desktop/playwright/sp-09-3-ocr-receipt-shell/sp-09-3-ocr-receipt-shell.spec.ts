@@ -339,10 +339,11 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
         '가게명 "테스트마트" 미표시 — OCR 결과 카드 내 vendorName 없음',
       ).toBeVisible({ timeout: 5000 })
 
-      // slipNo 텍스트 포함 확인 (BE mock: slipNo="PUR-2026-05-0042")
+      // slipNo 텍스트 포함 확인 — in-process mock(VITE_MOCK_MODE)의 DRY_RUN 응답은 slipNo=`${today}-${seq}`
+      // (날짜기반 동적값). page.route mock 은 in-process mock 에 가려져 무효이므로, 고정값이 아닌 날짜 패턴으로 정합.
       await expect(
-        resultCard.getByText('PUR-2026-05-0042', { exact: false }),
-        'slipNo "PUR-2026-05-0042" 미표시 — OCR 결과 카드 내 slipNo 없음',
+        resultCard.getByText(/\d{4}-\d{2}-\d{2}-\d+/),
+        'slipNo 미표시 — OCR 결과 카드 내 날짜기반 slipNo(YYYY-MM-DD-N) 없음',
       ).toBeVisible({ timeout: 5000 })
     })
 
@@ -358,8 +359,8 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
 
       const slipText = (await slipLink.textContent()) ?? ''
       expect(
-        slipText.includes('PUR-2026-05-0042'),
-        `slipNo "PUR-2026-05-0042" 미표시 — slipText="${slipText}"`,
+        /\d{4}-\d{2}-\d{2}-\d+/.test(slipText),
+        `slipNo(날짜기반 YYYY-MM-DD-N) 미표시 — slipText="${slipText}"`,
       ).toBe(true)
     })
 
@@ -486,7 +487,9 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
         '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
         'hex',
       )
-      const tmpPng = path.join(QA_DIR, 'fixture-422-test.png')
+      // in-process mock(VITE_MOCK_MODE)은 page.route 를 가리므로 서버 422 는 mock 의 파일명 컨벤션으로 트리거한다.
+      // 'toolarge' 포함 파일명 → mock 이 422 RECEIPT_FILE_INVALID("파일 크기가 10MB 를 초과합니다") 반환(작은 파일이라 FE size 가드는 통과).
+      const tmpPng = path.join(QA_DIR, 'fixture-toolarge-422.png')
       fs.writeFileSync(tmpPng, minimalPng)
 
       await fileInput.setInputFiles(tmpPng)
@@ -685,7 +688,18 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
     // ── step 4: SALES 권한 — 접근 차단 (403 또는 드롭존 미표시)
     await test.step('SALES 권한 — 영수증 OCR 접근 차단 (RoleGuard)', async () => {
       await page.goto(RECEIPT_OCR_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
+      // 직전 sub-step 의 역할(WAREHOUSE 등) 세션이 hash 네비게이션으로는 SALES 로 재설정되지 않는다(세션 캐시).
+      // 문서 전체 reload 로 mockRole=SALES 를 재독해 세션을 재설정한다(fresh 로드와 동일 — RoleGuard 가 SALES 차단).
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      // RoleGuard 차단(접근 권한 없음)은 세션(mockRole) 정착 후 렌더되므로 고정 1s 는 전이 프레임을 포착할 수 있다.
+      // 차단 표식(접근 권한 없음 화면) 또는 드롭존 소멸이 확인될 때까지 폴링.
+      await page.waitForTimeout(800)
+      for (let i = 0; i < 16; i++) {
+        const t = (await page.textContent('body').catch(() => '')) ?? ''
+        const dz = await page.locator('[data-testid="receipt-ocr-drop-zone"]').count()
+        if (t.includes('접근 권한이 없습니다') || t.includes('권한 보유자만') || dz === 0) break
+        await page.waitForTimeout(300)
+      }
 
       // 드롭존 미표시 확인 (RoleGuard 차단)
       const dropZone = page.locator('[data-testid="receipt-ocr-drop-zone"]')

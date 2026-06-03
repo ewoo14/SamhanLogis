@@ -107,8 +107,23 @@ supplier-profile 정밀 진단 결과 **명확한 스펙 드리프트** 2종 확
   실 기능 갭(미구현 표시/흐름)이면 구현 슬라이스 분리 후 격리 유지. → 다음 세션 per-feature.
 - sp-09-5 `/#/` 정정(de-false-green)은 적용·보존(격리 유지).
 
+### 🟢 추가 재게이트 — sp-09-3 OCR (5/5)
+
+OCR shell 도 패턴 정합으로 전건 green → 재게이트:
+- T2(slipNo 표시): page.route 가 in-process mock 에 가려져 무효 → 기대값을 mock 의 DRY_RUN 응답(slipNo=`${today}-${seq}` 날짜패턴)으로 정합. T6 slip-link 도 동일.
+- T3(서버 422 배너): mock 파일명 컨벤션 활용 — fixture 명을 'toolarge' 포함으로 변경(mock 이 422 RECEIPT_FILE_INVALID 반환).
+- T5(SALES RoleGuard 차단): 직전 sub-step 역할 세션이 hash 네비로 재설정 안 됨 → `page.reload()` 로 mockRole=SALES 재독(세션 재설정) + 정착 폴링.
+- 🔑 **재사용 패턴 2종**: ①page.route no-op → in-process mock 응답에 단언 정합 ②RoleGuard 역할전환 → `page.reload()` 세션 재설정.
+
+### 🔴 feature 갭 확인 (구현 슬라이스 분리 — 격리 유지)
+
+- **sp-09-4 T4**: MATCHED row → 매칭 상세 modal(`deposit-match-detail-modal`) — 테스트 주석 "Phase 11 구현 예정". **미구현 기능**(모달 미빌드) → 구현 슬라이스 필요. T2(드리프트)/T5(reload) 는 정합 가능하나 T4 가 게이트 차단.
+- **sp-09-1 T3**: eTaxExternalId 표시 UI 미구현(testid 부재) — 동일.
+- **phase-2-6c**: 8/8 전환 모달 상호작용 실패(toBeEnabled/click timeout) — 전환 플로우 깊은 검증 필요(별도).
+- **sp-09-2/sp-09-5**: 상세 modal/vendor UI feature TC 포함(per-feature).
+
 ### ⑥ 본 세션 종합 (최종)
 
-- ✅ **재게이트 33 TC**: sp-d4(20)·phase-2-5(8)·sp-08-6-6(5) — 순수 드리프트.
+- ✅ **재게이트 38 TC**: sp-d4(20)·phase-2-5(8)·sp-08-6-6(5)·sp-09-3(5) — 순수 드리프트/패턴 정합.
 - 🔧 부분 정정(격리, feature 잔여): supplier-profile(5/7)·tax-invoice-batch(6/7)·sp-09-1(4/5)·sp-09-5(`/#/`).
 - 📋 다음 세션: sp-09-2/3/4/5·phase-2-6c + 위 partial 의 feature 잔여 TC = per-feature(드리프트 vs 갭→구현 슬라이스).

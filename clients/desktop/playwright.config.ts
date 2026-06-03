@@ -38,7 +38,6 @@ export default defineConfig({
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
     '**/sp-09-1-nts-etax-emit-shell/**',
     '**/sp-09-2-aligo-sms-real-send/**',
-    '**/sp-09-3-ocr-receipt-shell/**',
     '**/sp-09-4-kftc-shell/**',
     '**/sp-09-5-vendor-integration/**',
     '**/phase-2-6c-inventory-deduction/**',
