@@ -21,8 +21,10 @@
 > "관련 모든 백로그 전부 처리하고 마무리". 7 슬라이스: ①WarehouseSelector제거 ②회수품재판매 ③retention ④notification ⑤3-A2-④A ⑥3-A2-④B/C ⑦outbox/Saga. (제조시리얼 수집은 개발책임자 제외 결정.)
 
 - **① WarehouseSelector 제거** ✅ #357 — 타입 WA 이전, design-system build/desktop tsc 0.
-- **② 회수품 재판매(RECALLED→AVAILABLE)** ✅ (PR #358, 머지 진행) — `StockInstance.resell()` + resell-batch API(advisory+row lock, 후보크기 부족판정, 멱등). 5-agent(BE/DevOps APPROVE, QA P1-1 JdbcTemplate 실DB 단언 보강)+Codex APPROVE. **Docker 실 QA: 실 RECALLED(S4Q-RET-2) resell→200→psql AVAILABLE·마커 null** (no-fake-data). D-SER-24.
-- 남은: ③retention 스케줄러 ④notification 푸시 ⑤3-A2-④ A그룹 ⑥3-A2-④ B/C ⑦outbox/Saga(대형, spec 신중).
+- **② 회수품 재판매(RECALLED→AVAILABLE)** ✅ 머지 #358 — `StockInstance.resell()` + resell-batch API. Docker 실 QA(실 RECALLED resell→200→psql). D-SER-24.
+- **③ retention 스케줄러** ✅ (PR #359, 머지 진행) — `CompensationRetentionScheduler`(@Scheduled cron+zone=Asia/Seoul, @ConditionalOnProperty 기본 비활성) resolved+90일경과 soft-delete. 🚨미해소·기간내 절대 미정리. TimeConfig Clock Asia/Seoul(Codex P1). build.gradle test heap 2g(OOM fix). 5-agent+Codex 수렴. Docker QA(재배포 healthy+스케줄러 미등록). D-SER-25. **후속: soft-delete 물리 purge(P1-2)·Phase11 활성화(P2)**.
+- 남은: ④notification 푸시 ⑤3-A2-④ A그룹 ⑥3-A2-④ B/C ⑦outbox/Saga(대형, spec 신중).
+- ⚠️ 세션 중 OOM/파일잠금으로 samhan Docker 스택 일시 중지 후 `docker compose up -d` 전체 복구함(24컨테이너). build.gradle slip test maxHeapSize=2g 추가(포크 JVM OOM 방지).
 
 ---
 
