@@ -177,6 +177,59 @@ export const MOCK_AUTH = {
  */
 const mockConvertedOrderNos = new Set<string>()
 
+/**
+ * 시리얼 보상 실패 복구 mock seed — D-SER-23 (resolved 혼합 3건).
+ *
+ * resolved 상태는 Map 으로 in-memory 보존 — PATCH resolve 후 GET 에 반영.
+ * id 는 내부 key 전용 (화면 비표시). slipNo 만 사용자 노출.
+ */
+const MOCK_COMPENSATION_FAILURES = [
+  {
+    id: 'cf-seed-0001-0000-0000-000000000001',
+    slipNo: '2026/06/03-001',
+    slipType: 'OUTBOUND',
+    phase: 'SERIAL_DEDUCTION',
+    productCode: 'PRD-A-001',
+    attemptedOperation: 'RESTORE_SERIAL',
+    failureReason: '시리얼 번호 DB 락 타임아웃 초과',
+    originalFailureReason: '시리얼 번호 DB 락 타임아웃 초과',
+    resolved: false,
+    occurredAt: '2026-06-03T08:15:00+09:00',
+    createdAt: '2026-06-03T08:15:01+09:00',
+  },
+  {
+    id: 'cf-seed-0002-0000-0000-000000000002',
+    slipNo: '2026/06/02-017',
+    slipType: 'INBOUND',
+    phase: 'SERIAL_ASSIGNMENT',
+    productCode: 'PRD-B-003',
+    attemptedOperation: 'ROLLBACK_SERIAL',
+    failureReason: '재고 서비스 일시 불가 (5회 재시도 실패)',
+    originalFailureReason: 'Connection refused',
+    resolved: false,
+    occurredAt: '2026-06-02T14:32:00+09:00',
+    createdAt: '2026-06-02T14:32:05+09:00',
+  },
+  {
+    id: 'cf-seed-0003-0000-0000-000000000003',
+    slipNo: '2026/06/01-042',
+    slipType: 'OUTBOUND',
+    phase: 'SERIAL_DEDUCTION',
+    productCode: 'PRD-C-007',
+    attemptedOperation: 'RESTORE_SERIAL',
+    failureReason: '시리얼 레코드 미존재 — 수동 정합 완료',
+    originalFailureReason: 'Entity not found: SerialRecord',
+    resolved: true,
+    occurredAt: '2026-06-01T10:05:00+09:00',
+    createdAt: '2026-06-01T10:05:02+09:00',
+  },
+]
+
+/** PATCH resolve 상태 보존 — id → resolved 전이 추적 */
+const mockCompensationResolvedIds = new Set<string>(
+  MOCK_COMPENSATION_FAILURES.filter((f) => f.resolved).map((f) => f.id),
+)
+
 /** 시드 창고 (V2 시드 4종 + Phase 2.6d 전창고 머지 검증용 신규 1종) */
 const MOCK_WAREHOUSES = [
   {
@@ -1131,7 +1184,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
-  if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.match(/\/slips\/cleanup/)) {
+  if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
     const id = slipDetailMatch[1]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
     return envelope({
@@ -5123,6 +5176,53 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       permissions[cell.pageCode] = actions
     }
     return envelope(permissions)
+  }
+
+  // ============================================================================
+  // D-SER-23: 시리얼 보상 실패 복구 API mock
+  // ============================================================================
+
+  // GET /api/v1/slips/compensation-failures?resolved=&page=&size=
+  if (method === 'GET' && url.includes('/api/v1/slips/compensation-failures')) {
+    const params = config.params as Record<string, unknown> | undefined
+    const resolvedFilter = params?.['resolved']
+    // resolved 파라미터는 boolean 또는 문자열 'true'/'false' 로 올 수 있음
+    const showResolved =
+      resolvedFilter === true || resolvedFilter === 'true'
+    const pageNum = Number(params?.['page'] ?? 0)
+    const pageSize = Number(params?.['size'] ?? 20)
+
+    const filtered = MOCK_COMPENSATION_FAILURES.map((f) => ({
+      ...f,
+      resolved: mockCompensationResolvedIds.has(f.id),
+    })).filter((f) => f.resolved === showResolved)
+
+    const start = pageNum * pageSize
+    const content = filtered.slice(start, start + pageSize)
+    return envelope({
+      content,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / pageSize) || 1,
+      number: pageNum,
+      size: pageSize,
+      first: pageNum === 0,
+      last: start + pageSize >= filtered.length,
+    })
+  }
+
+  // PATCH /api/v1/slips/compensation-failures/{id}/resolve
+  const cfResolveMatch = url.match(
+    /\/api\/v1\/slips\/compensation-failures\/([^/]+)\/resolve$/,
+  )
+  if (method === 'PATCH' && cfResolveMatch) {
+    const id = cfResolveMatch[1]!
+    const target = MOCK_COMPENSATION_FAILURES.find((f) => f.id === id)
+    if (!target) {
+      return mockError(404, 'COMPENSATION_FAILURE_NOT_FOUND', '보상 실패 레코드를 찾을 수 없습니다.')
+    }
+    // 멱등: 이미 resolved 면 변경 없음
+    mockCompensationResolvedIds.add(id)
+    return envelope({ ...target, resolved: true })
   }
 
   return null

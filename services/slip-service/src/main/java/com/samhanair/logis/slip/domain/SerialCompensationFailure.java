@@ -125,4 +125,17 @@ public class SerialCompensationFailure extends BaseEntity {
         return new SerialCompensationFailure(slip, phase, productCode, attemptedOperation,
                 failureReason, originalFailureReason, occurredAt);
     }
+
+    /**
+     * 운영자가 수동 재고 정합을 완료했음을 표시한다.
+     *
+     * <p>감사 행 자체는 append-only 이지만 {@code resolved} 는 복구 워크플로우의 운영 상태이므로
+     * 명시 전이를 허용한다. 이미 해소된 행이면 멱등 no-op 으로 둔다.
+     */
+    public void resolve() {
+        if (this.resolved) {
+            return;
+        }
+        this.resolved = true;
+    }
 }

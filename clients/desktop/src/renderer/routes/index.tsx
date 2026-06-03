@@ -256,6 +256,9 @@ import { MonthlySummaryPrintLayout } from './accounting/print/MonthlySummaryPrin
 // BE: inventory-service `GET /inventory/safety-stock-alerts` (P1-3 슬라이스).
 import { SafetyStockAlertsPage } from './SafetyStockAlertsPage'
 import { SAFETY_STOCK_ROLES } from '../api/safetyStockApi'
+// [D-SER-23] 시리얼 보상 실패 복구 — inventory.list(view) 권한 (WAREHOUSE/MANAGER/MASTER).
+// BE: slip-service `GET/PATCH /api/v1/slips/compensation-failures` (D-SER-23 슬라이스).
+import { CompensationFailuresPage } from './CompensationFailuresPage'
 // [P1-5] arologis 배차 admin 3개 신규 화면 — MANAGER / MASTER.
 // - KakaoAutoDispatchPage: 카카오톡 자동 매칭 실행 + 결과 표
 // - ManualDispatchAdminPage: 배차 list + 기사 직접 선택 modal
@@ -1655,6 +1658,17 @@ const router = createHashRouter([
           <RoleGuard allow={SAFETY_STOCK_ROLES}>
             <SafetyStockAlertsPage />
           </RoleGuard>
+        ),
+      },
+
+      // [D-SER-23] 시리얼 보상 실패 복구 — inventory.list(view) 권한.
+      // 창고 운영 그룹 진입점. BE: slip-service GET/PATCH /api/v1/slips/compensation-failures.
+      {
+        path: '/inventory/compensation-failures',
+        element: (
+          <PermissionGuard pageCode="inventory.list" action="view">
+            <CompensationFailuresPage />
+          </PermissionGuard>
         ),
       },
     ],

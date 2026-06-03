@@ -1065,6 +1065,16 @@ export function AppLayout() {
               >
                 안전재고 알림
               </SidebarLink>
+              {/* [D-SER-23] 시리얼 보상 실패 복구 — inventory.list(view) 권한 보유자 노출.
+                  SP-D4 기준: WAREHOUSE/MANAGER/MASTER 에 inventory.list view 부여. */}
+              <SidebarLink
+                to="/inventory/compensation-failures"
+                show={dynamicCanAccess('inventory.list', 'view')}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-warehouse-compensation-failures"
+              >
+                보상 실패 복구
+              </SidebarLink>
             </>
           ) : null}
 

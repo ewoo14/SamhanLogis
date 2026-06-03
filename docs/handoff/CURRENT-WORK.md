@@ -4,6 +4,16 @@
 
 ---
 
+## ✅ 2026-06-03 — ⓑ 보상 실패 복구 API + 운영자 화면 (PR 진행, D-SER-23)
+
+> 세션 마무리 ②. #351(분산보상 견고화) 관측 → 정합(복구) 루프 완성. slip(BE)+desktop(FE).
+
+- **BE**(slip): `SerialCompensationFailure.resolve()` + repo `findByResolvedOrderByCreatedAtDesc` + `CompensationFailureResponse`(slipId 제외) + `CompensationRecoveryService` + `CompensationRecoveryController`(GET `/api/v1/slips/compensation-failures` inventory.list VIEW + PATCH `/{id}/resolve` UPDATE). IT 6 + 단위 3, slip 800/0/0.
+- **FE**(desktop): `CompensationFailuresPage`(목록+resolved 필터+해소 다이얼로그+배지, design-system 재사용, UUID 비노출) + api + mock + route(`/inventory/compensation-failures` PermissionGuard) + 사이드바("창고 운영"). Playwright 6/6 green, tsc 0.
+- retention: 자동 스케줄러 descope → 운영 가이드(90일+resolved 정리) dev-report 문서화. 다음 = ③ 3-A2-③.
+
+---
+
 ## 🧹 2026-06-03 — 세션 마무리 정리 (작은 해소 일괄)
 
 > 개발책임자 "남은 내용 해소 후 마무리" 지시. 작은 정리 → ⓑ 분산보상 후속 → 3-A2-③ 순 진행.
