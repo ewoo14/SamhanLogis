@@ -27,6 +27,7 @@ const SCREENSHOT_DIR = path.join(QA_DIR, 'screenshots')
 const RESULT_JSON = path.join(QA_DIR, 'qa-results.json')
 const REPORT_MD = path.join(QA_DIR, 'REPORT.md')
 const PR_BODY_MD = path.join(QA_DIR, 'PR-BODY.md')
+const USER_VISIBLE_UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
 
 if (!LOGIN_PW) {
   console.error('QA_LOGIN_PW is required. The password is intentionally not stored in this script.')
@@ -60,6 +61,10 @@ function uniqBy(items, keyFn) {
     result.push(item)
   }
   return result
+}
+
+function findUserVisibleUuidLeaks(text) {
+  return Array.from(new Set(String(text).match(USER_VISIBLE_UUID_RE) || []))
 }
 
 async function ensureDirs() {
@@ -289,6 +294,7 @@ async function main() {
   async function inspectPageForObviousErrors(item, shot) {
     const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '')
     const normalized = bodyText.replace(/\s+/g, ' ')
+    const uuidLeaks = findUserVisibleUuidLeaks(normalized)
     const obvious = [
       '불러오지 못했습니다',
       '저장에 실패했습니다',
@@ -304,6 +310,17 @@ async function main() {
       'undefined',
     ].filter((pattern) => normalized.includes(pattern))
     const eventCount = result.events.filter((event) => event.scope === scope && event.type !== 'console:warning').length
+    if (uuidLeaks.length > 0) {
+      result.issues.push({
+        severity: 'error',
+        area: 'menu-user-visible-uuid',
+        label: item.label,
+        href: item.href,
+        screenshot: shot.file,
+        message: `사용자 화면 본문에 UUID 형식 식별자 ${uuidLeaks.length}개가 노출되었습니다.`,
+        samples: uuidLeaks.slice(0, 3),
+      })
+    }
     if (obvious.length > 0 || eventCount > 0) {
       result.issues.push({
         severity: eventCount > 0 ? 'error' : 'warning',
