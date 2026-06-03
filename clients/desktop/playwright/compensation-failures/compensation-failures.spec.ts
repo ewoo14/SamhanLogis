@@ -190,4 +190,21 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
       page.locator('[data-testid="sidebar-warehouse-compensation-failures"]'),
     ).toBeVisible()
   })
+
+  test('해소 버튼 권한 가드 — update 권한 없는 역할(ACCOUNTANT)은 해소 버튼 미노출', async ({
+    page,
+  }) => {
+    // ACCOUNTANT: inventory.list view=true(진입 가능) / update=false → 해소 버튼만 숨김.
+    await gotoPage(page, 'ACCOUNTANT')
+
+    // 페이지는 정상 진입(미해소 행 표시) — 전체 차단이 아닌 버튼 가드임을 확인.
+    await expect(
+      page.locator('[data-testid="compensation-failures-row-2026/06/02-017"]'),
+    ).toBeVisible()
+
+    // 미해소 행이어도 update 권한이 없으면 해소 버튼이 렌더되지 않아야 한다(canAccess update 가드).
+    await expect(
+      page.locator('[data-testid="compensation-failures-resolve-2026/06/02-017"]'),
+    ).toHaveCount(0)
+  })
 })
