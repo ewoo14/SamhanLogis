@@ -11,15 +11,17 @@
 ### ✅ sp-d1 머지 완료 (#380 squash `b7b85761`) → 3-A2 기능 스펙 격리 0
 account-select UI 재작성. dual N=2 가 false-green 2차 적발(P0 page.route 무력→mockRole/mockPerms / P1 T4 "보이지만 접근불가"→WAREHOUSE end-to-end / P1 T3 재조회 / P2 죽은단언). 프로덕션 src 무변경. CI 24/24. dev-report `sp-d1-dynamic-rbac-account-select-regate.md`.
 
-### 🆕 신규 이니셔티브 — @PreAuthorize 완전제거 마이그레이션 (개발책임자 선택, 2026-06-04)
-정적 `@PreAuthorize` → 동적 `@RequirePermission` **behavior-preserving 전환**. scope = **전부 전환(129건)**, INTERNAL 2건만 유지(D-PAM-01).
-- **현황**: 잔여 131건 / 13서비스(hasRole/hasAnyRole 73·isAuthenticated 9·커스텀SpEL 27·INTERNAL 2). auth Flyway 최신 V41.
-- **umbrella 설계 박제**: `docs/superpowers/specs/2026-06-04-preauthorize-full-migration-umbrella-design.md`. 브랜치 `feat/preauthorize-full-migration-umbrella`.
-- **decomposition (5 슬라이스, 소→대·저위험→고위험)**:
-  - **M1 (다음, 패턴 확립)**: accounting(1)·partner-order(1)·dashboard(1)·product(2)·dc-config(2)=7. auth seed Vxx + 실 HTTP 회귀 테스트 **템플릿 확립**.
-  - M2 notification(4)·groupware(2) / M3 user(5)·slip(5) / M4 partner(5)·inventory(6) / **M5(최고위험) auth(7)·arologis(5)** — auth self-lockout + cross-tenant 최종.
-- **🚨 핵심 원칙**: behavior-preserving(role 집합 불변) + **실 HTTP 회귀 테스트 의무**([[feedback_enforcement_real_http_test]] #316 회고 — @MockBean false-green 금지) + MASTER 전용도 명시 page-code(bypass 비의존) + auth seed 선배포. dual N=2 BE cross-check 가 lockout 단독 적발.
-- **왜 체크포인트**: 129 endpoint·lockout 위험 마이그레이션은 #316 교훈상 BE 정밀 리뷰 필수 → 신선한 컨텍스트에서 M1 착수 권장.
+### 🆕 신규 이니셔티브 — @PreAuthorize 완전제거 마이그레이션 (개발책임자 선택, 2026-06-04). **M1 머지 완료.**
+정적 `@PreAuthorize` → 동적 `@RequirePermission`/`@RequireDepartment` **behavior-preserving 전환**. scope = 전부 전환, INTERNAL 유지(D-PAM-01). 교훈 [[feedback_preauth_migration_lessons]].
+- **scope 정정(verify-first)**: 실 어노테이션 **94건**(grep 이 javadoc 포함해 131 로 부풀려졌음). = **Internal 컨트롤러 ~34(유지, 서비스간·사용자 JWT 없음)** + 부서게이트 `@hr.isExecutiveOffice()` ~25 + 순수 role ~35. accounting/partner-order/product 실 어노 0. umbrella: `docs/superpowers/specs/2026-06-04-preauthorize-full-migration-umbrella-design.md`.
+- **✅ M1 머지 (#382 squash `6dd534ba`)**: `@RequireDepartment(EXECUTIVE_OFFICE)` 인프라(shared:security, `HrAuthorizationHelper` 동일 빈→판정 동일, fail-closed, **opt-in**) + groupware 결재선 3 endpoint 전환. M1 설계 `docs/superpowers/specs/2026-06-04-preauth-m1-require-department-design.md`, dev-report 없음(미작성 — 후속).
+  - **🚨 DepartmentAspect 는 opt-in 필수**: `@ConditionalOnProperty(samhan.security.department.enabled=true)`. @RequireDepartment 쓰는 서비스만 main `application.yml`+IT properties 에 `enabled: true`. **미적용 시 빈 존재만으로 무관 서비스(accounting) CI 회귀**(로컬 무재현·CI 결정적). pointcut 은 `@annotation` 단독(@within 금지).
+  - CI 디버깅이 정적 dual리뷰 통과 후 실 결함 3건 적발(hr 빈 중복·@WebMvcTest 실HTTP 0-request·빈격리 회귀) → [[feedback_preauth_migration_lessons]] §3.
+- **decomposition 잔여 (M1 이후)**:
+  - **M-dept (부서게이트 24건)**: 나머지 `@hr.isExecutiveOffice()` → `@RequireDepartment` (dc-config import·user·partner·inventory 등). **M1 opt-in 인프라 재사용**(각 서비스 enabled=true).
+  - **role 전환 ~35건**: 순수 role `@PreAuthorize` → `@RequirePermission`(대부분 이미 @RequirePermission 병행=중복 @PreAuthorize 제거, 일부 신규 page-code+auth seed). 서비스별 슬라이스.
+  - INTERNAL 컨트롤러 34건: 유지(선택적으로 hasRole('MASTER')→hasRole('INTERNAL') 별도 정리).
+- **다음 = M-dept 또는 role 전환** (개발책임자 선택). behavior-preserving + **실 실행 검증 의무**(정적 리뷰 APPROVE ≠ 통과).
 
 ---
 
