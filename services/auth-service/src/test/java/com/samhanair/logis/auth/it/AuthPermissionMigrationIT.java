@@ -104,9 +104,24 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("protectedEndpoints")
-    @DisplayName("system.* endpoint는 비MASTER이면 정적 @PreAuthorize가 403으로 차단한다")
-    void systemEndpoint_nonMaster_staticGuardReturns403(
+    @DisplayName("system.* endpoint는 비MASTER 이고 DynamicPermissionClient deny 이면 403으로 차단한다")
+    void systemEndpoint_nonMaster_requirePermissionDenyReturns403(
             String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
+        // @PreAuthorize(MASTER) 제거 후 @RequirePermission single source 체계로 전환 (SP-D1 preauth-role)
+        // DynamicPermissionClient.check() = false → AccessDeniedException → 403
+        lenient().when(dynamicPermissionClient.check(
+                        eq(MANAGER_ACCOUNT_ID), eq(page), eq(action)))
+                .thenReturn(false);
+        // POST /auth/register 는 system.account-admin — account-admin page 도 deny
+        lenient().when(dynamicPermissionClient.check(
+                        eq(MANAGER_ACCOUNT_ID), eq("system.account-admin"), any(PermissionAction.class)))
+                .thenReturn(false);
+        lenient().when(dynamicPermissionClient.check(
+                        eq(MANAGER_ACCOUNT_ID), eq("system.password-admin"), any(PermissionAction.class)))
+                .thenReturn(false);
+        lenient().when(dynamicPermissionClient.check(
+                        eq(MANAGER_ACCOUNT_ID), eq("system.permission-admin"), any(PermissionAction.class)))
+                .thenReturn(false);
         mockMvc.perform(withActor(request.builder(), MANAGER_ACCOUNT_ID, "MANAGER"))
                 .andExpect(status().isForbidden());
     }

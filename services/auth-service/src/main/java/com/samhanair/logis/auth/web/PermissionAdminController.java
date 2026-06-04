@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+// SP-D1 preauth-role 제거: @PreAuthorize("hasRole('MASTER')") → @RequirePermission single source
+// (system.permission-admin seed = MASTER-only, PermissionAspect.isMasterBypass() 통과 → widening 0)
+
 // SP-D1 cycle 2: getMyPermissions endpoint 에서 X-User-Role 헤더를 사용한다.
 
 /**
@@ -41,7 +44,10 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>권한 전략:
  * <ul>
- *   <li>이 endpoint 자체는 항상 {@code @PreAuthorize("hasRole('MASTER')")} 정적 가드.</li>
+ *   <li>모든 MASTER 전용 handler 는 {@code @RequirePermission(page="system.permission-admin")} 단일 가드.</li>
+ *   <li>{@code system.permission-admin} seed = MASTER-only (V29),
+ *       {@link com.samhanair.logis.security.permission.PermissionAspect#isMasterBypass()} 로 통과,
+ *       non-MASTER 는 deny → widening 0.</li>
  *   <li>MASTER 권한 자체는 동적 override 불가 — 시스템 안전 장치.</li>
  *   <li>마스터가 설정한 override row 가 존재하면 다른 서비스에서 DB 권한 우선 적용.</li>
  * </ul>
@@ -69,14 +75,12 @@ public class PermissionAdminController {
     private final InternalAuthProperties internalAuthProperties;
 
     @GetMapping("/accounts")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
     public ApiResponse<List<AccountPermissionService.AccountSummary>> getAccounts() {
         return ApiResponse.ok(accountPermissionService.listAccounts());
     }
 
     @GetMapping("/account/{accountId}")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
     public ApiResponse<Map<String, AccountPermissionService.ActionMatrix>> getAccountMatrix(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId) {
@@ -84,7 +88,6 @@ public class PermissionAdminController {
     }
 
     @PutMapping("/account/{accountId}")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> updateAccountMatrix(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
@@ -95,7 +98,6 @@ public class PermissionAdminController {
     }
 
     @PostMapping("/account/{accountId}/apply-template")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> applyTemplate(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
@@ -106,7 +108,6 @@ public class PermissionAdminController {
     }
 
     @PostMapping("/account/{accountId}/copy-from")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> copyFrom(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
@@ -117,14 +118,12 @@ public class PermissionAdminController {
     }
 
     @GetMapping("/templates")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
     public ApiResponse<Map<String, Map<String, AccountPermissionService.ActionMatrix>>> getTemplates() {
         return ApiResponse.ok(accountPermissionService.getTemplates());
     }
 
     @PutMapping("/templates/{roleCode}")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> updateTemplate(
             @org.springframework.web.bind.annotation.PathVariable String roleCode,
@@ -135,7 +134,6 @@ public class PermissionAdminController {
     }
 
     @PostMapping("/bulk")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> bulkApply(
             @RequestBody AccountPermissionService.BulkPermissionRequest request,
@@ -153,7 +151,6 @@ public class PermissionAdminController {
      * @return 전체 매트릭스 ApiResponse
      */
     @GetMapping
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
     public ApiResponse<Map<String, Map<String, PermissionDto>>> getMatrix() {
         return ApiResponse.ok(permissionService.getPermissionMatrix());
@@ -170,7 +167,6 @@ public class PermissionAdminController {
      * @return 갱신된 PermissionDto
      */
     @PutMapping
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<PermissionDto> updatePermission(
             @Valid @RequestBody PermissionUpdateRequest request,
@@ -189,7 +185,6 @@ public class PermissionAdminController {
      * @return 갱신된 PermissionDto 목록
      */
     @PostMapping("/batch")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<List<PermissionDto>> batchUpdate(
             @Valid @RequestBody PermissionBatchUpdateRequest request,
@@ -210,7 +205,6 @@ public class PermissionAdminController {
      */
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.DELETE)
     public void deletePermission(
             @RequestParam String roleCode,
