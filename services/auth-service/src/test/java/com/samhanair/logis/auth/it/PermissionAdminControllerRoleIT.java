@@ -1,14 +1,23 @@
 package com.samhanair.logis.auth.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import com.samhanair.logis.auth.AuthServiceApplication;
+import com.samhanair.logis.auth.service.AccountPermissionService;
+import com.samhanair.logis.auth.service.DynamicPermissionService;
+import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,12 +40,18 @@ import org.springframework.test.web.servlet.MvcResult;
  *   <li>MASTER → GET /auth/admin/permissions 200 (@RequirePermission isMasterBypass 통과)</li>
  *   <li>non-MASTER(MANAGER) + DynamicPermissionClient deny → GET /auth/admin/permissions 403</li>
  *   <li>non-MASTER(MANAGER) + DynamicPermissionClient allow → GET /auth/admin/permissions 200</li>
- *   <li>MASTER → PUT /auth/admin/permissions/batch 200</li>
+ *   <li>MASTER → PUT /auth/admin/permissions 200</li>
  *   <li>non-MASTER(SALES) → PUT /auth/admin/permissions/batch 403</li>
  * </ul>
  *
  * <p>DynamicPermissionClient 는 @MockBean 으로 격리 — Eureka/외부 RestClient 비활성.
  * account 모드(기본값)에서 UUID 기반 check() 를 stub 하여 grant/deny 양쪽 경로를 검증한다.
+ *
+ * <p>DynamicPermissionService / AccountPermissionService 도 @MockBean 으로 격리.
+ * 이들을 mock 하지 않으면 MASTER bypass 이후 서비스 계층 DB 호출이 Testcontainers seed 상태에
+ * 따라 500 을 반환할 수 있으므로(false-green 방지), 서비스 계층을 완전히 격리하여 200 결정성을 확보한다.
+ * (auth-service 내부 DirectDynamicPermissionClient 는 DynamicPermissionService 와
+ * AccountPermissionService 에 직접 위임하므로 양쪽 @MockBean 이 DirectDynamicPermissionClient 도 대체한다.)
  *
  * <p>PermissionAspect 는 PermissionSecurityAutoConfiguration 을 통해
  * SpringBootTest 컨텍스트에서 자동 활성화된다.
@@ -62,11 +77,31 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
     @Autowired
     private MockMvc mockMvc;
 
+    // PermissionAspect 의 account 모드 check() 를 stub — DirectDynamicPermissionClient 대체
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
 
+    // 서비스 계층 @MockBean 격리 — MASTER bypass 이후 DB 호출 → 500 false-green 방지
+    @MockBean
+    private DynamicPermissionService dynamicPermissionService;
+
+    @MockBean
+    private AccountPermissionService accountPermissionService;
+
     @BeforeEach
     void stubClient() {
+        // GET 케이스: getPermissionMatrix() → 빈 Map 반환 (200 결정적)
+        lenient().when(dynamicPermissionService.getPermissionMatrix())
+                .thenReturn(Map.of());
+
+        // GET /accounts 케이스: listAccounts() → 빈 List 반환 (200 결정적)
+        lenient().when(accountPermissionService.listAccounts())
+                .thenReturn(List.of());
+
+        // PUT 케이스: updatePermission() → 유효한 PermissionDto 반환 (200 결정적)
+        lenient().when(dynamicPermissionService.updatePermission(any(), anyString()))
+                .thenReturn(new PermissionDto("SALES", "accounting.journals", "분개장", true, false, true));
+
         // MANAGER(UUID 002) → system.permission-admin VIEW = false (deny)
         lenient().when(dynamicPermissionClient.check(
                 ArgumentMatchers.eq(UUID.fromString(MANAGER_ID)),
@@ -94,6 +129,8 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
                         .header("X-User-Role", "MASTER"))
                 .andReturn();
 
+        // MASTER bypass 로 동적 check() 미호출 실증 — isMasterBypass 가정 검증
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), anyString(), any(PermissionAction.class));
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
     }
 
@@ -157,7 +194,7 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("MASTER → PUT /auth/admin/permissions 200 (단일 갱신 UPDATE bypass)")
+    @DisplayName("MASTER → PUT /auth/admin/permissions 200 (단일 갱신 UPDATE bypass — isMasterBypass check 미호출 실증)")
     void updatePermission_masterRole_returns200() throws Exception {
         String body = """
                 {"roleCode":"SALES","pageCode":"accounting.journals","canView":true,"canEdit":false}
@@ -169,8 +206,10 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
                         .content(body))
                 .andReturn();
 
-        // 200 또는 실제 서비스 예외(500)는 AOP deny(403)가 아님을 검증
-        assertThat(result.getResponse().getStatus()).isNotEqualTo(403);
+        // MASTER bypass → 동적 check() 미호출 실증 (isMasterBypass 이후 joinPoint.proceed() 직행)
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), anyString(), any(PermissionAction.class));
+        // 500 거짓통과 차단 — isEqualTo(200) 고정
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
     }
 
     // -----------------------------------------------------------------------
@@ -178,13 +217,15 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("MASTER → GET /auth/admin/permissions/accounts 200")
+    @DisplayName("MASTER → GET /auth/admin/permissions/accounts 200 — isMasterBypass check 미호출 실증")
     void getAccounts_masterRole_returns200() throws Exception {
         MvcResult result = mockMvc.perform(get("/auth/admin/permissions/accounts")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER"))
                 .andReturn();
 
+        // MASTER bypass → 동적 check() 미호출 실증
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), anyString(), any(PermissionAction.class));
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
     }
 

@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -78,10 +80,16 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
-        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        // P2: check(any,any,any) 기본값 false 로 반전 — MASTER bypass 케이스는 PermissionAspect.isMasterBypass()
+        // 에서 joinPoint.proceed() 직행이므로 check() 자체가 호출되지 않는다.
+        // 이전 기본값(true)을 사용하면 stub 우선순위에 따라 deny 케이스가 거짓통과할 위험이 있었다.
+        // @MockBean DynamicPermissionClient 는 DirectDynamicPermissionClient(auth-service 내부 client) 를 대체한다.
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
+                .thenReturn(false);
+
+        // MASTER 테스트에서 bypass 이후 서비스 계층 호출이 정상 응답을 반환하도록 stub
         lenient().when(authService.register(anyString(), anyString(), anyString(), any(Role.class)))
                 .thenReturn(new RegisterResponse(UUID.randomUUID().toString(), "new-user", "SALES"));
         lenient().when(permissionService.getPermissionMatrix()).thenReturn(Map.of(
@@ -100,6 +108,8 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
             String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
         mockMvc.perform(withActor(request.builder(), "MASTER"))
                 .andExpect(status().is(expectedStatus));
+        // MASTER isMasterBypass 로 동적 check() 미호출 실증 — 호출되면 isMasterBypass 가정이 깨진 것
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), anyString(), any(PermissionAction.class));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -108,20 +118,8 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
     void systemEndpoint_nonMaster_requirePermissionDenyReturns403(
             String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
         // @PreAuthorize(MASTER) 제거 후 @RequirePermission single source 체계로 전환 (SP-D1 preauth-role)
+        // setUp() 에서 check(any,any,any)=false 로 기본 설정되어 있으므로 별도 deny stub 불필요.
         // DynamicPermissionClient.check() = false → AccessDeniedException → 403
-        lenient().when(dynamicPermissionClient.check(
-                        eq(MANAGER_ACCOUNT_ID), eq(page), eq(action)))
-                .thenReturn(false);
-        // POST /auth/register 는 system.account-admin — account-admin page 도 deny
-        lenient().when(dynamicPermissionClient.check(
-                        eq(MANAGER_ACCOUNT_ID), eq("system.account-admin"), any(PermissionAction.class)))
-                .thenReturn(false);
-        lenient().when(dynamicPermissionClient.check(
-                        eq(MANAGER_ACCOUNT_ID), eq("system.password-admin"), any(PermissionAction.class)))
-                .thenReturn(false);
-        lenient().when(dynamicPermissionClient.check(
-                        eq(MANAGER_ACCOUNT_ID), eq("system.permission-admin"), any(PermissionAction.class)))
-                .thenReturn(false);
         mockMvc.perform(withActor(request.builder(), MANAGER_ACCOUNT_ID, "MANAGER"))
                 .andExpect(status().isForbidden());
     }
@@ -131,9 +129,12 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
     @DisplayName("system.* endpoint는 MASTER이면 account×7-action grant 없이도 D-PO-05 bypass 로 통과한다")
     void systemEndpoint_masterWithoutMatrixGrant_bypassesDynamicMatrix(
             String name, String page, PermissionAction action, int expectedStatus, EndpointRequest request) throws Exception {
+        // setUp() 기본값이 check(any,any,any)=false 이므로 아래 stub은 redundant 하지만 의도 명시 유지
         lenient().when(dynamicPermissionClient.check(any(UUID.class), eq(page), eq(action))).thenReturn(false);
         mockMvc.perform(withActor(request.builder(), "MASTER"))
                 .andExpect(status().is(expectedStatus));
+        // MASTER bypass 실증 — 위 stub(false)에도 불구하고 check() 미호출이면 bypass 확인
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), anyString(), any(PermissionAction.class));
     }
 
     @Test
