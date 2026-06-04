@@ -11,6 +11,12 @@ metadata:
 
 PR 머지 완료 후 사용자가 "진행" 누르지 않아도 PM 이 자율로 다음 슬라이스 spec → plan → Codex 개발 → 사이클 → 머지 무한 반복.
 
+## 스펙 리뷰 게이트도 PM 자율 (2026-06-04 사용자 명시)
+
+> "앞으로 스펙은 프로젝트를 관할하는 PM이 보고 자율 진행 요청"
+
+superpowers brainstorming 의 **User Review Gate(스펙 사용자 검토)를 PM(Claude) 자체 판정으로 갈음**. 스펙 작성·self-review 후 사용자 승인 대기 없이 writing-plans → 구현으로 연속 진행. **단, 설계 방향을 가르는 진짜 결정(범위·정책·시퀀싱)은 여전히 AskUserQuestion(마우스 선택)으로 확인** — 자율은 "검토 게이트 생략"이지 "결정 생략"이 아님.
+
 **Why:** 이카운트 마이그레이션 같은 대규모 시리즈 (MIG-1~N) 진행 시 사용자 매번 trigger 입력 부담 회피. PM 자동시작 ([feedback_arologis_extract_autopilot]) 일반화.
 
 **How to apply:**
