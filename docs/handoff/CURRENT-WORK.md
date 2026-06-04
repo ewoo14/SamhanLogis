@@ -14,10 +14,25 @@
 - 커밋: `bb855443`(재게이트)→`9caa511e`(Claude fix)→`502c2e5c`(한글화)→`2b4eb3e3`(Codex fix)→`8d1184b5`(한국어404). dev-report `slice-sp-d1-rbac-regate.md`, DECISIONS D-SPD1.
 - **P2 후속**: mock id UUID화(`bulk.spec` 광범위 참조)·mock PageCode 카탈로그 59→전체 동기화·`PermissionMatrixBulkPage` 한글화 consistency.
 
-### ▶ 자율 진행 (PM 전권, 질문 금지)
-PR #386 머지 후 잔여/신규/Docker QA 자율 진행. **다음 백로그(아래 #380 핸드오프 참조) = role 전환 슬라이스(@PreAuthorize→@RequirePermission).**
+> ℹ️ main #380 이 sp-d1 account-select 재게이트를 이미 머지(squash `b7b85761`). PR #386 이 동일 account-select + 한글화/404/dual-review 로 **supersede**(머지됨, `c8237253`).
 
-> ℹ️ main #380 이 sp-d1 account-select 재게이트를 이미 머지(squash `b7b85761`). PR #386 은 동일 account-select 접근 + 한글화/404/dual-review 로 **supersede**(머지 시 #380 스펙 대체).
+### ✅ PR #388 — 권한 일괄 적용 화면 한글화 (머지 `4eda62b0`)
+권한설정 하위 `PermissionMatrixBulkPage` ACTION_LABEL 영문→한글(보기/생성/수정/삭제/복원/엑셀/인쇄, #386 일관) + bulk.spec 정합. Codex APPROVE, CI green. (위 P2 "BulkPage 한글화" 해소.)
+
+### ⚠️ PR #388·#386 다음 = PR #387 (inventory role 전환) — **Draft 보류, 🔴 개발책임자 결정 필요**
+@PreAuthorize 완전제거 **role 전환 첫 슬라이스**(inventory-service redundant role-only @PreAuthorize 10건 제거 → @RequirePermission single source) 착수했으나 **BE 리뷰가 INVENTORY widening 적발**:
+- 제거 대상 `@PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")` 는 **INVENTORY role 배제**. 그러나 seed(V10 inventory.dps / V35 inventory.stock-balance / V39)는 두 페이지를 **INVENTORY 에도 grant** → 제거 시 INVENTORY-role 이 10 endpoint 접근 = **access 확대**. (Explore 의 "100% 안전"이 seed role-set 동일성 검증 누락.)
+- DevOps APPROVE(PermissionAspect 프로덕션 활성 확실, 무가드화 없음). QA P1(widening-guard verify) 수정 완료(`d1fb1b2e`).
+- **보안 access 확대라 자율 머지 보류**(feedback_user_merge_authority: 결함→사용자 결정 / M-dept widening→descope 선례). **PR #387 Draft, 결정 코멘트 게시.**
+- 🔴 **개발책임자 결정 옵션**: (A) INVENTORY 접근 정식 수용(Javadoc/IT 갱신 후 머지 — 동적 seed 수렴·재고원 도메인 접근 합리) / (B) seed 에서 INVENTORY default grant 제거(behavior-preserving 화, 단 compare/downloadTemplate narrowing) / (C) descope, seed-role-set 이 @PreAuthorize 와 정확히 일치하는 서비스부터.
+- 🚨 **교훈**: role 전환 behavior-preserving 검증 = @PreAuthorize role-set 과 seed grant role-set **완전 일치** 확인 필수(@RequirePermission 병행 유무만으로 불충분). 다음 슬라이스 선정 시 seed 교차 확인 선행.
+
+### 🚨 신규 교훈 (메모리 박제)
+- **desktop 검증은 `npm run typecheck`**(tsconfig.node+web) — raw `npx tsc --noEmit` 는 느슨해 TS2367 류 놓침(#386 CI fail 회고). [[feedback-desktop-typecheck-command]]
+
+### ▶ 자율 진행 잔여 (PM 전권, 질문 금지)
+- role 전환: #387 결정 후 재개. 또는 seed-role-set 일치 서비스(auth PermissionAdminController MASTER-only 등) 우선.
+- 기타 P2: mock id UUID화·mock PageCode 카탈로그 동기화. Docker QA(권한/부서 게이트 실 gateway 403/200 — MockMvc 미포착 영역).
 
 ---
 
