@@ -163,7 +163,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    *
    * NOTE: page.route() 미사용 — in-process mock (VITE_MOCK_MODE=1) 직접 반환.
    */
-  test('T1: 권한 매트릭스 진입 → account-select ≥3옵션 + 매트릭스 테이블 + 셀 ≥10개', async ({ page }) => {
+  test('T1: 권한 매트릭스 진입 → account-select ≥3옵션 + 매트릭스 테이블 + 셀 ≥50개', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -173,8 +173,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      // 계정 목록 로드(비동기 fetchAccounts) 완료 대기
-      await page.waitForTimeout(2000)
     })
 
     await test.step('perm-matrix-account-select 표시 + 옵션 ≥3개 확인', async () => {
@@ -182,7 +180,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       await expect(
         accountSelect,
         'perm-matrix-account-select <select> 미표시',
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 8000 })
 
       const optionCount = await accountSelect.locator('option').count()
       expect(
@@ -200,14 +198,19 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       ).toBeVisible({ timeout: 8000 })
     })
 
-    await test.step('셀 체크박스 ≥10개 렌더 확인', async () => {
+    await test.step('셀 체크박스 ≥50개 렌더 확인 (실제 SP_D1_PAGES × 7 액션 → ~350개)', async () => {
       // perm-matrix-cell-{pageNorm}-{action} 형식 (pageNorm = pageCode '.' → '-')
+      // SP_D1_PAGES 개수 × 7 actions = 350개 이상 예상. 임계를 50으로 설정하여 우연 통과 방지.
       const cellCheckboxes = page.locator('[data-testid^="perm-matrix-cell-"]')
+      await expect(
+        cellCheckboxes.first(),
+        'perm-matrix-cell-* 체크박스 없음 — 매트릭스 미로드',
+      ).toBeVisible({ timeout: 8000 })
       const cellCount = await cellCheckboxes.count()
       expect(
         cellCount,
-        `perm-matrix-cell-* 체크박스 ${cellCount}개 — 10개 이상 렌더 필요`,
-      ).toBeGreaterThanOrEqual(10)
+        `perm-matrix-cell-* 체크박스 ${cellCount}개 — 50개 이상 렌더 필요 (실측 ~350개)`,
+      ).toBeGreaterThanOrEqual(50)
     })
 
     await page.screenshot({
@@ -220,82 +223,99 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T2: 임의 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
+   * T2: 고정 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
    *
    * 검증 항목:
-   *   - 매트릭스 로드 후 perm-matrix-cell-* 셀 중 첫 번째 체크박스 토글
-   *   - perm-matrix-change-count role="status" 텍스트에 "변경" + "1" 포함 (= "변경 1건")
-   *   - perm-matrix-save-btn isDisabled() === false (활성화)
+   *   - MASTER 계정 선택 후 고정 셀 perm-matrix-cell-purchases-receipt-ocr-view 토글
+   *     (MANAGER 계정의 purchases.receipt-ocr view 초기값 = false → true: 1건 변경)
+   *   - 페이지 로드 직후 change-count "변경 0건" 확인 (초기 dirty 없음 단언)
+   *   - 고정 셀 1개 클릭 후 perm-matrix-change-count "변경 1건" strict 단언
+   *   - perm-matrix-save-btn isEnabled() strict 단언
+   *   - 스크린샷: 변경 1건 + dirty 노란 배경 + 저장 활성 상태 캡처
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock 직접 응답.
+   *       고정 셀 선택 근거: MANAGER 역할의 purchases.receipt-ocr view = false (SP_D1_DEFAULT_VIEW 미포함).
+   *       매트릭스 로드 후 account-select 에서 MANAGER(김관리) 계정 선택 → 해당 셀 초기값 false.
+   *       따라서 클릭 시 false→true 1건 변경 보장.
    */
   test('T2: 셀 체크박스 토글 → 변경 1건 + 저장 버튼 활성', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
+    // 고정 셀: MANAGER 계정의 purchases.receipt-ocr view (초기값 false)
+    const FIXED_CELL_TESTID = 'perm-matrix-cell-purchases-receipt-ocr-view'
+
     await test.step('MASTER 역할로 권한 매트릭스 페이지 진입', async () => {
       await page.goto(PERMISSION_MATRIX_URL_MASTER, {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(2000)
+    })
+
+    await test.step('account-select 로드 + MANAGER(김관리) 계정 선택', async () => {
+      const accountSelect = page.locator('[data-testid="perm-matrix-account-select"]')
+      await expect(
+        accountSelect,
+        'perm-matrix-account-select 미표시',
+      ).toBeVisible({ timeout: 8000 })
+      // mock.ts: [{ id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER' }, ...]
+      // option value = account.id = 'mock-account-manager'.
+      // option label = accountOptionLabel(account) = "김관리 \ 매니저" (value 기준 선택이 안전).
+      await accountSelect.selectOption({ value: 'mock-account-manager' })
     })
 
     await test.step('permission-matrix-table 로드 확인', async () => {
       const matrixTable = page.locator('[data-testid="permission-matrix-table"]')
       await expect(
         matrixTable,
-        'permission-matrix-table 미표시 — 계정 선택 후 매트릭스 로드 실패',
+        'permission-matrix-table 미표시 — MANAGER 계정 매트릭스 로드 실패',
       ).toBeVisible({ timeout: 8000 })
     })
 
-    await test.step('perm-matrix-cell-* 첫 번째 체크박스 토글', async () => {
-      const cellCheckboxes = page.locator('[data-testid^="perm-matrix-cell-"]')
-      const cellCount = await cellCheckboxes.count()
-      expect(
-        cellCount,
-        `perm-matrix-cell-* 체크박스가 없음 (${cellCount}개) — 매트릭스 미로드`,
-      ).toBeGreaterThanOrEqual(1)
-
-      const firstCell = cellCheckboxes.first()
-      await firstCell.click()
-      await page.waitForTimeout(300)
-    })
-
-    await test.step('perm-matrix-change-count "변경 1건" 확인', async () => {
+    await test.step('로드 직후 change-count "변경 0건" 확인 (초기 dirty 없음)', async () => {
       const changeCount = page.locator('[data-testid="perm-matrix-change-count"]')
       await expect(
         changeCount,
         'perm-matrix-change-count 미표시',
-      ).toBeVisible({ timeout: 3000 })
-
-      const text = (await changeCount.textContent()) ?? ''
-      expect(
-        text,
-        `perm-matrix-change-count 텍스트 "${text}" — "변경" + 숫자 포함 필요`,
-      ).toMatch(/변경\s*\d+건/)
-      // 1건 이상임을 확인 (0건이면 토글 미반영)
-      expect(
-        text,
-        `perm-matrix-change-count "${text}" — 토글 후 변경 0건이면 안 됨`,
-      ).not.toMatch(/변경\s*0건/)
+      ).toBeVisible({ timeout: 5000 })
+      await expect(
+        changeCount,
+        'perm-matrix-change-count — 계정 로드 직후 "변경 0건" 이어야 함 (초기 dirty 없음)',
+      ).toContainText('변경 0건', { timeout: 5000 })
     })
 
-    await test.step('perm-matrix-save-btn 활성화 확인', async () => {
+    await test.step(`고정 셀 [${FIXED_CELL_TESTID}] 표시 확인 + 클릭`, async () => {
+      const fixedCell = page.locator(`[data-testid="${FIXED_CELL_TESTID}"]`)
+      await expect(
+        fixedCell,
+        `고정 셀 [${FIXED_CELL_TESTID}] 미표시 — MANAGER 매트릭스에 purchases.receipt-ocr 행 없음`,
+      ).toBeVisible({ timeout: 5000 })
+      await fixedCell.click()
+    })
+
+    await test.step('perm-matrix-change-count "변경 1건" strict 단언', async () => {
+      const changeCount = page.locator('[data-testid="perm-matrix-change-count"]')
+      await expect(
+        changeCount,
+        'perm-matrix-change-count "변경 1건" 미표시 — 고정 셀 1개 토글 후 정확히 1건 변경 필요',
+      ).toContainText('변경 1건', { timeout: 5000 })
+    })
+
+    await test.step('perm-matrix-save-btn 활성화 strict 단언', async () => {
       const saveBtn = page.locator('[data-testid="perm-matrix-save-btn"]')
       await expect(
         saveBtn,
         'perm-matrix-save-btn 미표시',
       ).toBeVisible({ timeout: 3000 })
-
       await expect(
         saveBtn,
         'perm-matrix-save-btn 비활성 — 체크박스 토글 후 활성화 필요',
       ).toBeEnabled()
     })
 
+    // 단언 통과 후 스크린샷: 변경 1건 + dirty 노란 배경 + 저장 활성 상태가 실제로 보이는 시점
     await page.screenshot({
       path: path.join(QA_DIR, 'T2-toggle-dirty-save-enabled.png'),
       fullPage: true,
@@ -329,7 +349,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(2000)
     })
 
     await test.step('permission-matrix-table 로드 확인', async () => {
@@ -340,21 +359,18 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       ).toBeVisible({ timeout: 8000 })
     })
 
-    await test.step('셀 체크박스 토글', async () => {
-      const cellCheckboxes = page.locator('[data-testid^="perm-matrix-cell-"]')
-      const cellCount = await cellCheckboxes.count()
-      expect(
-        cellCount,
-        `perm-matrix-cell-* 체크박스 없음 (${cellCount}개)`,
-      ).toBeGreaterThanOrEqual(1)
-
-      await cellCheckboxes.first().click()
-      await page.waitForTimeout(300)
+    await test.step('셀 체크박스 토글 (첫 번째 셀)', async () => {
+      const firstCell = page.locator('[data-testid^="perm-matrix-cell-"]').first()
+      await expect(
+        firstCell,
+        'perm-matrix-cell-* 체크박스 없음 — 매트릭스 미로드',
+      ).toBeVisible({ timeout: 8000 })
+      await firstCell.click()
     })
 
-    await test.step('perm-matrix-save-btn 클릭', async () => {
+    await test.step('perm-matrix-save-btn 활성 확인 후 클릭', async () => {
       const saveBtn = page.locator('[data-testid="perm-matrix-save-btn"]')
-      await expect(saveBtn, 'perm-matrix-save-btn 미표시').toBeVisible({ timeout: 3000 })
+      await expect(saveBtn, 'perm-matrix-save-btn 미표시').toBeVisible({ timeout: 5000 })
       await expect(saveBtn, 'perm-matrix-save-btn 비활성 — 저장 불가').toBeEnabled()
       await saveBtn.click()
     })
@@ -366,29 +382,19 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         toast,
         'toast role="alert" 미표시 — 저장 후 성공 메시지 필요',
       ).toBeVisible({ timeout: 5000 })
-
-      const toastText = (await toast.textContent()) ?? ''
-      expect(
-        toastText,
-        `toast 텍스트 "${toastText}" — "저장" 키워드 포함 필요`,
-      ).toContain('저장')
+      await expect(
+        toast,
+        'toast 텍스트 — "저장" 키워드 포함 필요',
+      ).toContainText('저장', { timeout: 5000 })
     })
 
-    await test.step('저장 후 perm-matrix-change-count "변경 0건" 복귀 확인', async () => {
-      // invalidateQueries 후 재조회 완료 대기
-      await page.waitForTimeout(2000)
-
+    await test.step('저장 후 perm-matrix-change-count "변경 0건" 복귀 확인 (polling)', async () => {
+      // invalidateQueries → 재조회 완료를 polling 으로 대기 (waitForTimeout 미사용)
       const changeCount = page.locator('[data-testid="perm-matrix-change-count"]')
       await expect(
         changeCount,
-        'perm-matrix-change-count 미표시',
-      ).toBeVisible({ timeout: 5000 })
-
-      const text = (await changeCount.textContent()) ?? ''
-      expect(
-        text,
-        `저장 후 perm-matrix-change-count "${text}" — "변경 0건" 복귀 필요`,
-      ).toContain('변경 0건')
+        '저장 후 perm-matrix-change-count "변경 0건" 복귀 필요 (invalidateQueries 재조회)',
+      ).toContainText('변경 0건', { timeout: 8000 })
     })
 
     await page.screenshot({
@@ -403,11 +409,17 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
   /**
    * T4: SALES 역할 + OCR 권한 주입 → 사이드바 영수증 OCR 메뉴 표시
    *
-   * 검증 항목 (현행 유지):
+   * 검증 항목:
    *   - mockPerms 주입으로 purchases.receipt-ocr view=true 부여
-   *   - 사이드바 영수증 OCR 메뉴(data-testid="sidebar-purchases-receipt-ocr") 표시
-   *   - 해당 링크 disabled 아님
+   *   - AppLayout.tsx: showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
+   *     → mockPerms 주입 시 /permissions/my 응답에 purchases.receipt-ocr VIEW 포함
+   *     → SidebarLink show={true} → data-testid="sidebar-purchases-receipt-ocr" 렌더됨
+   *   - strict 단언: sidebar-purchases-receipt-ocr toBeVisible (false-green fallback 금지)
+   *   - disabled class 없음 단언
    *   - pageerror 없음
+   *
+   * NOTE: page.route() 미사용 — in-process mock 직접 응답.
+   *       .catch(()=>false) / nav/aside fallback 분기 전체 제거 (F1 fix).
    */
   test('T4: SALES OCR 권한 주입 → 사이드바 영수증 OCR 메뉴 표시', async ({ page }) => {
     const errors: string[] = []
@@ -424,74 +436,31 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
     })
 
-    await test.step('사이드바 영수증 OCR 메뉴 표시 확인', async () => {
+    await test.step('사이드바 영수증 OCR 메뉴 strict 단언', async () => {
+      // AppLayout: showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
+      // mockPerms 주입 → /permissions/my VIEW 포함 → SidebarLink show=true → 렌더됨.
       const sidebarOcrLink = page.locator('[data-testid="sidebar-purchases-receipt-ocr"]')
-      const linkVisible = await sidebarOcrLink.isVisible().catch(() => false)
-
-      if (linkVisible) {
-        await expect(
-          sidebarOcrLink,
-          '사이드바 영수증 OCR 링크 미표시',
-        ).toBeVisible()
-
-        const hasDisabledClass = await sidebarOcrLink.evaluate(el =>
-          el.classList.contains('sidebar-disabled') ||
-          el.closest('.sidebar-disabled') !== null,
-        ).catch(() => false)
-        expect(
-          hasDisabledClass,
-          '영수증 OCR 사이드바 메뉴가 disabled 상태',
-        ).toBe(false)
-      } else {
-        // 사이드바 텍스트 fallback (OCR 텍스트 존재 여부)
-        const sidebar = page.locator('nav, aside, [data-testid="app-sidebar"]').first()
-        const sidebarVisible = await sidebar.isVisible().catch(() => false)
-
-        if (sidebarVisible) {
-          const sidebarText = (await sidebar.textContent()) ?? ''
-          const hasOcrMenu =
-            sidebarText.includes('영수증 OCR') ||
-            sidebarText.includes('영수증') ||
-            sidebarText.includes('OCR')
-          expect(
-            hasOcrMenu,
-            '사이드바 영수증 OCR 메뉴 미표시 — SALES OCR 권한 주입 후 표시 필요',
-          ).toBe(true)
-        } else {
-          // 사이드바 자체 미표시 — 페이지 로드 실패로 간주하여 FAIL
-          expect(
-            sidebarVisible,
-            '사이드바(nav/aside) 미표시 — 페이지 로드 실패',
-          ).toBe(true)
-        }
-      }
+      await expect(
+        sidebarOcrLink,
+        '사이드바 영수증 OCR [data-testid="sidebar-purchases-receipt-ocr"] 미표시 — mockPerms purchases.receipt-ocr view=true 주입 후 렌더 필요',
+      ).toBeVisible({ timeout: 8000 })
     })
 
-    await test.step('OCR 페이지 접근 성공 + 403 아님 확인', async () => {
-      const bodyText = (await page.textContent('body')) ?? ''
-      const isBlocked =
-        bodyText.includes('403') ||
-        bodyText.includes('접근 거부') ||
-        page.url().includes('/forbidden')
-
+    await test.step('영수증 OCR 사이드바 링크 disabled 아님 확인', async () => {
+      const sidebarOcrLink = page.locator('[data-testid="sidebar-purchases-receipt-ocr"]')
+      const hasDisabledClass = await sidebarOcrLink.evaluate(el =>
+        el.classList.contains('sidebar-disabled') ||
+        el.closest('.sidebar-disabled') !== null,
+      )
       expect(
-        isBlocked,
-        'SALES OCR 영수증 페이지 접근 차단(403) — mockPerms OCR 권한 주입 후 접근 허용 필요',
+        hasDisabledClass,
+        '영수증 OCR 사이드바 링크 disabled 상태 — 활성 링크 필요',
       ).toBe(false)
-
-      const pageLoaded =
-        bodyText.includes('OCR') ||
-        bodyText.includes('영수증') ||
-        bodyText.includes('파일')
-      expect(
-        pageLoaded,
-        'OCR 영수증 페이지 미로드 — OCR/영수증/파일 텍스트 없음',
-      ).toBe(true)
     })
 
+    // 단언 통과 후 스크린샷
     await page.screenshot({
       path: path.join(QA_DIR, 'T4-sales-ocr-sidebar-visible.png'),
       fullPage: true,
@@ -520,7 +489,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
     })
 
     await test.step('404 또는 "없는 페이지" 표시 확인 — disabled 화면 아님', async () => {
@@ -566,17 +534,20 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T6: MANAGER 권한 매트릭스 진입 → 403 또는 login redirect
+   * T6: MANAGER 권한 매트릭스 진입 → RoleGuard(MASTER 전용) 차단 확인
    *
-   * 검증 항목 (현행 유지):
+   * 검증 항목:
    *   - mockRole=MANAGER 로 /#/admin/permission-matrix 진입
-   *   - PermissionGuard(system.permission-admin) 차단 → 403/forbidden 또는 login redirect
+   *   - RoleGuard allow=['MASTER'] 차단 → RoleGuard 차단 화면 렌더:
+   *     "접근 권한이 없습니다" + "본 화면은 MASTER 권한 보유자만 접근 가능합니다." + "현재 role: MANAGER"
+   *   - strict 텍스트 단언 ("MASTER" 포함) — login fallback 제거
    *   - permission-matrix-table / perm-matrix-save-btn 미표시
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock 직접 처리.
-   *       mock.ts: MANAGER 의 system.permission-admin { view: true } 로 설정돼 있어
-   *       RoleGuard(MASTER 전용 여부) 에 따라 결과 달라질 수 있으므로 403/login 양쪽 허용.
+   *       F4 fix: mock.ts system.permission-admin MANAGER → MASTER 정정으로
+   *       PermissionGuard 도 이제 MANAGER를 차단. RoleGuard 가 먼저 동기 차단.
+   *       RoleGuard.tsx 렌더: "접근 권한이 없습니다" / "본 화면은 MASTER 권한 보유자만 접근 가능합니다." / "현재 role: MANAGER"
    */
   test('T6: MANAGER 권한 매트릭스 진입 → 403 또는 login redirect', async ({ page }) => {
     const errors: string[] = []
@@ -588,39 +559,20 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
     })
 
-    await test.step('403 접근 거부 또는 login redirect 확인', async () => {
-      const forbiddenPage = page.locator('[data-testid="forbidden-page"]')
-      const forbiddenVisible = await forbiddenPage.isVisible().catch(() => false)
-
-      if (forbiddenVisible) {
-        await expect(
-          forbiddenPage,
-          'MANAGER — 403 ForbiddenPage 표시 확인',
-        ).toBeVisible({ timeout: 5000 })
-      } else {
-        const currentUrl = page.url()
-        const bodyText = (await page.textContent('body')) ?? ''
-
-        const is403 =
-          currentUrl.includes('/forbidden') ||
-          bodyText.includes('403') ||
-          bodyText.includes('접근 거부') ||
-          bodyText.includes('권한이 없') ||
-          bodyText.includes('접근할 수 없')
-
-        const isLoginRedirect =
-          currentUrl.includes('/login') ||
-          bodyText.includes('로그인') ||
-          bodyText.includes('이메일')
-
-        expect(
-          is403 || isLoginRedirect,
-          `MANAGER 권한 매트릭스 접근 차단 미작동 — URL: ${currentUrl}, 본문: "${bodyText.substring(0, 200)}"`,
-        ).toBe(true)
-      }
+    await test.step('RoleGuard 차단 화면 "MASTER" 포함 텍스트 strict 단언', async () => {
+      // RoleGuard.tsx: "본 화면은 {allow.join(' / ')} 권한 보유자만 접근 가능합니다. 현재 role: {role}"
+      // allow=['MASTER'] → "본 화면은 MASTER 권한 보유자만 접근 가능합니다."
+      const body = page.locator('body')
+      await expect(
+        body,
+        'MANAGER 진입 시 RoleGuard 차단 화면 "접근 권한이 없습니다" 텍스트 필요',
+      ).toContainText('접근 권한이 없습니다', { timeout: 8000 })
+      await expect(
+        body,
+        'RoleGuard 차단 화면 "MASTER" 텍스트 필요 (allow=[\'MASTER\'] 명시)',
+      ).toContainText('MASTER', { timeout: 5000 })
     })
 
     await test.step('권한 매트릭스 편집 UI 미표시 확인 (MANAGER)', async () => {

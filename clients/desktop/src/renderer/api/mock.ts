@@ -5213,10 +5213,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           print: legacyCell?.view ?? false,
         }
       }
+      // system.permission-admin 는 MASTER 전용 이중 가드 (RoleGuard + PermissionGuard).
+      // 실 BE 는 MASTER 에게만 부여하므로 mock 도 동일하게 MASTER 전용.
       accountMatrix['system.permission-admin'] = {
-        view: role === 'MANAGER',
+        view: role === 'MASTER',
         create: false,
-        update: role === 'MANAGER',
+        update: role === 'MASTER',
         delete: false,
         restore: false,
         download: false,

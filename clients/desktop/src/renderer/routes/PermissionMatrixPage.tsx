@@ -18,9 +18,9 @@
  * - permission-matrix-cell-{role}-{page}           — 개별 셀 td
  * - permission-matrix-cell-{role}-{page}-view      — view 체크박스 (pageCode 를 '-' 로 normalize)
  * - permission-matrix-cell-{role}-{page}-edit      — edit 체크박스
- * - permission-matrix-save-btn                     — 저장 버튼
- * - permission-matrix-reset-btn                    — 초기화 버튼
- * - permission-matrix-change-count                 — 변경 건수 배지
+ * - perm-matrix-save-btn                           — 저장 버튼 (dirtyKeys.size===0 이면 disabled)
+ * - (초기화/취소 버튼은 data-testid 미부여)
+ * - perm-matrix-change-count                       — 변경 건수 배지 role="status"
  * - sidebar-purchases-receipt-ocr (AppLayout)      — 영수증 OCR 사이드바 링크 (SP-D1 동적 권한 연동)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react'
