@@ -48,14 +48,13 @@ public class DepartmentAspect {
     }
 
     /**
-     * {@link RequireDepartment} 메서드/타입 인터셉터.
+     * {@link RequireDepartment} 메서드 인터셉터.
      *
      * @param joinPoint AOP 조인 포인트
      * @return 원본 메서드 반환값
      * @throws Throwable deny 시 {@link AccessDeniedException}, 원본 메서드 예외 전파
      */
-    @Around("@annotation(com.samhanair.logis.security.department.RequireDepartment) "
-            + "|| @within(com.samhanair.logis.security.department.RequireDepartment)")
+    @Around("@annotation(com.samhanair.logis.security.department.RequireDepartment)")
     public Object checkDepartment(ProceedingJoinPoint joinPoint) throws Throwable {
         RequireDepartment annotation = resolveAnnotation(joinPoint);
         Department department = annotation.value();
@@ -71,16 +70,7 @@ public class DepartmentAspect {
 
     private RequireDepartment resolveAnnotation(ProceedingJoinPoint joinPoint) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        RequireDepartment annotation = signature.getMethod().getAnnotation(RequireDepartment.class);
-        if (annotation != null) {
-            return annotation;
-        }
-        Class<?> targetClass = joinPoint.getTarget().getClass();
-        annotation = targetClass.getAnnotation(RequireDepartment.class);
-        if (annotation != null) {
-            return annotation;
-        }
-        return signature.getMethod().getDeclaringClass().getAnnotation(RequireDepartment.class);
+        return signature.getMethod().getAnnotation(RequireDepartment.class);
     }
 
     private String extractRole() {
