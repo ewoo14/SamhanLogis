@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,6 +43,9 @@ import com.samhanair.logis.partner.tab.service.Partner4TabService;
 import com.samhanair.logis.partner.tab.web.Partner4TabController;
 import com.samhanair.logis.partner.web.PartnerAttachmentController;
 import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
@@ -50,6 +55,7 @@ import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -71,6 +77,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -92,9 +99,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 PartnerRealtimeController.class,
                 Partner4TabController.class
         },
-        properties = "spring.application.name=partner-service")
+        properties = {
+                "spring.application.name=partner-service",
+                "samhan.security.department.enabled=true"
+        })
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        InternalSecurityAutoConfiguration.class,
         PartnerPermissionControllerIT.TestSecurityConfig.class,
         PartnerPermissionControllerIT.TestMeterConfig.class
 })
@@ -202,6 +213,54 @@ class PartnerPermissionControllerIT {
         assertThat(deniedCount("partners.edit", "MANAGER", PermissionAction.CREATE.name())).isEqualTo(before);
     }
 
+    @ParameterizedTest(name = "{0} executive office + grant")
+    @MethodSource("partnerAdminDepartmentEndpoints")
+    void partnerAdminEndpoint_executiveOfficeWithGrant_isNotForbidden(EndpointCase endpoint) throws Exception {
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().is(not(403)));
+    }
+
+    @ParameterizedTest(name = "{0} non-executive + grant")
+    @MethodSource("partnerAdminDepartmentEndpoints")
+    void partnerAdminEndpoint_nonExecutiveOfficeWithGrant_returns403BeforePermission(EndpointCase endpoint)
+            throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(true);
+        double permissionBefore = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+        double departmentBefore = departmentDeniedCount(endpoint.role());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), "영업1팀"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name()))
+                .isEqualTo(permissionBefore);
+        assertThat(departmentDeniedCount(endpoint.role())).isEqualTo(departmentBefore + 1.0);
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action()));
+    }
+
+    @ParameterizedTest(name = "{0} executive office + no grant")
+    @MethodSource("partnerAdminDepartmentEndpoints")
+    void partnerAdminEndpoint_executiveOfficeWithoutGrant_returns403(EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    void partnerAdminDepartmentEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
+        assertDepartmentGate("create", com.samhanair.logis.partner.dto.PartnerAdminRequest.class, String.class);
+        assertDepartmentGate("lookupByName", String.class);
+        assertDepartmentGate("update", String.class, com.samhanair.logis.partner.dto.PartnerAdminRequest.class, String.class);
+        assertDepartmentGate("delete", String.class, java.security.Principal.class);
+        assertDepartmentGate("exportAligoCsv");
+        assertDepartmentGate("exportXlsx", String.class, com.samhanair.logis.partner.domain.PartnerStatus.class);
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 endpoint("partner create", "partners.edit", PermissionAction.CREATE, "MANAGER",
@@ -303,6 +362,16 @@ class PartnerPermissionControllerIT {
         );
     }
 
+    static Stream<EndpointCase> partnerAdminDepartmentEndpoints() {
+        return endpoints().filter(endpoint ->
+                "partner create".equals(endpoint.name())
+                        || "partner by name".equals(endpoint.name())
+                        || "partner update".equals(endpoint.name())
+                        || "partner delete".equals(endpoint.name())
+                        || "partner aligo export".equals(endpoint.name())
+                        || "partner xlsx export".equals(endpoint.name()));
+    }
+
     private static EndpointCase endpoint(
             String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
@@ -349,6 +418,24 @@ class PartnerPermissionControllerIT {
         ).count();
     }
 
+    private double departmentDeniedCount(String role) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", "department",
+                "role", role,
+                "action", Department.EXECUTIVE_OFFICE.name()
+        ).count();
+    }
+
+    private void assertDepartmentGate(String name, Class<?>... parameterTypes) throws Exception {
+        Method method = PartnerAdminController.class.getMethod(name, parameterTypes);
+        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
+        assertThat(requireDepartment).isNotNull();
+        assertThat(requireDepartment.value()).isEqualTo(Department.EXECUTIVE_OFFICE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
+    }
+
     record EndpointCase(
             String name,
             String page,
@@ -365,11 +452,6 @@ class PartnerPermissionControllerIT {
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
-
-        @Bean("hr")
-        HrAuthorizationHelper hrAuthorizationHelper() {
-            return new HrAuthorizationHelper();
-        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {

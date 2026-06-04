@@ -7,10 +7,13 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -73,6 +76,9 @@ import com.samhanair.logis.inventory.web.dto.TransferDetailResponse;
 import com.samhanair.logis.inventory.web.dto.TransferResponse;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
 import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
@@ -82,6 +88,7 @@ import com.samhanair.logis.shared.realtime.editrequest.EditRequestType;
 import com.samhanair.logis.shared.realtime.editrequest.EditTargetRole;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -89,6 +96,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,6 +109,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -127,9 +136,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 EcountWarehouseImportController.class,
                 EcountStockTransferImportController.class
         },
-        properties = "spring.application.name=inventory-service")
+        properties = {
+                "spring.application.name=inventory-service",
+                "samhan.security.department.enabled=true"
+        })
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        InternalSecurityAutoConfiguration.class,
         InventoryPermissionControllerIT.TestSecurityConfig.class,
         InventoryPermissionControllerIT.TestMeterConfig.class
 })
@@ -286,6 +299,56 @@ class InventoryPermissionControllerIT {
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
     }
 
+    @ParameterizedTest(name = "{0} executive office + grant")
+    @MethodSource("warehouseDepartmentEndpoints")
+    void warehouseEndpoint_executiveOfficeWithGrant_isNotForbidden(EndpointCase endpoint) throws Exception {
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().is(not(403)));
+    }
+
+    @ParameterizedTest(name = "{0} non-executive + grant")
+    @MethodSource("warehouseDepartmentEndpoints")
+    void warehouseEndpoint_nonExecutiveOfficeWithGrant_returns403BeforePermission(EndpointCase endpoint)
+            throws Exception {
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(true);
+        double permissionBefore = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+        double departmentBefore = departmentDeniedCount(endpoint.role());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), "물류팀"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(permissionBefore);
+        assertThat(departmentDeniedCount(endpoint.role())).isEqualTo(departmentBefore + 1.0);
+        verify(dynamicPermissionClient, never()).check(eq(ID), eq(endpoint.page()), eq(endpoint.action()));
+    }
+
+    @ParameterizedTest(name = "{0} executive office + no grant")
+    @MethodSource("warehouseDepartmentEndpoints")
+    void warehouseEndpoint_executiveOfficeWithoutGrant_returns403(EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    void warehouseDepartmentEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
+        assertDepartmentGate("create", com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest.class, String.class);
+        assertDepartmentGate(
+                "update",
+                UUID.class,
+                com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest.class,
+                String.class,
+                String.class);
+        assertDepartmentGate("revertAudit", UUID.class, int.class, String.class, String.class);
+        assertDepartmentGate("delete", UUID.class, String.class, String.class);
+        assertDepartmentGate("listDeleted");
+        assertDepartmentGate("restore", UUID.class, String.class, String.class);
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 endpoint("stock balances", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
@@ -313,6 +376,12 @@ class InventoryPermissionControllerIT {
                         () -> get("/inventory/warehouses")),
                 endpoint("warehouse create", "inventory.warehouse.admin", PermissionAction.CREATE, "MANAGER",
                         () -> post("/inventory/warehouses").contentType(MediaType.APPLICATION_JSON).content(warehouseBody())),
+                endpoint("warehouse update", "inventory.warehouse.admin", PermissionAction.DELETE, "MANAGER",
+                        () -> patch("/inventory/warehouses/{id}", ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(warehouseBody())),
+                endpoint("warehouse delete", "inventory.warehouse.admin", PermissionAction.UPDATE, "MANAGER",
+                        () -> delete("/inventory/warehouses/{id}", ID)),
                 endpoint("warehouse deleted", "inventory.warehouse.admin", PermissionAction.VIEW, "MANAGER",
                         () -> get("/inventory/warehouses/deleted")),
                 endpoint("warehouse restore", "inventory.warehouse.admin", PermissionAction.RESTORE, "MANAGER",
@@ -365,6 +434,16 @@ class InventoryPermissionControllerIT {
                 endpoint("ecount transfer import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/inventory/stock-transfers/imports/ecount").file(csv("file")))
         );
+    }
+
+    static Stream<EndpointCase> warehouseDepartmentEndpoints() {
+        return endpoints().filter(endpoint ->
+                "warehouse create".equals(endpoint.name())
+                        || "warehouse update".equals(endpoint.name())
+                        || "warehouse delete".equals(endpoint.name())
+                        || "warehouse deleted".equals(endpoint.name())
+                        || "warehouse restore".equals(endpoint.name())
+                        || "warehouse revert audit".equals(endpoint.name()));
     }
 
     private static EndpointCase endpoint(
@@ -421,11 +500,18 @@ class InventoryPermissionControllerIT {
     }
 
     private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
+        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department) {
         return request
                 .header(USER_ID_HEADER, ID.toString())
                 .header(USER_NAME_HEADER, "테스터")
                 .header(ROLE_HEADER, role)
-                .header(DEPARTMENT_HEADER, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+                .header(DEPARTMENT_HEADER, department);
     }
 
     private double deniedCount(String page, String role, PermissionAction action) {
@@ -436,6 +522,24 @@ class InventoryPermissionControllerIT {
                 "role", role,
                 "action", action.name()
         ).count();
+    }
+
+    private double departmentDeniedCount(String role) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", "department",
+                "role", role,
+                "action", Department.EXECUTIVE_OFFICE.name()
+        ).count();
+    }
+
+    private void assertDepartmentGate(String name, Class<?>... parameterTypes) throws Exception {
+        Method method = WarehouseController.class.getMethod(name, parameterTypes);
+        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
+        assertThat(requireDepartment).isNotNull();
+        assertThat(requireDepartment.value()).isEqualTo(Department.EXECUTIVE_OFFICE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
     }
 
     private TransferResponse transferRow() {
@@ -511,11 +615,6 @@ class InventoryPermissionControllerIT {
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
-
-        @Bean("hr")
-        HrAuthorizationHelper hrAuthorizationHelper() {
-            return new HrAuthorizationHelper();
-        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {

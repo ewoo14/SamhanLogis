@@ -14,8 +14,10 @@ import com.samhanair.logis.user.web.dto.AdminUserRoleChangeRequest;
 import com.samhanair.logis.user.web.dto.AdminUserUpdateRequest;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import com.samhanair.logis.user.web.dto.RoleHistoryResponse;
-import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -24,7 +26,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code fullName} / {@code loginId} 를 사용.
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>
- * 모든 endpoint 는 {@code @PreAuthorize("@hr.isExecutiveOffice()")} 대표실 부서 가드를 유지하고,
+ * 모든 endpoint 는 {@code @RequireDepartment(EXECUTIVE_OFFICE)} 대표실 부서 가드를 유지하고,
  * 역할별 VIEW/EDIT cap 은 {@code @RequirePermission} 동적 권한으로 검증한다.
  *
  * <h2>Endpoint 목록</h2>
@@ -91,7 +92,7 @@ public class AdminUserController {
      * @param status       상태 필터 — ACTIVE | LOCKED (optional)
      */
     @GetMapping
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<AdminUserListResponse> list(
             @RequestParam(defaultValue = "0") int page,
@@ -112,7 +113,7 @@ public class AdminUserController {
      * 전체 ROLE 목록 조회 — 사용자 관리 화면 dropdown 데이터.
      */
     @GetMapping("/roles")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<List<Role>> listRoles() {
         return ApiResponse.ok(List.of(Role.values()));
@@ -133,7 +134,7 @@ public class AdminUserController {
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.CREATE)
     public ApiResponse<AdminUserCreateResponse> create(
             @Valid @RequestBody AdminUserCreateRequest request,
@@ -156,7 +157,7 @@ public class AdminUserController {
      * @param callerHeader X-User-Id 헤더
      */
     @PatchMapping("/{id}")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> update(
             @PathVariable UUID id,
@@ -176,7 +177,7 @@ public class AdminUserController {
      * @param callerHeader X-User-Id 헤더
      */
     @PatchMapping("/{id}/role")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
@@ -201,7 +202,7 @@ public class AdminUserController {
      */
     @PostMapping("/{id}/disable")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.DELETE)
     public void disable(
             @PathVariable UUID id,
@@ -220,7 +221,7 @@ public class AdminUserController {
      */
     @PostMapping("/{id}/unlock")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.UPDATE)
     public void unlock(
             @PathVariable UUID id,
@@ -238,7 +239,7 @@ public class AdminUserController {
      * @param id 대상 직원 UUID
      */
     @GetMapping("/{id}/role-history")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "admin.users", action = PermissionAction.VIEW)
     public ApiResponse<List<RoleHistoryResponse>> roleHistory(@PathVariable UUID id) {
         List<RoleChangeHistory> rows =

@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -15,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.samhanair.logis.common.ecount.EcountMig6ImportResult;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
@@ -42,12 +46,14 @@ import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +67,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -81,9 +88,13 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 EcountPayrollEmployeeImportController.class,
                 EmployeeController.class
         },
-        properties = "spring.application.name=user-service")
+        properties = {
+                "spring.application.name=user-service",
+                "samhan.security.department.enabled=true"
+        })
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        InternalSecurityAutoConfiguration.class,
         UserPermissionControllerIT.TestSecurityConfig.class,
         UserPermissionControllerIT.TestMeterConfig.class
 })
@@ -170,6 +181,56 @@ class UserPermissionControllerIT {
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
     }
 
+    @ParameterizedTest(name = "{0} executive office + grant")
+    @MethodSource("adminUserDepartmentEndpoints")
+    void adminUserEndpoint_executiveOfficeWithGrant_returnsSuccess(EndpointCase endpoint) throws Exception {
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().is(endpoint.successStatus()));
+    }
+
+    @ParameterizedTest(name = "{0} non-executive + grant")
+    @MethodSource("adminUserDepartmentEndpoints")
+    void adminUserEndpoint_nonExecutiveOfficeWithGrant_returns403BeforePermission(EndpointCase endpoint)
+            throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(true);
+        double permissionBefore = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+        double departmentBefore = departmentDeniedCount(endpoint.role());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), "영업1팀"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name()))
+                .isEqualTo(permissionBefore);
+        assertThat(departmentDeniedCount(endpoint.role())).isEqualTo(departmentBefore + 1.0);
+        verify(dynamicPermissionClient, never()).check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action()));
+    }
+
+    @ParameterizedTest(name = "{0} executive office + no grant")
+    @MethodSource("adminUserDepartmentEndpoints")
+    void adminUserEndpoint_executiveOfficeWithoutGrant_returns403(EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
+                .thenReturn(false);
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    void adminUserEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
+        assertDepartmentGate("list", int.class, int.class, String.class, Role.class, UUID.class, String.class);
+        assertDepartmentGate("listRoles");
+        assertDepartmentGate("create", com.samhanair.logis.user.web.dto.AdminUserCreateRequest.class, String.class);
+        assertDepartmentGate("update", UUID.class, com.samhanair.logis.user.web.dto.AdminUserUpdateRequest.class, String.class);
+        assertDepartmentGate("updateRole", UUID.class, com.samhanair.logis.user.web.dto.AdminUserRoleChangeRequest.class, String.class);
+        assertDepartmentGate("disable", UUID.class, String.class);
+        assertDepartmentGate("unlock", UUID.class, String.class);
+        assertDepartmentGate("roleHistory", UUID.class);
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("admin user list", "admin.users", PermissionAction.VIEW, "MANAGER", 200,
@@ -221,6 +282,11 @@ class UserPermissionControllerIT {
         );
     }
 
+    static Stream<EndpointCase> adminUserDepartmentEndpoints() {
+        return endpoints().filter(endpoint -> endpoint.name().startsWith("admin user ")
+                || "admin role history".equals(endpoint.name()));
+    }
+
     private static String adminCreateBody() {
         return """
                 {"loginId":"newuser01","fullName":"신규직원","email":"new@samhan.com","role":"SALES","departmentId":"00000000-0000-0000-0000-000000000402","phoneNumber":"010-1234-5678"}
@@ -248,10 +314,17 @@ class UserPermissionControllerIT {
     }
 
     private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
+        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department) {
         return request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
                 .header(ROLE_HEADER, role)
-                .header(DEPARTMENT_HEADER, "대표실");
+                .header(DEPARTMENT_HEADER, department);
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -262,6 +335,25 @@ class UserPermissionControllerIT {
                 "role", role,
                 "action", action
         ).count();
+    }
+
+    private double departmentDeniedCount(String role) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", "department",
+                "role", role,
+                "action", com.samhanair.logis.security.department.Department.EXECUTIVE_OFFICE.name()
+        ).count();
+    }
+
+    private void assertDepartmentGate(String name, Class<?>... parameterTypes) throws Exception {
+        Method method = AdminUserController.class.getMethod(name, parameterTypes);
+        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
+        assertThat(requireDepartment).isNotNull();
+        assertThat(requireDepartment.value())
+                .isEqualTo(com.samhanair.logis.security.department.Department.EXECUTIVE_OFFICE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
     }
 
     record EndpointCase(
@@ -281,11 +373,6 @@ class UserPermissionControllerIT {
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
-
-        @Bean("hr")
-        HrAuthorizationHelper hrAuthorizationHelper() {
-            return new HrAuthorizationHelper();
-        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
