@@ -30,9 +30,23 @@
 ### 🚨 신규 교훈 (메모리 박제)
 - **desktop 검증은 `npm run typecheck`**(tsconfig.node+web) — raw `npx tsc --noEmit` 는 느슨해 TS2367 류 놓침(#386 CI fail 회고). [[feedback-desktop-typecheck-command]]
 
-### ▶ 자율 진행 잔여 (PM 전권, 질문 금지)
-- role 전환: #387 결정 후 재개. 또는 seed-role-set 일치 서비스(auth PermissionAdminController MASTER-only 등) 우선.
-- 기타 P2: mock id UUID화·mock PageCode 카탈로그 동기화. Docker QA(권한/부서 게이트 실 gateway 403/200 — MockMvc 미포착 영역).
+### ✅ PR #390 — auth PermissionAdminController role 전환 (머지 `eb6aa835`)
+@PreAuthorize("hasRole('MASTER')") **12건 제거** → @RequirePermission(system.permission-admin) single source. **widening 0**(seed system.permission-admin MASTER-only). BE(Codex)/QA/DevOps/Codex APPROVE, IT 양방향(MASTER 200 bypass+`verify(check never)`/non-MASTER 403), CI green.
+
+### ✅ PR #391 — auth register/password-unlock role 전환 (머지 `2bf4d6b6`)
+AuthController.register(system.account-admin)+PasswordController.unlock(system.password-admin) @PreAuthorize(MASTER) **2건 제거**. widening 0(seed MASTER-only). Codex 전섹션 APPROVE. **→ auth-service system.* admin role 전환 완성.** (GitGuardian=테스트 placeholder PM false-positive 판정.)
+
+### 🗺️ 잔여 role 전환 맵 (다음 세션, seed 교차확인 선행 의무)
+- 🔴 **inventory #387** — INVENTORY widening, 개발책임자 결정(A/B/C) 후 재개. Draft.
+- ⚠️ **user EmployeeController.updateRole/delete** — Javadoc "MASTER 보존" 명시 = **의도적 MASTER-only**(seed admin.employees 는 MANAGER 등 grant → 제거 시 widening). inventory.delete 패턴 = **유지**(제거 금지) 또는 개발책임자 결정.
+- 📋 **@RequirePermission 미병행 서비스**(slip ~11·partner 6·notification 3·dashboard 1·arologis InternalController 7) — @RequirePermission **추가 선행** 필요(순수 제거 아님, 더 큰 작업). INTERNAL 컨트롤러(auth/user/slip/partner/notification)는 **유지**(서비스간, 사용자 컨텍스트 부재).
+- ✅ **clean 슬라이스 공식**: @PreAuthorize role-set == seed grant role-set(특히 **MASTER-only + isMasterBypass** 가 가장 깨끗, widening 0). 착수 전 `services/auth-service/.../V*.sql` role_page_permissions 교차표 대조.
+
+### ▶ 기타 자율 진행 잔여 (PM 전권)
+- P2: mock id UUID화·mock PageCode 카탈로그 동기화·sp-d1 mock 7-action 구조.
+- Docker QA: 권한/부서 게이트 실 gateway 403/200(MockMvc 미포착 영역, D-SER-23 선례 = 실 QA 가 gateway 결함 포착).
+
+> 🌙 **2026-06-04~05 야간 세션 누계**: #386(sp-d1 재게이트+한글화+404)·#388(BulkPage 한글화)·#390(auth permission-admin role)·#391(auth register/password role)·#389(docs) **5 머지** + #387(inventory) Draft 보류. 교훈 2건 메모리 박제([[feedback-desktop-typecheck-command]], [[feedback_preauth_migration_lessons]] §4 role-set).
 
 ---
 
