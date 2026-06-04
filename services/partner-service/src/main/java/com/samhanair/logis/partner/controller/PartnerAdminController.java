@@ -11,8 +11,10 @@ import com.samhanair.logis.partner.service.PartnerAligoExportService;
 import com.samhanair.logis.partner.service.PartnerCreditService;
 import com.samhanair.logis.partner.service.PartnerExcelExportService;
 import com.samhanair.logis.partner.service.PartnerService;
-import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -26,7 +28,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,7 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 거래처 마스터 관리자 CRUD endpoint.
  *
- * <p>인증 = X-User-* 헤더 (gateway 경유) + {@code @PreAuthorize} 권한 가드.
+ * <p>인증 = X-User-* 헤더 (gateway 경유) + {@code @RequireDepartment} 부서 가드.
  * 목록/상세 조회는 SALES / MANAGER / MASTER 를 허용하고, 쓰기 작업은 MANAGER / MASTER 이상으로 제한한다.
  * 본 endpoint 는 internal token 필요 X.
  *
@@ -50,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-PO-1 동적 권한 가드:
  * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>{@code @RequireDepartment} 대표실 부서 가드 보존 (regression 0)</li>
  *   <li>{@code @RequirePermission} 으로 endpoint 의미별 7-action 검증</li>
  * </ul>
  */
@@ -79,7 +80,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "partnerCode 또는 bizNo 중복")
     })
     @PostMapping
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.edit", action = PermissionAction.CREATE)
     public ApiResponse<PartnerAdminResponse> create(
             @Valid @RequestBody PartnerAdminRequest req,
@@ -153,7 +154,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "다중 매칭 (lookup 모호)")
     })
     @GetMapping("/by-name")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.edit", action = PermissionAction.VIEW)
     public ApiResponse<PartnerAdminResponse> lookupByName(@RequestParam("name") String name) {
         return ApiResponse.ok(PartnerAdminResponse.from(partnerService.findByName(name)));
@@ -183,7 +184,7 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 프로필 수정", description = "name / address / phone 만 변경. creditLimit 변경은 별도 사용")
     @PutMapping("/{partnerCode}")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.edit", action = PermissionAction.UPDATE)
     public ApiResponse<PartnerAdminResponse> update(
             @PathVariable String partnerCode,
@@ -197,7 +198,7 @@ public class PartnerAdminController {
      */
     @Operation(summary = "거래처 soft-delete")
     @DeleteMapping("/{partnerCode}")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.delete", action = PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String partnerCode, Principal principal) {
         String actor = principal != null ? principal.getName() : "system";
@@ -225,7 +226,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export/aligo-csv")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.edit", action = PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportAligoCsv() {
         byte[] csv = aligoExportService.exportAligoCsv();
@@ -257,7 +258,7 @@ public class PartnerAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping("/export.xlsx")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.edit", action = PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
             @RequestParam(required = false) String q,

@@ -22,6 +22,8 @@
 
 아래 목록은 3-A2 QUARANTINE으로 투명 격리한다. 각 항목은 후속 수리 슬라이스에서 원인 재현, mock 계약 갱신, selector/route 정합 복구, 재게이트 순서로 해제한다.
 
+> ✅ **해제 완료 (2026-06-04)**: 3-A2-①(정적계약 22 + sp-d6-1, legacy-gas 삭제) → 3-A2-④ 마라톤(#367~379: admin-hr/sp-d2/d3/d4/applayout · sp-09-1~5 · phase-2-5/2-6c · supplier-profile · tax-invoice-batch · sp-08-6-6 등) → **3-A2-⑤ sp-d1(#380, account-select 재작성)**. **기능 스펙 격리 = 0** 달성. testIgnore 잔여는 opt-out(`manual`/`full-qa`/`audit`/`*-real-qa`/`phase-2-4-real-qa`/`full-menu-contract`)뿐. 상세 dev-report: `sp-d1-dynamic-rbac-account-select-regate.md` 등.
+
 ### 동적 RBAC / AppLayout 드리프트
 
 - `permission-overhaul/applayout.spec.ts`

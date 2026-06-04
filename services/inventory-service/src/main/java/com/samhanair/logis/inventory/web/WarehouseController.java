@@ -7,6 +7,8 @@ import com.samhanair.logis.inventory.web.dto.AdminWarehouseListResponse;
 import com.samhanair.logis.inventory.web.dto.CreateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.UpdateWarehouseRequest;
 import com.samhanair.logis.inventory.web.dto.WarehouseResponse;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +22,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,7 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D4 동적 권한 이중 가드:
  * <ul>
- *   <li>기존 {@code @PreAuthorize} 보존 (regression 0)</li>
+ *   <li>{@code @RequireDepartment} 대표실 부서 가드 보존 (regression 0)</li>
  *   <li>GET 조회 → {@link InventoryPermissionGuard#checkView(String, String)} (PAGE_WAREHOUSE)</li>
  *   <li>POST/PATCH/DELETE write → {@link InventoryPermissionGuard#checkEdit(String, String)}</li>
  * </ul>
@@ -124,7 +125,7 @@ public class WarehouseController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<WarehouseResponse> create(
             @Valid @RequestBody CreateWarehouseRequest request,
@@ -142,7 +143,7 @@ public class WarehouseController {
      */
     @Operation(summary = "창고 수정", description = "PATCH 시맨틱: null 이 아닌 필드만 적용 + audit overlay 기록")
     @PatchMapping("/{id}")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ApiResponse<WarehouseResponse> update(@PathVariable UUID id,
                                                  @Valid @RequestBody UpdateWarehouseRequest request,
@@ -195,7 +196,7 @@ public class WarehouseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "창고/revision 미존재")
     })
     @PostMapping("/{id}/audit/revert/{revisionNo}")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
     public ApiResponse<WarehouseResponse> revertAudit(
             @PathVariable UUID id,
@@ -215,7 +216,7 @@ public class WarehouseController {
     @Operation(summary = "창고 삭제 (soft)", description = "is_deleted=true 마킹. row 는 보존")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public void delete(@PathVariable UUID id,
                        @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
@@ -232,7 +233,7 @@ public class WarehouseController {
     @Operation(summary = "비활성화된 창고 목록",
             description = "soft-deleted 창고 list (modified_at desc). 복구 admin 화면 backing.")
     @GetMapping("/deleted")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<WarehouseResponse>> listDeleted() {
         return ApiResponse.ok(warehouseService.listDeleted());
@@ -250,7 +251,7 @@ public class WarehouseController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동일 code 활성 창고 존재")
     })
     @PostMapping("/{id}/restore")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "inventory.warehouse.admin", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
     public ApiResponse<WarehouseResponse> restore(@PathVariable UUID id,
                                                   @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,

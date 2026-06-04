@@ -28,7 +28,7 @@ export default defineConfig({
     //   docs/dev-reports/slice-3a2-4-rbac-regate.md.
     // 🟢 admin-hr 재게이트 완료(5/5) — TC-HR2 부서 route-게이팅은 AdminLayout(isExecutiveOffice) 으로 이미
     //   구현돼 있었고, mock(is-executive-office)이 hash query 의 mockDepartment 를 못 읽던 버그를 교정해 테스트 가능해짐.
-    // 🟢 sp-d1 재게이트 완료 — role-grid→account-select UI 재설계 대응 스펙 재작성.
+    // 🟢 sp-d1 재게이트 완료 — role-grid→account-select UI 재설계 대응 스펙 재작성 + 한글 라벨/권한설정/한국어404 (PR #386 — #380 supersede).
     // 🟢 sp-09-5 재게이트(5/5) — fileInput.isAttached()→count, 역할 cross-check 에 page.reload() 세션 재설정.
     // 🟢 phase-2-6c 재게이트(8/8) — 전환 모달 창고선택+qty 상호작용 + 재고현황 페이지 제목 testid 한정.
     // 🟢 sp-09-1 재게이트(5/5) — eTaxExternalId 표시(FE) + emit 낙관적 갱신.

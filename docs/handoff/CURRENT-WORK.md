@@ -15,7 +15,31 @@
 - **P2 후속**: mock id UUID화(`bulk.spec` 광범위 참조)·mock PageCode 카탈로그 59→전체 동기화·`PermissionMatrixBulkPage` 한글화 consistency.
 
 ### ▶ 자율 진행 (PM 전권, 질문 금지)
-PR #386 머지 후 잔여/신규/Docker QA 자율 진행. (이 섹션 하단의 P2 후속 + 백로그 참조.)
+PR #386 머지 후 잔여/신규/Docker QA 자율 진행. **다음 백로그(아래 #380 핸드오프 참조) = role 전환 슬라이스(@PreAuthorize→@RequirePermission).**
+
+> ℹ️ main #380 이 sp-d1 account-select 재게이트를 이미 머지(squash `b7b85761`). PR #386 은 동일 account-select 접근 + 한글화/404/dual-review 로 **supersede**(머지 시 #380 스펙 대체).
+
+---
+
+## 🧭 2026-06-04 (후속 세션) — sp-d1 머지 완료 + **신규 이니셔티브: @PreAuthorize 완전제거**
+
+> 🚨 세션 시작 즉시 `git fetch origin` + `git log origin/main` 먼저([[feedback_agent_origin_main_sync]]). 본 세션은 stale 핸드오프(#345)를 믿고 두 번(잔여16스펙 로드맵 / 시리얼S3) 완료된 작업을 후보로 착수했다 fetch 로 적발. **마라톤(#347~380)이 3-A2·시리얼 시리즈를 전부 완료**했음. 핸드오프는 항상 stale 가정.
+
+### ✅ sp-d1 머지 완료 (#380 squash `b7b85761`) → 3-A2 기능 스펙 격리 0
+account-select UI 재작성. dual N=2 가 false-green 2차 적발(P0 page.route 무력→mockRole/mockPerms / P1 T4 "보이지만 접근불가"→WAREHOUSE end-to-end / P1 T3 재조회 / P2 죽은단언). 프로덕션 src 무변경. CI 24/24. dev-report `sp-d1-dynamic-rbac-account-select-regate.md`.
+
+### 🆕 신규 이니셔티브 — @PreAuthorize 완전제거 마이그레이션 (개발책임자 선택, 2026-06-04). **M1 머지 완료.**
+정적 `@PreAuthorize` → 동적 `@RequirePermission`/`@RequireDepartment` **behavior-preserving 전환**. scope = 전부 전환, INTERNAL 유지(D-PAM-01). 교훈 [[feedback_preauth_migration_lessons]].
+- **scope 정정(verify-first)**: 실 어노테이션 **94건**(grep 이 javadoc 포함해 131 로 부풀려졌음). = **Internal 컨트롤러 ~34(유지, 서비스간·사용자 JWT 없음)** + 부서게이트 `@hr.isExecutiveOffice()` ~25 + 순수 role ~35. accounting/partner-order/product 실 어노 0. umbrella: `docs/superpowers/specs/2026-06-04-preauthorize-full-migration-umbrella-design.md`.
+- **✅ M1 머지 (#382 squash `6dd534ba`)**: `@RequireDepartment(EXECUTIVE_OFFICE)` 인프라(shared:security, `HrAuthorizationHelper` 동일 빈→판정 동일, fail-closed, **opt-in**) + groupware 결재선 3 endpoint 전환. M1 설계 `docs/superpowers/specs/2026-06-04-preauth-m1-require-department-design.md`, dev-report 없음(미작성 — 후속).
+  - **🚨 DepartmentAspect 는 opt-in 필수**: `@ConditionalOnProperty(samhan.security.department.enabled=true)`. @RequireDepartment 쓰는 서비스만 main `application.yml`+IT properties 에 `enabled: true`. **미적용 시 빈 존재만으로 무관 서비스(accounting) CI 회귀**(로컬 무재현·CI 결정적). pointcut 은 `@annotation` 단독(@within 금지).
+  - CI 디버깅이 정적 dual리뷰 통과 후 실 결함 3건 적발(hr 빈 중복·@WebMvcTest 실HTTP 0-request·빈격리 회귀) → [[feedback_preauth_migration_lessons]] §3.
+- **✅ M-dept 머지 (#384 squash `824c0478`)**: 순수 부서게이트 **20건** → `@RequireDepartment` (user 8·partner 6·inventory 6). 4서비스 opt-in. IT 실 HTTP 매트릭스(비대표실+grant→403 부서deny). dual N=2: Claude behavior-preserving PASS + **Codex P1 적발→dc-config descope**. 실행 검증이 IT hr 빈 중복(M1 동일) 적발·수정. 설계 `docs/superpowers/specs/2026-06-04-preauth-mdept-department-gates-design.md`.
+- **decomposition 잔여 (M1+M-dept 이후)**:
+  - **dc-config import (1, descope됨)**: 복합 `@hr.isExecutiveOffice() and hasRole('MASTER')` — 하드 MASTER 드롭이 런타임 grant 시 이론적 widening(Codex P1) → **role 전환 슬라이스에서** MASTER→page-code 정책 명시 처리하며 함께 전환.
+  - **role 전환 ~35건 (다음 권장)**: 순수 role `@PreAuthorize(hasRole/hasAnyRole)` → `@RequirePermission`. **대부분 이미 @RequirePermission 병행 = 중복 @PreAuthorize 제거**(behavior-preserving: 권한 page 가 동일 role 집합 grant 인지 seed 교차 확인). 일부 MASTER 전용은 명시 page-code(D-PAM-02). dc-config 복합 포함. 서비스별 슬라이스. **🚨 role-only @PreAuthorize 제거 시 behavior-preserving = 권한 seed 가 동일 role 집합인지 검증 필수**(아니면 widening).
+  - INTERNAL 컨트롤러 34건: 유지(선택적으로 hasRole('MASTER')→hasRole('INTERNAL') 별도 정리).
+- **다음 = role 전환 슬라이스** (개발책임자 선택). behavior-preserving + **실 실행 검증 의무**(정적 리뷰 APPROVE ≠ 통과 — M1/M-dept 모두 실행이 IT 결함 적발). 매 시작 `git fetch origin` 선행.
 
 ---
 

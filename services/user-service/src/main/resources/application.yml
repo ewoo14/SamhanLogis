@@ -32,6 +32,9 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 samhan:
+  security:
+    department:
+      enabled: true
   auth-service:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
 
