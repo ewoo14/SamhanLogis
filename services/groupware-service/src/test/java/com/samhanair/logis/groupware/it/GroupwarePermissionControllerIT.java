@@ -67,7 +67,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /** SP-D6-2 groupware-service @RequirePermission slice 테스트. */
 @WebMvcTest(
         controllers = GroupwareAdminController.class,
-        properties = "spring.application.name=groupware-service")
+        properties = {
+                "spring.application.name=groupware-service",
+                "samhan.security.department.enabled=true"
+        })
 @Import({
         GroupwarePermissionControllerIT.TestSecurityConfig.class,
         GroupwarePermissionControllerIT.TestMeterConfig.class,

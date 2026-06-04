@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
@@ -69,6 +70,7 @@ public class InternalSecurityAutoConfiguration {
      * <p>{@link HrAuthorizationHelper} 동일 bean 을 주입하므로 SpEL 전후 부서 판정이 동일하다.
      */
     @Bean
+    @ConditionalOnProperty(name = "samhan.security.department.enabled", havingValue = "true")
     @ConditionalOnMissingBean
     public DepartmentAspect departmentAspect(
             HrAuthorizationHelper hrAuthorizationHelper,
