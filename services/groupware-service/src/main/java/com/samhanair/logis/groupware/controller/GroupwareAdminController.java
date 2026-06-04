@@ -11,8 +11,10 @@ import com.samhanair.logis.groupware.dto.ScheduleResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
 import com.samhanair.logis.groupware.service.MessageService;
 import com.samhanair.logis.groupware.service.ScheduleService;
-import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -24,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 결재선 / 메신저 / 일정 admin endpoint. 인증 = X-User-* 헤더 (gateway 경유) +
- * {@code @PreAuthorize} 권한 가드 (MASTER / MANAGER 등).
+ * {@code @RequireDepartment} / {@code @RequirePermission} 권한 가드.
  */
 @RestController
 @RequestMapping("/admin/groupware")
@@ -59,7 +60,7 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청자 / 결재자 미존재")
     })
     @PostMapping("/approvals")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "messenger.admin", action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ApprovalLineAdminResponse>> createApproval(
             @Valid @RequestBody ApprovalLineCreateRequest req) {
@@ -71,7 +72,7 @@ public class GroupwareAdminController {
     /** 결재 승인. */
     @Operation(summary = "결재 승인")
     @PutMapping("/approvals/{approvalId}/approve")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "messenger.admin", action = PermissionAction.UPDATE)
     public ApiResponse<ApprovalLineAdminResponse> approve(@PathVariable UUID approvalId,
                                                           @Valid @RequestBody ApprovalDecisionRequest req) {
@@ -82,7 +83,7 @@ public class GroupwareAdminController {
     /** 결재 반려. */
     @Operation(summary = "결재 반려")
     @PutMapping("/approvals/{approvalId}/reject")
-    @PreAuthorize("@hr.isExecutiveOffice()")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "messenger.admin", action = PermissionAction.UPDATE)
     public ApiResponse<ApprovalLineAdminResponse> reject(@PathVariable UUID approvalId,
                                                          @Valid @RequestBody ApprovalDecisionRequest req) {

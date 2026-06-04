@@ -2,37 +2,44 @@ package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.samhanair.logis.groupware.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.groupware.controller.GroupwareAdminController;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.domain.Schedule;
+import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
+import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
 import com.samhanair.logis.groupware.service.MessageService;
 import com.samhanair.logis.groupware.service.ScheduleService;
 import com.samhanair.logis.security.HrAuthorizationHelper;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,32 +56,39 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.test.web.client.ExpectedCount;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.client.RestClient;
 
 /** SP-D6-2 groupware-service @RequirePermission slice 테스트. */
 @WebMvcTest(
         controllers = GroupwareAdminController.class,
         properties = "spring.application.name=groupware-service")
 @Import({
-        PermissionSecurityAutoConfiguration.class,
         GroupwarePermissionControllerIT.TestSecurityConfig.class,
-        GroupwarePermissionControllerIT.TestMeterConfig.class
+        GroupwarePermissionControllerIT.TestMeterConfig.class,
+        GroupwarePermissionControllerIT.TestPermissionClientConfig.class,
+        PermissionSecurityAutoConfiguration.class,
+        InternalSecurityAutoConfiguration.class
 })
 class GroupwarePermissionControllerIT {
 
     private static final String SERVICE_NAME = "groupware-service";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
+    private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final String ADMIN_PAGE = "messenger.admin";
     private static final String SEND_PAGE = "messenger.send";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private MeterRegistry meterRegistry;
+    @Autowired private MockRestServiceServer permissionServer;
 
-    @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ApprovalLineService approvalLineService;
     @MockBean private MessageService messageService;
     @MockBean private ScheduleService scheduleService;
@@ -82,10 +96,7 @@ class GroupwarePermissionControllerIT {
 
     @BeforeEach
     void setUp() {
-        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
-        lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
-                .thenReturn(true);
+        permissionServer.reset();
 
         ApprovalLine approval = ApprovalLine.open(UUID.randomUUID(), "SP-D6-2 결재", "테스트");
         approval.appendStep(UUID.randomUUID());
@@ -111,21 +122,70 @@ class GroupwarePermissionControllerIT {
     @ParameterizedTest(name = "{0} grant -> 2xx")
     @MethodSource("endpoints")
     void migratedEndpoint_withGrant_returns2xx(EndpointCase endpoint) throws Exception {
+        stubPermission(endpoint, true, ExpectedCount.once());
+
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().is2xxSuccessful());
+        permissionServer.verify();
     }
 
     @ParameterizedTest(name = "{0} deny -> 403 + counter")
     @MethodSource("endpoints")
     void migratedEndpoint_withoutGrant_returns403AndIncrementsCounter(EndpointCase endpoint) throws Exception {
-        when(dynamicPermissionClient.check(any(UUID.class), eq(endpoint.page()), eq(endpoint.action())))
-                .thenReturn(false);
+        stubPermission(endpoint, false, ExpectedCount.once());
         double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().isForbidden());
 
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+        permissionServer.verify();
+    }
+
+    @ParameterizedTest(name = "{0} executive office + grant -> 2xx")
+    @MethodSource("approvalEndpoints")
+    void approvalEndpoint_executiveOfficeWithMessengerAdminGrant_returns2xx(EndpointCase endpoint) throws Exception {
+        stubPermission(endpoint, true, ExpectedCount.once());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().is2xxSuccessful());
+        permissionServer.verify();
+    }
+
+    @ParameterizedTest(name = "{0} non-executive + grant -> 403")
+    @MethodSource("approvalEndpoints")
+    void approvalEndpoint_nonExecutiveOfficeWithMessengerAdminGrant_returns403(EndpointCase endpoint) throws Exception {
+        stubPermission(endpoint, true, ExpectedCount.between(0, 1));
+        double permissionBefore = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+        double departmentBefore = departmentDeniedCount(endpoint.role());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), "영업1팀"))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name()))
+                .isEqualTo(permissionBefore);
+        assertThat(departmentDeniedCount(endpoint.role())).isEqualTo(departmentBefore + 1.0);
+        permissionServer.verify();
+    }
+
+    @ParameterizedTest(name = "{0} executive office + no grant -> 403")
+    @MethodSource("approvalEndpoints")
+    void approvalEndpoint_executiveOfficeWithoutMessengerAdminGrant_returns403(EndpointCase endpoint) throws Exception {
+        stubPermission(endpoint, false, ExpectedCount.once());
+        double before = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role(), HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name())).isEqualTo(before + 1.0);
+        permissionServer.verify();
+    }
+
+    @Test
+    void approvalEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
+        assertDepartmentGate("createApproval", ApprovalLineCreateRequest.class);
+        assertDepartmentGate("approve", UUID.class, ApprovalDecisionRequest.class);
+        assertDepartmentGate("reject", UUID.class, ApprovalDecisionRequest.class);
     }
 
     static Stream<EndpointCase> endpoints() {
@@ -176,6 +236,12 @@ class GroupwarePermissionControllerIT {
         );
     }
 
+    static Stream<EndpointCase> approvalEndpoints() {
+        return endpoints().filter(endpoint -> ADMIN_PAGE.equals(endpoint.page())
+                && (endpoint.action() == PermissionAction.CREATE || endpoint.action() == PermissionAction.UPDATE)
+                && endpoint.name().contains("approval"));
+    }
+
     private static String scheduleBody() {
         return """
                 {"ownerId":"00000000-0000-0000-0000-000000000031","title":"일정","description":"본문","startsAt":"2026-05-26T09:00:00","endsAt":"2026-05-26T10:00:00","status":null,"participantIds":[]}
@@ -183,9 +249,17 @@ class GroupwarePermissionControllerIT {
     }
 
     private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
+        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department) {
         return request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                .header(ROLE_HEADER, role);
+                .header(ROLE_HEADER, role)
+                .header(DEPARTMENT_HEADER, department);
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -196,6 +270,33 @@ class GroupwarePermissionControllerIT {
                 "role", role,
                 "action", action
         ).count();
+    }
+
+    private double departmentDeniedCount(String role) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", "department",
+                "role", role,
+                "action", Department.EXECUTIVE_OFFICE.name()
+        ).count();
+    }
+
+    private void stubPermission(EndpointCase endpoint, boolean allowed, ExpectedCount expectedCount) {
+        permissionServer.expect(expectedCount, requestTo(containsString("/auth/internal/permissions/check")))
+                .andExpect(queryParam("pageCode", endpoint.page()))
+                .andExpect(queryParam("action", endpoint.action().name()))
+                .andRespond(withSuccess(
+                        "{\"success\":true,\"data\":{\"allowed\":" + allowed + "}}",
+                        MediaType.APPLICATION_JSON));
+    }
+
+    private void assertDepartmentGate(String name, Class<?>... parameterTypes) throws Exception {
+        Method method = GroupwareAdminController.class.getMethod(name, parameterTypes);
+        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
+        assertThat(requireDepartment).isNotNull();
+        assertThat(requireDepartment.value()).isEqualTo(Department.EXECUTIVE_OFFICE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
     }
 
     record EndpointCase(
@@ -237,6 +338,22 @@ class GroupwarePermissionControllerIT {
         @Bean
         MeterRegistry meterRegistry() {
             return new SimpleMeterRegistry();
+        }
+    }
+
+    @TestConfiguration
+    static class TestPermissionClientConfig {
+
+        @Bean
+        RestClient.Builder loadBalancedRestClientBuilder() {
+            return RestClient.builder();
+        }
+
+        @Bean
+        MockRestServiceServer permissionServer(RestClient.Builder loadBalancedRestClientBuilder) {
+            return MockRestServiceServer.bindTo(loadBalancedRestClientBuilder)
+                    .ignoreExpectOrder(true)
+                    .build();
         }
     }
 }

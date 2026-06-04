@@ -1,9 +1,14 @@
 package com.samhanair.logis.security;
 
+import com.samhanair.logis.security.department.DepartmentAspect;
+import com.samhanair.logis.security.permission.PermissionGuardMetrics;
+import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
@@ -24,7 +29,7 @@ import org.springframework.core.env.Environment;
  * <p>{@code @ConditionalOnClass(OncePerRequestFilter.class)} — Spring Security web starter 미적용 service 는
  * 자동 무시.
  */
-@AutoConfiguration
+@AutoConfiguration(after = PermissionSecurityAutoConfiguration.class)
 @ConditionalOnClass(name = "org.springframework.web.filter.OncePerRequestFilter")
 @EnableConfigurationProperties(InternalAuthProperties.class)
 public class InternalSecurityAutoConfiguration {
@@ -56,5 +61,20 @@ public class InternalSecurityAutoConfiguration {
     @ConditionalOnMissingBean(name = "hr")
     public HrAuthorizationHelper hrAuthorizationHelper() {
         return new HrAuthorizationHelper();
+    }
+
+    /**
+     * M1 부서 게이트 AOP — 기존 {@code @PreAuthorize("@hr.isExecutiveOffice()")} 제거용.
+     *
+     * <p>{@link HrAuthorizationHelper} 동일 bean 을 주입하므로 SpEL 전후 부서 판정이 동일하다.
+     */
+    @Bean
+    @ConditionalOnBean(PermissionGuardMetrics.class)
+    @ConditionalOnMissingBean
+    public DepartmentAspect departmentAspect(
+            HrAuthorizationHelper hrAuthorizationHelper,
+            PermissionGuardMetrics metrics,
+            @Value("${spring.application.name:unknown}") String applicationName) {
+        return new DepartmentAspect(hrAuthorizationHelper, metrics, applicationName);
     }
 }
