@@ -210,3 +210,14 @@ Cycle 2 linter 자동 fix 시 `PAGE_LABEL` 이 BE dot-separated PageCode 체계�
 5. **dirty state**: 저장 전 로컬 상태 — 서버 데이터 비교로 감지, `#FFFBEB` 배경 + `3px solid #F59E0B` 좌측 마커
 6. **저장 버튼**: dirty 0개 → disabled, 1개 이상 → brand-500 활성
 7. **접근성**: sticky `<th scope="col/row">` + native checkbox + `role="status"` 변경 카운트 live region + `role="alert"` 저장 결과 토스트
+
+---
+
+## 9. 3-A2-⑤ account-select 스펙 재작성 결정 (2026-06-04, PR #380)
+
+> UI 가 §8 의 role×page grid → **account-select(계정별 7액션×페이지)** 로 재설계되어 sp-d1 스펙 전면 재작성. 잔여 격리 마지막 1건 해소 → 3-A2 기능 격리 0.
+
+- **D-3A2-D1-01**: sp-d1 = account-select 모델로 6 TC 전면 재작성(role-grid 84-checkbox 가정 폐기). 프로덕션 src 무변경(스펙 + testIgnore 만).
+- **D-3A2-D1-02**: TC 분류 — T1/T2 재작성·T3/T6 거동 갱신·T4 음성/양성 end-to-end·T5 실 react-router 거동. verify-then-fix.
+- **D-3A2-D1-03**: 검증 = 게이트 green + CI(skipped=0), **Docker 실 QA 불요**(브라우저 in-process mock, 런타임 미관여).
+- **D-3A2-D1-04**: 시나리오 주입 = `?mockRole`/`?mockPerms=base64(JSON)` 해시쿼리만(3-A2-③ 패턴). **`page.route` 금지** — VITE_MOCK_MODE in-process axios mock adapter 에 가려 무력(dual 리뷰 cycle1 P0 적발). T4 는 RoleGuard 허용 role(WAREHOUSE)로 "사이드바 토글 + 실제 route 접근"을 동시 검증(cycle2 P1: "보이지만 접근 불가" false-green 회피).

@@ -4,6 +4,16 @@
 
 ---
 
+## 🧭 2026-06-04 (후속 세션) — sp-d1 재게이트 → **3-A2 기능 격리 0**
+
+> 🚨 세션 시작 즉시 `git fetch origin` + `git log origin/main` 먼저([[feedback_agent_origin_main_sync]]). 본 후속 세션은 stale 핸드오프(#345 기준)를 믿고 "잔여 16스펙 로드맵"을 설계·구현하다 push 직전 fetch 로 마라톤(#367~379)이 15건을 이미 재게이트했음을 적발, 브랜치 폐기·origin/main 재출발했다.
+
+- **PR #380 (진행 중)** `chore/sp-d1-dynamic-rbac-recon` — **잔여 격리 마지막 1건 sp-d1** account-select UI 재작성. dual 5-agent 사이클 N=2 수렴: P0(VITE_MOCK_MODE 에서 `page.route` 무력 → `?mockRole`/`?mockPerms` 주입 전환) / P1 T4("보이지만 접근불가" → WAREHOUSE end-to-end 클릭→route 검증) / P1 T3(재조회 정직화) / P2(죽은 단언·waitForTimeout 제거). **6 passed/skip 0, 프로덕션 src 무변경.** CI green 후 PM 자동 머지. dev-report `sp-d1-dynamic-rbac-account-select-regate.md`, DECISIONS D-3A2-D1-01~04.
+- 머지 시 **3-A2 기능 스펙 격리 = 0**. testIgnore 잔여 = opt-out 만(`manual`/`full-qa`/`audit`/`*-real-qa`/`phase-2-4-real-qa`/`full-menu-contract`).
+- **다음 후보**: ① 시리얼 S3 출고연동([[project_serial_inventory_model]]) ② admin-hr 부서 route-게이팅 구현(`slice-3a2-4-rbac-regate.md` §4 후속) ③ 3-DB reseed 후 비-0 재고 실 QA 재캡처.
+
+---
+
 ## 🏁 2026-06-04 연속 세션 (PM 전권 위임 자율 진행) — B/C triage 거의 완결, 잔여 = sp-d1 1건
 
 ### ✅ 이번 세션 머지 6건 (전부 main green, PM 자율 머지)
