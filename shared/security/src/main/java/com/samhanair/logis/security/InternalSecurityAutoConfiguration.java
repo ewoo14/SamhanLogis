@@ -3,12 +3,12 @@ package com.samhanair.logis.security;
 import com.samhanair.logis.security.department.DepartmentAspect;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
@@ -69,12 +69,11 @@ public class InternalSecurityAutoConfiguration {
      * <p>{@link HrAuthorizationHelper} 동일 bean 을 주입하므로 SpEL 전후 부서 판정이 동일하다.
      */
     @Bean
-    @ConditionalOnBean(PermissionGuardMetrics.class)
     @ConditionalOnMissingBean
     public DepartmentAspect departmentAspect(
             HrAuthorizationHelper hrAuthorizationHelper,
-            PermissionGuardMetrics metrics,
+            ObjectProvider<PermissionGuardMetrics> metricsProvider,
             @Value("${spring.application.name:unknown}") String applicationName) {
-        return new DepartmentAspect(hrAuthorizationHelper, metrics, applicationName);
+        return new DepartmentAspect(hrAuthorizationHelper, metricsProvider.getIfAvailable(), applicationName);
     }
 }

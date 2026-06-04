@@ -71,6 +71,25 @@ class DepartmentAspectTest {
         assertThat(deniedCount("MANAGER")).isEqualTo(1.0);
     }
 
+    @Test
+    void classLevelRequireDepartmentUsesWithinPointcutAndTargetClassFallback() {
+        ClassLevelProtectedTarget classLevelProxy = createProxy(new ClassLevelProtectedTarget(), new DepartmentAspect(
+                hr,
+                new PermissionGuardMetrics(meterRegistry),
+                SERVICE_NAME));
+        attachRole("MANAGER");
+        given(hr.isExecutiveOffice()).willReturn(false);
+
+        assertThatThrownBy(classLevelProxy::createApproval)
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("department=EXECUTIVE_OFFICE");
+
+        given(hr.isExecutiveOffice()).willReturn(true);
+
+        assertThat(classLevelProxy.createApproval()).isEqualTo("class-ok");
+        assertThat(deniedCount("MANAGER")).isEqualTo(1.0);
+    }
+
     private void attachRole(String role) {
         MockHttpServletRequest req = new MockHttpServletRequest();
         req.addHeader("X-User-Role", role);
@@ -88,7 +107,11 @@ class DepartmentAspectTest {
     }
 
     private TestProtectedTarget createProxy(DepartmentAspect aspect) {
-        AspectJProxyFactory factory = new AspectJProxyFactory(new TestProtectedTarget());
+        return createProxy(new TestProtectedTarget(), aspect);
+    }
+
+    private <T> T createProxy(T target, DepartmentAspect aspect) {
+        AspectJProxyFactory factory = new AspectJProxyFactory(target);
         factory.addAspect(aspect);
         return factory.getProxy();
     }
@@ -99,6 +122,15 @@ class DepartmentAspectTest {
         @RequireDepartment(Department.EXECUTIVE_OFFICE)
         public String createApproval() {
             return "ok";
+        }
+    }
+
+    /** class-level {@link RequireDepartment} 테스트용 타겟. */
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
+    static class ClassLevelProtectedTarget {
+
+        public String createApproval() {
+            return "class-ok";
         }
     }
 }

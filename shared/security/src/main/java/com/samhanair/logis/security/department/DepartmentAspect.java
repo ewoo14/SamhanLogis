@@ -100,7 +100,9 @@ public class DepartmentAspect {
 
     private void deny(Department department, String role) {
         log.debug("[PAM-M1] 부서 deny — service={} department={} role={}", serviceName, department, role);
-        metrics.incrementDenied(serviceName, DEPARTMENT_PAGE, role, department.name());
+        if (metrics != null) {
+            metrics.incrementDenied(serviceName, DEPARTMENT_PAGE, role, department.name());
+        }
         throw new AccessDeniedException(
                 String.format("[PAM-M1] 부서 권한 deny — department=%s role=%s", department, role));
     }
