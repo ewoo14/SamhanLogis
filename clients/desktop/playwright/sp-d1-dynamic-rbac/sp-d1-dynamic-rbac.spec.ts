@@ -14,7 +14,7 @@
  *   T2 임의 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
  *   T3 토글 후 저장 → toast role="alert" "저장" 포함 메시지 표시
  *   T4 SALES 역할 → 사이드바 영수증 OCR 메뉴 표시 (mockPerms 주입)
- *   T5 존재하지 않는 URL → 404 (HashRouter 미매칭 — 회색 disabled 화면 X)
+ *   T5 존재하지 않는 URL (비-admin 경로) → 한국어 404 NotFoundPage (AppLayout catch-all — 회색 disabled 화면 X)
  *   T6 MANAGER 진입 → 403/forbidden 또는 redirect
  *
  * 규칙:
@@ -117,8 +117,16 @@ const PERMISSION_MATRIX_URL_MANAGER = `${BASE_URL}/#/admin/permission-matrix?moc
 /** OCR 영수증 페이지 — SALES (mockPerms 주입으로 OCR 권한 부여) */
 const RECEIPT_OCR_URL_SALES = `${BASE_URL}/#/purchases/receipt-ocr?mockRole=SALES`
 
-/** 존재하지 않는 URL — HashRouter 미매칭 → 404 */
-const NONEXISTENT_URL = `${BASE_URL}/#/admin/nonexistent-page-xyz-404?mockRole=SALES`
+/**
+ * 존재하지 않는 URL — HashRouter 미매칭 → AppLayout children catch-all → 한국어 404.
+ *
+ * 비-admin 최상위 경로를 사용하는 이유:
+ *   `/#/admin/*` 는 AdminLayout(MASTER 전용 RoleGuard + 대표실 부서 가드) 이중가드가 먼저
+ *   동작하여 SALES 진입 시 RoleGuard 차단 화면이 렌더되므로 404 격리 검증 불가.
+ *   `/#/nonexistent-page-xyz-404` 는 AppLayout children 말미 `{ path: '*', element: <NotFoundPage /> }`
+ *   catch-all 로 매칭되어 한국어 404 NotFoundPage 가 렌더된다.
+ */
+const NONEXISTENT_URL = `${BASE_URL}/#/nonexistent-page-xyz-404?mockRole=SALES`
 
 // ---------------------------------------------------------------------------
 // mockPerms 헬퍼 (URL 쿼리 주입용)
@@ -334,7 +342,36 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       ).toBeEnabled()
     })
 
-    // 단언 통과 후 스크린샷: 변경 1건 + dirty 노란 배경 + 저장 활성 상태가 실제로 보이는 시점
+    // 단언 통과 후 — aside 패널(변경건수 배지 + 저장버튼) element 스크린샷.
+    // "변경 1건" + 활성 저장버튼이 명확히 보이는 증빙 (T2 저해상도 오독 회고 보강).
+    // perm-matrix-change-count / perm-matrix-save-btn 의 공통 조상 <aside> 를 직접 캡처.
+    await test.step('aside 패널 element 스크린샷 캡처 (T2 증빙 보강)', async () => {
+      const changeCount = page.locator('[data-testid="perm-matrix-change-count"]')
+      const saveBtn = page.locator('[data-testid="perm-matrix-save-btn"]')
+
+      // 두 요소의 bounding box 를 합산하여 aside 영역 추출
+      const ccBox = await changeCount.boundingBox()
+      const sbBox = await saveBtn.boundingBox()
+
+      if (ccBox && sbBox) {
+        const x = Math.min(ccBox.x, sbBox.x) - 12
+        const y = Math.min(ccBox.y, sbBox.y) - 12
+        const right = Math.max(ccBox.x + ccBox.width, sbBox.x + sbBox.width) + 12
+        const bottom = Math.max(ccBox.y + ccBox.height, sbBox.y + sbBox.height) + 12
+        await page.screenshot({
+          path: path.join(QA_DIR, 'T2-dirty-aside.png'),
+          clip: { x, y, width: right - x, height: bottom - y },
+        })
+      } else {
+        // bounding box 획득 실패 시 fullPage fallback (false-green 아님 — 단언은 이미 통과)
+        await page.screenshot({
+          path: path.join(QA_DIR, 'T2-dirty-aside.png'),
+          fullPage: false,
+        })
+      }
+    })
+
+    // 기존 fullPage T2 캡처 유지 — 전체 컨텍스트 증빙
     await page.screenshot({
       path: path.join(QA_DIR, 'T2-toggle-dirty-save-enabled.png'),
       fullPage: true,
@@ -490,37 +527,64 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T5: 존재하지 않는 URL 직접 진입 → 404 (HashRouter 미매칭)
+   * T5: 존재하지 않는 URL 직접 진입 → 한국어 404 NotFoundPage (HashRouter 미매칭)
    *
-   * 검증 항목 (현행 유지):
-   *   - /#/admin/nonexistent-page-xyz-404 직접 진입
-   *   - HashRouter 미매칭 → React Router 기본 404 error boundary
-   *   - sidebar-disabled-overlay 미표시
+   * 검증 항목:
+   *   - /#/nonexistent-page-xyz-404 직접 진입 (비-admin 경로 — AdminLayout 가드 회피)
+   *   - AppLayout children 말미 catch-all `{ path: '*', element: <NotFoundPage /> }` 매칭
+   *   - `[data-testid="not-found-page"]` toBeVisible strict 단언
+   *   - `[data-testid="not-found-title"]` "페이지를 찾을 수 없습니다" strict 단언
+   *   - 영문 dev 에러 문구 부재 확인: "Unexpected Application Error" 없음
+   *   - sidebar-disabled-overlay 미표시 확인
    *   - pageerror 없음
+   *
+   * URL 선택 근거:
+   *   기존 `/#/admin/nonexistent-page-xyz-404?mockRole=SALES` 는 AdminLayout(MASTER RoleGuard +
+   *   대표실 부서 가드) 이중가드가 먼저 동작하여 SALES 진입 시 RoleGuard 차단 화면이 렌더되므로
+   *   404 격리 검증이 불가능. `/#/nonexistent-page-xyz-404` 는 AppLayout children 경로이므로
+   *   catch-all 이 정확히 동작한다.
    */
-  test('T5: 존재하지 않는 URL → 404 (회색 disabled 화면 아님)', async ({ page }) => {
+  test('T5: 존재하지 않는 URL → 한국어 404 NotFoundPage (회색 disabled 화면 아님)', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    await test.step('존재하지 않는 해시 라우트 직접 진입', async () => {
+    await test.step('비-admin 존재하지 않는 해시 라우트 직접 진입', async () => {
       await page.goto(NONEXISTENT_URL, {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
     })
 
-    await test.step('React Router 기본 404 error boundary 표시 확인 — disabled 화면 아님', async () => {
+    await test.step('[data-testid="not-found-page"] 표시 확인 — 한국어 404 컴포넌트', async () => {
+      const notFoundPage = page.locator('[data-testid="not-found-page"]')
+      await expect(
+        notFoundPage,
+        '[data-testid="not-found-page"] 미표시 — AppLayout catch-all NotFoundPage 렌더 실패',
+      ).toBeVisible({ timeout: 8000 })
+    })
+
+    await test.step('[data-testid="not-found-title"] "페이지를 찾을 수 없습니다" strict 단언', async () => {
+      const notFoundTitle = page.locator('[data-testid="not-found-title"]')
+      await expect(
+        notFoundTitle,
+        '[data-testid="not-found-title"] 미표시',
+      ).toBeVisible({ timeout: 5000 })
+      await expect(
+        notFoundTitle,
+        '[data-testid="not-found-title"] 텍스트가 "페이지를 찾을 수 없습니다" 아님',
+      ).toHaveText('페이지를 찾을 수 없습니다', { timeout: 5000 })
+    })
+
+    await test.step('영문 dev 에러 문구 부재 확인 ("Unexpected Application Error" 없어야 함)', async () => {
       const body = page.locator('body')
       await expect(
         body,
-        '존재하지 않는 URL 진입 시 React Router 기본 error boundary 제목 필요',
-      ).toContainText('Unexpected Application Error', { timeout: 8000 })
-      await expect(
-        body,
-        '존재하지 않는 URL 진입 시 React Router 404 문구 필요',
-      ).toContainText('404 Not Found', { timeout: 8000 })
+        '한국어 404 NotFoundPage 에서 영문 dev 에러 "Unexpected Application Error" 노출됨 — 제거 필요',
+      ).not.toContainText('Unexpected Application Error', { timeout: 3000 })
+    })
 
+    await test.step('sidebar-disabled-overlay 미표시 확인', async () => {
       // sidebar-disabled-overlay 미표시 확인
       const disabledWrapper = page.locator('[data-testid="sidebar-disabled-overlay"]')
       const disabledOverlayVisible = await disabledWrapper.isVisible().catch(() => false)
@@ -531,7 +595,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     })
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'T5-404-no-disabled-overlay.png'),
+      path: path.join(QA_DIR, 'T5-404-korean-not-found-page.png'),
       fullPage: true,
     })
 
