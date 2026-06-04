@@ -4,13 +4,22 @@
 
 ---
 
-## 🧭 2026-06-04 (후속 세션) — sp-d1 재게이트 → **3-A2 기능 격리 0**
+## 🧭 2026-06-04 (후속 세션) — sp-d1 머지 완료 + **신규 이니셔티브: @PreAuthorize 완전제거**
 
-> 🚨 세션 시작 즉시 `git fetch origin` + `git log origin/main` 먼저([[feedback_agent_origin_main_sync]]). 본 후속 세션은 stale 핸드오프(#345 기준)를 믿고 "잔여 16스펙 로드맵"을 설계·구현하다 push 직전 fetch 로 마라톤(#367~379)이 15건을 이미 재게이트했음을 적발, 브랜치 폐기·origin/main 재출발했다.
+> 🚨 세션 시작 즉시 `git fetch origin` + `git log origin/main` 먼저([[feedback_agent_origin_main_sync]]). 본 세션은 stale 핸드오프(#345)를 믿고 두 번(잔여16스펙 로드맵 / 시리얼S3) 완료된 작업을 후보로 착수했다 fetch 로 적발. **마라톤(#347~380)이 3-A2·시리얼 시리즈를 전부 완료**했음. 핸드오프는 항상 stale 가정.
 
-- **PR #380 (진행 중)** `chore/sp-d1-dynamic-rbac-recon` — **잔여 격리 마지막 1건 sp-d1** account-select UI 재작성. dual 5-agent 사이클 N=2 수렴: P0(VITE_MOCK_MODE 에서 `page.route` 무력 → `?mockRole`/`?mockPerms` 주입 전환) / P1 T4("보이지만 접근불가" → WAREHOUSE end-to-end 클릭→route 검증) / P1 T3(재조회 정직화) / P2(죽은 단언·waitForTimeout 제거). **6 passed/skip 0, 프로덕션 src 무변경.** CI green 후 PM 자동 머지. dev-report `sp-d1-dynamic-rbac-account-select-regate.md`, DECISIONS D-3A2-D1-01~04.
-- 머지 시 **3-A2 기능 스펙 격리 = 0**. testIgnore 잔여 = opt-out 만(`manual`/`full-qa`/`audit`/`*-real-qa`/`phase-2-4-real-qa`/`full-menu-contract`).
-- **다음 후보**: ① 시리얼 S3 출고연동([[project_serial_inventory_model]]) ② admin-hr 부서 route-게이팅 구현(`slice-3a2-4-rbac-regate.md` §4 후속) ③ 3-DB reseed 후 비-0 재고 실 QA 재캡처.
+### ✅ sp-d1 머지 완료 (#380 squash `b7b85761`) → 3-A2 기능 스펙 격리 0
+account-select UI 재작성. dual N=2 가 false-green 2차 적발(P0 page.route 무력→mockRole/mockPerms / P1 T4 "보이지만 접근불가"→WAREHOUSE end-to-end / P1 T3 재조회 / P2 죽은단언). 프로덕션 src 무변경. CI 24/24. dev-report `sp-d1-dynamic-rbac-account-select-regate.md`.
+
+### 🆕 신규 이니셔티브 — @PreAuthorize 완전제거 마이그레이션 (개발책임자 선택, 2026-06-04)
+정적 `@PreAuthorize` → 동적 `@RequirePermission` **behavior-preserving 전환**. scope = **전부 전환(129건)**, INTERNAL 2건만 유지(D-PAM-01).
+- **현황**: 잔여 131건 / 13서비스(hasRole/hasAnyRole 73·isAuthenticated 9·커스텀SpEL 27·INTERNAL 2). auth Flyway 최신 V41.
+- **umbrella 설계 박제**: `docs/superpowers/specs/2026-06-04-preauthorize-full-migration-umbrella-design.md`. 브랜치 `feat/preauthorize-full-migration-umbrella`.
+- **decomposition (5 슬라이스, 소→대·저위험→고위험)**:
+  - **M1 (다음, 패턴 확립)**: accounting(1)·partner-order(1)·dashboard(1)·product(2)·dc-config(2)=7. auth seed Vxx + 실 HTTP 회귀 테스트 **템플릿 확립**.
+  - M2 notification(4)·groupware(2) / M3 user(5)·slip(5) / M4 partner(5)·inventory(6) / **M5(최고위험) auth(7)·arologis(5)** — auth self-lockout + cross-tenant 최종.
+- **🚨 핵심 원칙**: behavior-preserving(role 집합 불변) + **실 HTTP 회귀 테스트 의무**([[feedback_enforcement_real_http_test]] #316 회고 — @MockBean false-green 금지) + MASTER 전용도 명시 page-code(bypass 비의존) + auth seed 선배포. dual N=2 BE cross-check 가 lockout 단독 적발.
+- **왜 체크포인트**: 129 endpoint·lockout 위험 마이그레이션은 #316 교훈상 BE 정밀 리뷰 필수 → 신선한 컨텍스트에서 M1 착수 권장.
 
 ---
 
