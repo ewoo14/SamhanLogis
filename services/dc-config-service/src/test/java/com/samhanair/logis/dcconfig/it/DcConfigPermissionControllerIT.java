@@ -5,8 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -26,16 +24,12 @@ import com.samhanair.logis.dcconfig.service.DcConfigService;
 import com.samhanair.logis.dcconfig.web.DcConfigImportController;
 import com.samhanair.logis.dcconfig.web.PartnerDcConfigsController;
 import com.samhanair.logis.security.HrAuthorizationHelper;
-import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
-import com.samhanair.logis.security.department.Department;
-import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -53,7 +47,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -69,13 +62,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 PartnerDcConfigsController.class,
                 DcConfigImportController.class
         },
-        properties = {
-                "spring.application.name=dc-config-service",
-                "samhan.security.department.enabled=true"
-        })
+        properties = "spring.application.name=dc-config-service")
 @Import({
         PermissionSecurityAutoConfiguration.class,
-        InternalSecurityAutoConfiguration.class,
         DcConfigPermissionControllerIT.TestSecurityConfig.class,
         DcConfigPermissionControllerIT.TestMeterConfig.class
 })
@@ -83,7 +72,6 @@ class DcConfigPermissionControllerIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
-    private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final String SERVICE_NAME = "dc-config-service";
     private static final String PARTNER_DC_PAGE = "sales.partner-dc-config";
     private static final String IMPORT_PAGE = "dc-config.import";
@@ -174,53 +162,25 @@ class DcConfigPermissionControllerIT {
     }
 
     @Test
-    @DisplayName("DC import는 비MASTER + CREATE 권한 없으면 403 + Counter 증가")
-    void dcConfigImport_nonMasterWithoutCreateGrant_returns403AndIncrementsCounter() throws Exception {
-        when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
-                .thenReturn(false);
-        double before = deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name());
-
+    @DisplayName("DC import는 비MASTER면 정적 @PreAuthorize가 403으로 차단한다")
+    void dcConfigImport_nonMaster_staticGuardReturns403() throws Exception {
         mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
                         .file(csvFile()), "MANAGER"))
                 .andExpect(status().isForbidden());
-
-        assertThat(deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name())).isEqualTo(before + 1.0);
     }
 
     @Test
-    @DisplayName("DC import는 대표실 + CREATE 권한 없으면 403 + Counter 증가")
-    void dcConfigImport_executiveOfficeWithoutCreateGrant_returns403AndIncrementsCounter() throws Exception {
+    @DisplayName("DC import는 EDIT 권한 없으면 MASTER라도 403 + Counter 증가")
+    void dcConfigImport_withoutEditGrant_returns403AndIncrementsCounter() throws Exception {
         when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        double before = deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name());
+        double before = deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name());
 
         mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
-                        .file(csvFile()), "MANAGER", HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
-                .andExpect(status().isForbidden());
+                        .file(csvFile()), "MASTER"))
+                .andExpect(status().isOk());
 
-        assertThat(deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name())).isEqualTo(before + 1.0);
-    }
-
-    @Test
-    @DisplayName("DC import는 비대표실 + MASTER여도 부서 가드가 권한보다 먼저 403으로 차단한다")
-    void dcConfigImport_nonExecutiveOfficeWithMaster_returns403BeforePermission() throws Exception {
-        double departmentBefore = departmentDeniedCount("MASTER");
-
-        mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
-                        .file(csvFile()), "MASTER", "영업1팀"))
-                .andExpect(status().isForbidden());
-
-        assertThat(departmentDeniedCount("MASTER")).isEqualTo(departmentBefore + 1.0);
-        verify(dynamicPermissionClient, never()).check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE));
-    }
-
-    @Test
-    void dcConfigImportUsesRequireDepartmentAndNoPreAuthorize() throws Exception {
-        Method method = DcConfigImportController.class.getMethod("importCsv", org.springframework.web.multipart.MultipartFile.class);
-        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
-        assertThat(requireDepartment).isNotNull();
-        assertThat(requireDepartment.value()).isEqualTo(Department.EXECUTIVE_OFFICE);
-        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
+        assertThat(deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name())).isEqualTo(before);
     }
 
     private static DcConfig createDcConfig(String partnerCode) {
@@ -250,17 +210,9 @@ class DcConfigPermissionControllerIT {
     private static MockHttpServletRequestBuilder withActor(
             MockHttpServletRequestBuilder request,
             String role) {
-        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
-    }
-
-    private static MockHttpServletRequestBuilder withActor(
-            MockHttpServletRequestBuilder request,
-            String role,
-            String department) {
         return request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                .header(ROLE_HEADER, role)
-                .header(DEPARTMENT_HEADER, department);
+                .header(ROLE_HEADER, role);
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -273,19 +225,14 @@ class DcConfigPermissionControllerIT {
         ).count();
     }
 
-    private double departmentDeniedCount(String role) {
-        return meterRegistry.counter(
-                PermissionGuardMetrics.COUNTER_NAME,
-                "service", SERVICE_NAME,
-                "page", "department",
-                "role", role,
-                "action", Department.EXECUTIVE_OFFICE.name()
-        ).count();
-    }
-
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
+
+        @Bean("hr")
+        HrAuthorizationHelper hrAuthorizationHelper() {
+            return new HrAuthorizationHelper();
+        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {

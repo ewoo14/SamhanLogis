@@ -5,15 +5,14 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dcconfig.dto.DcConfigImportResult;
 import com.samhanair.logis.dcconfig.service.DcConfigImportService;
-import com.samhanair.logis.security.department.Department;
-import com.samhanair.logis.security.department.RequireDepartment;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,7 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>접근 제어:
  * <ul>
- *   <li>대표실 부서 + {@code dc-config.import} CREATE 권한 보유자만 호출 가능</li>
+ *   <li>{@code MASTER} role 만 호출 가능 ({@code @PreAuthorize})</li>
  *   <li>Gateway 가 주입한 {@code X-User-Role} 헤더를 {@code HeaderAuthenticationFilter} 가 신뢰</li>
  * </ul>
  *
@@ -54,7 +53,7 @@ public class DcConfigImportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 누락"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "MASTER role 부재")
     })
-    @RequireDepartment(Department.EXECUTIVE_OFFICE)
+    @PreAuthorize("@hr.isExecutiveOffice() and hasRole('MASTER')")
     @RequirePermission(page = "dc-config.import", action = PermissionAction.CREATE)
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DcConfigImportResult> importCsv(@RequestParam("file") MultipartFile file) {
