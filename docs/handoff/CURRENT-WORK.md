@@ -17,11 +17,12 @@ account-select UI 재작성. dual N=2 가 false-green 2차 적발(P0 page.route 
 - **✅ M1 머지 (#382 squash `6dd534ba`)**: `@RequireDepartment(EXECUTIVE_OFFICE)` 인프라(shared:security, `HrAuthorizationHelper` 동일 빈→판정 동일, fail-closed, **opt-in**) + groupware 결재선 3 endpoint 전환. M1 설계 `docs/superpowers/specs/2026-06-04-preauth-m1-require-department-design.md`, dev-report 없음(미작성 — 후속).
   - **🚨 DepartmentAspect 는 opt-in 필수**: `@ConditionalOnProperty(samhan.security.department.enabled=true)`. @RequireDepartment 쓰는 서비스만 main `application.yml`+IT properties 에 `enabled: true`. **미적용 시 빈 존재만으로 무관 서비스(accounting) CI 회귀**(로컬 무재현·CI 결정적). pointcut 은 `@annotation` 단독(@within 금지).
   - CI 디버깅이 정적 dual리뷰 통과 후 실 결함 3건 적발(hr 빈 중복·@WebMvcTest 실HTTP 0-request·빈격리 회귀) → [[feedback_preauth_migration_lessons]] §3.
-- **decomposition 잔여 (M1 이후)**:
-  - **M-dept (부서게이트 24건)**: 나머지 `@hr.isExecutiveOffice()` → `@RequireDepartment` (dc-config import·user·partner·inventory 등). **M1 opt-in 인프라 재사용**(각 서비스 enabled=true).
-  - **role 전환 ~35건**: 순수 role `@PreAuthorize` → `@RequirePermission`(대부분 이미 @RequirePermission 병행=중복 @PreAuthorize 제거, 일부 신규 page-code+auth seed). 서비스별 슬라이스.
+- **✅ M-dept 머지 (#384 squash `824c0478`)**: 순수 부서게이트 **20건** → `@RequireDepartment` (user 8·partner 6·inventory 6). 4서비스 opt-in. IT 실 HTTP 매트릭스(비대표실+grant→403 부서deny). dual N=2: Claude behavior-preserving PASS + **Codex P1 적발→dc-config descope**. 실행 검증이 IT hr 빈 중복(M1 동일) 적발·수정. 설계 `docs/superpowers/specs/2026-06-04-preauth-mdept-department-gates-design.md`.
+- **decomposition 잔여 (M1+M-dept 이후)**:
+  - **dc-config import (1, descope됨)**: 복합 `@hr.isExecutiveOffice() and hasRole('MASTER')` — 하드 MASTER 드롭이 런타임 grant 시 이론적 widening(Codex P1) → **role 전환 슬라이스에서** MASTER→page-code 정책 명시 처리하며 함께 전환.
+  - **role 전환 ~35건 (다음 권장)**: 순수 role `@PreAuthorize(hasRole/hasAnyRole)` → `@RequirePermission`. **대부분 이미 @RequirePermission 병행 = 중복 @PreAuthorize 제거**(behavior-preserving: 권한 page 가 동일 role 집합 grant 인지 seed 교차 확인). 일부 MASTER 전용은 명시 page-code(D-PAM-02). dc-config 복합 포함. 서비스별 슬라이스. **🚨 role-only @PreAuthorize 제거 시 behavior-preserving = 권한 seed 가 동일 role 집합인지 검증 필수**(아니면 widening).
   - INTERNAL 컨트롤러 34건: 유지(선택적으로 hasRole('MASTER')→hasRole('INTERNAL') 별도 정리).
-- **다음 = M-dept 또는 role 전환** (개발책임자 선택). behavior-preserving + **실 실행 검증 의무**(정적 리뷰 APPROVE ≠ 통과).
+- **다음 = role 전환 슬라이스** (개발책임자 선택). behavior-preserving + **실 실행 검증 의무**(정적 리뷰 APPROVE ≠ 통과 — M1/M-dept 모두 실행이 IT 결함 적발). 매 시작 `git fetch origin` 선행.
 
 ---
 
