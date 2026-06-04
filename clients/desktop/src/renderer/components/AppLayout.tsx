@@ -1217,7 +1217,7 @@ export function AppLayout() {
                 show={showPermissionAdmin}
                 data-testid="sidebar-hr-permission-matrix"
               >
-                권한 매트릭스
+                권한설정
               </SidebarLink>
               <SidebarLink
                 to="/admin/permission-matrix/bulk"

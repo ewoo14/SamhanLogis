@@ -712,16 +712,16 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       ).toBe(true)
     })
 
-    await test.step('SALES — 권한 매트릭스 콘텐츠 미표시 확인 (admin.users 차단)', async () => {
+    await test.step('SALES — 권한설정 콘텐츠 미표시 확인 (admin.users 차단)', async () => {
       const bodyText = (await page.textContent('body')) ?? ''
       const adminUsersPageLoaded =
-        bodyText.includes('권한 매트릭스') ||
+        bodyText.includes('권한설정') ||
         bodyText.includes('PermissionMatrix') ||
         bodyText.includes('admin.users')
 
       expect(
         adminUsersPageLoaded,
-        '차단된 /admin/permission-matrix 페이지 콘텐츠가 표시됨 — 권한 매트릭스 텍스트 미표시 필요.',
+        '차단된 /admin/permission-matrix 페이지 콘텐츠가 표시됨 — 권한설정 텍스트 미표시 필요.',
       ).toBe(false)
     })
 

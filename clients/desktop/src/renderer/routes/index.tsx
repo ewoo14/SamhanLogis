@@ -312,7 +312,7 @@ import { ForbiddenPage } from './ForbiddenPage'
 // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*` (Phase A spec § 6).
 import DispatchBoardPage from './dispatch-board/DispatchBoardPage'
 const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
-// [SP-D1] 동적 RBAC 권한 매트릭스 관리 화면 — MASTER 전용.
+// [SP-D1] 동적 RBAC 권한설정 화면 — MASTER 전용.
 import { PermissionMatrixPage } from './PermissionMatrixPage'
 import { PermissionMatrixBulkPage } from './PermissionMatrixBulkPage'
 const PERMISSION_MATRIX_ROLES = ['MASTER'] as const
@@ -1486,7 +1486,7 @@ const router = createHashRouter([
         ],
       },
 
-      // [SP-D1] 권한 매트릭스 관리 — MASTER 전용.
+      // [SP-D1] 권한설정 — MASTER 전용.
       // AdminLayout (대표실 부서 이중 가드) 외부에 단독 라우트로 배치.
       // 접근 시도 시 MASTER 가 아니면 홈 redirect.
       // [SP-D6-1] system.permission-admin 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
