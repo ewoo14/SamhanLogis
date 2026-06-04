@@ -365,6 +365,12 @@ class InventoryPermissionControllerIT {
                         .header(USER_ID_HEADER, ID.toString())
                         .header(ROLE_HEADER, "WAREHOUSE"))
                 .andExpect(status().isForbidden());
+
+        // @PreAuthorize 가 @RequirePermission AOP 보다 먼저 차단했음을 실증:
+        // 차단이 @PreAuthorize 에서 났다면 PermissionAspect 의 check() 는 호출되지 않는다.
+        // (이 verify 가 없으면 403 이 다른 사유(인증 실패 등)로 나도 통과 = false-green.)
+        verify(dynamicPermissionClient, never())
+                .check(any(java.util.UUID.class), anyString(), any(PermissionAction.class));
     }
 
     static Stream<EndpointCase> endpoints() {
