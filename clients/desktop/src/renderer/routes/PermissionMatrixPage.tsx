@@ -2,23 +2,33 @@
  * 권한설정 화면 — SP-D1 슬라이스.
  *
  * MASTER 전용 (`/admin/permission-matrix`).
- * 역할(행) × 페이지(열) 체크박스 그리드로 권한을 시각적으로 관리.
+ * 계정 선택 후 해당 계정의 페이지 × 권한 액션 매트릭스를 관리한다.
+ * 행은 PAGE_GROUPS/PAGES_ORDER 전체 페이지 코드이며, 열은 PERMISSION_ACTIONS
+ * 7개(view/create/update/delete/restore/download/print)이다.
+ * 서버 응답에 없는 페이지도 accountMatrixToState 에서 false 기본값으로 채워 렌더한다.
  *
  * 기능:
- * - 역할 × 페이지 코드 매트릭스 (view / edit 체크박스 2개)
+ * - account-select 로 계정 선택 (첫 계정 자동 선택)
+ * - 페이지 코드 × PERMISSION_ACTIONS 7액션 체크박스 매트릭스
  * - 셀 변경 시 dirty 상태 강조 (노란 배경)
- * - "저장" 버튼 → 변경된 셀만 batch update API 호출 + toast
- * - "초기화" 버튼 → 서버 데이터로 롤백 (dirty 취소)
- * - 카테고리 그룹 헤더 행: 회계/매입·매출·배차·알림/관리(SP-D1~D3) +
- *   견적/거래처주문/재고/직원·계정/거래처/상품/아로로지스(SP-D4) 총 13 그룹
+ * - "저장" 버튼 → 변경된 page/action 만 계정 권한 update API 호출 + toast
+ * - "초기화" 버튼 → 선택 계정의 서버 데이터로 롤백 (dirty 취소)
+ * - 역할 템플릿 적용 / 다른 계정에서 복사 / 도메인·행·열 일괄 토글
+ * - 카테고리 그룹 헤더 행: 회계/매입/매출/전표 운영/배차/알림/메신저/관리/시스템 관리 +
+ *   견적/거래처주문/재고/직원·계정/거래처/상품/아로로지스 총 16 그룹
  *
- * data-testid (account-select 설계 기준 — role-grid 구설계 잔재 정리):
+ * data-testid:
  * - permission-matrix-table                        — 매트릭스 표 wrapper
  * - perm-matrix-account-select                     — 계정 선택 select
  * - perm-matrix-cell-{pageNorm}-{action}           — 개별 셀 체크박스 (pageCode 를 '.' → '-' normalize)
- * - perm-matrix-save-btn                           — 저장 버튼 (dirtyKeys.size===0 이면 disabled)
- * - (초기화/취소 버튼은 data-testid 미부여)
+ * - perm-matrix-row-all-{pageNorm}                 — 페이지 행 7액션 일괄 토글 버튼
+ * - perm-matrix-col-all-{action}                   — 액션 열 전체 토글 버튼
+ * - perm-matrix-domain-all-{domainId}              — 도메인 그룹 전체 ON 버튼
+ * - perm-matrix-domain-all-{domainId}-off          — 도메인 그룹 전체 OFF 버튼
+ * - perm-matrix-apply-template                     — 역할 템플릿 적용 버튼
+ * - perm-matrix-copy-account                       — 다른 계정 권한 복사 버튼
  * - perm-matrix-change-count                       — 변경 건수 배지 role="status"
+ * - perm-matrix-save-btn                           — 저장 버튼 (dirtyKeys.size===0 이면 disabled)
  * - sidebar-purchases-receipt-ocr (AppLayout)      — 영수증 OCR 사이드바 링크 (SP-D1 동적 권한 연동)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react'

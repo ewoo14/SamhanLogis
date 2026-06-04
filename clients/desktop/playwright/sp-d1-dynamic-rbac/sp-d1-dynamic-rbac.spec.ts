@@ -10,7 +10,7 @@
  * 스크린샷 저장: docs/qa/sp-d1-dynamic-rbac/screenshots/*.png
  *
  * TC 목록 (6건):
- *   T1 권한 매트릭스 진입(MASTER) → account-select 옵션 ≥3개 + permission-matrix-table 표시 + 셀 다수 렌더
+ *   T1 권한 매트릭스 진입(MASTER) → account-select 옵션 ≥3개 + permission-matrix-table 표시 + 셀 대량 렌더 + 대표 PageCode 셀 표시
  *   T2 임의 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
  *   T3 토글 후 저장 → toast role="alert" "저장" 포함 메시지 표시
  *   T4 SALES 역할 → 사이드바 영수증 OCR 메뉴 표시 (mockPerms 주입)
@@ -152,18 +152,19 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T1: 권한 매트릭스 진입(MASTER) → account-select 옵션 ≥3개 + permission-matrix-table 표시 + 셀 다수 렌더
+   * T1: 권한 매트릭스 진입(MASTER) → account-select 옵션 ≥3개 + permission-matrix-table 표시 + 셀 대량 렌더 + 대표 PageCode 셀 표시
    *
    * 검증 항목 (신 UI — account-select 기반):
    *   - perm-matrix-account-select <select> 표시
    *   - 옵션 개수 ≥3 (mock 3계정: 김관리/이영업/박배차)
    *   - permission-matrix-table 표시
-   *   - perm-matrix-cell-{pageNorm}-{action} 셀 체크박스 ≥10개 렌더
+   *   - perm-matrix-cell-{pageNorm}-{action} 셀 체크박스 ≥700개 렌더
+   *   - 회계/매입/매출/재고/아로로지스 대표 PageCode 셀 직접 표시
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock (VITE_MOCK_MODE=1) 직접 반환.
    */
-  test('T1: 권한 매트릭스 진입 → account-select ≥3옵션 + 매트릭스 테이블 + 셀 ≥50개', async ({ page }) => {
+  test('T1: 권한 매트릭스 진입 → account-select ≥3옵션 + 매트릭스 테이블 + 셀 ≥700개', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -198,9 +199,10 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       ).toBeVisible({ timeout: 8000 })
     })
 
-    await test.step('셀 체크박스 ≥50개 렌더 확인 (실제 SP_D1_PAGES × 7 액션 → ~350개)', async () => {
+    await test.step('셀 체크박스 ≥700개 렌더 확인 (PAGES_ORDER 173 × 7 액션 = 1,211개)', async () => {
       // perm-matrix-cell-{pageNorm}-{action} 형식 (pageNorm = pageCode '.' → '-')
-      // SP_D1_PAGES 개수 × 7 actions = 350개 이상 예상. 임계를 50으로 설정하여 우연 통과 방지.
+      // PAGES_ORDER 173개 × PERMISSION_ACTIONS 7개 = 1,211개 예상.
+      // 임계 700은 도메인 행 대량 누락을 false-green 으로 통과시키지 않는 보수적 하한이다.
       const cellCheckboxes = page.locator('[data-testid^="perm-matrix-cell-"]')
       await expect(
         cellCheckboxes.first(),
@@ -209,8 +211,25 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       const cellCount = await cellCheckboxes.count()
       expect(
         cellCount,
-        `perm-matrix-cell-* 체크박스 ${cellCount}개 — 50개 이상 렌더 필요 (실측 ~350개)`,
-      ).toBeGreaterThanOrEqual(50)
+        `perm-matrix-cell-* 체크박스 ${cellCount}개 — 700개 이상 렌더 필요 (예상 173×7=1,211개)`,
+      ).toBeGreaterThanOrEqual(700)
+    })
+
+    await test.step('대표 PageCode 셀 직접 존재 확인 (서로 다른 도메인)', async () => {
+      const representativeCells = [
+        'perm-matrix-cell-accounting-deposit-match-view',
+        'perm-matrix-cell-purchases-receipt-ocr-view',
+        'perm-matrix-cell-sales-slip-list-view',
+        'perm-matrix-cell-inventory-stock-view',
+        'perm-matrix-cell-arologis-admin-view',
+      ] as const
+
+      for (const testId of representativeCells) {
+        await expect(
+          page.locator(`[data-testid="${testId}"]`),
+          `대표 PageCode 셀 미표시: ${testId}`,
+        ).toBeVisible({ timeout: 5000 })
+      }
     })
 
     await page.screenshot({
@@ -226,8 +245,8 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    * T2: 고정 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
    *
    * 검증 항목:
-   *   - MASTER 계정 선택 후 고정 셀 perm-matrix-cell-purchases-receipt-ocr-view 토글
-   *     (MANAGER 계정의 purchases.receipt-ocr view 초기값 = false → true: 1건 변경)
+   *   - MANAGER 계정 선택 후 고정 셀 perm-matrix-cell-purchases-receipt-ocr-view 토글
+   *     (MANAGER 계정의 purchases.receipt-ocr view 초기값 = true → false revoke: 1건 변경)
    *   - 페이지 로드 직후 change-count "변경 0건" 확인 (초기 dirty 없음 단언)
    *   - 고정 셀 1개 클릭 후 perm-matrix-change-count "변경 1건" strict 단언
    *   - perm-matrix-save-btn isEnabled() strict 단언
@@ -235,16 +254,16 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock 직접 응답.
-   *       고정 셀 선택 근거: MANAGER 역할의 purchases.receipt-ocr view = false (SP_D1_DEFAULT_VIEW 미포함).
-   *       매트릭스 로드 후 account-select 에서 MANAGER(김관리) 계정 선택 → 해당 셀 초기값 false.
-   *       따라서 클릭 시 false→true 1건 변경 보장.
+   *       고정 셀 선택 근거: MANAGER 역할의 purchases.receipt-ocr view = true (SP_D1_DEFAULT_VIEW 포함).
+   *       매트릭스 로드 후 account-select 에서 MANAGER(김관리) 계정 선택 → 해당 셀 초기값 true.
+   *       따라서 클릭 시 true→false revoke 1건 변경 보장.
    */
   test('T2: 셀 체크박스 토글 → 변경 1건 + 저장 버튼 활성', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // 고정 셀: MANAGER 계정의 purchases.receipt-ocr view (초기값 false)
+    // 고정 셀: MANAGER 계정의 purchases.receipt-ocr view (초기값 true)
     const FIXED_CELL_TESTID = 'perm-matrix-cell-purchases-receipt-ocr-view'
 
     await test.step('MASTER 역할로 권한 매트릭스 페이지 진입', async () => {
@@ -475,7 +494,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    *
    * 검증 항목 (현행 유지):
    *   - /#/admin/nonexistent-page-xyz-404 직접 진입
-   *   - HashRouter 미매칭 → 404/에러 페이지 또는 login redirect
+   *   - HashRouter 미매칭 → React Router 기본 404 error boundary
    *   - sidebar-disabled-overlay 미표시
    *   - pageerror 없음
    */
@@ -491,8 +510,16 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       })
     })
 
-    await test.step('404 또는 "없는 페이지" 표시 확인 — disabled 화면 아님', async () => {
-      const bodyText = (await page.textContent('body')) ?? ''
+    await test.step('React Router 기본 404 error boundary 표시 확인 — disabled 화면 아님', async () => {
+      const body = page.locator('body')
+      await expect(
+        body,
+        '존재하지 않는 URL 진입 시 React Router 기본 error boundary 제목 필요',
+      ).toContainText('Unexpected Application Error', { timeout: 8000 })
+      await expect(
+        body,
+        '존재하지 않는 URL 진입 시 React Router 404 문구 필요',
+      ).toContainText('404 Not Found', { timeout: 8000 })
 
       // sidebar-disabled-overlay 미표시 확인
       const disabledWrapper = page.locator('[data-testid="sidebar-disabled-overlay"]')
@@ -501,27 +528,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
         disabledOverlayVisible,
         '존재하지 않는 URL 진입 시 sidebar-disabled-overlay 표시됨 — 404 페이지 필요',
       ).toBe(false)
-
-      // 404 또는 login redirect 중 하나 허용
-      const has404 =
-        bodyText.includes('404') ||
-        bodyText.includes('찾을 수 없') ||
-        bodyText.includes('페이지가 없') ||
-        bodyText.includes('Not Found') ||
-        bodyText.includes('존재하지 않') ||
-        bodyText.includes('No match') ||
-        bodyText.includes('Unexpected Application Error')
-
-      const isLoginPage =
-        page.url().includes('/login') ||
-        bodyText.includes('로그인') ||
-        bodyText.includes('이메일') ||
-        bodyText.includes('비밀번호')
-
-      expect(
-        has404 || isLoginPage,
-        `존재하지 않는 URL 진입 결과 미확인 — 404/로그인 redirect 중 하나 필요. 본문: "${bodyText.substring(0, 200)}"`,
-      ).toBe(true)
     })
 
     await page.screenshot({
