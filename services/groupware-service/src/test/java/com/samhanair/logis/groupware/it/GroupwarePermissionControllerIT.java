@@ -155,7 +155,7 @@ class GroupwarePermissionControllerIT {
     @ParameterizedTest(name = "{0} non-executive + grant -> 403")
     @MethodSource("approvalEndpoints")
     void approvalEndpoint_nonExecutiveOfficeWithMessengerAdminGrant_returns403(EndpointCase endpoint) throws Exception {
-        stubPermission(endpoint, true, ExpectedCount.between(0, 1));
+        stubPermission(endpoint, true, ExpectedCount.never());
         double permissionBefore = deniedCount(endpoint.page(), endpoint.role(), endpoint.action().name());
         double departmentBefore = departmentDeniedCount(endpoint.role());
 

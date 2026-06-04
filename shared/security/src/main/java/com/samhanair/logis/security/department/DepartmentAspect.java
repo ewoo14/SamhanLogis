@@ -9,6 +9,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -20,6 +22,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * {@link HrAuthorizationHelper#isExecutiveOffice()} 빈 메서드를 호출하여 전후 판정 동일성을 보장한다.
  */
 @Aspect
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class DepartmentAspect {
 
     private static final Logger log = LoggerFactory.getLogger(DepartmentAspect.class);
