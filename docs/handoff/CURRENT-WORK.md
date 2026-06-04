@@ -46,7 +46,12 @@ AuthController.register(system.account-admin)+PasswordController.unlock(system.p
 - P2: mock id UUID화·mock PageCode 카탈로그 동기화·sp-d1 mock 7-action 구조.
 - Docker QA: 권한/부서 게이트 실 gateway 403/200(MockMvc 미포착 영역, D-SER-23 선례 = 실 QA 가 gateway 결함 포착).
 
-> 🌙 **2026-06-04~05 야간 세션 누계**: #386(sp-d1 재게이트+한글화+404)·#388(BulkPage 한글화)·#390(auth permission-admin role)·#391(auth register/password role)·#389(docs) **5 머지** + #387(inventory) Draft 보류. 교훈 2건 메모리 박제([[feedback-desktop-typecheck-command]], [[feedback_preauth_migration_lessons]] §4 role-set).
+### 🧪 Docker QA — #390/#391 권한 게이트 실 검증 (`docs/qa/auth-system-role-preauth-migration/real-qa-evidence.md`)
+신 코드 재배포(auth image `401c39ab`) 후 실 gateway 검증: **MASTER JWT → system.permission-admin 200 / unlock 204(실 DB)** = MASTER bypass 실 작동, 미인증/위조 JWT 401, psql system.* **MASTER-only 실측** → **무가드화·widening 0 실증**.
+- ⚠️ **한계1**: non-MASTER 403 직접 실증 못함 — **dev 비-master 계정(dev_manager 등) 비번이 V5 seed 해시와 불일치**(seed 후 변경 추정) → 401. 정적(isMasterBypass)+DB 증명으로 대체. **후속: dev seed 계정 비번 복구**(향후 non-MASTER QA 가능하게).
+- 🔍 **발견(기존 이슈, #391 무관)**: `POST /auth/register` direct 는 **MASTER 도 403** — gateway `/auth/**`·`/api/v1/auth/**` 라우트에 JwtAuthentication 필터 부재 → `X-User-*` 미주입 → HeaderAuthenticationFilter 인증 실패. 실 등록경로는 user-service→`/auth/internal/accounts`(InternalTokenFilter)라 기능 우회 경로 없음. register 의 @RequirePermission(system.account-admin)은 gateway 직접경로에선 무의미(auth 컨텍스트 부재). **후속 판단**: register gateway 라우트 정비 또는 register 를 internal-only 로 명확화.
+
+> 🌙 **2026-06-04~05 야간 세션 누계**: #386(sp-d1 재게이트+한글화+404)·#388(BulkPage 한글화)·#390(auth permission-admin role)·#391(auth register/password role)·#389·#392(docs) **6 머지** + #387(inventory) Draft 보류 + Docker QA(권한게이트 실증). 교훈 2건 메모리 박제([[feedback-desktop-typecheck-command]], [[feedback_preauth_migration_lessons]] §4 role-set).
 
 ---
 
