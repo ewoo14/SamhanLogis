@@ -90,7 +90,6 @@ public class InspectionAttachmentController {
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<InspectionAttachmentResponse> upload(
             @PathVariable UUID slipId,

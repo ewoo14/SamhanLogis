@@ -14,6 +14,7 @@ import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.client.SlipLineDetail;
 import com.samhanair.logis.inventory.repository.InboundInspectionRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -197,9 +198,19 @@ class P09ValidationIT extends AbstractPostgresIT {
 
     /**
      * 시나리오 1-C: SALES 권한은 검수 API 접근 불가 (403).
+     *
+     * <p>@PreAuthorize 제거 후 @RequirePermission(inventory.stock-balance) 가 단독 가드.
+     * AbstractPostgresIT 기본 stub 은 check → true 이므로
+     * SALES 에 대한 false 를 명시적으로 override 한다 (V35 seed: SALES 에 stock-balance 없음).
      */
     @Test
     void getInspection_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.stock-balance"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(get("/api/v1/inventory/inbound-inspections/" + SLIP_ID_SAVED)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
@@ -418,9 +429,18 @@ class P09ValidationIT extends AbstractPostgresIT {
 
     /**
      * 시나리오 3-D: SALES 권한으로 complete 호출 → 403.
+     *
+     * <p>@PreAuthorize 제거 후 @RequirePermission(inventory.stock-balance, UPDATE) 가 단독 가드.
+     * SALES 에 대한 check false 를 명시적으로 override 한다 (V35 seed: SALES 에 stock-balance 없음).
      */
     @Test
     void completeInspection_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.stock-balance"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(post("/api/v1/inventory/inbound-inspections/" + SLIP_ID_SAVED + "/complete")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))

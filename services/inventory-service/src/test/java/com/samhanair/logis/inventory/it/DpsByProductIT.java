@@ -12,9 +12,11 @@ import com.samhanair.logis.inventory.client.SlipServiceClient;
 import com.samhanair.logis.inventory.domain.InboundInspection;
 import com.samhanair.logis.inventory.domain.InboundInspectionLine;
 import com.samhanair.logis.inventory.repository.InboundInspectionRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -185,7 +187,15 @@ class DpsByProductIT extends AbstractPostgresIT {
                         .header("X-User-Role", "WAREHOUSE"))
                 .andExpect(status().isOk());
 
-        // SALES → 403
+        // SALES → 403:
+        // @PreAuthorize 제거 후 @RequirePermission(inventory.dps, VIEW) 단독 가드.
+        // AbstractPostgresIT 기본 stub(check → true) 을 override — V35 seed: SALES 에 inventory.dps 없음.
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.dps"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(get(BASE_URL)
                         .param("fromDate", FROM)
                         .param("toDate", TO)

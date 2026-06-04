@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.client.SlipLineDetail;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -106,6 +107,14 @@ class InboundInspectionControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("SALES 권한 → 403")
     void salesRole_returns403() throws Exception {
+        // @PreAuthorize 제거 후 @RequirePermission(inventory.stock-balance, VIEW) 단독 가드.
+        // AbstractPostgresIT 기본 stub(check → true) 을 override — V35 seed: SALES 에 stock-balance 없음.
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.stock-balance"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(get(PUBLIC_PATH + "/{slipId}", slipId)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
@@ -115,6 +124,14 @@ class InboundInspectionControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("INVENTORY 권한 → 403 (inventory-service 검수 계약은 WAREHOUSE/MANAGER/MASTER)")
     void inventoryRole_returns403() throws Exception {
+        // @PreAuthorize 제거 후 @RequirePermission(inventory.stock-balance, VIEW) 단독 가드.
+        // AbstractPostgresIT 기본 stub(check → true) 을 override — V35 seed: INVENTORY 에 stock-balance 없음.
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.stock-balance"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(get(PUBLIC_PATH + "/{slipId}", slipId)
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "INVENTORY"))

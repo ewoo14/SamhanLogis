@@ -349,6 +349,24 @@ class InventoryPermissionControllerIT {
         assertDepartmentGate("restore", UUID.class, String.class, String.class);
     }
 
+    /**
+     * behavior-preserving 검증:
+     * InspectionAttachmentController.delete 는 @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
+     * 가 의도적으로 유지되어 WAREHOUSE role 은 @RequirePermission(DELETE) 권한이 있어도 403.
+     * widening guard — @PreAuthorize 를 제거하면 WAREHOUSE 에게 삭제 권한이 열리는 것을 방지.
+     */
+    @Test
+    void attachmentDelete_warehouseRole_isForbiddenDueToPreAuthorize() throws Exception {
+        // WAREHOUSE 에게 inventory.stock-balance DELETE 동적 권한 부여
+        when(dynamicPermissionClient.check(eq(ID), eq("inventory.stock-balance"), eq(PermissionAction.DELETE)))
+                .thenReturn(true);
+
+        mockMvc.perform(delete("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)
+                        .header(USER_ID_HEADER, ID.toString())
+                        .header(ROLE_HEADER, "WAREHOUSE"))
+                .andExpect(status().isForbidden());
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 endpoint("stock balances", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
@@ -395,6 +413,20 @@ class InventoryPermissionControllerIT {
                         () -> get("/warehouse/audit/dps-compare/template")),
                 endpoint("dps history save", "inventory.dps", PermissionAction.CREATE, "WAREHOUSE",
                         () -> post("/warehouse/audit/dps-history").contentType(MediaType.APPLICATION_JSON).content(historyBody())),
+                endpoint("dps history list", "inventory.dps", PermissionAction.VIEW, "WAREHOUSE",
+                        () -> get("/warehouse/audit/dps-history")),
+                endpoint("dps history detail", "inventory.dps", PermissionAction.VIEW, "WAREHOUSE",
+                        () -> get("/warehouse/audit/dps-history/{id}", ID)),
+                endpoint("dps history latest", "inventory.dps", PermissionAction.VIEW, "WAREHOUSE",
+                        () -> get("/warehouse/audit/dps-history/latest").param("programType", "DPS_COMPARE")),
+                endpoint("dps by product", "inventory.dps", PermissionAction.VIEW, "WAREHOUSE",
+                        () -> get("/warehouse/audit/dps-compare/by-product")
+                                .param("fromDate", "2026-05-01").param("toDate", "2026-05-31")),
+                endpoint("inbound inspection list", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
+                        () -> get("/inventory/inbound-inspections")),
+                endpoint("inbound inspection save result", "inventory.stock-balance", PermissionAction.UPDATE, "WAREHOUSE",
+                        () -> post("/inventory/inbound-inspections/{id}/inspect", ID)
+                                .contentType(MediaType.APPLICATION_JSON).content(inspectBody())),
                 endpoint("inbound inspection get", "inventory.stock-balance", PermissionAction.VIEW, "WAREHOUSE",
                         () -> get("/inventory/inbound-inspections/{id}", ID)),
                 endpoint("inbound inspection complete", "inventory.stock-balance", PermissionAction.UPDATE, "WAREHOUSE",
@@ -489,6 +521,10 @@ class InventoryPermissionControllerIT {
 
     private static String resellBody() {
         return "{\"recallSlipNo\":\"S4-RETURN-PERM\",\"productCode\":\"AC-PERM\",\"quantity\":1}";
+    }
+
+    private static String inspectBody() {
+        return "{\"lines\":[{\"lineId\":\"" + ID + "\",\"inspectedQty\":1,\"defectQty\":0}]}";
     }
 
     private static MockMultipartFile csv(String name) {

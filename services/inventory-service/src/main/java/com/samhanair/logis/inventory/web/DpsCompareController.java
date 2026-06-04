@@ -16,7 +16,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -122,7 +121,6 @@ public class DpsCompareController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "warehouseId 창고 미존재")
     })
     @GetMapping("/by-product")
-    @PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")
     @RequirePermission(page = "inventory.dps", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<DpsByProductResponse> analyzeByProduct(
             @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,

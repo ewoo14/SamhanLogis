@@ -13,6 +13,7 @@ import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -196,11 +197,20 @@ class DpsByProductFEMatchIT extends AbstractPostgresIT {
     }
 
     /**
-     * DBP-FE-1-C: SALES 권한 → 403 (FE RoleGuard 와 BE @PreAuthorize 일치 검증).
+     * DBP-FE-1-C: SALES 권한 → 403 (FE RoleGuard 와 BE @RequirePermission 일치 검증).
+     *
+     * <p>@PreAuthorize 제거 후 @RequirePermission(inventory.dps, VIEW) 단독 가드.
+     * AbstractPostgresIT 기본 stub(check → true) 을 override — V35 seed: SALES 에 inventory.dps 없음.
      */
     @Test
     @DisplayName("DBP-FE-1-C: SALES 권한 → 403 Forbidden")
     void dbpFe1C_salesRole_returns403() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class),
+                        Mockito.eq("inventory.dps"),
+                        Mockito.any(PermissionAction.class)))
+                .thenReturn(false);
+
         mockMvc.perform(
                         get("/warehouse/audit/dps-compare/by-product")
                                 .param("fromDate", FROM_DATE_PRESENT)
