@@ -1,35 +1,26 @@
 /**
  * SP-D1 동적 RBAC 권한 매트릭스 — account-select UI Playwright 스펙
  *
- * 실행 조건:
- *   cd clients/desktop
- *   VITE_MOCK_MODE=1 npx vite src/renderer --host 127.0.0.1 --port 5173
- *   npx playwright test playwright/sp-d1-dynamic-rbac --reporter=line
+ * VITE_MOCK_MODE 에서는 api/client.ts 의 axios mock adapter 가 in-process 로 응답한다.
+ * 이 파일은 Playwright 네트워크 mock 을 쓰지 않고, api/mock.ts 의 결정적 fixture 와
+ * 해시 쿼리 주입점(mockRole/mockPerms)만 사용한다.
  *
- * Task 1 verify-then-fix 확인값(2026-06-04):
- *   - UI: perm-matrix-account-select, permission-matrix-table,
- *         perm-matrix-cell-{page.replace(/\./g, '-')}-{action},
- *         perm-matrix-change-count, perm-matrix-save-btn.
- *   - 7 actions: view / create / update / delete / restore / download / print.
- *   - API 실계약: GET /auth/admin/permissions/accounts,
- *                 GET /auth/admin/permissions/account/{id} -> data = Record<pageCode, actions>,
- *                 PUT /auth/admin/permissions/account/{id} -> body = AccountPermissionUpdate[],
- *                 GET /auth/admin/permissions/my -> data = Record<pageCode, PermissionAction[]>.
- *   - T4 sidebar testid 실재: sidebar-purchases-receipt-ocr.
- *     단, /purchases/receipt-ocr route RoleGuard 는 SALES 를 허용하지 않고
- *     WAREHOUSE / ACCOUNTANT / MANAGER / MASTER 만 허용한다. 따라서 T4 는
- *     실재 정적 RoleGuard 와 동적 grant 를 함께 만족하는 WAREHOUSE 기준으로 검증한다.
+ * 확인된 in-process mock 계약:
+ * - accounts: mock-account-manager / mock-account-sales / mock-account-dispatch
+ * - account/{id}: id 기반 role 매트릭스. SALES purchases.receipt-ocr view=false.
+ * - PUT account/{id}: stateless, { changedCount: updates.length }.
+ * - permissions/my: mockRole 기본값 또는 mockPerms base64(JSON) override.
  */
 
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import * as http from 'http'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 const PERMISSION_MATRIX_URL_MASTER = `${BASE_URL}/#/admin/permission-matrix?mockRole=MASTER`
 const PERMISSION_MATRIX_URL_MANAGER = `${BASE_URL}/#/admin/permission-matrix?mockRole=MANAGER`
-const RECEIPT_OCR_URL_WAREHOUSE = `${BASE_URL}/#/purchases/receipt-ocr?mockRole=WAREHOUSE`
 const NONEXISTENT_URL = `${BASE_URL}/#/admin/nonexistent-page-xyz-404?mockRole=WAREHOUSE`
+const WAREHOUSE_HOME_URL = `${BASE_URL}/#/?mockRole=WAREHOUSE`
 
 const PERMISSION_ACTIONS = [
   'view',
@@ -41,55 +32,26 @@ const PERMISSION_ACTIONS = [
   'print',
 ] as const
 
-type PermissionAction = (typeof PERMISSION_ACTIONS)[number]
-type RbacRole =
-  | 'MASTER'
-  | 'DEVELOPER'
-  | 'MANAGER'
-  | 'DISPATCH'
-  | 'SALES'
-  | 'ACCOUNTANT'
-  | 'WAREHOUSE'
-  | 'INVENTORY'
-  | 'PARTNER'
-  | 'STAFF'
-  | 'DRIVER'
-
-type PermissionActionMatrix = Record<PermissionAction, boolean>
-type AccountMatrix = Record<string, PermissionActionMatrix>
-type PermissionAccount = {
-  id: string
-  displayName: string
-  role: RbacRole
-  enabled: boolean
-}
-type AccountPermissionUpdate = {
-  pageCode: string
-  actions: PermissionActionMatrix
-}
-
 const PAGE_GROUPS = [
-  { label: '회계', domainId: 'accounting', pages: ['accounting.tax-invoice.list'] },
-  { label: '매입', domainId: 'purchases', pages: ['purchases.receipt-ocr'] },
-  { label: '매출', domainId: 'sales', pages: ['sales.slip.list'] },
-  { label: '전표 운영', domainId: 'slip', pages: ['slip.cleanup'] },
-  { label: '배차', domainId: 'dispatch', pages: ['dispatch.board'] },
-  { label: '알림', domainId: 'notifications', pages: ['notifications.center'] },
-  { label: '메신저', domainId: 'messenger', pages: ['messenger.send'] },
-  { label: '관리', domainId: 'admin', pages: ['admin.permissions'] },
-  { label: '시스템 관리', domainId: 'system', pages: ['system.permission-admin'] },
-  { label: '견적', domainId: 'estimates', pages: ['estimates.list'] },
-  { label: '거래처주문', domainId: 'partner-order', pages: ['sales.partner-order.list'] },
-  { label: '재고', domainId: 'inventory', pages: ['inventory.stock'] },
-  { label: '직원·계정', domainId: 'employees', pages: ['admin.users'] },
-  { label: '거래처', domainId: 'partners', pages: ['partners.list'] },
-  { label: '상품', domainId: 'products', pages: ['products.list'] },
-  { label: '아로로지스', domainId: 'arologis', pages: ['arologis.admin'] },
+  { label: '회계', domainId: 'accounting' },
+  { label: '매입', domainId: 'purchases' },
+  { label: '매출', domainId: 'sales' },
+  { label: '전표 운영', domainId: 'slip' },
+  { label: '배차', domainId: 'dispatch' },
+  { label: '알림', domainId: 'notifications' },
+  { label: '메신저', domainId: 'messenger' },
+  { label: '관리', domainId: 'admin' },
+  { label: '시스템 관리', domainId: 'system' },
+  { label: '견적', domainId: 'estimates' },
+  { label: '거래처주문', domainId: 'partner-order' },
+  { label: '재고', domainId: 'inventory' },
+  { label: '직원·계정', domainId: 'employees' },
+  { label: '거래처', domainId: 'partners' },
+  { label: '상품', domainId: 'products' },
+  { label: '아로로지스', domainId: 'arologis' },
 ] as const
 
-const REPRESENTATIVE_PAGES = PAGE_GROUPS.flatMap(group => group.pages)
 const TARGET_ACCOUNT_ID = 'mock-account-sales'
-const TARGET_PAGE = 'purchases.receipt-ocr'
 const TARGET_CELL = 'perm-matrix-cell-purchases-receipt-ocr-view'
 
 async function isServerAvailable(): Promise<boolean> {
@@ -125,164 +87,12 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
   })
 }
 
-function emptyActions(): PermissionActionMatrix {
-  return {
-    view: false,
-    create: false,
-    update: false,
-    delete: false,
-    restore: false,
-    download: false,
-    print: false,
-  }
+function mockPermsParam(perms: Array<{ pageCode: string; view?: boolean; edit?: boolean }>): string {
+  return Buffer.from(JSON.stringify(perms), 'utf8').toString('base64')
 }
 
-function allActions(allowed = true): PermissionActionMatrix {
-  return {
-    view: allowed,
-    create: allowed,
-    update: allowed,
-    delete: allowed,
-    restore: allowed,
-    download: allowed,
-    print: allowed,
-  }
-}
-
-function buildAccountMatrix(
-  actionsByPage: Record<string, Partial<PermissionActionMatrix>> = {},
-): AccountMatrix {
-  const matrix: AccountMatrix = {}
-  for (const pageCode of REPRESENTATIVE_PAGES) {
-    matrix[pageCode] = { ...emptyActions(), ...(actionsByPage[pageCode] ?? {}) }
-  }
-  return matrix
-}
-
-function buildAccountsList(): PermissionAccount[] {
-  return [
-    { id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER', enabled: true },
-    { id: TARGET_ACCOUNT_ID, displayName: '이영업', role: 'SALES', enabled: true },
-    { id: 'mock-account-dispatch', displayName: '박배차', role: 'DISPATCH', enabled: true },
-  ]
-}
-
-function buildMyPermissionMap(pages: Record<string, string[]>) {
-  return {
-    success: true,
-    data: pages,
-  }
-}
-
-function masterMyPermissions() {
-  return buildMyPermissionMap({
-    'system.permission-admin': ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT'],
-  })
-}
-
-function warehouseReceiptOcrPermissions() {
-  return buildMyPermissionMap({
-    'purchases.receipt-ocr': ['VIEW', 'DOWNLOAD', 'PRINT'],
-  })
-}
-
-function managerMyPermissions() {
-  return buildMyPermissionMap({
-    'sales.slip.list': ['VIEW', 'UPDATE'],
-  })
-}
-
-function envelope(data: unknown) {
-  return JSON.stringify({ success: true, data })
-}
-
-async function fulfillJson(route: Route, status: number, body: unknown): Promise<void> {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-  })
-}
-
-function cloneMatrix(matrix: AccountMatrix): AccountMatrix {
-  return Object.fromEntries(
-    Object.entries(matrix).map(([pageCode, actions]) => [pageCode, { ...actions }]),
-  )
-}
-
-async function registerPermissionMocks(page: Page, options?: {
-  accounts?: PermissionAccount[]
-  matrixByAccount?: Record<string, AccountMatrix>
-  myPermissions?: ReturnType<typeof buildMyPermissionMap>
-  putResult?: { changedCount: number }
-  accountsStatus?: number
-}) {
-  const accounts = options?.accounts ?? buildAccountsList()
-  const matrixByAccount = new Map<string, AccountMatrix>()
-  const calls = {
-    accounts: 0,
-    my: 0,
-    getAccount: {} as Record<string, number>,
-    putAccount: {} as Record<string, number>,
-    lastPutBody: undefined as AccountPermissionUpdate[] | undefined,
-  }
-
-  for (const account of accounts) {
-    const provided = options?.matrixByAccount?.[account.id]
-    matrixByAccount.set(account.id, cloneMatrix(provided ?? buildAccountMatrix()))
-  }
-
-  await page.route('**/auth/admin/permissions/accounts', async route => {
-    calls.accounts += 1
-    const status = options?.accountsStatus ?? 200
-    if (status >= 400) {
-      await fulfillJson(route, status, {
-        success: false,
-        code: 'ACCESS_DENIED',
-        message: '권한 계정 목록은 MASTER 역할만 조회할 수 있습니다.',
-      })
-      return
-    }
-    await fulfillJson(route, 200, envelope(accounts))
-  })
-
-  await page.route('**/auth/admin/permissions/account/*', async route => {
-    const request = route.request()
-    const method = request.method()
-    const accountId = decodeURIComponent(new URL(request.url()).pathname.split('/').pop() ?? '')
-
-    if (method === 'GET') {
-      calls.getAccount[accountId] = (calls.getAccount[accountId] ?? 0) + 1
-      await fulfillJson(route, 200, envelope(matrixByAccount.get(accountId) ?? buildAccountMatrix()))
-      return
-    }
-
-    if (method === 'PUT') {
-      calls.putAccount[accountId] = (calls.putAccount[accountId] ?? 0) + 1
-      const updates = request.postDataJSON() as AccountPermissionUpdate[]
-      calls.lastPutBody = updates
-      const current = matrixByAccount.get(accountId) ?? buildAccountMatrix()
-      for (const update of updates) {
-        current[update.pageCode] = { ...emptyActions(), ...update.actions }
-      }
-      matrixByAccount.set(accountId, current)
-      await fulfillJson(route, 200, envelope(options?.putResult ?? { changedCount: updates.length }))
-      return
-    }
-
-    await fulfillJson(route, 405, {
-      success: false,
-      code: 'METHOD_NOT_ALLOWED',
-      message: `${method} is not mocked for permission account matrix`,
-    })
-  })
-
-  await page.route('**/auth/admin/permissions/my', async route => {
-    calls.my += 1
-    await fulfillJson(route, 200, options?.myPermissions ?? masterMyPermissions())
-  })
-
-  return calls
+function warehouseHomeWithMockPerms(perms: Array<{ pageCode: string; view?: boolean; edit?: boolean }>): string {
+  return `${WAREHOUSE_HOME_URL}&mockPerms=${encodeURIComponent(mockPermsParam(perms))}`
 }
 
 function isAccessBlocked(currentUrl: string, bodyText: string, pathFragment: string): boolean {
@@ -320,10 +130,13 @@ function assertNoBlockedOrEmptyScreen(bodyText: string): void {
   expect(bodyText.trim().length, '접근 가능 step 에 빈 화면이 렌더링됨').toBeGreaterThan(0)
 }
 
-async function openPermissionMatrix(page: Page, accountId = TARGET_ACCOUNT_ID): Promise<void> {
+async function openPermissionMatrix(page: Page): Promise<void> {
   await page.goto(PERMISSION_MATRIX_URL_MASTER, { waitUntil: 'domcontentloaded', timeout: 20000 })
   await expect(page.getByTestId('perm-matrix-account-select')).toBeVisible({ timeout: 10000 })
-  await page.getByTestId('perm-matrix-account-select').selectOption(accountId)
+  await expect(page.getByTestId('perm-matrix-account-select')).toContainText('김관리 / 매니저')
+  await expect(page.getByTestId('perm-matrix-account-select')).toContainText('이영업 / 영업원')
+  await expect(page.getByTestId('perm-matrix-account-select')).toContainText('박배차 / 배차담당자')
+  await page.getByTestId('perm-matrix-account-select').selectOption(TARGET_ACCOUNT_ID)
   await expect(page.getByTestId('permission-matrix-table')).toBeVisible({ timeout: 10000 })
   await expect(page.getByTestId(TARGET_CELL)).toBeVisible({ timeout: 10000 })
 }
@@ -341,16 +154,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 account-select (T1~T6)', ()
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await registerPermissionMocks(page, {
-      matrixByAccount: {
-        [TARGET_ACCOUNT_ID]: buildAccountMatrix({
-          [TARGET_PAGE]: { view: false },
-          'sales.slip.list': { view: true, update: true },
-        }),
-      },
-    })
-
-    await test.step('MASTER 권한 매트릭스 진입 및 계정 선택', async () => {
+    await test.step('MASTER 권한 매트릭스 진입 및 SALES 계정 선택', async () => {
       await openPermissionMatrix(page)
       const bodyText = (await page.textContent('body')) ?? ''
       assertNoBlockedOrEmptyScreen(bodyText)
@@ -374,25 +178,19 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 account-select (T1~T6)', ()
     await test.step('account-select 셀 렌더 count > 0 확인', async () => {
       const cells = page.locator('[data-testid^="perm-matrix-cell-"]')
       await expect.poll(() => cells.count(), { timeout: 10000 }).toBeGreaterThan(0)
-      await expect(page.getByTestId('perm-matrix-cell-purchases-receipt-ocr-view')).toBeVisible()
+      await expect(page.getByTestId(TARGET_CELL)).toBeVisible()
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
-  test('T2: 셀 토글 후 변경 카운트 증가 + 저장 버튼 활성화', async ({ page }) => {
+  test('T2: SALES OCR 셀 토글 후 변경 카운트 증가 + 저장 버튼 활성화', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await registerPermissionMocks(page, {
-      matrixByAccount: {
-        [TARGET_ACCOUNT_ID]: buildAccountMatrix({ [TARGET_PAGE]: { view: false } }),
-      },
-    })
-
     await openPermissionMatrix(page)
 
-    await test.step('purchases.receipt-ocr view 셀 토글', async () => {
+    await test.step('SALES purchases.receipt-ocr view 시작점 unchecked 확인 후 토글', async () => {
       const cell = page.getByTestId(TARGET_CELL)
       await expect(cell).not.toBeChecked()
       await cell.click()
@@ -407,126 +205,81 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 account-select (T1~T6)', ()
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
-  test('T3: 저장 PUT changedCount=1 + 토스트 + 재조회 반영', async ({ page }) => {
+  test('T3: 저장 후 changedCount 토스트 + dirty reset + 계정 재선택 서버상태 확인', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
-
-    const calls = await registerPermissionMocks(page, {
-      matrixByAccount: {
-        [TARGET_ACCOUNT_ID]: buildAccountMatrix({ [TARGET_PAGE]: { view: false } }),
-      },
-      putResult: { changedCount: 1 },
-    })
 
     await openPermissionMatrix(page)
 
-    await test.step('셀 토글 후 저장 클릭', async () => {
-      await page.getByTestId(TARGET_CELL).click()
+    await test.step('unchecked 셀을 토글하고 저장 클릭', async () => {
+      const cell = page.getByTestId(TARGET_CELL)
+      await expect(cell).not.toBeChecked()
+      await cell.click()
+      await expect(cell).toBeChecked()
       await expect(page.getByTestId('perm-matrix-change-count')).toContainText('변경 1건')
-
+      await expect(page.getByTestId('perm-matrix-save-btn')).toBeEnabled()
       await page.getByTestId('perm-matrix-save-btn').click()
     })
 
-    await test.step('저장 토스트와 PUT body 확인', async () => {
+    await test.step('PUT mock changedCount=updates.length 결과를 UI가 무조건 반영', async () => {
       await expect(page.getByRole('alert')).toContainText('1건의 권한 변경을 저장했습니다.')
-      if ((calls.putAccount[TARGET_ACCOUNT_ID] ?? 0) > 0) {
-        expect(calls.putAccount[TARGET_ACCOUNT_ID], 'PUT /auth/admin/permissions/account/{id} 호출 횟수').toBe(1)
-        expect(calls.lastPutBody, 'PUT body 는 AccountPermissionUpdate[] 이어야 함').toEqual([
-          {
-            pageCode: TARGET_PAGE,
-            actions: {
-              view: true,
-              create: false,
-              update: false,
-              delete: false,
-              restore: false,
-              download: false,
-              print: false,
-            },
-          },
-        ])
-      }
+      await expect(page.getByTestId('perm-matrix-change-count')).toContainText('변경 0건')
+      await expect(page.getByTestId('perm-matrix-save-btn')).toBeDisabled()
     })
 
-    await test.step('invalidate 후 매트릭스 재렌더 및 dirty reset 확인', async () => {
-      if ((calls.getAccount[TARGET_ACCOUNT_ID] ?? 0) > 0) {
-        await expect.poll(() => calls.getAccount[TARGET_ACCOUNT_ID] ?? 0, { timeout: 10000 }).toBeGreaterThanOrEqual(2)
-        await expect(page.getByTestId(TARGET_CELL)).toBeChecked()
-      }
+    await test.step('계정 전환으로 서버상태를 다시 로드하면 SALES 원래 unchecked 상태 확인', async () => {
+      await page.getByTestId('perm-matrix-account-select').selectOption('mock-account-manager')
+      await expect(page.getByTestId('perm-matrix-account-select')).toHaveValue('mock-account-manager')
       await expect(page.getByTestId('permission-matrix-table')).toBeVisible()
-      await expect(page.getByTestId('perm-matrix-change-count')).toContainText('변경 0건')
+      await page.getByTestId('perm-matrix-account-select').selectOption(TARGET_ACCOUNT_ID)
+      await expect(page.getByTestId('perm-matrix-account-select')).toHaveValue(TARGET_ACCOUNT_ID)
+      await expect(page.getByTestId(TARGET_CELL)).not.toBeChecked()
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
-  test('T4: 동적 grant 후 영수증 OCR 사이드바 메뉴와 페이지 콘텐츠 표시', async ({ page }) => {
+  test('T4: mockPerms 동적 grant 로 WAREHOUSE 영수증 OCR 사이드바와 route 접근 토글', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    await registerPermissionMocks(page, {
-      myPermissions: warehouseReceiptOcrPermissions(),
-    })
-
-    await test.step('WAREHOUSE + purchases.receipt-ocr view grant 로 OCR 페이지 진입', async () => {
-      await page.goto(RECEIPT_OCR_URL_WAREHOUSE, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await expect(page.getByTestId('sidebar-purchases-receipt-ocr')).toBeVisible({ timeout: 10000 })
+    await test.step('WAREHOUSE + mockPerms=[] 는 /my 권한이 비어 OCR 링크 부재', async () => {
+      await page.goto(warehouseHomeWithMockPerms([]), { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await expect(page.getByTestId('sidebar-warehouses')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('sidebar-purchases-receipt-ocr')).toHaveCount(0)
       const bodyText = (await page.textContent('body')) ?? ''
       assertNoBlockedOrEmptyScreen(bodyText)
-      expect(page.url(), 'RoleGuard/PermissionGuard redirect 없이 OCR route 유지').toContain('/purchases/receipt-ocr')
     })
 
-    await test.step('사이드바 메뉴 활성 및 OCR 콘텐츠 렌더 확인', async () => {
+    await test.step('WAREHOUSE + OCR grant 주입 시 링크 출현 후 route 접근 가능', async () => {
+      await page.goto('about:blank')
+      await page.goto(
+        warehouseHomeWithMockPerms([{ pageCode: 'purchases.receipt-ocr', view: true }]),
+        { waitUntil: 'domcontentloaded', timeout: 20000 },
+      )
       const ocrLink = page.getByTestId('sidebar-purchases-receipt-ocr')
-      const hasDisabledClass = await ocrLink.evaluate(el =>
-        el.classList.contains('sidebar-disabled') ||
-        el.closest('.sidebar-disabled') !== null,
-      ).catch(() => false)
-      expect(hasDisabledClass, 'grant 후 OCR 사이드바 메뉴가 disabled 상태이면 안 됨').toBe(false)
-
-      const disabledOverlayVisible = await page.getByTestId('sidebar-disabled-overlay').isVisible().catch(() => false)
-      expect(disabledOverlayVisible, 'grant 후 disabled overlay 부재 필요').toBe(false)
-
+      await expect(ocrLink).toBeVisible({ timeout: 10000 })
+      await ocrLink.click()
+      await expect(page).toHaveURL(/\/#\/purchases\/receipt-ocr/)
+      await expect(page.getByTestId('receipt-ocr-drop-zone')).toBeVisible({ timeout: 10000 })
       const bodyText = (await page.textContent('body')) ?? ''
-      expect(
-        bodyText.includes('영수증 OCR') || bodyText.includes('OCR') || bodyText.includes('파일'),
-        `OCR 페이지 콘텐츠 미렌더: "${bodyText.substring(0, 200)}"`,
-      ).toBe(true)
+      assertNoBlockedOrEmptyScreen(bodyText)
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 
-  test('T5: 존재하지 않는 URL 직접 진입 시 404 계열 + disabled overlay 부재', async ({ page }) => {
+  test('T5: 존재하지 않는 URL 직접 진입 시 React Router 404 화면 렌더', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
-
-    await registerPermissionMocks(page, {
-      myPermissions: warehouseReceiptOcrPermissions(),
-    })
 
     await test.step('존재하지 않는 HashRouter URL 직접 진입', async () => {
       await page.goto(NONEXISTENT_URL, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
     })
 
-    await test.step('404/Not Found 계열 렌더와 disabled overlay 부재 확인', async () => {
-      const disabledOverlayVisible = await page.getByTestId('sidebar-disabled-overlay').isVisible().catch(() => false)
-      expect(disabledOverlayVisible, '존재하지 않는 URL에서 sidebar-disabled-overlay 가 표시되면 안 됨').toBe(false)
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const has404 =
-        bodyText.includes('404') ||
-        bodyText.includes('찾을 수 없') ||
-        bodyText.includes('페이지가 없') ||
-        bodyText.includes('Not Found') ||
-        bodyText.includes('존재하지 않') ||
-        bodyText.includes('No match') ||
-        bodyText.includes('Unexpected Application Error')
-      expect(
-        has404,
-        `존재하지 않는 URL 진입 결과가 404 계열이 아님. 현재 본문: "${bodyText.substring(0, 200)}"`,
-      ).toBe(true)
+    await test.step('실 거동: default ErrorBoundary 404 Not Found 렌더', async () => {
+      await expect(page.getByText('Unexpected Application Error!')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('404 Not Found')).toBeVisible()
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -535,11 +288,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 account-select (T1~T6)', ()
   test('T6: MANAGER 권한 매트릭스 진입 차단 + 매트릭스 미렌더', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
-
-    await registerPermissionMocks(page, {
-      accountsStatus: 403,
-      myPermissions: managerMyPermissions(),
-    })
 
     await test.step('MANAGER 역할로 권한 매트릭스 직접 진입', async () => {
       await page.goto(PERMISSION_MATRIX_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
