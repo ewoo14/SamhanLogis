@@ -4,6 +4,21 @@
 
 ---
 
+## 🌙 2026-06-04 야간 PM 전권 자율 세션 (개발책임자 취침, ~오전 7시) — sp-d1 종결 + 권한설정 한글화/404
+
+### ✅ PR #386 — sp-d1 권한설정 재게이트 + 한글화 + 한국어 404 (3-A2-④ B/C triage **완결**)
+- **재게이트**: account-select 신 UI + in-process mock 정합 전면 재작성(page.route/waitForTimeout 0), testIgnore 정식 해제. T1~T6 strict 6/6 green.
+- **한글화/리네임**: 액션 라벨 보기/생성/수정/삭제/복원/엑셀/인쇄, 메뉴·페이지명 "권한 매트릭스"→**"권한설정"**. 라우트·testid 불변.
+- **한국어 404**: `NotFoundPage.tsx` + catch-all 2곳(AppLayout/AdminLayout children). 영문 dev 에러 → 한국어 "페이지를 찾을 수 없습니다".
+- **dual 5-team**: Claude 5-agent + Codex 5-섹션, 사이클 1~2 전 팀 APPROVE 수렴. PR 코멘트에 전 리뷰 기록(TM 주도 agent discussion 패턴). 회귀 sidebar-disabled 5/5·permission-overhaul 4/4·sp-d4 20/20·tsc 0.
+- 커밋: `bb855443`(재게이트)→`9caa511e`(Claude fix)→`502c2e5c`(한글화)→`2b4eb3e3`(Codex fix)→`8d1184b5`(한국어404). dev-report `slice-sp-d1-rbac-regate.md`, DECISIONS D-SPD1.
+- **P2 후속**: mock id UUID화(`bulk.spec` 광범위 참조)·mock PageCode 카탈로그 59→전체 동기화·`PermissionMatrixBulkPage` 한글화 consistency.
+
+### ▶ 자율 진행 (PM 전권, 질문 금지)
+PR #386 머지 후 잔여/신규/Docker QA 자율 진행. (이 섹션 하단의 P2 후속 + 백로그 참조.)
+
+---
+
 ## 🏁 2026-06-04 연속 세션 (PM 전권 위임 자율 진행) — B/C triage 거의 완결, 잔여 = sp-d1 1건
 
 ### ✅ 이번 세션 머지 6건 (전부 main green, PM 자율 머지)

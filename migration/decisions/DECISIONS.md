@@ -2736,3 +2736,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-AAC-03 | CSS 통합 시 **focus-ring 토큰(`--focus-ring-brand`/`--focus-ring-danger`) 채택** — Product 하드코딩 rgba 제거, AC-2 백포트 흡수. |
 
 **산출**: `AsyncAutocomplete/{tsx,module.css,index.ts}` 신규(제네릭 430) + Product/Partner wrapper 축소(87/93) + 구 css 2개 삭제 + barrel export. 순감 900→610. 공개 API 불변 → SlipFormPage·LineRow 0 변경. **dual(Claude 2-agent + Codex) P0/P1 0 수렴**(P2 tabular-nums fix). **CI 29/29 green** — item 3-A2 게이트가 ac-2/ac-3 회귀 통과로 동작 불변 실증. dev-report `docs/dev-reports/slice-item2-async-autocomplete.md`. 후속: Warehouse 변형 통합 평가, 단위 테스트 보강.
+
+---
+
+### D-SPD1. sp-d1 권한설정 재게이트 + 한글화 + 한국어 404 (2026-06-04, PR #386)
+
+**배경**: sp-d1 동적 RBAC 화면이 role-grid → account-select 재설계되며 구 스펙 obsolete → testIgnore 격리(3-A2-④ B/C 잔여 마지막 1건). 세션 중 개발책임자가 액션 한글화 + "권한 매트릭스"→"권한설정" + 한국어 404 추가 지시.
+
+| 결정 | 내용 |
+|---|---|
+| D-SPD1-01 | sp-d1 스펙 account-select 신 UI + in-process mock 정합 전면 재작성(page.route/waitForTimeout 0), testIgnore 정식 해제. T1~T6 strict(false-green 0). |
+| D-SPD1-02 | 액션 라벨 한글 = 보기/생성/수정/삭제/복원/**엑셀**(엑셀 내보내기)/**인쇄**(프린트 출력). 메뉴·페이지명 "권한설정". 라우트 `/admin/permission-matrix`·testid **불변**(내부 식별자, 회귀 방지). |
+| D-SPD1-03 | 미매칭 URL → 한국어 `NotFoundPage`(catch-all `*` 2곳: AppLayout/AdminLayout children 말미). `/admin/*` 미매칭은 AdminLayout MASTER 가드 선점(/forbidden) — 의도. |
+
+**산출**: 스펙 재작성 + `NotFoundPage.tsx` 신규 + catch-all 2곳 + `PermissionMatrixPage`/`AppLayout` 한글화. **dual 5-team(Claude 5-agent + Codex 5-섹션) 사이클 1~2 — 전 팀 APPROVE 수렴**(Claude fix: T4 fallback·T2 고정셀·T6 strict·waitForTimeout·JSDoc / Codex fix: T1 ≥700+대표5셀·T5 404strict / 사이클2: 한국어404·T2 element 증빙). sp-d1 6/6 green, 회귀(sidebar-disabled 5/5·permission-overhaul 4/4·sp-d4 20/20), tsc 0. dev-report `docs/dev-reports/slice-sp-d1-rbac-regate.md`. **후속(P2)**: mock id UUID화·mock PageCode 카탈로그 동기화·BulkPage 한글화 consistency. → **3-A2-④ B/C triage 완결.**
