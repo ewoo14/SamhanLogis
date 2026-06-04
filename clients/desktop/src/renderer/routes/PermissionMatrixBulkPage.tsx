@@ -30,13 +30,13 @@ const ROLE_LABEL: Record<RbacRole, string> = {
 }
 
 const ACTION_LABEL: Record<PermissionAction, string> = {
-  view: 'VIEW',
-  create: 'CREATE',
-  update: 'UPDATE',
-  delete: 'DELETE',
-  restore: 'RESTORE',
-  download: 'DOWNLOAD',
-  print: 'PRINT',
+  view: '보기',
+  create: '생성',
+  update: '수정',
+  delete: '삭제',
+  restore: '복원',
+  download: '엑셀',
+  print: '인쇄',
 }
 
 type WizardStep = 1 | 2 | 3 | 4
