@@ -1226,6 +1226,20 @@ export function AppLayout() {
               >
                 권한 일괄 적용
               </SidebarLink>
+              <SidebarLink
+                to="/admin/permission-groups/matrix"
+                show={showPermissionAdmin}
+                data-testid="sidebar-hr-permission-groups-matrix"
+              >
+                그룹 권한
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/permission-groups/manage"
+                show={showPermissionAdmin}
+                data-testid="sidebar-hr-permission-groups-manage"
+              >
+                권한그룹 관리
+              </SidebarLink>
             </>
           ) : null}
         </nav>

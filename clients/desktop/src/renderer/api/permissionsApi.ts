@@ -145,6 +145,7 @@ export type PageCode =
   | 'dispatch.sms-save-history'
   | 'dispatch.batch'
   | 'admin.permissions'
+  | 'admin.permission-groups'
   | 'system.permission-admin'
   | 'system.password-admin'
   | 'system.account-admin'

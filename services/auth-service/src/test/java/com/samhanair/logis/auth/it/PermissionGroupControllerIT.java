@@ -14,9 +14,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.AuthServiceApplication;
+import com.samhanair.logis.auth.service.EffectivePermissionMaterializer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,6 +73,9 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private EffectivePermissionMaterializer materializer;
+
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
 
@@ -87,6 +93,13 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                 ArgumentMatchers.eq("system.permission-admin"),
                 ArgumentMatchers.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanPermissionGroupTestRows();
+        cleanAccountRows();
+        materializer.materializeForAccount(SALES_ACCOUNT_ID);
     }
 
     @Test
@@ -197,8 +210,10 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "MASTER"))
                 .andReturn();
         assertThat(groups.getResponse().getStatus()).isEqualTo(200);
-        assertThat(groups.getResponse().getContentAsString()).contains("IT 권한그룹 매트릭스");
-        assertThat(groups.getResponse().getContentAsString()).contains("[DEV-SEED] 개발영업");
+        assertThat(groups.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("IT 권한그룹 매트릭스");
+        assertThat(groups.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("[DEV-SEED] 개발영업");
 
         overrideAccountPermission(SALES_ACCOUNT_ID, false, false);
         assertEffective(SALES_ACCOUNT_ID, PAGE, false, false);
@@ -222,10 +237,10 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"%s","description":"%s"}
-                                """.formatted(name, description)))
+                """.formatted(name, description)))
                 .andReturn();
         assertThat(created.getResponse().getStatus()).isEqualTo(201);
-        JsonNode root = objectMapper.readTree(created.getResponse().getContentAsString());
+        JsonNode root = objectMapper.readTree(created.getResponse().getContentAsString(StandardCharsets.UTF_8));
         UUID groupId = UUID.fromString(root.path("data").path("id").asText());
         assertThat(root.path("data").path("name").asText()).isEqualTo(name);
         return groupId;
@@ -241,7 +256,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                                 """.formatted(groupId)))
                 .andReturn();
         assertThat(assigned.getResponse().getStatus()).isEqualTo(200);
-        assertThat(assigned.getResponse().getContentAsString()).contains(groupId.toString());
+        assertThat(assigned.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains(groupId.toString());
     }
 
     private void updateGroupMatrix(UUID groupId, boolean view, boolean update) throws Exception {

@@ -5109,6 +5109,136 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // SP-D1 cycle 2 fix: BE 계약과 동일한 endpoint/응답 shape 사용.
   // ==========================================================================
 
+  // Permission Groups Phase A — stateful in-process mock.
+  if (method === 'GET' && (url.endsWith('/auth/admin/permission-groups') || url.endsWith('/admin/permission-groups'))) {
+    return envelope(_mockPermissionGroups.map(mockPermissionGroupSummary))
+  }
+
+  if (method === 'POST' && (url.endsWith('/auth/admin/permission-groups') || url.endsWith('/admin/permission-groups'))) {
+    const body = parseMockBody(config)
+    const name = String(body['name'] ?? '').trim()
+    if (!name) return mockError(400, 'INVALID_INPUT', '권한그룹 이름은 필수입니다.')
+    if (_mockPermissionGroups.some((group) => group.name === name)) {
+      return mockError(409, 'CONFLICT', '이미 사용 중인 권한그룹 이름입니다.')
+    }
+    const group: MockPermissionGroup = {
+      id: `mock-group-${Date.now()}`,
+      name,
+      description: typeof body['description'] === 'string' && body['description'].trim()
+        ? body['description'].trim()
+        : null,
+      builtin: false,
+      systemMaster: false,
+    }
+    _mockPermissionGroups.push(group)
+    _mockPermissionGroupMatrices[group.id] = Object.fromEntries(
+      SP_D1_PAGES.map((page) => [page, emptyMockActionMatrix()]),
+    ) as Record<string, MockActionMatrix>
+    return envelope(mockPermissionGroupSummary(group))
+  }
+
+  const groupCrudMatch = url.match(/\/(?:auth\/)?admin\/permission-groups\/([^/]+)$/)
+  if (groupCrudMatch && !url.includes('/permissions')) {
+    const groupId = decodeURIComponent(groupCrudMatch[1]!)
+    const group = _mockPermissionGroups.find((g) => g.id === groupId)
+    if (!group) return mockError(404, 'NOT_FOUND', '권한그룹을 찾을 수 없습니다.')
+
+    if (method === 'PUT') {
+      if (group.builtin || group.systemMaster) {
+        return mockError(409, 'CONFLICT', '시스템 권한그룹은 변경할 수 없습니다.')
+      }
+      const body = parseMockBody(config)
+      const name = String(body['name'] ?? '').trim()
+      if (!name) return mockError(400, 'INVALID_INPUT', '권한그룹 이름은 필수입니다.')
+      if (_mockPermissionGroups.some((g) => g.id !== group.id && g.name === name)) {
+        return mockError(409, 'CONFLICT', '이미 사용 중인 권한그룹 이름입니다.')
+      }
+      group.name = name
+      group.description = typeof body['description'] === 'string' && body['description'].trim()
+        ? body['description'].trim()
+        : null
+      return envelope(mockPermissionGroupSummary(group))
+    }
+
+    if (method === 'DELETE') {
+      if (group.builtin || group.systemMaster) {
+        return mockError(409, 'CONFLICT', '시스템 권한그룹은 삭제할 수 없습니다.')
+      }
+      const assignedCount = Object.values(_mockAccountGroups).filter((ids) => ids.includes(group.id)).length
+      if (assignedCount > 0) {
+        return mockError(409, 'CONFLICT', '배속 계정이 있는 권한그룹은 삭제할 수 없습니다.')
+      }
+      const index = _mockPermissionGroups.findIndex((g) => g.id === group.id)
+      if (index >= 0) _mockPermissionGroups.splice(index, 1)
+      delete _mockPermissionGroupMatrices[group.id]
+      return envelope({ deleted: true })
+    }
+  }
+
+  const groupMatrixMatch = url.match(/\/(?:auth\/)?admin\/permission-groups\/([^/]+)\/permissions$/)
+  if (groupMatrixMatch) {
+    const groupId = decodeURIComponent(groupMatrixMatch[1]!)
+    if (!_mockPermissionGroups.some((group) => group.id === groupId)) {
+      return mockError(404, 'NOT_FOUND', '권한그룹을 찾을 수 없습니다.')
+    }
+    if (method === 'GET') {
+      return envelope(_mockPermissionGroupMatrices[groupId] ?? {})
+    }
+    if (method === 'PUT') {
+      const body = parseMockBody(config) as { rows?: Array<Record<string, unknown>> }
+      const rows = Array.isArray(body.rows) ? body.rows : []
+      const matrix = _mockPermissionGroupMatrices[groupId] ?? {}
+      for (const row of rows) {
+        const pageCode = String(row['pageCode'] ?? '')
+        if (!pageCode) continue
+        const next = matrix[pageCode] ?? emptyMockActionMatrix()
+        next.view = Boolean(row['canView'])
+        next.create = Boolean(row['canCreate'])
+        next.update = Boolean(row['canUpdate'])
+        next.delete = Boolean(row['canDelete'])
+        next.restore = Boolean(row['canRestore'])
+        next.download = Boolean(row['canDownload'])
+        next.print = Boolean(row['canPrint'])
+        matrix[pageCode] = next
+      }
+      _mockPermissionGroupMatrices[groupId] = matrix
+      return envelope({ changedCount: rows.length })
+    }
+  }
+
+  const accountGroupsMatch = url.match(/\/(?:auth\/)?admin\/accounts\/([^/]+)\/groups(?:\/([^/]+))?$/)
+  if (accountGroupsMatch) {
+    const accountId = decodeURIComponent(accountGroupsMatch[1]!)
+    const pathGroupId = accountGroupsMatch[2] ? decodeURIComponent(accountGroupsMatch[2]) : null
+    const account = mockAccountById(accountId)
+    if (!account) return mockError(404, 'NOT_FOUND', '계정을 찾을 수 없습니다.')
+
+    if (method === 'GET' && !pathGroupId) {
+      const assigned = (_mockAccountGroups[accountId] ?? [])
+        .map((groupId) => _mockPermissionGroups.find((group) => group.id === groupId))
+        .filter((group): group is MockPermissionGroup => Boolean(group))
+        .map((group) => mockAccountGroupSummary(accountId, group))
+      return envelope(assigned)
+    }
+
+    if (method === 'POST' && !pathGroupId) {
+      const body = parseMockBody(config)
+      const groupId = String(body['groupId'] ?? '')
+      const group = _mockPermissionGroups.find((g) => g.id === groupId)
+      if (!group) return mockError(404, 'NOT_FOUND', '권한그룹을 찾을 수 없습니다.')
+      const current = _mockAccountGroups[accountId] ?? []
+      if (!current.includes(groupId)) current.push(groupId)
+      _mockAccountGroups[accountId] = current
+      return envelope(mockAccountGroupSummary(accountId, group))
+    }
+
+    if (method === 'DELETE' && pathGroupId) {
+      _mockAccountGroups[accountId] = (_mockAccountGroups[accountId] ?? [])
+        .filter((groupId) => groupId !== pathGroupId)
+      return envelope({ deleted: true })
+    }
+  }
+
   // GET /auth/admin/permissions — 전체 역할 × 페이지 매트릭스 (MASTER 전용)
   // BE 응답: Map<roleCode, Map<pageCode, PermissionDto>>
   if (method === 'GET' && (url.endsWith('/auth/admin/permissions') || url.endsWith('/admin/permissions'))) {
@@ -6780,6 +6910,7 @@ const SP_D1_PAGES = [
   'inbound.inspection',
   'dispatch.board',
   'admin.permissions',
+  'admin.permission-groups',
   // SP-D2 회계 7개 신규
   'accounting.accounts',
   'accounting.journals',
@@ -7062,3 +7193,130 @@ let _mockPermissionCells: Array<{
     })),
   ),
 ]
+
+type MockPermissionGroup = {
+  id: string
+  name: string
+  description: string | null
+  builtin: boolean
+  systemMaster: boolean
+}
+
+type MockActionMatrix = {
+  view: boolean
+  create: boolean
+  update: boolean
+  delete: boolean
+  restore: boolean
+  download: boolean
+  print: boolean
+}
+
+const emptyMockActionMatrix = (): MockActionMatrix => ({
+  view: false,
+  create: false,
+  update: false,
+  delete: false,
+  restore: false,
+  download: false,
+  print: false,
+})
+
+const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
+  const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  return {
+    view: cell?.view ?? false,
+    create: cell?.edit ?? false,
+    update: cell?.edit ?? false,
+    delete: cell?.edit ?? false,
+    restore: false,
+    download: cell?.view ?? false,
+    print: cell?.view ?? false,
+  }
+}
+
+const _mockPermissionGroups: MockPermissionGroup[] = [
+  {
+    id: 'mock-group-master',
+    name: '마스터',
+    description: '시스템 최고관리자 그룹',
+    builtin: true,
+    systemMaster: true,
+  },
+  {
+    id: 'mock-group-sales',
+    name: '영업팀',
+    description: '영업 운영 기본 그룹',
+    builtin: false,
+    systemMaster: false,
+  },
+  {
+    id: 'mock-group-dispatch',
+    name: '배차팀',
+    description: '아로로지스 배차 담당 그룹',
+    builtin: false,
+    systemMaster: false,
+  },
+  {
+    id: 'mock-group-accounting',
+    name: '회계팀',
+    description: '회계 처리 담당 그룹',
+    builtin: false,
+    systemMaster: false,
+  },
+]
+
+const _mockPermissionGroupMatrices: Record<string, Record<string, MockActionMatrix>> = {
+  'mock-group-master': {},
+  'mock-group-sales': Object.fromEntries(
+    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES', page)]),
+  ) as Record<string, MockActionMatrix>,
+  'mock-group-dispatch': Object.fromEntries(
+    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH', page)]),
+  ) as Record<string, MockActionMatrix>,
+  'mock-group-accounting': Object.fromEntries(
+    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)]),
+  ) as Record<string, MockActionMatrix>,
+}
+
+const _mockAccountGroups: Record<string, string[]> = {
+  'mock-account-manager': ['mock-group-sales', 'mock-group-accounting'],
+  'mock-account-sales': ['mock-group-sales'],
+  'mock-account-dispatch': ['mock-group-dispatch'],
+}
+
+function mockPermissionGroupSummary(group: MockPermissionGroup) {
+  const assignedAccountCount = Object.values(_mockAccountGroups)
+    .filter((groupIds) => groupIds.includes(group.id)).length
+  return {
+    id: group.id,
+    name: group.name,
+    description: group.description,
+    builtin: group.builtin,
+    systemMaster: group.systemMaster,
+    isBuiltin: group.builtin,
+    isSystemMaster: group.systemMaster,
+    assignedAccountCount,
+  }
+}
+
+function mockAccountById(accountId: string) {
+  return [
+    { id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER', enabled: true },
+    { id: 'mock-account-sales', displayName: '이영업', role: 'SALES', enabled: true },
+    { id: 'mock-account-dispatch', displayName: '박배차', role: 'DISPATCH', enabled: true },
+  ].find((account) => account.id === accountId)
+}
+
+function mockAccountGroupSummary(accountId: string, group: MockPermissionGroup) {
+  const account = mockAccountById(accountId)
+  return {
+    accountId,
+    accountDisplayName: account?.displayName ?? '알 수 없음',
+    groupId: group.id,
+    groupName: group.name,
+    groupDescription: group.description,
+    groupBuiltin: group.builtin,
+    groupSystemMaster: group.systemMaster,
+  }
+}

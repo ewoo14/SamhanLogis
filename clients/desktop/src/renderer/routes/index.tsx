@@ -317,6 +317,8 @@ const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 // [SP-D1] 동적 RBAC 권한설정 화면 — MASTER 전용.
 import { PermissionMatrixPage } from './PermissionMatrixPage'
 import { PermissionMatrixBulkPage } from './PermissionMatrixBulkPage'
+import { PermissionGroupMatrixPage } from './PermissionGroupMatrixPage'
+import { PermissionGroupManagePage } from './PermissionGroupManagePage'
 const PERMISSION_MATRIX_ROLES = ['MASTER'] as const
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
 import { PermissionGuard } from '../components/PermissionGuard'
@@ -1510,6 +1512,26 @@ const router = createHashRouter([
           <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
             <PermissionGuard pageCode="system.permission-admin" action="view">
               <PermissionMatrixBulkPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/admin/permission-groups/matrix',
+        element: (
+          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
+            <PermissionGuard pageCode="system.permission-admin" action="view">
+              <PermissionGroupMatrixPage />
+            </PermissionGuard>
+          </RoleGuard>
+        ),
+      },
+      {
+        path: '/admin/permission-groups/manage',
+        element: (
+          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
+            <PermissionGuard pageCode="admin.permission-groups" action="view">
+              <PermissionGroupManagePage />
             </PermissionGuard>
           </RoleGuard>
         ),

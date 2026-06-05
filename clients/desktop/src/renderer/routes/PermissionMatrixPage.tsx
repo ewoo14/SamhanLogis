@@ -244,6 +244,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     label: '관리',
     pages: [
       'admin.permissions',
+      'admin.permission-groups',
       'dc-config.import',
       'dashboard.admin',
     ],
@@ -430,6 +431,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'dispatch.sms-save-history': '배차문자 저장',
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',
+  'admin.permission-groups': '권한그룹',
   'system.permission-admin': '시스템 권한',
   'system.password-admin': '비밀번호 관리',
   'system.account-admin': '계정 관리',
