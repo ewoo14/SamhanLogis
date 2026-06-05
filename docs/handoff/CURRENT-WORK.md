@@ -14,9 +14,9 @@ MASTER 가 관리권한(권한설정/권한그룹/**인사 역할관리**)을 �
 - **FE**: 권한 위임 화면(RoleGuard MASTER), 운영화면 RoleGuard→**PermissionGuard(system.permission-admin)** 전환(위임자 실사용 가능).
 - dual+CI+실QA 적발·수정: 봉쇄 우회 4경로 / 위임자 운영화면 차단 / sp-d1 T6 stale / **실QA revoke soft-delete 버그** / IT assertEffective 무행=deny. spec/dev-report/QA 동일자.
 
-### 📋 Phase C(고정역할 완전제거) — spec 준비, **미착수**(최고위험 다중슬라이스)
+### 📋 Phase C(고정역할 완전제거) — **C1 머지 완료**, C2~C5 미착수(최고위험 다중슬라이스)
 `docs/superpowers/specs/2026-06-05-permission-groups-phase-c-fixed-role-removal-design.md`. enum/accounts.role/X-User-Role/isMasterBypass/잔여 hasRole = 전 14서비스+인증+DB → 원자적 불가. 슬라이스(위험순):
-- **C1**(저위험) 잔여 비-INTERNAL hasRole→@RequirePermission(dc-config/slip SlipSalesQuery/arologis 등, 서비스별 page-code+seed). umbrella "@RequirePermission 미병행 서비스" 흡수.
+- **✅ C1 머지(#400 `f713b774`)**: 비-INTERNAL 잔여 hasRole = 실질 **dc-config 1건뿐**(나머지 hasRole=INTERNAL 서비스간토큰 패턴 유지 / InspectionAttachment delete=의도적 widening 가드 유지 / slip SlipSalesQuery=/internal/ INTERNAL). DcConfigImportController `@hr.isExecutiveOffice() and hasRole('MASTER')` → `@RequireDepartment(EXECUTIVE_OFFICE)`+`@RequirePermission(dc-config.import)`. behavior-preserving(seed MASTER-only 실측). DepartmentAspect opt-in dc-config 한정. dual P1(fallback edge)→D-PAM-05 정책 박제+IT. **C1 사실상 완료**(추가 비-INTERNAL hasRole 없음).
 - **C2** FE RoleGuard→PermissionGuard(화면별).
 - **C3**(중) 역할부여 UX→그룹배속 일원화(EmployeeController.updateRole, role_snapshot).
 - **C4**(고) isMasterBypass 키 role=="MASTER"→is_system_master 그룹/전용 클레임. 전 서비스 영향.
